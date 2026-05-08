@@ -18,6 +18,12 @@ SUPPORTED_MARKDOWN_EXTENSIONS = frozenset({".md", ".markdown"})
 MAX_MARKDOWN_PDF_ATTACHMENTS = 10
 PDF_ENGINES = ("wkhtmltopdf", "xelatex", "pdflatex")
 DEFAULT_PANDOC_TIMEOUT_SECONDS = 120
+_PDF_PAGE_WIDTH = "4.25in"
+_PDF_PAGE_HEIGHT = "7in"
+_PDF_MARGIN = "0.22in"
+_PDF_BODY_FONT_SIZE = "12pt"
+_PDF_LINE_STRETCH = "1.32"
+_DEFAULT_CSS_FILENAME = "markdown_pdf.css"
 
 
 @dataclass(frozen=True)
@@ -105,7 +111,11 @@ def render_markdown_pdf(
         return None
 
     dest.parent.mkdir(parents=True, exist_ok=True)
-    css = Path(css_path).expanduser() if css_path is not None else None
+    css = (
+        Path(css_path).expanduser()
+        if css_path is not None
+        else _default_markdown_pdf_css_path()
+    )
 
     last_error: BaseException | None = None
     for engine in engines:
@@ -162,10 +172,35 @@ def _pandoc_cmd(
     if engine == "wkhtmltopdf":
         if css_path is not None and css_path.is_file():
             cmd.append(f"--css={css_path}")
+        cmd += [
+            "--pdf-engine-opt=--page-width",
+            f"--pdf-engine-opt={_PDF_PAGE_WIDTH}",
+            "--pdf-engine-opt=--page-height",
+            f"--pdf-engine-opt={_PDF_PAGE_HEIGHT}",
+            "--pdf-engine-opt=--margin-top",
+            f"--pdf-engine-opt={_PDF_MARGIN}",
+            "--pdf-engine-opt=--margin-right",
+            f"--pdf-engine-opt={_PDF_MARGIN}",
+            "--pdf-engine-opt=--margin-bottom",
+            f"--pdf-engine-opt={_PDF_MARGIN}",
+            "--pdf-engine-opt=--margin-left",
+            f"--pdf-engine-opt={_PDF_MARGIN}",
+        ]
         cmd += ["--metadata", f"title={source.stem}"]
     else:
-        cmd += ["-V", "geometry:margin=1in"]
+        cmd += [
+            "-V",
+            f"geometry:paperwidth={_PDF_PAGE_WIDTH},paperheight={_PDF_PAGE_HEIGHT},margin={_PDF_MARGIN}",
+            "-V",
+            f"fontsize={_PDF_BODY_FONT_SIZE}",
+            "-V",
+            f"linestretch={_PDF_LINE_STRETCH}",
+        ]
     return cmd
+
+
+def _default_markdown_pdf_css_path() -> Path:
+    return Path(__file__).with_name(_DEFAULT_CSS_FILENAME)
 
 
 def _temporary_pdf_path(dest: Path) -> Path:

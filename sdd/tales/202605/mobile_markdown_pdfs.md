@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 12:12:19
-status: wip
+status: done
 prompt: sdd/prompts/202605/mobile_markdown_pdfs.md
 ---
 # Plan: Small-Screen Markdown PDF Defaults

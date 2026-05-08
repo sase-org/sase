@@ -54,6 +54,11 @@ are omitted. Successful PDF paths are persisted as `markdown_pdf_paths` in `done
 `done.json.markdown_pdf_paths` is empty and the source count is carried through completion handling for the user-facing
 skip note.
 
+Markdown PDFs use a built-in small-screen layout by default: a narrow portrait page, small margins, larger readable body
+text, and wrapping-friendly CSS for code blocks, tables, links, and other long content. The preferred `wkhtmltopdf` path
+receives both the default stylesheet and explicit page/margin options; LaTeX fallbacks receive the same page size,
+margin, font size, and line-height defaults through Pandoc variables.
+
 Completion notifications attach generated Markdown PDFs after the saved chat and diff files, before image attachments.
 The Agents tab file panel also loads `markdown_pdf_paths` alongside plan and image files for completed agents.
 

@@ -230,7 +230,8 @@ The scan uses git name-status output, untracked files, saved diff metadata, and 
 committed or opened a PR. Deleted, missing, unsupported, and duplicate paths are ignored. If more than 10 Markdown
 sources remain, Axe skips Markdown PDF rendering for that completion and adds a note to the notification. PDF rendering
 is otherwise best-effort: missing conversion tools or render failures omit that source without failing the agent run.
-See [`agent_images.md`](agent_images.md) for the full contract.
+Generated Markdown PDFs are optimized for narrow viewers with a small portrait page, small margins, and larger type. See
+[`agent_images.md`](agent_images.md) for the full contract.
 
 The Agents tab exposes completion artifacts through the `A` action. A done agent with one artifact opens it directly;
 multiple artifacts open a picker. Chat transcripts, plan files, generated PDFs/images, and explicit artifacts created

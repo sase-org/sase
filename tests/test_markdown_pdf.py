@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
+from sase.attachments import markdown_pdf
 from sase.attachments.markdown_pdf import (
     render_markdown_pdf,
     render_markdown_pdf_attachments,
@@ -41,9 +42,83 @@ def test_render_markdown_pdf_uses_first_available_engine(tmp_path):
     assert cmd[4:] == [
         "--pdf-engine=wkhtmltopdf",
         "--highlight-style=tango",
+        f"--css={Path(markdown_pdf.__file__).with_name('markdown_pdf.css')}",
+        "--pdf-engine-opt=--page-width",
+        "--pdf-engine-opt=4.25in",
+        "--pdf-engine-opt=--page-height",
+        "--pdf-engine-opt=7in",
+        "--pdf-engine-opt=--margin-top",
+        "--pdf-engine-opt=0.22in",
+        "--pdf-engine-opt=--margin-right",
+        "--pdf-engine-opt=0.22in",
+        "--pdf-engine-opt=--margin-bottom",
+        "--pdf-engine-opt=0.22in",
+        "--pdf-engine-opt=--margin-left",
+        "--pdf-engine-opt=0.22in",
         "--metadata",
         "title=notes",
     ]
+
+
+def test_render_markdown_pdf_uses_default_css_when_unspecified(tmp_path):
+    source = tmp_path / "notes.md"
+    source.write_text("# Notes\n")
+    dest = tmp_path / "notes.pdf"
+
+    def fake_which(name: str) -> str | None:
+        return {
+            "pandoc": "/usr/bin/pandoc",
+            "wkhtmltopdf": "/usr/bin/wkhtmltopdf",
+        }.get(name)
+
+    def fake_run(cmd, **kwargs):
+        Path(cmd[3]).write_bytes(b"%PDF")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    with (
+        patch("sase.attachments.markdown_pdf.shutil.which", side_effect=fake_which),
+        patch(
+            "sase.attachments.markdown_pdf.subprocess.run", side_effect=fake_run
+        ) as run,
+    ):
+        result = render_markdown_pdf(source, dest)
+
+    assert result == dest
+    cmd = run.call_args.args[0]
+    assert f"--css={Path(markdown_pdf.__file__).with_name('markdown_pdf.css')}" in cmd
+
+
+def test_render_markdown_pdf_explicit_css_overrides_default(tmp_path):
+    source = tmp_path / "notes.md"
+    source.write_text("# Notes\n")
+    dest = tmp_path / "notes.pdf"
+    css = tmp_path / "custom.css"
+    css.write_text("body { color: black; }\n")
+
+    def fake_which(name: str) -> str | None:
+        return {
+            "pandoc": "/usr/bin/pandoc",
+            "wkhtmltopdf": "/usr/bin/wkhtmltopdf",
+        }.get(name)
+
+    def fake_run(cmd, **kwargs):
+        Path(cmd[3]).write_bytes(b"%PDF")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    with (
+        patch("sase.attachments.markdown_pdf.shutil.which", side_effect=fake_which),
+        patch(
+            "sase.attachments.markdown_pdf.subprocess.run", side_effect=fake_run
+        ) as run,
+    ):
+        result = render_markdown_pdf(source, dest, css_path=css)
+
+    assert result == dest
+    cmd = run.call_args.args[0]
+    assert f"--css={css}" in cmd
+    assert (
+        f"--css={Path(markdown_pdf.__file__).with_name('markdown_pdf.css')}" not in cmd
+    )
 
 
 def test_render_markdown_pdf_falls_back_to_latex_engine(tmp_path):
@@ -51,6 +126,7 @@ def test_render_markdown_pdf_falls_back_to_latex_engine(tmp_path):
     source.write_text("# Notes\n")
     dest = tmp_path / "notes.pdf"
     seen_engines: list[str] = []
+    seen_cmds: list[list[str]] = []
 
     def fake_which(name: str) -> str | None:
         return {
@@ -60,6 +136,7 @@ def test_render_markdown_pdf_falls_back_to_latex_engine(tmp_path):
         }.get(name)
 
     def fake_run(cmd, **kwargs):
+        seen_cmds.append(cmd)
         engine = next(arg for arg in cmd if arg.startswith("--pdf-engine="))
         seen_engines.append(engine)
         if engine == "--pdf-engine=wkhtmltopdf":
@@ -77,6 +154,11 @@ def test_render_markdown_pdf_falls_back_to_latex_engine(tmp_path):
     assert result == dest
     assert dest.read_bytes() == b"%PDF"
     assert seen_engines == ["--pdf-engine=wkhtmltopdf", "--pdf-engine=xelatex"]
+    latex_cmd = seen_cmds[-1]
+    assert "-V" in latex_cmd
+    assert "geometry:paperwidth=4.25in,paperheight=7in,margin=0.22in" in latex_cmd
+    assert "fontsize=12pt" in latex_cmd
+    assert "linestretch=1.32" in latex_cmd
 
 
 def test_render_markdown_pdf_returns_none_when_pandoc_missing(tmp_path):
