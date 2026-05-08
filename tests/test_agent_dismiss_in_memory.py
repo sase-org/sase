@@ -43,6 +43,7 @@ class FakeDismissApp(AgentDismissingMixin):
         self._agents: list[Agent] = []
         self._dismissed_agents: set[tuple[AgentType, str, str | None]] = set()
         self._dismissed_agent_objects: list[Agent] = []
+        self._revived_agent_raw_suffixes: set[str] = set()
         self._agents_with_children: list[Agent] = []
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
         self._agent_pre_question_status: dict[
@@ -171,6 +172,18 @@ def test_apply_dismissal_batch_removes_all() -> None:
         a1.identity,
         a2.identity,
     }
+
+
+def test_apply_dismissal_clears_revived_visibility_pin() -> None:
+    """Dismissing a revived agent stops preserving it across Tier 1 loads."""
+    app = FakeDismissApp()
+    target = _make_agent(raw_suffix="20240101120000")
+    app._agents_with_children = [target]
+    app._revived_agent_raw_suffixes = {"20240101120000", "20240101130000"}
+
+    app._apply_dismissal_in_memory([target])
+
+    assert app._revived_agent_raw_suffixes == {"20240101130000"}
 
 
 def test_dismiss_done_agent_is_optimistic_and_schedules_once(tmp_path) -> None:  # type: ignore[no-untyped-def]

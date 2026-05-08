@@ -58,6 +58,7 @@ class FakeLoadingApp(AgentLoadingMixin):
         self._hideable_agents: list[Agent] = []
         self._dismissed_agents: set[tuple[AgentType, str, str | None]] = set()
         self._dismissed_agent_objects: list[Agent] = []
+        self._revived_agent_raw_suffixes: set[str] = set()
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
         self._agent_pre_question_status: dict[
             tuple[AgentType, str, str | None], str | None
@@ -208,6 +209,56 @@ def test_apply_loaded_agents_repairs_dismissed_index_from_bundle() -> None:
 
     assert bundled.identity in app._dismissed_agents
     mock_save.assert_called_once_with(app._dismissed_agents)
+
+
+def test_incomplete_load_preserves_visible_revived_agent() -> None:
+    """Tier 1 source scans should not drop same-session revived history."""
+    app = FakeLoadingApp()
+    revived = _make_agent(cl_name="old", raw_suffix="20240102120000")
+    current = _make_agent(cl_name="new", raw_suffix="20260202120000")
+    app._agents_with_children = [revived]
+    app._agents = [revived]
+    app._revived_agent_raw_suffixes = {"20240102120000"}
+    incomplete_state = AgentLoadState(
+        tier="tier1",
+        complete_history=False,
+        artifact_source="source_scan",
+        used_artifact_index=False,
+    )
+
+    app._apply_loaded_agents(
+        [current],
+        [],
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=incomplete_state,
+    )
+
+    assert [a.raw_suffix for a in app._agents] == [
+        "20260202120000",
+        "20240102120000",
+    ]
+    assert app._revived_agent_raw_suffixes == {"20240102120000"}
+
+
+def test_complete_load_clears_revived_agent_preservation() -> None:
+    """Once Tier 2 sees the revived row, future loads no longer pin it."""
+    app = FakeLoadingApp()
+    revived = _make_agent(cl_name="old", raw_suffix="20240102120000")
+    app._agents_with_children = [revived]
+    app._agents = [revived]
+    app._revived_agent_raw_suffixes = {"20240102120000"}
+
+    app._apply_loaded_agents(
+        [revived],
+        [],
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=_SOURCE_SCAN_STATE,
+    )
+
+    assert app._agents == [revived]
+    assert app._revived_agent_raw_suffixes == set()
 
 
 if __name__ == "__main__":

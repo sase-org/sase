@@ -18,10 +18,21 @@ class AgentDismissMemoryMixin:
     _agents: list[Agent]
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _dismissed_agent_objects: list[Agent]
+    _revived_agent_raw_suffixes: set[str]
     _agents_with_children: list[Agent]
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
     current_tab: str
+
+    def _clear_revived_agent_suffixes(self, agents: Iterable[Agent]) -> None:
+        """Stop preserving revived rows once they are dismissed again."""
+        revived_suffixes = getattr(self, "_revived_agent_raw_suffixes", None)
+        if not revived_suffixes:
+            return
+        dismissed_suffixes = {
+            agent.raw_suffix for agent in agents if agent.raw_suffix is not None
+        }
+        revived_suffixes.difference_update(dismissed_suffixes)
 
     def _apply_dismissal_in_memory(self, agents: Iterable[Agent]) -> None:
         """Update in-memory agent state after a dismiss without a disk reload.
@@ -67,6 +78,8 @@ class AgentDismissMemoryMixin:
                     ):
                         removed.append(step)
                         removed_identities.add(step.identity)
+
+        self._clear_revived_agent_suffixes(removed)
 
         # Try the incremental row-removal fast path before mutating
         # ``_agents`` / ``_agents_with_children`` so panel widgets can
@@ -143,6 +156,9 @@ class AgentDismissMemoryMixin:
         from ....dismissed_agents import save_dismissed_agents
 
         self._dismissed_agents.add(identity)
+        revived_suffixes = getattr(self, "_revived_agent_raw_suffixes", None)
+        if revived_suffixes and identity[2] is not None:
+            revived_suffixes.discard(identity[2])
         save_dismissed_agents(self._dismissed_agents)
 
     def _collect_dismissal_identities(self, agents: list[Agent]) -> set[AgentIdentity]:

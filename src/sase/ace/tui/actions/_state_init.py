@@ -326,6 +326,7 @@ class StateInitMixin:
         ] = {}
         self._dismissed_agents = load_dismissed_agents()
         self._dismissed_agent_objects: list[Agent] = []
+        self._revived_agent_raw_suffixes: set[str] = set()
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
 
         # Agent status override system (for PLANNING/PLAN APPROVED/QUESTION statuses)

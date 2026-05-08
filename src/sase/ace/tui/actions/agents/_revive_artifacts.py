@@ -303,23 +303,27 @@ class ArtifactRestorationMixin:
         return data
 
     @staticmethod
-    def _restore_agent_meta(agent: Agent, artifacts_dir: Path) -> None:
-        """Write agent_meta.json if missing and agent has metadata."""
-        meta_path = artifacts_dir / "agent_meta.json"
-        if meta_path.exists():
-            return
-
+    def _build_agent_meta_data(agent: Agent) -> dict[str, Any]:
+        """Build loader-visible agent_meta.json fields from an Agent."""
         data: dict[str, Any] = {}
+        if agent.pid is not None:
+            data["pid"] = agent.pid
         if agent.model:
             data["model"] = agent.model
         if agent.llm_provider:
             data["llm_provider"] = agent.llm_provider
         if agent.vcs_provider:
             data["vcs_provider"] = agent.vcs_provider
+        if agent.workspace_dir:
+            data["workspace_dir"] = agent.workspace_dir
         if agent.agent_name:
             data["name"] = agent.agent_name
         if agent.waiting_for:
             data["wait_for"] = agent.waiting_for
+        if agent.wait_duration is not None:
+            data["wait_duration"] = agent.wait_duration
+        if agent.wait_until:
+            data["wait_until"] = agent.wait_until
         if agent.auto_approve_plan_action:
             data["auto_approve_plan_action"] = agent.auto_approve_plan_action
         elif agent.approve:
@@ -334,6 +338,21 @@ class ArtifactRestorationMixin:
             data["workspace_num"] = agent.workspace_num
         if agent.response_path:
             data["chat_path"] = agent.response_path
+        if agent.extra_files:
+            data["plan_path"] = agent.extra_files[0]
+
+        if agent.retry_of_timestamp:
+            data["retry_of_timestamp"] = agent.retry_of_timestamp
+        if agent.retry_attempt:
+            data["retry_attempt"] = agent.retry_attempt
+        if agent.retry_chain_root_timestamp:
+            data["retry_chain_root_timestamp"] = agent.retry_chain_root_timestamp
+        if agent.retried_as_timestamp:
+            data["retried_as_timestamp"] = agent.retried_as_timestamp
+        if agent.retry_terminal:
+            data["retry_terminal"] = True
+        if agent.retry_error_category:
+            data["retry_error_category"] = agent.retry_error_category
 
         if agent.run_start_time is not None:
             data["run_started_at"] = agent.run_start_time.isoformat()
@@ -387,5 +406,24 @@ class ArtifactRestorationMixin:
             elif agent.status == "LEGEND APPROVED":
                 data["plan_action"] = "legend"
 
+        return data
+
+    @staticmethod
+    def _restore_agent_meta(agent: Agent, artifacts_dir: Path) -> None:
+        """Merge loader-visible fields into agent_meta.json."""
+        meta_path = artifacts_dir / "agent_meta.json"
+        existing: dict[str, Any] = {}
+        if meta_path.exists():
+            try:
+                loaded = json.loads(meta_path.read_text())
+            except (json.JSONDecodeError, OSError):
+                loaded = {}
+            if isinstance(loaded, dict):
+                existing = loaded
+
+        data = ArtifactRestorationMixin._build_agent_meta_data(agent)
         if data:
-            meta_path.write_text(json.dumps(data))
+            merged = dict(existing)
+            merged.update(data)
+            if merged != existing:
+                meta_path.write_text(json.dumps(merged))

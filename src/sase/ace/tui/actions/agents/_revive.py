@@ -119,6 +119,7 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
     current_tab: str
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _dismissed_agent_objects: list[Agent]
+    _revived_agent_raw_suffixes: set[str]
 
     def _remove_dismissed_aliases_for_suffixes(self, suffixes: set[str]) -> None:
         """Remove dismissed identities whose raw_suffix matches revived suffixes.
@@ -134,6 +135,16 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             for identity in self._dismissed_agents
             if identity[2] is None or identity[2] not in suffixes
         }
+
+    def _record_revived_agent_suffixes(self, suffixes: set[str]) -> None:
+        """Remember revived suffixes across incomplete Tier 1 refreshes."""
+        if not suffixes:
+            return
+        revived_suffixes = getattr(self, "_revived_agent_raw_suffixes", None)
+        if revived_suffixes is None:
+            revived_suffixes = set()
+            self._revived_agent_raw_suffixes = revived_suffixes
+        revived_suffixes.update(suffixes)
 
     def action_start_rewind(self) -> None:
         """Dispatch R key: revive on Agents tab, rewind on ChangeSpecs tab."""
@@ -341,6 +352,7 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
 
         # Clean up the bundle now that artifacts are restored
         remove_bundle_by_identity(agent.identity, child_raw_suffixes=child_raw_suffixes)
+        self._record_revived_agent_suffixes(revived_suffixes)
 
         self.notify(f"Revived agent for {agent.cl_name}")  # type: ignore[attr-defined]
         for original, allocated in unavailable:
@@ -424,6 +436,7 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             )
 
         _apply_revive_reference_rewrites(self, name_map)
+        self._record_revived_agent_suffixes(revived_suffixes)
 
         # Phase 4: Single notification and refresh
         count = len(valid_agents)

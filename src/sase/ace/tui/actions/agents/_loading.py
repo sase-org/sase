@@ -37,6 +37,7 @@ from ._loading_finalize import finalize_agent_list, get_or_parse_agent_query
 from ._loading_helpers import (
     DISMISSABLE_STATUSES,
     TabName,
+    is_always_visible,
     load_agents_from_disk_with_state,
 )
 
@@ -91,6 +92,7 @@ class AgentLoadingMixin:
     # Agent completion tracking for notifications
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _dismissed_agent_objects: list[Agent]
+    _revived_agent_raw_suffixes: set[str]
     _unread_completed_agent_ids: set[tuple[AgentType, str, str | None]]
     _agent_display_status_by_identity: dict[tuple[AgentType, str, str | None], str]
 
@@ -302,6 +304,63 @@ class AgentLoadingMixin:
             or bool(prep.auto_dismissed_identities),
         )
 
+    def _preserve_revived_agents_for_incomplete_load(
+        self,
+        prep: _PreparedApplyData,
+        load_state: AgentLoadState | None,
+    ) -> None:
+        """Keep revived historical agents visible until Tier 2 reconciles."""
+        revived_suffixes = getattr(self, "_revived_agent_raw_suffixes", None)
+        if not revived_suffixes:
+            return
+
+        loaded_suffixes = {
+            agent.raw_suffix
+            for agent in prep.filtered_agents
+            if agent.raw_suffix is not None
+        }
+        if load_state is not None and load_state.complete_history:
+            revived_suffixes.difference_update(loaded_suffixes)
+            return
+        if load_state is None or load_state.complete_history:
+            return
+
+        missing_suffixes = revived_suffixes - loaded_suffixes
+        if not missing_suffixes:
+            return
+
+        dismissed_suffixes = {
+            raw_suffix
+            for _, _, raw_suffix in self._dismissed_agents
+            if raw_suffix is not None
+        }
+        missing_suffixes -= dismissed_suffixes
+        if not missing_suffixes:
+            return
+
+        existing_identities = {agent.identity for agent in prep.filtered_agents}
+        preserved: list[Agent] = []
+        for agent in self._agents_with_children:
+            if agent.raw_suffix not in missing_suffixes:
+                continue
+            if agent.identity in existing_identities:
+                continue
+            if agent.identity in self._dismissed_agents:
+                continue
+            preserved.append(agent)
+            existing_identities.add(agent.identity)
+
+        if not preserved:
+            return
+
+        prep.filtered_agents = [*prep.filtered_agents, *preserved]
+        prep.has_always_visible = any(
+            is_always_visible(a) for a in prep.filtered_agents
+        )
+        prep.hideable_agents = [
+            agent for agent in prep.filtered_agents if not is_always_visible(agent)
+        ]
+
     def _apply_loaded_agents_prepared(
         self,
         prep: _PreparedApplyData,
@@ -351,6 +410,8 @@ class AgentLoadingMixin:
             from ....dismissed_agents import save_dismissed_agents
 
             save_dismissed_agents(self._dismissed_agents)
+
+        self._preserve_revived_agents_for_incomplete_load(prep, load_state)
 
         self._agent_load_state = load_state
         if (

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 13:14:28
-status: wip
+status: done
 prompt: sdd/prompts/202605/revived_agent_visibility_resume.md
 ---
 # Plan: Stabilize Revived Agent Visibility and Resume Lookup

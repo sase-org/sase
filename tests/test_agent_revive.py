@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
+from sase.agent.names import find_named_agent
 from sase.ace.tui.actions.agents._revive import AgentRevivalMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 
@@ -37,6 +39,7 @@ class FakeReviveApp(AgentRevivalMixin):
         self.current_idx = 0
         self._dismissed_agents: set[tuple[AgentType, str, str | None]] = set()
         self._dismissed_agent_objects: list[Agent] = []
+        self._revived_agent_raw_suffixes: set[str] = set()
         self._agents: list[Agent] = []
         self._agents_with_children: list[Agent] = []
         self.notifications: list[tuple[str, str]] = []
@@ -61,6 +64,12 @@ class FakeReviveApp(AgentRevivalMixin):
         parent_artifacts_dir: str | None = None,
     ) -> None:
         self.restored.append((agent.identity, parent_artifacts_dir))
+
+
+class RealArtifactReviveApp(FakeReviveApp):
+    """Revive fake that uses the real artifact restoration helpers."""
+
+    _restore_agent_artifacts = AgentRevivalMixin._restore_agent_artifacts
 
 
 def test_do_revive_agent_removes_suffix_aliases() -> None:
@@ -254,6 +263,75 @@ def test_restore_agent_meta_writes_loader_relevant_fields(tmp_path: Path) -> Non
     assert data["plan"] is True
     assert data["plan_approved"] is True
     assert data["plan_action"] == "commit"
+
+
+def test_restore_agent_meta_merges_existing_metadata(tmp_path: Path) -> None:
+    agent = _make_agent(
+        agent_type=AgentType.RUNNING,
+        raw_suffix="20260504224829",
+        agent_name="abb_3",
+        model="claude-sonnet",
+        workspace_dir="/tmp/workspace",
+    )
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"legacy_field": "preserve", "model": "old-model"})
+    )
+
+    AgentRevivalMixin._restore_agent_meta(agent, tmp_path)
+    data = json.loads((tmp_path / "agent_meta.json").read_text())
+
+    assert data["legacy_field"] == "preserve"
+    assert data["model"] == "claude-sonnet"
+    assert data["name"] == "abb_3"
+    assert data["workspace_dir"] == "/tmp/workspace"
+
+
+def test_revive_existing_meta_without_name_restores_resume_lookup(
+    tmp_path: Path,
+) -> None:
+    project_file = tmp_path / ".sase" / "projects" / "proj" / "proj.gp"
+    project_file.parent.mkdir(parents=True)
+    project_file.write_text("")
+    artifact_dir = (
+        tmp_path
+        / ".sase"
+        / "projects"
+        / "proj"
+        / "artifacts"
+        / "ace-run"
+        / "20260504224829"
+    )
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "agent_meta.json").write_text(json.dumps({"model": "old-model"}))
+
+    app = RealArtifactReviveApp()
+    agent = _make_agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="feature_a",
+        project_file=str(project_file),
+        raw_suffix="20260504224829",
+        agent_name="260504.abb_3",
+        workflow="ace-run",
+        artifacts_dir=str(artifact_dir),
+    )
+    app._dismissed_agent_objects = [agent]
+    app._dismissed_agents = {agent.identity}
+
+    with (
+        _patch_home(tmp_path),
+        patch.dict(os.environ, {"HOME": str(tmp_path)}),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_bundle_by_identity"),
+    ):
+        app._do_revive_agent(agent)
+        resolved = find_named_agent("abb_3")
+
+    data = json.loads((artifact_dir / "agent_meta.json").read_text())
+    assert data["model"] == "old-model"
+    assert data["name"] == "abb_3"
+    assert resolved is not None
+    assert resolved.is_done
+    assert resolved.artifacts_dir == str(artifact_dir)
 
 
 # ---------------------------------------------------------------------------
