@@ -302,8 +302,11 @@ def test_cached_format_agent_option_invalidates_on_unread_change() -> None:
         cache, a, 0, is_selected=False, is_unread=True, now=None
     )
     assert parts_before[0] is not parts_after[0]
+    assert parts_before[1] is not parts_after[1]
     assert "✦" not in parts_before[0].plain
-    assert "✦" in parts_after[0].plain
+    assert "✦" not in parts_after[0].plain
+    assert parts_before[1].plain == ""
+    assert parts_after[1].plain == "🎉"
 
 
 def test_invalidate_agent_drops_only_that_identity() -> None:
@@ -417,5 +420,7 @@ async def test_patch_agent_row_reflects_unread_change() -> None:
         await pilot.pause()
         assert ok
         prompt_read = widget.get_option_at_index(row).prompt
-        assert "✦" in str(prompt_unread)
+        assert "✦" not in str(prompt_unread)
+        assert "🎉" in str(prompt_unread)
         assert "✦" not in str(prompt_read)
+        assert "🎉" not in str(prompt_read)

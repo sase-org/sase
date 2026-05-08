@@ -37,6 +37,10 @@ _RUNTIME_ELAPSED_STYLE = "bold #BCBCBC"
 # without competing with the row's status color.
 _RUNTIME_LIVE_MARKER = "🏃‍♂️ "
 _RUNTIME_LIVE_MARKER_STYLE = "#D7AF5F"
+# Completed-unread marker: occupies the same suffix slot as the live marker
+# so newly finished unseen rows scan where active runtimes did.
+_RUNTIME_UNREAD_COMPLETED_MARKER = "🎉 "
+_RUNTIME_UNREAD_COMPLETED_MARKER_STYLE = "#FFD75F"
 
 
 def render_tier_gutter(tier_styles: tuple[str, ...]) -> Text:
@@ -52,11 +56,23 @@ def render_tier_gutter(tier_styles: tuple[str, ...]) -> Text:
     return gutter
 
 
-def build_runtime_suffix(agent: Agent, now: datetime | None = None) -> Text:
+def build_runtime_suffix(
+    agent: Agent,
+    now: datetime | None = None,
+    *,
+    is_unread: bool = False,
+) -> Text:
     """Return a Rich ``Text`` for the right-side runtime suffix (may be empty)."""
     ts_pair, elapsed = compute_row_runtime(agent, now=now)
     suffix = Text()
+    is_ticking = runtime_suffix_ticks(agent)
+    show_unread_marker = is_unread and not is_ticking
     if ts_pair is None and elapsed is None:
+        if show_unread_marker:
+            suffix.append(
+                _RUNTIME_UNREAD_COMPLETED_MARKER.rstrip(),
+                style=_RUNTIME_UNREAD_COMPLETED_MARKER_STYLE,
+            )
         return suffix
     if ts_pair is not None:
         date_part, time_part = ts_pair
@@ -66,9 +82,19 @@ def build_runtime_suffix(agent: Agent, now: datetime | None = None) -> Text:
             suffix.append(time_part, style=_RUNTIME_TS_STYLE)
         suffix.append(" · ", style=_RUNTIME_TS_STYLE)
     if elapsed is not None:
-        if runtime_suffix_ticks(agent):
+        if is_ticking:
             suffix.append(_RUNTIME_LIVE_MARKER, style=_RUNTIME_LIVE_MARKER_STYLE)
+        elif show_unread_marker:
+            suffix.append(
+                _RUNTIME_UNREAD_COMPLETED_MARKER,
+                style=_RUNTIME_UNREAD_COMPLETED_MARKER_STYLE,
+            )
         suffix.append(elapsed, style=_RUNTIME_ELAPSED_STYLE)
+    elif show_unread_marker:
+        suffix.append(
+            _RUNTIME_UNREAD_COMPLETED_MARKER.rstrip(),
+            style=_RUNTIME_UNREAD_COMPLETED_MARKER_STYLE,
+        )
     return suffix
 
 

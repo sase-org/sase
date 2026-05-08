@@ -45,9 +45,6 @@ def format_agent_option(
     if hint_char is not None:
         text.append(f"[{hint_char}] ", style="bold #FFFF00")
 
-    if is_unread:
-        text.append("✦ ", style="bold #FFD75F")
-
     if is_marked:
         text.append("[✓] ", style="bold #00D700")
 
@@ -240,7 +237,7 @@ def format_agent_option(
             text.append("▼", style="bold #D7AF5F")
         text.append(f"#{agent.embedded_workflow_name}", style="dim #AF87D7")
 
-    suffix = build_runtime_suffix(agent, now=now)
+    suffix = build_runtime_suffix(agent, now=now, is_unread=is_unread)
     option_id = f"{index}:{agent.agent_type.value}:{agent.cl_name}"
     return text, suffix, option_id
 

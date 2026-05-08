@@ -103,6 +103,22 @@ def test_format_agent_option_finished_suffix_has_timestamp_and_elapsed() -> None
         now=now,
     )
     assert suffix.plain == "20:17:03 · 6h17m"
+    assert "🎉" not in suffix.plain
+
+
+def test_format_agent_option_unread_finished_suffix_has_completed_marker() -> None:
+    start = datetime(2026, 4, 25, 14, 0, 0)
+    stop = datetime(2026, 4, 25, 20, 17, 3)
+    now = datetime(2026, 4, 25, 21, 0, 0)
+    left, suffix, _ = format_agent_option(
+        agent(status="DONE", start=start, stop=stop),
+        0,
+        is_selected=False,
+        is_unread=True,
+        now=now,
+    )
+    assert "✦" not in left.plain
+    assert suffix.plain == "20:17:03 · 🎉 6h17m"
 
 
 def test_format_agent_option_finished_yesterday_suffix_human_readable() -> None:
@@ -235,10 +251,15 @@ def test_format_agent_option_renders_tag_label_only_when_passed() -> None:
     assert " #fix" in left_with.plain
 
 
-def test_format_agent_option_renders_unread_marker_before_mark() -> None:
-    row_agent = agent(cl_name="demo", raw_suffix="20260425140000")
+def test_format_agent_option_renders_unread_marker_in_suffix_not_before_mark() -> None:
+    row_agent = agent(
+        cl_name="demo",
+        raw_suffix="20260425140000",
+        status="DONE",
+        stop=datetime(2026, 4, 25, 14, 45, 0),
+    )
 
-    left, _, _ = format_agent_option(
+    left, suffix, _ = format_agent_option(
         row_agent,
         0,
         is_selected=False,
@@ -246,16 +267,30 @@ def test_format_agent_option_renders_unread_marker_before_mark() -> None:
         is_unread=True,
     )
 
-    assert "✦" in left.plain
-    assert left.plain.index("✦") < left.plain.index("[✓]")
+    assert "[✓]" in left.plain
+    assert "✦" not in left.plain
+    assert suffix.plain.endswith("🎉 15m")
 
 
 def test_format_agent_option_omits_unread_marker_by_default() -> None:
     row_agent = agent(cl_name="demo", raw_suffix="20260425140000")
 
-    left, _, _ = format_agent_option(row_agent, 0, is_selected=False)
+    left, suffix, _ = format_agent_option(row_agent, 0, is_selected=False)
 
     assert "✦" not in left.plain
+    assert "🎉" not in suffix.plain
+
+
+def test_format_agent_option_unread_without_runtime_uses_marker_only_suffix() -> None:
+    left, suffix, _ = format_agent_option(
+        agent(status="DONE", start=None),
+        0,
+        is_selected=False,
+        is_unread=True,
+    )
+
+    assert "✦" not in left.plain
+    assert suffix.plain == "🎉"
 
 
 def test_format_agent_option_keeps_tag_badge_and_agent_name_prefixes_distinct() -> None:
