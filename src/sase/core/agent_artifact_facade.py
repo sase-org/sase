@@ -61,7 +61,6 @@ class AgentArtifactAssociation:
     agent_name: str | None = None
 
 
-# pyvision: public_api_methods.txt
 @dataclass(frozen=True)
 class AgentArtifact:
     """One artifact available for a SASE agent."""
