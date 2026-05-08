@@ -264,13 +264,14 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | Key                 | Action                                                                                                        |
 | ------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `R`                 | Revive a previously dismissed agent                                                                           |
-| `A`                 | Open the Agent Run Log modal for the focused agent                                                            |
+| `A`                 | Open completion artifacts for the focused agent                                                               |
 | `@`                 | Run custom agent                                                                                              |
 | `a`                 | Cycle auto-approve state / answer HITL                                                                        |
 | `n`                 | Name agent                                                                                                    |
 | `r`                 | Resume agent (by name if running, by chat file if completed)                                                  |
 | `v`                 | View files (hint mode)                                                                                        |
-| `V`                 | Toggle prior-attempt view (only shown when the agent has retried)                                             |
+| `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                             |
+| `V`                 | Open the Agent Run Log modal for the focused agent                                                            |
 | `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                               |
 | `W`                 | Wait for agent (populate prompt with `%w`); with marks, fans out to `%w:a,b,c`                                |
 | `m`                 | Mark / unmark current agent (auto-advances to next)                                                           |
@@ -313,6 +314,18 @@ Workflows launched via `sase run` are visible in the Agents tab alongside ACE-la
 `workflow_state.json` before execution so that step data appears immediately rather than showing a bare RUNNING entry.
 Specialized review runners launched by axe (mentor, CRS, fix-hook, and summarize-hook review agents) are also visible
 and are automatically grouped under the `@review` tag, matching the behavior of a `%tag:review` prompt launch.
+
+### Agent Artifacts
+
+Press `A` on a focused agent to open artifacts associated with that agent. A single artifact opens directly; multiple
+artifacts open a picker. The list can include chat transcripts, plan files, generated Markdown PDFs, generated images,
+and explicit files saved with `sase artifact create -p <path> [-n <label>] [-k <kind>]`.
+
+When ACE is running inside tmux, artifact viewing opens in a right-side tmux pane so the TUI remains visible. Outside
+tmux, ACE suspends while the terminal viewer runs in the current pane. The viewer supports image, Markdown, and PDF
+artifacts: images are displayed directly with `kitten icat`; Markdown is first rendered to PDF; PDFs are converted to
+PNG pages for paging. The viewer needs `kitten` for display, `pdftoppm` for PDF/Markdown paging, and `pandoc` plus a
+supported PDF engine for Markdown rendering. Missing tools produce a warning instead of failing the TUI.
 
 ### Tag Side Panels
 
@@ -1216,6 +1229,10 @@ the xprompt has required user-facing inputs. The panel shows the supported argum
 Press `:` while the accepted reference is still current to switch to colon syntax, or press `(` to insert a
 required-argument named snippet and use `Tab` to advance through the snippet fields.
 
+The same smart insertion rules apply to `#@` selections and `Ctrl+T` completions. A selected xprompt with no required
+inputs inserts a trailing space, a single required non-text input inserts colon syntax, a single required text input
+inserts double-colon shorthand, and multiple required inputs insert a parenthesized named-argument snippet.
+
 The same hint panel appears while typing narrow, known argument forms such as `#name:`, `#!name:`, `#ns/name:`,
 `#ns__name:`, `#name!!:`, `#name??:`, `#name(`, and `#name(arg=`. The hint is advisory; the backend xprompt parser still
 owns expansion semantics when the prompt is submitted. Detection intentionally stays conservative, so prose shorthand,
@@ -1390,9 +1407,10 @@ Trigger words are matched against the alphanumeric/underscore word immediately b
 
 Typing `#@` (the `#` character followed by `@`) opens the XPrompt snippet picker modal. This lists all available
 xprompts (including project-local xprompts from `sase.yml` files) and inserts the selected reference at the cursor
-position. Inline-capable xprompts and workflows insert as `#name`; standalone workflows insert as `#!name`. This is
-separate from the `ace.snippets` mechanism — it provides quick access to xprompt references rather than expanding static
-templates.
+position. Inline-capable xprompts and workflows insert as `#name`; standalone workflows insert as `#!name`. The picker
+uses the same argument-aware skeletons as xprompt completion, so typed inputs can be filled immediately after selection.
+This is separate from the `ace.snippets` mechanism — it provides quick access to xprompt references rather than
+expanding static templates.
 
 ## Auto-Refresh
 

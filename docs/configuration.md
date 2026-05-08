@@ -102,8 +102,8 @@ ace:
 | `keymaps`          | dict         | -       | Configurable keybindings (see below).                                   |
 | `snippets`         | dict[string] | `{}`    | Trigger-word → template mappings for prompt input snippet expansion.    |
 
-The IDLE indicator can also be triggered manually via the `i` keybinding. External tools can query idle status via
-`sase.ace.tui_activity.is_idle()`.
+The IDLE indicator can also be triggered manually via the leader-mode `,I` keybinding. External tools can query idle
+status via `sase.ace.tui_activity.is_idle()`.
 
 #### `ace.keymaps`
 

@@ -24,13 +24,19 @@ and injects an instruction telling the agent **not** to create commits directly.
 ### 2. Stop hook triggers the commit
 
 When the agent finishes, the **stop hook** (`sase_commit_stop_hook`) detects uncommitted changes and blocks the agent
-with an instruction to use its `/sase_git_commit` or `/sase_hg_commit` skill. The skill calls:
+with an instruction to use the commit skill for the detected VCS provider, such as `/sase_git_commit` or
+`/sase_hg_commit`. The skill calls:
 
 ```bash
 sase commit '<json_payload>' -t <method>
 ```
 
 The method defaults to `$SASE_COMMIT_METHOD` if the `-t` flag is omitted.
+
+If `SASE_BEAD_ID` is set, the stop hook first asks the agent to decide whether the uncommitted changes were made in the
+current session. For changes the agent did make, it instructs the agent to close and verify the bead before invoking the
+commit skill. This keeps bead lifecycle state ahead of the commit/proposal/PR dispatch while avoiding accidental closure
+for unrelated dirty work.
 
 ### CLI Arguments
 
@@ -307,21 +313,25 @@ instructions automatically, so agents know to hand control back to the user rath
 ## Stop Hook
 
 The `sase_commit_stop_hook` (`src/sase/scripts/sase_commit_stop_hook.py`) is the bridge between the agent and the commit
-workflow. It runs as a post-completion hook in Claude, Gemini, and Codex runtimes.
+workflow. It runs as a post-completion hook in supported agent runtimes and adapts its blocking response to the runtime:
+Codex receives structured JSON with `decision=block`, Gemini receives structured JSON with `decision=deny`, and
+Claude-compatible hooks receive stderr plus a blocking exit code.
 
 **Flow:**
 
-1. Detect the project directory from runtime-specific env vars
+1. Detect the project directory from runtime-specific env vars or fall back to the current working directory
 2. Check for uncommitted changes via the VCS provider
-3. If changes exist, emit a blocking instruction telling the agent to use its commit skill
-4. The instruction message includes the commit method type (e.g., "The commit method type is `create_pull_request`") so
+3. If changes exist, resolve the provider-specific commit skill (`SASE_COMMIT_SKILL` override, then VCS detection)
+4. If `SASE_BEAD_ID` is set, tell the agent to close and verify the bead before invoking the commit skill, but only
+   after deciding the changes were made by this session
+5. Emit a blocking instruction telling the agent to use the resolved commit skill
+6. The instruction message includes the commit method type (e.g., "The commit method type is `create_pull_request`") so
    the agent knows which method to use
-5. For `create_pull_request`, the instruction also includes the PR name (from `SASE_PR_NAME` or a placeholder) and the
+7. For `create_pull_request`, the instruction also includes the PR name (from `SASE_PR_NAME` or a placeholder) and the
    project prefix if available
-6. The commit skill resolves to `/sase_git_commit` or `/sase_hg_commit` based on the detected VCS provider (note:
-   `/sase_hg_commit` is only installed for Gemini — see AGENTS.md "Commit Skills per Runtime")
 
-The hook supports deduplication (Gemini), structured JSON output (Codex), and stderr messaging (Claude).
+The hook writes structured diagnostics to `~/.sase_commit_stop_hook.jsonl`, deduplicates repeated blocks within the same
+agent session, and supports `SASE_DISABLE_COMMIT_STOP_HOOK=1` for an explicit bypass.
 
 ## Diff Storage
 

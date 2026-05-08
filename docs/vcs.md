@@ -296,6 +296,21 @@ All PR operations use the `gh` CLI:
 - **View PR**: `gh pr view --json url -q .url`
 - **Get PR number**: `gh pr view --json number -q .number`
 
+### GitHub Plugin Scope
+
+The GitHub plugin covers the core git/PR lifecycle by combining GitHub-specific hooks with the shared git provider
+mixins. It can classify GitHub remotes, create and inspect PRs, preserve immutable branch aliases for open PRs, resolve
+workspace references such as `#gh:<ref>`, and submit merged PRs through `gh pr merge`.
+
+It does not currently provide the richer Google/Mercurial-specific automation surface. In particular, GitHub PRs do not
+get plugin-supplied default ChangeSpec hooks, metahooks, mentor profiles, PR tags, or a provider-specific precommit/fix
+command unless users configure those in `sase.yml`. Reviewer-comment polling and comment-response automation are not
+enabled for GitHub PR URLs, reviewer discovery during mail preparation is not implemented, `vcs_rewind` has no GitHub
+backend, BUG values are left as provided, and the Google-only refresh/split workflows do not have GitHub equivalents.
+
+These are plugin capability gaps, not core VCS limitations: ordinary git operations, diffing, branch management,
+commit/proposal/PR dispatch, conflict resume, and workspace setup are still provided by the shared git implementation.
+
 ### Sync
 
 ```

@@ -75,6 +75,24 @@ storage and lets downstream plugins decide how to render each file:
 
 See [`notifications.md`](notifications.md) for the notification model and modal keybindings.
 
+## ACE Artifact Viewer
+
+The Agents tab exposes completed agent artifacts through the `A` key. If an agent has one artifact, ACE opens it
+directly; if it has multiple artifacts, ACE shows a picker. Chat transcripts, plan files, generated Markdown PDFs,
+generated images, and explicit artifacts created with `sase artifact create -p <path> [-n <label>] [-k <kind>]` all use
+the same list.
+
+When ACE is running inside tmux, the artifact viewer launches in a right-side tmux pane. Outside tmux, ACE suspends and
+opens the viewer in the current terminal pane. The viewer chooses its mode from the artifact kind and file extension:
+supported images are displayed directly, PDFs are converted to PNG pages, and Markdown is rendered to PDF before paging.
+The page loop uses `n`/`p` to move between pages and `q` to close the viewer.
+
+Viewer dependencies are intentionally outside the agent completion path. `kitten` is required for terminal display,
+`pdftoppm` is required for PDF/Markdown paging, and Markdown rendering also needs `pandoc` plus one supported PDF
+engine. If a dependency is missing, ACE shows a warning instead of failing the TUI or changing the stored artifact list.
+
+Source: `src/sase/ace/tui/graphics/viewer.py`
+
 ## ACE Image Preview Foundation
 
 The notification modal and Agents tab file panel route supported image extensions through the preview layer before

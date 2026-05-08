@@ -87,7 +87,7 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
 - **Telemetry** — Prometheus-based observability with 34 metrics across 7 subsystems, live TUI dashboard, health checks,
   and a bundled Docker Compose monitoring stack (Prometheus + Grafana)
 - **Agent Artifacts** — Completion notifications can include chat, diff, error logs, generated Markdown PDFs, and
-  generated image files touched by agents so downstream notification plugins can deliver the full result
+  generated image files touched by agents; ACE can open those artifacts directly or in a tmux side pane
 - **Mobile Gateway** — Workstation-hosted HTTP/SSE gateway for paired mobile clients to inspect notifications, launch
   agents, and use fixed workflow helper APIs without exposing shell or filesystem access
 - **LLM Providers** — Pluggable AI abstraction (Claude, Codex, Gemini, Qwen, and OpenCode bundled; optional external
@@ -273,6 +273,14 @@ guidance, bridge boundaries, and the API contract location. See
 [`docs/mobile_mvp_runbook.md`](docs/mobile_mvp_runbook.md) for private APK packaging, remote access, push payload
 boundaries, troubleshooting, rollback, and the MVP threat model.
 
+### Agent Artifacts
+
+Successful agent runs persist their normal chat/diff metadata and can attach generated Markdown PDFs, image files, plan
+files, and explicit files saved with `sase artifact create`. The ACE Agents tab opens that artifact list with `A`; a
+single artifact opens directly, while multiple artifacts open a picker. Inside tmux the viewer opens in a side pane, and
+outside tmux it temporarily suspends ACE in the current pane. See [`docs/agent_images.md`](docs/agent_images.md) for the
+attachment and viewer contracts.
+
 ## Project Structure
 
 ```
@@ -455,8 +463,8 @@ Start with the user-facing guides for the surface you are operating, then drop i
 extension APIs:
 
 - [`docs/ace.md`](docs/ace.md) — ACE TUI user guide
-- [`docs/agent_images.md`](docs/agent_images.md) — Generated Markdown PDF and image attachments plus ACE terminal
-  graphics preview notes
+- [`docs/agent_images.md`](docs/agent_images.md) — Agent attachments, ACE artifact viewer, and terminal graphics preview
+  notes
 - [`docs/beads.md`](docs/beads.md) — Bead issue tracking system
 - [`docs/axe.md`](docs/axe.md) — Axe background automation daemon
 - [`docs/change_spec.md`](docs/change_spec.md) — ChangeSpec field reference
