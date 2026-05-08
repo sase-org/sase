@@ -19,6 +19,7 @@ _COLOR_HEADER = "bold #87D7FF"
 _COLOR_PATH = "#87AFFF"
 _COLOR_BASENAME = "bold #87AFFF"
 _GLYPH_STYLE = "bold #FFD787"
+_ARTIFACT_ENTRY_PREFIX = "•"
 
 
 @dataclass(frozen=True)
@@ -40,7 +41,7 @@ def append_agent_artifacts_section(
 
     text.append("ARTIFACTS:\n", style=_COLOR_HEADER)
     for artifact in artifacts:
-        text.append("  ~ ", style=_GLYPH_STYLE)
+        text.append(f"  {_ARTIFACT_ENTRY_PREFIX} ", style=_GLYPH_STYLE)
         if hint_state is not None:
             text.append(f"[{hint_state.hint_counter}] ", style="bold #FFFF00")
             hint_state.hint_mappings[hint_state.hint_counter] = artifact.actual_path

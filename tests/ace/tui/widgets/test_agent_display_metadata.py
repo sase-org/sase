@@ -336,6 +336,7 @@ class TestAgentArtifactMetadata:
         assert header.plain.index("DELTAS:\n") < header.plain.index("ARTIFACTS:\n")
         assert "ARTIFACTS: 2" not in header.plain
         assert "(chat, image)" not in header.plain
+        assert "  • ~/.sase/plans/202605/approved_plan.md\n" in header.plain
         assert "~/.sase/plans/202605/approved_plan.md" in header.plain
         assert explicit.path.replace(str(home), "~") in header.plain
         assert "chat.md" not in header.plain
@@ -426,7 +427,7 @@ class TestAgentArtifactMetadata:
         mappings = panel.update_display_with_hints(agent)
 
         plain = plain_of(panel.captured[-1])
-        assert "ARTIFACTS:\n  ~ [1] sdd/tales/202605/plan.md\n" in plain
+        assert "ARTIFACTS:\n  • [1] sdd/tales/202605/plan.md\n" in plain
         assert mappings[1] == str(sdd_plan)
 
 

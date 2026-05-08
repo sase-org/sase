@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 17:15:02
-status: wip
+status: done
 prompt: sdd/prompts/202605/artifacts_glyph.md
 ---
 # Plan: ARTIFACTS Entry Prefix Glyph
