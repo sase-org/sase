@@ -441,6 +441,41 @@ ModelPickerModal {
 }
 
 
+/* Agent Artifact Selection Modal styling */
+AgentArtifactSelectionModal {
+    align: center middle;
+}
+
+#agent-artifacts-container {
+    width: 74;
+    height: auto;
+    max-height: 28;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+#agent-artifacts-title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#agent-artifacts-list {
+    height: auto;
+    max-height: 20;
+}
+
+#agent-artifacts-hints {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
+
 /* Temporary LLM Override Modal styling */
 TemporaryLLMOverrideModal {
     align: center middle;

@@ -351,13 +351,16 @@ class _ImageActionApp(AgentPanelsMixin):
         self.current_attempt_number = None
         self.detail = MagicMock()
         self.detail.get_current_image_path.return_value = image_path
+        self.agent_list = MagicMock()
         self.suspend_recorder = _SuspendRecorder()
         self.notify = MagicMock()
         self._selected_agent = None
         self._artifacts = []
         self.pushed = []
 
-    def query_one(self, *_args, **_kwargs):
+    def query_one(self, selector, *_args, **_kwargs):
+        if selector == "#agent-list-panel":
+            return self.agent_list
         return self.detail
 
     def suspend(self):
@@ -442,6 +445,33 @@ def test_agents_open_artifacts_action_pushes_selection_modal() -> None:
     modal, callback = app.pushed[0]
     assert modal.__class__.__name__ == "AgentArtifactSelectionModal"
     assert callback is not None
+
+
+def test_agents_open_artifacts_modal_callback_restores_agent_list_focus(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    image = tmp_path / "visible.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\n")
+    artifact = SimpleNamespace(path=str(image), kind="image", label="Image")
+    app = _ImageActionApp(str(image))
+    app._selected_agent = SimpleNamespace(status="DONE")
+    app._artifacts = [
+        SimpleNamespace(path="/tmp/chat.md", kind="chat", label="Chat"),
+        artifact,
+    ]
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.view_agent_artifact",
+        lambda _artifact: ArtifactViewerResult(True),
+    )
+
+    app.action_open_agent_artifacts()
+    _modal, callback = app.pushed[0]
+    assert callback is not None
+
+    callback(artifact)
+
+    app.agent_list.focus.assert_called_once_with()
 
 
 def test_notification_view_image_action_runs_viewer_inside_suspend(

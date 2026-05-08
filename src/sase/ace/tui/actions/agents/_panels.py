@@ -326,6 +326,16 @@ class AgentPanelsMixin:
         if result.warning is not None:
             self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
 
+    def _focus_agent_list_after_artifact_modal(self) -> None:
+        if self.current_tab != "agents":
+            return
+        try:
+            from ...widgets import AgentList
+
+            self.query_one("#agent-list-panel", AgentList).focus()  # type: ignore[attr-defined]
+        except Exception:
+            return
+
     def action_open_agent_artifacts(self) -> None:
         """Open or choose artifacts associated with the selected agent."""
         if self.current_tab != "agents":
@@ -353,8 +363,11 @@ class AgentPanelsMixin:
         from ...modals import AgentArtifactSelectionModal
 
         def _open_selected(artifact: Any) -> None:
-            if artifact is not None:
-                self._open_agent_artifact(artifact)
+            try:
+                if artifact is not None:
+                    self._open_agent_artifact(artifact)
+            finally:
+                self._focus_agent_list_after_artifact_modal()
 
         self.push_screen(AgentArtifactSelectionModal(artifacts), _open_selected)  # type: ignore[attr-defined]
 
