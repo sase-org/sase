@@ -70,14 +70,14 @@ def _file_panel_visible(app: AceApp) -> bool:  # type: ignore[no-untyped-def]
         return False
 
 
-def _has_visible_image(app: AceApp) -> bool:  # type: ignore[no-untyped-def]
+def _has_agent_artifacts(app: AceApp, agent) -> bool:  # type: ignore[no-untyped-def]
     if app.current_tab != "agents":
         return False
     try:
-        from sase.ace.tui.widgets import AgentDetail
-
-        panel = app.query_one("#agent-detail-panel", AgentDetail)
-        return panel.get_current_image_path() is not None
+        lister = getattr(app, "_list_selected_agent_artifacts", None)
+        return (
+            bool(lister(agent)) if lister is not None and agent is not None else False
+        )
     except Exception:
         return False
 
@@ -153,7 +153,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         else False
     )
     file_panel = _file_panel_visible(app)
-    has_image = _has_visible_image(app)
+    has_agent_artifacts = _has_agent_artifacts(app, agent)
 
     if tab == "axe":
         done, running = _selected_axe_slot_states(app, axe_item)
@@ -172,7 +172,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         attempt_pinned=attempt_pinned,
         group_focused=group_focused,
         file_panel_visible=file_panel,
-        has_visible_image=has_image,
+        has_agent_artifacts=has_agent_artifacts,
         axe_running=bool(getattr(app, "axe_running", False)),
         selected_axe_slot_done=done and isinstance(axe_item, BgCmdItem),
         selected_axe_slot_running=running and isinstance(axe_item, BgCmdItem),

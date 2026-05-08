@@ -336,7 +336,6 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.toggle_mark), "Mark/unmark current agent"),
                 (d(a.clear_marks), "Clear all agent marks"),
                 (d(a.open_agent_cleanup_panel), "Open cleanup panel"),
-                (d(a.show_agent_run_log), "Agent run log"),
                 (d(a.edit_spec), "Edit chat in editor"),
                 (d(a.edit_panel), "Edit panel content in editor"),
                 (
@@ -344,7 +343,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     "Cycle panels: file → thinking → metadata",
                 ),
                 (d(a.toggle_layout), "Toggle file/prompt layout"),
-                (d(a.view_image), "View image / attempt fallback"),
+                (d(a.open_agent_artifacts), "Open artifacts"),
                 (d(a.toggle_attempt_view), "Toggle attempt history view"),
                 (
                     f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",

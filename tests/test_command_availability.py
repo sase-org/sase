@@ -272,9 +272,9 @@ def test_toggle_attempt_view_requires_history_and_no_pin() -> None:
     )
 
 
-def test_view_image_is_available_on_agents_tab() -> None:
+def test_open_agent_artifacts_is_available_on_agents_tab() -> None:
     catalog = _catalog_by_id()
-    spec = catalog["app.view_image"]
+    spec = catalog["app.open_agent_artifacts"]
     assert is_command_available(spec, CommandContext(tab="agents"))
     assert not is_command_available(spec, CommandContext(tab="changespecs"))
 

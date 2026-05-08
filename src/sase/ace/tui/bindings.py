@@ -74,7 +74,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding(
         "left_square_bracket", "toggle_thinking_reverse", "Thinking Rev", show=False
     ),
-    Binding("V", "view_image", "View Image", show=False),
+    Binding("A", "open_agent_artifacts", "Artifacts", show=False),
     Binding("D", "toggle_attempt_view", "Attempt View", show=False),
     Binding("N", "add_agent_tag", "Add Agent Tag", show=False),
     # Tag-driven side-panel focus cycling (agents tab)
@@ -112,5 +112,5 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("equals_sign", "show_all_file_lines", "Show All", show=False),
     # Jump to CL from agent (agents tab)
     Binding("enter", "jump_to_agent_changespec", "Go to CL", show=False),
-    Binding("A", "show_agent_run_log", "Agent Run Log", show=False),
+    Binding("V", "show_agent_run_log", "Agent Run Log", show=False),
 ]

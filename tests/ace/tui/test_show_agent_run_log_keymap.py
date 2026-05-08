@@ -49,16 +49,17 @@ def _make_cs(name: str) -> MagicMock:
     return cs
 
 
-def test_default_keymap_binds_a_to_agent_run_log() -> None:
+def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
     registry = load_keymap_registry({})
 
-    assert registry.app.show_agent_run_log == "A"
+    assert registry.app.show_agent_run_log == "V"
+    assert registry.app.open_agent_artifacts == "A"
     assert registry.leader_mode.keys["agent_run_log"] == "A"
 
     bindings = build_app_bindings(registry.app)
-    matches = [b for b in bindings if b.key == "A"]
-    assert len(matches) == 1
-    assert matches[0].action == "show_agent_run_log"
+    by_key = {b.key: b.action for b in bindings}
+    assert by_key["A"] == "open_agent_artifacts"
+    assert by_key["V"] == "show_agent_run_log"
 
 
 def test_leader_a_opens_agent_run_log_for_selected_cl() -> None:

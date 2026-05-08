@@ -63,7 +63,7 @@ class KeybindingBindingsMixin:
         marked_count: int = 0,
         attempt_pinned: bool = False,
         group_focused: bool = False,
-        has_visible_image: bool = False,
+        has_agent_artifacts: bool = False,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
 
@@ -152,10 +152,10 @@ class KeybindingBindingsMixin:
         if can_jump_to_changespec:
             bindings.append((self._kd("jump_to_agent_changespec"), "go to CL"))
 
-        if has_visible_image:
-            bindings.append((self._kd("view_image"), "view image"))
-        elif agent and agent.attempt_history and not attempt_pinned:
-            bindings.append((self._kd("view_image"), "attempt view"))
+        if has_agent_artifacts:
+            bindings.append((self._kd("open_agent_artifacts"), "artifacts"))
+        if agent and agent.attempt_history and not attempt_pinned:
+            bindings.append((self._kd("toggle_attempt_view"), "attempt view"))
 
         # --- App-state bindings ---
 

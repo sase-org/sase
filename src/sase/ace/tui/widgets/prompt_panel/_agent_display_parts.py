@@ -271,6 +271,12 @@ def build_header_text(
         header_text.append("VCS: ", style="bold #87D7FF")
         header_text.append(f"{agent.vcs_provider}\n", style="#5FD7AF")
 
+    if not cheap:
+        artifact_summary = _agent_artifact_summary(agent)
+        if artifact_summary:
+            header_text.append("ARTIFACTS: ", style="bold #87D7FF")
+            header_text.append(f"{artifact_summary}\n", style="#D7AF5F")
+
     # Mode (autonomous agents)
     if agent.approve:
         header_text.append("Mode: ", style="bold #87D7FF")
@@ -415,6 +421,29 @@ def build_header_text(
     header_text.append("\n")
 
     return header_text, error_tb_syntax
+
+
+def _agent_artifact_summary(agent: Agent) -> str | None:
+    artifacts_dir = agent.get_artifacts_dir()
+    if artifacts_dir is None:
+        return None
+    from sase.core.agent_artifact_facade import list_agent_artifacts
+
+    try:
+        artifacts = list_agent_artifacts(artifacts_dir)
+    except Exception:
+        return None
+    if not artifacts:
+        return None
+    kinds: list[str] = []
+    seen: set[str] = set()
+    for artifact in artifacts:
+        if artifact.kind in seen:
+            continue
+        seen.add(artifact.kind)
+        kinds.append(artifact.kind)
+    suffix = f" ({', '.join(kinds)})" if kinds else ""
+    return f"{len(artifacts)}{suffix}"
 
 
 def get_prompt_content(agent: Agent) -> str | None:

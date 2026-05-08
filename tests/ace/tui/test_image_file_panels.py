@@ -11,6 +11,7 @@ from rich.text import Text
 
 from sase.ace.tui.actions.agents._panels import AgentPanelsMixin
 from sase.ace.tui.graphics import (
+    ArtifactViewerResult,
     ImageFallbackRenderable,
     ImageViewerResult,
     image_preview_size_for_viewport,
@@ -353,6 +354,8 @@ class _ImageActionApp(AgentPanelsMixin):
         self.suspend_recorder = _SuspendRecorder()
         self.notify = MagicMock()
         self._selected_agent = None
+        self._artifacts = []
+        self.pushed = []
 
     def query_one(self, *_args, **_kwargs):
         return self.detail
@@ -363,52 +366,82 @@ class _ImageActionApp(AgentPanelsMixin):
     def _get_selected_agent(self):
         return self._selected_agent
 
+    def _list_selected_agent_artifacts(self, agent):
+        del agent
+        return self._artifacts
 
-def test_agents_view_image_action_runs_viewer_inside_suspend(
+    def push_screen(self, modal, callback=None):
+        self.pushed.append((modal, callback))
+
+
+def test_agents_open_artifacts_action_runs_single_viewer_inside_suspend(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     image = tmp_path / "visible.png"
     image.write_bytes(b"\x89PNG\r\n\x1a\n")
     app = _ImageActionApp(str(image))
-    calls: list[str] = []
+    artifact = SimpleNamespace(path=str(image), kind="image", label="Image")
+    app._selected_agent = SimpleNamespace(status="DONE")
+    app._artifacts = [artifact]
+    calls: list[object] = []
 
-    def fake_viewer(path: str) -> ImageViewerResult:
-        calls.append(path)
+    def fake_viewer(viewed_artifact) -> ArtifactViewerResult:
+        calls.append(viewed_artifact)
         assert app.suspend_recorder.entered is True
-        return ImageViewerResult(True)
+        return ArtifactViewerResult(True)
 
-    monkeypatch.setattr("sase.ace.tui.graphics.view_image_file", fake_viewer)
+    monkeypatch.setattr("sase.ace.tui.graphics.view_agent_artifact", fake_viewer)
 
-    app.action_view_image()
+    app.action_open_agent_artifacts()
 
-    assert calls == [str(image)]
+    assert calls == [artifact]
     app.notify.assert_not_called()
 
 
-def test_agents_view_image_action_falls_back_to_attempt_view(monkeypatch) -> None:
+def test_agents_open_artifacts_action_warns_when_no_artifacts(monkeypatch) -> None:
     app = _ImageActionApp(None)
-    app._selected_agent = SimpleNamespace(attempt_history=[object()])
-    app.action_toggle_attempt_view = MagicMock()  # type: ignore[method-assign]
+    app._selected_agent = SimpleNamespace(status="DONE")
     viewer = MagicMock()
-    monkeypatch.setattr("sase.ace.tui.graphics.view_image_file", viewer)
+    monkeypatch.setattr("sase.ace.tui.graphics.view_agent_artifact", viewer)
 
-    app.action_view_image()
+    app.action_open_agent_artifacts()
 
     viewer.assert_not_called()
-    app.action_toggle_attempt_view.assert_called_once_with()
+    app.notify.assert_called_once_with("No artifacts found", severity="warning")
 
 
-def test_agents_view_image_action_warns_when_no_image(monkeypatch) -> None:
+def test_agents_open_artifacts_action_warns_for_running_without_artifacts(
+    monkeypatch,
+) -> None:
     app = _ImageActionApp(None)
-    app._selected_agent = SimpleNamespace(attempt_history=[])
+    app._selected_agent = SimpleNamespace(status="RUNNING")
     viewer = MagicMock()
-    monkeypatch.setattr("sase.ace.tui.graphics.view_image_file", viewer)
+    monkeypatch.setattr("sase.ace.tui.graphics.view_agent_artifact", viewer)
 
-    app.action_view_image()
+    app.action_open_agent_artifacts()
 
     viewer.assert_not_called()
-    app.notify.assert_called_once_with("No image visible", severity="warning")
+    app.notify.assert_called_once_with(
+        "No completed artifacts for this agent",
+        severity="warning",
+    )
+
+
+def test_agents_open_artifacts_action_pushes_selection_modal() -> None:
+    app = _ImageActionApp(None)
+    app._selected_agent = SimpleNamespace(status="DONE")
+    app._artifacts = [
+        SimpleNamespace(path="/tmp/chat.md", kind="chat", label="Chat"),
+        SimpleNamespace(path="/tmp/image.png", kind="image", label="Image"),
+    ]
+
+    app.action_open_agent_artifacts()
+
+    assert len(app.pushed) == 1
+    modal, callback = app.pushed[0]
+    assert modal.__class__.__name__ == "AgentArtifactSelectionModal"
+    assert callback is not None
 
 
 def test_notification_view_image_action_runs_viewer_inside_suspend(

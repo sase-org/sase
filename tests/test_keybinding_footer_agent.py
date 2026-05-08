@@ -81,12 +81,12 @@ def test_keybinding_footer_marks_take_priority_over_group_label() -> None:
 
 
 def test_keybinding_footer_attempt_view_only_when_history_present() -> None:
-    """V appears only when the agent has prior attempt records."""
+    """D appears only when the agent has prior attempt records."""
     footer = KeybindingFooter()
     agent = _make_agent(status="RUNNING")
 
     no_history_bindings = footer._compute_agent_bindings(agent)
-    assert "V" not in [b[0] for b in no_history_bindings]
+    assert "D" not in [b[0] for b in no_history_bindings]
 
     agent.attempt_history = [
         AttemptRecord(
@@ -104,12 +104,12 @@ def test_keybinding_footer_attempt_view_only_when_history_present() -> None:
     ]
     with_history_bindings = footer._compute_agent_bindings(agent)
     assert any(
-        key == "V" and label == "attempt view" for key, label in with_history_bindings
+        key == "D" and label == "attempt view" for key, label in with_history_bindings
     )
 
 
-def test_keybinding_footer_visible_image_uses_v_for_view_image() -> None:
-    """V advertises image viewing before the attempt-view fallback."""
+def test_keybinding_footer_artifacts_and_attempts_have_separate_keys() -> None:
+    """A advertises artifacts while D keeps attempt-history fallback separate."""
     footer = KeybindingFooter()
     agent = _make_agent(status="RUNNING")
     agent.attempt_history = [
@@ -127,7 +127,7 @@ def test_keybinding_footer_visible_image_uses_v_for_view_image() -> None:
         )
     ]
 
-    bindings = footer._compute_agent_bindings(agent, has_visible_image=True)
+    bindings = footer._compute_agent_bindings(agent, has_agent_artifacts=True)
 
-    assert ("V", "view image") in bindings
-    assert ("V", "attempt view") not in bindings
+    assert ("A", "artifacts") in bindings
+    assert ("D", "attempt view") in bindings

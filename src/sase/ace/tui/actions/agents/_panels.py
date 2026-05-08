@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -304,33 +304,63 @@ class AgentPanelsMixin:
         self.notify(f"Attempt view: {mode}")  # type: ignore[attr-defined]
         self._refresh_agents_display()  # type: ignore[attr-defined]
 
-    def action_view_image(self) -> None:
-        """Open the currently visible agent image, with attempt-view fallback."""
+    def _list_selected_agent_artifacts(self, agent: Agent | None) -> list[Any]:
+        """Return artifact entries available for *agent* without UI side effects."""
+        if agent is None:
+            return []
+        artifacts_dir = agent.get_artifacts_dir()
+        if artifacts_dir is None:
+            return []
+        from sase.core.agent_artifact_facade import list_agent_artifacts
+
+        try:
+            return list_agent_artifacts(artifacts_dir)
+        except Exception:
+            return []
+
+    def _open_agent_artifact(self, artifact: Any) -> None:
+        from ...graphics import view_agent_artifact
+
+        with self.suspend():  # type: ignore[attr-defined]
+            result = view_agent_artifact(artifact)
+        if result.warning is not None:
+            self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
+
+    def action_open_agent_artifacts(self) -> None:
+        """Open or choose artifacts associated with the selected agent."""
         if self.current_tab != "agents":
             return
 
-        from ...graphics import view_image_file
-        from ...widgets import AgentDetail
-
-        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-        image_path = agent_detail.get_current_image_path()
-        if image_path is not None:
-            with self.suspend():  # type: ignore[attr-defined]
-                result = view_image_file(image_path)
-            if result.warning is not None:
-                self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
-            return
-
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
-        if (
-            agent is not None
-            and agent.attempt_history
-            and getattr(self, "current_attempt_number", None) is None
-        ):
-            self.action_toggle_attempt_view()
+        if agent is None:
+            self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
-        self.notify("No image visible", severity="warning")  # type: ignore[attr-defined]
+        artifacts = self._list_selected_agent_artifacts(agent)
+        if not artifacts:
+            message = (
+                "No completed artifacts for this agent"
+                if agent.status not in ("DONE", "FAILED")
+                else "No artifacts found"
+            )
+            self.notify(message, severity="warning")  # type: ignore[attr-defined]
+            return
+
+        if len(artifacts) == 1:
+            self._open_agent_artifact(artifacts[0])
+            return
+
+        from ...modals import AgentArtifactSelectionModal
+
+        def _open_selected(artifact: Any) -> None:
+            if artifact is not None:
+                self._open_agent_artifact(artifact)
+
+        self.push_screen(AgentArtifactSelectionModal(artifacts), _open_selected)  # type: ignore[attr-defined]
+
+    def action_view_image(self) -> None:
+        """Compatibility wrapper for older keymaps."""
+        self.action_open_agent_artifacts()
 
     def action_toggle_thinking(self) -> None:
         """Toggle the thinking panel for the selected agent."""

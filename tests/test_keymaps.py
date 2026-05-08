@@ -52,8 +52,8 @@ def test_edit_hooks_default_binding() -> None:
     assert reg.app.edit_hooks == "f"
 
 
-def test_help_modal_labels_capital_a_as_agent_run_log() -> None:
-    """Guard the restored ``A`` Agent Run Log binding."""
+def test_help_modal_labels_capital_a_as_agent_artifacts() -> None:
+    """Guard ``A`` as the Agents-tab artifact binding."""
     reg = load_keymap_registry({})
     cls_sections = cls_bindings(reg)
     agents_sections = agents_bindings(reg)
@@ -64,12 +64,18 @@ def test_help_modal_labels_capital_a_as_agent_run_log() -> None:
     }
     assert (",A", "Agent run log") in cls_pairs
 
-    for sections in (cls_sections, agents_sections, axe_sections):
+    agent_pairs = {
+        (key, label)
+        for _section, bindings in agents_sections
+        for key, label in bindings
+    }
+    assert ("A", "Open artifacts") in agent_pairs
+    for sections in (cls_sections, axe_sections):
         action_labels = {
             label
             for _section, bindings in sections
             for key, label in bindings
-            if key == "A"
+            if key == "V"
         }
         assert "Agent run log" in action_labels
 
@@ -253,11 +259,12 @@ def test_capital_x_binds_agent_cleanup_panel() -> None:
     assert by_action["open_agent_cleanup_panel"].key == "X"
 
 
-def test_capital_v_binds_contextual_view_image() -> None:
-    """Capital V opens images and falls back to attempt view at runtime."""
+def test_capital_a_binds_agent_artifacts_and_v_binds_run_log() -> None:
+    """Capital A opens agent artifacts; V is the direct run-log key."""
     bindings = build_app_bindings(_default_app_keymaps())
     by_action = {b.action: b for b in bindings}
-    assert by_action["view_image"].key == "V"
+    assert by_action["open_agent_artifacts"].key == "A"
+    assert by_action["show_agent_run_log"].key == "V"
     assert by_action["toggle_attempt_view"].key == "D"
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -422,6 +423,48 @@ class TestAgentBeadMetadata:
         assert (
             "Name: @sase-x.land\nBead: sase-x - Use the explicit plan description\n"
         ) in header.plain
+
+
+class TestAgentArtifactMetadata:
+    def test_full_header_renders_artifact_summary(self, tmp_path: Path) -> None:
+        artifacts_dir = (
+            tmp_path
+            / ".sase"
+            / "projects"
+            / "proj"
+            / "artifacts"
+            / "ace-run"
+            / "20260507120000"
+        )
+        artifacts_dir.mkdir(parents=True)
+        chat = tmp_path / "chat.md"
+        image = tmp_path / "image.png"
+        chat.write_text("chat", encoding="utf-8")
+        image.write_bytes(b"png")
+        (artifacts_dir / "done.json").write_text(
+            json.dumps({"response_path": str(chat), "image_paths": [str(image)]}),
+            encoding="utf-8",
+        )
+        agent = _make_agent(status="DONE", artifacts_dir=str(artifacts_dir))
+
+        header, _ = build_header_text(agent, cheap=False)
+
+        assert "ARTIFACTS: 2 (chat, image)\n" in header.plain
+
+    def test_cheap_header_omits_artifact_summary(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        agent = _make_agent(status="DONE", artifacts_dir="/tmp/artifacts")
+
+        def fail_get_artifacts_dir() -> str | None:
+            raise AssertionError("cheap header must not inspect artifacts")
+
+        monkeypatch.setattr(agent, "get_artifacts_dir", fail_get_artifacts_dir)
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "ARTIFACTS:" not in header.plain
 
 
 # -- agent list bead badge ----------------------------------------------------
