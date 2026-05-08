@@ -319,15 +319,32 @@ class _PageLoopResult:
 def page_index_after_key(current_index: int, key: str, page_count: int) -> int | None:
     """Return the next page index, or ``None`` when the loop should quit."""
 
-    if key.lower() == "q":
+    normalized = key.lower()
+    if normalized == "q":
         return None
+    if normalized == "r":
+        return current_index
     if page_count <= 1:
         return current_index
-    if key.lower() == "n":
+    if normalized == "n":
         return min(current_index + 1, page_count - 1)
-    if key.lower() == "p":
+    if normalized == "p":
         return max(current_index - 1, 0)
     return current_index
+
+
+def page_loop_available_keys(index: int, page_count: int) -> tuple[str, ...]:
+    """Return page-loop keys available for the current page."""
+
+    keys: list[str] = []
+    if index < page_count - 1:
+        keys.append("n")
+    if index > 0:
+        keys.append("p")
+    if page_count > 0:
+        keys.append("r")
+    keys.append("q")
+    return tuple(keys)
 
 
 def run_artifact_page_loop(
@@ -351,7 +368,10 @@ def run_artifact_page_loop(
         if result.returncode != 0:
             return _PageLoopResult(returncode=result.returncode)
         _print_page_prompt(index=index, page_count=len(pages))
-        next_index = page_index_after_key(index, read(), len(pages))
+        available_keys = page_loop_available_keys(index, len(pages))
+        while (key := read().lower()) not in available_keys:
+            pass
+        next_index = page_index_after_key(index, key, len(pages))
         print()
         if next_index is None:
             _clear_terminal(run)
@@ -431,10 +451,16 @@ def _clear_terminal(
 
 
 def _print_page_prompt(*, index: int, page_count: int) -> None:
-    if page_count <= 1:
-        prompt = "q: return to SASE"
-    else:
-        prompt = f"Page {index + 1}/{page_count}  n: next  p: previous  q: quit"
+    labels = {
+        "n": "n: next",
+        "p": "p: previous",
+        "r": "r: refresh",
+        "q": "q: quit",
+    }
+    actions = "  ".join(
+        labels[key] for key in page_loop_available_keys(index, page_count)
+    )
+    prompt = f"Page {index + 1}/{page_count}  {actions}"
     print(f"\n{prompt}", end="", flush=True)
 
 

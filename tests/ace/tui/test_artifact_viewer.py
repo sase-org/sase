@@ -7,11 +7,13 @@ from pathlib import Path
 
 from sase.ace.tui.graphics.viewer import (
     ArtifactViewerResult,
+    _print_page_prompt,
     artifact_view_mode,
     convert_pdf_to_png_pages,
     is_tmux_session,
     main as viewer_main,
     page_index_after_key,
+    page_loop_available_keys,
     render_artifact_pages,
     run_artifact_page_loop,
     validate_artifact_viewer_dependencies,
@@ -73,9 +75,32 @@ def test_artifact_page_index_state_machine() -> None:
     assert page_index_after_key(2, "n", 3) == 2
     assert page_index_after_key(2, "p", 3) == 1
     assert page_index_after_key(0, "p", 3) == 0
+    assert page_index_after_key(1, "r", 3) == 1
     assert page_index_after_key(1, "x", 3) == 1
     assert page_index_after_key(0, "q", 3) is None
     assert page_index_after_key(0, "n", 1) == 0
+
+
+def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
+    assert page_loop_available_keys(0, 1) == ("r", "q")
+    assert page_loop_available_keys(0, 3) == ("n", "r", "q")
+    assert page_loop_available_keys(1, 3) == ("n", "p", "r", "q")
+    assert page_loop_available_keys(2, 3) == ("p", "r", "q")
+
+    _print_page_prompt(index=0, page_count=1)
+    assert capsys.readouterr().out == "\nPage 1/1  r: refresh  q: quit"
+
+    _print_page_prompt(index=0, page_count=3)
+    assert capsys.readouterr().out == "\nPage 1/3  n: next  r: refresh  q: quit"
+
+    _print_page_prompt(index=1, page_count=3)
+    assert (
+        capsys.readouterr().out
+        == "\nPage 2/3  n: next  p: previous  r: refresh  q: quit"
+    )
+
+    _print_page_prompt(index=2, page_count=3)
+    assert capsys.readouterr().out == "\nPage 3/3  p: previous  r: refresh  q: quit"
 
 
 def test_run_artifact_page_loop_redraws_and_tracks_keys(tmp_path: Path) -> None:
@@ -103,6 +128,62 @@ def test_run_artifact_page_loop_redraws_and_tracks_keys(tmp_path: Path) -> None:
         ["kitten", "icat", str(pages[1])],
         ["clear"],
         ["kitten", "icat", str(pages[0])],
+        ["clear"],
+    ]
+
+
+def test_run_artifact_page_loop_refreshes_current_page(tmp_path: Path) -> None:
+    pages = [tmp_path / "page-1.png", tmp_path / "page-2.png"]
+    for page in pages:
+        page.write_bytes(b"png")
+    commands: list[list[str]] = []
+    keys = iter(["r", "q"])
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    result = run_artifact_page_loop(
+        pages,
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+    )
+
+    assert result.returncode == 0
+    assert commands == [
+        ["clear"],
+        ["kitten", "icat", str(pages[0])],
+        ["clear"],
+        ["kitten", "icat", str(pages[0])],
+        ["clear"],
+    ]
+
+
+def test_run_artifact_page_loop_ignores_unavailable_boundary_keys(
+    tmp_path: Path,
+) -> None:
+    pages = [tmp_path / "page-1.png", tmp_path / "page-2.png"]
+    for page in pages:
+        page.write_bytes(b"png")
+    commands: list[list[str]] = []
+    keys = iter(["p", "n", "q"])
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    result = run_artifact_page_loop(
+        pages,
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+    )
+
+    assert result.returncode == 0
+    assert commands == [
+        ["clear"],
+        ["kitten", "icat", str(pages[0])],
+        ["clear"],
+        ["kitten", "icat", str(pages[1])],
         ["clear"],
     ]
 
