@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 19:04:51
-status: wip
+status: done
 prompt: sdd/prompts/202605/git_xprompt_auto_init.md
 ---
 # Plan: Auto-Initialize Bare Git Projects From `#git:<project>`

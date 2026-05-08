@@ -87,17 +87,53 @@ class ResolvedGitRef:
     checkout_target: str
 
 
+def _init_missing_project_ref(project_name: str) -> ResolvedGitRef:
+    """Initialize and resolve a missing project-name ``#git`` reference."""
+    if not project_name:
+        raise ValueError("Cannot initialize git project from empty ref")
+
+    # Lazy import avoids a top-level cycle: bare_git_init imports
+    # set_bare_repo_dir from this module.
+    from sase.workspace_provider.plugins.bare_git_init import init_bare_git_project
+
+    project_file = init_bare_git_project(project_name)
+    bare_repo_dir = parse_bare_repo_dir(project_file)
+    if not bare_repo_dir:
+        raise RuntimeError(
+            f"Initialized git project '{project_name}' at {project_file} "
+            "but BARE_REPO_DIR is not set"
+        )
+
+    workspace_dir = parse_workspace_dir(project_file)
+    if not workspace_dir:
+        raise RuntimeError(
+            f"Initialized git project '{project_name}' at {project_file} "
+            "but WORKSPACE_DIR is not set"
+        )
+
+    checkout_target = get_default_branch(workspace_dir)
+    return ResolvedGitRef(
+        project_file=project_file,
+        project_name=project_name,
+        primary_workspace_dir=workspace_dir,
+        bare_repo_dir=bare_repo_dir,
+        checkout_target=checkout_target,
+    )
+
+
 def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
     """Resolve a ``#git`` reference to workspace and branch information.
 
-    Three dispatch modes:
+    Four dispatch modes:
 
     1. **Project shorthand** (no ``/``, matching project dir): look up
        ``BARE_REPO_DIR`` and ``WORKSPACE_DIR`` from
        ``~/.sase/projects/<name>/<name>.gp``.
     2. **ChangeSpec name**: search all changespecs for a matching name,
        verify project has ``BARE_REPO_DIR``.
-    3. **Bare repo path** (contains ``/``): derive project name from path
+    3. **Missing project shorthand**: initialize a new bare-git project using
+       the same defaults as ``sase init-git <name>``.
+    4. **Bare repo path** (contains ``/``): derive project name from path
        basename (strip ``.git``), auto-create ``.gp`` with ``BARE_REPO_DIR``
        and ``WORKSPACE_DIR``.
 
@@ -110,6 +146,7 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
     if "/" not in git_ref:
         project_dir = projects_base / git_ref
         project_file_path = project_dir / f"{git_ref}.gp"
+        project_file_exists = project_file_path.exists()
         if project_dir.is_dir() and project_file_path.exists():
             bare_repo_dir = parse_bare_repo_dir(str(project_file_path))
             if bare_repo_dir:
@@ -151,9 +188,12 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
                     checkout_target=f"origin/{git_ref}",
                 )
 
+        if not project_file_exists:
+            return _init_missing_project_ref(git_ref)
+
         raise ValueError(f"Cannot resolve git_ref '{git_ref}'")
 
-    # --- Mode 3: bare repo path (contains /) ---
+    # --- Mode 4: bare repo path (contains /) ---
     bare_path = os.path.expanduser(git_ref)
     basename = os.path.basename(bare_path.rstrip("/"))
     project_name = basename[:-4] if basename.endswith(".git") else basename

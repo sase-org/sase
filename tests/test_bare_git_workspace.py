@@ -92,9 +92,13 @@ class TestResolveGitRef:
                 assert result.checkout_target == "origin/main"
 
     @patch(f"{_REF_MOD}.get_default_branch", return_value="origin/main")
+    @patch(f"{_INIT_MOD}.init_bare_git_project")
     @patch(f"{_REF_MOD}.find_all_changespecs")
     def test_changespec_name(
-        self, mock_find: MagicMock, mock_branch: MagicMock
+        self,
+        mock_find: MagicMock,
+        mock_init: MagicMock,
+        mock_branch: MagicMock,
     ) -> None:
         with tempfile.TemporaryDirectory() as d:
             gp = os.path.join(d, "proj.gp")
@@ -119,15 +123,79 @@ class TestResolveGitRef:
                 assert result.checkout_target == "origin/my-feature"
                 assert result.project_name == "proj"
                 assert result.bare_repo_dir == "/repos/proj.git"
+                mock_init.assert_not_called()
 
     @patch(f"{_REF_MOD}.find_all_changespecs", return_value=[])
-    def test_not_found(self, mock_find: MagicMock) -> None:
+    def test_empty_project_name_not_initialized(self, mock_find: MagicMock) -> None:
         with patch(
             f"{_REF_MOD}.Path.home",
             return_value=Path("/nonexistent"),
         ):
-            with pytest.raises(ValueError, match="Cannot resolve"):
-                resolve_git_ref("unknown-thing")
+            with pytest.raises(ValueError, match="empty ref"):
+                resolve_git_ref("")
+
+    @patch(f"{_REF_MOD}.get_default_branch", return_value="origin/main")
+    @patch(f"{_REF_MOD}.find_all_changespecs", return_value=[])
+    @patch(f"{_INIT_MOD}.init_bare_git_project")
+    def test_missing_project_name_auto_initializes(
+        self,
+        mock_init: MagicMock,
+        mock_find: MagicMock,
+        mock_branch: MagicMock,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            home = Path(d)
+            project_file = home / ".sase" / "projects" / "newproj" / "newproj.gp"
+            bare_dir = home / ".sase" / "repos" / "newproj.git"
+            workspace_dir = str(home / "projects" / "git" / "newproj") + "/"
+
+            def init_project(project_name: str) -> str:
+                assert project_name == "newproj"
+                project_file.parent.mkdir(parents=True)
+                project_file.write_text(
+                    f"BARE_REPO_DIR: {bare_dir}\nWORKSPACE_DIR: {workspace_dir}\n",
+                    encoding="utf-8",
+                )
+                return str(project_file)
+
+            mock_init.side_effect = init_project
+
+            with patch(f"{_REF_MOD}.Path.home", return_value=home):
+                result = resolve_git_ref("newproj")
+
+            assert result == ResolvedGitRef(
+                project_file=str(project_file),
+                project_name="newproj",
+                primary_workspace_dir=workspace_dir,
+                bare_repo_dir=str(bare_dir),
+                checkout_target="origin/main",
+            )
+            mock_find.assert_called_once()
+            mock_init.assert_called_once_with("newproj")
+            mock_branch.assert_called_once_with(workspace_dir)
+
+    @patch(f"{_REF_MOD}.find_all_changespecs", return_value=[])
+    @patch(f"{_INIT_MOD}.init_bare_git_project")
+    def test_existing_project_without_bare_repo_is_not_initialized(
+        self,
+        mock_init: MagicMock,
+        mock_find: MagicMock,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            home = Path(d)
+            project_dir = home / ".sase" / "projects" / "plainproj"
+            project_dir.mkdir(parents=True)
+            (project_dir / "plainproj.gp").write_text(
+                "WORKSPACE_DIR: /work/plainproj/\nNAME: cl\n",
+                encoding="utf-8",
+            )
+
+            with patch(f"{_REF_MOD}.Path.home", return_value=home):
+                with pytest.raises(ValueError, match="Cannot resolve"):
+                    resolve_git_ref("plainproj")
+
+            mock_find.assert_called_once()
+            mock_init.assert_not_called()
 
     @patch(f"{_REF_MOD}.get_default_branch", return_value="origin/main")
     @patch(f"{_REF_MOD}.set_workspace_dir", return_value=True)
