@@ -32,10 +32,11 @@ def _run_handler(
     args = _parse_commit_args(argv)
     mock_workflow = MagicMock()
     mock_workflow.run.return_value = RunResult.OK
+    test_env = {"SASE_BEAD_ID": "", **(env or {})}
 
     with (
         patch("sase.main.cl_handler.CommitWorkflow", return_value=mock_workflow) as cls,
-        patch.dict("os.environ", env or {}, clear=False),
+        patch.dict("os.environ", test_env, clear=False),
         pytest.raises(SystemExit) as exc_info,
     ):
         from sase.main.cl_handler import handle_commit_command
@@ -66,9 +67,32 @@ class TestCommitCLI:
         payload, _ = _run_handler(["-M", msg_file])
         assert payload["files"] == []
 
-    def test_bead_id(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize("flag", ["-b", "--bead-id"])
+    def test_bead_id_flag_rejected(self, tmp_path: Path, flag: str) -> None:
         msg_file = _write_msg(tmp_path, "msg")
-        payload, _ = _run_handler(["-M", msg_file, "--bead-id", "sase-42"])
+        with pytest.raises(SystemExit) as exc_info:
+            _parse_commit_args(["-M", msg_file, flag, "sase-42"])
+        assert exc_info.value.code == 2
+
+    def test_bead_id_from_env(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        payload, _ = _run_handler(["-M", msg_file], env={"SASE_BEAD_ID": "sase-42"})
+        assert payload["bead_id"] == "sase-42"
+
+    def test_bead_id_env_unset_omitted(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        payload, _ = _run_handler(["-M", msg_file])
+        assert "bead_id" not in payload
+
+    @pytest.mark.parametrize("env_value", ["", "   ", "\t\n"])
+    def test_bead_id_env_blank_omitted(self, tmp_path: Path, env_value: str) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        payload, _ = _run_handler(["-M", msg_file], env={"SASE_BEAD_ID": env_value})
+        assert "bead_id" not in payload
+
+    def test_bead_id_env_stripped(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        payload, _ = _run_handler(["-M", msg_file], env={"SASE_BEAD_ID": "  sase-42  "})
         assert payload["bead_id"] == "sase-42"
 
     def test_pr_name(self, tmp_path: Path) -> None:
@@ -159,6 +183,18 @@ class TestCommitCLI:
         msg_file = _write_msg(tmp_path, "msg")
         _, method = _run_handler(["-M", msg_file, "--type", alias])
         assert method == canonical
+
+    def test_env_bead_id_with_method_alias_and_message_file(
+        self, tmp_path: Path
+    ) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        payload, method = _run_handler(
+            ["-M", msg_file, "--type", "pr", "--name", "feat-branch"],
+            env={"SASE_BEAD_ID": "sase-42"},
+        )
+        assert payload["bead_id"] == "sase-42"
+        assert payload["message"] == "msg"
+        assert method == "create_pull_request"
 
     @pytest.mark.parametrize(
         "alias,canonical",

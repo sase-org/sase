@@ -34,11 +34,6 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Branch/CL name (required for create_pull_request)",
     )
     commit_parser.add_argument(
-        "-b",
-        "--bead-id",
-        help="Bead ID to close and associate with the commit",
-    )
-    commit_parser.add_argument(
         "-B",
         "--bug-id",
         type=int,

@@ -9,6 +9,14 @@ from rich.console import Console
 from rich.markup import escape as _esc
 
 
+def _resolve_env_bead_id() -> str | None:
+    """Return the SASE_BEAD_ID value for new commit attempts, if set."""
+    import os
+
+    bead_id = os.environ.get("SASE_BEAD_ID", "").strip()
+    return bead_id or None
+
+
 def handle_commit_command(args: argparse.Namespace) -> NoReturn:
     """Handle the 'commit' command.
 
@@ -83,8 +91,8 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
     }
     if args.name:
         payload["name"] = args.name
-    if args.bead_id:
-        payload["bead_id"] = args.bead_id
+    if bead_id := _resolve_env_bead_id():
+        payload["bead_id"] = bead_id
     if args.bug_id:
         payload["bug_id"] = str(args.bug_id)
     if args.checkout_target != "HEAD~1":
