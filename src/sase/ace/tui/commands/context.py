@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from sase.ace.tui.actions.agents._core import is_unread_completed_status
 from sase.ace.tui.commands.types import CommandContext, CommandTab
 from sase.ace.tui.widgets.bgcmd_list import AxeParentItem, BgCmdItem
 
@@ -84,7 +85,7 @@ def _has_agent_artifacts(app: AceApp, agent) -> bool:  # type: ignore[no-untyped
 
 def _completed_agent_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
     agents = getattr(app, "_agents", [])
-    return sum(1 for a in agents if a.status in ("DONE", "FAILED"))
+    return sum(1 for a in agents if is_unread_completed_status(a.status))
 
 
 def _unread_completed_agent_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
@@ -93,7 +94,8 @@ def _unread_completed_agent_count(app: AceApp) -> int:  # type: ignore[no-untype
     return sum(
         1
         for a in agents
-        if a.status in ("DONE", "FAILED") and getattr(a, "identity", None) in unread_ids
+        if is_unread_completed_status(a.status)
+        and getattr(a, "identity", None) in unread_ids
     )
 
 

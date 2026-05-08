@@ -196,6 +196,16 @@ def test_finalizer_marks_new_terminal_agent_unread() -> None:
     assert app._unread_completed_agent_ids == {agent.identity}
 
 
+def test_finalizer_marks_new_plan_done_agent_unread() -> None:
+    agent = _agent(status="PLAN DONE")
+    app = _UnreadFinalizeApp([agent])
+    app._agent_display_status_by_identity[agent.identity] = "RUNNING"
+
+    _sync_unread_completed_agents(app, on_agents_tab=False)  # type: ignore[arg-type]
+
+    assert app._unread_completed_agent_ids == {agent.identity}
+
+
 def test_finalizer_does_not_mark_currently_selected_agent_unread() -> None:
     agent = _agent(status="DONE")
     app = _UnreadFinalizeApp([agent])
@@ -396,6 +406,14 @@ def test_navigation_back_to_armed_manual_unread_acknowledges_it() -> None:
     assert app.patch_calls == [first]
 
 
+def test_has_unread_completed_agent_includes_plan_done() -> None:
+    agent = _agent(status="PLAN DONE")
+    app = _UnreadJumpApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+
+    assert app._has_unread_completed_agent()
+
+
 def test_jump_to_next_unread_done_agent_uses_completion_recency_and_wraps() -> None:
     older = _agent(
         name="older",
@@ -498,7 +516,7 @@ def test_jump_to_next_unread_done_agent_uses_start_time_when_stop_time_missing()
 
 
 def test_jump_to_next_unread_done_agent_preserves_target_unread_state() -> None:
-    done = _agent(name="done", status="DONE")
+    done = _agent(name="done", status="PLAN DONE")
     app = _UnreadJumpApp([done])
     app._unread_completed_agent_ids.add(done.identity)
 
@@ -563,7 +581,7 @@ def test_jump_to_next_unread_done_agent_finds_non_focused_panel_row() -> None:
     focused = _agent(name="focused", status="RUNNING", raw_suffix="focused")
     target = _agent(
         name="target",
-        status="DONE",
+        status="PLAN DONE",
         raw_suffix="target",
         tag="chop",
         stop_time=datetime(2026, 5, 7, 12, 0, 0),

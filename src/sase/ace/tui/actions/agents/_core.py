@@ -39,6 +39,11 @@ from ._loading import DISMISSABLE_STATUSES
 TabName = Literal["changespecs", "agents", "axe"]
 
 
+def is_unread_completed_status(status: str) -> bool:
+    """Return True for terminal statuses that can be surfaced as unread."""
+    return status in DISMISSABLE_STATUSES
+
+
 class AgentsMixinCore(
     AgentApproveMixin,
     AgentFoldingMixin,
@@ -298,14 +303,14 @@ class AgentsMixinCore(
             self._current_group_key = None
 
     def _has_unread_completed_agent(self) -> bool:
-        """Return True when a visible DONE/FAILED row is still unread."""
+        """Return True when a visible terminal row is still unread."""
         unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
             self, "_unread_completed_agent_ids", set()
         )
         if not unread_ids:
             return False
         return any(
-            agent.status in ("DONE", "FAILED") and agent.identity in unread_ids
+            is_unread_completed_status(agent.status) and agent.identity in unread_ids
             for agent in self._agents
         )
 
@@ -389,7 +394,10 @@ class AgentsMixinCore(
         for idx, agent in enumerate(self._agents):
             if idx not in visible_panel_indices:
                 continue
-            if agent.status in ("DONE", "FAILED") and agent.identity in unread_ids:
+            if (
+                is_unread_completed_status(agent.status)
+                and agent.identity in unread_ids
+            ):
                 candidates.append(
                     (
                         idx,

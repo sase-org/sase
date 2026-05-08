@@ -31,6 +31,7 @@ from sase.ace.tui.commands import (
 from sase.ace.tui.commands.context import (
     _selected_axe_slot_states,
     _completed_agent_count,
+    _unread_completed_agent_count,
 )
 from sase.ace.tui.widgets.bgcmd_list import (
     AxeParentItem,
@@ -186,11 +187,29 @@ def test_completed_agent_count_includes_done_and_failed() -> None:
     agents = [
         SimpleNamespace(status="DONE"),
         SimpleNamespace(status="FAILED"),
+        SimpleNamespace(status="PLAN DONE"),
         SimpleNamespace(status="RUNNING"),
+        SimpleNamespace(status="PLANNING"),
         SimpleNamespace(status="WAITING INPUT"),
     ]
     app = SimpleNamespace(_agents=agents)
-    assert _completed_agent_count(app) == 2  # type: ignore[arg-type]
+    assert _completed_agent_count(app) == 3  # type: ignore[arg-type]
+
+
+def test_unread_completed_agent_count_includes_plan_done() -> None:
+    done = SimpleNamespace(status="DONE", identity=("run", "done", None))
+    plan_done = SimpleNamespace(status="PLAN DONE", identity=("run", "plan", None))
+    running = SimpleNamespace(status="RUNNING", identity=("run", "running", None))
+    app = SimpleNamespace(
+        _agents=[done, plan_done, running],
+        _unread_completed_agent_ids={
+            done.identity,
+            plan_done.identity,
+            running.identity,
+        },
+    )
+
+    assert _unread_completed_agent_count(app) == 2  # type: ignore[arg-type]
 
 
 def test_selected_axe_slot_states_non_bgcmd_returns_false() -> None:
