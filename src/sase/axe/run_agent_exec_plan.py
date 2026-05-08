@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 from sase.artifacts import convert_timestamp_to_artifacts_format
 from sase.axe.run_agent_exec_plan_artifacts import (
     get_embedded_workflow_refs,
+    store_followup_prompt_artifact,
     write_plan_path_artifact,
 )
 from sase.axe.run_agent_exec_plan_sdd import (
@@ -54,6 +55,7 @@ _build_sdd_plan_ref = build_sdd_plan_ref
 _get_embedded_workflow_refs = get_embedded_workflow_refs
 _infer_epic_legend_bead_id = infer_epic_legend_bead_id
 _plan_kind_for_action = plan_kind_for_action
+_store_followup_prompt_artifact = store_followup_prompt_artifact
 _write_plan_path_artifact = write_plan_path_artifact
 
 
@@ -252,6 +254,11 @@ def handle_plan_marker(
             base += "\n\n" + qa
         reqs = "\n".join(f"- {fb}" for fb in state.feedback_bullets)
         state.current_prompt = f"{base}\n\n### Additional Requirements\n\n{reqs}"
+        _store_followup_prompt_artifact(
+            state.current_artifacts_dir,
+            state.current_prompt,
+            label="Full feedback prompt",
+        )
         return None  # continue loop
 
     update_meta_field(state.current_artifacts_dir, "plan_approved", True)
@@ -606,6 +613,11 @@ def handle_questions_marker(
     qa_text = format_qa_for_prompt(q_data.get("questions", []), response)
     state.qa_sections.append(qa_text)
     state.current_prompt = state.current_prompt + "\n\n" + qa_text
+    _store_followup_prompt_artifact(
+        state.current_artifacts_dir,
+        state.current_prompt,
+        label="Full question prompt",
+    )
 
     # Update SDD prompt snapshot with Q&A answers
     if state.sdd_spec_path is not None:

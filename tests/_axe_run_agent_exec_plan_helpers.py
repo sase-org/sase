@@ -60,6 +60,7 @@ PLAN_PATCHES = {
     ),
     "sase.axe.run_agent_exec_plan.promote_to_workflow": None,
     "sase.axe.run_agent_exec_plan._commit_sdd_files": None,
+    "sase.axe.run_agent_exec_plan._store_followup_prompt_artifact": None,
     "sase.llm_provider._plan_utils.handle_plan_approval": None,
     "sase.history.chat.save_chat_history": lambda **kw: "/fake/chat",
     "sase.history.chat_extras.format_extra_sections": lambda *a: "",

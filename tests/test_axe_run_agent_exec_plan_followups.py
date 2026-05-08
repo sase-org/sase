@@ -3,13 +3,16 @@
 import dataclasses
 import json
 import os
+from pathlib import Path
 from unittest.mock import call, patch
 
 import pytest
 
 from sase.axe import run_agent_exec_plan as plan_mod
-from sase.axe.run_agent_exec_plan import handle_plan_marker
+from sase.axe.run_agent_exec_plan import handle_plan_marker, handle_questions_marker
+from sase.axe.run_agent_exec_plan_artifacts import store_followup_prompt_artifact
 from sase.axe.run_agent_helpers import create_followup_artifacts
+from sase.core.agent_artifact_facade import list_explicit_agent_artifacts
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
@@ -89,6 +92,71 @@ class TestPlanFollowupPrompts:
         )
         assert call(plan_artifacts_dir, "plan_action", "epic") in (
             plan_mod.update_meta_field.call_args_list
+        )
+
+    def test_feedback_followup_stores_full_prompt_artifact(self, tmp_path) -> None:
+        """Plan feedback follow-up exposes the rebuilt prompt as an artifact."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(
+            action="feedback",
+            plan_file=plan_file,
+            feedback="Add failure handling",
+        )
+        with patch(
+            "sase.llm_provider._plan_utils.handle_plan_approval",
+            return_value=approval,
+        ):
+            outcome = handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        assert outcome is None
+        assert state.current_prompt == (
+            "original prompt\n\n### Additional Requirements\n\n- Add failure handling"
+        )
+        plan_mod._store_followup_prompt_artifact.assert_called_once_with(
+            "/tmp/followup",
+            state.current_prompt,
+            label="Full feedback prompt",
+        )
+
+    def test_question_followup_stores_full_prompt_artifact(self, tmp_path) -> None:
+        """Question answers follow-up exposes the rebuilt prompt as an artifact."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        questions = [
+            {
+                "question": "Which API?",
+                "options": [{"label": "REST"}, {"label": "GraphQL"}],
+            }
+        ]
+        response = {
+            "answers": [
+                {
+                    "question": "Which API?",
+                    "selected": ["REST"],
+                    "custom_feedback": None,
+                }
+            ],
+            "global_note": "Keep it simple",
+        }
+
+        with patch(
+            "sase.axe.run_agent_exec_plan.handle_questions_flow",
+            return_value=response,
+        ):
+            outcome = handle_questions_marker({"questions": questions}, ctx, state)
+
+        assert outcome is None
+        assert "Which API?" in state.current_prompt
+        assert "REST" in state.current_prompt
+        assert "Keep it simple" in state.current_prompt
+        plan_mod._store_followup_prompt_artifact.assert_called_once_with(
+            "/tmp/followup",
+            state.current_prompt,
+            label="Full question prompt",
         )
 
     def test_legend_prompt_uses_legend_sdd_ref(self, tmp_path) -> None:
@@ -574,3 +642,37 @@ def test_create_followup_artifacts_persists_plan_committed_flag(tmp_path) -> Non
     assert result == str(followup)
     meta = json.loads((followup / "agent_meta.json").read_text())
     assert meta["plan_committed"] is False
+
+
+def test_store_followup_prompt_artifact_registers_explicit_artifact(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    artifacts_dir = (
+        tmp_path
+        / ".sase"
+        / "projects"
+        / "proj"
+        / "artifacts"
+        / "ace-run"
+        / "20260508120000"
+    )
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "agent.2"}),
+        encoding="utf-8",
+    )
+
+    store_followup_prompt_artifact(
+        str(artifacts_dir),
+        "full rebuilt prompt",
+        label="Full feedback prompt",
+    )
+
+    artifacts = list_explicit_agent_artifacts(artifacts_dir)
+    assert len(artifacts) == 1
+    artifact = artifacts[0]
+    assert artifact.label == "Full feedback prompt"
+    assert artifact.kind == "markdown"
+    assert artifact.agent_name == "agent.2"
+    assert Path(artifact.path).read_text(encoding="utf-8") == "full rebuilt prompt"

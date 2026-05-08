@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from pathlib import Path
+
+from sase.core.agent_artifact_facade import store_explicit_agent_artifact
+
+logger = logging.getLogger(__name__)
 
 
 def write_plan_path_artifact(artifacts_dir: str, plan_path: str) -> None:
@@ -20,6 +25,28 @@ def write_plan_path_artifact(artifacts_dir: str, plan_path: str) -> None:
             json.dump({"plan_path": plan_path}, f)
     except OSError:
         pass
+
+
+def store_followup_prompt_artifact(
+    artifacts_dir: str,
+    prompt: str,
+    *,
+    label: str = "Full follow-up prompt",
+) -> None:
+    """Store the rebuilt prompt as an explicit artifact for a follow-up agent."""
+    try:
+        artifacts_path = Path(artifacts_dir).expanduser()
+        artifacts_path.mkdir(parents=True, exist_ok=True)
+        prompt_path = artifacts_path / "followup_prompt.md"
+        prompt_path.write_text(prompt, encoding="utf-8")
+        store_explicit_agent_artifact(
+            prompt_path,
+            artifacts_path,
+            label=label,
+            kind="markdown",
+        )
+    except Exception:
+        logger.warning("Failed to store follow-up prompt artifact", exc_info=True)
 
 
 def get_embedded_workflow_refs(artifacts_dir: str, vcs_tag: str | None) -> str:
