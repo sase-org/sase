@@ -58,6 +58,7 @@ from .processor import (
     is_jinja2_template,
     prompt_may_reference_xprompt,
     process_xprompt_references,
+    process_xprompt_references_with_catalog,
     render_toplevel_jinja2,
     resolve_xprompt_aliases,
 )
@@ -139,6 +140,7 @@ __all__ = [
     "is_workflow_reference",
     "prompt_may_reference_xprompt",
     "process_xprompt_references",
+    "process_xprompt_references_with_catalog",
     "render_toplevel_jinja2",
     "resolve_xprompt_aliases",
     # Workflow models

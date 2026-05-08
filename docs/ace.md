@@ -1435,6 +1435,9 @@ inherit the leading whitespace of the trigger line. Tabstop positions are adjust
 Trigger words are matched against the alphanumeric/underscore word immediately before the cursor. If no snippet matches,
 `Tab` advances to the next tabstop (if any are remaining from a previous expansion), or behaves normally.
 
+XPrompt-derived snippets compose normal xprompt references before they enter the snippet registry. Entries configured
+directly in `ace.snippets` remain literal snippet templates.
+
 ### XPrompt Picker (`#@`)
 
 Typing `#@` (the `#` character followed by `@`) opens the XPrompt snippet picker modal. This lists all available

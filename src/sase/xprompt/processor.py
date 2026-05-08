@@ -270,6 +270,41 @@ def process_xprompt_references(
     xprompts = get_all_xprompts()
     if extra_xprompts:
         xprompts.update(extra_xprompts)
+
+    return process_xprompt_references_with_catalog(
+        prompt,
+        xprompts,
+        extra_xprompts=extra_xprompts,
+        scope=scope,
+        trace=trace,
+        aliases_resolved=True,
+    )
+
+
+def process_xprompt_references_with_catalog(
+    prompt: str,
+    xprompts: dict[str, XPrompt],
+    extra_xprompts: dict[str, XPrompt] | None = None,
+    scope: dict[str, Any] | None = None,
+    *,
+    trace: ExpansionTrace | None = None,
+    aliases_resolved: bool = False,
+) -> str:
+    """Process xprompt references using an already-loaded xprompt catalog."""
+    if "#" not in prompt:
+        return prompt
+    if not prompt_may_reference_xprompt(prompt, extra_xprompts):
+        return prompt
+
+    if not aliases_resolved:
+        prompt = resolve_xprompt_aliases(prompt)
+        if "#" not in prompt:
+            return prompt
+        if not prompt_may_reference_xprompt(prompt, extra_xprompts):
+            return prompt
+
+    if extra_xprompts:
+        xprompts = {**xprompts, **extra_xprompts}
     if not xprompts:
         return prompt  # No xprompts defined
 
@@ -470,6 +505,7 @@ __all__ = [
     "is_jinja2_template",
     "prompt_may_reference_xprompt",
     "process_xprompt_references",
+    "process_xprompt_references_with_catalog",
     "render_toplevel_jinja2",
     "resolve_xprompt_aliases",
 ]

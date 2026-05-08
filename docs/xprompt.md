@@ -631,6 +631,7 @@ Review this {{ language }} code for correctness and style.
 
 **Conversion rules:**
 
+- Normal xprompt references in the content are expanded before conversion, so snippets can compose reusable xprompts
 - `{{ input_name }}` placeholders for required inputs become snippet tabstops (`$1`, `$2`, etc.)
 - Legacy `{N}` placeholders are also converted
 - XPrompts with complex Jinja2 control flow (`{% %}` or `{# #}`) are skipped

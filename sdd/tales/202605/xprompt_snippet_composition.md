@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 17:56:29
-status: wip
+status: done
 prompt: sdd/prompts/202605/xprompt_snippet_composition.md
 ---
 # Plan: XPrompt Snippet Composition

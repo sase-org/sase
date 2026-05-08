@@ -1,8 +1,10 @@
 """Bridge between xprompt definitions and ACE snippet templates."""
 
+from dataclasses import replace
 import re
 
 from sase.xprompt.models import UNSET, XPrompt
+from sase.xprompt.processor import process_xprompt_references_with_catalog
 
 _JINJA2_CONTROL = re.compile(r"\{%.*?%\}", re.DOTALL)
 _JINJA2_COMMENT = re.compile(r"\{#.*?#\}", re.DOTALL)
@@ -90,7 +92,13 @@ def get_xprompt_snippets(project: str | None = None) -> dict[str, str]:
         if not _VALID_TRIGGER.match(trigger):
             continue
 
-        template = _xprompt_to_snippet_template(xp)
+        composed_content = process_xprompt_references_with_catalog(
+            xp.content,
+            xprompts,
+        )
+        composed_xp = replace(xp, content=composed_content)
+
+        template = _xprompt_to_snippet_template(composed_xp)
         if template is None:
             continue
 

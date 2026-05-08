@@ -1,16 +1,22 @@
 """Tests for xprompt snippet bridge conversion logic."""
 
+from unittest.mock import patch
+
 from sase.xprompt.models import UNSET, InputArg, XPrompt
-from sase.xprompt.snippet_bridge import _xprompt_to_snippet_template
+from sase.xprompt.snippet_bridge import (
+    _xprompt_to_snippet_template,
+    get_xprompt_snippets,
+)
 
 
 def _make_xp(
     content: str,
     inputs: list[InputArg] | None = None,
     snippet: str | bool | None = True,
+    name: str = "test",
 ) -> XPrompt:
     return XPrompt(
-        name="test",
+        name=name,
         content=content,
         inputs=inputs or [],
         snippet=snippet,
@@ -131,3 +137,76 @@ def test_tabstop_numbering_skips_defaulted() -> None:
         ],
     )
     assert _xprompt_to_snippet_template(xp) == "$1 mid $2$0"
+
+
+# --- get_xprompt_snippets composition ---
+
+
+def test_get_xprompt_snippets_composes_nested_xprompt_reference() -> None:
+    xprompts = {
+        "baz": _make_xp(
+            "Don't forget to review bazbuz first!",
+            name="baz",
+            snippet=True,
+        ),
+        "foo": _make_xp(
+            "Can you help me foobar? #baz",
+            name="foo",
+            snippet=True,
+        ),
+    }
+
+    with (
+        patch("sase.config.load_merged_config", return_value={}),
+        patch("sase.xprompt.loader.get_all_xprompts", return_value=xprompts),
+    ):
+        snippets = get_xprompt_snippets()
+
+    assert snippets["foo"] == (
+        "Can you help me foobar? Don't forget to review bazbuz first!$0"
+    )
+
+
+def test_get_xprompt_snippets_composes_non_snippet_reference() -> None:
+    xprompts = {
+        "baz": _make_xp("Nested content", name="baz", snippet=None),
+        "foo": _make_xp("Outer #baz", name="foo", snippet=True),
+    }
+
+    with (
+        patch("sase.config.load_merged_config", return_value={}),
+        patch("sase.xprompt.loader.get_all_xprompts", return_value=xprompts),
+    ):
+        snippets = get_xprompt_snippets()
+
+    assert snippets == {"foo": "Outer Nested content$0"}
+
+
+def test_get_xprompt_snippets_composes_multiple_nested_levels() -> None:
+    xprompts = {
+        "baz": _make_xp("baz", name="baz", snippet=None),
+        "bar": _make_xp("bar #baz", name="bar", snippet=None),
+        "foo": _make_xp("foo #bar", name="foo", snippet=True),
+    }
+
+    with (
+        patch("sase.config.load_merged_config", return_value={}),
+        patch("sase.xprompt.loader.get_all_xprompts", return_value=xprompts),
+    ):
+        snippets = get_xprompt_snippets()
+
+    assert snippets == {"foo": "foo bar baz$0"}
+
+
+def test_get_xprompt_snippets_leaves_unknown_nested_references_literal() -> None:
+    xprompts = {
+        "foo": _make_xp("Outer #missing", name="foo", snippet=True),
+    }
+
+    with (
+        patch("sase.config.load_merged_config", return_value={}),
+        patch("sase.xprompt.loader.get_all_xprompts", return_value=xprompts),
+    ):
+        snippets = get_xprompt_snippets()
+
+    assert snippets == {"foo": "Outer #missing$0"}
