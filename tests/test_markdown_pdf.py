@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from sase.attachments import markdown_pdf
 from sase.attachments.markdown_pdf import (
+    MarkdownPdfProfile,
     render_markdown_pdf,
     render_markdown_pdf_attachments,
 )
@@ -121,6 +122,95 @@ def test_render_markdown_pdf_explicit_css_overrides_default(tmp_path):
     )
 
 
+def test_render_markdown_pdf_custom_profile_updates_wkhtmltopdf_and_css(tmp_path):
+    source = tmp_path / "notes.md"
+    source.write_text("# Notes\n")
+    dest = tmp_path / "notes.pdf"
+    profile = MarkdownPdfProfile(
+        page_width="8.50in",
+        page_height="4.25in",
+        margin="0.18in",
+        css_font_size="18px",
+        latex_font_size="13pt",
+        line_stretch="1.4",
+    )
+    seen_css: list[str] = []
+    seen_css_paths: list[Path] = []
+
+    def fake_which(name: str) -> str | None:
+        return {
+            "pandoc": "/usr/bin/pandoc",
+            "wkhtmltopdf": "/usr/bin/wkhtmltopdf",
+        }.get(name)
+
+    def fake_run(cmd, **kwargs):
+        css_arg = next(arg for arg in cmd if arg.startswith("--css="))
+        css_path = Path(css_arg.removeprefix("--css="))
+        seen_css_paths.append(css_path)
+        seen_css.append(css_path.read_text(encoding="utf-8"))
+        Path(cmd[3]).write_bytes(b"%PDF")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    with (
+        patch("sase.attachments.markdown_pdf.shutil.which", side_effect=fake_which),
+        patch(
+            "sase.attachments.markdown_pdf.subprocess.run", side_effect=fake_run
+        ) as run,
+    ):
+        result = render_markdown_pdf(source, dest, profile=profile)
+
+    assert result == dest
+    cmd = run.call_args.args[0]
+    assert "--pdf-engine-opt=8.50in" in cmd
+    assert "--pdf-engine-opt=4.25in" in cmd
+    assert "--pdf-engine-opt=0.18in" in cmd
+    assert len(seen_css) == 1
+    assert "size: 8.50in 4.25in;" in seen_css[0]
+    assert "margin: 0.18in;" in seen_css[0]
+    assert seen_css[0].count("font-size: 18px;") >= 2
+    assert "line-height: 1.4;" in seen_css[0]
+    assert not seen_css_paths[0].exists()
+
+
+def test_render_markdown_pdf_explicit_css_overrides_profile_css(tmp_path):
+    source = tmp_path / "notes.md"
+    source.write_text("# Notes\n")
+    dest = tmp_path / "notes.pdf"
+    css = tmp_path / "custom.css"
+    css.write_text("body { color: black; }\n")
+    profile = MarkdownPdfProfile(
+        page_width="8.50in",
+        page_height="4.25in",
+        margin="0.18in",
+        css_font_size="18px",
+        latex_font_size="13pt",
+    )
+
+    def fake_which(name: str) -> str | None:
+        return {
+            "pandoc": "/usr/bin/pandoc",
+            "wkhtmltopdf": "/usr/bin/wkhtmltopdf",
+        }.get(name)
+
+    def fake_run(cmd, **kwargs):
+        Path(cmd[3]).write_bytes(b"%PDF")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    with (
+        patch("sase.attachments.markdown_pdf.shutil.which", side_effect=fake_which),
+        patch(
+            "sase.attachments.markdown_pdf.subprocess.run", side_effect=fake_run
+        ) as run,
+    ):
+        result = render_markdown_pdf(source, dest, css_path=css, profile=profile)
+
+    assert result == dest
+    cmd = run.call_args.args[0]
+    assert f"--css={css}" in cmd
+    assert "--pdf-engine-opt=8.50in" in cmd
+    assert not list(tmp_path.glob(".markdown-pdf-profile.*.css"))
+
+
 def test_render_markdown_pdf_falls_back_to_latex_engine(tmp_path):
     source = tmp_path / "notes.markdown"
     source.write_text("# Notes\n")
@@ -159,6 +249,44 @@ def test_render_markdown_pdf_falls_back_to_latex_engine(tmp_path):
     assert "geometry:paperwidth=4.25in,paperheight=7in,margin=0.22in" in latex_cmd
     assert "fontsize=12pt" in latex_cmd
     assert "linestretch=1.32" in latex_cmd
+
+
+def test_render_markdown_pdf_custom_profile_updates_latex_variables(tmp_path):
+    source = tmp_path / "notes.markdown"
+    source.write_text("# Notes\n")
+    dest = tmp_path / "notes.pdf"
+    profile = MarkdownPdfProfile(
+        page_width="8.50in",
+        page_height="4.25in",
+        margin="0.18in",
+        css_font_size="18px",
+        latex_font_size="13pt",
+        line_stretch="1.4",
+    )
+
+    def fake_which(name: str) -> str | None:
+        return {
+            "pandoc": "/usr/bin/pandoc",
+            "xelatex": "/usr/bin/xelatex",
+        }.get(name)
+
+    def fake_run(cmd, **kwargs):
+        Path(cmd[3]).write_bytes(b"%PDF")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    with (
+        patch("sase.attachments.markdown_pdf.shutil.which", side_effect=fake_which),
+        patch(
+            "sase.attachments.markdown_pdf.subprocess.run", side_effect=fake_run
+        ) as run,
+    ):
+        result = render_markdown_pdf(source, dest, profile=profile)
+
+    assert result == dest
+    cmd = run.call_args.args[0]
+    assert "geometry:paperwidth=8.50in,paperheight=4.25in,margin=0.18in" in cmd
+    assert "fontsize=13pt" in cmd
+    assert "linestretch=1.4" in cmd
 
 
 def test_render_markdown_pdf_returns_none_when_pandoc_missing(tmp_path):

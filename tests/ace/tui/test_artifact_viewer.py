@@ -9,17 +9,21 @@ from unittest.mock import MagicMock
 from rich.console import Console
 
 from sase.ace.tui.graphics.viewer import (
+    ArtifactImageArea,
     ArtifactRenderResult,
     ArtifactViewSpec,
     ArtifactViewerResult,
     _artifact_header_panel,
     _format_artifact_header_path,
     _print_page_prompt,
+    artifact_image_area,
+    artifact_markdown_pdf_profile_for_image_area,
     artifact_tmux_pane_exists,
     artifact_view_mode,
     close_artifact_tmux_pane,
     convert_pdf_to_png_pages,
     is_tmux_session,
+    kitten_icat_command,
     main as viewer_main,
     page_index_after_key,
     page_loop_available_keys,
@@ -30,6 +34,13 @@ from sase.ace.tui.graphics.viewer import (
     view_artifact_file,
     view_artifact_file_in_tmux_pane,
 )
+
+
+_TEST_IMAGE_AREA = ArtifactImageArea(columns=90, rows=24)
+
+
+def _test_icat_command(page: Path) -> list[str]:
+    return kitten_icat_command(page, _TEST_IMAGE_AREA)
 
 
 def test_convert_pdf_to_png_pages_uses_pdftoppm_and_numeric_order(
@@ -170,6 +181,50 @@ def test_artifact_header_panel_includes_path_and_positions(tmp_path: Path) -> No
     assert _format_artifact_header_path(artifact) == str(artifact.resolve(strict=False))
 
 
+def test_artifact_image_area_reserves_viewer_rows() -> None:
+    assert artifact_image_area((100, 40)) == ArtifactImageArea(
+        columns=100,
+        rows=33,
+        top=5,
+    )
+    assert artifact_image_area((10, 8)) == ArtifactImageArea(
+        columns=20,
+        rows=5,
+        top=3,
+    )
+    assert artifact_image_area((100, 40), reserved_rows=2, top_rows=0) == (
+        ArtifactImageArea(columns=100, rows=38)
+    )
+
+
+def test_kitten_icat_command_targets_image_area(tmp_path: Path) -> None:
+    page = tmp_path / "page.png"
+
+    assert kitten_icat_command(page, ArtifactImageArea(100, 33)) == [
+        "kitten",
+        "icat",
+        "--scale-up",
+        "--align",
+        "left",
+        "--place",
+        "100x33@0x0",
+        str(page),
+    ]
+
+
+def test_artifact_markdown_pdf_profile_uses_image_area_aspect() -> None:
+    profile = artifact_markdown_pdf_profile_for_image_area(
+        ArtifactImageArea(columns=100, rows=33)
+    )
+
+    assert profile is not None
+    assert profile.page_width == "11.00in"
+    assert profile.page_height == "3.67in"
+    assert profile.margin == "0.18in"
+    assert profile.css_font_size == "16px"
+    assert profile.latex_font_size == "12pt"
+
+
 def test_run_artifact_page_loop_redraws_and_tracks_keys(tmp_path: Path) -> None:
     pages = [tmp_path / "page-1.png", tmp_path / "page-2.png"]
     for page in pages:
@@ -185,16 +240,17 @@ def test_run_artifact_page_loop_redraws_and_tracks_keys(tmp_path: Path) -> None:
         pages,
         read_key=lambda: next(keys),
         run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
     )
 
     assert result.returncode == 0
     assert commands == [
         ["clear"],
-        ["kitten", "icat", str(pages[0])],
+        _test_icat_command(pages[0]),
         ["clear"],
-        ["kitten", "icat", str(pages[1])],
+        _test_icat_command(pages[1]),
         ["clear"],
-        ["kitten", "icat", str(pages[0])],
+        _test_icat_command(pages[0]),
         ["clear"],
     ]
 
@@ -214,14 +270,15 @@ def test_run_artifact_page_loop_refreshes_current_page(tmp_path: Path) -> None:
         pages,
         read_key=lambda: next(keys),
         run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
     )
 
     assert result.returncode == 0
     assert commands == [
         ["clear"],
-        ["kitten", "icat", str(pages[0])],
+        _test_icat_command(pages[0]),
         ["clear"],
-        ["kitten", "icat", str(pages[0])],
+        _test_icat_command(pages[0]),
         ["clear"],
     ]
 
@@ -243,16 +300,17 @@ def test_run_artifact_page_loop_wraps_boundary_keys(
         pages,
         read_key=lambda: next(keys),
         run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
     )
 
     assert result.returncode == 0
     assert commands == [
         ["clear"],
-        ["kitten", "icat", str(pages[0])],
+        _test_icat_command(pages[0]),
         ["clear"],
-        ["kitten", "icat", str(pages[1])],
+        _test_icat_command(pages[1]),
         ["clear"],
-        ["kitten", "icat", str(pages[0])],
+        _test_icat_command(pages[0]),
         ["clear"],
     ]
 
@@ -270,10 +328,10 @@ def test_run_artifact_sequence_loop_navigates_pages_and_artifacts(
         ArtifactViewSpec(tmp_path / "first.md", "markdown"),
         ArtifactViewSpec(tmp_path / "second.png", "image"),
     )
-    render_calls: list[tuple[Path, str | None, Path]] = []
+    render_calls: list[tuple[Path, str | None, Path, ArtifactImageArea | None]] = []
 
-    def fake_render_result(path, *, kind=None, cache_dir=None):
-        render_calls.append((Path(path), kind, Path(cache_dir)))
+    def fake_render_result(path, *, kind=None, cache_dir=None, image_area=None):
+        render_calls.append((Path(path), kind, Path(cache_dir), image_area))
         pages = tuple(first_pages if kind == "markdown" else second_pages)
         return ArtifactRenderResult(pages)
 
@@ -293,6 +351,7 @@ def test_run_artifact_sequence_loop_navigates_pages_and_artifacts(
         cache_root=tmp_path / "cache",
         read_key=lambda: next(keys),
         run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
     )
 
     assert result.returncode == 0
@@ -300,17 +359,18 @@ def test_run_artifact_sequence_loop_navigates_pages_and_artifacts(
         (tmp_path / "first.md", "markdown"),
         (tmp_path / "second.png", "image"),
     ]
+    assert [call[3] for call in render_calls] == [_TEST_IMAGE_AREA, _TEST_IMAGE_AREA]
     assert commands == [
         ["clear"],
-        ["kitten", "icat", str(first_pages[0])],
+        _test_icat_command(first_pages[0]),
         ["clear"],
-        ["kitten", "icat", str(first_pages[1])],
+        _test_icat_command(first_pages[1]),
         ["clear"],
-        ["kitten", "icat", str(first_pages[0])],
+        _test_icat_command(first_pages[0]),
         ["clear"],
-        ["kitten", "icat", str(second_pages[0])],
+        _test_icat_command(second_pages[0]),
         ["clear"],
-        ["kitten", "icat", str(first_pages[0])],
+        _test_icat_command(first_pages[0]),
         ["clear"],
     ]
     output = capsys.readouterr().out
@@ -381,6 +441,49 @@ def test_render_markdown_artifact_uses_transient_pdf_and_pdf_pages(
         ]
     ]
     assert [path.name for path in result.pages] == ["page-1.png"]
+
+
+def test_render_markdown_artifact_passes_pane_aware_profile(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    source = tmp_path / "chat.md"
+    source.write_text("# Chat\n", encoding="utf-8")
+    profiles = []
+
+    def fake_which(tool: str) -> str:
+        return f"/usr/bin/{tool}"
+
+    def fake_render_markdown_pdf(src: Path, dest: Path, *, profile) -> Path:
+        assert src == source
+        profiles.append(profile)
+        dest.write_bytes(b"%PDF")
+        return dest
+
+    def fake_run(cmd, **kwargs):
+        prefix = Path(cmd[-1])
+        (prefix.parent / f"{prefix.name}-1.png").write_bytes(b"png")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.shutil.which", fake_which)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.render_markdown_pdf",
+        fake_render_markdown_pdf,
+    )
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+
+    result = render_artifact_pages(
+        source,
+        kind="chat",
+        cache_dir=tmp_path / "cache",
+        image_area=ArtifactImageArea(columns=100, rows=33),
+    )
+
+    assert result.warnings == ()
+    assert len(profiles) == 1
+    assert profiles[0].page_width == "11.00in"
+    assert profiles[0].page_height == "3.67in"
+    assert profiles[0].margin == "0.18in"
 
 
 def test_render_artifact_pages_reports_unsupported_kind(tmp_path: Path) -> None:

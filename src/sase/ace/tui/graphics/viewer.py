@@ -29,19 +29,23 @@ from ._viewer_launch import (
     view_image_file,
 )
 from ._viewer_loop import (
+    artifact_image_area,
     artifact_header_panel,
     format_artifact_header_path,
+    kitten_icat_command,
     page_index_after_key,
     page_loop_available_keys,
     print_page_prompt,
     run_artifact_page_loop,
 )
 from ._viewer_render import (
+    artifact_markdown_pdf_profile_for_image_area,
     artifact_view_mode,
     convert_pdf_to_png_pages,
     validate_artifact_viewer_dependencies,
 )
 from ._viewer_types import (
+    ArtifactImageArea,
     ArtifactRenderResult,
     ArtifactViewerResult,
     ArtifactViewerWarning,
@@ -61,6 +65,7 @@ def render_artifact_pages(
     *,
     kind: str | None = None,
     cache_dir: str | Path | None = None,
+    image_area: ArtifactImageArea | None = None,
 ) -> ArtifactRenderResult:
     """Render *path* into one or more image pages for terminal display."""
 
@@ -71,6 +76,7 @@ def render_artifact_pages(
             path,
             kind=kind,
             cache_dir=cache_dir,
+            image_area=image_area,
         )
     finally:
         _viewer_render.render_markdown_pdf = original
@@ -83,6 +89,7 @@ def run_artifact_sequence_loop(
     read_key: Callable[[], str] | None = None,
     run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]]
     | None = None,
+    image_area: ArtifactImageArea | None = None,
 ) -> _viewer_loop._PageLoopResult:
     """Display an artifact sequence with page and document navigation."""
 
@@ -94,6 +101,7 @@ def run_artifact_sequence_loop(
             cache_root=cache_root,
             read_key=read_key,
             run_command=run_command,
+            image_area=image_area,
         )
     finally:
         _viewer_loop.render_artifact_pages = original
@@ -137,17 +145,21 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 __all__ = [
+    "ArtifactImageArea",
     "ArtifactRenderResult",
     "ArtifactViewMode",
     "ArtifactViewSpec",
     "ArtifactViewerResult",
     "ArtifactViewerWarning",
     "ImageViewerResult",
+    "artifact_image_area",
+    "artifact_markdown_pdf_profile_for_image_area",
     "artifact_tmux_pane_exists",
     "artifact_view_mode",
     "close_artifact_tmux_pane",
     "convert_pdf_to_png_pages",
     "is_tmux_session",
+    "kitten_icat_command",
     "main",
     "page_index_after_key",
     "page_loop_available_keys",

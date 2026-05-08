@@ -1,7 +1,7 @@
 ---
 title: Tmux Markdown Artifact PDF Profile
 create_time: 2026-05-08 18:44:13
-status: wip
+status: done
 prompt: sdd/prompts/202605/tmux_markdown_artifact_pdf_profile.md
 ---
 

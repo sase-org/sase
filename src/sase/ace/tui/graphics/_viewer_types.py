@@ -25,6 +25,16 @@ class ArtifactViewSpec:
 
 
 @dataclass(frozen=True)
+class ArtifactImageArea:
+    """Terminal cell area reserved for displaying an artifact image."""
+
+    columns: int
+    rows: int
+    left: int = 0
+    top: int = 0
+
+
+@dataclass(frozen=True)
 class ArtifactViewerWarning:
     """Structured warning returned by artifact rendering/viewer helpers."""
 

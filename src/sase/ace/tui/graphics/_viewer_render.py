@@ -8,9 +8,14 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from sase.attachments.markdown_pdf import PDF_ENGINES, render_markdown_pdf
+from sase.attachments.markdown_pdf import (
+    PDF_ENGINES,
+    MarkdownPdfProfile,
+    render_markdown_pdf,
+)
 
 from ._viewer_types import (
+    ArtifactImageArea,
     ArtifactRenderResult,
     ArtifactViewerWarning,
     ArtifactViewMode,
@@ -18,6 +23,14 @@ from ._viewer_types import (
 from .images import is_supported_image_path
 
 _MARKDOWN_SUFFIXES = frozenset({".md", ".markdown", ".mdown", ".mkd"})
+_MIN_ARTIFACT_PAGE_WIDTH_IN = 4.25
+_MAX_ARTIFACT_PAGE_WIDTH_IN = 11.0
+_MIN_ARTIFACT_PAGE_HEIGHT_IN = 3.0
+_MAX_ARTIFACT_PAGE_HEIGHT_IN = 8.5
+_ARTIFACT_PAGE_HEIGHT_PER_ROW_IN = 0.15
+_ARTIFACT_PAGE_MARGIN_IN = 0.18
+_MIN_ARTIFACT_PAGE_ASPECT = 0.7
+_MAX_ARTIFACT_PAGE_ASPECT = 3.0
 
 
 def render_artifact_pages(
@@ -25,6 +38,7 @@ def render_artifact_pages(
     *,
     kind: str | None = None,
     cache_dir: str | Path | None = None,
+    image_area: ArtifactImageArea | None = None,
 ) -> ArtifactRenderResult:
     """Render *path* into one or more image pages for terminal display."""
 
@@ -63,7 +77,12 @@ def render_artifact_pages(
         if cache_dir is not None
         else Path(tempfile.mkdtemp(prefix="sase-artifact-pages-"))
     )
-    return _render_paginated_artifact(expanded, mode, render_root)
+    return _render_paginated_artifact(
+        expanded,
+        mode,
+        render_root,
+        image_area=image_area,
+    )
 
 
 def artifact_view_mode(
@@ -177,13 +196,20 @@ def _render_paginated_artifact(
     path: Path,
     mode: ArtifactViewMode,
     cache_dir: Path,
+    *,
+    image_area: ArtifactImageArea | None = None,
 ) -> ArtifactRenderResult:
     cache_dir.mkdir(parents=True, exist_ok=True)
     if mode == "pdf":
         return convert_pdf_to_png_pages(path, cache_dir / "pdf_pages")
 
     pdf_path = cache_dir / f"{path.stem or 'artifact'}.pdf"
-    rendered = render_markdown_pdf(path, pdf_path)
+    profile = artifact_markdown_pdf_profile_for_image_area(image_area)
+    rendered = (
+        render_markdown_pdf(path, pdf_path, profile=profile)
+        if profile is not None
+        else render_markdown_pdf(path, pdf_path)
+    )
     if rendered is None:
         return ArtifactRenderResult(
             (),
@@ -195,6 +221,52 @@ def _render_paginated_artifact(
             ),
         )
     return convert_pdf_to_png_pages(rendered, cache_dir / "markdown_pages")
+
+
+def artifact_markdown_pdf_profile_for_image_area(
+    image_area: ArtifactImageArea | None,
+) -> MarkdownPdfProfile | None:
+    """Return a pane-shaped Markdown profile for the artifact viewer."""
+
+    if image_area is None or image_area.columns <= 0 or image_area.rows <= 0:
+        return None
+
+    aspect = _clamp(
+        image_area.columns / image_area.rows,
+        _MIN_ARTIFACT_PAGE_ASPECT,
+        _MAX_ARTIFACT_PAGE_ASPECT,
+    )
+    height = _clamp(
+        image_area.rows * _ARTIFACT_PAGE_HEIGHT_PER_ROW_IN,
+        _MIN_ARTIFACT_PAGE_HEIGHT_IN,
+        _MAX_ARTIFACT_PAGE_HEIGHT_IN,
+    )
+    width = height * aspect
+
+    if width > _MAX_ARTIFACT_PAGE_WIDTH_IN:
+        width = _MAX_ARTIFACT_PAGE_WIDTH_IN
+        height = width / aspect
+    elif width < _MIN_ARTIFACT_PAGE_WIDTH_IN:
+        width = _MIN_ARTIFACT_PAGE_WIDTH_IN
+        height = width / aspect
+
+    height = _clamp(
+        height,
+        _MIN_ARTIFACT_PAGE_HEIGHT_IN,
+        _MAX_ARTIFACT_PAGE_HEIGHT_IN,
+    )
+
+    return MarkdownPdfProfile(
+        page_width=f"{width:.2f}in",
+        page_height=f"{height:.2f}in",
+        margin=f"{_ARTIFACT_PAGE_MARGIN_IN:.2f}in",
+        css_font_size="16px",
+        latex_font_size="12pt",
+    )
+
+
+def _clamp(value: float, minimum: float, maximum: float) -> float:
+    return min(max(value, minimum), maximum)
 
 
 def _collect_pdftoppm_pages(prefix: Path) -> list[Path]:

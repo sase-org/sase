@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 import termios
@@ -18,6 +19,7 @@ from rich.text import Text
 
 from ._viewer_render import render_artifact_pages
 from ._viewer_types import (
+    ArtifactImageArea,
     ArtifactRenderResult,
     ArtifactViewerWarning,
     ArtifactViewSpec,
@@ -30,6 +32,13 @@ class _PageLoopResult:
 
     returncode: int = 0
     warnings: tuple[ArtifactViewerWarning, ...] = ()
+
+
+_ARTIFACT_VIEWER_RESERVED_ROWS = 7
+_ARTIFACT_VIEWER_HEADER_ROWS = 5
+_PAGE_LOOP_RESERVED_ROWS = 2
+_MIN_IMAGE_COLUMNS = 20
+_MIN_IMAGE_ROWS = 5
 
 
 def page_index_after_key(current_index: int, key: str, page_count: int) -> int | None:
@@ -78,6 +87,7 @@ def run_artifact_page_loop(
     read_key: Callable[[], str] | None = None,
     run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]]
     | None = None,
+    image_area: ArtifactImageArea | None = None,
 ) -> _PageLoopResult:
     """Display rendered pages with ``kitten icat`` and a small key loop."""
 
@@ -88,8 +98,12 @@ def run_artifact_page_loop(
     run = run_command or _run_command
     index = 0
     while True:
+        current_area = image_area or artifact_image_area(
+            reserved_rows=_PAGE_LOOP_RESERVED_ROWS,
+            top_rows=0,
+        )
         _clear_terminal(run)
-        result = run(["kitten", "icat", str(pages[index])])
+        result = run(kitten_icat_command(pages[index], current_area))
         if result.returncode != 0:
             return _PageLoopResult(returncode=result.returncode)
         print_page_prompt(index=index, page_count=len(pages))
@@ -111,6 +125,7 @@ def run_artifact_sequence_loop(
     read_key: Callable[[], str] | None = None,
     run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]]
     | None = None,
+    image_area: ArtifactImageArea | None = None,
 ) -> _PageLoopResult:
     """Display an artifact sequence with page and document navigation."""
 
@@ -121,25 +136,28 @@ def run_artifact_sequence_loop(
     read = read_key or _read_single_key
     run = run_command or _run_command
     root = Path(cache_root).expanduser()
-    page_cache: dict[int, tuple[Path, ...]] = {}
+    page_cache: dict[tuple[int, int, int], tuple[Path, ...]] = {}
 
-    def pages_for(index: int) -> ArtifactRenderResult:
-        if index in page_cache:
-            return ArtifactRenderResult(page_cache[index])
+    def pages_for(index: int, area: ArtifactImageArea) -> ArtifactRenderResult:
+        cache_key = (index, area.columns, area.rows)
+        if cache_key in page_cache:
+            return ArtifactRenderResult(page_cache[cache_key])
         spec = specs[index]
         rendered = render_artifact_pages(
             spec.path,
             kind=spec.kind,
             cache_dir=root / f"artifact-{index}",
+            image_area=area,
         )
         if not rendered.warnings:
-            page_cache[index] = rendered.pages
+            page_cache[cache_key] = rendered.pages
         return rendered
 
     artifact_index = 0
     page_index = 0
     while True:
-        rendered = pages_for(artifact_index)
+        current_area = image_area or artifact_image_area()
+        rendered = pages_for(artifact_index, current_area)
         if rendered.warnings:
             return _PageLoopResult(returncode=1, warnings=rendered.warnings)
         pages = rendered.pages
@@ -154,7 +172,7 @@ def run_artifact_sequence_loop(
             artifact_index=artifact_index,
             artifact_count=len(specs),
         )
-        result = run(["kitten", "icat", str(pages[page_index])])
+        result = run(kitten_icat_command(pages[page_index], current_area))
         if result.returncode != 0:
             return _PageLoopResult(returncode=result.returncode)
         print_page_prompt(
@@ -191,6 +209,37 @@ def run_artifact_sequence_loop(
 
 def _run_command(cmd: Sequence[str]) -> subprocess.CompletedProcess[Any]:
     return subprocess.run(list(cmd), check=False)
+
+
+def artifact_image_area(
+    terminal_size: os.terminal_size | tuple[int, int] | None = None,
+    *,
+    reserved_rows: int = _ARTIFACT_VIEWER_RESERVED_ROWS,
+    top_rows: int = _ARTIFACT_VIEWER_HEADER_ROWS,
+) -> ArtifactImageArea:
+    """Return the terminal cell area available for artifact image display."""
+
+    size = terminal_size or shutil.get_terminal_size(fallback=(80, 24))
+    lines = int(size[1])
+    columns = max(_MIN_IMAGE_COLUMNS, int(size[0]))
+    rows = max(_MIN_IMAGE_ROWS, lines - reserved_rows)
+    top = min(max(0, top_rows), max(0, lines - rows))
+    return ArtifactImageArea(columns=columns, rows=rows, top=top)
+
+
+def kitten_icat_command(page: Path, image_area: ArtifactImageArea) -> list[str]:
+    """Build a bounded ``kitten icat`` command for the current viewer area."""
+
+    return [
+        "kitten",
+        "icat",
+        "--scale-up",
+        "--align",
+        "left",
+        "--place",
+        f"{image_area.columns}x{image_area.rows}@{image_area.left}x{image_area.top}",
+        str(page),
+    ]
 
 
 def _clear_terminal(
