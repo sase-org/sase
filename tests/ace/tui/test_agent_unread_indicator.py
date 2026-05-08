@@ -25,6 +25,7 @@ def _agent(
     raw_suffix: str = "20260507090000",
     start_time: datetime | None = _DEFAULT_START_TIME,
     stop_time: datetime | None = None,
+    tag: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -34,6 +35,7 @@ def _agent(
         start_time=start_time,
         stop_time=stop_time,
         raw_suffix=raw_suffix,
+        tag=tag,
     )
 
 
@@ -270,11 +272,19 @@ class _UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin):
         stops: list[tuple[str, int | tuple[str, ...]]] | None = None,
         current_idx: int = 0,
         patch_result: bool = True,
+        with_panels: bool = False,
+        focused_key: str | None = None,
+        merge_tag_panels: bool = False,
     ) -> None:
         self._agents = agents
         self.current_idx = current_idx
         self.current_attempt_number: int | None = 3
         self._current_group_key: tuple[str, ...] | None = None
+        self._agent_panels_grouped = merge_tag_panels
+        if with_panels:
+            self._panel_group = AgentPanelGroup.from_agents(
+                agents, focused_key, merge_tag_panels=merge_tag_panels
+            )
         self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._visible = visible
@@ -293,6 +303,12 @@ class _UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin):
         if self._stops is not None:
             return self._stops
         return [("agent", idx) for idx in self._agents_visible_order()]
+
+    def _panel_keys_per_agent(self) -> list[str | None]:
+        return panel_key_per_agent(
+            self._agents,
+            merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
+        )
 
     def _try_patch_agent_row(self, agent: Agent) -> bool:
         self.patch_calls.append(agent)
@@ -513,7 +529,7 @@ def test_jump_to_next_unread_done_agent_clears_banner_focus_and_refreshes() -> N
 
     assert app.current_idx == 0
     assert app._current_group_key is None
-    assert app.debounced_refresh_calls == 1
+    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
 
 
 def test_jump_to_next_unread_done_agent_starts_at_newest_from_focused_banner() -> None:
@@ -541,3 +557,49 @@ def test_jump_to_next_unread_done_agent_starts_at_newest_from_focused_banner() -
 
     assert app.current_idx == 1
     assert app._current_group_key is None
+
+
+def test_jump_to_next_unread_done_agent_finds_non_focused_panel_row() -> None:
+    focused = _agent(name="focused", status="RUNNING", raw_suffix="focused")
+    target = _agent(
+        name="target",
+        status="DONE",
+        raw_suffix="target",
+        tag="chop",
+        stop_time=datetime(2026, 5, 7, 12, 0, 0),
+    )
+    app = _UnreadJumpApp(
+        [focused, target],
+        current_idx=0,
+        with_panels=True,
+        focused_key=None,
+    )
+    assert app._panel_group.panel_keys == [None, "chop"]
+    assert app._panel_group.focused_idx == 0
+    app._unread_completed_agent_ids.add(target.identity)
+
+    assert app._jump_to_next_unread_done_agent()
+
+    assert app.current_idx == 1
+    assert app._panel_group.focused_idx == 1
+    assert target.identity in app._unread_completed_agent_ids
+    assert app.patch_calls == []
+    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+
+
+def test_jump_to_next_unread_done_agent_returns_false_when_no_unread_panels() -> None:
+    focused = _agent(name="focused", status="RUNNING", raw_suffix="focused")
+    done = _agent(name="done", status="DONE", raw_suffix="done", tag="chop")
+    app = _UnreadJumpApp(
+        [focused, done],
+        current_idx=0,
+        with_panels=True,
+        focused_key=None,
+    )
+
+    assert not app._jump_to_next_unread_done_agent()
+
+    assert app.current_idx == 0
+    assert app._panel_group.focused_idx == 0
+    assert app.patch_calls == []
+    assert app.refresh_calls == []

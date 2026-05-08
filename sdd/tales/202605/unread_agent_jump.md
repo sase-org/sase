@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 16:57:12
-status: wip
+status: done
 prompt: sdd/prompts/202605/unread_agent_jump.md
 ---
 # Fix `,j` Unread Agent Jump Across Panels

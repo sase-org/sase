@@ -309,6 +309,62 @@ class AgentsMixinCore(
             for agent in self._agents
         )
 
+    def _panel_idx_for_agent(self, agent_idx: int) -> int | None:
+        """Return the current rendered panel index for a global agent index."""
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is None or not (0 <= agent_idx < len(self._agents)):
+            return None
+
+        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
+        if not (0 <= agent_idx < len(keys_per_agent)):
+            return None
+
+        panel_key = keys_per_agent[agent_idx]
+        try:
+            return panel_group.panel_keys.index(panel_key)
+        except ValueError:
+            return None
+
+    def _visible_agent_panel_indices(self) -> dict[int, int | None]:
+        """Return visible global agent indices mapped to their panel index.
+
+        The no-panel fallback intentionally keeps the old focused-list
+        behavior used by tests and single-list contexts.
+        """
+        from ...models.agent_groups import GroupingMode, build_agent_tree
+        from ...models.agent_panels import agents_for_panel
+
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is None:
+            return {
+                idx: None
+                for idx in self._agents_visible_order()
+                if 0 <= idx < len(self._agents)
+            }
+
+        registry = getattr(self, "_group_fold_registry", None)
+        mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+        merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
+        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
+        visible: dict[int, int | None] = {}
+
+        for key in panel_group.panel_keys:
+            global_indices = [i for i, k in enumerate(keys_per_agent) if k == key]
+            panel_agents = agents_for_panel(
+                self._agents, key, merge_tag_panels=merge_tag_panels
+            )
+            tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
+            for entry in tree:
+                if entry.kind != "agent" or entry.agent_idx is None:
+                    continue
+                if not (0 <= entry.agent_idx < len(global_indices)):
+                    continue
+                global_idx = global_indices[entry.agent_idx]
+                panel_idx = self._panel_idx_for_agent(global_idx)
+                if panel_idx is not None:
+                    visible[global_idx] = panel_idx
+        return visible
+
     def _jump_to_next_unread_done_agent(self) -> bool:
         """Move focus to the next visible unread completed agent.
 
@@ -319,8 +375,8 @@ class AgentsMixinCore(
         if not self._agents:
             return False
 
-        visible = self._agents_visible_order()
-        if not visible:
+        visible_panel_indices = self._visible_agent_panel_indices()
+        if not visible_panel_indices:
             return False
 
         unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
@@ -329,14 +385,17 @@ class AgentsMixinCore(
         if not unread_ids:
             return False
 
-        candidates: list[tuple[int, int, datetime | None]] = []
-        for visible_pos, idx in enumerate(visible):
-            if not (0 <= idx < len(self._agents)):
+        candidates: list[tuple[int, int | None, datetime | None]] = []
+        for idx, agent in enumerate(self._agents):
+            if idx not in visible_panel_indices:
                 continue
-            agent = self._agents[idx]
             if agent.status in ("DONE", "FAILED") and agent.identity in unread_ids:
                 candidates.append(
-                    (idx, visible_pos, agent.stop_time or agent.start_time)
+                    (
+                        idx,
+                        visible_panel_indices[idx],
+                        agent.stop_time or agent.start_time,
+                    )
                 )
 
         if not candidates:
@@ -348,29 +407,48 @@ class AgentsMixinCore(
 
         target_pos = 0
         if getattr(self, "_current_group_key", None) is None:
-            for candidate_pos, (idx, _visible_pos, _completion_time) in enumerate(
+            for candidate_pos, (idx, _panel_idx, _completion_time) in enumerate(
                 candidates
             ):
                 if idx == self.current_idx:
                     target_pos = (candidate_pos + 1) % len(candidates)
                     break
 
-        target_idx = candidates[target_pos][0]
+        target_idx, target_panel_idx, _completion_time = candidates[target_pos]
         old_idx = self.current_idx
+        old_panel_idx = getattr(
+            getattr(self, "_panel_group", None), "focused_idx", None
+        )
         old_group_key = self._current_group_key
         target_agent = self._agents[target_idx]
+        panel_changed = False
+        panel_group = getattr(self, "_panel_group", None)
+        if (
+            panel_group is not None
+            and target_panel_idx is not None
+            and 0 <= target_panel_idx < len(panel_group.panel_keys)
+            and target_panel_idx != panel_group.focused_idx
+        ):
+            panel_group.focused_idx = target_panel_idx
+            panel_changed = old_panel_idx != target_panel_idx
         self._current_group_key = None
         self.current_idx = target_idx
         if hasattr(self, "current_attempt_number"):
             self.current_attempt_number = None  # type: ignore[attr-defined]
 
         unread_ids.add(target_agent.identity)
-        if not self._try_patch_agent_row(target_agent):  # type: ignore[attr-defined]
+
+        needs_full_refresh = panel_changed or (
+            old_idx == target_idx and old_group_key is not None
+        )
+        if needs_full_refresh:
             self._refresh_agents_display(  # type: ignore[attr-defined]
                 list_changed=True, defer_detail=True
             )
-        elif old_idx == target_idx and old_group_key is not None:
-            self._refresh_agents_display_debounced()  # type: ignore[attr-defined]
+        elif not self._try_patch_agent_row(target_agent):  # type: ignore[attr-defined]
+            self._refresh_agents_display(  # type: ignore[attr-defined]
+                list_changed=True, defer_detail=True
+            )
         return True
 
     def _get_selected_agent(self) -> Agent | None:
