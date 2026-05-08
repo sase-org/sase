@@ -8,6 +8,7 @@ from typing import Any
 from sase.ace.tui.actions.agents._loading_finalize import (
     _sync_unread_completed_agents,
 )
+from sase.ace.tui.actions.agents._core import AgentsMixinCore
 from sase.ace.tui.actions.event_handlers import EventHandlersMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panels import AgentPanelGroup, panel_key_per_agent
@@ -187,3 +188,123 @@ def test_finalizer_prunes_unread_identities_no_longer_visible() -> None:
     _sync_unread_completed_agents(app, on_agents_tab=False)  # type: ignore[arg-type]
 
     assert app._unread_completed_agent_ids == set()
+
+
+class _UnreadJumpApp(AgentsMixinCore):
+    def __init__(
+        self,
+        agents: list[Agent],
+        *,
+        visible: list[int] | None = None,
+        stops: list[tuple[str, int | tuple[str, ...]]] | None = None,
+        current_idx: int = 0,
+        patch_result: bool = True,
+    ) -> None:
+        self._agents = agents
+        self.current_idx = current_idx
+        self.current_attempt_number: int | None = 3
+        self._current_group_key: tuple[str, ...] | None = None
+        self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._visible = visible
+        self._stops = stops
+        self._patch_result = patch_result
+        self.patch_calls: list[Agent] = []
+        self.refresh_calls: list[dict[str, Any]] = []
+        self.debounced_refresh_calls = 0
+
+    def _agents_visible_order(self) -> list[int]:
+        if self._visible is not None:
+            return self._visible
+        return list(range(len(self._agents)))
+
+    def _panel_navigation_stops(self) -> list[tuple[str, int | tuple[str, ...]]]:
+        if self._stops is not None:
+            return self._stops
+        return [("agent", idx) for idx in self._agents_visible_order()]
+
+    def _try_patch_agent_row(self, agent: Agent) -> bool:
+        self.patch_calls.append(agent)
+        return self._patch_result
+
+    def _refresh_agents_display(self, **kwargs: Any) -> None:
+        self.refresh_calls.append(kwargs)
+
+    def _refresh_agents_display_debounced(self) -> None:
+        self.debounced_refresh_calls += 1
+
+
+def test_jump_to_next_unread_done_agent_uses_visible_order_and_wraps() -> None:
+    a = _agent(name="a", status="DONE", raw_suffix="a")
+    b = _agent(name="b", status="DONE", raw_suffix="b")
+    c = _agent(name="c", status="RUNNING", raw_suffix="c")
+    app = _UnreadJumpApp([a, b, c], visible=[2, 0, 1], current_idx=2)
+    app._unread_completed_agent_ids.update({a.identity, b.identity})
+
+    assert app._jump_to_next_unread_done_agent()
+    assert app.current_idx == 0
+
+    assert app._jump_to_next_unread_done_agent()
+    assert app.current_idx == 1
+
+
+def test_jump_to_next_unread_done_agent_ignores_running_and_read_done() -> None:
+    running = _agent(name="running", status="RUNNING", raw_suffix="running")
+    read_done = _agent(name="read", status="DONE", raw_suffix="read")
+    unread_done = _agent(name="unread", status="DONE", raw_suffix="unread")
+    app = _UnreadJumpApp([running, read_done, unread_done], current_idx=0)
+    app._unread_completed_agent_ids.add(unread_done.identity)
+
+    assert app._jump_to_next_unread_done_agent()
+    assert app.current_idx == 2
+    assert app.patch_calls == [unread_done]
+
+
+def test_jump_to_next_unread_done_agent_preserves_target_unread_state() -> None:
+    done = _agent(name="done", status="DONE")
+    app = _UnreadJumpApp([done])
+    app._unread_completed_agent_ids.add(done.identity)
+
+    assert app._jump_to_next_unread_done_agent()
+
+    assert done.identity in app._unread_completed_agent_ids
+    assert app.current_attempt_number is None
+    assert app.refresh_calls == []
+
+
+def test_jump_to_next_unread_done_agent_falls_back_to_full_refresh() -> None:
+    done = _agent(name="done", status="FAILED")
+    app = _UnreadJumpApp([done], patch_result=False)
+    app._unread_completed_agent_ids.add(done.identity)
+
+    assert app._jump_to_next_unread_done_agent()
+
+    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+
+
+def test_jump_to_next_unread_done_agent_clears_banner_focus_and_refreshes() -> None:
+    done = _agent(name="done", status="DONE")
+    app = _UnreadJumpApp([done], current_idx=0)
+    app._current_group_key = ("done",)
+    app._unread_completed_agent_ids.add(done.identity)
+
+    assert app._jump_to_next_unread_done_agent()
+
+    assert app.current_idx == 0
+    assert app._current_group_key is None
+    assert app.debounced_refresh_calls == 1
+
+
+def test_jump_to_next_unread_done_agent_anchors_after_focused_banner() -> None:
+    first = _agent(name="first", status="DONE", raw_suffix="first")
+    second = _agent(name="second", status="DONE", raw_suffix="second")
+    app = _UnreadJumpApp(
+        [first, second],
+        visible=[0, 1],
+        stops=[("banner", ("group",)), ("agent", 1), ("agent", 0)],
+    )
+    app._current_group_key = ("group",)
+    app._unread_completed_agent_ids.update({first.identity, second.identity})
+
+    assert app._jump_to_next_unread_done_agent()
+
+    assert app.current_idx == 1

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 14:10:09
-status: wip
+status: done
 prompt: sdd/prompts/202605/agents_jump_unread_done.md
 ---
 # Plan: Add `,j` jump to next unread done agent

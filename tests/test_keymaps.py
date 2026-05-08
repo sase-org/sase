@@ -70,6 +70,7 @@ def test_help_modal_labels_capital_a_as_agent_artifacts() -> None:
         for key, label in bindings
     }
     assert ("A", "Open artifacts") in agent_pairs
+    assert (",j", "Jump to next unread done agent") in agent_pairs
     for sections in (cls_sections, axe_sections):
         action_labels = {
             label
@@ -366,6 +367,12 @@ def test_leader_mode_includes_agent_panel_grouping_toggle() -> None:
     """LeaderModeKeymaps default includes the ``,g`` panel grouping toggle."""
     reg = load_keymap_registry({})
     assert reg.leader_mode.keys["toggle_agent_panel_grouping"] == "g"
+
+
+def test_leader_mode_includes_jump_to_next_unread_done_agent() -> None:
+    """LeaderModeKeymaps default includes the ``,j`` unread done jump."""
+    reg = load_keymap_registry({})
+    assert reg.leader_mode.keys["jump_to_next_unread_done_agent"] == "j"
 
 
 def test_leader_mode_omits_legacy_kill_all() -> None:

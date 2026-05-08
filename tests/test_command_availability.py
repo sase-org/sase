@@ -311,6 +311,21 @@ def test_agent_cleanup_panel_visible_without_agent_context() -> None:
     )
 
 
+def test_jump_to_next_unread_done_agent_requires_unread_completed_agent() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["leader.jump_to_next_unread_done_agent"]
+    assert not is_command_available(
+        spec, CommandContext(tab="agents", unread_completed_agent_count=0)
+    )
+    assert is_command_available(
+        spec, CommandContext(tab="agents", unread_completed_agent_count=1)
+    )
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="changespecs", unread_completed_agent_count=1),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Axe tab
 # ---------------------------------------------------------------------------

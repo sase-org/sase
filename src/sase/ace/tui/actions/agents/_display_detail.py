@@ -98,7 +98,10 @@ class DetailMixin:
         if getattr(self, "_fold_mode_active", False):
             footer_widget.update_fold_bindings()
         elif getattr(self, "_leader_mode_active", False):
-            footer_widget.update_leader_bindings(current_tab="agents")
+            footer_widget.update_leader_bindings(
+                current_tab="agents",
+                has_unread_completed_agent=self._has_unread_completed_agent(),  # type: ignore[attr-defined]
+            )
         elif getattr(self, "_bang_mode_active", False):
             footer_widget.update_bang_bindings()
         elif getattr(self, "_copy_mode_active", False):

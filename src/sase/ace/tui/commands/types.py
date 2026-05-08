@@ -200,6 +200,7 @@ class CommandContext:
     mark_count: int = 0
     # Agents tab state
     completed_agent_count: int = 0
+    unread_completed_agent_count: int = 0
     runner_count: int = 0
     can_jump_to_changespec: bool = False
     attempt_pinned: bool = False

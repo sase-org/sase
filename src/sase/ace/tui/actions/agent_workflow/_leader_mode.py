@@ -103,6 +103,13 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["jump_to_next_unread_done_agent"]:
+            if self.current_tab == "agents":
+                if not self._jump_to_next_unread_done_agent():  # type: ignore[attr-defined]
+                    self.notify("No unread completed agents")  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["kill_and_edit"]:
             if self.current_tab == "agents":
                 self._kill_and_edit_agent()  # type: ignore[attr-defined]
@@ -215,10 +222,12 @@ class LeaderModeMixin:
                         break
 
         has_notification = False
+        has_unread_completed_agent = False
         if current_tab == "agents":
             agent = self._get_selected_agent()  # type: ignore[attr-defined]
             if agent is not None:
                 has_notification = agent.status in ("PLANNING", "QUESTION")
+            has_unread_completed_agent = self._has_unread_completed_agent()  # type: ignore[attr-defined]
 
         try:
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
@@ -227,6 +236,7 @@ class LeaderModeMixin:
                 has_comments=has_comments,
                 has_notification=has_notification,
                 has_mentor_results=has_mentor_results,
+                has_unread_completed_agent=has_unread_completed_agent,
             )
         except Exception:
             pass

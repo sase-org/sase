@@ -87,6 +87,16 @@ def _completed_agent_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
     return sum(1 for a in agents if a.status in ("DONE", "FAILED"))
 
 
+def _unread_completed_agent_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
+    agents = getattr(app, "_agents", [])
+    unread_ids: set[object] = getattr(app, "_unread_completed_agent_ids", set())
+    return sum(
+        1
+        for a in agents
+        if a.status in ("DONE", "FAILED") and getattr(a, "identity", None) in unread_ids
+    )
+
+
 def _agents_mark_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
     return len(getattr(app, "_marked_agents", set()))
 
@@ -143,6 +153,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         mark_count = len(getattr(app, "marked_indices", set()) or set())
 
     completed = _completed_agent_count(app) if tab == "agents" else 0
+    unread_completed = _unread_completed_agent_count(app) if tab == "agents" else 0
     can_jump = _can_jump_to_changespec(app, agent) if tab == "agents" else False
     attempt_pinned = (
         app.current_attempt_number is not None if tab == "agents" else False
@@ -167,6 +178,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         axe_item=axe_item,
         mark_count=mark_count,
         completed_agent_count=completed,
+        unread_completed_agent_count=unread_completed,
         runner_count=_runner_count(app),
         can_jump_to_changespec=can_jump,
         attempt_pinned=attempt_pinned,

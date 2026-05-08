@@ -379,6 +379,10 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     "Toggle tag panels grouped/split",
                 ),
                 (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'jump_to_next_unread_done_agent'))}",
+                    "Jump to next unread done agent",
+                ),
+                (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'kill_and_edit'))}",
                     "Kill agent & edit prompt",
                 ),

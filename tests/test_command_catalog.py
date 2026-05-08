@@ -194,6 +194,17 @@ def test_agent_panel_grouping_leader_command_is_agents_only() -> None:
     assert spec.executor.subkey == "g"
 
 
+def test_jump_to_next_unread_done_agent_leader_command_is_agents_only() -> None:
+    catalog = build_command_catalog(_registry())
+    spec = next(c for c in catalog if c.id == "leader.jump_to_next_unread_done_agent")
+
+    assert spec.label == "Jump to next unread completed agent"
+    assert spec.key_display == ",j"
+    assert spec.tabs == ("agents",)
+    assert spec.executor.kind == "leader_mode_key"
+    assert spec.executor.subkey == "j"
+
+
 def test_command_specs_are_well_formed() -> None:
     reg = _registry()
     catalog = build_command_catalog(reg)

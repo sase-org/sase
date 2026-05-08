@@ -29,18 +29,28 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self._leader_mode_active = True
         self._keymap_registry = load_keymap_registry({})
         self.pushed_modals: list[Any] = []
+        self.notifications: list[str] = []
         self.refresh_count = 0
         self.toggle_panel_grouping_count = 0
+        self.jump_unread_count = 0
+        self.jump_unread_result = True
 
     def push_screen(self, modal: Any, callback: Any = None) -> None:
         del callback
         self.pushed_modals.append(modal)
+
+    def notify(self, message: str, **_: Any) -> None:
+        self.notifications.append(message)
 
     def _refresh_current_tab(self) -> None:
         self.refresh_count += 1
 
     def action_toggle_agent_panel_grouping(self) -> None:
         self.toggle_panel_grouping_count += 1
+
+    def _jump_to_next_unread_done_agent(self) -> bool:
+        self.jump_unread_count += 1
+        return self.jump_unread_result
 
 
 def _make_cs(name: str) -> MagicMock:
@@ -122,6 +132,41 @@ def test_leader_g_noops_on_non_agents_tabs() -> None:
     assert app.refresh_count == 1
 
 
+def test_leader_j_jumps_to_next_unread_done_agent_on_agents_tab() -> None:
+    app = _FakeApp(current_tab="agents")
+
+    handled = app._handle_leader_key("j")
+
+    assert handled is True
+    assert app._leader_mode_active is False
+    assert app.jump_unread_count == 1
+    assert app.notifications == []
+    assert app.refresh_count == 1
+
+
+def test_leader_j_notifies_when_no_unread_done_agent() -> None:
+    app = _FakeApp(current_tab="agents")
+    app.jump_unread_result = False
+
+    handled = app._handle_leader_key("j")
+
+    assert handled is True
+    assert app.jump_unread_count == 1
+    assert app.notifications == ["No unread completed agents"]
+    assert app.refresh_count == 1
+
+
+def test_leader_j_noops_on_non_agents_tabs() -> None:
+    app = _FakeApp(current_tab="changespecs")
+
+    handled = app._handle_leader_key("j")
+
+    assert handled is True
+    assert app.jump_unread_count == 0
+    assert app.notifications == []
+    assert app.refresh_count == 1
+
+
 def test_footer_surfaces_agent_run_log_only_on_cls_tab() -> None:
     footer = KeybindingFooter()
     captured: list[object] = []
@@ -153,3 +198,21 @@ def test_footer_surfaces_panel_grouping_only_on_agents_tab() -> None:
 
     footer.update_leader_bindings(current_tab="changespecs")
     assert "group panels" not in str(captured[-1])
+
+
+def test_footer_surfaces_unread_done_jump_only_when_available() -> None:
+    footer = KeybindingFooter()
+    captured: list[object] = []
+    footer._update_display = MagicMock(  # type: ignore[method-assign]
+        side_effect=lambda text: captured.append(text)
+    )
+
+    footer.update_leader_bindings(current_tab="agents", has_unread_completed_agent=True)
+    rendered = str(captured[-1])
+    assert "j" in rendered
+    assert "next unread done" in rendered
+
+    footer.update_leader_bindings(
+        current_tab="agents", has_unread_completed_agent=False
+    )
+    assert "next unread done" not in str(captured[-1])

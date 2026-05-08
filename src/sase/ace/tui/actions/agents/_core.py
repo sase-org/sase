@@ -295,6 +295,92 @@ class AgentsMixinCore(
         ):
             self._current_group_key = None
 
+    def _has_unread_completed_agent(self) -> bool:
+        """Return True when a visible DONE/FAILED row is still unread."""
+        unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
+            self, "_unread_completed_agent_ids", set()
+        )
+        if not unread_ids:
+            return False
+        return any(
+            agent.status in ("DONE", "FAILED") and agent.identity in unread_ids
+            for agent in self._agents
+        )
+
+    def _jump_to_next_unread_done_agent(self) -> bool:
+        """Move focus to the next visible unread completed agent.
+
+        This intentionally preserves the target's unread marker. Normal
+        row-selection paths clear unread state, but this jump is for finding
+        unread completions without acknowledging them.
+        """
+        if not self._agents:
+            return False
+
+        visible = self._agents_visible_order()
+        if not visible:
+            return False
+
+        unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
+            self, "_unread_completed_agent_ids", set()
+        )
+        if not unread_ids:
+            return False
+
+        start_pos = 0
+        if getattr(self, "_current_group_key", None) is None:
+            try:
+                start_pos = (visible.index(self.current_idx) + 1) % len(visible)
+            except ValueError:
+                start_pos = 0
+        else:
+            try:
+                stops = self._panel_navigation_stops()
+            except Exception:
+                stops = []
+            for stop_pos, (kind, payload) in enumerate(stops):
+                if kind == "banner" and payload == self._current_group_key:
+                    for next_kind, next_payload in (
+                        stops[stop_pos + 1 :] + stops[:stop_pos]
+                    ):
+                        if next_kind == "agent" and isinstance(next_payload, int):
+                            try:
+                                start_pos = visible.index(next_payload)
+                            except ValueError:
+                                start_pos = 0
+                            break
+                    break
+
+        target_idx: int | None = None
+        for offset in range(len(visible)):
+            idx = visible[(start_pos + offset) % len(visible)]
+            if not (0 <= idx < len(self._agents)):
+                continue
+            agent = self._agents[idx]
+            if agent.status in ("DONE", "FAILED") and agent.identity in unread_ids:
+                target_idx = idx
+                break
+
+        if target_idx is None:
+            return False
+
+        old_idx = self.current_idx
+        old_group_key = self._current_group_key
+        target_agent = self._agents[target_idx]
+        self._current_group_key = None
+        self.current_idx = target_idx
+        if hasattr(self, "current_attempt_number"):
+            self.current_attempt_number = None  # type: ignore[attr-defined]
+
+        unread_ids.add(target_agent.identity)
+        if not self._try_patch_agent_row(target_agent):  # type: ignore[attr-defined]
+            self._refresh_agents_display(  # type: ignore[attr-defined]
+                list_changed=True, defer_detail=True
+            )
+        elif old_idx == target_idx and old_group_key is not None:
+            self._refresh_agents_display_debounced()  # type: ignore[attr-defined]
+        return True
+
     def _get_selected_agent(self) -> Agent | None:
         """Get the currently selected agent, or None if no valid selection."""
         if self._agents and 0 <= self.current_idx < len(self._agents):
