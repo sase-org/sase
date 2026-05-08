@@ -5,10 +5,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+from rich.console import Console
+
 from sase.ace.tui.graphics.viewer import (
     ArtifactRenderResult,
     ArtifactViewSpec,
     ArtifactViewerResult,
+    _artifact_header_panel,
+    _format_artifact_header_path,
     _print_page_prompt,
     artifact_view_mode,
     convert_pdf_to_png_pages,
@@ -135,6 +139,29 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
     )
 
 
+def test_artifact_header_panel_includes_path_and_positions(tmp_path: Path) -> None:
+    artifact = tmp_path / "missing artifact.png"
+    spec = ArtifactViewSpec(artifact, "image")
+    console = Console(record=True, width=100, color_system=None)
+
+    console.print(
+        _artifact_header_panel(
+            spec,
+            page_index=2,
+            page_count=7,
+            artifact_index=1,
+            artifact_count=4,
+        )
+    )
+    output = console.export_text()
+
+    assert "Viewing artifact" in output
+    assert "Artifact 2/4" in output
+    assert "Page 3/7" in output
+    assert str(artifact.resolve(strict=False)) in output
+    assert _format_artifact_header_path(artifact) == str(artifact.resolve(strict=False))
+
+
 def test_run_artifact_page_loop_redraws_and_tracks_keys(tmp_path: Path) -> None:
     pages = [tmp_path / "page-1.png", tmp_path / "page-2.png"]
     for page in pages:
@@ -223,6 +250,7 @@ def test_run_artifact_page_loop_ignores_unavailable_boundary_keys(
 def test_run_artifact_sequence_loop_navigates_pages_and_artifacts(
     tmp_path: Path,
     monkeypatch,
+    capsys,
 ) -> None:
     first_pages = [tmp_path / "first-1.png", tmp_path / "first-2.png"]
     second_pages = [tmp_path / "second-1.png"]
@@ -273,6 +301,13 @@ def test_run_artifact_sequence_loop_navigates_pages_and_artifacts(
         ["kitten", "icat", str(first_pages[0])],
         ["clear"],
     ]
+    output = capsys.readouterr().out
+    assert "Viewing artifact" in output
+    assert "Artifact 1/2" in output
+    assert "Artifact 2/2" in output
+    assert "Page 2/2" in output
+    assert "first.md" in output
+    assert "second.png" in output
 
 
 def test_validate_artifact_viewer_dependencies_reports_missing_tools(

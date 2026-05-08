@@ -17,6 +17,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+
 from sase.attachments.markdown_pdf import PDF_ENGINES, render_markdown_pdf
 
 from .images import is_supported_image_path
@@ -490,6 +494,13 @@ def run_artifact_sequence_loop(
             return _PageLoopResult(returncode=1)
 
         _clear_terminal(run)
+        _print_artifact_header(
+            specs[artifact_index],
+            page_index=page_index,
+            page_count=len(pages),
+            artifact_index=artifact_index,
+            artifact_count=len(specs),
+        )
         result = run(["kitten", "icat", str(pages[page_index])])
         if result.returncode != 0:
             return _PageLoopResult(returncode=result.returncode)
@@ -601,6 +612,69 @@ def _clear_terminal(
     run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]],
 ) -> None:
     run_command(["clear"])
+
+
+def _format_artifact_header_path(path: str | Path) -> str:
+    expanded = Path(path).expanduser()
+    try:
+        return str(expanded.resolve(strict=False))
+    except OSError:
+        return str(expanded)
+
+
+def _artifact_header_panel(
+    spec: ArtifactViewSpec,
+    *,
+    page_index: int,
+    page_count: int,
+    artifact_index: int = 0,
+    artifact_count: int = 1,
+) -> Panel:
+    metadata = Text()
+    if artifact_count > 1:
+        metadata.append(
+            f"Artifact {artifact_index + 1}/{artifact_count}",
+            style="gold1",
+        )
+    if page_count > 1:
+        if metadata:
+            metadata.append("  ")
+        metadata.append(f"Page {page_index + 1}/{page_count}", style="gold1")
+
+    body = Text()
+    if metadata:
+        body.append_text(metadata)
+        body.append("\n")
+    body.append(_format_artifact_header_path(spec.path), style="cyan")
+
+    return Panel(
+        body,
+        title=Text("Viewing artifact", style="bold gold1"),
+        border_style="gold1",
+        padding=(0, 1),
+        expand=True,
+    )
+
+
+def _print_artifact_header(
+    spec: ArtifactViewSpec,
+    *,
+    page_index: int,
+    page_count: int,
+    artifact_index: int = 0,
+    artifact_count: int = 1,
+    console: Console | None = None,
+) -> None:
+    target = console or Console()
+    target.print(
+        _artifact_header_panel(
+            spec,
+            page_index=page_index,
+            page_count=page_count,
+            artifact_index=artifact_index,
+            artifact_count=artifact_count,
+        )
+    )
 
 
 def _print_page_prompt(

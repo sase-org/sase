@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 15:44:33
-status: wip
+status: done
 prompt: sdd/prompts/202605/artifact_viewer_file_path_header.md
 ---
 # Artifact Viewer File Path Header Plan
