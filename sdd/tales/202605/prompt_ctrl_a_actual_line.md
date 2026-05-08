@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 13:05:53
-status: wip
+status: done
 prompt: sdd/prompts/202605/prompt_ctrl_a_actual_line.md
 ---
 # Plan: Prompt Ctrl+A Uses Actual Lines

@@ -133,7 +133,7 @@ class PromptTextArea(
         if col == 0 and row > 0:
             self.move_cursor((row - 1, 0), select=select)
         else:
-            super().action_cursor_line_start(select=select)
+            self.move_cursor((row, 0), select=select)
 
     def action_open_editor(self) -> None:
         """Request to open external editor."""
