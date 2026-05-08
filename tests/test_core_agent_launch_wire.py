@@ -193,12 +193,14 @@ def _prepared_process(
     )
 
 
-def _wait_for_output(path: Path, expected: str, timeout: float = 5.0) -> str:
+def _wait_for_output_containing(
+    path: Path, expected_parts: tuple[str, ...], timeout: float = 5.0
+) -> str:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if path.exists():
             text = path.read_text()
-            if expected in text:
+            if all(expected in text for expected in expected_parts):
                 return text
         time.sleep(0.02)
     return path.read_text() if path.exists() else ""
@@ -238,7 +240,9 @@ def test_spawn_prepared_agent_process_redirects_output_and_env(
     )
 
     assert pid > 0
-    output = _wait_for_output(Path(prepared.output_path), "stderr-line")
+    output = _wait_for_output_containing(
+        Path(prepared.output_path), ("env-ok", "stderr-line")
+    )
     assert "env-ok" in output
     assert "stderr-line" in output
 

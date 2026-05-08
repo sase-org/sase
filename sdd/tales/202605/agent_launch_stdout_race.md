@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 13:38:12
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_launch_stdout_race.md
 ---
 # Plan: Fix Agent Launch Output Test Race
