@@ -17,7 +17,7 @@ from .base import OptionListNavigationMixin
 
 
 _SELECTOR_KEYS = "1234567890abcdefghijklmnopqrstuvwxyz"
-_RESERVED_KEYS = {"j", "k", "q"}
+_RESERVED_KEYS = {"j", "k", "m", "q"}
 _MAX_LABEL_LEN = 54
 _MAX_KIND_LEN = 18
 _MAX_PATH_LEN = 72
@@ -110,12 +110,20 @@ def _short_path(
     )
 
 
-def _artifact_option_text(selector: str | None, artifact: Any) -> Text:
+def _artifact_option_text(
+    selector: str | None,
+    artifact: Any,
+    *,
+    marked: bool = False,
+) -> Text:
     text = Text()
     if selector is None:
         text.append("   ", style="dim")
     else:
         text.append(f"{selector}  ", style="bold #D7AF5F")
+    marker = "[x]" if marked else "[ ]"
+    marker_style = "bold #A6E3A1" if marked else "dim"
+    text.append(f"{marker} ", style=marker_style)
     text.append(_artifact_label(artifact))
     text.append(f"  [{_artifact_kind(artifact)}]", style="dim #87D7FF")
     text.append("\n")
@@ -136,6 +144,7 @@ class AgentArtifactSelectionModal(
     _option_list_id = "agent-artifacts-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
+        ("m", "toggle_mark", "Mark"),
         ("enter", "open_selected", "Open"),
     ]
 
@@ -145,6 +154,7 @@ class AgentArtifactSelectionModal(
         selectors = _artifact_selector_keys(len(artifacts))
         self._selector_by_index = selectors
         self._index_by_selector = {key: index for index, key in enumerate(selectors)}
+        self._marked_indexes: set[int] = set()
 
     def compose(self) -> ComposeResult:
         with Container(id="agent-artifacts-container"):
@@ -154,7 +164,7 @@ class AgentArtifactSelectionModal(
             )
             yield OptionList(*self._create_options(), id=self._option_list_id)
             yield Static(
-                "key/enter: open  j/k: navigate  q/esc: close",
+                self._hint_text(),
                 id="agent-artifacts-hints",
             )
 
@@ -166,7 +176,15 @@ class AgentArtifactSelectionModal(
                 if index < len(self._selector_by_index)
                 else None
             )
-            options.append(Option(_artifact_option_text(selector, artifact)))
+            options.append(
+                Option(
+                    _artifact_option_text(
+                        selector,
+                        artifact,
+                        marked=index in self._marked_indexes,
+                    )
+                )
+            )
         return options
 
     def on_mount(self) -> None:
@@ -178,13 +196,61 @@ class AgentArtifactSelectionModal(
             event.prevent_default()
             event.stop()
 
+    def action_toggle_mark(self) -> None:
+        option_list = self.query_one(f"#{self._option_list_id}", OptionList)
+        index = option_list.highlighted
+        if index is None or not 0 <= index < len(self._artifacts):
+            return
+        if index in self._marked_indexes:
+            self._marked_indexes.remove(index)
+        else:
+            self._marked_indexes.add(index)
+        self._refresh_option(index)
+        self._update_hints()
+
     def action_open_selected(self) -> None:
         option_list = self.query_one(f"#{self._option_list_id}", OptionList)
         index = option_list.highlighted
         if index is None or not 0 <= index < len(self._artifacts):
+            return
+        if self._marked_indexes:
+            self.dismiss(
+                [
+                    artifact
+                    for artifact_index, artifact in enumerate(self._artifacts)
+                    if artifact_index in self._marked_indexes
+                ]
+            )
             return
         self.dismiss(self._artifacts[index])
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         event.stop()
         self.action_open_selected()
+
+    def _refresh_option(self, index: int) -> None:
+        selector = (
+            self._selector_by_index[index]
+            if index < len(self._selector_by_index)
+            else None
+        )
+        option_list = self.query_one(f"#{self._option_list_id}", OptionList)
+        option_list.replace_option_prompt_at_index(
+            index,
+            _artifact_option_text(
+                selector,
+                self._artifacts[index],
+                marked=index in self._marked_indexes,
+            ),
+        )
+        option_list.highlighted = index
+
+    def _hint_text(self) -> str:
+        base = "key/enter: open  m: mark  j/k: navigate  q/esc: close"
+        mark_count = len(self._marked_indexes)
+        if mark_count:
+            return f"{base}  marked: {mark_count}"
+        return base
+
+    def _update_hints(self) -> None:
+        self.query_one("#agent-artifacts-hints", Static).update(self._hint_text())

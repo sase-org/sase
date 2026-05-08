@@ -34,6 +34,14 @@ class _ArtifactLike(Protocol):
 
 
 @dataclass(frozen=True)
+class ArtifactViewSpec:
+    """Artifact path and kind metadata for a terminal viewer document."""
+
+    path: str | Path
+    kind: str | None = None
+
+
+@dataclass(frozen=True)
 class ArtifactViewerWarning:
     """Structured warning returned by artifact rendering/viewer helpers."""
 
@@ -70,13 +78,39 @@ ImageViewerResult = ArtifactViewerResult
 def view_agent_artifact(artifact: _ArtifactLike) -> ArtifactViewerResult:
     """Open an agent artifact with the terminal page viewer."""
 
-    return view_artifact_file(artifact.path, kind=artifact.kind)
+    return view_agent_artifacts((artifact,))
+
+
+def view_agent_artifacts(
+    artifacts: Sequence[_ArtifactLike],
+) -> ArtifactViewerResult:
+    """Open one or more agent artifacts with the terminal page viewer."""
+
+    return view_artifact_files(
+        tuple(
+            ArtifactViewSpec(artifact.path, getattr(artifact, "kind", None))
+            for artifact in artifacts
+        )
+    )
 
 
 def view_agent_artifact_in_tmux_pane(artifact: _ArtifactLike) -> ArtifactViewerResult:
     """Open an agent artifact with the terminal page viewer in a tmux pane."""
 
-    return view_artifact_file_in_tmux_pane(artifact.path, kind=artifact.kind)
+    return view_agent_artifacts_in_tmux_pane((artifact,))
+
+
+def view_agent_artifacts_in_tmux_pane(
+    artifacts: Sequence[_ArtifactLike],
+) -> ArtifactViewerResult:
+    """Open one or more agent artifacts in a tmux pane."""
+
+    return view_artifact_files_in_tmux_pane(
+        tuple(
+            ArtifactViewSpec(artifact.path, getattr(artifact, "kind", None))
+            for artifact in artifacts
+        )
+    )
 
 
 def view_artifact_file(
@@ -86,11 +120,22 @@ def view_artifact_file(
 ) -> ArtifactViewerResult:
     """Render and display an artifact with ``kitten icat`` pages."""
 
+    return view_artifact_files((ArtifactViewSpec(path, kind),))
+
+
+def view_artifact_files(
+    artifacts: Sequence[ArtifactViewSpec],
+) -> ArtifactViewerResult:
+    """Render and display one or more artifacts with ``kitten icat`` pages."""
+
+    specs = tuple(artifacts)
+    if not specs:
+        warning = ArtifactViewerWarning("no_artifacts", "No artifacts to view")
+        return _viewer_result_from_warnings((warning,))
     with tempfile.TemporaryDirectory(prefix="sase-artifact-viewer-") as tmp:
-        rendered = render_artifact_pages(path, kind=kind, cache_dir=tmp)
-        if rendered.warnings:
-            return _viewer_result_from_warnings(rendered.warnings)
-        loop_result = run_artifact_page_loop(rendered.pages)
+        loop_result = run_artifact_sequence_loop(specs, cache_root=tmp)
+        if loop_result.warnings:
+            return _viewer_result_from_warnings(loop_result.warnings)
         if loop_result.returncode != 0:
             warning = ArtifactViewerWarning(
                 "kitten_failed",
@@ -120,6 +165,18 @@ def view_artifact_file_in_tmux_pane(
 ) -> ArtifactViewerResult:
     """Launch the artifact viewer in a right-side tmux pane."""
 
+    return view_artifact_files_in_tmux_pane((ArtifactViewSpec(path, kind),))
+
+
+def view_artifact_files_in_tmux_pane(
+    artifacts: Sequence[ArtifactViewSpec],
+) -> ArtifactViewerResult:
+    """Launch one or more artifacts in a right-side tmux pane."""
+
+    specs = tuple(artifacts)
+    if not specs:
+        warning = ArtifactViewerWarning("no_artifacts", "No artifacts to view")
+        return _viewer_result_from_warnings((warning,))
     if not is_tmux_session():
         warning = ArtifactViewerWarning(
             "not_in_tmux",
@@ -135,7 +192,7 @@ def view_artifact_file_in_tmux_pane(
         )
         return _viewer_result_from_warnings((warning,))
 
-    viewer_command = _artifact_viewer_module_command(path, kind=kind)
+    viewer_command = _artifact_viewer_module_command(specs)
     tmux_command = ["tmux", "split-window", "-h", shlex.join(viewer_command)]
     result = subprocess.run(
         tmux_command,
@@ -314,6 +371,7 @@ class _PageLoopResult:
     """Terminal page loop subprocess status."""
 
     returncode: int = 0
+    warnings: tuple[ArtifactViewerWarning, ...] = ()
 
 
 def page_index_after_key(current_index: int, key: str, page_count: int) -> int | None:
@@ -333,7 +391,13 @@ def page_index_after_key(current_index: int, key: str, page_count: int) -> int |
     return current_index
 
 
-def page_loop_available_keys(index: int, page_count: int) -> tuple[str, ...]:
+def page_loop_available_keys(
+    index: int,
+    page_count: int,
+    *,
+    artifact_index: int = 0,
+    artifact_count: int = 1,
+) -> tuple[str, ...]:
     """Return page-loop keys available for the current page."""
 
     keys: list[str] = []
@@ -341,6 +405,10 @@ def page_loop_available_keys(index: int, page_count: int) -> tuple[str, ...]:
         keys.append("n")
     if index > 0:
         keys.append("p")
+    if artifact_index < artifact_count - 1:
+        keys.append("N")
+    if artifact_index > 0:
+        keys.append("P")
     if page_count > 0:
         keys.append("r")
     keys.append("q")
@@ -369,7 +437,7 @@ def run_artifact_page_loop(
             return _PageLoopResult(returncode=result.returncode)
         _print_page_prompt(index=index, page_count=len(pages))
         available_keys = page_loop_available_keys(index, len(pages))
-        while (key := read().lower()) not in available_keys:
+        while (key := read()) not in available_keys:
             pass
         next_index = page_index_after_key(index, key, len(pages))
         print()
@@ -377,6 +445,82 @@ def run_artifact_page_loop(
             _clear_terminal(run)
             return _PageLoopResult()
         index = next_index
+
+
+def run_artifact_sequence_loop(
+    artifacts: Sequence[ArtifactViewSpec],
+    *,
+    cache_root: str | Path,
+    read_key: Callable[[], str] | None = None,
+    run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]]
+    | None = None,
+) -> _PageLoopResult:
+    """Display an artifact sequence with page and document navigation."""
+
+    specs = tuple(artifacts)
+    if not specs:
+        return _PageLoopResult(returncode=1)
+
+    read = read_key or _read_single_key
+    run = run_command or _run_command
+    root = Path(cache_root).expanduser()
+    page_cache: dict[int, tuple[Path, ...]] = {}
+
+    def pages_for(index: int) -> ArtifactRenderResult:
+        if index in page_cache:
+            return ArtifactRenderResult(page_cache[index])
+        spec = specs[index]
+        rendered = render_artifact_pages(
+            spec.path,
+            kind=spec.kind,
+            cache_dir=root / f"artifact-{index}",
+        )
+        if not rendered.warnings:
+            page_cache[index] = rendered.pages
+        return rendered
+
+    artifact_index = 0
+    page_index = 0
+    while True:
+        rendered = pages_for(artifact_index)
+        if rendered.warnings:
+            return _PageLoopResult(returncode=1, warnings=rendered.warnings)
+        pages = rendered.pages
+        if not pages:
+            return _PageLoopResult(returncode=1)
+
+        _clear_terminal(run)
+        result = run(["kitten", "icat", str(pages[page_index])])
+        if result.returncode != 0:
+            return _PageLoopResult(returncode=result.returncode)
+        _print_page_prompt(
+            index=page_index,
+            page_count=len(pages),
+            artifact_index=artifact_index,
+            artifact_count=len(specs),
+        )
+        available_keys = page_loop_available_keys(
+            page_index,
+            len(pages),
+            artifact_index=artifact_index,
+            artifact_count=len(specs),
+        )
+        while (key := read()) not in available_keys:
+            pass
+        print()
+        if key == "q":
+            _clear_terminal(run)
+            return _PageLoopResult()
+        if key == "n":
+            page_index = min(page_index + 1, len(pages) - 1)
+        elif key == "p":
+            page_index = max(page_index - 1, 0)
+        elif key == "N":
+            artifact_index = min(artifact_index + 1, len(specs) - 1)
+            page_index = 0
+        elif key == "P":
+            artifact_index = max(artifact_index - 1, 0)
+            page_index = 0
 
 
 def _render_paginated_artifact(
@@ -425,18 +569,27 @@ def _viewer_result_from_warnings(
 
 
 def _artifact_viewer_module_command(
-    path: str | Path,
+    artifacts: str | Path | Sequence[ArtifactViewSpec],
     *,
     kind: str | None = None,
 ) -> list[str]:
+    specs: tuple[ArtifactViewSpec, ...]
+    if isinstance(artifacts, str | Path):
+        specs = (ArtifactViewSpec(artifacts, kind),)
+    else:
+        specs = tuple(artifacts)
     command = [
         sys.executable,
         "-m",
         "sase.ace.tui.graphics.viewer",
     ]
-    if kind is not None:
-        command.extend(["--kind", str(kind)])
-    command.append(str(Path(path).expanduser()))
+    if len(specs) == 1:
+        if specs[0].kind is not None:
+            command.extend(["--kind", str(specs[0].kind)])
+    else:
+        for spec in specs:
+            command.extend(["--kind", "" if spec.kind is None else str(spec.kind)])
+    command.extend(str(Path(spec.path).expanduser()) for spec in specs)
     return command
 
 
@@ -450,17 +603,33 @@ def _clear_terminal(
     run_command(["clear"])
 
 
-def _print_page_prompt(*, index: int, page_count: int) -> None:
+def _print_page_prompt(
+    *,
+    index: int,
+    page_count: int,
+    artifact_index: int = 0,
+    artifact_count: int = 1,
+) -> None:
     labels = {
-        "n": "n: next",
-        "p": "p: previous",
+        "n": "n: next page",
+        "p": "p: previous page",
+        "N": "N: next artifact",
+        "P": "P: previous artifact",
         "r": "r: refresh",
         "q": "q: quit",
     }
     actions = "  ".join(
-        labels[key] for key in page_loop_available_keys(index, page_count)
+        labels[key]
+        for key in page_loop_available_keys(
+            index,
+            page_count,
+            artifact_index=artifact_index,
+            artifact_count=artifact_count,
+        )
     )
     prompt = f"Page {index + 1}/{page_count}  {actions}"
+    if artifact_count > 1:
+        prompt = f"Artifact {artifact_index + 1}/{artifact_count}  {prompt}"
     print(f"\n{prompt}", end="", flush=True)
 
 
@@ -479,21 +648,31 @@ def _parse_viewer_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         prog="python -m sase.ace.tui.graphics.viewer",
         description="Open a SASE artifact in the terminal artifact viewer.",
     )
-    parser.add_argument("path", help="Artifact file path to view")
+    parser.add_argument("path", nargs="+", help="Artifact file path to view")
     parser.add_argument(
         "-k",
         "--kind",
+        action="append",
         default=None,
         help="Artifact kind used to choose the viewer mode",
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.kind is not None and len(args.kind) != len(args.path):
+        parser.error("--kind must be supplied once per artifact path")
+    return args
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the artifact viewer module entry point."""
 
     args = _parse_viewer_args(argv)
-    result = view_artifact_file(args.path, kind=args.kind)
+    kinds = args.kind or [None] * len(args.path)
+    result = view_artifact_files(
+        tuple(
+            ArtifactViewSpec(path, kind or None)
+            for path, kind in zip(args.path, kinds, strict=True)
+        )
+    )
     if result.ok:
         return 0
     if result.warning is not None:

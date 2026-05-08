@@ -80,6 +80,7 @@ async def test_artifact_modal_letter_selector_skips_navigation_and_quit_keys() -
 
     assert "j" not in _artifact_selector_keys(16)
     assert "k" not in _artifact_selector_keys(16)
+    assert "m" not in _artifact_selector_keys(25)
     assert "q" not in _artifact_selector_keys(16)
     assert result is artifacts[15]
 
@@ -123,6 +124,31 @@ async def test_artifact_modal_enter_opens_highlighted_unkeyed_artifact() -> None
         await pilot.pause()
 
     assert result is artifacts[35]
+
+
+async def test_artifact_modal_marks_return_in_list_order() -> None:
+    artifacts = [_artifact(index) for index in range(4)]
+    result: object | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: object | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = AgentArtifactSelectionModal(artifacts)
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        option_list = modal.query_one("#agent-artifacts-list", OptionList)
+        option_list.highlighted = 2
+        await pilot.press("m")
+        option_list.highlighted = 0
+        await pilot.press("m")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert result == [artifacts[0], artifacts[2]]
 
 
 def test_artifact_modal_option_text_truncates_long_label_and_path() -> None:

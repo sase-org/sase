@@ -530,6 +530,74 @@ def test_agents_open_artifacts_modal_callback_restores_agent_list_focus(
     app.agent_list.focus.assert_called_once_with()
 
 
+def test_agents_open_artifacts_modal_callback_opens_marked_sequence(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    app = _ImageActionApp(None)
+    app._selected_agent = SimpleNamespace(status="DONE")
+    artifacts = [
+        SimpleNamespace(path=str(tmp_path / "chat.md"), kind="chat", label="Chat"),
+        SimpleNamespace(path=str(tmp_path / "image.png"), kind="image", label="Image"),
+    ]
+    app._artifacts = artifacts
+    calls: list[list[object]] = []
+
+    def fake_viewer(selected_artifacts) -> ArtifactViewerResult:
+        calls.append(list(selected_artifacts))
+        assert app.suspend_recorder.entered is True
+        return ArtifactViewerResult(True)
+
+    monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: False)
+    monkeypatch.setattr("sase.ace.tui.graphics.view_agent_artifacts", fake_viewer)
+
+    app.action_open_agent_artifacts()
+    _modal, callback = app.pushed[0]
+    assert callback is not None
+
+    callback(artifacts)
+
+    assert calls == [artifacts]
+    app.agent_list.focus.assert_called_once_with()
+
+
+def test_agents_open_artifacts_modal_callback_opens_marked_sequence_in_tmux(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    app = _ImageActionApp(None)
+    app._selected_agent = SimpleNamespace(status="DONE")
+    artifacts = [
+        SimpleNamespace(path=str(tmp_path / "chat.md"), kind="chat", label="Chat"),
+        SimpleNamespace(path=str(tmp_path / "image.png"), kind="image", label="Image"),
+    ]
+    app._artifacts = artifacts
+    calls: list[list[object]] = []
+
+    def fake_tmux_viewer(selected_artifacts) -> ArtifactViewerResult:
+        calls.append(list(selected_artifacts))
+        assert app.suspend_recorder.entered is False
+        return ArtifactViewerResult(True)
+
+    same_pane_viewer = MagicMock()
+    monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.view_agent_artifacts_in_tmux_pane",
+        fake_tmux_viewer,
+    )
+    monkeypatch.setattr("sase.ace.tui.graphics.view_agent_artifacts", same_pane_viewer)
+
+    app.action_open_agent_artifacts()
+    _modal, callback = app.pushed[0]
+    assert callback is not None
+
+    callback(artifacts)
+
+    assert calls == [artifacts]
+    same_pane_viewer.assert_not_called()
+    app.agent_list.focus.assert_called_once_with()
+
+
 def test_notification_view_image_action_runs_viewer_inside_suspend(
     tmp_path: Path,
     monkeypatch,

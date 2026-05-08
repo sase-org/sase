@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 
 from sase.ace.tui.graphics.viewer import (
+    ArtifactRenderResult,
+    ArtifactViewSpec,
     ArtifactViewerResult,
     _print_page_prompt,
     artifact_view_mode,
@@ -15,6 +17,7 @@ from sase.ace.tui.graphics.viewer import (
     page_index_after_key,
     page_loop_available_keys,
     render_artifact_pages,
+    run_artifact_sequence_loop,
     run_artifact_page_loop,
     validate_artifact_viewer_dependencies,
     view_artifact_file,
@@ -86,21 +89,50 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
     assert page_loop_available_keys(0, 3) == ("n", "r", "q")
     assert page_loop_available_keys(1, 3) == ("n", "p", "r", "q")
     assert page_loop_available_keys(2, 3) == ("p", "r", "q")
+    assert page_loop_available_keys(0, 1, artifact_index=0, artifact_count=3) == (
+        "N",
+        "r",
+        "q",
+    )
+    assert page_loop_available_keys(0, 1, artifact_index=1, artifact_count=3) == (
+        "N",
+        "P",
+        "r",
+        "q",
+    )
+    assert page_loop_available_keys(0, 1, artifact_index=2, artifact_count=3) == (
+        "P",
+        "r",
+        "q",
+    )
 
     _print_page_prompt(index=0, page_count=1)
     assert capsys.readouterr().out == "\nPage 1/1  r: refresh  q: quit"
 
     _print_page_prompt(index=0, page_count=3)
-    assert capsys.readouterr().out == "\nPage 1/3  n: next  r: refresh  q: quit"
+    assert capsys.readouterr().out == "\nPage 1/3  n: next page  r: refresh  q: quit"
 
     _print_page_prompt(index=1, page_count=3)
     assert (
         capsys.readouterr().out
-        == "\nPage 2/3  n: next  p: previous  r: refresh  q: quit"
+        == "\nPage 2/3  n: next page  p: previous page  r: refresh  q: quit"
     )
 
     _print_page_prompt(index=2, page_count=3)
-    assert capsys.readouterr().out == "\nPage 3/3  p: previous  r: refresh  q: quit"
+    assert (
+        capsys.readouterr().out == "\nPage 3/3  p: previous page  r: refresh  q: quit"
+    )
+
+    _print_page_prompt(
+        index=0,
+        page_count=1,
+        artifact_index=0,
+        artifact_count=2,
+    )
+    assert (
+        capsys.readouterr().out
+        == "\nArtifact 1/2  Page 1/1  N: next artifact  r: refresh  q: quit"
+    )
 
 
 def test_run_artifact_page_loop_redraws_and_tracks_keys(tmp_path: Path) -> None:
@@ -184,6 +216,61 @@ def test_run_artifact_page_loop_ignores_unavailable_boundary_keys(
         ["kitten", "icat", str(pages[0])],
         ["clear"],
         ["kitten", "icat", str(pages[1])],
+        ["clear"],
+    ]
+
+
+def test_run_artifact_sequence_loop_navigates_pages_and_artifacts(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    first_pages = [tmp_path / "first-1.png", tmp_path / "first-2.png"]
+    second_pages = [tmp_path / "second-1.png"]
+    for page in [*first_pages, *second_pages]:
+        page.write_bytes(b"png")
+    specs = (
+        ArtifactViewSpec(tmp_path / "first.md", "markdown"),
+        ArtifactViewSpec(tmp_path / "second.png", "image"),
+    )
+    render_calls: list[tuple[Path, str | None, Path]] = []
+
+    def fake_render_result(path, *, kind=None, cache_dir=None):
+        render_calls.append((Path(path), kind, Path(cache_dir)))
+        pages = tuple(first_pages if kind == "markdown" else second_pages)
+        return ArtifactRenderResult(pages)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.render_artifact_pages",
+        fake_render_result,
+    )
+    commands: list[list[str]] = []
+    keys = iter(["n", "N", "P", "q"])
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    result = run_artifact_sequence_loop(
+        specs,
+        cache_root=tmp_path / "cache",
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+    )
+
+    assert result.returncode == 0
+    assert [call[:2] for call in render_calls] == [
+        (tmp_path / "first.md", "markdown"),
+        (tmp_path / "second.png", "image"),
+    ]
+    assert commands == [
+        ["clear"],
+        ["kitten", "icat", str(first_pages[0])],
+        ["clear"],
+        ["kitten", "icat", str(first_pages[1])],
+        ["clear"],
+        ["kitten", "icat", str(second_pages[0])],
+        ["clear"],
+        ["kitten", "icat", str(first_pages[0])],
         ["clear"],
     ]
 
@@ -329,26 +416,96 @@ def test_tmux_pane_launch_invokes_split_window_with_module_entrypoint(
     ]
 
 
-def test_viewer_module_entrypoint_delegates_to_view_artifact_file(
+def test_tmux_pane_launch_invokes_multi_artifact_entrypoint(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    artifacts = (
+        ArtifactViewSpec(tmp_path / "first.png", "image"),
+        ArtifactViewSpec(tmp_path / "second.md", "markdown"),
+    )
+    calls: list[list[str]] = []
+    monkeypatch.setenv("TMUX", "/tmp/tmux")
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.shutil.which",
+        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
+    )
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+
+    result = view_artifact_file_in_tmux_pane(artifacts[0].path, kind=artifacts[0].kind)
+    assert result.ok is True
+
+    calls.clear()
+    from sase.ace.tui.graphics.viewer import view_artifact_files_in_tmux_pane
+
+    result = view_artifact_files_in_tmux_pane(artifacts)
+
+    assert result.ok is True
+    assert shlex.split(calls[0][3]) == [
+        sys.executable,
+        "-m",
+        "sase.ace.tui.graphics.viewer",
+        "--kind",
+        "image",
+        "--kind",
+        "markdown",
+        str(artifacts[0].path),
+        str(artifacts[1].path),
+    ]
+
+
+def test_viewer_module_entrypoint_delegates_to_view_artifact_files(
     tmp_path: Path,
     monkeypatch,
     capsys,
 ) -> None:
     artifact = tmp_path / "artifact.png"
     artifact.write_bytes(b"png")
-    calls: list[tuple[str, str | None]] = []
+    calls: list[tuple[ArtifactViewSpec, ...]] = []
 
-    def fake_viewer(path: str, *, kind: str | None = None) -> ArtifactViewerResult:
-        calls.append((path, kind))
+    def fake_viewer(artifacts) -> ArtifactViewerResult:
+        calls.append(tuple(artifacts))
         return ArtifactViewerResult(True)
 
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.view_artifact_file", fake_viewer)
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.view_artifact_files", fake_viewer)
 
     code = viewer_main(["--kind", "image", str(artifact)])
 
     assert code == 0
-    assert calls == [(str(artifact), "image")]
+    assert calls == [(ArtifactViewSpec(str(artifact), "image"),)]
     assert capsys.readouterr().err == ""
+
+
+def test_viewer_module_entrypoint_accepts_multiple_paths_and_kinds(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    first = tmp_path / "first.png"
+    second = tmp_path / "second.md"
+    calls: list[tuple[ArtifactViewSpec, ...]] = []
+
+    def fake_viewer(artifacts) -> ArtifactViewerResult:
+        calls.append(tuple(artifacts))
+        return ArtifactViewerResult(True)
+
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.view_artifact_files", fake_viewer)
+
+    code = viewer_main(
+        ["--kind", "image", "--kind", "markdown", str(first), str(second)]
+    )
+
+    assert code == 0
+    assert calls == [
+        (
+            ArtifactViewSpec(str(first), "image"),
+            ArtifactViewSpec(str(second), "markdown"),
+        )
+    ]
 
 
 def test_viewer_module_entrypoint_prints_warning_and_returns_nonzero(
@@ -359,11 +516,11 @@ def test_viewer_module_entrypoint_prints_warning_and_returns_nonzero(
     artifact = tmp_path / "artifact.png"
     artifact.write_bytes(b"png")
 
-    def fake_viewer(path: str, *, kind: str | None = None) -> ArtifactViewerResult:
-        del path, kind
+    def fake_viewer(artifacts) -> ArtifactViewerResult:
+        del artifacts
         return ArtifactViewerResult(False, warning="missing dependency")
 
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.view_artifact_file", fake_viewer)
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.view_artifact_files", fake_viewer)
 
     code = viewer_main([str(artifact)])
 

@@ -333,6 +333,27 @@ class AgentPanelsMixin:
         if result.warning is not None:
             self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
 
+    def _open_agent_artifacts(self, artifacts: list[Any]) -> None:
+        if not artifacts:
+            return
+        if len(artifacts) == 1:
+            self._open_agent_artifact(artifacts[0])
+            return
+
+        from ...graphics import (
+            is_tmux_session,
+            view_agent_artifacts,
+            view_agent_artifacts_in_tmux_pane,
+        )
+
+        if is_tmux_session():
+            result = view_agent_artifacts_in_tmux_pane(artifacts)
+        else:
+            with self.suspend():  # type: ignore[attr-defined]
+                result = view_agent_artifacts(artifacts)
+        if result.warning is not None:
+            self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
+
     def _focus_agent_list_after_artifact_modal(self) -> None:
         if self.current_tab != "agents":
             return
@@ -364,19 +385,27 @@ class AgentPanelsMixin:
             return
 
         if len(artifacts) == 1:
-            self._open_agent_artifact(artifacts[0])
+            self._open_agent_artifacts([artifacts[0]])
             return
 
         from ...modals import AgentArtifactSelectionModal
 
-        def _open_selected(artifact: Any) -> None:
+        def _open_selected(selection: Any) -> None:
             try:
-                if artifact is not None:
-                    self._open_agent_artifact(artifact)
+                selected_artifacts = self._normalize_agent_artifact_selection(selection)
+                if selected_artifacts:
+                    self._open_agent_artifacts(selected_artifacts)
             finally:
                 self._focus_agent_list_after_artifact_modal()
 
         self.push_screen(AgentArtifactSelectionModal(artifacts), _open_selected)  # type: ignore[attr-defined]
+
+    def _normalize_agent_artifact_selection(self, selection: Any) -> list[Any]:
+        if selection is None:
+            return []
+        if isinstance(selection, list):
+            return selection
+        return [selection]
 
     def action_view_image(self) -> None:
         """Compatibility wrapper for older keymaps."""
