@@ -151,6 +151,50 @@ async def test_artifact_modal_marks_return_in_list_order() -> None:
     assert result == [artifacts[0], artifacts[2]]
 
 
+async def test_artifact_modal_mark_advances_highlight() -> None:
+    artifacts = [_artifact(index) for index in range(3)]
+
+    async with _TestApp().run_test() as pilot:
+        modal = AgentArtifactSelectionModal(artifacts)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        option_list = modal.query_one("#agent-artifacts-list", OptionList)
+        option_list.highlighted = 0
+        await pilot.press("m")
+        await pilot.pause()
+
+        assert option_list.highlighted == 1
+
+
+async def test_artifact_modal_mark_wraps_highlight_to_first_row() -> None:
+    artifacts = [_artifact(index) for index in range(3)]
+
+    async with _TestApp().run_test() as pilot:
+        modal = AgentArtifactSelectionModal(artifacts)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        option_list = modal.query_one("#agent-artifacts-list", OptionList)
+        option_list.highlighted = 2
+        await pilot.press("m")
+        await pilot.pause()
+
+        assert option_list.highlighted == 0
+
+
+def test_artifact_modal_unmarked_option_text_omits_empty_checkbox() -> None:
+    plain = _artifact_option_text("1", _artifact(1), marked=False).plain
+
+    assert "[ ]" not in plain
+
+
+def test_artifact_modal_marked_option_text_displays_selected_marker() -> None:
+    plain = _artifact_option_text("1", _artifact(1), marked=True).plain
+
+    assert "[x]" in plain
+
+
 def test_artifact_modal_option_text_truncates_long_label_and_path() -> None:
     artifact = _artifact(
         1,

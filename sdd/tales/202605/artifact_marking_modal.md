@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 14:02:06
-status: wip
+status: done
 prompt: sdd/prompts/202605/artifact_marking_modal.md
 ---
 # Plan: Artifact Modal Marking Flow Polish

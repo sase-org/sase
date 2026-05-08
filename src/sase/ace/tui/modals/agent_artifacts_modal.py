@@ -121,9 +121,9 @@ def _artifact_option_text(
         text.append("   ", style="dim")
     else:
         text.append(f"{selector}  ", style="bold #D7AF5F")
-    marker = "[x]" if marked else "[ ]"
+    marker = "[x] " if marked else "    "
     marker_style = "bold #A6E3A1" if marked else "dim"
-    text.append(f"{marker} ", style=marker_style)
+    text.append(marker, style=marker_style)
     text.append(_artifact_label(artifact))
     text.append(f"  [{_artifact_kind(artifact)}]", style="dim #87D7FF")
     text.append("\n")
@@ -206,6 +206,7 @@ class AgentArtifactSelectionModal(
         else:
             self._marked_indexes.add(index)
         self._refresh_option(index)
+        option_list.highlighted = (index + 1) % len(self._artifacts)
         self._update_hints()
 
     def action_open_selected(self) -> None:
