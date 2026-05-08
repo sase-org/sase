@@ -57,6 +57,8 @@ class PromptTextArea(
         ("ctrl+j", "insert_newline", "New line"),
         ("ctrl+f", "cursor_right", "Forward"),
         ("ctrl+b", "cursor_left", "Backward"),
+        ("alt+f", "cursor_word_right", "Forward word"),
+        ("alt+b", "cursor_word_left", "Backward word"),
         ("ctrl+g", "open_editor", "Edit in editor"),
         ("ctrl+y", "open_workflow_editor", "Workflow YAML"),
     ]

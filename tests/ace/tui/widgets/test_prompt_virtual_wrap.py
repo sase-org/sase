@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
 from textual.app import App, ComposeResult
+from textual._xterm_parser import XTermParser
 
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
@@ -25,6 +27,18 @@ def _style_height_value(value: Any) -> int:
     """Return a numeric height from a Textual style value."""
     scalar_value = getattr(value, "value", value)
     return int(scalar_value)
+
+
+async def _press_terminal_sequence(pilot: Any, sequence: str) -> None:
+    """Send raw terminal input through Textual's xterm parser."""
+    driver = pilot._app._driver
+    assert driver is not None
+    messages = list(XTermParser().feed(sequence))
+    assert messages
+    for message in messages:
+        message.set_sender(pilot._app)
+        driver.send_message(message)
+    await pilot.pause()
 
 
 async def test_prompt_text_area_uses_markdown_soft_wrap() -> None:
@@ -122,6 +136,68 @@ async def test_cursor_line_start_moves_to_physical_line_start_not_wrap_boundary(
         text_area.action_cursor_line_start()
 
         assert text_area.cursor_location == (0, 0)
+
+
+async def test_alt_b_moves_to_previous_word_in_insert_mode() -> None:
+    prompt = "alpha beta gamma"
+    app = _PromptBarApp(prompt)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        text_area = app.query_one(PromptTextArea)
+        text_area.move_cursor((0, len(prompt)))
+
+        await pilot.press("alt+b")
+
+        assert text_area.cursor_location == (0, prompt.index("gamma"))
+        assert text_area.text == prompt
+        assert text_area._vim_mode == "insert"
+
+
+async def test_alt_f_moves_to_next_word_boundary_in_insert_mode() -> None:
+    prompt = "alpha beta gamma"
+    app = _PromptBarApp(prompt)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        text_area = app.query_one(PromptTextArea)
+        text_area.move_cursor((0, 0))
+
+        await pilot.press("alt+f")
+
+        assert text_area.cursor_location == (0, len("alpha"))
+        assert text_area.text == prompt
+        assert text_area._vim_mode == "insert"
+
+
+@pytest.mark.parametrize(
+    ("sequence", "start", "expected"),
+    [
+        ("\x1bb", len("alpha beta gamma"), len("alpha beta ")),
+        ("\x1bf", 0, len("alpha")),
+    ],
+)
+async def test_esc_prefixed_word_keys_move_by_word_in_insert_mode(
+    sequence: str,
+    start: int,
+    expected: int,
+) -> None:
+    prompt = "alpha beta gamma"
+    app = _PromptBarApp(prompt)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        text_area = app.query_one(PromptTextArea)
+        text_area.move_cursor((0, start))
+
+        await _press_terminal_sequence(pilot, sequence)
+
+        assert text_area.cursor_location == (0, expected)
+        assert text_area.text == prompt
+        assert text_area._vim_mode == "insert"
 
 
 async def test_repeated_cursor_line_end_moves_to_next_physical_line_end() -> None:
