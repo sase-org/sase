@@ -40,7 +40,6 @@ The method defaults to `$SASE_COMMIT_METHOD` if the `-t` flag is omitted.
 | `-M`  | `--message-file`    | Path to file containing the commit message / PR description (mutually exclusive with `-m`)                                                                                                                                                                                  |
 | `-f`  | `--file`            | File to stage (repeatable; omit to stage all)                                                                                                                                                                                                                               |
 | `-n`  | `--name`            | Branch/CL name (required for `create_pull_request`)                                                                                                                                                                                                                         |
-| `-b`  | `--bead-id`         | Bead ID to close and associate with the commit                                                                                                                                                                                                                              |
 | `-B`  | `--bug-id`          | Bug ID to associate with the commit (overrides `$SASE_BUG_ID`)                                                                                                                                                                                                              |
 | `-c`  | `--checkout-target` | Branch point for PR (default: `HEAD~1`)                                                                                                                                                                                                                                     |
 | `-p`  | `--parent`          | Parent ChangeSpec **name** (overrides auto-detection from current branch). Must be an existing ChangeSpec in the active project file or archive — if it does not resolve, the PARENT field is omitted with a warning. Never pass a VCS ref (e.g., `origin/main`, `p4head`). |
@@ -67,7 +66,9 @@ The COMMITS entry note is always derived from the first line of the commit messa
 ```
 Precommit command  (e.g. `just fix`)
     |
-Bead lifecycle     (close bead, sync beads, inject bead ID into message)  [skip for proposals]
+Bead association   (inject SASE_BEAD_ID into message when set)
+    |
+Bead lifecycle     (close bead, sync beads)                               [skip for proposals]
     |
 Plan handling      (append PLAN= to message, mark plan done)              [skip for proposals]
     |
@@ -99,10 +100,14 @@ All three methods accept the same JSON payload structure:
 {
   "message": "Commit message (required for commit/propose)",
   "name": "Branch or PR name (required for PR)",
-  "files": ["optional", "list", "of", "specific", "files"],
-  "bead_id": "optional-bead-id-to-close"
+  "files": ["optional", "list", "of", "specific", "files"]
 }
 ```
+
+Bead association is not a user-supplied CLI flag. For new commit attempts, `sase commit` reads `SASE_BEAD_ID`; when it
+is set, the CLI adds that bead to the workflow payload, and `CommitWorkflow` enforces that the bead ID appears in the
+first line of the dispatched commit or PR message. Conflict resumes reuse the bead value captured in the original
+checkpoint.
 
 Internal fields added by `CommitWorkflow`:
 
@@ -112,6 +117,7 @@ Internal fields added by `CommitWorkflow`:
 | `_plan_path`       | `_handle_sase_plan` | Plan file path for VCS staging          |
 | `_pr_body`         | `_build_pr_body`    | Enriched PR description with agent info |
 | `_skip_bead_amend` | Internal            | Skip post-commit bead amend             |
+| `bead_id`          | Environment         | Bead ID resolved from `SASE_BEAD_ID`    |
 
 ## Result Format
 
@@ -123,7 +129,7 @@ After a successful dispatch, `commit_result.json` contains:
   "result": "<commit_hash | diff_path | null>",
   "message": "The commit message",
   "name": "Branch/CL name",
-  "bead_id": "Bead ID if provided",
+  "bead_id": "Bead ID if SASE_BEAD_ID was set",
   "changespec_name": "ChangeSpec name (PR only)",
   "entry_id": "COMMITS entry ID (commit/propose only)"
 }
@@ -290,6 +296,7 @@ instructions automatically, so agents know to hand control back to the user rath
 | ------------------------- | ------------------------------------------------------- |
 | `SASE_COMMIT_METHOD`      | Dispatch method (set by xprompt `environment:` section) |
 | `SASE_ARTIFACTS_DIR`      | Directory for `commit_result.json` and other artifacts  |
+| `SASE_BEAD_ID`            | Bead ID to automatically associate with the commit      |
 | `SASE_PLAN`               | Plan file path for staging and status update            |
 | `SASE_AGENT_PROJECT_FILE` | Project file for COMMITS/ChangeSpec tracking            |
 | `SASE_AGENT_CL_NAME`      | CL name used for proposal diff naming                   |

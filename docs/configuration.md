@@ -750,6 +750,7 @@ a provider prefix; use `opencode models` to list models in your configured envir
 | `SASE_VCS_PROVIDER`   | Override VCS provider selection (`git`, `hg`, or `auto`).                                       |
 | `SASE_WORKSPACE_ROOT` | Override the workspace root directory (takes priority over config file).                        |
 | `SASE_BUG_ID`         | Bug ID for PR workflows. When set and non-zero, injects `BUG=<id>` into PR tags and ChangeSpec. |
+| `SASE_BEAD_ID`        | Bead ID for commit workflows. When set, `sase commit` automatically tags the commit message.    |
 
 ### Plugin System
 
@@ -845,12 +846,11 @@ full flow, payload, checkpoint, and resume semantics.
 
 | Flag                    | Values                        | Default                 | Description                                                                                      |
 | ----------------------- | ----------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
-| `payload`               | JSON string                   | -                       | JSON payload (message, name, files, bead_id). Ignored when `--resume` is set.                    |
+| `payload`               | JSON string                   | -                       | JSON payload (message, name, files). Ignored when `--resume` is set.                             |
 | `-m, --message`         | string                        | -                       | Commit message (mutually exclusive with `-M`).                                                   |
 | `-M, --message-file`    | path                          | -                       | File containing the commit message / PR description (mutually exclusive with `-m`).              |
 | `-f, --file`            | path (repeatable)             | stage all               | Specific file to stage. Repeat for multiple; omit to stage everything.                           |
 | `-n, --name`            | string                        | -                       | Branch/CL name (required for `create_pull_request`).                                             |
-| `-b, --bead-id`         | string                        | -                       | Bead ID to close and associate with the commit.                                                  |
 | `-B, --bug-id`          | int                           | `$SASE_BUG_ID`          | Bug ID to associate with the commit.                                                             |
 | `-c, --checkout-target` | string                        | `HEAD~1`                | Branch point for PR creation.                                                                    |
 | `-p, --parent`          | ChangeSpec name               | auto                    | Parent ChangeSpec name (overrides branch-based auto-detection). Unresolvable values are dropped. |
