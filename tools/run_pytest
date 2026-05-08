@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+"""Run pytest for Justfile recipes with caller-relative test selectors."""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+NON_PATH_VALUE_OPTIONS = frozenset(
+    {
+        "-k",
+        "-m",
+        "-n",
+        "--numprocesses",
+        "--dist",
+        "--tb",
+        "--maxfail",
+        "--durations",
+        "--import-mode",
+        "--color",
+        "--capture",
+        "--log-level",
+    }
+)
+
+
+def _split_nodeid(value: str) -> tuple[str, str]:
+    path_part, separator, node_part = value.partition("::")
+    return path_part, f"{separator}{node_part}" if separator else ""
+
+
+def _repo_relative(path: Path) -> str:
+    try:
+        return path.resolve().relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return str(path.resolve())
+
+
+def _normalize_selector(value: str, invocation_dir: Path) -> str:
+    path_part, node_part = _split_nodeid(value)
+    if not path_part:
+        return value
+
+    candidate = Path(path_part)
+    if candidate.is_absolute():
+        return value
+
+    invocation_candidate = invocation_dir / candidate
+    if invocation_dir != REPO_ROOT and invocation_candidate.exists():
+        return f"{_repo_relative(invocation_candidate)}{node_part}"
+
+    repo_candidate = REPO_ROOT / candidate
+    if repo_candidate.exists():
+        return value
+
+    return value
+
+
+def _normalize_args(args: list[str], invocation_dir: Path) -> list[str]:
+    if args and args[0] == "--":
+        args = args[1:]
+
+    normalized: list[str] = []
+    skip_next = False
+    for arg in args:
+        if skip_next:
+            normalized.append(arg)
+            skip_next = False
+            continue
+
+        option_name = arg.split("=", 1)[0]
+        if option_name in NON_PATH_VALUE_OPTIONS:
+            normalized.append(arg)
+            skip_next = "=" not in arg
+            continue
+
+        if arg.startswith("-"):
+            normalized.append(arg)
+            continue
+
+        normalized.append(_normalize_selector(arg, invocation_dir))
+
+    return normalized
+
+
+def _worker_count() -> str:
+    configured = os.environ.get("SASE_PYTEST_WORKERS")
+    if configured:
+        return configured
+    return str(min(os.cpu_count() or 1, 16))
+
+
+def _pytest_command(mode: str, args: list[str]) -> list[str]:
+    command = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-n",
+        _worker_count(),
+        "--dist=loadfile",
+    ]
+    if mode == "slow":
+        command.extend(["-m", "slow"])
+    elif mode == "cov":
+        command.extend(
+            [
+                "--cov=src/sase",
+                "--cov-branch",
+                "--cov-report=term-missing:skip-covered",
+                "--cov-report=html",
+                "--cov-report=xml",
+                "--cov-fail-under=50",
+            ]
+        )
+
+    command.extend(args)
+    return command
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("mode", choices=("fast", "slow", "cov"))
+    parser.add_argument("pytest_args", nargs=argparse.REMAINDER)
+    namespace = parser.parse_args(argv)
+
+    invocation_dir = Path(
+        os.environ.get("SASE_JUST_INVOCATION_DIR", str(REPO_ROOT))
+    ).resolve()
+    pytest_args = _normalize_args(namespace.pytest_args, invocation_dir)
+    command = _pytest_command(namespace.mode, pytest_args)
+
+    os.chdir(REPO_ROOT)
+    os.execv(sys.executable, command)
+    raise AssertionError("unreachable")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

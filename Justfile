@@ -124,32 +124,19 @@ fmt-md-check:
 [positional-arguments]
 test *args: _setup (_header "test")
     @printf "\n---------- Running pytest (parallel, no coverage)... ----------\n"
-    @if [ "$#" -gt 0 ] && [ "$1" = "--" ]; then shift; fi; \
-        workers="${SASE_PYTEST_WORKERS:-$({{ venv_bin }}/python -c 'import os; print(min(os.cpu_count() or 1, 16))')}"; \
-        {{ venv_bin }}/pytest -n "$workers" --dist=loadfile "$@"
+    @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest fast "$@"
 
 # Run slow tests (excluded from the default `just test` run)
 [positional-arguments]
 test-slow *args: _setup (_header "test-slow")
     @printf "\n---------- Running slow pytest subset... ----------\n"
-    @if [ "$#" -gt 0 ] && [ "$1" = "--" ]; then shift; fi; \
-        workers="${SASE_PYTEST_WORKERS:-$({{ venv_bin }}/python -c 'import os; print(min(os.cpu_count() or 1, 16))')}"; \
-        {{ venv_bin }}/pytest -n "$workers" --dist=loadfile -m slow "$@"
+    @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest slow "$@"
 
 # Parallel test run with coverage reports + 50% gate (used by CI)
 [positional-arguments]
 test-cov *args: _setup (_header "test-cov")
     @printf "\n---------- Running pytest with coverage... ----------\n"
-    @if [ "$#" -gt 0 ] && [ "$1" = "--" ]; then shift; fi; \
-        workers="${SASE_PYTEST_WORKERS:-$({{ venv_bin }}/python -c 'import os; print(min(os.cpu_count() or 1, 16))')}"; \
-        {{ venv_bin }}/pytest -n "$workers" --dist=loadfile \
-        --cov=src/sase \
-        --cov-branch \
-        --cov-report=term-missing:skip-covered \
-        --cov-report=html \
-        --cov-report=xml \
-        --cov-fail-under=50 \
-        "$@"
+    @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest cov "$@"
 
 # Run tests across all Python versions
 test-tox: _setup

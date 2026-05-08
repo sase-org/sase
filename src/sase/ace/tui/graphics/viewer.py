@@ -645,7 +645,13 @@ def _artifact_header_panel(
     if metadata:
         body.append_text(metadata)
         body.append("\n")
-    body.append(_format_artifact_header_path(spec.path), style="cyan")
+    artifact_name = Path(spec.path).expanduser().name
+    formatted_path = _format_artifact_header_path(spec.path)
+    if artifact_name:
+        body.append(artifact_name, style="bold cyan")
+        if formatted_path != artifact_name:
+            body.append("\n")
+    body.append(formatted_path, style="cyan")
 
     return Panel(
         body,

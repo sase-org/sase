@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+import importlib.util
+from importlib.machinery import SourceFileLoader
+from pathlib import Path
+from types import ModuleType
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _load_run_pytest() -> ModuleType:
+    loader = SourceFileLoader("run_pytest_tool", str(ROOT / "tools" / "run_pytest"))
+    spec = importlib.util.spec_from_file_location(
+        "run_pytest_tool", ROOT / "tools" / "run_pytest", loader=loader
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_normalizes_invocation_relative_file_selector() -> None:
+    runner = _load_run_pytest()
+
+    result = runner._normalize_args(["test_repeat_launcher.py"], ROOT / "tests")
+
+    assert result == ["tests/test_repeat_launcher.py"]
+
+
+def test_normalizes_invocation_relative_node_selector() -> None:
+    runner = _load_run_pytest()
+
+    result = runner._normalize_args(
+        [
+            "test_repeat_launcher.py::TestExtractRepeatAndName::test_parses_repeat_and_name"
+        ],
+        ROOT / "tests",
+    )
+
+    assert result == [
+        "tests/test_repeat_launcher.py::TestExtractRepeatAndName::test_parses_repeat_and_name"
+    ]
+
+
+def test_preserves_repo_relative_selector() -> None:
+    runner = _load_run_pytest()
+
+    result = runner._normalize_args(["tests/test_repeat_launcher.py"], ROOT / "tests")
+
+    assert result == ["tests/test_repeat_launcher.py"]
+
+
+def test_strips_just_separator_and_preserves_keyword_expression() -> None:
+    runner = _load_run_pytest()
+
+    result = runner._normalize_args(
+        ["--", "-k", "test_repeat_launcher.py", "test_repeat_launcher.py"],
+        ROOT / "tests",
+    )
+
+    assert result == [
+        "-k",
+        "test_repeat_launcher.py",
+        "tests/test_repeat_launcher.py",
+    ]
