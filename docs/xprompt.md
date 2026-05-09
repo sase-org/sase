@@ -152,7 +152,7 @@ is preferred.
 
 ## Discovery Order
 
-XPrompts are loaded from multiple locations. When two locations define an xprompt with the same name, the
+Markdown xprompts are loaded from multiple locations. When two locations define an xprompt with the same name, the
 higher-priority source wins (first-wins).
 
 | Priority | Location                               | Notes                                            |
@@ -168,9 +168,10 @@ higher-priority source wins (first-wins).
 | 9        | `<sase_package>/default_xprompts/*.md` | Built-in default markdown xprompts               |
 | 10       | `<sase_package>/xprompts/*.md`         | Built-in package xprompts shipped with core SASE |
 
-Each directory (priorities 1-6 and 8-10) can contain individual `.md` files. Within priority 7, the config merge chain
-applies: built-in defaults, plugin configs, `~/.config/sase/sase.yml`, overlay files (`sase_*.yml`), and finally a local
-`./sase.yml` in the current working directory (highest config priority).
+Each directory-based source can contain individual `.md` files. YAML workflows use the same CWD, home, project, plugin,
+and package locations, with `.yml` or `.yaml` files loaded as workflow definitions. Within priority 7, the config merge
+chain applies: built-in defaults, plugin configs, `~/.config/sase/sase.yml`, overlay files (`sase_*.yml`), and finally a
+local `./sase.yml` in the current working directory (highest config priority).
 
 For file-based xprompts (priorities 1-6 and 8-10), the xprompt name defaults to the filename stem (e.g., `summarize.md`
 defines the xprompt `summarize`). The name can be overridden via the `name` field in the YAML front matter.
@@ -245,12 +246,13 @@ During the compatibility window, top-level legacy invocations such as `sase run 
 that points to `#!sync`. Inline expansion contexts reject standalone workflows instead of passing literal `#sync` text
 to the model. Shell examples should use single quotes around `#!...` so `!` is not interpreted by interactive shells.
 
-For VCS workspace references, underscores can be used as an alternative to colons: `#gh_sase` is equivalent to
-`#gh:sase`. The underscore is normalized to a colon before pattern matching, so both forms work identically. This is
-useful in contexts where colons are inconvenient.
+For workspace references, underscores can be used as an alternative to colons: `#gh_sase` is equivalent to `#gh:sase`.
+The underscore is normalized to a colon before pattern matching, so both forms work identically. This is useful in
+contexts where colons are inconvenient. The `#cd` directory workflow is still a workspace reference even though it skips
+VCS checkout/release work.
 
-VCS references also support `@name` agent references in the ref portion. The `@name` is resolved at runtime to the named
-agent's ChangeSpec (branch name), allowing one agent's prompt to target another agent's workspace:
+Provider-backed references also support `@name` agent references in the ref portion. The `@name` is resolved at runtime
+to the named agent's ChangeSpec (branch name), allowing one agent's prompt to target another agent's workspace:
 
 ```
 #gh:@planner     resolves to e.g. #gh:planner_add_config_parser
@@ -263,7 +265,8 @@ This is useful when chaining agents — for example, a review agent can target t
 ### VCS Workspace References
 
 Workspace-managing workflows use the same `#name:ref` reference syntax as xprompts, but they control where the agent
-runs before the rest of the prompt is executed.
+runs before the rest of the prompt is executed. Some workspace references are VCS-backed (`#git`, `#gh`, `#hg`); `#cd`
+is directory-backed and does not reserve a numbered workspace.
 
 | Reference    | Behavior                                                                                                |
 | ------------ | ------------------------------------------------------------------------------------------------------- |
@@ -518,21 +521,25 @@ making the system extensible — a plugin or user can override the CRS workflow 
 
 ### Available Tags
 
-| Tag                   | Description                                                                                                                   |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `vcs`                 | Workspace workflow xprompt (`#cd`, `#git`, `#gh`, `#hg`) — wraps other embedded workflows, running setup/teardown around them |
-| `crs`                 | Code Review Summary workflow (singleton — `get_by_tag(crs)` returns the first match)                                          |
-| `fix_hook`            | Fix hook workflow (singleton — used by axe to find the hook-fix agent)                                                        |
-| `rollover`            | Marks workflows whose embedded references carry forward to follow-up agent steps                                              |
-| `mentor`              | Mentor review prompt workflow                                                                                                 |
-| `commit`              | Commit workflow (appended by mentor review `A` key for direct commit)                                                         |
-| `propose`             | Propose workflow (appended by mentor review `a` key for propose-style amend)                                                  |
-| `make_mentor_changes` | Apply accepted mentor comments workflow (launched by mentor review `Enter`)                                                   |
-| `diff_file`           | Injects the CL diff into the mentor prompt                                                                                    |
-| `create_epic_bead`    | Plan-approval Epic flow — creates the plan file, beads, and the epic agent prompt                                             |
-| `create_legend_bead`  | Plan-approval Legend flow — creates a legend-tier bead with `epic_count`, then runs legend work                               |
-| `work_phase_bead`     | Per-phase agent prompt used by `sase bead work` (input: `bead_id`)                                                            |
-| `land_epic`           | Final land-the-epic agent prompt used by `sase bead work` after all phases complete                                           |
+| Tag                            | Description                                                                                                                   |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `vcs`                          | Workspace workflow xprompt (`#cd`, `#git`, `#gh`, `#hg`) — wraps other embedded workflows, running setup/teardown around them |
+| `crs`                          | Code Review Summary workflow (singleton — `get_by_tag(crs)` returns the first match)                                          |
+| `fix_hook`                     | Fix hook workflow (singleton — used by axe to find the hook-fix agent)                                                        |
+| `rollover`                     | Marks workflows whose embedded references carry forward to follow-up agent steps                                              |
+| `mentor`                       | Mentor review prompt workflow                                                                                                 |
+| `commit`                       | Commit workflow (appended by mentor review `A` key for direct commit)                                                         |
+| `propose`                      | Propose workflow (appended by mentor review `a` key for propose-style amend)                                                  |
+| `make_mentor_changes`          | Apply accepted mentor comments workflow (launched by mentor review `Enter`)                                                   |
+| `diff_file`                    | Injects the CL diff into the mentor prompt                                                                                    |
+| `append_to_pr`                 | VCS-specific post-commit prompt appended when the active commit method creates a pull request                                 |
+| `append_to_commit_and_propose` | VCS-specific post-commit prompt appended when the active commit method creates a commit or proposal                           |
+| `memory`                       | Auto-discovered dynamic-memory xprompt                                                                                        |
+| `create_epic_bead`             | Plan-approval Epic flow — creates the plan file, beads, and the epic agent prompt                                             |
+| `create_legend_bead`           | Plan-approval Legend flow — creates a legend-tier bead with `epic_count`, then runs legend work                               |
+| `work_phase_bead`              | Per-phase agent prompt used by `sase bead work` (input: `bead_id`)                                                            |
+| `land_epic`                    | Final land-the-epic agent prompt used by `sase bead work` after all phases complete                                           |
+| `land_legend`                  | Final land-the-legend agent prompt used by `sase bead work` after legend epics complete                                       |
 
 ### Defining Tags
 
