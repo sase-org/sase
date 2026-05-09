@@ -15,6 +15,7 @@ and CLI flags.
   - [mentor_profiles](#mentor_profiles)
   - [metahooks](#metahooks)
   - [xprompts](#xprompts)
+  - [workflows](#workflows)
   - [xprompt_aliases](#xprompt_aliases)
   - [use_chezmoi](#use_chezmoi)
   - [precommit_command](#precommit_command)
@@ -36,7 +37,9 @@ All sase configuration lives under `~/.config/sase/`. The base config file is:
 ```
 
 Overlay files matching the glob `~/.config/sase/sase_*.yml` are merged on top of the base file. A project-local
-`./sase.yml` in the current working directory takes highest priority. See [Deep-Merge System](#deep-merge-system) below.
+`./sase.yml` in the current working directory usually takes highest priority. The ACE TUI deliberately disables
+project-local config loading for its own process so opening `sase ace` inside a repo does not inherit that repo's
+agent-run settings. See [Deep-Merge System](#deep-merge-system) below.
 
 ## Deep-Merge System
 
@@ -47,7 +50,8 @@ Sase builds a merged configuration through five layers, each merged on top of th
    entry-point name; lists concatenate
 3. **`sase.yml`** — user config (`~/.config/sase/sase.yml`); lists **replace** defaults (not concatenate)
 4. **`sase_*.yml` overlays** — sorted alphabetically; lists **concatenate**
-5. **Local `sase.yml`** — project-level config in the current working directory; lists **replace** (highest priority)
+5. **Local `sase.yml`** — project-level config in the current working directory; lists **concatenate** (highest
+   priority)
 
 This allows splitting configuration across multiple files (e.g., `sase_work.yml`, `sase_personal.yml`) without
 duplication, plugins can provide sensible defaults that users can override, and individual projects can customize
@@ -55,14 +59,15 @@ behavior without changing global config.
 
 Merge semantics:
 
-| Type        | Behavior                                                                            |
-| ----------- | ----------------------------------------------------------------------------------- |
-| **Dicts**   | Merged recursively (overlay keys override base keys).                               |
-| **Lists**   | Concatenated in layers 2 and 4; **replaced** in layers 3 and 5 (user/local config). |
-| **Scalars** | Override (overlay value replaces base value).                                       |
+| Type        | Behavior                                                                   |
+| ----------- | -------------------------------------------------------------------------- |
+| **Dicts**   | Merged recursively (overlay keys override base keys).                      |
+| **Lists**   | Concatenated in layers 2, 4, and 5; **replaced** in layer 3 (user config). |
+| **Scalars** | Override (overlay value replaces base value).                              |
 
-For example, given a base file with two mentor profiles and an overlay that adds a third, the merged result contains all
-three profiles. If both files define the same scalar key (e.g., `axe.max_hook_runners`), the overlay wins.
+For example, given a base file with two mentor profiles and an overlay or local project config that adds a third, the
+merged result contains all three profiles. A user `~/.config/sase/sase.yml` list replaces earlier defaults instead. If
+two files define the same scalar key (e.g., `axe.max_hook_runners`), the later layer wins.
 
 Source: `src/sase/config/core.py`
 
@@ -193,15 +198,24 @@ llm_provider:
         - "An unexpected critical error occurred:"
       wait_times: [60, 300, 1800]
       fallback_model: "gemini-3-flash-preview"
+      continuation_prompt: "Please continue from the last preserved work."
+      preserve_workspace: true
+      spawn_new_agent: false
 ```
 
-| Field                                          | Type | Default | Description                                                              |
-| ---------------------------------------------- | ---- | ------- | ------------------------------------------------------------------------ |
-| `llm_provider.retry.<provider>`                | dict | -       | Retry config for a specific provider (e.g., `gemini`, `claude`, `codex`) |
-| `llm_provider.retry.<provider>.max_retries`    | int  | `0`     | Maximum retry attempts. `0` disables retrying.                           |
-| `llm_provider.retry.<provider>.error_patterns` | list | `[]`    | Case-insensitive substring patterns matched against error output.        |
-| `llm_provider.retry.<provider>.wait_times`     | list | `[30]`  | Per-retry wait times in seconds. Last value reused if list is shorter.   |
-| `llm_provider.retry.<provider>.fallback_model` | str  | `null`  | Alternate model to use after exhausting all retries.                     |
+| Field                                               | Type | Default | Description                                                               |
+| --------------------------------------------------- | ---- | ------- | ------------------------------------------------------------------------- |
+| `llm_provider.retry.<provider>`                     | dict | -       | Retry config for a specific provider (e.g., `gemini`, `claude`, `codex`). |
+| `llm_provider.retry.<provider>.max_retries`         | int  | `0`     | Maximum retry attempts. `0` disables retrying.                            |
+| `llm_provider.retry.<provider>.error_patterns`      | list | `[]`    | Case-insensitive substring patterns matched against error output.         |
+| `llm_provider.retry.<provider>.wait_times`          | list | `[30]`  | Per-retry wait times in seconds. Last value reused if list is shorter.    |
+| `llm_provider.retry.<provider>.fallback_model`      | str  | `null`  | Alternate model to use after exhausting all retries.                      |
+| `llm_provider.retry.<provider>.continuation_prompt` | str  | `null`  | Prompt text appended when continuing after a retryable failure.           |
+| `llm_provider.retry.<provider>.preserve_workspace`  | bool | `false` | Preserve on-disk edits across legacy in-process retry attempts.           |
+| `llm_provider.retry.<provider>.spawn_new_agent`     | bool | `false` | Retry by launching a fresh detached agent that inherits the workspace.    |
+
+User retry config is merged with provider-supplied retry defaults when a provider declares them. For list fields such as
+`error_patterns`, built-in patterns are kept and user patterns are appended with duplicates removed.
 
 Source: `src/sase/llm_provider/retry_config.py`, `src/sase/llm_provider/config.py`
 
@@ -254,6 +268,7 @@ axe:
   lumberjacks:
     hooks:
       interval: 5
+      chop_timeout: "90s"
       chops:
         - name: hook_checks
           description: Complete finished hooks and start stale ones, with zombie detection
@@ -306,10 +321,11 @@ axe:
 
 **Lumberjack fields** (per entry under `lumberjacks`):
 
-| Field      | Type                 | Default | Description                                     |
-| ---------- | -------------------- | ------- | ----------------------------------------------- |
-| `interval` | int                  | `1`     | Seconds between chop polling cycles.            |
-| `chops`    | list[string\|object] | `[]`    | List of chops to run on each cycle (see below). |
+| Field          | Type                 | Default | Description                                                              |
+| -------------- | -------------------- | ------- | ------------------------------------------------------------------------ |
+| `interval`     | int                  | `1`     | Seconds between chop polling cycles.                                     |
+| `chop_timeout` | string               | -       | Default duration limit for each chop in this lumberjack, such as `"90s"` |
+| `chops`        | list[string\|object] | `[]`    | List of chops to run on each cycle (see below).                          |
 
 **Chop fields** (per entry under `chops`):
 
@@ -319,6 +335,7 @@ axe:
 | `description` | string       | yes      | -       | Human-readable description of what the chop does.                                            |
 | `agent`       | string       | no       | `null`  | XPrompt reference to launch as a background agent (accepts legacy `xprompt` key).            |
 | `run_every`   | string       | no       | -       | Time-based duration string (e.g., `"60m"`, `"30s"`, `"2h"`). Limits how often the chop runs. |
+| `timeout`     | string       | no       | -       | Per-chop duration limit. Overrides the lumberjack-level `chop_timeout` when set.             |
 | `env`         | dict[string] | no       | `{}`    | Environment variables passed to the chop script subprocess.                                  |
 
 On a scheduled lumberjack tick, script chops remain concurrent, but configured agent chops launch sequentially in config
@@ -932,9 +949,9 @@ entries where `is_skill` is `true`.
 
 ### `sase bead`
 
-| Flag         | Values                                                                                                                             | Default    | Description     |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------- | ---------- | --------------- |
-| _subcommand_ | `init`, `create`, `list`, `show`, `ready`, `update`, `close`, `rm`, `dep`, `blocked`, `sync`, `stats`, `doctor`, `onboard`, `work` | (required) | Bead subcommand |
+| Flag         | Values                                                                                                                                     | Default    | Description     |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------- | --------------- |
+| _subcommand_ | `init`, `create`, `list`, `show`, `ready`, `open`, `update`, `close`, `rm`, `dep`, `blocked`, `sync`, `stats`, `doctor`, `onboard`, `work` | (required) | Bead subcommand |
 
 #### `sase bead create`
 
@@ -962,6 +979,12 @@ entries where `is_skill` is `true`.
 | Flag | Values | Default    | Description |
 | ---- | ------ | ---------- | ----------- |
 | `id` | string | (required) | Issue ID    |
+
+#### `sase bead open`
+
+| Flag | Values | Default    | Description        |
+| ---- | ------ | ---------- | ------------------ |
+| `id` | string | (required) | Issue ID to reopen |
 
 #### `sase bead update`
 
@@ -1002,6 +1025,14 @@ entries where `is_skill` is `true`.
 | Flag           | Values | Default | Description                          |
 | -------------- | ------ | ------- | ------------------------------------ |
 | `-s, --status` | flag   | -       | Check sync status without committing |
+
+#### `sase bead work`
+
+| Flag            | Values | Default    | Description                                                              |
+| --------------- | ------ | ---------- | ------------------------------------------------------------------------ |
+| `id`            | string | (required) | Epic or legend plan bead ID.                                             |
+| `-n, --dry-run` | flag   | -          | Print the wave plan and rendered multi-prompt without mutating state.    |
+| `-y, --yes`     | flag   | -          | Skip the launch confirmation prompt when launching phase or epic agents. |
 
 ### `sase sdd`
 
