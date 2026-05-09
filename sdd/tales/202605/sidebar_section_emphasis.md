@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 19:34:48
-status: wip
+status: done
 prompt: sdd/prompts/202605/sidebar_section_emphasis.md
 ---
 # Sidebar Section Emphasis on sase.sh (Desktop Web)

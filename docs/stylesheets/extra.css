@@ -255,6 +255,67 @@ body,
 }
 
 /* ============================================================================
+   Sidebar section emphasis (desktop)
+   ========================================================================= */
+
+@media screen and (min-width: 76.25em) {
+  .md-nav--primary .md-nav__item--section {
+    margin-top: var(--sp-5);
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--sase-rule);
+  }
+
+  .md-nav--primary > .md-nav__list > .md-nav__item--section:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+
+  .md-nav--primary .md-nav__item--section > .md-nav__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin-bottom: var(--sp-2);
+    color: var(--sase-ink);
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .md-nav--primary .md-nav__item--section > .md-nav__link::before {
+    content: "";
+    width: 1.5rem;
+    height: 1px;
+    background: var(--sase-accent);
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  /* Non-link section labels (no index page) — keep color stable on hover/focus */
+  .md-nav--primary .md-nav__item--section > span.md-nav__link:hover,
+  .md-nav--primary .md-nav__item--section > span.md-nav__link:focus {
+    color: var(--sase-ink);
+  }
+
+  /* Clickable section label (when navigation.indexes adds an index page) — use accent on hover */
+  .md-nav--primary .md-nav__item--section > a.md-nav__link:hover,
+  .md-nav--primary .md-nav__item--section > a.md-nav__link:focus {
+    color: var(--sase-accent-strong);
+  }
+
+  /* Highlight the section that contains the active page */
+  .md-nav--primary .md-nav__item--section:has(.md-nav__link--active) > .md-nav__link {
+    color: var(--sase-accent-strong);
+  }
+
+  .md-nav--primary .md-nav__item--section:has(.md-nav__link--active) > .md-nav__link::before {
+    background: var(--sase-accent-strong);
+  }
+}
+
+/* ============================================================================
    Body typography (.md-typeset)
    ========================================================================= */
 
