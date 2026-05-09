@@ -86,7 +86,7 @@ def test_agent_count_numbers_have_unique_rich_styles() -> None:
         "total": "bold #5FAFFF",
         "running": "bold #00D7AF",
         "waiting": "bold #AF87FF",
-        "unread": "bold #FFAF5F",
+        "unread": "bold white",
         "read": "bold #BCBCBC",
     }
     assert len(set(count_styles.values())) == len(count_styles)

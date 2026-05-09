@@ -133,7 +133,7 @@ class AgentInfoPanel(Static):
         "total": "bold #5FAFFF",
         "running": "bold #00D7AF",
         "waiting": "bold #AF87FF",
-        "unread": "bold #FFAF5F",
+        "unread": "bold white",
         "read": "bold #BCBCBC",
     }
 
