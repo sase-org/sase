@@ -106,13 +106,16 @@ def test_update_agent_counts_uses_plain_metric_text() -> None:
 
     captured: list[str] = []
     with patch.object(panel, "update", lambda text: captured.append(text.plain)):
-        panel.update_agent_counts(1, 2, 3, 4, 5, 0, 10)
+        panel.update_agent_counts(1, 2, 3, 4, 5, 6, 10)
     assert captured, "panel.update_agent_counts did not refresh the display"
     plain = captured[-1]
 
-    assert "10 Agents [2 hitl · 3 running · 4 waiting · 5 failed · 1 unread]" in plain
+    assert (
+        "10 Agents [2 hitl · 3 running · 4 waiting · 5 failed · 1 unread · 6 done]"
+    ) in plain
     assert "Agents(" not in plain
     assert "#FFAF5F" not in plain
+    assert " read" not in plain
 
 
 def test_agent_count_strip_omits_zero_metric_types() -> None:
@@ -134,7 +137,7 @@ def test_agent_count_strip_omits_zero_metric_types() -> None:
     assert plain.startswith("9 Agents [3 running · 1 failed · 2 unread]")
     assert "hitl" not in counts_prefix
     assert "waiting" not in counts_prefix
-    assert " read" not in counts_prefix
+    assert " done" not in counts_prefix
 
 
 def test_agent_count_strip_omits_metrics_section_when_all_counts_are_zero() -> None:

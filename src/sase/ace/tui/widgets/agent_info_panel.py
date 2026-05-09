@@ -154,6 +154,7 @@ class AgentInfoPanel(Static):
 
     _COUNT_LABELS: dict[str, str] = {
         "asking": "hitl",
+        "read": "done",
     }
 
     def _metric_counts(self) -> list[tuple[str, int]]:
