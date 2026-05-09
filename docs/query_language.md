@@ -1,11 +1,16 @@
 # Query Language Reference
 
-The `sase ace` query language filters ChangeSpecs using boolean expressions that combine string matching, property
-filters, and special shorthands.
+The ChangeSpec query language filters ChangeSpecs using boolean expressions that combine string matching, property
+filters, and operational shorthands. It is used by the CLs tab in `sase ace [query]` and by other ChangeSpec filters
+such as `sase axe start --query`.
+
+This page documents ChangeSpec queries. The Agents tab in ACE has a separate agent query language with agent-specific
+property keys.
 
 ## String Matching
 
-Bare words and double-quoted strings perform case-insensitive substring matching against all searchable fields:
+Bare words and double-quoted strings perform case-insensitive substring matching against all searchable fields. Use
+quoted strings when the value contains spaces, punctuation, or other characters that are not valid in a bare word:
 
 ```
 foobar           bare word, matches "FooBar", "FOOBAR", etc.
@@ -19,15 +24,15 @@ c"FooBar"        matches only "FooBar", not "foobar" or "FOOBAR"
 ```
 
 Inside quoted strings, the following escape sequences are recognized: `\\` (literal backslash), `\"` (literal quote),
-`\n` (newline), `\r` (carriage return), `\t` (tab).
+`\n` (newline), `\r` (carriage return), and `\t` (tab).
 
 ## Searchable Fields
 
-String matches search across these ChangeSpec fields (combined):
+String matches search across these ChangeSpec fields as one combined text corpus:
 
 - **name** -- the ChangeSpec name
 - **description** -- the ChangeSpec description text
-- **status** -- base status string (e.g. "Draft", "WIP")
+- **status** -- the status text as stored on the ChangeSpec
 - **project** -- project directory basename (derived from file path)
 - **parent** -- parent ChangeSpec name (if set)
 - **cl** -- CL identifier (if set)
@@ -36,10 +41,13 @@ String matches search across these ChangeSpec fields (combined):
 - **comments** -- reviewer names, file paths, and suffixes
 - **mentors** -- mentor status line suffixes
 
+For normalized status matching, prefer the `status:` property filter instead of a plain string match. `status:` strips
+workspace suffixes and the legacy `READY TO MAIL` suffix before comparing.
+
 ## Property Filters
 
-Property filters match against a specific ChangeSpec field (exact, case-insensitive) rather than performing a full-text
-substring search.
+Property filters match against a specific ChangeSpec field rather than performing a full-text substring search. The
+supported property filters are exact and case-insensitive:
 
 ```
 status:WIP            match ChangeSpecs with base status "WIP"
@@ -49,8 +57,8 @@ name:foo              match ChangeSpecs whose name is exactly "foo"
 sibling:bar           match ChangeSpecs in the same sibling family as "bar"
 ```
 
-Valid property keys: `status`, `project`, `ancestor`, `name`, `sibling`. Values can be bare words (alphanumeric, `_`,
-`-`) or quoted strings (e.g. `status:"in progress"`).
+Valid property keys: `status`, `project`, `ancestor`, `name`, and `sibling`. Values can be bare words (alphanumeric,
+`_`, `-`) or quoted strings (e.g. `status:"in progress"`).
 
 ### Property Shorthand Prefixes
 
@@ -73,6 +81,11 @@ Valid property keys: `status`, `project`, `ancestor`, `name`, `sibling`. Values 
 | `%y`      | `status:READY`     |
 
 Status shorthands are case-insensitive (`%D` and `%d` are equivalent).
+
+### Status Matching
+
+The `status:` filter compares the base status only. For example, a ChangeSpec whose stored status is `Ready (sase_102)`
+matches `status:Ready`. It also treats the legacy `Ready - (!: READY TO MAIL)` form as base status `Ready`.
 
 ### Ancestor Matching
 
@@ -134,31 +147,31 @@ feature AND (test OR lint)
 
 ## Special Shorthands
 
-These shorthands filter ChangeSpecs by error, agent, or process status.
+These shorthands filter ChangeSpecs by error, agent, or process state recorded in status or suffix fields.
 
 ### Error Suffix
 
-| Syntax | Meaning                                                           |
-| ------ | ----------------------------------------------------------------- |
-| `!!!`  | Match ChangeSpecs that have any error suffix                      |
-| `!`    | Same as `!!!` (when standalone: followed by whitespace or at end) |
-| `!!`   | NO error suffix (equivalent to `NOT !!!`; standalone only)        |
+| Syntax | Meaning                                                                            |
+| ------ | ---------------------------------------------------------------------------------- |
+| `!!!`  | Match ChangeSpecs that have an error suffix in status, commits, hooks, or comments |
+| `!`    | Same as `!!!` when standalone: followed by whitespace or at end                    |
+| `!!`   | Match ChangeSpecs with no error suffix (equivalent to `NOT !!!`; standalone only)  |
 
 ### Running Agents
 
-| Syntax | Meaning                                                      |
-| ------ | ------------------------------------------------------------ |
-| `@@@`  | Match ChangeSpecs with a running agent                       |
-| `@`    | Same as `@@@` (when standalone)                              |
-| `!@`   | NO running agents (equivalent to `NOT @@@`; standalone only) |
+| Syntax | Meaning                                                                      |
+| ------ | ---------------------------------------------------------------------------- |
+| `@@@`  | Match ChangeSpecs with a running agent marker in hooks, comments, or mentors |
+| `@`    | Same as `@@@` when standalone                                                |
+| `!@`   | Match ChangeSpecs with no running agents (equivalent to `NOT @@@`)           |
 
 ### Running Processes
 
-| Syntax | Meaning                                                         |
-| ------ | --------------------------------------------------------------- |
-| `$$$`  | Match ChangeSpecs with a running process                        |
-| `$`    | Same as `$$$` (when standalone)                                 |
-| `!$`   | NO running processes (equivalent to `NOT $$$`; standalone only) |
+| Syntax | Meaning                                                               |
+| ------ | --------------------------------------------------------------------- |
+| `$$$`  | Match ChangeSpecs with a running process marker in hooks or comments  |
+| `$`    | Same as `$$$` when standalone                                         |
+| `!$`   | Match ChangeSpecs with no running processes (equivalent to `NOT $$$`) |
 
 ### Any Special
 
@@ -166,8 +179,8 @@ These shorthands filter ChangeSpecs by error, agent, or process status.
 | ------ | ----------------------------------------------------------------- |
 | `*`    | Errors OR agents OR processes (equivalent to `!!! OR @@@ OR $$$`) |
 
-Note: `!`, `@`, and `$` are only treated as special shorthands when standalone (at end of input or followed by
-whitespace). When `!` is followed by other characters (e.g., `!"foo"`), it acts as the NOT operator.
+Note: `!`, `@`, `$`, `!!`, `!@`, `!$`, and `*` are only treated as special shorthands when standalone (at end of input
+or followed by whitespace). When `!` is followed by other characters, as in `!"foo"`, it acts as the `NOT` operator.
 
 ## Practical Examples
 
