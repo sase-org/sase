@@ -29,7 +29,6 @@ def _make_snapshot() -> list[ChangeSpec]:
             cl=None,
             status="WIP",
             test_targets=None,
-            kickstart=None,
             file_path="/tmp/proj.gp",
             line_number=1,
         )

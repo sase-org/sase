@@ -30,7 +30,6 @@ STATUS: Draft
             parent=None,
             cl=None,
             test_targets=None,
-            kickstart=None,
             file_path=f.name,
             line_number=2,  # Line after the header
         )
@@ -65,7 +64,6 @@ STATUS: Draft
             parent=None,
             cl=None,
             test_targets=None,
-            kickstart=None,
             file_path=f.name,
             line_number=1,
         )
@@ -98,7 +96,6 @@ STATUS: Draft
             parent=None,
             cl=None,
             test_targets=None,
-            kickstart=None,
             file_path=f.name,
             line_number=1,
         )
@@ -127,7 +124,6 @@ STATUS: Ready"""
             parent=None,
             cl=None,
             test_targets=None,
-            kickstart=None,
             file_path=f.name,
             line_number=1,
         )
@@ -149,7 +145,6 @@ def test_get_raw_changespec_text_file_not_found() -> None:
         parent=None,
         cl=None,
         test_targets=None,
-        kickstart=None,
         file_path="/nonexistent/path/file.gp",
         line_number=1,
     )
@@ -171,7 +166,6 @@ def test_get_raw_changespec_text_invalid_line_number() -> None:
             parent=None,
             cl=None,
             test_targets=None,
-            kickstart=None,
             file_path=f.name,
             line_number=100,  # Way beyond file length
         )

@@ -21,7 +21,6 @@ def _cs(
     status: str = "Ready",
     cl: str | None = None,
     parent: str | None = None,
-    kickstart: str | None = None,
     commits: list[CommitEntry] | None = None,
     hooks: list[HookEntry] | None = None,
     comments: list[CommentEntry] | None = None,
@@ -34,7 +33,6 @@ def _cs(
         cl=cl,
         status=status,
         test_targets=None,
-        kickstart=kickstart,
         file_path="/home/user/.sase/projects/myproject/myproject.gp",
         line_number=1,
         commits=commits,
@@ -54,11 +52,6 @@ class TestGetSearchableTextEdgeCases:
         cs = _cs(cl="CL-12345")
         text = get_searchable_text(cs)
         assert "CL-12345" in text
-
-    def test_includes_kickstart(self) -> None:
-        cs = _cs(kickstart="some_kickstart")
-        text = get_searchable_text(cs)
-        assert "some_kickstart" in text
 
     def test_hook_running_agent_with_suffix(self) -> None:
         cs = _cs(

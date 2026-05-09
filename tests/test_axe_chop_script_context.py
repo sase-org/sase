@@ -49,7 +49,6 @@ class TestChangeSpecSerialization:
             cl=None,
             status="WIP",
             test_targets=None,
-            kickstart=None,
             file_path="/tmp/test.gp",
             line_number=1,
         )
@@ -72,7 +71,6 @@ class TestChangeSpecSerialization:
             cl="12345",
             status="Ready",
             test_targets=["//test:foo"],
-            kickstart="run_tests",
             file_path="/tmp/full.gp",
             line_number=10,
             bug="b/999",

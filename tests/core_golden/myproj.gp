@@ -8,8 +8,6 @@ PR: https://example.test/repo/pull/1
 BUG: BUG-100
 STATUS: Submitted
 TEST TARGETS: tests/test_alpha.py
-KICKSTART:
-  Kick this off carefully.
 COMMITS:
   (1) [run] Initial Commit
       | CHAT: ~/.sase/chats/alpha.md (0s)

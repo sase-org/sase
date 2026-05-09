@@ -24,7 +24,6 @@ def _cs(
         cl=None,
         status=status,
         test_targets=None,
-        kickstart=None,
         file_path="/home/u/.sase/projects/demo/demo.gp",
         line_number=1,
     )

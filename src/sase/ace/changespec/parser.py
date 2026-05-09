@@ -35,7 +35,6 @@ class _ParserState:
         self.bug: str | None = None
         self.status: str | None = None
         self.test_targets: list[str] = []
-        self.kickstart_lines: list[str] = []
 
         # Entry collections
         self.commit_entries: list[CommitEntry] = []
@@ -55,7 +54,6 @@ class _ParserState:
         # Section flags
         self.in_description = False
         self.in_test_targets = False
-        self.in_kickstart = False
         self.in_commits = False
         self.in_hooks = False
         self.in_comments = False
@@ -67,7 +65,6 @@ class _ParserState:
         """Reset all section flags to False."""
         self.in_description = False
         self.in_test_targets = False
-        self.in_kickstart = False
         self.in_commits = False
         self.in_hooks = False
         self.in_comments = False
@@ -93,11 +90,6 @@ class _ParserState:
 
         if self.name and self.status:
             description = "\n".join(self.description_lines).strip()
-            kickstart = (
-                "\n".join(self.kickstart_lines).strip()
-                if self.kickstart_lines
-                else None
-            )
             return ChangeSpec(
                 name=self.name,
                 description=description,
@@ -105,7 +97,6 @@ class _ParserState:
                 cl=self.cl,
                 status=self.status,
                 test_targets=self.test_targets if self.test_targets else None,
-                kickstart=kickstart,
                 file_path=self.file_path,
                 line_number=self.line_number,
                 bug=self.bug,
@@ -140,16 +131,6 @@ def _parse_field_header(state: _ParserState, line: str) -> bool:
         desc_inline = line[12:].strip()
         if desc_inline:
             state.description_lines.append(desc_inline)
-        return True
-
-    if line.startswith("KICKSTART:"):
-        state.save_pending_entries()
-        state.reset_section_flags()
-        state.in_kickstart = True
-        # Check if kickstart is on the same line
-        kickstart_inline = line[10:].strip()
-        if kickstart_inline:
-            state.kickstart_lines.append(kickstart_inline)
         return True
 
     if line.startswith("PARENT: "):
@@ -263,20 +244,15 @@ def _parse_section_content(state: _ParserState, line: str) -> None:
     elif state.in_description and line.startswith("  "):
         # Description continuation (2-space indented)
         state.description_lines.append(line[2:].rstrip("\n"))
-    elif state.in_kickstart and line.startswith("  "):
-        # Kickstart continuation (2-space indented)
-        state.kickstart_lines.append(line[2:].rstrip("\n"))
     elif state.in_test_targets and line.startswith("  "):
         # Test targets continuation (2-space indented)
         target = stripped
         if target:
             state.test_targets.append(target)
     elif stripped == "":
-        # Blank line - preserve in description or kickstart
+        # Blank line - preserve in description
         if state.in_description:
             state.description_lines.append("")
-        elif state.in_kickstart:
-            state.kickstart_lines.append("")
     elif not line.startswith("#"):
         # Any other non-comment content ends the special parsing modes
         state.reset_section_flags()

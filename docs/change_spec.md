@@ -18,8 +18,6 @@ CL: <CL>
 BUG: <BUG>
 TEST TARGETS: <TEST_TARGETS>
 STATUS: <STATUS>
-KICKSTART:
-  <KICKSTART_TEXT>
 COMMITS:
   <COMMIT_ENTRIES>
 TIMESTAMPS:
@@ -247,19 +245,6 @@ Archived → (terminal)
 - Move to `Ready` when the CL is ready for review
 - Move to `Mailed` when sent out for review
 - Update status as work progresses through the lifecycle
-
-### KICKSTART
-
-Optional initial prompt or instructions used to bootstrap the CL's development. This is a multi-line field with 2-space
-indentation.
-
-**Example**:
-
-```
-KICKSTART:
-  Create a new module that handles configuration parsing.
-  Use YAML format and support schema validation.
-```
 
 ### COMMITS
 

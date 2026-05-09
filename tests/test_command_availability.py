@@ -48,7 +48,6 @@ def _make_changespec(
         cl=cl,
         status=status,
         test_targets=None,
-        kickstart=None,
         bug=kwargs.get("bug"),
         commits=commits,
         hooks=None,

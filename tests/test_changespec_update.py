@@ -15,7 +15,6 @@ def _make_changespec(**kwargs: object) -> ChangeSpec:
         "cl": None,
         "status": "Ready",
         "test_targets": None,
-        "kickstart": None,
         "file_path": "/path/to/project.gp",
         "line_number": 1,
     }

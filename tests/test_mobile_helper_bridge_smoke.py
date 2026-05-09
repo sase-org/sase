@@ -40,7 +40,6 @@ def test_mobile_helper_bridge_smoke_all_helpers_with_temp_project_and_update(
                 cl=None,
                 status="Ready",
                 test_targets=None,
-                kickstart=None,
                 file_path=str(project_file),
                 line_number=1,
             )

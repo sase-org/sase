@@ -58,7 +58,6 @@ def _cs(
         cl=None,
         status=status,
         test_targets=None,
-        kickstart=None,
         file_path=f"/sase/projects/{project}/{project}.gp",
         line_number=1,
         timestamps=timestamps,

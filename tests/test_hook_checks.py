@@ -43,7 +43,6 @@ def _make_changespec(
         cl="http://cl/12345",
         status=status,
         test_targets=None,
-        kickstart=None,
         file_path=file_path,
         line_number=1,
         commits=None,

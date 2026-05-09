@@ -322,7 +322,6 @@ def _reject_remaining_proposals_unlocked(
                     "CL:",
                     "STATUS:",
                     "TEST TARGETS:",
-                    "KICKSTART:",
                     "HOOKS:",
                     "COMMENTS:",
                     "MENTORS:",

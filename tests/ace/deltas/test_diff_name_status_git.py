@@ -195,7 +195,6 @@ def test_compute_deltas_reports_cumulative_pr_state(repo: str, tmp_path: Path) -
         cl=None,
         status="Draft",
         test_targets=None,
-        kickstart=None,
         file_path=str(project_file),
         line_number=1,
     )

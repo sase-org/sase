@@ -92,7 +92,6 @@ def test_changespec_with_multiple_comments() -> None:
         cl="123",
         status="Mailed",
         test_targets=None,
-        kickstart=None,
         file_path="/tmp/test.md",
         line_number=1,
         comments=[

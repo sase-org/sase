@@ -44,7 +44,6 @@ def _make_changespec(
         status="Ready",
         test_targets=None,
         comments=comments,
-        kickstart=None,
         line_number=1,
     )
 

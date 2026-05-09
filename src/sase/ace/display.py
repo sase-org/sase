@@ -94,12 +94,6 @@ def display_changespec(
     for line in changespec.description.split("\n"):
         text.append(f"  {line}\n", style="#D7D7AF")
 
-    # KICKSTART field (only display if present)
-    if changespec.kickstart:
-        text.append("KICKSTART:\n", style="bold #87D7FF")
-        for line in changespec.kickstart.split("\n"):
-            text.append(f"  {line}\n", style="#D7D7AF")
-
     # PARENT field (only display if present)
     if changespec.parent:
         text.append("PARENT: ", style="bold #87D7FF")

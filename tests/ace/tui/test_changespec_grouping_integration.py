@@ -44,7 +44,6 @@ def _cs(name: str, *, project: str = "demo", status: str = "WIP") -> ChangeSpec:
         cl=None,
         status=status,
         test_targets=None,
-        kickstart=None,
         file_path=f"/sase/projects/{project}/{project}.gp",
         line_number=1,
     )

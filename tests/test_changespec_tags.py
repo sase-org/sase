@@ -23,7 +23,6 @@ def _cs(
         cl=None,
         status=status,
         test_targets=None,
-        kickstart=None,
         file_path=f"/home/user/.sase/projects/{project}/{project}{suffix}.gp",
         line_number=1,
     )

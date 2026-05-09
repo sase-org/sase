@@ -23,7 +23,6 @@ def _cs(
     cl: str | None = None,
     parent: str | None = None,
     bug: str | None = None,
-    kickstart: str | None = None,
     commits: list[CommitEntry] | None = None,
     hooks: list[HookEntry] | None = None,
     comments: list[CommentEntry] | None = None,
@@ -36,7 +35,6 @@ def _cs(
         cl=cl,
         status=status,
         test_targets=None,
-        kickstart=kickstart,
         file_path="/home/user/.sase/projects/myproject/myproject.gp",
         line_number=1,
         bug=bug,
@@ -460,30 +458,6 @@ class TestRunningWorkspaces:
         with patch("sase.running_field.get_claimed_workspaces", return_value=[]):
             out = _capture_markdown([_cs(name="bare")])
         assert "### Running Workspaces" not in out
-
-
-# ---------------------------------------------------------------------------
-# Kickstart section
-# ---------------------------------------------------------------------------
-
-
-class TestKickstart:
-    def test_kickstart_section(self) -> None:
-        out = _capture_markdown(
-            [
-                _cs(
-                    name="with_ks",
-                    kickstart="Build a login page\n\nWith OAuth support",
-                )
-            ]
-        )
-        assert "### Kickstart" in out
-        assert "> Build a login page" in out
-        assert "> With OAuth support" in out
-
-    def test_no_kickstart(self) -> None:
-        out = _capture_markdown([_cs(name="bare")])
-        assert "### Kickstart" not in out
 
 
 # ---------------------------------------------------------------------------

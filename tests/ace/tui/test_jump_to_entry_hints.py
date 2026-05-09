@@ -37,7 +37,6 @@ def _make_changespec(name: str = "test_feature") -> ChangeSpec:
         cl=None,
         status="Ready",
         test_targets=None,
-        kickstart=None,
         file_path="/tmp/test.gp",
         line_number=1,
     )

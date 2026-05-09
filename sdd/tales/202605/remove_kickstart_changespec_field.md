@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 01:53:06
-status: wip
+status: done
 prompt: sdd/prompts/202605/remove_kickstart_changespec_field.md
 ---
 # Remove the KICKSTART ChangeSpec field

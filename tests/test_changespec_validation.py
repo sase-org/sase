@@ -29,7 +29,6 @@ def _make_cs(**kwargs: object) -> ChangeSpec:
         "cl": None,
         "status": "Draft",
         "test_targets": None,
-        "kickstart": None,
         "file_path": "/tmp/test.gp",
         "line_number": 1,
     }

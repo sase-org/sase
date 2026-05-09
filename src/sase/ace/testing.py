@@ -38,7 +38,6 @@ def make_changespec(
         cl=cl,
         status=status,
         test_targets=None,
-        kickstart=None,
         file_path=file_path,
         line_number=1,
         commits=commits,

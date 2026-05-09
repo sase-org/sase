@@ -30,7 +30,6 @@ def make_changespec(name: str, file_path: Path, *, status: str = "WIP") -> Chang
         cl=None,
         status=status,
         test_targets=None,
-        kickstart=None,
         file_path=str(file_path),
         line_number=1,
     )

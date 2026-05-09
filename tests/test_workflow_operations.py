@@ -34,7 +34,6 @@ def test_get_available_workflows_with_comments_entry() -> None:
         status="Mailed",
         file_path="/tmp/test.md",
         line_number=1,
-        kickstart=None,
         comments=[
             CommentEntry(
                 reviewer="critique",
@@ -58,7 +57,6 @@ def test_get_available_workflows_with_non_test_target_failed_hook() -> None:
         status="Ready",
         file_path="/tmp/test.md",
         line_number=1,
-        kickstart=None,
         hooks=[
             _make_hook(command="flake8 src", status="FAILED"),
         ],
@@ -79,7 +77,6 @@ def test_get_available_workflows_all_hooks_passing() -> None:
         status="Ready",
         file_path="/tmp/test.md",
         line_number=1,
-        kickstart=None,
         hooks=[
             _make_hook(command="bb_rabbit_test //target1", status="PASSED"),
             _make_hook(command="flake8 src", status="PASSED"),

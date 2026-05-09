@@ -167,7 +167,6 @@ class ChangeSpecWire:
     bug: str | None
     description: str
     test_targets: list[str] = field(default_factory=list)
-    kickstart: str | None = None
     commits: list[CommitWire] = field(default_factory=list)
     hooks: list[HookWire] = field(default_factory=list)
     comments: list[CommentWire] = field(default_factory=list)

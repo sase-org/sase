@@ -31,7 +31,6 @@ String matches search across these ChangeSpec fields (combined):
 - **project** -- project directory basename (derived from file path)
 - **parent** -- parent ChangeSpec name (if set)
 - **cl** -- CL identifier (if set)
-- **kickstart** -- kickstart value (if set)
 - **commits** -- history entry notes and suffixes
 - **hooks** -- hook display commands and status line suffixes
 - **comments** -- reviewer names, file paths, and suffixes

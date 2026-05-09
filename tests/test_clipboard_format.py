@@ -29,7 +29,6 @@ def _make_basic_changespec(
         parent=kwargs.get("parent"),
         cl=kwargs.get("cl"),
         test_targets=kwargs.get("test_targets"),
-        kickstart=kwargs.get("kickstart"),
         bug=kwargs.get("bug"),
         commits=kwargs.get("commits"),
         hooks=kwargs.get("hooks"),
@@ -70,13 +69,6 @@ def test_format_changespec_with_test_targets() -> None:
     cs = _make_basic_changespec(test_targets=["//foo:test1", "//bar:test2"])
     result = format_changespec_for_clipboard(cs)
     assert "TEST_TARGETS: //foo:test1, //bar:test2" in result
-
-
-def test_format_changespec_with_kickstart() -> None:
-    """Test formatting ChangeSpec with kickstart field."""
-    cs = _make_basic_changespec(kickstart="some kickstart value")
-    result = format_changespec_for_clipboard(cs)
-    assert "KICKSTART: some kickstart value" in result
 
 
 def test_format_changespec_commits_with_plain_suffix() -> None:

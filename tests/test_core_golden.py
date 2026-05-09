@@ -89,7 +89,6 @@ def test_changespec_wire_json_snapshot() -> None:
                 "bug": "BUG-100",
                 "description": "Initial feature work.\nSpans multiple lines.",
                 "test_targets": ["tests/test_alpha.py"],
-                "kickstart": "Kick this off carefully.",
                 "commits": [
                     {
                         "number": 1,
@@ -164,8 +163,8 @@ def test_changespec_wire_json_snapshot() -> None:
                 "file_path": "myproj.gp",
                 "source_span": {
                     "file_path": "myproj.gp",
-                    "start_line": 32,
-                    "end_line": 32,
+                    "start_line": 30,
+                    "end_line": 30,
                 },
                 "status": "WIP",
                 "parent": "alpha",
@@ -173,7 +172,6 @@ def test_changespec_wire_json_snapshot() -> None:
                 "bug": None,
                 "description": "Sibling feature.",
                 "test_targets": [],
-                "kickstart": None,
                 "commits": [],
                 "hooks": [],
                 "comments": [],
@@ -188,8 +186,8 @@ def test_changespec_wire_json_snapshot() -> None:
                 "file_path": "myproj.gp",
                 "source_span": {
                     "file_path": "myproj.gp",
-                    "start_line": 39,
-                    "end_line": 39,
+                    "start_line": 37,
+                    "end_line": 37,
                 },
                 "status": "Reverted",
                 "parent": "alpha",
@@ -197,7 +195,6 @@ def test_changespec_wire_json_snapshot() -> None:
                 "bug": None,
                 "description": "Reverted retry of beta.",
                 "test_targets": [],
-                "kickstart": None,
                 "commits": [],
                 "hooks": [],
                 "comments": [],
@@ -212,8 +209,8 @@ def test_changespec_wire_json_snapshot() -> None:
                 "file_path": "myproj.gp",
                 "source_span": {
                     "file_path": "myproj.gp",
-                    "start_line": 46,
-                    "end_line": 46,
+                    "start_line": 44,
+                    "end_line": 44,
                 },
                 "status": "Ready",
                 "parent": None,
@@ -221,7 +218,6 @@ def test_changespec_wire_json_snapshot() -> None:
                 "bug": None,
                 "description": "Ready feature with running agent.",
                 "test_targets": [],
-                "kickstart": None,
                 "commits": [],
                 "hooks": [
                     {
@@ -270,7 +266,6 @@ def test_archive_corpus_wire_json_snapshot() -> None:
                 "bug": None,
                 "description": "An archived spec.",
                 "test_targets": [],
-                "kickstart": None,
                 "commits": [
                     {
                         "number": 1,
@@ -306,7 +301,6 @@ def test_archive_corpus_wire_json_snapshot() -> None:
                 "bug": None,
                 "description": "A reverted spec.",
                 "test_targets": [],
-                "kickstart": None,
                 "commits": [],
                 "hooks": [],
                 "comments": [],

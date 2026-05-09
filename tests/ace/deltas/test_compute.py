@@ -32,7 +32,6 @@ def _make_changespec(
         cl=None,
         status="Draft",
         test_targets=None,
-        kickstart=None,
         file_path=file_path,
         line_number=1,
     )

@@ -102,10 +102,6 @@ def _display_plain(matching: list) -> None:  # type: ignore[type-arg]
         print("DESCRIPTION:")
         for line in cs.description.split("\n"):
             print(f"  {line}")
-        if cs.kickstart:
-            print("KICKSTART:")
-            for line in cs.kickstart.split("\n"):
-                print(f"  {line}")
         if cs.parent:
             print(f"PARENT: {cs.parent}")
         if cs.cl:
@@ -268,14 +264,6 @@ def _md_changespec(cs: "ChangeSpec") -> list[str]:  # type: ignore[name-defined]
     for para_line in cs.description.split("\n"):
         lines.append(f"> {para_line}" if para_line else ">")
     lines.append("")
-
-    # Kickstart
-    if cs.kickstart:
-        lines.append("### Kickstart")
-        lines.append("")
-        for ks_line in cs.kickstart.split("\n"):
-            lines.append(f"> {ks_line}" if ks_line else ">")
-        lines.append("")
 
     # Commits table
     if cs.commits:

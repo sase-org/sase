@@ -21,7 +21,6 @@ def get_searchable_text(changespec: ChangeSpec) -> str:
     - project basename (from file_path)
     - parent (if present)
     - cl (if present)
-    - kickstart (if present)
     - history notes (if present)
     - hook commands (if present)
 
@@ -44,8 +43,6 @@ def get_searchable_text(changespec: ChangeSpec) -> str:
         parts.append(changespec.parent)
     if changespec.cl:
         parts.append(changespec.cl)
-    if changespec.kickstart:
-        parts.append(changespec.kickstart)
 
     # Add history notes and suffixes
     if changespec.commits:

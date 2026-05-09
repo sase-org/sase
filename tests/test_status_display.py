@@ -28,7 +28,6 @@ def test_display_changespec_without_hints_returns_empty() -> None:
         cl=None,
         status="Ready",
         test_targets=None,
-        kickstart=None,
         file_path="/tmp/test.gp",
         line_number=1,
     )
@@ -53,7 +52,6 @@ def test_display_changespec_renders_deltas_section() -> None:
         cl=None,
         status="Ready",
         test_targets=None,
-        kickstart=None,
         file_path="/tmp/test.gp",
         line_number=1,
         deltas=[
@@ -97,7 +95,6 @@ def test_display_changespec_omits_deltas_when_empty() -> None:
         cl=None,
         status="Ready",
         test_targets=None,
-        kickstart=None,
         file_path="/tmp/test.gp",
         line_number=1,
         deltas=None,
