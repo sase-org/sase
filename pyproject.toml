@@ -40,8 +40,8 @@ dev = [
     "twine",
 ]
 docs = [
-    "mkdocs-material",
-    "mkdocs-rss-plugin",
+    "mkdocs-material>=9.7,<10",
+    "mkdocs-rss-plugin>=1.18,<2",
 ]
 
 [project.scripts]
