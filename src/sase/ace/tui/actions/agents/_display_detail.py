@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 from ...models.agent_groups import GroupingMode
 from ._display_helpers import TabName
+from ._loading_helpers import DISMISSABLE_STATUSES
 
 log = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ class DetailMixin:
     refresh_interval: int
     _agents: list[Agent]
     _marked_agents: set[tuple[AgentType, str, str | None]]
+    _unread_completed_agent_ids: set[tuple[AgentType, str, str | None]]
     _agent_search_query: str
     _grouping_mode: GroupingMode
     _current_group_key: tuple[str, ...] | None
@@ -144,7 +146,22 @@ class DetailMixin:
         position = (
             panel_index.non_child_position(self.current_idx) if self._agents else 0
         )
+        unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
+            self, "_unread_completed_agent_ids", set()
+        )
+        visible_top_level_agents = [
+            self._agents[i] for i in panel_index.non_child_indices
+        ]
+        unread_count = sum(
+            1 for agent in visible_top_level_agents if agent.identity in unread_ids
+        )
+        running_count = sum(
+            1
+            for agent in visible_top_level_agents
+            if agent.status not in DISMISSABLE_STATUSES
+        )
         agent_info_panel.update_position(position, total)
+        agent_info_panel.update_agent_counts(unread_count, running_count, total)
         agent_info_panel.update_countdown(
             self._countdown_remaining, self.refresh_interval
         )

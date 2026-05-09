@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 21:52:29
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_counts.md
 ---
 # Agent Counts In The Agents Header

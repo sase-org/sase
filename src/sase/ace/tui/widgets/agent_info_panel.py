@@ -16,6 +16,9 @@ class AgentInfoPanel(Static):
         super().__init__(**kwargs)
         self._position = 0
         self._total = 0
+        self._unread_count = 0
+        self._running_count = 0
+        self._visible_agent_count = 0
         self._countdown = 0
         self._interval = 0
         self._view_mode: str = ""
@@ -49,6 +52,19 @@ class AgentInfoPanel(Static):
         """
         self._position = position
         self._total = total
+        self._update_display()
+
+    def update_agent_counts(self, unread: int, running: int, total: int) -> None:
+        """Update the visible top-level agent metric strip.
+
+        Args:
+            unread: Visible unread completed agent count.
+            running: Visible non-terminal agent count.
+            total: Visible top-level agent count.
+        """
+        self._unread_count = unread
+        self._running_count = running
+        self._visible_agent_count = total
         self._update_display()
 
     def update_countdown(self, countdown: int, interval: int) -> None:
@@ -114,6 +130,15 @@ class AgentInfoPanel(Static):
             self.update(text)
             return
         text.append(f"{self._position}/{self._total}", style="#00D7AF")
+        text.append("   ")
+        text.append(f"{self._unread_count}", style="bold #FFAF5F")
+        text.append(" unread", style="dim")
+        text.append(" · ", style="dim")
+        text.append(f"{self._running_count}", style="bold #00D7AF")
+        text.append(" running", style="dim")
+        text.append(" · ", style="dim")
+        text.append(f"{self._visible_agent_count}", style="dim")
+        text.append(" total", style="dim")
         if self._search_query:
             text.append("   ")
             text.append("filter: ", style="dim italic")

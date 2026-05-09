@@ -39,6 +39,15 @@ class _Bare(AgentDisplayMixin):
         self.current_idx = 0
         self.current_attempt_number = None
         self._current_group_key = None
+        self._agent_search_query = ""
+        self._unread_completed_agent_ids = set()
+        self._countdown_remaining = 0
+        self.refresh_interval = 0
+
+    def _get_selected_agent(self) -> Agent | None:
+        if self._agents and 0 <= self.current_idx < len(self._agents):
+            return self._agents[self.current_idx]
+        return None
 
 
 def test_panel_index_is_cached_per_agents_ref() -> None:
@@ -158,3 +167,59 @@ def test_non_child_position_is_o1_lookup() -> None:
     assert index.non_child_total == 2
     assert index.non_child_position(0) == 1
     assert index.non_child_position(2) == 2
+
+
+def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
+    visible_unread = _agent(suffix="done-unread", status="DONE")
+    visible_running = _agent(suffix="running", status="RUNNING")
+    visible_failed = _agent(suffix="failed", status="FAILED")
+    child_unread = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="cl",
+        project_file="/r/p/p.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 25, 12, 0, 0),
+        agent_name="child",
+        raw_suffix="child",
+        parent_timestamp="parent",
+    )
+    bare = _Bare([visible_unread, visible_running, visible_failed, child_unread])
+    bare.current_idx = -1
+    bare._unread_completed_agent_ids = {
+        visible_unread.identity,
+        child_unread.identity,
+    }
+
+    class _InfoPanel:
+        counts: tuple[int, int, int] | None = None
+        position: tuple[int, int] | None = None
+
+        def update_position(self, position: int, total: int) -> None:
+            self.position = (position, total)
+
+        def update_agent_counts(self, unread: int, running: int, total: int) -> None:
+            self.counts = (unread, running, total)
+
+        def update_countdown(self, _countdown: int, _interval: int) -> None:
+            return
+
+        def update_search_query(self, _query: str) -> None:
+            return
+
+        def update_grouping_mode(self, _label: str) -> None:
+            return
+
+        def update_view_mode(self, _mode: str) -> None:
+            return
+
+    info_panel = _InfoPanel()
+
+    def _query_one(_selector: str, _type: Any = None) -> Any:
+        return info_panel
+
+    bare.query_one = _query_one  # type: ignore[attr-defined]
+
+    bare._update_agents_info_panel()
+
+    assert info_panel.position == (0, 3)
+    assert info_panel.counts == (1, 1, 3)
