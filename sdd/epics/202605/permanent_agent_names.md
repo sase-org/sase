@@ -1,5 +1,7 @@
 ---
 create_time: 2026-05-08 20:04:47
+bead_id: sase-2e
+tier: epic
 status: wip
 prompt: sdd/prompts/202605/permanent_agent_names.md
 ---
