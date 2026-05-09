@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 14:13:29
-status: wip
+status: done
 prompt: sdd/prompts/202605/telegram_multi_model_workspace_claim.md
 ---
 # Plan: Fix Telegram multi-model workspace-claim failures by delegating to the canonical fan-out path
