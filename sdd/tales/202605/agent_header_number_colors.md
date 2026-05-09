@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 11:44:00
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_header_number_colors.md
 ---
 # Plan: Agents Header Number Colors

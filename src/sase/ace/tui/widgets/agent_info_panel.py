@@ -129,6 +129,14 @@ class AgentInfoPanel(Static):
         "by status": "bold #FFAF87",
     }
 
+    _COUNT_STYLES: dict[str, str] = {
+        "total": "bold #5FAFFF",
+        "running": "bold #00D7AF",
+        "waiting": "bold #AF87FF",
+        "unread": "bold #FFAF5F",
+        "read": "bold #BCBCBC",
+    }
+
     def _update_display(self) -> None:
         """Refresh the displayed text."""
         text = Text()
@@ -139,18 +147,18 @@ class AgentInfoPanel(Static):
             self.update(text)
             return
         text.append("(", style="dim")
-        text.append(f"{self._visible_agent_count}", style="dim")
+        text.append(f"{self._visible_agent_count}", style=self._COUNT_STYLES["total"])
         text.append("): ", style="dim")
-        text.append(f"{self._running_count}", style="bold #00D7AF")
+        text.append(f"{self._running_count}", style=self._COUNT_STYLES["running"])
         text.append(" running", style="dim")
         text.append(" · ", style="dim")
-        text.append(f"{self._waiting_count}", style="bold #AF87FF")
+        text.append(f"{self._waiting_count}", style=self._COUNT_STYLES["waiting"])
         text.append(" waiting", style="dim")
         text.append(" · ", style="dim")
-        text.append(f"{self._unread_count}", style="bold #FFAF5F")
+        text.append(f"{self._unread_count}", style=self._COUNT_STYLES["unread"])
         text.append(" unread", style="dim")
         text.append(" · ", style="dim")
-        text.append(f"{self._read_count}", style="dim")
+        text.append(f"{self._read_count}", style=self._COUNT_STYLES["read"])
         text.append(" read", style="dim")
         if self._search_query:
             text.append("   ")

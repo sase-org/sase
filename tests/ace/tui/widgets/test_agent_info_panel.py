@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from rich.text import Text
+
 from sase.ace.tui.keymaps import key_display_name, load_keymap_registry
 from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
 
@@ -18,6 +20,26 @@ def _collect_text(panel: AgentInfoPanel) -> str:
         panel._update_display()
     assert captured, "panel._update_display did not invoke self.update()"
     return captured[-1]
+
+
+def _collect_rich_text(panel: AgentInfoPanel) -> Text:
+    captured: list[Text] = []
+    with patch.object(panel, "update", lambda text: captured.append(text)):
+        panel._update_display()
+    assert captured, "panel._update_display did not invoke self.update()"
+    return captured[-1]
+
+
+def _style_for_plain_segment(text: Text, segment: str) -> str:
+    start = text.plain.index(segment)
+    end = start + len(segment)
+    matching = [
+        str(span.style)
+        for span in text.spans
+        if span.start <= start and span.end >= end
+    ]
+    assert matching, f"no Rich style span found for {segment!r}"
+    return matching[-1]
 
 
 def test_grouping_badge_renders_by_project_when_unset() -> None:
@@ -41,6 +63,33 @@ def test_agent_count_strip_renders_after_agents_label() -> None:
 
     assert plain.startswith("Agents(12): 5 running · 2 waiting · 3 unread · 2 read")
     assert "Agents: 2/12" not in plain
+
+
+def test_agent_count_numbers_have_unique_rich_styles() -> None:
+    panel = AgentInfoPanel()
+    panel._visible_agent_count = 12
+    panel._running_count = 5
+    panel._waiting_count = 7
+    panel._unread_count = 3
+    panel._read_count = 11
+
+    text = _collect_rich_text(panel)
+
+    count_styles = {
+        "total": _style_for_plain_segment(text, "12"),
+        "running": _style_for_plain_segment(text, "5"),
+        "waiting": _style_for_plain_segment(text, "7"),
+        "unread": _style_for_plain_segment(text, "3"),
+        "read": _style_for_plain_segment(text, "11"),
+    }
+    assert count_styles == {
+        "total": "bold #5FAFFF",
+        "running": "bold #00D7AF",
+        "waiting": "bold #AF87FF",
+        "unread": "bold #FFAF5F",
+        "read": "bold #BCBCBC",
+    }
+    assert len(set(count_styles.values())) == len(count_styles)
 
 
 def test_update_agent_counts_uses_plain_metric_text() -> None:
