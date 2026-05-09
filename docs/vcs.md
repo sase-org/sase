@@ -1,11 +1,13 @@
 # VCS Provider Reference
 
-The **VCS provider layer** is an abstraction that lets sase commands work transparently with both **Git** and
-**Mercurial** repositories. Every command that touches version control — `commit`, `amend`, `ace`, `axe`, `revert`,
-`restore` — delegates to a provider interface rather than calling VCS commands directly.
+The **VCS provider layer** is an abstraction that lets sase commands work with both **Git** and **Mercurial**
+repositories. Commands and workflows that touch version control, including `sase commit`, `sase ace`, `sase axe`,
+`sase revert`, and `sase restore`, delegate to a provider interface rather than calling VCS commands directly.
 
-Both Git and Mercurial are first-class supported. The same sase workflows (creating commits, amending, syncing,
-mailing/pushing for review, reverting, restoring) work identically regardless of which VCS backs the repository.
+Git and Mercurial share the same SASE concepts: ChangeSpecs, workspace checkout, diff capture, commit/proposal dispatch,
+review submission, revert, and restore. Provider-specific capabilities and prerequisites still matter. For example,
+GitHub pull-request operations require the optional `sase-github` plugin and the GitHub CLI, while Mercurial support
+requires the optional `sase-google` plugin and its `sase_hg_*` helper commands.
 
 ## Plugin Architecture
 
@@ -22,7 +24,7 @@ Install optional providers via pip:
 
 ```bash
 pip install sase-github   # GitHub PR support
-pip install sase-google       # Mercurial support
+pip install sase-google   # Mercurial support
 ```
 
 Plugins register themselves via the `sase_vcs` entry point group. The plugin manager loads all registered plugins and
@@ -40,8 +42,9 @@ The hooks are organized into several groups:
 - **Core operations** — `vcs_checkout`, `vcs_diff`, `vcs_diff_revision`, `vcs_apply_patch`, `vcs_apply_patches`,
   `vcs_add_remove`, `vcs_clean_workspace`, `vcs_commit`, `vcs_amend`, `vcs_rename_branch`, `vcs_rebase`, `vcs_archive`,
   `vcs_prune`, `vcs_stash_and_clean`
-- **Optional core** — `vcs_resolve_revision`, `vcs_show_revision`, `vcs_diff_with_untracked`, `vcs_committed_diff`,
-  `vcs_get_default_parent_revision`, `vcs_file_at_revision`
+- **Optional core** — `vcs_resolve_revision`, `vcs_resolve_current_changespec_head_ref`, `vcs_show_revision`,
+  `vcs_diff_with_untracked`, `vcs_committed_diff`, `vcs_get_default_parent_revision`, `vcs_diff_name_status`,
+  `vcs_diff_line_stats`, `vcs_file_at_revision`
 - **Sync operations** — `vcs_sync_workspace`, `vcs_is_sync_in_progress`, `vcs_get_conflicted_files`,
   `vcs_continue_sync`, `vcs_abort_sync`
 - **Commit dispatch** — `vcs_create_commit`, `vcs_create_proposal`, `vcs_create_pull_request` (the three commit workflow
@@ -49,7 +52,8 @@ The hooks are organized into several groups:
   push-with-retry — when `sase commit --resume` finishes a workflow whose dispatch was interrupted by a merge conflict;
   plugins that cannot safely replay finalization can leave this unimplemented, and the workflow will only replay its
   tracking steps). See [commit_workflows.md](commit_workflows.md#resume-after-conflict).
-- **VCS-agnostic operations** — `vcs_abandon_change`, `vcs_prepare_description_for_reword`, `vcs_get_change_url`
+- **VCS-agnostic operations** — `vcs_abandon_change`, `vcs_prepare_description_for_reword`, `vcs_normalize_bug_value`,
+  `vcs_get_change_url`, `vcs_get_change_body`
 - **Info and review hooks** — `vcs_reword`, `vcs_reword_add_tag`, `vcs_get_description`, `vcs_get_branch_name`,
   `vcs_get_cl_number`, `vcs_get_workspace_name`, `vcs_has_local_changes`, `vcs_get_bug_number`, `vcs_mail`, `vcs_fix`,
   `vcs_upload`, `vcs_find_reviewers`, `vcs_rewind`
@@ -74,7 +78,7 @@ provider wins.
 The `SASE_VCS_PROVIDER` environment variable takes highest priority.
 
 ```bash
-# Force git provider
+# Force the Git provider family; GitHub remotes are reclassified when the plugin is installed.
 SASE_VCS_PROVIDER=git sase commit my_feature
 
 # Force hg provider
@@ -116,15 +120,16 @@ If neither the environment variable nor config file specifies a provider, sase w
 current working directory looking for `.hg/` or `.git/` directories. The first one found determines the provider.
 
 - `.hg/` found first → Mercurial provider (`"hg"`)
-- `.git/` found first → Git provider. If a GitHub remote is detected, uses `"github"` (requires `sase-github` plugin);
-  otherwise uses `"bare_git"`.
+- `.git/` found first → Git provider. If a plugin claims the Git remote, such as `sase-github` claiming GitHub URLs,
+  that provider name wins.
 - `.git/` found with a hosted remote (e.g., GitHub) but no VCS plugin claims the repo → falls back to `"bare_git"`. This
   preserves baseline commit capability even without provider-specific plugins like `sase-github`.
+- `.git/` found without a readable `origin` URL and no plugin claim → **Error**: `VCSProviderNotFoundError`
 - Neither found → **Error**: `VCSProviderNotFoundError`
 
-The `detect_vcs()` function returns one of three values: `"github"`, `"bare_git"`, or `"hg"`. A convenience function
-`detect_vcs_family()` collapses `"github"` and `"bare_git"` into `"git"` for contexts that only care about the VCS
-family.
+With the bundled and documented optional providers, `detect_vcs()` commonly returns `"github"`, `"bare_git"`, or `"hg"`.
+Additional plugins may return their own provider names. `detect_vcs_family()` collapses `"github"` and `"bare_git"` into
+`"git"` for contexts that only care about the VCS family.
 
 ## Per-Command VCS Usage
 
@@ -140,9 +145,17 @@ Dispatches to one of three VCS methods (`create_commit`, `create_proposal`, `cre
 | Bug number      | Returns empty string (not applicable)                     | `sase_hg_branch_bug` command                      |
 | Workspace name  | `git config --get remote.origin.url` (extracts repo name) | `workspace_name` command                          |
 | Create commit   | `git add` + `git commit` + `git push`                     | `hg commit --name "<name>" --logfile "<logfile>"` |
-| Create proposal | Save diff + `git reset --hard` + `git clean -fd`          | `sase_hg_clean <diff_name>`                       |
-| Create PR       | Branch + commit + push + `gh pr create`                   | Not supported natively                            |
-| Change URL      | `gh pr view --json url -q .url`                           | `http://cl/<branch_number>`                       |
+| Create proposal | Save diff + provider workspace clean                      | `sase_hg_clean <diff_name>`                       |
+| Create PR       | Branch + commit + push; GitHub plugin creates the PR      | Not supported natively                            |
+| Change URL      | GitHub plugin reads `gh pr view --json url -q .url`       | `http://cl/<branch_number>`                       |
+
+Common CLI forms:
+
+```bash
+sase commit -m "Update parser"                         # create_commit
+sase commit -t propose -m "Try parser cleanup"         # create_proposal
+sase commit -t pr -n parser_cleanup -m "Update parser" # create_pull_request
+```
 
 ### `sase ace` TUI Actions
 
@@ -157,7 +170,8 @@ Syncs the workspace with the remote repository.
 | Checkout | `git checkout <name>`                                     | `sase_hg_update <name>` |
 | Sync     | `git fetch origin` + `git rebase origin/<default_branch>` | `sase_hg_sync`          |
 
-The git sync auto-detects the default branch (main/master) via `git symbolic-ref refs/remotes/origin/HEAD`.
+The git sync auto-detects the default branch via `git symbolic-ref refs/remotes/origin/HEAD`, then probes
+`origin/master` and `origin/main`, and finally falls back to `main`.
 
 #### Mail (`m` key)
 
@@ -168,10 +182,8 @@ Pushes changes for review. The flow differs significantly between providers.
 1. Display branch name and commit description
 2. Prompt user to confirm push
 3. `git push -u origin <branch>`
-4. Check if PR exists via `gh pr view`
-5. If no PR: `gh pr create --fill` with an agent info footer appended to the PR body (model and agent name from
-   `agent_meta.json`, if available)
-6. Update ChangeSpec with PR URL
+4. With the GitHub provider, check or create a PR through `gh`
+5. Update ChangeSpec with the PR URL when the provider can return one
 
 **Mercurial flow:**
 
@@ -266,8 +278,9 @@ Standalone command to restore a reverted ChangeSpec:
 
 ## Git Provider Details
 
-The Git provider is split into two plugins: **BareGitPlugin** (bundled with core sase) handles standard `git` commands,
-while **GitHubPlugin** (from the `sase-github` package) adds **GitHub CLI (`gh`)** support for PR operations.
+Git support is split across providers. **BareGitPlugin** (bundled with core sase) handles standard `git` commands and
+bare-repo-backed workflows. **GitHubPlugin** (from the optional `sase-github` package) adds GitHub CLI (`gh`) support
+for PR operations and GitHub workspace references.
 
 ### Branch Naming
 
@@ -291,11 +304,13 @@ branches with open PRs, so alias mappings are used instead of `git branch -m`.
 
 ### PR Integration
 
-All PR operations use the `gh` CLI:
+GitHub PR operations use the `gh` CLI:
 
 - **Create PR**: `gh pr create --fill` (auto-fills title/body from commit)
 - **View PR**: `gh pr view --json url -q .url`
 - **Get PR number**: `gh pr view --json number -q .number`
+
+The bundled bare-git provider does not create PRs. Its mail action pushes the resolved branch to `origin`.
 
 ### GitHub Plugin Scope
 
@@ -319,7 +334,8 @@ git fetch origin
 git rebase origin/<default_branch>
 ```
 
-The default branch is auto-detected from `git symbolic-ref refs/remotes/origin/HEAD`, falling back to `main`.
+The default branch is auto-detected from `git symbolic-ref refs/remotes/origin/HEAD`, then `origin/master`, then
+`origin/main`, and finally `main`.
 
 ### Archive
 
@@ -429,11 +445,11 @@ Sase maintains diff files in `~/.sase/` for tracking changes across operations.
 
 ### Diff Storage Locations
 
-| Directory                                  | Purpose                         | When Used                         |
-| ------------------------------------------ | ------------------------------- | --------------------------------- |
-| `~/.sase/diffs/<cl_name>-<timestamp>.diff` | Pre-commit/amend diff snapshots | Every commit and amend            |
-| `~/.sase/reverted/<name>.diff`             | Stashed diff for reverted CLs   | `sase revert` / ace revert action |
-| `~/.sase/archived/<name>.diff`             | Stashed diff for archived CLs   | ace archive action                |
+| Directory                                         | Purpose                         | When Used                         |
+| ------------------------------------------------- | ------------------------------- | --------------------------------- |
+| `~/.sase/diffs/YYYYMM/<cl_name>-<timestamp>.diff` | Pre-commit/amend diff snapshots | Every commit and amend            |
+| `~/.sase/reverted/<name>.diff`                    | Stashed diff for reverted CLs   | `sase revert` / ace revert action |
+| `~/.sase/archived/<name>.diff`                    | Stashed diff for archived CLs   | ace archive action                |
 
 ### Patch Application
 
@@ -446,12 +462,12 @@ Multiple patches can be applied at once — both providers accept multiple paths
 
 ### Stash and Clean
 
-The `stash_and_clean()` operation saves the current diff to a file and resets the workspace:
+The `stash_and_clean()` operation preserves local work before switching or cleaning a workspace:
 
-| Provider  | Steps                                                                       |
-| --------- | --------------------------------------------------------------------------- |
-| Git       | `git diff HEAD` → write to file → `git reset --hard HEAD` → `git clean -fd` |
-| Mercurial | `sase_hg_clean <diff_name>` (handles both steps internally)                 |
+| Provider  | Steps                                                                |
+| --------- | -------------------------------------------------------------------- |
+| Git       | `git status --porcelain` → `git stash push --include-untracked -m …` |
+| Mercurial | `sase_hg_clean <diff_name>`                                          |
 
 ## Configuration Reference
 
@@ -462,6 +478,8 @@ The `stash_and_clean()` operation saves the current diff to a file and resets th
 
 vcs_provider:
   provider: auto # "git", "hg", or "auto" (default: "auto")
+  pr_tags: {} # optional TAG=value lines appended to PR commit messages
+  use_project_pr_prefix: false # prepend [<project>] to PR titles / CL descriptions
 ```
 
 ### Environment Variable
@@ -502,6 +520,22 @@ The `vcs_provider` section in `sase.yml` is validated against the schema at `~/.
         "type": "string",
         "enum": ["git", "hg", "auto"],
         "default": "auto"
+      },
+      "workspace_root": {
+        "type": "string"
+      },
+      "default_hooks": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "pr_tags": {
+        "type": "object",
+        "additionalProperties": { "type": "string" },
+        "default": {}
+      },
+      "use_project_pr_prefix": {
+        "type": "boolean",
+        "default": false
       }
     }
   }
@@ -528,8 +562,9 @@ the core.
 
 ### "No VCS provider found" Error
 
-**Cause:** Auto-detection could not find `.hg/` or `.git/` in the current directory or any parent, and no explicit
-provider was configured.
+**Cause:** Auto-detection could not find `.hg/` or `.git/` in the current directory or any parent, no explicit provider
+was configured, or a Git repo could not be classified because no plugin claimed it and `origin` was missing or
+unreadable.
 
 **Fix:** Either run sase from within a VCS-managed directory, or set the provider explicitly:
 
@@ -537,10 +572,10 @@ provider was configured.
 SASE_VCS_PROVIDER=git sase commit my_feature
 ```
 
-### Git: `gh` CLI Not Installed
+### GitHub: `gh` CLI Not Installed
 
-PR operations (`get_change_url`, `mail`, `get_cl_number`) require the [GitHub CLI](https://cli.github.com/). Without it,
-these operations will fail with a "command not found" error.
+GitHub PR operations (`get_change_url`, `mail`, `get_cl_number`) require the [GitHub CLI](https://cli.github.com/).
+Without it, these operations will fail with a "command not found" error.
 
 **Symptoms:**
 
