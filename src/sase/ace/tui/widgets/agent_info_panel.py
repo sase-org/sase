@@ -18,6 +18,8 @@ class AgentInfoPanel(Static):
         self._total = 0
         self._unread_count = 0
         self._running_count = 0
+        self._waiting_count = 0
+        self._read_count = 0
         self._visible_agent_count = 0
         self._countdown = 0
         self._interval = 0
@@ -54,16 +56,22 @@ class AgentInfoPanel(Static):
         self._total = total
         self._update_display()
 
-    def update_agent_counts(self, unread: int, running: int, total: int) -> None:
+    def update_agent_counts(
+        self, unread: int, running: int, waiting: int, read: int, total: int
+    ) -> None:
         """Update the visible top-level agent metric strip.
 
         Args:
             unread: Visible unread completed agent count.
-            running: Visible non-terminal agent count.
+            running: Visible active agent count, excluding waiting agents.
+            waiting: Visible waiting agent count.
+            read: Visible completed agent count that has already been read.
             total: Visible top-level agent count.
         """
         self._unread_count = unread
         self._running_count = running
+        self._waiting_count = waiting
+        self._read_count = read
         self._visible_agent_count = total
         self._update_display()
 
@@ -124,19 +132,26 @@ class AgentInfoPanel(Static):
     def _update_display(self) -> None:
         """Refresh the displayed text."""
         text = Text()
-        text.append("Agents: ", style="bold #87D7FF")
+        text.append("Agents", style="bold #87D7FF")
         if self._loading:
+            text.append(": ", style="bold #87D7FF")
             text.append("…", style="dim italic")
             self.update(text)
             return
-        text.append(f"{self._unread_count}", style="bold #FFAF5F")
-        text.append(" unread", style="dim")
-        text.append(" · ", style="dim")
+        text.append("(", style="dim")
+        text.append(f"{self._visible_agent_count}", style="dim")
+        text.append("): ", style="dim")
         text.append(f"{self._running_count}", style="bold #00D7AF")
         text.append(" running", style="dim")
         text.append(" · ", style="dim")
-        text.append(f"{self._visible_agent_count}", style="dim")
-        text.append(" total", style="dim")
+        text.append(f"{self._waiting_count}", style="bold #AF87FF")
+        text.append(" waiting", style="dim")
+        text.append(" · ", style="dim")
+        text.append(f"{self._unread_count}", style="bold #FFAF5F")
+        text.append(" unread", style="dim")
+        text.append(" · ", style="dim")
+        text.append(f"{self._read_count}", style="dim")
+        text.append(" read", style="dim")
         if self._search_query:
             text.append("   ")
             text.append("filter: ", style="dim italic")

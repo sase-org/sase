@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
     from ...widgets import AgentDetail, KeybindingFooter
 
-from ...models.agent_groups import GroupingMode
+from ...models.agent_groups import GroupingMode, status_bucket_for
 from ._display_helpers import TabName
 from ._loading_helpers import DISMISSABLE_STATUSES
 
@@ -160,13 +160,22 @@ class DetailMixin:
         unread_count = sum(
             1 for agent in visible_top_level_agents if agent.identity in unread_ids
         )
+        visible_agent_buckets = [
+            (agent, status_bucket_for(agent)) for agent in visible_top_level_agents
+        ]
+        waiting_count = sum(
+            1 for _agent, bucket in visible_agent_buckets if bucket == "Waiting"
+        )
         running_count = sum(
             1
-            for agent in visible_top_level_agents
-            if agent.status not in DISMISSABLE_STATUSES
+            for agent, bucket in visible_agent_buckets
+            if agent.status not in DISMISSABLE_STATUSES and bucket != "Waiting"
         )
+        read_count = total - running_count - waiting_count - unread_count
         agent_info_panel.update_position(position, total)
-        agent_info_panel.update_agent_counts(unread_count, running_count, total)
+        agent_info_panel.update_agent_counts(
+            unread_count, running_count, waiting_count, read_count, total
+        )
         agent_info_panel.update_countdown(
             self._countdown_remaining, self.refresh_interval
         )

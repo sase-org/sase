@@ -33,11 +33,13 @@ def test_agent_count_strip_renders_after_agents_label() -> None:
     panel._total = 12
     panel._unread_count = 3
     panel._running_count = 5
+    panel._waiting_count = 2
+    panel._read_count = 2
     panel._visible_agent_count = 12
 
     plain = _collect_text(panel)
 
-    assert plain.startswith("Agents: 3 unread · 5 running · 12 total")
+    assert plain.startswith("Agents(12): 5 running · 2 waiting · 3 unread · 2 read")
     assert "Agents: 2/12" not in plain
 
 
@@ -46,12 +48,12 @@ def test_update_agent_counts_uses_plain_metric_text() -> None:
 
     captured: list[str] = []
     with patch.object(panel, "update", lambda text: captured.append(text.plain)):
-        panel.update_agent_counts(1, 2, 4)
+        panel.update_agent_counts(1, 2, 3, 4, 10)
     assert captured, "panel.update_agent_counts did not refresh the display"
     plain = captured[-1]
 
-    assert "1 unread · 2 running · 4 total" in plain
-    assert "[" not in plain.split("1 unread", 1)[0]
+    assert "Agents(10): 2 running · 3 waiting · 1 unread · 4 read" in plain
+    assert "[" not in plain.split("2 running", 1)[0]
     assert "#FFAF5F" not in plain
 
 
@@ -82,6 +84,8 @@ def test_count_strip_suppressed_while_loading() -> None:
     panel._loading = True
     panel._unread_count = 3
     panel._running_count = 5
+    panel._waiting_count = 2
+    panel._read_count = 2
     panel._visible_agent_count = 12
 
     plain = _collect_text(panel)

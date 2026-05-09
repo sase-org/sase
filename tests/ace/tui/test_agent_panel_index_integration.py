@@ -172,6 +172,7 @@ def test_non_child_position_is_o1_lookup() -> None:
 def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
     visible_unread = _agent(suffix="done-unread", status="DONE")
     visible_running = _agent(suffix="running", status="RUNNING")
+    visible_waiting = _agent(suffix="waiting", status="WAITING")
     visible_failed = _agent(suffix="failed", status="FAILED")
     child_unread = Agent(
         agent_type=AgentType.RUNNING,
@@ -183,7 +184,9 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
         raw_suffix="child",
         parent_timestamp="parent",
     )
-    bare = _Bare([visible_unread, visible_running, visible_failed, child_unread])
+    bare = _Bare(
+        [visible_unread, visible_running, visible_waiting, visible_failed, child_unread]
+    )
     bare.current_idx = -1
     bare._unread_completed_agent_ids = {
         visible_unread.identity,
@@ -191,14 +194,16 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
     }
 
     class _InfoPanel:
-        counts: tuple[int, int, int] | None = None
+        counts: tuple[int, int, int, int, int] | None = None
         position: tuple[int, int] | None = None
 
         def update_position(self, position: int, total: int) -> None:
             self.position = (position, total)
 
-        def update_agent_counts(self, unread: int, running: int, total: int) -> None:
-            self.counts = (unread, running, total)
+        def update_agent_counts(
+            self, unread: int, running: int, waiting: int, read: int, total: int
+        ) -> None:
+            self.counts = (unread, running, waiting, read, total)
 
         def update_countdown(self, _countdown: int, _interval: int) -> None:
             return
@@ -221,5 +226,5 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
 
     bare._update_agents_info_panel()
 
-    assert info_panel.position == (0, 3)
-    assert info_panel.counts == (1, 1, 3)
+    assert info_panel.position == (0, 4)
+    assert info_panel.counts == (1, 1, 1, 1, 4)
