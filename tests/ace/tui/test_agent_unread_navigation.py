@@ -1,4 +1,4 @@
-"""Unread completed-agent row indicator state tests."""
+"""Unread agent toggle and jump navigation tests."""
 
 from __future__ import annotations
 
@@ -8,17 +8,12 @@ from unittest.mock import Mock
 
 import pytest
 
-from sase.ace.tui.actions.agents._loading_finalize import (
-    _sync_unread_completed_agents,
-)
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
-from sase.ace.tui.actions.event_handlers import EventHandlersMixin
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panels import AgentPanelGroup, panel_key_per_agent
-from sase.ace.tui.widgets.agent_list import AgentList
 
-_DEFAULT_START_TIME = datetime(2026, 5, 7, 9, 0, 0)
+from ._agent_unread_helpers import make_agent
 
 
 @pytest.fixture(autouse=True)
@@ -28,319 +23,6 @@ def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
         "sase.notifications.dismiss_notifications_matching_agents", dismiss
     )
     return dismiss
-
-
-def _agent(
-    *,
-    name: str = "demo",
-    status: str = "RUNNING",
-    raw_suffix: str = "20260507090000",
-    start_time: datetime | None = _DEFAULT_START_TIME,
-    stop_time: datetime | None = None,
-    tag: str | None = None,
-) -> Agent:
-    return Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name=name,
-        project_file="/tmp/projects/demo/demo.gp",
-        status=status,
-        start_time=start_time,
-        stop_time=stop_time,
-        raw_suffix=raw_suffix,
-        tag=tag,
-    )
-
-
-class _SelectionEvent:
-    def __init__(
-        self,
-        *,
-        control: AgentList,
-        index: int,
-        group_key: tuple[str, ...] | None = None,
-    ) -> None:
-        self.control = control
-        self.index = index
-        self.attempt_number = None
-        self.group_key = group_key
-
-
-class _SelectionApp(EventHandlersMixin, AgentsMixinCore):
-    def __init__(self, agents: list[Agent], *, patch_result: bool = True) -> None:
-        self.current_tab = "agents"
-        self.current_idx = 0
-        self.current_attempt_number: int | None = None
-        self._agents = agents
-        self._agent_panels_grouped = False
-        self._panel_group = AgentPanelGroup.from_agents(agents)
-        self._current_group_key: tuple[str, ...] | None = None
-        self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
-        self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
-        self._patch_result = patch_result
-        self.patch_calls: list[Agent] = []
-        self.refresh_calls: list[dict[str, Any]] = []
-        self.notification_count_refresh_calls = 0
-
-    def _panel_keys_per_agent(self) -> list[str | None]:
-        return panel_key_per_agent(self._agents)
-
-    def _try_patch_agent_row(self, agent: Agent) -> bool:
-        self.patch_calls.append(agent)
-        return self._patch_result
-
-    def _refresh_agents_display(self, **kwargs: Any) -> None:
-        self.refresh_calls.append(kwargs)
-
-    def _refresh_notification_count(self) -> None:
-        self.notification_count_refresh_calls += 1
-
-
-def test_agent_row_selection_clears_unread_and_patches_row() -> None:
-    agent = _agent(status="DONE")
-    app = _SelectionApp([agent])
-    app._unread_completed_agent_ids.add(agent.identity)
-
-    app.on_agent_list_selection_changed(
-        _SelectionEvent(control=AgentList(id="agent-list-panel"), index=0)
-    )
-
-    assert agent.identity not in app._unread_completed_agent_ids
-    assert app.patch_calls == [agent]
-    assert app.refresh_calls == []
-
-
-def test_agent_row_selection_refreshes_when_patch_cannot_land() -> None:
-    agent = _agent(status="DONE")
-    app = _SelectionApp([agent], patch_result=False)
-    app._unread_completed_agent_ids.add(agent.identity)
-
-    app.on_agent_list_selection_changed(
-        _SelectionEvent(control=AgentList(id="agent-list-panel"), index=0)
-    )
-
-    assert agent.identity not in app._unread_completed_agent_ids
-    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
-
-
-def test_same_index_agent_row_selection_clears_stale_banner_focus_unread() -> None:
-    agent = _agent(status="DONE")
-    app = _SelectionApp([agent])
-    app._current_group_key = ("demo",)
-    app._unread_completed_agent_ids.add(agent.identity)
-
-    app.on_agent_list_selection_changed(
-        _SelectionEvent(control=AgentList(id="agent-list-panel"), index=0)
-    )
-
-    assert app.current_idx == 0
-    assert app._current_group_key is None
-    assert agent.identity not in app._unread_completed_agent_ids
-
-
-def test_banner_selection_does_not_clear_agent_unread() -> None:
-    agent = _agent(status="DONE")
-    app = _SelectionApp([agent])
-    app._unread_completed_agent_ids.add(agent.identity)
-
-    app.on_agent_list_selection_changed(
-        _SelectionEvent(
-            control=AgentList(id="agent-list-panel"),
-            index=0,
-            group_key=("demo",),
-        )
-    )
-
-    assert agent.identity in app._unread_completed_agent_ids
-
-
-def test_manual_unread_mouse_selection_preserves_selected_row() -> None:
-    agent = _agent(status="DONE")
-    app = _SelectionApp([agent])
-    app._unread_completed_agent_ids.add(agent.identity)
-    app._manual_unread_agent_ids.add(agent.identity)
-
-    app.on_agent_list_selection_changed(
-        _SelectionEvent(control=AgentList(id="agent-list-panel"), index=0)
-    )
-
-    assert agent.identity in app._unread_completed_agent_ids
-    assert agent.identity in app._manual_unread_agent_ids
-    assert app.patch_calls == []
-
-
-def test_manual_unread_mouse_selection_arms_then_acknowledges_on_return() -> None:
-    first = _agent(name="first", status="DONE", raw_suffix="first")
-    second = _agent(name="second", status="DONE", raw_suffix="second")
-    app = _SelectionApp([first, second])
-    app._unread_completed_agent_ids.add(first.identity)
-    app._manual_unread_agent_ids.add(first.identity)
-
-    app.on_agent_list_selection_changed(
-        _SelectionEvent(control=AgentList(id="agent-list-panel"), index=1)
-    )
-
-    assert first.identity in app._unread_completed_agent_ids
-    assert first.identity not in app._manual_unread_agent_ids
-
-    app.on_agent_list_selection_changed(
-        _SelectionEvent(control=AgentList(id="agent-list-panel"), index=0)
-    )
-
-    assert first.identity not in app._unread_completed_agent_ids
-    assert app.patch_calls == [first]
-
-
-def test_acknowledge_agent_unread_dismisses_matching_notification(
-    notification_dismiss: Mock,
-) -> None:
-    notification_dismiss.return_value = 1
-    agent = _agent(status="DONE")
-    app = _SelectionApp([agent])
-    app._unread_completed_agent_ids.add(agent.identity)
-
-    assert app._acknowledge_agent_unread(agent)
-
-    assert agent.identity not in app._unread_completed_agent_ids
-    notification_dismiss.assert_called_once_with(
-        [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
-    )
-    assert app.notification_count_refresh_calls == 1
-
-
-def test_acknowledge_agent_unread_does_not_dismiss_manual_guard(
-    notification_dismiss: Mock,
-) -> None:
-    agent = _agent(status="DONE")
-    app = _SelectionApp([agent])
-    app._unread_completed_agent_ids.add(agent.identity)
-    app._manual_unread_agent_ids.add(agent.identity)
-
-    assert not app._acknowledge_agent_unread(agent)
-
-    assert agent.identity in app._unread_completed_agent_ids
-    notification_dismiss.assert_not_called()
-    assert app.notification_count_refresh_calls == 0
-
-
-class _UnreadFinalizeApp(AgentsMixinCore):
-    def __init__(self, agents: list[Agent]) -> None:
-        self._agents = agents
-        self.current_idx = 0
-        self._current_group_key: tuple[str, ...] | None = None
-        self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
-        self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
-        self._agent_display_status_by_identity: dict[
-            tuple[AgentType, str, str | None], str
-        ] = {}
-        self.notification_count_refresh_calls = 0
-
-    def _refresh_notification_count(self) -> None:
-        self.notification_count_refresh_calls += 1
-
-
-def test_finalizer_marks_new_terminal_agent_unread() -> None:
-    agent = _agent(status="DONE")
-    app = _UnreadFinalizeApp([agent])
-    app._agent_display_status_by_identity[agent.identity] = "RUNNING"
-
-    _sync_unread_completed_agents(app, on_agents_tab=False)  # type: ignore[arg-type]
-
-    assert app._unread_completed_agent_ids == {agent.identity}
-
-
-def test_finalizer_marks_new_plan_done_agent_unread() -> None:
-    agent = _agent(status="PLAN DONE")
-    app = _UnreadFinalizeApp([agent])
-    app._agent_display_status_by_identity[agent.identity] = "RUNNING"
-
-    _sync_unread_completed_agents(app, on_agents_tab=False)  # type: ignore[arg-type]
-
-    assert app._unread_completed_agent_ids == {agent.identity}
-
-
-def test_finalizer_does_not_mark_currently_selected_agent_unread() -> None:
-    agent = _agent(status="DONE")
-    app = _UnreadFinalizeApp([agent])
-    app._agent_display_status_by_identity[agent.identity] = "RUNNING"
-
-    _sync_unread_completed_agents(app, on_agents_tab=True)  # type: ignore[arg-type]
-
-    assert app._unread_completed_agent_ids == set()
-
-
-def test_finalizer_clears_unread_for_saved_selection_on_agents_tab() -> None:
-    agent = _agent(status="DONE")
-    app = _UnreadFinalizeApp([agent])
-    app._unread_completed_agent_ids.add(agent.identity)
-    app._agent_display_status_by_identity[agent.identity] = "DONE"
-
-    _sync_unread_completed_agents(app, on_agents_tab=True)  # type: ignore[arg-type]
-
-    assert app._unread_completed_agent_ids == set()
-
-
-def test_finalizer_dismisses_notification_for_saved_selection_on_agents_tab(
-    notification_dismiss: Mock,
-) -> None:
-    notification_dismiss.return_value = 1
-    agent = _agent(status="DONE")
-    app = _UnreadFinalizeApp([agent])
-    app._unread_completed_agent_ids.add(agent.identity)
-    app._agent_display_status_by_identity[agent.identity] = "DONE"
-
-    _sync_unread_completed_agents(app, on_agents_tab=True)  # type: ignore[arg-type]
-
-    assert app._unread_completed_agent_ids == set()
-    notification_dismiss.assert_called_once_with(
-        [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
-    )
-    assert app.notification_count_refresh_calls == 1
-
-
-def test_finalizer_preserves_selected_manually_unread_agent() -> None:
-    agent = _agent(status="DONE")
-    app = _UnreadFinalizeApp([agent])
-    app._unread_completed_agent_ids.add(agent.identity)
-    app._manual_unread_agent_ids.add(agent.identity)
-    app._agent_display_status_by_identity[agent.identity] = "DONE"
-
-    _sync_unread_completed_agents(app, on_agents_tab=True)  # type: ignore[arg-type]
-
-    assert app._unread_completed_agent_ids == {agent.identity}
-    assert app._manual_unread_agent_ids == {agent.identity}
-
-
-def test_finalizer_does_not_mark_terminal_agent_on_first_seen_load() -> None:
-    agent = _agent(status="DONE")
-    app = _UnreadFinalizeApp([agent])
-
-    _sync_unread_completed_agents(app, on_agents_tab=False)  # type: ignore[arg-type]
-
-    assert app._unread_completed_agent_ids == set()
-
-
-def test_finalizer_prunes_unread_identities_no_longer_visible() -> None:
-    visible = _agent(name="visible", status="RUNNING", raw_suffix="visible")
-    stale = _agent(name="stale", status="DONE", raw_suffix="stale")
-    app = _UnreadFinalizeApp([visible])
-    app._unread_completed_agent_ids.add(stale.identity)
-
-    _sync_unread_completed_agents(app, on_agents_tab=False)  # type: ignore[arg-type]
-
-    assert app._unread_completed_agent_ids == set()
-
-
-def test_finalizer_prunes_stale_manual_unread_identities() -> None:
-    visible = _agent(name="visible", status="RUNNING", raw_suffix="visible")
-    stale = _agent(name="stale", status="DONE", raw_suffix="stale")
-    app = _UnreadFinalizeApp([visible])
-    app._unread_completed_agent_ids.add(stale.identity)
-    app._manual_unread_agent_ids.add(stale.identity)
-
-    _sync_unread_completed_agents(app, on_agents_tab=False)  # type: ignore[arg-type]
-
-    assert app._unread_completed_agent_ids == set()
-    assert app._manual_unread_agent_ids == set()
 
 
 class _UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin):
@@ -408,7 +90,7 @@ class _UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin):
 def test_toggle_agent_unread_marks_selected_row_without_moving(
     notification_dismiss: Mock,
 ) -> None:
-    agent = _agent(status="RUNNING")
+    agent = make_agent(status="RUNNING")
     app = _UnreadJumpApp([agent])
 
     app._toggle_agent_unread()
@@ -425,7 +107,7 @@ def test_toggle_agent_unread_again_marks_selected_row_read(
     notification_dismiss: Mock,
 ) -> None:
     notification_dismiss.return_value = 1
-    agent = _agent(status="DONE")
+    agent = make_agent(status="DONE")
     app = _UnreadJumpApp([agent])
     app._unread_completed_agent_ids.add(agent.identity)
     app._manual_unread_agent_ids.add(agent.identity)
@@ -442,7 +124,7 @@ def test_toggle_agent_unread_again_marks_selected_row_read(
 
 
 def test_toggle_agent_unread_refreshes_when_patch_fails() -> None:
-    agent = _agent(status="DONE")
+    agent = make_agent(status="DONE")
     app = _UnreadJumpApp([agent], patch_result=False)
 
     app._toggle_agent_unread()
@@ -451,7 +133,7 @@ def test_toggle_agent_unread_refreshes_when_patch_fails() -> None:
 
 
 def test_toggle_agent_unread_ignores_focused_banner() -> None:
-    agent = _agent(status="DONE")
+    agent = make_agent(status="DONE")
     app = _UnreadJumpApp([agent])
     app._current_group_key = ("demo",)
 
@@ -463,8 +145,8 @@ def test_toggle_agent_unread_ignores_focused_banner() -> None:
 
 
 def test_navigation_away_from_manual_unread_arms_it_without_clearing() -> None:
-    first = _agent(name="first", status="DONE", raw_suffix="first")
-    second = _agent(name="second", status="DONE", raw_suffix="second")
+    first = make_agent(name="first", status="DONE", raw_suffix="first")
+    second = make_agent(name="second", status="DONE", raw_suffix="second")
     app = _UnreadJumpApp([first, second])
     app._unread_completed_agent_ids.add(first.identity)
     app._manual_unread_agent_ids.add(first.identity)
@@ -478,8 +160,8 @@ def test_navigation_away_from_manual_unread_arms_it_without_clearing() -> None:
 
 
 def test_navigation_back_to_armed_manual_unread_acknowledges_it() -> None:
-    first = _agent(name="first", status="DONE", raw_suffix="first")
-    second = _agent(name="second", status="DONE", raw_suffix="second")
+    first = make_agent(name="first", status="DONE", raw_suffix="first")
+    second = make_agent(name="second", status="DONE", raw_suffix="second")
     app = _UnreadJumpApp([first, second], current_idx=1)
     app._unread_completed_agent_ids.add(first.identity)
 
@@ -491,7 +173,7 @@ def test_navigation_back_to_armed_manual_unread_acknowledges_it() -> None:
 
 
 def test_has_unread_completed_agent_includes_plan_done() -> None:
-    agent = _agent(status="PLAN DONE")
+    agent = make_agent(status="PLAN DONE")
     app = _UnreadJumpApp([agent])
     app._unread_completed_agent_ids.add(agent.identity)
 
@@ -499,25 +181,25 @@ def test_has_unread_completed_agent_includes_plan_done() -> None:
 
 
 def test_jump_to_next_unread_done_agent_uses_completion_recency_and_wraps() -> None:
-    older = _agent(
+    older = make_agent(
         name="older",
         status="DONE",
         raw_suffix="older",
         stop_time=datetime(2026, 5, 7, 10, 0, 0),
     )
-    newest = _agent(
+    newest = make_agent(
         name="newest",
         status="DONE",
         raw_suffix="newest",
         stop_time=datetime(2026, 5, 7, 12, 0, 0),
     )
-    running = _agent(
+    running = make_agent(
         name="running",
         status="RUNNING",
         raw_suffix="running",
         stop_time=datetime(2026, 5, 7, 13, 0, 0),
     )
-    middle = _agent(
+    middle = make_agent(
         name="middle",
         status="FAILED",
         raw_suffix="middle",
@@ -549,13 +231,13 @@ def test_jump_to_next_unread_done_agent_uses_completion_recency_and_wraps() -> N
 
 
 def test_jump_to_next_unread_done_agent_wraps_from_oldest_to_newest() -> None:
-    oldest = _agent(
+    oldest = make_agent(
         name="oldest",
         status="DONE",
         raw_suffix="oldest",
         stop_time=datetime(2026, 5, 7, 10, 0, 0),
     )
-    newest = _agent(
+    newest = make_agent(
         name="newest",
         status="DONE",
         raw_suffix="newest",
@@ -571,9 +253,9 @@ def test_jump_to_next_unread_done_agent_wraps_from_oldest_to_newest() -> None:
 
 
 def test_jump_to_next_unread_done_agent_ignores_running_and_read_done() -> None:
-    running = _agent(name="running", status="RUNNING", raw_suffix="running")
-    read_done = _agent(name="read", status="DONE", raw_suffix="read")
-    unread_done = _agent(name="unread", status="DONE", raw_suffix="unread")
+    running = make_agent(name="running", status="RUNNING", raw_suffix="running")
+    read_done = make_agent(name="read", status="DONE", raw_suffix="read")
+    unread_done = make_agent(name="unread", status="DONE", raw_suffix="unread")
     app = _UnreadJumpApp([running, read_done, unread_done], current_idx=0)
     app._unread_completed_agent_ids.add(unread_done.identity)
 
@@ -585,21 +267,21 @@ def test_jump_to_next_unread_done_agent_ignores_running_and_read_done() -> None:
 def test_jump_to_next_unread_done_agent_uses_start_time_when_stop_time_missing() -> (
     None
 ):
-    fallback_newest = _agent(
+    fallback_newest = make_agent(
         name="fallback",
         status="DONE",
         raw_suffix="fallback",
         start_time=datetime(2026, 5, 7, 12, 0, 0),
         stop_time=None,
     )
-    stopped_older = _agent(
+    stopped_older = make_agent(
         name="stopped",
         status="DONE",
         raw_suffix="stopped",
         start_time=datetime(2026, 5, 7, 8, 0, 0),
         stop_time=datetime(2026, 5, 7, 11, 0, 0),
     )
-    missing_time = _agent(
+    missing_time = make_agent(
         name="missing",
         status="FAILED",
         raw_suffix="missing",
@@ -631,7 +313,7 @@ def test_jump_to_next_unread_done_agent_acknowledges_target_unread_state(
     notification_dismiss: Mock,
 ) -> None:
     notification_dismiss.return_value = 1
-    done = _agent(name="done", status="PLAN DONE")
+    done = make_agent(name="done", status="PLAN DONE")
     app = _UnreadJumpApp([done])
     app._unread_completed_agent_ids.add(done.identity)
 
@@ -648,7 +330,7 @@ def test_jump_to_next_unread_done_agent_acknowledges_target_unread_state(
 
 
 def test_jump_to_next_unread_done_agent_falls_back_to_full_refresh() -> None:
-    done = _agent(name="done", status="FAILED")
+    done = make_agent(name="done", status="FAILED")
     app = _UnreadJumpApp([done], patch_result=False)
     app._unread_completed_agent_ids.add(done.identity)
 
@@ -659,7 +341,7 @@ def test_jump_to_next_unread_done_agent_falls_back_to_full_refresh() -> None:
 
 
 def test_jump_to_next_unread_done_agent_clears_banner_focus_and_refreshes() -> None:
-    done = _agent(name="done", status="DONE")
+    done = make_agent(name="done", status="DONE")
     app = _UnreadJumpApp([done], current_idx=0)
     app._current_group_key = ("done",)
     app._unread_completed_agent_ids.add(done.identity)
@@ -673,13 +355,13 @@ def test_jump_to_next_unread_done_agent_clears_banner_focus_and_refreshes() -> N
 
 
 def test_jump_to_next_unread_done_agent_starts_at_newest_from_focused_banner() -> None:
-    first = _agent(
+    first = make_agent(
         name="first",
         status="DONE",
         raw_suffix="first",
         stop_time=datetime(2026, 5, 7, 10, 0, 0),
     )
-    second = _agent(
+    second = make_agent(
         name="second",
         status="DONE",
         raw_suffix="second",
@@ -701,8 +383,8 @@ def test_jump_to_next_unread_done_agent_starts_at_newest_from_focused_banner() -
 
 
 def test_jump_to_next_unread_done_agent_finds_non_focused_panel_row() -> None:
-    focused = _agent(name="focused", status="RUNNING", raw_suffix="focused")
-    target = _agent(
+    focused = make_agent(name="focused", status="RUNNING", raw_suffix="focused")
+    target = make_agent(
         name="target",
         status="PLAN DONE",
         raw_suffix="target",
@@ -729,8 +411,8 @@ def test_jump_to_next_unread_done_agent_finds_non_focused_panel_row() -> None:
 
 
 def test_jump_to_next_unread_done_agent_returns_false_when_no_unread_panels() -> None:
-    focused = _agent(name="focused", status="RUNNING", raw_suffix="focused")
-    done = _agent(name="done", status="DONE", raw_suffix="done", tag="chop")
+    focused = make_agent(name="focused", status="RUNNING", raw_suffix="focused")
+    done = make_agent(name="done", status="DONE", raw_suffix="done", tag="chop")
     app = _UnreadJumpApp(
         [focused, done],
         current_idx=0,
