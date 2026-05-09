@@ -1,15 +1,16 @@
 # Integration APIs
 
-SASE exposes a small set of Python helpers for external plugins and editor integrations. These APIs live under
-`sase.integrations` when they are meant for integration-facing use, or under the subsystem package when they are already
-part of an existing provider contract. The public symbols are tracked in `public_api_methods.txt` so unused-code tooling
-does not treat external consumers as dead code.
+SASE exposes a small set of Python helpers for external plugins, chat clients, mobile clients, and editor integrations.
+These APIs live under `sase.integrations` when they are meant for integration-facing use, or under the subsystem package
+when they are already part of an existing provider contract. The public symbols are tracked in `public_api_methods.txt`
+so unused-code tooling does not treat external consumers as dead code.
 
 ## ChangeSpec XPrompt Tags
 
 `sase.integrations.changespec_tags.list_changespec_xprompt_tags()` returns copyable VCS xprompt references for active
-ChangeSpecs. It is intended for plugins and editors that need to show a picker of targets such as `#gh:my_change` or
-`#git:local_branch`.
+ChangeSpecs. A ChangeSpec is SASE's stored record for a change list or pull request, and an xprompt tag is the
+`#workflow:target` reference that launches an agent in that workspace. This helper is intended for plugins and editors
+that need to show a picker of targets such as `#gh:my_change` or `#git:local_branch`.
 
 ```python
 from sase.integrations.changespec_tags import list_changespec_xprompt_tags
@@ -77,7 +78,9 @@ local notification inbox to mobile clients. External callers should import from 
 ```python
 from sase.integrations.mobile_notifications import (
     build_mobile_attachment_manifests,
+    execute_mobile_hitl_action,
     execute_mobile_plan_action,
+    execute_mobile_question_action,
     read_mobile_notification_snapshot,
     resolve_mobile_notification_detail,
 )
@@ -94,13 +97,18 @@ if detail:
 
 result = execute_mobile_plan_action("abcdef12", "approve", commit_plan=True, run_coder=False)
 print(result.notification_id, result.response_file)
+
+hitl_result = execute_mobile_hitl_action("12345678", "continue")
+question_result = execute_mobile_question_action("87654321", "answer", custom_answer="Use the default.")
+print(hitl_result.message, question_result.message)
 ```
 
 Snapshot reads project notifications into mobile-safe rows with display paths, host paths, action state, read/dismissed
 state, mute/snooze state, and priority counts. Detail reads include dismissed and silent rows so clients can rebuild
 local state after an event-stream resync. Action helpers resolve exact IDs or unique prefixes, write the corresponding
-response JSON once, run best-effort host side effects, and raise `MobilePlanActionError` with deterministic `code` and
-`target` fields for duplicate, stale, ambiguous, unsupported, missing, and invalid requests.
+response JSON once, and run best-effort host side effects. The facade supports plan approvals, workflow
+human-in-the-loop actions, and user-question answers. Action failures raise `MobilePlanActionError` with deterministic
+`code` and `target` fields for duplicate, stale, ambiguous, unsupported, missing, and invalid requests.
 
 Source: `src/sase/integrations/mobile_notifications.py`
 
@@ -122,6 +130,13 @@ Helper bridge operations cover `changespec-tags`, `xprompt-catalog`, `beads-list
 The structured xprompt catalog includes `definition_path` when the source can be resolved to a real file, so mobile and
 editor clients can offer jump-to-definition without reverse-engineering display paths.
 
+Bridge commands read a JSON object from stdin and write a compact JSON object to stdout:
+
+```bash
+printf '{"schema_version":1,"project":"sase","limit":20}\n' | sase mobile helper-bridge changespec-tags
+printf '{"schema_version":1,"project":"sase","limit":20}\n' | sase mobile agent-bridge list-agents
+```
+
 External callers should import from these facade modules only. The `_mobile_agent_*` and `_mobile_helper_*` modules are
 private split implementations kept small for testability and should not be imported by plugins or clients. The public
 HTTP route contract is documented in [`docs/mobile_gateway.md`](mobile_gateway.md).
@@ -134,12 +149,14 @@ Source: `src/sase/integrations/mobile_agents.py`, `src/sase/integrations/mobile_
 the mobile helper facade. The current CLI surface is:
 
 ```bash
-printf '{"schema_version":1,"project":"sase"}' | sase editor helper-bridge xprompt-catalog
+printf '{"schema_version":1,"project":"sase"}\n' | sase editor helper-bridge xprompt-catalog
+printf '{"schema_version":1,"project":"sase"}\n' | sase editor helper-bridge snippet-catalog
 ```
 
-The operation returns the structured xprompt catalog, including insertion metadata, typed inputs, source display fields,
-and `definition_path` for entries backed by a resolvable file. Editor integrations should use this bridge or `sase lsp`
-instead of importing private catalog modules directly.
+The `xprompt-catalog` operation returns the structured xprompt catalog, including insertion metadata, typed inputs,
+source display fields, and `definition_path` for entries backed by a resolvable file. The `snippet-catalog` operation
+returns the composed ACE snippet registry from xprompt snippets plus user snippets configured under `ace.snippets`.
+Editor integrations should use this bridge or `sase lsp` instead of importing private catalog modules directly.
 
 Source: `src/sase/integrations/editor_helpers.py`, `src/sase/integrations/xprompt_lsp.py`
 
@@ -147,15 +164,20 @@ Source: `src/sase/integrations/editor_helpers.py`, `src/sase/integrations/xpromp
 
 Chat integrations that need to update a SASE install can call
 `sase.integrations.chat_install.start_chat_install_worker()`. The helper starts a detached worker process and returns a
-chat-safe result object instead of blocking the chat request on the full update.
+chat-safe result object instead of blocking the chat request on the full update. Poll with `read_chat_install_status()`
+when `start_chat_install_worker()` returns a `job_id`.
 
 ```python
-from sase.integrations.chat_install import start_chat_install_worker
+from sase.integrations.chat_install import read_chat_install_status, start_chat_install_worker
 
 result = start_chat_install_worker()
 print(result.status, result.message)
 if result.log_path:
     print(result.log_path)
+
+if result.job_id:
+    status = read_chat_install_status(result.job_id)
+    print(status.status, status.message)
 ```
 
 The worker sequence is:
@@ -167,8 +189,9 @@ The worker sequence is:
 5. Run `chat_install.command` from that workspace with `chat_install.timeout_seconds`.
 6. Restart axe, retrying up to `chat_install.restart_attempts`.
 
-`start_chat_install_worker()` returns `ChatInstallLaunchResult` with one of these statuses: `config_missing_command`,
-`workspace_resolution_failed`, `already_running`, `launched`, or `launch_failed`. Worker logs live under
+`start_chat_install_worker()` returns `ChatInstallLaunchResult` with one of these launch statuses:
+`config_missing_command`, `workspace_resolution_failed`, `already_running`, `launched`, or `launch_failed`.
+`read_chat_install_status()` returns `running`, `succeeded`, `failed`, or `not_found`. Worker logs live under
 `~/.sase/chat_install/logs/`. Configuration fields are documented in
 [`docs/configuration.md`](configuration.md#chat_install). The API, config key, and state paths keep the `chat_install`
 name for compatibility, but chat integrations should present this workflow to users as an update.
