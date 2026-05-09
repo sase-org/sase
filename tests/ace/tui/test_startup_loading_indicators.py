@@ -57,13 +57,15 @@ def test_agent_info_panel_loading_renders_ellipsis() -> None:
 
 
 def test_agent_info_panel_loading_clears() -> None:
-    """Clearing loading restores the position/total display."""
+    """Clearing loading restores the metric strip without a position fraction."""
     panel = AgentInfoPanel()
     panel._position = 2
     panel._total = 5
+    panel._visible_agent_count = 5
     panel._loading = False
     plain = _collect_text(panel)
-    assert "2/5" in plain
+    assert "0 unread · 0 running · 5 total" in plain
+    assert "2/5" not in plain
     assert "…" not in plain
 
 

@@ -23,13 +23,11 @@ def _collect_text(panel: AgentInfoPanel) -> str:
 def test_grouping_badge_renders_by_project_when_unset() -> None:
     """The badge always renders, treating an empty label as ``by project``."""
     panel = AgentInfoPanel()
-    panel._position = 1
-    panel._total = 1
     plain = _collect_text(panel)
     assert f"[group: by project ({_DEFAULT_GROUPING_KEY})]" in plain
 
 
-def test_agent_count_strip_renders_after_position() -> None:
+def test_agent_count_strip_renders_after_agents_label() -> None:
     panel = AgentInfoPanel()
     panel._position = 2
     panel._total = 12
@@ -39,13 +37,12 @@ def test_agent_count_strip_renders_after_position() -> None:
 
     plain = _collect_text(panel)
 
-    assert "Agents: 2/12   3 unread · 5 running · 12 total" in plain
+    assert plain.startswith("Agents: 3 unread · 5 running · 12 total")
+    assert "Agents: 2/12" not in plain
 
 
 def test_update_agent_counts_uses_plain_metric_text() -> None:
     panel = AgentInfoPanel()
-    panel._position = 1
-    panel._total = 4
 
     captured: list[str] = []
     with patch.object(panel, "update", lambda text: captured.append(text.plain)):
@@ -60,8 +57,6 @@ def test_update_agent_counts_uses_plain_metric_text() -> None:
 
 def test_grouping_badge_renders_label_after_update() -> None:
     panel = AgentInfoPanel()
-    panel._position = 1
-    panel._total = 1
     panel._grouping_mode = "by status"
     plain = _collect_text(panel)
     assert f"[group: by status ({_DEFAULT_GROUPING_KEY})]" in plain
@@ -69,8 +64,6 @@ def test_grouping_badge_renders_label_after_update() -> None:
 
 def test_grouping_badge_renders_by_date_label() -> None:
     panel = AgentInfoPanel()
-    panel._position = 1
-    panel._total = 1
     panel._grouping_mode = "by date"
     plain = _collect_text(panel)
     assert f"[group: by date ({_DEFAULT_GROUPING_KEY})]" in plain

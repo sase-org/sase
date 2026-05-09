@@ -9,7 +9,7 @@ from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 
 
 class AgentInfoPanel(Static):
-    """Top bar showing agent count and auto-refresh countdown."""
+    """Top bar showing agent metrics and auto-refresh countdown."""
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the info panel."""
@@ -44,7 +44,7 @@ class AgentInfoPanel(Static):
             self._update_display()
 
     def update_position(self, position: int, total: int) -> None:
-        """Update the position display.
+        """Store the current position for compatibility with existing callers.
 
         Args:
             position: Current position (1-based for display).
@@ -129,8 +129,6 @@ class AgentInfoPanel(Static):
             text.append("…", style="dim italic")
             self.update(text)
             return
-        text.append(f"{self._position}/{self._total}", style="#00D7AF")
-        text.append("   ")
         text.append(f"{self._unread_count}", style="bold #FFAF5F")
         text.append(" unread", style="dim")
         text.append(" · ", style="dim")
