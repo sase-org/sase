@@ -15,6 +15,7 @@ from sase.agent.names import (
     lowest_name_suggestion,
     rebuild_name_registry,
 )
+from sase.agent.names import _registry
 
 from tests._agent_names_fixtures import make_agent as _make_agent
 
@@ -112,3 +113,32 @@ def test_cached_registry_avoids_repeated_tree_walks(tmp_path: Path) -> None:
             side_effect=AssertionError("unexpected rebuild"),
         ):
             assert "name499" in get_reserved_agent_names()
+
+
+def test_registry_write_uses_unique_temp_file_for_nested_writer(tmp_path: Path) -> None:
+    path = tmp_path / ".sase" / "agent_name_registry.json"
+    first_replace = True
+    real_replace = _registry.os.replace
+
+    outer_data = {
+        "schema_version": 1,
+        "source_signature": {"count": 0, "max_mtime_ns": 0},
+        "entries": {"outer": {"source": "test"}},
+    }
+    nested_data = {
+        "schema_version": 1,
+        "source_signature": {"count": 0, "max_mtime_ns": 0},
+        "entries": {"nested": {"source": "test"}},
+    }
+
+    def replace_with_nested_write(src: Path, dst: Path) -> None:
+        nonlocal first_replace
+        if first_replace:
+            first_replace = False
+            _registry._write_registry(path, nested_data)
+        real_replace(src, dst)
+
+    with patch.object(_registry.os, "replace", side_effect=replace_with_nested_write):
+        _registry._write_registry(path, outer_data)
+
+    assert json.loads(path.read_text(encoding="utf-8")) == outer_data

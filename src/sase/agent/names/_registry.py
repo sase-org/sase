@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -162,11 +163,24 @@ def _read_registry(path: Path) -> dict[str, Any] | None:
 
 def _write_registry(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(f"{path.suffix}.tmp")
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, sort_keys=True)
-        f.write("\n")
-    os.replace(tmp_path, path)
+    tmp_path: Path | None = None
+    replaced = False
+    try:
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+        )
+        tmp_path = Path(tmp_name)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, sort_keys=True)
+            f.write("\n")
+        os.replace(tmp_path, path)
+        replaced = True
+    finally:
+        if tmp_path is not None and not replaced:
+            try:
+                tmp_path.unlink()
+            except FileNotFoundError:
+                pass
 
 
 def _save_entries(entries: dict[str, Any]) -> None:
