@@ -64,6 +64,7 @@ class KeybindingBindingsMixin:
         attempt_pinned: bool = False,
         group_focused: bool = False,
         has_agent_artifacts: bool = False,
+        artifact_viewer_active: bool = False,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
 
@@ -83,6 +84,9 @@ class KeybindingBindingsMixin:
             # every agent in the group.  Surfaces the affordance so users
             # know the key changed meaning.
             bindings.append((x, "kill/dismiss group"))
+
+        if artifact_viewer_active:
+            bindings.append((self._kd("expand_or_layout"), "artifact pane"))
 
         if agent is None:
             # Even with no selected agent, show app-state bindings

@@ -126,6 +126,10 @@ class DetailMixin:
                 if current_agent and callable(list_artifacts)
                 else False
             )
+            artifact_visible = getattr(self, "_artifact_tmux_pane_visible", None)
+            artifact_viewer_active = (
+                bool(artifact_visible()) if callable(artifact_visible) else False
+            )
             footer_widget.update_agent_bindings(
                 current_agent,
                 completed_count=completed_count,
@@ -134,6 +138,7 @@ class DetailMixin:
                 attempt_pinned=self.current_attempt_number is not None,
                 group_focused=self._current_group_key is not None,
                 has_agent_artifacts=has_agent_artifacts,
+                artifact_viewer_active=artifact_viewer_active,
             )
 
     def _update_agents_info_panel(self) -> None:

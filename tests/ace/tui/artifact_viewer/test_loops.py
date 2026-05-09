@@ -8,6 +8,7 @@ from sase.ace.tui.graphics import _viewer_loop
 from sase.ace.tui.graphics.viewer import (
     ArtifactImageArea,
     ArtifactRenderResult,
+    ArtifactViewerResult,
     ArtifactViewSpec,
     _print_page_prompt,
     page_index_after_key,
@@ -69,6 +70,11 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
         "r",
         "q",
     )
+    assert page_loop_available_keys(0, 1, return_pane_available=True) == (
+        "h",
+        "r",
+        "q",
+    )
 
     _print_page_prompt(index=0, page_count=1)
     output = capsys.readouterr().out
@@ -116,6 +122,12 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
     assert (
         _strip_ansi(capsys.readouterr().out)
         == "\nn: next artifact  r: refresh  q: quit"
+    )
+
+    _print_page_prompt(index=0, page_count=1, return_pane_available=True)
+    assert (
+        _strip_ansi(capsys.readouterr().out)
+        == "\nPage 1/1  h: Ace  r: refresh  q: quit"
     )
 
 
@@ -287,3 +299,48 @@ def test_run_artifact_sequence_loop_navigates_pages_and_artifacts(
     assert "Page 2/2" in output
     assert "first.md" in output
     assert "second.png" in output
+
+
+def test_run_artifact_sequence_loop_h_focuses_return_pane_and_stays_open(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    page = tmp_path / "page-1.png"
+    page.write_bytes(b"png")
+    specs = (ArtifactViewSpec(tmp_path / "first.png", "image"),)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.render_artifact_pages",
+        lambda *args, **kwargs: ArtifactRenderResult((page,)),
+    )
+    commands: list[list[str]] = []
+    selected: list[str] = []
+    keys = iter(["h", "q"])
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    def fake_select(pane_id: str) -> ArtifactViewerResult:
+        selected.append(pane_id)
+        return ArtifactViewerResult(True)
+
+    result = run_artifact_sequence_loop(
+        specs,
+        cache_root=tmp_path / "cache",
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
+        return_pane_id="%1",
+        select_pane=fake_select,
+    )
+
+    assert result.returncode == 0
+    assert selected == ["%1"]
+    assert commands == [
+        ["clear"],
+        _test_icat_command(page),
+        ["clear"],
+        _test_icat_command(page),
+        ["clear"],
+    ]

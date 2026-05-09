@@ -473,6 +473,9 @@ class AgentFoldingMixin:
     def action_expand_or_layout(self) -> None:
         """Expand fold on agents/axe tab, or expand CL group when grouped."""
         if self.current_tab == "agents":
+            focus_artifact = getattr(self, "_focus_tracked_artifact_tmux_pane", None)
+            if callable(focus_artifact) and focus_artifact():
+                return
             self._expand_fold()
         elif self.current_tab == "axe":
             self._expand_axe_fold()

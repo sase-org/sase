@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 03:44:45
-status: wip
+status: done
 prompt: sdd/prompts/202605/artifact_pane_focus_keymap.md
 ---
 # Artifact Pane Focus Keymap Plan

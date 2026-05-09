@@ -362,3 +362,65 @@ def test_agents_open_artifacts_action_clears_stale_tmux_pane_and_opens_modal(
     modal, callback = app.pushed[0]
     assert modal.__class__.__name__ == "AgentArtifactSelectionModal"
     assert callback is not None
+
+
+def test_agents_focus_tracked_artifact_tmux_pane_selects_live_pane(
+    monkeypatch,
+) -> None:
+    app = _ImageActionApp(None)
+    app._artifact_tmux_pane_id = "%7"
+    select = MagicMock(return_value=ArtifactViewerResult(True))
+    monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.artifact_tmux_pane_exists",
+        lambda _pane_id: True,
+    )
+    monkeypatch.setattr("sase.ace.tui.graphics.select_tmux_pane", select)
+
+    assert app._focus_tracked_artifact_tmux_pane() is True
+
+    select.assert_called_once_with("%7")
+    app.notify.assert_not_called()
+
+
+def test_agents_focus_tracked_artifact_tmux_pane_surfaces_select_warning(
+    monkeypatch,
+) -> None:
+    app = _ImageActionApp(None)
+    app._artifact_tmux_pane_id = "%7"
+    app.content.add_class("-artifact-viewer-active")
+    monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.artifact_tmux_pane_exists",
+        lambda _pane_id: True,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.select_tmux_pane",
+        lambda _pane_id: ArtifactViewerResult(False, warning="select failed"),
+    )
+
+    assert app._focus_tracked_artifact_tmux_pane() is True
+
+    app.notify.assert_called_once_with("select failed", severity="warning")
+    assert "-artifact-viewer-active" in app.content.classes
+
+
+def test_agents_focus_tracked_artifact_tmux_pane_clears_stale_pane(
+    monkeypatch,
+) -> None:
+    app = _ImageActionApp(None)
+    app._artifact_tmux_pane_id = "%7"
+    app.content.add_class("-artifact-viewer-active")
+    select = MagicMock()
+    monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.artifact_tmux_pane_exists",
+        lambda _pane_id: False,
+    )
+    monkeypatch.setattr("sase.ace.tui.graphics.select_tmux_pane", select)
+
+    assert app._focus_tracked_artifact_tmux_pane() is False
+
+    select.assert_not_called()
+    assert app._artifact_tmux_pane_id is None
+    assert "-artifact-viewer-active" not in app.content.classes

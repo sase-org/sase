@@ -74,6 +74,24 @@ class AgentPanelsMixin:
         )
         return True
 
+    def _focus_tracked_artifact_tmux_pane(self) -> bool:
+        """Focus the tracked artifact pane when the Agents artifact split is live."""
+        if getattr(self, "current_tab", "agents") != "agents":
+            return False
+        if not self._artifact_tmux_pane_visible():
+            return False
+
+        from ...graphics import select_tmux_pane
+
+        pane_id = getattr(self, "_artifact_tmux_pane_id", None)
+        if pane_id is None:
+            return False
+        result = select_tmux_pane(pane_id)
+        if result.warning is not None:
+            self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
+            self._sync_artifact_viewer_layout()
+        return True
+
     def _first_agent_idx_for_focused_group(
         self, group_key: tuple[str, ...]
     ) -> int | None:

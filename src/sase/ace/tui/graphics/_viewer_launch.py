@@ -79,8 +79,13 @@ def view_artifact_files(
     if not specs:
         warning = ArtifactViewerWarning("no_artifacts", "No artifacts to view")
         return viewer_result_from_warnings((warning,))
+    return_pane_id = os.environ.get("SASE_ARTIFACT_RETURN_PANE_ID") or None
     with tempfile.TemporaryDirectory(prefix="sase-artifact-viewer-") as tmp:
-        loop_result = run_artifact_sequence_loop(specs, cache_root=tmp)
+        loop_result = run_artifact_sequence_loop(
+            specs,
+            cache_root=tmp,
+            return_pane_id=return_pane_id,
+        )
         if loop_result.warnings:
             return viewer_result_from_warnings(loop_result.warnings)
         if loop_result.returncode != 0:
@@ -147,8 +152,10 @@ def view_artifact_files_in_tmux_pane(
         "-P",
         "-F",
         "#{pane_id}",
-        shlex.join(viewer_command),
     ]
+    if origin_pane_id := os.environ.get("TMUX_PANE"):
+        tmux_command.extend(["-e", f"SASE_ARTIFACT_RETURN_PANE_ID={origin_pane_id}"])
+    tmux_command.append(shlex.join(viewer_command))
     result = subprocess.run(
         tmux_command,
         check=False,
@@ -227,6 +234,50 @@ def close_artifact_tmux_pane(pane_id: str) -> ArtifactViewerResult:
         warning = ArtifactViewerWarning(
             "tmux_kill_failed",
             f"tmux kill-pane failed with exit code {result.returncode}{suffix}",
+            tool="tmux",
+        )
+        return viewer_result_from_warnings((warning,))
+
+    return ArtifactViewerResult(True)
+
+
+def select_tmux_pane(pane_id: str) -> ArtifactViewerResult:
+    """Focus a tmux pane by id."""
+
+    if not pane_id:
+        warning = ArtifactViewerWarning(
+            "missing_tmux_pane",
+            "No tmux pane id to select",
+            tool="tmux",
+        )
+        return viewer_result_from_warnings((warning,))
+    if not is_tmux_session():
+        warning = ArtifactViewerWarning(
+            "not_in_tmux",
+            "Not running inside tmux",
+            tool="tmux",
+        )
+        return viewer_result_from_warnings((warning,))
+    if shutil.which("tmux") is None:
+        warning = ArtifactViewerWarning(
+            "missing_tmux",
+            "tmux executable not found",
+            tool="tmux",
+        )
+        return viewer_result_from_warnings((warning,))
+
+    result = subprocess.run(
+        ["tmux", "select-pane", "-t", pane_id],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.strip()
+        suffix = f": {stderr}" if stderr else ""
+        warning = ArtifactViewerWarning(
+            "tmux_select_failed",
+            f"tmux select-pane failed with exit code {result.returncode}{suffix}",
             tool="tmux",
         )
         return viewer_result_from_warnings((warning,))

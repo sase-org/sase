@@ -18,6 +18,7 @@ from ._viewer_launch import (
     artifact_viewer_module_command,
     close_artifact_tmux_pane,
     is_tmux_session,
+    select_tmux_pane,
     view_agent_artifact,
     view_agent_artifact_in_tmux_pane,
     view_agent_artifacts,
@@ -90,6 +91,8 @@ def run_artifact_sequence_loop(
     run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]]
     | None = None,
     image_area: ArtifactImageArea | None = None,
+    return_pane_id: str | None = None,
+    select_pane: Callable[[str], ArtifactViewerResult] | None = None,
 ) -> _viewer_loop._PageLoopResult:
     """Display an artifact sequence with page and document navigation."""
 
@@ -102,6 +105,8 @@ def run_artifact_sequence_loop(
             read_key=read_key,
             run_command=run_command,
             image_area=image_area,
+            return_pane_id=return_pane_id,
+            select_pane=select_pane,
         )
     finally:
         _viewer_loop.render_artifact_pages = original
@@ -166,6 +171,7 @@ __all__ = [
     "render_artifact_pages",
     "run_artifact_page_loop",
     "run_artifact_sequence_loop",
+    "select_tmux_pane",
     "validate_artifact_viewer_dependencies",
     "view_agent_artifact",
     "view_agent_artifact_in_tmux_pane",

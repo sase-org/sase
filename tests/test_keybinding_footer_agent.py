@@ -131,3 +131,14 @@ def test_keybinding_footer_artifacts_and_attempts_have_separate_keys() -> None:
 
     assert ("A", "artifacts") in bindings
     assert ("D", "attempt view") in bindings
+
+
+def test_keybinding_footer_agent_artifact_viewer_active_advertises_focus_key() -> None:
+    footer = KeybindingFooter()
+    agent = _make_agent(status="RUNNING")
+
+    inactive = footer._compute_agent_bindings(agent, artifact_viewer_active=False)
+    active = footer._compute_agent_bindings(agent, artifact_viewer_active=True)
+
+    assert ("l", "artifact pane") not in inactive
+    assert ("l", "artifact pane") in active

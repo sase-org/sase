@@ -21,6 +21,7 @@ from ._viewer_render import render_artifact_pages
 from ._viewer_types import (
     ArtifactImageArea,
     ArtifactRenderResult,
+    ArtifactViewerResult,
     ArtifactViewerWarning,
     ArtifactViewSpec,
 )
@@ -67,6 +68,7 @@ def page_loop_available_keys(
     *,
     artifact_index: int = 0,
     artifact_count: int = 1,
+    return_pane_available: bool = False,
 ) -> tuple[str, ...]:
     """Return page-loop keys available for the current page."""
 
@@ -78,6 +80,8 @@ def page_loop_available_keys(
         keys.append("n")
     if artifact_index > 0:
         keys.append("p")
+    if return_pane_available:
+        keys.append("h")
     if page_count > 0:
         keys.append("r")
     keys.append("q")
@@ -91,6 +95,8 @@ def run_artifact_page_loop(
     run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]]
     | None = None,
     image_area: ArtifactImageArea | None = None,
+    return_pane_id: str | None = None,
+    select_pane: Callable[[str], ArtifactViewerResult] | None = None,
 ) -> _PageLoopResult:
     """Display rendered pages with ``kitten icat`` and a small key loop."""
 
@@ -99,6 +105,7 @@ def run_artifact_page_loop(
 
     read = read_key or _read_single_key
     run = run_command or _run_command
+    select = select_pane or _select_tmux_pane
     index = 0
     while True:
         current_area = image_area or artifact_image_area(
@@ -110,10 +117,23 @@ def run_artifact_page_loop(
         if result.returncode != 0:
             return _PageLoopResult(returncode=result.returncode)
         _move_cursor_below_image(current_area)
-        print_page_prompt(index=index, page_count=len(pages))
-        available_keys = page_loop_available_keys(index, len(pages))
+        return_pane_available = bool(return_pane_id)
+        print_page_prompt(
+            index=index,
+            page_count=len(pages),
+            return_pane_available=return_pane_available,
+        )
+        available_keys = page_loop_available_keys(
+            index,
+            len(pages),
+            return_pane_available=return_pane_available,
+        )
         while (key := read()) not in available_keys:
             pass
+        if key == "h" and return_pane_id:
+            select(return_pane_id)
+            print()
+            continue
         next_index = page_index_after_key(index, key, len(pages))
         print()
         if next_index is None:
@@ -130,6 +150,8 @@ def run_artifact_sequence_loop(
     run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]]
     | None = None,
     image_area: ArtifactImageArea | None = None,
+    return_pane_id: str | None = None,
+    select_pane: Callable[[str], ArtifactViewerResult] | None = None,
 ) -> _PageLoopResult:
     """Display an artifact sequence with page and document navigation."""
 
@@ -139,6 +161,7 @@ def run_artifact_sequence_loop(
 
     read = read_key or _read_single_key
     run = run_command or _run_command
+    select = select_pane or _select_tmux_pane
     root = Path(cache_root).expanduser()
     page_cache: dict[tuple[int, int, int], tuple[Path, ...]] = {}
 
@@ -180,18 +203,21 @@ def run_artifact_sequence_loop(
         if result.returncode != 0:
             return _PageLoopResult(returncode=result.returncode)
         _move_cursor_below_image(current_area)
+        return_pane_available = bool(return_pane_id)
         print_page_prompt(
             index=page_index,
             page_count=len(pages),
             artifact_index=artifact_index,
             artifact_count=len(specs),
             show_position=False,
+            return_pane_available=return_pane_available,
         )
         available_keys = page_loop_available_keys(
             page_index,
             len(pages),
             artifact_index=artifact_index,
             artifact_count=len(specs),
+            return_pane_available=return_pane_available,
         )
         while (key := read()) not in available_keys:
             pass
@@ -199,6 +225,9 @@ def run_artifact_sequence_loop(
         if key == "q":
             _clear_terminal(run)
             return _PageLoopResult()
+        if key == "h" and return_pane_id:
+            select(return_pane_id)
+            continue
         if key in {"j", "k", "r"}:
             next_page_index = page_index_after_key(page_index, key, len(pages))
             if next_page_index is None:
@@ -215,6 +244,12 @@ def run_artifact_sequence_loop(
 
 def _run_command(cmd: Sequence[str]) -> subprocess.CompletedProcess[Any]:
     return subprocess.run(list(cmd), check=False)
+
+
+def _select_tmux_pane(pane_id: str) -> ArtifactViewerResult:
+    from ._viewer_launch import select_tmux_pane
+
+    return select_tmux_pane(pane_id)
 
 
 def artifact_image_area(
@@ -340,12 +375,14 @@ def print_page_prompt(
     artifact_index: int = 0,
     artifact_count: int = 1,
     show_position: bool = True,
+    return_pane_available: bool = False,
 ) -> None:
     labels = {
         "j": "j: next page",
         "k": "k: previous page",
         "n": "n: next artifact",
         "p": "p: previous artifact",
+        "h": "h: Ace",
         "r": "r: refresh",
         "q": "q: quit",
     }
@@ -356,6 +393,7 @@ def print_page_prompt(
             page_count,
             artifact_index=artifact_index,
             artifact_count=artifact_count,
+            return_pane_available=return_pane_available,
         )
     )
     prompt = actions

@@ -32,10 +32,16 @@ class _StubApp(AgentFoldingMixin):
         self._group_fold_registry = AgentGroupFoldRegistry()
         self._current_group_key: tuple[str, ...] | None = None
         self.refilter_calls = 0
+        self.focus_artifact_result = False
+        self.focus_artifact_calls = 0
 
     # The mixin calls these via attribute lookups.
     def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
         self.refilter_calls += 1
+
+    def _focus_tracked_artifact_tmux_pane(self) -> bool:
+        self.focus_artifact_calls += 1
+        return self.focus_artifact_result
 
     def _get_selected_agent(self) -> Agent | None:
         if 0 <= self.current_idx < len(self._agents):
@@ -109,6 +115,21 @@ def test_l_on_collapsed_l1_banner_expands_only_that_l1() -> None:
     app.action_expand_or_layout()
     assert app._group_fold_registry.is_collapsed(coder) is False
     assert app._group_fold_registry.is_collapsed(planner) is True
+
+
+def test_l_focuses_artifact_pane_before_expanding_agent_fold() -> None:
+    a = _agent(agent_name="coder.claude")
+    app = _StubApp([a], current_idx=0)
+    key = ("proj", "demo", "coder")
+    app._group_fold_registry.collapse(key)
+    app._current_group_key = key
+    app.focus_artifact_result = True
+
+    app.action_expand_or_layout()
+
+    assert app.focus_artifact_calls == 1
+    assert app._group_fold_registry.is_collapsed(key) is True
+    assert app.refilter_calls == 0
 
 
 def test_capital_l_expands_every_group() -> None:
