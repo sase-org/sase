@@ -1,7 +1,7 @@
 """Auto-naming sequence and active-agent reservation logic.
 
 The auto sequence (``a, b, ..., z, aa, ab, ...``) plus child-name reservation
-that backs ``%r:N`` repeat batches and revive-time name allocation.
+that backs ``%r:N`` repeat batches.
 """
 
 import itertools
@@ -14,16 +14,8 @@ from pathlib import Path
 from sase.agent.names._common import (
     extract_auto_name_prefix,
     is_process_alive,
-    strip_dismissed_prefix,
 )
 from sase.agent.names._registry import get_reserved_agent_names
-
-_COLLISION_DEDUP_FIRST_SUFFIX = 2
-_COLLISION_DEDUP_SEPARATOR = "_"
-
-
-def _collision_dedup_name(base: str, suffix: int) -> str:
-    return f"{base}{_COLLISION_DEDUP_SEPARATOR}{suffix}"
 
 
 def get_next_auto_name() -> str:
@@ -52,10 +44,8 @@ def allocate_auto_names(count: int, *, reserved: set[str] | None = None) -> list
 def get_active_agent_names() -> set[str]:
     """Return the set of names reserved by visible, non-dismissed agents.
 
-    Names of running or done agents are reserved so a fresh auto-named
-    agent does not collide with entries that still appear on the Agents
-    tab. Dismissed agents (or deleted artifact dirs) and dead non-done
-    agents do not block reuse — their slots are released.
+    This legacy visible-agent snapshot is kept for retry/repeat collision
+    checks. Permanent auto-name allocation uses the durable registry instead.
     """
     projects_dir = Path.home() / ".sase" / "projects"
     if not projects_dir.exists():
@@ -139,8 +129,7 @@ def get_active_agent_name_map() -> dict[str, str]:
     Sibling of :func:`get_active_agent_names` keyed on full claimed names
     (``name`` and ``workflow_name``) with the owning artifact directory as
     the value, so collision diagnostics can point the user at the offending
-    agent. Auto-name prefixes are not included — only names that
-    :func:`sase.agent.names._claim._claim_explicit` would rename.
+    agent. Auto-name prefixes are not included.
     """
     projects_dir = Path.home() / ".sase" / "projects"
     if not projects_dir.exists():
@@ -328,51 +317,3 @@ def get_active_child_names(base: str) -> set[str]:
                 names.add(name)
 
     return names
-
-
-def dedup_name(base: str, reserved: set[str]) -> str:
-    """Return *base* if free, else the lowest ``<base>_<n>`` (n >= 2) not in *reserved*.
-
-    Mutates *reserved* in place with the chosen name so callers can chain
-    allocations across a batch (mirrors :func:`allocate_revived_name`'s
-    ``reserved`` contract).
-    """
-    if base not in reserved:
-        reserved.add(base)
-        return base
-    n = _COLLISION_DEDUP_FIRST_SUFFIX
-    while True:
-        candidate = _collision_dedup_name(base, n)
-        if candidate not in reserved:
-            reserved.add(candidate)
-            return candidate
-        n += 1
-
-
-def allocate_revived_name(
-    prefixed_name: str,
-    *,
-    reserved: set[str] | None = None,
-) -> tuple[str, str | None]:
-    """Allocate the live name for *prefixed_name* on revive.
-
-    Strips the ``YYmmdd.`` prefix from *prefixed_name*. When the stripped
-    name is already claimed (by *reserved* or, when ``None``, by the
-    current active-agent set), falls back to ``<base>_<n>`` via
-    :func:`dedup_name` and returns the originally requested name as the
-    second tuple element so the caller can surface "original name was
-    taken" feedback. When the stripped name is free the second element
-    is ``None``.
-
-    *reserved* is mutated in place with the allocated name so a caller
-    can chain allocations across a batch revive without re-scanning.
-    """
-    candidate = strip_dismissed_prefix(prefixed_name)
-    pool = get_active_agent_names() if reserved is None else reserved
-    fallback: str | None = None
-    if candidate in pool:
-        fallback = candidate
-        candidate = dedup_name(candidate, pool)
-    else:
-        pool.add(candidate)
-    return candidate, fallback

@@ -97,7 +97,6 @@ class AgentCleanupRequestWire:
     tag: str | None = None
     identities: tuple[AgentCleanupIdentityWire, ...] = ()
     include_pidless_as_dismissable: bool = False
-    taken_dismissed_names: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -189,8 +188,6 @@ class AgentCleanupSideEffectsWire:
     notification_dismiss_candidates: tuple[
         AgentCleanupNotificationDismissIntentWire, ...
     ] = ()
-    dismissal_rename_allocations: tuple[Any, ...] = ()
-    wait_reference_rewrite_map: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -296,9 +293,6 @@ def cleanup_request_from_dict(data: dict[str, Any]) -> AgentCleanupRequestWire:
         ),
         include_pidless_as_dismissable=bool(
             data.get("include_pidless_as_dismissable", False)
-        ),
-        taken_dismissed_names=tuple(
-            str(name) for name in data.get("taken_dismissed_names") or ()
         ),
     )
 
@@ -408,11 +402,6 @@ def cleanup_plan_from_dict(data: dict[str, Any]) -> AgentCleanupPlanWire:
                 )
                 for item in side_effect_data.get("notification_dismiss_candidates")
                 or ()
-            ),
-            dismissal_rename_allocations=(),
-            wait_reference_rewrite_map=tuple(
-                (str(old), str(new))
-                for old, new in side_effect_data.get("wait_reference_rewrite_map") or ()
             ),
         ),
     )

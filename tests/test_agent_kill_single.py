@@ -96,10 +96,6 @@ def test_action_kill_single_running_uses_cleanup_planner_before_confirm() -> Non
 
     with (
         patch(
-            "sase.agent.names.collect_dismissed_taken_names",
-            return_value={"old_name"},
-        ),
-        patch(
             "sase.core.agent_cleanup_facade.plan_agent_cleanup", return_value=plan
         ) as mock_plan,
         patch.object(app, "_do_kill_agent") as mock_do_kill,
@@ -113,7 +109,6 @@ def test_action_kill_single_running_uses_cleanup_planner_before_confirm() -> Non
     assert request.mode == CLEANUP_MODE_KILL_AND_DISMISS
     assert request.identities[0].raw_suffix == agent.raw_suffix
     assert request.include_pidless_as_dismissable is True
-    assert request.taken_dismissed_names == ("old_name",)
     mock_do_kill.assert_called_once_with(agent, plan)
 
 
@@ -132,7 +127,6 @@ def test_action_kill_single_done_uses_planner_backed_dismiss() -> None:
     plan = _cleanup_plan(agent, action="dismiss")
 
     with (
-        patch("sase.agent.names.collect_dismissed_taken_names", return_value=set()),
         patch("sase.core.agent_cleanup_facade.plan_agent_cleanup", return_value=plan),
         patch.object(app, "_dismiss_planned_agent") as mock_dismiss,
     ):
@@ -157,7 +151,6 @@ def test_action_kill_single_pidless_running_is_planned_as_dismissable() -> None:
     plan = _cleanup_plan(agent, action="dismiss")
 
     with (
-        patch("sase.agent.names.collect_dismissed_taken_names", return_value=set()),
         patch(
             "sase.core.agent_cleanup_facade.plan_agent_cleanup", return_value=plan
         ) as mock_plan,

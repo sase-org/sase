@@ -906,10 +906,10 @@ guardrails, and current preview behavior.
 
 ## Agent Auto-Naming
 
-All agents are automatically assigned a short alphabetic name (`a`, `b`, ..., `z`, `aa`, `ab`, ...) when launched
-without an explicit `%name` directive. Names are allocated sequentially, reusing names from dismissed agents. This
-enables the resume-by-name workflow: press `r` on a running named agent to queue a follow-up that waits for it to finish
-and then loads its conversation history.
+All agents are automatically assigned a short name (`a`, `b`, ..., `z`, `aa`, ..., `az`, `a0`, ...) when launched
+without an explicit `%name` directive. Names are permanent IDs: a name used by any existing agent state remains reserved
+until that agent is explicitly wiped or deleted. This enables the resume-by-name workflow: press `r` on a running named
+agent to queue a follow-up that waits for it to finish and then loads its conversation history.
 
 ### Provider/Model Suffixes
 
@@ -921,17 +921,18 @@ come from the `llm_model_short_aliases` hook (e.g. `opus`, `sonnet`, `haiku`) an
 model so the suffix stays compact regardless of how the model was spelled in the prompt or config. Single-runtime spawns
 omit the suffix.
 
-When an agent is revived (`R`) or re-claims a name through an explicit `%name:` directive, the auto-namer detects an
-existing live claim and allocates the next free slot rather than colliding — the freshly revived/claimed agent always
-gets a unique name even if the user didn't pick one.
+An explicit `%name:<name>` launch fails before spawning if `<name>` is already reserved. The prompt is saved as a
+cancelled history entry and the error suggests the lowest free numeric suffix, such as `<name>1`. To deliberately reuse
+a reserved name from the TUI, launch with `%name:!<name>`; after confirmation, SASE wipes the previous owner and then
+claims the name for the new agent. Reviving and dismissing agents preserve their stored names.
 
 ### Per-Step Naming for Multi-Agent Workflows
 
 When a workflow spawns follow-up agents (e.g., plan approval followed by a coder step), the agents receive dotted names
 derived from the base name. For example, if the initial agent is named `a`:
 
-1. When the first follow-up is created, the initial agent is renamed from `a` to `a.1`
-2. The follow-up agent becomes `a.2`
+1. The root agent keeps `a`
+2. The first follow-up agent becomes `a.2`
 3. Subsequent follow-ups become `a.3`, `a.4`, etc.
 
 The base name (`a`) is reserved for the workflow as a whole, so `%wait:a` or `@a` references resolve correctly. Single-
@@ -993,19 +994,12 @@ Dismiss operations are O(1) per agent — each agent is saved to its own file ra
 SQLite summary index in that directory so revival and run-log lookups can load dismissed agents lazily. Use
 `sase agents archive verify` to check the index, or `sase agents archive rebuild-index` to rebuild it from bundle files.
 
-#### Dismissed-Name Prefix
+#### Legacy Dismissed-Name Prefix
 
-When an agent is dismissed it is renamed in place to `YYmmdd.<base>` — a six-digit completion-date prefix on top of the
-agent's live base name. The prefix is persisted into the dismissed bundle's `agent_name` and `cl_name`, and any visible
-agent that referenced the dismissed name (`%wait:foo`, `#resume:foo`) has those references rewritten to the prefixed
-form so cross-agent dependencies keep resolving after dismissal.
-
-If the same base name was already used by a previous dismissed agent on the same date, the new dismissal allocates a
-collision suffix (`YYmmdd.<base>_2`, `_3`, ...) so historical names stay unique.
-
-On revive the prefix is stripped and any visible references to the prefixed name are rewritten back to the base name, so
-a revived agent rejoins its old peers transparently. Bare `%wait` (no target) intentionally skips dismissal-prefixed
-candidates so it always anchors on a live, visible agent.
+Current dismiss and revive operations preserve stored agent names. Older dismissed bundles may still contain
+`YYmmdd.<base>` names from the previous dismissal model, and ACE keeps compatibility helpers for reading those bundles.
+Bare `%wait` (no target) intentionally skips legacy dismissal-prefixed candidates so it anchors on a live, visible
+agent.
 
 ## Agents Tab Metadata Panel
 

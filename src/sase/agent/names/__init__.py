@@ -16,8 +16,6 @@ import os
 
 from sase.agent.names._auto import (
     allocate_auto_names,
-    allocate_revived_name,
-    dedup_name,
     get_active_agent_name_map,
     get_active_agent_names,
     get_active_child_names,
@@ -33,10 +31,6 @@ from sase.agent.names._common import (
     is_dismissed_prefixed,
     is_process_alive,
     strip_dismissed_prefix,
-)
-from sase.agent.names._dismissed import (
-    allocate_dismissed_name,
-    collect_dismissed_taken_names,
 )
 from sase.agent.names._lookup import (
     find_named_agent,
@@ -161,16 +155,12 @@ __all__ = [
     "add_dismissed_prefix",
     "allocate_auto_names",
     "agent_name_allocation_lock",
-    "allocate_dismissed_name",
     "allocate_retry_name",
     "allocate_resume_name",
     "allocate_resume_names",
-    "allocate_revived_name",
     "claim_agent_name",
     "claim_registered_name",
-    "collect_dismissed_taken_names",
     "delete_registered_name",
-    "dedup_name",
     "find_named_agent",
     "first_resume_agent_name",
     "get_active_agent_name_map",

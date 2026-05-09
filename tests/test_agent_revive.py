@@ -568,7 +568,7 @@ def test_revive_legacy_bundle_without_prefix_keeps_name(tmp_path: Path) -> None:
 
 
 def test_revive_with_taken_name_keeps_stored_name(tmp_path: Path) -> None:
-    """Revive does not dedup or rename when a stripped base is taken."""
+    """Revive does not rename when another live agent has the same name."""
     # Plant an active agent named "foo" so the revival sees the slot taken.
     active_dir = (
         tmp_path

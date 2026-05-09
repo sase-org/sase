@@ -485,7 +485,7 @@ def test_split_prompt_for_models_numeric_named_alt_ids_do_not_collide() -> None:
 def test_split_prompt_for_models_explicit_alt_base_becomes_explicit_child_names(
     tmp_path: Path,
 ) -> None:
-    """Explicit %name fan-out emits explicit child %name directives for claim-time dedup."""
+    """Explicit %name fan-out emits explicit child %name directives."""
     _make_agent(tmp_path, "proj", "run-old", "foo.sec", done=True)
 
     with patch.object(Path, "home", return_value=tmp_path):

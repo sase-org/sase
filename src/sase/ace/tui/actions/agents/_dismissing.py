@@ -20,8 +20,6 @@ from ._dismiss_cleanup import (
     AgentIdentity,
     agent_identity_from_wire,
     agent_wire_identity as _agent_wire_identity,
-    apply_dismissal_rename_intents,
-    apply_in_memory_reference_rewrites,
     dismissed_identities_from_plan,
     plan_dismissal_side_effects,
     wire_identity_key as _wire_identity_key,
@@ -120,17 +118,9 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
 
         agents_with_children_snapshot = list(self._agents_with_children)
 
-        from sase.agent.names import collect_dismissed_taken_names
-
-        allocated_names: set[str] = collect_dismissed_taken_names()
         cleanup_plan = plan_dismissal_side_effects(
             agents,
             agents_with_children_snapshot,
-            taken_dismissed_names=allocated_names,
-        )
-        name_map = apply_dismissal_rename_intents(
-            agents_with_children_snapshot,
-            cleanup_plan,
         )
         dismissed_identities = dismissed_identities_from_plan(cleanup_plan)
 
@@ -143,7 +133,6 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
         s = "s" if count != 1 else ""
         self.notify(f"Dismissed {count} agent{s}")  # type: ignore[attr-defined]
         self._apply_dismissal_in_memory(agents)
-        apply_in_memory_reference_rewrites(self._agents_with_children, name_map)
 
         self.call_later(  # type: ignore[attr-defined]
             self._run_bulk_dismiss_persistence_async,
@@ -151,7 +140,6 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
             set(self._dismissed_agents),
             agents_with_children_snapshot,
             cleanup_plan,
-            name_map,
         )
 
     async def _run_bulk_dismiss_persistence_async(
@@ -160,7 +148,6 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
         dismissed_snapshot: set[AgentIdentity],
         agents_with_children_snapshot: list[Agent],
         cleanup_plan: object | None = None,
-        name_map: dict[str, str] | None = None,
     ) -> None:
         """Persist a batch dismissal's filesystem side effects in a worker."""
         identities = {a.identity for a in agents}
@@ -176,7 +163,6 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
                 agents,
                 dismissed_snapshot,
                 agents_with_children_snapshot,
-                name_map or {},
                 cleanup_plan,
             )
         except Exception as exc:
@@ -220,10 +206,6 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
 
         if agents_with_children_snapshot is None:
             agents_with_children_snapshot = list(self._agents_with_children)
-        name_map = apply_dismissal_rename_intents(
-            agents_with_children_snapshot,
-            cleanup_plan,
-        )
         identities = dismissed_identities_from_plan(cleanup_plan)
         if not identities:
             identities = self._collect_dismissal_identities([agent])
@@ -238,14 +220,12 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
         else:
             self.notify(f"Dismissed agent for {agent.cl_name}")  # type: ignore[attr-defined]
         self._apply_dismissal_in_memory([agent])
-        apply_in_memory_reference_rewrites(self._agents_with_children, name_map)
         self.call_later(  # type: ignore[attr-defined]
             self._run_dismiss_persistence_async,
             agent,
             set(self._dismissed_agents),
             agents_with_children_snapshot,
             cleanup_plan,
-            name_map,
         )
 
     async def _run_dismiss_persistence_async(
@@ -254,7 +234,6 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
         dismissed_snapshot: set[AgentIdentity],
         agents_with_children_snapshot: list[Agent],
         cleanup_plan: object | None = None,
-        name_map: dict[str, str] | None = None,
     ) -> None:
         """Persist single-agent dismiss side effects in a worker thread."""
         identity = agent.identity
@@ -270,7 +249,6 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
                 agent,
                 dismissed_snapshot,
                 agents_with_children_snapshot,
-                name_map or {},
                 cleanup_plan,
             )
         except Exception as exc:
@@ -297,14 +275,11 @@ def _persist_single_dismiss_transaction(
     agent: Agent,
     dismissed_snapshot: set[AgentIdentity],
     agents_with_children_snapshot: list[Agent],
-    name_map: dict[str, str],
     cleanup_plan: object | None = None,
 ) -> None:
     """Persist all side effects for one optimistic dismiss operation."""
     from ....dismissed_agents import save_dismissed_agents
-    from sase.agent.dismissed_name_rewrites import rewrite_dismissed_references
 
-    rewrite_dismissed_references(name_map)
     if not persist_cleanup_side_effect_intents(
         cleanup_plan,
         agents_with_children_snapshot,
@@ -320,14 +295,11 @@ def persist_bulk_dismiss_transaction(
     agents: list[Agent],
     dismissed_snapshot: set[AgentIdentity],
     agents_with_children_snapshot: list[Agent],
-    name_map: dict[str, str],
     cleanup_plan: object | None = None,
 ) -> None:
     """Persist all side effects for an optimistic batch dismiss operation."""
     from ....dismissed_agents import save_dismissed_agents
-    from sase.agent.dismissed_name_rewrites import rewrite_dismissed_references
 
-    rewrite_dismissed_references(name_map)
     if not persist_cleanup_side_effect_intents(
         cleanup_plan,
         agents_with_children_snapshot,

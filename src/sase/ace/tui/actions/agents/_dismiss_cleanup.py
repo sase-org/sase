@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -38,8 +37,6 @@ def agent_identity_from_wire(identity: Any) -> AgentIdentity:
 def plan_dismissal_side_effects(
     agents: list[Agent],
     agents_with_children_snapshot: list[Agent],
-    *,
-    taken_dismissed_names: set[str] | None = None,
 ) -> AgentCleanupPlanWire:
     """Return a Rust/Python cleanup plan for dismissal side effects."""
     from sase.core.agent_cleanup_facade import (
@@ -67,20 +64,11 @@ def plan_dismissal_side_effects(
         scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
         mode=CLEANUP_MODE_DISMISS_COMPLETED,
         identities=identities,
-        taken_dismissed_names=tuple(sorted(taken_dismissed_names or ())),
     )
     return plan_agent_cleanup(
         agents_to_cleanup_targets(agents_with_children_snapshot),
         request,
     )
-
-
-def apply_dismissal_rename_intents(
-    agents_with_children_snapshot: list[Agent],
-    plan: object,
-) -> dict[str, str]:
-    """Return no reference rewrites; dismissal no longer renames agents."""
-    return {}
 
 
 def dismissed_identities_from_plan(plan: object) -> set[AgentIdentity]:
@@ -90,18 +78,3 @@ def dismissed_identities_from_plan(plan: object) -> set[AgentIdentity]:
         for identity in getattr(side_effects, "dismissed_index_additions", ())
     }
     return identities
-
-
-def apply_in_memory_reference_rewrites(
-    agents: Iterable[Agent],
-    name_map: dict[str, str],
-) -> None:
-    """Update each agent's ``waiting_for`` list using *name_map* in place."""
-    if not name_map:
-        return
-    for agent in agents:
-        if not agent.waiting_for:
-            continue
-        new_waiting = [name_map.get(n, n) for n in agent.waiting_for]
-        if new_waiting != agent.waiting_for:
-            agent.waiting_for = new_waiting

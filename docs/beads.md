@@ -248,8 +248,8 @@ For epic-tier plans, the command:
    `is_ready_to_work`, the command treats the run as a retry and schedules any remaining non-closed phases.
 2. Scans the live agent registry for any visible agent already named `<epic_id>.<N>` (for any open phase), `<epic_id>`
    (for the land agent), or the legacy `<epic_id>.land` land-agent name, and refuses to launch when a collision exists,
-   listing the offending artifact directories so the user can revive, dismiss, or rename the orphan first. (`--dry-run`
-   downgrades this to a warning and continues.)
+   listing the offending artifact directories so the user can wipe/delete or otherwise resolve the orphan first.
+   (`--dry-run` downgrades this to a warning and continues.)
 3. Flips the epic plan bead's `is_ready_to_work` flag to `True` when it was not already ready.
 4. Builds a Kahn-wave schedule from the epic's open phase children, respecting dependencies.
 5. Pre-claims each phase bead — sets `status=in_progress` and `assignee=<phase_bead_id>` (i.e. `<epic_id>.<N>`).

@@ -825,7 +825,7 @@ the prompt before further processing.
 | Directive  | Alias | Description                                               |
 | ---------- | ----- | --------------------------------------------------------- |
 | `%model`   | `%m`  | Override the LLM model for this prompt                    |
-| `%name`    | `%n`  | Assign a name to the agent                                |
+| `%name`    | `%n`  | Assign, auto-generate, or force-reuse an agent name       |
 | `%wait`    | `%w`  | Wait for another agent to succeed, or for a duration      |
 | `%hide`    | `%h`  | Hide the agent from the default Agents tab display        |
 | `%approve` | `%a`  | Run the agent fully autonomously (skip approval)          |
@@ -850,6 +850,7 @@ Directives use the same argument syntax as xprompt references:
 %name:reviewer               # Short-form
 %n:reviewer                  # Same, using alias
 %name                        # Bare — auto-generates a unique name
+%name:!reviewer              # Force reuse after confirmation and wipe
 %wait:agent1                 # Wait for agent1
 %w:agent2                    # Wait for agent2 (alias)
 %wait                        # Bare — waits for the most recently named agent
@@ -882,8 +883,14 @@ The `%model` directive also supports automatic provider resolution: known model 
 `gemini-2.5-pro`) are automatically mapped to their provider. See
 [Per-Prompt Provider Switching](llms.md#per-prompt-provider-switching) for the full model-to-provider mapping.
 
-The `%name` and `%wait` directives can be used without arguments. Bare `%name` auto-generates a unique name for the
-agent. Bare `%wait` resolves to the most recently named agent (raises an error if no previous agent exists).
+The `%name` and `%wait` directives can be used without arguments. Bare `%name` auto-generates a permanent unique name
+for the agent. Bare `%wait` resolves to the most recently named agent (raises an error if no previous agent exists).
+
+Agent names are permanent IDs. A name that belongs to any existing agent state cannot be reused by a normal
+`%name:<name>` launch; SASE cancels the launch before spawning an agent, records the prompt as cancelled, and suggests
+the lowest free numeric suffix such as `<name>1`. To deliberately reuse a name, use `%name:!<name>` from the TUI. SASE
+asks for confirmation, wipes the previous owner and its persisted system state, then launches the new agent with that
+name. Non-TUI launch surfaces reject `%name:!<name>` unless they provide an explicit confirmation path.
 
 Named `%wait` dependencies unblock only after the newest matching agent run has a `done.json` outcome of `"completed"`.
 For a multi-agent workflow name, the workflow root and every child agent for that root must complete successfully.

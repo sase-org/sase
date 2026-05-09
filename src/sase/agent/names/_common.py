@@ -2,10 +2,8 @@
 
 The dismissed-name helpers (``DISMISSED_NAME_PREFIX_RE``, ``is_dismissed_prefixed``,
 ``add_dismissed_prefix``, ``strip_dismissed_prefix``) live here because
-``_lookup`` and ``_auto`` both consult them while building their result sets.
-A dismissed agent is renamed to ``YYmmdd.<original-name>`` so historical
-references such as ``%wait:<name>`` and ``#resume:<name>`` keep resolving
-after dismissal.
+lookup, migration, and old dismissed-bundle compatibility still need to parse
+names produced by the previous dismissal-prefix model.
 """
 
 import json

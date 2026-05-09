@@ -46,7 +46,7 @@ _DIRECTIVE_DESCRIPTIONS: dict[str, str] = {
     "epic": "plan first and auto-approve the plan as an epic",
     "hide": "hide the agent from the default Agents tab",
     "model": "choose one or more provider/model targets",
-    "name": "assign or auto-generate the agent name",
+    "name": "assign, auto-generate, or force-reuse an agent name",
     "plan": "create a plan first, then wait for approval",
     "repeat": "run the prompt multiple serial iterations",
     "tag": "assign a user-managed agent tag",

@@ -12,10 +12,7 @@ from unittest.mock import patch
 from sase.ace.tui.actions.agents._dismissing import AgentDismissingMixin
 from sase.ace.tui.actions.agents._revive import AgentRevivalMixin
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.agent.names import (
-    collect_dismissed_taken_names,
-    find_named_agent,
-)
+from sase.agent.names import find_named_agent
 
 
 class FakeFullApp(AgentDismissingMixin, AgentRevivalMixin):
@@ -286,8 +283,6 @@ def test_workflow_parent_and_children_consistent_through_lifecycle(
         assert parent.agent_name == "root"
         assert named_child.agent_name == "root.plan"
         assert unnamed_child.agent_name is None
-
-        assert collect_dismissed_taken_names() == set()
 
         # The same revive handles parent + workflow children together.
         app._do_revive_agent(parent)

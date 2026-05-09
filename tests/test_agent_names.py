@@ -10,11 +10,9 @@ import pytest
 from sase.agent.names import (
     NameCollisionError,
     allocate_retry_name,
-    allocate_revived_name,
     allocate_resume_name,
     allocate_resume_names,
     claim_agent_name,
-    dedup_name,
     find_named_agent,
     first_resume_agent_name,
 )
@@ -328,55 +326,6 @@ class TestClaimAgentName:
         # Should not raise
         with patch.object(Path, "home", return_value=tmp_path):
             claim_agent_name("foo", "/nonexistent")
-
-
-class TestDedupName:
-    def test_returns_base_when_free(self) -> None:
-        reserved: set[str] = set()
-        assert dedup_name("foo", reserved) == "foo"
-        assert reserved == {"foo"}
-
-    def test_returns_underscore_2_on_first_collision(self) -> None:
-        reserved = {"foo"}
-        assert dedup_name("foo", reserved) == "foo_2"
-        assert reserved == {"foo", "foo_2"}
-
-    def test_skips_existing_underscore_2(self) -> None:
-        reserved = {"foo", "foo_2"}
-        assert dedup_name("foo", reserved) == "foo_3"
-        assert reserved == {"foo", "foo_2", "foo_3"}
-
-    def test_chains_across_calls(self) -> None:
-        reserved = {"foo"}
-        first = dedup_name("foo", reserved)
-        second = dedup_name("foo", reserved)
-        assert first == "foo_2"
-        assert second == "foo_3"
-
-
-class TestAllocateRevivedNameDedup:
-    def test_collision_falls_back_to_underscore_2(self) -> None:
-        reserved = {"foo"}
-        new, fallback = allocate_revived_name("260428.foo", reserved=reserved)
-        assert new == "foo_2"
-        assert fallback == "foo"
-        assert reserved == {"foo", "foo_2"}
-
-    def test_batch_revive_sequential_suffixes(self) -> None:
-        reserved = {"foo"}
-        first, fb1 = allocate_revived_name("260427.foo", reserved=reserved)
-        second, fb2 = allocate_revived_name("260428.foo", reserved=reserved)
-        assert first == "foo_2"
-        assert second == "foo_3"
-        assert fb1 == "foo"
-        assert fb2 == "foo"
-
-    def test_no_collision_keeps_base(self) -> None:
-        reserved: set[str] = set()
-        new, fallback = allocate_revived_name("260428.foo", reserved=reserved)
-        assert new == "foo"
-        assert fallback is None
-        assert reserved == {"foo"}
 
 
 class TestClaimAgentNameExplicit:

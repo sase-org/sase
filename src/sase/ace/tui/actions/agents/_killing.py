@@ -25,8 +25,6 @@ from ._killing_utils import (
 )
 
 from ._dismiss_cleanup import (
-    apply_dismissal_rename_intents,
-    apply_in_memory_reference_rewrites,
     agent_identity_from_wire,
     dismissed_identities_from_plan,
 )
@@ -46,7 +44,6 @@ def _plan_bulk_kill_cleanup_side_effects(
     agents: list[Agent],
     agents_with_children_snapshot: list[Agent],
 ) -> AgentCleanupPlanWire:
-    from sase.agent.names import collect_dismissed_taken_names
     from sase.core.agent_cleanup_facade import (
         agents_to_cleanup_targets,
         plan_agent_cleanup,
@@ -72,7 +69,6 @@ def _plan_bulk_kill_cleanup_side_effects(
         scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
         identities=identities,
-        taken_dismissed_names=tuple(sorted(collect_dismissed_taken_names())),
     )
     return plan_agent_cleanup(
         agents_to_cleanup_targets(agents_with_children_snapshot),
@@ -84,7 +80,6 @@ def _plan_single_agent_kill_cleanup(
     agent: Agent,
     agents_with_children_snapshot: list[Agent],
 ) -> AgentCleanupPlanWire:
-    from sase.agent.names import collect_dismissed_taken_names
     from sase.core.agent_cleanup_facade import (
         agents_to_cleanup_targets,
         plan_agent_cleanup,
@@ -109,7 +104,6 @@ def _plan_single_agent_kill_cleanup(
             ),
         ),
         include_pidless_as_dismissable=True,
-        taken_dismissed_names=tuple(sorted(collect_dismissed_taken_names())),
     )
     return plan_agent_cleanup(
         agents_to_cleanup_targets(agents_with_children_snapshot),
@@ -382,10 +376,6 @@ class AgentKillingMixin(AgentDismissingMixin):
             [item.agent for item in kill_items] + dismiss_candidates,
             agents_with_children_snapshot,
         )
-        name_map = apply_dismissal_rename_intents(
-            agents_with_children_snapshot,
-            cleanup_plan,
-        )
         dismissed_ids = dismissed_identities_from_plan(cleanup_plan)
         if not dismissed_ids:
             dismissed_ids = self._collect_dismissal_identities(dismiss_candidates)
@@ -402,7 +392,6 @@ class AgentKillingMixin(AgentDismissingMixin):
         removed_ids = killed_ids | dismissed_ids
         self._marked_agents.clear()  # type: ignore[attr-defined]
         self._apply_killed_agents_in_memory(removed_ids)
-        apply_in_memory_reference_rewrites(self._agents_with_children, name_map)
 
         killed_count = len(kill_items)
         dismissed_count = len(dismiss_candidates)

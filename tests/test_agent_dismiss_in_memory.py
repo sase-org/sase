@@ -279,7 +279,6 @@ def test_bulk_dismiss_transaction_uses_one_notification_update() -> None:
 
     with (
         patch("sase.ace.tui.actions.agents._dismissing.persist_dismiss_side_effects"),
-        patch("sase.agent.dismissed_name_rewrites.rewrite_dismissed_references"),
         patch("sase.ace.dismissed_agents.save_dismissed_agents"),
         patch(
             "sase.notifications.store._rust_apply_notification_state_update",
@@ -290,7 +289,6 @@ def test_bulk_dismiss_transaction_uses_one_notification_update() -> None:
             [a1, a2],
             {a1.identity, a2.identity},
             [a1, a2],
-            {},
         )
 
     mock_update.assert_called_once()
