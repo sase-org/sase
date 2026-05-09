@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 13:49:50
-status: wip
+status: done
 prompt: sdd/prompts/202605/gh_actions_chop_review_fix.md
 ---
 # Review Fix: GitHub Actions Failure Chop Duplicate `%tag` Bug
