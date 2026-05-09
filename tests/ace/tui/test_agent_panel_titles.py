@@ -52,7 +52,7 @@ class _Container:
 
 
 class _FakeApp(AgentDisplayMixin):
-    def __init__(self, agents: list[Agent]) -> None:
+    def __init__(self, agents: list[Agent], *, merge_tag_panels: bool = False) -> None:
         self._agents = agents
         self._fold_counts: dict[str, tuple[int, int]] = {}
         self._agent_search_query = ""
@@ -62,12 +62,17 @@ class _FakeApp(AgentDisplayMixin):
         self.refresh_interval = 10
         self.current_tab = "agents"
         self._marked_agents: set[Any] = set()
+        self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._entry_jump_mode_active = False
         self._entry_jump_index_to_hint: dict[int, str] = {}
         self._countdown_remaining = 0
         self._group_fold_registry = AgentGroupFoldRegistry()
         self._current_group_key = None
-        self._panel_group = AgentPanelGroup.from_agents(agents)
+        self._agent_panels_grouped = merge_tag_panels
+        self._panel_group = AgentPanelGroup.from_agents(
+            agents,
+            merge_tag_panels=merge_tag_panels,
+        )
 
         from sase.ace.tui.actions.agents._display import _panel_widget_id
 
@@ -87,16 +92,24 @@ class _FakeApp(AgentDisplayMixin):
         return
 
 
-def _agent(*, name: str, tag: str | None = None, suffix: str) -> Agent:
+def _agent(
+    *,
+    name: str,
+    tag: str | None = None,
+    suffix: str,
+    status: str = "RUNNING",
+    parent_timestamp: str | None = None,
+) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="cl",
         project_file="/r/p/p.gp",
-        status="RUNNING",
+        status=status,
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name=name,
         tag=tag,
         raw_suffix=suffix,
+        parent_timestamp=parent_timestamp,
     )
 
 
@@ -130,7 +143,7 @@ def test_panel_titles_label_untagged_and_tags_with_counts() -> None:
 
     main = app._panel_widgets["agent-list-panel"]
     main_title = _title_text(main)
-    assert main_title.plain == "(untagged) · 2"
+    assert main_title.plain == "(untagged) · 2 [R2]"
     _assert_title_span(
         main_title, start=0, end=10, style="dim #AFAFAF", text="(untagged)"
     )
@@ -140,8 +153,8 @@ def test_panel_titles_label_untagged_and_tags_with_counts() -> None:
     banana = app._panel_widgets["agent-list-panel-2"]
     apple_title = _title_text(apple)
     banana_title = _title_text(banana)
-    assert apple_title.plain == "#apple · 2"
-    assert banana_title.plain == "#banana · 1"
+    assert apple_title.plain == "#apple · 2 [R2]"
+    assert banana_title.plain == "#banana · 1 [R1]"
     _assert_title_span(apple_title, start=0, end=6, style="bold #FFD75F", text="#apple")
     _assert_title_span(apple_title, start=6, end=10, style="#AFAFAF", text=" · 2")
     _assert_title_span(
@@ -162,7 +175,91 @@ def test_panel_titles_track_alphabetical_slot_order() -> None:
     app._refresh_panel_widgets(jump_hints=None)
 
     assert app._panel_group.panel_keys == ["alpha", "mike", "zulu"]
-    assert _title_text(app._panel_widgets["agent-list-panel"]).plain == "#alpha · 1"
-    assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == "#mike · 1"
-    assert _title_text(app._panel_widgets["agent-list-panel-2"]).plain == "#zulu · 1"
+    assert (
+        _title_text(app._panel_widgets["agent-list-panel"]).plain == "#alpha · 1 [R1]"
+    )
+    assert (
+        _title_text(app._panel_widgets["agent-list-panel-1"]).plain == "#mike · 1 [R1]"
+    )
+    assert (
+        _title_text(app._panel_widgets["agent-list-panel-2"]).plain == "#zulu · 1 [R1]"
+    )
     assert "agent-list-panel-3" not in app._panel_widgets
+
+
+def test_panel_title_counts_are_scoped_to_each_panel() -> None:
+    agents = [
+        _agent(name="wait", suffix="u1", status="WAITING"),
+        _agent(name="ask", tag="apple", suffix="a1", status="QUESTION"),
+        _agent(name="run", tag="apple", suffix="a2", status="RUNNING"),
+        _agent(name="fail", tag="banana", suffix="b1", status="FAILED"),
+        _agent(name="unread", tag="banana", suffix="b2", status="DONE"),
+        _agent(name="read", tag="banana", suffix="b3", status="DONE"),
+    ]
+    app = _FakeApp(agents)
+    app._unread_completed_agent_ids.add(agents[4].identity)
+
+    app._refresh_panel_widgets(jump_hints=None)
+
+    assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
+        "(untagged) · 1 [W1]"
+    )
+    assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == (
+        "#apple · 2 [A1 R1]"
+    )
+    assert _title_text(app._panel_widgets["agent-list-panel-2"]).plain == (
+        "#banana · 3 [F1 U1 D1]"
+    )
+
+
+def test_panel_title_unread_and_read_counts_are_panel_scoped() -> None:
+    agents = [
+        _agent(name="apple-unread", tag="apple", suffix="a1", status="DONE"),
+        _agent(name="apple-read", tag="apple", suffix="a2", status="DONE"),
+        _agent(name="banana-unread", tag="banana", suffix="b1", status="DONE"),
+        _agent(name="banana-read", tag="banana", suffix="b2", status="DONE"),
+    ]
+    app = _FakeApp(agents)
+    app._unread_completed_agent_ids.update({agents[0].identity, agents[2].identity})
+
+    app._refresh_panel_widgets(jump_hints=None)
+
+    assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
+        "#apple · 2 [U1 D1]"
+    )
+    assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == (
+        "#banana · 2 [U1 D1]"
+    )
+
+
+def test_panel_title_shorthand_counts_only_top_level_agents() -> None:
+    agents = [
+        _agent(name="parent", tag="apple", suffix="parent", status="RUNNING"),
+        _agent(
+            name="child",
+            suffix="child",
+            status="FAILED",
+            parent_timestamp="parent",
+        ),
+    ]
+    app = _FakeApp(agents)
+
+    app._refresh_panel_widgets(jump_hints=None)
+
+    assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
+        "#apple · 2 [R1]"
+    )
+
+
+def test_grouped_panel_title_uses_all_agents_label_with_counts() -> None:
+    agents = [
+        _agent(name="untagged", suffix="u1", status="RUNNING"),
+        _agent(name="tagged", tag="apple", suffix="a1", status="WAITING"),
+    ]
+    app = _FakeApp(agents, merge_tag_panels=True)
+
+    app._refresh_panel_widgets(jump_hints=None)
+
+    title = _title_text(app._panel_widgets["agent-list-panel"])
+    assert title.plain == "All agents · 2 [R1 W1]"
+    _assert_title_span(title, start=0, end=10, style="bold #AFFFFF", text="All agents")

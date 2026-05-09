@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 17:13:26
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_panel_counts.md
 ---
 # Plan: Per-Panel Shorthand Agent Counts

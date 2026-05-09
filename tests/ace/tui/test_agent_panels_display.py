@@ -250,7 +250,7 @@ def test_grouped_mode_renders_one_panel_with_effective_tag_labels() -> None:
     assert list(app._panel_widgets) == ["agent-list-panel"]
     main = app._panel_widgets["agent-list-panel"]
     assert main.border_title is not None
-    assert getattr(main.border_title, "plain", "") == "All agents · 3"
+    assert getattr(main.border_title, "plain", "") == "All agents · 3 [R3]"
     assert main.last_agents == agents
     assert main.last_tag_labels == [None, "apple", "banana"]
 

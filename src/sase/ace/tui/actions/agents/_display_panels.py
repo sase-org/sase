@@ -9,10 +9,12 @@ when an in-place mutation doesn't need a full rebuild.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal
 
 from rich.text import Text
+from sase.agent.status_buckets import agent_is_asking
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -21,19 +23,97 @@ if TYPE_CHECKING:
     from ...models.agent_panels import AgentPanelGroup, PanelKey
     from ...widgets import AgentList
 
-from ...models.agent_groups import GroupingMode
+from ...models.agent_groups import GroupingMode, status_bucket_for
 from ...util.trace import tui_trace
 from ._display_helpers import TabName, panel_widget_id
+from ._loading_helpers import DISMISSABLE_STATUSES
 
 log = logging.getLogger(__name__)
 
 _PANEL_TAG_STYLE = "bold #FFD75F"
 _PANEL_UNTAGGED_STYLE = "dim #AFAFAF"
 _PANEL_COUNT_STYLE = "#AFAFAF"
+_PANEL_METRIC_STYLES: dict[str, str] = {
+    "asking": "bold #FFAF00",
+    "running": "bold #00D7AF",
+    "waiting": "bold #AF87FF",
+    "failed": "bold #FF5F5F",
+    "unread": "bold #FFAF5F",
+    "read": "bold #5FD7FF",
+}
+_PANEL_METRIC_LABELS: tuple[tuple[str, str], ...] = (
+    ("asking", "A"),
+    ("running", "R"),
+    ("waiting", "W"),
+    ("failed", "F"),
+    ("unread", "U"),
+    ("read", "D"),
+)
+
+
+@dataclass(frozen=True)
+class _AgentPanelCounts:
+    """Compact top-level agent counts scoped to one rendered panel."""
+
+    asking: int = 0
+    running: int = 0
+    waiting: int = 0
+    failed: int = 0
+    unread: int = 0
+    read: int = 0
+
+    def metric_items(self) -> list[tuple[str, int]]:
+        return [
+            (name, getattr(self, name))
+            for name, _label in _PANEL_METRIC_LABELS
+            if getattr(self, name)
+        ]
+
+
+def _agent_panel_counts(
+    agents: list[Agent],
+    unread_ids: set[tuple[AgentType, str, str | None]],
+) -> _AgentPanelCounts:
+    """Return the top-strip metric categories for a single panel slice."""
+    visible_top_level_agents = [
+        agent for agent in agents if not agent.is_workflow_child
+    ]
+    buckets = [(agent, status_bucket_for(agent)) for agent in visible_top_level_agents]
+    asking = sum(1 for agent, _bucket in buckets if agent_is_asking(agent.status))
+    running = sum(
+        1
+        for agent, bucket in buckets
+        if agent.status not in DISMISSABLE_STATUSES
+        and bucket != "Waiting"
+        and bucket != "Failed"
+        and not agent_is_asking(agent.status)
+    )
+    waiting = sum(1 for _agent, bucket in buckets if bucket == "Waiting")
+    failed = sum(1 for _agent, bucket in buckets if bucket == "Failed")
+    unread = sum(
+        1 for agent in visible_top_level_agents if agent.identity in unread_ids
+    )
+    read = sum(
+        1
+        for agent, bucket in buckets
+        if bucket == "Done" and agent.identity not in unread_ids
+    )
+    return _AgentPanelCounts(
+        asking=asking,
+        running=running,
+        waiting=waiting,
+        failed=failed,
+        unread=unread,
+        read=read,
+    )
 
 
 def _agent_panel_border_title(
-    key: PanelKey, agent_count: int, *, merge_tag_panels: bool = False
+    key: PanelKey,
+    agent_count: int,
+    *,
+    merge_tag_panels: bool = False,
+    counts: _AgentPanelCounts | None = None,
 ) -> Text:
     """Build a styled panel title while preserving its plain-text label."""
     title = Text()
@@ -44,6 +124,17 @@ def _agent_panel_border_title(
     else:
         title.append(f"#{key}", style=_PANEL_TAG_STYLE)
     title.append(f" · {agent_count}", style=_PANEL_COUNT_STYLE)
+    if counts is not None:
+        metrics = counts.metric_items()
+        if metrics:
+            label_by_name = dict(_PANEL_METRIC_LABELS)
+            title.append(" [", style="dim")
+            for index, (name, count) in enumerate(metrics):
+                if index:
+                    title.append(" ", style="dim")
+                title.append(label_by_name[name], style="dim")
+                title.append(f"{count}", style=_PANEL_METRIC_STYLES[name])
+            title.append("]", style="dim")
     return title
 
 
@@ -204,6 +295,7 @@ class PanelsMixin:
                 key,
                 len(panel_agents),
                 merge_tag_panels=merge_tag_panels,
+                counts=_agent_panel_counts(panel_agents, unread),
             )
             if idx == 0:
                 widget.remove_class("agent-panel-separated")
@@ -587,5 +679,15 @@ class PanelsMixin:
         if not ok:
             return False
 
+        slot = panel_index.slice_for(agent_panel_key)
+        unread: set[tuple[AgentType, str, str | None]] = getattr(
+            self, "_unread_completed_agent_ids", set()
+        )
+        widget.border_title = _agent_panel_border_title(
+            agent_panel_key,
+            len(slot.agents),
+            merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
+            counts=_agent_panel_counts(slot.agents, unread),
+        )
         self._update_agents_info_panel()  # type: ignore[attr-defined]
         return True
