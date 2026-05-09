@@ -230,18 +230,22 @@ The scan uses git name-status output, untracked files, saved diff metadata, and 
 committed or opened a PR. Deleted, missing, unsupported, and duplicate paths are ignored. If more than 10 Markdown
 sources remain, Axe skips Markdown PDF rendering for that completion and adds a note to the notification. PDF rendering
 is otherwise best-effort: missing conversion tools or render failures omit that source without failing the agent run.
-Generated Markdown PDFs are optimized for narrow viewers with a small portrait page, small margins, and larger type. See
-[`agent_images.md`](agent_images.md) for the full contract.
+Generated Markdown PDFs are optimized for narrow viewers with a small portrait page, small margins, and larger type. As
+PDFs are prepared, axe updates `workflow_state.json.pdf_status` and a compact `activity` label so ACE can show live
+finalization progress such as `PDF 2/4 <path>` or `PDFs done 3/4 (1 skipped)`. See [`agent_images.md`](agent_images.md)
+for the full contract.
 
 The Agents tab exposes completion artifacts through the `A` action. When artifacts exist, ACE opens the artifact panel
-for selection. Chat transcripts, plan files, generated PDFs/images, and explicit artifacts created with
-`sase artifact create -p <path> [-n <label>] [-k <kind>]` all participate in the same list. Explicit artifacts are
-stored under `~/.sase/artifacts/` with a persistent association so they remain available after dismissing and later
-reviving the agent. ACE shows the picker even for a single artifact; `m` marks rows, `Enter` opens the marked set or
-highlighted row, and `A` opens the full list. Only one plan artifact is listed for an agent, preferring the committed
-SDD plan path when one exists. Inside tmux, artifact viewing opens in a right-side tmux pane; outside tmux, ACE suspends
-and uses the current pane. The viewer supports images, Markdown, and PDFs, wraps `n`/`p` page navigation at the ends,
-and warns when required terminal/rendering tools are missing. The direct agent run-log binding is `V`.
+for selection. Chat transcripts, plan files, generated PDFs/images, prompt-referenced images from saved prompt
+artifacts, and explicit artifacts created with `sase artifact create -p <path> [-n <label>] [-k <kind>]` all participate
+in the same list. Explicit artifacts are stored under `~/.sase/artifacts/` with a persistent association so they remain
+available after dismissing and later reviving the agent. ACE shows the picker even for a single artifact; `m` marks
+rows, `Enter` opens the marked set or highlighted row, and `A` opens the full list. Only one plan artifact is listed for
+an agent, preferring the committed SDD plan path when one exists. Inside tmux, artifact viewing opens in a right-side
+tmux pane, collapses the Agents list while live, uses `l` to focus the pane, and uses `A` to close it; outside tmux, ACE
+suspends and uses the current pane. The viewer supports images, Markdown, and PDFs, wraps `j`/`k` page navigation at the
+ends, uses `n`/`p` for artifact-sequence navigation, and warns when required terminal/rendering tools are missing. The
+direct agent run-log binding is `V`.
 
 ## Maintenance Mode
 

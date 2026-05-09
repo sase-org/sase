@@ -8,6 +8,11 @@ after the standard chat and diff artifacts. When a successful agent adds or modi
 renders PDF artifacts and attaches those PDFs to the same completion notification. Notification plugins can then deliver
 those files without re-scanning the workspace.
 
+ACE also surfaces image files referenced in saved prompt artifacts (`raw_xprompt.md` and `*_prompt.md`) even when the
+image itself was not part of the agent's git diff. Those prompt-referenced images participate in the Agents-tab artifact
+picker and prompt-panel `ARTIFACTS` header, but they are discovered from the artifact metadata at view time rather than
+persisted as notification attachments.
+
 Supported image extensions are:
 
 - `.png`
@@ -34,6 +39,24 @@ instead of trying to infer generated images from arbitrary notification files.
 
 Source: `src/sase/axe/image_attachments.py`
 
+### Prompt-Referenced Images
+
+The artifact list synthesizer scans the saved prompt files in the agent artifacts directory:
+
+- `raw_xprompt.md`
+- every sibling `*_prompt.md` file
+
+Any path-like token ending in a common image suffix is resolved as an absolute, home-relative, or workspace-relative
+path. Existing files are added as image artifacts after `done.json.image_paths`, duplicates are removed, and the file
+does not need to appear in the agent's git diff. This is useful when a prompt asks an agent to inspect or transform an
+existing screenshot, mockup, or reference image and the resulting run should keep that image one keypress away in ACE.
+
+Prompt-referenced images are ACE artifact-list entries, not notification delivery attachments. They are recomputed from
+the prompt artifacts, so downstream notification plugins should continue to use `done.json.image_paths` for the
+generated-image notification contract.
+
+Source: `src/sase/core/agent_artifact_defaults.py`
+
 ## Markdown PDF Attachment Contract
 
 Markdown discovery runs on successful agent finalization with the same candidate ordering as image discovery. Supported
@@ -53,6 +76,11 @@ are omitted. Successful PDF paths are persisted as `markdown_pdf_paths` in `done
 `source_path` to `pdf_path` mappings for diagnostics. When the 10-source limit is exceeded,
 `done.json.markdown_pdf_paths` is empty and the source count is carried through completion handling for the user-facing
 skip note.
+
+While PDFs are being prepared, the runner writes `workflow_state.json.pdf_status` plus a compact `activity` label. ACE
+loads those fields during refresh and shows messages such as `Preparing PDFs from Markdown...`, `PDF 2/4 <path>`, or
+`PDFs done 3/4 (1 skipped)` on the Agents row and in the agent header. This status is transient finalization state; the
+durable output remains `done.json.markdown_pdf_paths` and `markdown_pdfs/index.json`.
 
 Markdown PDFs use a built-in small-screen layout by default: a narrow portrait page, small margins, larger readable body
 text, and wrapping-friendly CSS for code blocks, tables, links, and other long content. The preferred `wkhtmltopdf` path
@@ -83,19 +111,25 @@ See [`notifications.md`](notifications.md) for the notification model and modal 
 ## ACE Artifact Viewer
 
 The Agents tab exposes completed agent artifacts through the `A` key. When artifacts exist, ACE opens the artifact panel
-for selection. Chat transcripts, plan files, generated Markdown PDFs, generated images, and explicit artifacts created
-with `sase artifact create -p <path> [-n <label>] [-k <kind>]` all use the same list. The panel is shown even for a
-single artifact so users can confirm the artifact label, kind, and path before opening it.
+for selection. Chat transcripts, plan files, generated Markdown PDFs, generated images, prompt-referenced images, and
+explicit artifacts created with `sase artifact create -p <path> [-n <label>] [-k <kind>]` all use the same list. The
+panel is shown even for a single artifact so users can confirm the artifact label, kind, and path before opening it.
+
+The selected agent's prompt/detail header also includes an `ARTIFACTS` section for non-chat artifacts. Paths are shown
+relative to the agent workspace when possible, home-relative when appropriate, and with hint numbers when hint mode is
+active.
 
 The panel supports one-key selectors, `j`/`k` navigation, `m` to mark rows, `Enter` to open the marked set or
 highlighted row, and `A` to open every artifact in list order. When multiple artifacts are opened together, the terminal
 viewer adds `n`/`p` navigation between artifacts in addition to page navigation.
 
-When ACE is running inside tmux, the artifact viewer launches in a right-side tmux pane. Outside tmux, ACE suspends and
-opens the viewer in the current terminal pane. The viewer chooses its mode from the artifact kind and file extension:
-supported images are displayed directly, PDFs are converted to PNG pages, and Markdown is rendered to PDF before paging.
-The page loop uses `j`/`k` to move between pages, wrapping at the first and last page, `r` to refresh, and `q` to close
-the viewer.
+When ACE is running inside tmux, the artifact viewer launches in a right-side tmux pane and the Agents list collapses
+while the pane is live. Press `l` from the Agents tab to focus the tracked artifact pane, or press `A` again to close
+it. Row-changing navigation is guarded while the pane is open so the TUI does not drift to a different agent than the
+viewer. Outside tmux, ACE suspends and opens the viewer in the current terminal pane. The viewer chooses its mode from
+the artifact kind and file extension: supported images are displayed directly, PDFs are converted to PNG pages, and
+Markdown is rendered to PDF before paging. The page loop uses `j`/`k` to move between pages, wrapping at the first and
+last page, `n`/`p` to move between artifacts in a sequence, `r` to refresh, and `q` to close the viewer.
 
 Only one plan artifact is listed for each agent. If run metadata contains both an archived plan path and an SDD tale
 path, committed plans prefer the SDD path; uncommitted plans prefer the archived path unless only the SDD path is

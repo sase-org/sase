@@ -319,9 +319,14 @@ and are automatically grouped under the `@review` tag, matching the behavior of 
 ### Agent Artifacts
 
 Press `A` on a focused agent to open the artifact panel whenever artifacts are associated with that agent. The list can
-include chat transcripts, plan files, generated Markdown PDFs, generated images, and explicit files saved with
-`sase artifact create -p <path> [-n <label>] [-k <kind>]`. ACE always opens the panel, even for a single artifact, so
-the label, kind, and path are visible before launching the terminal viewer.
+include chat transcripts, plan files, generated Markdown PDFs, generated images, prompt-referenced images from saved
+prompt artifacts, and explicit files saved with `sase artifact create -p <path> [-n <label>] [-k <kind>]`. ACE always
+opens the panel, even for a single artifact, so the label, kind, and path are visible before launching the terminal
+viewer.
+
+The prompt/detail header includes an `ARTIFACTS` section for non-chat entries from the same list. Paths are made
+workspace-relative when possible, and hint mode assigns numbers to those paths so they can be opened with the normal
+file-hint flow.
 
 Artifact panel controls:
 
@@ -334,13 +339,13 @@ Artifact panel controls:
 | `A`         | Open all artifacts in list order, ignoring marks                        |
 | `q` / `Esc` | Close the panel                                                         |
 
-When ACE is running inside tmux, artifact viewing opens in a right-side tmux pane so the TUI remains visible. Press `A`
-again while that ACE-opened viewer pane is still present to close it; if the pane was already closed, `A` opens the
-artifact panel normally. Outside tmux, ACE suspends while the terminal viewer runs in the current pane. The viewer
-supports image, Markdown, and PDF artifacts: images are displayed directly with `kitten icat`; Markdown is first
-rendered to PDF; PDFs are converted to PNG pages for paging. The viewer needs `kitten` for display, `pdftoppm` for
-PDF/Markdown paging, and `pandoc` plus a supported PDF engine for Markdown rendering. Missing tools produce a warning
-instead of failing the TUI.
+When ACE is running inside tmux, artifact viewing opens in a right-side tmux pane so the TUI remains visible. The Agents
+list collapses while the tracked pane is live, row-changing navigation shows a warning instead of moving to a different
+agent, `l` focuses the tracked pane, and `A` closes it. If the pane was already closed, `A` opens the artifact panel
+normally. Outside tmux, ACE suspends while the terminal viewer runs in the current pane. The viewer supports image,
+Markdown, and PDF artifacts: images are displayed directly with `kitten icat`; Markdown is first rendered to PDF; PDFs
+are converted to PNG pages for paging. The viewer needs `kitten` for display, `pdftoppm` for PDF/Markdown paging, and
+`pandoc` plus a supported PDF engine for Markdown rendering. Missing tools produce a warning instead of failing the TUI.
 
 Viewer controls:
 
@@ -355,6 +360,10 @@ Viewer controls:
 
 Only one plan artifact is shown for an agent. When both an archived plan and an SDD tale path are present, ACE prefers
 the committed SDD plan; otherwise it keeps the path that best matches the run metadata.
+
+During successful-agent finalization, Markdown-to-PDF rendering updates `workflow_state.json.pdf_status` and a compact
+activity label. ACE renders that label on the agent row and in the prompt/detail header, so long conversions show
+progress such as `PDF 2/4 <path>` or `PDFs done 3/4 (1 skipped)` instead of looking idle.
 
 ### Tag Side Panels
 

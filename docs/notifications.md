@@ -93,7 +93,9 @@ note explaining the limit. The final PDF and image lists are also written to `do
 
 In ACE, completion artifacts are opened from the Agents tab with `A`. The artifact panel supports marking multiple files
 and opening the full artifact sequence, so notification attachments, generated PDFs/images, plan files, and explicit
-artifacts use one selection workflow.
+artifacts use one selection workflow. ACE may also include image files referenced by saved prompt artifacts in that
+picker; those prompt-referenced images are local artifact-list entries and are not appended to notification delivery
+payloads unless they also appear in `done.json.image_paths`.
 
 The Agents tab also treats user-agent completions as unread work items. When a terminal agent is selected after it has
 been marked unread, or when the user jumps to it with the unread-agent shortcut, ACE clears the row's unread marker and

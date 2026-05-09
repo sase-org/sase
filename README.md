@@ -87,7 +87,7 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
 - **Telemetry** — Prometheus-based observability with 34 metrics across 7 subsystems, live TUI dashboard, health checks,
   and a bundled Docker Compose monitoring stack (Prometheus + Grafana)
 - **Agent Artifacts** — Completion notifications can include chat, diff, error logs, generated Markdown PDFs, and
-  generated image files touched by agents; ACE can open those artifacts directly or in a tmux side pane
+  generated or prompt-referenced image files; ACE can open those artifacts directly or in a tmux side pane
 - **Mobile Gateway** — Workstation-hosted HTTP/SSE gateway for paired mobile clients to inspect notifications, launch
   agents, and use fixed workflow helper APIs without exposing shell or filesystem access
 - **LLM Providers** — Pluggable AI abstraction (Claude, Codex, Gemini, Qwen, and OpenCode bundled; optional external
@@ -277,10 +277,12 @@ boundaries, troubleshooting, rollback, and the MVP threat model.
 ### Agent Artifacts
 
 Successful agent runs persist their normal chat/diff metadata and can attach generated Markdown PDFs, image files, plan
-files, and explicit files saved with `sase artifact create`. The ACE Agents tab opens that artifact list with `A`; a
-picker is shown even when only one artifact is available so the user can inspect labels, mark entries, or open the full
-artifact sequence. Inside tmux the viewer opens in a side pane, and outside tmux it temporarily suspends ACE in the
-current pane. See [`docs/agent_images.md`](docs/agent_images.md) for the attachment and viewer contracts.
+files, prompt-referenced images from saved prompt artifacts, and explicit files saved with `sase artifact create`. The
+ACE Agents tab opens that artifact list with `A`; a picker is shown even when only one artifact is available so the user
+can inspect labels, mark entries, or open the full artifact sequence. Inside tmux the viewer opens in a side pane,
+temporarily collapses the Agents list, and can be focused with `l` or closed with `A`. Outside tmux it temporarily
+suspends ACE in the current pane. While Markdown PDFs are rendered during finalization, ACE surfaces live PDF activity
+on the agent row and header. See [`docs/agent_images.md`](docs/agent_images.md) for the attachment and viewer contracts.
 
 ## Project Structure
 
@@ -472,6 +474,7 @@ Start with the user-facing guides for the surface you are operating, then drop i
 extension APIs:
 
 - [`docs/index.md`](docs/index.md) — MkDocs documentation home page
+- [`docs/blog/index.md`](docs/blog/index.md) — Blog landing page and launch essays
 - [`docs/ace.md`](docs/ace.md) — ACE TUI user guide
 - [`docs/agent_images.md`](docs/agent_images.md) — Agent attachments, ACE artifact viewer, and terminal graphics preview
   notes
@@ -493,6 +496,8 @@ extension APIs:
 - [`docs/query_language.md`](docs/query_language.md) — Query language reference
 - [`docs/rust_backend.md`](docs/rust_backend.md) — Required Rust core (`sase_core_rs`) build, dispatch, and benchmarks
 - [`docs/sdd.md`](docs/sdd.md) — Spec-Driven Development (SDD)
+- [`docs/series/agentic-software-engineering.md`](docs/series/agentic-software-engineering.md) — Launch-series reading
+  order for agentic software engineering essays
 - [`docs/vcs.md`](docs/vcs.md) — VCS provider documentation
 - [`docs/workspace.md`](docs/workspace.md) — Workspace provider documentation
 - [`docs/workflow_spec.md`](docs/workflow_spec.md) — YAML workflow format
