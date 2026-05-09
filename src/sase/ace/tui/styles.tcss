@@ -893,6 +893,10 @@ HintInputBar #hint-escape-hint {
     layout: vertical;
 }
 
+#agents-content.-artifact-viewer-active #agent-list-container {
+    display: none;
+}
+
 #agent-info-panel {
     height: auto;
     max-height: 1;

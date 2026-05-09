@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
+from unittest.mock import MagicMock
 
 from sase.ace.tui.actions.navigation._advanced import AdvancedNavigationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -41,6 +42,17 @@ class _StubApp(AdvancedNavigationMixin):
         self._entry_jump_banner_to_hint: dict[Any, str] = {}
         self._entry_jump_last_index: dict[str, int] = {}
         self._entry_jump_last_agents_anchor: Any = None
+        self.artifact_viewer_guard_active = False
+        self.notify = MagicMock()
+
+    def _guard_agent_navigation_for_artifact_viewer(self) -> bool:
+        if not self.artifact_viewer_guard_active:
+            return False
+        self.notify(
+            "Close the artifact viewer before switching agents",
+            severity="warning",
+        )
+        return True
 
     def _panel_keys_per_agent(self) -> list:
         from sase.ace.tui.models.agent_panels import panel_key_per_agent
@@ -173,6 +185,47 @@ def test_jump_dispatch_agent_switches_focused_panel() -> None:
     assert app._panel_group.focused_idx == 1
     assert app._current_group_key is None
     assert app._entry_jump_last_agents_anchor == ("agent", 0, 0)
+
+
+def test_jump_mode_entry_guard_warns_without_entering() -> None:
+    agents = [
+        _agent(project="alpha", cl="a1", name="a1"),
+        _agent(project="beta", cl="b1", name="b1"),
+    ]
+    app = _StubApp(agents)
+    app.artifact_viewer_guard_active = True
+
+    app._begin_agents_jump_mode()
+
+    assert app._entry_jump_mode_active is False
+    assert app._entry_jump_hint_to_index == {}
+    app.notify.assert_called_once_with(
+        "Close the artifact viewer before switching agents",
+        severity="warning",
+    )
+
+
+def test_jump_selection_guard_keeps_current_agent() -> None:
+    agents = [
+        _agent(project="alpha", cl="a1", name="a1"),
+        _agent(project="beta", cl="b1", name="b1"),
+    ]
+    app = _StubApp(agents)
+    app.current_idx = 0
+    app._begin_agents_jump_mode()
+    hint = app._entry_jump_index_to_hint[1]
+    app.artifact_viewer_guard_active = True
+
+    handled = app._handle_entry_jump_key(hint)
+
+    assert handled is True
+    assert app.current_idx == 0
+    assert app._current_group_key is None
+    assert app._entry_jump_mode_active is False
+    app.notify.assert_called_once_with(
+        "Close the artifact viewer before switching agents",
+        severity="warning",
+    )
 
 
 def test_back_jump_restores_agent_anchor() -> None:

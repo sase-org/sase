@@ -83,6 +83,9 @@ class BasicNavigationMixin(NavigationMixinBase):
         stops = self._panel_navigation_stops()  # type: ignore[attr-defined]
         if not stops:
             return
+        guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
+        if callable(guard) and guard():
+            return
         old_key = self._current_group_key
         old_idx = self.current_idx
         pos: int | None = None

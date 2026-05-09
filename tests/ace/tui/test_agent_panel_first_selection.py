@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
+from unittest.mock import MagicMock
 
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
 from sase.ace.tui.actions.agents._display_panels import PanelsMixin
@@ -32,6 +33,17 @@ class _StubApp(AgentPanelsMixin):
         self._panel_group = AgentPanelGroup.from_agents(agents, focused_key)
         self._nav_stops_cache: tuple[Any, ...] | None = None
         self.refresh_calls: list[bool] = []
+        self.artifact_viewer_guard_active = False
+        self.notify = MagicMock()
+
+    def _guard_agent_navigation_for_artifact_viewer(self) -> bool:
+        if not self.artifact_viewer_guard_active:
+            return False
+        self.notify(
+            "Close the artifact viewer before switching agents",
+            severity="warning",
+        )
+        return True
 
     def _panel_keys_per_agent(self) -> list[str | None]:
         return panel_key_per_agent(self._agents)
@@ -77,6 +89,26 @@ def test_focus_next_agent_panel_selects_first_rendered_agent_not_first_raw() -> 
     assert app._current_group_key is None
     assert app.current_attempt_number is None
     assert app.refresh_calls == [True]
+
+
+def test_focus_next_agent_panel_guard_keeps_panel_and_selection() -> None:
+    agents = [
+        _agent(tag=None, project="home", cl="home", name="untagged"),
+        _agent(tag="alpha", project="alpha", cl="a", name="tagged"),
+    ]
+    app = _StubApp(agents, focused_key=None)
+    app.artifact_viewer_guard_active = True
+
+    app.action_focus_next_agent_panel()
+
+    assert app._panel_group.focused_key is None
+    assert app.current_idx == 0
+    assert app._current_group_key == ("stale",)
+    assert app.refresh_calls == []
+    app.notify.assert_called_once_with(
+        "Close the artifact viewer before switching agents",
+        severity="warning",
+    )
 
 
 def test_focus_prev_agent_panel_selects_last_rendered_agent_not_last_raw() -> None:

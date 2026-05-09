@@ -54,6 +54,17 @@ class _SelectionApp(EventHandlersMixin, AgentsMixinCore):
         self.patch_calls: list[Agent] = []
         self.refresh_calls: list[dict[str, Any]] = []
         self.notification_count_refresh_calls = 0
+        self.artifact_viewer_guard_active = False
+        self.notify = Mock()
+
+    def _guard_agent_navigation_for_artifact_viewer(self) -> bool:
+        if not self.artifact_viewer_guard_active:
+            return False
+        self.notify(
+            "Close the artifact viewer before switching agents",
+            severity="warning",
+        )
+        return True
 
     def _panel_keys_per_agent(self) -> list[str | None]:
         return panel_key_per_agent(self._agents)
@@ -162,6 +173,24 @@ def test_manual_unread_mouse_selection_arms_then_acknowledges_on_return() -> Non
 
     assert first.identity not in app._unread_completed_agent_ids
     assert app.patch_calls == [first]
+
+
+def test_agent_row_selection_guard_ignores_different_agent() -> None:
+    first = make_agent(name="first", status="DONE", raw_suffix="first")
+    second = make_agent(name="second", status="DONE", raw_suffix="second")
+    app = _SelectionApp([first, second])
+    app.artifact_viewer_guard_active = True
+
+    app.on_agent_list_selection_changed(
+        _SelectionEvent(control=AgentList(id="agent-list-panel"), index=1)
+    )
+
+    assert app.current_idx == 0
+    assert app._current_group_key is None
+    app.notify.assert_called_once_with(
+        "Close the artifact viewer before switching agents",
+        severity="warning",
+    )
 
 
 def test_acknowledge_agent_unread_dismisses_matching_notification(

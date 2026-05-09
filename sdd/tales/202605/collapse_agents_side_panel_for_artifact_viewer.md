@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 03:19:28
-status: wip
+status: done
 prompt: sdd/prompts/202605/collapse_agents_side_panel_for_artifact_viewer.md
 ---
 # Collapse Agents Side Panel While Artifact Viewer Is Visible

@@ -10,6 +10,7 @@ expanded the cycle reduces to flat agent navigation.
 from __future__ import annotations
 
 from datetime import datetime
+from unittest.mock import MagicMock
 
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -37,6 +38,17 @@ class _StubApp(BasicNavigationMixin):
         focused_key = agents[0].tag if agents else None
         self._panel_group = AgentPanelGroup.from_agents(agents, focused_key)
         self.refresh_calls = 0
+        self.artifact_viewer_guard_active = False
+        self.notify = MagicMock()
+
+    def _guard_agent_navigation_for_artifact_viewer(self) -> bool:
+        if not self.artifact_viewer_guard_active:
+            return False
+        self.notify(
+            "Close the artifact viewer before switching agents",
+            severity="warning",
+        )
+        return True
 
     def _refresh_agents_display_debounced(self) -> None:
         self.refresh_calls += 1
@@ -187,6 +199,24 @@ def test_all_expanded_keeps_flat_agent_navigation() -> None:
     assert app.current_idx == 2
     app._navigate_agents_panel(1)
     assert app.current_idx == 0  # wrap
+
+
+def test_jk_navigation_guard_keeps_current_agent_and_warns() -> None:
+    agents = [
+        _agent(name="a1"),
+        _agent(name="b1"),
+    ]
+    app = _StubApp(agents, current_idx=0)
+    app.artifact_viewer_guard_active = True
+
+    app._navigate_agents_panel(1)
+
+    assert app.current_idx == 0
+    assert app._current_group_key is None
+    app.notify.assert_called_once_with(
+        "Close the artifact viewer before switching agents",
+        severity="warning",
+    )
 
 
 def test_walks_grouping_order_not_input_order() -> None:

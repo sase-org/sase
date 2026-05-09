@@ -465,6 +465,15 @@ class EventHandlersMixin:
                 return
             target_global = global_indices[event.index]
 
+        if (
+            panel_idx != self._panel_group.focused_idx  # type: ignore[attr-defined]
+            or target_global != self.current_idx
+            or event.group_key != getattr(self, "_current_group_key", None)
+        ):
+            guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
+            if callable(guard) and guard():
+                return
+
         # Switching panel via mouse click moves panel focus too.
         if panel_idx != self._panel_group.focused_idx:  # type: ignore[attr-defined]
             self._panel_group.focused_idx = panel_idx  # type: ignore[attr-defined]

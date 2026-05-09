@@ -194,6 +194,9 @@ class AgentDisplayMixin(PanelsMixin, DetailMixin):
     ) -> None:
         started = time.perf_counter()
         list_started = started
+        sync_artifact_layout = getattr(self, "_sync_artifact_viewer_layout", None)
+        if callable(sync_artifact_layout):
+            sync_artifact_layout()
         # Cancel any pending debounced detail update — full refresh supersedes
         self._agent_detail_debouncer.cancel()
 

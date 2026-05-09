@@ -11,6 +11,9 @@ if TYPE_CHECKING:
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
 
+_ARTIFACT_VIEWER_LAYOUT_CLASS = "-artifact-viewer-active"
+_ARTIFACT_VIEWER_NAV_MESSAGE = "Close the artifact viewer before switching agents"
+
 
 class AgentPanelsMixin:
     """Mixin providing agent detail panel viewing, navigation, and tmux actions.
@@ -26,6 +29,50 @@ class AgentPanelsMixin:
     _agent_panels_grouped: bool
     _agents: list[Agent]
     _artifact_tmux_pane_id: str | None
+
+    def _set_artifact_viewer_layout_collapsed(self, collapsed: bool) -> None:
+        """Apply the Agents-tab layout state for the tracked artifact pane."""
+        try:
+            content = self.query_one("#agents-content")  # type: ignore[attr-defined]
+        except Exception:
+            return
+        if collapsed:
+            content.add_class(_ARTIFACT_VIEWER_LAYOUT_CLASS)
+        else:
+            content.remove_class(_ARTIFACT_VIEWER_LAYOUT_CLASS)
+
+    def _artifact_tmux_pane_visible(self) -> bool:
+        """Return whether the tracked artifact tmux pane is currently visible."""
+        from ...graphics import artifact_tmux_pane_exists, is_tmux_session
+
+        pane_id = getattr(self, "_artifact_tmux_pane_id", None)
+        if pane_id is None:
+            return False
+        if not is_tmux_session():
+            self._artifact_tmux_pane_id = None  # type: ignore[attr-defined]
+            self._set_artifact_viewer_layout_collapsed(False)
+            return False
+        if not artifact_tmux_pane_exists(pane_id):
+            self._artifact_tmux_pane_id = None  # type: ignore[attr-defined]
+            self._set_artifact_viewer_layout_collapsed(False)
+            return False
+        return True
+
+    def _sync_artifact_viewer_layout(self) -> None:
+        """Keep the Agents side panel collapsed while a tracked pane is live."""
+        self._set_artifact_viewer_layout_collapsed(self._artifact_tmux_pane_visible())
+
+    def _guard_agent_navigation_for_artifact_viewer(self) -> bool:
+        """Block row-changing Agents navigation while an artifact pane is live."""
+        if getattr(self, "current_tab", "agents") != "agents":
+            return False
+        if not self._artifact_tmux_pane_visible():
+            return False
+        self.notify(  # type: ignore[attr-defined]
+            _ARTIFACT_VIEWER_NAV_MESSAGE,
+            severity="warning",
+        )
+        return True
 
     def _first_agent_idx_for_focused_group(
         self, group_key: tuple[str, ...]
@@ -83,6 +130,8 @@ class AgentPanelsMixin:
         No-ops when only one panel exists.
         """
         if self.current_tab != "agents":
+            return
+        if self._guard_agent_navigation_for_artifact_viewer():
             return
         if forward:
             changed = self._panel_group.focus_next()
@@ -330,6 +379,7 @@ class AgentPanelsMixin:
             result = view_agent_artifact_in_tmux_pane(artifact)
             if result.ok and result.pane_id is not None:
                 self._artifact_tmux_pane_id = result.pane_id  # type: ignore[attr-defined]
+                self._sync_artifact_viewer_layout()
         else:
             with self.suspend():  # type: ignore[attr-defined]
                 result = view_agent_artifact(artifact)
@@ -353,6 +403,7 @@ class AgentPanelsMixin:
             result = view_agent_artifacts_in_tmux_pane(artifacts)
             if result.ok and result.pane_id is not None:
                 self._artifact_tmux_pane_id = result.pane_id  # type: ignore[attr-defined]
+                self._sync_artifact_viewer_layout()
         else:
             with self.suspend():  # type: ignore[attr-defined]
                 result = view_agent_artifacts(artifacts)
@@ -375,10 +426,12 @@ class AgentPanelsMixin:
             return False
         if not artifact_tmux_pane_exists(pane_id):
             self._artifact_tmux_pane_id = None  # type: ignore[attr-defined]
+            self._sync_artifact_viewer_layout()
             return False
 
         result = close_artifact_tmux_pane(pane_id)
         self._artifact_tmux_pane_id = None  # type: ignore[attr-defined]
+        self._sync_artifact_viewer_layout()
         if result.warning is not None:
             self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
         return True

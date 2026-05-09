@@ -211,6 +211,7 @@ class StateInitMixin:
         self._agents_refresh_scheduled_full_history: bool = False
         self._agents_refresh_debounce_armed: bool = False
         self._agent_load_state: AgentLoadState | None = None
+        self._artifact_tmux_pane_id: str | None = None
         self._post_mount_background_loads_started = False
         self._changespecs_loading: bool = False
         self._changespecs_refresh_pending: bool = False

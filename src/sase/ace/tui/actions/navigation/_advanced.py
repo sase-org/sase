@@ -213,6 +213,9 @@ class AdvancedNavigationMixin(NavigationMixinBase):
 
     def _begin_agents_jump_mode(self) -> None:
         """Allocate hints across visible agents + collapsed banners (agents tab)."""
+        guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
+        if callable(guard) and guard():
+            return
         targets = self._jump_candidate_targets()
         if not targets:
             return
@@ -372,6 +375,16 @@ class AdvancedNavigationMixin(NavigationMixinBase):
 
         if key == "apostrophe":
             if self.current_tab == "agents":
+                guard = getattr(
+                    self, "_guard_agent_navigation_for_artifact_viewer", None
+                )
+                if (
+                    self._entry_jump_last_agents_anchor is not None
+                    and callable(guard)
+                    and guard()
+                ):
+                    self._exit_entry_jump_mode()
+                    return True
                 if self._restore_agents_jump_anchor():
                     self._exit_entry_jump_mode()
                     return True
@@ -390,6 +403,10 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             banner_target = self._entry_jump_hint_to_banner.get(key)
             agent_target = self._entry_jump_hint_to_index.get(key)
             if banner_target is None and agent_target is None:
+                self._exit_entry_jump_mode()
+                return True
+            guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
+            if callable(guard) and guard():
                 self._exit_entry_jump_mode()
                 return True
             self._save_agents_jump_anchor()
