@@ -29,6 +29,9 @@ just install
 cargo build -p sase_gateway --manifest-path ../sase-core/Cargo.toml
 ```
 
+`sase mobile gateway start` resolves the gateway binary from `PATH`, then from the sibling `../sase-core` debug or
+release target. Use `-c /path/to/sase_gateway` only when you need to override that lookup.
+
 Start the gateway from SASE:
 
 ```bash
@@ -56,7 +59,8 @@ sase mobile gateway start -H /tmp/sase-mobile-state
 sase mobile gateway start -c "../sase-core/target/debug/sase_gateway"
 ```
 
-The matching configuration keys live under `mobile_gateway`:
+`-H` sets the SASE home root passed to the Rust gateway as `--sase-home`; gateway files are then stored below that root
+in `mobile_gateway/`. The matching configuration keys live under `mobile_gateway`:
 
 ```yaml
 mobile_gateway:
@@ -146,6 +150,41 @@ mobile_gateway:
 Only credential paths or environment-variable names are passed on the gateway command line. Do not commit
 service-account JSON, Firebase project secrets, `google-services.json`, signing keys, or local tailnet hostnames.
 
+After pairing, a mobile client registers its provider token through the authenticated session routes. `provider_token`
+is the opaque device/app token from the push provider; treat it as device credential material and avoid committing or
+logging real values.
+
+```bash
+TOKEN="sase_mobile_example"
+
+curl -sS -X POST http://127.0.0.1:7629/api/v1/session/push-subscriptions \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "schema_version": 1,
+    "provider": "fcm",
+    "provider_token": "opaque-fcm-token",
+    "app_instance_id": "pixel-9-app-instance",
+    "device_display_name": "Pixel 9",
+    "platform": "android",
+    "app_version": "0.1.0",
+    "hint_categories": ["notifications", "agents", "update"]
+  }'
+```
+
+Duplicate registrations with the same provider token update the existing subscription. Clients can list active
+subscriptions and revoke one by ID:
+
+```bash
+curl -sS http://127.0.0.1:7629/api/v1/session/push-subscriptions \
+  -H "Authorization: Bearer $TOKEN"
+
+SUBSCRIPTION_ID="sub_example"
+
+curl -sS -X DELETE "http://127.0.0.1:7629/api/v1/session/push-subscriptions/$SUBSCRIPTION_ID" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 ## Private Remote Access And Packaging
 
 The MVP runbook covers debug APK installation, signed release APKs, Firebase-configured internal builds, versioning,
@@ -234,6 +273,9 @@ TOKEN="sase_mobile_example"
 curl -sS http://127.0.0.1:7629/api/v1/session \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+Only `GET /api/v1/health`, `POST /api/v1/session/pair/start`, and `POST /api/v1/session/pair/finish` are
+unauthenticated. All other routes require this bearer token.
 
 ## Events
 
