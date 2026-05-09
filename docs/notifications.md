@@ -21,6 +21,7 @@ Press `i` on any tab in ACE to open the notifications modal. Notifications displ
 | `m`                 | Toggle mute on the highlighted notification                 |
 | `s`                 | Snooze the highlighted notification (opens duration picker) |
 | `e`                 | Open attached file in `$EDITOR`                             |
+| `V`                 | Open the current image attachment in the image viewer       |
 | `Ctrl+N` / `Ctrl+P` | Cycle through attached files                                |
 | `Ctrl+D` / `Ctrl+U` | Scroll file content down / up                               |
 | `R`                 | Mark all notifications as read                              |
@@ -59,7 +60,7 @@ The notification indicator in the TUI top bar takes its color from the highest-p
 - **Orange** — at least one unread PRIORITY notification (plan approval, user question, mentor review, axe error, …)
 - **Gold** — only regular INBOX notifications are unread
 - **Cyan** — only MUTED (or snoozed) notifications are unread
-- **Hidden** — no unread notifications at all
+- **Dim zero** — no unread notifications at all
 
 Silent notifications never contribute to the indicator (see [Silent Notifications](#silent-notifications) below).
 
@@ -67,15 +68,15 @@ Silent notifications never contribute to the indicator (see [Silent Notification
 
 The following events generate notifications:
 
-| Sender             | Event                                                          |
-| ------------------ | -------------------------------------------------------------- |
-| `plan`             | A plan file is ready for user review and approval              |
-| `question`         | An agent is asking the user a question (via `/sase_questions`) |
-| `hitl`             | A workflow HITL step is waiting for user input                 |
-| `sync`             | A sync operation completed for a ChangeSpec                    |
-| `axe`              | Hourly error digest summarizing recent axe errors              |
-| `mentors_complete` | All mentors finished for a ChangeSpec entry (or none matched)  |
-| (workflow)         | Workflow completion (success or failure)                       |
+| Sender                         | Event                                                          |
+| ------------------------------ | -------------------------------------------------------------- |
+| `plan`                         | A plan file is ready for user review and approval              |
+| `question`                     | An agent is asking the user a question (via `/sase_questions`) |
+| `hitl`                         | A workflow HITL step is waiting for user input                 |
+| `sync`                         | A sync operation completed for a ChangeSpec                    |
+| `axe`                          | Hourly error digest summarizing recent axe errors              |
+| `mentors`                      | All mentors finished for a ChangeSpec entry (or none matched)  |
+| Workflow-specific sender label | Workflow completion (success or failure)                       |
 
 ### Agent Completion Attachments
 
@@ -111,7 +112,8 @@ the caller's current bead view, then all known SASE projects.
 
 ### Mentors-Complete Notification
 
-A `mentors_complete` notification fires once per `(ChangeSpec, COMMITS entry)` under either of two conditions:
+A mentors-complete notification uses sender `mentors` and fires once per `(ChangeSpec, COMMITS entry)` under either of
+two conditions:
 
 - **All mentors terminal** — every mentor that was started for the entry has reached a terminal status (`PASSED`,
   `COMMENTED`, `FAILED`, `DEAD`, or `KILLED`).
@@ -148,11 +150,11 @@ Each notification contains:
 
 Notifications from hidden background agents (summarize-hook, fix-hook, mentor) are created with `silent=True`. Silent
 notifications are written to the JSONL file (preserving the audit trail) but excluded from the TUI unread count, bell
-indicator, toast, notification modal, and Telegram delivery.
+indicator, toast, notification modal, and Telegram delivery. They remain visible to local inspection commands such as
+`sase notify list`.
 
-Agent completion / failure events specifically suppress their notifications when the originating agent is a hidden
-background agent. This keeps the inbox focused on user-facing agent work and prevents the firehose of internal hook
-agents from drowning out real updates.
+Agent completion and failure events from hidden background agents still write a notification row, but with the silent
+flag set. This keeps the JSONL audit trail complete while keeping the inbox focused on user-facing agent work.
 
 ## CLI
 
