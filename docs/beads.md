@@ -32,8 +32,9 @@ sase bead create -t "Epic" --type "plan(sdd/epics/202605/epic.md)" --tier epic
 sase bead create -t "Roadmap" --type "plan(sdd/legends/202605/roadmap.md)" --tier legend --epic-count 3
 sase bead create -t "Linked epic" --type "plan(sdd/epics/202605/epic.md,<legend-id>)" --tier epic
 sase bead create -t "Sub-task" --type "phase(beads-001)"   # Create a phase under a plan
-sase bead list                                          # List all issues
+sase bead list                                          # List open and in-progress issues
 sase bead list --status=open                            # List open issues
+sase bead list --status=closed                          # List closed issues
 sase bead ready                                         # Show issues ready to work on
 sase bead show beads-001                                # View issue details
 sase bead update beads-001.1 --status=in_progress       # Claim an issue
@@ -41,7 +42,7 @@ sase bead open beads-001.1                              # Reopen an issue
 sase bead close beads-001.1                             # Close an issue
 sase bead dep add beads-001.2 beads-001.1               # Add dependency
 sase bead blocked                                       # Show blocked issues
-sase bead sync                                          # Commit JSONL to git
+sase bead sync                                          # Export and stage JSONL in git
 sase bead stats                                         # Project statistics
 sase bead doctor                                        # Health check
 sase bead work beads-001                                # Launch agents for an epic or legend plan bead
@@ -59,7 +60,8 @@ sase bead work beads-001                                # Launch agents for an e
 Plans are groupings that can optionally link to an SDD file via the `design` field. Phases always belong to a parent
 plan and use hierarchical IDs (e.g., `beads-001.1`, `beads-001.2`).
 
-Plan beads carry a tier:
+Plan beads carry a tier. The SDD paths below are the conventional version-controlled locations; in local SDD mode the
+same artifact classes live under `.sase/sdd/`.
 
 | Tier     | SDD Path                    | Behavior                                                                      |
 | -------- | --------------------------- | ----------------------------------------------------------------------------- |
@@ -70,7 +72,7 @@ Plan beads carry a tier:
 Linked epics use the existing parented plan syntax:
 
 ```bash
-sase bead create --title "Epic" --type plan(sdd/epics/202605/epic.md,<legend_bead_id>) --tier epic
+sase bead create --title "Epic" --type "plan(sdd/epics/202605/epic.md,<legend_bead_id>)" --tier epic
 ```
 
 ### Status Lifecycle
@@ -112,7 +114,7 @@ New bead stores should use `sdd/beads/` in version-controlled mode or `.sase/sdd
 ### SQLite + JSONL Dual Storage
 
 Rust owns the bead storage/query/mutation path. SQLite is the local query cache and mutation target; JSONL is the
-git-portable format that gets committed. The two are kept in sync:
+git-portable format that can be committed. The two are kept in sync:
 
 - **Writes** run through Rust mutation transactions, update SQLite, then export the portable JSONL state.
 - **Reads** run through Rust read APIs, rebuilding SQLite from JSONL first when the cache is missing or stale.
@@ -122,8 +124,8 @@ The `.gitignore` excludes `beads.db*` files so only `issues.jsonl` and `config.j
 
 ### Sync Mechanism
 
-`sase bead sync` exports the current SQLite state to `issues.jsonl` and commits it to git. The JSONL file contains one
-JSON object per line, sorted by issue ID for clean diffs.
+`sase bead sync` exports the current bead state to `issues.jsonl` and stages that file in git. The JSONL file contains
+one JSON object per line, sorted by issue ID for clean diffs.
 
 On project open, if the JSONL file is newer than the database (or the database is missing), the database is
 automatically rebuilt from JSONL. This handles fresh clones and manual JSONL edits transparently.
@@ -132,7 +134,8 @@ automatically rebuilt from JSONL. This handles fresh clones and manual JSONL edi
 
 ### `sase bead init`
 
-Initialize the beads directory in the current project.
+Initialize the bead store for the current project. In version-controlled SDD mode this is `sdd/beads/`; in local SDD
+mode this is `.sase/sdd/beads/`.
 
 ### `sase bead create`
 
@@ -154,7 +157,8 @@ beads linked to the ChangeSpec they are intended to produce.
 
 ### `sase bead list`
 
-List issues with optional filtering. Closed beads are excluded from the default output.
+List issues with optional filtering. Without `--status`, the command lists `open` and `in_progress` issues; pass
+`--status=closed` when you need closed history. `--status`, `--type`, and `--tier` are repeatable.
 
 | Flag           | Values                          | Description                   |
 | -------------- | ------------------------------- | ----------------------------- |
@@ -194,6 +198,9 @@ Update one or more fields on an issue.
 
 Close one or more issues.
 
+Closing a plan bead also closes its phase children. Use this intentionally: phase agents should close only their
+assigned phase bead, not the parent epic.
+
 | Flag           | Description                |
 | -------------- | -------------------------- |
 | `-r, --reason` | Optional close reason text |
@@ -212,11 +219,12 @@ Show all issues that have at least one active (non-closed) blocker.
 
 ### `sase bead sync`
 
-Export the SQLite database to JSONL and commit to git.
+Export the current bead state to `issues.jsonl` and stage that file in git. It does not create a commit; the staged
+JSONL is included in the next normal project or SDD commit.
 
-| Flag           | Description                          |
-| -------------- | ------------------------------------ |
-| `-s, --status` | Check sync status without committing |
+| Flag           | Description                              |
+| -------------- | ---------------------------------------- |
+| `-s, --status` | Check whether JSONL has unstaged changes |
 
 ### `sase bead stats`
 
@@ -277,7 +285,7 @@ Legend work does not create phase beads directly. The spawned epic-planning agen
 | `-n, --dry-run` | Print the wave plan and rendered multi-prompt without mutating state or launching |
 | `-y, --yes`     | Skip the launch confirmation prompt                                               |
 
-Both xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or user-defined xprompt with the
+The work xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or user-defined xprompt with the
 matching tag overrides the built-in. Each generated phase and land prompt also carries a `%approve` directive, so the
 spawned agents can self-approve their own plans without a human-in-the-loop checkpoint between waves.
 
