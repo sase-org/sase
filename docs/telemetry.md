@@ -25,11 +25,16 @@ CLI tools for monitoring, health checks, and a bundled Docker Compose monitoring
 The telemetry system uses [Prometheus](https://prometheus.io/) metrics to instrument sase internals. Key design
 principles:
 
-- **Zero-cost when disabled**: All metrics are lightweight no-op stubs when `telemetry.enabled` is `false` (the
-  default). There is no runtime overhead unless telemetry is explicitly enabled.
+- **Lightweight when disabled**: All metrics are lightweight no-op stubs when `telemetry.enabled` is `false` (the
+  default). Instrumentation calls still run, but they do not create Prometheus clients, open network connections, or
+  start an exposition server.
 - **Dual data collection**: Short-lived processes (agents) push metrics to a Push Gateway. Long-lived processes (axe
   daemon) expose metrics via an HTTP endpoint for Prometheus to scrape.
 - **34 metrics across 7 subsystems**: Comprehensive coverage of the full sase lifecycle.
+
+Telemetry data appears only after telemetry is enabled and an instrumented process has run. For local dashboards, export
+the monitoring stack first, start it with Docker Compose, then run or restart the relevant sase processes so they
+initialize telemetry with the enabled config.
 
 ## Configuration
 
@@ -39,8 +44,9 @@ Telemetry is configured under the `telemetry` key in `sase.yml`:
 telemetry:
   enabled: false # Toggle telemetry on/off globally
   prometheus:
-    exposition_port: 9464 # HTTP server port for axe and agents
+    exposition_port: 9464 # HTTP server port for the axe exposition server
     pushgateway_url: "localhost:9091" # Push Gateway address
+    url: "localhost:9090" # Prometheus API address for charts mode
   health_thresholds:
     error_rate_warn: 10.0 # % threshold for warn status
     error_rate_critical: 25.0 # % threshold for critical status
@@ -50,14 +56,15 @@ telemetry:
     p95_latency_critical: 600.0
 ```
 
-| Field                                       | Type  | Default          | Description                                  |
-| ------------------------------------------- | ----- | ---------------- | -------------------------------------------- |
-| `telemetry.enabled`                         | bool  | `false`          | Enable or disable telemetry globally.        |
-| `telemetry.prometheus.exposition_port`      | int   | `9464`           | HTTP server port for metric exposition.      |
-| `telemetry.prometheus.pushgateway_url`      | str   | `localhost:9091` | Prometheus Push Gateway address.             |
-| `telemetry.health_thresholds.*_warn`        | float | varies           | Percentage threshold for WARN health status. |
-| `telemetry.health_thresholds.*_critical`    | float | varies           | Percentage threshold for CRITICAL status.    |
-| `telemetry.health_thresholds.p95_latency_*` | float | 300/600          | P95 latency thresholds in seconds.           |
+| Field                                       | Type  | Default          | Description                                                |
+| ------------------------------------------- | ----- | ---------------- | ---------------------------------------------------------- |
+| `telemetry.enabled`                         | bool  | `false`          | Enable or disable telemetry globally.                      |
+| `telemetry.prometheus.exposition_port`      | int   | `9464`           | HTTP server port for the axe metric exposition endpoint.   |
+| `telemetry.prometheus.pushgateway_url`      | str   | `localhost:9091` | Push Gateway address used by short-lived runner processes. |
+| `telemetry.prometheus.url`                  | str   | `localhost:9090` | Prometheus API address used by dashboard charts mode.      |
+| `telemetry.health_thresholds.*_warn`        | float | varies           | Percentage threshold for WARN health status.               |
+| `telemetry.health_thresholds.*_critical`    | float | varies           | Percentage threshold for CRITICAL status.                  |
+| `telemetry.health_thresholds.p95_latency_*` | float | 300/600          | P95 latency thresholds in seconds.                         |
 
 Source: `src/sase/default_config.yml`, `src/sase/telemetry/_config.py`
 
@@ -71,6 +78,9 @@ reachability of the Push Gateway and HTTP exposition server.
 ```bash
 sase telemetry status
 ```
+
+When telemetry is disabled, this command prints the config snippet needed to enable it and does not probe metric
+endpoints.
 
 ### `sase telemetry list`
 
@@ -131,9 +141,14 @@ compact subsystem metric tables.
 Active Agents, Agent Throughput, LLM Token Usage, LLM Latency, and Error Rate. Falls back to summary mode when
 Prometheus is unreachable.
 
+The `--source` flag selects the Push Gateway or exposition endpoint for summary mode. Charts mode uses the Prometheus
+HTTP API from `telemetry.prometheus.url` because it needs historical range queries.
+
 ### `sase telemetry health`
 
-Traffic-light health assessment with OK/WARN/CRITICAL status for each subsystem based on configured thresholds.
+Traffic-light health assessment with OK/WARN/CRITICAL status for subsystems that have scraped data. Configured
+thresholds apply to agent and LLM error rates plus hook retry rates; other entries are informational or use fixed
+heuristics.
 
 ```bash
 sase telemetry health                    # Rich output
@@ -196,7 +211,7 @@ cd sase-monitoring && docker compose up -d
 | `src/sase/telemetry/__init__.py`   | Public API exports                            |
 | `src/sase/telemetry/metrics.py`    | Module-level metric singletons (34 attrs)     |
 | `src/sase/telemetry/_registry.py`  | Init, Push Gateway integration, atexit        |
-| `src/sase/telemetry/_stubs.py`     | No-op stub classes (zero overhead)            |
+| `src/sase/telemetry/_stubs.py`     | No-op stub classes used when telemetry is off |
 | `src/sase/telemetry/_config.py`    | Configuration loading from sase.yml           |
 | `src/sase/telemetry/catalog.py`    | Structured metric catalog and grouping        |
 | `src/sase/telemetry/scrape.py`     | HTTP client and Prometheus text parser        |
@@ -301,14 +316,15 @@ Global scrape interval: 15 seconds.
 
 ### Alerting Rules
 
-20+ alert rules covering:
+14 alert rules covering:
 
 - Agent error rate thresholds (10%, 25%)
 - Agent p95 latency thresholds (300s, 600s)
 - LLM error rate and retry rate
 - Axe cycle errors
 - Hook retry rates
-- Workspace release failures
+- Zombie process detection
+- Push Gateway reachability
 
 Alert labels use `severity: warning` and `severity: critical`.
 
@@ -321,15 +337,15 @@ A pre-built Grafana dashboard is automatically provisioned with panels for all t
 
 Telemetry is instrumented across the codebase:
 
-| Subsystem     | Location                            | What is tracked                      |
-| ------------- | ----------------------------------- | ------------------------------------ |
-| Agent         | `src/sase/agent/launcher.py`        | Runs, duration, spawns, kills        |
-| LLM Provider  | `src/sase/llm_provider/_invoke.py`  | Invocations, tokens, errors, retries |
-| Axe           | `src/sase/axe/orchestrator.py`      | Cycles, errors, lumberjack activity  |
-| Hooks/Mentors | Hook execution modules              | Execution counts, durations, retries |
-| Beads         | `src/sase/bead/project.py`          | CRUD operations, status transitions  |
-| VCS           | VCS operation modules               | Commits, operations                  |
-| Notifications | `src/sase/notifications/senders.py` | Notifications sent                   |
+| Subsystem     | Location                                                                | What is tracked                      |
+| ------------- | ----------------------------------------------------------------------- | ------------------------------------ |
+| Agent         | Agent runner setup/finalize modules under `src/sase/axe/`               | Runs, duration, spawns, kills        |
+| LLM Provider  | `src/sase/llm_provider/_invoke.py`                                      | Invocations, tokens, errors, retries |
+| Axe           | `src/sase/axe/orchestrator.py`, `src/sase/axe/lumberjack.py`            | Cycles, errors, lumberjack activity  |
+| Hooks/Mentors | `src/sase/ace/hooks/execution.py`, runner modules under `src/sase/axe/` | Execution counts, durations, retries |
+| Beads         | `src/sase/bead/project.py`, `src/sase/main/bead_fast_path.py`           | CRUD operations, status transitions  |
+| VCS           | VCS provider plugins under `src/sase/vcs_provider/plugins/`             | Commits, operations                  |
+| Notifications | `src/sase/notifications/senders.py`                                     | Notifications sent                   |
 
 The axe orchestrator calls `init_telemetry(start_http_server=True)` on startup to begin exposing metrics. Agent
 processes use `push_metrics()` to send data to the Push Gateway on exit via an `atexit` handler.
