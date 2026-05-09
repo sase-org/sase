@@ -2,9 +2,13 @@
 
 ## Overview
 
-Axe is the background automation subsystem of sase. It monitors ChangeSpecs and automatically executes lifecycle jobs
-(hooks, mentors, workflows) on fixed intervals. Axe uses a multi-process architecture: an **Orchestrator** spawns
-multiple **Lumberjacks**, each running a subset of jobs on independent schedules.
+Axe is the background automation subsystem of sase. It watches ChangeSpecs (the per-CL/PR records that sase uses to
+track work) and periodically runs lifecycle jobs such as hook completion, mentor launch, workflow cleanup, comment
+polling, `%wait` dependency checks, and error digests.
+
+Axe uses a multi-process architecture: an **Orchestrator** spawns multiple **Lumberjacks**, and each lumberjack runs a
+subset of jobs on its own schedule. The ACE TUI starts axe automatically unless launched with `sase ace --no-axe`;
+operators can also manage it directly with `sase axe start` and `sase axe stop`.
 
 ## Architecture
 
@@ -41,18 +45,18 @@ multiple **Lumberjacks**, each running a subset of jobs on independent schedules
 
 ## CLI Commands
 
-| Command                       | Description                                     |
-| ----------------------------- | ----------------------------------------------- |
-| `sase axe start`              | Start the orchestrator (spawns all lumberjacks) |
-| `sase axe stop`               | Stop the orchestrator gracefully                |
-| `sase axe chop list`          | List all available chops                        |
-| `sase axe chop run <name>`    | Run a single chop in foreground (one-shot)      |
-| `sase axe lumberjack list`    | List configured lumberjacks and their chops     |
-| `sase axe lumberjack run <n>` | Run a single lumberjack in foreground           |
-| `sase axe lumberjack status`  | Show status of all lumberjacks                  |
-| `sase axe maintenance enter`  | Pause lumberjack ticks until maintenance exits  |
-| `sase axe maintenance exit`   | Clear the maintenance marker                    |
-| `sase axe maintenance status` | Show whether maintenance mode is active         |
+| Command                          | Description                                     |
+| -------------------------------- | ----------------------------------------------- |
+| `sase axe start`                 | Start the orchestrator (spawns all lumberjacks) |
+| `sase axe stop`                  | Stop the orchestrator gracefully                |
+| `sase axe chop list`             | List configured chops                           |
+| `sase axe chop run <name>`       | Run a single chop in the foreground             |
+| `sase axe lumberjack list`       | List configured lumberjacks and their chops     |
+| `sase axe lumberjack run <name>` | Run a single lumberjack in the foreground       |
+| `sase axe lumberjack status`     | Show status of all lumberjacks                  |
+| `sase axe maintenance enter`     | Pause lumberjack ticks until maintenance exits  |
+| `sase axe maintenance exit`      | Clear the maintenance marker                    |
+| `sase axe maintenance status`    | Show whether maintenance mode is active         |
 
 ### Examples
 
@@ -60,6 +64,9 @@ multiple **Lumberjacks**, each running a subset of jobs on independent schedules
 # Start/stop the daemon
 sase axe start
 sase axe stop
+
+# Run axe against only matching ChangeSpecs
+sase axe start --query '!!! OR @@@'
 
 # Inspect lumberjacks
 sase axe lumberjack list
@@ -152,6 +159,9 @@ configuration reference.
 | `query`                  | `""`    | Optional query filter for all changespecs |
 | `chop_script_dirs`       | `[]`    | Directories to search for chop scripts    |
 
+The `query` setting uses the same ChangeSpec query language as ACE. CLI flags on `sase axe start` and
+`sase axe lumberjack run` override the configured query, runner limits, and zombie timeout for that process.
+
 ### Lumberjack Configuration
 
 ```yaml
@@ -180,6 +190,26 @@ axe:
 | `run_every`   | `str \| null`    | Duration string (e.g., `"5m"`, `"2h"`) — run at most once per interval |
 | `timeout`     | `str \| null`    | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`)  |
 | `env`         | `dict[str, str]` | Custom environment variables passed to the chop                        |
+
+### Script Chops
+
+When a chop does not have an `agent` field, axe treats it as an external executable. The executable is resolved in this
+order:
+
+1. An executable named exactly like the chop in one of `axe.chop_script_dirs`.
+2. An executable named `sase_chop_<name>` beside the running Python interpreter.
+3. An executable named `sase_chop_<name>` on `$PATH`.
+
+Axe runs script chops as:
+
+```bash
+<script> --context <context.json>
+```
+
+The context file contains the effective runner limits, zombie timeout, query, lumberjack name, lumberjack state
+directory, and paths to serialized `all_changespecs.json` and `filtered_changespecs.json` files. Scheduled script chops
+within one lumberjack tick run concurrently; use `timeout` or `chop_timeout` to keep a slow script from blocking later
+ticks indefinitely.
 
 ### Agent Chops and Visibility
 
@@ -256,8 +286,9 @@ that tick.
 
 Use maintenance mode before operations that temporarily make scheduled work unsafe or noisy, such as installing plugin
 updates, moving workspace directories, or running one-off cleanup. `sase axe maintenance exit` removes the marker.
-`sase axe maintenance status` exits 0 when active and 1 when inactive, so scripts can use it as a guard. Stale markers
-older than 24 hours are cleared automatically by the next lumberjack tick.
+`sase axe maintenance status` exits 0 when active and 1 when inactive, so scripts can use it as a guard. The next
+lumberjack tick clears stale markers automatically when they are older than 24 hours, malformed, or owned by a PID that
+is no longer running.
 
 ## State Directory
 
@@ -274,7 +305,12 @@ older than 24 hours are cleared automatically by the next lumberjack tick.
 │       ├── pid                     # Lumberjack PID
 │       ├── status.json             # Current status (updated every 5s)
 │       ├── metrics.json            # Cumulative metrics (updated every 30s)
+│       ├── chop_timestamps.json    # Last successful run_every timestamp per chop
 │       ├── agent_chops.json        # Durable registry of agents launched by this lumberjack's chops
+│       ├── tick/
+│       │   ├── context.json        # Context passed to script chops
+│       │   ├── all_changespecs.json
+│       │   └── filtered_changespecs.json
 │       └── logs/
 │           └── output.log          # Lumberjack output log
 ├── shared/
