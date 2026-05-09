@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from sase.core.agent_artifact_explicit import list_explicit_agent_artifacts
@@ -24,6 +25,11 @@ from sase.core.agent_artifact_types import (
     AgentArtifactKind,
 )
 
+_IMAGE_PATH_RE = re.compile(
+    r"""(?P<path>(?:~|/|\.{1,2}/|[A-Za-z0-9_.-]+)[^\s"'`<>]*?\.(?:png|jpe?g|gif|webp|bmp|tiff?))""",
+    re.IGNORECASE,
+)
+
 
 def synthesize_default_agent_artifacts(
     agent_artifacts_dir: Path | str,
@@ -37,7 +43,9 @@ def synthesize_default_agent_artifacts(
     association = association_from_metadata(
         artifacts_dir, done=done, agent_meta=agent_meta
     )
-    workspace_dir = first_str(done.get("workspace_dir"))
+    workspace_dir = first_str(
+        done.get("workspace_dir"), agent_meta.get("workspace_dir")
+    )
     markdown_pdf_sources = read_markdown_pdf_source_paths(artifacts_dir)
 
     artifacts: list[AgentArtifact] = []
@@ -84,6 +92,20 @@ def synthesize_default_agent_artifacts(
             )
         )
 
+    for index, image_path in enumerate(
+        _discover_prompt_image_paths(artifacts_dir, workspace_dir=workspace_dir)
+    ):
+        artifacts.append(
+            _default_artifact(
+                association,
+                label=label_for_path(image_path, fallback="Image"),
+                kind="image",
+                path=image_path,
+                ordinal=f"prompt-image-{index}",
+                workspace_dir=workspace_dir,
+            )
+        )
+
     for index, pdf_path in enumerate(coerce_str_list(done.get("markdown_pdf_paths"))):
         source_path = markdown_pdf_sources.get(path_key(pdf_path))
         artifacts.append(
@@ -122,6 +144,72 @@ def list_agent_artifacts(
     return dedupe_artifacts(
         _dedupe_plan_artifacts([*chat_and_plans, *explicit, *images_and_generated])
     )
+
+
+def _discover_prompt_image_paths(
+    artifacts_dir: Path,
+    *,
+    workspace_dir: str | None,
+) -> list[str]:
+    image_paths: list[str] = []
+    seen: set[str] = set()
+    for prompt_path in _prompt_artifact_files(artifacts_dir):
+        try:
+            prompt = prompt_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for match in _IMAGE_PATH_RE.finditer(prompt):
+            image_path = _resolve_prompt_image_path(
+                match.group("path"),
+                workspace_dir=workspace_dir,
+            )
+            if image_path is None:
+                continue
+            key = path_key(image_path)
+            if key in seen:
+                continue
+            seen.add(key)
+            image_paths.append(image_path)
+    return image_paths
+
+
+def _prompt_artifact_files(artifacts_dir: Path) -> list[Path]:
+    prompt_files: list[Path] = []
+    raw_prompt = artifacts_dir / "raw_xprompt.md"
+    if raw_prompt.is_file():
+        prompt_files.append(raw_prompt)
+    try:
+        step_prompts = sorted(
+            path
+            for path in artifacts_dir.glob("*_prompt.md")
+            if path.is_file() and path != raw_prompt
+        )
+    except OSError:
+        step_prompts = []
+    prompt_files.extend(step_prompts)
+    return prompt_files
+
+
+def _resolve_prompt_image_path(
+    path: str,
+    *,
+    workspace_dir: str | None,
+) -> str | None:
+    expanded = Path(path).expanduser()
+    if expanded.is_absolute():
+        candidate = expanded
+    elif workspace_dir:
+        candidate = Path(workspace_dir).expanduser() / expanded
+    else:
+        return None
+
+    try:
+        resolved = candidate.resolve(strict=False)
+    except OSError:
+        return None
+    if not resolved.is_file():
+        return None
+    return str(resolved)
 
 
 def _dedupe_plan_artifacts(artifacts: list[AgentArtifact]) -> list[AgentArtifact]:

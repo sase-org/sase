@@ -294,10 +294,13 @@ class TestAgentArtifactMetadata:
         plan.write_text("# Plan", encoding="utf-8")
         chat = tmp_path / "chat.md"
         image = tmp_path / "image.png"
+        prompt_image = workspace / "screenshots" / "prompt.jpg"
         explicit_source = tmp_path / "notes.md"
         diff_path = tmp_path / "agent.diff"
         chat.write_text("chat", encoding="utf-8")
         image.write_bytes(b"png")
+        prompt_image.parent.mkdir(parents=True)
+        prompt_image.write_bytes(b"jpg")
         explicit_source.write_text("notes", encoding="utf-8")
         diff_path.write_text(
             """diff --git a/src/foo.py b/src/foo.py
@@ -313,7 +316,17 @@ class TestAgentArtifactMetadata:
 
         explicit = store_explicit_agent_artifact(explicit_source, artifacts_dir)
         (artifacts_dir / "done.json").write_text(
-            json.dumps({"response_path": str(chat), "image_paths": [str(image)]}),
+            json.dumps(
+                {
+                    "response_path": str(chat),
+                    "workspace_dir": str(workspace),
+                    "image_paths": [str(image)],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (artifacts_dir / "raw_xprompt.md").write_text(
+            "Compare this prompt image: screenshots/prompt.jpg\n",
             encoding="utf-8",
         )
         (artifacts_dir / "plan_path.json").write_text(
@@ -340,7 +353,8 @@ class TestAgentArtifactMetadata:
         assert "~/.sase/plans/202605/approved_plan.md" in header.plain
         assert explicit.path.replace(str(home), "~") in header.plain
         assert "chat.md" not in header.plain
-        assert "image.png" not in header.plain
+        assert "image.png" in header.plain
+        assert "screenshots/prompt.jpg" in header.plain
 
     def test_cheap_header_omits_artifact_summary(
         self,

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 04:05:45
-status: wip
+status: done
 prompt: sdd/prompts/202605/prompt_image_artifacts.md
 ---
 # Plan: Prompt Image References as Agent Artifacts

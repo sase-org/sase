@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from rich.text import Text
-
-from sase.core.agent_artifact_helpers import selected_plan_path
 
 from ...models.agent import Agent
 
@@ -57,47 +54,27 @@ def _agent_artifact_paths(agent: Agent) -> list[_ArtifactPath]:
     if artifacts_dir is None:
         return []
 
-    artifacts_path = Path(artifacts_dir).expanduser()
-    done = _read_json_object(artifacts_path / "done.json")
-    meta = _read_json_object(artifacts_path / "agent_meta.json")
-    plan_marker = _read_json_object(artifacts_path / "plan_path.json")
-    workspace_dir = _first_str(
-        agent.workspace_dir, meta.get("workspace_dir"), done.get("workspace_dir")
-    )
-
-    candidates: list[str] = []
-    plan_path = _selected_plan_path(done, meta, plan_marker)
-    if plan_path:
-        candidates.append(plan_path)
-
-    candidates.extend(_explicit_artifact_paths(artifacts_path))
-    return _dedupe_and_sort_paths(candidates, workspace_dir)
-
-
-def _selected_plan_path(
-    done: dict[str, Any],
-    meta: dict[str, Any],
-    plan_marker: dict[str, Any],
-) -> str | None:
-    return selected_plan_path(done=done, agent_meta=meta, plan_marker=plan_marker)
-
-
-def _explicit_artifact_paths(artifacts_dir: Path) -> list[str]:
-    from sase.core.agent_artifact_facade import list_explicit_agent_artifacts
+    from sase.core.agent_artifact_facade import list_agent_artifacts
 
     try:
-        artifacts = list_explicit_agent_artifacts(artifacts_dir)
+        artifacts = list_agent_artifacts(artifacts_dir)
     except Exception:
         return []
-    return [artifact.path for artifact in artifacts if artifact.path]
+    display_items: list[tuple[str, str | None]] = [
+        (artifact.path, artifact.workspace_dir)
+        for artifact in artifacts
+        if artifact.path and artifact.kind != "chat"
+    ]
+    return _dedupe_paths(display_items, agent.workspace_dir)
 
 
-def _dedupe_and_sort_paths(
-    paths: list[str],
-    workspace_dir: str | None,
+def _dedupe_paths(
+    paths: list[tuple[str, str | None]],
+    fallback_workspace_dir: str | None,
 ) -> list[_ArtifactPath]:
     by_actual_path: dict[str, _ArtifactPath] = {}
-    for path in paths:
+    for path, artifact_workspace_dir in paths:
+        workspace_dir = artifact_workspace_dir or fallback_workspace_dir
         actual_path = _resolve_actual_path(path, workspace_dir)
         by_actual_path.setdefault(
             actual_path,
@@ -106,7 +83,7 @@ def _dedupe_and_sort_paths(
                 actual_path=actual_path,
             ),
         )
-    return [by_actual_path[key] for key in sorted(by_actual_path)]
+    return list(by_actual_path.values())
 
 
 def _append_path(text: Text, path: str) -> None:
@@ -139,19 +116,3 @@ def _resolve_actual_path(path: str, workspace_dir: str | None) -> str:
     if workspace_dir:
         return str((Path(workspace_dir).expanduser() / expanded).resolve(strict=False))
     return str(expanded.resolve(strict=False))
-
-
-def _read_json_object(path: Path) -> dict[str, Any]:
-    try:
-        with path.open(encoding="utf-8") as handle:
-            data = json.load(handle)
-    except (FileNotFoundError, OSError, json.JSONDecodeError):
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-def _first_str(*values: Any) -> str | None:
-    for value in values:
-        if isinstance(value, str) and value:
-            return value
-    return None

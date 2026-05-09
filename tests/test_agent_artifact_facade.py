@@ -157,6 +157,48 @@ def test_generated_markdown_pdf_artifact_keeps_pdf_path_and_uses_source_metadata
     assert artifacts[0].workspace_dir == str(workspace)
 
 
+def test_prompt_absolute_image_path_is_default_image_artifact(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _agent_dir(tmp_path)
+    image = tmp_path / "telegram" / "image.jpg"
+    image.parent.mkdir(parents=True)
+    image.write_bytes(b"jpg")
+    (artifacts_dir / "raw_xprompt.md").write_text(
+        f"Please inspect {image} before changing code.\n",
+        encoding="utf-8",
+    )
+
+    artifacts = synthesize_default_agent_artifacts(artifacts_dir)
+
+    assert [(artifact.kind, artifact.path) for artifact in artifacts] == [
+        ("image", str(image.resolve()))
+    ]
+    assert artifacts[0].label == "image.jpg"
+
+
+def test_prompt_workspace_relative_image_path_uses_workspace_dir(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _agent_dir(tmp_path)
+    workspace = tmp_path / "workspace"
+    image = workspace / "screenshots" / "before.png"
+    image.parent.mkdir(parents=True)
+    image.write_bytes(b"png")
+    _write_json(artifacts_dir / "agent_meta.json", {"workspace_dir": str(workspace)})
+    (artifacts_dir / "coder_prompt.md").write_text(
+        "Use screenshots/before.png as the visual reference.\n",
+        encoding="utf-8",
+    )
+
+    artifacts = synthesize_default_agent_artifacts(artifacts_dir)
+
+    assert [(artifact.kind, artifact.path) for artifact in artifacts] == [
+        ("image", str(image.resolve()))
+    ]
+    assert artifacts[0].workspace_dir == str(workspace)
+
+
 def test_home_plan_is_skipped_when_matching_workspace_plan_exists(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
