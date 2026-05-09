@@ -1,4 +1,6 @@
-# Structured Agentic Software Engineering
+---
+title: Structured Agentic Software Engineering
+---
 
 <div class="sase-home">
 
@@ -6,11 +8,11 @@
   <div class="sase-hero__copy">
     <p class="sase-kicker">SASE</p>
 
-    <h1>Software engineering workflows for coding agents</h1>
+    <h1>Structured Agentic Software Engineering</h1>
 
     <p class="sase-lede">
-      SASE is a Python toolkit for teams and solo engineers who want agent runs to behave like durable engineering work:
-      planned, tracked, reviewable, resumable, and portable across provider CLIs.
+      SASE is a Python toolkit for software engineering workflows around coding agents: durable planning, tracked
+      handoffs, reviewable changes, resumable runs, and provider-portable automation.
     </p>
 
     <div class="sase-actions">

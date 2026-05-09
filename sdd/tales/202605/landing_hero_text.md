@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 04:03:44
-status: wip
+status: done
 prompt: sdd/prompts/202605/landing_hero_text.md
 ---
 # Landing Hero Text Polish Plan

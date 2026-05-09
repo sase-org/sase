@@ -29,7 +29,9 @@
 }
 
 .md-typeset .sase-home {
+  max-width: 100%;
   color: var(--sase-text);
+  overflow-x: clip;
 }
 
 .md-typeset .sase-home h1,
@@ -40,11 +42,14 @@
 }
 
 .md-typeset .sase-home h1 {
-  max-width: 13ch;
+  max-width: 18ch;
   margin: 0;
-  font-size: 3rem;
-  line-height: 1;
+  font-size: 2.8rem;
+  line-height: 1.04;
   font-weight: 800;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: manual;
 }
 
 .md-typeset .sase-home h2 {
@@ -70,13 +75,16 @@
 }
 
 .md-typeset .sase-hero {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(18rem, 1.05fr);
-  gap: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 1.8rem;
   align-items: center;
   min-height: 31rem;
   margin: -0.6rem 0 2.8rem;
-  padding: 2.8rem;
+  padding: 2.4rem;
   overflow: hidden;
   border: 1px solid var(--sase-border);
   border-radius: 0.5rem;
@@ -87,7 +95,10 @@
 }
 
 .md-typeset .sase-hero__copy {
+  box-sizing: border-box;
+  width: 100%;
   min-width: 0;
+  max-width: 40rem;
 }
 
 .md-typeset .sase-kicker,
@@ -102,6 +113,7 @@
 }
 
 .md-typeset .sase-lede {
+  box-sizing: border-box;
   max-width: 36rem;
   margin: 1.1rem 0 1.4rem;
   color: var(--sase-text);
@@ -118,22 +130,28 @@
 }
 
 .md-typeset .sase-actions .md-button {
+  box-sizing: border-box;
   margin: 0;
   border-radius: 0.35rem;
   white-space: normal;
 }
 
 .md-typeset .sase-hero__visual {
+  box-sizing: border-box;
+  min-width: 0;
   margin: 0;
 }
 
 .md-typeset .sase-hero__visual img {
   display: block;
   width: 100%;
+  max-width: 100%;
+  max-height: 24rem;
   aspect-ratio: 16 / 10;
-  object-fit: cover;
+  object-fit: contain;
   border: 1px solid var(--sase-border);
   border-radius: 0.45rem;
+  background: var(--sase-surface-strong);
   box-shadow: var(--sase-shadow);
 }
 
@@ -234,6 +252,19 @@
   line-height: 1.45;
 }
 
+@media screen and (max-width: 82em) {
+  .md-typeset .sase-hero {
+    min-height: 0;
+    gap: 1.25rem;
+    padding: 1.7rem;
+  }
+
+  .md-typeset .sase-home h1 {
+    max-width: 20ch;
+    font-size: 2.35rem;
+  }
+}
+
 @media screen and (max-width: 76em) {
   .md-typeset .sase-card-grid--four {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -242,13 +273,11 @@
 
 @media screen and (max-width: 60em) {
   .md-typeset .sase-hero {
-    grid-template-columns: 1fr;
-    min-height: 0;
     padding: 1.4rem;
   }
 
   .md-typeset .sase-home h1 {
-    max-width: 14ch;
+    max-width: 19ch;
     font-size: 2.25rem;
   }
 
@@ -266,13 +295,18 @@
 }
 
 @media screen and (max-width: 34em) {
+  .md-typeset .sase-home {
+    width: calc(100vw - 2rem);
+    max-width: calc(100vw - 2rem);
+  }
+
   .md-typeset .sase-hero {
     margin-top: 0;
     padding: 1rem;
   }
 
   .md-typeset .sase-home h1 {
-    max-width: none;
+    max-width: 14ch;
     font-size: 1.8rem;
     line-height: 1.08;
   }
