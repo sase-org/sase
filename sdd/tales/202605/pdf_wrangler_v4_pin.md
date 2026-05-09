@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 14:50:52
-status: wip
+status: done
 prompt: sdd/prompts/202605/pdf_wrangler_v4_pin.md
 ---
 # Plan: Pin Wrangler v4 So The Worker Deploy Actually Ships The Handbook PDF

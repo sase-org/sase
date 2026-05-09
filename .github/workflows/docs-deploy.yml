@@ -52,6 +52,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           command: deploy
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          wranglerVersion: "4.30.0"
 
       - name: Smoke deployed PDF
         env:
