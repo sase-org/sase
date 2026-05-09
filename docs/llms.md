@@ -15,10 +15,13 @@ a shared orchestration layer that handles preprocessing, invocation, and postpro
 - [OpenCode Integration](#opencode-integration)
 - [External Provider Plugins](#external-provider-plugins)
 - [Configuration](#configuration)
+- [Per-Prompt Provider Switching](#per-prompt-provider-switching)
 - [Model Tier System](#model-tier-system)
 - [Temporary Default Override](#temporary-default-override)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
+- [Retry and Fallback](#retry-and-fallback)
+- [Token Usage Tracking](#token-usage-tracking)
 - [Prompt Preprocessing Pipeline](#prompt-preprocessing-pipeline)
 - [Subprocess Streaming](#subprocess-streaming)
 - [Postprocessing](#postprocessing)
@@ -47,17 +50,17 @@ Key design principles:
 | `src/sase/llm_provider/_hookspec.py`       | Pluggy hook specifications (`LLMHookSpec`)          |
 | `src/sase/llm_provider/_plugin_manager.py` | Plugin manager wrapping pluggy (`LLMPluginManager`) |
 | `src/sase/llm_provider/claude.py`          | Claude Code provider implementation                 |
+| `src/sase/llm_provider/codex.py`           | Codex CLI provider implementation                   |
 | `src/sase/llm_provider/gemini.py`          | Gemini CLI provider implementation                  |
 | `src/sase/llm_provider/qwen.py`            | Qwen Code provider implementation                   |
 | `src/sase/llm_provider/opencode.py`        | OpenCode provider implementation                    |
 | `src/sase/llm_provider/registry.py`        | Provider registration and lookup                    |
 | `src/sase/llm_provider/config.py`          | Config file reader (`sase.yml`)                     |
-| `src/sase/llm_provider/types.py`           | `ModelTier`, `LoggingContext` types                 |
+| `src/sase/llm_provider/types.py`           | `ModelTier`, `InvokeResult`, `LoggingContext` types |
 | `src/sase/llm_provider/_invoke.py`         | `invoke_agent()` orchestrator                       |
-| `src/sase/llm_provider/_subprocess.py`     | `stream_process_output()`                           |
-| `src/sase/llm_provider/codex.py`           | Codex CLI provider implementation                   |
+| `src/sase/llm_provider/_subprocess.py`     | Provider stream-parser compatibility exports        |
 | `src/sase/llm_provider/_plan_utils.py`     | Shared plan utilities                               |
-| `src/sase/llm_provider/preprocessing.py`   | 6-step preprocessing pipeline                       |
+| `src/sase/llm_provider/preprocessing.py`   | Shared prompt preprocessing pipeline                |
 | `src/sase/llm_provider/postprocessing.py`  | Logging, chat history, audio                        |
 | `src/sase/llm_provider/retry_config.py`    | `ProviderRetryConfig` (per-provider retry defaults) |
 
@@ -76,24 +79,24 @@ class LLMProvider(ABC):
         *,
         model_tier: ModelTier,
         suppress_output: bool = False,
-    ) -> str: ...
+        model_override: str | None = None,
+    ) -> InvokeResult: ...
 ```
 
-| Parameter         | Type        | Description                                  |
-| ----------------- | ----------- | -------------------------------------------- |
-| `prompt`          | `str`       | Already-preprocessed prompt text             |
-| `model_tier`      | `ModelTier` | `"large"` or `"small"`                       |
-| `suppress_output` | `bool`      | If `True`, suppress real-time console output |
+| Parameter         | Type          | Description                                                       |
+| ----------------- | ------------- | ----------------------------------------------------------------- |
+| `prompt`          | `str`         | Already-preprocessed prompt text                                  |
+| `model_tier`      | `ModelTier`   | `"large"` or `"small"`                                            |
+| `suppress_output` | `bool`        | If `True`, suppress real-time console output                      |
+| `model_override`  | `str \| None` | Concrete model name from `%model`, a temporary override, or retry |
 
-Returns the raw response text. Raises `subprocess.CalledProcessError` on failure.
+Returns `InvokeResult(content=..., usage=...)`. Providers raise `subprocess.CalledProcessError` for failed CLI exits or
+a provider-specific exception for launch/configuration failures.
 
 ### Registry
 
-Providers are registered by name in a global registry (`registry.py`). Built-in providers are auto-registered on module
-import:
-
-Providers are discovered via `importlib.metadata.entry_points(group="sase_llm")`. Built-in entries live in
-`pyproject.toml`:
+Providers are discovered via `importlib.metadata.entry_points(group="sase_llm")`. The built-in providers are packaged
+the same way as external provider plugins; their entry points live in `pyproject.toml`:
 
 ```toml
 [project.entry-points."sase_llm"]
@@ -116,11 +119,14 @@ provider = get_provider("claude")  # Explicit provider name
 ### Selection Logic
 
 1. If `provider_name` is passed to `invoke_agent()`, use that.
-2. Otherwise, read the `llm_provider.provider` field from `~/.config/sase/sase.yml`.
-3. If no config exists (or provider is empty), auto-detect by walking registered plugins in ascending
+2. If the prompt has a `%model` directive, resolve explicit `provider/model` syntax first, then known model names from
+   installed plugin metadata.
+3. If no explicit provider/model was supplied, use an active temporary override from `~/.sase/llm_override.json`.
+4. Otherwise, read the `llm_provider.provider` field from `~/.config/sase/sase.yml`.
+5. If no config exists (or provider is empty), auto-detect by walking registered plugins in ascending
    `llm_autodetect_priority()` order and picking the first whose `llm_autodetect_cli_name()` is on `PATH`. Built-in
    priorities: `claude=0`, `codex=10`, `qwen=15`, `opencode=18`, `gemini=30`. External plugins slot in by declaring
-   their own priority.
+   their own priority. Gemini returns no CLI name and is the final always-eligible fallback.
 
 ## Claude Code Integration
 
@@ -129,10 +135,11 @@ The `ClaudeCodeProvider` invokes the `claude` CLI tool.
 ### Command Construction
 
 ```
-claude -p --model <alias> --output-format text --dangerously-skip-permissions [extra_args...]
+claude -p --verbose --model <alias> --output-format stream-json --dangerously-skip-permissions --session-id <uuid> [extra_args...]
 ```
 
-The prompt is written to stdin, and output is streamed from stdout in real-time.
+The prompt is written to stdin. Output is streamed as JSON events; SASE extracts assistant text and token usage from the
+stream.
 
 ### Model Mapping
 
@@ -164,10 +171,11 @@ The `GeminiProvider` invokes Google's internal Gemini CLI tool.
 ### Command Construction
 
 ```
-gemini --yolo [extra_args...]
+gemini --yolo --model <model>
 ```
 
-The prompt is written to stdin, and output is streamed from stdout in real-time.
+The prompt is written to stdin, and output is streamed from stdout in real-time. SASE runs Gemini with `TERM=dumb` and
+`NO_COLOR=1` in a PTY so the CLI flushes useful live output for the TUI.
 
 ### Default Model
 
@@ -207,15 +215,11 @@ events.
 | `large` | `gpt-5.5`           |
 | `small` | `codex-mini-latest` |
 
-### Plan Mode
+### Plan Handling
 
-When `SASE_AGENT_PLAN_MODE` is set, Codex runs a two-phase plan/implement flow:
-
-1. **Phase 1 (Planning)**: Runs with `--sandbox read-only` and `--ask-for-approval on-request`. The model generates a
-   plan captured via `--output-last-message`, on-disk plan files, or streamed response text.
-2. **Approval**: The plan is presented for user approval with up to 5 feedback-retry rounds.
-3. **Phase 2 (Implementation)**: On approval, runs with full permissions (`--dangerously-bypass-approvals-and-sandbox`)
-   using the plan content as the prompt.
+The Codex provider does not enable Codex CLI's native plan mode. SASE planning flows are implemented at the
+orchestration layer through workflows, xprompts, and the `sase_plan` skill, so provider behavior stays consistent across
+runtimes.
 
 ### Environment Variables
 
@@ -227,7 +231,6 @@ When `SASE_AGENT_PLAN_MODE` is set, Codex runs a two-phase plan/implement flow:
 | `SASE_CODEX_LARGE_ARGS`          | Extra CLI args for `large` tier (Codex-specific fallback)  |
 | `SASE_CODEX_SMALL_ARGS`          | Extra CLI args for `small` tier (Codex-specific fallback)  |
 | `SASE_CODEX_DISABLE_SHADOW_HOME` | Set to `1` to disable the disposable Codex home            |
-| `SASE_AGENT_PLAN_MODE`           | Enable two-phase plan/implement flow                       |
 
 The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_CODEX_*_ARGS`.
 
@@ -240,8 +243,7 @@ debugging or emergency compatibility.
 ### Timer Display
 
 While waiting for a response, a `gemini_timer("Waiting for Codex")` spinner is shown (unless `suppress_output` is
-`True`). In plan mode, the timer reads "Waiting for Codex (planning)" during Phase 1 and "Implementing plan" during
-Phase 2.
+`True`).
 
 ## Qwen Code Integration
 
@@ -394,13 +396,13 @@ Use `provider/model` to specify both explicitly:
 
 Known model names are automatically mapped to their provider:
 
-| Model Name                                                                                                                      | Provider |
-| ------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `opus`, `sonnet`, `haiku`                                                                                                       | claude   |
-| `gpt-5.5`, `gpt-5.3-codex`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini` | codex    |
-| `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.0-flash`                    | gemini   |
-| `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                   | qwen     |
-| `anthropic/claude-sonnet-4-5`, `openai/gpt-5-mini`, `qwen/qwen3-coder-plus`                                                     | opencode |
+| Model Name                                                                                                                                                | Provider |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `opus`, `sonnet`, `haiku`                                                                                                                                 | claude   |
+| `gpt-5.5`, `gpt-5.3-codex`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini`                           | codex    |
+| `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro`, `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.0-flash`                            | gemini   |
+| `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                                             | qwen     |
+| `anthropic/claude-sonnet-4-5`, `anthropic/claude-opus-4-5`, `openai/gpt-5`, `openai/gpt-5-mini`, `google/gemini-3-flash-preview`, `qwen/qwen3-coder-plus` | opencode |
 
 Each installed plugin contributes its own model names via the `llm_known_model_names()` hook.
 
@@ -449,13 +451,15 @@ temporary session-level default. This is the override the ACE `,P` chord writes 
 [docs/ace.md](ace.md#temporary-model-override) for the TUI flow).
 
 The temporary override only changes the _default_ provider/model selection for new agent launches. It does **not**
-affect:
+override:
 
 - Already-running agents — they keep whatever provider/model they were launched with.
 - Explicit `%model` prompt directives — they still take precedence.
 - An explicit `provider_name=` argument to `invoke_agent()` — it still wins.
-- `SASE_MODEL_TIER_OVERRIDE` / `SASE_MODEL_SIZE_OVERRIDE` — those force a tier across all invocations regardless of this
-  override; they layer on top, not under.
+
+`SASE_MODEL_TIER_OVERRIDE` / `SASE_MODEL_SIZE_OVERRIDE` still force the tier for tier-based launches. A concrete
+temporary override supplies a provider and model directly, so it is used only when no explicit model/provider was
+requested.
 
 ### Resolution Order (default provider/model)
 
@@ -552,11 +556,12 @@ Complete reference of environment variables used by the LLM provider layer.
 
 ### Codex-Specific
 
-| Variable                | Description                                |
-| ----------------------- | ------------------------------------------ |
-| `SASE_CODEX_LARGE_ARGS` | Codex-specific extra args for `large` tier |
-| `SASE_CODEX_SMALL_ARGS` | Codex-specific extra args for `small` tier |
-| `SASE_AGENT_PLAN_MODE`  | Enable Codex two-phase plan/implement flow |
+| Variable                         | Description                                     |
+| -------------------------------- | ----------------------------------------------- |
+| `SASE_CODEX_PATH`                | Path to the Codex CLI binary                    |
+| `SASE_CODEX_LARGE_ARGS`          | Codex-specific extra args for `large` tier      |
+| `SASE_CODEX_SMALL_ARGS`          | Codex-specific extra args for `small` tier      |
+| `SASE_CODEX_DISABLE_SHADOW_HOME` | Set to `1` to disable the disposable Codex home |
 
 ### Qwen-Specific
 
@@ -571,6 +576,14 @@ Complete reference of environment variables used by the LLM provider layer.
 | Variable           | Description                                          |
 | ------------------ | ---------------------------------------------------- |
 | `SASE_GEMINI_PATH` | Path to the Gemini CLI binary (default: `"gemini"`). |
+
+### OpenCode-Specific
+
+| Variable                   | Description                                   |
+| -------------------------- | --------------------------------------------- |
+| `SASE_OPENCODE_PATH`       | Path to the OpenCode CLI binary               |
+| `SASE_OPENCODE_LARGE_ARGS` | OpenCode-specific extra args for `large` tier |
+| `SASE_OPENCODE_SMALL_ARGS` | OpenCode-specific extra args for `small` tier |
 
 External provider plugins document their own environment variables in their respective repos.
 
@@ -621,14 +634,15 @@ llm_provider:
 
 ### Config Fields
 
-| Field                 | Type      | Default | Description                                                                                                                                                                                      |
-| --------------------- | --------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `max_retries`         | int       | `0`     | Maximum retry attempts. `0` disables retrying.                                                                                                                                                   |
-| `error_patterns`      | list[str] | `[]`    | Case-insensitive substring patterns matched against error output.                                                                                                                                |
-| `wait_times`          | list[int] | `[30]`  | Per-retry wait times in seconds. Last value reused if list is too short.                                                                                                                         |
-| `fallback_model`      | str\|null | `null`  | Alternate model to use after exhausting all retries.                                                                                                                                             |
-| `continuation_prompt` | str       | `""`    | Text prepended to `state.current_prompt` on every retry (used to nudge the agent).                                                                                                               |
-| `spawn_new_agent`     | bool      | `false` | Opt in to spawn-on-retry: a retryable error spawns a fresh detached child agent (as if `sase run -d` had been invoked) instead of in-process retry. See [Spawn-on-Retry](#spawn-on-retry) below. |
+| Field                 | Type          | Default | Description                                                                                                                                                                                      |
+| --------------------- | ------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `max_retries`         | int           | `0`     | Maximum retry attempts. `0` disables retrying.                                                                                                                                                   |
+| `error_patterns`      | list[str]     | `[]`    | Case-insensitive substring patterns matched against error output.                                                                                                                                |
+| `wait_times`          | list[int]     | `[30]`  | Per-retry wait times in seconds. Last value reused if list is too short.                                                                                                                         |
+| `fallback_model`      | `str \| null` | `null`  | Alternate model to use after exhausting all retries.                                                                                                                                             |
+| `continuation_prompt` | `str \| null` | `null`  | Text prepended to `state.current_prompt` on every retry (used to nudge the agent).                                                                                                               |
+| `preserve_workspace`  | bool          | `false` | Preserve on-disk edits across legacy in-process retry attempts.                                                                                                                                  |
+| `spawn_new_agent`     | bool          | `false` | Opt in to spawn-on-retry: a retryable error spawns a fresh detached child agent (as if `sase run -d` had been invoked) instead of in-process retry. See [Spawn-on-Retry](#spawn-on-retry) below. |
 
 ### Default Configuration
 
@@ -649,10 +663,10 @@ via the `llm_default_retry_config()` hook.
 - **wait_times**: `[60, 300, 1800]` (1 min, 5 min, 30 min)
 - **fallback_model**: `"sonnet"`
 
-### Built-In "Prompt is too long" Recovery (Claude)
+### Provider-Supplied Retry Defaults
 
-Claude has an additional built-in retry entry registered internally (not in `default_config.yml`) that auto-recovers
-agents from context-overflow errors without any user config:
+Providers can also declare retry defaults through the `llm_default_retry_config()` hook. Claude declares a built-in
+context-overflow recovery entry that is merged with the `default_config.yml` Claude retry defaults:
 
 - **error pattern**: `"Prompt is too long"`
 - **max_retries**: 3
@@ -660,8 +674,8 @@ agents from context-overflow errors without any user config:
 - **continuation_prompt**: A short nudge that tells the coder to inspect `git status` / `git diff` before resuming,
   since prior edits are preserved on disk when the retry wipes only the in-memory context
 
-User-supplied `llm_provider.retry.claude` config is merged on top of these built-ins: explicit falsy values
-(`max_retries: 0` to opt out entirely, `continuation_prompt: ""` to disable the nudge) override the built-in via
+User-supplied `llm_provider.retry.<provider>` config is merged on top of provider-supplied defaults: explicit falsy
+values (`max_retries: 0` to opt out entirely, `continuation_prompt: ""` to disable the nudge) override the built-in via
 key-presence checks. `error_patterns` is a de-duplicated union of built-in and user lists.
 
 On every retry attempt the `continuation_prompt` (if non-empty) is idempotently prepended to `state.current_prompt`
@@ -678,8 +692,8 @@ Error detected
 │   ├── No  → fail immediately
 │   └── Yes → retry_count < max_retries?
 │       ├── Yes → wait (wait_times[retry_count]) → retry
-│       └── No  → fallback_model configured?
-│           ├── Yes → switch model via SASE_MODEL_OVERRIDE → retry once
+│       └── No  → fallback_model configured and not already using fallback?
+│           ├── Yes → set fallback model override → retry once
 │           └── No  → fail
 ```
 
@@ -739,9 +753,12 @@ Source: `src/sase/axe/run_agent_retry_spawn.py`, `src/sase/llm_provider/retry_co
 
 ## Token Usage Tracking
 
-The LLM provider layer tracks token usage for Claude Code agent runs. Input tokens, output tokens, and cache-read tokens
-are extracted from the Claude Code stream-json result events and persisted as a `usage.json` artifact in the agent run
-directory.
+The LLM provider layer tracks token usage for providers that emit parseable usage events. Claude and Qwen usage is read
+from their stream-json result events. OpenCode usage is accumulated from `step_finish` token counters. Codex currently
+captures assistant text and reasoning summaries but does not emit `usage.json`.
+
+When usage is available, input tokens, output tokens, cache-creation tokens, and cache-read tokens are persisted as a
+`usage.json` artifact in the agent run directory.
 
 ### Artifact Format
 
@@ -749,7 +766,8 @@ directory.
 {
   "input_tokens": 12345,
   "output_tokens": 6789,
-  "cache_read_tokens": 3456
+  "cache_creation_input_tokens": 0,
+  "cache_read_input_tokens": 3456
 }
 ```
 
@@ -761,57 +779,70 @@ Source: `src/sase/llm_provider/_subprocess.py`, `src/sase/llm_provider/types.py`
 
 ## Prompt Preprocessing Pipeline
 
-Before any prompt reaches a provider, it passes through a 6-step preprocessing pipeline defined in `preprocessing.py`.
+Before any prompt reaches a provider, it passes through the shared preprocessing pipeline defined in `preprocessing.py`.
+The pipeline has an early phase used for xprompt expansion and directive extraction, then a late phase used for command,
+file, template, and formatting work.
 
 ### Steps
 
-| #   | Step                 | Syntax         | Description                                          |
-| --- | -------------------- | -------------- | ---------------------------------------------------- |
-| 1   | xprompt references   | `#name`        | Expand reusable inline prompt snippets from xprompts |
-| 2   | Command substitution | `$(cmd)`       | Execute shell commands and inline their output       |
-| 3   | File references      | `@path`        | Inline file contents (copy absolute/tilde paths)     |
-| 4   | Jinja2 rendering     | `{{ var }}`    | Render Jinja2 templates after all prior expansions   |
-| 5   | Prettier formatting  | -              | Format with prettier for consistent markdown         |
-| 6   | Comment stripping    | `<!-- ... -->` | Remove HTML/markdown comments                        |
+| Phase | Step                       | Syntax                                     | Description                                               |
+| ----- | -------------------------- | ------------------------------------------ | --------------------------------------------------------- |
+| Early | Optional workflow Jinja2   | `{{ var }}`                                | Render workflow-supplied template context before xprompt  |
+| Early | xprompt references         | `#name`                                    | Expand reusable prompt snippets or workflows              |
+| Early | Prompt directives          | `%model`, `%m`, other `%...` directives    | Extract directives after xprompt expansion                |
+| Late  | Disabled/fenced protection | `%xprompts_enabled:false`, fenced code     | Protect regions that should not be rewritten              |
+| Late  | Command substitution       | `$(cmd)`                                   | Execute shell commands and inline their output            |
+| Late  | Dynamic memory rewrite     | `@.sase/memory/long-*.md`                  | Ensure dynamic memory files exist relative to current CWD |
+| Late  | File references            | `@path`                                    | Process, validate, or skip file references                |
+| Late  | Top-level Jinja2           | `{{ var }}`                                | Render remaining top-level Jinja2 templates               |
+| Late  | Prettier formatting        | -                                          | Format with prettier for consistent markdown              |
+| Late  | Comment stripping          | `<!-- ... -->`                             | Remove HTML/markdown comments                             |
+| Late  | Restore protected regions  | fenced code / disabled-region placeholders | Restore protected content after rewrites                  |
 
 ### Order Matters
 
-The pipeline runs in strict order. Jinja2 rendering (step 4) happens **after** xprompt, command substitution, and file
-reference expansion, so templates can reference content injected by earlier steps.
+The pipeline runs in strict order. Prompt directives are extracted after xprompt expansion, so directives embedded in
+xprompts are honored. Late-phase command substitution and file-reference processing run with fenced blocks protected, so
+examples inside code fences are not executed or rewritten.
 
 ### Home Mode
 
-When `is_home_mode=True`, file reference processing skips copying files (step 3). This is used when the invocation
-doesn't need side effects from `@path` references.
+When `is_home_mode=True`, file-reference processing skips copy side effects. This is used when the invocation doesn't
+need workspace-local copies from `@path` references.
 
 ### Source Functions
 
 The preprocessing steps delegate to functions from two libraries:
 
-- **`xprompt`**: `process_xprompt_references()`, `is_jinja2_template()`, `render_toplevel_jinja2()`
+- **`xprompt`**: `process_xprompt_references()`, `extract_prompt_directives()`, `is_jinja2_template()`,
+  `render_toplevel_jinja2()`
 - **`gemini_wrapper.file_references`**: `process_command_substitution()`, `process_file_references()`,
-  `format_with_prettier()`, `strip_html_comments()`
+  `validate_file_references()`, `format_with_prettier()`, `strip_html_comments()`
 
 ## Subprocess Streaming
 
-Providers use shared helpers in `_subprocess.py` to stream LLM output in real-time.
+Providers use shared helpers in `_subprocess.py` and the `_subprocess_*` modules to stream LLM output in real time.
+Plain text, JSON-line, and provider-specific parsers share the same artifact hooks for live replies and usage files.
 
 ### Mechanism
 
-1. The provider spawns the CLI tool via `subprocess.Popen` with `stdout=PIPE` and `stderr=PIPE`; providers that consume
-   prompts from stdin also set `stdin=PIPE`.
+1. The provider spawns the CLI tool via `subprocess.Popen`. Providers that consume prompts from stdin set `stdin=PIPE`;
+   OpenCode passes the prompt as the final `opencode run` argument.
 2. The prompt is supplied using the provider's documented transport, either stdin or an argv message argument.
-3. Both stdout and stderr file descriptors are set to **non-blocking** mode via `os.set_blocking()`.
+3. Stdout and stderr are set to **non-blocking** mode via `os.set_blocking()`.
 4. A `select.select()` loop with a 0.1s timeout polls for readable data on both streams.
-5. Lines are read and optionally printed to the console in real-time.
+5. Lines are read, parsed when needed, and optionally printed to the console in real time.
 6. After the process exits (`process.poll() is not None`), any remaining buffered output is drained.
-7. The function returns `(stdout_content, stderr_content, return_code)`.
+7. Helpers return stdout/assistant text, stderr diagnostics, return code, and usage data when the provider reports it.
 
 ### Live Reply File
 
 When `SASE_ARTIFACTS_DIR` is set, the streaming output is also written in real-time to
 `<SASE_ARTIFACTS_DIR>/live_reply.md`. This file is used by the ACE TUI Agents tab to display the agent's reply as it
 streams in, and remains available after execution completes for the metadata panel's AGENT REPLY section.
+
+Providers that support richer streams may write companion artifacts. Codex writes reasoning summaries to
+`<SASE_ARTIFACTS_DIR>/codex_thinking.jsonl`; providers with token counters write `<SASE_ARTIFACTS_DIR>/usage.json`.
 
 ### Output Suppression
 
@@ -923,26 +954,23 @@ invoke_agent(prompt, agent_type, model_tier, ...)
 ├── 2. Check SASE_MODEL_TIER_OVERRIDE / SASE_MODEL_SIZE_OVERRIDE env vars
 ├── 3. Build LoggingContext from parameters
 │
-├── 4. Preprocess prompt (6-step pipeline)
-│   ├── xprompt references (#name)
-│   ├── Command substitution ($(cmd))
-│   ├── File references (@path)
-│   ├── Jinja2 rendering ({{ var }})
-│   ├── Prettier formatting
-│   └── Comment stripping
+├── 4. Preprocess prompt unless skip_preprocessing=True
+│   ├── early phase: optional workflow Jinja2, xprompt expansion, directive extraction
+│   └── late phase: command substitution, file refs, top-level Jinja2, formatting, comment stripping
 │
-├── 5. Display decision counts (if not suppressed)
-├── 6. Print prompt via Rich (if not suppressed)
-├── 7. Generate or use provided timestamp
-├── 8. Save prompt to artifacts directory
+├── 5. Resolve %model / temporary provider-model override
+├── 6. Display decision counts (if not suppressed)
+├── 7. Print prompt via Rich (if not suppressed)
+├── 8. Generate or use provided timestamp
+├── 9. Save prompt to artifacts directory
 │
-├── 9. Get provider from registry and invoke
+├── 10. Get provider from registry and invoke
 │   ├── Build CLI command with flags
 │   ├── Spawn subprocess (Popen)
 │   ├── Supply prompt via provider transport
 │   └── Stream stdout/stderr in real-time
 │
-├── 10. Postprocess
+├── 11. Postprocess
 │   ├── Success path:
 │   │   ├── Audio notification
 │   │   ├── Log to sase.md
@@ -952,28 +980,31 @@ invoke_agent(prompt, agent_type, model_tier, ...)
 │       ├── Log error to sase.md
 │       └── Save error chat history
 │
-└── 11. Return AIMessage(content=response)
+└── 12. Return AIMessage(content=response), or raise LLMInvocationError on failure
 ```
 
 ### Parameters
 
-| Parameter         | Type                        | Default    | Description                             |
-| ----------------- | --------------------------- | ---------- | --------------------------------------- |
-| `prompt`          | `str`                       | (required) | Raw prompt to send                      |
-| `agent_type`      | `str`                       | (required) | Agent type label (e.g., `"editor"`)     |
-| `model_tier`      | `ModelTier`                 | `"large"`  | Model tier to use                       |
-| `model_size`      | `"big" \| "little" \| None` | `None`     | Deprecated, use `model_tier`            |
-| `iteration`       | `int \| None`               | `None`     | Iteration number for logging            |
-| `workflow_tag`    | `str \| None`               | `None`     | Workflow tag for logging                |
-| `artifacts_dir`   | `str \| None`               | `None`     | Directory for sase.md and prompt files  |
-| `workflow`        | `str \| None`               | `None`     | Workflow name for chat history          |
-| `suppress_output` | `bool`                      | `False`    | Suppress console output                 |
-| `timestamp`       | `str \| None`               | `None`     | Shared timestamp (`YYmmdd_HHMMSS`)      |
-| `is_home_mode`    | `bool`                      | `False`    | Skip file copying for `@` references    |
-| `decision_counts` | `dict[str, Any] \| None`    | `None`     | Planning agent decision counts          |
-| `provider_name`   | `str \| None`               | `None`     | Override provider (default from config) |
+| Parameter             | Type                        | Default    | Description                                       |
+| --------------------- | --------------------------- | ---------- | ------------------------------------------------- |
+| `prompt`              | `str`                       | (required) | Raw prompt to send                                |
+| `agent_type`          | `str`                       | (required) | Agent type label (e.g., `"editor"`)               |
+| `model_tier`          | `ModelTier`                 | `"large"`  | Model tier to use                                 |
+| `model_size`          | `"big" \| "little" \| None` | `None`     | Deprecated, use `model_tier`                      |
+| `iteration`           | `int \| None`               | `None`     | Iteration number for logging                      |
+| `workflow_tag`        | `str \| None`               | `None`     | Workflow tag for logging                          |
+| `artifacts_dir`       | `str \| None`               | `None`     | Directory for sase.md, prompt, and stream files   |
+| `workflow`            | `str \| None`               | `None`     | Workflow name for chat history                    |
+| `suppress_output`     | `bool`                      | `False`    | Suppress console output                           |
+| `timestamp`           | `str \| None`               | `None`     | Shared timestamp (`YYmmdd_HHMMSS`)                |
+| `is_home_mode`        | `bool`                      | `False`    | Skip file copying for `@` references              |
+| `branch_or_workspace` | `str \| None`               | `None`     | Override the chat-history filename prefix         |
+| `decision_counts`     | `dict[str, Any] \| None`    | `None`     | Planning agent decision counts                    |
+| `provider_name`       | `str \| None`               | `None`     | Override provider (default from config)           |
+| `skip_preprocessing`  | `bool`                      | `False`    | Use `prompt` as already-preprocessed input        |
+| `directives`          | `PromptDirectives \| None`  | `None`     | Pre-extracted directives for `skip_preprocessing` |
 
 ### Return Value
 
-Always returns an `AIMessage` (from `langchain_core.messages`). On error, the `content` field contains the error message
-rather than a response.
+On success, returns an `AIMessage` (from `langchain_core.messages`) whose `content` is the provider response. On
+provider failure, `invoke_agent()` logs the error and raises `LLMInvocationError` with the formatted error text.
