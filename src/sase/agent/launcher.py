@@ -339,6 +339,10 @@ def launch_agents_from_cwd(
     Raises:
         RuntimeError: If workspace allocation or claiming fails.
     """
+    from sase.agent.names import ensure_historical_auto_name_migration
+
+    ensure_historical_auto_name_migration()
+
     from sase.ace.tui.actions.agent_workflow._ref_resolution import (
         is_non_workspace_workflow,
         resolve_ref_from_prompt,

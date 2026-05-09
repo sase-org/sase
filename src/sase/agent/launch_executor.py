@@ -144,6 +144,10 @@ def execute_launch_plan(
     if not plan.slots:
         return _LaunchExecutionResult(records=[])
 
+    from sase.agent.names import ensure_historical_auto_name_migration
+
+    ensure_historical_auto_name_migration()
+
     from sase.agent.launch_validation import validate_launch_name_requests
 
     validate_launch_name_requests([slot.prompt for slot in plan.slots])

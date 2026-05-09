@@ -43,6 +43,10 @@ from sase.agent.names._lookup import (
     get_most_recent_agent_name,
     is_workflow_complete,
 )
+from sase.agent.names._migration import (
+    ensure_historical_auto_name_migration,
+    run_historical_auto_name_migration,
+)
 from sase.agent.names._registry import (
     claim_registered_name,
     delete_registered_name,
@@ -175,6 +179,7 @@ __all__ = [
     "get_next_auto_name",
     "get_reserved_agent_name_map",
     "get_reserved_agent_names",
+    "ensure_historical_auto_name_migration",
     "is_name_reserved",
     "is_dismissed_prefixed",
     "is_process_alive",
@@ -185,5 +190,6 @@ __all__ = [
     "reserve_repeat_name_base",
     "rebuild_name_registry",
     "resolve_agent_changespec",
+    "run_historical_auto_name_migration",
     "strip_dismissed_prefix",
 ]

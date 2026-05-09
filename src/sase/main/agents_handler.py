@@ -47,5 +47,11 @@ def handle_agents_command(args: argparse.Namespace) -> None:
         handle_agents_index(args)
         sys.exit(0)
 
-    print("Usage: sase agents {status,kill,show,tag,archive,index}")
+    if sub == "names":
+        from sase.agents.cli_names import handle_agents_names
+
+        handle_agents_names(args)
+        sys.exit(0)
+
+    print("Usage: sase agents {status,kill,show,tag,archive,index,names}")
     sys.exit(1)

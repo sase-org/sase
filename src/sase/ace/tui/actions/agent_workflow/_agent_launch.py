@@ -212,7 +212,10 @@ class AgentLaunchMixin(
             # (e.g. another launch path ran); nothing to do.
             return
         ctx = self._prompt_context
+        from sase.agent.names import ensure_historical_auto_name_migration
         from sase.agent.launch_timing import LaunchTimingRecorder
+
+        ensure_historical_auto_name_migration()
 
         timer = LaunchTimingRecorder(
             "tui_agent_launch",

@@ -60,6 +60,9 @@ def extract_directives_and_write_meta(
 
     # Parse user-prompt frontmatter to extract local xprompts.
     from sase.agent.multi_prompt import parse_multi_prompt
+    from sase.agent.names import ensure_historical_auto_name_migration
+
+    ensure_historical_auto_name_migration()
 
     multi = parse_multi_prompt(prompt)
     prompt_body = "\n---\n".join(multi.segments)

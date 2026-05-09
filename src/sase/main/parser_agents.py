@@ -180,3 +180,28 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Emit a machine-readable JSON object",
     )
+
+    # sase agents names migrate-auto
+    names_parser = agents_sub.add_parser(
+        "names",
+        help="Maintain the permanent agent-name registry and migrations",
+    )
+    names_sub = names_parser.add_subparsers(
+        dest="names_subcommand", help="Name maintenance subcommands"
+    )
+    migrate_auto_parser = names_sub.add_parser(
+        "migrate-auto",
+        help="Run the historical auto-name namespace migration",
+    )
+    migrate_auto_parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="Run even when the migration marker says it already completed",
+    )
+    migrate_auto_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON object",
+    )

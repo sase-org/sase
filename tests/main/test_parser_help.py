@@ -75,11 +75,11 @@ def test_all_visible_subparser_help_entries_are_sorted() -> None:
 def test_agents_help_renders_sorted_subcommands() -> None:
     """A formerly unsorted help view renders its user-facing rows sorted."""
     agents_parser = _parser_for(("sase", "agents"))
-    expected_commands = {"archive", "index", "kill", "show", "status", "tag"}
+    expected_commands = {"archive", "index", "kill", "names", "show", "status", "tag"}
 
     help_commands = _help_subcommand_rows(
         agents_parser.format_help(), expected_commands
     )
 
     assert help_commands == sorted(expected_commands)
-    assert "{archive,index,kill,show,status,tag}" in agents_parser.format_help()
+    assert "{archive,index,kill,names,show,status,tag}" in agents_parser.format_help()
