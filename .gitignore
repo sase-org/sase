@@ -77,3 +77,10 @@ sdd/tales/202605/perf_artifacts/agent_launch_regression_check.json
 # JSON local and link to it from the surface's handoff per
 # sdd/tales/202604/perf_artifacts/README.md.
 sdd/tales/202604/perf_artifacts/local_only/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
