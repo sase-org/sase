@@ -8,6 +8,7 @@ pdf: false
 
 - Document: `docs/rust_backend.md`
 - Insertion point: at the start of `## Architecture`, before the existing ASCII diagram.
+- Final asset: `docs/images/rust-backend-boundary-infographic.png` (1600x900 PNG)
 
 ## Intended Alt Text
 
@@ -39,5 +40,10 @@ symbolism, one-hue purple/blue gradient theme.
 ## Post-Processing Notes
 
 The generated image was used as the no-text architecture background. Final labels were added deterministically with
-ImageMagick so the committed PNG uses exact doc terminology and avoids generated-text misspellings. Phase 7 QA adjusted
-overlapping layer, ownership, and contract-loop labels for GitHub Markdown readability.
+ImageMagick so the committed PNG uses exact doc terminology and avoids generated-text misspellings.
+
+The committed image now includes the layered labels from `docs/rust_backend.md`: SASE Python host layer, `sase.core`
+facade, stable wire records, required Rust boundary with no Python fallback, `sase_core_rs` PyO3 extension,
+`../sase-core` deterministic cores, Python-owned host responsibilities, Rust-owned operation groups, and the
+health/fixtures/tests contract loop. Phase 7 QA adjusted overlapping layer, ownership, and contract-loop labels for
+GitHub Markdown readability.
