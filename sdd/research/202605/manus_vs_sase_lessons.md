@@ -15,10 +15,12 @@ The user prompt said "mantis" once after asking about "Manus"; this research ass
 
 Primary Manus sources:
 
-- Manus docs: [Welcome](https://manus.im/docs/introduction/welcome), [Cloud Browser](https://manus.im/docs/features/cloud-browser), [Browser Operator](https://manus.im/docs/features/browser-operator), [Desktop](https://manus.im/docs/features/desktop), [Projects](https://manus.im/docs/features/projects), [Skills](https://manus.im/docs/features/skills), [Wide Research](https://manus.im/docs/features/wide-research), [Scheduled Tasks](https://manus.im/docs/features/scheduled-tasks), [Collab](https://manus.im/docs/features/collab)
+- Manus docs: [Welcome](https://manus.im/docs/introduction/welcome), [Cloud Browser](https://manus.im/docs/features/cloud-browser), [Browser Operator](https://manus.im/docs/features/browser-operator), [Desktop](https://manus.im/docs/features/desktop), [Projects](https://manus.im/docs/features/projects), [Skills](https://manus.im/docs/features/skills), [Wide Research](https://manus.im/docs/features/wide-research), [Scheduled Tasks](https://manus.im/docs/features/scheduled-tasks), [Collab](https://manus.im/docs/features/collab), [Plans and Pricing](https://manus.im/docs/introduction/plans)
 - Manus API docs: [Introduction](https://open.manus.im/docs/v2/introduction), [Task Lifecycle](https://open.manus.im/docs/v2/task-lifecycle), [Connectors](https://open.manus.im/docs/v2/connectors), [Agents](https://open.manus.im/docs/v2/agents-overview), [Structured Output](https://open.manus.im/docs/v2/structured-output)
 - Manus Website Builder docs: [Code Control](https://manus.im/docs/website-builder/code-control), [Publishing](https://manus.im/docs/website-builder/publishing), [GitHub Integration](https://manus.im/docs/website-builder/github-integration)
 - Manus help center: [My Computer capabilities](https://help.manus.im/en/articles/14178443-what-is-the-my-computer-feature-capable-of)
+- Manus engineering blog: [Context Engineering for AI Agents: Lessons from Building Manus](https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus) (Yichao "Peak" Ji)
+- Manus product blog: [Introducing Manus 1.5](https://manus.im/blog/manus-1.5-release)
 
 Secondary / independent sources:
 
@@ -26,7 +28,12 @@ Secondary / independent sources:
 - AP: [Meta buys startup Manus](https://apnews.com/article/meta-manus-purchase-ai-agents-aaf01029923011a403ceeb949cf3db5e)
 - Axios: [New Chinese AI agent draws DeepSeek comparison](https://www.axios.com/2025/03/10/manus-chinese-ai-agent-deepseek)
 - TechCrunch: [Manus probably isn't China's second DeepSeek moment](https://techcrunch.com/2025/03/09/manus-probably-isnt-chinas-second-deepseek-moment/) and [Manus launches paid plans and mobile app](https://techcrunch.com/2025/03/31/manus-launches-paid-subscription-plans-and-a-mobile-app/)
+- The Decoder: [Chinese AI agent Manus uses Claude Sonnet and open-source technology](https://the-decoder.com/chinese-ai-agent-manus-uses-claude-sonnet-and-open-source-technology/)
+- arXiv: [From Mind to Machine: The Rise of Manus AI as a Fully Autonomous Digital Agent](https://arxiv.org/html/2505.02024v3)
+- DataCamp: [Manus AI: Features, Architecture, Access, Early Issues & More](https://www.datacamp.com/blog/manus-ai)
+- Technical investigation gist by renschni: [Manus AI architecture and tool orchestration](https://gist.github.com/renschni/4fbc70b31bad8dd57f3370239dccd58f)
 - GAIA benchmark paper: [GAIA: a benchmark for General AI Assistants](https://arxiv.org/abs/2311.12983)
+- OpenManus: [FoundationAgents/OpenManus on GitHub](https://github.com/FoundationAgents/OpenManus) and [OpenManus-RL](https://github.com/OpenManus/OpenManus-RL)
 
 Local SASE sources:
 
@@ -62,6 +69,65 @@ The product surface has expanded beyond the initial "cloud agent" idea:
 Manus also has strong public product momentum. AWS claimed a $90M revenue run rate four months after subscription launch.
 AP later reported Meta's acquisition of Manus, with Meta saying Manus served millions of users and businesses. These
 numbers should be treated as commercial signals rather than technical proof.
+
+### Underlying model and multi-agent topology
+
+Manus is not a from-scratch foundation model; it is an agent harness on top of frontier models. Independent reverse
+engineering and reporting consistently identify the primary reasoning model as Anthropic's **Claude 3.5 Sonnet** (with
+Claude 3.7 tested internally), supplemented by fine-tuned **Alibaba Qwen** variants for auxiliary tasks. The runtime is
+reported to expose roughly 29 tools and use the open-source **Browser Use** library for browser automation
+([The Decoder](https://the-decoder.com/chinese-ai-agent-manus-uses-claude-sonnet-and-open-source-technology/);
+[renschni technical gist](https://gist.github.com/renschni/4fbc70b31bad8dd57f3370239dccd58f)).
+
+The architecture is multi-agent with separated context windows: a user-facing **Executor** runs an iterative
+analyze → plan → execute → observe loop, while **Planner**, **Knowledge**, and **Verifier** sub-agents operate in their
+own contexts. Actions are emitted as executable Python (the **CodeAct** pattern from the OpenHands lineage) rather than
+free-form tool calls, which gives Manus a single, expressive action surface.
+
+This matters for SASE because it means the Manus story is mostly about *agent harness design* — context engineering,
+tool boundaries, sandbox shape, and review surfaces — on top of the same models SASE already orchestrates. Most of
+what SASE could borrow is harness design, not novel model capability.
+
+### Benchmark numbers
+
+At launch, Manus reported state-of-the-art **GAIA** results (self-reported, not independently re-verified):
+
+| GAIA Level | Manus | OpenAI Deep Research (prior SOTA at the time) |
+| --- | --- | --- |
+| Level 1 | 86.5% | 74.3% |
+| Level 2 | 70.1% | 69.1% |
+| Level 3 | 57.7% | 47.6% |
+
+GAIA tests real-world, tool-using assistants across reasoning, multimodality, browsing, and tool use, but does not
+exercise long-horizon authenticated workflows or multi-day software-engineering loops. SASE should treat the numbers as
+directional and build domain-specific evaluations that better reflect engineering work (see "Benchmark interpretation"
+below).
+
+### Manus 1.5 (October 2025)
+
+The [Manus 1.5 release post](https://manus.im/blog/manus-1.5-release) reports a roughly **4× speed improvement**
+(average task time 15 min → ~4 min), a 15% quality lift on internal benchmarks, an expanded ("unlimited") context
+window, and a one-prompt full-stack web app builder with backend/auth/database/analytics. It also introduces shared
+**Collaboration** sessions and a **Library** for centralized artifacts. The release ships in two tiers — `Manus-1.5-Lite`
+for all users and `Manus-1.5` for subscribers — which is a useful precedent for "good-enough free vs. premium agent"
+tiering.
+
+### Pricing and credits
+
+Manus runs on a credit model with daily refresh credits in addition to monthly pools. Public 2026 plans land roughly
+at: Free ($0, 300 daily credits), Standard ($20/mo, ~4,000 credits), a customizable tier (~$40/mo), and Extended
+(~$200/mo, ~40,000 credits). Team plans add shared credit pools, SSO, audit, and admin features
+([Manus pricing docs](https://manus.im/docs/introduction/plans)). The credit model has drawn user complaints because
+long autonomous runs can burn credits unpredictably — relevant context for SASE's own cost-budget thinking.
+
+### Open-source counterpart: OpenManus
+
+[OpenManus](https://github.com/FoundationAgents/OpenManus) is an open-source clone built by MetaGPT contributors in the
+days after Manus's launch. It uses GPT-4o (or any pluggable LLM) and a modular agent loop. It is genuinely useful as a
+reference implementation when reasoning about Manus's mechanics — particularly its tool/agent loop and prompt scaffolding
+— without having to infer everything from the closed product. [OpenManus-RL](https://github.com/OpenManus/OpenManus-RL)
+extends it with RL fine-tuning experiments. SASE doesn't need to adopt either, but they're cheaper to read than the
+Manus binary.
 
 ## SASE Summary
 
@@ -159,6 +225,32 @@ shareable review links or a lightweight web/mobile review mode.
 Manus publishes websites, decks, dashboards, and reports. SASE writes high-quality local artifacts and can render PDFs,
 but "turn this artifact into a shareable deliverable" is not yet a major product path. Research notes, mentor summaries,
 agent replays, and ChangeSpec bundles could become first-class shareable outputs.
+
+### 8. Replay as a first-class artifact
+
+Manus exposes a step-by-step **replay** of every task — the pages it opened, searches it ran, files it created — and
+lets the user jump in mid-run, take over, or re-run a subtask. This isn't just a UX flourish: it doubles as a debugging
+surface, a teaching surface, and a sales surface. SASE retains the underlying data (chat transcripts, diffs, artifacts,
+notifications, axe/agent meta), but doesn't yet stitch them into a single chronological replay view. A timeline that
+threads agent events, file edits, tool calls, plan transitions, and HITL gates would unlock the same affordances.
+
+### 9. Published context-engineering discipline
+
+The Manus team's [Context Engineering for AI Agents](https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus)
+post is unusually concrete and worth reading in full. The headline lessons — and what they imply for SASE's own
+agent runtime, workflow steps, and provider adapters — are:
+
+| Manus lesson | What it means | Relevance to SASE |
+| --- | --- | --- |
+| **Design around the KV cache.** Stable prefixes, append-only context, deterministic JSON serialization. Manus reports a 10× cost gap for Claude Sonnet between cached (≈$0.30/Mtok) and uncached (≈$3/Mtok) input tokens. | Cache hit rate is the dominant cost/latency lever for tool-use agents. | SASE should make prefix stability a first-class concern in xprompt/skill rendering: avoid timestamps and run-IDs early in prompts, prefer deterministic key ordering, and give workflow authors a "cache-stable" lint. |
+| **Mask, don't remove tools.** Use logit masking and a state machine to gate tool availability instead of mutating the tool list mid-run. | Removing a tool invalidates earlier tool-call references and breaks the cache. | SASE provider adapters that prune tools per phase (e.g. plan vs. execute) should mask via decoding constraints or a no-op stub, not by editing the tool catalog mid-conversation. |
+| **File system as external memory.** Drop large web/file content from context but keep a restorable handle (URL, path). | Treats the workspace itself as unbounded context. | SASE already has artifacts, the workspace, and SDD storage. Codify a convention where any large tool observation is written to disk and referenced by path/hash, with a small structured stub kept inline. |
+| **Manipulate attention through recitation.** Continuously rewrite a `todo.md`-style task list so active goals stay in recent context. | Combats "lost in the middle" on long horizons. | SASE has beads, ChangeSpec status, plans, and bead phase trees — but few of them are surfaced *back* into the agent's prompt over time. A recurring "what we have done / what is next" injection is a cheap intervention. |
+| **Preserve errors as learning signals.** Don't hide failed actions; let the model see its mistakes. | Implicit in-context belief updating; better recovery. | SASE's hook failure messages, mentor findings, and lint/test errors should be surfaced into the next agent step rather than swallowed by retry logic. The spawn-on-retry path in particular should hand the new agent a structured failure summary. |
+| **Avoid few-shot pattern collapse.** Add structured variation to action/observation phrasing. | Models overgeneralize from monotonous examples and lock into a rut. | SASE skill/xprompt authors who use heavy templating should be aware that highly uniform tool outputs invite repetitive behavior. Workflow templates should leave room for varied prose, not rigid table dumps. |
+
+These are the most directly transferable technical lessons in this whole comparison: they apply regardless of the
+provider behind a SASE run, and several can be adopted without any product surface change.
 
 ## Where SASE Is Stronger
 
@@ -380,7 +472,32 @@ SASE should make the easy path:
 
 This is less flashy than "leave it to Manus", but better matched to production code.
 
-### 12. Consider optional browser/local-desktop bridges only with narrow scope
+### 12. Adopt KV-cache-aware prompt and tool plumbing
+
+Translate the Manus context-engineering lessons into concrete SASE conventions:
+
+- xprompt/skill renderers should keep a **stable prefix** (system prompt, project profile, tool catalog) and put
+  volatile content (timestamps, run IDs, dynamic memory matches) *after* it.
+- Tool catalogs should be **append-only within a run**; gate availability via masking/no-op stubs instead of removing
+  tool definitions mid-conversation.
+- Large tool observations (web fetch bodies, file dumps, search results) should be **spilled to the workspace** and
+  referenced by path/hash, with a short structured stub kept inline.
+- Provide a `sase doctor` / lint check that flags cache-hostile patterns (early-prefix timestamps, non-deterministic
+  JSON ordering, mid-run tool mutation).
+- Surface estimated KV-cache hit rate per agent run in telemetry next to token counts so authors can see the cost
+  impact of their prompt edits.
+
+### 13. Use the workspace as long-horizon memory, deliberately
+
+Manus uses its sandbox file system as an explicit memory store; SASE has a richer notion of workspace but uses it
+mostly as a build directory. Promote the workspace to a memory tier:
+
+- Standard subpaths (e.g. `.sase/run/<id>/notes/`, `.../observations/`, `.../scratch/`) for agent-written context.
+- A "recall" tool the agent can use to re-read its own earlier notes and observations by topic, not by scrolling chat.
+- A periodic `todo.md` recitation injected into the prompt so the agent re-grounds in the active plan.
+- Automatic redaction/summary of stale scratch files when the run wraps, with the originals retained in artifacts.
+
+### 14. Consider optional browser/local-desktop bridges only with narrow scope
 
 SASE could benefit from browser automation for docs, issue trackers, dashboards, and web QA, but should avoid broad
 ambient control. A safe design would be:
@@ -400,10 +517,12 @@ ambient control. A safe design would be:
 | --- | --- | --- |
 | P0 | Unified task lifecycle and schema-based waiting events | Connects existing SASE strengths and improves every surface. |
 | P0 | Structured final output artifact | Makes SASE automation easier to consume programmatically. |
+| P0 | KV-cache-aware prompt/tool plumbing | Pure-internal change with the largest cost/latency payoff; informed by published Manus numbers (≈10× cached vs. uncached input cost on Claude Sonnet). |
 | P1 | First-class map/reduce agent mode | Captures Manus Wide Research's strongest technical abstraction in a SASE-native way. |
 | P1 | Project profile surface | Reduces setup friction and makes recurring workflows legible. |
-| P1 | Cost budgets / stop conditions | Required for safe wider parallelism and long-running agents. |
-| P2 | Shareable run/replay bundles | Improves collaboration, review, onboarding, and demos. |
+| P1 | Cost budgets / stop conditions | Required for safe wider parallelism and long-running agents; addresses credit-burn complaints seen on Manus. |
+| P1 | Workspace-as-memory conventions and recitation | Cheap intervention with outsized effect on long-horizon runs. |
+| P2 | Shareable run/replay bundles + chronological replay view | Improves collaboration, review, onboarding, and demos; mirrors Manus's most-loved UX surface. |
 | P2 | Connector permission summary | Prepares for broader integrations without weakening trust. |
 | P2 | Scheduled-task UX over AXE | Makes existing automation more approachable. |
 | P3 | Browser/local desktop bridge | Useful but security-sensitive; only after lifecycle, permissions, and audit logs are solid. |
