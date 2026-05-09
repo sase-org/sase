@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 15:28:59
-status: wip
+status: done
 prompt: sdd/prompts/202605/remove_pdf_done_agent_rows.md
 ---
 # Remove Completed PDF Text From Agent Rows

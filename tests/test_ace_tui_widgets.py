@@ -165,6 +165,7 @@ def _make_agent(
     step_type: str | None = None,
     step_output: dict[str, Any] | None = None,
     activity: str | None = None,
+    pdf_status: dict[str, Any] | None = None,
 ) -> Agent:
     """Create a minimal Agent for prompt panel testing."""
     return Agent(
@@ -179,11 +180,20 @@ def _make_agent(
         step_type=step_type,
         step_output=step_output,
         activity=activity,
+        pdf_status=pdf_status,
     )
 
 
-def test_agent_row_displays_pdf_activity_suffix() -> None:
-    agent = _make_agent(activity="PDF 2/5 docs/notes.md")
+def test_agent_row_displays_active_pdf_status_suffix() -> None:
+    agent = _make_agent(
+        pdf_status={
+            "stage": "engine_started",
+            "index": 2,
+            "total": 5,
+            "source_path": "docs/notes.md",
+            "active": True,
+        },
+    )
 
     _left, suffix, _option_id = format_agent_option(
         agent,
@@ -192,6 +202,66 @@ def test_agent_row_displays_pdf_activity_suffix() -> None:
     )
 
     assert "PDF 2/5 docs/notes.md" in suffix.plain
+
+
+def test_agent_row_honors_explicit_pdf_activity_suffix() -> None:
+    agent = _make_agent(
+        activity="PDF done 2/5 docs/notes.md",
+        pdf_status={
+            "stage": "completed",
+            "generated": 2,
+            "total": 5,
+            "active": False,
+        },
+    )
+
+    _left, suffix, _option_id = format_agent_option(
+        agent,
+        0,
+        is_selected=False,
+    )
+
+    assert "PDF done 2/5 docs/notes.md" in suffix.plain
+
+
+def test_agent_row_omits_completed_pdf_status_suffix() -> None:
+    agent = _make_agent(
+        pdf_status={
+            "stage": "completed",
+            "generated": 4,
+            "skipped": 1,
+            "total": 5,
+            "active": False,
+        },
+    )
+
+    _left, suffix, _option_id = format_agent_option(
+        agent,
+        0,
+        is_selected=False,
+    )
+
+    assert suffix.plain == ""
+    assert "PDFs done" not in suffix.plain
+
+
+def test_agent_row_omits_inactive_skipped_pdf_status_suffix() -> None:
+    agent = _make_agent(
+        pdf_status={
+            "stage": "skipped",
+            "reason": "over attachment limit",
+            "active": False,
+        },
+    )
+
+    _left, suffix, _option_id = format_agent_option(
+        agent,
+        0,
+        is_selected=False,
+    )
+
+    assert suffix.plain == ""
+    assert "PDFs skipped" not in suffix.plain
 
 
 def test_get_prompt_content_workflow_child_filters_by_step(

@@ -47,7 +47,6 @@ _RUNTIME_USER_PAUSED_MARKER = "🙋 "
 _RUNTIME_USER_PAUSED_MARKER_STYLE = "#FFAF00"
 _USER_PAUSED_STATUSES = frozenset({"PLANNING", "QUESTION", "WAITING INPUT"})
 _ACTIVITY_STYLE = "bold #D7AF5F"
-_ACTIVITY_DIM_STYLE = "dim #D7AF5F"
 
 
 def _runtime_suffix_user_paused(agent: Agent, *, is_ticking: bool) -> bool:
@@ -134,8 +133,7 @@ def build_activity_suffix(agent: Agent) -> Text:
     suffix = Text()
     if not label:
         return suffix
-    style = _ACTIVITY_DIM_STYLE if label.startswith("PDFs done") else _ACTIVITY_STYLE
-    suffix.append(label, style=style)
+    suffix.append(label, style=_ACTIVITY_STYLE)
     return suffix
 
 
@@ -160,8 +158,6 @@ def _agent_activity_label(agent: Agent) -> str | None:
     stage = status.get("stage")
     total = status.get("total")
     index = status.get("index")
-    generated = status.get("generated")
-    skipped = status.get("skipped")
     source = status.get("source_path")
     reason = status.get("reason")
     if stage in {"source_started", "engine_started"}:
@@ -171,16 +167,11 @@ def _agent_activity_label(agent: Agent) -> str | None:
         prefix = f"PDF done {index}/{total}" if index and total else "PDF done"
         return f"{prefix} {source or ''}".strip()
     if stage in {"source_failed", "skipped"}:
+        if status.get("active") is False:
+            return None
         return f"PDFs skipped: {reason}" if reason else "PDF skipped"
     if stage == "completed":
-        if reason:
-            return f"PDFs skipped: {reason}"
-        if generated is not None and total is not None:
-            label = f"PDFs done {generated}/{total}"
-            if skipped:
-                label += f" ({skipped} skipped)"
-            return label
-        return "PDFs done"
+        return None
     if stage == "started":
         return "Preparing PDFs from Markdown..."
     return None
