@@ -6,7 +6,7 @@ from dataclasses import replace
 from typing import Any
 
 from textual.app import App, ComposeResult
-from textual.widgets import OptionList
+from textual.widgets import OptionList, Static
 
 from sase.ace.tui.modals import (
     AgentCleanupCustomModal,
@@ -14,6 +14,7 @@ from sase.ace.tui.modals import (
     AgentCleanupPanelState,
     AgentCleanupResult,
     AgentCleanupTagModal,
+    AgentCleanupTagResult,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 
@@ -141,6 +142,105 @@ async def test_agent_cleanup_tag_modal_supports_jk_navigation() -> None:
         await pilot.press("k")
         await pilot.pause()
         assert option_list.highlighted == 0
+
+
+async def test_agent_cleanup_tag_modal_toggle_marks_row_and_advances() -> None:
+    alpha = _agent(cl_name="alpha", raw_suffix="alpha-ts", tag="alpha", pid=10)
+    beta = _agent(cl_name="beta", raw_suffix="beta-ts", tag="beta", pid=11)
+
+    async with _TestApp().run_test() as pilot:
+        modal = AgentCleanupTagModal(
+            tags=("alpha", "beta"),
+            targets=[alpha, beta],
+        )
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        option_list = modal.query_one("#agent-cleanup-tag-list", OptionList)
+        await pilot.press("space")
+        await pilot.pause()
+
+        assert modal._marked_tags == {"alpha"}
+        assert option_list.highlighted == 1
+        assert "[x] @alpha" in option_list.get_option_at_index(0).prompt.plain
+        assert "marked: 1" in modal._hint_text()
+        assert "1 kill" in modal._hint_text()
+
+
+async def test_agent_cleanup_tag_modal_enter_returns_marked_tags(
+    monkeypatch: Any,
+) -> None:
+    alpha = _agent(cl_name="alpha", raw_suffix="alpha-ts", tag="alpha", pid=10)
+    beta = _agent(cl_name="beta", raw_suffix="beta-ts", tag="beta", pid=11)
+
+    async with _TestApp().run_test() as pilot:
+        modal = AgentCleanupTagModal(
+            tags=("alpha", "beta"),
+            targets=[alpha, beta],
+        )
+        dismissed: list[AgentCleanupTagResult | None] = []
+        monkeypatch.setattr(modal, "dismiss", dismissed.append)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("space")
+        await pilot.press("space")
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert dismissed == [AgentCleanupTagResult(tags=("alpha", "beta"))]
+
+
+async def test_agent_cleanup_tag_modal_enter_without_marks_returns_highlighted_tag(
+    monkeypatch: Any,
+) -> None:
+    alpha = _agent(cl_name="alpha", raw_suffix="alpha-ts", tag="alpha", pid=10)
+    beta = _agent(cl_name="beta", raw_suffix="beta-ts", tag="beta", pid=11)
+
+    async with _TestApp().run_test() as pilot:
+        modal = AgentCleanupTagModal(
+            tags=("alpha", "beta"),
+            targets=[alpha, beta],
+        )
+        dismissed: list[AgentCleanupTagResult | None] = []
+        monkeypatch.setattr(modal, "dismiss", dismissed.append)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("j")
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert dismissed == [AgentCleanupTagResult(tags=("beta",))]
+
+
+async def test_agent_cleanup_tag_modal_disabled_tag_cannot_be_marked_or_confirmed(
+    monkeypatch: Any,
+) -> None:
+    fix = _agent(cl_name="fix", raw_suffix="fix-ts", tag="fix", pid=10)
+
+    async with _TestApp().run_test() as pilot:
+        modal = AgentCleanupTagModal(
+            tags=("empty", "fix"),
+            targets=[fix],
+        )
+        dismissed: list[AgentCleanupTagResult | None] = []
+        monkeypatch.setattr(modal, "dismiss", dismissed.append)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        option_list = modal.query_one("#agent-cleanup-tag-list", OptionList)
+        option_list.highlighted = 0
+        await pilot.press("space")
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert modal._marked_tags == set()
+        assert dismissed == []
+        assert (
+            modal.query_one("#agent-cleanup-hints", Static).content
+            == "Tag has no cleanup targets"
+        )
 
 
 def test_agent_cleanup_custom_modal_filters_and_selects_done_agents() -> None:

@@ -238,6 +238,69 @@ def test_tag_cleanup_confirmation_ignores_out_of_scope_same_tag_agent() -> None:
     assert _names_in_modal(app) == ["visible"]
 
 
+def test_multi_tag_cleanup_confirmation_includes_selected_tags() -> None:
+    fix = _agent(name="fix", suffix="t1", tag="fix", status="RUNNING", pid=10)
+    review = _agent(name="review", suffix="t2", tag="review")
+    other = _agent(name="other", suffix="t3", tag="other")
+    app = _FakeApp([fix, review, other])
+
+    app._present_tag_cleanup_for_tags(("fix", "review"))
+
+    assert len(app._pushed) == 1
+    screen, _callback = app._pushed[-1]
+    assert "Tags: @fix, @review" in screen.agent_description
+    assert set(_names_in_modal(app)) == {"fix", "review"}
+
+
+def test_multi_tag_cleanup_dedupes_workflow_cascade_identities() -> None:
+    parent = _agent(
+        name="parent",
+        suffix="parent-ts",
+        agent_type=AgentType.WORKFLOW,
+        tag="fix",
+        status="RUNNING",
+        pid=10,
+        workflow="wf",
+    )
+    child = _agent(
+        name="child",
+        suffix="child-ts",
+        status="RUNNING",
+        pid=11,
+        parent_workflow="wf",
+        parent_timestamp="parent-ts",
+        workflow="step",
+        tag="review",
+    )
+    review = _agent(name="review", suffix="review-ts", tag="review")
+    app = _FakeApp([parent, review], agents_with_children=[parent, child, review])
+
+    app._present_tag_cleanup_for_tags(("fix", "review"))
+
+    assert len(app._pushed) == 1
+    assert _names_in_modal(app).count("parent") == 1
+    assert set(_names_in_modal(app)) == {"parent", "review"}
+
+
+def test_multi_tag_cleanup_confirmation_ignores_out_of_scope_same_tag_agent() -> None:
+    visible_fix = _agent(
+        name="visible-fix", suffix="t1", tag="fix", status="RUNNING", pid=10
+    )
+    visible_review = _agent(name="visible-review", suffix="t2", tag="review")
+    stale_fix = _agent(
+        name="stale-fix", suffix="t3", tag="fix", status="RUNNING", pid=20
+    )
+    app = _FakeApp(
+        [visible_fix, visible_review],
+        agents_with_children=[visible_fix, visible_review, stale_fix],
+    )
+
+    app._present_tag_cleanup_for_tags(("fix", "review"))
+
+    assert len(app._pushed) == 1
+    assert set(_names_in_modal(app)) == {"visible-fix", "visible-review"}
+
+
 def test_tag_cleanup_current_workflow_parent_keeps_hidden_child_cascade() -> None:
     parent = _agent(
         name="parent",

@@ -186,7 +186,7 @@ class AgentKillMixin:
         def on_dismiss(result: AgentCleanupTagResult | None) -> None:
             if result is None:
                 return
-            self._present_tag_cleanup(result.tag)
+            self._present_tag_cleanup_for_tags(result.tags)
 
         self.push_screen(  # type: ignore[attr-defined]
             AgentCleanupTagModal(
@@ -219,6 +219,18 @@ class AgentKillMixin:
         )
 
     def _present_tag_cleanup(self, tag: str) -> None:
+        self._present_tag_cleanup_for_tags((tag,))
+
+    def _present_tag_cleanup_for_tags(self, tags: tuple[str, ...]) -> None:
+        if not tags:
+            self.notify("No tags selected", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        if len(tags) > 1:
+            self._present_multi_tag_cleanup(tags)
+            return
+
+        tag = tags[0]
         from sase.core.agent_cleanup_wire import (
             AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
             CLEANUP_MODE_KILL_AND_DISMISS,
@@ -237,6 +249,53 @@ class AgentKillMixin:
             request,
             header=f"Tag: @{tag}",
             targets=self._agent_cleanup_current_scope_targets(),
+        )
+
+    def _present_multi_tag_cleanup(self, tags: tuple[str, ...]) -> None:
+        from sase.core.agent_cleanup_facade import (
+            agents_to_cleanup_targets,
+            plan_agent_cleanup,
+        )
+        from sase.core.agent_cleanup_wire import (
+            AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+            CLEANUP_MODE_KILL_AND_DISMISS,
+            CLEANUP_SCOPE_CUSTOM_SELECTION,
+            CLEANUP_SCOPE_TAG,
+            AgentCleanupIdentityWire,
+            AgentCleanupRequestWire,
+        )
+
+        cleanup_targets = self._agent_cleanup_current_scope_targets()
+        target_wires = agents_to_cleanup_targets(cleanup_targets)
+        seen: set[AgentCleanupIdentityWire] = set()
+        identities: list[AgentCleanupIdentityWire] = []
+        for tag in tags:
+            request = AgentCleanupRequestWire(
+                schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+                scope=CLEANUP_SCOPE_TAG,
+                mode=CLEANUP_MODE_KILL_AND_DISMISS,
+                tag=tag,
+                include_pidless_as_dismissable=True,
+            )
+            plan = plan_agent_cleanup(target_wires, request)
+            for identity in plan.selected_identities:
+                if identity in seen:
+                    continue
+                seen.add(identity)
+                identities.append(identity)
+
+        request = AgentCleanupRequestWire(
+            schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+            scope=CLEANUP_SCOPE_CUSTOM_SELECTION,
+            mode=CLEANUP_MODE_KILL_AND_DISMISS,
+            identities=tuple(identities),
+            include_pidless_as_dismissable=True,
+        )
+        tag_label = ", ".join(f"@{tag}" for tag in tags)
+        self._present_planned_cleanup(
+            request,
+            header=f"Tags: {tag_label}",
+            targets=cleanup_targets,
         )
 
     def _present_custom_cleanup(
