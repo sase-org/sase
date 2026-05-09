@@ -185,6 +185,7 @@ def run_artifact_sequence_loop(
             page_count=len(pages),
             artifact_index=artifact_index,
             artifact_count=len(specs),
+            show_position=False,
         )
         available_keys = page_loop_available_keys(
             page_index,
@@ -338,6 +339,7 @@ def print_page_prompt(
     page_count: int,
     artifact_index: int = 0,
     artifact_count: int = 1,
+    show_position: bool = True,
 ) -> None:
     labels = {
         "n": "n: next page",
@@ -356,8 +358,10 @@ def print_page_prompt(
             artifact_count=artifact_count,
         )
     )
-    prompt = f"Page {index + 1}/{page_count}  {actions}"
-    if artifact_count > 1:
+    prompt = actions
+    if show_position:
+        prompt = f"Page {index + 1}/{page_count}  {prompt}"
+    if show_position and artifact_count > 1:
         prompt = f"Artifact {artifact_index + 1}/{artifact_count}  {prompt}"
     sys.stdout.write(f"{_FOOTER_RESET}\n{_FOOTER_COLOR}{prompt}{_FOOTER_RESET}")
     sys.stdout.flush()

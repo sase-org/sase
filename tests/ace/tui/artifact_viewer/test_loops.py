@@ -96,6 +96,18 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
         == "\nArtifact 1/2  Page 1/1  N: next artifact  r: refresh  q: quit"
     )
 
+    _print_page_prompt(
+        index=0,
+        page_count=1,
+        artifact_index=0,
+        artifact_count=2,
+        show_position=False,
+    )
+    assert (
+        _strip_ansi(capsys.readouterr().out)
+        == "\nN: next artifact  r: refresh  q: quit"
+    )
+
 
 def test_run_artifact_page_loop_redraws_and_tracks_keys(
     tmp_path: Path,
@@ -255,9 +267,10 @@ def test_run_artifact_sequence_loop_navigates_pages_and_artifacts(
     output = capsys.readouterr().out
     cursor_escape = "\x1b[24;1H"
     assert output.count(cursor_escape) == 5
-    assert output.index(cursor_escape) < output.index(
-        "Artifact 1/2  Page 1/2  n: next page"
-    )
+    stripped_output = _strip_ansi(output)
+    assert output.index(cursor_escape) < output.index("n: next page")
+    assert "\nn: next page  p: previous page  N: next artifact" in stripped_output
+    assert "Artifact 1/2  Page 1/2  n: next page" not in stripped_output
     assert "Viewing artifact" in output
     assert "Artifact 1/2" in output
     assert "Artifact 2/2" in output
