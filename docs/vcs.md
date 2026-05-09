@@ -7,24 +7,22 @@ repositories. Commands and workflows that touch version control, including `sase
 Git and Mercurial share the same SASE concepts: ChangeSpecs, workspace checkout, diff capture, commit/proposal dispatch,
 review submission, revert, and restore. Provider-specific capabilities and prerequisites still matter. For example,
 GitHub pull-request operations require the optional `sase-github` plugin and the GitHub CLI, while Mercurial support
-requires the optional `sase-google` plugin and its `sase_hg_*` helper commands.
+requires a maintained provider plugin that supplies `sase_hg_*` helper commands.
 
 ## Plugin Architecture
 
 VCS providers are implemented as [pluggy](https://pluggy.readthedocs.io/) plugins. The core `sase` package only bundles
 the **BareGitPlugin** (for plain git repositories). Additional VCS backends are installed as separate packages:
 
-| Package       | Plugin          | Description                                |
-| ------------- | --------------- | ------------------------------------------ |
-| `sase` (core) | `BareGitPlugin` | Standard git operations (bundled)          |
-| `sase-github` | `GitHubPlugin`  | Git + GitHub CLI (`gh`) for PR operations  |
-| `sase-google` | `HgPlugin`      | Mercurial with `sase_hg_*` helper commands |
+| Package       | Plugin          | Description                               |
+| ------------- | --------------- | ----------------------------------------- |
+| `sase` (core) | `BareGitPlugin` | Standard git operations (bundled)         |
+| `sase-github` | `GitHubPlugin`  | Git + GitHub CLI (`gh`) for PR operations |
 
 Install optional providers via pip:
 
 ```bash
 pip install sase-github   # GitHub PR support
-pip install sase-google   # Mercurial support
 ```
 
 Plugins register themselves via the `sase_vcs` entry point group. The plugin manager loads all registered plugins and
@@ -318,11 +316,11 @@ The GitHub plugin covers the core git/PR lifecycle by combining GitHub-specific 
 mixins. It can classify GitHub remotes, create and inspect PRs, preserve immutable branch aliases for open PRs, resolve
 workspace references such as `#gh:<ref>`, and submit merged PRs through `gh pr merge`.
 
-It does not currently provide the richer Google/Mercurial-specific automation surface. In particular, GitHub PRs do not
-get plugin-supplied default ChangeSpec hooks, metahooks, mentor profiles, PR tags, or a provider-specific precommit/fix
+It does not currently provide the richer Mercurial-specific automation surface. In particular, GitHub PRs do not get
+plugin-supplied default ChangeSpec hooks, metahooks, mentor profiles, PR tags, or a provider-specific precommit/fix
 command unless users configure those in `sase.yml`. Reviewer-comment polling and comment-response automation are not
 enabled for GitHub PR URLs, reviewer discovery during mail preparation is not implemented, `vcs_rewind` has no GitHub
-backend, BUG values are left as provided, and the Google-only refresh/split workflows do not have GitHub equivalents.
+backend, BUG values are left as provided, and Mercurial-only refresh/split workflows do not have GitHub equivalents.
 
 These are plugin capability gaps, not core VCS limitations: ordinary git operations, diffing, branch management,
 commit/proposal/PR dispatch, conflict resume, and workspace setup are still provided by the shared git implementation.
@@ -371,8 +369,8 @@ git commit --amend -m "<msg>\n<tag>=<value>"    # Append tag
 
 ## Mercurial Provider Details
 
-The Mercurial provider is available via the `sase-google` package (`pip install sase-google`). It uses a combination of
-standard `hg` commands and `sase_hg_*` wrapper commands.
+Mercurial support is provided by external provider plugins. A Mercurial provider uses a combination of standard `hg`
+commands and `sase_hg_*` wrapper commands.
 
 ### Core Commands
 
@@ -595,18 +593,14 @@ gh auth login
 
 ### Mercurial: Plugin Not Installed
 
-The Mercurial provider requires the `sase-google` package. Without it, hg repositories will not be detected.
+Mercurial support requires an installed provider plugin. Without one, hg repositories will not be detected.
 
 **Symptoms:**
 
 - Auto-detection does not recognize `.hg/` directories
 - "No VCS provider found" error in hg repositories
 
-**Fix:** Install the Mercurial plugin:
-
-```bash
-pip install sase-google
-```
+**Fix:** Install the maintained Mercurial provider plugin for your environment.
 
 ### Mercurial: `sase_hg_*` Commands Not Found
 

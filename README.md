@@ -93,7 +93,8 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
   agents, and use fixed workflow helper APIs without exposing shell or filesystem access
 - **LLM Providers** — Pluggable AI abstraction (Claude, Codex, Gemini, Qwen, and OpenCode bundled; optional external
   providers via plugins) with pre/post-processing and token usage tracking
-- **VCS Providers** — Pluggy-based version control abstraction (git bundled; GitHub and Mercurial via plugin packages)
+- **VCS Providers** — Pluggy-based version control abstraction (git bundled; GitHub and other hosted workflows via
+  plugin packages)
 - **Query Language** — Boolean expression language for filtering and searching ChangeSpecs
 
 ## Architecture
@@ -118,7 +119,7 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
 │  OpenCode bundled)│                 │                  │
 ├───────────────────┴─────────────────┴──────────────────┤
 │                    Plugin Packages                     │
-│  sase-github · sase-google · sase-telegram · sase-nvim │
+│        sase-github · sase-telegram · sase-nvim         │
 └────────────────────────────────────────────────────────┘
 ```
 

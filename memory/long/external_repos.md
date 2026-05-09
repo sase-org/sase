@@ -1,5 +1,5 @@
 ---
-keywords: [chezmoi, plugin, sase-github, sase-google, sase-telegram, sase-nvim, dotfile]
+keywords: [chezmoi, plugin, sase-github, sase-telegram, sase-nvim, sase-core, dotfile]
 ---
 
 # External Repos
@@ -18,12 +18,13 @@ the chezmoi files will not be applied to the system (i.e. copied to their proper
 
 ## Plugin Repos
 
-- The ../sase-github and ../sase-google directories are git repositories that contain plugins for GitHub and Mercurial
-  VCS providers, respectively.
+- The ../sase-github directory is a git repository that contains the maintained plugin for GitHub VCS and workspace
+  providers.
 - The ../sase-telegram directory is a git repository that contains a plugin for Telegram integration (implemented using
   chops).
 - The ../sase-nvim directory is a git repository that contains a plugin for Neovim integration (ex: for project spec
   file syntax highlighting).
+- The ../sase-core directory is the Rust core backend repository for shared backend/domain behavior.
 
 IMPORTANT: You can edit files in these repos if necessary. Just make sure to run the `just check` command in each plugin
 repo that you've modified before terminating / replying to the user.

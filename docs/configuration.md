@@ -244,8 +244,8 @@ vcs_provider:
 | `vcs_provider.pr_tags`               | dict[string, str] | `{}`     | Key-value tags appended as `TAG=VALUE` lines to PR commit messages. |
 | `vcs_provider.use_project_pr_prefix` | bool              | `false`  | Prepend `[<project>] ` to PR titles / CL descriptions (see below).  |
 
-When `default_hooks` is not set, plugins may provide their own defaults via `default_config.yml` (e.g., the
-`sase-google` plugin supplies Mercurial-specific hooks). The core `sase` package has no built-in default hooks.
+When `default_hooks` is not set, plugins may provide their own defaults via `default_config.yml` (for example,
+Mercurial-specific hooks from a provider plugin). The core `sase` package has no built-in default hooks.
 
 When `use_project_pr_prefix` is `true`, a `[<project>] ` prefix is prepended to PR titles (GitHub) or CL descriptions
 (Mercurial) without polluting the ChangeSpec DESCRIPTION or git commit message. The prefix is automatically stripped

@@ -13,26 +13,25 @@ core package.
 
 Sase defines five entry point groups:
 
-| Entry Point Group | Entry Point Value | Purpose                                             | Example Plugin               |
-| ----------------- | ----------------- | --------------------------------------------------- | ---------------------------- |
-| `sase_vcs`        | Provider class    | VCS provider plugins (git, hg, etc.)                | `sase-github`                |
-| `sase_workspace`  | Provider class    | Workspace provider plugins (ref resolution, submit) | `sase-github`                |
-| `sase_llm`        | Provider class    | LLM provider plugins                                | built-in providers, Jetski   |
-| `sase_xprompts`   | Package module    | XPrompt templates and workflows                     | `sase-google`                |
-| `sase_config`     | Package module    | Default configuration (`default_config.yml`)        | `sase-google`, `sase-github` |
+| Entry Point Group | Entry Point Value | Purpose                                             | Example Plugin                  |
+| ----------------- | ----------------- | --------------------------------------------------- | ------------------------------- |
+| `sase_vcs`        | Provider class    | VCS provider plugins (git, hg, etc.)                | `sase-github`                   |
+| `sase_workspace`  | Provider class    | Workspace provider plugins (ref resolution, submit) | `sase-github`                   |
+| `sase_llm`        | Provider class    | LLM provider plugins                                | built-in or third-party         |
+| `sase_xprompts`   | Package module    | XPrompt templates and workflows                     | `my_sase_plugin`                |
+| `sase_config`     | Package module    | Default configuration (`default_config.yml`)        | `sase-github`, `my_sase_plugin` |
 
 Provider-class entry points resolve to a class that is instantiated and registered with pluggy. Package-module entry
 points resolve to a module whose package resources are read by Sase.
 
 ## Available Plugin Packages
 
-| Package         | Description                                                                             | Entry Points                                                                                                       |
-| --------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `sase` (core)   | Bare-git VCS, bare-git and `#cd` workspaces, and built-in LLM providers                 | `sase_vcs: bare_git`, `sase_workspace: bare_git, cd`, `sase_llm: claude, codex, gemini, opencode, qwen`            |
-| `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations             | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_xprompts: sase_github`             |
-| `sase-google`   | Mercurial VCS/workspace support, Jetski LLM provider, helper scripts, config, xprompts  | `sase_llm: jetski`, `sase_vcs: hg`, `sase_workspace: hg`, `sase_config: sase_google`, `sase_xprompts: sase_google` |
-| `sase-telegram` | Telegram integration via chop scripts (`sase_chop_tg_outbound`, `sase_chop_tg_inbound`) | CLI scripts (not pluggy entry points)                                                                              |
-| `sase-nvim`     | Neovim integration, including project spec syntax and prompt helpers                    | standalone Neovim plugin files (not Python entry points)                                                           |
+| Package         | Description                                                                             | Entry Points                                                                                            |
+| --------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `sase` (core)   | Bare-git VCS, bare-git and `#cd` workspaces, and built-in LLM providers                 | `sase_vcs: bare_git`, `sase_workspace: bare_git, cd`, `sase_llm: claude, codex, gemini, opencode, qwen` |
+| `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations             | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_xprompts: sase_github`  |
+| `sase-telegram` | Telegram integration via chop scripts (`sase_chop_tg_outbound`, `sase_chop_tg_inbound`) | CLI scripts (not pluggy entry points)                                                                   |
+| `sase-nvim`     | Neovim integration, including project spec syntax and prompt helpers                    | standalone Neovim plugin files (not Python entry points)                                                |
 
 ## Installation
 
@@ -42,9 +41,6 @@ pip install sase
 
 # Add GitHub PR support
 pip install sase-github
-
-# Add Mercurial support
-pip install sase-google
 ```
 
 ## How Plugins Are Discovered
@@ -93,8 +89,7 @@ LLM provider plugins use pluggy's hook system. The hook specification is defined
 so each provider contributes its own metadata. All hook method names are prefixed with `llm_`.
 
 Core Sase ships Claude, Codex, Gemini, Qwen, and OpenCode providers as built-in entry points. Additional providers
-belong in external plugin packages that declare `sase_llm` entry points and provide their own metadata hooks. The
-`sase-google` package currently contributes a `jetski` provider.
+belong in external plugin packages that declare `sase_llm` entry points and provide their own metadata hooks.
 
 See [docs/llms.md](llms.md) for the full LLM provider reference, including authoring new providers with `@hookimpl`.
 

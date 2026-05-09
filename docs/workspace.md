@@ -19,7 +19,6 @@ Additional backends must be installed in the same Python environment as `sase`:
 | `sase` (core) | `CdWorkspacePlugin`      | Local directory runs via `#cd:<path>` without VCS |
 | `sase` (core) | `BareGitWorkspacePlugin` | Bare-git repos (local filesystem remote)          |
 | `sase-github` | `GitHubWorkspacePlugin`  | GitHub-hosted repos (PR workflows via `gh` CLI)   |
-| `sase-google` | `HgWorkspacePlugin`      | Mercurial workspaces via `#hg`                    |
 
 Plugins register themselves via the `sase_workspace` entry point group. The plugin manager loads all registered plugins
 and dispatches operations through pluggy hooks. Most hooks use `firstresult=True` — the first plugin that returns a
@@ -61,8 +60,8 @@ Result of resolving a workspace reference:
 | `extra`                 | dict[str, str] | Additional plugin-specific data         |
 
 For clone-based git workflows, `primary_workspace_dir` is the primary checkout path and `get_workspace_directory()`
-derives numbered sibling workspaces from it. Some providers, such as the Mercurial plugin, can leave
-`primary_workspace_dir` empty and resolve numbered workspaces through their own helper command.
+derives numbered sibling workspaces from it. Some provider plugins can leave `primary_workspace_dir` empty and resolve
+numbered workspaces through their own helper command.
 
 ## Hook Reference
 

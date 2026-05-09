@@ -935,10 +935,10 @@ agent to queue a follow-up that waits for it to finish and then loads its conver
 When the same base name is shared by multiple co-launched agents (e.g. multi-model fan-out via the `%model:` directive),
 the rendered display name carries a short `.<provider>` or `.<provider>(<model>)` suffix so each row is distinguishable.
 Provider suffixes are supplied by the LLM provider plugins via the `llm_provider_short_name` hook (built-in defaults:
-`cld` for Claude, `cdx` for Codex, `gem` for Gemini; `jet` ships in the `sase-google` plugin). Model-name shorthands
-come from the `llm_model_short_aliases` hook (e.g. `opus`, `sonnet`, `haiku`) and are resolved against the configured
-model so the suffix stays compact regardless of how the model was spelled in the prompt or config. Single-runtime spawns
-omit the suffix.
+`cld` for Claude, `cdx` for Codex, `gem` for Gemini). Additional provider plugins can contribute their own short names.
+Model-name shorthands come from the `llm_model_short_aliases` hook (e.g. `opus`, `sonnet`, `haiku`) and are resolved
+against the configured model so the suffix stays compact regardless of how the model was spelled in the prompt or
+config. Single-runtime spawns omit the suffix.
 
 An explicit `%name:<name>` launch fails before spawning if `<name>` is already reserved. The prompt is saved as a
 cancelled history entry and the error suggests the lowest free numeric suffix, such as `<name>1`. To deliberately reuse

@@ -273,7 +273,7 @@ is directory-backed and does not reserve a numbered workspace.
 | `#cd:<path>` | Run in a local directory without reserving a numbered SASE workspace or doing VCS checkout/release work |
 | `#git:<ref>` | Run in a bare-git workspace                                                                             |
 | `#gh:<ref>`  | Run in a GitHub workspace, when the GitHub plugin is installed                                          |
-| `#hg:<ref>`  | Run in a Mercurial workspace, when the Google plugin is installed                                       |
+| `#hg:<ref>`  | Run in a Mercurial workspace, when an hg workspace plugin is installed                                  |
 
 Prompts that do not contain a workspace reference are normalized to `#git:home`, so a bare prompt runs from the managed
 bare-git `home` project by default and gets normal numbered workspace, checkout, diff, and release behavior. Use
