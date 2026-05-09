@@ -20,6 +20,9 @@ sources, dated execution history, and external/reference notes. Phase 2 split re
 ranked ideas by product value for current SASE, evidence strength, implementation leverage, risk, and whether the idea
 is implemented, partially implemented, obsolete, or still missing.
 
+Residual top-level work and reference notes with incidental GAI mentions were used as context checks, not as a separate
+recommendation bucket.
+
 This note cites source paths for follow-up, but it does not quote private org content at length.
 
 ## Executive Summary
