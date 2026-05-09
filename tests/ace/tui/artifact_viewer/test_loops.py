@@ -27,35 +27,45 @@ def _strip_ansi(value: str) -> str:
 
 
 def test_artifact_page_index_state_machine() -> None:
-    assert page_index_after_key(0, "n", 3) == 1
-    assert page_index_after_key(2, "n", 3) == 0
-    assert page_index_after_key(2, "p", 3) == 1
-    assert page_index_after_key(0, "p", 3) == 2
+    assert page_index_after_key(0, "j", 3) == 1
+    assert page_index_after_key(2, "j", 3) == 0
+    assert page_index_after_key(2, "k", 3) == 1
+    assert page_index_after_key(0, "k", 3) == 2
+    assert page_index_after_key(0, "n", 3) == 0
+    assert page_index_after_key(2, "p", 3) == 2
     assert page_index_after_key(1, "r", 3) == 1
     assert page_index_after_key(1, "x", 3) == 1
     assert page_index_after_key(0, "q", 3) is None
-    assert page_index_after_key(0, "n", 1) == 0
-    assert page_index_after_key(0, "p", 1) == 0
+    assert page_index_after_key(0, "j", 1) == 0
+    assert page_index_after_key(0, "k", 1) == 0
 
 
 def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
     assert page_loop_available_keys(0, 1) == ("r", "q")
-    assert page_loop_available_keys(0, 3) == ("n", "p", "r", "q")
-    assert page_loop_available_keys(1, 3) == ("n", "p", "r", "q")
-    assert page_loop_available_keys(2, 3) == ("n", "p", "r", "q")
+    assert page_loop_available_keys(0, 3) == ("j", "k", "r", "q")
+    assert page_loop_available_keys(1, 3) == ("j", "k", "r", "q")
+    assert page_loop_available_keys(2, 3) == ("j", "k", "r", "q")
+    assert page_loop_available_keys(1, 3, artifact_index=1, artifact_count=3) == (
+        "j",
+        "k",
+        "n",
+        "p",
+        "r",
+        "q",
+    )
     assert page_loop_available_keys(0, 1, artifact_index=0, artifact_count=3) == (
-        "N",
+        "n",
         "r",
         "q",
     )
     assert page_loop_available_keys(0, 1, artifact_index=1, artifact_count=3) == (
-        "N",
-        "P",
+        "n",
+        "p",
         "r",
         "q",
     )
     assert page_loop_available_keys(0, 1, artifact_index=2, artifact_count=3) == (
-        "P",
+        "p",
         "r",
         "q",
     )
@@ -70,19 +80,19 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
     _print_page_prompt(index=0, page_count=3)
     assert (
         _strip_ansi(capsys.readouterr().out)
-        == "\nPage 1/3  n: next page  p: previous page  r: refresh  q: quit"
+        == "\nPage 1/3  j: next page  k: previous page  r: refresh  q: quit"
     )
 
     _print_page_prompt(index=1, page_count=3)
     assert (
         _strip_ansi(capsys.readouterr().out)
-        == "\nPage 2/3  n: next page  p: previous page  r: refresh  q: quit"
+        == "\nPage 2/3  j: next page  k: previous page  r: refresh  q: quit"
     )
 
     _print_page_prompt(index=2, page_count=3)
     assert (
         _strip_ansi(capsys.readouterr().out)
-        == "\nPage 3/3  n: next page  p: previous page  r: refresh  q: quit"
+        == "\nPage 3/3  j: next page  k: previous page  r: refresh  q: quit"
     )
 
     _print_page_prompt(
@@ -93,7 +103,7 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
     )
     assert (
         _strip_ansi(capsys.readouterr().out)
-        == "\nArtifact 1/2  Page 1/1  N: next artifact  r: refresh  q: quit"
+        == "\nArtifact 1/2  Page 1/1  n: next artifact  r: refresh  q: quit"
     )
 
     _print_page_prompt(
@@ -105,7 +115,7 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
     )
     assert (
         _strip_ansi(capsys.readouterr().out)
-        == "\nN: next artifact  r: refresh  q: quit"
+        == "\nn: next artifact  r: refresh  q: quit"
     )
 
 
@@ -117,7 +127,7 @@ def test_run_artifact_page_loop_redraws_and_tracks_keys(
     for page in pages:
         page.write_bytes(b"png")
     commands: list[list[str]] = []
-    keys = iter(["n", "p", "q"])
+    keys = iter(["j", "k", "q"])
 
     def fake_run(cmd):
         commands.append(list(cmd))
@@ -181,7 +191,7 @@ def test_run_artifact_page_loop_wraps_boundary_keys(
     for page in pages:
         page.write_bytes(b"png")
     commands: list[list[str]] = []
-    keys = iter(["p", "n", "q"])
+    keys = iter(["k", "j", "q"])
 
     def fake_run(cmd):
         commands.append(list(cmd))
@@ -231,7 +241,7 @@ def test_run_artifact_sequence_loop_navigates_pages_and_artifacts(
         fake_render_result,
     )
     commands: list[list[str]] = []
-    keys = iter(["p", "n", "N", "P", "q"])
+    keys = iter(["k", "j", "n", "p", "q"])
 
     def fake_run(cmd):
         commands.append(list(cmd))
@@ -268,9 +278,9 @@ def test_run_artifact_sequence_loop_navigates_pages_and_artifacts(
     cursor_escape = "\x1b[24;1H"
     assert output.count(cursor_escape) == 5
     stripped_output = _strip_ansi(output)
-    assert output.index(cursor_escape) < output.index("n: next page")
-    assert "\nn: next page  p: previous page  N: next artifact" in stripped_output
-    assert "Artifact 1/2  Page 1/2  n: next page" not in stripped_output
+    assert output.index(cursor_escape) < output.index("j: next page")
+    assert "\nj: next page  k: previous page  n: next artifact" in stripped_output
+    assert "Artifact 1/2  Page 1/2  j: next page" not in stripped_output
     assert "Viewing artifact" in output
     assert "Artifact 1/2" in output
     assert "Artifact 2/2" in output

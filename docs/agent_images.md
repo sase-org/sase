@@ -89,12 +89,12 @@ single artifact so users can confirm the artifact label, kind, and path before o
 
 The panel supports one-key selectors, `j`/`k` navigation, `m` to mark rows, `Enter` to open the marked set or
 highlighted row, and `A` to open every artifact in list order. When multiple artifacts are opened together, the terminal
-viewer adds `N`/`P` navigation between artifacts in addition to page navigation.
+viewer adds `n`/`p` navigation between artifacts in addition to page navigation.
 
 When ACE is running inside tmux, the artifact viewer launches in a right-side tmux pane. Outside tmux, ACE suspends and
 opens the viewer in the current terminal pane. The viewer chooses its mode from the artifact kind and file extension:
 supported images are displayed directly, PDFs are converted to PNG pages, and Markdown is rendered to PDF before paging.
-The page loop uses `n`/`p` to move between pages, wrapping at the first and last page, `r` to refresh, and `q` to close
+The page loop uses `j`/`k` to move between pages, wrapping at the first and last page, `r` to refresh, and `q` to close
 the viewer.
 
 Only one plan artifact is listed for each agent. If run metadata contains both an archived plan path and an SDD tale

@@ -54,9 +54,9 @@ def page_index_after_key(current_index: int, key: str, page_count: int) -> int |
         return current_index
     if page_count <= 1:
         return current_index
-    if normalized == "n":
+    if normalized == "j":
         return (current_index + 1) % page_count
-    if normalized == "p":
+    if normalized == "k":
         return (current_index - 1) % page_count
     return current_index
 
@@ -72,12 +72,12 @@ def page_loop_available_keys(
 
     keys: list[str] = []
     if page_count > 1:
-        keys.append("n")
-        keys.append("p")
+        keys.append("j")
+        keys.append("k")
     if artifact_index < artifact_count - 1:
-        keys.append("N")
+        keys.append("n")
     if artifact_index > 0:
-        keys.append("P")
+        keys.append("p")
     if page_count > 0:
         keys.append("r")
     keys.append("q")
@@ -199,16 +199,16 @@ def run_artifact_sequence_loop(
         if key == "q":
             _clear_terminal(run)
             return _PageLoopResult()
-        if key in {"n", "p", "r"}:
+        if key in {"j", "k", "r"}:
             next_page_index = page_index_after_key(page_index, key, len(pages))
             if next_page_index is None:
                 _clear_terminal(run)
                 return _PageLoopResult()
             page_index = next_page_index
-        elif key == "N":
+        elif key == "n":
             artifact_index = min(artifact_index + 1, len(specs) - 1)
             page_index = 0
-        elif key == "P":
+        elif key == "p":
             artifact_index = max(artifact_index - 1, 0)
             page_index = 0
 
@@ -342,10 +342,10 @@ def print_page_prompt(
     show_position: bool = True,
 ) -> None:
     labels = {
-        "n": "n: next page",
-        "p": "p: previous page",
-        "N": "N: next artifact",
-        "P": "P: previous artifact",
+        "j": "j: next page",
+        "k": "k: previous page",
+        "n": "n: next artifact",
+        "p": "p: previous artifact",
         "r": "r: refresh",
         "q": "q: quit",
     }
