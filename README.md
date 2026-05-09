@@ -185,7 +185,7 @@ sase
 | `sase config mentor-match`     | Trace mentor profile matching for a specific ChangeSpec                                                        |
 | `sase config show`             | Dump the final merged configuration as YAML (supports `--key` filtering)                                       |
 | `sase core health`             | Check that the required `sase_core_rs` Rust extension is loadable and working (`-j` for JSON)                  |
-| `sase editor helper-bridge`    | JSON helper bridge for editor integrations, currently exposing the structured xprompt catalog                  |
+| `sase editor helper-bridge`    | JSON helper bridge for editor integrations, including structured xprompt and snippet catalogs                  |
 | `sase file list`               | JSON file/directory candidates rooted at `--path` (used by editor `<C-t>` completion)                          |
 | `sase file-history delete`     | Remove one path from the file-reference history                                                                |
 | `sase file-history list`       | JSON array of recently-referenced paths (most recent first; consumed by editor plugins)                        |

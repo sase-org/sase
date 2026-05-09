@@ -1443,6 +1443,12 @@ Trigger words are matched against the alphanumeric/underscore word immediately b
 XPrompt-derived snippets compose normal xprompt references before they enter the snippet registry. Entries configured
 directly in `ace.snippets` remain literal snippet templates.
 
+Editors using `sase lsp` can receive the same registry as LSP snippet completions after bare trigger words when the
+client advertises `completionItem.snippetSupport`. The server uses the editor helper operation
+`sase editor helper-bridge snippet-catalog` as the authoritative source and falls back to native Rust loading only for
+simple snippets if the helper is unavailable. Clients without snippet support do not receive these entries, because raw
+`$1` / `$0` markers would not behave like ACE tabstops.
+
 ### XPrompt Picker (`#@`)
 
 Typing `#@` (the `#` character followed by `@`) opens the XPrompt snippet picker modal. This lists all available

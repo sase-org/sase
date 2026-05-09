@@ -139,6 +139,17 @@ workflows, default config prompts, project-local prompts, user config prompts, a
 Python helper subprocess on the completion path. The Python helper bridge remains stable for mobile clients and as a
 compatibility fallback for sources the Rust loader cannot discover.
 
+When the editor advertises LSP `completionItem.snippetSupport`, the server also returns SASE snippets as ordinary
+`CompletionItemKind.Snippet` entries after bare trigger words such as `fix` or `review`. Snippet entries are loaded from
+the same registry as ACE: xprompts with `snippet` front matter plus user-defined `ace.snippets`, with `ace.snippets`
+winning on trigger collisions. The editor does not need to shell out or parse SASE config to discover snippets.
+
+The Python helper operation `sase editor helper-bridge snippet-catalog` is the authoritative snippet registry because it
+matches ACE's xprompt composition behavior. The Rust server also has a native fallback for simple xprompt snippets and
+`ace.snippets` so completion can degrade gracefully if the helper is unavailable. That fallback intentionally skips
+xprompts that require complex Jinja or composition it cannot mirror exactly; when the helper is available, its response
+is preferred.
+
 ## Discovery Order
 
 XPrompts are loaded from multiple locations. When two locations define an xprompt with the same name, the
@@ -633,11 +644,19 @@ Review this {{ language }} code for correctness and style.
 
 - Normal xprompt references in the content are expanded before conversion, so snippets can compose reusable xprompts
 - `{{ input_name }}` placeholders for required inputs become snippet tabstops (`$1`, `$2`, etc.)
+- `{{ input_name }}` placeholders for inputs with defaults are pre-filled with the default value
 - Legacy `{N}` placeholders are also converted
 - XPrompts with complex Jinja2 control flow (`{% %}` or `{# #}`) are skipped
 - User-defined snippets in `ace.snippets` take precedence over xprompt-derived snippets on name collision
 
-See [docs/ace.md — Snippets](ace.md#snippets) for snippet usage in the prompt input widget.
+Editor clients receive the same templates through `sase lsp` when they support LSP snippets. To troubleshoot the raw
+registry, run:
+
+```bash
+printf '{"schema_version":1}\n' | sase editor helper-bridge snippet-catalog
+```
+
+See [docs/ace.md — Snippets](ace.md#snippets) for snippet usage in the prompt input widget and editor completion.
 
 Source: `src/sase/xprompt/snippet_bridge.py`, `src/sase/xprompt/models.py`
 
