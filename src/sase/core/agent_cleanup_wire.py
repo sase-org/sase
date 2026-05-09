@@ -143,15 +143,6 @@ class AgentCleanupCountsWire:
 
 
 @dataclass(frozen=True)
-class AgentCleanupDismissalRenameIntentWire:
-    """One dismissal-time name allocation."""
-
-    identity: AgentCleanupIdentityWire
-    old_name: str | None
-    new_name: str
-
-
-@dataclass(frozen=True)
 class AgentCleanupBundleSaveIntentWire:
     """One agent whose revive bundle should be saved by the host."""
 
@@ -198,7 +189,7 @@ class AgentCleanupSideEffectsWire:
     notification_dismiss_candidates: tuple[
         AgentCleanupNotificationDismissIntentWire, ...
     ] = ()
-    dismissal_rename_allocations: tuple[AgentCleanupDismissalRenameIntentWire, ...] = ()
+    dismissal_rename_allocations: tuple[Any, ...] = ()
     wait_reference_rewrite_map: tuple[tuple[str, str], ...] = ()
 
 
@@ -418,16 +409,7 @@ def cleanup_plan_from_dict(data: dict[str, Any]) -> AgentCleanupPlanWire:
                 for item in side_effect_data.get("notification_dismiss_candidates")
                 or ()
             ),
-            dismissal_rename_allocations=tuple(
-                AgentCleanupDismissalRenameIntentWire(
-                    identity=_identity_from_dict(item["identity"]),
-                    old_name=(
-                        None if item.get("old_name") is None else str(item["old_name"])
-                    ),
-                    new_name=str(item["new_name"]),
-                )
-                for item in side_effect_data.get("dismissal_rename_allocations") or ()
-            ),
+            dismissal_rename_allocations=(),
             wait_reference_rewrite_map=tuple(
                 (str(old), str(new))
                 for old, new in side_effect_data.get("wait_reference_rewrite_map") or ()
@@ -466,7 +448,6 @@ __all__ = [
     "AgentCleanupArtifactDeleteIntentWire",
     "AgentCleanupBundleSaveIntentWire",
     "AgentCleanupDismissItemWire",
-    "AgentCleanupDismissalRenameIntentWire",
     "AgentCleanupIdentityWire",
     "AgentCleanupKillItemWire",
     "AgentCleanupNotificationDismissIntentWire",

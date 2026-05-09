@@ -1,11 +1,4 @@
-"""End-to-end tests for the dismissed-agent name lifecycle (sase-10 phase 6).
-
-These tests stitch together the helpers that earlier phases delivered —
-prefix allocation, dismissal-time rename, reference rewrites, and
-revive-time prefix stripping — and exercise them through the dismiss and
-revive mixins on a shared in-memory + on-disk fixture so a regression in
-any one phase will surface here.
-"""
+"""End-to-end tests for the dismissed-agent name lifecycle."""
 
 from __future__ import annotations
 
@@ -22,7 +15,6 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.agent.names import (
     collect_dismissed_taken_names,
     find_named_agent,
-    is_dismissed_prefixed,
 )
 
 
@@ -147,10 +139,7 @@ def test_full_lifecycle_dismiss_then_revive_named_agent(tmp_path: Path) -> None:
 
     ``foo`` completes; ``bar`` waits on ``foo`` and references it via
     ``%w:foo`` and ``#resume:foo`` in its prompt and ``wait_for`` marker.
-    Dismissing ``foo`` must produce ``260428.foo`` everywhere — in-memory,
-    in the dismissed bundle, in the dependent's wait marker, and inside
-    the dependent's prompt. Reviving ``foo`` must restore the live name
-    in every one of those places.
+    Dismissal and revival must preserve those names and references.
     """
     completion_day = datetime(2026, 4, 28, 12, 0, 0)
     foo_dir = _make_artifact_dir(tmp_path, "proj", "20260428100000")
@@ -199,53 +188,37 @@ def test_full_lifecycle_dismiss_then_revive_named_agent(tmp_path: Path) -> None:
         app._dismiss_done_agent(foo)
         _flush_persistence(app)
 
-        assert foo.agent_name == "260428.foo"
-        assert is_dismissed_prefixed(foo.agent_name)
-        # Live dependent followed the rename in memory.
-        assert bar.waiting_for == ["260428.foo"]
-        # Dependent's on-disk marker + prompt followed the rename too.
+        assert foo.agent_name == "foo"
+        assert bar.waiting_for == ["foo"]
         assert json.loads((bar_dir / "agent_meta.json").read_text())["wait_for"] == [
-            "260428.foo"
+            "foo"
         ]
         prompt_after = (bar_dir / "raw_xprompt.md").read_text()
-        assert "%w:260428.foo" in prompt_after
-        assert "#resume:260428.foo" in prompt_after
-        assert "%w:foo" not in prompt_after
-        assert "#resume:foo " not in prompt_after
+        assert "%w:foo" in prompt_after
+        assert "#resume:foo" in prompt_after
 
-        # The prefixed name is reachable through the dismissed-bundle scan.
-        assert "260428.foo" in collect_dismissed_taken_names()
-        post_dismiss = find_named_agent("260428.foo")
+        post_dismiss = find_named_agent("foo")
         assert post_dismiss is not None
         assert post_dismiss.outcome == "dismissed"
-        # The bare live name no longer resolves anywhere on the active path.
-        assert find_named_agent("foo") is None
 
         # ---- Revive ----------------------------------------------------
-        # Re-add the revived agent to the live list so the rewrite walker can
-        # also update the in-memory dependent (mirrors the loader's behaviour
-        # post-revive).
+        # Re-add the revived agent to the live list, mirroring the loader's
+        # behaviour post-revive.
         app._agents_with_children = [foo, bar]
-        # Recreate the artifact dir so the disk rewrite has something to walk
-        # through; the dismiss flow deleted the agent's marker files but left
-        # the directory empty.
+        # Recreate the artifact dir; the dismiss flow deleted the agent's
+        # marker files but left the directory empty.
         foo_dir.mkdir(parents=True, exist_ok=True)
 
         app._do_revive_agent(foo)
 
         assert foo.agent_name == "foo"
-        # Dependent's in-memory wait reference was restored.
         assert bar.waiting_for == ["foo"]
-        # Dependent's on-disk references were restored.
         assert json.loads((bar_dir / "agent_meta.json").read_text())["wait_for"] == [
             "foo"
         ]
         prompt_revived = (bar_dir / "raw_xprompt.md").read_text()
         assert "%w:foo" in prompt_revived
         assert "#resume:foo" in prompt_revived
-        assert "260428.foo" not in prompt_revived
-        # The dismissed-bundle scan no longer surfaces the prefixed name.
-        assert "260428.foo" not in collect_dismissed_taken_names()
     finally:
         for p in patches:
             p.stop()
@@ -259,7 +232,7 @@ def test_full_lifecycle_dismiss_then_revive_named_agent(tmp_path: Path) -> None:
 def test_workflow_parent_and_children_consistent_through_lifecycle(
     tmp_path: Path,
 ) -> None:
-    """A workflow parent + named child both pick up and shed the prefix."""
+    """A workflow parent + named child keep names through dismiss + revive."""
     completion_day = datetime(2026, 4, 28, 12, 0, 0)
     parent_dir = _make_artifact_dir(tmp_path, "proj", "20260428100000")
 
@@ -310,21 +283,18 @@ def test_workflow_parent_and_children_consistent_through_lifecycle(
             app._dismiss_done_agent(parent)
             _flush_persistence(app)
 
-        assert parent.agent_name == "260428.root"
-        assert named_child.agent_name == "260428.root.plan"
+        assert parent.agent_name == "root"
+        assert named_child.agent_name == "root.plan"
         assert unnamed_child.agent_name is None
 
-        # Both renamed names reached the dismissed taken-set.
-        taken = collect_dismissed_taken_names()
-        assert "260428.root" in taken
-        assert "260428.root.plan" in taken
+        assert collect_dismissed_taken_names() == set()
 
         # The same revive handles parent + workflow children together.
         app._do_revive_agent(parent)
 
         assert parent.agent_name == "root"
         assert named_child.agent_name == "root.plan"
-        # The unnamed child stays unnamed — revive only strips real prefixes.
+        # The unnamed child stays unnamed.
         assert unnamed_child.agent_name is None
     finally:
         for p in patches:
@@ -339,7 +309,7 @@ def test_workflow_parent_and_children_consistent_through_lifecycle(
 def test_same_day_two_named_foo_get_unique_dismissed_names_then_revive(
     tmp_path: Path,
 ) -> None:
-    """Two same-day ``foo`` agents get unique dismissed names; both revive."""
+    """Two same-day ``foo`` agents are not renamed during dismiss or revive."""
     completion_day = datetime(2026, 4, 28, 12, 0, 0)
     a_dir = _make_artifact_dir(tmp_path, "proj", "20260428100000")
     b_dir = _make_artifact_dir(tmp_path, "proj", "20260428110000")
@@ -371,34 +341,18 @@ def test_same_day_two_named_foo_get_unique_dismissed_names_then_revive(
         _flush_persistence(app)
 
         names = sorted(a.agent_name or "" for a in [foo_a, foo_b])
-        assert names == ["260428.foo", "260428.foo_2"]
+        assert names == ["foo", "foo"]
 
-        # Each prefixed name resolves through find_named_agent's bundle path.
-        assert find_named_agent("260428.foo") is not None
-        assert find_named_agent("260428.foo_2") is not None
+        assert find_named_agent("foo") is not None
 
-        # Revive each one. The first revive frees ``foo``; the second hits
-        # the now-claimed ``foo`` slot and falls back to a fresh auto-name.
         app._do_revive_agent(foo_a)
         first_live_name = foo_a.agent_name
-        # foo_a's prefix was stripped — even with the collision suffix, the
-        # name regains its original form because no other agent claims it.
         assert first_live_name == "foo"
 
-        # Add foo_a back to the active scan so its name registers as taken.
-        # _do_revive_agent already removed it from _dismissed_agent_objects
-        # by clearing identities; reseed _agents_with_children for the
-        # second revive's allocator.
         app._agents_with_children = [foo_a]
 
         app._do_revive_agent(foo_b)
-        assert foo_b.agent_name is not None
-        # Either an auto-name fallback (when the first revive's "foo" is
-        # observable through scan), or the unique base "foo_2" preserved
-        # from the dismissal collision suffix. Both keep the agents
-        # distinct, which is the lifecycle invariant.
-        assert foo_b.agent_name != first_live_name
-        assert not is_dismissed_prefixed(foo_b.agent_name)
+        assert foo_b.agent_name == "foo"
     finally:
         for p in patches:
             p.stop()

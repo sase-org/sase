@@ -1,4 +1,4 @@
-"""Tests for dismissed-name rewrite behavior during agent dismissal."""
+"""Tests that agent dismissal hides rows without renaming them."""
 
 from __future__ import annotations
 
@@ -13,8 +13,8 @@ from tests._agent_dismiss_helpers import (
 )
 
 
-def test_dismiss_renames_named_agent_with_date_prefix(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    """Dismissing ``foo`` on April 28 2026 yields ``260428.foo``."""
+def test_dismiss_preserves_named_agent(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Dismissing a named agent hides it without changing its name."""
     app = FakeDismissApp()
     agent = make_agent(
         cl_name="feature_a",
@@ -33,13 +33,13 @@ def test_dismiss_renames_named_agent_with_date_prefix(tmp_path) -> None:  # type
         for p in patches:
             p.stop()
 
-    assert agent.agent_name == "260428.foo"
+    assert agent.agent_name == "foo"
     assert app._dismissed_agent_objects == [agent]
-    assert app._dismissed_agent_objects[0].agent_name == "260428.foo"
+    assert app._dismissed_agent_objects[0].agent_name == "foo"
 
 
-def test_dismiss_unnamed_agent_gets_prefixed_name(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    """An agent with no ``agent_name`` still receives a non-empty prefix."""
+def test_dismiss_unnamed_agent_stays_unnamed(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Dismissal does not synthesize names for unnamed agents."""
     app = FakeDismissApp()
     agent = make_agent(
         cl_name="feature_b",
@@ -57,11 +57,11 @@ def test_dismiss_unnamed_agent_gets_prefixed_name(tmp_path) -> None:  # type: ig
         for p in patches:
             p.stop()
 
-    assert agent.agent_name == "260428.feature_b"
+    assert agent.agent_name is None
 
 
-def test_batch_dismiss_unique_names_for_same_day_same_base(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    """Two same-day agents with name ``foo`` get unique dismissed names."""
+def test_batch_dismiss_preserves_same_named_agents(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Batch dismissal leaves existing names untouched."""
     app = FakeDismissApp()
     a1 = make_agent(
         cl_name="cl_a",
@@ -88,11 +88,11 @@ def test_batch_dismiss_unique_names_for_same_day_same_base(tmp_path) -> None:  #
             p.stop()
 
     names = sorted(a.agent_name or "" for a in [a1, a2])
-    assert names == ["260428.foo", "260428.foo_2"]
+    assert names == ["foo", "foo"]
 
 
-def test_dismiss_renames_named_workflow_children(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    """Workflow children with names also pick up the dismissal prefix."""
+def test_dismiss_preserves_named_workflow_children(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Workflow parent and child names survive dismissal unchanged."""
     app = FakeDismissApp()
     parent = make_agent(
         agent_type=AgentType.WORKFLOW,
@@ -128,15 +128,15 @@ def test_dismiss_renames_named_workflow_children(tmp_path) -> None:  # type: ign
         for p in patches:
             p.stop()
 
-    assert parent.agent_name == "260428.root"
-    assert named_child.agent_name == "260428.root.plan"
+    assert parent.agent_name == "root"
+    assert named_child.agent_name == "root.plan"
     assert unnamed_child.agent_name is None
 
 
-def test_dismiss_rename_uses_start_time_when_stop_time_missing(
+def test_dismiss_without_stop_time_preserves_name(
     tmp_path,
 ) -> None:  # type: ignore[no-untyped-def]
-    """Falls back to ``start_time`` when ``stop_time`` is None."""
+    """Missing stop time does not trigger any rename fallback."""
     app = FakeDismissApp()
     agent = make_agent(
         cl_name="feature_c",
@@ -156,4 +156,4 @@ def test_dismiss_rename_uses_start_time_when_stop_time_missing(
         for p in patches:
             p.stop()
 
-    assert agent.agent_name == "260427.bar"
+    assert agent.agent_name == "bar"

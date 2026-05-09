@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
-from datetime import datetime
 from typing import Any
 
 from sase.core.agent_cleanup_wire import (
@@ -44,7 +43,6 @@ from sase.core.agent_cleanup_wire import (
     AgentCleanupArtifactDeleteIntentWire,
     AgentCleanupBundleSaveIntentWire,
     AgentCleanupDismissItemWire,
-    AgentCleanupDismissalRenameIntentWire,
     AgentCleanupIdentityWire,
     AgentCleanupKillItemWire,
     AgentCleanupNotificationDismissIntentWire,
@@ -216,66 +214,6 @@ def _push_summary_line(lines: list[str], count: int, noun: str) -> None:
     lines.append(f"{count} {noun}{suffix}")
 
 
-def _is_dismissed_prefixed(name: str) -> bool:
-    return len(name) > 7 and name[:6].isdigit() and name[6] == "."
-
-
-def _strip_dismissed_prefix(name: str) -> str:
-    if _is_dismissed_prefixed(name):
-        return name[7:]
-    return name
-
-
-def _completion_date_prefix(target: AgentCleanupTargetWire) -> str:
-    for value in (target.stop_time, target.start_time):
-        if not value:
-            continue
-        try:
-            return datetime.fromisoformat(value).strftime("%y%m%d")
-        except ValueError:
-            pass
-    if target.raw_suffix and len(target.raw_suffix) >= 8:
-        raw = target.raw_suffix[:8]
-        if raw.isdigit():
-            return f"{raw[2:4]}{raw[4:6]}{raw[6:8]}"
-    return "000101"
-
-
-def _base_for_dismissal(target: AgentCleanupTargetWire) -> str:
-    if target.agent_name:
-        return _strip_dismissed_prefix(target.agent_name)
-    if target.identity.cl_name and target.identity.cl_name != "unknown":
-        return target.identity.cl_name
-    if target.raw_suffix:
-        return target.raw_suffix
-    return "agent"
-
-
-def _add_dismissed_prefix(name: str, date_prefix: str) -> str:
-    if _is_dismissed_prefixed(name):
-        return name
-    return f"{date_prefix}.{name}"
-
-
-def _allocate_dismissed_name(
-    base: str,
-    date_prefix: str,
-    taken: set[str],
-) -> str:
-    base = _strip_dismissed_prefix(base)
-    primary = _add_dismissed_prefix(base, date_prefix)
-    if primary not in taken:
-        taken.add(primary)
-        return primary
-    n = 2
-    while True:
-        candidate = f"{primary}.{n}"
-        if candidate not in taken:
-            taken.add(candidate)
-            return candidate
-        n += 1
-
-
 def _related_workflow_targets(
     target: AgentCleanupTargetWire,
     children_by_parent: dict[tuple[str, str | None], list[AgentCleanupTargetWire]],
@@ -311,15 +249,11 @@ def _build_cleanup_side_effects(
         return AgentCleanupSideEffectsWire()
 
     by_id = {target.identity: target for target in targets}
-    taken = set(request.taken_dismissed_names)
-
     dismissed_index: list[AgentCleanupIdentityWire] = []
     bundle_candidates: list[AgentCleanupBundleSaveIntentWire] = []
     artifact_deletes: list[AgentCleanupArtifactDeleteIntentWire] = []
     workspace_releases: list[AgentCleanupWorkspaceReleaseIntentWire] = []
     notification_candidates: list[AgentCleanupNotificationDismissIntentWire] = []
-    rename_allocations: list[AgentCleanupDismissalRenameIntentWire] = []
-    rewrite_map: list[tuple[str, str]] = []
 
     seen_index: set[AgentCleanupIdentityWire] = set()
     seen_bundle: set[AgentCleanupIdentityWire] = set()
@@ -397,45 +331,11 @@ def _build_cleanup_side_effects(
                 )
             )
 
-    def add_renames(related: list[AgentCleanupTargetWire]) -> None:
-        if not related:
-            return
-        parent = related[0]
-        date_prefix = _completion_date_prefix(parent)
-        old_name = parent.agent_name
-        new_name = _allocate_dismissed_name(
-            _base_for_dismissal(parent),
-            date_prefix,
-            taken,
-        )
-        rename_allocations.append(
-            AgentCleanupDismissalRenameIntentWire(parent.identity, old_name, new_name)
-        )
-        if old_name and old_name != new_name:
-            rewrite_map.append((old_name, new_name))
-        if parent.agent_type != "workflow" or _is_workflow_child(parent):
-            return
-        for child in related[1:]:
-            if not child.agent_name:
-                continue
-            child_new = _add_dismissed_prefix(child.agent_name, date_prefix)
-            if child_new == child.agent_name:
-                continue
-            rename_allocations.append(
-                AgentCleanupDismissalRenameIntentWire(
-                    child.identity,
-                    child.agent_name,
-                    child_new,
-                )
-            )
-            rewrite_map.append((child.agent_name, child_new))
-
     for dismiss in dismiss_items:
         target = by_id.get(dismiss.identity)
         if target is None:
             continue
         related = _related_workflow_targets(target, children_by_parent)
-        add_renames(related)
         for item in related:
             _append_unique_identity(dismissed_index, seen_index, item)
             add_bundle(item)
@@ -463,8 +363,6 @@ def _build_cleanup_side_effects(
         artifact_delete_paths=tuple(artifact_deletes),
         workspace_release_requests=tuple(workspace_releases),
         notification_dismiss_candidates=tuple(notification_candidates),
-        dismissal_rename_allocations=tuple(rename_allocations),
-        wait_reference_rewrite_map=tuple(rewrite_map),
     )
 
 
@@ -681,8 +579,6 @@ def plan_agent_cleanup(
             "artifact_delete_paths",
             "workspace_release_requests",
             "notification_dismiss_candidates",
-            "dismissal_rename_allocations",
-            "wait_reference_rewrite_map",
         )
     ):
         return plan_agent_cleanup_python(wire_targets, wire_request)

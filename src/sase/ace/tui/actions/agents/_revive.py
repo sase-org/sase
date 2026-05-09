@@ -17,37 +17,8 @@ if TYPE_CHECKING:
 def _build_revive_name_map(
     agents: Iterable[Agent],
 ) -> tuple[dict[str, str], list[tuple[str, str]]]:
-    """Strip dismissal prefixes for *agents* and return ``({old: new}, taken)``.
-
-    Each agent whose ``agent_name`` carries a ``YYmmdd.`` dismissal prefix is
-    mutated in-place to its stripped form. When the stripped name is already
-    claimed by an active agent (or by another revive in the same batch), a
-    ``<base>_<n>`` dedup'd name is allocated instead and the
-    ``(original, allocated)`` pair is appended to the returned ``taken`` list
-    so the caller can surface a notification.
-    Agents without a dismissal prefix (legacy bundles) are skipped — they
-    revive under their current name, mirroring the pre-prefix behaviour.
-    """
-    from sase.agent.names import (
-        allocate_revived_name,
-        get_active_agent_names,
-        is_dismissed_prefixed,
-    )
-
-    name_map: dict[str, str] = {}
-    unavailable: list[tuple[str, str]] = []
-    reserved = get_active_agent_names()
-
-    for agent in agents:
-        old = agent.agent_name
-        if not old or not is_dismissed_prefixed(old):
-            continue
-        new, fallback = allocate_revived_name(old, reserved=reserved)
-        if fallback is not None:
-            unavailable.append((fallback, new))
-        agent.agent_name = new
-        name_map[old] = new
-    return name_map, unavailable
+    """Return no reference rewrites; revive preserves stored agent names."""
+    return {}, []
 
 
 def _apply_revive_reference_rewrites(

@@ -79,23 +79,8 @@ def apply_dismissal_rename_intents(
     agents_with_children_snapshot: list[Agent],
     plan: object,
 ) -> dict[str, str]:
-    """Mutate agent names according to cleanup rename intents."""
-    by_identity = {
-        agent_wire_identity(agent): agent for agent in agents_with_children_snapshot
-    }
-    name_map: dict[str, str] = {}
-    side_effects = getattr(plan, "side_effects", None)
-    for intent in getattr(side_effects, "dismissal_rename_allocations", ()):
-        agent = by_identity.get(wire_identity_key(intent.identity))
-        if agent is None:
-            continue
-        old_name = agent.agent_name
-        agent.agent_name = intent.new_name
-        if old_name and old_name != intent.new_name:
-            name_map[old_name] = intent.new_name
-    if not name_map:
-        return dict(getattr(side_effects, "wait_reference_rewrite_map", ()) or ())
-    return name_map
+    """Return no reference rewrites; dismissal no longer renames agents."""
+    return {}
 
 
 def dismissed_identities_from_plan(plan: object) -> set[AgentIdentity]:

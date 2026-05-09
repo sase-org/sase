@@ -327,9 +327,8 @@ class TestDismissFlowReferenceRewrites:
             for p in patches:
                 p.stop()
 
-        assert target.agent_name == "260428.foo"
-        # Surviving dependent was rewritten in place.
-        assert dependent.waiting_for == ["260428.foo"]
+        assert target.agent_name == "foo"
+        assert dependent.waiting_for == ["foo"]
 
     def test_dismiss_passes_name_map_to_persistence(self, tmp_path: Path) -> None:
         from tests.test_agent_dismiss_in_memory import (
@@ -360,7 +359,7 @@ class TestDismissFlowReferenceRewrites:
         _, args = app._scheduled[0]
         # name_map is the trailing positional arg.
         name_map = args[-1]
-        assert name_map == {"foo": "260428.foo"}
+        assert name_map == {}
 
     def test_persist_transaction_runs_disk_rewrites(self, tmp_path: Path) -> None:
         from tests.test_agent_dismiss_in_memory import (
@@ -370,7 +369,7 @@ class TestDismissFlowReferenceRewrites:
         )
 
         # Set up a *separate* artifact dir for a dependent agent that
-        # waits on ``foo`` so the worker's rewrite has something to do.
+        # waits on ``foo``. Dismissal should leave these references intact.
         dep_dir = _make_artifact_dir(tmp_path, "20260428110000")
         (dep_dir / "agent_meta.json").write_text(json.dumps({"wait_for": ["foo"]}))
         (dep_dir / "raw_xprompt.md").write_text("%w:foo proceed")
@@ -399,11 +398,11 @@ class TestDismissFlowReferenceRewrites:
             for p in patches:
                 p.stop()
 
-        # Disk references for the dependent agent were rewritten by the worker.
+        # Disk references for the dependent agent are no longer rewritten.
         assert json.loads((dep_dir / "agent_meta.json").read_text())["wait_for"] == [
-            "260428.foo"
+            "foo"
         ]
-        assert (dep_dir / "raw_xprompt.md").read_text() == "%w:260428.foo proceed"
+        assert (dep_dir / "raw_xprompt.md").read_text() == "%w:foo proceed"
 
 
 if __name__ == "__main__":

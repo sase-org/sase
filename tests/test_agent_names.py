@@ -5,7 +5,10 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.agent.names import (
+    NameCollisionError,
     allocate_retry_name,
     allocate_revived_name,
     allocate_resume_name,
@@ -271,17 +274,16 @@ class TestClaimAgentName:
         new_meta = json.loads((new_dir / "agent_meta.json").read_text())
         assert new_meta["name"] == "foo"
 
-    def test_strips_name_from_stale_agents(self, tmp_path: Path) -> None:
-        """Non-done agents (dead PID) still have their name stripped."""
+    def test_preserves_stale_agent_names(self, tmp_path: Path) -> None:
+        """Claiming a name never mutates a previous agent."""
         stale_dir = _make_agent(tmp_path, "proj", "run-old", "foo", pid=_DEAD_PID)
         new_dir = _make_agent(tmp_path, "proj", "run-new", "foo")
 
         with patch.object(Path, "home", return_value=tmp_path):
             claim_agent_name("foo", str(new_dir))
 
-        # Stale agent should have name stripped
         stale_meta = json.loads((stale_dir / "agent_meta.json").read_text())
-        assert "name" not in stale_meta
+        assert stale_meta["name"] == "foo"
         assert stale_meta["model"] == "test"  # other fields preserved
 
         # New agent keeps name
@@ -378,37 +380,33 @@ class TestAllocateRevivedNameDedup:
 
 
 class TestClaimAgentNameExplicit:
-    def test_renames_running_collision_to_underscore_2(self, tmp_path: Path) -> None:
+    def test_rejects_running_collision(self, tmp_path: Path) -> None:
         existing = _make_agent(tmp_path, "proj", "run-old", "foo", pid=os.getpid())
         new_dir = _make_agent(tmp_path, "proj", "run-new", "foo")
 
         with patch.object(Path, "home", return_value=tmp_path):
-            claim_agent_name("foo", str(new_dir), explicit=True)
+            with pytest.raises(NameCollisionError, match="foo1"):
+                claim_agent_name("foo", str(new_dir), explicit=True)
 
         existing_meta = json.loads((existing / "agent_meta.json").read_text())
-        assert existing_meta["name"] == "foo_2"
-        # Other fields preserved
+        assert existing_meta["name"] == "foo"
         assert existing_meta["model"] == "test"
 
         new_meta = json.loads((new_dir / "agent_meta.json").read_text())
         assert new_meta["name"] == "foo"
 
-    def test_renames_done_collision_to_underscore_2(self, tmp_path: Path) -> None:
+    def test_rejects_done_collision(self, tmp_path: Path) -> None:
         existing = _make_agent(tmp_path, "proj", "run-old", "foo", done=True)
         new_dir = _make_agent(tmp_path, "proj", "run-new", "foo")
 
         with patch.object(Path, "home", return_value=tmp_path):
-            claim_agent_name("foo", str(new_dir), explicit=True)
+            with pytest.raises(NameCollisionError):
+                claim_agent_name("foo", str(new_dir), explicit=True)
 
         existing_meta = json.loads((existing / "agent_meta.json").read_text())
-        assert existing_meta["name"] == "foo_2"
+        assert existing_meta["name"] == "foo"
 
-        # done.json is also rewritten so loaders see the dedup'd name.
-        # The fixture only writes done.json with outcome; explicit-rename
-        # only touches done.json when it carries a ``name`` field, so a
-        # bare done.json (no name) is left untouched here.
-
-    def test_renames_done_with_name_in_done_json(self, tmp_path: Path) -> None:
+    def test_reject_keeps_done_json_name(self, tmp_path: Path) -> None:
         existing = _make_agent(tmp_path, "proj", "run-old", "foo", done=True)
         # Augment done.json with a name field, mirroring the save path.
         done_path = existing / "done.json"
@@ -418,14 +416,15 @@ class TestClaimAgentNameExplicit:
 
         new_dir = _make_agent(tmp_path, "proj", "run-new", "foo")
         with patch.object(Path, "home", return_value=tmp_path):
-            claim_agent_name("foo", str(new_dir), explicit=True)
+            with pytest.raises(NameCollisionError):
+                claim_agent_name("foo", str(new_dir), explicit=True)
 
         existing_meta = json.loads((existing / "agent_meta.json").read_text())
-        assert existing_meta["name"] == "foo_2"
+        assert existing_meta["name"] == "foo"
         existing_done = json.loads(done_path.read_text())
-        assert existing_done["name"] == "foo_2"
+        assert existing_done["name"] == "foo"
 
-    def test_workflow_name_collision_renamed(self, tmp_path: Path) -> None:
+    def test_workflow_name_collision_rejected(self, tmp_path: Path) -> None:
         child_dir = _make_agent(
             tmp_path,
             "proj",
@@ -438,23 +437,24 @@ class TestClaimAgentNameExplicit:
         new_dir = _make_agent(tmp_path, "proj", "run-new", "a")
 
         with patch.object(Path, "home", return_value=tmp_path):
-            claim_agent_name("a", str(new_dir), explicit=True)
+            with pytest.raises(NameCollisionError):
+                claim_agent_name("a", str(new_dir), explicit=True)
 
         child_meta = json.loads((child_dir / "agent_meta.json").read_text())
-        assert child_meta["workflow_name"] == "a_2"
-        # Child name "a.1" did NOT match "a" so its name field is unchanged.
+        assert child_meta["workflow_name"] == "a"
         assert child_meta["name"] == "a.1"
 
         new_meta = json.loads((new_dir / "agent_meta.json").read_text())
         assert new_meta["name"] == "a"
 
-    def test_multiple_collisions_get_sequential_suffixes(self, tmp_path: Path) -> None:
+    def test_multiple_collisions_are_not_renamed(self, tmp_path: Path) -> None:
         first = _make_agent(tmp_path, "proj", "run-1", "foo", pid=os.getpid())
         second = _make_agent(tmp_path, "proj", "run-2", "foo", pid=os.getpid())
         new_dir = _make_agent(tmp_path, "proj", "run-new", "foo")
 
         with patch.object(Path, "home", return_value=tmp_path):
-            claim_agent_name("foo", str(new_dir), explicit=True)
+            with pytest.raises(NameCollisionError):
+                claim_agent_name("foo", str(new_dir), explicit=True)
 
         names = sorted(
             [
@@ -462,11 +462,9 @@ class TestClaimAgentNameExplicit:
                 json.loads((second / "agent_meta.json").read_text())["name"],
             ]
         )
-        assert names == ["foo_2", "foo_3"]
+        assert names == ["foo", "foo"]
 
-    def test_non_explicit_retains_strip_behavior(self, tmp_path: Path) -> None:
-        # Mirrors test_strips_name_from_stale_agents but verifies the
-        # default (explicit=False) explicitly.
+    def test_non_explicit_does_not_strip_previous_agents(self, tmp_path: Path) -> None:
         stale_dir = _make_agent(tmp_path, "proj", "run-old", "foo", pid=os.getpid())
         new_dir = _make_agent(tmp_path, "proj", "run-new", "foo")
 
@@ -474,12 +472,13 @@ class TestClaimAgentNameExplicit:
             claim_agent_name("foo", str(new_dir))  # explicit defaults to False
 
         stale_meta = json.loads((stale_dir / "agent_meta.json").read_text())
-        assert "name" not in stale_meta
+        assert stale_meta["name"] == "foo"
 
-    def test_explicit_rewrites_wait_references(self, tmp_path: Path) -> None:
-        """Other agents' wait_for markers are rewritten to track the rename."""
+    def test_explicit_reject_does_not_rewrite_wait_references(
+        self, tmp_path: Path
+    ) -> None:
+        """Rejecting a collision leaves existing wait markers untouched."""
         existing = _make_agent(tmp_path, "proj", "run-old", "foo", pid=os.getpid())
-        # Waiter references "foo" — should follow the rename to "foo_2".
         waiter = _make_agent(tmp_path, "proj", "run-waiter", "bar", pid=os.getpid())
         waiter_meta_path = waiter / "agent_meta.json"
         waiter_meta = json.loads(waiter_meta_path.read_text())
@@ -488,9 +487,10 @@ class TestClaimAgentNameExplicit:
 
         new_dir = _make_agent(tmp_path, "proj", "run-new", "foo")
         with patch.object(Path, "home", return_value=tmp_path):
-            claim_agent_name("foo", str(new_dir), explicit=True)
+            with pytest.raises(NameCollisionError):
+                claim_agent_name("foo", str(new_dir), explicit=True)
 
         existing_meta = json.loads((existing / "agent_meta.json").read_text())
-        assert existing_meta["name"] == "foo_2"
+        assert existing_meta["name"] == "foo"
         waiter_after = json.loads(waiter_meta_path.read_text())
-        assert waiter_after["wait_for"] == ["foo_2"]
+        assert waiter_after["wait_for"] == ["foo"]

@@ -400,13 +400,8 @@ def test_python_cleanup_planner_side_effect_intents_for_workflow_dismissal() -> 
         agents_to_cleanup_targets([parent, child]), request
     )
 
-    assert [
-        intent.new_name for intent in plan.side_effects.dismissal_rename_allocations
-    ] == ["260430.root", "260430.root.plan"]
-    assert dict(plan.side_effects.wait_reference_rewrite_map) == {
-        "root": "260430.root",
-        "root.plan": "260430.root.plan",
-    }
+    assert plan.side_effects.dismissal_rename_allocations == ()
+    assert plan.side_effects.wait_reference_rewrite_map == ()
     assert [
         item.identity.cl_name for item in plan.side_effects.bundle_save_candidates
     ] == [
@@ -454,9 +449,7 @@ def test_python_cleanup_planner_side_effect_intents_for_bulk_kill() -> None:
     assert [
         item.workspace for item in plan.side_effects.workspace_release_requests
     ] == [9]
-    assert [
-        intent.new_name for intent in plan.side_effects.dismissal_rename_allocations
-    ] == ["260430.done-name"]
+    assert plan.side_effects.dismissal_rename_allocations == ()
 
 
 def test_plan_agent_cleanup_uses_rust_binding_when_available(

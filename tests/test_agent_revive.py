@@ -400,7 +400,7 @@ def test_restore_agent_meta_merges_existing_metadata(tmp_path: Path) -> None:
     assert data["workspace_dir"] == "/tmp/workspace"
 
 
-def test_revive_existing_meta_without_name_restores_resume_lookup(
+def test_revive_existing_meta_without_name_preserves_stored_lookup(
     tmp_path: Path,
 ) -> None:
     project_file = tmp_path / ".sase" / "projects" / "proj" / "proj.gp"
@@ -438,18 +438,18 @@ def test_revive_existing_meta_without_name_restores_resume_lookup(
         patch("sase.ace.dismissed_agents.remove_bundle_by_identity"),
     ):
         app._do_revive_agent(agent)
-        resolved = find_named_agent("abb_3")
+        resolved = find_named_agent("260504.abb_3")
 
     data = json.loads((artifact_dir / "agent_meta.json").read_text())
     assert data["model"] == "old-model"
-    assert data["name"] == "abb_3"
+    assert data["name"] == "260504.abb_3"
     assert resolved is not None
     assert resolved.is_done
     assert resolved.artifacts_dir == str(artifact_dir)
 
 
 # ---------------------------------------------------------------------------
-# Phase 4: dismissal-prefix stripping on revive
+# Phase 4: revive preserves stored names
 # ---------------------------------------------------------------------------
 
 
@@ -462,8 +462,8 @@ def _patch_home(tmp_path: Path) -> patch:  # type: ignore[type-arg]
     return patch.object(Path, "home", _path_home)
 
 
-def test_revive_strips_dismissal_prefix_from_named_agent(tmp_path: Path) -> None:
-    """Reviving ``260428.foo`` restores the live name ``foo`` in memory."""
+def test_revive_preserves_dismissal_prefixed_name(tmp_path: Path) -> None:
+    """Reviving ``260428.foo`` does not rename it in memory."""
     app = FakeReviveApp()
     agent = _make_agent(
         cl_name="feature_a",
@@ -480,11 +480,11 @@ def test_revive_strips_dismissal_prefix_from_named_agent(tmp_path: Path) -> None
     ):
         app._do_revive_agent(agent)
 
-    assert agent.agent_name == "foo"
+    assert agent.agent_name == "260428.foo"
 
 
-def test_revive_rewrites_active_agent_waiting_for(tmp_path: Path) -> None:
-    """An active agent waiting on a prefixed dismissed name is restored."""
+def test_revive_preserves_active_agent_waiting_for(tmp_path: Path) -> None:
+    """Revive does not rewrite active wait references."""
     app = FakeReviveApp()
     revived = _make_agent(
         cl_name="feature_a",
@@ -508,11 +508,11 @@ def test_revive_rewrites_active_agent_waiting_for(tmp_path: Path) -> None:
     ):
         app._do_revive_agent(revived)
 
-    assert dependent.waiting_for == ["foo"]
+    assert dependent.waiting_for == ["260428.foo"]
 
 
-def test_revive_rewrites_artifact_wait_for_on_disk(tmp_path: Path) -> None:
-    """The dependent agent's ``agent_meta.json`` wait_for is rewritten."""
+def test_revive_preserves_artifact_wait_for_on_disk(tmp_path: Path) -> None:
+    """Revive leaves dependent ``agent_meta.json`` wait_for untouched."""
     artifact_dir = (
         tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / "20260428"
     )
@@ -539,9 +539,9 @@ def test_revive_rewrites_artifact_wait_for_on_disk(tmp_path: Path) -> None:
         app._do_revive_agent(revived)
 
     assert json.loads((artifact_dir / "agent_meta.json").read_text())["wait_for"] == [
-        "foo"
+        "260428.foo"
     ]
-    assert (artifact_dir / "raw_xprompt.md").read_text() == "%w:foo run it"
+    assert (artifact_dir / "raw_xprompt.md").read_text() == "%w:260428.foo run it"
 
 
 def test_revive_legacy_bundle_without_prefix_keeps_name(tmp_path: Path) -> None:
@@ -567,8 +567,8 @@ def test_revive_legacy_bundle_without_prefix_keeps_name(tmp_path: Path) -> None:
     assert not any(sev == "warning" for _, sev in app.notifications)
 
 
-def test_revive_with_taken_name_falls_back_to_auto_name(tmp_path: Path) -> None:
-    """When the original name is now claimed, revive dedups to ``<base>_2``."""
+def test_revive_with_taken_name_keeps_stored_name(tmp_path: Path) -> None:
+    """Revive does not dedup or rename when a stripped base is taken."""
     # Plant an active agent named "foo" so the revival sees the slot taken.
     active_dir = (
         tmp_path
@@ -601,20 +601,12 @@ def test_revive_with_taken_name_falls_back_to_auto_name(tmp_path: Path) -> None:
     ):
         app._do_revive_agent(agent)
 
-    assert agent.agent_name != "260428.foo"
-    assert agent.agent_name != "foo"
-    # Dedup'd name preserves the original base for visibility on the Agents tab.
-    assert agent.agent_name == "foo_2"
-    assert any(
-        "Original name 'foo' was taken" in msg
-        and "revived as 'foo_2'" in msg
-        and sev == "warning"
-        for msg, sev in app.notifications
-    )
+    assert agent.agent_name == "260428.foo"
+    assert not any(sev == "warning" for _, sev in app.notifications)
 
 
-def test_revive_workflow_parent_strips_children_prefix(tmp_path: Path) -> None:
-    """A workflow parent + children all lose their ``YYmmdd.`` prefix together."""
+def test_revive_workflow_parent_preserves_children_prefix(tmp_path: Path) -> None:
+    """A workflow parent + children keep their stored names together."""
     app = FakeReviveApp()
     parent = _make_agent(
         cl_name="feature",
@@ -638,12 +630,12 @@ def test_revive_workflow_parent_strips_children_prefix(tmp_path: Path) -> None:
     ):
         app._do_revive_agent(parent)
 
-    assert parent.agent_name == "a"
-    assert child.agent_name == "a.1"
+    assert parent.agent_name == "260428.a"
+    assert child.agent_name == "260428.a.1"
 
 
-def test_batch_revive_strips_prefixes_for_all_agents(tmp_path: Path) -> None:
-    """Batch revive applies prefix stripping to every revival_group member."""
+def test_batch_revive_preserves_names_for_all_agents(tmp_path: Path) -> None:
+    """Batch revive does not rename any revival_group member."""
     app = FakeReviveApp()
     parent_one = _make_agent(
         cl_name="f1",
@@ -666,5 +658,5 @@ def test_batch_revive_strips_prefixes_for_all_agents(tmp_path: Path) -> None:
     ):
         app._do_revive_agents([parent_one, parent_two])
 
-    assert parent_one.agent_name == "foo"
-    assert parent_two.agent_name == "bar"
+    assert parent_one.agent_name == "260428.foo"
+    assert parent_two.agent_name == "260428.bar"
