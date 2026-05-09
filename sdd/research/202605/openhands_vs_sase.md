@@ -29,6 +29,22 @@ Primary OpenHands sources:
   process, and remote sandbox options.
 - OpenHands docs: [skills overview](https://docs.openhands.dev/overview/skills) describes AGENTS.md, AgentSkills,
   keyword-triggered skills, organization/global skills, and skill loading precedence.
+- OpenHands docs: [microagents overview](https://docs.openhands.dev/openhands/usage/microagents/microagents-overview)
+  describes KnowledgeMicroagent vs RepoMicroagent, frontmatter, and `.openhands/microagents/` loading order.
+- OpenHands docs: [context condenser](https://docs.openhands.dev/sdk/guides/context-condenser) describes
+  LLM-based summarization of older events to keep long sessions bounded.
+- OpenHands docs: [agent delegation](https://docs.openhands.dev/sdk/guides/agent-delegation) describes
+  `AgentDelegateAction`, sub-agent spawning, and `BrowsingAgent` as a delegation target.
+- OpenHands [SDK V1 paper (arXiv 2511.03690)](https://arxiv.org/html/2511.03690v1) describes the composable
+  event-loop kernel, condenser, persistence, and tool architecture.
+- OpenHands [ICLR 2025 platform paper](https://arxiv.org/pdf/2407.16741v2) defines the original CodeAct/Action–
+  Observation framing and BrowsingAgent results.
+- [OpenHands Index, Jan 2026](https://www.openhands.dev/blog/openhands-index) reports SWE-bench Verified results
+  for OpenHands+CodeAct paired with current frontier models.
+- OpenHands GitHub: [Resolver action](https://docs.openhands.dev/openhands/usage/run-openhands/github-action)
+  describes the `fix-me` label and `@openhands-agent` mention triggers and PyPI-based workflow.
+- OpenHands [LICENSE](https://github.com/All-Hands-AI/OpenHands/blob/main/LICENSE) — MIT, except the
+  `enterprise/` directory; community is ~65K+ GitHub stars and 180+ contributors.
 - OpenHands docs: [CLI headless mode](https://docs.openhands.dev/openhands/usage/cli/headless) describes no-UI execution
   and JSONL event output for automation.
 - OpenHands docs: [terminal CLI](https://docs.openhands.dev/openhands/usage/cli/terminal) describes live status,
@@ -70,6 +86,76 @@ Local SASE sources:
 - [docs/beads.md](../../../docs/beads.md) for Beads, SDD plan tiers, phase dependencies, SQLite/JSONL storage, and
   `sase bead work`.
 - [docs/change_spec.md](../../../docs/change_spec.md) for ChangeSpec lifecycle and tracked work metadata.
+
+## Architectural Foundations of OpenHands
+
+Several OpenHands ideas don't fit neatly into a feature comparison but shape every surface above. They are worth
+calling out because SASE's analogous primitives are differently positioned.
+
+### CodeAct: Code as the Action Space
+
+OpenHands' default agent (`CodeActAgent`) does not use a per-tool JSON-schema interface. Instead, every action is
+expressed as code in one of three modalities — bash, Python, or a browser DSL — executed inside the runtime
+sandbox. The original ICLR 2025 paper argues this generalizes better than schema-bound tool calls and dramatically
+reduces parsing errors on long-horizon tasks. Specialized tools (file editor, task tracker, MCP servers) layer on
+top, but the core "what can the agent do?" answer is "run code."
+
+SASE in contrast leans on xprompts and skills as the composable surface; the underlying tool calls are normal
+provider tool calls. The CodeAct lesson is not "switch SASE to code-actions" — it is that the *action interface*
+between agent and runtime is itself a design choice with measurable empirical consequences, and SASE has not made
+that choice explicit.
+
+### Event–Action–Observation Loop
+
+OpenHands models agent execution as a pure function from event history to next event, run in a loop. Every
+interaction with the world is either an `Action` (decided by the agent) or an `Observation` (returned by the
+runtime). Both are typed Pydantic models and persisted to an event log. State, replay, condensation, delegation,
+and UI are all downstream of this single shape. SASE has rich agent state (artifacts dir, claims, status files,
+ChangeSpec deltas) but no single equivalent typed-event substrate that all surfaces consume.
+
+### Runtime as Execution Boundary
+
+The Runtime is the explicit, swappable component that turns Actions into Observations — Docker, process, or remote
+backends. This is what makes the sandbox story credible: the agent code path doesn't change when you swap
+isolation modes. SASE's workspace abstraction is similar in spirit but stops short of being a full execution
+boundary; tool calls escape directly to the host.
+
+### Condenser: Bounded Context Without Forgetting
+
+OpenHands ships an LLM-based condenser that, when the event log exceeds a threshold, drops older events and
+replaces them with `CondensationEvent` summaries focused on user goals, progress, and outstanding work. Recent
+events stay verbatim. The full event log is preserved on disk so condensation is purely a view-time transform,
+not lossy persistence. OpenHands reports ~50% API-cost reduction and linear (vs quadratic) token growth on long
+sessions. SASE has resume/handoff and dynamic memory but does not yet have a comparable in-conversation context
+compaction primitive.
+
+### Event Storage and Trajectory Replay
+
+Because every action and observation is logged, OpenHands supports trajectory replay: a finished or interrupted
+session can be re-driven from the event store for debugging, evaluation, or session restoration. This is also
+what makes the SDK "stateless by default" — state is the event log; the agent function is pure. SASE captures
+artifacts and chat transcripts but does not expose a stable replayable event trajectory.
+
+### Agent Delegation and Sub-Agents
+
+`AgentDelegateAction` lets the main agent spawn a specialist (e.g., `BrowsingAgent`) with its own conversation
+context and consume only the result. This is structurally distinct from SASE's multi-agent xprompt fan-out:
+fan-out launches sibling agents at *the user's* direction, while delegation is a tool the *agent* invokes
+mid-task. SASE's `bead work` waves are the closest equivalent, but they are scheduled rather than agent-driven.
+
+### Microagents (vs Skills/XPrompts)
+
+OpenHands distinguishes two repo-local artifact types under `.openhands/microagents/`:
+
+- **`RepoMicroagent`** — always-on, repo-specific instructions (e.g. `repo.md`); equivalent to SASE's
+  always-loaded short memory plus AGENTS.md.
+- **`KnowledgeMicroagent`** — keyword-triggered snippets with frontmatter declaring trigger words; equivalent to
+  SASE's dynamic memory keyword matching.
+
+Loading order is global (`skills/`) → user (`~/.openhands/microagents/`) → workspace (repo). Files use markdown
+with optional YAML frontmatter. The newer `AgentSkills` standard adds per-skill directories with `SKILL.md` and
+progressive disclosure. SASE has equivalent capabilities (short/long/dynamic memory tiers, xprompts, generated
+skills), but the artifact taxonomy is more fragmented and less portable across projects.
 
 ## Product Shape
 
@@ -276,21 +362,138 @@ Inspiration for SASE:
 - Build small vertical demos: local repo task, GitHub issue task, SDD epic task, mentor review task.
 - Keep advanced concepts visible but progressively disclosed.
 
+### 11. In-Conversation Context Condensation
+
+Long agent runs hit context limits. OpenHands' Condenser keeps recent turns intact and replaces older spans with
+LLM-generated summaries describing user goals, progress, and remaining work, while retaining the full event log
+on disk. Reported effect: ~50% API-cost reduction and linear (rather than quadratic) token growth across long
+sessions.
+
+SASE handles long sessions by re-launching with `#resume:` and curated handoff prompts. That works for explicit
+boundaries (planner → coder) but does nothing for a single agent that simply runs long.
+
+Inspiration for SASE:
+
+- Add a condensation hook that runs at configurable token thresholds inside an in-progress agent.
+- Persist a `CondensationEvent`-equivalent in the artifacts dir so the original transcript is recoverable.
+- Make the condenser pluggable: identity (no-op), recent-N-turns, LLM-summarizer, or xprompt-driven.
+- Surface condensation status in ACE so the user can see when context was compacted and what was preserved.
+
+### 12. Sub-Agent Delegation as a Tool
+
+OpenHands' `AgentDelegateAction` lets a generalist agent hand a sub-task to a specialist (`BrowsingAgent`,
+research agents, etc.) and consume only the result. The delegated agent runs with its own conversation, returns
+a summary, and the parent continues. This is fundamentally different from launching parallel siblings.
+
+SASE has multi-agent xprompt fan-out and `bead work` phase scheduling, but both are user- or scheduler-driven.
+The *agent itself* cannot decide mid-task to spawn a scoped sub-agent and resume.
+
+Inspiration for SASE:
+
+- Add a `delegate` tool/xprompt-action exposing the spawn-on-retry plumbing in a forward direction (parent waits
+  for child, then ingests result instead of being replaced).
+- Constrain delegated agents to a smaller context budget, restricted xprompts, and bounded wall time.
+- Treat delegation as a normal event in the trajectory so it appears in ACE's agent tree.
+- Use it for browsing, doc-lookup, and isolated-test-run subtasks where the parent doesn't need the full child
+  transcript.
+
+### 13. Persistent Trajectory and Replay
+
+Because OpenHands persists every action and observation as typed events, sessions can be replayed deterministically
+for debugging, evaluation, and recovery. The SDK paper explicitly treats the event log as the durable state and
+the agent as a pure function over it.
+
+SASE keeps artifacts dirs, chat transcripts, and `done.json` records, and the retry chain links parents to
+children, but there is no single replayable typed trajectory that downstream tools (eval harnesses, ACE
+debuggers, regression tests) can consume uniformly.
+
+Inspiration for SASE:
+
+- Make the agent event stream (P0 below) durable and replayable, not just live-streamable.
+- Add `sase agent replay <timestamp>` that reconstructs the agent view from the event log without re-running tools.
+- Use replay as the substrate for an internal eval harness over historical runs.
+
+### 14. GitHub Resolver as a Drop-In Issue Worker
+
+OpenHands ships a self-contained GitHub action — install the workflow, label an issue `fix-me` (or `@-mention`
+`@openhands-agent` in a comment), and the resolver opens a draft PR. It is a published PyPI package, runs in CI,
+and reports its own commit-authorship metrics. This is a much shorter onramp than "set up SASE locally, add a
+provider plugin, and configure ingress."
+
+SASE's GitHub plugin is more powerful for ongoing local work, but lacks a one-click issue-to-PR action.
+
+Inspiration for SASE:
+
+- Publish a `sase-resolver`-style GitHub Action that wraps `sase run` against an issue/PR comment trigger.
+- Standardize the bot identity, label conventions (`sase-fix-me`), and PR template so it works without per-repo
+  setup.
+- Reuse the event-ingress design (P1 below) as the backend, with the action as the GitHub-specific frontend.
+
+## License, Governance, and Benchmarks
+
+These dimensions don't fit a feature table but matter for strategic positioning.
+
+### License and Community Posture
+
+OpenHands is **MIT-licensed** with the exception of the `enterprise/` directory (separately licensed for the
+control-plane offering). The core agent, SDK, and Docker images are fully MIT. The project reports ~65K+ GitHub
+stars and 180+ contributors, and is actively co-developed with academic research (ICLR 2025 platform paper,
+SDK V1 paper on arXiv 2511.03690). The All-Hands-AI company offers a commercial Cloud and Enterprise tier on
+top of the MIT core.
+
+SASE's licensing and community posture should be a deliberate choice rather than a default. If SASE wants to
+attract external contribution and integration, an explicitly permissive license, a clear contributor guide,
+and a public roadmap will matter as much as the technical surface.
+
+### Benchmark Performance
+
+OpenHands+CodeAct paired with current frontier models reports competitive SWE-bench Verified results (e.g.
+~68% with Claude Opus 4.6 in Jan 2026 OpenHands Index reporting). This matters less as an absolute number and
+more as evidence that **the scaffold is independently reproducible** — anyone can clone the repo, point it at
+their model, and benchmark. Reproducible eval is a credibility primitive.
+
+SASE has no equivalent public benchmark story. That is fine for an internal workflow tool, but if SASE ever
+wants to be evaluated head-to-head against OpenHands or Aider as a coding-agent platform, having a documented
+SWE-bench-style runner (against the same model) would be the bar.
+
+Inspiration for SASE:
+
+- Build a thin eval harness that runs `sase run` against a fixed task corpus (start with internal beads/SDD
+  fixtures, then SWE-bench-lite as a reach goal).
+- Publish the harness output alongside model/version metadata so cost-vs-quality tradeoffs are visible.
+- Use the trajectory replay primitive (item 13) to support deterministic re-evaluation of past runs against new
+  models.
+
 ## Priority Recommendations for SASE
 
-### P0: Normalized Agent Event Stream
+### P0: Normalized Agent Event Stream + Replayable Trajectory
 
 This is the best leverage point because it supports UI, integrations, observability, mobile, web, debugging, and external
-automation.
+automation. Persisting the stream durably (not just live-tailing) also unlocks replay, eval, and retry-on-new-model.
 
 Proposed artifact:
 
 - `sase events tail --jsonl [--agent TIMESTAMP] [--project NAME]`
 - `sase run --json` for headless consumers
+- `sase agent replay <timestamp>` reconstructs view-state from the persisted event log
 - Versioned event schema in docs
 - ACE/AXE emit and consume the same events internally over time
 
-OpenHands inspiration: headless JSONL action/observation output.
+OpenHands inspiration: headless JSONL action/observation output, persistent event log, deterministic SDK replay.
+
+### P1: Context Condensation for Long Agent Runs
+
+Long single-agent runs hit context limits today; the user mitigates this with `#resume:` between phases, but a
+single coder/planner can still run out of room mid-task.
+
+Proposed scope:
+
+- Pluggable condenser interface; default no-op preserves current behavior.
+- LLM-summarizer condenser preserves user goals, progress, and outstanding work; keeps last N turns verbatim.
+- Persist a `condensation` event so the pre-condensed history is recoverable.
+- Surface condensation status and what was preserved in ACE.
+
+OpenHands inspiration: SDK Condenser with bounded context and full event-log preservation.
 
 ### P1: Optional Sandboxed Execution Provider
 
