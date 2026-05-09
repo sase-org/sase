@@ -136,15 +136,43 @@ class AgentKillMixin:
         focused_key = panel_group.focused_key
         return "(untagged)" if focused_key is None else f"@{focused_key}"
 
-    def _known_agent_cleanup_tags(self) -> tuple[str, ...]:
-        """Return tag names known from loaded agents and persisted tag storage."""
-        tags = {agent.tag for agent in self._agents if agent.tag}
-        try:
-            from sase.ace.agent_tags import load_agent_tags
+    def _agent_cleanup_current_scope_targets(self) -> list[Agent]:
+        """Return cleanup targets scoped to the current Agents-tab list."""
+        from ...models.agent import AgentType
 
-            tags.update(load_agent_tags().values())
-        except Exception:
-            pass
+        targets: list[Agent] = []
+        seen: set[tuple[AgentType, str, str | None]] = set()
+
+        def add(agent: Agent) -> None:
+            if agent.identity in seen:
+                return
+            seen.add(agent.identity)
+            targets.append(agent)
+
+        current_parent_timestamps = {
+            agent.raw_suffix
+            for agent in self._agents
+            if (
+                agent.agent_type == AgentType.WORKFLOW
+                and not agent.is_workflow_child
+                and agent.raw_suffix is not None
+            )
+        }
+        for agent in self._agents:
+            add(agent)
+        for agent in self._agents_with_children:
+            if (
+                agent.is_workflow_child
+                and agent.parent_timestamp in current_parent_timestamps
+            ):
+                add(agent)
+        return targets
+
+    def _known_agent_cleanup_tags(self) -> tuple[str, ...]:
+        """Return tag names present in the current Agents-tab list."""
+        from ...models.agent_panels import effective_tag_per_agent
+
+        tags = {tag for tag in effective_tag_per_agent(self._agents) if tag}
         return tuple(sorted(tags, key=str.lower))
 
     def _open_tag_cleanup_selector(self) -> None:
@@ -161,7 +189,10 @@ class AgentKillMixin:
             self._present_tag_cleanup(result.tag)
 
         self.push_screen(  # type: ignore[attr-defined]
-            AgentCleanupTagModal(tags=tags, targets=list(self._agents_with_children)),
+            AgentCleanupTagModal(
+                tags=tags,
+                targets=self._agent_cleanup_current_scope_targets(),
+            ),
             on_dismiss,
         )
 
@@ -202,7 +233,11 @@ class AgentKillMixin:
             tag=tag,
             include_pidless_as_dismissable=True,
         )
-        self._present_planned_cleanup(request, header=f"Tag: @{tag}")
+        self._present_planned_cleanup(
+            request,
+            header=f"Tag: @{tag}",
+            targets=self._agent_cleanup_current_scope_targets(),
+        )
 
     def _present_custom_cleanup(
         self, identities: tuple[AgentCleanupAgentIdentity, ...]
@@ -234,7 +269,13 @@ class AgentKillMixin:
         )
         self._present_planned_cleanup(request, header="Custom selection")
 
-    def _present_planned_cleanup(self, request: object, *, header: str) -> None:
+    def _present_planned_cleanup(
+        self,
+        request: object,
+        *,
+        header: str,
+        targets: list[Agent] | None = None,
+    ) -> None:
         """Preview and confirm a planner-backed cleanup request."""
         from sase.core.agent_cleanup_facade import (
             agent_to_cleanup_target,
@@ -242,10 +283,12 @@ class AgentKillMixin:
             plan_agent_cleanup,
         )
 
-        targets = list(self._agents_with_children)
-        plan = plan_agent_cleanup(agents_to_cleanup_targets(targets), request)  # type: ignore[arg-type]
+        cleanup_targets = list(
+            self._agents_with_children if targets is None else targets
+        )
+        plan = plan_agent_cleanup(agents_to_cleanup_targets(cleanup_targets), request)  # type: ignore[arg-type]
         by_wire_identity = {
-            agent_to_cleanup_target(agent).identity: agent for agent in targets
+            agent_to_cleanup_target(agent).identity: agent for agent in cleanup_targets
         }
         killable = [
             by_wire_identity[item.identity]

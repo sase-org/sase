@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from sase.ace.tui.actions.agents import AgentsMixin
+from sase.ace.tui.modals import AgentCleanupTagModal
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 
@@ -19,6 +20,7 @@ def _agent(
     *,
     name: str,
     suffix: str,
+    agent_type: AgentType | None = None,
     tag: str | None = None,
     status: str = "DONE",
     pid: int | None = None,
@@ -27,7 +29,11 @@ def _agent(
     workflow: str | None = None,
 ) -> Agent:
     return Agent(
-        agent_type=AgentType.WORKFLOW if parent_workflow else AgentType.RUNNING,
+        agent_type=agent_type
+        if agent_type is not None
+        else AgentType.WORKFLOW
+        if parent_workflow
+        else AgentType.RUNNING,
         cl_name="cl",
         project_file="/r/p/p.gp",
         status=status,
@@ -48,9 +54,12 @@ class _FakeApp(AgentsMixin):
         agents: list[Agent],
         focused_key: str | None = None,
         with_panel_group: bool = True,
+        agents_with_children: list[Agent] | None = None,
     ) -> None:
         self._agents = agents
-        self._agents_with_children = list(agents)
+        self._agents_with_children = list(
+            agents if agents_with_children is None else agents_with_children
+        )
         self.current_idx = 0
         self.current_tab = "agents"
         self._notifications: list[tuple[str, str]] = []
@@ -189,3 +198,71 @@ def test_tag_cleanup_uses_tag_scope_plan() -> None:
     assert len(app._pushed) == 1
     names = set(_names_in_modal(app))
     assert names == {"f_done", "f_run"}
+
+
+def test_tag_cleanup_known_tags_are_current_agents_tab_tags(
+    monkeypatch: Any,
+) -> None:
+    fix = _agent(name="f1", suffix="t1", tag="fix")
+    stale_review = _agent(name="r1", suffix="t2", tag="review")
+    app = _FakeApp([fix], agents_with_children=[fix, stale_review])
+    monkeypatch.setattr(
+        "sase.ace.agent_tags.load_agent_tags",
+        lambda: {(AgentType.RUNNING, "cl", "t3"): "persisted"},
+    )
+
+    assert app._known_agent_cleanup_tags() == ("fix",)
+
+
+def test_tag_cleanup_modal_preview_ignores_out_of_scope_same_tag_agent() -> None:
+    visible = _agent(name="visible", suffix="t1", tag="fix", status="RUNNING", pid=10)
+    stale = _agent(name="stale", suffix="t2", tag="fix", status="RUNNING", pid=20)
+    app = _FakeApp([visible], agents_with_children=[visible, stale])
+
+    app._open_tag_cleanup_selector()
+
+    screen, _callback = app._pushed[-1]
+    assert isinstance(screen, AgentCleanupTagModal)
+    rows = {row.tag: row for row in screen._rows}
+    assert rows["fix"].plan.counts.kill == 1
+
+
+def test_tag_cleanup_confirmation_ignores_out_of_scope_same_tag_agent() -> None:
+    visible = _agent(name="visible", suffix="t1", tag="fix", status="RUNNING", pid=10)
+    stale = _agent(name="stale", suffix="t2", tag="fix", status="RUNNING", pid=20)
+    app = _FakeApp([visible], agents_with_children=[visible, stale])
+
+    app._present_tag_cleanup("fix")
+
+    assert len(app._pushed) == 1
+    assert _names_in_modal(app) == ["visible"]
+
+
+def test_tag_cleanup_current_workflow_parent_keeps_hidden_child_cascade() -> None:
+    parent = _agent(
+        name="parent",
+        suffix="parent-ts",
+        agent_type=AgentType.WORKFLOW,
+        tag="fix",
+        status="RUNNING",
+        pid=10,
+        workflow="wf",
+    )
+    hidden_child = _agent(
+        name="hidden-child",
+        suffix="child-ts",
+        status="RUNNING",
+        pid=11,
+        parent_workflow="wf",
+        parent_timestamp="parent-ts",
+        workflow="step",
+    )
+    app = _FakeApp([parent], agents_with_children=[parent, hidden_child])
+
+    app._open_tag_cleanup_selector()
+
+    screen, _callback = app._pushed[-1]
+    assert isinstance(screen, AgentCleanupTagModal)
+    rows = {row.tag: row for row in screen._rows}
+    assert rows["fix"].plan.counts.kill == 1
+    assert rows["fix"].plan.counts.cascaded_workflow_children == 1

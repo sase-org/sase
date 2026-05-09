@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 22:04:50
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_cleanup_tag_scope.md
 ---
 # Agent Cleanup Tag Scope Plan
