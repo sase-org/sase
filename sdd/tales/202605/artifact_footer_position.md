@@ -1,7 +1,7 @@
 ---
 title: Artifact Footer Position And Taller Markdown PDFs
 create_time: 2026-05-08 21:58:20
-status: wip
+status: done
 prompt: sdd/prompts/202605/artifact_footer_position.md
 ---
 

@@ -107,6 +107,7 @@ def run_artifact_page_loop(
         result = run(kitten_icat_command(pages[index], current_area))
         if result.returncode != 0:
             return _PageLoopResult(returncode=result.returncode)
+        _move_cursor_below_image(current_area)
         print_page_prompt(index=index, page_count=len(pages))
         available_keys = page_loop_available_keys(index, len(pages))
         while (key := read()) not in available_keys:
@@ -176,6 +177,7 @@ def run_artifact_sequence_loop(
         result = run(kitten_icat_command(pages[page_index], current_area))
         if result.returncode != 0:
             return _PageLoopResult(returncode=result.returncode)
+        _move_cursor_below_image(current_area)
         print_page_prompt(
             index=page_index,
             page_count=len(pages),
@@ -248,6 +250,15 @@ def _clear_terminal(
     run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]],
 ) -> None:
     run_command(["clear"])
+
+
+def _move_cursor_below_image(image_area: ArtifactImageArea) -> None:
+    """Move the terminal cursor so the prompt prints below a placed image."""
+
+    row = max(1, image_area.top + image_area.rows)
+    column = max(1, image_area.left + 1)
+    sys.stdout.write(f"\x1b[{row};{column}H")
+    sys.stdout.flush()
 
 
 def format_artifact_header_path(path: str | Path) -> str:

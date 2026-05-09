@@ -84,7 +84,10 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
     )
 
 
-def test_run_artifact_page_loop_redraws_and_tracks_keys(tmp_path: Path) -> None:
+def test_run_artifact_page_loop_redraws_and_tracks_keys(
+    tmp_path: Path,
+    capsys,
+) -> None:
     pages = [tmp_path / "page-1.png", tmp_path / "page-2.png"]
     for page in pages:
         page.write_bytes(b"png")
@@ -112,6 +115,10 @@ def test_run_artifact_page_loop_redraws_and_tracks_keys(tmp_path: Path) -> None:
         _test_icat_command(pages[0]),
         ["clear"],
     ]
+    output = capsys.readouterr().out
+    cursor_escape = "\x1b[24;1H"
+    assert output.count(cursor_escape) == 3
+    assert output.index(cursor_escape) < output.index("Page 1/2")
 
 
 def test_run_artifact_page_loop_refreshes_current_page(tmp_path: Path) -> None:
@@ -233,6 +240,11 @@ def test_run_artifact_sequence_loop_navigates_pages_and_artifacts(
         ["clear"],
     ]
     output = capsys.readouterr().out
+    cursor_escape = "\x1b[24;1H"
+    assert output.count(cursor_escape) == 5
+    assert output.index(cursor_escape) < output.index(
+        "Artifact 1/2  Page 1/2  n: next page"
+    )
     assert "Viewing artifact" in output
     assert "Artifact 1/2" in output
     assert "Artifact 2/2" in output

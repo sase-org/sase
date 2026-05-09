@@ -139,6 +139,19 @@ def test_artifact_markdown_pdf_profile_uses_image_area_aspect() -> None:
     assert profile.latex_font_size == "12pt"
 
 
+def test_artifact_markdown_pdf_profile_uses_taller_row_factor() -> None:
+    profile = artifact_markdown_pdf_profile_for_image_area(
+        ArtifactImageArea(columns=90, rows=24)
+    )
+
+    assert profile is not None
+    assert profile.page_width == "7.56in"
+    assert profile.page_height == "4.32in"
+    assert profile.margin == "0.18in"
+    assert profile.css_font_size == "16px"
+    assert profile.latex_font_size == "12pt"
+
+
 def test_validate_artifact_viewer_dependencies_reports_missing_tools(
     monkeypatch,
 ) -> None:
@@ -233,13 +246,13 @@ def test_render_markdown_artifact_passes_pane_aware_profile(
         source,
         kind="chat",
         cache_dir=tmp_path / "cache",
-        image_area=ArtifactImageArea(columns=100, rows=33),
+        image_area=ArtifactImageArea(columns=90, rows=24),
     )
 
     assert result.warnings == ()
     assert len(profiles) == 1
-    assert profiles[0].page_width == "8.50in"
-    assert profiles[0].page_height == "4.86in"
+    assert profiles[0].page_width == "7.56in"
+    assert profiles[0].page_height == "4.32in"
     assert profiles[0].margin == "0.18in"
 
 
