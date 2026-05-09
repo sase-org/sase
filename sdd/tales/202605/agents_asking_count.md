@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 15:34:55
-status: wip
+status: done
 prompt: sdd/prompts/202605/agents_asking_count.md
 ---
 # Add Agents Tab Asking Count

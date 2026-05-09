@@ -10,6 +10,8 @@ from datetime import datetime
 from rich.text import Text
 from textual.widgets.option_list import Option
 
+from sase.agent.status_buckets import agent_is_asking
+
 from ..models.agent import (
     Agent,
     AttemptRecord,
@@ -45,12 +47,11 @@ _RUNTIME_UNREAD_COMPLETED_MARKER_STYLE = "#FFD75F"
 # an explicit user action instead of active runtime.
 _RUNTIME_USER_PAUSED_MARKER = "🙋 "
 _RUNTIME_USER_PAUSED_MARKER_STYLE = "#FFAF00"
-_USER_PAUSED_STATUSES = frozenset({"PLANNING", "QUESTION", "WAITING INPUT"})
 _ACTIVITY_STYLE = "bold #D7AF5F"
 
 
 def _runtime_suffix_user_paused(agent: Agent, *, is_ticking: bool) -> bool:
-    return agent.status in _USER_PAUSED_STATUSES and not is_ticking
+    return agent_is_asking(agent.status) and not is_ticking
 
 
 def render_tier_gutter(tier_styles: tuple[str, ...]) -> Text:

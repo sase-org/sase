@@ -17,6 +17,7 @@ class AgentInfoPanel(Static):
         self._position = 0
         self._total = 0
         self._unread_count = 0
+        self._asking_count = 0
         self._running_count = 0
         self._waiting_count = 0
         self._read_count = 0
@@ -57,18 +58,26 @@ class AgentInfoPanel(Static):
         self._update_display()
 
     def update_agent_counts(
-        self, unread: int, running: int, waiting: int, read: int, total: int
+        self,
+        unread: int,
+        asking: int,
+        running: int,
+        waiting: int,
+        read: int,
+        total: int,
     ) -> None:
         """Update the visible top-level agent metric strip.
 
         Args:
             unread: Visible unread completed agent count.
+            asking: Visible agent count paused for human input.
             running: Visible active agent count, excluding waiting agents.
             waiting: Visible waiting agent count.
             read: Visible completed agent count that has already been read.
             total: Visible top-level agent count.
         """
         self._unread_count = unread
+        self._asking_count = asking
         self._running_count = running
         self._waiting_count = waiting
         self._read_count = read
@@ -131,6 +140,7 @@ class AgentInfoPanel(Static):
 
     _COUNT_STYLES: dict[str, str] = {
         "total": "bold #5FAFFF",
+        "asking": "bold #FFAF00",
         "running": "bold #00D7AF",
         "waiting": "bold #AF87FF",
         "unread": "bold #FFAF5F",
@@ -149,6 +159,9 @@ class AgentInfoPanel(Static):
         text.append(f"{self._visible_agent_count}", style=self._COUNT_STYLES["total"])
         text.append(" Agents", style="bold #87D7FF")
         text.append(" [", style="dim")
+        text.append(f"{self._asking_count}", style=self._COUNT_STYLES["asking"])
+        text.append(" asking", style="dim")
+        text.append(" · ", style="dim")
         text.append(f"{self._running_count}", style=self._COUNT_STYLES["running"])
         text.append(" running", style="dim")
         text.append(" · ", style="dim")

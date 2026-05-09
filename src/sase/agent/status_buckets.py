@@ -18,6 +18,13 @@ AGENT_STATUS_BUCKET_GLYPHS: dict[str, str] = {
     "Done": "✓",
 }
 
+#: Statuses where an agent is paused for explicit human input.  This is
+#: intentionally narrower than ``needs:input`` query matching, which also
+#: includes execution states such as ``PLAN APPROVED``.
+AGENT_ASKING_STATUSES: frozenset[str] = frozenset(
+    {"PLANNING", "QUESTION", "WAITING INPUT"}
+)
+
 # Status mapping for status bucketing.  The semantic line is:
 # **Needs Attention** = "you need to act right now"; **Failed** = terminal
 # failure; everything else is a state the agent is moving through on its own.
@@ -50,6 +57,11 @@ _TERMINAL_STATUSES: frozenset[str] = frozenset(
 _NEEDS_INPUT_STATUSES: frozenset[str] = frozenset(
     {"QUESTION", "WAITING INPUT", "PLAN APPROVED"}
 )
+
+
+def agent_is_asking(status: str | None) -> bool:
+    """Return whether *status* represents a human-input pause."""
+    return (status or "") in AGENT_ASKING_STATUSES
 
 
 def status_bucket_for_values(

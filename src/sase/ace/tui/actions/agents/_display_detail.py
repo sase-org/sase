@@ -11,6 +11,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from sase.agent.status_buckets import agent_is_asking
+
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
@@ -166,15 +168,27 @@ class DetailMixin:
         waiting_count = sum(
             1 for _agent, bucket in visible_agent_buckets if bucket == "Waiting"
         )
+        asking_count = sum(
+            1
+            for agent, _bucket in visible_agent_buckets
+            if agent_is_asking(agent.status)
+        )
         running_count = sum(
             1
             for agent, bucket in visible_agent_buckets
-            if agent.status not in DISMISSABLE_STATUSES and bucket != "Waiting"
+            if agent.status not in DISMISSABLE_STATUSES
+            and bucket != "Waiting"
+            and not agent_is_asking(agent.status)
         )
-        read_count = total - running_count - waiting_count - unread_count
+        read_count = total - asking_count - running_count - waiting_count - unread_count
         agent_info_panel.update_position(position, total)
         agent_info_panel.update_agent_counts(
-            unread_count, running_count, waiting_count, read_count, total
+            unread_count,
+            asking_count,
+            running_count,
+            waiting_count,
+            read_count,
+            total,
         )
         agent_info_panel.update_countdown(
             self._countdown_remaining, self.refresh_interval

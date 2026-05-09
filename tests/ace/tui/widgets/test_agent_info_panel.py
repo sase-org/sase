@@ -54,36 +54,42 @@ def test_agent_count_strip_renders_total_before_agents_label() -> None:
     panel._position = 2
     panel._total = 12
     panel._unread_count = 3
+    panel._asking_count = 2
     panel._running_count = 5
     panel._waiting_count = 2
-    panel._read_count = 2
+    panel._read_count = 0
     panel._visible_agent_count = 12
 
     plain = _collect_text(panel)
 
-    assert plain.startswith("12 Agents [5 running · 2 waiting · 3 unread · 2 read]")
+    assert plain.startswith(
+        "12 Agents [2 asking · 5 running · 2 waiting · 3 unread · 0 read]"
+    )
     assert "Agents: 2/12" not in plain
 
 
 def test_agent_count_numbers_have_unique_rich_styles() -> None:
     panel = AgentInfoPanel()
-    panel._visible_agent_count = 12
-    panel._running_count = 5
-    panel._waiting_count = 7
-    panel._unread_count = 3
-    panel._read_count = 11
+    panel._visible_agent_count = 20
+    panel._asking_count = 31
+    panel._running_count = 42
+    panel._waiting_count = 53
+    panel._unread_count = 64
+    panel._read_count = 75
 
     text = _collect_rich_text(panel)
 
     count_styles = {
-        "total": _style_for_plain_segment(text, "12"),
-        "running": _style_for_plain_segment(text, "5"),
-        "waiting": _style_for_plain_segment(text, "7"),
-        "unread": _style_for_plain_segment(text, "3"),
-        "read": _style_for_plain_segment(text, "11"),
+        "total": _style_for_plain_segment(text, "20"),
+        "asking": _style_for_plain_segment(text, "31"),
+        "running": _style_for_plain_segment(text, "42"),
+        "waiting": _style_for_plain_segment(text, "53"),
+        "unread": _style_for_plain_segment(text, "64"),
+        "read": _style_for_plain_segment(text, "75"),
     }
     assert count_styles == {
         "total": "bold #5FAFFF",
+        "asking": "bold #FFAF00",
         "running": "bold #00D7AF",
         "waiting": "bold #AF87FF",
         "unread": "bold #FFAF5F",
@@ -97,11 +103,11 @@ def test_update_agent_counts_uses_plain_metric_text() -> None:
 
     captured: list[str] = []
     with patch.object(panel, "update", lambda text: captured.append(text.plain)):
-        panel.update_agent_counts(1, 2, 3, 4, 10)
+        panel.update_agent_counts(1, 2, 3, 4, 0, 10)
     assert captured, "panel.update_agent_counts did not refresh the display"
     plain = captured[-1]
 
-    assert "10 Agents [2 running · 3 waiting · 1 unread · 4 read]" in plain
+    assert "10 Agents [2 asking · 3 running · 4 waiting · 1 unread · 0 read]" in plain
     assert "Agents(" not in plain
     assert "#FFAF5F" not in plain
 
@@ -132,6 +138,7 @@ def test_count_strip_suppressed_while_loading() -> None:
     panel = AgentInfoPanel()
     panel._loading = True
     panel._unread_count = 3
+    panel._asking_count = 2
     panel._running_count = 5
     panel._waiting_count = 2
     panel._read_count = 2
