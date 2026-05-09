@@ -6,7 +6,7 @@ import os
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from sase.agent.launcher import AgentLaunchResult
+from sase.agent.launch_types import AgentLaunchResult
 from sase.core.agent_launch_facade import LaunchTimestampBatchAllocator
 from sase.core.agent_launch_wire import LaunchFanoutPlanWire, LaunchFanoutSlotWire
 

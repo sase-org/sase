@@ -8,7 +8,7 @@ the launcher falls back to the legacy naming poll.
 
 from collections.abc import Callable, Sequence
 
-from sase.agent.launcher import AgentLaunchResult
+from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.multi_prompt_references import (
     _PLANNED_AGENT_NAME_ENV,
     PlannedNameAllocator as _PlannedNameAllocator,
