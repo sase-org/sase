@@ -49,7 +49,7 @@ def test_grouping_badge_renders_by_project_when_unset() -> None:
     assert f"[group: by project ({_DEFAULT_GROUPING_KEY})]" in plain
 
 
-def test_agent_count_strip_renders_after_agents_label() -> None:
+def test_agent_count_strip_renders_total_before_agents_label() -> None:
     panel = AgentInfoPanel()
     panel._position = 2
     panel._total = 12
@@ -61,7 +61,7 @@ def test_agent_count_strip_renders_after_agents_label() -> None:
 
     plain = _collect_text(panel)
 
-    assert plain.startswith("Agents(12): 5 running · 2 waiting · 3 unread · 2 read")
+    assert plain.startswith("12 Agents [5 running · 2 waiting · 3 unread · 2 read]")
     assert "Agents: 2/12" not in plain
 
 
@@ -101,8 +101,8 @@ def test_update_agent_counts_uses_plain_metric_text() -> None:
     assert captured, "panel.update_agent_counts did not refresh the display"
     plain = captured[-1]
 
-    assert "Agents(10): 2 running · 3 waiting · 1 unread · 4 read" in plain
-    assert "[" not in plain.split("2 running", 1)[0]
+    assert "10 Agents [2 running · 3 waiting · 1 unread · 4 read]" in plain
+    assert "Agents(" not in plain
     assert "#FFAF5F" not in plain
 
 

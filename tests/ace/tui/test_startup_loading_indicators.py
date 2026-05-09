@@ -64,7 +64,7 @@ def test_agent_info_panel_loading_clears() -> None:
     panel._visible_agent_count = 5
     panel._loading = False
     plain = _collect_text(panel)
-    assert "Agents(5): 0 running · 0 waiting · 0 unread · 0 read" in plain
+    assert "5 Agents [0 running · 0 waiting · 0 unread · 0 read]" in plain
     assert "2/5" not in plain
     assert "…" not in plain
 

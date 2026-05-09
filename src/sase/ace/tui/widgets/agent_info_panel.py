@@ -140,15 +140,15 @@ class AgentInfoPanel(Static):
     def _update_display(self) -> None:
         """Refresh the displayed text."""
         text = Text()
-        text.append("Agents", style="bold #87D7FF")
         if self._loading:
+            text.append("Agents", style="bold #87D7FF")
             text.append(": ", style="bold #87D7FF")
             text.append("…", style="dim italic")
             self.update(text)
             return
-        text.append("(", style="dim")
         text.append(f"{self._visible_agent_count}", style=self._COUNT_STYLES["total"])
-        text.append("): ", style="dim")
+        text.append(" Agents", style="bold #87D7FF")
+        text.append(" [", style="dim")
         text.append(f"{self._running_count}", style=self._COUNT_STYLES["running"])
         text.append(" running", style="dim")
         text.append(" · ", style="dim")
@@ -160,6 +160,7 @@ class AgentInfoPanel(Static):
         text.append(" · ", style="dim")
         text.append(f"{self._read_count}", style=self._COUNT_STYLES["read"])
         text.append(" read", style="dim")
+        text.append("]", style="dim")
         if self._search_query:
             text.append("   ")
             text.append("filter: ", style="dim italic")

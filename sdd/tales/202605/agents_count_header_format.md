@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 13:23:52
-status: wip
+status: done
 prompt: sdd/prompts/202605/agents_count_header_format.md
 ---
 # Plan: Agents Tab Count Header Format
