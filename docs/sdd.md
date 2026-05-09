@@ -1,7 +1,8 @@
 # Spec-Driven Development (SDD)
 
-SDD is sase's system for persisting the intent behind agent work. When an agent produces a plan, SDD captures both the
-fully-expanded prompt snapshot and the approved planning artifact, creating a traceable chain from intent to execution.
+SDD is sase's system for persisting the intent behind agent work. When an agent submits a plan for approval, SDD can
+capture both the expanded prompt snapshot and the approved planning artifact, creating a traceable chain from intent to
+execution. In this guide, "plan-like artifact" means a tale, epic, or legend.
 
 ## Why SDD Exists
 
@@ -95,11 +96,14 @@ In this mode, SDD artifacts are committed alongside code changes via `sase commi
 
 Research notes live under `sdd/research/` alongside the rest of the repository-local SDD corpus.
 
+The directory examples above show the storage roots. Most frontmatter links include the root prefix when the root is
+well-known: `sdd/...` in version-controlled mode and `.sase/sdd/...` in local mode.
+
 ## How SDD Works
 
 ### Prompt Generation
 
-When an agent completes its planning phase, SDD generates a prompt snapshot by:
+When a submitted plan is accepted, SDD generates a prompt snapshot by:
 
 1. Expanding all `#xprompt` references in the original prompt
 2. Stripping `%directives` (`%model`, `%name`, `%wait`, etc.)
@@ -112,39 +116,57 @@ The result is a clean, self-contained document showing exactly what the agent wa
 The plan file produced by the agent is:
 
 1. Annotated with a `create_time` frontmatter field
-2. Written to the action-specific SDD directory, where `{YYYYMM}` is derived from the current date:
+2. Written to the action-specific SDD directory, where `{YYYYMM}` is derived from the current date. Version-controlled
+   paths look like:
    - normal approval: `sdd/tales/{YYYYMM}/{plan_name}.md`
    - epic approval: `sdd/epics/{YYYYMM}/{plan_name}.md`
    - legend approval: `sdd/legends/{YYYYMM}/{plan_name}.md`
 
-Prompt snapshots and plans are organized into `YYYYMM` subdirectories (e.g., `202603/`) based on the creation date. This
-keeps the directories manageable as the number of prompts and plans grows over time. Both flat and `YYYYMM` layouts are
-supported for backwards compatibility — SDD also searches legacy `specs` and `plans` paths when resolving files.
+Prompt snapshots and plans are organized into `YYYYMM` subdirectories (for example, `202603/`) based on the creation
+date. This keeps the directories manageable as the number of prompts and plans grows over time. Both flat and `YYYYMM`
+layouts are supported for backwards compatibility — SDD also searches legacy `specs` and `plans` paths when resolving
+files.
 
 Planning artifacts may also carry a `status` field (set to `done` when work completes) and a `bead_id` field linking to
 the bead issue tracker. Legend artifacts use `legend_bead_id` for the legend container bead and `epic_count` for the
 number of proposed epics; epics linked under a legend also preserve that `legend_bead_id`.
 
-After writing the plan, `sase plan` touches `~/.sase/.ace_refresh_pulse` so any running ACE TUI flips the agent into the
-`PLANNING` status immediately rather than waiting for the next auto-refresh tick. The pulse file is consumed by the
-inotify-based artifact watcher and is harmless when no TUI is open.
+When `sase plan` submits a plan for approval, it touches `~/.sase/.ace_refresh_pulse` so any running ACE TUI flips the
+agent into the `PLANNING` status immediately rather than waiting for the next auto-refresh tick. The pulse file is
+consumed by the inotify-based artifact watcher and is harmless when no TUI is open.
 
 ### Q&A Sections
 
 If the agent asks clarifying questions during planning (via the `/sase_questions` skill), the Q&A exchange is appended
 to the prompt snapshot. This preserves the full context of planning decisions.
 
+### Frontmatter Links
+
+Prompt snapshots and plan-like artifacts link to each other through YAML frontmatter:
+
+```yaml
+# sdd/prompts/202605/example.md
+plan: sdd/tales/202605/example.md
+
+# sdd/tales/202605/example.md
+prompt: sdd/prompts/202605/example.md
+```
+
+`sase sdd validate` checks these bidirectional links for prompts, tales, epics, and legends. It treats unpaired
+historical files as warnings by default and as errors with `--strict`. Myths and research notes are durable SDD context,
+but they are not part of the prompt-plan link validator.
+
 ## CLI
 
 The `sase sdd` command group manages generated SDD documentation and frontmatter links:
 
-| Command                 | Purpose                                                                                   |
-| ----------------------- | ----------------------------------------------------------------------------------------- |
-| `sase sdd init`         | Create or refresh `sdd/README.md`, tier READMEs, and `sdd/assets/sdd-directory-map.png`   |
-| `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, or `legends` |
-| `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact        |
-| `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, and `--strict` tune output         |
-| `sase sdd repair-links` | Infer unambiguous prompt/artifact pairs; add `-w/--write` to update files                 |
+| Command                 | Purpose                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------ |
+| `sase sdd init`         | Create or refresh `sdd/README.md`, tier READMEs, and `sdd/assets/sdd-directory-map.png`          |
+| `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, `legends`, or `all` |
+| `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact               |
+| `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, and `--strict` tune output                |
+| `sase sdd repair-links` | Infer unambiguous prompt/artifact pairs; add `-w/--write` to update files                        |
 
 Each subcommand accepts `-p/--path`, which may point at an SDD root or a project root. Validation treats unpaired or
 ambiguous historical files as warnings by default and promotes them to errors with `--strict`; parse errors, missing
@@ -152,7 +174,8 @@ targets, wrong link kinds, and broken reverse links are errors unless explicitly
 
 The `sase sdd init` output is intentionally short project-local documentation. It refreshes `sdd/README.md`, the
 directory map asset, and generated `README.md` files in `tales/`, `epics/`, `legends/`, `myths/`, and `research/`. Keep
-conceptual details here in `docs/sdd.md`; use `sase sdd init` to refresh generated project guides.
+conceptual details here in `docs/sdd.md`; use `sase sdd init` to refresh generated project guides. The generated guides
+are safe to overwrite, so do not put hand-maintained conceptual prose in those README files.
 
 ## Bead Integration
 
