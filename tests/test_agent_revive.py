@@ -400,6 +400,29 @@ def test_restore_agent_meta_merges_existing_metadata(tmp_path: Path) -> None:
     assert data["workspace_dir"] == "/tmp/workspace"
 
 
+def test_restore_agent_meta_preserves_bundle_unprefixed_name(tmp_path: Path) -> None:
+    """Revive restoration must not write a synthesized dismissal prefix."""
+    agent = Agent.from_bundle_dict(
+        {
+            "agent_type": AgentType.RUNNING.value,
+            "cl_name": "feature_by",
+            "project_file": "/tmp/projects/proj/proj.gp",
+            "status": "PLAN DONE",
+            "start_time": datetime(2026, 5, 9, 12, 41, 56).isoformat(),
+            "stop_time": datetime(2026, 5, 9, 13, 6, 29).isoformat(),
+            "raw_suffix": "20260509124156",
+            "agent_name": "by.plan",
+            "role_suffix": ".plan",
+        }
+    )
+
+    AgentRevivalMixin._restore_agent_meta(agent, tmp_path)
+    data = json.loads((tmp_path / "agent_meta.json").read_text())
+
+    assert agent.agent_name == "by.plan"
+    assert data["name"] == "by.plan"
+
+
 def test_revive_existing_meta_without_name_preserves_stored_lookup(
     tmp_path: Path,
 ) -> None:

@@ -284,8 +284,8 @@ def test_old_bundle_synthesis_skips_already_prefixed_name() -> None:
     assert restored.agent_name == "260428.foo"
 
 
-def test_old_bundle_synthesis_strips_legacy_unprefixed_name() -> None:
-    """A legacy ``agent_name`` without a prefix is upgraded to the prefixed form."""
+def test_bundle_preserves_stored_unprefixed_name() -> None:
+    """A stored ``agent_name`` without a prefix is permanent and preserved."""
     bundle = {
         "agent_type": AgentType.RUNNING.value,
         "cl_name": "x",
@@ -296,7 +296,24 @@ def test_old_bundle_synthesis_strips_legacy_unprefixed_name() -> None:
         "agent_name": "foo",
     }
     restored = Agent.from_bundle_dict(bundle)
-    assert restored.agent_name == "260428.foo"
+    assert restored.agent_name == "foo"
+
+
+def test_bundle_preserves_plan_chain_stored_name() -> None:
+    """Plan-chain names such as ``by.plan`` are not dismissal-prefixed."""
+    bundle = {
+        "agent_type": AgentType.RUNNING.value,
+        "cl_name": "feature_by",
+        "project_file": "/tmp/test.gp",
+        "status": "PLAN DONE",
+        "start_time": datetime(2026, 5, 9, 12, 41, 56).isoformat(),
+        "stop_time": datetime(2026, 5, 9, 13, 6, 29).isoformat(),
+        "raw_suffix": "20260509124156",
+        "agent_name": "by.plan",
+        "role_suffix": ".plan",
+    }
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.agent_name == "by.plan"
 
 
 def test_old_bundle_synthesis_skips_workflow_children() -> None:

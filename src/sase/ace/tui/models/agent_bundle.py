@@ -128,19 +128,16 @@ def from_bundle_dict(data: dict[str, Any]) -> Agent:
 def _synthesize_dismissed_name(agent: Agent) -> None:
     """Repair old dismissed bundles missing ``agent_name``.
 
-    Older bundles were saved before the sase-10 dismissal-rename rolled
-    out and so lack ``agent_name``. Loading should produce a stable
-    prefixed name without requiring the user to revive and re-dismiss
-    them. We derive a base from ``cl_name``/``raw_suffix`` and tag it
-    with the best-known completion date.
+    Older bundles were saved before dismissed bundles consistently stored
+    ``agent_name``. Loading should produce a stable prefixed fallback only
+    when the bundle has no stored name. Once a bundle has ``agent_name``,
+    that stored name is permanent and must be preserved exactly.
     """
     from sase.agent.names import (
         add_dismissed_prefix,
-        is_dismissed_prefixed,
-        strip_dismissed_prefix,
     )
 
-    if agent.agent_name and is_dismissed_prefixed(agent.agent_name):
+    if agent.agent_name:
         return
 
     # Only synthesize for top-level agents — workflow children inherit
@@ -158,14 +155,11 @@ def _synthesize_dismissed_name(agent: Agent) -> None:
     if completion is None:
         return
 
-    base = agent.agent_name
-    if base:
-        base = strip_dismissed_prefix(base)
-    else:
-        if agent.cl_name and agent.cl_name != "unknown":
-            base = agent.cl_name
-        elif agent.raw_suffix:
-            base = agent.raw_suffix
+    base = None
+    if agent.cl_name and agent.cl_name != "unknown":
+        base = agent.cl_name
+    elif agent.raw_suffix:
+        base = agent.raw_suffix
     if not base:
         return
 

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 13:06:29
-status: wip
+status: done
 prompt: sdd/prompts/202605/permanent_agent_name_prefix_regression.md
 ---
 # Plan: Fix Permanent Agent Name Prefix Regression
