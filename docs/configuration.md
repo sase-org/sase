@@ -1044,9 +1044,13 @@ bridge rather than a generic shell or filesystem API.
 | Form                                        | Input                | Description                                                                                                      |
 | ------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `sase editor helper-bridge xprompt-catalog` | JSON object on stdin | Return the structured xprompt catalog; accepts the same schema as the mobile `xprompt-catalog` helper operation. |
+| `sase editor helper-bridge snippet-catalog` | JSON object on stdin | Return the composed ACE snippet registry used by `sase lsp` and editor completion clients.                       |
 
 The structured catalog includes insertion metadata (`insertion`, `reference_prefix`, `kind`), typed argument metadata,
 display/source fields, and `definition_path` when SASE can resolve a real file to jump to.
+
+The snippet catalog uses the same source ordering as ACE: xprompts marked with `snippet` front matter plus user-defined
+`ace.snippets`, with `ace.snippets` winning on trigger collisions.
 
 ### `sase file`
 

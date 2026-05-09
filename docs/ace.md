@@ -451,8 +451,12 @@ you had in `STANDARD`. `BY_STATUS` banners are prefixed with semantic glyphs (`�
 title still leads visually.
 
 The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the current
-session mode is always visible after the cycle toast fades. Each TUI launch starts in by-project grouping; cycling only
-changes the current session. **Waiting** holds agents that are blocked but progressing on their own — `WAITING` with a
+session mode is always visible after the cycle toast fades. The same header starts with a visible-agent metric strip in
+the form `N Agents [R running · W waiting · U unread · D read]`. `running` excludes waiting rows, `waiting` is the
+blocked/queued subset, `unread` counts terminal rows that still need acknowledgement, and `read` is completed visible
+rows that have already been acknowledged. During startup the metric strip renders `Agents: …` until the first agent scan
+has loaded, avoiding a misleading zero-agent count. Each TUI launch starts in by-project grouping; cycling only changes
+the current session. **Waiting** holds agents that are blocked but progressing on their own — `WAITING` with a
 `wait_until` timer (`%wait:5m`, `%wait:1430`) or a non-empty `waiting_for` dependency. **Needs Attention** keeps the
 strict "you need to act" semantics: a `WAITING` agent with neither a timer nor a dependency stays there because it's
 parked waiting on the user.

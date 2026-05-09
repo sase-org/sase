@@ -77,6 +77,34 @@ mobile_gateway:
   startup_timeout_seconds: 10
 ```
 
+## Host Bridge CLI Commands
+
+The gateway shells out only to fixed JSON-over-stdin bridge commands. These commands are intentionally narrow
+integration surfaces for the Rust gateway and mobile clients; they are not general user workflows and they do not accept
+mobile-supplied shell commands, cwd values, environment variables, or host paths.
+
+Agent bridge operations:
+
+| Command                                   | Purpose                                                 |
+| ----------------------------------------- | ------------------------------------------------------- |
+| `sase mobile agent-bridge list-agents`    | Return running agents, with optional recent completions |
+| `sase mobile agent-bridge resume-options` | Return copy/share/direct-launch resume prompt options   |
+| `sase mobile agent-bridge launch-text`    | Launch a text prompt in home or known-project context   |
+| `sase mobile agent-bridge launch-image`   | Store an uploaded image and launch an image prompt      |
+| `sase mobile agent-bridge kill-agent`     | Kill an agent by exact name                             |
+| `sase mobile agent-bridge retry-agent`    | Retry an agent by name, timestamp, or mobile context    |
+
+Helper bridge operations:
+
+| Command                                     | Purpose                                                |
+| ------------------------------------------- | ------------------------------------------------------ |
+| `sase mobile helper-bridge changespec-tags` | List active ChangeSpec prompt tags for a known project |
+| `sase mobile helper-bridge xprompt-catalog` | Return the mobile-safe structured xprompt catalog      |
+| `sase mobile helper-bridge beads-list`      | List open or in-progress beads                         |
+| `sase mobile helper-bridge beads-show`      | Inspect one bead by ID                                 |
+| `sase mobile helper-bridge update-start`    | Start the configured SASE update worker                |
+| `sase mobile helper-bridge update-status`   | Poll structured update worker status                   |
+
 ## Push Hints
 
 Push delivery is disabled by default. When enabled, the gateway sends hint-only records derived from the same event

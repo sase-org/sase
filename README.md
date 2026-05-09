@@ -193,7 +193,9 @@ sase
 | `sase init-skills`             | Generate and deploy agent skill files from xprompt source templates                                            |
 | `sase logs`                    | Collect and package agent run logs for a date range                                                            |
 | `sase lsp`                     | Start the xprompt language server for editor integrations                                                      |
+| `sase mobile agent-bridge`     | Fixed JSON bridge used by the mobile gateway for agent list/resume/launch/kill/retry operations                |
 | `sase mobile gateway start`    | Start the workstation-hosted mobile gateway in the foreground                                                  |
+| `sase mobile helper-bridge`    | Fixed JSON bridge used by the mobile gateway for ChangeSpec, xprompt, bead, and update helper operations       |
 | `sase notify`                  | Create a notification (reads JSON from stdin or uses flags)                                                    |
 | `sase notify create`           | Explicit notification-create subcommand (alias of legacy `sase notify` create behavior)                        |
 | `sase notify list`             | List recent notifications (pretty table or stable JSON)                                                        |
