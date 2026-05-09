@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 import time
 from typing import TYPE_CHECKING
@@ -41,37 +40,8 @@ from ._killing_utils import (
 
 log = logging.getLogger(__name__)
 _agent_identity_from_wire = agent_identity_from_wire
-_dismissed_identities_from_plan = dismissed_identities_from_plan
 _plan_dismissal_side_effects = plan_dismissal_side_effects
 _agents_related_to_dismissal = agents_related_to_dismissal
-
-
-def _dismissal_identities_for_agents(
-    agents: list[Agent],
-    agents_with_children_snapshot: list[Agent],
-) -> set[AgentIdentity]:
-    """Return identities hidden by dismissing *agents* from a pre-removal snapshot."""
-    identities: set[AgentIdentity] = set()
-    for agent in agents:
-        identities.update(
-            related.identity
-            for related in agents_related_to_dismissal(
-                agent,
-                agents_with_children_snapshot,
-            )
-        )
-    return identities
-
-
-def _dismiss_operation_key(identities: set[AgentIdentity]) -> str:
-    identity_text = "|".join(
-        sorted(
-            f"{agent_type.value}:{cl_name}:{raw_suffix or ''}"
-            for agent_type, cl_name, raw_suffix in identities
-        )
-    )
-    digest = hashlib.sha1(identity_text.encode("utf-8")).hexdigest()[:12]
-    return f"dismiss:{digest}"
 
 
 class AgentDismissingMixin(AgentDismissMemoryMixin):
@@ -147,17 +117,16 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
             return
 
         agents_with_children_snapshot = list(self._agents_with_children)
-        dismissed_identities = _dismissal_identities_for_agents(
+
+        cleanup_plan = plan_dismissal_side_effects(
             agents,
             agents_with_children_snapshot,
         )
+        dismissed_identities = dismissed_identities_from_plan(cleanup_plan)
 
         for identity in dismissed_identities:
             self._agent_status_overrides.pop(identity, None)
             self._agent_pre_question_status.pop(identity, None)
-        marked_agents = getattr(self, "_marked_agents", None)
-        if marked_agents is not None:
-            marked_agents.difference_update(dismissed_identities)
         self._dismissed_agents.update(dismissed_identities)
 
         count = len(agents)
@@ -165,91 +134,12 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
         self.notify(f"Dismissed {count} agent{s}")  # type: ignore[attr-defined]
         self._apply_dismissal_in_memory(agents)
 
-        self._submit_dismiss_persistence(
-            list(agents),
-            set(self._dismissed_agents),
-            agents_with_children_snapshot,
-        )
-
-    def _submit_dismiss_persistence(
-        self,
-        agents: list[Agent],
-        dismissed_snapshot: set[AgentIdentity],
-        agents_with_children_snapshot: list[Agent],
-    ) -> None:
-        """Submit dismiss persistence through the task queue, with legacy fallback."""
-        if not agents:
-            return
-
-        if not hasattr(self, "_dismiss_persistence_inflight"):
-            self._dismiss_persistence_inflight = set()
-        identities = _dismissal_identities_for_agents(
-            agents,
-            agents_with_children_snapshot,
-        )
-        if not identities or identities & self._dismiss_persistence_inflight:
-            return
-        self._dismiss_persistence_inflight.update(identities)
-
-        submit_background_task = getattr(self, "_submit_background_task", None)
-        if callable(submit_background_task):
-            count = len(agents)
-            s = "s" if count != 1 else ""
-            project_file = agents[0].project_file if agents else ""
-            operation_key = _dismiss_operation_key(identities)
-
-            def task_callable() -> tuple[bool, str]:
-                try:
-                    persist_bulk_dismiss_transaction(
-                        list(agents),
-                        dismissed_snapshot,
-                        list(agents_with_children_snapshot),
-                        None,
-                    )
-                except Exception as exc:
-                    return False, f"Dismiss cleanup failed: {exc}"
-                return True, f"Dismiss cleanup complete for {count} agent{s}"
-
-            def on_success() -> None:
-                refresh_async = getattr(self, "_refresh_notification_count_async", None)
-                call_later = getattr(self, "call_later", None)
-                if callable(refresh_async) and callable(call_later):
-                    call_later(refresh_async)
-                    return
-                refresh = getattr(self, "_refresh_notification_count", None)
-                if callable(refresh):
-                    refresh()
-
-            def on_complete(success: bool) -> None:
-                self._dismiss_persistence_inflight.difference_update(identities)
-                if not success:
-                    schedule_refresh = getattr(
-                        self,
-                        "_schedule_agents_async_refresh",
-                        None,
-                    )
-                    if callable(schedule_refresh):
-                        schedule_refresh()
-
-            submitted = submit_background_task(
-                "dismiss-agents",
-                operation_key,
-                project_file,
-                task_callable,
-                on_success=on_success,
-                on_complete=on_complete,
-            )
-            if submitted:
-                return
-            self._dismiss_persistence_inflight.difference_update(identities)
-
         self.call_later(  # type: ignore[attr-defined]
             self._run_bulk_dismiss_persistence_async,
             list(agents),
-            dismissed_snapshot,
+            set(self._dismissed_agents),
             agents_with_children_snapshot,
-            None,
-            identities,
+            cleanup_plan,
         )
 
     async def _run_bulk_dismiss_persistence_async(
@@ -258,20 +148,12 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
         dismissed_snapshot: set[AgentIdentity],
         agents_with_children_snapshot: list[Agent],
         cleanup_plan: object | None = None,
-        inflight_identities: set[AgentIdentity] | None = None,
     ) -> None:
         """Persist a batch dismissal's filesystem side effects in a worker."""
-        if not hasattr(self, "_dismiss_persistence_inflight"):
-            self._dismiss_persistence_inflight = set()
-        identities = inflight_identities or {a.identity for a in agents}
-        already_inflight = (
-            inflight_identities is not None
-            and identities <= self._dismiss_persistence_inflight
-        )
-        if not already_inflight:
-            if identities & self._dismiss_persistence_inflight:
-                return
-            self._dismiss_persistence_inflight.update(identities)
+        identities = {a.identity for a in agents}
+        if identities & self._dismiss_persistence_inflight:
+            return
+        self._dismiss_persistence_inflight.update(identities)
 
         started = time.perf_counter()
         success = True
@@ -307,29 +189,29 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
             return
 
         agents_with_children_snapshot = list(self._agents_with_children)
-        self._dismiss_planned_agent(agent, None, agents_with_children_snapshot)
+        cleanup_plan = plan_dismissal_side_effects(
+            [agent],
+            agents_with_children_snapshot,
+        )
+        self._dismiss_planned_agent(agent, cleanup_plan, agents_with_children_snapshot)
 
     def _dismiss_planned_agent(
         self,
         agent: Agent,
-        cleanup_plan: AgentCleanupPlanWire | None,
+        cleanup_plan: AgentCleanupPlanWire,
         agents_with_children_snapshot: list[Agent] | None = None,
     ) -> None:
-        """Dismiss one agent using the pre-removal in-memory snapshot."""
+        """Dismiss one agent using an already-computed cleanup plan."""
         from ...models.agent import AgentType
 
         if agents_with_children_snapshot is None:
             agents_with_children_snapshot = list(self._agents_with_children)
-        identities = _dismissal_identities_for_agents(
-            [agent],
-            agents_with_children_snapshot,
-        )
+        identities = dismissed_identities_from_plan(cleanup_plan)
+        if not identities:
+            identities = self._collect_dismissal_identities([agent])
         for identity in identities:
             self._agent_status_overrides.pop(identity, None)
             self._agent_pre_question_status.pop(identity, None)
-        marked_agents = getattr(self, "_marked_agents", None)
-        if marked_agents is not None:
-            marked_agents.difference_update(identities)
         self._dismissed_agents.update(identities)
         self._append_dismissed_agent_objects([agent], identities)
 
@@ -338,10 +220,12 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
         else:
             self.notify(f"Dismissed agent for {agent.cl_name}")  # type: ignore[attr-defined]
         self._apply_dismissal_in_memory([agent])
-        self._submit_dismiss_persistence(
-            [agent],
+        self.call_later(  # type: ignore[attr-defined]
+            self._run_dismiss_persistence_async,
+            agent,
             set(self._dismissed_agents),
             agents_with_children_snapshot,
+            cleanup_plan,
         )
 
     async def _run_dismiss_persistence_async(

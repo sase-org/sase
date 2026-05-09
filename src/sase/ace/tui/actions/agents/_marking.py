@@ -169,10 +169,7 @@ class AgentMarkingMixin:
         def on_dismiss(confirmed: bool | None) -> None:
             if not confirmed:
                 return
-            if killable:
-                self._do_bulk_kill_agents(killable, dismissable)  # type: ignore[attr-defined]
-                return
-            self._do_dismiss_all(dismissable)  # type: ignore[attr-defined]
+            self._do_bulk_kill_agents(killable, dismissable)  # type: ignore[attr-defined]
 
         if killable:
             self.push_screen(ConfirmKillAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]

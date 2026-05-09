@@ -112,7 +112,7 @@ def test_action_kill_single_running_uses_cleanup_planner_before_confirm() -> Non
     mock_do_kill.assert_called_once_with(agent, plan)
 
 
-def test_action_kill_single_done_bypasses_planner_for_dismiss() -> None:
+def test_action_kill_single_done_uses_planner_backed_dismiss() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="done_feature",
@@ -124,18 +124,19 @@ def test_action_kill_single_done_bypasses_planner_for_dismiss() -> None:
         raw_suffix="done-12345",
     )
     app = _ActionApp(agent)
+    plan = _cleanup_plan(agent, action="dismiss")
+
     with (
-        patch("sase.core.agent_cleanup_facade.plan_agent_cleanup") as mock_plan,
+        patch("sase.core.agent_cleanup_facade.plan_agent_cleanup", return_value=plan),
         patch.object(app, "_dismiss_planned_agent") as mock_dismiss,
     ):
         app.action_kill_agent()
 
-    mock_plan.assert_not_called()
-    mock_dismiss.assert_called_once_with(agent, None, [agent])
+    mock_dismiss.assert_called_once_with(agent, plan)
     assert app.pushed == []
 
 
-def test_action_kill_single_pidless_running_bypasses_planner_for_dismiss() -> None:
+def test_action_kill_single_pidless_running_is_planned_as_dismissable() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="pidless_feature",
@@ -147,14 +148,19 @@ def test_action_kill_single_pidless_running_bypasses_planner_for_dismiss() -> No
         raw_suffix="pidless-12345",
     )
     app = _ActionApp(agent)
+    plan = _cleanup_plan(agent, action="dismiss")
+
     with (
-        patch("sase.core.agent_cleanup_facade.plan_agent_cleanup") as mock_plan,
+        patch(
+            "sase.core.agent_cleanup_facade.plan_agent_cleanup", return_value=plan
+        ) as mock_plan,
         patch.object(app, "_dismiss_planned_agent") as mock_dismiss,
     ):
         app.action_kill_agent()
 
-    mock_plan.assert_not_called()
-    mock_dismiss.assert_called_once_with(agent, None, [agent])
+    _, request = mock_plan.call_args.args
+    assert request.include_pidless_as_dismissable is True
+    mock_dismiss.assert_called_once_with(agent, plan)
 
 
 def test_do_kill_agent_removes_in_memory_before_background_persistence() -> None:

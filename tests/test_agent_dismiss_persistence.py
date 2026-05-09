@@ -57,99 +57,16 @@ def test_dismiss_persistence_callback_reloads_on_failure(tmp_path) -> None:  # t
     app._dismiss_done_agent(agent)
 
     with patch(
-        "sase.ace.tui.actions.agents._dismissing.persist_bulk_dismiss_transaction",
+        "sase.ace.tui.actions.agents._dismissing._persist_single_dismiss_transaction",
         side_effect=RuntimeError("boom"),
     ):
         callback, args = app._scheduled[0]
         asyncio.run(callback(*args))  # type: ignore[misc]
 
-    assert app.notification_refreshes == 0
+    assert app.notification_refreshes == 1
     assert app.notification_refreshes_async == 0
     assert app.async_refreshes == 1
     assert any(sev == "error" for _, sev in app.notifications)
-
-
-def test_dismiss_uses_background_task_queue_when_available(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    """Dismiss persistence is submitted through the visible task queue."""
-
-    class TaskQueueDismissApp(FakeDismissApp):
-        def __init__(self) -> None:
-            super().__init__()
-            self.submitted: list[dict[str, object]] = []
-
-        def _submit_background_task(
-            self,
-            task_type: str,
-            cl_name: str,
-            project_file: str,
-            task_callable: object,
-            on_success: object = None,
-            on_complete: object = None,
-        ) -> bool:
-            self.submitted.append(
-                {
-                    "task_type": task_type,
-                    "cl_name": cl_name,
-                    "project_file": project_file,
-                    "task_callable": task_callable,
-                    "on_success": on_success,
-                    "on_complete": on_complete,
-                }
-            )
-            return True
-
-    app = TaskQueueDismissApp()
-    agent = make_agent(
-        raw_suffix="20240101120000",
-        artifacts_dir=str(tmp_path / "artifacts"),
-    )
-    app._agents_with_children = [agent]
-    app._agents = [agent]
-
-    with patch(
-        "sase.ace.tui.actions.agents._dismissing.persist_bulk_dismiss_transaction"
-    ) as mock_persist:
-        app._dismiss_done_agent(agent)
-        assert app._scheduled == []
-        assert len(app.submitted) == 1
-        submitted = app.submitted[0]
-        assert submitted["task_type"] == "dismiss-agents"
-        assert str(submitted["cl_name"]).startswith("dismiss:")
-        task_callable = submitted["task_callable"]
-        assert callable(task_callable)
-        assert task_callable() == (True, "Dismiss cleanup complete for 1 agent")
-
-    mock_persist.assert_called_once_with(
-        [agent],
-        {agent.identity},
-        [agent],
-        None,
-    )
-    assert agent.identity in app._dismiss_persistence_inflight
-    on_complete = app.submitted[0]["on_complete"]
-    assert callable(on_complete)
-    on_complete(True)
-    assert app._dismiss_persistence_inflight == set()
-
-
-def test_dismiss_done_does_not_plan_cleanup_synchronously(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    """The immediate dismiss path derives hidden rows from memory only."""
-    app = FakeDismissApp()
-    agent = make_agent(
-        raw_suffix="20240101120000",
-        artifacts_dir=str(tmp_path / "artifacts"),
-    )
-    app._agents_with_children = [agent]
-    app._agents = [agent]
-
-    with patch(
-        "sase.ace.tui.actions.agents._dismissing._plan_dismissal_side_effects"
-    ) as mock_plan:
-        app._dismiss_done_agent(agent)
-
-    mock_plan.assert_not_called()
-    assert app._agents_with_children == []
-    assert len(app._scheduled) == 1
 
 
 def test_dismiss_workflow_parent_persistence_uses_pre_removal_snapshot(

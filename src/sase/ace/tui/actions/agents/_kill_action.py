@@ -411,14 +411,6 @@ class AgentKillMixin:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
-        from ._core import DISMISSABLE_STATUSES
-
-        if agent.raw_suffix is not None and (
-            agent.status in DISMISSABLE_STATUSES or agent.pid is None
-        ):
-            self._dismiss_done_agent(agent)  # type: ignore[attr-defined]
-            return
-
         cleanup_plan = self._plan_focused_agent_cleanup(agent)  # type: ignore[attr-defined]
         if cleanup_plan.dismiss_items and not cleanup_plan.kill_items:
             self._dismiss_planned_agent(agent, cleanup_plan)  # type: ignore[attr-defined]

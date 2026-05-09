@@ -243,64 +243,6 @@ def test_do_bulk_kill_agents_failed_pid_stays_visible() -> None:
     assert app.refresh_calls == [(True, True)]
 
 
-def test_do_bulk_kill_agents_dismiss_only_skips_cleanup_planner() -> None:
-    """Dismiss-only bulk cleanup uses the dismiss path instead of bulk kill planning."""
-    from sase.ace.tui.actions.agents import AgentsMixin
-
-    class MockApp(AgentsMixin):
-        def __init__(self) -> None:
-            self._notifications: list[tuple[str, str]] = []
-            self.current_tab = "agents"
-            self.current_idx = 0
-            self._kill_persistence_inflight = set()
-            self._dismiss_persistence_inflight = set()
-            self._agent_status_overrides = {}
-            self._agent_pre_question_status = {}
-            self._dismissed_agents = set()
-            self._dismissed_agent_objects = []
-            self._marked_agents = set()
-            self._agents_with_children = []
-            self._agents = []
-            self._scheduled: list[tuple[object, tuple[object, ...]]] = []
-
-        def notify(self, msg: str, severity: str = "information") -> None:
-            self._notifications.append((msg, severity))
-
-        def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
-            self._agents = list(self._agents_with_children)
-
-        def call_later(self, callback: object, *args: object) -> None:
-            self._scheduled.append((callback, args))
-
-        def _schedule_agents_async_refresh(self) -> None:
-            return
-
-    app = MockApp()
-    done = Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="done_feature",
-        project_file="/tmp/test.gp",
-        status="DONE",
-        start_time=None,
-        pid=None,
-        raw_suffix="20260501010101",
-    )
-    app._agents = [done]
-    app._agents_with_children = [done]
-    app._marked_agents = {done.identity}
-
-    with patch(
-        "sase.ace.tui.actions.agents._killing._plan_bulk_kill_cleanup_side_effects"
-    ) as mock_plan:
-        app._do_bulk_kill_agents([], [done])
-
-    mock_plan.assert_not_called()
-    assert app._agents == []
-    assert app._marked_agents == set()
-    assert done.identity in app._dismissed_agents
-    assert len(app._scheduled) == 1
-
-
 def test_run_bulk_kill_persistence_does_not_refresh_on_success() -> None:
     """Successful bulk cleanup should not schedule a redundant full reload."""
     from sase.ace.tui.actions.agents import AgentsMixin

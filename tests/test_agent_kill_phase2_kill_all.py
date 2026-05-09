@@ -49,7 +49,6 @@ class _MockApp(AgentsMixin):
         self.current_idx = 0
         self.current_tab = "agents"
         self._kill_persistence_inflight: set[Any] = set()
-        self._dismiss_persistence_inflight: set[Any] = set()
         self._agent_status_overrides: dict[Any, Any] = {}
         self._agent_pre_question_status: dict[Any, Any] = {}
         self._dismissed_agents: set[Any] = set()
@@ -79,10 +78,6 @@ class _MockApp(AgentsMixin):
         self, *, list_changed: bool = False, defer_detail: bool = False
     ) -> None:
         self.refresh_calls.append((list_changed, defer_detail))
-
-    def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
-        self._agents = list(self._agents_with_children)
-        self.refresh_calls.append((True, True))
 
     def _schedule_agents_async_refresh(self) -> None:
         return
@@ -149,7 +144,7 @@ def test_kill_all_single_refresh() -> None:
 
 
 def test_kill_all_only_dismissable() -> None:
-    """Empty ``killable`` + non-empty ``dismissable`` routes through dismiss-all."""
+    """Empty ``killable`` + non-empty ``dismissable`` still routes through the bulk path."""
     done1 = _done_agent(cl_name="d1", suffix="20240101120000")
     done2 = _done_agent(cl_name="d2", suffix="20240101120001")
     app = _SpyApp([done1, done2])
@@ -157,9 +152,12 @@ def test_kill_all_only_dismissable() -> None:
     app._kill_and_dismiss_all_agents()
     _confirm(app)
 
-    assert app.bulk_kill_calls == []
+    assert len(app.bulk_kill_calls) == 1
+    killable, dismissable = app.bulk_kill_calls[0]
+    assert killable == []
+    assert dismissable == [done1, done2]
     assert app.single_kill_calls == []
-    assert app.dismiss_all_calls == [[done1, done2]]
+    assert app.dismiss_all_calls == []
 
 
 def test_kill_all_only_dismissable_removes_agents() -> None:
