@@ -130,6 +130,7 @@ class KeybindingBindingsMixin:
                 "RUNNING",
                 "PLANNING",
                 "PLAN APPROVED",
+                "TALE APPROVED",
                 "WAITING",
                 "QUESTION",
             }

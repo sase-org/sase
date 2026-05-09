@@ -150,7 +150,13 @@ class ArtifactRestorationMixin:
             return "failed"
         if status in {"WAITING", "WAITING INPUT"}:
             return "waiting_hitl"
-        if status in {"RUNNING", "PLANNING", "PLAN APPROVED", "QUESTION"}:
+        if status in {
+            "RUNNING",
+            "PLANNING",
+            "PLAN APPROVED",
+            "TALE APPROVED",
+            "QUESTION",
+        }:
             return "running"
         return status
 
@@ -172,7 +178,13 @@ class ArtifactRestorationMixin:
             return "failed"
         if status in {"WAITING", "WAITING INPUT"}:
             return "waiting_hitl"
-        if status in {"RUNNING", "PLANNING", "PLAN APPROVED", "QUESTION"}:
+        if status in {
+            "RUNNING",
+            "PLANNING",
+            "PLAN APPROVED",
+            "TALE APPROVED",
+            "QUESTION",
+        }:
             return "in_progress"
         return status
 
@@ -382,6 +394,7 @@ class ArtifactRestorationMixin:
         is_plan_like_status = agent.status in {
             "PLANNING",
             "PLAN APPROVED",
+            "TALE APPROVED",
             "PLAN COMMITTED",
             "PLAN DONE",
             "PLAN REJECTED",
@@ -394,12 +407,15 @@ class ArtifactRestorationMixin:
             data["plan"] = True
         if agent.status in {
             "PLAN APPROVED",
+            "TALE APPROVED",
             "PLAN COMMITTED",
             "EPIC APPROVED",
             "LEGEND APPROVED",
         }:
             data["plan_approved"] = True
-            if agent.status == "PLAN COMMITTED":
+            if agent.status == "TALE APPROVED":
+                data["plan_action"] = "tale"
+            elif agent.status == "PLAN COMMITTED":
                 data["plan_action"] = "commit"
             elif agent.status == "EPIC APPROVED":
                 data["plan_action"] = "epic"

@@ -193,6 +193,41 @@ class TestPlanFollowupPrompts:
         assert write_sdd_files.call_args.kwargs["plan_kind"] == "legends"
         assert mock_commit.call_args.kwargs["plan_kind"] == "legends"
 
+    @pytest.mark.parametrize(
+        ("action", "expected_kind"),
+        [("epic", "epics"), ("legend", "legends")],
+    )
+    def test_epic_and_legend_force_sdd_commit(
+        self, tmp_path, action: str, expected_kind: str
+    ) -> None:
+        """Epic and legend approvals commit SDD files even with stale false flags."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(
+            action=action,
+            plan_file=plan_file,
+            commit_plan=False,
+            run_coder=False,
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch("sase.axe.run_agent_exec_plan._commit_sdd_files") as mock_commit,
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        mock_commit.assert_called_once()
+        assert mock_commit.call_args.kwargs["plan_kind"] == expected_kind
+
     def test_approve_no_coder_commit_true_returns_plan_committed(
         self, tmp_path
     ) -> None:

@@ -55,7 +55,7 @@ _TERMINAL_STATUSES: frozenset[str] = frozenset(
 # sdd/tales/202604/agents_tab_query_filters.md — covers the statuses where the
 # agent is paused awaiting user input rather than running or terminal.
 _NEEDS_INPUT_STATUSES: frozenset[str] = frozenset(
-    {"QUESTION", "WAITING INPUT", "PLAN APPROVED"}
+    {"QUESTION", "WAITING INPUT", "PLAN APPROVED", "TALE APPROVED"}
 )
 
 
@@ -79,7 +79,7 @@ def status_bucket_for_values(
         return "Done"
     if status_text in _NEEDS_ATTENTION_STATUSES:
         return "Needs Attention"
-    if status_text == "PLAN APPROVED":
+    if status_text in {"PLAN APPROVED", "TALE APPROVED"}:
         return "Running"
     if status_text == "WAITING":
         return "Waiting"

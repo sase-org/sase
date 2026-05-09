@@ -2,6 +2,7 @@
 
 import os
 from dataclasses import dataclass
+from typing import Literal, NamedTuple
 
 from rich.syntax import Syntax
 from textual.app import ComposeResult
@@ -11,6 +12,69 @@ from textual.widgets import Static
 
 from ..actions.clipboard import copy_to_system_clipboard
 from .base import CopyModeForwardingMixin
+
+PlanApprovalChoice = Literal["approve", "tale", "epic", "legend"]
+
+
+class _PlanApprovalProtocolFields(NamedTuple):
+    """Runner-facing response fields for an explicit approval choice."""
+
+    action: str
+    commit_plan: bool
+    run_coder: bool
+
+
+_PLAN_APPROVAL_CHOICE_PROTOCOL: dict[
+    PlanApprovalChoice, _PlanApprovalProtocolFields
+] = {
+    "approve": _PlanApprovalProtocolFields(
+        action="approve",
+        commit_plan=False,
+        run_coder=True,
+    ),
+    "tale": _PlanApprovalProtocolFields(
+        action="approve",
+        commit_plan=True,
+        run_coder=True,
+    ),
+    "epic": _PlanApprovalProtocolFields(
+        action="epic",
+        commit_plan=True,
+        run_coder=True,
+    ),
+    "legend": _PlanApprovalProtocolFields(
+        action="legend",
+        commit_plan=True,
+        run_coder=True,
+    ),
+}
+
+
+def approval_protocol_for_choice(
+    choice: PlanApprovalChoice,
+) -> _PlanApprovalProtocolFields:
+    """Map a product-level approval choice to the existing response protocol."""
+    return _PLAN_APPROVAL_CHOICE_PROTOCOL[choice]
+
+
+def plan_approval_result_for_choice(
+    choice: PlanApprovalChoice,
+    *,
+    feedback: str | None = None,
+    coder_prompt: str | None = None,
+    coder_model: str | None = None,
+) -> "PlanApprovalResult":
+    """Build a modal result for a product-level approval choice."""
+    protocol = approval_protocol_for_choice(choice)
+    return PlanApprovalResult(
+        action=protocol.action,
+        feedback=feedback,
+        commit_plan=protocol.commit_plan,
+        run_coder=protocol.run_coder,
+        coder_prompt=coder_prompt,
+        coder_model=coder_model,
+        choice=choice,
+    )
 
 
 def _provider_badge_markup(llm_provider: str | None, model: str | None) -> str:
@@ -75,6 +139,7 @@ class PlanApprovalResult:
     run_coder: bool = True
     coder_prompt: str | None = None
     coder_model: str | None = None
+    choice: PlanApprovalChoice | None = None
 
 
 @dataclass
@@ -223,8 +288,8 @@ class PlanApprovalModal(
         self.dismiss(None)
 
     def action_approve(self) -> None:
-        """Approve the plan."""
-        self.dismiss(PlanApprovalResult(action="approve"))
+        """Approve the plan as an SDD tale."""
+        self.dismiss(plan_approval_result_for_choice("tale"))
 
     def _push_approve_options(
         self,
@@ -290,11 +355,11 @@ class PlanApprovalModal(
 
     def action_epic(self) -> None:
         """Create an epic from the plan."""
-        self.dismiss(PlanApprovalResult(action="epic"))
+        self.dismiss(plan_approval_result_for_choice("epic"))
 
     def action_legend(self) -> None:
         """Create a legend from the plan."""
-        self.dismiss(PlanApprovalResult(action="legend"))
+        self.dismiss(plan_approval_result_for_choice("legend"))
 
     def action_copy_plan(self) -> None:
         """Copy the plan file contents to clipboard."""

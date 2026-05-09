@@ -91,6 +91,7 @@ class AgentApproveMixin:
             "RUNNING",
             "PLANNING",
             "PLAN APPROVED",
+            "TALE APPROVED",
             "WAITING",
             "QUESTION",
         }

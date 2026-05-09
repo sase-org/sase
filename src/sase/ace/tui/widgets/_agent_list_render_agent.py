@@ -159,6 +159,8 @@ def format_agent_option(
         text.append(agent.status, style="bold #FF87AF")  # Pink
     elif agent.status == "PLAN APPROVED":
         text.append(agent.status, style="bold #00D7AF")  # Green-blue (teal)
+    elif agent.status == "TALE APPROVED":
+        text.append(agent.status, style="bold #00D7AF")  # Green-blue (teal)
     elif agent.status == "PLAN COMMITTED":
         text.append(agent.status, style="bold #5FD75F")  # Green
     elif agent.status == "EPIC APPROVED":

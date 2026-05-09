@@ -222,8 +222,15 @@ class AgentNotificationMixin:
             if agent is not None:
                 action = response.get("action")
                 if action == "approve":
-                    self._agent_status_overrides[agent.identity] = "PLAN APPROVED"
-                    persist_plan_approved(agent)
+                    is_tale = (
+                        response.get("commit_plan") is True
+                        and response.get("run_coder", True) is True
+                    )
+                    status = "TALE APPROVED" if is_tale else "PLAN APPROVED"
+                    self._agent_status_overrides[agent.identity] = status
+                    persist_plan_approved(
+                        agent, action="tale" if is_tale else "approve"
+                    )
                 elif action == "epic":
                     self._agent_status_overrides[agent.identity] = "EPIC APPROVED"
                     persist_plan_approved(agent, action="epic")

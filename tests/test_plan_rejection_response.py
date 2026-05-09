@@ -5,7 +5,10 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.modals.plan_approval_modal import PlanApprovalResult
+from sase.ace.tui.modals.plan_approval_modal import (
+    PlanApprovalResult,
+    plan_approval_result_for_choice,
+)
 from sase.ace.tui.modals.user_question_modal import (
     UserQuestionResult,
     _QuestionAnswer,
@@ -131,10 +134,52 @@ def test_approve_commit_only_writes_options_and_sets_committed_status(
     assert app._agent_status_overrides[mock_agent.identity] == "PLAN COMMITTED"
 
 
-def test_approve_with_prompt_writes_prompt_and_sets_approved_status(
+def test_approval_choice_response_mapping() -> None:
+    """Product approval choices normalize to the legacy runner response protocol."""
+    from sase.ace.tui.actions.agents._notification_modals import (
+        _build_plan_approval_response,
+        _plan_approval_persist_action,
+        _plan_approval_status,
+    )
+
+    approve = plan_approval_result_for_choice("approve")
+    assert _build_plan_approval_response(approve) == {
+        "action": "approve",
+        "commit_plan": False,
+        "run_coder": True,
+    }
+    assert _plan_approval_status(approve) == "PLAN APPROVED"
+    assert _plan_approval_persist_action(approve) == "approve"
+
+    tale = plan_approval_result_for_choice("tale", coder_prompt="#review+")
+    assert _build_plan_approval_response(tale) == {
+        "action": "approve",
+        "commit_plan": True,
+        "run_coder": True,
+        "coder_prompt": "#review+",
+    }
+    assert _plan_approval_status(tale) == "TALE APPROVED"
+    assert _plan_approval_persist_action(tale) == "tale"
+
+    epic = plan_approval_result_for_choice("epic")
+    assert _build_plan_approval_response(epic) == {
+        "action": "epic",
+        "commit_plan": True,
+        "run_coder": True,
+    }
+
+    legend = plan_approval_result_for_choice("legend")
+    assert _build_plan_approval_response(legend) == {
+        "action": "legend",
+        "commit_plan": True,
+        "run_coder": True,
+    }
+
+
+def test_approve_with_prompt_writes_prompt_and_sets_tale_status(
     tmp_path: Path,
 ) -> None:
-    """Approve with coder_prompt writes prompt in response and sets PLAN APPROVED."""
+    """Approve with commit_plan=True/run_coder=True is shown as a tale approval."""
     app, notification, response_dir, mock_agent = _make_approval_app_and_notification(
         tmp_path
     )
@@ -169,7 +214,7 @@ def test_approve_with_prompt_writes_prompt_and_sets_approved_status(
     assert plan_response_path.exists()
     data = json.loads(plan_response_path.read_text())
     assert data["coder_prompt"] == "#review+"
-    assert app._agent_status_overrides[mock_agent.identity] == "PLAN APPROVED"
+    assert app._agent_status_overrides[mock_agent.identity] == "TALE APPROVED"
 
 
 def test_approve_writes_response_before_archiving_plan(tmp_path: Path) -> None:
@@ -188,7 +233,7 @@ def test_approve_writes_response_before_archiving_plan(tmp_path: Path) -> None:
         data = json.loads(plan_response_path.read_text())
         assert data["action"] == "approve"
         assert action == "approve"
-        assert app._agent_status_overrides[mock_agent.identity] == "PLAN APPROVED"
+        assert app._agent_status_overrides[mock_agent.identity] == "TALE APPROVED"
 
     from sase.ace.tui.actions.agents._notification_modals import (
         handle_plan_approval,

@@ -55,6 +55,8 @@ def _plan_enrichment_status(
     if plan_approved:
         if plan_action == "commit":
             return "PLAN COMMITTED"
+        if plan_action == "tale":
+            return "TALE APPROVED"
         if plan_action == "epic":
             return "EPIC APPROVED"
         if plan_action == "legend":

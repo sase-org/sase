@@ -111,4 +111,4 @@ def test_action_approve_still_returns_internal_approve_action() -> None:
     modal.dismiss = fake_dismiss  # type: ignore[assignment]
     modal.action_approve()
 
-    assert result == PlanApprovalResult(action="approve")
+    assert result == PlanApprovalResult(action="approve", choice="tale")

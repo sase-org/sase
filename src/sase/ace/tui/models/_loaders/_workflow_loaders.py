@@ -19,6 +19,7 @@ ACTIVE_STATUSES = frozenset(
         "WAITING INPUT",
         "PLANNING",
         "PLAN APPROVED",
+        "TALE APPROVED",
         "QUESTION",
     }
 )
