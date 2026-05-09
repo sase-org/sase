@@ -1,0 +1,229 @@
+"""Multi-prompt launch tests for built-in ``#cd`` launch resolution."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from sase.workspace_provider._hookspec import ResolvedRef
+from tests._cd_launch_resolution_helpers import (
+    patch_cd_git_metadata,
+    patch_cd_metadata,
+)
+
+
+def test_launch_multi_prompt_agents_resolves_cd_per_segment(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_cd_metadata(monkeypatch)
+    from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
+
+    dir_a = tmp_path / "a"
+    dir_b = tmp_path / "b"
+    dir_a.mkdir()
+    dir_b.mkdir()
+
+    with (
+        patch("sase.agent.launcher.spawn_agent_subprocess") as spawn,
+        patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming"),
+        patch("sase.core.time.generate_timestamp", return_value="260501_120000"),
+        patch(
+            "sase.artifacts.create_artifacts_directory",
+            return_value="/artifacts",
+        ) as create_artifacts,
+        patch("sase.running_field.get_first_available_axe_workspace") as first_ws,
+    ):
+        spawn.return_value = MagicMock(pid=1)
+        launch_multi_prompt_agents(
+            segments=[f"#cd:{dir_a} first", f"#cd:{dir_b} second"],
+            local_xprompts={},
+            cl_name="base",
+            project_file="/projects/base/base.gp",
+            project_name="base",
+            is_home_mode=False,
+            vcs_ref=None,
+            default_bare_segments_to_home=True,
+        )
+
+    calls = spawn.call_args_list
+    assert [c.kwargs["workspace_dir"] for c in calls] == [
+        str(dir_a.resolve()),
+        str(dir_b.resolve()),
+    ]
+    assert [c.kwargs["workspace_num"] for c in calls] == [0, 0]
+    assert [c.kwargs["is_home_mode"] for c in calls] == [True, True]
+    assert [c.kwargs["update_target"] for c in calls] == ["", ""]
+    assert [c.kwargs["vcs_ref"] for c in calls] == [
+        ("cd", str(dir_a)),
+        ("cd", str(dir_b)),
+    ]
+    create_artifacts.assert_not_called()
+    first_ws.assert_not_called()
+
+
+def test_launch_multi_prompt_agents_defaults_bare_segment_to_git_home(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_cd_git_metadata(monkeypatch)
+    from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
+
+    dir_a = tmp_path / "a"
+    dir_a.mkdir()
+    primary_workspace = tmp_path / "home"
+    allocated_workspace = tmp_path / "home_101"
+    project_file = str(tmp_path / "home.gp")
+
+    def resolve_ref(ref: str, workflow_type: str) -> ResolvedRef:
+        if workflow_type == "cd":
+            return ResolvedRef(
+                project_file=str(
+                    Path.home() / ".sase" / "projects" / "home" / "home.gp"
+                ),
+                project_name=Path(ref).name,
+                primary_workspace_dir=str(Path(ref).expanduser().resolve()),
+                checkout_target="",
+            )
+        return ResolvedRef(
+            project_file=project_file,
+            project_name="home",
+            primary_workspace_dir=str(primary_workspace),
+            checkout_target="main",
+        )
+
+    with (
+        patch("sase.agent.launcher.spawn_agent_subprocess") as spawn,
+        patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming"),
+        patch("sase.core.time.generate_timestamp", return_value="260501_120000"),
+        patch(
+            "sase.artifacts.create_artifacts_directory",
+            return_value="/artifacts",
+        ) as create_artifacts,
+        patch(
+            "sase.workspace_provider.resolve_ref",
+            side_effect=resolve_ref,
+        ) as resolve_ref_mock,
+        patch(
+            "sase.running_field.get_first_available_axe_workspace",
+            return_value=101,
+        ) as first_ws,
+        patch(
+            "sase.workspace_provider.get_workspace_directory",
+            return_value=str(allocated_workspace),
+        ) as provider_ws_dir,
+    ):
+        spawn.return_value = MagicMock(pid=1)
+        launch_multi_prompt_agents(
+            segments=[f"#cd:{dir_a} first", "second"],
+            local_xprompts={},
+            cl_name="base",
+            project_file="/projects/base/base.gp",
+            project_name="base",
+            is_home_mode=False,
+            vcs_ref=None,
+            default_bare_segments_to_home=True,
+        )
+
+    calls = spawn.call_args_list
+    assert [c.kwargs["prompt"] for c in calls] == [
+        f"#cd:{dir_a} first",
+        "#git:home second",
+    ]
+    assert [c.kwargs["workspace_dir"] for c in calls] == [
+        str(dir_a.resolve()),
+        str(allocated_workspace),
+    ]
+    assert [c.kwargs["workspace_num"] for c in calls] == [0, 101]
+    assert [c.kwargs["is_home_mode"] for c in calls] == [True, False]
+    assert [c.kwargs["vcs_ref"] for c in calls] == [
+        ("cd", str(dir_a)),
+        ("git", "home"),
+    ]
+    resolve_ref_mock.assert_any_call(str(dir_a), "cd")
+    resolve_ref_mock.assert_any_call("home", "git")
+    first_ws.assert_called_once_with(project_file)
+    provider_ws_dir.assert_called_once_with(
+        "git",
+        101,
+        "home",
+        str(primary_workspace),
+    )
+    create_artifacts.assert_not_called()
+
+
+def test_launch_multi_prompt_bare_git_home_wait_uses_home_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_cd_git_metadata(monkeypatch)
+    from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
+
+    primary_workspace = tmp_path / "home"
+    allocated_workspace = tmp_path / "home_101"
+    project_file = str(tmp_path / "home.gp")
+
+    with (
+        patch("sase.agent.launcher.spawn_agent_subprocess") as spawn,
+        patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming") as wait,
+        patch("sase.core.time.generate_timestamp", return_value="260501_120000"),
+        patch(
+            "sase.artifacts.create_artifacts_directory",
+            return_value="/artifacts/home",
+        ) as create_artifacts,
+        patch(
+            "sase.workspace_provider.resolve_ref",
+            return_value=ResolvedRef(
+                project_file=project_file,
+                project_name="home",
+                primary_workspace_dir=str(primary_workspace),
+                checkout_target="main",
+            ),
+        ),
+        patch(
+            "sase.running_field.get_first_available_axe_workspace",
+            return_value=101,
+        ) as first_ws,
+        patch(
+            "sase.workspace_provider.get_workspace_directory",
+            return_value=str(allocated_workspace),
+        ) as provider_ws_dir,
+    ):
+        spawn.return_value = MagicMock(pid=1)
+        wait.return_value = "home-agent"
+        launch_multi_prompt_agents(
+            segments=["first", "%wait\nsecond"],
+            local_xprompts={},
+            cl_name="base",
+            project_file="/projects/base/base.gp",
+            project_name="base",
+            is_home_mode=False,
+            vcs_ref=None,
+            default_bare_segments_to_home=True,
+        )
+
+    assert [c.kwargs["prompt"] for c in spawn.call_args_list] == [
+        "#git:home first",
+        "%wait:home-agent\n#git:home second",
+    ]
+    assert [c.kwargs["workspace_dir"] for c in spawn.call_args_list] == [
+        str(allocated_workspace),
+        str(primary_workspace),
+    ]
+    assert [c.kwargs["workspace_num"] for c in spawn.call_args_list] == [101, 0]
+    assert [c.kwargs["is_home_mode"] for c in spawn.call_args_list] == [False, False]
+    create_artifacts.assert_called_once_with(
+        "ace-run",
+        project_name="home",
+        timestamp="260501_120000",
+    )
+    wait.assert_called_once_with("/artifacts/home")
+    first_ws.assert_called_once_with(project_file)
+    provider_ws_dir.assert_called_once_with(
+        "git",
+        101,
+        "home",
+        str(primary_workspace),
+    )
