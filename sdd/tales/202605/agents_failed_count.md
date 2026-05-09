@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 15:46:07
-status: wip
+status: done
 prompt: sdd/prompts/202605/agents_failed_count.md
 ---
 # Plan: Agents Failed Count And Zero-Count Noise

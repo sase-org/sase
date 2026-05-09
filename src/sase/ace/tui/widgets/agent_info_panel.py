@@ -20,6 +20,7 @@ class AgentInfoPanel(Static):
         self._asking_count = 0
         self._running_count = 0
         self._waiting_count = 0
+        self._failed_count = 0
         self._read_count = 0
         self._visible_agent_count = 0
         self._countdown = 0
@@ -63,6 +64,7 @@ class AgentInfoPanel(Static):
         asking: int,
         running: int,
         waiting: int,
+        failed: int,
         read: int,
         total: int,
     ) -> None:
@@ -73,6 +75,7 @@ class AgentInfoPanel(Static):
             asking: Visible agent count paused for human input.
             running: Visible active agent count, excluding waiting agents.
             waiting: Visible waiting agent count.
+            failed: Visible failed agent count.
             read: Visible completed agent count that has already been read.
             total: Visible top-level agent count.
         """
@@ -80,6 +83,7 @@ class AgentInfoPanel(Static):
         self._asking_count = asking
         self._running_count = running
         self._waiting_count = waiting
+        self._failed_count = failed
         self._read_count = read
         self._visible_agent_count = total
         self._update_display()
@@ -143,9 +147,32 @@ class AgentInfoPanel(Static):
         "asking": "bold #FFAF00",
         "running": "bold #00D7AF",
         "waiting": "bold #AF87FF",
+        "failed": "bold #FF5F5F",
         "unread": "bold #FFAF5F",
         "read": "bold #BCBCBC",
     }
+
+    def _metric_counts(self) -> list[tuple[str, int]]:
+        return [
+            ("asking", self._asking_count),
+            ("running", self._running_count),
+            ("waiting", self._waiting_count),
+            ("failed", self._failed_count),
+            ("unread", self._unread_count),
+            ("read", self._read_count),
+        ]
+
+    def _append_metric_strip(self, text: Text) -> None:
+        metrics = [(label, count) for label, count in self._metric_counts() if count]
+        if not metrics:
+            return
+        text.append(" [", style="dim")
+        for index, (label, count) in enumerate(metrics):
+            if index:
+                text.append(" · ", style="dim")
+            text.append(f"{count}", style=self._COUNT_STYLES[label])
+            text.append(f" {label}", style="dim")
+        text.append("]", style="dim")
 
     def _update_display(self) -> None:
         """Refresh the displayed text."""
@@ -158,22 +185,7 @@ class AgentInfoPanel(Static):
             return
         text.append(f"{self._visible_agent_count}", style=self._COUNT_STYLES["total"])
         text.append(" Agents", style="bold #87D7FF")
-        text.append(" [", style="dim")
-        text.append(f"{self._asking_count}", style=self._COUNT_STYLES["asking"])
-        text.append(" asking", style="dim")
-        text.append(" · ", style="dim")
-        text.append(f"{self._running_count}", style=self._COUNT_STYLES["running"])
-        text.append(" running", style="dim")
-        text.append(" · ", style="dim")
-        text.append(f"{self._waiting_count}", style=self._COUNT_STYLES["waiting"])
-        text.append(" waiting", style="dim")
-        text.append(" · ", style="dim")
-        text.append(f"{self._unread_count}", style=self._COUNT_STYLES["unread"])
-        text.append(" unread", style="dim")
-        text.append(" · ", style="dim")
-        text.append(f"{self._read_count}", style=self._COUNT_STYLES["read"])
-        text.append(" read", style="dim")
-        text.append("]", style="dim")
+        self._append_metric_strip(text)
         if self._search_query:
             text.append("   ")
             text.append("filter: ", style="dim italic")

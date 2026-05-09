@@ -168,6 +168,9 @@ class DetailMixin:
         waiting_count = sum(
             1 for _agent, bucket in visible_agent_buckets if bucket == "Waiting"
         )
+        failed_count = sum(
+            1 for _agent, bucket in visible_agent_buckets if bucket == "Failed"
+        )
         asking_count = sum(
             1
             for agent, _bucket in visible_agent_buckets
@@ -178,15 +181,21 @@ class DetailMixin:
             for agent, bucket in visible_agent_buckets
             if agent.status not in DISMISSABLE_STATUSES
             and bucket != "Waiting"
+            and bucket != "Failed"
             and not agent_is_asking(agent.status)
         )
-        read_count = total - asking_count - running_count - waiting_count - unread_count
+        read_count = sum(
+            1
+            for agent, bucket in visible_agent_buckets
+            if bucket == "Done" and agent.identity not in unread_ids
+        )
         agent_info_panel.update_position(position, total)
         agent_info_panel.update_agent_counts(
             unread_count,
             asking_count,
             running_count,
             waiting_count,
+            failed_count,
             read_count,
             total,
         )

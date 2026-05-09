@@ -57,18 +57,19 @@ def test_agent_count_strip_renders_total_before_agents_label() -> None:
     panel._asking_count = 2
     panel._running_count = 5
     panel._waiting_count = 2
+    panel._failed_count = 1
     panel._read_count = 0
     panel._visible_agent_count = 12
 
     plain = _collect_text(panel)
 
     assert plain.startswith(
-        "12 Agents [2 asking · 5 running · 2 waiting · 3 unread · 0 read]"
+        "12 Agents [2 asking · 5 running · 2 waiting · 1 failed · 3 unread]"
     )
     assert "Agents: 2/12" not in plain
 
 
-def test_agent_count_numbers_have_unique_rich_styles() -> None:
+def test_agent_count_numbers_have_rich_styles() -> None:
     panel = AgentInfoPanel()
     panel._visible_agent_count = 20
     panel._asking_count = 31
@@ -76,6 +77,7 @@ def test_agent_count_numbers_have_unique_rich_styles() -> None:
     panel._waiting_count = 53
     panel._unread_count = 64
     panel._read_count = 75
+    panel._failed_count = 86
 
     text = _collect_rich_text(panel)
 
@@ -84,6 +86,7 @@ def test_agent_count_numbers_have_unique_rich_styles() -> None:
         "asking": _style_for_plain_segment(text, "31"),
         "running": _style_for_plain_segment(text, "42"),
         "waiting": _style_for_plain_segment(text, "53"),
+        "failed": _style_for_plain_segment(text, "86"),
         "unread": _style_for_plain_segment(text, "64"),
         "read": _style_for_plain_segment(text, "75"),
     }
@@ -92,10 +95,10 @@ def test_agent_count_numbers_have_unique_rich_styles() -> None:
         "asking": "bold #FFAF00",
         "running": "bold #00D7AF",
         "waiting": "bold #AF87FF",
+        "failed": "bold #FF5F5F",
         "unread": "bold #FFAF5F",
         "read": "bold #BCBCBC",
     }
-    assert len(set(count_styles.values())) == len(count_styles)
 
 
 def test_update_agent_counts_uses_plain_metric_text() -> None:
@@ -103,13 +106,54 @@ def test_update_agent_counts_uses_plain_metric_text() -> None:
 
     captured: list[str] = []
     with patch.object(panel, "update", lambda text: captured.append(text.plain)):
-        panel.update_agent_counts(1, 2, 3, 4, 0, 10)
+        panel.update_agent_counts(1, 2, 3, 4, 5, 0, 10)
     assert captured, "panel.update_agent_counts did not refresh the display"
     plain = captured[-1]
 
-    assert "10 Agents [2 asking · 3 running · 4 waiting · 1 unread · 0 read]" in plain
+    assert "10 Agents [2 asking · 3 running · 4 waiting · 5 failed · 1 unread]" in plain
     assert "Agents(" not in plain
     assert "#FFAF5F" not in plain
+
+
+def test_agent_count_strip_omits_zero_metric_types() -> None:
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.update_agent_counts(
+            unread=2,
+            asking=0,
+            running=3,
+            waiting=0,
+            failed=1,
+            read=0,
+            total=9,
+        )
+
+    plain = _collect_text(panel)
+    counts_prefix = plain.split("   [group:", 1)[0]
+
+    assert plain.startswith("9 Agents [3 running · 1 failed · 2 unread]")
+    assert "asking" not in counts_prefix
+    assert "waiting" not in counts_prefix
+    assert " read" not in counts_prefix
+
+
+def test_agent_count_strip_omits_metrics_section_when_all_counts_are_zero() -> None:
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.update_agent_counts(
+            unread=0,
+            asking=0,
+            running=0,
+            waiting=0,
+            failed=0,
+            read=0,
+            total=5,
+        )
+
+    plain = _collect_text(panel)
+    counts_prefix = plain.split("   [group:", 1)[0]
+
+    assert counts_prefix == "5 Agents"
 
 
 def test_grouping_badge_renders_label_after_update() -> None:
@@ -141,6 +185,7 @@ def test_count_strip_suppressed_while_loading() -> None:
     panel._asking_count = 2
     panel._running_count = 5
     panel._waiting_count = 2
+    panel._failed_count = 1
     panel._read_count = 2
     panel._visible_agent_count = 12
 
@@ -148,3 +193,4 @@ def test_count_strip_suppressed_while_loading() -> None:
 
     assert plain == "Agents: …"
     assert "unread" not in plain
+    assert "failed" not in plain

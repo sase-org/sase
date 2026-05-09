@@ -175,6 +175,7 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
     visible_running = _agent(suffix="running", status="RUNNING")
     visible_waiting = _agent(suffix="waiting", status="WAITING")
     visible_failed = _agent(suffix="failed", status="FAILED")
+    visible_retried_failed = _agent(suffix="retried-failed", status="FAILED (RETRIED)")
     child_unread = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="cl",
@@ -202,6 +203,7 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
             visible_running,
             visible_waiting,
             visible_failed,
+            visible_retried_failed,
             child_unread,
             child_asking,
         ]
@@ -213,7 +215,7 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
     }
 
     class _InfoPanel:
-        counts: tuple[int, int, int, int, int, int] | None = None
+        counts: tuple[int, int, int, int, int, int, int] | None = None
         position: tuple[int, int] | None = None
 
         def update_position(self, position: int, total: int) -> None:
@@ -225,10 +227,11 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
             asking: int,
             running: int,
             waiting: int,
+            failed: int,
             read: int,
             total: int,
         ) -> None:
-            self.counts = (unread, asking, running, waiting, read, total)
+            self.counts = (unread, asking, running, waiting, failed, read, total)
 
         def update_countdown(self, _countdown: int, _interval: int) -> None:
             return
@@ -251,5 +254,5 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
 
     bare._update_agents_info_panel()
 
-    assert info_panel.position == (0, 5)
-    assert info_panel.counts == (1, 1, 1, 1, 1, 5)
+    assert info_panel.position == (0, 6)
+    assert info_panel.counts == (1, 1, 1, 1, 2, 0, 6)
