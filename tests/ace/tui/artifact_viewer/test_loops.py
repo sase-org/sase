@@ -147,7 +147,7 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
     _print_page_prompt(index=0, page_count=1, return_pane_available=True)
     assert (
         _strip_ansi(capsys.readouterr().out)
-        == "\nPage 1/1  <tab>: Ace  r: refresh  q: quit"
+        == "\nPage 1/1  <tab>: focus SASE TUI  r: refresh  q: quit"
     )
 
     _print_page_prompt(
@@ -159,7 +159,7 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
     )
     assert (
         _strip_ansi(capsys.readouterr().out)
-        == "\nArtifact 2/3  Page 2/3  <tab>: Ace  j: next page  "
+        == "\nArtifact 2/3  Page 2/3  <tab>: focus SASE TUI  j: next page  "
         "k: previous page  n: next artifact  p: previous artifact  r: refresh  q: quit"
     )
 
@@ -172,7 +172,7 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
         return_pane_available=True,
     )
     assert _strip_ansi(capsys.readouterr().out) == (
-        "\n<tab>: Ace  j: next page  k: previous page  n: next artifact  "
+        "\n<tab>: focus SASE TUI  j: next page  k: previous page  n: next artifact  "
         "p: previous artifact  r: refresh  q: quit"
     )
 

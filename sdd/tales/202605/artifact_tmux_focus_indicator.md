@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 11:37:10
-status: wip
+status: done
 prompt: sdd/prompts/202605/artifact_tmux_focus_indicator.md
 ---
 # Plan: Artifact Viewer Tmux Focus Indicator

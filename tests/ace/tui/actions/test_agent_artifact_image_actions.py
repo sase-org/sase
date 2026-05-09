@@ -10,7 +10,11 @@ import pytest
 
 from sase.ace.tui.actions.agents._panels import AgentPanelsMixin
 from sase.ace.tui.actions.lifecycle import LifecycleMixin
-from sase.ace.tui.graphics import ArtifactViewerResult
+from sase.ace.tui.graphics import (
+    ArtifactViewerResult,
+    TmuxPaneDecorationResult,
+    TmuxPaneDecorationState,
+)
 
 
 class _SuspendRecorder:
@@ -49,6 +53,7 @@ class _ImageActionApp(AgentPanelsMixin):
         self._artifacts = []
         self.pushed = []
         self._artifact_tmux_pane_id = None
+        self._artifact_tmux_decoration_state = None
 
     def query_one(self, selector, *_args, **_kwargs):
         if selector == "#agents-content":
@@ -83,6 +88,14 @@ class _ImageQuitApp(_ImageActionApp, LifecycleMixin):
 
     def _do_quit(self) -> None:
         self.did_quit = True
+
+
+def _decoration_state() -> TmuxPaneDecorationState:
+    return TmuxPaneDecorationState(
+        target_pane_id="%1",
+        window_options=(),
+        pane_titles=(),
+    )
 
 
 def test_agents_open_artifacts_action_pushes_single_artifact_selection_modal(
@@ -137,6 +150,9 @@ def test_agents_open_artifacts_single_selection_uses_tmux_pane_without_suspend(
         return ArtifactViewerResult(True, pane_id="%7")
 
     same_pane_viewer = MagicMock()
+    decorate = MagicMock(
+        return_value=TmuxPaneDecorationResult(True, state=_decoration_state())
+    )
     monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
     monkeypatch.setattr(
         "sase.ace.tui.graphics.artifact_tmux_pane_exists",
@@ -146,6 +162,7 @@ def test_agents_open_artifacts_single_selection_uses_tmux_pane_without_suspend(
         "sase.ace.tui.graphics.view_agent_artifact_in_tmux_pane",
         fake_tmux_viewer,
     )
+    monkeypatch.setattr("sase.ace.tui.graphics.decorate_artifact_tmux_panes", decorate)
     monkeypatch.setattr("sase.ace.tui.graphics.view_agent_artifact", same_pane_viewer)
 
     app.action_open_agent_artifacts()
@@ -156,6 +173,8 @@ def test_agents_open_artifacts_single_selection_uses_tmux_pane_without_suspend(
 
     assert calls == [artifact]
     assert app._artifact_tmux_pane_id == "%7"
+    decorate.assert_called_once_with("%7")
+    assert app._artifact_tmux_decoration_state == _decoration_state()
     assert "-artifact-viewer-active" in app.content.classes
     same_pane_viewer.assert_not_called()
     app.notify.assert_not_called()
@@ -177,6 +196,10 @@ def test_agents_tmux_artifact_launch_exposes_notify_pid_temporarily(
     monkeypatch.setattr(
         "sase.ace.tui.graphics.artifact_tmux_pane_exists",
         lambda _pane_id: True,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.decorate_artifact_tmux_panes",
+        lambda _pane_id: TmuxPaneDecorationResult(True, state=_decoration_state()),
     )
 
     def fake_tmux_viewer(_viewed_artifact) -> ArtifactViewerResult:
@@ -347,6 +370,9 @@ def test_agents_open_artifacts_modal_callback_opens_marked_sequence_in_tmux(
         return ArtifactViewerResult(True, pane_id="%7")
 
     same_pane_viewer = MagicMock()
+    decorate = MagicMock(
+        return_value=TmuxPaneDecorationResult(True, state=_decoration_state())
+    )
     monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
     monkeypatch.setattr(
         "sase.ace.tui.graphics.artifact_tmux_pane_exists",
@@ -356,6 +382,7 @@ def test_agents_open_artifacts_modal_callback_opens_marked_sequence_in_tmux(
         "sase.ace.tui.graphics.view_agent_artifacts_in_tmux_pane",
         fake_tmux_viewer,
     )
+    monkeypatch.setattr("sase.ace.tui.graphics.decorate_artifact_tmux_panes", decorate)
     monkeypatch.setattr("sase.ace.tui.graphics.view_agent_artifacts", same_pane_viewer)
 
     app.action_open_agent_artifacts()
@@ -366,6 +393,8 @@ def test_agents_open_artifacts_modal_callback_opens_marked_sequence_in_tmux(
 
     assert calls == [artifacts]
     assert app._artifact_tmux_pane_id == "%7"
+    decorate.assert_called_once_with("%7")
+    assert app._artifact_tmux_decoration_state == _decoration_state()
     assert "-artifact-viewer-active" in app.content.classes
     same_pane_viewer.assert_not_called()
     app.agent_list.focus.assert_called_once_with()
@@ -376,18 +405,26 @@ def test_agents_open_artifacts_action_closes_live_tracked_tmux_pane(
 ) -> None:
     app = _ImageActionApp(None)
     app._artifact_tmux_pane_id = "%7"
+    app._artifact_tmux_decoration_state = _decoration_state()
     app.content.add_class("-artifact-viewer-active")
     exists = MagicMock(return_value=True)
     close = MagicMock(return_value=ArtifactViewerResult(True))
+    restore = MagicMock(return_value=ArtifactViewerResult(True))
     monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
     monkeypatch.setattr("sase.ace.tui.graphics.artifact_tmux_pane_exists", exists)
     monkeypatch.setattr("sase.ace.tui.graphics.close_artifact_tmux_pane", close)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.restore_artifact_tmux_pane_decoration",
+        restore,
+    )
 
     app.action_open_agent_artifacts()
 
     exists.assert_called_once_with("%7")
+    restore.assert_called_once_with(_decoration_state())
     close.assert_called_once_with("%7")
     assert app._artifact_tmux_pane_id is None
+    assert app._artifact_tmux_decoration_state is None
     assert "-artifact-viewer-active" not in app.content.classes
     assert app.pushed == []
     app.notify.assert_not_called()
@@ -398,21 +435,29 @@ def test_agents_open_artifacts_action_clears_stale_tmux_pane_and_opens_modal(
 ) -> None:
     app = _ImageActionApp(None)
     app._artifact_tmux_pane_id = "%7"
+    app._artifact_tmux_decoration_state = _decoration_state()
     app.content.add_class("-artifact-viewer-active")
     app._selected_agent = SimpleNamespace(status="DONE")
     app._artifacts = [SimpleNamespace(path="/tmp/chat.md", kind="chat", label="Chat")]
     close = MagicMock()
+    restore = MagicMock(return_value=ArtifactViewerResult(True))
     monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
     monkeypatch.setattr(
         "sase.ace.tui.graphics.artifact_tmux_pane_exists",
         lambda _pane_id: False,
     )
     monkeypatch.setattr("sase.ace.tui.graphics.close_artifact_tmux_pane", close)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.restore_artifact_tmux_pane_decoration",
+        restore,
+    )
 
     app.action_open_agent_artifacts()
 
     close.assert_not_called()
+    restore.assert_called_once_with(_decoration_state())
     assert app._artifact_tmux_pane_id is None
+    assert app._artifact_tmux_decoration_state is None
     assert "-artifact-viewer-active" not in app.content.classes
     assert len(app.pushed) == 1
     modal, callback = app.pushed[0]
@@ -466,19 +511,27 @@ def test_agents_focus_tracked_artifact_tmux_pane_clears_stale_pane(
 ) -> None:
     app = _ImageActionApp(None)
     app._artifact_tmux_pane_id = "%7"
+    app._artifact_tmux_decoration_state = _decoration_state()
     app.content.add_class("-artifact-viewer-active")
     select = MagicMock()
+    restore = MagicMock(return_value=ArtifactViewerResult(True))
     monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
     monkeypatch.setattr(
         "sase.ace.tui.graphics.artifact_tmux_pane_exists",
         lambda _pane_id: False,
     )
     monkeypatch.setattr("sase.ace.tui.graphics.select_tmux_pane", select)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.restore_artifact_tmux_pane_decoration",
+        restore,
+    )
 
     assert app._focus_tracked_artifact_tmux_pane() is False
 
     select.assert_not_called()
+    restore.assert_called_once_with(_decoration_state())
     assert app._artifact_tmux_pane_id is None
+    assert app._artifact_tmux_decoration_state is None
     assert "-artifact-viewer-active" not in app.content.classes
 
 
@@ -488,19 +541,27 @@ async def test_action_quit_closes_live_artifact_pane_before_quit_flow(
 ) -> None:
     app = _ImageQuitApp()
     app._artifact_tmux_pane_id = "%7"
+    app._artifact_tmux_decoration_state = _decoration_state()
     app.content.add_class("-artifact-viewer-active")
     close = MagicMock(return_value=ArtifactViewerResult(True))
+    restore = MagicMock(return_value=ArtifactViewerResult(True))
     monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
     monkeypatch.setattr(
         "sase.ace.tui.graphics.artifact_tmux_pane_exists",
         lambda _pane_id: True,
     )
     monkeypatch.setattr("sase.ace.tui.graphics.close_artifact_tmux_pane", close)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.restore_artifact_tmux_pane_decoration",
+        restore,
+    )
 
     await app.action_quit()
 
+    restore.assert_called_once_with(_decoration_state())
     close.assert_called_once_with("%7")
     assert app._artifact_tmux_pane_id is None
+    assert app._artifact_tmux_decoration_state is None
     assert "-artifact-viewer-active" not in app.content.classes
     assert app.count_running_tasks_calls == 0
     assert app.did_quit is False
@@ -512,19 +573,27 @@ async def test_action_quit_ignores_stale_artifact_pane_and_continues(
 ) -> None:
     app = _ImageQuitApp()
     app._artifact_tmux_pane_id = "%7"
+    app._artifact_tmux_decoration_state = _decoration_state()
     app.content.add_class("-artifact-viewer-active")
     close = MagicMock()
+    restore = MagicMock(return_value=ArtifactViewerResult(True))
     monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
     monkeypatch.setattr(
         "sase.ace.tui.graphics.artifact_tmux_pane_exists",
         lambda _pane_id: False,
     )
     monkeypatch.setattr("sase.ace.tui.graphics.close_artifact_tmux_pane", close)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.restore_artifact_tmux_pane_decoration",
+        restore,
+    )
 
     await app.action_quit()
 
     close.assert_not_called()
+    restore.assert_called_once_with(_decoration_state())
     assert app._artifact_tmux_pane_id is None
+    assert app._artifact_tmux_decoration_state is None
     assert "-artifact-viewer-active" not in app.content.classes
     assert app.count_running_tasks_calls == 1
     assert app.did_quit is True
@@ -535,13 +604,19 @@ def test_agents_artifact_close_signal_path_clears_layout_without_tmux_check(
 ) -> None:
     app = _ImageActionApp(None)
     app._artifact_tmux_pane_id = "%7"
+    app._artifact_tmux_decoration_state = _decoration_state()
     app.content.add_class("-artifact-viewer-active")
     pane_exists = MagicMock()
+    restore = MagicMock(return_value=ArtifactViewerResult(True))
     scheduled: list[Callable[[], None]] = []
     app.call_later = lambda callback: scheduled.append(callback)  # type: ignore[attr-defined]
     monkeypatch.setattr(
         "sase.ace.tui.graphics.artifact_tmux_pane_exists",
         pane_exists,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.restore_artifact_tmux_pane_decoration",
+        restore,
     )
 
     app._schedule_artifact_viewer_closed_from_signal()
@@ -551,7 +626,10 @@ def test_agents_artifact_close_signal_path_clears_layout_without_tmux_check(
     assert len(scheduled) == 1
 
     scheduled[0]()
+    scheduled[0]()
 
     pane_exists.assert_not_called()
+    restore.assert_called_once_with(_decoration_state())
     assert app._artifact_tmux_pane_id is None
+    assert app._artifact_tmux_decoration_state is None
     assert "-artifact-viewer-active" not in app.content.classes

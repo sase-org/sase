@@ -215,6 +215,7 @@ class StateInitMixin:
         self._agents_refresh_debounce_armed: bool = False
         self._agent_load_state: AgentLoadState | None = None
         self._artifact_tmux_pane_id: str | None = None
+        self._artifact_tmux_decoration_state: Any = None
         self._artifact_viewer_previous_sigusr1_handler: (
             signal.Handlers | int | Callable[[int, FrameType | None], Any] | None
         ) = None

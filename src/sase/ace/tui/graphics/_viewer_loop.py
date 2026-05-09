@@ -383,7 +383,7 @@ def print_page_prompt(
         "k": "k: previous page",
         "n": "n: next artifact",
         "p": "p: previous artifact",
-        _RETURN_TO_ACE_KEY: "<tab>: Ace",
+        _RETURN_TO_ACE_KEY: "<tab>: focus SASE TUI",
         "r": "r: refresh",
         "q": "q: quit",
     }

@@ -9,7 +9,7 @@ from types import FrameType
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
-    from ...graphics import ArtifactViewerResult
+    from ...graphics import ArtifactViewerResult, TmuxPaneDecorationState
     from ...models import Agent
     from ...models.agent_panels import AgentPanelGroup
 
@@ -35,6 +35,7 @@ class AgentPanelsMixin:
     _agent_panels_grouped: bool
     _agents: list[Agent]
     _artifact_tmux_pane_id: str | None
+    _artifact_tmux_decoration_state: TmuxPaneDecorationState | None
     _artifact_viewer_previous_sigusr1_handler: (
         signal.Handlers | int | Callable[[int, FrameType | None], Any] | None
     )
@@ -80,8 +81,43 @@ class AgentPanelsMixin:
 
     def _clear_artifact_viewer_layout_from_signal(self) -> None:
         """Clear tracked artifact pane state without querying tmux."""
+        self._clear_tracked_artifact_tmux_pane_state(notify_warnings=False)
+
+    def _restore_artifact_tmux_decoration(self, *, notify_warnings: bool) -> None:
+        """Restore tmux decoration once for the currently tracked artifact pane."""
+        state = getattr(self, "_artifact_tmux_decoration_state", None)
+        if state is None:
+            return
+        self._artifact_tmux_decoration_state = None  # type: ignore[attr-defined]
+
+        from ...graphics import restore_artifact_tmux_pane_decoration
+
+        result = restore_artifact_tmux_pane_decoration(state)
+        if notify_warnings and result.warning is not None:
+            self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
+
+    def _clear_tracked_artifact_tmux_pane_state(
+        self,
+        *,
+        notify_warnings: bool = False,
+    ) -> None:
+        """Clear tracked artifact pane state and restore tmux decoration."""
+        self._restore_artifact_tmux_decoration(notify_warnings=notify_warnings)
         self._artifact_tmux_pane_id = None  # type: ignore[attr-defined]
         self._set_artifact_viewer_layout_collapsed(False)
+
+    def _track_artifact_tmux_pane(self, pane_id: str) -> None:
+        """Track a launched artifact pane and install tmux focus decoration."""
+        self._clear_tracked_artifact_tmux_pane_state(notify_warnings=False)
+        self._artifact_tmux_pane_id = pane_id  # type: ignore[attr-defined]
+
+        from ...graphics import decorate_artifact_tmux_panes
+
+        result = decorate_artifact_tmux_panes(pane_id)
+        self._artifact_tmux_decoration_state = result.state  # type: ignore[attr-defined]
+        if result.warning is not None:
+            self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
+        self._sync_artifact_viewer_layout()
 
     def _with_artifact_viewer_notify_pid(
         self,
@@ -120,12 +156,10 @@ class AgentPanelsMixin:
         if pane_id is None:
             return False
         if not is_tmux_session():
-            self._artifact_tmux_pane_id = None  # type: ignore[attr-defined]
-            self._set_artifact_viewer_layout_collapsed(False)
+            self._clear_tracked_artifact_tmux_pane_state(notify_warnings=False)
             return False
         if not artifact_tmux_pane_exists(pane_id):
-            self._artifact_tmux_pane_id = None  # type: ignore[attr-defined]
-            self._set_artifact_viewer_layout_collapsed(False)
+            self._clear_tracked_artifact_tmux_pane_state(notify_warnings=False)
             return False
         return True
 
@@ -469,8 +503,7 @@ class AgentPanelsMixin:
                 lambda: view_agent_artifact_in_tmux_pane(artifact)
             )
             if result.ok and result.pane_id is not None:
-                self._artifact_tmux_pane_id = result.pane_id  # type: ignore[attr-defined]
-                self._sync_artifact_viewer_layout()
+                self._track_artifact_tmux_pane(result.pane_id)
         else:
             with self.suspend():  # type: ignore[attr-defined]
                 result = view_agent_artifact(artifact)
@@ -495,8 +528,7 @@ class AgentPanelsMixin:
                 lambda: view_agent_artifacts_in_tmux_pane(artifacts)
             )
             if result.ok and result.pane_id is not None:
-                self._artifact_tmux_pane_id = result.pane_id  # type: ignore[attr-defined]
-                self._sync_artifact_viewer_layout()
+                self._track_artifact_tmux_pane(result.pane_id)
         else:
             with self.suspend():  # type: ignore[attr-defined]
                 result = view_agent_artifacts(artifacts)
@@ -518,13 +550,13 @@ class AgentPanelsMixin:
         if pane_id is None:
             return False
         if not artifact_tmux_pane_exists(pane_id):
-            self._artifact_tmux_pane_id = None  # type: ignore[attr-defined]
-            self._sync_artifact_viewer_layout()
+            self._clear_tracked_artifact_tmux_pane_state(notify_warnings=False)
             return False
 
+        self._restore_artifact_tmux_decoration(notify_warnings=True)
         result = close_artifact_tmux_pane(pane_id)
         self._artifact_tmux_pane_id = None  # type: ignore[attr-defined]
-        self._sync_artifact_viewer_layout()
+        self._set_artifact_viewer_layout_collapsed(False)
         if result.warning is not None:
             self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
         return True

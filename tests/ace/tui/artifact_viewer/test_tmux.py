@@ -11,7 +11,9 @@ from sase.ace.tui.graphics.viewer import (
     ArtifactViewSpec,
     artifact_tmux_pane_exists,
     close_artifact_tmux_pane,
+    decorate_artifact_tmux_panes,
     is_tmux_session,
+    restore_artifact_tmux_pane_decoration,
     select_tmux_pane,
     view_artifact_file_in_tmux_pane,
     view_artifact_files,
@@ -268,6 +270,127 @@ def test_tmux_select_pane_helper_surfaces_failure(monkeypatch) -> None:
     assert result.ok is False
     assert result.warning == "tmux select-pane failed with exit code 1: no pane"
     assert result.warnings[0].code == "tmux_select_failed"
+
+
+def test_tmux_artifact_decoration_snapshots_sets_and_restores(monkeypatch) -> None:
+    calls: list[list[str]] = []
+    option_values = {
+        "pane-border-status": "off",
+        "pane-border-format": "#{pane_index}",
+        "pane-border-style": "default",
+        "pane-active-border-style": "default",
+    }
+    title_values = {
+        "%1": "origin title",
+        "%7": "artifact title",
+    }
+    monkeypatch.setenv("TMUX_PANE", "%1")
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.shutil.which",
+        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
+    )
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        if cmd[:3] == ["tmux", "show-options", "-wqv"]:
+            return subprocess.CompletedProcess(
+                cmd, 0, option_values[cmd[-1]] + "\n", ""
+            )
+        if cmd[:3] == ["tmux", "display-message", "-p"]:
+            return subprocess.CompletedProcess(cmd, 0, title_values[cmd[4]] + "\n", "")
+        if cmd[:2] in (["tmux", "select-pane"], ["tmux", "set-option"]):
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+        raise AssertionError(cmd)
+
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+
+    result = decorate_artifact_tmux_panes("%7")
+
+    assert result.ok is True
+    assert result.warning is None
+    assert result.state is not None
+    assert result.state.target_pane_id == "%1"
+    assert [(opt.name, opt.value) for opt in result.state.window_options] == [
+        ("pane-border-status", "off"),
+        ("pane-border-format", "#{pane_index}"),
+        ("pane-border-style", "default"),
+        ("pane-active-border-style", "default"),
+    ]
+    assert [(title.pane_id, title.title) for title in result.state.pane_titles] == [
+        ("%1", "origin title"),
+        ("%7", "artifact title"),
+    ]
+    assert ["tmux", "select-pane", "-t", "%1", "-T", "SASE TUI"] in calls
+    assert ["tmux", "select-pane", "-t", "%7", "-T", "Artifact Viewer"] in calls
+    assert [
+        "tmux",
+        "set-option",
+        "-wq",
+        "-t",
+        "%1",
+        "pane-border-status",
+        "top",
+    ] in calls
+    assert any(
+        call[:6] == ["tmux", "set-option", "-wq", "-t", "%1", "pane-border-format"]
+        and "#{?pane_active" in call[-1]
+        for call in calls
+    )
+
+    calls.clear()
+    restore = restore_artifact_tmux_pane_decoration(result.state)
+
+    assert restore.ok is True
+    assert [
+        "tmux",
+        "set-option",
+        "-wq",
+        "-t",
+        "%1",
+        "pane-border-status",
+        "off",
+    ] in calls
+    assert ["tmux", "select-pane", "-t", "%1", "-T", "origin title"] in calls
+    assert ["tmux", "select-pane", "-t", "%7", "-T", "artifact title"] in calls
+
+
+def test_tmux_artifact_decoration_failure_does_not_block_viewing(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    artifact = tmp_path / "artifact.png"
+    artifact.write_bytes(b"png")
+    calls: list[list[str]] = []
+    monkeypatch.setenv("TMUX_PANE", "%1")
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.shutil.which",
+        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
+    )
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        if cmd[:2] == ["tmux", "split-window"]:
+            return subprocess.CompletedProcess(cmd, 0, "%7\n", "")
+        if cmd[:3] == ["tmux", "show-options", "-wqv"]:
+            return subprocess.CompletedProcess(cmd, 1, "", "old tmux")
+        return subprocess.CompletedProcess(cmd, 0, "title\n", "")
+
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+
+    launch = view_artifact_file_in_tmux_pane(artifact, kind="image")
+    decoration = decorate_artifact_tmux_panes("%7")
+
+    assert launch.ok is True
+    assert launch.pane_id == "%7"
+    assert decoration.ok is True
+    assert decoration.state is not None
+    assert decoration.warning is not None
+    assert [warning.code for warning in decoration.warnings] == [
+        "tmux_option_snapshot_failed",
+        "tmux_option_snapshot_failed",
+        "tmux_option_snapshot_failed",
+        "tmux_option_snapshot_failed",
+    ]
 
 
 def test_artifact_viewer_notifies_parent_pid_on_exit(
