@@ -146,6 +146,9 @@ class LifecycleMixin:
 
     async def action_quit(self) -> None:
         """Quit the application, saving the current selection."""
+        toggle_artifact = getattr(self, "_toggle_tracked_artifact_tmux_pane", None)
+        if callable(toggle_artifact) and toggle_artifact():
+            return
         count = self._count_running_tasks()
         if count > 0:
             from ..modals import ConfirmActionModal

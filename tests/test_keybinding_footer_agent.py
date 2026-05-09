@@ -140,5 +140,7 @@ def test_keybinding_footer_agent_artifact_viewer_active_advertises_focus_key() -
     inactive = footer._compute_agent_bindings(agent, artifact_viewer_active=False)
     active = footer._compute_agent_bindings(agent, artifact_viewer_active=True)
 
-    assert ("l", "artifact pane") not in inactive
-    assert ("l", "artifact pane") in active
+    assert ("<tab>", "artifact pane") not in inactive
+    assert ("q", "close artifact pane") not in inactive
+    assert ("<tab>", "artifact pane") in active
+    assert ("q", "close artifact pane") in active

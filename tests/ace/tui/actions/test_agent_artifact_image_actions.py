@@ -6,7 +6,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
 from sase.ace.tui.actions.agents._panels import AgentPanelsMixin
+from sase.ace.tui.actions.lifecycle import LifecycleMixin
 from sase.ace.tui.graphics import ArtifactViewerResult
 
 
@@ -66,6 +69,20 @@ class _ImageActionApp(AgentPanelsMixin):
 
     def push_screen(self, modal, callback=None):
         self.pushed.append((modal, callback))
+
+
+class _ImageQuitApp(_ImageActionApp, LifecycleMixin):
+    def __init__(self) -> None:
+        super().__init__(None)
+        self.count_running_tasks_calls = 0
+        self.did_quit = False
+
+    def _count_running_tasks(self) -> int:
+        self.count_running_tasks_calls += 1
+        return 0
+
+    def _do_quit(self) -> None:
+        self.did_quit = True
 
 
 def test_agents_open_artifacts_action_pushes_single_artifact_selection_modal(
@@ -463,6 +480,54 @@ def test_agents_focus_tracked_artifact_tmux_pane_clears_stale_pane(
     select.assert_not_called()
     assert app._artifact_tmux_pane_id is None
     assert "-artifact-viewer-active" not in app.content.classes
+
+
+@pytest.mark.asyncio
+async def test_action_quit_closes_live_artifact_pane_before_quit_flow(
+    monkeypatch,
+) -> None:
+    app = _ImageQuitApp()
+    app._artifact_tmux_pane_id = "%7"
+    app.content.add_class("-artifact-viewer-active")
+    close = MagicMock(return_value=ArtifactViewerResult(True))
+    monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.artifact_tmux_pane_exists",
+        lambda _pane_id: True,
+    )
+    monkeypatch.setattr("sase.ace.tui.graphics.close_artifact_tmux_pane", close)
+
+    await app.action_quit()
+
+    close.assert_called_once_with("%7")
+    assert app._artifact_tmux_pane_id is None
+    assert "-artifact-viewer-active" not in app.content.classes
+    assert app.count_running_tasks_calls == 0
+    assert app.did_quit is False
+
+
+@pytest.mark.asyncio
+async def test_action_quit_ignores_stale_artifact_pane_and_continues(
+    monkeypatch,
+) -> None:
+    app = _ImageQuitApp()
+    app._artifact_tmux_pane_id = "%7"
+    app.content.add_class("-artifact-viewer-active")
+    close = MagicMock()
+    monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.artifact_tmux_pane_exists",
+        lambda _pane_id: False,
+    )
+    monkeypatch.setattr("sase.ace.tui.graphics.close_artifact_tmux_pane", close)
+
+    await app.action_quit()
+
+    close.assert_not_called()
+    assert app._artifact_tmux_pane_id is None
+    assert "-artifact-viewer-active" not in app.content.classes
+    assert app.count_running_tasks_calls == 1
+    assert app.did_quit is True
 
 
 def test_agents_artifact_close_signal_path_clears_layout_without_tmux_check(

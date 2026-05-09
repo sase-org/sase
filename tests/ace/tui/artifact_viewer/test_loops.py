@@ -71,9 +71,14 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
         "q",
     )
     assert page_loop_available_keys(0, 1, return_pane_available=True) == (
-        "h",
+        "\t",
         "r",
         "q",
+    )
+    assert "h" not in page_loop_available_keys(
+        0,
+        1,
+        return_pane_available=True,
     )
 
     _print_page_prompt(index=0, page_count=1)
@@ -127,7 +132,7 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
     _print_page_prompt(index=0, page_count=1, return_pane_available=True)
     assert (
         _strip_ansi(capsys.readouterr().out)
-        == "\nPage 1/1  h: Ace  r: refresh  q: quit"
+        == "\nPage 1/1  <tab>: Ace  r: refresh  q: quit"
     )
 
 
@@ -192,6 +197,43 @@ def test_run_artifact_page_loop_refreshes_current_page(tmp_path: Path) -> None:
         _test_icat_command(pages[0]),
         ["clear"],
         _test_icat_command(pages[0]),
+        ["clear"],
+    ]
+
+
+def test_run_artifact_page_loop_tab_focuses_return_pane_and_stays_open(
+    tmp_path: Path,
+) -> None:
+    page = tmp_path / "page-1.png"
+    page.write_bytes(b"png")
+    commands: list[list[str]] = []
+    selected: list[str] = []
+    keys = iter(["\t", "q"])
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    def fake_select(pane_id: str) -> ArtifactViewerResult:
+        selected.append(pane_id)
+        return ArtifactViewerResult(True)
+
+    result = run_artifact_page_loop(
+        [page],
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
+        return_pane_id="%1",
+        select_pane=fake_select,
+    )
+
+    assert result.returncode == 0
+    assert selected == ["%1"]
+    assert commands == [
+        ["clear"],
+        _test_icat_command(page),
+        ["clear"],
+        _test_icat_command(page),
         ["clear"],
     ]
 
@@ -301,7 +343,7 @@ def test_run_artifact_sequence_loop_navigates_pages_and_artifacts(
     assert "second.png" in output
 
 
-def test_run_artifact_sequence_loop_h_focuses_return_pane_and_stays_open(
+def test_run_artifact_sequence_loop_tab_focuses_return_pane_and_stays_open(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -315,7 +357,7 @@ def test_run_artifact_sequence_loop_h_focuses_return_pane_and_stays_open(
     )
     commands: list[list[str]] = []
     selected: list[str] = []
-    keys = iter(["h", "q"])
+    keys = iter(["\t", "q"])
 
     def fake_run(cmd):
         commands.append(list(cmd))

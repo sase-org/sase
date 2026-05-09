@@ -117,7 +117,7 @@ def test_l_on_collapsed_l1_banner_expands_only_that_l1() -> None:
     assert app._group_fold_registry.is_collapsed(planner) is True
 
 
-def test_l_focuses_artifact_pane_before_expanding_agent_fold() -> None:
+def test_l_expands_agent_fold_without_artifact_pane_focus() -> None:
     a = _agent(agent_name="coder.claude")
     app = _StubApp([a], current_idx=0)
     key = ("proj", "demo", "coder")
@@ -127,9 +127,9 @@ def test_l_focuses_artifact_pane_before_expanding_agent_fold() -> None:
 
     app.action_expand_or_layout()
 
-    assert app.focus_artifact_calls == 1
-    assert app._group_fold_registry.is_collapsed(key) is True
-    assert app.refilter_calls == 0
+    assert app.focus_artifact_calls == 0
+    assert app._group_fold_registry.is_collapsed(key) is False
+    assert app.refilter_calls == 1
 
 
 def test_capital_l_expands_every_group() -> None:

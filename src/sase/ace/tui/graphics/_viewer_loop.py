@@ -41,6 +41,7 @@ _ARTIFACT_VIEWER_RESERVED_COLUMNS = 2
 _PAGE_LOOP_RESERVED_ROWS = 2
 _MIN_IMAGE_COLUMNS = 20
 _MIN_IMAGE_ROWS = 5
+_RETURN_TO_ACE_KEY = "\t"
 _FOOTER_RESET = "\x1b[0m"
 _FOOTER_COLOR = "\x1b[38;2;215;175;95m"
 
@@ -81,7 +82,7 @@ def page_loop_available_keys(
     if artifact_index > 0:
         keys.append("p")
     if return_pane_available:
-        keys.append("h")
+        keys.append(_RETURN_TO_ACE_KEY)
     if page_count > 0:
         keys.append("r")
     keys.append("q")
@@ -130,7 +131,7 @@ def run_artifact_page_loop(
         )
         while (key := read()) not in available_keys:
             pass
-        if key == "h" and return_pane_id:
+        if key == _RETURN_TO_ACE_KEY and return_pane_id:
             select(return_pane_id)
             print()
             continue
@@ -225,7 +226,7 @@ def run_artifact_sequence_loop(
         if key == "q":
             _clear_terminal(run)
             return _PageLoopResult()
-        if key == "h" and return_pane_id:
+        if key == _RETURN_TO_ACE_KEY and return_pane_id:
             select(return_pane_id)
             continue
         if key in {"j", "k", "r"}:
@@ -382,7 +383,7 @@ def print_page_prompt(
         "k": "k: previous page",
         "n": "n: next artifact",
         "p": "p: previous artifact",
-        "h": "h: Ace",
+        _RETURN_TO_ACE_KEY: "<tab>: Ace",
         "r": "r: refresh",
         "q": "q: quit",
     }

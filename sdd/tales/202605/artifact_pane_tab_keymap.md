@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 10:51:56
-status: wip
+status: done
 prompt: sdd/prompts/202605/artifact_pane_tab_keymap.md
 ---
 # Artifact Pane Tab Keymap Plan

@@ -86,7 +86,8 @@ class KeybindingBindingsMixin:
             bindings.append((x, "kill/dismiss group"))
 
         if artifact_viewer_active:
-            bindings.append((self._kd("expand_or_layout"), "artifact pane"))
+            bindings.append((self._kd("next_tab"), "artifact pane"))
+            bindings.append((self._kd("quit"), "close artifact pane"))
 
         if agent is None:
             # Even with no selected agent, show app-state bindings
