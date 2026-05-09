@@ -11,6 +11,13 @@ Use this with:
 - Rust gateway: `../sase-core/crates/sase_gateway`
 - SASE host CLI: this repo, `sase mobile gateway start`
 
+Prerequisites:
+
+- JDK 21, Android SDK command-line tools, Android platform `android-35`, and Android build tools `35.0.0`.
+- `ANDROID_HOME` or `ANDROID_SDK_ROOT` set when the Android SDK is not discoverable automatically.
+- `adb` on `PATH` for physical-device or emulator installs.
+- The sibling `sase-android` and `sase-core` checkouts beside this repo.
+
 ## Build And Install
 
 ### Debug APK
@@ -85,6 +92,10 @@ just install
 cargo build -p sase_gateway --manifest-path ../sase-core/Cargo.toml
 ```
 
+The host CLI starts the first gateway binary it can resolve from `PATH`, `../sase-core/target/debug/sase_gateway`, or
+`../sase-core/target/release/sase_gateway`. Pass `-c /path/to/sase_gateway` only when you need to override that
+resolution.
+
 Start the gateway on loopback:
 
 ```bash
@@ -152,6 +163,10 @@ proxies it only inside the tailnet. Tailscale documents Serve as a way to route 
 service and notes that Funnel is the public-internet option; do not use Funnel for the mobile MVP. See the official
 Serve docs: <https://tailscale.com/docs/features/tailscale-serve> and <https://tailscale.com/kb/1242/tailscale-serve>.
 
+Use a recent Tailscale client. The Serve CLI changed in Tailscale 1.52, and the current command accepts a local port,
+partial URL, or full local URL as its target. If the command prompts to enable HTTPS for the tailnet, follow the
+Tailscale consent flow. Tailnet ACLs still apply to Serve traffic.
+
 Start SASE on loopback:
 
 ```bash
@@ -161,7 +176,7 @@ sase mobile gateway start
 In another terminal, expose that loopback service to your tailnet:
 
 ```bash
-tailscale serve --bg 127.0.0.1:7629
+tailscale serve --bg http://127.0.0.1:7629
 tailscale serve status
 ```
 
