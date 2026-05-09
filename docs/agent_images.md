@@ -4,9 +4,12 @@
 
 SASE treats files produced by agents as first-class completion artifacts. When a successful agent adds or modifies a
 supported image file, the completion path records the image in `done.json` and appends it to the notification file list
-after the standard chat and diff artifacts. When a successful agent adds or modifies up to 10 Markdown files, core SASE
-renders PDF artifacts and attaches those PDFs to the same completion notification. Notification plugins can then deliver
-those files without re-scanning the workspace.
+after the standard chat and diff artifacts, and after any generated Markdown PDFs. When a successful agent adds or
+modifies up to 10 Markdown files, core SASE renders PDF artifacts and attaches those PDFs to the same completion
+notification. Notification plugins can then deliver those files without re-scanning the workspace.
+
+ACE is SASE's terminal UI. It has two image surfaces: lightweight in-panel previews for notification and file-panel
+attachments, and the separate `A` artifact viewer for opening completed agent artifacts.
 
 ACE also surfaces image files referenced in saved prompt artifacts (`raw_xprompt.md` and `*_prompt.md`) even when the
 image itself was not part of the agent's git diff. Those prompt-referenced images participate in the Agents-tab artifact
@@ -32,7 +35,7 @@ Image discovery runs when an agent finalizes successfully. The collector checks 
 
 Only existing files with supported image extensions are kept. Paths are resolved to absolute paths so outbound
 notification processes can attach them even when they run outside the agent workspace. Duplicates are removed while
-preserving order, and image paths are appended after any already-attached chat or diff files.
+preserving order, and image paths are appended after any already-attached chat, diff, or generated PDF files.
 
 The same list is persisted as `image_paths` in the agent's `done.json`. Agent metadata consumers should read that field
 instead of trying to infer generated images from arbitrary notification files.
@@ -160,7 +163,7 @@ larger panes provide more sampled cells, and truecolor terminals preserve colors
 ACE checks only terminal color depth from the environment. When `COLORTERM=truecolor`, `COLORTERM=24bit`, or a truecolor
 marker in `TERM` is present, previews use 24-bit color; otherwise they use 256-color approximations. Missing files,
 unsupported extensions, decode errors, missing Pillow, and images above the renderer guardrails show a concise text
-fallback with the file path, byte size when available, and the relevant editor action. Use `e` in notifications or `%E`
-in agent panels whenever full-fidelity viewing is needed.
+fallback with the file path, byte size when available, and the relevant editor or artifact action. Use `e` in
+notifications, `E` on the Agents tab, or the `A` artifact viewer whenever full-fidelity viewing is needed.
 
 Source: `src/sase/ace/tui/graphics/`
