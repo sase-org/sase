@@ -43,6 +43,65 @@ The search currently returns 463 files. Match counts below use the same case-ins
 - Agent C should cover `P2` dated execution history first, then sample `P3` dated logs only when they cluster around repeated dates or terms.
 - Agent D should cover `External/lit/reference notes`, then skim high-count incidental files such as `inbox.zo` only for explicit SASE or agent-workflow design material.
 
+## Phase 2 Source Review
+
+Generated for bead `sase-2h.2` on 2026-05-09. This is a parallel source review handoff, not the final ranked
+recommendation list.
+
+Four scoped reviewers covered the corpus buckets from the routing table above:
+
+- Agent A: core backlog and idea files: `/home/bryan/org/now_gai.zo`, `/home/bryan/org/gai_ideas.zo`,
+  `/home/bryan/org/plans/gai_xprompt_jinja.md`, and `/home/bryan/org/text/gai_*`.
+- Agent B: prompt and workflow sources: `/home/bryan/org/prompts/gai_*.md`, `/home/bryan/org/chat/gai_*`, and
+  workflow references in this inventory.
+- Agent C: dated completion history: high-count P2 rows under `/home/bryan/org/2025` and `/home/bryan/org/2026`.
+- Agent D: external/reference cross-check: `/home/bryan/org/agent_ref.zo`, `/home/bryan/org/claude_code_ref.zo`,
+  and related `lib/chat`, `lib/code`, and `lib/docs` references.
+
+### Cross-Corpus Findings
+
+| Theme | Evidence | Phase 3 implication |
+| --- | --- | --- |
+| Beads and externalized work state | `gai_beads` and bead literature review are P0 items in `/home/bryan/org/now_gai.zo`; the idea is revisited in `/home/bryan/org/gai_ideas.zo`. External notes in `/home/bryan/org/lib/docs/beads_faq.md` and related Beads articles reinforce durable task memory. | Strongly relevant. SASE already has bead-backed epic/phase work; the synthesis should focus on missing polish around dependency waves, evidence capture, and land-agent review rather than re-litigating whether beads belong in SASE. |
+| ChangeSpec lifecycle hardening | Old GAI notes repeatedly ask for YAML/project-spec migration, structured formats, status simplification, `LAST SYNC`, `Archived`, BUG fields, WIP/Draft/Ready semantics, and safe accept/revert behavior in `/home/bryan/org/now_gai.zo` and `/home/bryan/org/gai_ideas.zo`. Dated logs show regressions around reverted visibility, hook output loss on rename, and WIP-to-Draft transitions in `/home/bryan/org/2026/20260117_done.zo` and `/home/bryan/org/2026/20260120_done.zo`. | High-value hardening area. Current SASE has a status state machine, ChangeSpec parser, and core facade; Phase 3 should score invariant/property tests and state transition consolidation highly. |
+| Workflow language and typed outputs | `gai_xpl` calls for output schema validation, step outputs as downstream args, bash commands, HITL, and embedded workflow support in `/home/bryan/org/now_gai.zo` and `/home/bryan/org/prompts/gai_xpl.md`. The dated corpus shows repeated work on `gai_xprompt_workflows`, `gai_output_types`, and `gai_workflows` in early 2026 logs. | Already partly realized by SASE xprompt YAML workflows, but still a strong product thread. Synthesis should look for missing primitives: workspace leases, durable blackboards, typed workflow artifacts, and more visible HITL step state. |
+| Jinja and named xprompt args | `/home/bryan/org/plans/gai_xprompt_jinja.md` is a concrete implementation plan for Jinja2 detection, named args, strict rendering, filters, backward compatibility, and tests. | Narrow, implementable idea. It should be considered separately from broad workflow architecture because it is small enough for a tale or phase if current SASE xprompt rendering lacks equivalent coverage. |
+| Hooks, mentors, and review agents | Core notes request file-change hooks, TAP-derived hooks, failed-test fields, hook OOM retries, package/dead-code/SQL/scuba/out-of-scope mentors, and triggered parallel MentorScript agents. Agent C found repeated dated work on `gai_monitor`, `gai_mentors`, `gai_loop`, and later `axe` migration. Agent D found external support for reviewer agents that inspect traces and evidence, not just final diffs. | One of the strongest clusters. Phase 3 should distinguish implemented SASE AXE/mentor infrastructure from still-missing reliability work: deterministic de-dupe, zombie handling, persisted run records, trigger tests, and evidence-oriented mentor outputs. |
+| Proposal-first commit and review flows | Prompt sources emphasize saving diffs, cleaning workspaces, creating proposal history, running hooks against proposals, and letting humans accept/reject later. Evidence includes `/home/bryan/org/prompts/gai_accept.md`, `/home/bryan/org/prompts/gai_loop.md`, `/home/bryan/org/prompts/gai_history.md`, and current SASE analog `src/sase/xprompts/propose.yml`. | Relevant but mixed with existing SASE commit/propose work. Synthesis should prioritize explicit preconditions, dry-run mutation previews, and artifact-backed proposal review over another broad commit workflow rewrite. |
+| Agent/ACE observability | Old P0/P1 notes ask for raw/rendered prompt display, ACE notifications, chats listing, model picker, jump-to-CL, file panels for DONE agents, embedded workflow expansion, hidden workflow rows, agent history, revive, workspace numbers, and run-from-any-tab behavior. Evidence spans `/home/bryan/org/now_gai.zo`, `/home/bryan/org/text/gai_expand_agent_bug.txt`, `/home/bryan/org/text/gai_hidden_bug_snapshot.txt`, and dated January 2026 logs. | Strong product-polish area. Phase 3 should rank observability ideas by whether they improve repeated debugging loops: run ledger completeness, artifact/file-panel reliability, workflow-step rendering, and replay/revive. |
+| Test failure automation | Core notes and prompt sources ask for a `gai test` cache, failed TAP handling, output trimming, test-output router agents, retries for memory-limit failures, and blackboard-driven fix-test loops. Evidence includes `/home/bryan/org/chat/gai_fix_tests_prompt.md`, `/home/bryan/org/prompts/gai_super_fix_tests.md`, `/home/bryan/org/prompts/gai_test_cmd.md`, and several dated completion logs. | Good candidate for targeted workflows. The final synthesis should avoid a generic "fix tests better" item and instead identify durable artifacts, bounded retry loops, and failure summarization as the product surface. |
+| Curated context and memory | Reference notes around Claude-style context files, skills, codified context, Beads, and SASE memory all point to compact indexes plus explicit source loading rather than giant prompts. Evidence includes `/home/bryan/org/claude_code_ref.zo`, `/home/bryan/org/lib/code/gai_claude_mds.pdf`, and SASE read notes under `/home/bryan/org/lib/chat`. | Supports SASE's short/dynamic/long memory design. Phase 3 should treat memory improvements as maintenance of curation and retrieval, not as a request to dump more content into every agent prompt. |
+
+### Candidate Ideas To Carry Forward
+
+These are not final recommendations, but they have enough evidence for ranking in Phase 3:
+
+1. Harden ChangeSpec/bead lifecycle invariants with transition tests, hook-output retention tests, and explicit
+   accept/revert preconditions.
+2. Make AXE hook/mentor execution a durable, inspectable state machine with persisted run records, de-dupe, zombie
+   handling, and trigger regression tests.
+3. Add typed xprompt/workflow output contracts and validation for workflow steps, including first-class artifact
+   blackboards and clearer HITL state.
+4. Improve ACE agent/workflow observability: run ledger completeness, raw/rendered prompt display, workflow-step
+   rendering, DONE-agent file panels, revive/replay, and jump-to-ChangeSpec.
+5. Productize proposal-first review flows with dry-run mutation previews and artifact-backed accept/reject decisions.
+6. Add focused test-failure workflows that trim outputs, preserve retry context, and stop for human input instead of
+   looping blindly.
+7. Evaluate the Jinja/named-argument xprompt plan as a narrow implementation candidate if current SASE support is still
+   incomplete.
+8. Keep multi-agent orchestration scoped to naturally partitioned work, with beads/ChangeSpecs/artifacts as the shared
+   state rather than hidden chat context.
+
+### Caveats
+
+- `tick::` markers were treated as revisit/follow-up evidence, not proof of completion.
+- `@ACCEPTED` and `@REJECTED` markers in `/home/bryan/org/gai_ideas.zo` were treated as explicit historical status
+  where present.
+- Several secondary paths referenced by prompt files, such as old `home/lib/gai/chats/gai_ace_snapshot-*.md` examples,
+  were not found under `/home/bryan` during targeted lookup; the review did not rely on those missing files.
+- This phase intentionally sampled low-signal P3 dated logs rather than reading every one-line daily hit. The final
+  synthesis should weight repeated multi-day clusters higher than isolated pomodoro notes.
+
 ### Complete Inventory
 
 | Priority | Category | Matches | Path |
