@@ -6,37 +6,27 @@ A subset of sase's core APIs is served by a Rust extension distributed as
 runtime dependency, so a normal `pip install sase` (or `uv tool install sase`) on a supported platform pulls a prebuilt
 wheel automatically — no Rust toolchain required, no env-var selection, no Python fallback for ported operations.
 
-The shipped Rust-backed operations are:
+The shipped Rust-backed operations are grouped by the Python facade that calls them:
 
-- `parse_project_bytes`
-- `parse_query`
-- `scan_agent_artifacts`
-- `read_status_from_lines`
-- `apply_status_update`
-- `plan_status_transition`
-- `parse_git_name_status_z`
-- `parse_git_branch_name`
-- `derive_git_workspace_name`
-- `parse_git_conflicted_files`
-- `parse_git_local_changes`
-- persistent query corpus handles (`compile_corpus`, `compile_query`, `evaluate_many`) used by
-  `sase.core.query_corpus_facade`
-- notification JSONL store operations (`read_notifications_snapshot`, `append_notification`,
-  `apply_notification_state_update`, `rewrite_notifications`) used by `sase.core.notification_store_facade`
-- `plan_agent_cleanup`
-- agent cleanup execution helpers for dismissed indexes/bundles, artifact deletion, workspace release text mutation, and
-  hook/mentor/comment kill marking
-- Rust-backed agent launch helpers:
-  - `allocate_launch_timestamp_batch`
-  - `prepare_agent_launch`
-  - `spawn_prepared_agent_process`
-  - `plan_agent_launch_fanout`
-- Rust-backed bead operations:
-  - read queries (`show`, `list`, `ready`, `blocked`, `stats`, `doctor`, epic-child lookups)
-  - merged multi-workspace read queries
-  - mutations (`init`, `create`, `update`, `open`, `close`, `rm`, `dep add`, ready-to-work flags, JSONL export)
-  - deterministic epic work DAG planning
-  - the early `sase bead` CLI fast path for common read/write commands
+- Project parsing: `parse_project_bytes`
+- Query parsing and evaluation: `tokenize_query`, `parse_query`, `canonicalize_query`, legacy one-shot
+  `evaluate_query_many`, and the product persistent-corpus path (`compile_corpus`, `compile_query`, `evaluate_many`)
+  used by `sase.core.query_corpus_facade`
+- Agent artifact scan/index operations: `scan_agent_artifacts`, `rebuild_agent_artifact_index`,
+  `upsert_agent_artifact_index_row`, `delete_agent_artifact_index_row`, and `query_agent_artifact_index`
+- Status and status-transition helpers: `read_status_from_lines`, `apply_status_update`, and `plan_status_transition`
+- Git query parsers: `parse_git_name_status_z`, `parse_git_branch_name`, `derive_git_workspace_name`,
+  `parse_git_conflicted_files`, and `parse_git_local_changes`
+- Notification JSONL store operations: `read_notifications_snapshot`, `append_notification`,
+  `apply_notification_state_update`, and `rewrite_notifications`
+- Agent cleanup planning plus deterministic cleanup mutations: dismissed index/bundle writes, artifact-marker deletion,
+  workspace-release text mutation, and hook/mentor/comment kill marking
+- Agent launch preparation, low-level detached spawn, timestamp allocation, fan-out planning, and RUNNING-field
+  workspace-claim planning/mutation helpers
+- Bead data operations: read queries (`show`, `list`, `ready`, `blocked`, `stats`, `doctor`, epic-child lookups), merged
+  multi-workspace reads, mutations (`init`, `create`, `update`, `open`, `close`, `rm`, `dep add`, ready-to-work flags,
+  sync-clean checks, JSONL export), deterministic epic/legend work planning, and the early `sase bead` CLI fast path for
+  common read/write commands
 
 The intentionally Python-owned facade surfaces (host logic, not backend fallbacks) are:
 
@@ -62,6 +52,9 @@ The intentionally Python-owned facade surfaces (host logic, not backend fallback
   SASE workspace/project lookup, VCS prompt context for `sase bead work`, xprompt resolution, user confirmation, agent
   launch, rollback of already-spawned children, and telemetry increments. Rust owns the bead data model, storage/query
   engine, JSONL codecs, mutation transactions, workspace merge, deterministic work-plan DAG, and CLI output planning.
+- Explicit agent artifact storage remains Python-owned because it copies or moves user files into `~/.sase/artifacts/`
+  and updates the local JSONL association index under a file lock. Rust owns the separate agent-run artifact scanner and
+  its persistent query index.
 
 ## Why a Rust Backend?
 
@@ -109,8 +102,9 @@ The facade lives at `src/sase/core/`:
 | `notification_store_wire.py`   | Stable notification snapshot/update wire records across the Rust boundary                                          |
 | `status_facade.py`             | Status line helpers + planner (Rust); side-effecting transition (Python host logic)                                |
 | `graph_index_facade.py`        | `build_changespec_graph_index()` facade (Python host logic)                                                        |
-| `agent_scan_facade.py`         | Agent artifact scan plus persistent index query/rebuild/verify facade (Rust)                                       |
+| `agent_scan_facade.py`         | Agent artifact scan plus persistent index query/rebuild/update/delete facade (Rust)                                |
 | `agent_scan_wire.py`           | Stable wire records for agent-artifact scans and index maintenance                                                 |
+| `agent_artifact_facade.py`     | Compatibility import surface for explicit/default agent-artifact helpers (Python host logic)                       |
 | `agent_cleanup_wire.py`        | Stable cleanup planning and side-effect intent wires                                                               |
 | `agent_cleanup_facade.py`      | Agent cleanup target conversion and `plan_agent_cleanup()` facade                                                  |
 | `agent_cleanup_execution.py`   | Host-safe wrappers for Rust-backed deterministic cleanup mutations                                                 |
@@ -220,6 +214,10 @@ the editable `sase` install does not have to round-trip through PyPI:
 git clone https://github.com/sase-org/sase-core.git ../sase-core
 just install     # builds sase_core_rs from ../sase-core, then installs sase in editable mode
 ```
+
+Docs-only commands do not need the application package or the Rust extension. `just docs-check` and
+`just docs-pdf-check` install only MkDocs tooling into `.venv`, which is why documentation CI can run without checking
+out `../sase-core`.
 
 `just rust-install` remains the explicit way to (re)build only the extension, and `just rust-install-uv-tool` targets
 the uv-tool venv at `$(uv tool dir)/sase` for users who installed `sase` via `uv tool install` and want the latest local
