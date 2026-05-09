@@ -91,7 +91,7 @@ def test_agent_count_numbers_have_rich_styles() -> None:
         "read": _style_for_plain_segment(text, "75"),
     }
     assert count_styles == {
-        "total": "bold #5FAFFF",
+        "total": "#AFAFAF",
         "asking": "bold #FFAF00",
         "running": "bold #00D7AF",
         "waiting": "bold #AF87FF",

@@ -11,6 +11,8 @@ from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 class AgentInfoPanel(Static):
     """Top bar showing agent metrics and auto-refresh countdown."""
 
+    _TOTAL_COUNT_STYLE = "#AFAFAF"
+
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the info panel."""
         super().__init__(**kwargs)
@@ -143,7 +145,6 @@ class AgentInfoPanel(Static):
     }
 
     _COUNT_STYLES: dict[str, str] = {
-        "total": "bold #5FAFFF",
         "asking": "bold #FFAF00",
         "running": "bold #00D7AF",
         "waiting": "bold #AF87FF",
@@ -188,7 +189,7 @@ class AgentInfoPanel(Static):
             text.append("…", style="dim italic")
             self.update(text)
             return
-        text.append(f"{self._visible_agent_count}", style=self._COUNT_STYLES["total"])
+        text.append(f"{self._visible_agent_count}", style=self._TOTAL_COUNT_STYLE)
         text.append(" Agents", style="bold #87D7FF")
         self._append_metric_strip(text)
         if self._search_query:
