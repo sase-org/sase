@@ -1,8 +1,8 @@
 """Integration tests for plugin lifecycle with real installed plugins.
 
-These tests verify end-to-end behavior with the actual sase-github and
-sase-google plugin packages installed.  Tests that require a specific plugin
-are skipped when that plugin is not available.
+These tests verify end-to-end behavior with installed VCS plugin packages.
+Tests that require a specific plugin are skipped when that plugin is not
+available.
 """
 
 import os
@@ -21,9 +21,9 @@ has_hg = "hg" in _vcs_eps
 has_bare_git = "bare_git" in _vcs_eps
 
 skip_no_github = pytest.mark.skipif(not has_github, reason="sase-github not installed")
-skip_no_hg = pytest.mark.skipif(not has_hg, reason="sase-google not installed")
+skip_no_hg = pytest.mark.skipif(not has_hg, reason="hg VCS plugin not installed")
 skip_no_both = pytest.mark.skipif(
-    not (has_github and has_hg), reason="both sase-github and sase-google required"
+    not (has_github and has_hg), reason="both GitHub and hg VCS plugins required"
 )
 
 

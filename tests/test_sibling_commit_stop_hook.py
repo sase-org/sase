@@ -89,17 +89,17 @@ def _make_dirty_repo(path: Path) -> None:
 
 def test_dirty_primary_sibling_repo_blocks(tmp_path: Path) -> None:
     project_dir = _make_project(tmp_path)
-    _make_dirty_repo(tmp_path / "sase-gchat")
+    _make_dirty_repo(tmp_path / "sase-telegram")
 
     result = _run_hook(project_dir, tmp_path)
 
     assert result.returncode == 2
     assert result.stdout == ""
     assert (
-        "Uncommitted changes detected in sibling repo(s): ../sase-gchat"
+        "Uncommitted changes detected in sibling repo(s): ../sase-telegram"
         in result.stderr
     )
-    assert "cd ../sase-gchat" in result.stderr
+    assert "cd ../sase-telegram" in result.stderr
     assert "/sase_git_commit" in result.stderr
     assert "git status --short --branch" in result.stderr
     assert "git push" in result.stderr
@@ -107,7 +107,7 @@ def test_dirty_primary_sibling_repo_blocks(tmp_path: Path) -> None:
 
 def test_dirty_ephemeral_sibling_workspace_is_skipped(tmp_path: Path) -> None:
     project_dir = _make_project(tmp_path)
-    _make_dirty_repo(tmp_path / "sase-gchat_100")
+    _make_dirty_repo(tmp_path / "sase-telegram_100")
 
     result = _run_hook(project_dir, tmp_path)
 
@@ -118,14 +118,14 @@ def test_dirty_ephemeral_sibling_workspace_is_skipped(tmp_path: Path) -> None:
 
 def test_second_run_with_same_session_exits_cleanly(tmp_path: Path) -> None:
     project_dir = _make_project(tmp_path)
-    _make_dirty_repo(tmp_path / "sase-gchat")
+    _make_dirty_repo(tmp_path / "sase-telegram")
     timestamp = "260425_120001"
 
     first = _run_hook(project_dir, tmp_path, timestamp=timestamp)
     second = _run_hook(project_dir, tmp_path, timestamp=timestamp)
 
     assert first.returncode == 2
-    assert "../sase-gchat" in first.stderr
+    assert "../sase-telegram" in first.stderr
     assert second.returncode == 0
     assert second.stdout == ""
     assert second.stderr == ""
@@ -135,7 +135,7 @@ def test_codex_json_reason_includes_actionable_sibling_details(
     tmp_path: Path,
 ) -> None:
     project_dir = _make_project(tmp_path)
-    _make_dirty_repo(tmp_path / "sase-gchat")
+    _make_dirty_repo(tmp_path / "sase-telegram")
 
     result = _run_hook(project_dir, tmp_path, codex=True)
 
@@ -143,10 +143,10 @@ def test_codex_json_reason_includes_actionable_sibling_details(
     payload = json.loads(result.stdout)
     assert payload["decision"] == "block"
     assert (
-        "Uncommitted changes detected in sibling repo(s): ../sase-gchat"
+        "Uncommitted changes detected in sibling repo(s): ../sase-telegram"
         in payload["reason"]
     )
-    assert "cd ../sase-gchat" in payload["reason"]
+    assert "cd ../sase-telegram" in payload["reason"]
     assert "/sase_git_commit" in payload["reason"]
     assert "git status --short --branch" in payload["reason"]
     assert "git push" in payload["reason"]
@@ -157,7 +157,7 @@ def test_codex_fallback_command_blocks_without_codex_project_dir(
     tmp_path: Path,
 ) -> None:
     project_dir = _make_project(tmp_path)
-    _make_dirty_repo(tmp_path / "sase-gchat")
+    _make_dirty_repo(tmp_path / "sase-telegram")
 
     result = _run_configured_codex_fallback_command(project_dir, tmp_path)
 
@@ -165,10 +165,10 @@ def test_codex_fallback_command_blocks_without_codex_project_dir(
     payload = json.loads(result.stdout)
     assert payload["decision"] == "block"
     assert (
-        "Uncommitted changes detected in sibling repo(s): ../sase-gchat"
+        "Uncommitted changes detected in sibling repo(s): ../sase-telegram"
         in payload["reason"]
     )
-    assert "cd ../sase-gchat" in payload["reason"]
+    assert "cd ../sase-telegram" in payload["reason"]
     assert payload["reason"] in result.stderr
 
 

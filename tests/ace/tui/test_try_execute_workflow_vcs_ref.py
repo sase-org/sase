@@ -37,7 +37,7 @@ class _FakeApp(WorkflowExecMixin):
 
 
 def _launch_free_xprompt() -> Workflow:
-    """Fake simple xprompt mirroring sase-google's ``launch/free``.
+    """Fake simple xprompt mirroring a plugin-provided ``launch/free``.
 
     The template references both ``bug_id`` and ``feature`` — under
     ``StrictUndefined`` this fails to render unless *both* are bound.
