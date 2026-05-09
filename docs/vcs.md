@@ -60,8 +60,9 @@ The hooks are organized into several groups:
 
 ### Disabling Plugins
 
-Set `SASE_DISABLE_PLUGINS` to disable all plugin groups, or `SASE_DISABLE_PLUGIN_VCS` to disable VCS plugins
-specifically. See [docs/configuration.md](configuration.md#plugin-system) for details.
+The VCS provider registry loads provider entry points directly. It does not currently consult the resource-plugin
+disable switches described in [docs/configuration.md](configuration.md#plugin-system). Use `SASE_VCS_PROVIDER` or
+`vcs_provider.provider` to force a provider selection.
 
 ## Provider Selection
 

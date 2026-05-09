@@ -1,31 +1,38 @@
 # Plugin System
 
-Sase uses a plugin architecture based on [pluggy](https://pluggy.readthedocs.io/) and Python
-[entry points](https://packaging.python.org/en/latest/specifications/entry-points/) to allow extending functionality via
-installable packages. The core `sase` package provides the plugin infrastructure and a minimal set of built-in plugins;
-additional functionality is available through optional plugin packages.
+Sase uses Python [entry points](https://packaging.python.org/en/latest/specifications/entry-points/) to discover
+optional functionality installed in the same Python environment as `sase`. Runtime providers use
+[pluggy](https://pluggy.readthedocs.io/) hooks; resource plugins expose package data such as xprompt files and
+`default_config.yml`.
+
+The core `sase` package provides the plugin infrastructure, the built-in LLM providers, and local git/directory
+workspace support. Extra packages add hosted VCS workflows, internal workflows, or integrations without changing the
+core package.
 
 ## Plugin Groups
 
-Sase defines five entry point groups for plugin discovery:
+Sase defines five entry point groups:
 
-| Entry Point Group | Purpose                                             | Example Plugin               |
-| ----------------- | --------------------------------------------------- | ---------------------------- |
-| `sase_vcs`        | VCS provider plugins (git, hg, etc.)                | `sase-github`                |
-| `sase_workspace`  | Workspace provider plugins (ref resolution, submit) | `sase-github`                |
-| `sase_llm`        | LLM provider plugins beyond the bundled providers   | external provider packages   |
-| `sase_xprompts`   | XPrompt templates and workflows                     | `sase-google`                |
-| `sase_config`     | Default configuration (`default_config.yml`)        | `sase-google`, `sase-github` |
+| Entry Point Group | Entry Point Value | Purpose                                             | Example Plugin               |
+| ----------------- | ----------------- | --------------------------------------------------- | ---------------------------- |
+| `sase_vcs`        | Provider class    | VCS provider plugins (git, hg, etc.)                | `sase-github`                |
+| `sase_workspace`  | Provider class    | Workspace provider plugins (ref resolution, submit) | `sase-github`                |
+| `sase_llm`        | Provider class    | LLM provider plugins                                | built-in providers, Jetski   |
+| `sase_xprompts`   | Package module    | XPrompt templates and workflows                     | `sase-google`                |
+| `sase_config`     | Package module    | Default configuration (`default_config.yml`)        | `sase-google`, `sase-github` |
+
+Provider-class entry points resolve to a class that is instantiated and registered with pluggy. Package-module entry
+points resolve to a module whose package resources are read by Sase.
 
 ## Available Plugin Packages
 
-| Package         | Description                                                                             | Entry Points                                                                                        |
-| --------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `sase` (core)   | BareGitPlugin, Claude/Codex/Gemini/Qwen/OpenCode LLM providers                          | `sase_vcs: bare_git`, `sase_workspace: bare_git`, `sase_llm: claude, codex, gemini, opencode, qwen` |
-| `sase-github`   | GitHubPlugin with GitHub CLI (`gh`) PR operations                                       | `sase_vcs: github`, `sase_workspace: github`, `sase_config`, `sase_xprompts`                        |
-| `sase-google`   | HgPlugin for Mercurial, `sase_hg_*` helper commands, config, and xprompts               | `sase_vcs: hg`, `sase_workspace: hg`, `sase_config`, `sase_xprompts`                                |
-| `sase-telegram` | Telegram integration via chop scripts (`sase_chop_tg_outbound`, `sase_chop_tg_inbound`) | CLI scripts (not pluggy)                                                                            |
-| `sase-nvim`     | Neovim integration (e.g., project spec syntax highlighting)                             | standalone (not pluggy)                                                                             |
+| Package         | Description                                                                             | Entry Points                                                                                                       |
+| --------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `sase` (core)   | Bare-git VCS, bare-git and `#cd` workspaces, and built-in LLM providers                 | `sase_vcs: bare_git`, `sase_workspace: bare_git, cd`, `sase_llm: claude, codex, gemini, opencode, qwen`            |
+| `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations             | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_xprompts: sase_github`             |
+| `sase-google`   | Mercurial VCS/workspace support, Jetski LLM provider, helper scripts, config, xprompts  | `sase_llm: jetski`, `sase_vcs: hg`, `sase_workspace: hg`, `sase_config: sase_google`, `sase_xprompts: sase_google` |
+| `sase-telegram` | Telegram integration via chop scripts (`sase_chop_tg_outbound`, `sase_chop_tg_inbound`) | CLI scripts (not pluggy entry points)                                                                              |
+| `sase-nvim`     | Neovim integration, including project spec syntax and prompt helpers                    | standalone Neovim plugin files (not Python entry points)                                                           |
 
 ## Installation
 
@@ -42,14 +49,16 @@ pip install sase-google
 
 ## How Plugins Are Discovered
 
-Plugin discovery uses `importlib.metadata.entry_points()` to find installed packages that declare entry points in one of
-sase's plugin groups. The shared discovery logic lives in `src/sase/main/plugin_discovery.py`.
+Plugin discovery uses `importlib.metadata.entry_points()` to find installed packages that declare one of Sase's entry
+point groups.
 
-For each group:
+There are two discovery paths:
 
-1. All entry points for the group are loaded and sorted by name (for determinism).
-2. Each entry point is imported as a module.
-3. Modules that fail to load are silently skipped (logged at debug level).
+1. **Provider classes**: `sase_vcs`, `sase_workspace`, and `sase_llm` entry points resolve to classes. The relevant
+   registry loads the class, instantiates it, and registers the instance with a pluggy `PluginManager`.
+2. **Package resources**: `sase_xprompts` and `sase_config` entry points resolve to modules. The shared helper in
+   `src/sase/main/plugin_discovery.py` sorts those entry points by name, loads the modules, and skips module load
+   failures after logging them at debug level.
 
 ### VCS Plugins (pluggy)
 
@@ -57,11 +66,10 @@ VCS plugins use pluggy's hook system. The hook specification is defined in `VCSH
 (`src/sase/vcs_provider/_hookspec.py`). Each hook method uses `firstresult=True`, meaning the first plugin to return a
 non-`None` result wins.
 
-VCS plugins are loaded by `VCSPluginManager` which:
+The VCS registry (`src/sase/vcs_provider/_registry.py`) uses `sase_vcs` entry points in two ways:
 
-1. Creates a `pluggy.PluginManager` with the `"sase_vcs"` project name.
-2. Registers the `VCSHookSpec`.
-3. Loads plugins from the `sase_vcs` entry point group.
+1. Detection/classification builds a pluggy manager containing all registered VCS plugins.
+2. Runtime operations create a `VCSPluginManager` for the selected provider name, such as `bare_git`, `github`, or `hg`.
 
 ### Workspace Plugins (pluggy)
 
@@ -69,11 +77,9 @@ Workspace plugins use pluggy's hook system, similar to VCS plugins. The hook spe
 `WorkspaceHookSpec` (`src/sase/workspace_provider/_hookspec.py`). Most hooks use `firstresult=True`; the exception is
 `ws_get_workflow_metadata` which collects results from all plugins. All hook method names are prefixed with `ws_`.
 
-Workspace plugins are loaded by `WorkspacePluginManager` which:
-
-1. Creates a `pluggy.PluginManager` with the `"sase_workspace"` project name.
-2. Registers the `WorkspaceHookSpec`.
-3. Loads plugins from the `sase_workspace` entry point group.
+The workspace registry (`src/sase/workspace_provider/_registry.py`) creates a singleton `WorkspacePluginManager`,
+registers `WorkspaceHookSpec`, and loads all `sase_workspace` provider classes from entry points. This is why all
+workspace metadata can be listed at once while hook dispatch still lets a single plugin handle each operation.
 
 See [docs/workspace.md](workspace.md) for the full workspace provider reference.
 
@@ -86,16 +92,18 @@ LLM provider plugins use pluggy's hook system. The hook specification is defined
 `llm_autodetect_priority`, `llm_autodetect_cli_name`, `llm_default_retry_config`) are invoked per-plugin by the registry
 so each provider contributes its own metadata. All hook method names are prefixed with `llm_`.
 
-Core sase ships Claude, Codex, Gemini, Qwen, and OpenCode providers as built-in entry points. Additional providers
-belong in external plugin packages that declare `sase_llm` entry points and provide their own metadata hooks.
+Core Sase ships Claude, Codex, Gemini, Qwen, and OpenCode providers as built-in entry points. Additional providers
+belong in external plugin packages that declare `sase_llm` entry points and provide their own metadata hooks. The
+`sase-google` package currently contributes a `jetski` provider.
 
 See [docs/llms.md](llms.md) for the full LLM provider reference, including authoring new providers with `@hookimpl`.
 
 ### XPrompt Plugins
 
 Plugin packages can contribute xprompt templates by declaring a `sase_xprompts` entry point that points to a module. The
-module's package directory is searched for `xprompts/*.md` and `xprompts/*.yml` files. Plugin xprompts are priority 7 in
-the [discovery order](xprompt.md#discovery-order) (above built-in, below config-based).
+module's package directory is searched for `xprompts/*.md` files and `xprompts/*.yml` / `xprompts/*.yaml` workflow
+files. Plugin xprompts are priority 8 in the [discovery order](xprompt.md#discovery-order) (above built-in files and
+below config-based xprompts).
 
 ### Config Plugins
 
@@ -105,19 +113,16 @@ user's `sase.yml`. See the [Deep-Merge System](configuration.md#deep-merge-syste
 
 ## Disabling Plugins
 
-Plugins can be disabled via environment variables:
+Resource plugins can be disabled via environment variables:
 
-| Variable                        | Effect                         |
-| ------------------------------- | ------------------------------ |
-| `SASE_DISABLE_PLUGINS`          | Disable all plugin groups      |
-| `SASE_DISABLE_PLUGIN_VCS`       | Disable VCS plugins only       |
-| `SASE_DISABLE_PLUGIN_WORKSPACE` | Disable workspace plugins only |
-| `SASE_DISABLE_PLUGIN_XPROMPTS`  | Disable xprompt plugins only   |
-| `SASE_DISABLE_PLUGIN_CONFIG`    | Disable config plugins only    |
+| Variable                       | Effect                                                    |
+| ------------------------------ | --------------------------------------------------------- |
+| `SASE_DISABLE_PLUGINS`         | Disable resource plugin loading for config and xprompts   |
+| `SASE_DISABLE_PLUGIN_XPROMPTS` | Disable xprompt/workflow resource plugins only            |
+| `SASE_DISABLE_PLUGIN_CONFIG`   | Disable plugin `default_config.yml` resource loading only |
 
-LLM plugins honor the global `SASE_DISABLE_PLUGINS` switch but do not currently have a dedicated per-group disable flag.
-
-Any non-empty value enables the disable. This is useful for debugging or when a plugin causes issues.
+Any non-empty value enables the disable. The VCS, workspace, and LLM provider registries currently load their provider
+entry points directly and do not consult these resource-plugin disable switches.
 
 ## Writing a Plugin
 
@@ -141,12 +146,12 @@ from sase.vcs_provider._hookspec import hookimpl
 
 class MyVCSPlugin:
     @hookimpl
-    def vcs_checkout(self, revision: str, cwd: str) -> tuple[bool, str | None]:
+    def vcs_checkout(self, revision: str, cwd: str) -> tuple[bool, str | None] | None:
         # Implementation here
         ...
 
     @hookimpl
-    def vcs_diff(self, cwd: str) -> tuple[bool, str | None]:
+    def vcs_diff(self, cwd: str) -> tuple[bool, str | None] | None:
         # Implementation here
         ...
 ```
@@ -175,6 +180,8 @@ class MyWorkspacePlugin:
             ref_pattern=r"#my_vcs:(\w+)",
             display_name="My VCS",
             pre_allocated_env_prefix="SASE_MYVCS",
+            vcs_family="git",
+            vcs_provider_name="my_vcs",
         )
 
     @hookimpl
@@ -200,6 +207,8 @@ my_sase_plugin/
     └── my_workflow.yml
 ```
 
+Use `.md` for prompt templates and `.yml` / `.yaml` for workflow definitions.
+
 ### Example: Config Plugin
 
 Place a `default_config.yml` alongside your module and register it:
@@ -217,3 +226,16 @@ my_sase_plugin/
 
 Plugin configs are merged using the [deep-merge system](configuration.md#deep-merge-system). User config in `sase.yml`
 takes precedence over plugin defaults.
+
+### Example: LLM Provider Plugin
+
+LLM providers declare a `sase_llm` provider class:
+
+```toml
+[project.entry-points."sase_llm"]
+my_llm = "my_sase_plugin.llm:MyLLMProvider"
+```
+
+The provider implements hooks from `LLMHookSpec` using `@hookimpl`, including `llm_invoke()` for execution and metadata
+hooks such as `llm_provider_name()`, `llm_known_model_names()`, and `llm_autodetect_priority()`. See
+[docs/llms.md](llms.md#external-provider-plugins) for the full provider contract.

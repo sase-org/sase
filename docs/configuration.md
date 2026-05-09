@@ -771,13 +771,14 @@ a provider prefix; use `opencode models` to list models in your configured envir
 
 ### Plugin System
 
-| Variable                        | Description                                               |
-| ------------------------------- | --------------------------------------------------------- |
-| `SASE_DISABLE_PLUGINS`          | Disable all plugin groups when set (any non-empty value). |
-| `SASE_DISABLE_PLUGIN_VCS`       | Disable VCS plugins only.                                 |
-| `SASE_DISABLE_PLUGIN_WORKSPACE` | Disable workspace plugins only.                           |
-| `SASE_DISABLE_PLUGIN_XPROMPTS`  | Disable xprompt plugins only.                             |
-| `SASE_DISABLE_PLUGIN_CONFIG`    | Disable config plugins only.                              |
+These switches affect plugin-provided resource loading. The VCS, workspace, and LLM provider registries load provider
+entry points directly.
+
+| Variable                       | Description                                                             |
+| ------------------------------ | ----------------------------------------------------------------------- |
+| `SASE_DISABLE_PLUGINS`         | Disable plugin-provided xprompts, workflows, and config defaults.       |
+| `SASE_DISABLE_PLUGIN_XPROMPTS` | Disable plugin-provided xprompt and workflow files.                     |
+| `SASE_DISABLE_PLUGIN_CONFIG`   | Disable plugin-provided `default_config.yml` files and config xprompts. |
 
 ### General
 

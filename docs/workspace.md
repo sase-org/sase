@@ -177,5 +177,5 @@ A single plugin package (e.g., `sase-github`) typically provides both a VCS plug
 
 ## Disabling Plugins
 
-Set `SASE_DISABLE_PLUGIN_WORKSPACE` to disable workspace plugins. See
-[docs/configuration.md](configuration.md#plugin-system) for details.
+The workspace provider registry loads provider entry points directly. It does not currently consult the resource-plugin
+disable switches described in [docs/configuration.md](configuration.md#plugin-system).
