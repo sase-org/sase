@@ -4,21 +4,23 @@ pdf: false
 
 # Infographic Style Brief
 
-This brief is the shared contract for the five documentation infographics planned in
-`sdd/epics/202605/docs_gpt_image_infographics.md`. It confirms the target docs, insertion points, visual language, and
-semantic guardrails for the image-generation phases.
+This brief records the shared contract for the five documentation infographics produced from
+`sdd/epics/202605/docs_gpt_image_infographics.md`. Use it when auditing, regenerating, or post-processing the images so
+their sidecar prompts, target docs, insertion points, visual language, and semantic guardrails stay aligned.
 
 ## Shared Visual Contract
 
-- Use a landscape architecture-infographic composition that reads well at GitHub Markdown width. Match the existing
-  `docs/images/*-infographic.png` family: approximately 16:9, light background, crisp blocks, clear arrows, and limited
-  short labels.
+- Use a landscape architecture-infographic composition that reads well at GitHub Markdown width. Match the current
+  `docs/images/*-infographic.png` family: 16:9 PNGs, light background, crisp blocks, clear arrows, and limited short
+  labels.
 - Prefer a neutral base with distinct accent colors for different concept groups. Avoid a one-hue palette, decorative
   gradients, logos, fake terminal screenshots, and paragraph-length text inside the raster image.
-- Keep labels deterministic and terminology-aligned with the target doc. If generated labels are misspelled, too small,
-  or semantically wrong, preserve only the useful layout/artwork and add final labels in a local post-processing step.
-- Each final image needs a sidecar prompt file next to the PNG. The sidecar should include the final prompt, target
-  insertion point, intended alt text, and any post-processing notes.
+- Keep labels deterministic and terminology-aligned with the target doc. If regenerated labels are misspelled, too
+  small, or semantically wrong, preserve only the useful layout/artwork and add final labels in a local post-processing
+  step.
+- Each final image has a sidecar prompt file next to the PNG. The sidecar should include the final prompt, target
+  insertion point, intended alt text, and any post-processing notes; update it whenever the image is regenerated or
+  relabeled.
 - Embed images with relative Markdown links such as `![Useful alt text](images/name-infographic.png)`. The alt text
   should describe the model shown, not just repeat the filename.
 
@@ -32,7 +34,8 @@ semantic guardrails for the image-generation phases.
 | `docs/beads.md`            | `docs/images/bead-epic-work-infographic.png`        | After the opening paragraph and before `## Table of Contents`.                                 | The data model, storage model, readiness, and epic execution flow need a single orientation map before command examples.      |
 | `docs/rust_backend.md`     | `docs/images/rust-backend-boundary-infographic.png` | At the start of `## Architecture`, before the existing ASCII diagram.                          | The section already owns the Python facade and Rust extension boundary, and the image can summarize ownership before details. |
 
-Do not edit these five target docs in phase 1. Later phases should insert only a minimal lead-in sentence when needed.
+Current sidecar prompt files and target doc embeds match the insertion points above. The four 1672x941 images and the
+1600x900 Rust-backend image are all 16:9 PNGs.
 
 ## Per-Doc Guardrails
 
