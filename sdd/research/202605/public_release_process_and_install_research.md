@@ -14,7 +14,7 @@ SASE should publish as a small coordinated package family, not as one monolithic
 1. `sase-core-rs`: required PyO3 Rust extension, built and published first.
 2. `sase`: Python CLI/TUI host package, published after the Rust wheel matrix is live.
 3. Public-safe optional plugins: `sase-github`, `sase-telegram`, and `sase-nvim`.
-4. Internal or audit-gated plugins: `retired-hg-plugin` and `retired-chat-plugin` should not be promoted in public quickstart docs until
+4. Internal or audit-gated plugins: `legacy-mercurial-plugin` and `legacy-chat-integration` should not be promoted in public quickstart docs until
    they are reviewed for internal assumptions, naming, and external usefulness.
 
 The best user-facing install path is:
@@ -29,7 +29,7 @@ live in the same Python environment. Installing `sase` as a global tool and inst
 will not work.
 
 The current public registry state makes a version bump mandatory. As of 2026-05-07, PyPI already has `sase==0.1.0` and
-`sase-github==0.1.0`, both uploaded on 2026-02-23, while `sase-core-rs`, `retired-hg-plugin`, `sase-telegram`, and `retired-chat-plugin`
+`sase-github==0.1.0`, both uploaded on 2026-02-23, while `sase-core-rs`, `legacy-mercurial-plugin`, `sase-telegram`, and `legacy-chat-integration`
 return 404 from the PyPI JSON API. PyPI does not allow distribution filenames to be reused, and filenames include the
 project name, version, and distribution type. The next public release cannot reuse `0.1.0`; use `0.2.0` for `sase` and
 public plugins.
@@ -173,11 +173,11 @@ important property is that the package is installed into the same tool environme
 
 ### Audit-Gated Plugins
 
-`../retired-hg-plugin` and `../retired-chat-plugin` are probably not first-public-release packages:
+`../legacy-mercurial-plugin` and `../legacy-chat-integration` are probably not first-public-release packages:
 
-- `retired-hg-plugin` includes Mercurial provider support, Google-specific helper scripts, and a `jetski` LLM provider. The
+- `legacy-mercurial-plugin` includes Mercurial provider support, Google-specific helper scripts, and a `jetski` LLM provider. The
   package name is broad, but the implementation appears tied to internal workflows.
-- `retired-chat-plugin` shells out to a `gchat` binary and its README references an internal release path.
+- `legacy-chat-integration` shells out to a `gchat` binary and its README references an internal release path.
 
 Recommendation: keep these off the public install quickstart unless they are intentionally public and audited. If they
 remain useful for internal users, publish them to a private index or document source installs separately.
@@ -191,9 +191,9 @@ Checked with `https://pypi.org/pypi/<package>/json` on 2026-05-07:
 | `sase`         | 200         | `0.1.0`               | Uploaded 2026-02-23; metadata predates required `sase-core-rs`.       |
 | `sase-core-rs` | 404         | none                  | Must be published before current `sase` can be publicly installable.  |
 | `sase-github`  | 200         | `0.1.0`               | Uploaded 2026-02-23; dependency lower bound is too loose for current. |
-| `retired-hg-plugin`  | 404         | none                  | Do not publish publicly before audit.                                 |
+| `legacy-mercurial-plugin`  | 404         | none                  | Do not publish publicly before audit.                                 |
 | `sase-telegram`| 404         | none                  | Public candidate after dependency bound and publish workflow.         |
-| `retired-chat-plugin`   | 404         | none                  | Do not publish publicly before audit.                                 |
+| `legacy-chat-integration`   | 404         | none                  | Do not publish publicly before audit.                                 |
 
 PyPI's file-reuse rule makes this operationally important: deleting and recreating a release does not allow the same
 filename to be uploaded again. Any fixed public package needs a new version.
@@ -617,9 +617,9 @@ Project files reviewed:
 - `../sase-core/.github/workflows/release.yml`
 - `../sase-github/pyproject.toml`
 - `../sase-github/.github/workflows/publish.yml`
-- `../retired-hg-plugin/pyproject.toml`
+- `../legacy-mercurial-plugin/pyproject.toml`
 - `../sase-telegram/pyproject.toml`
-- `../retired-chat-plugin/pyproject.toml`
+- `../legacy-chat-integration/pyproject.toml`
 - `../sase-nvim/README.md`
 
 External references:

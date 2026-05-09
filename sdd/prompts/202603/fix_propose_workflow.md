@@ -4,7 +4,7 @@ plan: sdd/tales/202603/fix_propose_workflow.md
 The fix-hook agent that created the (6d) proposal entry for this ChangeSpec (see the `sase ace` snapshot below) failed.
 For one, `(http://cl/878602590 | deal_check_line_chart_test failed remotely (exit code 3).)` should have been (on
 success) `(6d)`. Also, the CHAT and DIFF drawers are missing below the (6d) COMMITS entry. This issue is occurring on
-another machine that uses the ../retired-hg-plugin plugin. I've saved a `sase logs` logpack to the ~/tmp/260326_145009/
+another machine that uses the ../legacy-mercurial-plugin plugin. I've saved a `sase logs` logpack to the ~/tmp/260326_145009/
 directory to help you figure this out. Can you help me diagnose the root cause of this issue and fix it? Think this
 through thoroughly and create a plan using your `/sase_plan` skill.
 

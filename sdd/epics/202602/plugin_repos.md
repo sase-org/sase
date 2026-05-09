@@ -9,17 +9,17 @@ status: done
 
 The sase monolith bundles all VCS providers (GitHub, bare-git, Mercurial), their xprompts, scripts, and config together.
 This prevents per-team/per-company customization and forces users to install Mercurial tooling even if they only use
-GitHub. This plan extracts VCS functionality into two plugin packages (`sase-github`, `retired-hg-plugin`) that contribute VCS
+GitHub. This plan extracts VCS functionality into two plugin packages (`sase-github`, `legacy-mercurial-plugin`) that contribute VCS
 hooks, xprompts, scripts, and config defaults via entry points.
 
-**PyPI name availability**: `sase`, `sase-github`, `retired-hg-plugin` are all available (confirmed via PyPI API).
+**PyPI name availability**: `sase`, `sase-github`, `legacy-mercurial-plugin` are all available (confirmed via PyPI API).
 
 ## Directory Convention
 
 Each phase is executed by a distinct `claude` instance. These instances run in directories like
 `~/projects/github/bbugyi200/sase_<N>/` (not the real `~/projects/github/bbugyi200/sase/`). When a phase makes changes
 to sase core, the agent should modify files in whatever `sase_<N>` directory it was started in. Plugin repos
-(`sase-github`, `retired-hg-plugin`) are at their canonical paths (`~/projects/github/bbugyi200/sase-github/`, etc.).
+(`sase-github`, `legacy-mercurial-plugin`) are at their canonical paths (`~/projects/github/bbugyi200/sase-github/`, etc.).
 
 ## What Stays in Core vs What Moves
 
@@ -29,14 +29,14 @@ to sase core, the agent should modify files in whatever `sase_<N>` directory it 
 | `_git_common.py` (GitCommon mixin)                                                                    | **Core**        | Shared by BareGitPlugin (core) and GitHubPlugin (sase-github)       |
 | `BareGitPlugin`                                                                                       | **Core**        | Simple default for non-hosted git                                   |
 | `GitHubPlugin`                                                                                        | **sase-github** | GitHub-specific (gh CLI for PRs)                                    |
-| `HgPlugin`                                                                                            | **retired-hg-plugin** | Mercurial-specific                                                  |
+| `HgPlugin`                                                                                            | **legacy-mercurial-plugin** | Mercurial-specific                                                  |
 | `gh.yml`, `pr.yml`, `new_pr_desc.yml`                                                                 | **sase-github** | GitHub xprompts                                                     |
-| `hg.yml`, `cl.yml`, `propose.yml`                                                                     | **retired-hg-plugin** | Mercurial xprompts                                                  |
+| `hg.yml`, `cl.yml`, `propose.yml`                                                                     | **legacy-mercurial-plugin** | Mercurial xprompts                                                  |
 | `git.yml`, `commit.yml`, `sync.yml`, `mentor.md`, `fix_hook.md`, etc.                                 | **Core**        | VCS-agnostic or bare-git                                            |
-| All `sase_hg_*` shell scripts, `sase_cl_workflow`, `sase_propose_workflow`, metahook scripts          | **retired-hg-plugin** | Mercurial scripts                                                   |
+| All `sase_hg_*` shell scripts, `sase_cl_workflow`, `sase_propose_workflow`, metahook scripts          | **legacy-mercurial-plugin** | Mercurial scripts                                                   |
 | `gh_setup.py`, `hg_setup.py`, `git_setup.py`, `pr_create_changespec.py`, `new_pr_desc_get_context.py` | **Core**        | Deep sase imports; xprompts reference them as `from sase.scripts.*` |
 | `sase_chop_*`, `sase_commit_workflow`, `sase_split_*`, `sase_json_workflow`                           | **Core**        | VCS-agnostic                                                        |
-| `cldd.md`, `crs.md`                                                                                   | **retired-hg-plugin** | CL/critique-specific (Mercurial workflow)                           |
+| `cldd.md`, `crs.md`                                                                                   | **legacy-mercurial-plugin** | CL/critique-specific (Mercurial workflow)                           |
 
 ---
 
@@ -245,15 +245,15 @@ pip install -e ~/projects/github/bbugyi200/sase-github/
 
 ---
 
-## Phase 3: Create retired-hg-plugin Plugin Package
+## Phase 3: Create legacy-mercurial-plugin Plugin Package
 
-**Goal**: Create `~/projects/github/bbugyi200/retired-hg-plugin/` with HgPlugin, Mercurial xprompts, all hg shell scripts,
+**Goal**: Create `~/projects/github/bbugyi200/legacy-mercurial-plugin/` with HgPlugin, Mercurial xprompts, all hg shell scripts,
 config defaults, and entry points. Remove moved files from sase core. Create initial git commit.
 
 ### Package structure
 
 ```
-retired-hg-plugin/
+legacy-mercurial-plugin/
   .github/workflows/
     ci.yml
     publish.yml
@@ -304,7 +304,7 @@ retired-hg-plugin/
 
 ```toml
 [project]
-name = "retired-hg-plugin"
+name = "legacy-mercurial-plugin"
 version = "0.1.0"
 description = "Mercurial/Fig VCS plugin for sase"
 requires-python = ">=3.12"
@@ -335,17 +335,17 @@ sase_hg = "sase_hg"
   `src/sase/scripts/`
 - Remove all corresponding entries from `[project.scripts]` and `[project.entry-points."sase_vcs"]` in pyproject.toml
 - Remove wrapper functions from `src/sase/scripts/__init__.py`
-- Move/adapt hg test files to retired-hg-plugin
+- Move/adapt hg test files to legacy-mercurial-plugin
 - Run `just install` to refresh
 
 ### Verification
 
 ```bash
-# In sase core (without retired-hg-plugin installed):
+# In sase core (without legacy-mercurial-plugin installed):
 just check  # Passes; hg plugin not available
 
-# Install retired-hg-plugin:
-pip install -e ~/projects/github/bbugyi200/retired-hg-plugin/
+# Install legacy-mercurial-plugin:
+pip install -e ~/projects/github/bbugyi200/legacy-mercurial-plugin/
 
 # Verify:
 # - #hg, #cl, #propose xprompts are available
@@ -355,7 +355,7 @@ pip install -e ~/projects/github/bbugyi200/retired-hg-plugin/
 
 ### Key files
 
-- `~/projects/github/bbugyi200/retired-hg-plugin/` (new repo)
+- `~/projects/github/bbugyi200/legacy-mercurial-plugin/` (new repo)
 - `src/sase/vcs_provider/plugins/hg.py` (delete)
 - `src/sase/scripts/sase_hg_*` (delete ~20 files)
 - `src/sase/scripts/__init__.py` (remove ~20 wrapper functions)
@@ -410,12 +410,12 @@ jobs:
 - The sase core repo (the `sase_<N>` dir the agent is running in): `.github/workflows/publish.yml` (new file)
 - `~/projects/github/bbugyi200/sase-github/.github/workflows/publish.yml` (already created in Phase 2 skeleton,
   finalize)
-- `~/projects/github/bbugyi200/retired-hg-plugin/.github/workflows/publish.yml` (already created in Phase 3 skeleton,
+- `~/projects/github/bbugyi200/legacy-mercurial-plugin/.github/workflows/publish.yml` (already created in Phase 3 skeleton,
   finalize)
 
 ### Also add CI workflows to plugin repos
 
-Both sase-github and retired-hg-plugin need `.github/workflows/ci.yml` with lint + test jobs (simpler than sase core's CI
+Both sase-github and legacy-mercurial-plugin need `.github/workflows/ci.yml` with lint + test jobs (simpler than sase core's CI
 since they have fewer tests and no beads dependency).
 
 ### Verification
@@ -435,7 +435,7 @@ since they have fewer tests and no beads dependency).
 
 - Test xprompt discovery with both plugins installed
 - Test config merging with plugin defaults
-- Test VCS provider resolution for all three providers (bare_git built-in, github from sase-github, hg from retired-hg-plugin)
+- Test VCS provider resolution for all three providers (bare_git built-in, github from sase-github, hg from legacy-mercurial-plugin)
 - Test graceful error when plugin not installed
 - Test `SASE_DISABLE_PLUGINS` env var
 
@@ -445,7 +445,7 @@ since they have fewer tests and no beads dependency).
 # Full end-to-end (run from the sase_<N> dir the agent is in):
 just install
 pip install -e ~/projects/github/bbugyi200/sase-github/
-pip install -e ~/projects/github/bbugyi200/retired-hg-plugin/
+pip install -e ~/projects/github/bbugyi200/legacy-mercurial-plugin/
 
 just check  # All tests pass
 
@@ -466,7 +466,7 @@ pip install sase
 pip install sase-github
 
 # For Mercurial/Fig workspaces (Google-internal):
-pip install retired-hg-plugin
+pip install legacy-mercurial-plugin
 
 # Bare-git support is built into sase core (no extra install).
 # Both plugins can be installed simultaneously.
@@ -477,7 +477,7 @@ If using `uv` or a requirements file:
 ```
 sase>=0.1.0
 sase-github>=0.1.0   # if using GitHub
-retired-hg-plugin>=0.1.0       # if using Mercurial
+legacy-mercurial-plugin>=0.1.0       # if using Mercurial
 ```
 
 To verify installation:

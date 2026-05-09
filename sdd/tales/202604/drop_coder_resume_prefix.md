@@ -14,7 +14,7 @@ successful tool calls. The error comes from Claude, not sase, and means the code
 its ~200K-token context window.
 
 Example: the `parent_p4head_leak` coder agent ran from 15:00:07 to 15:09:59 (10 minutes, ~25 visible assistant turns
-editing files across `retired-hg-plugin` and the `sase_<N>` workspace, including two `just check` runs) before failing.
+editing files across `legacy-mercurial-plugin` and the `sase_<N>` workspace, including two `just check` runs) before failing.
 
 ## Root Cause
 

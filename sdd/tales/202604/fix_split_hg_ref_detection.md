@@ -7,13 +7,13 @@ status: done
 
 ## Problem Summary
 
-`#split` setup fails because `retired_hg_plugin_update` is called with `cl_name="sase"` instead of the expected Mercurial ref
+`#split` setup fails because `legacy_mercurial_plugin_update` is called with `cl_name="sase"` instead of the expected Mercurial ref
 (for example, `yserve_batch_create_update`).
 
 Observed runtime evidence:
 
 - Workflow inputs show `cl_name="sase"`.
-- Failing command is `retired_hg_plugin_update sase`.
+- Failing command is `legacy_mercurial_plugin_update sase`.
 - Query was `#hg:yserve_batch_create_update #split`.
 
 ## Root Cause

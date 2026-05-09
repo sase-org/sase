@@ -45,7 +45,7 @@ The existing `specs/202603/branch_naming_reform.md` file needs to be updated to 
 ```markdown
 ### Additional Requirements
 
-- Make sure you make this work with the ../retired-hg-plugin repo, but do NOT change any of the behavior for that VCS
+- Make sure you make this work with the ../legacy-mercurial-plugin repo, but do NOT change any of the behavior for that VCS
   provider. It's fine if you need to make code changes to that repo, but none of the behavior should change.
 ```
 

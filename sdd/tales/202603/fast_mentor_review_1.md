@@ -161,7 +161,7 @@ objects.
 
 ### Phase 4: Plugin Repos
 
-**`../retired-hg-plugin/`** — Needs a `vcs_file_at_revision` hookimpl using the appropriate backend command (e.g.
+**`../legacy-mercurial-plugin/`** — Needs a `vcs_file_at_revision` hookimpl using the appropriate backend command (e.g.
 `hg cat -r <rev> <path>` or equivalent).
 
 **`../sase-github/`** — Inherits from `GitCommon`, gets the git implementation for free. No changes needed.

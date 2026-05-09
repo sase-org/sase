@@ -43,9 +43,9 @@ All four skill files reference `--method` in their "Do NOT pass `--method` unles
 6. **`~/.local/share/chezmoi/home/dot_gemini/skills/sase_git_commit/SKILL.md:41`**
 7. **`~/.local/share/chezmoi/home/dot_gemini/skills/sase_hg_commit/SKILL.md:33`**
 
-### Phase 3: Plugin Repo (retired-hg-plugin)
+### Phase 3: Plugin Repo (legacy-mercurial-plugin)
 
-8. **`../retired-hg-plugin/src/retired_hg_plugin/xprompts/split_executor.md:36`** — Change `-M create_pull_request` to
+8. **`../legacy-mercurial-plugin/src/legacy_mercurial_plugin/xprompts/split_executor.md:36`** — Change `-M create_pull_request` to
    `-t create_pull_request`.
 
 ### Not Changed (intentionally)
@@ -59,6 +59,6 @@ All four skill files reference `--method` in their "Do NOT pass `--method` unles
 ### Verification
 
 - `just install && just check` in sase repo
-- `just check` in retired-hg-plugin repo
+- `just check` in legacy-mercurial-plugin repo
 - `just check` in chezmoi repo
 - `chezmoi apply` after chezmoi commit

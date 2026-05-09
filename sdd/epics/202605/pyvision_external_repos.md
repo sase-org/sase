@@ -43,8 +43,8 @@ that file is currently used; only live pragmas and any pyvision failures after m
 
 Initial external-reference reconnaissance found direct external imports/usages for some current API roots:
 
-- `sase-telegram` and `retired-chat-plugin` import `sase.integrations.agent_status_groups.status_bucket_header`.
-- `sase-telegram` and `retired-chat-plugin` import `sase.integrations.changespec_tags.list_changespec_xprompt_tags`.
+- `sase-telegram` and `legacy-chat-integration` import `sase.integrations.agent_status_groups.status_bucket_header`.
+- `sase-telegram` and `legacy-chat-integration` import `sase.integrations.changespec_tags.list_changespec_xprompt_tags`.
 - Direct textual references to record types such as `ChangeSpecTagEntry`, `ChangeSpecTagListing`, and `AgentStatusGroup`
   may be absent because they are returned indirectly through public helper functions. Do not paper over that with an
   unvalidated repo pragma; either improve pyvision's model for these indirect API surfaces or remove stale/public-only
@@ -206,10 +206,10 @@ Owner: one agent instance focused on consumer repos and final cross-repo validat
 Candidate external repos discovered locally:
 
 - `/home/bryan/projects/github/sase-org/sase-telegram`
-- `/home/bryan/projects/github/sase-org/retired-chat-plugin`
+- `/home/bryan/projects/github/sase-org/legacy-chat-integration`
 - `/home/bryan/projects/github/sase-org/sase-nvim`
 - `/home/bryan/projects/github/sase-org/sase-github`
-- `/home/bryan/projects/github/sase-org/retired-hg-plugin`
+- `/home/bryan/projects/github/sase-org/legacy-mercurial-plugin`
 - `/home/bryan/projects/github/sase-org/sase-android`
 
 Work:

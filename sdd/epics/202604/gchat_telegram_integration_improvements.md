@@ -4,13 +4,13 @@ status: done
 bead_id: sase-x
 prompt: sdd/prompts/202604/gchat_telegram_integration_improvements.md
 ---
-# retired-chat-plugin and sase-telegram Integration Improvement Plan
+# legacy-chat-integration and sase-telegram Integration Improvement Plan
 
 ## Context
 
 The implementation work spans external plugin repos adjacent to this repo:
 
-- `../retired-chat-plugin`
+- `../legacy-chat-integration`
 - `../sase-telegram`
 
 The main source of product/technical inspiration is `sdd/research/202604/gchat_integration_review.md`. Current spot-checks against
@@ -19,7 +19,7 @@ the repos show that most of the review is still accurate, with two important upd
 - `sase-telegram` already advances outbound notification high-water marks per delivered notification in
   `src/sase_telegram/scripts/sase_tg_outbound.py`, so that recommendation should be treated as already done unless tests
   reveal a regression.
-- `retired-chat-plugin` already avoids auto-naming `%r:N` repeat prompts in `src/retired_chat_plugin/scripts/sase_gc_inbound.py`, matching
+- `legacy-chat-integration` already avoids auto-naming `%r:N` repeat prompts in `src/legacy_chat_integration/scripts/sase_gc_inbound.py`, matching
   the Telegram behavior.
 
 Every phase below is intended to be executed by a distinct agent instance. Each phase should start by reading this plan,
@@ -28,7 +28,7 @@ it must run `just install` if needed and then `just check` in that plugin repo b
 
 ## Guiding Goals
 
-1. Make `retired-chat-plugin` feel like a first-class sibling of `sase-telegram`, not a minimal transport port.
+1. Make `legacy-chat-integration` feel like a first-class sibling of `sase-telegram`, not a minimal transport port.
 2. Preserve platform-specific strengths: Google Chat should lean on threads and dot commands; Telegram should keep
    button-heavy workflows.
 3. Keep each phase independently reviewable and low-conflict for parallel or sequential agent execution.
@@ -36,12 +36,12 @@ it must run `just install` if needed and then `just check` in that plugin repo b
 
 ## Phase 1: Google Chat Command UX and Agent Context
 
-**Repo:** `../retired-chat-plugin`
+**Repo:** `../legacy-chat-integration`
 
 **Primary files likely involved:**
 
-- `src/retired_chat_plugin/scripts/sase_gc_inbound.py`
-- `src/retired_chat_plugin/inbound.py`
+- `src/legacy_chat_integration/scripts/sase_gc_inbound.py`
+- `src/legacy_chat_integration/inbound.py`
 - `tests/test_inbound.py`
 
 **Objective:** Improve day-to-day command discoverability and agent selection context in Google Chat.
@@ -65,17 +65,17 @@ it must run `just install` if needed and then `just check` in that plugin repo b
 - `.kill` with no args gives enough context to choose an agent.
 - `.resume` shows enough context to choose an agent without opening the TUI.
 - Unit tests cover command parsing, help output, no-arg kill output, and rich resume formatting.
-- `just check` passes in `../retired-chat-plugin`.
+- `just check` passes in `../legacy-chat-integration`.
 
 ## Phase 2: Google Chat Retry and Resume Parity
 
-**Repo:** `../retired-chat-plugin`
+**Repo:** `../legacy-chat-integration`
 
 **Primary files likely involved:**
 
-- `src/retired_chat_plugin/scripts/sase_gc_inbound.py`
-- `src/retired_chat_plugin/formatting.py`
-- `src/retired_chat_plugin/inbound.py`
+- `src/legacy_chat_integration/scripts/sase_gc_inbound.py`
+- `src/legacy_chat_integration/formatting.py`
+- `src/legacy_chat_integration/inbound.py`
 - `tests/test_inbound.py`
 - `tests/test_formatting.py`
 
@@ -102,16 +102,16 @@ it must run `just install` if needed and then `just check` in that plugin repo b
 - Completion formatting emits `#resume:@<agent>` where required for `#pr` prompts and keeps existing branch/CL behavior
   for non-`#pr` prompts.
 - Tests cover long prompts, prompts with `%n:`, prompts with `%r:N`, and missing `raw_xprompt.md`.
-- `just check` passes in `../retired-chat-plugin`.
+- `just check` passes in `../legacy-chat-integration`.
 
 ## Phase 3: Google Chat Stateful Behavior and Formatting Coverage
 
-**Repo:** `../retired-chat-plugin`
+**Repo:** `../legacy-chat-integration`
 
 **Primary files likely involved:**
 
-- `src/retired_chat_plugin/formatting.py`
-- `src/retired_chat_plugin/scripts/sase_gc_inbound.py`
+- `src/legacy_chat_integration/formatting.py`
+- `src/legacy_chat_integration/scripts/sase_gc_inbound.py`
 - `tests/test_formatting.py`
 - `tests/test_inbound.py`
 - `ROADMAP.md` or `plans/*.md`
@@ -135,7 +135,7 @@ it must run `just install` if needed and then `just check` in that plugin repo b
 - Formatting tests materially narrow the coverage gap with Telegram.
 - The TUI-dismissal strike path is covered by a direct unit test.
 - Roadmap/documentation reflects what was implemented in Phases 1-3 and what is intentionally deferred.
-- `just check` passes in `../retired-chat-plugin`.
+- `just check` passes in `../legacy-chat-integration`.
 
 ## Phase 4: Telegram Concurrent Feedback State
 
@@ -201,7 +201,7 @@ already tests directly.
 
 ## Phase 6: Cross-Integration Consistency Pass
 
-**Repos:** `../retired-chat-plugin` and `../sase-telegram`
+**Repos:** `../legacy-chat-integration` and `../sase-telegram`
 
 **Objective:** Land the work as a coherent sibling integration improvement rather than a set of unrelated patches.
 

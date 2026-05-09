@@ -95,5 +95,5 @@ plan: sdd/tales/202604/tui_simple_xprompt_colon_args.md
 
 ### Additional Requirements
 
-- The `#launch/free` xprompt is defined by the ../retired-hg-plugin repo.
+- The `#launch/free` xprompt is defined by the ../legacy-mercurial-plugin repo.
 - This xprompt is not a "project xprompt".

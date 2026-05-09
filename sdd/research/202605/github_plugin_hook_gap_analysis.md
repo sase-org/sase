@@ -4,7 +4,7 @@ Date: 2026-05-08 (revised 2026-05-08)
 
 ## Question
 
-The retired-hg-plugin plugin appears to support more of SASE's hook surface than the
+The legacy-mercurial-plugin plugin appears to support more of SASE's hook surface than the
 sase-github plugin. What functionality is currently missing from the GitHub
 plugin?
 
@@ -12,7 +12,7 @@ plugin?
 
 - Core SASE repo: `sase_100`
 - GitHub plugin repo: `../sase-github`
-- Google/Mercurial plugin repo: `../retired-hg-plugin`
+- Google/Mercurial plugin repo: `../legacy-mercurial-plugin`
 
 Relevant source files:
 
@@ -38,13 +38,13 @@ Relevant source files:
   - `../sase-github/src/sase_github/xprompts/*.yml`
   - `../sase-github/pyproject.toml` (entry points)
 - Google plugin
-  - `../retired-hg-plugin/src/retired_hg_plugin/plugin.py`
-  - `../retired-hg-plugin/src/retired_hg_plugin/workspace_plugin.py`
-  - `../retired-hg-plugin/src/retired_hg_plugin/default_config.yml`
-  - `../retired-hg-plugin/src/retired_hg_plugin/scripts/*` (24 console scripts)
-  - `../retired-hg-plugin/src/retired_hg_plugin/xprompts/*.{yml,md}`
-  - `../retired-hg-plugin/src/retired_hg_plugin/llm_jetski/provider.py`
-  - `../retired-hg-plugin/pyproject.toml` (entry points)
+  - `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/plugin.py`
+  - `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/workspace_plugin.py`
+  - `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/default_config.yml`
+  - `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/scripts/*` (24 console scripts)
+  - `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/xprompts/*.{yml,md}`
+  - `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/llm_jetski/provider.py`
+  - `../legacy-mercurial-plugin/pyproject.toml` (entry points)
 
 ## High-level finding
 
@@ -80,7 +80,7 @@ hooks**. (Inherited from `_git_core_ops`, `_git_query_ops`, and
 `vcs_get_cl_number`, `vcs_mail`, and `vcs_create_pull_request` are overridden
 or added in `sase_github/plugin.py`.)
 
-Google support: **49 hooks** (all defined directly in `retired_hg_plugin/plugin.py`
+Google support: **49 hooks** (all defined directly in `legacy_mercurial_plugin/plugin.py`
 on `HgPlugin`, which does *not* extend `GitCommon`).
 
 ### Google-only VCS hook implementations that GitHub does not provide
@@ -88,13 +88,13 @@ on `HgPlugin`, which does *not* extend `GitCommon`).
 | Hook | Google behavior | GitHub status | Impact |
 |---|---|---|---|
 | `vcs_find_reviewers` | Runs `p4 findreviewers -c <cl>` | Missing | GitHub mail prep has no reviewer-discovery affordance. |
-| `vcs_rewind` | Runs `retired_hg_plugin_rewind` over reverse-ordered diff files | Missing | The core rewind workflow's `provider.rewind(...)` call has no GitHub backend. |
+| `vcs_rewind` | Runs `legacy_mercurial_plugin_rewind` over reverse-ordered diff files | Missing | The core rewind workflow's `provider.rewind(...)` call has no GitHub backend. |
 | `vcs_normalize_bug_value` | Normalizes `b/123`, `http://b/123`, etc. to `http://b/123` | Falls back to identity | BUG tag values stored on GitHub ChangeSpecs are kept verbatim. |
 | `vcs_prepare_description_for_reword` | Escapes strings for `hg reword` | Falls back to identity | Not a functional gap for GitHub; `git commit --amend -m` takes argv directly. |
 | `vcs_detect_repo_type` | Detects `.hg` directories as `hg` | Missing, but not needed | GitHub repos are identified via `.git` plus `vcs_classify_repo`. |
 | `vcs_fix` | Runs `hg fix` | Inherits no-op from `_git_query_ops` | No provider-specific auto-fix on GitHub. |
 | `vcs_upload` | Runs `hg upload tree` | Inherits no-op | No provider-specific upload step (push happens inside `vcs_mail`). |
-| `vcs_reword` / `vcs_reword_add_tag` | Run `retired_hg_plugin_reword` | Inherited git stubs | Programmatic CL/PR description rewrite is Google-only today. |
+| `vcs_reword` / `vcs_reword_add_tag` | Run `legacy_mercurial_plugin_reword` | Inherited git stubs | Programmatic CL/PR description rewrite is Google-only today. |
 
 ### GitHub-only VCS support not present in Google
 
@@ -126,7 +126,7 @@ git/GitHub-only operations that Google does not need.
 | `ws_generate_submitted_check_script` | yes (`gh pr view ... state==MERGED`) | yes (`is_cl_submitted`) | |
 | `ws_supports_reviewer_comments` | **`False` for github.com** | **`True` for `http://cl/`** | Core skips comment polling on GitHub URLs. |
 | `ws_generate_reviewer_comments_script` | **no** | yes (`critique_comments <cs>`) | Core cannot start a reviewer-comments check for PRs. |
-| `ws_get_workspace_directory` | yes (git clone) | yes (`retired_hg_plugin_get_workspace`) | |
+| `ws_get_workspace_directory` | yes (git clone) | yes (`legacy_mercurial_plugin_get_workspace`) | |
 | `ws_prepare_mail` | yes (display branch + confirm push) | yes (reviewer prompt + auto-startblock + reword) | Google's flow is significantly richer. |
 | `ws_format_commit_description` | yes (prepends `[project]`) | yes (prepends `[project]` and writes `BUG`/`FIXED` and configured `pr_tags`) | |
 | `ws_get_workspace_name` | no, but provided by core `bare_git_workspace` | no | |
@@ -141,12 +141,12 @@ hooks rather than pluggy hook methods. The Google plugin contributes
 significant default configuration via its `default_config.yml`; GitHub
 contributes essentially none.
 
-`retired-hg-plugin/default_config.yml` contributes:
+`legacy-mercurial-plugin/default_config.yml` contributes:
 
 - `llm_provider.provider: gemini` (default LLM).
 - `precommit_command: "sase_hg_fix"` — run before commits.
 - `vcs_provider.use_project_pr_prefix: true` — wrap PR/CL titles with `[project]`.
-- `vcs_provider.default_hooks: ["!$retired_hg_plugin_presubmit", "$retired_hg_plugin_lint"]`
+- `vcs_provider.default_hooks: ["!$legacy_mercurial_plugin_presubmit", "$legacy_mercurial_plugin_lint"]`
   — attached to every new ChangeSpec via `get_required_changespec_hooks()`.
 - `vcs_provider.pr_tags`: `AUTOSUBMIT_BEHAVIOR`, `MARKDOWN`, `R=startblock`,
   `STARTBLOCK_AUTOSUBMIT`, `WANT_LGTM` — applied by
@@ -176,14 +176,14 @@ under `sase_github/xprompts/`.
 
 `pyproject.toml` entry points show another asymmetry.
 
-| Entry point group | sase-github | retired-hg-plugin |
+| Entry point group | sase-github | legacy-mercurial-plugin |
 |---|---|---|
 | `sase_vcs` | 1 (`GitHubPlugin`) | 1 (`HgPlugin`) |
 | `sase_workspace` | 1 (`GitHubWorkspacePlugin`) | 1 (`HgWorkspacePlugin`) |
 | `sase_xprompts` | 1 (package) | 1 (package) |
 | `sase_config` | 1 (package) | 1 (package) |
 | `sase_llm` | **0** | **1** (`jetski` provider in `llm_jetski/provider.py`) |
-| `project.scripts` | **0** | **24** (every `retired_hg_plugin_*`, `sase_metahook_*`, `sase_hg_fix`, `sase_refresh_cl_desc`, `sase_split_*`) |
+| `project.scripts` | **0** | **24** (every `legacy_mercurial_plugin_*`, `sase_metahook_*`, `sase_hg_fix`, `sase_refresh_cl_desc`, `sase_split_*`) |
 
 The Google plugin therefore also ships an LLM provider and a complete set of
 console scripts that its hook implementations shell out to. The GitHub plugin
@@ -205,7 +205,7 @@ different scopes.
   - `new_pr_desc.yml` — agent-generated PR title/body, applied via `gh pr edit`.
   - `pr_diff.yml` — `git diff origin/HEAD...HEAD` against the detected default branch.
   - `prdd.yml` — `append_to_commit_and_propose` prompt part injecting PR diff and description.
-- retired-hg-plugin (6 files): `hg.yml`, `crs.md` (Critique-comments response),
+- legacy-mercurial-plugin (6 files): `hg.yml`, `crs.md` (Critique-comments response),
   `refresh_cl_desc.yml`, `split.yml`, `split_executor.md`,
   `split_spec_generator.md`. Plus the ~30 small xprompts in
   `default_config.yml`.
@@ -234,10 +234,10 @@ this round of research.
    description and confirms push.
 3. **Rewind workflow provider operation.** The core rewind workflow calls
    `provider.rewind(diff_files_reversed, cwd)`. Google delegates to
-   `retired_hg_plugin_rewind`; GitHub has no implementation, so the core rewind
+   `legacy_mercurial_plugin_rewind`; GitHub has no implementation, so the core rewind
    workflow cannot complete on a GitHub workspace.
 4. **Default ChangeSpec hooks for PRs.** Google attaches
-   `!$retired_hg_plugin_presubmit` and `$retired_hg_plugin_lint` to every new ChangeSpec
+   `!$legacy_mercurial_plugin_presubmit` and `$legacy_mercurial_plugin_lint` to every new ChangeSpec
    via `vcs_provider.default_hooks`. GitHub's plugin contributes no defaults,
    so PRs ship without provider-supplied checks unless the user adds them
    manually.
@@ -261,7 +261,7 @@ this round of research.
    to `http://b/<id>`. GitHub uses the core identity fallback, so BUG values
    are not canonicalized into issue URLs or any GitHub-specific format.
 9. **Programmatic description rewrite.** `vcs_reword` and
-   `vcs_reword_add_tag` are Hg-specific (`retired_hg_plugin_reword`). GitHub
+   `vcs_reword_add_tag` are Hg-specific (`legacy_mercurial_plugin_reword`). GitHub
    inherits the git stubs, so the Google mail-prep flow's auto-startblock
    injection and tag editing have no direct GitHub equivalent.
 10. **CL split workflow.** `#split`, `#split_executor`, and

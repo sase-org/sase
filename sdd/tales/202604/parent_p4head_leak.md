@@ -9,7 +9,7 @@ prompt: sdd/prompts/202604/parent_p4head_leak.md
 ## Problem
 
 A `sase commit` invocation produced a ChangeSpec whose `PARENT` field is literally `p4head`. That string is an
-hg-specific sentinel used by the retired-hg-plugin plugin to mean "the main branch of the repo"; it is a **checkout target**,
+hg-specific sentinel used by the legacy-mercurial-plugin plugin to mean "the main branch of the repo"; it is a **checkout target**,
 not a ChangeSpec name. Writing it to a ChangeSpec `PARENT` field is semantically wrong for every VCS:
 
 - `PARENT` is supposed to reference another ChangeSpec by NAME (or be omitted when the CL has no parent).
@@ -23,7 +23,7 @@ VCS-agnostic data.
 
 The trace, with exact file:line references:
 
-1. `retired-hg-plugin/src/retired_hg_plugin/scripts/sase_split_setup:75` — when the CL being split has no parent ChangeSpec, this
+1. `legacy-mercurial-plugin/src/legacy_mercurial_plugin/scripts/sase_split_setup:75` — when the CL being split has no parent ChangeSpec, this
    script falls back to the hg sentinel for "main":
 
    ```python
@@ -31,15 +31,15 @@ The trace, with exact file:line references:
    ```
 
    The variable name `default_parent` is doing double duty here: it is the **checkout target** (for
-   `retired_hg_plugin_update`) _and_ the intended **ChangeSpec parent name** (for `sase commit -p`). The two concepts are not
+   `legacy_mercurial_plugin_update`) _and_ the intended **ChangeSpec parent name** (for `sase commit -p`). The two concepts are not
    interchangeable.
 
-2. `retired-hg-plugin/src/retired_hg_plugin/xprompts/split.yml:41, 50` — the workflow pipes `default_parent` into both
+2. `legacy-mercurial-plugin/src/legacy_mercurial_plugin/xprompts/split.yml:41, 50` — the workflow pipes `default_parent` into both
    `sase_split_prepare_execute` and the `split_executor` agent xprompt.
 
-3. `retired-hg-plugin/src/retired_hg_plugin/xprompts/split_executor.md:26, 36-38` — the executor uses `{{ default_parent }}` in two
+3. `legacy-mercurial-plugin/src/legacy_mercurial_plugin/xprompts/split_executor.md:26, 36-38` — the executor uses `{{ default_parent }}` in two
    places:
-   - As the argument to `retired_hg_plugin_update` (correct use — a checkout target).
+   - As the argument to `legacy_mercurial_plugin_update` (correct use — a checkout target).
    - As the value of the `-p` flag to `sase commit` (incorrect use — a ChangeSpec name is expected).
 
 4. `sase_100/src/sase/main/cl_handler.py:92-93` — `sase commit` sees `--parent=p4head` and puts it into
@@ -57,33 +57,33 @@ The trace, with exact file:line references:
    Earlier in the same function (lines 313-346) there is a "parent ChangeSpec not found" branch, but it only affects
    _where_ the new ChangeSpec is inserted (it appends to the end with a warning). It still writes `PARENT: p4head`.
 
-So the bug has two distinct layers: a **caller bug** in retired-hg-plugin conflating checkout-target with
+So the bug has two distinct layers: a **caller bug** in legacy-mercurial-plugin conflating checkout-target with
 ChangeSpec-parent-name, and an **insufficiently defensive sink** in sase_100 that happily writes whatever string it gets
 even when it is not a real ChangeSpec name.
 
 ## Fix (VCS-Agnostic)
 
-Two-part fix keeps VCS-specific knowledge in retired-hg-plugin and makes sase_100 reject bogus `PARENT` values.
+Two-part fix keeps VCS-specific knowledge in legacy-mercurial-plugin and makes sase_100 reject bogus `PARENT` values.
 
-### Part 1: Separate checkout target from ChangeSpec parent in retired-hg-plugin
+### Part 1: Separate checkout target from ChangeSpec parent in legacy-mercurial-plugin
 
 Make `sase_split_setup` emit two distinct values and thread them through the workflow:
 
 - `default_parent` (ChangeSpec name, empty string when there is no parent ChangeSpec) — consumed by `sase commit -p`.
-- `default_checkout_target` (VCS ref, falls back to the hg-specific `"p4head"`) — consumed by `retired_hg_plugin_update`.
+- `default_checkout_target` (VCS ref, falls back to the hg-specific `"p4head"`) — consumed by `legacy_mercurial_plugin_update`.
 
 Changes:
 
 | File                                                             | Change                                                                                                                                                                                                                                                                                                                                  |
 | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `retired-hg-plugin/src/retired_hg_plugin/scripts/sase_split_setup`           | Split the current `default_parent` into two variables. `default_parent = target.parent if target and target.parent else ""`. `default_checkout_target = target.parent if target and target.parent else "p4head"`. Print both. Keep `parent_submitted` logic intact (still resolved via the CS name, which is now empty when no parent). |
-| `retired-hg-plugin/src/retired_hg_plugin/xprompts/split.yml`                 | Add `default_checkout_target: word` to the `setup` step's output schema. Pass it to `sase_split_prepare_execute` via a new `--default-checkout-target` flag, and to the `split_executor` xprompt as a new `default_checkout_target` input.                                                                                              |
-| `retired-hg-plugin/src/retired_hg_plugin/scripts/sase_split_prepare_execute` | Add a `--default-checkout-target` arg. Use it (not `--default-parent`) for the `retired_hg_plugin_update` call on line 106.                                                                                                                                                                                                                   |
-| `retired-hg-plugin/src/retired_hg_plugin/xprompts/split_executor.md`         | Accept both `default_parent` and `default_checkout_target`. In step 1, navigate using `default_checkout_target`. In step 4, pass `-p <parent>` only when a parent ChangeSpec name is present; omit the flag entirely when the entry has no `parent` AND `default_parent` is empty.                                                      |
-| `retired-hg-plugin/tests/*`                                            | Extend tests for `sase_split_setup` and `sase_split_prepare_execute` to cover both the "target has parent" and "target has no parent" cases, asserting that `default_parent` is empty (not `"p4head"`) in the latter.                                                                                                                   |
+| `legacy-mercurial-plugin/src/legacy_mercurial_plugin/scripts/sase_split_setup`           | Split the current `default_parent` into two variables. `default_parent = target.parent if target and target.parent else ""`. `default_checkout_target = target.parent if target and target.parent else "p4head"`. Print both. Keep `parent_submitted` logic intact (still resolved via the CS name, which is now empty when no parent). |
+| `legacy-mercurial-plugin/src/legacy_mercurial_plugin/xprompts/split.yml`                 | Add `default_checkout_target: word` to the `setup` step's output schema. Pass it to `sase_split_prepare_execute` via a new `--default-checkout-target` flag, and to the `split_executor` xprompt as a new `default_checkout_target` input.                                                                                              |
+| `legacy-mercurial-plugin/src/legacy_mercurial_plugin/scripts/sase_split_prepare_execute` | Add a `--default-checkout-target` arg. Use it (not `--default-parent`) for the `legacy_mercurial_plugin_update` call on line 106.                                                                                                                                                                                                                   |
+| `legacy-mercurial-plugin/src/legacy_mercurial_plugin/xprompts/split_executor.md`         | Accept both `default_parent` and `default_checkout_target`. In step 1, navigate using `default_checkout_target`. In step 4, pass `-p <parent>` only when a parent ChangeSpec name is present; omit the flag entirely when the entry has no `parent` AND `default_parent` is empty.                                                      |
+| `legacy-mercurial-plugin/tests/*`                                            | Extend tests for `sase_split_setup` and `sase_split_prepare_execute` to cover both the "target has parent" and "target has no parent" cases, asserting that `default_parent` is empty (not `"p4head"`) in the latter.                                                                                                                   |
 
-Why this is VCS-agnostic: the hg-specific string `"p4head"` is kept entirely inside `retired-hg-plugin`, never crossing the
-process boundary into `sase commit` as a would-be ChangeSpec name. Conceptually, retired-hg-plugin keeps a private
+Why this is VCS-agnostic: the hg-specific string `"p4head"` is kept entirely inside `legacy-mercurial-plugin`, never crossing the
+process boundary into `sase commit` as a would-be ChangeSpec name. Conceptually, legacy-mercurial-plugin keeps a private
 "checkout_target" lingo while exposing only real ChangeSpec-name semantics to the sase CLI.
 
 ### Part 2: Defensive guard in sase_100
@@ -122,7 +122,7 @@ mentions `p4head`, `origin/main`, or any VCS ref. It is a property of the Change
    nonexistent CS — sase commit does not write `PARENT: <sentinel>`".
 2. **Manual smoke test (git)**: run `sase commit -t create_pull_request -n foo -M msg.txt` on a git repo from a
    non-ChangeSpec branch; the resulting ChangeSpec must not have a `PARENT` line.
-3. **Manual smoke test (hg, retired-hg-plugin)**: run the `#split` xprompt on a CL that has no parent; each generated child
+3. **Manual smoke test (hg, legacy-mercurial-plugin)**: run the `#split` xprompt on a CL that has no parent; each generated child
    CL's ChangeSpec must have no `PARENT` line. Run it on a CL that has a parent; each generated child CL must have
    `PARENT: <parent-name>` with the real name.
-4. `just check` in both `sase_100` and `retired-hg-plugin` passes.
+4. `just check` in both `sase_100` and `legacy-mercurial-plugin` passes.

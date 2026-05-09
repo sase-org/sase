@@ -1,8 +1,8 @@
-# retired-chat-plugin Integration Review
+# legacy-chat-integration Integration Review
 
 **Date:** 2026-04-25
 **Repos compared:**
-- `~/projects/github/sase-org/retired-chat-plugin` (HEAD: `cc0eba3` — Phase 4 entry-point scripts + integration tests + docs)
+- `~/projects/github/sase-org/legacy-chat-integration` (HEAD: `cc0eba3` — Phase 4 entry-point scripts + integration tests + docs)
 - `~/projects/github/sase-org/sase-telegram` (HEAD: `927a16f` — Retry button on agent launch keyboard)
 
 **Prior research:** `sdd/research/202602/telegram_integration.md`, `sdd/research/202603/telegram_improvements.md`, `sdd/research/202603/slash_command_migration.md`. None for gchat yet.
@@ -28,17 +28,17 @@ The two integrations are deliberately structured as siblings: same module names,
 
 ### credentials.py
 - `sase-telegram/src/sase_telegram/credentials.py:1-34` — `get_bot_token()` (LRU-cached `pass show`), `get_chat_id()`, `get_bot_username()`.
-- `retired-chat-plugin/src/retired_chat_plugin/credentials.py:1-44` — `get_space_id()`, `get_gchat_bin()` (default `"gchat"`), `get_rate_limit()`.
+- `legacy-chat-integration/src/legacy_chat_integration/credentials.py:1-44` — `get_space_id()`, `get_gchat_bin()` (default `"gchat"`), `get_rate_limit()`.
 - gchat is simpler because the CLI handles auth. Reasonable as-is.
 
 ### outbound.py + scripts
 - Core logic (`get_unsent_notifications`, `mark_sent`, `try_acquire_outbound_lock`) is near-identical and reads `~/.sase/notifications/notifications.jsonl`, filters `read==False and silent==False`, and gates on `is_idle()`.
 - gchat advances the high-water mark **per notification** (`sase_gc_outbound.py`), telegram batches it. The per-notification advance is safer against mid-batch failure — telegram should adopt the same pattern.
-- Both honor the `silent` flag identically (`retired-chat-plugin/src/retired_chat_plugin/outbound.py:43`, `sase-telegram/.../outbound.py:44`).
+- Both honor the `silent` flag identically (`legacy-chat-integration/src/legacy_chat_integration/outbound.py:43`, `sase-telegram/.../outbound.py:44`).
 
 ### inbound.py + scripts
 - Telegram entry point: `sase-telegram/src/sase_telegram/scripts/sase_tg_inbound.py` (~1150 LOC). Includes slash-command registration, retry-button handling, rich `_format_agent_description` blocks for `/kill` and `/resume` keyboards.
-- Google Chat entry point: `retired-chat-plugin/src/retired_chat_plugin/scripts/sase_gc_inbound.py` (582 LOC). Dot-command parsing, message-strike on TUI dismissal via `find_externally_handled` → `_strike_message`, per-thread `awaiting_feedback` state.
+- Google Chat entry point: `legacy-chat-integration/src/legacy_chat_integration/scripts/sase_gc_inbound.py` (582 LOC). Dot-command parsing, message-strike on TUI dismissal via `find_externally_handled` → `_strike_message`, per-thread `awaiting_feedback` state.
 - gchat's per-thread awaiting-feedback (keyed by `thread_id`) is **better** than telegram's single-entry awaiting state — multiple two-step feedback flows can run concurrently. Telegram should consider adopting the per-key model.
 
 ### formatting.py
@@ -113,7 +113,7 @@ There is no Google-Chat equivalent of `set_my_commands` — the gchat CLI doesn'
 ## 6. Plans / Roadmap
 
 - `sase-telegram/plans/artifact_passing.md` exists but is essentially empty.
-- `retired-chat-plugin/plans/` is empty.
+- `legacy-chat-integration/plans/` is empty.
 - No documented roadmap in either repo. All future work is implicit in commits.
 
 ## 7. Config
@@ -159,7 +159,7 @@ In priority order. Each item is scoped to keep PRs small.
 ### R8 — Adopt telegram's per-notification HWM advance everywhere (cross-repo, inverted)
 **Why:** Telegram's outbound batches its high-water-mark advance, gchat's per-notification advance is strictly safer on mid-batch failures. (Actually telegram should learn from gchat here — re-check the wording in the doc when filing.)
 
-### R9 — Create `retired-chat-plugin/ROADMAP.md`
+### R9 — Create `legacy-chat-integration/ROADMAP.md`
 Following the pattern of capturing future work; both `plans/` directories are essentially empty. Seed with R1–R6.
 
 ### Lower priority / parking lot
@@ -169,9 +169,9 @@ Following the pattern of capturing future work; both `plans/` directories are es
 
 ## Appendix — File reference map
 
-**retired-chat-plugin:**
-- Inbound script: `src/retired_chat_plugin/scripts/sase_gc_inbound.py` (582 LOC)
-- Outbound script: `src/retired_chat_plugin/scripts/sase_gc_outbound.py` (185 LOC)
+**legacy-chat-integration:**
+- Inbound script: `src/legacy_chat_integration/scripts/sase_gc_inbound.py` (582 LOC)
+- Outbound script: `src/legacy_chat_integration/scripts/sase_gc_outbound.py` (185 LOC)
 - Core logic: `inbound.py` (620), `outbound.py` (105), `formatting.py` (304)
 - Client: `gchat_client.py` (277)
 

@@ -6,7 +6,7 @@ status: done
 
 ## Problem
 
-A Codex agent edited the sibling `retired-chat-plugin` repository from a `sase` workspace and finished without being prompted to
+A Codex agent edited the sibling `legacy-chat-integration` repository from a `sase` workspace and finished without being prompted to
 commit those plugin changes. The normal `sase_commit_stop_hook` ran at the end of the session, but it only checked the
 agent workspace (`/home/bryan/projects/github/sase-org/sase_101`) and found it clean.
 
@@ -18,7 +18,7 @@ settings wire it into Claude and Gemini:
 
 Codex does not have the equivalent hook coverage. The live Codex config at `~/.codex/hooks.json` and its chezmoi source
 at `~/.local/share/chezmoi/home/dot_codex/hooks.json` only run `sase_commit_stop_hook`. As a result, Codex stop hooks
-can pass whenever the main workspace is clean, even if a primary sibling repo such as `../retired-chat-plugin` is dirty.
+can pass whenever the main workspace is clean, even if a primary sibling repo such as `../legacy-chat-integration` is dirty.
 
 ## Goals
 
@@ -26,7 +26,7 @@ can pass whenever the main workspace is clean, even if a primary sibling repo su
 2. Preserve the existing once-per-session behavior of the sibling hook so agents can decline unrelated changes without
    getting trapped in repeated stop-hook blocks.
 3. Keep sibling checks scoped to primary sibling repos and chezmoi, not ephemeral agent clones.
-4. Verify the hook actually blocks for dirty `retired-chat-plugin`-style sibling repos and still skips ephemeral workspaces.
+4. Verify the hook actually blocks for dirty `legacy-chat-integration`-style sibling repos and still skips ephemeral workspaces.
 
 ## Implementation
 
@@ -81,5 +81,5 @@ Also manually smoke-test the applied Codex hook config by making a temporary dir
 ## Expected Outcome
 
 Future Codex agents launched from `sase` workspaces will be stopped once if they leave uncommitted changes in primary
-sibling repos like `retired-chat-plugin`. The failure mode from the 2026-04-25 11:48 run is closed because Codex now runs the
+sibling repos like `legacy-chat-integration`. The failure mode from the 2026-04-25 11:48 run is closed because Codex now runs the
 same sibling dirty-repo detector already configured for Claude and Gemini.

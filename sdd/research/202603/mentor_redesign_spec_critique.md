@@ -78,8 +78,8 @@ This is the biggest open area. You say "use a rubric / configuration to control 
   that reads the config and builds instructions?
 - **Model selection**: Currently not part of `mentor_profiles`. The research docs suggest `model_tier` or `tier`. Should
   the new config support per-profile model selection?
-- **What about the retired-hg-plugin `mentor.md`?** It currently defines the entire mentor persona/workflow. Under the new
-  system, the built-in `#mentor` xprompt (tagged `mentor`) replaces it. Does the retired-hg-plugin plugin need any changes, or
+- **What about the legacy-mercurial-plugin `mentor.md`?** It currently defines the entire mentor persona/workflow. Under the new
+  system, the built-in `#mentor` xprompt (tagged `mentor`) replaces it. Does the legacy-mercurial-plugin plugin need any changes, or
   does it just stop providing a `mentor.md`?
 
 ### 6. The `mentor` XPrompt Tag

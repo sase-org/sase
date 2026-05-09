@@ -4,7 +4,7 @@ plan: sdd/tales/202603/fix_meta_output_vars.md
 The `meta_` xprompt workflow step output variables are still broken. This agent (see the `sase ace` snapshot below)
 created a CL and ChangeSpec properly, so I should see the new ChangeSpec / CL name in the the agent metadata panel on
 the "Agents" tab of the `sase ace` TUI, but I do not. Can you help me diagnose the root cause of this issue and fix it?
-This issue is occurring on another machine that uses the ../retired-hg-plugin plugin. I've saved a `sase logs` logpack to the
+This issue is occurring on another machine that uses the ../legacy-mercurial-plugin plugin. I've saved a `sase logs` logpack to the
 ~/tmp/260325_193911/ directory to help you figure this out. Think this through thoroughly and create a plan using your
 `/sase_plan` skill.
 

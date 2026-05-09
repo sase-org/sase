@@ -95,7 +95,7 @@ provides targeted context for specific task domains. Tier 3 files remain untouch
 
 **5a. `src/sase/xprompts/memory_external_repos.md`**
 
-- Keywords: `chezmoi, sase-github, retired-hg-plugin, sase-telegram, sase-nvim, dotfile, plugin repo`
+- Keywords: `chezmoi, sase-github, legacy-mercurial-plugin, sase-telegram, sase-nvim, dotfile, plugin repo`
 - Content: Key facts about external repos -- chezmoi location, the `chezmoi apply` requirement after commits, plugin
   repo locations, `just check` requirement per modified plugin repo.
 

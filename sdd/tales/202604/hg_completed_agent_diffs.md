@@ -4,16 +4,16 @@ status: done
 prompt: sdd/prompts/202604/hg_completed_agent_diffs.md
 ---
 
-# Fix: Completed Agent Diffs Not Showing on Mercurial (retired-hg-plugin)
+# Fix: Completed Agent Diffs Not Showing on Mercurial (legacy-mercurial-plugin)
 
 ## Problem
 
-Completed agent diffs don't display in the TUI on the work machine (retired-hg-plugin / Mercurial VCS). Live diffs for running
+Completed agent diffs don't display in the TUI on the work machine (legacy-mercurial-plugin / Mercurial VCS). Live diffs for running
 agents work fine on both git and hg machines.
 
 ## Root Cause
 
-The `hg.yml` xprompt workflow in retired-hg-plugin is missing a `diff` step. Both `git.yml` and `gh.yml` have a `diff` step
+The `hg.yml` xprompt workflow in legacy-mercurial-plugin is missing a `diff` step. Both `git.yml` and `gh.yml` have a `diff` step
 with `finally: true` that captures the agent's changes and outputs a `diff_path`, which gets stored in `done.json` via
 `extract_step_output_and_diff_path()`. Without this step, `diff_path` is never written to `done.json`, so the TUI's
 `get_agent_diff()` returns `None` for completed hg agents.
@@ -36,9 +36,9 @@ Step 1 is completely missing for `hg.yml`.
 
 ## Plan
 
-### Phase 1: Add `diff` step to `hg.yml` (retired-hg-plugin plugin)
+### Phase 1: Add `diff` step to `hg.yml` (legacy-mercurial-plugin plugin)
 
-**File**: `../retired-hg-plugin/src/retired_hg_plugin/xprompts/hg.yml`
+**File**: `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/xprompts/hg.yml`
 
 1. Track initial revision in the `prepare` step by adding `hg id -r . --template '{node}'` to record `head_before` in
    its output.

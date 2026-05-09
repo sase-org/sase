@@ -48,16 +48,16 @@ Relevant implementation points:
   `src/sase/xprompts/pr.yml`.
 - Built-in workspace wrappers: `src/sase/xprompts/git.yml`, `src/sase/xprompts/cd.yml`.
 - Plugin wrappers/context: `../sase-github/src/sase_github/xprompts/gh.yml`,
-  `../retired-hg-plugin/src/retired_hg_plugin/xprompts/hg.yml`,
+  `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/xprompts/hg.yml`,
   `../sase-github/src/sase_github/xprompts/prdd.yml`,
-  `../retired-hg-plugin/src/retired_hg_plugin/default_config.yml`.
+  `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/default_config.yml`.
 - Embedded workflow environment injection and commit-specific append logic:
   `src/sase/xprompt/workflow_executor_steps_embedded_expand.py:157-269`.
 - XPromptTag enum and tag lookup: `src/sase/xprompt/tags.py:12-147`.
 - Stop hook: `src/sase/scripts/sase_commit_stop_hook.py`.
 - Commit CLI and orchestration: `src/sase/main/cl_handler.py`, `src/sase/workflows/commit/workflow.py`.
 - Provider dispatch: `src/sase/vcs_provider/plugins/_git_commit_dispatch.py`,
-  `../sase-github/src/sase_github/plugin.py`, `../retired-hg-plugin/src/retired_hg_plugin/plugin.py`.
+  `../sase-github/src/sase_github/plugin.py`, `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/plugin.py`.
 - Other commit-intent injection sites (not just xprompts): `src/sase/axe/fix_hook_runner.py` sets
   `SASE_COMMIT_METHOD=create_proposal`; mentor and CRS workflows set it via `workflows/crs.py`. Direct
   `sase commit --type ...` invocation also bypasses xprompt entirely and is the path the docs recommend for scripted

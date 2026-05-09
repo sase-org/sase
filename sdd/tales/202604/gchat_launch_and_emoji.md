@@ -50,14 +50,14 @@ Outbound flow:
 ```
 sase_101: notify_*()  →  ~/.sase/notifications/notifications.jsonl
                                      ↓
-retired-chat-plugin outbound chop polls store  →  format_notification()  →  gchat_client.send_message()
+legacy-chat-integration outbound chop polls store  →  format_notification()  →  gchat_client.send_message()
                                                                                 ↓
                                                                       gchat CLI → Google Chat
 ```
 
 - Single notification creation chokepoint: `sase/notifications/senders.py` (sase_101).
-- Single send chokepoint for outbound: `retired_chat_plugin/gchat_client.py::send_message()` (retired-chat-plugin).
-- Single formatting dispatcher: `retired_chat_plugin/formatting.py::format_notification()` (retired-chat-plugin).
+- Single send chokepoint for outbound: `legacy_chat_integration/gchat_client.py::send_message()` (legacy-chat-integration).
+- Single formatting dispatcher: `legacy_chat_integration/formatting.py::format_notification()` (legacy-chat-integration).
 - Inbound replies and dot-command output bypass `format_notification` and go straight to `send_message()`.
 
 These three chokepoints are exactly the leverage points we need.
@@ -81,7 +81,7 @@ _all_ launch paths funnel through:
 - Repeat fan-out (`agent/repeat_launcher.py`)
 - Alt-split
 - Retry spawn (`axe/run_agent_retry_spawn.py`, via `retry_transfer_from_pid`)
-- Inbound gchat agent launches (`retired-chat-plugin/.../sase_gc_inbound.py`)
+- Inbound gchat agent launches (`legacy-chat-integration/.../sase_gc_inbound.py`)
 
 Putting the call here means we get one notification per _spawned subprocess_, which is the right granularity (a
 multi-prompt with 3 segments produces 3 launch notifications, matching what shows up on the Agents tab).
@@ -92,16 +92,16 @@ notification — visibility into retry chains is valuable.
 
 **Silencing escape hatch.** Add an optional `silent` parameter (default `False`). The agent-launch notification is on by
 default for all launches. If a future caller (e.g. background mentor jobs) needs to suppress, it can pass `silent=True`,
-which the existing outbound filter already honours (`retired-chat-plugin/outbound.py:43`). No config flag is needed for the
+which the existing outbound filter already honours (`legacy-chat-integration/outbound.py:43`). No config flag is needed for the
 initial cut.
 
 **Tests:** unit-test the new sender (notification is appended with the right shape), and add an integration test that
 asserts `spawn_agent_subprocess()` writes exactly one launch notification per call (and zero on workspace-claim failure,
 since we only notify after success).
 
-### Part B — Launch formatter (retired-chat-plugin)
+### Part B — Launch formatter (legacy-chat-integration)
 
-Add `_format_agent_launch(n)` in `retired_chat_plugin/formatting.py` and route to it from `format_notification()` when
+Add `_format_agent_launch(n)` in `legacy_chat_integration/formatting.py` and route to it from `format_notification()` when
 `notification.sender == "agent-launch"`.
 
 Rendered text (illustrative):
@@ -121,13 +121,13 @@ line. Reuse `format_provider_model_label()` from `sase.llm_provider.registry` fo
 
 No `Option`s, no attachments. Truncate prompt at the existing `PROMPT_DISPLAY_MAX = 1000`.
 
-### Part C — Universal sase identifier emoji (retired-chat-plugin)
+### Part C — Universal sase identifier emoji (legacy-chat-integration)
 
 **Choice of emoji.** Use `🤖` (robot face). Rationale: universally read as "automated / AI", visually distinct from
 every emoji currently used by formatters (📋 ❓ 🔧 ✅ ✏️ 📚 🚀 ⚠️ 🖼️ 🔔 🔁), renders cleanly on phones, and is short
 enough not to crowd the line.
 
-**Where to apply it.** Centralise in `retired_chat_plugin/gchat_client.py`:
+**Where to apply it.** Centralise in `legacy_chat_integration/gchat_client.py`:
 
 - `send_message(space, text, …)` prepends `🤖 ` to `text` before invoking the CLI.
 - `edit_message(space, message_id, text)` does the same — necessary because the strike-through flow in
@@ -187,10 +187,10 @@ No edits to the existing formatter functions are required for the prefix; it lan
 - `tests/agent/test_launcher.py` (or equivalent) — integration test.
 - `src/sase/telemetry/metrics.py` — add `agent_launch` label to `NOTIFICATIONS_SENT` if labels are restricted.
 
-**retired-chat-plugin:**
+**legacy-chat-integration:**
 
-- `src/retired_chat_plugin/formatting.py` — add `_format_agent_launch`, route from `format_notification`.
-- `src/retired_chat_plugin/gchat_client.py` — add `SASE_PREFIX`, `_ensure_sase_prefix`, apply in `send_message` and
+- `src/legacy_chat_integration/formatting.py` — add `_format_agent_launch`, route from `format_notification`.
+- `src/legacy_chat_integration/gchat_client.py` — add `SASE_PREFIX`, `_ensure_sase_prefix`, apply in `send_message` and
   `edit_message`.
 - `tests/test_formatting.py` — test the new formatter.
 - `tests/test_gchat_client.py` — test prefix idempotency on send and edit, and that `upload_file` is untouched.
@@ -209,7 +209,7 @@ No edits to the existing formatter functions are required for the prefix; it lan
 ## Verification
 
 1. `just check` in sase_101 (lint + tests).
-2. `just check` in retired-chat-plugin.
+2. `just check` in legacy-chat-integration.
 3. Manual smoke test:
    - Launch an agent from the TUI; confirm `🤖 🚀 *Agent Launched*` lands in Chat.
    - Trigger a plan approval; confirm `🤖 📋 *Plan Review*`.

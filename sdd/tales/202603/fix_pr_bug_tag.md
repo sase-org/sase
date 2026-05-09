@@ -9,7 +9,7 @@ prompt: sdd/prompts/202603/fix_pr_bug_tag.md
 ## Problem
 
 When creating PRs via the `#pr` xprompt with a non-zero `bug_id` input, the `BUG=<bug_id>` tag is NOT added to the PR
-description. The default PR tags from config (e.g., retired-hg-plugin's `AUTOSUBMIT_BEHAVIOR`, `MARKDOWN`, etc.) ARE added
+description. The default PR tags from config (e.g., legacy-mercurial-plugin's `AUTOSUBMIT_BEHAVIOR`, `MARKDOWN`, etc.) ARE added
 correctly.
 
 ## Root Cause
@@ -24,7 +24,7 @@ bug-related data, and neither adds `BUG=` to the PR description:
    `create_changespec_for_workflow()` as the `bug` parameter. This adds `BUG: http://b/<id>` to the ChangeSpec, NOT to
    the PR description.
 
-The workspace provider's `ws_format_commit_description` hook (retired-hg-plugin's workspace_plugin.py:123-149) DOES add
+The workspace provider's `ws_format_commit_description` hook (legacy-mercurial-plugin's workspace_plugin.py:123-149) DOES add
 `BUG=<bug_id>` — but only for `workflow_type == "hg"`, and it's never called from the commit workflow's
 `create_pull_request` path. It's a leftover from the pre-VCS-agnostic architecture.
 
@@ -65,9 +65,9 @@ Add test cases:
 - `SASE_BUG_ID` set with existing pr_tags → BUG appears alongside config tags
 - `SASE_BUG_ID` set with static BUG in config → env var wins
 
-### Phase 3: Deduplicate retired-hg-plugin `ws_format_commit_description` (follow-up)
+### Phase 3: Deduplicate legacy-mercurial-plugin `ws_format_commit_description` (follow-up)
 
-The retired-hg-plugin workspace plugin's `ws_format_commit_description` hardcodes the same tags now available via
+The legacy-mercurial-plugin workspace plugin's `ws_format_commit_description` hardcodes the same tags now available via
 `vcs_provider.pr_tags` config (AUTOSUBMIT_BEHAVIOR, MARKDOWN, R, STARTBLOCK_AUTOSUBMIT, WANT_LGTM) plus BUG. Now that
 `_append_pr_tags()` handles both config tags and BUG injection, the hardcoded tags in the workspace plugin are redundant
 for the PR creation path. This is a separate cleanup concern and can be addressed later.

@@ -51,7 +51,7 @@ input for tool installs.
    This gives the resolver a local package named `sase-core-rs` at version `0.1.0`, satisfying `sase`'s declared runtime
    dependency without requiring the package to exist on PyPI.
 
-2. Apply the same fix to `install_retired_hg_plugin`, because it has the same install shape and will hit the same resolver
+2. Apply the same fix to `install_legacy_mercurial_plugin`, because it has the same install shape and will hit the same resolver
    failure whenever it installs the local editable `sase` package.
 
 3. Keep the existing `just -f "$SASE_DIR/Justfile" rust-install-uv-tool` call after `uv tool install`. The local
@@ -86,7 +86,7 @@ input for tool installs.
 ## Files Expected To Change
 
 - `~/.local/share/chezmoi/home/bin/executable_install_sase_github`
-- `~/.local/share/chezmoi/home/bin/executable_install_retired_hg_plugin`
+- `~/.local/share/chezmoi/home/bin/executable_install_legacy_mercurial_plugin`
 
 No changes are expected in the main `sase`, `sase-core`, `sase-github`, or `sase-telegram` repos unless validation
 reveals a separate packaging issue.

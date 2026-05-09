@@ -2,10 +2,10 @@
 plan: sdd/tales/202603/scope_local_mentor_profiles_to_project.md
 ---
 It looks like (see the `sase ace` snapshot below) the mentor profiles configured in this repo's local sase.yml file are
-being used for the 'bug' hg project (the `#hg` VCS xprompt workflow is defined in the ../retired-hg-plugin repo). This is NOT
+being used for the 'bug' hg project (the `#hg` VCS xprompt workflow is defined in the ../legacy-mercurial-plugin repo). This is NOT
 correct. The local sase.yml mentor profiles should only be used when the prompt contains a VCS xprompt that specifies
 that project (e.g. `#gh:sase`). Can you help me diagnose the root cause of this issue and fix it? This issue is
-occurring on another machine that uses the ../retired-hg-plugin plugin. I've saved a `sase logs` logpack to the
+occurring on another machine that uses the ../legacy-mercurial-plugin plugin. I've saved a `sase logs` logpack to the
 ~/tmp/260329_093836/ directory to help you figure this out. Think this through thoroughly and create a plan using your
 `/sase_plan` skill before making any file changes.
 
@@ -53,9 +53,9 @@ occurring on another machine that uses the ../retired-hg-plugin plugin. I've sav
 │                                                              ││  │        | CHAT: ~/.sase/chats/bug_class_brand-ace_run-260328_112105.md (3h11m9s)                                                                                            │    │
 │                                                              ││  │        | DIFF: ~/.sase/diffs/bug_update_trafficking_paging-260328_143211.diff                                                                                              │    │
 │                                                              ││  │  HOOKS:                                                                                                                                                                    │    │
-│                                                              ││  │    !$retired_hg_plugin_presubmit                                                                                                                                                 │    │
+│                                                              ││  │    !$legacy_mercurial_plugin_presubmit                                                                                                                                                 │    │
 │                                                              ││  │        | (1) [260329_093701] RUNNING - ($: 3535795)                                                                                                                        │    │
-│                                                              ││  │    $retired_hg_plugin_lint  [folded: PASSED: 1]                                                                                                                                  │    │
+│                                                              ││  │    $legacy_mercurial_plugin_lint  [folded: PASSED: 1]                                                                                                                                  │    │
 │                                                              ││  │  MENTORS:                                                                                                                                                                  │    │
 │                                                              ││  │    (1) complete[1/1] gotchas                                                                                                                                               │    │
 │                                                              ││  │        | [260329_093714] complete:complete - FAILED - (!: ~/.sase/mentors/bug_update_trafficking_paging-complete-260329_093714.txt)                                        │    │

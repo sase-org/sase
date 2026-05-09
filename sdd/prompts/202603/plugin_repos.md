@@ -4,13 +4,13 @@ existing VCS pluggy hooks, sase.yml default overrides, and any other functionali
 on a per-team / per-company basis. I want you to lead the design here. Make it modern and easy to understand. Other
 requirements:
 
-- We should definitely create the sase-github and retired-hg-plugin directories and move ALL of the appropriate files to those
+- We should definitely create the sase-github and legacy-mercurial-plugin directories and move ALL of the appropriate files to those
   directories.
 - We should also create a first git commit in those directories after initializing them as git repos. Don't worry about
   pushing them to GitHub (I haven't created the repos yet).
 - We will need to configure Github Actions to actually release these Python packages to PyPI. This inclues the existing
   `sase` package. I'm not sure what package names are available. Prefer `sase`, but I could also live with `sase-cli` or
-  something like that if `sase` is taken. I'm more confident that `sase-github` and `retired-hg-plugin` will be available, but
+  something like that if `sase` is taken. I'm more confident that `sase-github` and `legacy-mercurial-plugin` will be available, but
   we can check that as well. We should also create the appropriate GitHub Actions workflow files to build and publish
   the packages when we push new tags.
 - End the plan with instructions for the user on how to set up their system the way it was before (I assume I'll need to

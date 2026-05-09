@@ -110,7 +110,7 @@ content is merged into `memory/dynamic.md`.
 xprompts:
   memory/external_repos:
     tags: memory
-    keywords: [chezmoi, plugin, sase-github, retired-hg-plugin, sase-telegram, sase-nvim, dotfile, cross-repo]
+    keywords: [chezmoi, plugin, sase-github, legacy-mercurial-plugin, sase-telegram, sase-nvim, dotfile, cross-repo]
     content: "@memory/long/external_repos.md"
   memory/generated_skills:
     tags: memory
@@ -128,7 +128,7 @@ This can also be defined as a `.md` file in any xprompt directory:
 ```markdown
 ---
 tags: memory
-keywords: [chezmoi, plugin, sase-github, retired-hg-plugin, sase-telegram, sase-nvim, dotfile, cross-repo]
+keywords: [chezmoi, plugin, sase-github, legacy-mercurial-plugin, sase-telegram, sase-nvim, dotfile, cross-repo]
 ---
 
 @memory/long/external_repos.md

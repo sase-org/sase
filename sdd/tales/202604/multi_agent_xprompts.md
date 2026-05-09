@@ -151,7 +151,7 @@ Goal: confirm no existing xprompt's body contains incidental `---` separators th
 
 Steps:
 
-1. Grep `src/sase/xprompts/**/*.md`, `plans/**/*.md` is N/A, plugin repos (`sase-github`, `retired-hg-plugin`,
+1. Grep `src/sase/xprompts/**/*.md`, `plans/**/*.md` is N/A, plugin repos (`sase-github`, `legacy-mercurial-plugin`,
    `sase-telegram`, `sase-nvim`) for `^---$` lines outside fenced blocks.
 2. For each hit, decide: (a) intentional segment break — leave and document the new behavior in the xprompt's
    snippet/description, or (b) accidental — wrap in fences or remove.

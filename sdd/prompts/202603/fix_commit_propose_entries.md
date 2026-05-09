@@ -12,7 +12,7 @@ plan using your `/sase_plan` skill.
 
 - See the `sase ace` snapshot below (example agent that used the `#propose` xprompt and has a CL URL for a
   `Proposal Id:` field value for some reason) for context.
-- Also, this issue is occurring on another machine that uses the ../retired-hg-plugin plugin. I've saved a `sase logs` logpack
+- Also, this issue is occurring on another machine that uses the ../legacy-mercurial-plugin plugin. I've saved a `sase logs` logpack
   to the ~/tmp/260326_103816/ directory to help you figure this out.
 
 ### `sase ace` Snapshot

@@ -16,7 +16,7 @@ The core `sase` repo already has most of the DELTAS line-count plumbing:
 - ACE already renders per-entry line stats inline when `line_stats` is populated.
 - COMMITS append paths call `refresh_deltas_after_commits_change()` after adding entries.
 
-The provided `sase ace` snapshot is from the Google/Mercurial workflow. The `retired-hg-plugin` plugin currently implements
+The provided `sase ace` snapshot is from the Google/Mercurial workflow. The `legacy-mercurial-plugin` plugin currently implements
 `vcs_diff_name_status()` but does not implement `vcs_diff_line_stats()`, so core degrades to file-only DELTAS and ACE
 has no line-count data to display.
 
@@ -43,7 +43,7 @@ ACE will then render the file entries with the existing inline stats, for exampl
 
 ## Implementation
 
-1. Add Mercurial line-stat support in `../retired-hg-plugin/src/retired_hg_plugin/plugin.py`.
+1. Add Mercurial line-stat support in `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/plugin.py`.
    - Implement `vcs_diff_line_stats(parent_ref, head_ref, cwd)`.
    - Use the same revision pair as `vcs_diff_name_status()`.
    - Prefer a command shape based on `hg diff --stat` or another locally available Mercurial diff output that can be
@@ -58,7 +58,7 @@ ACE will then render the file entries with the existing inline stats, for exampl
    - Do not add a new timestamp for DELTAS refresh.
    - Do not make line stats mandatory; unsupported or unparsable rows should degrade to file-level DELTAS.
 
-3. Add plugin unit tests in `../retired-hg-plugin/tests/test_hg_plugin.py`.
+3. Add plugin unit tests in `../legacy-mercurial-plugin/tests/test_hg_plugin.py`.
    - Success: verifies command invocation and parsing of added/removed counts for several paths.
    - Failure: verifies a failed hg command raises `VCSOperationError` with operation `diff_line_stats`.
    - Include at least one path with spaces if the chosen output format can represent it unambiguously.
@@ -70,7 +70,7 @@ ACE will then render the file entries with the existing inline stats, for exampl
 
 5. Verification.
    - Run focused core tests for DELTAS parsing/compute/TUI/commit refresh.
-   - Run focused `retired-hg-plugin` plugin tests.
+   - Run focused `legacy-mercurial-plugin` plugin tests.
    - Because both repos are touched, run `just check` in each modified repo after `just install` where required.
 
 ## Risks and Constraints
@@ -78,5 +78,5 @@ ACE will then render the file entries with the existing inline stats, for exampl
 - Mercurial stat output can be less structured than Git `--numstat`; the parser should be conservative and skip rows it
   cannot interpret rather than writing incorrect counts.
 - DELTAS refresh is best-effort by design; failures must preserve existing DELTAS and not block the commit workflow.
-- This task spans the core repo and the `retired-hg-plugin` plugin repo. Avoid modifying generated skill files or CLI
+- This task spans the core repo and the `legacy-mercurial-plugin` plugin repo. Avoid modifying generated skill files or CLI
   contracts; this change should stay within VCS provider behavior and tests.

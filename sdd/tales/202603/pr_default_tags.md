@@ -8,7 +8,7 @@ status: done
 ## Problem
 
 When `sase commit` creates a PR (`create_pull_request` method), there's no way to automatically include
-provider-specific metadata tags in the PR description. For example, the retired-hg-plugin plugin needs every CL to include
+provider-specific metadata tags in the PR description. For example, the legacy-mercurial-plugin plugin needs every CL to include
 tags like `AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT`, `MARKDOWN=true`, `R=startblock`, etc. Today these would need to be manually
 added to every commit message.
 
@@ -35,9 +35,9 @@ GitHub for PR body). By appending tags to `message` **before** `_build_pr_body()
 4. **Tests** — Unit tests for config reader and tag appending; integration test verifying tags flow through to
    `_pr_body`.
 
-### Phase 2: retired-hg-plugin plugin
+### Phase 2: legacy-mercurial-plugin plugin
 
-5. **`../retired-hg-plugin/src/retired_hg_plugin/default_config.yml`** — Add default `pr_tags`:
+5. **`../legacy-mercurial-plugin/src/legacy_mercurial_plugin/default_config.yml`** — Add default `pr_tags`:
    ```yaml
    vcs_provider:
      pr_tags:

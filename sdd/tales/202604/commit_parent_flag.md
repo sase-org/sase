@@ -11,7 +11,7 @@ prompt: sdd/prompts/202604/commit_parent_flag.md
 When `sase commit -t create_pull_request` is run from a branch other than master/main, the PARENT ChangeSpec field
 should be set to the ChangeSpec associated with the current branch. This auto-detection exists in
 `_detect_parent_changespec()` (workflow.py:386-417) but is not working reliably, at least for child CLs created by the
-`#split` xprompt workflow in retired-hg-plugin.
+`#split` xprompt workflow in legacy-mercurial-plugin.
 
 ## Root Cause Analysis
 
@@ -26,8 +26,8 @@ The auto-detection code in `_detect_parent_changespec()` has two issues:
    its setup step and knows which parent each child CL should have, but this information is lost because `sase commit`
    only supports auto-detection.
 
-In the retired-hg-plugin split workflow specifically, the executor navigates to the parent CL via
-`retired_hg_plugin_update <parent>` (which calls `hg update` + `clear_branch_name`) before running `sase commit`. The
+In the legacy-mercurial-plugin split workflow specifically, the executor navigates to the parent CL via
+`legacy_mercurial_plugin_update <parent>` (which calls `hg update` + `clear_branch_name`) before running `sase commit`. The
 auto-detection then calls `branch_name` to determine the current CL, but after `clear_branch_name` this may not return
 the expected value, causing `_detect_parent_changespec()` to silently return None.
 
@@ -46,14 +46,14 @@ provided, this takes precedence over auto-detection.
   `_detect_parent_changespec()`; in `_detect_parent_changespec()`, replace the blanket `except Exception: return None`
   with targeted exception handling that logs warnings
 
-### Phase 2: Update split executor to pass parent (retired-hg-plugin repo)
+### Phase 2: Update split executor to pass parent (legacy-mercurial-plugin repo)
 
 Update `split_executor.md` to include the parent flag in the `sase commit` invocation so each child CL gets the correct
 PARENT set explicitly.
 
 **Files to change:**
 
-- `src/retired_hg_plugin/xprompts/split_executor.md` — Change the `sase commit` invocation in step 4 to include `-p <parent>`,
+- `src/legacy_mercurial_plugin/xprompts/split_executor.md` — Change the `sase commit` invocation in step 4 to include `-p <parent>`,
   where `<parent>` is the CL that was navigated to in step 1 (either the entry's explicit `parent` or
   `{{ default_parent }}`)
 
@@ -64,7 +64,7 @@ PARENT set explicitly.
 
 ## Scope
 
-- **In scope**: Adding the `-p`/`--parent` flag, improving error handling in auto-detection, updating the retired-hg-plugin
+- **In scope**: Adding the `-p`/`--parent` flag, improving error handling in auto-detection, updating the legacy-mercurial-plugin
   split executor
-- **Out of scope**: Fixing the `branch_name` / `clear_branch_name` behavior in retired-hg-plugin (the explicit flag makes this
+- **Out of scope**: Fixing the `branch_name` / `clear_branch_name` behavior in legacy-mercurial-plugin (the explicit flag makes this
   unnecessary)

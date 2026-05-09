@@ -39,8 +39,8 @@ both `diff_path` and `response_path` are `None`. The entry is created without CH
 ### Bug 3: Propose workflow commits to CL
 
 **Flow:** The `propose` step's fallback path (`propose.yml:40-44`) creates `CommitWorkflow(method="create_proposal")`,
-which dispatches to `vcs_create_proposal` on the HgPlugin (`retired-hg-plugin/plugin.py:368`). The HgPlugin's
-`vcs_create_proposal` calls `vcs_create_commit` (which runs `retired_hg_plugin_amend` — amending the CL), then cleans the
+which dispatches to `vcs_create_proposal` on the HgPlugin (`legacy-mercurial-plugin/plugin.py:368`). The HgPlugin's
+`vcs_create_proposal` calls `vcs_create_commit` (which runs `legacy_mercurial_plugin_amend` — amending the CL), then cleans the
 workspace with `hg update --clean`. This pushes the agent's changes to the CL.
 
 The same bug exists for the stop-hook path: if the commit stop hook fires during a `#propose` workflow, it tells the
@@ -51,7 +51,7 @@ Contrast with the correct flow in `change_actions.py:178-224` (TUI interactive p
 
 ## Changes
 
-### 1. `../retired-hg-plugin/src/retired_hg_plugin/plugin.py` — Save diff instead of amending CL
+### 1. `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/plugin.py` — Save diff instead of amending CL
 
 Change `vcs_create_proposal` to save a diff file and clean the workspace instead of amending the CL. This fixes both the
 background-agent (propose.yml) and stop-hook paths, since both dispatch through `CommitWorkflow` → VCS provider.
@@ -144,7 +144,7 @@ wf = CommitWorkflow(
 
 | File                                             | Repo        | Change                                                                      |
 | ------------------------------------------------ | ----------- | --------------------------------------------------------------------------- |
-| `../retired-hg-plugin/src/retired_hg_plugin/plugin.py`       | retired-hg-plugin | `vcs_create_proposal`: save diff + clean instead of amend + clean           |
+| `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/plugin.py`       | legacy-mercurial-plugin | `vcs_create_proposal`: save diff + clean instead of amend + clean           |
 | `src/sase/workflows/commit_utils/post_commit.py` | sase_101    | `append_post_commit_entry`: add diff_path and response_path fallbacks       |
 | `src/sase/axe/fix_hook_runner.py`                | sase_101    | Set `SASE_AGENT_CHAT_PATH`; prefer `_append_entry.entry_id` for proposal_id |
 | `src/sase/xprompts/propose.yml`                  | sase_101    | Pass `_cl_name` in CommitWorkflow payload                                   |

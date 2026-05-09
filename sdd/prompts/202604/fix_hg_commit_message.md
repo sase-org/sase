@@ -4,7 +4,7 @@ plan: sdd/tales/202604/fix_hg_commit_message.md
 This agent is showing the wrong `Commit Message:` (see the `sase ace` snapshots below). Namely,
 `Commit Message: [bs_allow] Extract AdvertiserBrandBlock validation into a standalone validator class.` should be
 `Commit Message: Restore LINE_ITEM_BACKFILL validation to AdContentProtectionValidator`. This agent was run on another
-machine that uses the ../retired-hg-plugin repo. Can you help me diagnose the root cause of this issue and fix it? Think this
+machine that uses the ../legacy-mercurial-plugin repo. Can you help me diagnose the root cause of this issue and fix it? Think this
 through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 
 ### `sase ace` Snapshot
@@ -71,8 +71,8 @@ through thoroughly and create a plan using your `/sase_plan` skill before making
 │                                                        ││  │        | CHAT: ~/.sase/chats/bs_allow_manager-ace_run-260411_231524.md (13m0s)                                                                                                   │    │
 │                                                        ││  │        | DIFF: ~/.sase/projects/bs_allow/artifacts/ace-run/20260411231524/commit_diff.diff                                                                                       │    │
 │                                                        ││  │  HOOKS:                                                                                                                                                                          │    │
-│                                                        ││  │    !$retired_hg_plugin_presubmit  [folded: PASSED: 4 | FAILED: 1 2 3]                                                                                                                  │    │
-│                                                        ││  │    $retired_hg_plugin_lint  [folded: PASSED: 1 2 3 4]                                                                                                                                  │    │
+│                                                        ││  │    !$legacy_mercurial_plugin_presubmit  [folded: PASSED: 4 | FAILED: 1 2 3]                                                                                                                  │    │
+│                                                        ││  │    $legacy_mercurial_plugin_lint  [folded: PASSED: 1 2 3 4]                                                                                                                                  │    │
 │                                                        ││  │  MENTORS:                                                                                                                                                                        │    │
 │                                                        ││  │    (2) code[3/3]  [folded: COMMENTED: 2 | DEAD: 1]                                                                                                                               │    │
 │                                                        ││  │    (3) code[3/3]  [folded: COMMENTED: 3]                                                                                                                                         │    │

@@ -2,13 +2,13 @@
 plan: sdd/epics/202603/unified_vcs_commit.md
 ---
 I'm thinking about getting rid of all commit/propose/cl (for example, see the `#commit` / `#propose` / `#cl` workflows
-in the ../retired-hg-plugin repo or the `#pr` workflow in the ../sase-github repo--which corresponds with the `#cl` workflow,
+in the ../legacy-mercurial-plugin repo or the `#pr` workflow in the ../sase-github repo--which corresponds with the `#cl` workflow,
 but for GitHub) in favor of using 3 built-in xprompts (`#commit`, `#propose`, and `#pr`---`#pr` will be used instead of
 `#cl`).
 
 - The goal of this change: To unify / standardize the way I commit changes, create new proposals, and create new CLs/PRs
   across all VCS providers.
-- These built-in xprompt will have the same `prompt_part` used by the ../retired-hg-plugin workflows currently, but will NOT
+- These built-in xprompt will have the same `prompt_part` used by the ../legacy-mercurial-plugin workflows currently, but will NOT
   actually create the commit/proposal/PR.
 - Instead, they will set a `$SASE_COMMIT_METHOD` environment variable (supported via a new `environment` field), which
   will be set to either "create_commit", "create_proposal", or "create_pull_request".
@@ -61,7 +61,7 @@ contains the agent's reply:
 - If an xprompt tagged with "append_to_commit_and_propose" exists for the given VCS (determined by an embedded VCS
   xprompt workflow), then we will append that xprompt to the `#commit` and `#propose` xprompt contents (in the same
   location we put `#no_cl_ops` and `#cldd` in before).
-- We should tag the `#no_cl_ops` xprompt in the ../retired-hg-plugin repo with "append_to_pr". We should also define a new
+- We should tag the `#no_cl_ops` xprompt in the ../legacy-mercurial-plugin repo with "append_to_pr". We should also define a new
   `#no_cl_ops_and_cldd` xprompt in this repo that is tagged with "append_to_commit_and_propose" has the following
   contents:
   ```

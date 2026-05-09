@@ -70,7 +70,7 @@ source template to verify generation without touching chezmoi deployment.
 
 Update `tests/test_sibling_commit_stop_hook.py`:
 
-- Existing dirty sibling tests should assert the message includes `../retired-chat-plugin` and `cd ../retired-chat-plugin`.
+- Existing dirty sibling tests should assert the message includes `../legacy-chat-integration` and `cd ../legacy-chat-integration`.
 - Codex JSON test should assert the JSON reason includes the same path-aware instructions and push verification.
 - Add a multiple-sibling test if practical, to verify the "repeat for each repo" wording.
 

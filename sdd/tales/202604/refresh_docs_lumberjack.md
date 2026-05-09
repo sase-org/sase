@@ -22,12 +22,12 @@ Move the existing `sase_refresh_docs` scheduled agent chop out of the shared `ru
   - nested docs agent prompt: `#gh:sase #sase/docs`
 - Canonical local sibling repos matching `sase-*` are:
   - `sase-core`
-  - `retired-chat-plugin`
+  - `legacy-chat-integration`
   - `sase-github`
-  - `retired-hg-plugin`
+  - `legacy-mercurial-plugin`
   - `sase-nvim`
   - `sase-telegram`
-- Workspace clones like `retired-hg-plugin_100` and `sase-telegram_100` are not source repos for this config.
+- Workspace clones like `legacy-mercurial-plugin_100` and `sase-telegram_100` are not source repos for this config.
 
 ## Design
 
@@ -57,9 +57,9 @@ Update `~/.local/share/chezmoi/home/dot_config/sase/sase_athena.yml`:
   - `sase_refresh_docs`: `#gh:sase #!sase/refresh_docs`
 - Add one chop per canonical `sase-*` repo, passing `threshold=25` explicitly:
   - `sase_core_refresh_docs`
-  - `retired_chat_plugin_refresh_docs`
+  - `legacy_chat_integration_refresh_docs`
   - `sase_github_refresh_docs`
-  - `retired_hg_plugin_refresh_docs`
+  - `legacy_mercurial_plugin_refresh_docs`
   - `sase_nvim_refresh_docs`
   - `sase_telegram_refresh_docs`
 

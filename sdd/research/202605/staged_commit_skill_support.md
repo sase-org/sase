@@ -190,13 +190,13 @@ re-init. There is no per-runtime branch to maintain; the AGENTS.md guidance "tre
 
 Only two VCS providers are registered via the `sase_vcs` entry-point group: `bare_git` (in this repo, also used by the
 `sase-github` plugin which adds GitHub-only behavior on top of the shared Git dispatch mixin) and `hg` (in
-`retired-hg-plugin`). There is no chezmoi/telegram/nvim VCS provider — the chezmoi, telegram, and nvim plugins do not
+`legacy-mercurial-plugin`). There is no chezmoi/telegram/nvim VCS provider — the chezmoi, telegram, and nvim plugins do not
 implement `vcs_create_commit`. So the staged-mode design only has to reason about Git and hg.
 
 ### Mercurial/Google provider behavior
 
-The hg provider in `../retired-hg-plugin/src/retired_hg_plugin/plugin.py` currently ignores `payload["files"]` for
-`vcs_create_commit()`. It runs `hg update`, derives a one-line note from the message, and calls `retired_hg_plugin_amend`.
+The hg provider in `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/plugin.py` currently ignores `payload["files"]` for
+`vcs_create_commit()`. It runs `hg update`, derives a one-line note from the message, and calls `legacy_mercurial_plugin_amend`.
 
 For new CLs (`vcs_create_pull_request()`), it runs `hg addremove`, then `hg commit --name ... --logfile ...`. It also
 does not use `payload["files"]`.

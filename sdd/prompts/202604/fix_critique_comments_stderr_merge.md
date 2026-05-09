@@ -2,7 +2,7 @@
 plan: sdd/tales/202604/fix_critique_comments_stderr_merge.md
 ---
 The ChangeSpec in the below `sase ace` snapshot should have a COMMENTS field added to it by `sase axe`. This ChangeSpec
-exists on another machine that uses the ../retired-hg-plugin repo. Can you help me diagnose the root cause of this issue and
+exists on another machine that uses the ../legacy-mercurial-plugin repo. Can you help me diagnose the root cause of this issue and
 fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 
 HINT: The `critique_comments bs_allow_model` command fails and outputs the following:
@@ -36,8 +36,8 @@ HINT: The `critique_comments bs_allow_model` command fails and outputs the follo
 │                                                      ││  │        | DIFF: ~/.sase/diffs/bs_allow_model-260411_232343.diff                                                                                                                     │    │
 │                                                      ││  │        | PLAN: /google/src/cloud/bbugyi/bs_allow/google3/.sase/sdd/tales/202604/mcr_advertiser_targeting_3.md                                                                      │    │
 │                                                      ││  │  HOOKS:                                                                                                                                                                            │    │
-│                                                      ││  │    !$retired_hg_plugin_presubmit  [folded: PASSED: 1]                                                                                                                                    │    │
-│                                                      ││  │    $retired_hg_plugin_lint  [folded: PASSED: 1]                                                                                                                                          │    │
+│                                                      ││  │    !$legacy_mercurial_plugin_presubmit  [folded: PASSED: 1]                                                                                                                                    │    │
+│                                                      ││  │    $legacy_mercurial_plugin_lint  [folded: PASSED: 1]                                                                                                                                          │    │
 │                                                      ││  │    //contentads/drx/fe/client/inventory/protections/service:manual_creative_review_protection_converter_test  [folded: PASSED: 1]                                                  │    │
 │                                                      ││  │    //javatests/com/google/ads/publisher/api/service/protection/impl:all  [folded: PASSED: 1]                                                                                       │    │
 │                                                      ││  │  MENTORS:                                                                                                                                                                          │    │
@@ -95,4 +95,4 @@ HINT: The `critique_comments bs_allow_model` command fails and outputs the follo
 
 ### DYNAMIC MEMORY
 
-- @.sase/memory/long-external-repos.md (matched: `retired-hg-plugin`)
+- @.sase/memory/long-external-repos.md (matched: `legacy-mercurial-plugin`)

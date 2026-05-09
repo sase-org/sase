@@ -66,7 +66,7 @@ After all four phases land:
   dispatch returns `False`, by probing `provider.is_sync_in_progress(cwd)` and the working tree.
 - We do NOT introduce dispatch-substep idempotency (Solution F). The resume path re-runs only the tracking steps and
   provider-level finalization (`_push_with_retry`, `_post_commit_bead_amend`) that wasn't reached.
-- Hg-side `vcs_finalize_commit` (re-mailing, re-uploading) is out of scope for this plan — it lives in the `retired-hg-plugin`
+- Hg-side `vcs_finalize_commit` (re-mailing, re-uploading) is out of scope for this plan — it lives in the `legacy-mercurial-plugin`
   plugin repo (see `memory/long/external_repos.md`). The hg code path intentionally tolerates a missing finalize step in
   Phase 3.
 
@@ -809,7 +809,7 @@ deploying.
 ## Risks and Follow-ups
 
 - **Hg `vcs_finalize_commit` not implemented here.** The git mixin is the only plugin that implements
-  `vcs_finalize_commit` in Phase 3. The hg plugin lives in `retired-hg-plugin` (see `memory/long/external_repos.md`) and needs
+  `vcs_finalize_commit` in Phase 3. The hg plugin lives in `legacy-mercurial-plugin` (see `memory/long/external_repos.md`) and needs
   an analogous implementation that re-runs `mail` / `upload` idempotently. Phase 3's `resume()` tolerates a
   `NotImplementedError` from `finalize_commit` so the hg-flavored bookkeeping (ChangeSpec, COMMITS entry,
   `commit_result.json`) is still recovered even without hg-side push/mail. File a follow-up bead during Phase 3; the hg
@@ -842,7 +842,7 @@ deploying.
 
 - Solution E (post-completion hook auto-finalization). Can be layered on top of A in a follow-up.
 - Changing the VCS dispatch `(bool, str | None)` contract.
-- Hg-side `vcs_finalize_commit` (lives in `retired-hg-plugin`, separate change).
+- Hg-side `vcs_finalize_commit` (lives in `legacy-mercurial-plugin`, separate change).
 - A general "list / clean" CLI for stale checkpoints (`sase commit --list-checkpoints`).
 - Resuming `sase commit` after a non-conflict failure (e.g. push rejected by server hook). This iteration's resume
   contract is "the commit exists locally; finish the bookkeeping". A failed push without a local commit has no

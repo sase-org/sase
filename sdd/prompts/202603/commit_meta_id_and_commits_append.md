@@ -4,7 +4,7 @@ plan: sdd/tales/202603/commit_meta_id_and_commits_append.md
 We are STILL not appending the commit ID properly. This agent (see the `sase ace` snapshot below) made the appropriate
 commit, but the `meta_commit_id` does not appear to have been output properly and the new COMMITS entry was not added
 like it should have been. We just tried to fix this (see recent, related git commits). This issue is occurring on
-another machine that uses the ../retired-hg-plugin plugin. I've saved a `sase logs` logpack to the ~/tmp/260326_114608/
+another machine that uses the ../legacy-mercurial-plugin plugin. I've saved a `sase logs` logpack to the ~/tmp/260326_114608/
 directory to help you figure this out. Can you help me diagnose the root cause of this issue and fix it? Think this
 through thoroughly and create a plan using your `/sase_plan` skill.
 

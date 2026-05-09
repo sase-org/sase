@@ -25,9 +25,9 @@ COMMITS:
       | DIFF: ~/.sase/diffs/yserve_null-260404_125153.diff
       | PLAN: /google/src/cloud/bbugyi/yserve/google3/.sase/sdd/tales/202604/yserve_converters.md
 HOOKS:
-  !$retired_hg_plugin_presubmit
+  !$legacy_mercurial_plugin_presubmit
       | (1) [260404_150308] FAILED (5m15s) - (!: Presubmit failed with 1 target failure in xfp_api.exchange.)
-  $retired_hg_plugin_lint
+  $legacy_mercurial_plugin_lint
       | (1) [260404_150309] PASSED (4s)
 TIMESTAMPS:
   [260404_125155] COMMIT (1)

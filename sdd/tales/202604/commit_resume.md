@@ -434,7 +434,7 @@ it was called with no payload args.
 ## Risks and Follow-ups
 
 - **Hg `mail`/`upload` resume isn't covered.** This first iteration adds `vcs_finalize_commit` only on the git mixin.
-  The hg dispatch (in the `retired-hg-plugin` plugin repo, not in `sase_100`) needs an equivalent override that re-runs `mail`
+  The hg dispatch (in the `legacy-mercurial-plugin` plugin repo, not in `sase_100`) needs an equivalent override that re-runs `mail`
   and `upload` idempotently. Tracked as a follow-up because: (a) the conflict in the snapshot was hg-flavored
   (`hg evolve`), but the user's report says the agent successfully landed the commit locally and only the bookkeeping
   was missing — so a no-op `vcs_finalize_commit` on hg still recovers the bookkeeping; (b) the hg-side push/mail
@@ -468,7 +468,7 @@ it was called with no payload args.
 
 - Solution E (post-completion hook auto-finalization). Can be layered on top of A in a follow-up.
 - Changing the VCS dispatch `(bool, str | None)` contract.
-- Hg-side `vcs_finalize_commit` (lives in `retired-hg-plugin`, separate change).
+- Hg-side `vcs_finalize_commit` (lives in `legacy-mercurial-plugin`, separate change).
 - A general "list / clean" CLI for stale checkpoints (`sase commit --list-checkpoints`). Not needed for the motivating
   bug.
 - Resuming `sase commit` after a non-conflict failure (e.g. push rejected by server hook). This iteration's resume

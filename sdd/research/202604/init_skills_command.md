@@ -402,5 +402,5 @@ sase commit -M commit_message.md -f src/auth.py
 - Should the `description` field support Jinja2 rendering too (for provider-specific trigger
   text)?
 - Where should provider-specific skills (like `sase_hg_commit`) live? Same `xprompts/skills/`
-  directory with `skill: [gemini]`, or in the retired-hg-plugin plugin repo?
+  directory with `skill: [gemini]`, or in the legacy-mercurial-plugin plugin repo?
 ```

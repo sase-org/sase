@@ -8,12 +8,12 @@ prompt: sdd/prompts/202604/split_workspace_fix.md
 
 ## Problem
 
-The `#split` workflow's setup step (`sase_split_setup`) calls `retired_hg_plugin_update` to navigate to the target CL branch,
+The `#split` workflow's setup step (`sase_split_setup`) calls `legacy_mercurial_plugin_update` to navigate to the target CL branch,
 but this fails because:
 
 1. No workspace has been claimed in the RUNNING field
 2. The workflow executor hasn't `cd`'d into a Mercurial workspace directory (no `_chdir` output)
-3. So `retired_hg_plugin_update` → `hg update` fails because the cwd isn't an hg workspace
+3. So `legacy_mercurial_plugin_update` → `hg update` fails because the cwd isn't an hg workspace
 
 The `#hg` workflow handles this correctly: its setup step (`hg_setup.py`) claims a workspace, prints
 `_chdir=workspace_dir`, and subsequent steps run inside the workspace. The `#split` workflow needs equivalent logic.
@@ -22,36 +22,36 @@ The `#hg` workflow handles this correctly: its setup step (`hg_setup.py`) claims
 
 Workspace claim/release must happen exactly once. Since `#split` is a standalone workflow (not wrapped by `#hg`), the
 claiming and releasing should happen directly in `#split`. The `split_executor` agent step runs commands
-(`retired_hg_plugin_update`, `sase commit`) directly in the workspace — it doesn't invoke `#hg` — so there's no double-claim
+(`legacy_mercurial_plugin_update`, `sase commit`) directly in the workspace — it doesn't invoke `#hg` — so there's no double-claim
 risk.
 
 ## Changes
 
-### 1. `retired-hg-plugin: sase_split_setup` — Add workspace claiming + `_chdir`
+### 1. `legacy-mercurial-plugin: sase_split_setup` — Add workspace claiming + `_chdir`
 
-**File:** `src/retired_hg_plugin/scripts/sase_split_setup`
+**File:** `src/legacy_mercurial_plugin/scripts/sase_split_setup`
 
-Add workspace claiming logic at the top of `main()`, before the existing `retired_hg_plugin_update` call:
+Add workspace claiming logic at the top of `main()`, before the existing `legacy_mercurial_plugin_update` call:
 
 - Support pre-allocated workspaces (`SASE_HG_PRE_ALLOCATED` env var) — same as `hg_setup.py`
 - Otherwise, atomically claim the next available axe workspace via `claim_next_axe_workspace`
 - Resolve the workspace directory via `get_workspace_directory_for_num`
-- Print `_chdir=workspace_dir` so the executor changes cwd **before** `retired_hg_plugin_update` runs
+- Print `_chdir=workspace_dir` so the executor changes cwd **before** `legacy_mercurial_plugin_update` runs
 - Use `os.getppid()` for the PID (same rationale as `hg_setup.py` — this script is a short-lived subprocess)
 - Resolve the project via `resolve_ref(cl_name, "hg")`
 
 New outputs to add: `workspace_num`, `project_file`, `should_release`, `workflow_name`.
 
-The `_chdir` must be printed **before** calling `retired_hg_plugin_update`, since the executor processes `_chdir` as it parses
+The `_chdir` must be printed **before** calling `legacy_mercurial_plugin_update`, since the executor processes `_chdir` as it parses
 output, changing cwd for subsequent commands within the same step.
 
 **Wait — actually, `_chdir` is processed after the step completes (the executor parses all output after the subprocess
 exits).** So instead, the `sase_split_setup` script should `os.chdir(workspace_dir)` itself before calling
-`retired_hg_plugin_update`. The `_chdir` output will then ensure subsequent workflow steps also run in the workspace.
+`legacy_mercurial_plugin_update`. The `_chdir` output will then ensure subsequent workflow steps also run in the workspace.
 
-### 2. `retired-hg-plugin: split.yml` — Add outputs + release step
+### 2. `legacy-mercurial-plugin: split.yml` — Add outputs + release step
 
-**File:** `src/retired_hg_plugin/xprompts/split.yml`
+**File:** `src/legacy_mercurial_plugin/xprompts/split.yml`
 
 - Add `workspace_num`, `project_file`, `should_release`, `workflow_name` to the setup step's `output` block
 - Add a final `release` step (after `execute_revert`) that releases the workspace, conditional on

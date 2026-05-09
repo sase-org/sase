@@ -17,7 +17,7 @@ sase commit '{"message": "feat: Add auth", "files": ["src/auth.py"], "bead_id": 
 2. **Handler** (`cl_handler.py:12-38`): Calls `json.loads(args.payload)` to parse the JSON string into a dict.
 3. **Workflow** (`workflows/commit/workflow.py`): Receives the dict, validates required fields, mutates it (adds
    `_plan_path`, `_pr_body`, modifies `message`), and passes it to the VCS provider.
-4. **VCS Providers** (`_git_common.py`, `retired-hg-plugin/plugin.py`): Extract fields from the dict via `.get()` calls.
+4. **VCS Providers** (`_git_common.py`, `legacy-mercurial-plugin/plugin.py`): Extract fields from the dict via `.get()` calls.
 
 ### Payload fields by method
 

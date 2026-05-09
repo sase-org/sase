@@ -41,10 +41,10 @@ Sequence:
    `src/sase/xprompt/workflow_executor_steps_prompt.py`).
 5. `workflow_executor_steps_prompt.py:184` — `preprocess_prompt_early` (xprompt expansion).
 6. `workflow_executor_steps_prompt.py:200` — `_expand_embedded_workflows_in_prompt` runs the embedded workflow's
-   pre-steps. For `#hg:yserve_read_grow` (defined in `retired-hg-plugin_100/src/retired_hg_plugin/xprompts/hg.yml`):
+   pre-steps. For `#hg:yserve_read_grow` (defined in `legacy-mercurial-plugin_100/src/legacy_mercurial_plugin/xprompts/hg.yml`):
    - `setup` (Python) emits `_chdir=<workspace_dir>` → executor calls `os.chdir` (see
      `workflow_executor_steps_script.py:142-149`).
-   - `prepare` (bash) runs `retired_hg_plugin_clean`, which executes `hg update --clean .` and `hg clean` — **removing
+   - `prepare` (bash) runs `legacy_mercurial_plugin_clean`, which executes `hg update --clean .` and `hg clean` — **removing
      untracked files, including `.sase/memory/long-buganizer.md`**.
 7. `workflow_executor_steps_prompt.py:217` — `preprocess_prompt_late` runs `validate_file_references`. The file is gone
    → `sys.exit(1)`.
@@ -174,7 +174,7 @@ Reproduce the failing scenario locally (or via the user's google3 workspace) and
 
 ## Out of Scope
 
-- Teaching `retired_hg_plugin_clean` (in the `retired-hg-plugin` plugin) to preserve `.sase/`. That would be defense in depth, but
+- Teaching `legacy_mercurial_plugin_clean` (in the `legacy-mercurial-plugin` plugin) to preserve `.sase/`. That would be defense in depth, but
   the same class of bug would still surface for any other plugin/workflow that mutates the workspace between early and
   late phases. Fixing this in sase core makes plugins not need to know about `.sase/memory/`.
 - Reordering `generate_dynamic_memory` to run only late. Possible but loses the early log snapshot / artifact, which the

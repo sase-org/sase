@@ -47,7 +47,7 @@ Repository scan results:
   `home/dot_gemini/skills/sase_artifact/SKILL.md`.
 - `../sase-nvim`, `../sase-github`, and `../sase-telegram`: no matching artifact-panel references found in focused
   searches.
-- `../retired-hg-plugin`: recent unrelated commit `98b8b4b feat: add Mercurial diff line stats`; no matching artifact-panel
+- `../legacy-mercurial-plugin`: recent unrelated commit `98b8b4b feat: add Mercurial diff line stats`; no matching artifact-panel
   references found.
 
 Known unrelated work in the same date window that must be preserved:
@@ -57,7 +57,7 @@ Known unrelated work in the same date window that must be preserved:
 - `93e6becd fix: keep agent jump focus with cross-panel target`
 - `d3295df5 chore: Add SDD prompt and plan for agent_untagged_panel`
 - `47035433 fix: hide empty untagged agents panel`
-- `98b8b4b feat: add Mercurial diff line stats` in `../retired-hg-plugin`
+- `98b8b4b feat: add Mercurial diff line stats` in `../legacy-mercurial-plugin`
 
 ## Safety Rules For Every Phase
 
@@ -265,7 +265,7 @@ Owner: one agent. Write scope: only small cleanup found by validation.
 Run the final cross-repo verification:
 
 - `git status --short` in all candidate repos: `sase_101`, `../sase-core`, `~/.local/share/chezmoi`, `../sase-nvim`,
-  `../sase-github`, `../retired-hg-plugin`, `../sase-telegram`.
+  `../sase-github`, `../legacy-mercurial-plugin`, `../sase-telegram`.
 - Cross-repo negative search for: `ArtifactPanel`, `open_artifacts_panel`, `sase_artifact`, `sase artifact`,
   `artifact_show_paged`, `artifact_summary`, `artifact_graph`, `artifacts_panel_redesign`, `unified_artifacts`,
   `sase-23`, `sase-24`.

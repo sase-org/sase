@@ -9,14 +9,14 @@ prompt: sdd/prompts/202603/unified_vcs_commit.md
 
 ## Overview
 
-Replace all VCS-specific commit/propose/cl xprompt workflows (`#commit`, `#propose`, `#cl` in retired-hg-plugin; `#pr` in
+Replace all VCS-specific commit/propose/cl xprompt workflows (`#commit`, `#propose`, `#cl` in legacy-mercurial-plugin; `#pr` in
 sase-github) with three unified, built-in xprompts (`#commit`, `#propose`, `#pr`) that work across all VCS providers.
 The built-in xprompts set environment variables and provide VCS-agnostic prompt content; VCS-specific behavior is
 delegated to plugin hooks and tagged xprompts.
 
 ## Current State
 
-- **retired-hg-plugin**: Has `#commit` (amend CL with COMMITS entry), `#propose` (create proposal), `#cl` (create CL)
+- **legacy-mercurial-plugin**: Has `#commit` (amend CL with COMMITS entry), `#propose` (create proposal), `#cl` (create CL)
   workflows. Each injects `#no_cl_ops #cldd`, checks for changes, runs VCS-specific scripts.
 - **sase-github**: Has `#pr` (create branch + PR via `gh`) workflow. Creates ChangeSpec, pushes branch, runs
   `gh pr create`.
@@ -101,7 +101,7 @@ steps:
 **Goal**: Add two new xprompt tags (`append_to_pr`, `append_to_commit_and_propose`) and create the three built-in commit
 xprompts that use them.
 
-**Scope**: sase core + retired-hg-plugin + sase-github.
+**Scope**: sase core + legacy-mercurial-plugin + sase-github.
 
 ### Part A: New XPromptTag values + append logic
 
@@ -119,7 +119,7 @@ xprompts that use them.
 **Files to create in sase core (`src/sase/xprompts/`):**
 
 - `commit.yml` — Sets `$SASE_COMMIT_METHOD=create_commit`. Has a `prompt_part` step with VCS-agnostic instructions for
-  making changes and preparing a commit. Content should be similar to the instruction portion of the current retired-hg-plugin
+  making changes and preparing a commit. Content should be similar to the instruction portion of the current legacy-mercurial-plugin
   `#commit` workflow (minus VCS-specific operations).
 - `propose.yml` — Sets `$SASE_COMMIT_METHOD=create_proposal`. Same prompt_part as `#commit` but for proposals.
 - `pr.yml` — Sets `$SASE_COMMIT_METHOD=create_pull_request`. Input: `name` (word), `bug_id` (int, default: 0). Sets
@@ -132,7 +132,7 @@ plugin packages). Verify this loading priority is correct; if not, adjust.
 
 ### Part C: Plugin tagged xprompts
 
-**Files to create/modify in retired-hg-plugin:**
+**Files to create/modify in legacy-mercurial-plugin:**
 
 - Tag existing `#no_cl_ops` xprompt (in `default_config.yml`) with `append_to_pr`
 - Create new `#no_cl_ops_and_cldd` xprompt tagged with `append_to_commit_and_propose`, content: `#no_cl_ops #cldd`
@@ -157,7 +157,7 @@ plugin packages). Verify this loading priority is correct; if not, adjust.
 **Goal**: Rewrite `sase commit` to be VCS-agnostic, accepting a JSON payload and dispatching via plugin hooks. Remove
 `sase amend`.
 
-**Scope**: sase core + retired-hg-plugin + sase-github.
+**Scope**: sase core + legacy-mercurial-plugin + sase-github.
 
 ### Part A: New hookspecs
 
@@ -190,7 +190,7 @@ plugin packages). Verify this loading priority is correct; if not, adjust.
 
 ### Part C: Plugin hook implementations
 
-**retired-hg-plugin (`src/retired_hg_plugin/plugin.py`):**
+**legacy-mercurial-plugin (`src/legacy_mercurial_plugin/plugin.py`):**
 
 - `vcs_create_commit` — Amend CL with COMMITS entry (port from current `#commit` workflow's bash/python steps)
 - `vcs_create_proposal` — Create proposal on CL (port from current `#propose` workflow)
@@ -254,7 +254,7 @@ workflows pass to their scripts and what the plugin hooks need.)
 
 ### Verification
 
-- `just check` passes in sase core, retired-hg-plugin, sase-github
+- `just check` passes in sase core, legacy-mercurial-plugin, sase-github
 - `sase commit '{"message": "test", "files": []}' --method=create_commit` dispatches correctly
 - `sase amend` no longer exists
 - Plugin hooks are called correctly for each VCS provider
@@ -326,14 +326,14 @@ workflows pass to their scripts and what the plugin hooks need.)
 
 **Goal**: Remove old VCS-specific workflows, old commands, and verify end-to-end.
 
-**Scope**: sase core + retired-hg-plugin + sase-github + chezmoi.
+**Scope**: sase core + legacy-mercurial-plugin + sase-github + chezmoi.
 
-### Part A: Remove old workflows from retired-hg-plugin
+### Part A: Remove old workflows from legacy-mercurial-plugin
 
-- Delete `src/retired_hg_plugin/xprompts/commit.yml`
-- Delete `src/retired_hg_plugin/xprompts/propose.yml`
-- Delete `src/retired_hg_plugin/xprompts/cl.yml`
-- Remove any scripts only used by these workflows (e.g., `retired_hg_plugin_commit_workflow`, `sase_propose_workflow`,
+- Delete `src/legacy_mercurial_plugin/xprompts/commit.yml`
+- Delete `src/legacy_mercurial_plugin/xprompts/propose.yml`
+- Delete `src/legacy_mercurial_plugin/xprompts/cl.yml`
+- Remove any scripts only used by these workflows (e.g., `legacy_mercurial_plugin_commit_workflow`, `sase_propose_workflow`,
   `sase_cl_workflow` — verify these aren't used elsewhere)
 - Update `default_config.yml` if any xprompts defined there are now obsolete
 
@@ -366,6 +366,6 @@ workflows pass to their scripts and what the plugin hooks need.)
 
 ### Verification
 
-- `just check` passes in all repos (sase core, retired-hg-plugin, sase-github)
+- `just check` passes in all repos (sase core, legacy-mercurial-plugin, sase-github)
 - No references to old workflows remain (grep for old workflow names)
 - End-to-end flows work for all VCS providers
