@@ -1,6 +1,6 @@
 """Bridge between xprompt definitions and ACE snippet templates."""
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import re
 
 from sase.xprompt.models import UNSET, XPrompt
@@ -11,6 +11,22 @@ _JINJA2_COMMENT = re.compile(r"\{#.*?#\}", re.DOTALL)
 _JINJA2_EXPR = re.compile(r"\{\{(.*?)\}\}")
 _LEGACY_PLACEHOLDER = re.compile(r"\{(\d+)(?::([^}]*))?\}")
 _VALID_TRIGGER = re.compile(r"^[a-zA-Z0-9_]+$")
+
+
+@dataclass(frozen=True)
+class XPromptSnippetEntry:
+    """Snippet template derived from an xprompt definition."""
+
+    trigger: str
+    template: str
+    xprompt_name: str
+    description: str | None = None
+    source_path_display: str | None = None
+
+
+def is_valid_snippet_trigger(trigger: str) -> bool:
+    """Return True when ACE can expand ``trigger`` as a bare word."""
+    return bool(_VALID_TRIGGER.fullmatch(trigger))
 
 
 def _xprompt_to_snippet_template(xp: XPrompt) -> str | None:
@@ -63,19 +79,23 @@ def _xprompt_to_snippet_template(xp: XPrompt) -> str | None:
     return result + "$0"
 
 
-def get_xprompt_snippets(project: str | None = None) -> dict[str, str]:
-    """Load all xprompts with ``snippet`` set and return a trigger-to-template dict.
+def get_xprompt_snippet_entries(
+    project: str | None = None,
+) -> list[XPromptSnippetEntry]:
+    """Load xprompt snippets with metadata preserved for editor integrations.
 
     Args:
         project: Optional project name for xprompt loading.
 
     Returns:
-        Dict mapping trigger word to snippet template string.
+        Entries in loader priority order. The first xprompt wins on trigger
+        collision, matching :func:`get_xprompt_snippets`.
     """
     from sase.xprompt.loader import get_all_xprompts
 
     xprompts = get_all_xprompts(project=project)
-    snippets: dict[str, str] = {}
+    entries: list[XPromptSnippetEntry] = []
+    seen_triggers: set[str] = set()
 
     for xp in xprompts.values():
         if xp.snippet is None:
@@ -89,7 +109,7 @@ def get_xprompt_snippets(project: str | None = None) -> dict[str, str]:
             parts = xp.name.rsplit("/", 1)
             trigger = parts[-1]
 
-        if not _VALID_TRIGGER.match(trigger):
+        if not is_valid_snippet_trigger(trigger):
             continue
 
         composed_content = process_xprompt_references_with_catalog(
@@ -103,7 +123,33 @@ def get_xprompt_snippets(project: str | None = None) -> dict[str, str]:
             continue
 
         # First xprompt wins on trigger collision (higher-priority source loaded first)
-        if trigger not in snippets:
-            snippets[trigger] = template
+        if trigger in seen_triggers:
+            continue
+        seen_triggers.add(trigger)
+        entries.append(
+            XPromptSnippetEntry(
+                trigger=trigger,
+                template=template,
+                xprompt_name=xp.name,
+                description=xp.description,
+                source_path_display=xp.source_path,
+            )
+        )
+
+    return entries
+
+
+def get_xprompt_snippets(project: str | None = None) -> dict[str, str]:
+    """Load all xprompts with ``snippet`` set and return a trigger-to-template dict.
+
+    Args:
+        project: Optional project name for xprompt loading.
+
+    Returns:
+        Dict mapping trigger word to snippet template string.
+    """
+    snippets: dict[str, str] = {}
+    for entry in get_xprompt_snippet_entries(project=project):
+        snippets[entry.trigger] = entry.template
 
     return snippets
