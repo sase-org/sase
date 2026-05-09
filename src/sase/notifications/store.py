@@ -46,10 +46,16 @@ def _rust_append_notification(path: Path, notification: Notification) -> Any:
     return notification_store_facade.append_notification(path, notification)
 
 
-def _rust_apply_notification_state_update(path: Path, update: Any) -> Any:
+def _rust_apply_notification_state_update(
+    path: Path, update: Any, *, include_notifications: bool = False
+) -> Any:
     from sase.core import notification_store_facade
 
-    return notification_store_facade.apply_notification_state_update(path, update)
+    if include_notifications:
+        return notification_store_facade.apply_notification_state_update(path, update)
+    return notification_store_facade.apply_notification_state_update_counts(
+        path, update
+    )
 
 
 def _rust_read_notifications_snapshot(
@@ -84,8 +90,10 @@ def _agent_key(cl_name: str, raw_suffix: str | None = None) -> Any:
     )
 
 
-def _apply_state_update(update: Any) -> Any:
-    outcome = _rust_apply_notification_state_update(_notifications_path(), update)
+def _apply_state_update(update: Any, *, include_notifications: bool = False) -> Any:
+    outcome = _rust_apply_notification_state_update(
+        _notifications_path(), update, include_notifications=include_notifications
+    )
     if outcome.rewritten or outcome.changed_count > 0:
         _invalidate_load_cache()
     return outcome
@@ -233,7 +241,8 @@ def expire_due_snoozes(notifications: list[Notification]) -> list[Notification]:
         return expired
 
     outcome = _apply_state_update(
-        _state_update(kind="expire_snoozes", now=now.isoformat())
+        _state_update(kind="expire_snoozes", now=now.isoformat()),
+        include_notifications=True,
     )
     expired_ids = set(outcome.expired_ids)
     if not expired_ids:

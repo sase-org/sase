@@ -61,10 +61,12 @@ def _fake_module(monkeypatch: pytest.MonkeyPatch, **bindings: Any) -> None:
     monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
 
 
-def _skip_without_notification_bindings() -> None:
+def _skip_without_notification_bindings(
+    binding_name: str = "read_notifications_snapshot",
+) -> None:
     rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
-    if not hasattr(rust_module, "read_notifications_snapshot"):
-        pytest.skip("sase_core_rs is too old (no notification store bindings).")
+    if not hasattr(rust_module, binding_name):
+        pytest.skip(f"sase_core_rs is too old (no {binding_name} binding).")
 
 
 def test_read_snapshot_rehydrates_typed_records(
@@ -180,6 +182,39 @@ def test_wire_helpers_rehydrate_and_serialize_agent_keys() -> None:
     }
 
 
+def test_apply_state_update_counts_uses_metadata_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    def fake_apply_counts(path: str, update: dict[str, Any]) -> dict:
+        calls.append((path, update))
+        return {
+            "schema_version": NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
+            "matched_count": 2,
+            "changed_count": 2,
+            "appended_count": 0,
+            "rewritten": True,
+            "notifications": [],
+            "counts": {},
+            "expired_ids": [],
+            "stats": {},
+        }
+
+    _fake_module(monkeypatch, apply_notification_state_update_counts=fake_apply_counts)
+
+    outcome = facade.apply_notification_state_update_counts(
+        "/tmp/notifications.jsonl",
+        NotificationStateUpdateWire(kind="mark_all_read"),
+    )
+
+    assert calls == [
+        ("/tmp/notifications.jsonl", {"kind": "mark_all_read"}),
+    ]
+    assert outcome.changed_count == 2
+    assert outcome.notifications == []
+
+
 def test_real_extension_round_trips_store_operations(tmp_path: Path) -> None:
     _skip_without_notification_bindings()
     path = tmp_path / "notifications.jsonl"
@@ -202,6 +237,22 @@ def test_real_extension_round_trips_store_operations(tmp_path: Path) -> None:
     rewrite = facade.rewrite_notifications(path, [_notification("n2")])
     assert rewrite.rewritten is True
     assert [n.id for n in rewrite.notifications] == ["n2"]
+
+
+def test_real_extension_counts_update_omits_notifications(tmp_path: Path) -> None:
+    _skip_without_notification_bindings("apply_notification_state_update_counts")
+    path = tmp_path / "notifications.jsonl"
+    facade.append_notification(path, _notification("n1", sender="axe"))
+
+    outcome = facade.apply_notification_state_update_counts(
+        path, NotificationStateUpdateWire(kind="mark_all_read")
+    )
+
+    assert outcome.changed_count == 1
+    assert outcome.notifications == []
+    assert outcome.counts.priority == 0
+    assert outcome.stats.loaded_rows == 0
+    assert facade.read_notifications_snapshot(path).notifications[0].read is True
 
 
 def test_real_extension_reads_phase1_contract_fixture(tmp_path: Path) -> None:

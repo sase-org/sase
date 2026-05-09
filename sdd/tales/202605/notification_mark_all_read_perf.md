@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 17:35:53
-status: wip
+status: done
 prompt: sdd/prompts/202605/notification_mark_all_read_perf.md
 ---
 # Plan: Fix Phase 7 notification mark-all-read perf floor

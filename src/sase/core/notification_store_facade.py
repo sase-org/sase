@@ -40,6 +40,18 @@ def apply_notification_state_update(
     return notification_update_outcome_from_dict(payload)
 
 
+def apply_notification_state_update_counts(
+    path: Path | str,
+    update: NotificationStateUpdateWire | dict[str, Any],
+) -> NotificationUpdateOutcomeWire:
+    """Apply one state update through Rust and return mutation metadata only."""
+    binding = require_rust_binding("apply_notification_state_update_counts")
+    payload: dict[str, Any] = binding(
+        str(path), notification_store_wire_to_json_dict(update)
+    )
+    return notification_update_outcome_from_dict(payload)
+
+
 def append_notification(
     path: Path | str,
     notification: Notification | dict[str, Any],
@@ -70,6 +82,7 @@ __all__ = [
     "NotificationUpdateOutcomeWire",
     "append_notification",
     "apply_notification_state_update",
+    "apply_notification_state_update_counts",
     "read_notifications_snapshot",
     "rewrite_notifications",
 ]

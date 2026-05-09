@@ -493,6 +493,7 @@ class TestExpireDueSnoozes:
         assert len(expired) == 2
         assert mock_update.call_count == 1
         assert mock_update.call_args.args[1].kind == "expire_snoozes"
+        assert mock_update.call_args.kwargs == {"include_notifications": True}
 
     def test_empty_when_nothing_snoozed(self, temp_notifications_dir: Path) -> None:
         n = _make_notification()
@@ -521,6 +522,22 @@ class TestMarkAllRead:
         # No file exists yet — should not error
         count = mark_all_read()
         assert count == 0
+
+    def test_uses_metadata_only_update(self, temp_notifications_dir: Path) -> None:
+        import sase.notifications.store as store
+
+        n = _make_notification()
+        append_notification(n)
+        with patch(
+            "sase.notifications.store._rust_apply_notification_state_update",
+            wraps=store._rust_apply_notification_state_update,
+        ) as mock_update:
+            count = mark_all_read()
+
+        assert count == 1
+        mock_update.assert_called_once()
+        assert mock_update.call_args.args[1].kind == "mark_all_read"
+        assert mock_update.call_args.kwargs == {"include_notifications": False}
 
 
 class TestRewriteNotifications:
