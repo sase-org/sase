@@ -26,6 +26,8 @@ plugins:
           concurrency: 4
           stylesheets:
             - docs/stylesheets/pdf.css
+          scripts:
+            - docs/javascripts/pdf-numbering.js
           covers:
             front: docs/templates/pdf/front.html.j2
           browser:

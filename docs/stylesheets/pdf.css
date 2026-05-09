@@ -101,7 +101,7 @@ body {
 
 .md-typeset h1 {
   string-set: chapter content(text);
-  break-before: page;
+  break-before: auto;
   color: #0b4f49;
   font-size: 24pt;
   line-height: 1.12;
@@ -225,10 +225,8 @@ body {
 
 .pdf-cover {
   box-sizing: border-box;
-  display: flex;
-  min-height: 11in;
-  flex-direction: column;
-  justify-content: space-between;
+  min-height: 9.2in;
+  break-after: page;
   padding: 0.9in;
   background: #f7f8f5;
   color: var(--sase-pdf-text);
@@ -245,6 +243,8 @@ body {
 }
 
 .pdf-cover__title {
+  break-before: auto !important;
+  page-break-before: auto !important;
   max-width: 7in;
   margin: 0;
   color: #0b4f49;
@@ -265,10 +265,60 @@ body {
   max-width: 6.5in;
   grid-template-columns: 1.2in 1fr;
   gap: 0.08in 0.2in;
+  margin-top: 3.4in;
   color: var(--sase-pdf-muted);
   font-size: 9pt;
 }
 
 .pdf-cover__meta strong {
   color: var(--sase-pdf-text);
+}
+
+.pdf-front-matter {
+  box-sizing: border-box;
+  min-height: 11in;
+  padding: 0.68in;
+  break-before: page;
+  break-after: page;
+  background: #ffffff;
+  color: var(--sase-pdf-text);
+  font-family: var(--md-text-font-family, sans-serif);
+}
+
+.pdf-front-matter__kicker {
+  margin: 0 0 0.08in;
+  color: var(--sase-pdf-accent);
+  font-size: 9pt;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.pdf-front-matter h2 {
+  break-before: auto !important;
+  page-break-before: auto !important;
+  margin: 0 0 0.22in;
+  color: #0b4f49;
+  font-size: 22pt;
+  line-height: 1.1;
+}
+
+.pdf-front-matter__toc {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.055in 0.36in;
+  margin: 0;
+  padding-left: 0.22in;
+  font-size: 9.1pt;
+  line-height: 1.28;
+}
+
+.pdf-front-matter__toc li {
+  break-inside: avoid;
+  padding-left: 0.04in;
+}
+
+.pdf-heading-number {
+  color: #0b4f49;
+  font-weight: 800;
 }

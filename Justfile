@@ -176,6 +176,7 @@ docs-pdf-check: _venv
         {{ venv_bin }}/python -m playwright install chromium; \
     fi
     SASE_PDF_BUILD_DATE="$(date -u +%Y-%m-%d)" {{ venv_bin }}/mkdocs build --strict -f mkdocs-pdf.yml
+    {{ venv_bin }}/python tools/postprocess_docs_pdf
     {{ venv_bin }}/python tools/validate_docs_pdf
 
 # Validate SDD prompt/plan frontmatter links.

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 15:33:39
-status: wip
+status: done
 prompt: sdd/prompts/202605/pdf_handbook_toc_numbering_metadata.md
 ---
 # Plan: Fix PDF Handbook Cover, TOC, Numbering, And Metadata

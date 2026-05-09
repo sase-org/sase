@@ -1,0 +1,285 @@
+#!/usr/bin/env python3
+"""Add metadata and outlines to the generated SASE handbook PDF."""
+
+from __future__ import annotations
+
+import re
+import sys
+from dataclasses import dataclass
+from html.parser import HTMLParser
+from pathlib import Path
+from typing import Any
+
+import yaml
+from pypdf import PdfReader, PdfWriter
+
+
+PDF_PATH = Path("site/downloads/sase-handbook.pdf")
+SITE_DIR = Path("site")
+MKDOCS_CONFIG = Path("mkdocs.yml")
+
+METADATA = {
+    "/Title": "SASE Handbook",
+    "/Author": "SASE contributors",
+    "/Subject": "Structured Agentic Software Engineering",
+    "/Keywords": (
+        "SASE, agentic software engineering, coding agents, workflows"
+    ),
+    "/Creator": "tools/postprocess_docs_pdf",
+}
+
+
+@dataclass(frozen=True)
+class Heading:
+    level: int
+    text: str
+
+
+@dataclass(frozen=True)
+class Chapter:
+    number: int
+    nav_title: str
+    source_path: str
+    html_path: Path
+    pdf_path: Path
+    headings: tuple[Heading, ...]
+
+    @property
+    def title(self) -> str:
+        for heading in self.headings:
+            if heading.level == 1:
+                return heading.text
+        return self.nav_title
+
+
+class _HeadingParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._current_level: int | None = None
+        self._parts: list[str] = []
+        self.headings: list[Heading] = []
+
+    def handle_starttag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        if tag in {"h1", "h2", "h3"}:
+            self._current_level = int(tag[1])
+            self._parts = []
+
+    def handle_data(self, data: str) -> None:
+        if self._current_level is not None:
+            self._parts.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if self._current_level is None or tag != f"h{self._current_level}":
+            return
+
+        text = _clean_text(" ".join(self._parts))
+        if text:
+            self.headings.append(Heading(self._current_level, text))
+        self._current_level = None
+        self._parts = []
+
+
+def _error(message: str) -> None:
+    print(f"[postprocess_docs_pdf] {message}", file=sys.stderr)
+
+
+def _clean_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text.replace("¶", " ")).strip()
+
+
+def _normalize(text: str) -> str:
+    return _clean_text(text).casefold()
+
+
+def _compact(text: str) -> str:
+    return re.sub(r"\s+", "", _normalize(text))
+
+
+def _flatten_nav(items: list[Any]) -> list[tuple[str, str]]:
+    pages: list[tuple[str, str]] = []
+
+    for item in items:
+        if isinstance(item, dict):
+            for title, value in item.items():
+                if isinstance(value, str) and value.endswith(".md"):
+                    pages.append((str(title), value))
+                elif isinstance(value, list):
+                    pages.extend(_flatten_nav(value))
+        elif isinstance(item, str) and item.endswith(".md"):
+            pages.append((Path(item).stem.replace("_", " ").title(), item))
+
+    return pages
+
+
+def _site_path_for(source_path: str, suffix: str) -> Path:
+    source = Path(source_path)
+    if source.name == "index.md":
+        relative = source.parent / f"index{suffix}"
+    else:
+        relative = source.with_suffix("") / f"index{suffix}"
+    return SITE_DIR / relative
+
+
+def _headings_from_html(path: Path) -> tuple[Heading, ...]:
+    parser = _HeadingParser()
+    parser.feed(path.read_text(encoding="utf-8"))
+    return tuple(parser.headings)
+
+
+def _load_chapters() -> list[Chapter]:
+    config = yaml.safe_load(MKDOCS_CONFIG.read_text(encoding="utf-8"))
+    nav_pages = _flatten_nav(config["nav"])
+    chapters: list[Chapter] = []
+
+    for index, (nav_title, source_path) in enumerate(nav_pages, start=1):
+        html_path = _site_path_for(source_path, ".html")
+        pdf_path = _site_path_for(source_path, ".pdf")
+        if not html_path.exists():
+            raise FileNotFoundError(f"missing generated HTML: {html_path}")
+        if not pdf_path.exists():
+            raise FileNotFoundError(f"missing generated PDF: {pdf_path}")
+        chapters.append(
+            Chapter(
+                number=index,
+                nav_title=nav_title,
+                source_path=source_path,
+                html_path=html_path,
+                pdf_path=pdf_path,
+                headings=_headings_from_html(html_path),
+            )
+        )
+
+    return chapters
+
+
+def _extract_page_text(reader: PdfReader) -> list[str]:
+    text: list[str] = []
+    for page in reader.pages:
+        text.append(_normalize(page.extract_text() or ""))
+    return text
+
+
+def _find_page(
+    page_text: list[str],
+    needle: str,
+    *,
+    start: int,
+    stop: int | None = None,
+) -> int | None:
+    normalized = _normalize(needle)
+    compact = _compact(needle)
+    if not normalized:
+        return None
+
+    end = stop if stop is not None else len(page_text)
+    for index in range(start, end):
+        page = page_text[index]
+        if normalized in page or compact in _compact(page):
+            return index
+    return None
+
+
+def _chapter_pages(
+    chapters: list[Chapter], page_text: list[str]
+) -> dict[int, int]:
+    pages: dict[int, int] = {}
+    search_start = 2
+
+    for chapter in chapters:
+        title = f"{chapter.number} {chapter.title}"
+        page = _find_page(page_text, title, start=search_start)
+        if page is None:
+            page = _find_page(page_text, chapter.title, start=search_start)
+        if page is None:
+            raise RuntimeError(
+                f"could not find aggregate page for {chapter.source_path}"
+            )
+
+        pages[chapter.number] = page
+        search_start = page
+
+    return pages
+
+
+def _h2_headings(chapter: Chapter) -> list[Heading]:
+    return [heading for heading in chapter.headings if heading.level == 2]
+
+
+def _add_metadata(reader: PdfReader, writer: PdfWriter) -> None:
+    current = dict(reader.metadata or {})
+    producer = str(current.get("/Producer", "MkDocs Exporter"))
+    current.update(METADATA)
+    current["/Producer"] = f"{producer}; pypdf post-processing"
+    writer.add_metadata(current)
+
+
+def _add_outlines(
+    writer: PdfWriter,
+    chapters: list[Chapter],
+    chapter_pages: dict[int, int],
+    page_text: list[str],
+) -> None:
+    for chapter in chapters:
+        page = chapter_pages[chapter.number]
+        parent = writer.add_outline_item(
+            f"{chapter.number} {chapter.title}",
+            page,
+        )
+        next_page = chapter_pages.get(chapter.number + 1, len(page_text))
+
+        for h2_index, heading in enumerate(_h2_headings(chapter), start=1):
+            numbered = f"{chapter.number}.{h2_index} {heading.text}"
+            target = _find_page(
+                page_text,
+                numbered,
+                start=page,
+                stop=next_page,
+            )
+            if target is None:
+                target = _find_page(
+                    page_text,
+                    heading.text,
+                    start=page,
+                    stop=next_page,
+                )
+            if target is not None:
+                writer.add_outline_item(numbered, target, parent=parent)
+
+
+def main() -> int:
+    if not PDF_PATH.exists():
+        _error(f"missing PDF: {PDF_PATH}")
+        return 1
+
+    try:
+        chapters = _load_chapters()
+        reader = PdfReader(str(PDF_PATH))
+        page_text = _extract_page_text(reader)
+        chapter_pages = _chapter_pages(chapters, page_text)
+
+        writer = PdfWriter()
+        for page in reader.pages:
+            writer.add_page(page)
+
+        _add_metadata(reader, writer)
+        _add_outlines(writer, chapters, chapter_pages, page_text)
+
+        temp_path = PDF_PATH.with_suffix(".postprocess.tmp.pdf")
+        with temp_path.open("wb") as handle:
+            writer.write(handle)
+        temp_path.replace(PDF_PATH)
+    except Exception as exc:
+        _error(str(exc))
+        return 1
+
+    print(
+        f"[postprocess_docs_pdf] ok: {PDF_PATH} "
+        f"({len(chapters)} chapter outlines)"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

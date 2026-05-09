@@ -1,37 +1,52 @@
 <section class="pdf-cover">
   <div>
     <p class="pdf-cover__kicker">SASE Handbook</p>
-    <h1 class="pdf-cover__title">{{ config.site_name }}</h1>
-    {% if config.site_description %}
-    <p class="pdf-cover__description">{{ config.site_description }}</p>
-    {% endif %}
+    <h1 class="pdf-cover__title">Structured Agentic Software Engineering</h1>
+    <p class="pdf-cover__description">
+      A practical handbook for durable coding-agent workflows, tracked handoffs, reviewable changes, and
+      provider-portable automation.
+    </p>
   </div>
 
   <dl class="pdf-cover__meta">
-    {% if config.site_url %}
     <dt>Site</dt>
-    <dd>{{ config.site_url }}</dd>
-    {% endif %}
-    {% if config.repo_url %}
+    <dd>https://sase.sh/</dd>
     <dt>Source</dt>
-    <dd>{{ config.repo_url }}</dd>
-    {% endif %}
-    {% set pdf_meta = config.extra.pdf_handbook | default({}) %}
-    {% if pdf_meta.build_date %}
-    <dt>Built</dt>
-    <dd>{{ pdf_meta.build_date }}</dd>
-    {% endif %}
-    {% if pdf_meta.build_ref %}
-    <dt>Ref</dt>
-    <dd>{{ pdf_meta.build_ref }}</dd>
-    {% endif %}
-    {% if pdf_meta.build_sha %}
-    <dt>Commit</dt>
-    <dd>{{ pdf_meta.build_sha[:12] }}</dd>
-    {% endif %}
-    {% if pdf_meta.build_run %}
-    <dt>Run</dt>
-    <dd>{{ pdf_meta.build_run }}</dd>
-    {% endif %}
+    <dd>https://github.com/sase-org/sase</dd>
   </dl>
+</section>
+
+<section class="pdf-front-matter">
+  <p class="pdf-front-matter__kicker">Contents</p>
+  <h2>Handbook Chapters</h2>
+
+  <ol class="pdf-front-matter__toc">
+    <li>Structured Agentic Software Engineering</li>
+    <li>SASE Blog</li>
+    <li>Agentic Software Engineering Series</li>
+    <li>ACE TUI User Guide</li>
+    <li>Axe Background Automation Daemon</li>
+    <li>Spec-Driven Development</li>
+    <li>XPrompts</li>
+    <li>ChangeSpecs</li>
+    <li>Beads</li>
+    <li>Workflow Specs</li>
+    <li>Workspaces</li>
+    <li>Mentors</li>
+    <li>Commit Workflows</li>
+    <li>Notifications</li>
+    <li>Mobile Gateway</li>
+    <li>Mobile MVP Runbook</li>
+    <li>Performance Runbook</li>
+    <li>Telemetry</li>
+    <li>Integration APIs</li>
+    <li>Plugins</li>
+    <li>LLM Providers</li>
+    <li>VCS Providers</li>
+    <li>Rust Backend</li>
+    <li>Configuration Reference</li>
+    <li>Query Language</li>
+    <li>ProjectSpec Reference</li>
+    <li>Agent Attachments and Image Previews</li>
+  </ol>
 </section>

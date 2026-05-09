@@ -28,9 +28,30 @@ BLOG_SENTINELS = (
     "Published posts appear below",
 )
 
+FORBIDDEN_FRONT_MATTER_TOKENS = (
+    "{{",
+    "{%",
+    "config.site_name",
+    "pdf_meta.build_date",
+)
+
+REQUIRED_METADATA = {
+    "/Title": "SASE Handbook",
+    "/Author": "SASE contributors",
+}
+
+REQUIRED_OUTLINE_TITLES = (
+    "ACE TUI User Guide",
+    "Configuration",
+)
+
 
 def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).casefold()
+
+
+def _compact(text: str) -> str:
+    return re.sub(r"\s+", "", _normalize(text))
 
 
 def _error(message: str) -> None:
@@ -46,6 +67,26 @@ def _extract_text(reader: PdfReader) -> str:
             _error(f"failed to extract text from page {index}: {exc}")
             raise
     return "\n".join(chunks)
+
+
+def _extract_front_text(reader: PdfReader, page_limit: int = 4) -> str:
+    chunks: list[str] = []
+    for page in reader.pages[:page_limit]:
+        chunks.append(page.extract_text() or "")
+    return "\n".join(chunks)
+
+
+def _outline_titles(outline: list[object]) -> list[str]:
+    titles: list[str] = []
+    for item in outline:
+        if isinstance(item, list):
+            titles.extend(_outline_titles(item))
+            continue
+
+        title = getattr(item, "title", "")
+        if title:
+            titles.append(str(title))
+    return titles
 
 
 def main() -> int:
@@ -73,6 +114,16 @@ def main() -> int:
         )
         return 1
 
+    front_text = _extract_front_text(reader)
+    leaked_tokens = [
+        token for token in FORBIDDEN_FRONT_MATTER_TOKENS if token in front_text
+    ]
+    if leaked_tokens:
+        _error("raw template token(s) leaked into front matter:")
+        for token in leaked_tokens:
+            _error(f"  - {token}")
+        return 1
+
     text = _normalize(_extract_text(reader))
 
     missing = [
@@ -88,6 +139,42 @@ def main() -> int:
 
     if not any(_normalize(sentinel) in text for sentinel in BLOG_SENTINELS):
         _error("missing blog-post sentinel text")
+        return 1
+
+    if "1structuredagenticsoftwareengineering" not in _compact(text):
+        _error("missing numbered handbook title")
+        return 1
+
+    if _normalize("4.1 Overview") not in text:
+        _error("missing representative nested heading number")
+        return 1
+
+    metadata = reader.metadata or {}
+    missing_metadata = [
+        (key, expected)
+        for key, expected in REQUIRED_METADATA.items()
+        if metadata.get(key) != expected
+    ]
+    if missing_metadata:
+        _error("missing or incorrect PDF metadata:")
+        for key, expected in missing_metadata:
+            _error(f"  - {key}: expected {expected!r}")
+        return 1
+
+    outline_titles = _outline_titles(reader.outline)
+    if not outline_titles:
+        _error("missing PDF outline/bookmarks")
+        return 1
+
+    missing_outline_titles = [
+        title
+        for title in REQUIRED_OUTLINE_TITLES
+        if not any(title in outline_title for outline_title in outline_titles)
+    ]
+    if missing_outline_titles:
+        _error("missing representative PDF outline entries:")
+        for title in missing_outline_titles:
+            _error(f"  - {title}")
         return 1
 
     print(
