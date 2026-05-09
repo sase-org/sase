@@ -74,6 +74,8 @@ def page_loop_available_keys(
     """Return page-loop keys available for the current page."""
 
     keys: list[str] = []
+    if return_pane_available:
+        keys.append(_RETURN_TO_ACE_KEY)
     if page_count > 1:
         keys.append("j")
         keys.append("k")
@@ -81,8 +83,6 @@ def page_loop_available_keys(
         keys.append("n")
     if artifact_index > 0:
         keys.append("p")
-    if return_pane_available:
-        keys.append(_RETURN_TO_ACE_KEY)
     if page_count > 0:
         keys.append("r")
     keys.append("q")

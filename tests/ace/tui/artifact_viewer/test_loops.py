@@ -75,6 +75,21 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
         "r",
         "q",
     )
+    assert page_loop_available_keys(
+        1,
+        3,
+        artifact_index=1,
+        artifact_count=3,
+        return_pane_available=True,
+    ) == (
+        "\t",
+        "j",
+        "k",
+        "n",
+        "p",
+        "r",
+        "q",
+    )
     assert "h" not in page_loop_available_keys(
         0,
         1,
@@ -133,6 +148,32 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
     assert (
         _strip_ansi(capsys.readouterr().out)
         == "\nPage 1/1  <tab>: Ace  r: refresh  q: quit"
+    )
+
+    _print_page_prompt(
+        index=1,
+        page_count=3,
+        artifact_index=1,
+        artifact_count=3,
+        return_pane_available=True,
+    )
+    assert (
+        _strip_ansi(capsys.readouterr().out)
+        == "\nArtifact 2/3  Page 2/3  <tab>: Ace  j: next page  "
+        "k: previous page  n: next artifact  p: previous artifact  r: refresh  q: quit"
+    )
+
+    _print_page_prompt(
+        index=1,
+        page_count=3,
+        artifact_index=1,
+        artifact_count=3,
+        show_position=False,
+        return_pane_available=True,
+    )
+    assert _strip_ansi(capsys.readouterr().out) == (
+        "\n<tab>: Ace  j: next page  k: previous page  n: next artifact  "
+        "p: previous artifact  r: refresh  q: quit"
     )
 
 
