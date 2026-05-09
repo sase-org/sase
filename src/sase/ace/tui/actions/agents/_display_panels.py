@@ -128,13 +128,13 @@ def _agent_panel_border_title(
         metrics = counts.metric_items()
         if metrics:
             label_by_name = dict(_PANEL_METRIC_LABELS)
-            title.append(" [", style="dim")
+            title.append(" [", style=_PANEL_COUNT_STYLE)
             for index, (name, count) in enumerate(metrics):
                 if index:
-                    title.append(" ", style="dim")
-                title.append(label_by_name[name], style="dim")
+                    title.append(" ", style=_PANEL_COUNT_STYLE)
+                title.append(label_by_name[name], style=_PANEL_COUNT_STYLE)
                 title.append(f"{count}", style=_PANEL_METRIC_STYLES[name])
-            title.append("]", style="dim")
+            title.append("]", style=_PANEL_COUNT_STYLE)
     return title
 
 

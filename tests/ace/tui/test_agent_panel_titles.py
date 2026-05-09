@@ -15,6 +15,10 @@ from typing import Any
 from rich.text import Text
 
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
+from sase.ace.tui.actions.agents._display_panels import (
+    _PANEL_COUNT_STYLE,
+    _PANEL_METRIC_STYLES,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
@@ -129,6 +133,32 @@ def _assert_title_span(
     )
 
 
+def _assert_title_range_style(title: Text, *, start: int, end: int, style: str) -> None:
+    assert title.plain[start:end]
+    for position in range(start, end):
+        assert any(
+            span.start <= position < span.end and span.style == style
+            for span in title.spans
+        ), f"expected {title.plain[position]!r} at {position} to use {style}"
+
+
+def _assert_title_metric_styles(
+    title: Text,
+    *,
+    neutral_ranges: list[tuple[int, int]],
+    metric_digits: list[tuple[int, str]],
+) -> None:
+    for start, end in neutral_ranges:
+        _assert_title_range_style(title, start=start, end=end, style=_PANEL_COUNT_STYLE)
+    for position, metric_name in metric_digits:
+        _assert_title_range_style(
+            title,
+            start=position,
+            end=position + 1,
+            style=_PANEL_METRIC_STYLES[metric_name],
+        )
+
+
 def test_panel_titles_label_untagged_and_tags_with_counts() -> None:
     agents = [
         _agent(name="u1", suffix="t1"),
@@ -209,6 +239,18 @@ def test_panel_title_counts_are_scoped_to_each_panel() -> None:
     )
     assert _title_text(app._panel_widgets["agent-list-panel-2"]).plain == (
         "#banana · 3 [F1 U1 D1]"
+    )
+    apple_title = _title_text(app._panel_widgets["agent-list-panel-1"])
+    banana_title = _title_text(app._panel_widgets["agent-list-panel-2"])
+    _assert_title_metric_styles(
+        apple_title,
+        neutral_ranges=[(10, 13), (14, 16), (17, 18)],
+        metric_digits=[(13, "asking"), (16, "running")],
+    )
+    _assert_title_metric_styles(
+        banana_title,
+        neutral_ranges=[(11, 14), (15, 17), (18, 20), (21, 22)],
+        metric_digits=[(14, "failed"), (17, "unread"), (20, "read")],
     )
 
 
