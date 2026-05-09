@@ -11,8 +11,8 @@ title: Structured Agentic Software Engineering
     <h1>Structured Agentic Software Engineering</h1>
 
     <p class="sase-lede">
-      SASE is a Python toolkit for software engineering workflows around coding agents: durable planning, tracked
-      handoffs, reviewable changes, resumable runs, and provider-portable automation.
+      SASE is a Python toolkit for coordinating coding-agent work: durable plans, tracked handoffs, reviewable
+      changes, resumable runs, and automation that can move across model and version-control providers.
     </p>
 
     <div class="sase-actions">
@@ -36,9 +36,9 @@ title: Structured Agentic Software Engineering
   <h2>One prompt is not an engineering system</h2>
 
   <p>
-    A single coding-agent run can produce a patch. Real projects also need intent capture, handoff, dependency ordering,
-    review state, retries, background automation, and a record of what happened. SASE provides that coordination layer
-    without tying the workflow to one model provider or one terminal app.
+    A single coding-agent run can produce a patch. Real projects also need a place to store intent, pass work between
+    agents, order dependencies, track review state, retry failed runs, run background automation, and record what
+    happened. SASE provides that coordination layer without tying the workflow to one model provider or one terminal app.
   </p>
 </section>
 
@@ -51,7 +51,10 @@ title: Structured Agentic Software Engineering
   <article class="sase-card">
   <h3>I want a TUI for agent work</h3>
 
-  <p>Use ACE to navigate ChangeSpecs, live agents, notifications, and automation state from one terminal interface.</p>
+  <p>
+    Use ACE, the Agentic ChangeSpec Explorer TUI, to navigate ChangeSpecs, live agents, notifications, and automation
+    state from one terminal interface.
+  </p>
 
 <a href="ace/">Open the ACE guide</a>
 
@@ -60,7 +63,10 @@ title: Structured Agentic Software Engineering
   <article class="sase-card">
   <h3>I want durable work units</h3>
 
-  <p>Use ChangeSpecs and Beads to track planned work, dependencies, commits, review state, and multi-agent phase execution.</p>
+  <p>
+    Use ChangeSpecs for CL/PR-sized review state and Beads for plan, epic, and phase dependencies that can drive
+    multi-agent execution.
+  </p>
 
 <a href="sdd/">Learn the SDD flow</a>
 
@@ -69,7 +75,9 @@ title: Structured Agentic Software Engineering
   <article class="sase-card">
   <h3>I want reusable agent workflows</h3>
 
-  <p>Use XPrompts and workflow specs to package prompts, scripts, provider routing, and repeatable automation.</p>
+  <p>
+    Use XPrompts for reusable prompt templates and workflow specs for repeatable multi-step automation.
+  </p>
 
 <a href="xprompt/">Build with XPrompts</a>
 
@@ -84,8 +92,9 @@ title: Structured Agentic Software Engineering
   <h2>The coordination model</h2>
 
   <p>
-    SASE keeps the work state outside the chat transcript. Agents can be scheduled, resumed, reviewed, retried, or handed
-    off because the project has durable primitives for intent, execution, and automation.
+    SASE keeps the work state outside the chat transcript. Plans, ChangeSpecs, beads, agent artifacts, and workflow
+    records let agents be scheduled, resumed, reviewed, retried, or handed off without relying on one session's context
+    window.
   </p>
   </div>
 
@@ -95,8 +104,8 @@ title: Structured Agentic Software Engineering
     <li><strong>Beads</strong> provide git-native issue tracking for plans, executable epics, phase dependencies, and agent handoff.</li>
     <li><strong>XPrompts</strong> turn prompt templates into reusable workflows with reference expansion and typed inputs.</li>
     <li><strong>ACE</strong> is the interactive control surface for daily work.</li>
-    <li><strong>AXE Automation</strong> runs background hooks, mentors, maintenance jobs, and scheduled workflows.</li>
-    <li><strong>Provider and workspace abstractions</strong> keep the orchestration layer portable across coding agents and VCS providers.</li>
+    <li><strong>Axe Automation</strong> runs background hooks, mentors, maintenance jobs, and scheduled workflows.</li>
+    <li><strong>Provider and workspace abstractions</strong> route agent launches, VCS operations, and workspace setup through plugin-backed boundaries.</li>
   </ul>
   </div>
 </section>
