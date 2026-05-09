@@ -21,11 +21,13 @@ with control flow, parallel execution, and human-in-the-loop approval.
 - [Cross-Step Field Type Checking](#cross-step-field-type-checking)
 - [Human-in-the-Loop](#human-in-the-loop)
 - [Cleanup Steps](#cleanup-steps)
+- [Completion Markers](#completion-markers)
 - [Examples](#examples)
 
 ## Top-Level Structure
 
-A workflow YAML file has four top-level fields:
+A workflow YAML file must define `steps` and can include optional metadata, inputs, environment variables, and local
+xprompt helpers:
 
 ```yaml
 name: my_workflow # Workflow identifier (optional, defaults to filename)
@@ -34,6 +36,9 @@ input: # Input parameter definitions (optional)
   ...
 environment: # Environment variables (optional)
   MY_VAR: "value"
+xprompts: # Workflow-local xprompt definitions (optional)
+  helper:
+    content: "Use {{ setup.path }}"
 steps: # Ordered list of steps (required)
   - ...
 ```
@@ -46,6 +51,7 @@ steps: # Ordered list of steps (required)
 | `tags`        | No       | Semantic role tags. See [XPrompt Tags](xprompt.md#tags) for available tags.             |
 | `input`       | No       | Input parameter definitions. See [Input Parameters](#input-parameters).                 |
 | `environment` | No       | Environment variables set before any steps run. See [Environment](#environment).        |
+| `xprompts`    | No       | Workflow-local xprompt definitions available to this workflow's steps.                  |
 | `steps`       | Yes      | Ordered list of workflow steps to execute.                                              |
 
 ## Input Parameters
@@ -95,7 +101,9 @@ input: { diff_path: path, split_desc: { type: line, default: "multiple CLs" } }
 
 ### Default Values
 
-Parameters without a `default` are required. Parameters with `default: null` or `default: ""` are optional.
+In shortform input definitions, parameters without a `default` are required. Parameters with `default: null` or
+`default: ""` are optional. In current workflow YAML loading, longform entries that omit `default` are treated like
+`default: null`; prefer shortform for required workflow inputs.
 
 Default values preserve their native Python types from YAML parsing — `3` stays an `int`, `true` stays a `bool`, and
 `"text"` stays a `str`. This means downstream steps receive properly typed defaults without needing explicit conversion.
@@ -443,6 +451,24 @@ Iterate over a list:
 
 The `for` field maps variable names to Jinja2 expressions that evaluate to lists. All lists must have equal length.
 
+### For-Loop Error Handling (`on_error`)
+
+For-loop iterations use different defaults by step type:
+
+- `agent` steps default to `on_error: continue`, so one failed iteration is recorded and the remaining iterations still
+  run.
+- `bash` and `python` steps default to `on_error: stop`, so the first failed iteration aborts the loop.
+
+You can set `on_error: stop` or `on_error: continue` explicitly on any `for:` step:
+
+```yaml
+- name: review_files
+  agent: Review {{ file }}
+  for: { file: "{{ files }}" }
+  on_error: continue
+  output: { summary: text }
+```
+
 ### While Loops (`while`)
 
 Execute step while a condition is true (checked after each iteration):
@@ -544,7 +570,7 @@ Steps within `parallel` cannot have:
 
 ### Fail-Fast Behavior
 
-By default (`fail_fast: true`), if any parallel step fails, remaining steps are cancelled.
+Parallel steps are fail-fast: if any nested step fails, remaining nested steps are cancelled best-effort.
 
 ## Join Modes
 
@@ -655,6 +681,7 @@ load time. This catches field name typos before the workflow runs.
 - `{{ build.atrifact_path }}` produces an error if `build` only defines `artifact_path` in its output
 - Works with parallel step nesting: `{{ parallel.nested.field }}`
 - Recognizes the special `_artifact` field on steps with `artifact: stdout`
+- Recognizes the special `approved` field on `bash` and `python` HITL steps
 - Skips for-loop iteration variables (e.g., `item`)
 
 ### Error Format
@@ -685,12 +712,13 @@ When a HITL step completes:
    - **Accept**: Continue to next step
    - **Edit**: Modify the output before continuing
    - **Reject**: Abort the workflow
-   - **Feedback** (agent steps only): Provide feedback for regeneration
-   - **Rerun** (bash/python only): Re-execute the command
+
+Some interfaces may show feedback or rerun controls, but the current workflow executor only handles accept, edit, and
+reject as workflow-control actions.
 
 ### Accessing Approval Status
 
-After a HITL step, `step.approved` indicates whether the user accepted:
+After an accepted `bash` or `python` HITL step, `step.approved` is set to `true` for downstream conditions:
 
 ```yaml
 - name: prompt_user
@@ -707,6 +735,7 @@ After a HITL step, `step.approved` indicates whether the user accepted:
 
 - HITL steps cannot be nested within `parallel` blocks
 - HITL works with `agent`, `bash`, and `python` step types
+- `agent` HITL steps do not automatically add an `approved` field to their output
 
 ## Cleanup Steps
 
@@ -732,7 +761,8 @@ steps:
 
 ### Rules
 
-- All `finally: true` steps must be at the **end** of the workflow, after all non-finally steps
+- Put `finally: true` steps at the **end** of the workflow, after all non-finally steps. After a failure, later
+  non-finally steps are skipped while `finally` steps still run.
 - Cannot be used on `prompt_part` or nested (parallel substep) steps
 - Can be combined with `if:` for conditional cleanup:
 
