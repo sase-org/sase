@@ -32,6 +32,11 @@ class LifecycleMixin:
         stop_watcher = getattr(self, "_stop_artifact_watcher", None)
         if stop_watcher is not None:
             stop_watcher()
+        restore_artifact_signal = getattr(
+            self, "_restore_artifact_viewer_close_signal_handler", None
+        )
+        if restore_artifact_signal is not None:
+            restore_artifact_signal()
 
     def _read_unread_notification_ids(self) -> set[str]:
         """Read active-unread (non-silent, non-muted) notification ids from disk.
@@ -170,6 +175,11 @@ class LifecycleMixin:
         stop_watcher = getattr(self, "_stop_artifact_watcher", None)
         if stop_watcher is not None:
             stop_watcher()
+        restore_artifact_signal = getattr(
+            self, "_restore_artifact_viewer_close_signal_handler", None
+        )
+        if restore_artifact_signal is not None:
+            restore_artifact_signal()
         from sase.ace.tui_activity import (
             remove_idle_state,
             remove_last_keypress,

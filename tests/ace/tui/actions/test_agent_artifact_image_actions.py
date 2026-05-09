@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -140,6 +142,43 @@ def test_agents_open_artifacts_single_selection_uses_tmux_pane_without_suspend(
     assert "-artifact-viewer-active" in app.content.classes
     same_pane_viewer.assert_not_called()
     app.notify.assert_not_called()
+
+
+def test_agents_tmux_artifact_launch_exposes_notify_pid_temporarily(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    image = tmp_path / "visible.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\n")
+    app = _ImageActionApp(str(image))
+    artifact = SimpleNamespace(path=str(image), kind="image", label="Image")
+    app._selected_agent = SimpleNamespace(status="DONE")
+    app._artifacts = [artifact]
+    notify_values: list[str | None] = []
+    monkeypatch.delenv("SASE_ARTIFACT_NOTIFY_PID", raising=False)
+    monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.artifact_tmux_pane_exists",
+        lambda _pane_id: True,
+    )
+
+    def fake_tmux_viewer(_viewed_artifact) -> ArtifactViewerResult:
+        notify_values.append(os.environ.get("SASE_ARTIFACT_NOTIFY_PID"))
+        return ArtifactViewerResult(True, pane_id="%7")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.view_agent_artifact_in_tmux_pane",
+        fake_tmux_viewer,
+    )
+
+    app.action_open_agent_artifacts()
+    _modal, callback = app.pushed[0]
+    assert callback is not None
+
+    callback(artifact)
+
+    assert notify_values == [str(os.getpid())]
+    assert os.environ.get("SASE_ARTIFACT_NOTIFY_PID") is None
 
 
 def test_agents_open_artifacts_action_surfaces_tmux_warning(
@@ -422,5 +461,32 @@ def test_agents_focus_tracked_artifact_tmux_pane_clears_stale_pane(
     assert app._focus_tracked_artifact_tmux_pane() is False
 
     select.assert_not_called()
+    assert app._artifact_tmux_pane_id is None
+    assert "-artifact-viewer-active" not in app.content.classes
+
+
+def test_agents_artifact_close_signal_path_clears_layout_without_tmux_check(
+    monkeypatch,
+) -> None:
+    app = _ImageActionApp(None)
+    app._artifact_tmux_pane_id = "%7"
+    app.content.add_class("-artifact-viewer-active")
+    pane_exists = MagicMock()
+    scheduled: list[Callable[[], None]] = []
+    app.call_later = lambda callback: scheduled.append(callback)  # type: ignore[attr-defined]
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.artifact_tmux_pane_exists",
+        pane_exists,
+    )
+
+    app._schedule_artifact_viewer_closed_from_signal()
+
+    assert app._artifact_tmux_pane_id == "%7"
+    assert "-artifact-viewer-active" in app.content.classes
+    assert len(scheduled) == 1
+
+    scheduled[0]()
+
+    pane_exists.assert_not_called()
     assert app._artifact_tmux_pane_id is None
     assert "-artifact-viewer-active" not in app.content.classes

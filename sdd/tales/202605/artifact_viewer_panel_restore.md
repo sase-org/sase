@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 03:58:48
-status: wip
+status: done
 prompt: sdd/prompts/202605/artifact_viewer_panel_restore.md
 ---
 # Plan: Restore Agents Side Panel When Artifact Viewer Pane Closes

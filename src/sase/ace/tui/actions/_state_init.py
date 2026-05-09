@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import logging
 import os
+import signal
+from collections.abc import Callable
+from types import FrameType
 from typing import TYPE_CHECKING, Any, Literal
 
 from textual.timer import Timer
@@ -212,6 +215,9 @@ class StateInitMixin:
         self._agents_refresh_debounce_armed: bool = False
         self._agent_load_state: AgentLoadState | None = None
         self._artifact_tmux_pane_id: str | None = None
+        self._artifact_viewer_previous_sigusr1_handler: (
+            signal.Handlers | int | Callable[[int, FrameType | None], Any] | None
+        ) = None
         self._post_mount_background_loads_started = False
         self._changespecs_loading: bool = False
         self._changespecs_refresh_pending: bool = False

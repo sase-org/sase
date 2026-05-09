@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shlex
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -13,8 +14,10 @@ from sase.ace.tui.graphics.viewer import (
     is_tmux_session,
     select_tmux_pane,
     view_artifact_file_in_tmux_pane,
+    view_artifact_files,
     view_artifact_files_in_tmux_pane,
 )
+from sase.ace.tui.graphics._viewer_loop import _PageLoopResult
 
 
 def test_tmux_detection_returns_false_outside_tmux(monkeypatch) -> None:
@@ -112,6 +115,41 @@ def test_tmux_pane_launch_passes_return_pane_env_when_available(
         "#{pane_id}",
     ]
     assert calls[0][6:8] == ["-e", "SASE_ARTIFACT_RETURN_PANE_ID=%1"]
+    assert shlex.split(calls[0][8]) == [
+        sys.executable,
+        "-m",
+        "sase.ace.tui.graphics.viewer",
+        "--kind",
+        "image",
+        str(artifact),
+    ]
+
+
+def test_tmux_pane_launch_passes_notify_pid_env_when_available(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    artifact = tmp_path / "artifact.png"
+    artifact.write_bytes(b"png")
+    calls: list[list[str]] = []
+    monkeypatch.setenv("TMUX", "/tmp/tmux")
+    monkeypatch.setenv("SASE_ARTIFACT_NOTIFY_PID", "12345")
+    monkeypatch.delenv("TMUX_PANE", raising=False)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.shutil.which",
+        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
+    )
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, "%7\n", "")
+
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+
+    result = view_artifact_file_in_tmux_pane(artifact, kind="image")
+
+    assert result.ok is True
+    assert calls[0][6:8] == ["-e", "SASE_ARTIFACT_NOTIFY_PID=12345"]
     assert shlex.split(calls[0][8]) == [
         sys.executable,
         "-m",
@@ -230,6 +268,26 @@ def test_tmux_select_pane_helper_surfaces_failure(monkeypatch) -> None:
     assert result.ok is False
     assert result.warning == "tmux select-pane failed with exit code 1: no pane"
     assert result.warnings[0].code == "tmux_select_failed"
+
+
+def test_artifact_viewer_notifies_parent_pid_on_exit(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    artifact = tmp_path / "artifact.png"
+    artifact.write_bytes(b"png")
+    kill = MagicMock()
+    monkeypatch.setenv("SASE_ARTIFACT_NOTIFY_PID", "4242")
+    monkeypatch.setattr("sase.ace.tui.graphics._viewer_launch.os.kill", kill)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics._viewer_launch.run_artifact_sequence_loop",
+        lambda *args, **kwargs: _PageLoopResult(),
+    )
+
+    result = view_artifact_files((ArtifactViewSpec(artifact, "image"),))
+
+    assert result.ok is True
+    kill.assert_called_once_with(4242, signal.SIGUSR1)
 
 
 def test_tmux_pane_close_refuses_current_pane(monkeypatch) -> None:

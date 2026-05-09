@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import signal
 import shlex
 import shutil
 import subprocess
@@ -20,6 +21,65 @@ from ._viewer_types import (
     ImageViewerResult,
     viewer_result_from_warnings,
 )
+
+_ARTIFACT_NOTIFY_PID_ENV = "SASE_ARTIFACT_NOTIFY_PID"
+_ARTIFACT_RETURN_PANE_ID_ENV = "SASE_ARTIFACT_RETURN_PANE_ID"
+
+
+class _ArtifactViewerSignalExit(SystemExit):
+    """Exit raised by pane-close signals so normal cleanup still runs."""
+
+
+def _notify_artifact_viewer_parent() -> None:
+    """Notify the Ace parent process that the viewer pane is exiting."""
+    notify_pid = os.environ.get(_ARTIFACT_NOTIFY_PID_ENV)
+    if not notify_pid or not hasattr(signal, "SIGUSR1"):
+        return
+    try:
+        pid = int(notify_pid)
+    except ValueError:
+        return
+    if pid <= 0:
+        return
+    try:
+        os.kill(pid, signal.SIGUSR1)
+    except OSError:
+        return
+
+
+def _install_artifact_viewer_cleanup_signal_handlers() -> dict[int, object]:
+    """Route pane shutdown signals through Python cleanup handlers."""
+    if not os.environ.get(_ARTIFACT_NOTIFY_PID_ENV):
+        return {}
+
+    def _handle_exit_signal(_signum: int, _frame: object) -> None:
+        raise _ArtifactViewerSignalExit(0)
+
+    previous_handlers: dict[int, object] = {}
+    for signal_number in (
+        getattr(signal, "SIGHUP", None),
+        getattr(signal, "SIGTERM", None),
+    ):
+        if signal_number is None:
+            continue
+        try:
+            previous_handlers[int(signal_number)] = signal.signal(
+                signal_number, _handle_exit_signal
+            )
+        except (OSError, RuntimeError, ValueError):
+            continue
+    return previous_handlers
+
+
+def _restore_artifact_viewer_cleanup_signal_handlers(
+    previous_handlers: dict[int, object],
+) -> None:
+    """Restore signal handlers changed by the artifact viewer process."""
+    for signal_number, handler in previous_handlers.items():
+        try:
+            signal.signal(signal_number, handler)  # type: ignore[arg-type]
+        except (OSError, RuntimeError, ValueError):
+            continue
 
 
 def view_agent_artifact(artifact: ArtifactLike) -> ArtifactViewerResult:
@@ -79,23 +139,28 @@ def view_artifact_files(
     if not specs:
         warning = ArtifactViewerWarning("no_artifacts", "No artifacts to view")
         return viewer_result_from_warnings((warning,))
-    return_pane_id = os.environ.get("SASE_ARTIFACT_RETURN_PANE_ID") or None
-    with tempfile.TemporaryDirectory(prefix="sase-artifact-viewer-") as tmp:
-        loop_result = run_artifact_sequence_loop(
-            specs,
-            cache_root=tmp,
-            return_pane_id=return_pane_id,
-        )
-        if loop_result.warnings:
-            return viewer_result_from_warnings(loop_result.warnings)
-        if loop_result.returncode != 0:
-            warning = ArtifactViewerWarning(
-                "kitten_failed",
-                f"kitten icat failed with exit code {loop_result.returncode}",
-                tool="kitten",
+    previous_handlers = _install_artifact_viewer_cleanup_signal_handlers()
+    try:
+        return_pane_id = os.environ.get(_ARTIFACT_RETURN_PANE_ID_ENV) or None
+        with tempfile.TemporaryDirectory(prefix="sase-artifact-viewer-") as tmp:
+            loop_result = run_artifact_sequence_loop(
+                specs,
+                cache_root=tmp,
+                return_pane_id=return_pane_id,
             )
-            return viewer_result_from_warnings((warning,))
-        return ArtifactViewerResult(True)
+            if loop_result.warnings:
+                return viewer_result_from_warnings(loop_result.warnings)
+            if loop_result.returncode != 0:
+                warning = ArtifactViewerWarning(
+                    "kitten_failed",
+                    f"kitten icat failed with exit code {loop_result.returncode}",
+                    tool="kitten",
+                )
+                return viewer_result_from_warnings((warning,))
+            return ArtifactViewerResult(True)
+    finally:
+        _restore_artifact_viewer_cleanup_signal_handlers(previous_handlers)
+        _notify_artifact_viewer_parent()
 
 
 def view_image_file(path: str) -> ImageViewerResult:
@@ -154,7 +219,9 @@ def view_artifact_files_in_tmux_pane(
         "#{pane_id}",
     ]
     if origin_pane_id := os.environ.get("TMUX_PANE"):
-        tmux_command.extend(["-e", f"SASE_ARTIFACT_RETURN_PANE_ID={origin_pane_id}"])
+        tmux_command.extend(["-e", f"{_ARTIFACT_RETURN_PANE_ID_ENV}={origin_pane_id}"])
+    if notify_pid := os.environ.get(_ARTIFACT_NOTIFY_PID_ENV):
+        tmux_command.extend(["-e", f"{_ARTIFACT_NOTIFY_PID_ENV}={notify_pid}"])
     tmux_command.append(shlex.join(viewer_command))
     result = subprocess.run(
         tmux_command,

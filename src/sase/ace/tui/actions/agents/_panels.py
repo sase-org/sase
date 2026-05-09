@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import os
+import signal
+from collections.abc import Callable
+from types import FrameType
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
+    from ...graphics import ArtifactViewerResult
     from ...models import Agent
     from ...models.agent_panels import AgentPanelGroup
 
@@ -13,6 +18,7 @@ TabName = Literal["changespecs", "agents", "axe"]
 
 _ARTIFACT_VIEWER_LAYOUT_CLASS = "-artifact-viewer-active"
 _ARTIFACT_VIEWER_NAV_MESSAGE = "Close the artifact viewer before switching agents"
+_ARTIFACT_NOTIFY_PID_ENV = "SASE_ARTIFACT_NOTIFY_PID"
 
 
 class AgentPanelsMixin:
@@ -29,6 +35,71 @@ class AgentPanelsMixin:
     _agent_panels_grouped: bool
     _agents: list[Agent]
     _artifact_tmux_pane_id: str | None
+    _artifact_viewer_previous_sigusr1_handler: (
+        signal.Handlers | int | Callable[[int, FrameType | None], Any] | None
+    )
+
+    def _install_artifact_viewer_close_signal_handler(self) -> bool:
+        """Install the one-shot close notification handler if SIGUSR1 exists."""
+        if not hasattr(signal, "SIGUSR1"):
+            return False
+        if getattr(self, "_artifact_viewer_previous_sigusr1_handler", None) is not None:
+            return True
+
+        def _handle_close(_signum: int, _frame: FrameType | None) -> None:
+            self._schedule_artifact_viewer_closed_from_signal()
+
+        try:
+            previous = signal.signal(signal.SIGUSR1, _handle_close)
+        except (OSError, RuntimeError, ValueError):
+            return False
+        self._artifact_viewer_previous_sigusr1_handler = previous  # type: ignore[attr-defined]
+        return True
+
+    def _restore_artifact_viewer_close_signal_handler(self) -> None:
+        """Restore the SIGUSR1 handler that was active before Ace installed ours."""
+        previous = getattr(self, "_artifact_viewer_previous_sigusr1_handler", None)
+        if previous is None or not hasattr(signal, "SIGUSR1"):
+            return
+        try:
+            signal.signal(signal.SIGUSR1, previous)
+        except (OSError, RuntimeError, ValueError):
+            pass
+        self._artifact_viewer_previous_sigusr1_handler = None  # type: ignore[attr-defined]
+
+    def _schedule_artifact_viewer_closed_from_signal(self) -> None:
+        """Schedule the cheap UI update for a tmux artifact viewer close event."""
+        call_later = getattr(self, "call_later", None)
+        if callable(call_later):
+            try:
+                call_later(self._clear_artifact_viewer_layout_from_signal)
+                return
+            except Exception:
+                pass
+        self._clear_artifact_viewer_layout_from_signal()
+
+    def _clear_artifact_viewer_layout_from_signal(self) -> None:
+        """Clear tracked artifact pane state without querying tmux."""
+        self._artifact_tmux_pane_id = None  # type: ignore[attr-defined]
+        self._set_artifact_viewer_layout_collapsed(False)
+
+    def _with_artifact_viewer_notify_pid(
+        self,
+        callback: Callable[[], ArtifactViewerResult],
+    ) -> ArtifactViewerResult:
+        """Run a tmux launch while exposing this Ace process as notify target."""
+        if not self._install_artifact_viewer_close_signal_handler():
+            return callback()
+
+        previous = os.environ.get(_ARTIFACT_NOTIFY_PID_ENV)
+        os.environ[_ARTIFACT_NOTIFY_PID_ENV] = str(os.getpid())
+        try:
+            return callback()
+        finally:
+            if previous is None:
+                os.environ.pop(_ARTIFACT_NOTIFY_PID_ENV, None)
+            else:
+                os.environ[_ARTIFACT_NOTIFY_PID_ENV] = previous
 
     def _set_artifact_viewer_layout_collapsed(self, collapsed: bool) -> None:
         """Apply the Agents-tab layout state for the tracked artifact pane."""
@@ -394,7 +465,9 @@ class AgentPanelsMixin:
         )
 
         if is_tmux_session():
-            result = view_agent_artifact_in_tmux_pane(artifact)
+            result = self._with_artifact_viewer_notify_pid(
+                lambda: view_agent_artifact_in_tmux_pane(artifact)
+            )
             if result.ok and result.pane_id is not None:
                 self._artifact_tmux_pane_id = result.pane_id  # type: ignore[attr-defined]
                 self._sync_artifact_viewer_layout()
@@ -418,7 +491,9 @@ class AgentPanelsMixin:
         )
 
         if is_tmux_session():
-            result = view_agent_artifacts_in_tmux_pane(artifacts)
+            result = self._with_artifact_viewer_notify_pid(
+                lambda: view_agent_artifacts_in_tmux_pane(artifacts)
+            )
             if result.ok and result.pane_id is not None:
                 self._artifact_tmux_pane_id = result.pane_id  # type: ignore[attr-defined]
                 self._sync_artifact_viewer_layout()
