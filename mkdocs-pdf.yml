@@ -1,5 +1,7 @@
 INHERIT: mkdocs.yml
 
+extra_css: []
+
 extra:
   pdf_handbook:
     build_date: !ENV [SASE_PDF_BUILD_DATE, ""]
