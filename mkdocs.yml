@@ -8,14 +8,76 @@ site_dir: site
 strict: true
 use_directory_urls: true
 
+nav:
+  - Home: index.md
+  - Blog:
+      - Blog Home: blog/index.md
+  - Start:
+      - ACE TUI: ace.md
+      - AXE Automation: axe.md
+      - Spec-Driven Development: sdd.md
+      - XPrompts: xprompt.md
+  - Concepts:
+      - ChangeSpecs: change_spec.md
+      - Beads: beads.md
+      - Workflows: workflow_spec.md
+      - Workspaces: workspace.md
+      - Mentors: mentors.md
+  - Operations:
+      - Commit Workflows: commit_workflows.md
+      - Notifications: notifications.md
+      - Mobile Gateway: mobile_gateway.md
+      - Mobile MVP Runbook: mobile_mvp_runbook.md
+      - Performance Runbook: perf_runbook.md
+      - Telemetry: telemetry.md
+  - Integrations:
+      - Integration APIs: integrations.md
+      - Plugins: plugins.md
+      - LLM Providers: llms.md
+      - VCS Providers: vcs.md
+      - Rust Backend: rust_backend.md
+  - Reference:
+      - Configuration: configuration.md
+      - Query Language: query_language.md
+      - ProjectSpec: project_spec.md
+      - Agent Attachments: agent_images.md
+
 theme:
   name: material
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
   features:
     - navigation.indexes
     - navigation.sections
     - navigation.top
     - search.highlight
     - search.suggest
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/sase-org/sase
+      name: SASE on GitHub
+
+copyright: Copyright &copy; 2026 SASE contributors
+
+extra_css:
+  - stylesheets/extra.css
 
 plugins:
   - search
@@ -31,4 +93,3 @@ markdown_extensions:
       permalink: true
   - pymdownx.details
   - pymdownx.superfences
-
