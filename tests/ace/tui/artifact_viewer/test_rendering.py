@@ -5,6 +5,7 @@ from pathlib import Path
 
 from rich.console import Console
 
+from sase.ace.tui.graphics import _viewer_render
 from sase.ace.tui.graphics.viewer import (
     ArtifactImageArea,
     ArtifactViewSpec,
@@ -19,6 +20,11 @@ from sase.ace.tui.graphics.viewer import (
     validate_artifact_viewer_dependencies,
     view_artifact_file,
 )
+
+
+def _inch_value(value: str) -> float:
+    assert value.endswith("in")
+    return float(value.removesuffix("in"))
 
 
 def test_convert_pdf_to_png_pages_uses_pdftoppm_and_numeric_order(
@@ -133,23 +139,69 @@ def test_artifact_markdown_pdf_profile_uses_image_area_aspect() -> None:
 
     assert profile is not None
     assert profile.page_width == "8.50in"
-    assert profile.page_height == "4.86in"
+    assert profile.page_height == "5.61in"
     assert profile.margin == "0.18in"
     assert profile.css_font_size == "16px"
     assert profile.latex_font_size == "12pt"
 
 
-def test_artifact_markdown_pdf_profile_uses_taller_row_factor() -> None:
+def test_artifact_markdown_pdf_profile_tracks_cell_adjusted_pane_aspect() -> None:
+    profile = artifact_markdown_pdf_profile_for_image_area(
+        ArtifactImageArea(columns=100, rows=33),
+        cell_pixel_aspect=0.45,
+    )
+
+    assert profile is not None
+    assert profile.page_width == "8.50in"
+    assert profile.page_height == "6.23in"
+    assert (
+        round(_inch_value(profile.page_width) / _inch_value(profile.page_height), 2)
+        == 1.36
+    )
+
+
+def test_artifact_markdown_pdf_profile_keeps_width_capped_for_wide_pane() -> None:
     profile = artifact_markdown_pdf_profile_for_image_area(
         ArtifactImageArea(columns=90, rows=24)
     )
 
     assert profile is not None
-    assert profile.page_width == "7.56in"
-    assert profile.page_height == "4.32in"
-    assert profile.margin == "0.18in"
-    assert profile.css_font_size == "16px"
-    assert profile.latex_font_size == "12pt"
+    assert profile.page_width == "8.50in"
+    assert profile.page_height == "4.53in"
+
+
+def test_artifact_markdown_pdf_profile_rejects_missing_or_invalid_area() -> None:
+    assert artifact_markdown_pdf_profile_for_image_area(None) is None
+    assert (
+        artifact_markdown_pdf_profile_for_image_area(
+            ArtifactImageArea(columns=0, rows=24)
+        )
+        is None
+    )
+    assert (
+        artifact_markdown_pdf_profile_for_image_area(
+            ArtifactImageArea(columns=90, rows=0)
+        )
+        is None
+    )
+
+
+def test_terminal_cell_pixel_aspect_uses_runtime_pixels_when_available() -> None:
+    assert (
+        _viewer_render._terminal_cell_pixel_aspect(
+            winsize=(40, 100, 1000, 800),
+        )
+        == 0.5
+    )
+
+
+def test_terminal_cell_pixel_aspect_falls_back_for_missing_pixels() -> None:
+    assert (
+        _viewer_render._terminal_cell_pixel_aspect(
+            winsize=(40, 100, 0, 0),
+        )
+        == 0.5
+    )
 
 
 def test_validate_artifact_viewer_dependencies_reports_missing_tools(
@@ -251,8 +303,8 @@ def test_render_markdown_artifact_passes_pane_aware_profile(
 
     assert result.warnings == ()
     assert len(profiles) == 1
-    assert profiles[0].page_width == "7.56in"
-    assert profiles[0].page_height == "4.32in"
+    assert profiles[0].page_width == "8.50in"
+    assert profiles[0].page_height == "4.53in"
     assert profiles[0].margin == "0.18in"
 
 

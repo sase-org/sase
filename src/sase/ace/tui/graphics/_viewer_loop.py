@@ -40,6 +40,8 @@ _ARTIFACT_VIEWER_RESERVED_COLUMNS = 2
 _PAGE_LOOP_RESERVED_ROWS = 2
 _MIN_IMAGE_COLUMNS = 20
 _MIN_IMAGE_ROWS = 5
+_FOOTER_RESET = "\x1b[0m"
+_FOOTER_COLOR = "\x1b[38;2;215;175;95m"
 
 
 def page_index_after_key(current_index: int, key: str, page_count: int) -> int | None:
@@ -357,7 +359,8 @@ def print_page_prompt(
     prompt = f"Page {index + 1}/{page_count}  {actions}"
     if artifact_count > 1:
         prompt = f"Artifact {artifact_index + 1}/{artifact_count}  {prompt}"
-    print(f"\n{prompt}", end="", flush=True)
+    sys.stdout.write(f"{_FOOTER_RESET}\n{_FOOTER_COLOR}{prompt}{_FOOTER_RESET}")
+    sys.stdout.flush()
 
 
 def _read_single_key() -> str:

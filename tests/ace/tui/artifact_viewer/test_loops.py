@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
+from sase.ace.tui.graphics import _viewer_loop
 from sase.ace.tui.graphics.viewer import (
     ArtifactImageArea,
     ArtifactRenderResult,
@@ -15,6 +17,13 @@ from sase.ace.tui.graphics.viewer import (
 )
 
 from ._helpers import _TEST_IMAGE_AREA, _test_icat_command
+
+
+_ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
+def _strip_ansi(value: str) -> str:
+    return _ANSI_RE.sub("", value)
 
 
 def test_artifact_page_index_state_machine() -> None:
@@ -52,23 +61,27 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
     )
 
     _print_page_prompt(index=0, page_count=1)
-    assert capsys.readouterr().out == "\nPage 1/1  r: refresh  q: quit"
+    output = capsys.readouterr().out
+    assert _strip_ansi(output) == "\nPage 1/1  r: refresh  q: quit"
+    assert _viewer_loop._FOOTER_COLOR in output
+    assert output.startswith(_viewer_loop._FOOTER_RESET)
+    assert output.endswith(_viewer_loop._FOOTER_RESET)
 
     _print_page_prompt(index=0, page_count=3)
     assert (
-        capsys.readouterr().out
+        _strip_ansi(capsys.readouterr().out)
         == "\nPage 1/3  n: next page  p: previous page  r: refresh  q: quit"
     )
 
     _print_page_prompt(index=1, page_count=3)
     assert (
-        capsys.readouterr().out
+        _strip_ansi(capsys.readouterr().out)
         == "\nPage 2/3  n: next page  p: previous page  r: refresh  q: quit"
     )
 
     _print_page_prompt(index=2, page_count=3)
     assert (
-        capsys.readouterr().out
+        _strip_ansi(capsys.readouterr().out)
         == "\nPage 3/3  n: next page  p: previous page  r: refresh  q: quit"
     )
 
@@ -79,7 +92,7 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
         artifact_count=2,
     )
     assert (
-        capsys.readouterr().out
+        _strip_ansi(capsys.readouterr().out)
         == "\nArtifact 1/2  Page 1/1  N: next artifact  r: refresh  q: quit"
     )
 

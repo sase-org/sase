@@ -6,7 +6,12 @@ import re
 import shutil
 import subprocess
 import tempfile
+import termios
 from pathlib import Path
+from struct import pack, unpack
+from sys import stdout
+
+import fcntl
 
 from sase.attachments.markdown_pdf import (
     PDF_ENGINES,
@@ -27,10 +32,9 @@ _MIN_ARTIFACT_PAGE_WIDTH_IN = 4.25
 _MAX_ARTIFACT_PAGE_WIDTH_IN = 8.5
 _MIN_ARTIFACT_PAGE_HEIGHT_IN = 3.0
 _MAX_ARTIFACT_PAGE_HEIGHT_IN = 9.5
-_ARTIFACT_PAGE_HEIGHT_PER_ROW_IN = 0.18
 _ARTIFACT_PAGE_MARGIN_IN = 0.18
 _MIN_ARTIFACT_PAGE_ASPECT = 0.7
-_MAX_ARTIFACT_PAGE_ASPECT = 1.75
+_FALLBACK_TERMINAL_CELL_PIXEL_ASPECT = 0.5
 
 
 def render_artifact_pages(
@@ -225,31 +229,33 @@ def _render_paginated_artifact(
 
 def artifact_markdown_pdf_profile_for_image_area(
     image_area: ArtifactImageArea | None,
+    *,
+    cell_pixel_aspect: float | None = None,
 ) -> MarkdownPdfProfile | None:
     """Return a pane-shaped Markdown profile for the artifact viewer."""
 
     if image_area is None or image_area.columns <= 0 or image_area.rows <= 0:
         return None
 
-    aspect = _clamp(
-        image_area.columns / image_area.rows,
+    aspect = max(
         _MIN_ARTIFACT_PAGE_ASPECT,
-        _MAX_ARTIFACT_PAGE_ASPECT,
+        (image_area.columns / image_area.rows)
+        * (cell_pixel_aspect or _terminal_cell_pixel_aspect()),
     )
-    height = _clamp(
-        image_area.rows * _ARTIFACT_PAGE_HEIGHT_PER_ROW_IN,
-        _MIN_ARTIFACT_PAGE_HEIGHT_IN,
-        _MAX_ARTIFACT_PAGE_HEIGHT_IN,
+    width = _MAX_ARTIFACT_PAGE_WIDTH_IN
+    height = width / aspect
+
+    if height > _MAX_ARTIFACT_PAGE_HEIGHT_IN:
+        height = _MAX_ARTIFACT_PAGE_HEIGHT_IN
+        width = height * aspect
+    elif height < _MIN_ARTIFACT_PAGE_HEIGHT_IN:
+        height = _MIN_ARTIFACT_PAGE_HEIGHT_IN
+
+    width = _clamp(
+        width,
+        _MIN_ARTIFACT_PAGE_WIDTH_IN,
+        _MAX_ARTIFACT_PAGE_WIDTH_IN,
     )
-    width = height * aspect
-
-    if width > _MAX_ARTIFACT_PAGE_WIDTH_IN:
-        width = _MAX_ARTIFACT_PAGE_WIDTH_IN
-        height = width / aspect
-    elif width < _MIN_ARTIFACT_PAGE_WIDTH_IN:
-        width = _MIN_ARTIFACT_PAGE_WIDTH_IN
-        height = width / aspect
-
     height = _clamp(
         height,
         _MIN_ARTIFACT_PAGE_HEIGHT_IN,
@@ -263,6 +269,30 @@ def artifact_markdown_pdf_profile_for_image_area(
         css_font_size="16px",
         latex_font_size="12pt",
     )
+
+
+def _terminal_cell_pixel_aspect(
+    *,
+    fd: int | None = None,
+    winsize: tuple[int, int, int, int] | None = None,
+) -> float:
+    """Return terminal cell width divided by height in pixels."""
+
+    resolved_winsize = winsize
+    if resolved_winsize is None:
+        try:
+            target_fd = stdout.fileno() if fd is None else fd
+            resolved_winsize = unpack(
+                "HHHH",
+                fcntl.ioctl(target_fd, termios.TIOCGWINSZ, pack("HHHH", 0, 0, 0, 0)),
+            )
+        except (OSError, ValueError):
+            return _FALLBACK_TERMINAL_CELL_PIXEL_ASPECT
+
+    rows, columns, xpixels, ypixels = resolved_winsize
+    if rows <= 0 or columns <= 0 or xpixels <= 0 or ypixels <= 0:
+        return _FALLBACK_TERMINAL_CELL_PIXEL_ASPECT
+    return (xpixels / columns) / (ypixels / rows)
 
 
 def _clamp(value: float, minimum: float, maximum: float) -> float:
