@@ -159,8 +159,8 @@ def test_dismiss_done_agent_is_optimistic_and_schedules_once(tmp_path) -> None: 
     assert app._agents_with_children == []
     assert len(app._scheduled) == 1
     callback, args = app._scheduled[0]
-    assert callback == app._run_dismiss_persistence_async
-    assert args[0] == agent
+    assert callback == app._run_bulk_dismiss_persistence_async
+    assert args[0] == [agent]
     assert agent.identity in args[1]
     assert args[2] == [agent]
 

@@ -372,6 +372,16 @@ class AgentKillingMixin(AgentDismissingMixin):
             and a.identity not in seen_ids
             and a.identity not in failed_ids
         ]
+        if not kill_items and dismiss_candidates:
+            self._marked_agents.clear()  # type: ignore[attr-defined]
+            self._do_dismiss_all(dismiss_candidates)
+            log.debug(
+                "bulk agent dismiss-only stage: dismissed=%d elapsed=%.3fs",
+                len(dismiss_candidates),
+                time.perf_counter() - started,
+            )
+            return
+
         cleanup_plan = _plan_bulk_kill_cleanup_side_effects(
             [item.agent for item in kill_items] + dismiss_candidates,
             agents_with_children_snapshot,
@@ -614,6 +624,9 @@ class AgentKillingMixin(AgentDismissingMixin):
 
         def on_dismiss(confirmed: bool | None) -> None:
             if confirmed:
-                self._do_bulk_kill_agents(killable, dismissable)
+                if killable:
+                    self._do_bulk_kill_agents(killable, dismissable)
+                    return
+                self._do_dismiss_all(dismissable)
 
         self.push_screen(ConfirmKillAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]

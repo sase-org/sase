@@ -274,7 +274,7 @@ def test_group_kill_no_op_when_group_key_does_not_match() -> None:
 
     # Falls through to single-agent path (DONE -> dismiss without modal).
     # We just verify no group modal was pushed.
-    with patch.object(app, "_dismiss_planned_agent") as mock_dismiss:
+    with patch.object(app, "_dismiss_done_agent") as mock_dismiss:
         app.action_kill_agent()
 
     mock_dismiss.assert_called_once()

@@ -47,6 +47,7 @@ class TaskActionsMixin:
         project_file: str,
         task_callable: Callable[[], tuple[bool, str]],
         on_success: Callable[[], None] | None = None,
+        on_complete: Callable[[bool], None] | None = None,
     ) -> bool:
         """Submit a task to run in background via run_worker().
 
@@ -87,6 +88,10 @@ class TaskActionsMixin:
             self._task_success_callbacks: dict[str, Callable[[], None]] = {}
         if on_success is not None:
             self._task_success_callbacks[task_id] = on_success
+        if not hasattr(self, "_task_complete_callbacks"):
+            self._task_complete_callbacks: dict[str, Callable[[bool], None]] = {}
+        if on_complete is not None:
+            self._task_complete_callbacks[task_id] = on_complete
 
         worker: Worker[Any] = self.run_worker(  # type: ignore[attr-defined]
             _wrapped, thread=True
@@ -127,6 +132,13 @@ class TaskActionsMixin:
                 f"Task failed: {message}",
                 severity="error",
             )
+
+        complete_cb = getattr(self, "_task_complete_callbacks", {}).pop(task_id, None)
+        if complete_cb is not None:
+            try:
+                complete_cb(success)
+            except Exception:
+                log.exception("Background task completion callback failed")
 
         # Fire on_success callback if provided
         if success:
@@ -172,6 +184,14 @@ class TaskActionsMixin:
             )
             self._task_workers.pop(task_id, None)
             getattr(self, "_task_success_callbacks", {}).pop(task_id, None)
+            complete_cb = getattr(self, "_task_complete_callbacks", {}).pop(
+                task_id, None
+            )
+            if complete_cb is not None:
+                try:
+                    complete_cb(False)
+                except Exception:
+                    log.exception("Background task completion callback failed")
 
         self._reload_and_reposition()  # type: ignore[attr-defined]
         self._update_task_indicator()
@@ -199,6 +219,12 @@ class TaskActionsMixin:
         # Clean up tracking
         self._task_workers.pop(task_id, None)
         getattr(self, "_task_success_callbacks", {}).pop(task_id, None)
+        complete_cb = getattr(self, "_task_complete_callbacks", {}).pop(task_id, None)
+        if complete_cb is not None:
+            try:
+                complete_cb(False)
+            except Exception:
+                log.exception("Background task completion callback failed")
 
         self._update_task_indicator()
         return True
