@@ -1,0 +1,95 @@
+name: Deploy Docs
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+  deployments: write
+
+env:
+  CLOUDFLARE_PROJECT_NAME: sase-sh
+
+jobs:
+  deploy:
+    name: Build and deploy docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+
+      - name: Install just
+        run: |
+          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
+          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/just.tar.gz -C /tmp just
+          sudo install -m 0755 /tmp/just /usr/local/bin/just
+          just --version
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Build docs site
+        run: just docs-check
+
+      - name: Build docs PDF
+        run: just docs-pdf-check
+
+      - name: Verify deploy artifact
+        run: |
+          set -euo pipefail
+          test -f site/index.html
+          test -f site/_headers
+          test -f site/downloads/sase-handbook.pdf
+          test "$(head -c 4 site/downloads/sase-handbook.pdf)" = "%PDF"
+
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >
+            pages deploy site
+            --project-name=${{ env.CLOUDFLARE_PROJECT_NAME }}
+            --branch=${{ github.ref_name }}
+            --commit-hash=${{ github.sha }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Smoke deployed PDF
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          set -euo pipefail
+
+          urls=()
+          if [ -n "${DEPLOYMENT_URL:-}" ]; then
+            urls+=("${DEPLOYMENT_URL%/}/downloads/sase-handbook.pdf")
+          fi
+          urls+=("https://sase.sh/downloads/sase-handbook.pdf")
+
+          for url in "${urls[@]}"; do
+            echo "Checking $url"
+            for attempt in $(seq 1 12); do
+              if curl -fsSL -H "Cache-Control: no-cache" "$url" -o /tmp/sase-handbook.pdf; then
+                size="$(wc -c < /tmp/sase-handbook.pdf | tr -d ' ')"
+                magic="$(head -c 4 /tmp/sase-handbook.pdf)"
+                if [ "$magic" = "%PDF" ] && [ "$size" -gt 102400 ]; then
+                  echo "PDF smoke passed for $url ($size bytes)"
+                  break
+                fi
+              fi
+
+              if [ "$attempt" -eq 12 ]; then
+                echo "PDF smoke failed for $url" >&2
+                exit 1
+              fi
+
+              sleep 10
+            done
+          done

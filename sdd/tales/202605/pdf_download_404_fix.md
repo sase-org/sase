@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 13:06:04
-status: wip
+status: done
 prompt: sdd/prompts/202605/pdf_download_404_fix.md
 ---
 # Plan: Fix Deployed PDF Download 404

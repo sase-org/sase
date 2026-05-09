@@ -507,7 +507,15 @@ extension APIs:
 The `docs/` directory is also a MkDocs Material site, with the generated site configured by [`mkdocs.yml`](mkdocs.yml)
 and blog posts under [`docs/blog/`](docs/blog/). Run `just docs-check` to build the site with strict warnings-as-errors
 behavior; the command installs the MkDocs tooling directly before invoking `mkdocs build --strict`, without installing
-the `sase` package.
+the `sase` package. Run `just docs-pdf-check` to build and validate the downloadable handbook at
+`site/downloads/sase-handbook.pdf`.
+
+Production docs are deployed by [`.github/workflows/docs-deploy.yml`](.github/workflows/docs-deploy.yml), not by a
+Cloudflare Pages dashboard build command. The workflow runs `just docs-check`, then `just docs-pdf-check`, verifies the
+prebuilt `site/` artifact contains the handbook PDF, and uploads that directory to the `sase-sh` Cloudflare Pages
+project with Wrangler direct upload. The GitHub repository must define `CLOUDFLARE_API_TOKEN` and
+`CLOUDFLARE_ACCOUNT_ID` Actions secrets; the token needs Cloudflare Pages edit access. Keep the Pages dashboard Git
+build disabled or unused for production so it cannot race this prebuilt artifact deploy.
 
 ## Acknowledgements
 

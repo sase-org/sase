@@ -12,7 +12,7 @@ canonical SASE blog live at `https://sase.sh/blog/`?
 Use Cloudflare Pages as the production host for a static MkDocs Material site, with `https://sase.sh/` as the canonical
 site and `https://sase.sh/blog/` as the canonical blog index.
 
-The immediate target should be:
+The initial launch target was:
 
 ```text
 Generator:       MkDocs Material
@@ -25,6 +25,13 @@ Build output:    site
 Production URL:  https://sase.sh/
 Blog URL:        https://sase.sh/blog/
 ```
+
+Current production deployment uses GitHub Actions direct upload instead of the Cloudflare Pages dashboard build command.
+The `.github/workflows/docs-deploy.yml` workflow runs `just docs-check`, then `just docs-pdf-check`, verifies the
+prebuilt `site/` artifact includes `site/downloads/sase-handbook.pdf`, and uploads `site/` to the `sase-sh` Pages
+project with Wrangler. The GitHub repo needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` Actions secrets. The
+Pages dashboard Git build should stay disabled or unused for production; otherwise the lightweight MkDocs build above
+can deploy a site that has links and headers for the PDF but no PDF artifact.
 
 For Cloudflare Pages specifically, do not assume `uv` is preinstalled. Cloudflare's current v3 build image documents
 Python, `pip`, `pipx`, and Poetry, but not `uv`. Unless the repo adds an explicit uv install step, the safer Pages build
