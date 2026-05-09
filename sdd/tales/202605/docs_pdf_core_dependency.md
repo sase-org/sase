@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 13:19:26
-status: wip
+status: done
 prompt: sdd/prompts/202605/docs_pdf_core_dependency.md
 ---
 # Fix `docs-pdf-check` dependency resolution

@@ -164,10 +164,12 @@ docs-check: _venv
     uv pip install --python {{ venv_bin }}/python --no-sources "mkdocs-material>=9.7,<10" "mkdocs-rss-plugin>=1.18,<2"
     {{ venv_bin }}/mkdocs build --strict
 
-# Build and validate the downloadable PDF handbook. This target is intentionally
-# separate from docs-check because Playwright/Chromium makes it heavier.
+# Build and validate the downloadable PDF handbook. This target installs only
+# docs/PDF tooling, because docs-only CI does not check out or build the Rust
+# core package required by editable `sase` installs. Keep versions in sync with
+# the `docs-pdf` optional dependency group in pyproject.toml.
 docs-pdf-check: _venv
-    uv pip install --python {{ venv_bin }}/python --no-sources -e ".[docs-pdf]"
+    uv pip install --python {{ venv_bin }}/python --no-sources "mkdocs-material>=9.7,<10" "mkdocs-rss-plugin>=1.18,<2" "mkdocs-exporter>=6.2,<7" "pypdf>=5,<7"
     @if [ "$${CI:-}" = "true" ]; then \
         {{ venv_bin }}/python -m playwright install --with-deps chromium; \
     else \
