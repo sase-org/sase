@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 01:11:32
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_response_transcript.md
 ---
 # Plan: Preserve Agent Responses in Completion Transcript PDFs

@@ -13,7 +13,7 @@ from ._parsing import (
 from ._parsing_references import iter_xprompt_references
 from .loader import get_all_workflows
 from .models import UNSET
-from .workflow_models import WorkflowStep, WorkflowValidationError
+from .workflow_models import StepStatus, WorkflowStep, WorkflowValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -336,7 +336,7 @@ class WorkflowResult:
 
     Attributes:
         output: JSON string of the last step's output.
-        response_text: Raw response text from the last prompt step, if any.
+        response_text: Newest raw response text from a completed prompt step, if any.
         artifacts_dir: Path to the artifacts directory.
     """
 
@@ -560,9 +560,16 @@ def execute_workflow(
         last_step = executor.state.steps[-1]
         if last_step.output:
             output_str = json.dumps(last_step.output, indent=2)
-            # Extract raw response text from _raw key if present
-            if isinstance(last_step.output, dict) and "_raw" in last_step.output:
-                response_text = last_step.output["_raw"]
+
+        for step_state in reversed(executor.state.steps):
+            if step_state.status is not StepStatus.COMPLETED:
+                continue
+            if not isinstance(step_state.output, dict):
+                continue
+            raw_response = step_state.output.get("_raw")
+            if isinstance(raw_response, str) and raw_response:
+                response_text = raw_response
+                break
 
     return WorkflowResult(
         output=output_str,

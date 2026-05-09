@@ -14,7 +14,13 @@ from sase.xprompt.workflow_runner import (
     _flatten_anonymous_workflow,
     execute_workflow,
 )
-from sase.xprompt.workflow_models import Workflow, WorkflowStep, WorkflowValidationError
+from sase.xprompt.workflow_models import (
+    StepState,
+    StepStatus,
+    Workflow,
+    WorkflowStep,
+    WorkflowValidationError,
+)
 
 
 # --- WorkflowResult tests ---
@@ -608,6 +614,46 @@ def test_execute_workflow_inherited_vcs_tag_not_visible_to_simple_xprompt_templa
     assert call_kwargs["inherited_vcs_tag"] == "#gh:sase "
     assert call_kwargs["workflow"].steps[0].agent == "false visible"
     assert _WORKFLOW_INHERITED_VCS_TAG_ARG not in call_kwargs["args"]
+
+
+@patch("sase.xprompt.workflow_executor.WorkflowExecutor")
+def test_execute_workflow_response_text_uses_latest_completed_raw_step(
+    mock_workflow_executor: MagicMock,
+) -> None:
+    """Post-agent steps should not erase the transcript response text."""
+    workflow = Workflow(
+        name="refresh_docs",
+        steps=[
+            WorkflowStep(name="run_docs", agent="Update docs"),
+            WorkflowStep(name="update_marker", bash="touch marker"),
+        ],
+    )
+
+    executor_instance = mock_workflow_executor.return_value
+    executor_instance.execute.return_value = True
+    executor_instance.state.steps = [
+        StepState(
+            name="run_docs",
+            status=StepStatus.COMPLETED,
+            output={"_raw": "agent response"},
+        ),
+        StepState(
+            name="update_marker",
+            status=StepStatus.COMPLETED,
+            output={"marker": "updated"},
+        ),
+    ]
+
+    result = execute_workflow(
+        name=workflow.name,
+        positional_args=[],
+        named_args={},
+        workflow_obj=workflow,
+        silent=True,
+    )
+
+    assert result.response_text == "agent response"
+    assert result.output == '{\n  "marker": "updated"\n}'
 
 
 # --- _resolve_vcs_cwd tests ---
