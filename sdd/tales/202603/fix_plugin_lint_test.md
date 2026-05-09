@@ -11,20 +11,20 @@ prompt: sdd/prompts/202603/fix_plugin_lint_test.md
 | Repo          | `just lint`      | `just test`    | Needs Fix? |
 | ------------- | ---------------- | -------------- | ---------- |
 | sase-github   | PASS             | FAIL (3 tests) | Yes        |
-| sase-google   | PASS             | FAIL (1 test)  | Yes        |
+| retired-hg-plugin   | PASS             | FAIL (1 test)  | Yes        |
 | sase-telegram | FAIL (mypy)      | PASS           | Yes        |
 | sase-nvim     | N/A (Lua plugin) | N/A            | No         |
 
-## Issue 1: sase-google — stale `sase-hg` editable install
+## Issue 1: retired-hg-plugin — stale `sase-hg` editable install
 
 **Root cause**: The venv contains a stale editable install of the old `sase-hg` package (before it was renamed to
-`sase-google`). The `.pth` file points to `/home/bryan/projects/github/bbugyi200/sase-hg/src` which no longer exists.
+`retired-hg-plugin`). The `.pth` file points to `/home/bryan/projects/github/bbugyi200/sase-hg/src` which no longer exists.
 The stale `sase_vcs` entry point `hg = sase_hg.plugin:HgPlugin` conflicts with the current one.
 
 **Fix**: Uninstall the stale package:
 
 ```bash
-cd /home/bryan/projects/github/sase-org/sase-google
+cd /home/bryan/projects/github/sase-org/retired-hg-plugin
 .venv/bin/pip uninstall sase-hg -y
 ```
 
@@ -82,7 +82,7 @@ Three tests fail because the upstream `_git_common.py` in `sase_100` added a `_v
 
 ## Execution Order
 
-1. **sase-google** (quickest — just uninstall stale package, no code changes)
+1. **retired-hg-plugin** (quickest — just uninstall stale package, no code changes)
 2. **sase-telegram** (simple rename of loop variable)
 3. **sase-github** (most involved — update 3 tests)
 

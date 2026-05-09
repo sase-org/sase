@@ -13,7 +13,7 @@ too noisy. Telegram should keep its current behavior because it can fold medium/
 
 ## Current Behavior
 
-- `../sase-gchat/src/sase_gchat/formatting.py` formats `PlanApproval` notifications in `_format_plan_approval()`.
+- `../retired-chat-plugin/src/retired_chat_plugin/formatting.py` formats `PlanApproval` notifications in `_format_plan_approval()`.
 - When `Notification.files[0]` points at a readable plan file, the formatter reads the markdown, strips frontmatter,
   truncates or blockquotes it, and appends it to the message text.
 - The same plan file is also returned in `FormattedMessage.attachments`, so outbound later uploads it, converting
@@ -37,7 +37,7 @@ failure behavior.
 
 ## Implementation Steps
 
-1. Modify `../sase-gchat/src/sase_gchat/formatting.py`.
+1. Modify `../retired-chat-plugin/src/retired_chat_plugin/formatting.py`.
    - Remove the plan-content read/strip/truncate/blockquote path from `_format_plan_approval()`.
    - Keep adding `n.files[0]` to `attachments` only when the file exists and is readable, preserving the current
      successful-upload path and missing-file behavior.
@@ -45,13 +45,13 @@ failure behavior.
    - Leave `_format_notes_text()`, `_wrap_blockquote()`, and `_truncate_to_pdf()` alone because they are still used by
      notes and other formatting paths.
 
-2. Update Google Chat tests in `../sase-gchat/tests/test_formatting.py`.
+2. Update Google Chat tests in `../retired-chat-plugin/tests/test_formatting.py`.
    - Replace expectations that short plans appear inline with expectations that plan headings/body do not appear.
    - Replace long-plan blockquote/truncation expectations with "not inline, still attached" expectations.
    - Keep tests for provider/model labels, agent name, option ordering, and missing plan files.
    - Adjust the YAML frontmatter test so it asserts neither frontmatter nor plan title/body leaks into `result.text`.
 
-3. Review docs in `../sase-gchat/README.md` and `../sase-gchat/docs/outbound.md`.
+3. Review docs in `../retired-chat-plugin/README.md` and `../retired-chat-plugin/docs/outbound.md`.
    - Update the PlanApproval description from "plan text/body content" to "notes + numbered options + attached plan".
    - Keep docs for PDF attachment conversion because outbound should continue to upload plan files.
 
@@ -61,5 +61,5 @@ failure behavior.
 5. Verification.
    - Run targeted Google Chat tests first, especially `tests/test_formatting.py` and the plan attachment integration
      tests.
-   - Run `just check` in `../sase-gchat` because the plugin repo instructions require it after modifications.
+   - Run `just check` in `../retired-chat-plugin` because the plugin repo instructions require it after modifications.
    - No `just check` is required in this `sase_100` repo unless the only local change is this submitted plan file.

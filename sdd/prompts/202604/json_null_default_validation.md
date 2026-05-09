@@ -1,7 +1,7 @@
 ---
 plan: sdd/tales/202604/json_null_default_validation.md
 ---
-Can you help me fix this error I'm seeing when using the `#split` xprompt workflow (defined in the ../sase-google repo)
+Can you help me fix this error I'm seeing when using the `#split` xprompt workflow (defined in the ../retired-hg-plugin repo)
 on another machine? It should be fine that the `#split_spec_generator` agent produced `parent: None` or `parent: null`
 fields since `parent` is an optional field (ex: so `parent: None` is the same as not providing the `parent` field at
 all). Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

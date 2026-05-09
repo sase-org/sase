@@ -13,7 +13,7 @@ When reverting a ChangeSpec that has an associated GitHub PR, the PR is left ope
 `revert_changespec()` flow calls `provider.prune()` which in `GitCommon` only does `git branch -D` (local branch
 deletion). The PR on GitHub is orphaned.
 
-By contrast, the Google/hg provider's `sase_google_prune` script runs `hg cls-drop --prune` which handles both local and
+By contrast, the Google/hg provider's `retired_hg_plugin_prune` script runs `hg cls-drop --prune` which handles both local and
 remote CL cleanup in one step.
 
 We need a VCS-agnostic hook that providers implement to close/abandon the remote change (PR, CL) during revert, so the
@@ -141,24 +141,24 @@ The `--delete-branch` flag on `gh pr close` also deletes the remote branch, so w
 
 If the PR is already closed or merged, we treat it as success (idempotent).
 
-### Phase 3: Google implementation (sase-google)
+### Phase 3: Google implementation (retired-hg-plugin)
 
-#### 3.1 `src/sase_google/plugin.py` - Implement hook
+#### 3.1 `src/retired_hg_plugin/plugin.py` - Implement hook
 
-For Google, `vcs_prune` already calls `sase_google_prune` which does `hg cls-drop --prune`. The `abandon_change` hook
+For Google, `vcs_prune` already calls `retired_hg_plugin_prune` which does `hg cls-drop --prune`. The `abandon_change` hook
 should handle the CL-number removal part, while prune handles the local branch deletion.
 
-However, since `sase_google_prune` already bundles both operations, and refactoring it would be risky, the Google
+However, since `retired_hg_plugin_prune` already bundles both operations, and refactoring it would be risky, the Google
 implementation should be a **no-op with a comment** explaining that `vcs_prune` already handles remote CL cleanup:
 
 ```python
 @hookimpl
 def vcs_abandon_change(self, cl: str, revision: str, cwd: str) -> tuple[bool, str | None]:
-    """No-op — sase_google_prune (called via vcs_prune) already handles CL cleanup."""
+    """No-op — retired_hg_plugin_prune (called via vcs_prune) already handles CL cleanup."""
     return (True, None)
 ```
 
-Alternatively, if the user wants a cleaner separation, we could refactor `sase_google_prune` to only handle local
+Alternatively, if the user wants a cleaner separation, we could refactor `retired_hg_plugin_prune` to only handle local
 pruning and move the `hg cls-drop` into `vcs_abandon_change`. But that's a riskier change and can be done as a
 follow-up.
 
@@ -179,7 +179,7 @@ plugin handles the hook, and bare git repos have no remote PRs.
 | `src/sase/ace/revert.py`                   | sase_103    | Call `provider.abandon_change()` before prune            |
 | `src/sase/ace/archive.py`                  | sase_103    | Call `provider.abandon_change()` before archive          |
 | `src/sase_github/plugin.py`                | sase-github | Implement `vcs_abandon_change` with `gh pr close`        |
-| `src/sase_google/plugin.py`                | sase-google | Implement `vcs_abandon_change` (no-op, prune handles it) |
+| `src/retired_hg_plugin/plugin.py`                | retired-hg-plugin | Implement `vcs_abandon_change` (no-op, prune handles it) |
 
 ## Testing
 

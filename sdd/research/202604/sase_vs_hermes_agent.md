@@ -74,7 +74,7 @@ context paper already noted this gap; Hermes is a concrete instance of the agent
 
 ### 2d. Multi-platform reach
 
-- **SASE** has `src/sase/notifications/` plus external messaging plugins (`sase-telegram`, `sase-gchat`, and related
+- **SASE** has `src/sase/notifications/` plus external messaging plugins (`sase-telegram`, `retired-chat-plugin`, and related
   sibling work). The shape is still notification/plugin-oriented rather than one general gateway runtime.
 - **Hermes** ships a **unified gateway process** spanning Telegram, Discord, Slack, WhatsApp, Signal, SMS, Email,
   Home Assistant, Mattermost, Matrix, DingTalk, Feishu/Lark, WeCom/Weixin, BlueBubbles/iMessage, QQ/Yuanbao,

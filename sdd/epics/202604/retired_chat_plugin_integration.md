@@ -2,13 +2,13 @@
 create_time: 2026-04-24 22:41:34
 status: done
 bead_id: sase-p
-prompt: sdd/prompts/202604/sase_gchat_integration.md
+prompt: sdd/prompts/202604/retired_chat_plugin_integration.md
 ---
-# Plan: `sase-gchat` — Google Chat integration plugin
+# Plan: `retired-chat-plugin` — Google Chat integration plugin
 
 ## Goal
 
-Build a new `../sase-gchat` plugin repository that mirrors the functionality of `../sase-telegram` but speaks Google
+Build a new `../retired-chat-plugin` plugin repository that mirrors the functionality of `../sase-telegram` but speaks Google
 Chat instead of Telegram. The plugin ships two `sase` chops:
 
 - `sase_chop_gc_outbound` — turns unread sase notifications into Google Chat messages.
@@ -57,7 +57,7 @@ drive design decisions:
 
 ### Buttons → numbered options
 
-Because the gchat CLI cannot render interactive buttons, every place sase-telegram uses an inline keyboard, sase-gchat
+Because the gchat CLI cannot render interactive buttons, every place sase-telegram uses an inline keyboard, retired-chat-plugin
 will append a `*Reply with a number:*` block:
 
 ```
@@ -88,11 +88,11 @@ verbatim.
 ## Repo layout (target)
 
 ```
-sase-gchat/
+retired-chat-plugin/
 ├── AGENTS.md                  # short — link to architecture.md and naming conventions
 ├── CLAUDE.md                  # one-liner: @AGENTS.md
 ├── Justfile                   # install / lint / fmt / test / check / build / clean
-├── pyproject.toml             # name=sase-gchat, hatchling, scripts = sase_chop_gc_{outbound,inbound}
+├── pyproject.toml             # name=retired-chat-plugin, hatchling, scripts = sase_chop_gc_{outbound,inbound}
 ├── README.md                  # written in the FINAL phase, after impl is settled
 ├── sase.yml                   # precommit_command: "just fmt"
 ├── docs/
@@ -100,7 +100,7 @@ sase-gchat/
 │   ├── outbound.md            # outbound pipeline + numbered-options spec
 │   └── inbound.md             # inbound pipeline + dot-commands + threading model
 ├── plans/                     # placeholder dir for follow-up work
-├── src/sase_gchat/
+├── src/retired_chat_plugin/
 │   ├── __init__.py
 │   ├── credentials.py         # SASE_GCHAT_SPACE_ID, SASE_GCHAT_BIN, optional SASE_GCHAT_RATE_LIMIT
 │   ├── gchat_client.py        # subprocess wrapper around the gchat CLI (send/edit/upload/download/list/react)
@@ -134,7 +134,7 @@ pending_actions.json, awaiting_feedback.json, last_seen_create_time, outbound.lo
 ## Phase plan
 
 Each phase is a self-contained agent run. Phases are ordered so a phase only depends on artifacts produced by prior
-phases. Each phase ends with `just check` passing in the `sase-gchat` repo.
+phases. Each phase ends with `just check` passing in the `retired-chat-plugin` repo.
 
 ### Phase 1 — Repo scaffolding + gchat CLI client + reusable infrastructure
 
@@ -142,9 +142,9 @@ phases. Each phase ends with `just check` passing in the `sase-gchat` repo.
 
 - `pyproject.toml`, `Justfile`, `CLAUDE.md`, `AGENTS.md` (short stub), `sase.yml`, `.gitignore` modeled on sase-telegram
   (deps: `sase>=0.1.0` only — no SDK; the gchat CLI is the SDK).
-- `src/sase_gchat/credentials.py` — env-var helpers (`get_space_id()`, `get_gchat_bin()`, `get_rate_limit()`); no `pass`
+- `src/retired_chat_plugin/credentials.py` — env-var helpers (`get_space_id()`, `get_gchat_bin()`, `get_rate_limit()`); no `pass`
   integration needed because the CLI handles auth.
-- `src/sase_gchat/gchat_client.py` — sync subprocess wrapper exposing the verbs we need:
+- `src/retired_chat_plugin/gchat_client.py` — sync subprocess wrapper exposing the verbs we need:
   `send_message(space, text, *, thread=None, markdown=True) -> Message`, `edit_message(space, message_id, text)`,
   `upload_file(space, file_path, *, text=None, thread=None) -> Message`,
   `download_attachment(space, message_id, output_path, *, index=0)`,
@@ -152,11 +152,11 @@ phases. Each phase ends with `just check` passing in the `sase-gchat` repo.
   CLI's `--json` output), `create_reaction(space, message_id, emoji)`,
   `get_message(space, thread, message_id) -> Message`. Uniform retry with exponential backoff on transient CLI failures
   (non-zero exit + stderr keywords). Capture stderr into a debug log.
-- `src/sase_gchat/option_codes.py` — encode/decode for "out-of-band" actions that don't live in a notification thread
+- `src/retired_chat_plugin/option_codes.py` — encode/decode for "out-of-band" actions that don't live in a notification thread
   (kill, retry, dot-command callbacks if we ever need them). Mostly a much smaller reimplementation of
   `callback_data.py`.
-- `src/sase_gchat/pending_actions.py`, `src/sase_gchat/rate_limit.py`, `src/sase_gchat/pdf_convert.py`,
-  `src/sase_gchat/pdf_style.css` — ported from sase-telegram with paths rewritten to `~/.sase/gchat/`.
+- `src/retired_chat_plugin/pending_actions.py`, `src/retired_chat_plugin/rate_limit.py`, `src/retired_chat_plugin/pdf_convert.py`,
+  `src/retired_chat_plugin/pdf_style.css` — ported from sase-telegram with paths rewritten to `~/.sase/gchat/`.
 - `tests/test_credentials.py`, `tests/test_gchat_client.py` (subprocess mocked via `pytest-mock`),
   `tests/test_option_codes.py`, `tests/test_pending_actions.py`, `tests/test_rate_limit.py`.
 
@@ -166,7 +166,7 @@ phases. Each phase ends with `just check` passing in the `sase-gchat` repo.
 
 **Deliverables**
 
-- `src/sase_gchat/formatting.py` containing:
+- `src/retired_chat_plugin/formatting.py` containing:
   - `format_notification(n) -> FormattedMessage` returning `(text, options, attachments)` where `options` is the ordered
     list of (label, response_payload) used by inbound to map numeric replies, and `attachments` is the list of files to
     upload after the main message.
@@ -185,8 +185,8 @@ ordering).
 
 **Deliverables**
 
-- `src/sase_gchat/outbound.py` — port of high-water-mark + lock from sase-telegram, paths rewritten.
-- `src/sase_gchat/inbound.py` (pure logic, no CLI calls):
+- `src/retired_chat_plugin/outbound.py` — port of high-water-mark + lock from sase-telegram, paths rewritten.
+- `src/retired_chat_plugin/inbound.py` (pure logic, no CLI calls):
   - `process_thread_reply(message, pending) -> ResponseAction | TwoStepStart | None` — given a Chat message dict and the
     pending-actions store, identify which pending notification owns this thread and map a numeric reply to a
     `ResponseAction`, or detect "feedback / custom" entries and return `TwoStepStart`.
@@ -208,13 +208,13 @@ ordering).
 
 **Deliverables**
 
-- `src/sase_gchat/scripts/sase_gc_outbound.py`:
+- `src/retired_chat_plugin/scripts/sase_gc_outbound.py`:
   - Acquires lock; `is_idle()` gate; loads unsent notifications; for each, formats via Phase 2, sends with
     `gchat_client.send_message(..., markdown=True)`, captures the resulting message+thread IDs, persists a pending
     action immediately (race-window protection), uploads each attachment in the same thread, advances the high-water
     mark on success, sleeps to satisfy the rate limit between notifications.
   - `--dry-run` flag prints intended sends; `--context` accepts the chop context JSON.
-- `src/sase_gchat/scripts/sase_gc_inbound.py`:
+- `src/retired_chat_plugin/scripts/sase_gc_inbound.py`:
   - Acquires offset (`last_seen_create_time`); calls
     `gchat_client.list_messages(space, --hours 24, --order DESC, --json)` filtered by stored offset (advance offset
     _before_ processing for at-most-once on overlap).
@@ -224,7 +224,7 @@ ordering).
   - On dispatch, edits the original notification message (via `gchat_client.edit_message`) to strike-through the options
     block once consumed, and posts a confirmation reply in the thread.
   - `--once` flag for one-shot polling; `--context` accepts the chop context JSON.
-- `src/sase_gchat/scripts/__init__.py` re-exports `outbound_main`, `inbound_main`.
+- `src/retired_chat_plugin/scripts/__init__.py` re-exports `outbound_main`, `inbound_main`.
 - `tests/test_integration.py` — end-to-end-style scenarios with the gchat CLI patched to deterministic responses:
   plan-approval round trip, HITL feedback two-step, agent-launch from text, photo upload → agent prompt, dot-command
   `.list`.
@@ -244,7 +244,7 @@ aspirational features).
 - **Short CLI options on every flag** — per project gotcha, every entry-point flag must have a short option.
 - **Treat all sase agent runtimes uniformly** — no Claude/Gemini/Codex special-casing in agent-launch code ported from
   sase-telegram.
-- **`just check` before reply** — every phase's agent must run `just check` in `../sase-gchat` and (because this repo is
+- **`just check` before reply** — every phase's agent must run `just check` in `../retired-chat-plugin` and (because this repo is
   itself a workspace clone) NOT need to touch the `sase` repo at all unless adding/modifying a glossary entry.
 - **No new sase core changes** — the chop interface is stable; this plugin only consumes existing sase APIs.
 

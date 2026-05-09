@@ -769,7 +769,7 @@ Do not design LAN or hosted access in the first phase.
 
 ## Plugin surface in the web client
 
-SASE plugins (`sase-github`, `sase-google`, `sase-telegram`, `sase-nvim`)
+SASE plugins (`sase-github`, `retired-hg-plugin`, `sase-telegram`, `sase-nvim`)
 contribute commands, hooks, providers, and skills via Python entry points.
 The web client cannot ignore them — the GitHub plugin alone owns most of
 the ChangeSpec mailing/landing flow.

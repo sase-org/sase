@@ -22,9 +22,9 @@ Select Project or CL
 ▊ [P] proj                                                                                                                                                                                                             ▎
 ▊ [P] sase                                                                                                                                                                                                             ▎
 ▊ [P] sase-core                                                                                                                                                                                                        ▎
-▊ [P] sase-gchat                                                                                                                                                                                                       ▎
+▊ [P] retired-chat-plugin                                                                                                                                                                                                       ▎
 ▊ [P] sase-github                                                                                                                                                                                                      ▎
-▊ [P] sase-google                                                                                                                                                                                                      ▎
+▊ [P] retired-hg-plugin                                                                                                                                                                                                      ▎
 ▊ [P] sase-nvim                                                                                                                                                                                                        ▎
 ▊ [P] sase-org                                                                                                                                                                                                         ▎
 ▊ [P] sase-telegram                                                                                                                                                                                                    ▎
@@ -77,4 +77,4 @@ Select Project or CL
 ```
 
 ### DYNAMIC MEMORY
-- @.sase/memory/long-external-repos.md (memory/long/external_repos, matched: `sase-github`, `sase-google`, `sase-telegram`, `sase-nvim`)
+- @.sase/memory/long-external-repos.md (memory/long/external_repos, matched: `sase-github`, `retired-hg-plugin`, `sase-telegram`, `sase-nvim`)

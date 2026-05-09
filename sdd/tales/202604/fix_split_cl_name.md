@@ -14,7 +14,7 @@ Running `sase run "#hg:yserve_batch_create_update #split"` fails with:
 jinja2.exceptions.UndefinedError: 'cl_name' is undefined
 ```
 
-The `#split` workflow (`split.yml` in sase-google) uses `{{ cl_name }}` in its first step's bash command, but `cl_name`
+The `#split` workflow (`split.yml` in retired-hg-plugin) uses `{{ cl_name }}` in its first step's bash command, but `cl_name`
 is never injected into the workflow context when executing via `sase run`.
 
 ## Root Cause
@@ -63,5 +63,5 @@ mask legitimate "undefined variable" errors in other workflows.
 ## Scope
 
 - **Single file change**: `src/sase/main/query_handler/_query.py`
-- No changes needed in sase-google's `split.yml` (it correctly expects `cl_name` from context)
+- No changes needed in retired-hg-plugin's `split.yml` (it correctly expects `cl_name` from context)
 - No changes needed in `workflow_runner.py` or `workflow_executor.py`

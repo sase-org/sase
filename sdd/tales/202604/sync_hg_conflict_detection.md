@@ -16,9 +16,9 @@ misclassified as a "non-conflict error."
 
 Two bugs work together to produce this failure:
 
-### Bug 1: `sase_google_sync` aborts the rebase before conflict detection can run
+### Bug 1: `retired_hg_plugin_sync` aborts the rebase before conflict detection can run
 
-The `sase_google_sync` bash script (in sase-google repo) has this flow:
+The `retired_hg_plugin_sync` bash script (in retired-hg-plugin repo) has this flow:
 
 ```bash
 if ! hg sync "$@"; then
@@ -62,9 +62,9 @@ multi-commit rebase could hit conflicts at each commit boundary — the repeat l
 
 ## Fix
 
-### Phase 1: Stop aborting the rebase in `sase_google_sync` (sase-google repo)
+### Phase 1: Stop aborting the rebase in `retired_hg_plugin_sync` (retired-hg-plugin repo)
 
-**File**: `src/sase_google/scripts/sase_google_sync`
+**File**: `src/retired_hg_plugin/scripts/retired_hg_plugin_sync`
 
 When merge conflicts are detected, exit with failure but **do not** abort the rebase. This leaves the workspace in a
 conflicted state that `sync_attempt.py` can detect.

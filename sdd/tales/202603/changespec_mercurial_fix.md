@@ -8,7 +8,7 @@ prompt: sdd/prompts/202603/changespec_mercurial_fix.md
 
 ## Problem
 
-When running an agent with `#pr:foobar` on a Mercurial workspace (sase-google plugin), two things go wrong:
+When running an agent with `#pr:foobar` on a Mercurial workspace (retired-hg-plugin plugin), two things go wrong:
 
 1. **No ChangeSpec is created** for the CL
 2. **The CL name is missing the `_<N>` suffix** (created as `eval_foobar` instead of `eval_foobar_1`)

@@ -41,11 +41,11 @@ Here are the ccommit features not present in the unified workflow, each needing 
 
 - `just fmt`: This should be supported via a new `precommit_command` sase.yml config field. You should set
   `precommit_command: "just fix"` in this repo's local sase.yml file (make sure this field is supported in local
-  sase.yml files) and set `precommit_command: "sase_hg_fix"` to the ../sase-google repo's default_config.yml file
+  sase.yml files) and set `precommit_command: "sase_hg_fix"` to the ../retired-hg-plugin repo's default_config.yml file
   (`sase_hg_fix` is a new script that you should create in that repo that wraps `hg fix`, but only runs it if we are in
   an hg repo (make sure this works reliably).
 - Merge/pull from origin/master: Add to the VCS providers. Replicate this for git repos, but just
-  `hg update <branch_name>` should be sufficient for the ../sase-google repo (hg VCS provider).
+  `hg update <branch_name>` should be sufficient for the ../retired-hg-plugin repo (hg VCS provider).
 - Beads: The bead operations should be performed by `sase commit` (make sure we support repos that do NOT have
   `sdd.version_controlled` set to `true`).
 - `SASE_PLAN` in commit message + mark as done: This should be supported for all repos (regardless of VCS provider or

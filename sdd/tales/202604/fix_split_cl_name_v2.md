@@ -74,5 +74,5 @@ Then update the caller to use `vcs_ref` as the `cl_name`.
 ## Scope
 
 - **Two files changed:** `workflow_runner.py` (merge fix) and `_query.py` (return value + cl_name)
-- No changes to sase-google plugin or `split.yml`
+- No changes to retired-hg-plugin plugin or `split.yml`
 - No changes to `run_workflow_runner.py` (TUI path already works correctly)

@@ -8,7 +8,7 @@ prompt: sdd/prompts/202604/fix_comment_check_workspace_gate.md
 
 ## Problem
 
-On machines using the `sase-google` plugin (Mercurial/CITC workflow), `sase axe` never adds a COMMENTS field to Mailed
+On machines using the `retired-hg-plugin` plugin (Mercurial/CITC workflow), `sase axe` never adds a COMMENTS field to Mailed
 ChangeSpecs, even when the underlying CL has reviewer comments. The MENTORS field is populated (mentor reviews run
 independently), but the `[critique]` comment entry is never created, so mentors' questions on the CL are invisible
 inside `sase ace`.
@@ -29,7 +29,7 @@ if not workspace_dir:
 ```
 
 For the hg/CITC workflow, `get_workspace_directory()` delegates to `HgWorkspacePlugin.ws_get_workspace_directory()`
-(`../sase-google/src/sase_google/workspace_plugin.py:94`), which shells out to `sase_google_get_workspace <project> 1`.
+(`../retired-hg-plugin/src/retired_hg_plugin/workspace_plugin.py:94`), which shells out to `retired_hg_plugin_get_workspace <project> 1`.
 This subprocess can fail (raising `RuntimeError`, caught and converted to `None`) or succeed with empty stdout
 (`result.stdout.strip()` returning `""`) whenever the CITC client for workspace-num 1 isn't currently provisioned for
 that project — which is routine for Mailed CLs whose workspace has been cleaned up or moved to a different number.
@@ -44,7 +44,7 @@ accepts `workspace_dir: str | None` and passes it to `subprocess.Popen(cwd=works
 subprocess inherits the axe process's cwd.
 
 The generated script body for hg reviewer comments is `critique_comments <changespec_name> 2>&1`
-(`../sase-google/workspace_plugin.py:92`), which takes only the changespec name — it looks up the CL number via the sase
+(`../retired-hg-plugin/workspace_plugin.py:92`), which takes only the changespec name — it looks up the CL number via the sase
 project file, not via the current working directory. So the cwd requirement for this specific check is spurious.
 
 ## Changes
@@ -75,7 +75,7 @@ Cover three cases:
 - `get_workspace_directory` returns `""` → check is still started.
 - `get_workspace_directory` returns `"/some/workspace"` → check is still started (existing happy path).
 
-### 3. No changes required in `sase-google` or `sase-github`
+### 3. No changes required in `retired-hg-plugin` or `sase-github`
 
 The plugin implementations are correct as-is. This is purely a bug in the main sase repo's comment-cycle runner.
 

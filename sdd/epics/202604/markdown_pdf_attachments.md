@@ -42,9 +42,9 @@ Relevant plugin files:
   before sending, sends images via `send_photo()`, and has the existing special case that parses diffs for newly added
   `sdd/research/*.md` files.
 - `../sase-telegram/src/sase_telegram/pdf_convert.py` contains a Pandoc-based Markdown-to-PDF helper.
-- `../sase-gchat/src/sase_gchat/scripts/sase_gc_outbound.py` already converts non-image Markdown attachments to PDF
+- `../retired-chat-plugin/src/retired_chat_plugin/scripts/sase_gc_outbound.py` already converts non-image Markdown attachments to PDF
   before `gchat_client.upload_file()`.
-- `../sase-gchat/src/sase_gchat/pdf_convert.py` is a near-duplicate Pandoc-based converter.
+- `../retired-chat-plugin/src/retired_chat_plugin/pdf_convert.py` is a near-duplicate Pandoc-based converter.
 - Both chat plugins already preserve existing `Notification.files` entries for workflow-complete notifications.
 
 ## Design Decisions
@@ -110,7 +110,7 @@ Objective: add a core PDF rendering helper that can be used by completion finali
 Scope:
 
 - Add a small core module such as `src/sase/attachments/markdown_pdf.py`.
-- Move or replicate the Pandoc command construction currently duplicated in `sase-telegram` and `sase-gchat`, with
+- Move or replicate the Pandoc command construction currently duplicated in `sase-telegram` and `retired-chat-plugin`, with
   conservative behavior:
   - accept only Markdown source paths
   - choose an available PDF engine from `wkhtmltopdf`, `xelatex`, `pdflatex`
@@ -200,20 +200,20 @@ Exit criteria:
 
 ## Phase 5: Google Chat Delivery Hardening
 
-Repo: `sase-gchat`
+Repo: `retired-chat-plugin`
 
 Objective: verify and harden Google Chat delivery for core-generated Markdown PDFs.
 
 Scope:
 
 - Ensure `format_notification()` preserves workflow-complete PDF attachments exactly like current image attachments.
-- In `src/sase_gchat/scripts/sase_gc_outbound.py`, make the attachment upload decision explicit:
+- In `src/retired_chat_plugin/scripts/sase_gc_outbound.py`, make the attachment upload decision explicit:
   - image files upload directly
   - existing `.pdf` files upload directly
   - Markdown files use `md_to_pdf()` fallback behavior
   - other files upload as-is
 - Preserve thread association for every uploaded attachment.
-- Keep `sase_gchat.pdf_convert.md_to_pdf()` for plan approval and legacy Markdown attachments unless Phase 2 has already
+- Keep `retired_chat_plugin.pdf_convert.md_to_pdf()` for plan approval and legacy Markdown attachments unless Phase 2 has already
   migrated it to the core helper.
 - Add tests:
   - workflow-complete notification with a generated PDF uploads that PDF in the completion thread
@@ -224,17 +224,17 @@ Exit criteria:
 
 - A PDF already listed in `Notification.files` is uploaded directly to the same thread as the completion message.
 - Existing plan Markdown-to-PDF behavior remains unchanged.
-- Run `just install` if needed, then `just check` in `sase-gchat`.
+- Run `just install` if needed, then `just check` in `retired-chat-plugin`.
 
 ## Phase 6: Optional Plugin Converter Consolidation
 
-Repos: `sase-telegram`, `sase-gchat`, possibly `sase`
+Repos: `sase-telegram`, `retired-chat-plugin`, possibly `sase`
 
 Objective: remove duplicated Markdown-to-PDF converter implementations after the core helper is stable.
 
 Scope:
 
-- Update `sase_telegram.pdf_convert.md_to_pdf()` and `sase_gchat.pdf_convert.md_to_pdf()` to delegate to the new core
+- Update `sase_telegram.pdf_convert.md_to_pdf()` and `retired_chat_plugin.pdf_convert.md_to_pdf()` to delegate to the new core
   helper, preserving their public function names so plugin call sites and tests remain stable.
 - Decide whether plugin CSS files should remain plugin-specific or be replaced by a shared core stylesheet.
 - Keep compatibility with environments where plugins are installed against an older `sase` only if that matters for the
@@ -249,7 +249,7 @@ Exit criteria:
 
 ## Phase 7: End-to-End Verification
 
-Repos: `sase`, `sase-telegram`, `sase-gchat`
+Repos: `sase`, `sase-telegram`, `retired-chat-plugin`
 
 Objective: prove the full cross-repo behavior after the implementation phases land.
 

@@ -20,9 +20,9 @@ behavior must stay the same; only the visible label and supporting documentation
     - `commit_plan: false`
     - `run_coder: true`
   - Tests and docs explicitly mention `Run`.
-- Google Chat lives in `../sase-gchat`.
+- Google Chat lives in `../retired-chat-plugin`.
   - Google Chat cannot render buttons, so the formatter renders numbered options.
-  - The visible option label is in `src/sase_gchat/formatting.py` as `🚀 Run`.
+  - The visible option label is in `src/retired_chat_plugin/formatting.py` as `🚀 Run`.
   - The persisted payload is `run`, and inbound maps it to the same no-commit coder launch behavior.
   - README/docs/tests explicitly mention `Run`.
 - The core `sase` repo handles the `run` response semantics but does not own these external chat labels.
@@ -36,14 +36,14 @@ behavior must stay the same; only the visible label and supporting documentation
 
 2. Update Google Chat presentation.
    - Change the plan approval numbered option label from `🚀 Run` to `🚀 Quest` in
-     `../sase-gchat/src/sase_gchat/formatting.py`.
+     `../retired-chat-plugin/src/retired_chat_plugin/formatting.py`.
    - Keep the payload `run` unchanged so persisted pending actions, thread replies, and inbound processing remain
      stable.
 
 3. Update tests.
    - In `../sase-telegram`, update formatting tests that assert the visible label and any plan-option fixtures that
      include the display text.
-   - In `../sase-gchat`, update tests and fixtures that assert or persist option labels while preserving payload
+   - In `../retired-chat-plugin`, update tests and fixtures that assert or persist option labels while preserving payload
      assertions for `run`.
    - Do not change inbound behavior tests beyond display-label fixtures; assertions for `commit_plan: false` and
      `run_coder: true` should continue to pass.
@@ -56,7 +56,7 @@ behavior must stay the same; only the visible label and supporting documentation
 5. Verify.
    - Run focused tests first:
      - `just test tests/test_formatting.py tests/test_inbound.py tests/test_integration.py` in `../sase-telegram`
-     - `just test tests/test_formatting.py tests/test_inbound.py tests/test_integration.py` in `../sase-gchat`
+     - `just test tests/test_formatting.py tests/test_inbound.py tests/test_integration.py` in `../retired-chat-plugin`
    - Run `just check` in each modified plugin repo, per the external repo memory instructions.
    - No main `sase` code changes are expected beyond this plan artifact; if the plan artifact counts as a repo change,
      run the required main-repo `just install` / `just check` before finalizing.

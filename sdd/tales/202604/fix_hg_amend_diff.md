@@ -8,14 +8,14 @@ prompt: sdd/prompts/202604/fix_hg_amend_diff.md
 
 ## Problem
 
-When a sase agent on the Google/hg machine commits to an **existing** CL (via `sase_google_amend`), the file panel on
+When a sase agent on the Google/hg machine commits to an **existing** CL (via `retired_hg_plugin_amend`), the file panel on
 the Agents tab shows the diff of the entire CL rather than just the changes from that single amend.
 
 New CLs are unaffected because the first changeset's full diff IS the agent's changes.
 
 ## Root Cause
 
-The `hg.yml` diff step (sase-google, line 72) runs `hg diff -c .` after the commit. In Mercurial, `hg amend` replaces
+The `hg.yml` diff step (retired-hg-plugin, line 72) runs `hg diff -c .` after the commit. In Mercurial, `hg amend` replaces
 the current changeset with a new one that includes **all** accumulated changes (old + new). So `hg diff -c .` after an
 amend produces the entire CL's diff, not just the incremental delta.
 
@@ -37,9 +37,9 @@ But then the `hg.yml` diff step runs **after** the commit and overwrites with `h
 
 ## Fix
 
-### Phase 1: Prefer pre-commit diff in `hg.yml` diff step (sase-google)
+### Phase 1: Prefer pre-commit diff in `hg.yml` diff step (retired-hg-plugin)
 
-**File**: `../sase-google/src/sase_google/xprompts/hg.yml` (diff step, lines 61-91)
+**File**: `../retired-hg-plugin/src/retired_hg_plugin/xprompts/hg.yml` (diff step, lines 61-91)
 
 When commits were made (`head_now != head_before`), check `commit_result.json` for an existing `diff_path` first. If it
 exists and the file it points to is non-empty, use that instead of `hg diff -c .`. Fall back to `hg diff -c .` only when
@@ -66,7 +66,7 @@ fi
 
 ### Phase 2: Tests
 
-**File**: `../sase-google/tests/test_hg_xprompts.py` (or equivalent test file)
+**File**: `../retired-hg-plugin/tests/test_hg_xprompts.py` (or equivalent test file)
 
 Verify the diff step behavior with:
 

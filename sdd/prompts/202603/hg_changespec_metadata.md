@@ -2,7 +2,7 @@
 plan: sdd/tales/202603/hg_changespec_metadata.md
 ---
 The "ChangeSpec:" field in the agent metadata panel on the "Agents" tab of the `sase ace` TUI is not being populated
-still for the hg VCS provider (see the ../sase-google repo), although most of the other fields I want look good and the
+still for the hg VCS provider (see the ../retired-hg-plugin repo), although most of the other fields I want look good and the
 GitHub provider's PR creation looks good. See the `sase ace` snapshots below for context. Can you help me diagnose the
 root cause of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill.
 

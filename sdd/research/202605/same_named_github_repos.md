@@ -507,5 +507,5 @@ Host `sase` repo:
    there is only one known owner?
 5. How much old artifact metadata should be rewritten? Completed artifacts can
    likely remain historical; active/resumable artifacts need a stricter policy.
-6. Does `sase-google` need an analogous namespace model, or are its project
+6. Does `retired-hg-plugin` need an analogous namespace model, or are its project
    names already globally unique enough for the expected workflow?

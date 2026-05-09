@@ -5,11 +5,11 @@ prompt: sdd/prompts/202605/remove_obsolete_plugin_repos.md
 bead_id: sase-2k
 tier: epic
 ---
-# Remove Obsolete `sase-gchat` and `sase-google` References
+# Remove Obsolete `retired-chat-plugin` and `retired-hg-plugin` References
 
 ## Goal
 
-Remove all tracked references to the obsolete `sase-gchat` and `sase-google` repositories from:
+Remove all tracked references to the obsolete `retired-chat-plugin` and `retired-hg-plugin` repositories from:
 
 - this repository (`sase_100`)
 - the non-obsolete plugin repos: `../sase-github`, `../sase-telegram`, `../sase-nvim`
@@ -17,7 +17,7 @@ Remove all tracked references to the obsolete `sase-gchat` and `sase-google` rep
 
 The immediate failure mode is GitHub Actions trying to validate or access obsolete external repositories introduced by
 the `sase-2j` pyvision external-repository work. The end state should be stronger than fixing one failing pragma: a
-literal sweep for `sase-gchat`, `sase-google`, `sase_gchat`, and `sase_google` should be clean across the in-scope repos
+literal sweep for `retired-chat-plugin`, `retired-hg-plugin`, `retired_chat_plugin`, and `retired_hg_plugin` should be clean across the in-scope repos
 unless an intentionally retained historical artifact is called out and approved during implementation.
 
 ## Current Reconnaissance
@@ -25,7 +25,7 @@ unless an intentionally retained historical artifact is called out and approved 
 `sase-2j` is closed and points at `sdd/epics/202605/pyvision_external_repos.md`. That plan added repository URI
 validation for pyvision pragmas and currently leaves one live failing pragma:
 
-- `src/sase/integrations/agent_status_groups.py`: `# pyvision: https://github.com/sase-org/sase-gchat.git`
+- `src/sase/integrations/agent_status_groups.py`: `# pyvision: https://github.com/sase-org/retired-chat-plugin.git`
 
 This repo also has live references to the obsolete repos in config, docs, tests, memory, and comments, including:
 
@@ -52,7 +52,7 @@ There are many additional historical references under `sdd/epics`, `sdd/tales`, 
 `sdd/beads/issues.jsonl`. These are version-controlled and therefore in scope for "all references", but they should be
 handled separately from runtime/docs cleanup because they are historical records and can be noisy.
 
-Initial direct sweeps found no `sase-gchat` / `sase-google` / `sase_gchat` / `sase_google` matches in:
+Initial direct sweeps found no `retired-chat-plugin` / `retired-hg-plugin` / `retired_chat_plugin` / `retired_hg_plugin` matches in:
 
 - `../sase-core`
 - `../sase-github`
@@ -65,12 +65,12 @@ Those repos still need an explicit phase because this plan's acceptance conditio
 
 1. Remove references to the obsolete repository/package names, not every generic occurrence of the words "google",
    "Google", "Gemini", "Mercurial", or `hg`.
-2. Do not edit the obsolete repos (`../sase-gchat`, `../sase-google`) except possibly to inspect them. They are removal
+2. Do not edit the obsolete repos (`../retired-chat-plugin`, `../retired-hg-plugin`) except possibly to inspect them. They are removal
    targets, not maintained outputs.
 3. Prefer replacing obsolete external API validation with retained non-obsolete consumers or in-repo documentation. For
    the known pyvision pragma in `agent_status_groups.py`, keep `sase-telegram` if it still proves the public API, and
-   remove the `sase-gchat` pragma.
-4. If removing `sase-google` references exposes dead Mercurial-only test fixtures or docs, either generalize them to
+   remove the `retired-chat-plugin` pragma.
+4. If removing `retired-hg-plugin` references exposes dead Mercurial-only test fixtures or docs, either generalize them to
    provider-neutral examples or delete them. Do not keep a fake package name just to preserve old test wording.
 5. Historical SDD cleanup should preserve useful project history where possible by rewriting references to generic
    labels such as "retired chat plugin" or "retired Mercurial plugin" only when the specific repo name is not needed for
@@ -85,16 +85,16 @@ Primary objective: make GitHub Actions stop trying to access obsolete repositori
 
 Work:
 
-1. Remove the `sase-gchat` pyvision URI pragma from `src/sase/integrations/agent_status_groups.py`.
+1. Remove the `retired-chat-plugin` pyvision URI pragma from `src/sase/integrations/agent_status_groups.py`.
 2. Run `just pyvision` early. If pyvision reports that `AgentStatusGroup`, `agent_status_bucket_glyph`, or
    `status_bucket_header` no longer have sufficient non-obsolete consumers, decide case-by-case:
    - retain the existing `sase-telegram` pragma if it proves the API;
    - replace the obsolete pragma with a real in-repo doc/reference if that is the actual current consumer;
    - make unused symbols private or delete them only if surrounding code/tests prove they are not part of the current
      integration surface.
-3. Update tests that use `sase-gchat` merely as a dirty sibling repo fixture. Use a non-obsolete sibling name such as
+3. Update tests that use `retired-chat-plugin` merely as a dirty sibling repo fixture. Use a non-obsolete sibling name such as
    `sase-telegram` or a neutral fake repo name, depending on what the test is proving.
-4. Update tests that mention `sase-google` / `sase_google` only as a plugin-discovery fixture. Prefer neutral synthetic
+4. Update tests that mention `retired-hg-plugin` / `retired_hg_plugin` only as a plugin-discovery fixture. Prefer neutral synthetic
    plugin module names unless the test is specifically about legacy compatibility.
 5. Update live comments/docstrings in `src/` and `tests/` that reference obsolete repos.
 6. Verification:
@@ -107,8 +107,8 @@ Work:
 
 Acceptance:
 
-- No `sase-gchat`, `sase-google`, `sase_gchat`, or `sase_google` matches remain under `src/` or `tests/`.
-- `just pyvision` no longer attempts to fetch or inspect `sase-gchat` or `sase-google`.
+- No `retired-chat-plugin`, `retired-hg-plugin`, `retired_chat_plugin`, or `retired_hg_plugin` matches remain under `src/` or `tests/`.
+- `just pyvision` no longer attempts to fetch or inspect `retired-chat-plugin` or `retired-hg-plugin`.
 - The focused runtime/test suite passes.
 
 ## Phase 2: Public Docs, Root Config, and Memory Cleanup
@@ -122,15 +122,15 @@ Work:
 
 1. Update `sase.yml` mentor profile text so `cross_repo_impact` lists only maintained sibling repos: `../sase-github`,
    `../sase-telegram`, `../sase-nvim`, and `../sase-core` when relevant.
-2. Update `AGENTS.md` and `memory/long/external_repos.md` to remove `sase-google` and not mention `sase-gchat`.
-3. Update `README.md` plugin diagrams/lists to remove `sase-google`.
+2. Update `AGENTS.md` and `memory/long/external_repos.md` to remove `retired-hg-plugin` and not mention `retired-chat-plugin`.
+3. Update `README.md` plugin diagrams/lists to remove `retired-hg-plugin`.
 4. Update plugin docs:
-   - `docs/plugins.md`: remove the `sase-google` package row and any `jetski` provider claims.
+   - `docs/plugins.md`: remove the `retired-hg-plugin` package row and any `jetski` provider claims.
    - `docs/workspace.md`: remove obsolete Mercurial workspace plugin references.
-   - `docs/vcs.md`: remove install instructions and package-specific references to `sase-google`; if Mercurial concepts
+   - `docs/vcs.md`: remove install instructions and package-specific references to `retired-hg-plugin`; if Mercurial concepts
      remain in core docs, frame them as legacy/provider-neutral behavior only if still true.
    - `docs/configuration.md`, `docs/ace.md`, and any nearby docs found by grep.
-5. Update generated-skill or commit-workflow memory/docs only if they name `sase-google` / `sase_google`; do not remove
+5. Update generated-skill or commit-workflow memory/docs only if they name `retired-hg-plugin` / `retired_hg_plugin`; do not remove
    generic `/sase_hg_commit` documentation unless the phase agent proves that the skill itself is obsolete.
 6. Verification:
    ```bash
@@ -204,7 +204,7 @@ Work:
    - `../sase-github`: `just check`.
    - `../sase-telegram`: `just check`.
    - `../sase-nvim`: inspect available checks; run the repo's documented check command if present.
-4. Do not touch `../sase-gchat` or `../sase-google`.
+4. Do not touch `../retired-chat-plugin` or `../retired-hg-plugin`.
 5. Verification:
    ```bash
    git -C ../sase-core status --short
@@ -248,7 +248,7 @@ Work:
 
 Acceptance:
 
-- No unapproved references to `sase-gchat`, `sase-google`, `sase_gchat`, or `sase_google` remain in the in-scope repos.
+- No unapproved references to `retired-chat-plugin`, `retired-hg-plugin`, `retired_chat_plugin`, or `retired_hg_plugin` remain in the in-scope repos.
 - SASE `just check` passes.
 - All modified maintained sibling repos are checked.
 - Final status clearly states that obsolete repos themselves were intentionally not edited.
@@ -258,13 +258,13 @@ Acceptance:
 Phase 1 prompt:
 
 > Implement Phase 1 from `sase_plan_remove_obsolete_plugin_repos.md`. Focus only on live `src/` and `tests/` references
-> in `sase_100`, especially the failing `sase-gchat` pyvision pragma. Do not edit docs or SDD history in this phase. Run
+> in `sase_100`, especially the failing `retired-chat-plugin` pyvision pragma. Do not edit docs or SDD history in this phase. Run
 > the Phase 1 verification commands and report any pyvision-driven API decisions.
 
 Phase 2 prompt:
 
 > Implement Phase 2 from `sase_plan_remove_obsolete_plugin_repos.md`. Clean public docs, root config, and memory files
-> in `sase_100` so they no longer mention `sase-gchat` or `sase-google`. Do not edit `src/`, `tests/`, or SDD history in
+> in `sase_100` so they no longer mention `retired-chat-plugin` or `retired-hg-plugin`. Do not edit `src/`, `tests/`, or SDD history in
 > this phase unless required by formatting. Run the Phase 2 verification commands.
 
 Phase 3 prompt:
@@ -277,7 +277,7 @@ Phase 4 prompt:
 
 > Implement Phase 4 from `sase_plan_remove_obsolete_plugin_repos.md`. Sweep `../sase-core`, `../sase-github`,
 > `../sase-telegram`, and `../sase-nvim` for obsolete repo/package references. Fix any matches in the owning repo and
-> run that repo's required checks. Do not edit `../sase-gchat` or `../sase-google`.
+> run that repo's required checks. Do not edit `../retired-chat-plugin` or `../retired-hg-plugin`.
 
 Phase 5 prompt:
 

@@ -8,7 +8,7 @@ prompt: sdd/prompts/202604/changespec_deltas_commit.md
 ## Problem
 
 New ChangeSpecs created by the `sase commit` `create_pull_request` flow can be written without a `DELTAS:` field. This
-is especially visible on machines using the adjacent `sase-google` plugin for Mercurial/Fig workspaces.
+is especially visible on machines using the adjacent `retired-hg-plugin` plugin for Mercurial/Fig workspaces.
 
 ## Root Cause
 
@@ -19,11 +19,11 @@ There are two coupled gaps:
    follow-up commit/proposal entry paths call `refresh_deltas_after_commits_change()`, but initial ChangeSpec creation
    bypasses that hook.
 
-2. The `sase-google` Mercurial VCS plugin implements committed and uncommitted diff helpers, but does not implement
+2. The `retired-hg-plugin` Mercurial VCS plugin implements committed and uncommitted diff helpers, but does not implement
    `vcs_diff_name_status`. The DELTAS computation path requires that hook to turn a parent/head revision pair into
    file-level `A/M/D` entries. Without it, any refresh attempted in an hg workspace is best-effort skipped.
 
-The result is: core does not request a DELTAS refresh for newly-created ChangeSpecs, and even if it did, `sase-google`
+The result is: core does not request a DELTAS refresh for newly-created ChangeSpecs, and even if it did, `retired-hg-plugin`
 currently lacks the provider hook needed for the refresh to succeed.
 
 ## Implementation Plan
@@ -40,7 +40,7 @@ currently lacks the provider hook needed for the refresh to succeed.
    - Verify no refresh is attempted when no ChangeSpec is created.
    - Keep existing assertions around `create_changespec()` call shape updated if needed.
 
-3. Add Mercurial name-status support in `../sase-google`.
+3. Add Mercurial name-status support in `../retired-hg-plugin`.
    - Implement `vcs_diff_name_status(parent_ref, head_ref, cwd)` using `hg status --rev <parent_ref> --rev <head_ref>`.
    - Translate Mercurial status letters to the Git-style letters expected by core DELTAS:
      - `M` -> `M`
@@ -52,13 +52,13 @@ currently lacks the provider hook needed for the refresh to succeed.
    - Leave line stats unsupported for now; core already treats `diff_line_stats` as optional and will still write
      file-level DELTAS.
 
-4. Add `sase-google` tests.
+4. Add `retired-hg-plugin` tests.
    - Unit-test `vcs_diff_name_status()` parsing for modified, added, removed, ignored helper lines, and unexpected
      status letters.
    - Unit-test command failure raises `VCSOperationError`.
 
 5. Verify.
    - Run focused core tests for commit ChangeSpec creation and DELTAS persistence/refresh.
-   - Run focused `sase-google` hg plugin tests.
-   - Because both repos will be modified, run `just check` in `sase_100` and `../sase-google` after `just install` if
+   - Run focused `retired-hg-plugin` hg plugin tests.
+   - Because both repos will be modified, run `just check` in `sase_100` and `../retired-hg-plugin` after `just install` if
      needed.

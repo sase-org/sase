@@ -9,7 +9,7 @@ prompt: sdd/prompts/202603/commit_propose_entry_ids.md
 ## Context
 
 `#propose` and `#commit` workflows currently rely on `commit_result.json` for metadata, but they do not reliably append
-new `COMMITS` entries to the target ChangeSpec. In Mercurial (`sase-google`), `create_proposal` returns a CL URL
+new `COMMITS` entries to the target ChangeSpec. In Mercurial (`retired-hg-plugin`), `create_proposal` returns a CL URL
 (`http://cl/...`), which is currently passed through as `meta_proposal_id`, causing the Agents panel to show
 `Proposal Id: http://cl/...` instead of the intended proposal entry id (e.g. `1a`).
 

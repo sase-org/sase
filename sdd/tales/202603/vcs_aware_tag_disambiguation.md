@@ -10,7 +10,7 @@ prompt: sdd/prompts/202603/vcs_aware_tag_disambiguation.md
 
 Currently, the `diff_file` xprompt tag can only have one provider at a given priority level. The builtin `#pr_diff` (in
 `src/sase/xprompts/pr_diff.md`, lowest priority) works for GitHub, while `#cl_diff` (in
-`sase-google/default_config.yml`, plugin-config priority) works for Mercurial.
+`retired-hg-plugin/default_config.yml`, plugin-config priority) works for Mercurial.
 
 If we move `#pr_diff` to sase-github's `default_config.yml` (so it lives alongside its VCS plugin), both plugins would
 provide `diff_file` at plugin-config priority. When both plugins are installed, `get_by_tag(XPromptTag.diff_file)` would
@@ -18,7 +18,7 @@ return whichever loaded last — wrong behavior.
 
 ## Goal
 
-Allow both sase-github and sase-google to define a `diff_file`-tagged xprompt, and resolve the correct one based on
+Allow both sase-github and retired-hg-plugin to define a `diff_file`-tagged xprompt, and resolve the correct one based on
 which VCS workflow is active (e.g., `#gh` → `#pr_diff`, `#hg` → `#cl_diff`).
 
 ## Key Insight
@@ -26,7 +26,7 @@ which VCS workflow is active (e.g., `#gh` → `#pr_diff`, `#hg` → `#cl_diff`).
 Every plugin xprompt has a `source_path` that encodes its originating module:
 
 - Plugin workflows: `"plugin:sase_github/gh.yml"`
-- Plugin config xprompts: `"plugin_config:sase_google"`
+- Plugin config xprompts: `"plugin_config:retired_hg_plugin"`
 
 The VCS workflow (e.g., `#gh`) and its companion `diff_file` xprompt (e.g., `#pr_diff`) come from the same plugin
 module. We can disambiguate by preferring the tag match from the same plugin as the active VCS workflow.
@@ -54,7 +54,7 @@ module. We can disambiguate by preferring the tag match from the same plugin as 
    sase_github = "sase_github"
    ```
 
-   (Mirrors how sase-google registers its `default_config.yml`.)
+   (Mirrors how retired-hg-plugin registers its `default_config.yml`.)
 
 3. **Remove `src/sase/xprompts/pr_diff.md`** from the main sase repo since sase-github now owns this xprompt. (The main
    repo should not provide a GitHub-specific diff xprompt.)
@@ -76,7 +76,7 @@ module. We can disambiguate by preferring the tag match from the same plugin as 
            # "plugin:sase_github/gh.yml" → "sase_github"
            return source_path.removeprefix("plugin:").split("/")[0]
        if source_path.startswith("plugin_config:"):
-           # "plugin_config:sase_google" → "sase_google"
+           # "plugin_config:retired_hg_plugin" → "retired_hg_plugin"
            return source_path.removeprefix("plugin_config:")
        return None
    ```

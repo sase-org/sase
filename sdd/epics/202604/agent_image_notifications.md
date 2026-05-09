@@ -15,7 +15,7 @@ previewable inside the SASE TUI when running in a Kitty-compatible terminal, spe
 - the notifications modal file panel
 - the agent entry file panel on the Agents tab
 
-This plan spans `sase`, `sase-telegram`, and `sase-gchat`. The work should be split across distinct agent instances,
+This plan spans `sase`, `sase-telegram`, and `retired-chat-plugin`. The work should be split across distinct agent instances,
 with each phase leaving a narrow, tested contract for the next phase.
 
 ## Context
@@ -40,8 +40,8 @@ Relevant local findings:
 - `sase-telegram` already detects image attachments in `src/sase_telegram/scripts/sase_tg_outbound.py::_is_image_file()`
   and sends those attachments via `send_photo()`, but completion notifications do not currently include touched image
   paths.
-- `sase-gchat` formats workflow-complete notifications in `src/sase_gchat/formatting.py::_format_workflow_complete()`
-  and uploads formatted attachments in `src/sase_gchat/scripts/sase_gc_outbound.py`.
+- `retired-chat-plugin` formats workflow-complete notifications in `src/retired_chat_plugin/formatting.py::_format_workflow_complete()`
+  and uploads formatted attachments in `src/retired_chat_plugin/scripts/sase_gc_outbound.py`.
 
 ## Design Decisions
 
@@ -129,7 +129,7 @@ Exit criteria:
 
 ## Phase 3: Google Chat Outbound Attachment Polish
 
-Repo: `sase-gchat`
+Repo: `retired-chat-plugin`
 
 Objective: ensure completion notifications with image attachments are uploaded into the same Google Chat thread as the
 completion message.
@@ -151,7 +151,7 @@ Tests:
 
 Exit criteria:
 
-- `just install` if needed, then `just check` in `sase-gchat`.
+- `just install` if needed, then `just check` in `retired-chat-plugin`.
 
 ## Phase 4: Kitty Graphics Foundation In SASE TUI
 
@@ -222,7 +222,7 @@ Exit criteria:
 
 ## Phase 6: End-to-End Hardening
 
-Repos: `sase`, `sase-telegram`, `sase-gchat`
+Repos: `sase`, `sase-telegram`, `retired-chat-plugin`
 
 Objective: close cross-repo gaps after the core/plugin/TUI phases land.
 

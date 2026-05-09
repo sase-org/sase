@@ -44,7 +44,7 @@ _sync_description_bg() →  strips prefix via strip_project_pr_prefix()  ✓
 ### Why the Hg case needs extra care
 
 In GitHub, the PR title is separate from the commit message — prefix goes on the title only, commit message stays clean.
-In Hg, the CL description IS the commit message. The sase-google plugin must prepend the prefix to a **local copy** of
+In Hg, the CL description IS the commit message. The retired-hg-plugin plugin must prepend the prefix to a **local copy** of
 the message for `hg commit`, but the payload's `message` field stays unprefixed. When the TUI reword syncs the
 description back (`_sync_description_bg`), the prefix must be stripped since the Hg CL description now contains it.
 
@@ -77,7 +77,7 @@ For git/GitHub, `_sync_description_bg` reads from the git commit message (no pre
 **`../sase-github/src/sase_github/plugin.py`** — In `vcs_create_pull_request`, read `_pr_title_prefix` from payload and
 prepend to the `--title` argument passed to `gh pr create`.
 
-**`../sase-google/src/sase_google/plugin.py`** — In `vcs_create_pull_request`, read `_pr_title_prefix` from payload and
+**`../retired-hg-plugin/src/retired_hg_plugin/plugin.py`** — In `vcs_create_pull_request`, read `_pr_title_prefix` from payload and
 prepend to the first line of the **local** `message` variable before writing to the logfile. Do NOT modify the payload
 dict.
 
@@ -87,14 +87,14 @@ dict.
 `strip_pr_tags()` to remove the prefix before writing back to the ChangeSpec DESCRIPTION. This handles the Hg case where
 the commit message contains the prefix; for git it's a safe no-op.
 
-### Phase 5: sase-google default config
+### Phase 5: retired-hg-plugin default config
 
-**`../sase-google/src/sase_google/default_config.yml`** — Add `use_project_pr_prefix: true` under `vcs_provider`.
+**`../retired-hg-plugin/src/retired_hg_plugin/default_config.yml`** — Add `use_project_pr_prefix: true` under `vcs_provider`.
 
 ### Phase 6: Tests
 
 - `strip_project_pr_prefix()`: strips when enabled, no-op when disabled, handles multiline, handles missing prefix
 - `get_use_project_pr_prefix()`: reads config correctly
 - GitHub plugin: `_pr_title_prefix` prepended to title, body unchanged
-- sase-google plugin: `_pr_title_prefix` prepended to first line of local message
+- retired-hg-plugin plugin: `_pr_title_prefix` prepended to first line of local message
 - Workflow: `_apply_project_pr_prefix()` sets `_pr_title_prefix` correctly, no-ops when disabled

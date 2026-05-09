@@ -44,7 +44,7 @@ chat_install:
 
 For the work overlay, use the exact command the user wants configured. The prompt says `install_sase_gopgle`; verify
 whether that spelling is intentional before editing the work config, because it looks like it may be a typo for
-`install_sase_google`.
+`install_retired_hg_plugin`.
 
 The command is a trusted local user-configured shell string, executed with `shell=True`, `cwd=<primary_sase_workspace>`,
 captured stdout/stderr, and a timeout. Empty/missing command should fail before stopping axe and should be reported to
@@ -118,7 +118,7 @@ In `sase-telegram`:
 
 ## Google Chat Changes
 
-In `sase-gchat`:
+In `retired-chat-plugin`:
 
 - Add `install` to `_DOT_COMMANDS`.
 - Add `.install` to `_HELP_TEXT`, README, and `docs/inbound.md`.
@@ -135,7 +135,7 @@ After code is in place, update chezmoi-managed SASE config overlays rather than 
 - `~/.local/share/chezmoi/home/dot_config/sase/sase_athena.yml`
   - set `chat_install.command: "install_sase_github"`
 - `~/.local/share/chezmoi/home/dot_config/sase/sase_work.yml`
-  - set the work command, after confirming the spelling of `install_sase_gopgle` vs `install_sase_google`
+  - set the work command, after confirming the spelling of `install_sase_gopgle` vs `install_retired_hg_plugin`
 
 Then run `chezmoi apply --force` so the live config is updated.
 
@@ -145,7 +145,7 @@ Run checks in every modified repo:
 
 - Core repo (`sase_100`): `just install`, targeted tests for the new core helper, then `just check`.
 - `sase-telegram`: `just install`, targeted inbound tests, then `just check`.
-- `sase-gchat`: `just install`, targeted inbound tests, then `just check`.
+- `retired-chat-plugin`: `just install`, targeted inbound tests, then `just check`.
 - Chezmoi repo if edited: `just check`, then `chezmoi apply --force`.
 
 Manual dry-run validation can use a temporary config override such as:
@@ -161,4 +161,4 @@ stop/sync/command/start ordering, and a successful axe restart.
 ## Open Decision
 
 The only thing to confirm before implementation is the work-machine command spelling. The user wrote
-`install_sase_gopgle`; if that is literal, configure it as written. If it is a typo, use `install_sase_google`.
+`install_sase_gopgle`; if that is literal, configure it as written. If it is a typo, use `install_retired_hg_plugin`.

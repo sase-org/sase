@@ -399,12 +399,12 @@ support.
 
 ## Phase 5: Plugin Migration & Cleanup
 
-**Goal**: Migrate the sase-google plugin to the new config format, remove old mentor xprompts, and clean up deprecated
+**Goal**: Migrate the retired-hg-plugin plugin to the new config format, remove old mentor xprompts, and clean up deprecated
 code paths.
 
-### 5a. Update sase-google `default_config.yml`
+### 5a. Update retired-hg-plugin `default_config.yml`
 
-- **`../sase-google/src/sase_google/default_config.yml`**: Rewrite `mentor_profiles` to use the new schema. Convert each
+- **`../retired-hg-plugin/src/retired_hg_plugin/default_config.yml`**: Rewrite `mentor_profiles` to use the new schema. Convert each
   `#mentor/<name>` xprompt's review instructions into `role` + `focus_areas` entries. Example conversion:
 
   Current:
@@ -443,10 +443,10 @@ code paths.
     file_globs: ["**/*.java", "**/*.dart"]
   ```
 
-### 5b. Remove old mentor xprompts from sase-google
+### 5b. Remove old mentor xprompts from retired-hg-plugin
 
-- **Delete** `../sase-google/src/sase_google/xprompts/mentor.md` — replaced by built-in `#mentor` workflow.
-- **Remove** all `mentor/*` xprompt definitions from `../sase-google/src/sase_google/default_config.yml` (the
+- **Delete** `../retired-hg-plugin/src/retired_hg_plugin/xprompts/mentor.md` — replaced by built-in `#mentor` workflow.
+- **Remove** all `mentor/*` xprompt definitions from `../retired-hg-plugin/src/retired_hg_plugin/default_config.yml` (the
   `mentor/aaa`, `mentor/code_quality`, `mentor/sound_tests`, etc. entries in the `xprompts` section).
 
 ### 5c. Remove `#propose` from mentor flow
@@ -470,7 +470,7 @@ code paths.
 
 ### Tests
 
-- Verify `just check` passes across both sase and sase-google repos.
+- Verify `just check` passes across both sase and retired-hg-plugin repos.
 - End-to-end: run full mentor cycle (trigger → structured output → review popup → apply).
 - Verify old config format is rejected with a clear error message.
 

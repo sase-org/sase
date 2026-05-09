@@ -163,26 +163,26 @@ cd ../sase-github && just check
 
 ---
 
-## Phase 3: Migrate hg-Specific Code to sase-google + Refactor Ref Resolution
+## Phase 3: Migrate hg-Specific Code to retired-hg-plugin + Refactor Ref Resolution
 
-**Goal**: Move hg-specific setup script to sase-google, create HgWorkspacePlugin, and refactor the TUI ref resolution
+**Goal**: Move hg-specific setup script to retired-hg-plugin, create HgWorkspacePlugin, and refactor the TUI ref resolution
 system to be less hardcoded.
 
-### Files to create (in ../sase-google/)
+### Files to create (in ../retired-hg-plugin/)
 
-1. **`../sase-google/src/sase_hg/workspace_plugin.py`** -- `HgWorkspacePlugin` implementing ws hooks:
+1. **`../retired-hg-plugin/src/sase_hg/workspace_plugin.py`** -- `HgWorkspacePlugin` implementing ws hooks:
    - `ws_detect_workflow_type` returns `"hg"` for hg projects
    - `ws_get_change_label` returns `"CL"` for hg projects
    - `ws_resolve_ref` handles hg ref resolution (logic from `_resolve_hg_from_prompt` in `_ref_resolution.py`)
    - `ws_setup_workflow` handles hg setup (logic from `hg_setup.py`)
-2. **`../sase-google/src/sase_hg/scripts/__init__.py`**
-3. **`../sase-google/src/sase_hg/scripts/hg_setup.py`** -- Moved from `sase/scripts/hg_setup.py`
+2. **`../retired-hg-plugin/src/sase_hg/scripts/__init__.py`**
+3. **`../retired-hg-plugin/src/sase_hg/scripts/hg_setup.py`** -- Moved from `sase/scripts/hg_setup.py`
 
-### Files to modify (in ../sase-google/)
+### Files to modify (in ../retired-hg-plugin/)
 
-- **`../sase-google/pyproject.toml`** -- Add `sase_workspace` entry point:
+- **`../retired-hg-plugin/pyproject.toml`** -- Add `sase_workspace` entry point:
   `hg = "sase_hg.workspace_plugin:HgWorkspacePlugin"`
-- **`../sase-google/src/sase_hg/xprompts/hg.yml`** -- Change `from sase.scripts.hg_setup import main` to
+- **`../retired-hg-plugin/src/sase_hg/xprompts/hg.yml`** -- Change `from sase.scripts.hg_setup import main` to
   `from sase_hg.scripts.hg_setup import main`
 
 ### Files to modify (in sase core)
@@ -196,13 +196,13 @@ system to be less hardcoded.
 
 ### Files to delete (from core)
 
-- `src/sase/scripts/hg_setup.py` (moved to sase-google)
+- `src/sase/scripts/hg_setup.py` (moved to retired-hg-plugin)
 
 ### Verification
 
 ```bash
 just check
-cd ../sase-google && just check
+cd ../retired-hg-plugin && just check
 # Verify no core code imports from sase.scripts.hg_setup
 ```
 
@@ -233,7 +233,7 @@ deprecated wrapper modules, and run final verification.
 ```bash
 just check
 cd ../sase-github && just check
-cd ../sase-google && just check
+cd ../retired-hg-plugin && just check
 .venv/bin/sase ace --agent  # TUI loads correctly
 
 # Verify the new plugin system works:
@@ -281,7 +281,7 @@ sase-github (plugin)
     pr_create_changespec.py              # MOVED from core
     new_pr_desc_get_context.py           # MOVED from core
 
-sase-google (plugin)
+retired-hg-plugin (plugin)
   plugin.py                              # HgPlugin for VCS operations (UNCHANGED)
   workspace_plugin.py                    # NEW -- HgWorkspacePlugin
   scripts/

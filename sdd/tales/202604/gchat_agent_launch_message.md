@@ -1,6 +1,6 @@
 ---
 name: gchat_agent_launch_message
-description: Send a "🚀 Launched" message to Google Chat when sase-gchat's inbound
+description: Send a "🚀 Launched" message to Google Chat when retired-chat-plugin's inbound
   chop spawns a new agent, mirroring sase-telegram's behavior. The message is posted
   directly via gchat_client.send_message — it is NOT a sase notification.
 create_time: 2026-04-25 10:50:54
@@ -22,13 +22,13 @@ confirmation the moment `launch_agent_from_cwd()` returns; gchat does not. Users
   `_launch_single_agent()`. It is sent **directly** via `telegram_client.send_message()` — it does **not** go through
   the sase notification framework (`sase.notifications.senders` has no `notify_agent_launch()` and we will not add one).
 - The gchat counterpart `_launch_single_agent()` lives at
-  `sase-gchat/src/sase_gchat/scripts/sase_gc_inbound.py:302-326`. It calls `launch_agent_from_cwd(prompt)` and only logs
+  `retired-chat-plugin/src/retired_chat_plugin/scripts/sase_gc_inbound.py:302-326`. It calls `launch_agent_from_cwd(prompt)` and only logs
   on exception — no message is sent to chat.
 - The `gchat` CLI exposes `send_message(space, text, *, thread=None, markdown=True)` (see
-  `sase-gchat/src/sase_gchat/gchat_client.py:137`). It supports CommonMark markdown and threading but **no inline
+  `retired-chat-plugin/src/retired_chat_plugin/gchat_client.py:137`). It supports CommonMark markdown and threading but **no inline
   buttons** — the module header in `formatting.py` makes this explicit. Telegram's interactive Resume / Wait / Kill /
   Retry buttons therefore have no equivalent here.
-- `_format_workflow_complete()` in `sase-gchat/src/sase_gchat/formatting.py:228-283` already shows the established gchat
+- `_format_workflow_complete()` in `retired-chat-plugin/src/retired_chat_plugin/formatting.py:228-283` already shows the established gchat
   pattern for rendering an agent: model label via `format_provider_model_label`, agent name as `_@name_`, and
   copy-pasteable follow-up commands inside fenced code blocks (since there are no buttons).
 - `launch_agent_from_cwd()` returns an `AgentLaunchResult` with `workspace_num` (and `pid`) — same fields Telegram
@@ -37,7 +37,7 @@ confirmation the moment `launch_agent_from_cwd()` returns; gchat does not. Users
 
 ### Cross-repo note
 
-The change lives in the **sibling `sase-gchat` plugin repo** (`/home/bryan/projects/github/sase-org/sase-gchat/`), not
+The change lives in the **sibling `retired-chat-plugin` plugin repo** (`/home/bryan/projects/github/sase-org/retired-chat-plugin/`), not
 the sase_100 main repo this workspace points at. No edits to the main repo are required.
 
 ## Goals
@@ -115,11 +115,11 @@ it) so we never crash the inbound poller.
 
 ## Tests
 
-In `sase-gchat/tests/test_inbound.py`, add cases mirroring the sase-telegram parity tests in
+In `retired-chat-plugin/tests/test_inbound.py`, add cases mirroring the sase-telegram parity tests in
 `sase-telegram/tests/test_inbound.py:346+`:
 
 1. `test_launch_single_agent_posts_launched_message`: patches `sase.agent.launcher.launch_agent_from_cwd` to return a
-   stub `AgentLaunchResult(workspace_num=7, pid=123)` and patches `sase_gchat.gchat_client.send_message`; calls
+   stub `AgentLaunchResult(workspace_num=7, pid=123)` and patches `retired_chat_plugin.gchat_client.send_message`; calls
    `_launch_single_agent("hello")`; asserts the captured text contains `"🚀"`, `"Launched"`, `"workspace #7"`, the
    auto-assigned `_@<name>_` line, and the `.kill <name>` block; asserts `markdown=True` and no `thread=` argument.
 2. `test_launch_single_agent_posts_failure_message`: patches `launch_agent_from_cwd` to raise `RuntimeError("boom")`;
@@ -131,7 +131,7 @@ In `sase-gchat/tests/test_inbound.py`, add cases mirroring the sase-telegram par
 
 ## Validation
 
-Per `AGENTS.md`, run `just check` in the sase-gchat workspace before declaring done. Smoke check by sending a free-text
+Per `AGENTS.md`, run `just check` in the retired-chat-plugin workspace before declaring done. Smoke check by sending a free-text
 prompt to the bound Google Chat space and confirming the launch message appears.
 
 ## Out of scope

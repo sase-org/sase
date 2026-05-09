@@ -16,12 +16,12 @@ pandoc, with a `wkhtmltopdf → xelatex → pdflatex` engine fallback chain) bef
 render far more readably on phone clients than raw `.md` files, especially for long plans with code blocks and tables.
 
 The Google Chat integration currently uploads the markdown file as-is — no PDF conversion. The infrastructure for the
-conversion is already shipped in the gchat plugin (`sase_gchat/pdf_convert.py` is a byte-for-byte copy of the Telegram
+conversion is already shipped in the gchat plugin (`retired_chat_plugin/pdf_convert.py` is a byte-for-byte copy of the Telegram
 version, including `pdf_style.css`), but it is never imported by the outbound script. This plan wires it in.
 
 ## Current state
 
-**Outbound attachment loop today** — `sase-gchat/src/sase_gchat/scripts/sase_gc_outbound.py` lines 163–179:
+**Outbound attachment loop today** — `retired-chat-plugin/src/retired_chat_plugin/scripts/sase_gc_outbound.py` lines 163–179:
 
 ```python
 for attachment_path in formatted.attachments:
@@ -57,7 +57,7 @@ else:
 …with cleanup at the end of the per-notification loop (line 528–529):
 `for p in pdf_temps + …: p.unlink(missing_ok=True)`.
 
-**`md_to_pdf` contract** — `sase-gchat/src/sase_gchat/pdf_convert.py:46`:
+**`md_to_pdf` contract** — `retired-chat-plugin/src/retired_chat_plugin/pdf_convert.py:46`:
 
 - Accepts a string path. Returns the PDF path (string) on success, `None` on any failure mode (non-`.md` suffix, no
   pandoc engine installed, every engine failed, timeout).
@@ -78,7 +78,7 @@ For each attachment in `formatted.attachments`:
 
 ### Where the change lives
 
-Single-file edit: `sase-gchat/src/sase_gchat/scripts/sase_gc_outbound.py`. No changes to `formatting.py`, no changes to
+Single-file edit: `retired-chat-plugin/src/retired_chat_plugin/scripts/sase_gc_outbound.py`. No changes to `formatting.py`, no changes to
 `pdf_convert.py`, no changes to the main `sase_100` repo.
 
 ### Loop rewrite
@@ -130,21 +130,21 @@ Key properties:
 Add at the top of `sase_gc_outbound.py`:
 
 ```python
-from sase_gchat.pdf_convert import md_to_pdf
+from retired_chat_plugin.pdf_convert import md_to_pdf
 ```
 
-Co-located with the other `sase_gchat.*` imports already present at lines 20–28.
+Co-located with the other `retired_chat_plugin.*` imports already present at lines 20–28.
 
 ### Why not factor `md_to_pdf` into the main repo
 
 The existing architecture deliberately ships an identical copy of `pdf_convert.py` and `pdf_style.css` in each plugin
-(verified: byte-for-byte identical between `sase-gchat` and `sase-telegram`). Plugins are independently installable, so
+(verified: byte-for-byte identical between `retired-chat-plugin` and `sase-telegram`). Plugins are independently installable, so
 we don't want a hard dependency from the gchat plugin onto the main `sase_100` package for this. Leave the duplication
 in place.
 
 ## Tests
 
-Add tests to `sase-gchat/tests/test_integration.py` (or a new dedicated file if `test_integration.py`'s existing fixture
+Add tests to `retired-chat-plugin/tests/test_integration.py` (or a new dedicated file if `test_integration.py`'s existing fixture
 shape is awkward; look at the file first and decide). Each test should drive `sase_gc_outbound.main()` end-to-end with
 mocked `gchat_client` and a stubbed `md_to_pdf`:
 
@@ -155,7 +155,7 @@ mocked `gchat_client` and a stubbed `md_to_pdf`:
 3. **`upload_file` raises after a successful PDF conversion** — assert the exception is logged and swallowed (the
    existing contract), and assert the PDF temp file is still cleaned up.
 
-Use `monkeypatch.setattr` on `sase_gchat.scripts.sase_gc_outbound.md_to_pdf` so the engine-availability check in the
+Use `monkeypatch.setattr` on `retired_chat_plugin.scripts.sase_gc_outbound.md_to_pdf` so the engine-availability check in the
 real implementation isn't exercised in CI.
 
 For prior art, see `sase-telegram/tests/test_inbound.py` lines 1017–1020 (and surrounding context) — the Telegram tests
@@ -164,7 +164,7 @@ build a fake PDF path and patch the converter the same way.
 ## Verification
 
 1. From the active sase_100 workspace: `just install && just check` passes.
-2. From `../sase-gchat`: the gchat plugin's own test suite passes (`pytest` or whatever its `Justfile` exposes — confirm
+2. From `../retired-chat-plugin`: the gchat plugin's own test suite passes (`pytest` or whatever its `Justfile` exposes — confirm
    during implementation).
 3. Manual smoke (optional, dev machine has pandoc installed): trigger a plan-approval notification and confirm the
    thread receives a `.pdf` attachment instead of a `.md` file. If pandoc is uninstalled, confirm the markdown is
@@ -185,11 +185,11 @@ build a fake PDF path and patch the converter the same way.
 
 ## Implementation steps
 
-1. Edit `sase-gchat/src/sase_gchat/scripts/sase_gc_outbound.py`:
-   - Add `from sase_gchat.pdf_convert import md_to_pdf` to the imports.
+1. Edit `retired-chat-plugin/src/retired_chat_plugin/scripts/sase_gc_outbound.py`:
+   - Add `from retired_chat_plugin.pdf_convert import md_to_pdf` to the imports.
    - Replace the attachment loop (currently lines 163–179) with the version above, plus the trailing `pdf_temps` cleanup
      pass.
-2. Add the three tests described in **Tests** above to `sase-gchat/tests/test_integration.py` (or a new file if it reads
+2. Add the three tests described in **Tests** above to `retired-chat-plugin/tests/test_integration.py` (or a new file if it reads
    more cleanly there).
-3. Run the gchat plugin's test suite from `../sase-gchat`.
+3. Run the gchat plugin's test suite from `../retired-chat-plugin`.
 4. Run `just check` from the sase_100 workspace.

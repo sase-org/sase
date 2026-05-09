@@ -2,7 +2,7 @@
 plan: sdd/tales/202604/wire_format_instructions.md
 ---
 Was there really a merge conflict (see the below output of the `#sync` xprompt workflow, which was run from the TUI
-using the `Y` keymap on another machine that uses the ../sase-google repo) or do we need to fix something? If the
+using the `Y` keymap on another machine that uses the ../retired-hg-plugin repo) or do we need to fix something? If the
 latter, please diagnose the root cause and fix the issue. Think this through thoroughly and create a plan using your
 `/sase_plan` skill before making any file changes.
 
@@ -56,7 +56,7 @@ Error: hg sync failed due to unresolved merge conflicts.
   Output:
     success: false
     has_conflicts: true
-    error: 'sase_google_sync failed: pulling from piper://piper-fig.corp.google.com/'
+    error: 'retired_hg_plugin_sync failed: pulling from piper://piper-fig.corp.google.com/'
     conflicted_files: contentads/drx/fe/client/trafficking/private_marketplace/components/deal_check_ui/lib/deal_check_ui.acx.html
 
 Step 3/4: resolve (agent)

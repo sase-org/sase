@@ -32,10 +32,10 @@ The implementation spans three repositories:
   - Caches command registration in `~/.sase/telegram/commands_registered_ts`, so a pure `_SLASH_COMMANDS` edit can leave
     stale Telegram command menu entries visible for up to one hour.
   - Tests and docs explicitly cover `/install`.
-- `../sase-gchat`
-  - Parses dot commands in `src/sase_gchat/inbound.py`.
+- `../retired-chat-plugin`
+  - Parses dot commands in `src/retired_chat_plugin/inbound.py`.
   - `_DOT_COMMANDS` contains `install`; `process_dot_command(".install")` returns `DotCommand("install", [])`.
-  - Dispatches `cmd.command == "install"` in `src/sase_gchat/scripts/sase_gc_inbound.py`.
+  - Dispatches `cmd.command == "install"` in `src/retired_chat_plugin/scripts/sase_gc_inbound.py`.
   - Help, tests, README, and inbound docs explicitly cover `.install`.
 
 ## Product Decisions
@@ -114,7 +114,7 @@ In `../sase-telegram`:
 
 ### Phase 3: Google Chat Dot Command Rename
 
-In `../sase-gchat`:
+In `../retired-chat-plugin`:
 
 - Change `_DOT_COMMANDS` from `install` to `update`.
 - Update `process_dot_command()` docs and tests:
@@ -139,7 +139,7 @@ In `../sase-gchat`:
   - In `sase_101`: `just install` then targeted `pytest tests/test_chat_install.py`, then `just check` because this repo
     requires it after file changes.
   - In `../sase-telegram`: `just install`, targeted inbound tests, then `just check`.
-  - In `../sase-gchat`: `just install`, targeted inbound tests, then `just check`.
+  - In `../retired-chat-plugin`: `just install`, targeted inbound tests, then `just check`.
 
 ## Risks and Notes
 

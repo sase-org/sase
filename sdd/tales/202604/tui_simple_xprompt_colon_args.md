@@ -15,8 +15,8 @@ Launching an agent from the `sase ace` TUI with a prompt like
 
 fails with `Agent launch failed (see log)`. The same prompt succeeds when passed to `sase run`.
 
-The `#launch/free` xprompt is a **simple xprompt** defined by the `sase-google` plugin (via the `sase_xprompts` /
-`sase_config` entry points) in `src/sase_google/default_config.yml`:
+The `#launch/free` xprompt is a **simple xprompt** defined by the `retired-hg-plugin` plugin (via the `sase_xprompts` /
+`sase_config` entry points) in `src/retired_hg_plugin/default_config.yml`:
 
 ```yaml
 launch/free:

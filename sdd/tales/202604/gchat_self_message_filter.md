@@ -1,6 +1,6 @@
 ---
 name: gchat_self_message_filter
-description: Stop sase-gchat from launching agents in response to its own outbound
+description: Stop retired-chat-plugin from launching agents in response to its own outbound
   messages. The current ``sender.type == "BOT"`` filter never matches because the
   gchat CLI authenticates as the user, so sase's own posts appear as inbound user
   prompts and self-feed an infinite agent-launch loop. Replace the broken sender-based
@@ -10,11 +10,11 @@ status: done
 prompt: sdd/prompts/202604/gchat_self_message_filter.md
 ---
 
-# sase-gchat — Stop Self-Triggering Agent Launches
+# retired-chat-plugin — Stop Self-Triggering Agent Launches
 
 ## Problem
 
-sase-gchat is launching agents in response to messages **sase itself just posted** to the chat space. The user's
+retired-chat-plugin is launching agents in response to messages **sase itself just posted** to the chat space. The user's
 `sase ace` snapshot showed multiple `home (RUNNING)` agents whose AGENT PROMPT was the verbatim text of an outbound
 `_format_workflow_complete()` notification ("✅ _Agent Complete_ _@l_ … ▶️ _Resume — copy from below:_ `resume:l`").
 
@@ -44,7 +44,7 @@ Google identity. The only reliable signal is **the message ID returned by `send_
 
 ## Background
 
-- All sase → chat traffic flows through one of three message-creating wrappers in `sase_gchat/gchat_client.py`:
+- All sase → chat traffic flows through one of three message-creating wrappers in `retired_chat_plugin/gchat_client.py`:
   - `send_message()` — text posts (notifications, launch confirmations, dot-command replies, two-step prompts, response
     confirmations).
   - `upload_file()` — attachment uploads from outbound and `_handle_photo`.
@@ -53,14 +53,14 @@ Google identity. The only reliable signal is **the message ID returned by `send_
     re-appears in `list_messages` (likely no, but worth a one-line check).
 - All three message-creators return the parsed message dict whose `name` field is the canonical message ID (same field
   used in `_msg_id` on the inbound side and in `_extract_message_ids` in outbound).
-- The existing storage pattern lives in `sase_gchat/pending_actions.py`: a single JSON file under `~/.sase/gchat/`,
+- The existing storage pattern lives in `retired_chat_plugin/pending_actions.py`: a single JSON file under `~/.sase/gchat/`,
   atomic-write via tempfile + `os.replace`, 24-hour staleness cleanup. Reuse that pattern for the new store.
 - `_is_self_message()` is harmless when it never matches and remains correct in a hypothetical future where sase runs as
   a real bot account. Keep it as defense-in-depth.
 
 ## Goals
 
-1. sase-gchat must never treat a message it just sent as a fresh inbound user prompt — for any payload type
+1. retired-chat-plugin must never treat a message it just sent as a fresh inbound user prompt — for any payload type
    (workflow-complete, launch confirmation, response confirmation, two-step prompt, dot-command reply, attachment
    upload).
 2. Real user messages continue to be forwarded to `_launch_agent` as before.
@@ -70,8 +70,8 @@ Google identity. The only reliable signal is **the message ID returned by `send_
 
 ## Non-goals
 
-- No changes to the main `sase_100` repo. All edits live in the sibling `sase-gchat` plugin repo at
-  `/home/bryan/projects/github/sase-org/sase-gchat/`.
+- No changes to the main `sase_100` repo. All edits live in the sibling `retired-chat-plugin` plugin repo at
+  `/home/bryan/projects/github/sase-org/retired-chat-plugin/`.
 - No changes to telegram or any other plugin.
 - No removal of `_is_self_message()` — it stays as a defense-in-depth check for a future bot-account deployment.
 - No new gchat CLI features, no auth changes, no message-format changes.
@@ -84,7 +84,7 @@ Picked over the sentinel-marker alternative because (a) it does not depend on an
 the chat backend, (b) it cannot be tripped by user-typed text that happens to contain the marker, and (c) wrapping
 inside `gchat_client` makes it impossible for a future call site to forget to record.
 
-### New module: `sase_gchat/self_messages.py`
+### New module: `retired_chat_plugin/self_messages.py`
 
 A new file (rather than extending `inbound.py`) so the helpers can be imported by `gchat_client` without creating a
 circular dependency (`inbound.py` would otherwise be importable from a module that `inbound.py` itself transitively
@@ -143,7 +143,7 @@ In `sase_gc_inbound.py`:
 
 ## Tests
 
-Add to `sase-gchat/tests/test_inbound.py` and `sase-gchat/tests/test_gchat_client.py` (and a new
+Add to `retired-chat-plugin/tests/test_inbound.py` and `retired-chat-plugin/tests/test_gchat_client.py` (and a new
 `tests/test_self_messages.py` for the storage helpers):
 
 1. `test_self_messages_record_and_lookup` — `record(id)` then `is_self(id)` returns `True`; unrecorded IDs return
@@ -165,7 +165,7 @@ Add to `sase-gchat/tests/test_inbound.py` and `sase-gchat/tests/test_gchat_clien
 
 Per `AGENTS.md`:
 
-1. Edits made in the sibling `sase-gchat` repo workspace; run `just install && just check` in that workspace before
+1. Edits made in the sibling `retired-chat-plugin` repo workspace; run `just install && just check` in that workspace before
    declaring done.
 2. Smoke check: bind to the live Google Chat space and (a) trigger any sase notification (e.g. complete a workflow), (b)
    confirm the next inbound poll does NOT spawn an agent for that text. Then send a real free-text user message and

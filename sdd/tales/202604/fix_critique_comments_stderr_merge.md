@@ -9,7 +9,7 @@ prompt: sdd/prompts/202604/fix_critique_comments_stderr_merge.md
 ## Problem
 
 `sase axe` polls reviewer comments for Mailed ChangeSpecs by running the external `critique_comments <changespec_name>`
-shell script. On a remote machine that uses the `../sase-google` plugin repo, this command fails with:
+shell script. On a remote machine that uses the `../retired-hg-plugin` plugin repo, this command fails with:
 
 ```
 critique_comments: error: JSON parsing failed (exit 5): jq: parse error: Invalid numeric literal at line 1, column 6
@@ -103,7 +103,7 @@ Notes:
 
 - No changes to the `sase_100` repo. `checks_runner.py` and `workspace_plugin.py` behave correctly; they fail loudly
   when `critique_comments` exits nonzero, which is the right behavior.
-- No changes to the `sase-google` plugin repo.
+- No changes to the `retired-hg-plugin` plugin repo.
 - The workspace-directory gate issue (comment checks silently skipped when `get_workspace_directory()` returns empty)
   tracked in `plans/202604/fix_comment_check_workspace_gate.md` is a separate concern and has its own WIP plan — not
   folding it in here.

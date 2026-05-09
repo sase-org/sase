@@ -37,7 +37,7 @@ atomicity while background automation is active.
 
 - Running `install_sase_github` should not produce axe error digests from expected install/rebuild windows.
 - The uv-tool `sase` environment should never be observed by scheduled chops in a known broken intermediate state.
-- The fix should work for sibling installer scripts with the same shape, especially `install_sase_google`.
+- The fix should work for sibling installer scripts with the same shape, especially `install_retired_hg_plugin`.
 - Existing axe jobs should resume automatically after a successful install.
 - If installation fails, the user should get a clear install failure and axe should not silently keep running against a
   broken environment.
@@ -59,7 +59,7 @@ mode makes future tool/environment updates explicit and reusable.
 Update the chezmoi-managed installer scripts:
 
 - `~/.local/share/chezmoi/home/bin/executable_install_sase_github`
-- `~/.local/share/chezmoi/home/bin/executable_install_sase_google`
+- `~/.local/share/chezmoi/home/bin/executable_install_retired_hg_plugin`
 
 Before modifying the uv-tool venv:
 
@@ -206,7 +206,7 @@ Then confirm:
 Immediate fix:
 
 - `~/.local/share/chezmoi/home/bin/executable_install_sase_github`
-- `~/.local/share/chezmoi/home/bin/executable_install_sase_google`
+- `~/.local/share/chezmoi/home/bin/executable_install_retired_hg_plugin`
 
 Core hardening:
 

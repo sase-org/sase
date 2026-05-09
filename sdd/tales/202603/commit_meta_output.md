@@ -177,7 +177,7 @@ The `result` field from `vcs_create_*` hooks should contain a useful identifier:
 
 - `vcs_create_pull_request`: Return `(True, pr_url)` — the PR URL from `gh pr create`
 
-**sase-google plugin** (`../sase-google/`):
+**retired-hg-plugin plugin** (`../retired-hg-plugin/`):
 
 - `vcs_create_proposal`: Return `(True, "cl_name (cl_url)")` — matches the `meta_new_cl` format expected by
   `get_meta_changespec_name()` (parses `"name (url)"` → `"name"`)

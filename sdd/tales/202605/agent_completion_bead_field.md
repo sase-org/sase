@@ -27,7 +27,7 @@ payload field from `sase` and render it consistently.
 - Telegram renders user-agent completion notifications in
   `../sase-telegram/src/sase_telegram/formatting.py::_format_workflow_complete()`.
 - Google Chat renders the same notification class in
-  `../sase-gchat/src/sase_gchat/formatting.py::_format_workflow_complete()`.
+  `../retired-chat-plugin/src/retired_chat_plugin/formatting.py::_format_workflow_complete()`.
 
 ## Design
 

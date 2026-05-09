@@ -2,21 +2,21 @@
 
 ## Problem Statement
 
-The `#commit`, `#propose`, and `#cl`/`#pr` xprompt workflows are currently duplicated across VCS plugins (sase-google,
+The `#commit`, `#propose`, and `#cl`/`#pr` xprompt workflows are currently duplicated across VCS plugins (retired-hg-plugin,
 sase-github). The goal is to unify them into 3 built-in xprompts in sase core that work across all VCS providers via a
 plugin-dispatched `sase commit` command.
 
 ## Current State
 
-### sase-google Workflows
+### retired-hg-plugin Workflows
 
-Three xprompt workflows in `sase-google/src/sase_google/xprompts/`:
+Three xprompt workflows in `retired-hg-plugin/src/retired_hg_plugin/xprompts/`:
 
 - **`#cl`** - Creates a new CL from uncommitted changes. Steps: inject `#no_cl_ops` + `#cldd`, check changes, save
   response, generate description, call `sase_cl_workflow --create` (which runs `hg addremove`, `hg commit`, `hg fix`,
   `hg upload tree`, creates ChangeSpec).
 - **`#commit`** - Amends an existing CL with a COMMITS entry. Steps: inject context, check changes, save response, call
-  `sase_google_commit_workflow` (which calls `provider.amend()`, adds COMMITS entry).
+  `retired_hg_plugin_commit_workflow` (which calls `provider.amend()`, adds COMMITS entry).
 - **`#propose`** - Creates a PROPOSED entry without amending. Steps: inject context, check changes, save response, call
   `sase_propose_workflow` (adds PROPOSED entry, cleans workspace).
 
@@ -250,6 +250,6 @@ stop hook runs in a separate process context). Just don't make them the _primary
 3. Create the three built-in xprompts.
 4. Rewrite `sase commit` to use `--method` dispatch.
 5. Update sase-github to implement the hooks (move `#pr` logic into `vcs_create_change`).
-6. Update sase-google to implement the hooks (move `#cl`/`#commit`/`#propose` logic).
+6. Update retired-hg-plugin to implement the hooks (move `#cl`/`#commit`/`#propose` logic).
 7. Deprecate and remove `sase amend`.
 8. Remove the old per-plugin xprompt workflows.

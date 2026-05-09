@@ -21,7 +21,7 @@ COMMITS entry writing into `CommitWorkflow` so that `sase commit` is fully self-
 3. `sase commit` handles writing the COMMITS entry for both commits and proposals
 4. Run `precommit_command` for proposals; skip bead closing and SASE_PLAN logic
 5. After saving the proposal diff, clean workspace in a VCS-agnostic way (via `clean_workspace()`)
-6. Changes apply to ALL VCS providers (git and sase-google)
+6. Changes apply to ALL VCS providers (git and retired-hg-plugin)
 7. No agent skill changes needed (same payload format works)
 8. Diffs must include untracked (new) files and deleted files
 
@@ -58,7 +58,7 @@ def vcs_create_proposal(self, payload: dict, cwd: str) -> tuple[bool, str | None
     return (True, diff_path)
 ```
 
-This mirrors exactly what `sase-google/plugin.py:368-380` already does.
+This mirrors exactly what `retired-hg-plugin/plugin.py:368-380` already does.
 
 **Why this works for untracked files:** `save_diff` calls `provider.add_remove(cwd)` (which runs `git add -A` for git)
 before `provider.diff(cwd)` (which runs `git diff HEAD`). After staging, `git diff HEAD` includes new files. The
@@ -218,6 +218,6 @@ if result_file and os.path.isfile(result_file):
   but the existing config key is `precommit_command` - confirm if rename is desired).
 - `save_diff` already handles git correctly: `add_remove()` stages new/deleted files, then `diff()` captures everything
   including untracked files.
-- The sase-google plugin (`../sase-google`) already implements the correct proposal behavior (`save_diff` +
+- The retired-hg-plugin plugin (`../retired-hg-plugin`) already implements the correct proposal behavior (`save_diff` +
   `clean_workspace`). No changes needed there.
 - No agent skill changes needed - same JSON payload format works for all methods.
