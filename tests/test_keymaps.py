@@ -377,6 +377,12 @@ def test_leader_mode_includes_jump_to_next_unread_done_agent() -> None:
     assert reg.leader_mode.keys["jump_to_next_unread_done_agent"] == "j"
 
 
+def test_leader_mode_includes_prompt_history_edit_first() -> None:
+    """LeaderModeKeymaps default includes the ``, Ctrl+G`` history edit."""
+    reg = load_keymap_registry({})
+    assert reg.leader_mode.keys["prompt_history_edit_first"] == "ctrl+g"
+
+
 def test_leader_mode_omits_legacy_kill_all() -> None:
     """The Agents cleanup panel replaces the old leader kill-all command."""
     reg = load_keymap_registry({})

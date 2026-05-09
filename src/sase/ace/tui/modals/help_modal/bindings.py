@@ -193,6 +193,10 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                     "Prompt history (last CL)",
                 ),
                 (
+                    f"{d(lm.prefix)} {d(_sk(lm.keys, 'prompt_history_edit_first'))}",
+                    "Edit first prompt history entry",
+                ),
+                (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'prompt_history_cancelled'))}",
                     "Prompt history (+cancelled)",
                 ),
@@ -396,6 +400,10 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     "Prompt history (last CL)",
                 ),
                 (
+                    f"{d(lm.prefix)} {d(_sk(lm.keys, 'prompt_history_edit_first'))}",
+                    "Edit first prompt history entry",
+                ),
+                (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'prompt_history_cancelled'))}",
                     "Prompt history (+cancelled)",
                 ),
@@ -567,6 +575,10 @@ def axe_bindings(km: KeymapRegistry) -> _Sections:
                 (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'prompt_history'))}",
                     "Prompt history (last CL)",
+                ),
+                (
+                    f"{d(lm.prefix)} {d(_sk(lm.keys, 'prompt_history_edit_first'))}",
+                    "Edit first prompt history entry",
                 ),
                 (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'prompt_history_cancelled'))}",

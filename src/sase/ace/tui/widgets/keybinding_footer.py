@@ -470,6 +470,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
                     (k("jump_to_next_unread_done_agent"), "next unread done")
                 )
         bindings.append((k("prompt_history"), "prompt history"))
+        bindings.append((k("prompt_history_edit_first"), "edit history"))
         bindings.append((k("prompt_history_cancelled"), "history (+cancelled)"))
         if current_tab == "agents":
             bindings.append((k("kill_and_edit"), "kill & edit"))

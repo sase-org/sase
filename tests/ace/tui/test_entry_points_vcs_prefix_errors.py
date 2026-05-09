@@ -9,6 +9,7 @@ import pytest
 
 from sase.ace.tui.actions.agent_workflow import _entry_points
 from sase.ace.tui.actions.agent_workflow._entry_points import EntryPointsMixin
+from sase.history.prompt import PromptEntry
 from sase.ace.tui.modals import SelectionItem
 
 
@@ -17,6 +18,8 @@ class _App(EntryPointsMixin):
         self.notifications: list[tuple[str, str | None]] = []
         self.prompt_launches: list[dict[str, Any]] = []
         self.editor_launches: list[dict[str, Any]] = []
+        self.editor_prompts: list[str] = []
+        self.finished_prompts: list[str] = []
         self.changespecs: list[Any] = []
         self.current_idx = 0
         self._last_custom_agent_selection = None
@@ -30,6 +33,13 @@ class _App(EntryPointsMixin):
 
     def _select_and_open_editor_for_home(self, **kwargs: Any) -> None:
         self.editor_launches.append(kwargs)
+
+    def _open_editor_for_agent_prompt(self, prompt: str) -> str:
+        self.editor_prompts.append(prompt)
+        return f"edited: {prompt}"
+
+    def _finish_agent_launch(self, prompt: str) -> None:
+        self.finished_prompts.append(prompt)
 
 
 @pytest.fixture
@@ -137,6 +147,95 @@ def test_quick_current_changespec_reports_vcs_detection_error_without_saving(
     assert app.editor_launches == []
     assert app._last_custom_agent_selection is None
     assert saved == []
+
+
+def test_prompt_history_edit_first_uses_first_non_cancelled_modal_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
+    monkeypatch.setattr(
+        _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "
+    )
+    monkeypatch.setattr(
+        "sase.history.prompt.get_prompts_for_fzf",
+        lambda current_branch, current_workspace, include_cancelled: [
+            (
+                "x target | cancelled",
+                PromptEntry(
+                    text="#gh:old cancelled prompt",
+                    branch_or_workspace="target",
+                    timestamp="260509_100000",
+                    last_used="260509_130000",
+                    workspace="home",
+                    cancelled=True,
+                ),
+            ),
+            (
+                "* target | picked",
+                PromptEntry(
+                    text="picked prompt",
+                    branch_or_workspace="target",
+                    timestamp="260509_090000",
+                    last_used="260509_120000",
+                    workspace="home",
+                ),
+            ),
+        ],
+    )
+    app = _App()
+    app._last_custom_agent_selection = SelectionItem(
+        display_name="Target",
+        item_type="cl",
+        project_name="proj",
+        cl_name="target",
+    )
+
+    app._start_prompt_history_from_last_selection(edit_first=True)
+
+    assert app.editor_prompts == ["#gh:target picked prompt"]
+    assert app.finished_prompts == ["edited: #gh:target picked prompt"]
+    assert app.notifications == []
+    assert app._prompt_context is not None
+    assert app._prompt_context.history_sort_key == "target"
+
+
+def test_prompt_history_edit_first_notifies_when_no_non_cancelled_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
+    monkeypatch.setattr(
+        _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "
+    )
+    monkeypatch.setattr(
+        "sase.history.prompt.get_prompts_for_fzf",
+        lambda current_branch, current_workspace, include_cancelled: [
+            (
+                "x target | cancelled",
+                PromptEntry(
+                    text="#gh:old cancelled prompt",
+                    branch_or_workspace="target",
+                    timestamp="260509_100000",
+                    last_used="260509_130000",
+                    workspace="home",
+                    cancelled=True,
+                ),
+            )
+        ],
+    )
+    app = _App()
+    app._last_custom_agent_selection = SelectionItem(
+        display_name="Target",
+        item_type="cl",
+        project_name="proj",
+        cl_name="target",
+    )
+
+    app._start_prompt_history_from_last_selection(edit_first=True)
+
+    assert app.editor_prompts == []
+    assert app.finished_prompts == []
+    assert app.notifications == [("No prompt history entry to edit", "warning")]
+    assert app._prompt_context is None
 
 
 def _patch_save_recorder(monkeypatch: pytest.MonkeyPatch) -> list[SelectionItem]:

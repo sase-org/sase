@@ -108,7 +108,7 @@ class EntryPointsMixin:
         self._start_custom_agent_from_selection(last)
 
     def _start_prompt_history_from_last_selection(
-        self, *, show_cancelled: bool = False
+        self, *, show_cancelled: bool = False, edit_first: bool = False
     ) -> None:
         """Show prompt history modal for the last agent selection (bound to ,.)."""
         from pathlib import Path
@@ -163,6 +163,27 @@ class EntryPointsMixin:
                 return replace_vcs_workflow_tags(prompt_text, vcs_prefix)
             return prompt_text
 
+        def _edit_prompt(prompt_text: str) -> None:
+            prompt_for_editor = _build_prompt(prompt_text)
+            edited_prompt = self._open_editor_for_agent_prompt(prompt_for_editor)  # type: ignore[attr-defined]
+            if edited_prompt:
+                self._finish_agent_launch(edited_prompt)  # type: ignore[attr-defined]
+            else:
+                self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
+                self._prompt_context = None
+
+        if edit_first:
+            prompt_text = self._first_prompt_history_entry_for_editor(
+                sort_by=name,
+                workspace=self._prompt_context.project_name,
+            )
+            if prompt_text is None:
+                self.notify("No prompt history entry to edit", severity="warning")  # type: ignore[attr-defined]
+                self._prompt_context = None
+                return
+            _edit_prompt(prompt_text)
+            return
+
         def on_history_select(result: PromptHistoryResult | None) -> None:
             if result is None:
                 self._prompt_context = None
@@ -178,14 +199,7 @@ class EntryPointsMixin:
                     history_sort_key=name,
                 )
             else:
-                # Edit in external editor
-                prompt_for_editor = _build_prompt(result.prompt_text)
-                edited_prompt = self._open_editor_for_agent_prompt(prompt_for_editor)  # type: ignore[attr-defined]
-                if edited_prompt:
-                    self._finish_agent_launch(edited_prompt)  # type: ignore[attr-defined]
-                else:
-                    self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
-                    self._prompt_context = None
+                _edit_prompt(result.prompt_text)
 
         self.push_screen(  # type: ignore[attr-defined]
             PromptHistoryModal(
@@ -195,6 +209,25 @@ class EntryPointsMixin:
             ),
             on_history_select,
         )
+
+    def _first_prompt_history_entry_for_editor(
+        self,
+        *,
+        sort_by: str,
+        workspace: str,
+    ) -> str | None:
+        """Return the default prompt-history entry highlighted by the modal."""
+        from sase.history.prompt import get_prompts_for_fzf
+
+        items = get_prompts_for_fzf(
+            current_branch=sort_by,
+            current_workspace=workspace,
+            include_cancelled=True,
+        )
+        for _display, entry in items:
+            if not entry.cancelled:
+                return entry.text
+        return None
 
     def _start_agent_from_changespec_quick(self) -> None:
         """Start agent from current ChangeSpec without CL name modal.

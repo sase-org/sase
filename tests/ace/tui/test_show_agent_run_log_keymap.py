@@ -34,6 +34,7 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self.toggle_panel_grouping_count = 0
         self.jump_unread_count = 0
         self.jump_unread_result = True
+        self.prompt_history_calls: list[dict[str, bool]] = []
 
     def push_screen(self, modal: Any, callback: Any = None) -> None:
         del callback
@@ -51,6 +52,16 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
     def _jump_to_next_unread_done_agent(self) -> bool:
         self.jump_unread_count += 1
         return self.jump_unread_result
+
+    def _start_prompt_history_from_last_selection(
+        self,
+        *,
+        show_cancelled: bool = False,
+        edit_first: bool = False,
+    ) -> None:
+        self.prompt_history_calls.append(
+            {"show_cancelled": show_cancelled, "edit_first": edit_first}
+        )
 
 
 def _make_cs(name: str) -> MagicMock:
@@ -164,6 +175,17 @@ def test_leader_j_noops_on_non_agents_tabs() -> None:
     assert handled is True
     assert app.jump_unread_count == 0
     assert app.notifications == []
+    assert app.refresh_count == 1
+
+
+def test_leader_ctrl_g_edits_first_prompt_history_entry() -> None:
+    app = _FakeApp()
+
+    handled = app._handle_leader_key("ctrl+g")
+
+    assert handled is True
+    assert app._leader_mode_active is False
+    assert app.prompt_history_calls == [{"show_cancelled": False, "edit_first": True}]
     assert app.refresh_count == 1
 
 

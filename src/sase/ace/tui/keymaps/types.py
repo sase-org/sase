@@ -398,6 +398,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "clear_comments": "c",
             "task_queue": "t",
             "prompt_history": "full_stop",
+            "prompt_history_edit_first": "ctrl+g",
             "prompt_history_cancelled": "greater_than_sign",
             "agent_run_log": "A",
             "temporary_llm_override": "P",

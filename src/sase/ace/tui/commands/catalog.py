@@ -339,6 +339,7 @@ _LEADER_LABELS: dict[str, str] = {
     "clear_comments": "Clear CL comments",
     "task_queue": "Task queue",
     "prompt_history": "Prompt history",
+    "prompt_history_edit_first": "Edit first prompt history entry",
     "prompt_history_cancelled": "Prompt history (cancelled)",
     "agent_run_log": "Agent run log",
     "jump_to_notification": "Jump to notification",
