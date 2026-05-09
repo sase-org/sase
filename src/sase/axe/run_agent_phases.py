@@ -105,7 +105,9 @@ def extract_directives_and_write_meta(
 
     repeat_name = os.environ.get("SASE_REPEAT_NAME")
     planned_name = os.environ.get("SASE_AGENT_PLANNED_NAME")
-    name_requires_lock = bool(resume_name)
+    name_requires_lock = bool(
+        agent_name or repeat_name or resume_name or not auto_dismiss
+    )
 
     from contextlib import AbstractContextManager, nullcontext
 

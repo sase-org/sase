@@ -1,9 +1,13 @@
 """Tests for extract_directives_and_write_meta auto-dismiss behavior."""
 
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
+import time
 from unittest.mock import MagicMock, patch
+
+from sase.agent.names import NameCollisionError
 
 
 def _mock_provider() -> MagicMock:
@@ -236,3 +240,121 @@ def test_epic_directive_writes_plan_auto_action(tmp_path: Path) -> None:
     assert result["meta"]["plan"] is True
     assert result["meta"]["auto_approve_plan_action"] == "epic"
     assert "approve" not in result["meta"]
+
+
+def test_concurrent_auto_extract_assigns_unique_names(tmp_path: Path) -> None:
+    from sase.agent.names import get_next_auto_name as real_get_next_auto_name
+    from sase.axe.run_agent_phases import extract_directives_and_write_meta
+
+    def slow_get_next_auto_name() -> str:
+        name = real_get_next_auto_name()
+        time.sleep(0.05)
+        return name
+
+    def run(index: int) -> str:
+        workspace = tmp_path / f"workspace{index}"
+        artifacts = (
+            tmp_path
+            / ".sase"
+            / "projects"
+            / "proj"
+            / "artifacts"
+            / "ace-run"
+            / f"run{index}"
+        )
+        workspace.mkdir(parents=True)
+        artifacts.mkdir(parents=True)
+        info = extract_directives_and_write_meta(
+            "do stuff",
+            str(workspace),
+            str(artifacts),
+            cl_name="feature-branch",
+        )
+        return str(info.name)
+
+    for key in (
+        "SASE_AGENT_AUTO_DISMISS",
+        "SASE_AGENT_PLANNED_NAME",
+        "SASE_REPEAT_NAME",
+    ):
+        os.environ.pop(key, None)
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch(
+            "sase.agent.names.get_next_auto_name",
+            side_effect=slow_get_next_auto_name,
+        ),
+        patch("sase.xprompt.process_xprompt_references", side_effect=lambda p, **kw: p),
+        patch(
+            "sase.llm_provider.registry.get_default_provider_name",
+            return_value="test",
+        ),
+        patch("sase.llm_provider.registry.get_provider", return_value=_mock_provider()),
+        patch(
+            "sase.llm_provider.registry.resolve_model_provider",
+            return_value=("test", "test-model"),
+        ),
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+        ThreadPoolExecutor(max_workers=2) as pool,
+    ):
+        names = list(pool.map(run, range(2)))
+
+    assert sorted(names) == ["a", "b"]
+
+
+def test_concurrent_explicit_extract_rejects_collision(tmp_path: Path) -> None:
+    from sase.axe.run_agent_phases import extract_directives_and_write_meta
+
+    def run(index: int) -> tuple[str, str]:
+        workspace = tmp_path / f"workspace{index}"
+        artifacts = (
+            tmp_path
+            / ".sase"
+            / "projects"
+            / "proj"
+            / "artifacts"
+            / "ace-run"
+            / f"run{index}"
+        )
+        workspace.mkdir(parents=True)
+        artifacts.mkdir(parents=True)
+        try:
+            info = extract_directives_and_write_meta(
+                "%name:dupe do stuff",
+                str(workspace),
+                str(artifacts),
+                cl_name="feature-branch",
+            )
+        except NameCollisionError as exc:
+            return "error", str(exc)
+        return "ok", str(info.name)
+
+    for key in (
+        "SASE_AGENT_AUTO_DISMISS",
+        "SASE_AGENT_PLANNED_NAME",
+        "SASE_REPEAT_NAME",
+    ):
+        os.environ.pop(key, None)
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch("sase.xprompt.process_xprompt_references", side_effect=lambda p, **kw: p),
+        patch(
+            "sase.llm_provider.registry.get_default_provider_name",
+            return_value="test",
+        ),
+        patch("sase.llm_provider.registry.get_provider", return_value=_mock_provider()),
+        patch(
+            "sase.llm_provider.registry.resolve_model_provider",
+            return_value=("test", "test-model"),
+        ),
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+        ThreadPoolExecutor(max_workers=2) as pool,
+    ):
+        results = list(pool.map(run, range(2)))
+
+    statuses = [status for status, _ in results]
+    assert statuses.count("ok") == 1
+    assert statuses.count("error") == 1
+    assert any("dupe1" in detail for status, detail in results if status == "error")

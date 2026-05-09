@@ -21,17 +21,20 @@ def claim_agent_name(
     free new name before claiming; this function no longer strips or rewrites
     prior artifact metadata on their behalf.
     """
-    if explicit and not force_reuse:
-        _reject_explicit_collision(name, claiming_dir)
-    try:
-        claim_registered_name(
-            name,
-            claiming_dir,
-            replace_existing=force_reuse or not explicit,
-        )
-    except NameCollisionError:
-        if explicit:
-            raise
+    from sase.agent.names._resume import agent_name_allocation_lock
+
+    with agent_name_allocation_lock():
+        if explicit and not force_reuse:
+            _reject_explicit_collision(name, claiming_dir)
+        try:
+            claim_registered_name(
+                name,
+                claiming_dir,
+                replace_existing=force_reuse or not explicit,
+            )
+        except NameCollisionError:
+            if explicit:
+                raise
 
 
 def _reject_explicit_collision(name: str, claiming_dir: str) -> None:

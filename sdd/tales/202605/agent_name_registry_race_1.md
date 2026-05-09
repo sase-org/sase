@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 00:17:20
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_name_registry_race_1.md
 ---
 # Agent Name Registry Race Plan

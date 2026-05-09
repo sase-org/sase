@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 import json
 import os
 import tempfile
@@ -66,33 +67,37 @@ def claim_registered_name(
     name: str, claiming_dir: str | Path, *, replace_existing: bool = False
 ) -> None:
     """Best-effort upsert of a claimed name into the registry."""
-    artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
-    entries = load_name_registry()["entries"]
-    existing = entries.get(name)
-    if isinstance(existing, dict) and not replace_existing:
-        existing_dir = existing.get("artifacts_dir")
-        if isinstance(existing_dir, str) and existing_dir:
-            existing_path = Path(existing_dir).expanduser().resolve(strict=False)
-            if existing_path != artifact_dir:
-                from sase.agent.names._common import NameCollisionError
+    with _registry_mutation_lock():
+        artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
+        entries = load_name_registry()["entries"]
+        existing = entries.get(name)
+        if isinstance(existing, dict) and not replace_existing:
+            existing_dir = existing.get("artifacts_dir")
+            if isinstance(existing_dir, str) and existing_dir:
+                existing_path = Path(existing_dir).expanduser().resolve(strict=False)
+                if existing_path != artifact_dir:
+                    from sase.agent.names._common import NameCollisionError
 
-                suggestion = lowest_name_suggestion(name)
-                raise NameCollisionError(
-                    f"agent name '{name}' is already taken; try '{suggestion}'"
-                )
-    entry = _owner_from_artifact_name(artifact_dir, name, reservation_kind="claimed")
-    entries[name] = entry
-    _save_entries(entries)
+                    suggestion = lowest_name_suggestion(name)
+                    raise NameCollisionError(
+                        f"agent name '{name}' is already taken; try '{suggestion}'"
+                    )
+        entry = _owner_from_artifact_name(
+            artifact_dir, name, reservation_kind="claimed"
+        )
+        entries[name] = entry
+        _save_entries(entries)
 
 
 def delete_registered_name(name: str) -> None:
     """Remove *name* from the registry."""
-    entries = load_name_registry()["entries"]
-    if name not in entries:
-        return
-    entries = dict(entries)
-    entries.pop(name, None)
-    _save_entries(entries)
+    with _registry_mutation_lock():
+        entries = load_name_registry()["entries"]
+        if name not in entries:
+            return
+        entries = dict(entries)
+        entries.pop(name, None)
+        _save_entries(entries)
 
 
 def load_name_registry() -> dict[str, Any]:
@@ -112,13 +117,20 @@ def load_name_registry() -> dict[str, Any]:
 
 def rebuild_name_registry() -> dict[str, Any]:
     """Rebuild the registry by scanning existing artifacts and dismissed bundles."""
-    entries: dict[str, dict[str, Any]] = {}
-    _collect_artifact_entries(entries)
-    _collect_dismissed_bundle_entries(entries)
-    data = _registry_data(entries)
-    _write_registry(_registry_path(), data)
-    _set_cache(_registry_path(), data)
-    return data
+    with _registry_mutation_lock():
+        entries: dict[str, dict[str, Any]] = {}
+        _collect_artifact_entries(entries)
+        _collect_dismissed_bundle_entries(entries)
+        data = _registry_data(entries)
+        _write_registry(_registry_path(), data)
+        _set_cache(_registry_path(), data)
+        return data
+
+
+def _registry_mutation_lock() -> AbstractContextManager[None]:
+    from sase.agent.names._resume import agent_name_allocation_lock
+
+    return agent_name_allocation_lock()
 
 
 def _cached_registry(path: Path) -> dict[str, Any] | None:
@@ -184,10 +196,11 @@ def _write_registry(path: Path, data: dict[str, Any]) -> None:
 
 
 def _save_entries(entries: dict[str, Any]) -> None:
-    data = _registry_data(entries)
-    path = _registry_path()
-    _write_registry(path, data)
-    _set_cache(path, data)
+    with _registry_mutation_lock():
+        data = _registry_data(entries)
+        path = _registry_path()
+        _write_registry(path, data)
+        _set_cache(path, data)
 
 
 def _registry_data(entries: dict[str, Any]) -> dict[str, Any]:

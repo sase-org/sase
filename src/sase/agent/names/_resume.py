@@ -7,6 +7,7 @@ from contextlib import contextmanager
 import fcntl
 from pathlib import Path
 import re
+import threading
 
 from sase.xprompt._disabled_regions import protect_disabled_regions
 from sase.xprompt._fenced_blocks import protect_fenced_blocks
@@ -24,18 +25,33 @@ _RESUME_REF_RE = re.compile(
     r")"
 )
 
+_PROCESS_NAME_LOCK = threading.RLock()
+_LOCK_STATE = threading.local()
+
 
 @contextmanager
 def agent_name_allocation_lock() -> Iterator[None]:
     """Serialize scan-and-claim flows for derived agent names."""
-    lock_path = Path.home() / ".sase" / "agent_name_allocation.lock"
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(lock_path, "a+", encoding="utf-8") as lock_file:
-        fcntl.flock(lock_file, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(lock_file, fcntl.LOCK_UN)
+    with _PROCESS_NAME_LOCK:
+        depth = getattr(_LOCK_STATE, "depth", 0)
+        if depth > 0:
+            _LOCK_STATE.depth = depth + 1
+            try:
+                yield
+            finally:
+                _LOCK_STATE.depth = depth
+            return
+
+        lock_path = Path.home() / ".sase" / "agent_name_allocation.lock"
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(lock_path, "a+", encoding="utf-8") as lock_file:
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+            _LOCK_STATE.depth = 1
+            try:
+                yield
+            finally:
+                _LOCK_STATE.depth = 0
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 
 def first_resume_agent_name(prompt: str | None) -> str | None:

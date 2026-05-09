@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import json
 import shutil
+import time
 from pathlib import Path
 from unittest.mock import patch
 
 from sase.agent.names import (
+    claim_registered_name,
     delete_registered_name,
     get_reserved_agent_names,
     load_name_registry,
@@ -142,3 +145,32 @@ def test_registry_write_uses_unique_temp_file_for_nested_writer(tmp_path: Path) 
         _registry._write_registry(path, outer_data)
 
     assert json.loads(path.read_text(encoding="utf-8")) == outer_data
+
+
+def test_concurrent_claim_registered_name_preserves_all_claims(
+    tmp_path: Path,
+) -> None:
+    artifacts_root = tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run"
+    for i in range(12):
+        (artifacts_root / f"run{i}").mkdir(parents=True)
+
+    real_load = _registry.load_name_registry
+
+    def slow_load() -> dict[str, object]:
+        data = real_load()
+        time.sleep(0.01)
+        return data
+
+    def claim(i: int) -> None:
+        claim_registered_name(f"name{i}", artifacts_root / f"run{i}")
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch.object(_registry, "load_name_registry", side_effect=slow_load),
+        ThreadPoolExecutor(max_workers=6) as pool,
+    ):
+        list(pool.map(claim, range(12)))
+
+    path = tmp_path / ".sase" / "agent_name_registry.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert set(data["entries"]) == {f"name{i}" for i in range(12)}
