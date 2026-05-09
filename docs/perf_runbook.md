@@ -1,12 +1,14 @@
 # `sase ace` Performance Runbook
 
-Phase 1 deliverable for the TUI performance overhaul (bead `sase-w.1`, `sdd/epics/202604/tui_perf_overhaul_1.md`). Each
-later phase relies on the tracing + benchmark harness described here.
+This runbook explains how to capture and compare performance data for ACE, the `sase ace` terminal user interface. It
+started as the Phase 1 deliverable for the TUI performance overhaul (bead `sase-w.1`,
+`sdd/epics/202604/tui_perf_overhaul_1.md`), and later performance phases still rely on the tracing and benchmark harness
+described here.
 
 ## Trace recorder
 
-`SASE_TUI_TRACE=1` enables `tui_trace(...)` context managers spread across the ChangeSpec / agents / AXE hot paths. Each
-entered span emits one JSONL line to:
+`SASE_TUI_TRACE=1` enables `tui_trace(...)` context managers spread across the ChangeSpec, agents, and AXE hot paths.
+Each entered span emits one JSONL line to:
 
 ```text
 ~/.sase/perf/tui_trace.jsonl
@@ -27,26 +29,40 @@ current_tab   "changespecs" | "agents" | "axe" | null
 …plus any per-call counters (`count`, `agents`, `panels`, `output_bytes`, …) and any global context fields seeded via
 `sase.ace.tui.util.trace.set_trace_context(...)` (the app pushes `current_tab` and `current_idx` automatically).
 
-Spans currently wired (by file):
+Point-in-time records emitted by `trace_event(...)` contain `event` instead of `span`/`duration_ms`. They are used for
+selection and highlight watcher transitions where there is no timed block to measure.
 
-- `actions/changespec/_display.py` — `changespec.refresh_display`, `changespec.refresh_debounced`
+Timed spans currently wired (by file):
+
+- `actions/changespec/_display.py` — `changespec.refresh_display`, `changespec.refresh_debounced`,
+  `changespec.refresh_detail_only`
 - `actions/changespec/_loading.py` — `changespec.filter`
-- `actions/agents/_display.py` — `agents.refresh_display`, `agents.refresh_debounced`, `agents.refresh_panel_widgets`,
-  `agents.refresh_panel_highlights`
+- `actions/agents/_display.py` — `agents.refresh_display`, `agents.refresh_debounced`
+- `actions/agents/_display_panels.py` — `agents.refresh_panel_widgets`, `agents.refresh_panel_highlights`
 - `actions/agents/_loading_helpers.py` — `agents.load_from_disk`
-- `widgets/changespec_list.py` — `widget.changespec_list.update_list`, `widget.changespec_list.update_highlight`
+- `widgets/changespec_list.py` — `widget.changespec_list.update_list`, `widget.changespec_list.update_highlight`,
+  `widget.changespec_list.patch_changespec_row`
 - `widgets/changespec_detail.py` — `widget.changespec_detail.update_display`
 - `widgets/agent_list.py` — `widget.agent_list.update_list`, `widget.agent_list.update_highlight`,
-  `widget.agent_list.patch_agent_row`
-- `widgets/agent_detail.py` — `widget.agent_detail.update_display`
-- `widgets/ancestors_children_panel.py` — `widget.ancestors_children.update_relationships`
-- `widgets/prompt_panel/_agent_display.py` — `widget.prompt_panel.update_display`
+  `widget.agent_list.patch_agent_row`, `widget.agent_list.try_remove_rows`
+- `widgets/agent_detail.py` — `widget.agent_detail.update_display`, `widget.agent_detail.update_display_immediate`
+- `widgets/ancestors_children_panel.py` — `widget.ancestors_children.update_relationships`,
+  `widget.ancestors_children.update_relationships_from_index`
+- `widgets/prompt_panel/_agent_display.py` — `widget.prompt_panel.update_display`,
+  `widget.prompt_panel.update_header_only`
 - `widgets/file_panel/__init__.py` — `widget.file_panel.update_display`
 - `widgets/thinking_panel.py` — `widget.thinking_panel.update_display`
 - `widgets/axe_dashboard.py` — `widget.axe_dashboard.update_display`
 
 Spans nest cleanly: a single keypress that fires `agents.refresh_debounced` will record one outer span plus inner
 `widget.agent_list.update_highlight` and `agents.refresh_panel_highlights` spans.
+
+Trace events currently wired include:
+
+- `selection.current_idx.set`
+- `widget.changespec_list.watch_highlighted` and `.suppressed`
+- `widget.agent_list.watch_highlighted` and `.suppressed`
+- `widget.bgcmd_list.watch_highlighted` and `.suppressed`
 
 ## Quick capture
 
@@ -61,11 +77,26 @@ jq -c 'select(.span | startswith("widget.agent_list."))' \
    ~/.sase/perf/tui_trace.jsonl | head -20
 ```
 
+To inspect point events instead of timed spans:
+
+```bash
+jq -c 'select(.event)' ~/.sase/perf/tui_trace.jsonl | head -20
+```
+
+For key-to-paint timing during j/k navigation, also enable the separate perf recorder:
+
+```bash
+SASE_TUI_TRACE=1 SASE_TUI_PERF=1 sase ace
+jq -c . ~/.sase/perf/tui_jk.jsonl | head -20
+```
+
+Override the key-to-paint path with `SASE_TUI_PERF_PATH=/tmp/tui_jk.jsonl`.
+
 ## Synthetic-data benchmark harness
 
-The harness lives at `tests/perf/bench_tui_trace.py`. It generates in-memory ChangeSpec / agent fixtures and drives the
-TUI through Pilot without touching real `~/.sase` data. Marked `pytest.mark.slow` so it does not run as part of
-`just test`.
+The harness lives at `tests/perf/bench_tui_trace.py`. It generates in-memory ChangeSpec and agent fixtures, then drives
+the TUI through Textual Pilot without touching real `~/.sase` data. It is marked `pytest.mark.slow`, so it does not run
+as part of `just test`.
 
 Run via pytest:
 
@@ -77,6 +108,15 @@ Or as a script (writes a baseline numbers file the next phase can diff):
 
 ```bash
 python -m tests.perf.bench_tui_trace --output ~/.sase/perf/tui_perf_baseline.json
+```
+
+The script also accepts explicit trace and key-to-paint output paths:
+
+```bash
+python -m tests.perf.bench_tui_trace \
+  --output ~/.sase/perf/tui_perf_baseline.json \
+  --trace-path ~/.sase/perf/tui_trace.jsonl \
+  --perf-path ~/.sase/perf/tui_jk.jsonl
 ```
 
 Fixture sizes:
@@ -91,12 +131,13 @@ Scenarios per fixture size:
 
 - cold start
 - query change
+- repeated query edits
 - 50-key j/k burst
 - auto-refresh with no changes
 - large-reply select
 
-The per-scenario summary aggregates p50 / p95 / max for every span and key-to-paint action observed during that
-scenario.
+The per-scenario summary records wall-clock times, then aggregates p50 / p95 / max for every trace span and key-to-paint
+action observed during that scenario.
 
 ## Targets per phase gate
 
