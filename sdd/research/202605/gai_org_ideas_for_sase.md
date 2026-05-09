@@ -102,6 +102,118 @@ These are not final recommendations, but they have enough evidence for ranking i
 - This phase intentionally sampled low-signal P3 dated logs rather than reading every one-line daily hit. The final
   synthesis should weight repeated multi-day clusters higher than isolated pomodoro notes.
 
+## Phase 3 Synthesis and Ranking
+
+Generated for bead `sase-2h.3` on 2026-05-09. This section converts the Phase 2 handoff into a ranked product synthesis
+for the final research note.
+
+### Ranking Method
+
+Each candidate was scored qualitatively across five dimensions:
+
+- Product value for current SASE.
+- Evidence strength in the `~/org` corpus.
+- Implementation leverage from existing SASE architecture.
+- Risk and complexity.
+- Current status: implemented, partially implemented, obsolete, or still missing.
+
+The strongest candidates are not the broadest old GAI ideas. They are the ideas with repeated evidence, visible current
+pain, and an obvious place to attach inside SASE without redesigning the whole system.
+
+### Ranked Recommendations
+
+| Rank | Recommendation | Value | Evidence | Leverage | Risk | Current status |
+| ---: | --- | --- | --- | --- | --- | --- |
+| 1 | Make hooks, mentors, and agent execution durable and inspectable. Persist run records, command/output paths, state transitions, de-dupe keys, zombie handling, and evidence-oriented mentor results. | High | High | High | Medium | Partially implemented |
+| 2 | Harden ChangeSpec, bead, and VCS lifecycle invariants. Add transition/property tests, explicit accept/revert/draft preconditions, hook-output retention checks, and parent/child ordering coverage. | High | High | High | Medium | Partially implemented |
+| 3 | Add typed workflow artifacts and output contracts. Treat workflow step outputs, blackboards, HITL stops, and agent handoff files as first-class structured artifacts. | High | High | Medium | Medium-high | Partially implemented |
+| 4 | Improve ACE agent and workflow observability. Prioritize complete run ledgers, raw/rendered prompt display, embedded workflow-step rendering, DONE-agent file panels, jump-to-ChangeSpec, and revive/replay. | High | High | Medium-high | Medium | Partially implemented |
+| 5 | Productize bounded test-failure automation. Use durable failure summaries, retry context, blackboard/artifact handoffs, reduced-failure comparisons, and explicit human stop points. | Medium-high | High | Medium | Medium | Partially implemented |
+| 6 | Polish proposal-first review flows. Focus on dry-run mutation previews, proposal hook isolation, artifact-backed accept/reject choices, and stale-runner cleanup. | Medium-high | Medium-high | Medium | Medium | Partially implemented |
+| 7 | Re-evaluate Jinja/named xprompt arguments as a narrow implementation slice. Compare the old plan against current xprompt support before opening work. | Medium | Medium-high | High | Low-medium | Needs gap check |
+| 8 | Keep memory/context work focused on curation and retrieval. Improve short/dynamic/long memory hygiene and source loading rather than pushing more org content into every prompt. | Medium | Medium | High | Low-medium | Partially implemented |
+
+### Why The Top Items Win
+
+1. **Durable execution state is the highest-leverage theme.** Old GAI notes repeatedly return to hook output, background
+   runners, proposal hooks, zombie processes, mentor/reviewer agents, and state display. Current SASE already has AXE,
+   hooks, mentors, notifications, artifacts, and agent scan/load paths, so this is not a greenfield product. The missing
+   product shape is reliability: every background action should leave a queryable record with a stable identity, command,
+   output location, current state, and final evidence. Primary evidence: `/home/bryan/org/prompts/gai_monitor.md`,
+   `/home/bryan/org/prompts/gai_mentors.md`, `/home/bryan/org/prompts/gai_loop.md`,
+   `/home/bryan/org/2026/20260101_done.zo`, and `/home/bryan/org/2026/20260120_done.zo`.
+
+2. **Lifecycle hardening beats another lifecycle rewrite.** The corpus contains many old requests for status
+   simplification, WIP/Draft behavior, reverted visibility, hook retention after renames, accept/revert safety, and
+   parent/child status behavior. SASE now has beads, ChangeSpecs, a status state machine, commit workflows, and a Rust
+   core boundary. The best next work is invariant coverage and precondition clarity, not new status vocabulary. Primary
+   evidence: `/home/bryan/org/now_gai.zo`, `/home/bryan/org/gai_ideas.zo`,
+   `/home/bryan/org/prompts/gai_reverted.md`, `/home/bryan/org/2025/20251221_done.zo`,
+   `/home/bryan/org/2026/20260117_done.zo`, and `/home/bryan/org/2026/20260120_done.zo`.
+
+3. **Typed workflow artifacts are the clean bridge between old blackboards and current SASE artifacts.** The old
+   workflow notes ask for output schemas, downstream step arguments, blackboard files, file-based stop signals, and
+   planner/editor/researcher handoffs. SASE already has xprompt YAML workflows and explicit artifacts, so the product
+   opportunity is to make those contracts visible and validated instead of implicit markdown conventions. Primary
+   evidence: `/home/bryan/org/prompts/gai_xpl.md`, `/home/bryan/org/prompts/gai_output_types.md`,
+   `/home/bryan/org/chat/gai_fix_tests_prompt.md`, and `/home/bryan/org/prompts/gai_super_fix_tests.md`.
+
+4. **ACE observability is a repeated debugging multiplier.** The corpus consistently values being able to inspect what
+   ran, why it ran, what prompt it saw, what files it touched, and how to revive or replay it. This should be framed as
+   operational visibility, not visual polish. Primary evidence: `/home/bryan/org/now_gai.zo`,
+   `/home/bryan/org/text/gai_expand_agent_bug.txt`, `/home/bryan/org/text/gai_hidden_bug_snapshot.txt`, and
+   `/home/bryan/org/2026/20260117_done.zo`.
+
+5. **Test automation should be bounded and evidence-driven.** The old `fix-tests` design is useful because it does not
+   just say "retry tests"; it specifies durable blackboards, a planner loop, editor/research separation, comparison of
+   failure output, and explicit stop conditions. This maps well to SASE workflows and artifacts, but it should be scoped
+   to failure triage and retry context rather than a general autonomous repair loop. Primary evidence:
+   `/home/bryan/org/chat/gai_fix_tests_prompt.md`, `/home/bryan/org/prompts/gai_super_fix_tests.md`,
+   `/home/bryan/org/prompts/gai_test_cmd.md`, `/home/bryan/org/now_gai.zo`, and
+   `/home/bryan/org/2026/20260120_done.zo`.
+
+### Concrete Next Implementation Candidates
+
+1. **Execution ledger for AXE and hooks.** Add a persisted record per hook/mentor/background run with run id, owner
+   ChangeSpec or bead, workspace, command, output path, start/end time, status, and de-dupe key. Then update ACE and CLI
+   status surfaces to read from that ledger.
+
+2. **Lifecycle invariant test pack.** Add focused tests around ChangeSpec status transitions, accept/reject/revert
+   preconditions, hook-output path retention after rename, bulk parent/child status ordering, and bead dependency wave
+   behavior.
+
+3. **Typed artifact contract for xprompt steps.** Define a small schema for workflow-produced files: artifact kind,
+   producer step, intended consumer step, status, and summary. Start with test-failure and research-synthesis workflows
+   rather than every xprompt.
+
+4. **ACE run evidence view.** Make each selected agent/workflow entry expose raw prompt, rendered prompt, linked
+   artifacts, touched files where known, and jump targets. This is a better product unit than another broad agent-list
+   restyle.
+
+5. **Bounded `fix-tests` workflow refresh.** Revisit the old blackboard design as a SASE artifact workflow: planner
+   chooses editor, researcher, or stop; retries preserve summaries; comparisons report whether failures changed; and
+   blind looping is treated as a bug.
+
+### Ideas Not Recommended Now
+
+- **A broad multi-agent orchestration rewrite.** The corpus supports multi-agent work when scopes are naturally
+  partitioned, but the evidence argues for explicit shared state through beads, ChangeSpecs, artifacts, and ledgers. It
+  does not justify a hidden shared-chat or supervisor abstraction.
+- **A full project file or ChangeSpec format migration.** There is historical evidence for YAML/project-spec cleanup,
+  but SASE has since accumulated core parsing, status-state, and workflow integrations. Stabilize invariants first.
+- **A large memory import from `~/org`.** The Claude/context references support curated memory and explicit source
+  loading. Dumping old GAI notes into every SASE prompt would make context less reliable.
+- **Generic "better test fixing."** Test work should be tied to durable failure evidence, bounded retry loops, and human
+  stop points; otherwise it repeats the old failure mode of autonomous loops with poor observability.
+- **One-off old UI/keymap requests.** Many old ACE ideas are now implemented, obsolete after the GAI-to-SASE migration,
+  or too small to rank. Keep them as source evidence only when they support the observability theme.
+
+### Final-Note Handoff
+
+The final polished note should keep only the top five recommendations, cite the strongest source paths inline, and move
+the inventory into a compact source index. The raw inventory below is useful audit material, but it should not dominate
+the final product/design research note.
+
 ### Complete Inventory
 
 | Priority | Category | Matches | Path |
