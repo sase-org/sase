@@ -5,18 +5,21 @@ environments. While the [VCS provider](vcs.md) handles low-level version control
 workspace provider handles higher-level concerns: workflow type detection, reference resolution (e.g., `#git:repo` or
 `#gh:org/repo`), change submission, mail preparation, and workspace directory management.
 
+A **workspace reference** is a prompt prefix such as `#cd:/tmp/project`, `#git:sase`, `#gh:sase`, or `#hg:mychange`. It
+tells SASE which project and workspace should be used before the rest of the prompt or workflow runs.
+
 ## Plugin Architecture
 
 Workspace providers are implemented as [pluggy](https://pluggy.readthedocs.io/) plugins, following the same pattern as
 VCS plugins. The core `sase` package bundles the **BareGitWorkspacePlugin** for local bare-remote git repositories.
-Additional backends are installed as separate packages:
+Additional backends must be installed in the same Python environment as `sase`:
 
 | Package       | Plugin                   | Description                                       |
 | ------------- | ------------------------ | ------------------------------------------------- |
 | `sase` (core) | `CdWorkspacePlugin`      | Local directory runs via `#cd:<path>` without VCS |
 | `sase` (core) | `BareGitWorkspacePlugin` | Bare-git repos (local filesystem remote)          |
 | `sase-github` | `GitHubWorkspacePlugin`  | GitHub-hosted repos (PR workflows via `gh` CLI)   |
-| `sase-google` | `HgWorkspacePlugin`      | Mercurial workspaces                              |
+| `sase-google` | `HgWorkspacePlugin`      | Mercurial workspaces via `#hg`                    |
 
 Plugins register themselves via the `sase_workspace` entry point group. The plugin manager loads all registered plugins
 and dispatches operations through pluggy hooks. Most hooks use `firstresult=True` — the first plugin that returns a
@@ -42,6 +45,9 @@ Each workspace plugin declares metadata about the workflow type it supports:
 | `vcs_family`               | string | VCS family (e.g., `"git"`, `"hg"`)                                     |
 | `vcs_provider_name`        | string | Specific VCS provider name (e.g., `"bare_git"`, `"github"`)            |
 
+Built-in metadata includes `SASE_CD` for `#cd` and `SASE_GIT` for `#git`. Plugin packages can add prefixes such as
+`SASE_GH` and `SASE_HG`.
+
 ### ResolvedRef
 
 Result of resolving a workspace reference:
@@ -53,6 +59,10 @@ Result of resolving a workspace reference:
 | `primary_workspace_dir` | string         | Path to the primary workspace directory |
 | `checkout_target`       | string         | Branch or revision to check out         |
 | `extra`                 | dict[str, str] | Additional plugin-specific data         |
+
+For clone-based git workflows, `primary_workspace_dir` is the primary checkout path and `get_workspace_directory()`
+derives numbered sibling workspaces from it. Some providers, such as the Mercurial plugin, can leave
+`primary_workspace_dir` empty and resolve numbered workspaces through their own helper command.
 
 ## Hook Reference
 
@@ -70,11 +80,11 @@ the registry to build a complete map of all available workflow types.
 
 ### Reference Resolution and Workflow Setup
 
-| Hook                         | Returns                 | Description                                       |
-| ---------------------------- | ----------------------- | ------------------------------------------------- |
-| `ws_resolve_ref`             | `ResolvedRef \| None`   | Resolve a `#type:ref` reference to workspace info |
-| `ws_setup_workflow`          | `dict[str,str] \| None` | Set up environment variables for a workflow run   |
-| `ws_get_workspace_directory` | `str \| None`           | Get or create a workspace directory for a clone   |
+| Hook                         | Returns                  | Description                                       |
+| ---------------------------- | ------------------------ | ------------------------------------------------- |
+| `ws_resolve_ref`             | `ResolvedRef \| None`    | Resolve a `#type:ref` reference to workspace info |
+| `ws_setup_workflow`          | `dict[str, str] \| None` | Set up environment variables for a workflow run   |
+| `ws_get_workspace_directory` | `str \| None`            | Get or create a workspace directory for a clone   |
 
 ### Change Submission and Review
 
@@ -98,33 +108,37 @@ the registry to build a complete map of all available workflow types.
 The workspace provider package (`sase.workspace_provider`) exports convenience functions that call through the plugin
 manager. These are the primary API for consumers:
 
-| Function                           | Description                                  |
-| ---------------------------------- | -------------------------------------------- |
-| `detect_workflow_type()`           | Detect workflow type for a project file      |
-| `get_change_label()`               | Get the change label for a project           |
-| `resolve_ref()`                    | Resolve a workspace reference                |
-| `submit_changespec()`              | Submit a ChangeSpec                          |
-| `get_workspace_directory()`        | Get a workspace directory for a clone number |
-| `prepare_mail()`                   | Prepare a change for review                  |
-| `format_commit_description()`      | Format a commit description                  |
-| `get_all_workflow_metadata()`      | Get metadata from all registered plugins     |
-| `get_workflow_names()`             | Get all registered workflow type names       |
-| `get_display_name()`               | Get display name for a workflow type         |
-| `get_display_name_by_vcs()`        | Get display name by VCS provider name        |
-| `get_display_name_by_vcs_family()` | Get display name by VCS family               |
-| `get_workspace_name()`             | Get workspace/project name for a directory   |
-| `get_ref_patterns()`               | Get all registered ref patterns              |
-| `get_pre_allocated_env_prefix()`   | Get env-var prefix for a workflow type       |
+| Function                           | Description                                |
+| ---------------------------------- | ------------------------------------------ |
+| `detect_workflow_type()`           | Detect workflow type for a project file    |
+| `get_change_label()`               | Get the change label for a project         |
+| `resolve_ref()`                    | Resolve a workspace reference              |
+| `submit_changespec()`              | Submit a ChangeSpec                        |
+| `get_workspace_directory()`        | Get the directory for a workspace number   |
+| `prepare_mail()`                   | Prepare a change for review                |
+| `format_commit_description()`      | Format a commit description                |
+| `get_all_workflow_metadata()`      | Get metadata from all registered plugins   |
+| `get_workflow_names()`             | Get all registered workflow type names     |
+| `get_display_name()`               | Get display name for a workflow type       |
+| `get_display_name_by_vcs()`        | Get display name by VCS provider name      |
+| `get_display_name_by_vcs_family()` | Get display name by VCS family             |
+| `get_workspace_name()`             | Get workspace/project name for a directory |
+| `get_ref_patterns()`               | Get all registered ref patterns            |
+| `get_pre_allocated_env_prefix()`   | Get env-var prefix for a workflow type     |
 
 ## Directory Workflow (`#cd`)
 
 The core package also registers `#cd:<path>` as a workspace workflow. It resolves a local directory, makes that
 directory the agent/workflow CWD, and deliberately skips numbered workspace allocation, checkout, diff, submit, and
-release behavior. Prompts without any workspace reference are normalized to `#git:home`; use `#cd:~` when you want the
-old direct home-directory behavior with no VCS workspace management.
+release behavior. `#cd` is the right choice for one-off work in an existing directory when SASE should not prepare or
+release a VCS workspace.
+
+Prompts without any workspace reference are normalized to `#git:home`; use `#cd:~` when you want a direct home-directory
+run with no VCS workspace management.
 
 Supported examples include `#cd:~`, `#cd:/tmp/project`, `#cd:../sibling`, and `#cd(.)`. The target must already exist
-and must be a directory.
+and must be a directory. `~` and environment variables are expanded, and relative paths are resolved from the launching
+process's current directory. Prefer the parenthesized form for paths with spaces, for example `#cd(/tmp/my project)`.
 
 ## Bare-Git Reference Auto-Initialization
 
@@ -145,6 +159,9 @@ with `sase init-git home --existing <bare-repo> --clone-dir <checkout-dir>` so i
 repository. If the `home` ProjectSpec is missing or lacks `BARE_REPO_DIR` / `WORKSPACE_DIR`, launches fail with a setup
 message. Add `#cd:~` to a prompt for a one-off direct home-directory run without VCS.
 
+The `sase init-git` command also supports `--bare-dir` and `--clone-dir` for new bare-git projects. Its defaults are
+`~/.sase/repos/<name>.git` for the bare repo and `~/projects/git/<name>/` for the primary clone.
+
 ## Known-Project VCS Fallback
 
 SASE also recognizes provider-prefixed VCS refs that target registered project names even when the corresponding
@@ -156,10 +173,11 @@ references.
 Non-wait launches allocate the next available numbered workspace for the project and set the VCS update target to the
 provider default revision. When registered workspace metadata provides an env prefix, SASE passes the matching
 `<PREFIX>_PRE_ALLOCATED`, `<PREFIX>_WORKSPACE_NUM`, and `<PREFIX>_WORKSPACE_DIR` values into the child process. Launches
-that start with a wait directive keep workspace number `0` until the dependency is ready, then resolve the real
-workspace during normal runner setup. Before applying the current launch context, SASE removes inherited
-`SASE_*_PRE_ALLOCATED`, `SASE_*_WORKSPACE_NUM`, and `SASE_*_WORKSPACE_DIR` variables so nested or follow-up launches do
-not accidentally reuse a stale parent workspace.
+that start with a wait directive keep workspace number `0` until the dependency is ready, then resolve a real workspace
+during normal runner setup. Directory runs such as `#cd` also use workspace number `0` because they do not reserve a
+numbered workspace. Before applying the current launch context, SASE removes inherited `SASE_*_PRE_ALLOCATED`,
+`SASE_*_WORKSPACE_NUM`, and `SASE_*_WORKSPACE_DIR` variables so nested or follow-up launches do not accidentally reuse a
+stale parent workspace.
 
 ## Relationship to VCS Provider
 
