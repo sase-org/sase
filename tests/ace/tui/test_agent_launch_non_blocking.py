@@ -28,7 +28,7 @@ import pytest
 
 from sase.ace.tui.actions.agent_workflow._agent_launch import AgentLaunchMixin
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
-from sase.workspace_provider._hookspec import WorkflowMetadata
+from sase.workspace_provider._hookspec import ResolvedRef, WorkflowMetadata
 
 
 class _FakeApp(AgentLaunchMixin):
@@ -164,6 +164,18 @@ def _cd_metadata() -> tuple[WorkflowMetadata, ...]:
             ref_pattern=r"(?:^|(?<=\s))#cd(?:[_:]([^\s()]+)|\(([^)]*)\))",
             display_name="Directory",
             pre_allocated_env_prefix="SASE_CD",
+        ),
+    )
+
+
+def _cd_git_metadata() -> tuple[WorkflowMetadata, ...]:
+    return (
+        *_cd_metadata(),
+        WorkflowMetadata(
+            workflow_type="git",
+            ref_pattern=r"(?:^|(?<=\s))#git(?:[_:]([a-zA-Z0-9_./-]+)|\(([^)]+)\))",
+            display_name="Git",
+            pre_allocated_env_prefix="SASE_GIT",
         ),
     )
 
@@ -371,11 +383,15 @@ def test_run_agent_launch_body_cd_keeps_home_mode_and_uses_target_dir(
     assert launch["vcs_ref"] == ("cd", str(tmp_path))
 
 
-def test_run_agent_launch_body_no_ref_defaults_home_mode_to_cd(
+def test_run_agent_launch_body_no_ref_defaults_home_mode_to_git_home(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     app = _LaunchBodyApp()
     app._prompt_context = _fake_context()
+    primary_workspace = tmp_path / "home"
+    allocated_workspace = tmp_path / "home_101"
+    project_file = str(tmp_path / "home.gp")
 
     from sase.ace.tui.actions.agent_workflow._ref_resolution import (
         resolve_ref_from_prompt,
@@ -389,7 +405,7 @@ def test_run_agent_launch_body_no_ref_defaults_home_mode_to_cd(
 
     import sase.workspace_provider._registry as registry
 
-    monkeypatch.setattr(registry, "get_all_workflow_metadata", _cd_metadata)
+    monkeypatch.setattr(registry, "get_all_workflow_metadata", _cd_git_metadata)
 
     with ExitStack() as stack:
         stack.enter_context(
@@ -409,18 +425,59 @@ def test_run_agent_launch_body_no_ref_defaults_home_mode_to_cd(
             patch("sase.history.file_references.record_file_references")
         )
         stack.enter_context(
+            patch(
+                "sase.workspace_provider.resolve_ref",
+                return_value=ResolvedRef(
+                    project_file=project_file,
+                    project_name="home",
+                    primary_workspace_dir=str(primary_workspace),
+                    checkout_target="main",
+                ),
+            )
+        )
+        first_ws = stack.enter_context(
+            patch(
+                "sase.running_field.get_first_available_axe_workspace",
+                return_value=101,
+            )
+        )
+        provider_ws_dir = stack.enter_context(
+            patch(
+                "sase.workspace_provider.get_workspace_directory",
+                return_value=str(allocated_workspace),
+            )
+        )
+        stack.enter_context(
+            patch(
+                "sase.ace.tui.modals.project_discovery.is_launchable_project",
+                return_value=True,
+            )
+        )
+        stack.enter_context(
+            patch("sase.history.vcs_xprompt_mru.record_vcs_xprompt_usage")
+        )
+        stack.enter_context(
             patch("sase.ace.last_agent_selection._save_last_agent_selection")
         )
         app._run_agent_launch_body("do work")
 
     assert len(app.launched) == 1
     launch = app.launched[0]
-    assert launch["prompt"] == "#cd:~ do work"
-    assert launch["workspace_dir"] == str(Path.home().resolve())
-    assert launch["workspace_num"] == 0
-    assert launch["is_home_mode"] is True
+    assert launch["prompt"] == "#git:home do work"
+    assert launch["project_name"] == "home"
+    assert launch["project_file"] == project_file
+    assert launch["workspace_dir"] == str(allocated_workspace)
+    assert launch["workspace_num"] == 101
+    assert launch["is_home_mode"] is False
     assert launch["update_target"] == ""
-    assert launch["vcs_ref"] == ("cd", "~")
+    assert launch["vcs_ref"] == ("git", "home")
+    first_ws.assert_called_once_with(project_file)
+    provider_ws_dir.assert_called_once_with(
+        "git",
+        101,
+        "home",
+        str(primary_workspace),
+    )
 
 
 def test_run_agent_launch_body_known_project_ref_without_provider_targets_project(

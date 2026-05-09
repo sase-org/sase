@@ -120,8 +120,8 @@ manager. These are the primary API for consumers:
 
 The core package also registers `#cd:<path>` as a workspace workflow. It resolves a local directory, makes that
 directory the agent/workflow CWD, and deliberately skips numbered workspace allocation, checkout, diff, submit, and
-release behavior. Prompts without any workspace reference are normalized to `#cd:~`, preserving the old "run from home
-without VCS" behavior through an explicit user-facing workflow tag.
+release behavior. Prompts without any workspace reference are normalized to `#git:home`; use `#cd:~` when you want the
+old direct home-directory behavior with no VCS workspace management.
 
 Supported examples include `#cd:~`, `#cd:/tmp/project`, `#cd:../sibling`, and `#cd(.)`. The target must already exist
 and must be a directory.
@@ -139,6 +139,11 @@ The bundled bare-git provider resolves `#git:<ref>` in four modes:
 
 The missing-project shorthand is intended for first use from an xprompt or prompt bar: `#git:new_tool #!workflow`
 creates the bare-git project on demand instead of requiring a separate `sase init-git new_tool` step.
+
+`#git:home` is special because it is the default for bare prompts. SASE does not auto-create it: configure it explicitly
+with `sase init-git home --existing <bare-repo> --clone-dir <checkout-dir>` so it points at your intended home/dotfiles
+repository. If the `home` ProjectSpec is missing or lacks `BARE_REPO_DIR` / `WORKSPACE_DIR`, launches fail with a setup
+message. Add `#cd:~` to a prompt for a one-off direct home-directory run without VCS.
 
 ## Known-Project VCS Fallback
 

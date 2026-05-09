@@ -272,9 +272,14 @@ runs before the rest of the prompt is executed.
 | `#gh:<ref>`  | Run in a GitHub workspace, when the GitHub plugin is installed                                          |
 | `#hg:<ref>`  | Run in a Mercurial workspace, when the Google plugin is installed                                       |
 
-Prompts that do not contain a workspace reference are normalized to `#cd:~`, so a bare prompt still runs from the home
-directory with no VCS workspace management. Use `#cd:/abs/path`, `#cd:relative/path`, `#cd:../sibling`, `#cd:~`, or
-`#cd(.)` to choose a directory explicitly.
+Prompts that do not contain a workspace reference are normalized to `#git:home`, so a bare prompt runs from the managed
+bare-git `home` project by default and gets normal numbered workspace, checkout, diff, and release behavior. Use
+`#cd:~`, `#cd:/abs/path`, `#cd:relative/path`, `#cd:../sibling`, or `#cd(.)` to choose a directory explicitly and skip
+VCS workspace management.
+
+Before relying on bare prompts, make sure the `home` bare-git project points at the intended repository, for example
+with `sase init-git home --existing <bare-repo> --clone-dir <checkout-dir>`. If `home` is missing or lacks
+`BARE_REPO_DIR` / `WORKSPACE_DIR`, SASE reports a setup error instead of creating an unrelated empty home project.
 
 Provider-prefixed refs that point at a known project name are preserved as workspace launches even if the matching
 workspace plugin is not loaded in the current process. Known projects come from `~/.sase/projects/*/*.gp`. A launch such

@@ -84,6 +84,8 @@ def resolve_ref_from_prompt(
     except (ValueError, RuntimeError):
         if is_non_workspace_workflow(workflow_type):
             raise
+        if workflow_type == "git" and ref == "home":
+            raise
         return None
 
     return (

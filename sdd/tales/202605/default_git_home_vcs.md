@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 13:30:24
-status: wip
+status: done
 prompt: sdd/prompts/202605/default_git_home_vcs.md
 ---
 # Plan: Default Bare Prompts To `#git:home`

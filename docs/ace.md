@@ -194,7 +194,7 @@ The modal supports live filtering as you type in the search box and displays las
 | ---------- | --------------------------------------------------------------------------------------------- |
 | `,!`       | Run command using current CL context                                                          |
 | `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)                                |
-| `,h`       | Run agent with the default `#cd:~` directory context                                          |
+| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                       |
 | `,m`       | Review mentors (opens Mentor Review modal)                                                    |
 | `,M`       | Kill running mentors                                                                          |
 | `,P`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
@@ -531,7 +531,7 @@ cached by raw query string so re-renders skip the parse.
 
 | Key        | Action                                                                                        |
 | ---------- | --------------------------------------------------------------------------------------------- |
-| `,h`       | Run agent with the default `#cd:~` directory context                                          |
+| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                       |
 | `,I`       | Toggle manual idle (shows IDLE indicator; any keypress re-activates)                          |
 | `,j`       | Jump to the newest unread completed agent; repeats move through older unread completions      |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                         |
@@ -583,7 +583,7 @@ cached by raw query string so re-renders skip the parse.
 
 | Key  | Action                                                                                        |
 | ---- | --------------------------------------------------------------------------------------------- |
-| `,h` | Run agent with the default `#cd:~` directory context                                          |
+| `,h` | Run agent from home prompt context; bare prompts default to `#git:home`                       |
 | `,P` | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
 | `,r` | Show runners info                                                                             |
 
@@ -1355,8 +1355,9 @@ in ACE, sorted by relevance to the current CL/agent context. Prompts shorter tha
 history, so trivial one-word inputs (e.g. `y`, `ok`) don't clutter the list.
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit workspace reference appears with the
-default `#cd:~` prefix. Explicit workspace prefixes, including `#cd:<path>`, also feed the `Ctrl+N` / `Ctrl+P` MRU cycle
-when the prompt input is empty or contains only a workspace prefix.
+default `#git:home` prefix. Use `#cd:~` for direct home-directory runs with no VCS workspace management. Explicit
+workspace prefixes, including `#cd:<path>`, also feed the `Ctrl+N` / `Ctrl+P` MRU cycle when the prompt input is empty
+or contains only a workspace prefix.
 
 ### Keybindings
 

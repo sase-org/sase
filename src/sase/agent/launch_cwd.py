@@ -344,9 +344,10 @@ def launch_agents_from_cwd(
                     vcs_ref = (wf_name, ref_value)
                     break
 
-    # If no VCS ref found and we're not already in home mode, fall back to
-    # home mode -- matches TUI behavior where prompts without VCS refs always
-    # run from home.
+    # If no workspace ref is found and we're not already in home mode, fall
+    # back to direct home mode. Bare prompts normally gain the default
+    # workspace ref before this point; this branch covers disabled/missing
+    # workspace providers and explicit non-workspace contexts.
     if vcs_ref is None and not is_home_mode:
         is_home_mode = True
         project_name = "home"

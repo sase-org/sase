@@ -34,8 +34,9 @@ def _metadata() -> tuple[WorkflowMetadata, ...]:
     )
 
 
-def _cd_only_metadata() -> tuple[WorkflowMetadata, ...]:
-    return (_metadata()[0],)
+def _cd_and_git_metadata() -> tuple[WorkflowMetadata, ...]:
+    metadata = _metadata()
+    return (metadata[0], metadata[2])
 
 
 def _patch_metadata(monkeypatch) -> None:  # type: ignore[no-untyped-def]
@@ -48,11 +49,11 @@ def _patch_metadata(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     parsing._VCS_UNDERSCORE_NORMALIZER = None
 
 
-def _patch_cd_only_metadata(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def _patch_cd_and_git_metadata(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     import sase.workspace_provider._registry as registry
     import sase.xprompt._parsing as parsing
 
-    monkeypatch.setattr(registry, "get_all_workflow_metadata", _cd_only_metadata)
+    monkeypatch.setattr(registry, "get_all_workflow_metadata", _cd_and_git_metadata)
     parsing._VCS_TAG_PATTERN = None
     parsing._VCS_REPLACE_PATTERN = None
     parsing._VCS_UNDERSCORE_NORMALIZER = None
@@ -105,12 +106,12 @@ def test_replace_vcs_workflow_tags_handles_cd(monkeypatch) -> None:  # type: ign
     )
 
 
-def test_normalize_default_vcs_workflow_adds_cd_to_bare_prompt(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_normalize_default_vcs_workflow_adds_git_home(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     _patch_metadata(monkeypatch)
 
     from sase.xprompt._parsing import normalize_default_vcs_workflow
 
-    assert normalize_default_vcs_workflow("Fix it") == "#cd:~ Fix it"
+    assert normalize_default_vcs_workflow("Fix it") == "#git:home Fix it"
 
 
 def test_normalize_default_vcs_workflow_preserves_existing_ref(monkeypatch) -> None:  # type: ignore[no-untyped-def]
@@ -126,7 +127,7 @@ def test_normalize_default_vcs_workflow_preserves_known_project_ref_without_prov
     monkeypatch,
     tmp_path,
 ) -> None:  # type: ignore[no-untyped-def]
-    _patch_cd_only_metadata(monkeypatch)
+    _patch_cd_and_git_metadata(monkeypatch)
 
     from sase.xprompt._parsing import normalize_default_vcs_workflow
 
@@ -145,7 +146,7 @@ def test_normalize_default_vcs_workflow_wraps_non_vcs_colon_arg(
     monkeypatch,
     tmp_path,
 ) -> None:  # type: ignore[no-untyped-def]
-    _patch_cd_only_metadata(monkeypatch)
+    _patch_cd_and_git_metadata(monkeypatch)
 
     from sase.xprompt._parsing import normalize_default_vcs_workflow
 
@@ -154,7 +155,7 @@ def test_normalize_default_vcs_workflow_wraps_non_vcs_colon_arg(
         lambda: {"sase": tmp_path},
     )
 
-    assert normalize_default_vcs_workflow("#foo:sase") == "#cd:~ #foo:sase"
+    assert normalize_default_vcs_workflow("#foo:sase") == "#git:home #foo:sase"
 
 
 def test_normalize_default_vcs_workflow_preserves_leading_directives(
@@ -165,7 +166,8 @@ def test_normalize_default_vcs_workflow_preserves_leading_directives(
     from sase.xprompt._parsing import normalize_default_vcs_workflow
 
     assert (
-        normalize_default_vcs_workflow("%n:a %wait Fix it") == "%n:a %wait #cd:~ Fix it"
+        normalize_default_vcs_workflow("%n:a %wait Fix it")
+        == "%n:a %wait #git:home Fix it"
     )
 
 
@@ -175,7 +177,9 @@ def test_normalize_default_vcs_workflow_applies_per_segment(monkeypatch) -> None
     from sase.xprompt._parsing import normalize_default_vcs_workflow
 
     prompt = "#gh:sase Fix A\n---\nFix B"
-    assert normalize_default_vcs_workflow(prompt) == "#gh:sase Fix A\n---\n#cd:~ Fix B"
+    assert (
+        normalize_default_vcs_workflow(prompt) == "#gh:sase Fix A\n---\n#git:home Fix B"
+    )
 
 
 def test_normalize_default_vcs_workflow_preserves_frontmatter(monkeypatch) -> None:  # type: ignore[no-untyped-def]
@@ -185,5 +189,6 @@ def test_normalize_default_vcs_workflow_preserves_frontmatter(monkeypatch) -> No
 
     prompt = "---\nxprompts: {}\n---\nFix it"
     assert (
-        normalize_default_vcs_workflow(prompt) == "---\nxprompts: {}\n---\n#cd:~ Fix it"
+        normalize_default_vcs_workflow(prompt)
+        == "---\nxprompts: {}\n---\n#git:home Fix it"
     )

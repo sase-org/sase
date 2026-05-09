@@ -114,7 +114,7 @@ def run_query(
     from sase.xprompt.models import create_anonymous_workflow
     from sase.xprompt.workflow_runner import execute_workflow
 
-    # Multi-agent xprompts must be recognized before the default #cd:~
+    # Multi-agent xprompts must be recognized before the default workspace
     # workflow tag is injected; otherwise the xprompt is no longer the sole
     # top-level reference in its segment.
     from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts

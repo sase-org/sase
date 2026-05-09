@@ -9,6 +9,7 @@ This module provides a replacement for the legacy snippet system, adding:
 """
 
 from ._parsing import (
+    DEFAULT_VCS_WORKFLOW_PREFIX,
     XPromptReference,
     XPromptReferenceArgKind,
     XPromptReferenceMarker,
@@ -111,6 +112,7 @@ __all__ = [
     "get_xprompt_or_workflow",
     "load_project_local_xprompts",
     # Parsing
+    "DEFAULT_VCS_WORKFLOW_PREFIX",
     "escape_for_xprompt",
     "extract_project_from_vcs_tag",
     "extract_vcs_workflow_tag",

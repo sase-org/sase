@@ -64,6 +64,7 @@ _GENERIC_PROJECT_VCS_REF_PATTERN = re.compile(
 )
 _KNOWN_FALLBACK_VCS_PREFIXES = frozenset({"gh", "git", "hg", "jj", "p4"})
 _LAUNCH_XPROMPT_AT_REF_RE: re.Pattern[str] | None = None
+DEFAULT_VCS_WORKFLOW_PREFIX = "#git:home"
 
 
 def normalize_vcs_underscore_refs(prompt: str) -> str:
@@ -255,7 +256,7 @@ def strip_known_project_vcs_refs(prompt: str) -> str:
 def normalize_default_vcs_workflow_segment(
     segment: str,
     *,
-    default_vcs_prefix: str = "#cd:~",
+    default_vcs_prefix: str = DEFAULT_VCS_WORKFLOW_PREFIX,
 ) -> str:
     """Prefix *segment* with the default workspace workflow when none is present.
 
@@ -264,7 +265,11 @@ def normalize_default_vcs_workflow_segment(
     """
     from sase.workspace_provider import get_ref_patterns
 
-    if "cd" not in get_ref_patterns():
+    default_workflow_match = re.match(r"#([a-zA-Z_][a-zA-Z0-9_]*)", default_vcs_prefix)
+    if default_workflow_match is None:
+        return segment
+
+    if default_workflow_match.group(1) not in get_ref_patterns():
         return segment
 
     if (
@@ -355,7 +360,7 @@ def _split_frontmatter_block(prompt: str) -> tuple[str, str]:
 
 
 def normalize_default_vcs_workflow(prompt: str) -> str:
-    """Normalize bare prompt segments to the explicit ``#cd:~`` workflow.
+    """Normalize bare prompt segments to the default workspace workflow.
 
     The transformation is applied per multi-prompt segment while preserving a
     leading frontmatter block and ``---`` separators. Segments that already
@@ -520,6 +525,7 @@ def extract_project_from_vcs_tag(tag: str) -> str | None:
 
 
 __all__ = [
+    "DEFAULT_VCS_WORKFLOW_PREFIX",
     "DOUBLE_COLON_SHORTHAND_PATTERN",
     "SHORTHAND_PATTERN",
     "XPROMPT_REFERENCE_ARGUMENT_FRAGMENT",

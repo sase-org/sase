@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.workspace_provider._hookspec import WorkflowMetadata
+from sase.workspace_provider._hookspec import ResolvedRef, WorkflowMetadata
 
 
 def _cd_metadata() -> tuple[WorkflowMetadata, ...]:
@@ -22,10 +22,28 @@ def _cd_metadata() -> tuple[WorkflowMetadata, ...]:
     )
 
 
+def _cd_git_metadata() -> tuple[WorkflowMetadata, ...]:
+    return (
+        *_cd_metadata(),
+        WorkflowMetadata(
+            workflow_type="git",
+            ref_pattern=r"(?:^|(?<=\s))#git(?:[_:]([a-zA-Z0-9_./-]+)|\(([^)]+)\))",
+            display_name="Git",
+            pre_allocated_env_prefix="SASE_GIT",
+        ),
+    )
+
+
 def _patch_cd_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
     import sase.workspace_provider._registry as registry
 
     monkeypatch.setattr(registry, "get_all_workflow_metadata", _cd_metadata)
+
+
+def _patch_cd_git_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sase.workspace_provider._registry as registry
+
+    monkeypatch.setattr(registry, "get_all_workflow_metadata", _cd_git_metadata)
 
 
 def test_resolve_ref_from_prompt_cd_skips_numbered_workspace(
@@ -106,14 +124,20 @@ def test_launch_agent_from_cwd_cd_launches_in_target_without_workspace_claim(
     ws_dir.assert_not_called()
 
 
-def test_launch_agent_from_cwd_no_ref_defaults_to_cd_home(
+def test_launch_agent_from_cwd_no_ref_defaults_to_git_home(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
-    _patch_cd_metadata(monkeypatch)
+    _patch_cd_git_metadata(monkeypatch)
     from sase.agent.launcher import launch_agent_from_cwd
+    from sase.vcs_provider import VCS_DEFAULT_REVISION
 
-    home = str(Path.home().resolve())
-    spawn_result = MagicMock(pid=123, workspace_dir=home, workspace_num=0)
+    primary_workspace = tmp_path / "home"
+    allocated_workspace = tmp_path / "home_101"
+    project_file = str(tmp_path / "home.gp")
+    spawn_result = MagicMock(
+        pid=123, workspace_dir=str(allocated_workspace), workspace_num=101
+    )
     with (
         patch(
             "sase.main.utils.ensure_project_file_and_get_workspace_num",
@@ -128,20 +152,44 @@ def test_launch_agent_from_cwd_no_ref_defaults_to_cd_home(
             "sase.agent.launcher.spawn_agent_subprocess",
             return_value=spawn_result,
         ) as spawn,
-        patch("sase.running_field.get_first_available_axe_workspace") as first_ws,
+        patch(
+            "sase.workspace_provider.resolve_ref",
+            return_value=ResolvedRef(
+                project_file=project_file,
+                project_name="home",
+                primary_workspace_dir=str(primary_workspace),
+                checkout_target="main",
+            ),
+        ) as resolve_ref,
+        patch(
+            "sase.running_field.get_first_available_axe_workspace",
+            return_value=101,
+        ) as first_ws,
+        patch(
+            "sase.workspace_provider.get_workspace_directory",
+            return_value=str(allocated_workspace),
+        ) as provider_ws_dir,
         patch("sase.running_field.get_workspace_directory_for_num") as ws_dir,
     ):
         result = launch_agent_from_cwd("do work")
 
     assert result is spawn_result
     kwargs = spawn.call_args.kwargs
-    assert kwargs["prompt"] == "#cd:~ do work"
-    assert kwargs["workspace_dir"] == home
-    assert kwargs["workspace_num"] == 0
-    assert kwargs["is_home_mode"] is True
-    assert kwargs["update_target"] == ""
-    assert kwargs["vcs_ref"] == ("cd", "~")
-    first_ws.assert_not_called()
+    assert kwargs["prompt"] == "#git:home do work"
+    assert kwargs["project_name"] == "home"
+    assert kwargs["workspace_dir"] == str(allocated_workspace)
+    assert kwargs["workspace_num"] == 101
+    assert kwargs["is_home_mode"] is False
+    assert kwargs["update_target"] == VCS_DEFAULT_REVISION
+    assert kwargs["vcs_ref"] == ("git", "home")
+    resolve_ref.assert_called_once_with("home", "git")
+    first_ws.assert_called_once_with(project_file)
+    provider_ws_dir.assert_called_once_with(
+        "git",
+        101,
+        "home",
+        str(primary_workspace),
+    )
     ws_dir.assert_not_called()
 
 
@@ -397,6 +445,74 @@ def test_spawn_cd_sets_resolved_directory_env_without_claim(
     transfer.assert_not_called()
 
 
+def test_spawn_git_home_sets_preallocated_workspace_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _patch_cd_git_metadata(monkeypatch)
+    from sase.agent.launcher import spawn_agent_subprocess
+
+    workspace = tmp_path / "home_101"
+    workspace.mkdir()
+    output = tmp_path / "agent.log"
+    captured_env: dict[str, str] = {}
+
+    def fake_spawn(
+        _prepared: object,
+        *,
+        env: dict[str, str],
+        claim_callback: Callable[[int], bool] | None = None,
+    ) -> int:
+        captured_env.update(env)
+        if claim_callback is not None:
+            assert claim_callback(12345) is True
+        return 12345
+
+    with (
+        patch("sase.core.paths.sharded_path", return_value=str(output)),
+        patch(
+            "sase.core.agent_launch_facade.spawn_prepared_agent_process",
+            side_effect=fake_spawn,
+        ),
+        patch("sase.running_field.claim_workspace", return_value=True) as claim,
+        patch("sase.running_field.transfer_workspace_claim") as transfer,
+        patch("sase.axe.chop_agents.record_chop_agent_launch_from_env"),
+    ):
+        spawn_agent_subprocess(
+            cl_name="home",
+            project_file=str(tmp_path / "home.gp"),
+            workspace_dir=str(workspace),
+            workspace_num=101,
+            workflow_name="ace(run)-ts",
+            prompt="#git:home do work",
+            timestamp="20260430120000",
+            project_name="home",
+            is_home_mode=False,
+            vcs_ref=("git", "home"),
+        )
+
+    assert captured_env["SASE_GIT_PRE_ALLOCATED"] == "1"
+    assert captured_env["SASE_GIT_WORKSPACE_NUM"] == "101"
+    assert captured_env["SASE_GIT_WORKSPACE_DIR"] == str(workspace)
+    claim.assert_called_once()
+    transfer.assert_not_called()
+
+
+def test_default_git_home_reports_incomplete_home_project(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    project_dir = tmp_path / ".sase" / "projects" / "home"
+    project_dir.mkdir(parents=True)
+    (project_dir / "home.gp").write_text("NAME: home\n")
+
+    from sase.workspace_provider.plugins.bare_git_ref import resolve_git_ref
+
+    with pytest.raises(ValueError, match="Default bare-git project 'home'"):
+        resolve_git_ref("home")
+
+
 def test_resolve_agent_workspace_dir_prefers_explicit_directory(
     tmp_path: Path,
 ) -> None:
@@ -464,16 +580,35 @@ def test_launch_multi_prompt_agents_resolves_cd_per_segment(
     first_ws.assert_not_called()
 
 
-def test_launch_multi_prompt_agents_defaults_bare_segment_to_cd_home(
+def test_launch_multi_prompt_agents_defaults_bare_segment_to_git_home(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    _patch_cd_metadata(monkeypatch)
+    _patch_cd_git_metadata(monkeypatch)
     from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 
     dir_a = tmp_path / "a"
     dir_a.mkdir()
-    home = str(Path.home().resolve())
+    primary_workspace = tmp_path / "home"
+    allocated_workspace = tmp_path / "home_101"
+    project_file = str(tmp_path / "home.gp")
+
+    def resolve_ref(ref: str, workflow_type: str) -> ResolvedRef:
+        if workflow_type == "cd":
+            return ResolvedRef(
+                project_file=str(
+                    Path.home() / ".sase" / "projects" / "home" / "home.gp"
+                ),
+                project_name=Path(ref).name,
+                primary_workspace_dir=str(Path(ref).expanduser().resolve()),
+                checkout_target="",
+            )
+        return ResolvedRef(
+            project_file=project_file,
+            project_name="home",
+            primary_workspace_dir=str(primary_workspace),
+            checkout_target="main",
+        )
 
     with (
         patch("sase.agent.launcher.spawn_agent_subprocess") as spawn,
@@ -483,7 +618,18 @@ def test_launch_multi_prompt_agents_defaults_bare_segment_to_cd_home(
             "sase.artifacts.create_artifacts_directory",
             return_value="/artifacts",
         ) as create_artifacts,
-        patch("sase.running_field.get_first_available_axe_workspace") as first_ws,
+        patch(
+            "sase.workspace_provider.resolve_ref",
+            side_effect=resolve_ref,
+        ) as resolve_ref_mock,
+        patch(
+            "sase.running_field.get_first_available_axe_workspace",
+            return_value=101,
+        ) as first_ws,
+        patch(
+            "sase.workspace_provider.get_workspace_directory",
+            return_value=str(allocated_workspace),
+        ) as provider_ws_dir,
     ):
         spawn.return_value = MagicMock(pid=1)
         launch_multi_prompt_agents(
@@ -500,29 +646,40 @@ def test_launch_multi_prompt_agents_defaults_bare_segment_to_cd_home(
     calls = spawn.call_args_list
     assert [c.kwargs["prompt"] for c in calls] == [
         f"#cd:{dir_a} first",
-        "#cd:~ second",
+        "#git:home second",
     ]
     assert [c.kwargs["workspace_dir"] for c in calls] == [
         str(dir_a.resolve()),
-        home,
+        str(allocated_workspace),
     ]
-    assert [c.kwargs["workspace_num"] for c in calls] == [0, 0]
-    assert [c.kwargs["is_home_mode"] for c in calls] == [True, True]
+    assert [c.kwargs["workspace_num"] for c in calls] == [0, 101]
+    assert [c.kwargs["is_home_mode"] for c in calls] == [True, False]
     assert [c.kwargs["vcs_ref"] for c in calls] == [
         ("cd", str(dir_a)),
-        ("cd", "~"),
+        ("git", "home"),
     ]
+    resolve_ref_mock.assert_any_call(str(dir_a), "cd")
+    resolve_ref_mock.assert_any_call("home", "git")
+    first_ws.assert_called_once_with(project_file)
+    provider_ws_dir.assert_called_once_with(
+        "git",
+        101,
+        "home",
+        str(primary_workspace),
+    )
     create_artifacts.assert_not_called()
-    first_ws.assert_not_called()
 
 
-def test_launch_multi_prompt_bare_home_wait_uses_home_artifacts(
+def test_launch_multi_prompt_bare_git_home_wait_uses_home_artifacts(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
-    _patch_cd_metadata(monkeypatch)
+    _patch_cd_git_metadata(monkeypatch)
     from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 
-    home = str(Path.home().resolve())
+    primary_workspace = tmp_path / "home"
+    allocated_workspace = tmp_path / "home_101"
+    project_file = str(tmp_path / "home.gp")
 
     with (
         patch("sase.agent.launcher.spawn_agent_subprocess") as spawn,
@@ -532,7 +689,23 @@ def test_launch_multi_prompt_bare_home_wait_uses_home_artifacts(
             "sase.artifacts.create_artifacts_directory",
             return_value="/artifacts/home",
         ) as create_artifacts,
-        patch("sase.running_field.get_first_available_axe_workspace") as first_ws,
+        patch(
+            "sase.workspace_provider.resolve_ref",
+            return_value=ResolvedRef(
+                project_file=project_file,
+                project_name="home",
+                primary_workspace_dir=str(primary_workspace),
+                checkout_target="main",
+            ),
+        ),
+        patch(
+            "sase.running_field.get_first_available_axe_workspace",
+            return_value=101,
+        ) as first_ws,
+        patch(
+            "sase.workspace_provider.get_workspace_directory",
+            return_value=str(allocated_workspace),
+        ) as provider_ws_dir,
     ):
         spawn.return_value = MagicMock(pid=1)
         wait.return_value = "home-agent"
@@ -548,17 +721,28 @@ def test_launch_multi_prompt_bare_home_wait_uses_home_artifacts(
         )
 
     assert [c.kwargs["prompt"] for c in spawn.call_args_list] == [
-        "#cd:~ first",
-        "%wait:home-agent\n#cd:~ second",
+        "#git:home first",
+        "%wait:home-agent\n#git:home second",
     ]
-    assert [c.kwargs["workspace_dir"] for c in spawn.call_args_list] == [home, home]
+    assert [c.kwargs["workspace_dir"] for c in spawn.call_args_list] == [
+        str(allocated_workspace),
+        str(primary_workspace),
+    ]
+    assert [c.kwargs["workspace_num"] for c in spawn.call_args_list] == [101, 0]
+    assert [c.kwargs["is_home_mode"] for c in spawn.call_args_list] == [False, False]
     create_artifacts.assert_called_once_with(
         "ace-run",
         project_name="home",
         timestamp="260501_120000",
     )
     wait.assert_called_once_with("/artifacts/home")
-    first_ws.assert_not_called()
+    first_ws.assert_called_once_with(project_file)
+    provider_ws_dir.assert_called_once_with(
+        "git",
+        101,
+        "home",
+        str(primary_workspace),
+    )
 
 
 def test_resolve_vcs_cwd_cd_changes_to_target(

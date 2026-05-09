@@ -75,10 +75,11 @@ def test_launch_agents_from_cwd_cancels_history_and_skips_spawn(
 
     from sase.agent.launcher import launch_agents_from_cwd
 
+    prompt = "%name:sase-foo\n#cd:~ Do work"
     with patch.object(Path, "home", return_value=tmp_path):
         with pytest.raises(AgentNameLaunchCollisionError):
-            launch_agents_from_cwd("%name:sase-foo\nDo work")
+            launch_agents_from_cwd(prompt)
 
     entries = json.loads(history_path.read_text(encoding="utf-8"))["prompts"]
-    assert entries[0]["text"].startswith("%name:sase-foo\n")
+    assert entries[0]["text"] == prompt
     assert entries[0]["cancelled"] is True
