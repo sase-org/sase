@@ -63,7 +63,7 @@ def _agent_artifact_paths(agent: Agent) -> list[_ArtifactPath]:
     display_items: list[tuple[str, str | None]] = [
         (artifact.path, artifact.workspace_dir)
         for artifact in artifacts
-        if artifact.path and artifact.kind != "chat"
+        if artifact.path and artifact.kind not in {"chat", "pdf"}
     ]
     return _dedupe_paths(display_items, agent.workspace_dir)
 

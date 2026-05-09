@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 15:41:23
-status: wip
+status: done
 prompt: sdd/prompts/202605/exclude_pdf_artifacts.md
 ---
 # Plan: Exclude PDFs from Agents-Tab ARTIFACTS Field

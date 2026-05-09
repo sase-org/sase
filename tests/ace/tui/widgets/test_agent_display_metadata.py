@@ -296,12 +296,17 @@ class TestAgentArtifactMetadata:
         image = tmp_path / "image.png"
         prompt_image = workspace / "screenshots" / "prompt.jpg"
         explicit_source = tmp_path / "notes.md"
+        generated_pdf = artifacts_dir / "markdown_pdfs" / "approved_plan.pdf"
+        explicit_pdf_source = tmp_path / "manual_artifact.pdf"
         diff_path = tmp_path / "agent.diff"
         chat.write_text("chat", encoding="utf-8")
         image.write_bytes(b"png")
         prompt_image.parent.mkdir(parents=True)
         prompt_image.write_bytes(b"jpg")
         explicit_source.write_text("notes", encoding="utf-8")
+        generated_pdf.parent.mkdir(parents=True)
+        generated_pdf.write_bytes(b"pdf")
+        explicit_pdf_source.write_bytes(b"pdf")
         diff_path.write_text(
             """diff --git a/src/foo.py b/src/foo.py
 --- a/src/foo.py
@@ -315,12 +320,18 @@ class TestAgentArtifactMetadata:
         from sase.core.agent_artifact_facade import store_explicit_agent_artifact
 
         explicit = store_explicit_agent_artifact(explicit_source, artifacts_dir)
+        store_explicit_agent_artifact(
+            explicit_pdf_source,
+            artifacts_dir,
+            kind="pdf",
+        )
         (artifacts_dir / "done.json").write_text(
             json.dumps(
                 {
                     "response_path": str(chat),
                     "workspace_dir": str(workspace),
                     "image_paths": [str(image)],
+                    "markdown_pdf_paths": [str(generated_pdf)],
                 }
             ),
             encoding="utf-8",
@@ -355,6 +366,8 @@ class TestAgentArtifactMetadata:
         assert "chat.md" not in header.plain
         assert "image.png" in header.plain
         assert "screenshots/prompt.jpg" in header.plain
+        assert "approved_plan.pdf" not in header.plain
+        assert "manual_artifact" not in header.plain
 
     def test_cheap_header_omits_artifact_summary(
         self,
