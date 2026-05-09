@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 19:08:47
-status: wip
+status: done
 prompt: sdd/prompts/202605/xprompt_multi_model_fanout.md
 ---
 # Multi-model fan-out broken for xprompt-wrapped `%model` directives

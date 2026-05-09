@@ -93,6 +93,30 @@ def test_split_prompt_for_models_after_xprompt_expansion() -> None:
         assert result[1] == "%name:foo.cld-sonnet\n%model:sonnet\nReview this code"
 
 
+def test_split_prompt_for_models_requires_caller_expanded_xprompt_body() -> None:
+    """The planner splits xprompt-injected %m(...) only after caller expansion."""
+    from sase.xprompt.processor import process_xprompt_references
+
+    xprompts = {
+        "_fanout": XPrompt(
+            name="_fanout",
+            content="%n:foo\n%m(opus,sonnet)\nReview this code",
+        ),
+    }
+
+    assert split_prompt_for_models("#_fanout", extra_xprompts=xprompts) is None
+
+    with patch("sase.xprompt.processor.get_all_xprompts", return_value={}):
+        expanded = process_xprompt_references("#_fanout", extra_xprompts=xprompts)
+
+    result = split_prompt_for_models(expanded, extra_xprompts=xprompts)
+    assert result is not None
+    assert result == [
+        "%name:foo.cld-opus\n%model:opus\nReview this code",
+        "%name:foo.cld-sonnet\n%model:sonnet\nReview this code",
+    ]
+
+
 def test_split_prompt_for_models_direct_alt_same_as_multi_model() -> None:
     """Direct %alt(%model:...) produces the same output as %m(...)."""
     via_m = split_prompt_for_models("%n:foo\n%m(opus,sonnet)\nReview this code")

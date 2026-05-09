@@ -169,6 +169,79 @@ def test_launch_agent_from_cwd_alt_fanout_uses_named_child_prompts(
     ws_dir.assert_not_called()
 
 
+def test_launch_agents_from_cwd_xprompt_expanded_multi_model_fans_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_cd_metadata(monkeypatch)
+    from sase.agent.launcher import launch_agents_from_cwd
+
+    launched = [MagicMock(name="opus"), MagicMock(name="sonnet")]
+    expanded = "%n:ag\n%m(opus,sonnet)\nDo work"
+    with (
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=(None, None, None),
+        ),
+        patch("sase.history.prompt.add_or_update_prompt"),
+        patch(
+            "sase.xprompt.processor.process_xprompt_references",
+            return_value=expanded,
+        ) as expand,
+        patch(
+            "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+            return_value=launched,
+        ) as launch_multi,
+    ):
+        result = launch_agents_from_cwd("#stub_m Do work")
+
+    assert result == launched
+    expand.assert_called_once_with("#stub_m Do work")
+    launch_multi.assert_called_once()
+    assert launch_multi.call_args.kwargs["segments"] == [
+        "%name:ag.cld-opus\n%model:opus\nDo work",
+        "%name:ag.cld-sonnet\n%model:sonnet\nDo work",
+    ]
+
+
+def test_launch_agents_from_cwd_unexpanded_xprompt_stays_single_agent(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_cd_metadata(monkeypatch)
+    from sase.agent.launcher import launch_agents_from_cwd
+
+    spawn_result = MagicMock(pid=123, workspace_dir=str(tmp_path), workspace_num=0)
+    with (
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=(None, None, None),
+        ),
+        patch("sase.history.prompt.add_or_update_prompt"),
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["260501_120000"],
+        ),
+        patch(
+            "sase.xprompt.processor.process_xprompt_references",
+            return_value="#stub_m Do work",
+        ) as expand,
+        patch(
+            "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+        ) as launch_multi,
+        patch(
+            "sase.agent.launcher.spawn_agent_subprocess",
+            return_value=spawn_result,
+        ) as spawn,
+    ):
+        result = launch_agents_from_cwd("#stub_m Do work")
+
+    assert result == [spawn_result]
+    expand.assert_called_once_with("#stub_m Do work")
+    launch_multi.assert_not_called()
+    spawn.assert_called_once()
+    assert spawn.call_args.kwargs["prompt"] == "#stub_m Do work"
+
+
 def test_launch_agent_from_cwd_known_project_ref_without_provider_is_not_home_wrapped(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
