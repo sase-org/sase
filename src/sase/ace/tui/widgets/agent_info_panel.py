@@ -149,7 +149,7 @@ class AgentInfoPanel(Static):
         "waiting": "bold #AF87FF",
         "failed": "bold #FF5F5F",
         "unread": "bold #FFAF5F",
-        "read": "bold #BCBCBC",
+        "read": "bold #5FD7FF",
     }
 
     def _metric_counts(self) -> list[tuple[str, int]]:
