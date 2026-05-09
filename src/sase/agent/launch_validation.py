@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from pathlib import Path
 
 __all__ = [
     "AgentNameLaunchCollisionError",
@@ -174,46 +173,9 @@ def force_reuse_owner_names(prompts: list[str]) -> list[str]:
 def wipe_names_for_forced_reuse(names: list[str]) -> None:
     """Best-effort removal hook used after TUI confirmation."""
     for name in names:
-        _wipe_agent_name_for_reuse(name)
+        from sase.agent.names import wipe_agent_name_for_reuse
 
-
-def _wipe_agent_name_for_reuse(name: str) -> None:
-    """Best-effort narrow wipe of the current registry owner for *name*.
-
-    Phase 5 owns the complete delete contract.  This helper provides the
-    launch-time hook and removes the owner locations that phase 1 registry
-    entries already know about.
-    """
-    from shutil import rmtree
-
-    from sase.agent.names import delete_registered_name, lookup_registered_name
-
-    entry = lookup_registered_name(name)
-    if entry is None:
-        return
-
-    try:
-        from sase.agent.running import kill_named_agent
-
-        kill_named_agent(name, exact_name=True)
-    except Exception:
-        pass
-
-    artifacts_dir = entry.get("artifacts_dir")
-    if isinstance(artifacts_dir, str) and artifacts_dir:
-        try:
-            rmtree(Path(artifacts_dir), ignore_errors=True)
-        except Exception:
-            pass
-
-    bundle_path = entry.get("bundle_path")
-    if isinstance(bundle_path, str) and bundle_path:
-        try:
-            Path(bundle_path).unlink(missing_ok=True)
-        except OSError:
-            pass
-
-    delete_registered_name(name)
+        wipe_agent_name_for_reuse(name)
 
 
 def _extract_explicit_name(prompt: str) -> tuple[str, bool] | None:

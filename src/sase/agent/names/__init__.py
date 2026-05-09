@@ -65,6 +65,7 @@ from sase.agent.names._resume import (
     allocate_resume_names,
     first_resume_agent_name,
 )
+from sase.agent.names._wipe import AgentNameWipeResult, wipe_agent_name_for_reuse
 
 
 def resolve_agent_changespec(name: str) -> str:
@@ -154,6 +155,7 @@ def reserve_repeat_name_base(explicit_base: str | None, count: int) -> str:
 
 __all__ = [
     "AgentRefError",
+    "AgentNameWipeResult",
     "NameCollisionError",
     "NamedAgent",
     "add_dismissed_prefix",
@@ -192,4 +194,5 @@ __all__ = [
     "resolve_agent_changespec",
     "run_historical_auto_name_migration",
     "strip_dismissed_prefix",
+    "wipe_agent_name_for_reuse",
 ]
