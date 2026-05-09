@@ -164,6 +164,18 @@ docs-check: _venv
     uv pip install --python {{ venv_bin }}/python --no-sources "mkdocs-material>=9.7,<10" "mkdocs-rss-plugin>=1.18,<2"
     {{ venv_bin }}/mkdocs build --strict
 
+# Build and validate the downloadable PDF handbook. This target is intentionally
+# separate from docs-check because Playwright/Chromium makes it heavier.
+docs-pdf-check: _venv
+    uv pip install --python {{ venv_bin }}/python --no-sources -e ".[docs-pdf]"
+    @if [ "$${CI:-}" = "true" ]; then \
+        {{ venv_bin }}/python -m playwright install --with-deps chromium; \
+    else \
+        {{ venv_bin }}/python -m playwright install chromium; \
+    fi
+    SASE_PDF_BUILD_DATE="$(date -u +%Y-%m-%d)" {{ venv_bin }}/mkdocs build --strict -f mkdocs-pdf.yml
+    {{ venv_bin }}/python tools/validate_docs_pdf
+
 # Validate SDD prompt/plan frontmatter links.
 sdd-validate: _setup
     {{ venv_bin }}/sase sdd validate

@@ -1,0 +1,38 @@
+INHERIT: mkdocs.yml
+
+extra:
+  pdf_handbook:
+    build_date: !ENV [SASE_PDF_BUILD_DATE, ""]
+    build_ref: !ENV [GITHUB_REF_NAME, ""]
+    build_run: !ENV [GITHUB_RUN_ID, ""]
+    build_sha: !ENV [GITHUB_SHA, ""]
+
+plugins:
+  - search
+  - blog:
+      post_url_format: "{slug}"
+  - rss:
+      match_path: blog/posts/.*
+      use_git: false
+      date_from_meta:
+        as_creation: date
+      categories:
+        - categories
+      image: https://sase.sh/images/sase_overview.jpg
+  - exporter:
+      formats:
+        pdf:
+          enabled: true
+          concurrency: 4
+          stylesheets:
+            - docs/stylesheets/pdf.css
+          covers:
+            front: docs/templates/pdf/front.html.j2
+          browser:
+            timeout: 120000
+            args:
+              - --no-sandbox
+          aggregator:
+            enabled: true
+            output: downloads/sase-handbook.pdf
+            covers: limits

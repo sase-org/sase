@@ -1,3 +1,7 @@
+---
+pdf: false
+---
+
 # Rust Backend Boundary Infographic Prompt
 
 ## Target

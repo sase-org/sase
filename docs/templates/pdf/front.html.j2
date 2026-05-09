@@ -1,0 +1,37 @@
+<section class="pdf-cover">
+  <div>
+    <p class="pdf-cover__kicker">SASE Handbook</p>
+    <h1 class="pdf-cover__title">{{ config.site_name }}</h1>
+    {% if config.site_description %}
+    <p class="pdf-cover__description">{{ config.site_description }}</p>
+    {% endif %}
+  </div>
+
+  <dl class="pdf-cover__meta">
+    {% if config.site_url %}
+    <dt>Site</dt>
+    <dd>{{ config.site_url }}</dd>
+    {% endif %}
+    {% if config.repo_url %}
+    <dt>Source</dt>
+    <dd>{{ config.repo_url }}</dd>
+    {% endif %}
+    {% set pdf_meta = config.extra.pdf_handbook | default({}) %}
+    {% if pdf_meta.build_date %}
+    <dt>Built</dt>
+    <dd>{{ pdf_meta.build_date }}</dd>
+    {% endif %}
+    {% if pdf_meta.build_ref %}
+    <dt>Ref</dt>
+    <dd>{{ pdf_meta.build_ref }}</dd>
+    {% endif %}
+    {% if pdf_meta.build_sha %}
+    <dt>Commit</dt>
+    <dd>{{ pdf_meta.build_sha[:12] }}</dd>
+    {% endif %}
+    {% if pdf_meta.build_run %}
+    <dt>Run</dt>
+    <dd>{{ pdf_meta.build_run }}</dd>
+    {% endif %}
+  </dl>
+</section>

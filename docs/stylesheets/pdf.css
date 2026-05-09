@@ -1,0 +1,274 @@
+@page {
+  size: Letter;
+  margin: 0.75in 0.68in;
+
+  @top-left {
+    color: #53615a;
+    content: "SASE Handbook";
+    font-size: 8pt;
+  }
+
+  @top-right {
+    color: #53615a;
+    content: string(chapter);
+    font-size: 8pt;
+  }
+
+  @bottom-left {
+    color: #53615a;
+    content: "https://sase.sh/";
+    font-size: 8pt;
+  }
+
+  @bottom-right {
+    color: #53615a;
+    content: counter(page);
+    font-size: 8pt;
+  }
+}
+
+@page :first {
+  margin: 0;
+
+  @top-left {
+    content: none;
+  }
+
+  @top-right {
+    content: none;
+  }
+
+  @bottom-left {
+    content: none;
+  }
+
+  @bottom-right {
+    content: none;
+  }
+}
+
+:root {
+  --sase-pdf-accent: #0f766e;
+  --sase-pdf-border: #d8ded6;
+  --sase-pdf-muted: #53615a;
+  --sase-pdf-text: #17201c;
+}
+
+html {
+  color: var(--sase-pdf-text);
+  font-size: 10pt;
+}
+
+body {
+  background: #ffffff !important;
+}
+
+.md-header,
+.md-tabs,
+.md-sidebar,
+.md-footer,
+.md-top,
+.md-dialog,
+.md-search,
+.md-content__button,
+.md-source,
+.md-skip,
+.md-banner,
+.md-announce,
+.md-tooltip,
+.md-nav,
+.md-main__inner > .md-sidebar {
+  display: none !important;
+}
+
+.md-container,
+.md-main,
+.md-main__inner,
+.md-content,
+.md-content__inner {
+  display: block !important;
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.md-typeset {
+  color: var(--sase-pdf-text);
+  font-size: 10pt;
+  line-height: 1.48;
+}
+
+.md-typeset h1 {
+  string-set: chapter content(text);
+  break-before: page;
+  color: #0b4f49;
+  font-size: 24pt;
+  line-height: 1.12;
+}
+
+.md-typeset h1:first-child {
+  break-before: auto;
+}
+
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4 {
+  break-after: avoid;
+  color: var(--sase-pdf-text);
+}
+
+.md-typeset h2 {
+  margin-top: 1.1rem;
+  font-size: 16pt;
+}
+
+.md-typeset h3 {
+  font-size: 12.5pt;
+}
+
+.md-typeset p,
+.md-typeset li,
+.md-typeset table {
+  orphans: 3;
+  widows: 3;
+}
+
+.md-typeset a {
+  color: var(--sase-pdf-accent);
+  text-decoration: none;
+}
+
+.md-typeset a[href^="http"]::after {
+  color: var(--sase-pdf-muted);
+  content: " (" attr(href) ")";
+  font-size: 8pt;
+  overflow-wrap: anywhere;
+}
+
+.md-typeset a.md-button::after,
+.md-typeset figure a::after {
+  content: "";
+}
+
+.md-typeset pre,
+.md-typeset code,
+.md-typeset .highlight {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.md-typeset pre,
+.md-typeset .highlight > pre {
+  border: 1px solid var(--sase-pdf-border);
+  border-radius: 0;
+  background: #f7f8f5 !important;
+  font-size: 8pt;
+  line-height: 1.35;
+}
+
+.md-typeset table:not([class]) {
+  display: table;
+  width: 100%;
+  font-size: 8.4pt;
+  page-break-inside: auto;
+}
+
+.md-typeset table:not([class]) th,
+.md-typeset table:not([class]) td {
+  padding: 0.22rem 0.32rem;
+  border: 1px solid var(--sase-pdf-border);
+}
+
+.md-typeset img,
+.md-typeset svg,
+.md-typeset video {
+  max-width: 100% !important;
+  height: auto !important;
+  object-fit: contain;
+  page-break-inside: avoid;
+}
+
+.md-typeset figure,
+.md-typeset .admonition,
+.md-typeset details {
+  break-inside: avoid;
+}
+
+.md-typeset .sase-home h1,
+.md-typeset .sase-home h2,
+.md-typeset .sase-home h3,
+.md-typeset .sase-home p,
+.md-typeset .sase-home li {
+  color: var(--sase-pdf-text);
+}
+
+.md-typeset .sase-hero,
+.md-typeset .sase-card,
+.md-typeset .sase-primitive-list,
+.md-typeset .sase-image-grid img {
+  box-shadow: none !important;
+}
+
+.md-typeset .sase-actions,
+.md-typeset .sase-card-grid,
+.md-typeset .sase-split,
+.md-typeset .sase-image-grid {
+  display: block !important;
+}
+
+.md-typeset .sase-card,
+.md-typeset .sase-image-grid figure {
+  margin: 0 0 0.75rem;
+  page-break-inside: avoid;
+}
+
+.pdf-cover {
+  box-sizing: border-box;
+  display: flex;
+  min-height: 11in;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 0.9in;
+  background: #f7f8f5;
+  color: var(--sase-pdf-text);
+  font-family: var(--md-text-font-family, sans-serif);
+}
+
+.pdf-cover__kicker {
+  margin: 0 0 0.18in;
+  color: var(--sase-pdf-accent);
+  font-size: 10pt;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.pdf-cover__title {
+  max-width: 7in;
+  margin: 0;
+  color: #0b4f49;
+  font-size: 34pt;
+  line-height: 1.02;
+}
+
+.pdf-cover__description {
+  max-width: 6.2in;
+  margin-top: 0.35in;
+  color: var(--sase-pdf-muted);
+  font-size: 13pt;
+  line-height: 1.45;
+}
+
+.pdf-cover__meta {
+  display: grid;
+  max-width: 6.5in;
+  grid-template-columns: 1.2in 1fr;
+  gap: 0.08in 0.2in;
+  color: var(--sase-pdf-muted);
+  font-size: 9pt;
+}
+
+.pdf-cover__meta strong {
+  color: var(--sase-pdf-text);
+}

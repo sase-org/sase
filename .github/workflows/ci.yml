@@ -98,7 +98,9 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
       - name: Build docs
-        run: just docs-check
+        run: |
+          just docs-check
+          just docs-pdf-check
 
   # Test matrix runs every shipped operation through the Rust binding.
   # Coverage is collected from the 3.12 leg.

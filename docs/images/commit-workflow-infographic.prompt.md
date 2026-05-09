@@ -1,3 +1,7 @@
+---
+pdf: false
+---
+
 # Commit Workflow Infographic Prompt
 
 ## Target

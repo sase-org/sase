@@ -19,6 +19,7 @@ title: Structured Agentic Software Engineering
       <a class="md-button md-button--primary" href="blog/why-coding-agents-need-orchestration/">Read the launch essay</a>
       <a class="md-button" href="ace/">Start with ACE</a>
       <a class="md-button" href="series/agentic-software-engineering/">Explore the series</a>
+      <a class="md-button" href="/downloads/sase-handbook.pdf">Download PDF</a>
       <a class="md-button" href="https://github.com/sase-org/sase">View on GitHub</a>
     </div>
 
@@ -94,7 +95,7 @@ title: Structured Agentic Software Engineering
     <li><strong>Beads</strong> provide git-native issue tracking for plans, executable epics, phase dependencies, and agent handoff.</li>
     <li><strong>XPrompts</strong> turn prompt templates into reusable workflows with reference expansion and typed inputs.</li>
     <li><strong>ACE</strong> is the interactive control surface for daily work.</li>
-    <li><strong>AXE</strong> runs background hooks, mentors, maintenance jobs, and scheduled workflows.</li>
+    <li><strong>AXE Automation</strong> runs background hooks, mentors, maintenance jobs, and scheduled workflows.</li>
     <li><strong>Provider and workspace abstractions</strong> keep the orchestration layer portable across coding agents and VCS providers.</li>
   </ul>
   </div>
@@ -148,6 +149,15 @@ title: Structured Agentic Software Engineering
   <p>Follow the agentic software engineering launch track as it grows.</p>
 
 <a href="series/agentic-software-engineering/">Explore the series</a>
+
+  </article>
+
+  <article class="sase-card sase-card--compact">
+  <h3>Download the handbook</h3>
+
+  <p>Keep the current public docs and launch articles in one static PDF.</p>
+
+<a href="/downloads/sase-handbook.pdf">Download PDF</a>
 
   </article>
 

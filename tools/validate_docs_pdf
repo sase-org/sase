@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""Validate the generated SASE handbook PDF."""
+
+from __future__ import annotations
+
+import re
+import sys
+from pathlib import Path
+
+from pypdf import PdfReader
+
+
+PDF_PATH = Path("site/downloads/sase-handbook.pdf")
+MAX_SIZE_BYTES = 22 * 1024 * 1024
+MIN_PAGE_COUNT = 8
+
+REQUIRED_SENTINELS = (
+    "Structured Agentic Software Engineering",
+    "ACE TUI",
+    "AXE Automation",
+    "Spec-Driven Development",
+    "ChangeSpecs",
+    "Why Coding Agents Need Orchestration",
+)
+
+BLOG_SENTINELS = (
+    "Coding agents are strongest when they operate inside a workflow",
+    "Published posts appear below",
+)
+
+
+def _normalize(text: str) -> str:
+    return re.sub(r"\s+", " ", text).casefold()
+
+
+def _error(message: str) -> None:
+    print(f"[validate_docs_pdf] {message}", file=sys.stderr)
+
+
+def _extract_text(reader: PdfReader) -> str:
+    chunks: list[str] = []
+    for index, page in enumerate(reader.pages, start=1):
+        try:
+            chunks.append(page.extract_text() or "")
+        except Exception as exc:
+            _error(f"failed to extract text from page {index}: {exc}")
+            raise
+    return "\n".join(chunks)
+
+
+def main() -> int:
+    if not PDF_PATH.exists():
+        _error(f"missing PDF: {PDF_PATH}")
+        return 1
+
+    size = PDF_PATH.stat().st_size
+    if size <= 0:
+        _error(f"empty PDF: {PDF_PATH}")
+        return 1
+
+    if size > MAX_SIZE_BYTES:
+        _error(
+            f"PDF is {size / 1024 / 1024:.1f} MiB, "
+            f"above the {MAX_SIZE_BYTES / 1024 / 1024:.0f} MiB limit"
+        )
+        return 1
+
+    reader = PdfReader(str(PDF_PATH))
+    page_count = len(reader.pages)
+    if page_count < MIN_PAGE_COUNT:
+        _error(
+            f"PDF has {page_count} page(s), expected at least {MIN_PAGE_COUNT}"
+        )
+        return 1
+
+    text = _normalize(_extract_text(reader))
+
+    missing = [
+        sentinel
+        for sentinel in REQUIRED_SENTINELS
+        if _normalize(sentinel) not in text
+    ]
+    if missing:
+        _error("missing required sentinel text:")
+        for sentinel in missing:
+            _error(f"  - {sentinel}")
+        return 1
+
+    if not any(_normalize(sentinel) in text for sentinel in BLOG_SENTINELS):
+        _error("missing blog-post sentinel text")
+        return 1
+
+    print(
+        f"[validate_docs_pdf] ok: {PDF_PATH} "
+        f"({page_count} pages, {size / 1024 / 1024:.1f} MiB)"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

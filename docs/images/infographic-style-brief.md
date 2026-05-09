@@ -1,3 +1,7 @@
+---
+pdf: false
+---
+
 # Infographic Style Brief
 
 This brief is the shared contract for the five documentation infographics planned in

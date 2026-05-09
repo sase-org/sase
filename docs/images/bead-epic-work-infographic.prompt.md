@@ -1,3 +1,7 @@
+---
+pdf: false
+---
+
 # Bead Epic Work Infographic Prompt
 
 ## Target

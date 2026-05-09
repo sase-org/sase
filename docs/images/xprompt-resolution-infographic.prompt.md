@@ -1,3 +1,7 @@
+---
+pdf: false
+---
+
 # XPrompt Resolution Infographic Prompt
 
 ## Target
