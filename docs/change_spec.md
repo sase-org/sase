@@ -1,11 +1,15 @@
 # ChangeSpec Format Documentation
 
-A **ChangeSpec** is a structured specification for a change list (CL), also known as a pull request (PR). It defines the
-metadata, description, dependencies, and status of a proposed code change.
+A **ChangeSpec** is a structured record for one change list (CL) or pull request (PR). It lives inside a project `.gp`
+file and records the change's description, dependency metadata, review URL, lifecycle status, commits, hooks, comments,
+mentor runs, timestamps, and computed file deltas.
 
 ## Format Overview
 
-Each ChangeSpec follows this exact format:
+Each ChangeSpec is a block of top-level fields and optional sections. `NAME`, `DESCRIPTION`, and `STATUS` are the normal
+minimum for a hand-written entry; `sase commit` creates and updates most other sections automatically.
+
+The canonical order is:
 
 ```
 NAME: <NAME>
@@ -14,14 +18,12 @@ DESCRIPTION:
 
   <BODY>
 PARENT: <PARENT>
-CL: <CL>
 BUG: <BUG>
-TEST TARGETS: <TEST_TARGETS>
+CL: <CL>
 STATUS: <STATUS>
+TEST TARGETS: <TEST_TARGETS>
 COMMITS:
   <COMMIT_ENTRIES>
-TIMESTAMPS:
-  <TIMESTAMP_ENTRIES>
 DELTAS:
   <DELTA_ENTRIES>
 HOOKS:
@@ -30,9 +32,12 @@ COMMENTS:
   <COMMENT_ENTRIES>
 MENTORS:
   <MENTOR_ENTRIES>
+TIMESTAMPS:
+  <TIMESTAMP_ENTRIES>
 ```
 
-Not all fields are required — see individual field specifications below.
+The parser is tolerant of some older ordering and timestamp variants, but new docs, scripts, and examples should use the
+order above. See individual field specifications below for optionality and automatic behavior.
 
 **IMPORTANT**: When outputting multiple ChangeSpecs, separate each one with **two blank lines**.
 
@@ -40,13 +45,14 @@ Not all fields are required — see individual field specifications below.
 
 ### NAME
 
-The unique identifier for the change list.
+The unique identifier for the ChangeSpec.
 
-**Format**: `<prefix>_<descriptive_suffix>`
+**Recommended format**: `<project_or_area>_<descriptive_suffix>`
 
-- Must start with a project-specific prefix followed by an underscore
+- Prefer a project- or area-specific prefix followed by an underscore
 - Suffix should use underscores to separate words
 - Suffix should be descriptive but concise
+- `sase commit` appends a numeric suffix such as `_1` when it needs to make a new name unique
 
 **Examples**:
 
@@ -95,12 +101,12 @@ DESCRIPTION:
 
 ### PARENT
 
-Specifies the dependency relationship between CLs.
+Specifies the dependency relationship between ChangeSpecs.
 
 **Values**:
 
 - Omit this field entirely - This CL has no dependencies (default, preferred for parallelization)
-- `<parent_cl_name>` - The NAME of a parent CL that must be completed first
+- `<parent_changespec_name>` - The `NAME` of a parent ChangeSpec that must be completed first
 
 The PARENT field is a ChangeSpec **name** — never a VCS ref. Values like `origin/main`, `origin/master`, or the
 Mercurial sentinel `p4head` are not valid here; they describe checkout targets for the VCS, not dependency relationships
@@ -152,19 +158,21 @@ PR: https://github.com/org/repo/pull/42   # PR variant
 
 ### BUG
 
-An optional bug reference linking the CL to an issue tracker.
+An optional bug reference linking the CL to an issue tracker. SASE stores this as plain text. PR workflows that receive
+`SASE_BUG_ID` or `sase commit --bug-id` write it as `http://b/<id>` in the ChangeSpec and add `BUG=<id>` to provider tag
+metadata.
 
 **Example**:
 
 ```
-BUG: b/12345
+BUG: http://b/12345
 ```
 
 ### TEST TARGETS
 
 Specifies the test targets that need to pass for this CL.
 
-**This field has three possible states**:
+**This field has two useful states**:
 
 1. **Omitted entirely**: For CLs that don't require tests
    - Config-only changes
@@ -184,10 +192,12 @@ Specifies the test targets that need to pass for this CL.
    - Each target must be 2-space indented in multi-line format
    - No blank lines between targets
 
-3. **Field present but no value specified**: Tests are required but targets are TBD
-   - Format: `TEST TARGETS:` (with nothing after the colon)
+An empty `TEST TARGETS:` line parses the same as an omitted field in current SASE code, so do not use it to mean "tests
+required but TBD". Add the target when known, or omit the field and explain test uncertainty in the ChangeSpec
+description.
 
-**NEVER use `TEST TARGETS: None`** — either specify targets or omit the field.
+**Never use `TEST TARGETS: None`** in new ChangeSpecs. Older project files may contain it, but new entries should either
+specify targets or omit the field.
 
 **Target Format**:
 
@@ -238,10 +248,12 @@ Reverted → (terminal)
 Archived → (terminal)
 ```
 
+These transitions are enforced by the status state machine. Terminal statuses are moved to the archive project file.
+
 **Status Selection Rules**:
 
 - New CLs typically start as `WIP`
-- Move to `Draft` once a CL has been created
+- PR workflows default new ChangeSpecs to `Draft` unless `sase commit --status` or `SASE_PR_STATUS` says otherwise
 - Move to `Ready` when the CL is ready for review
 - Move to `Mailed` when sent out for review
 - Update status as work progresses through the lifecycle
@@ -298,26 +310,30 @@ Records a chronological audit trail of lifecycle events. Each entry includes a t
 
 ```
 TIMESTAMPS:
-  [260328_143052] COMMIT  Add JWT token validation
+  [260328_143052] COMMIT  (1)
   [260328_151203] STATUS  WIP -> Draft
   [260328_151510] SYNC    Synced with remote
   [260328_160044] REWORD  Updated description title
   [260328_163012] REWIND  (2)
+  [260328_170100] RENAME  old_name -> new_name
+  [260328_171500] REBASE  old_parent -> new_parent
 ```
 
 **Event types:**
 
-| Type     | Description                                                       |
-| -------- | ----------------------------------------------------------------- |
-| `COMMIT` | A commit was added to the ChangeSpec                              |
-| `STATUS` | A status transition occurred (e.g., WIP→Draft)                    |
-| `SYNC`   | A sync operation was performed                                    |
-| `REWORD` | The description was edited                                        |
-| `REWIND` | A rewind to a previous commit entry occurred (detail shows `(N)`) |
+| Type     | Description                                                      |
+| -------- | ---------------------------------------------------------------- |
+| `COMMIT` | A commit was added to the ChangeSpec; detail is usually `(N)`    |
+| `STATUS` | A status transition occurred (e.g., `WIP -> Draft`)              |
+| `SYNC`   | A sync operation was performed                                   |
+| `REWORD` | The description or PR-derived metadata was edited                |
+| `REWIND` | A rewind to a previous commit entry occurred; detail shows `(N)` |
+| `RENAME` | The ChangeSpec name changed; detail records `old -> new`         |
+| `REBASE` | The parent relationship changed; detail records `old -> new`     |
 
-Timestamps use the format `[YYMMDD_HHMMSS]` (square-bracketed, matching the HOOKS field format) and are recorded
-atomically by sase — this section is not manually edited. Multiple events of the same type may appear (e.g., multiple
-COMMITs or STATUS transitions).
+New entries use the format `[YYMMDD_HHMMSS]` in the configured SASE timezone. The parser also accepts older bare
+`YYMMDD_HHMMSS` and `[YYYY-MM-DD HH:MM:SS]` forms for compatibility. TIMESTAMPS are recorded atomically by SASE and are
+not normally edited by hand. Multiple events of the same type may appear.
 
 ### DELTAS
 
@@ -340,21 +356,19 @@ The optional `LINES` drawer records semantic line counts. Git-style raw addition
 add/delete lines are shown as modified lines (`~N`); binary files use `LINES: binary`. Older ChangeSpecs without `LINES`
 drawers remain valid.
 
-| Glyph | Change type | Notes                                                                             |
-| ----- | ----------- | --------------------------------------------------------------------------------- |
-| `+`   | Added       | File introduced by this CL (`A` from VCS).                                        |
-| `~`   | Modified    | File edited (`M`); also covers copy/typechange/unmerged statuses with a log warn. |
-| `-`   | Deleted     | File removed (`D`).                                                               |
+| Glyph | Change type | Notes                                                                                    |
+| ----- | ----------- | ---------------------------------------------------------------------------------------- |
+| `+`   | Added       | File introduced by this CL (`A` from VCS); copies are represented as added target files. |
+| `~`   | Modified    | File edited (`M`); typechange, unmerged, or future statuses are coerced to modified.     |
+| `-`   | Deleted     | File removed (`D`).                                                                      |
 
 Renames (VCS status `R`) are split into a `-` for the source path and a `+` for the target path. Line counts attach to
 the target path when the VCS reports them; a pure rename can therefore show `0 lines`. Entries are sorted alphabetically
 by path. The section is omitted entirely when there are no deltas.
 
-**When DELTAS is recomputed:** any code path that changes the `COMMITS` list, accepted proposal set, parent base, or VCS
-head used by a ChangeSpec must call `refresh_deltas_for_changespec()` after the atomic write. Existing refresh hooks run
-after commit creation, rewind, sync, proposal accept, and proposal rebase. The refresh is best-effort — if the required
-VCS query fails, the existing DELTAS section is left untouched and the parent workflow proceeds. Providers without line
-stats still refresh file-level DELTAS.
+**When DELTAS is recomputed:** refresh hooks run after commit creation, rewind, sync, proposal accept, and proposal
+rebase. The refresh is best-effort — if the required VCS query fails, the existing DELTAS section is left untouched and
+the parent workflow proceeds. Providers without line stats still refresh file-level DELTAS.
 
 **Manual refresh:** run `sase changespec sync-deltas -c <CL_NAME>` to recompute DELTAS for a single ChangeSpec from the
 current VCS state. Optional `-p/--project-file` and `-w/--workspace-dir` flags override the inferred defaults.
@@ -369,13 +383,46 @@ internal intermediate value for other sections, but DELTAS normalizes any non-fo
 Defines lifecycle hooks attached to this CL — shell commands that run automatically at specific points (e.g., after
 commit, before mail). Hooks are managed via the `h` keybinding in ACE.
 
+**Entry format:**
+
+```
+HOOKS:
+  just test
+      | (1) [260328_143200] PASSED (12s)
+      | (2) [260328_153300] FAILED (8s) - (!: Hook Command Failed)
+```
+
+Hook commands are 2-space indented. Status drawer lines are 6-space indented and start with `| `. A leading `!` on a
+hook command means failed runs should skip fix-hook hints; a leading `$` means the hook is not run for proposal entries
+and is not subject to the normal runner limit. Prefixes can be combined, for example `!$just presubmit`.
+
 ### COMMENTS
 
 Stores review comments and discussion threads. Comments are added via the ACE TUI or through the review workflow.
 
+**Entry format:**
+
+```
+COMMENTS:
+  [critique] ~/.sase/comments/auth_system_fix-critique-260328_143500.json
+  [critique] ~/.sase/comments/auth_system_fix-critique-260328_150000.json - (!: Unresolved Critique Comments)
+```
+
 ### MENTORS
 
 Configures mentor workflows for the CL — automated agents that monitor and provide guidance during development.
+
+**Entry format:**
+
+```
+MENTORS:
+  (1) security[1/2] reliability[1/1]
+      | [260328_143700] security:auth-review - PASSED - (1m05s)
+      | [260328_143705] reliability:tests-review - COMMENTED - (2m10s)
+```
+
+The entry id matches a `COMMITS` entry such as `(1)` or `(2a)`. Profile names may include progress counts; legacy
+entries without counts still parse.
 
 ## Complete Examples
 
@@ -391,8 +438,8 @@ DESCRIPTION:
   signature verification, and expiration checking. The implementation
   supports both RS256 and HS256 algorithms. Tests cover valid tokens,
   expired tokens, invalid signatures, and malformed tokens.
-TEST TARGETS: //auth/system:jwt_validator_test
 STATUS: WIP
+TEST TARGETS: //auth/system:jwt_validator_test
 ```
 
 ### Example 2: Dependent CL with Multiple Test Targets
@@ -409,10 +456,10 @@ DESCRIPTION:
   scenarios including missing tokens, expired tokens, and invalid
   signatures.
 PARENT: auth_system_add_jwt_validator
+STATUS: WIP
 TEST TARGETS:
   //auth/system:middleware_test
   //auth/system:integration_test
-STATUS: WIP
 ```
 
 ### Example 3: Config-Only CL (No Tests)
@@ -438,9 +485,9 @@ DESCRIPTION:
   The token expiry was being computed from the issue time rather
   than the current time, causing tokens to expire prematurely
   under clock skew conditions.
-BUG: b/98765
-TEST TARGETS: //auth/system:jwt_validator_test
+BUG: http://b/98765
 STATUS: Draft
+TEST TARGETS: //auth/system:jwt_validator_test
 ```
 
 ## Best Practices
