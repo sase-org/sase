@@ -34,6 +34,92 @@ from sase.plan_chain import (
 from sase.telemetry.metrics import AGENT_KILLS
 
 
+def _short_pdf_source(source_path: str | None, workspace_dir: str) -> str:
+    if not source_path:
+        return ""
+    try:
+        return os.path.relpath(source_path, workspace_dir)
+    except ValueError:
+        return source_path
+
+
+def _pdf_activity_from_status(pdf_status: dict[str, Any] | None) -> str | None:
+    if not pdf_status:
+        return None
+    stage = pdf_status.get("stage")
+    total = pdf_status.get("total")
+    index = pdf_status.get("index")
+    generated = pdf_status.get("generated")
+    skipped = pdf_status.get("skipped")
+    source = pdf_status.get("source_path")
+    reason = pdf_status.get("reason")
+
+    if stage in {"source_started", "engine_started"}:
+        prefix = f"PDF {index}/{total}" if index and total else "PDF"
+        return f"{prefix} {source}".strip()
+    if stage == "source_succeeded":
+        prefix = f"PDF done {index}/{total}" if index and total else "PDF done"
+        return f"{prefix} {source}".strip()
+    if stage in {"source_failed", "skipped"}:
+        if reason:
+            return f"PDFs skipped: {reason}"
+        return "PDF skipped"
+    if stage == "completed":
+        if reason:
+            return f"PDFs skipped: {reason}"
+        if generated is not None and total is not None:
+            label = f"PDFs done {generated}/{total}"
+            if skipped:
+                label += f" ({skipped} skipped)"
+            return label
+        return "PDFs done"
+    if stage == "started":
+        return "Preparing PDFs from Markdown..."
+    return None
+
+
+def _update_workflow_pdf_status(
+    artifacts_dir: str,
+    pdf_status: dict[str, Any],
+) -> None:
+    state_path = os.path.join(artifacts_dir, "workflow_state.json")
+    try:
+        with open(state_path, encoding="utf-8") as f:
+            state_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return
+    if not isinstance(state_data, dict):
+        return
+    state_data["pdf_status"] = pdf_status
+    activity = _pdf_activity_from_status(pdf_status)
+    if activity:
+        state_data["activity"] = activity
+    else:
+        state_data.pop("activity", None)
+    try:
+        with open(state_path, "w", encoding="utf-8") as f:
+            json.dump(state_data, f, indent=2)
+    except OSError:
+        pass
+
+
+def _clear_workflow_pdf_activity(artifacts_dir: str) -> None:
+    state_path = os.path.join(artifacts_dir, "workflow_state.json")
+    try:
+        with open(state_path, encoding="utf-8") as f:
+            state_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return
+    if not isinstance(state_data, dict):
+        return
+    state_data.pop("activity", None)
+    try:
+        with open(state_path, "w", encoding="utf-8") as f:
+            json.dump(state_data, f, indent=2)
+    except OSError:
+        pass
+
+
 @dataclass
 class AgentExecContext:
     """Immutable configuration the execution loop needs from the runner."""
@@ -198,6 +284,7 @@ def _finalize_loop(
         )
         from sase.attachments.markdown_pdf import (
             MAX_MARKDOWN_PDF_ATTACHMENTS,
+            MarkdownPdfProgressEvent,
             render_markdown_pdf_attachments,
         )
         from sase.axe.image_attachments import (
@@ -225,12 +312,84 @@ def _finalize_loop(
             artifacts_dir=state.current_artifacts_dir,
         )
         markdown_source_count = len(markdown_paths)
+        print(
+            "Preparing PDFs from Markdown... "
+            f"found {markdown_source_count}, cap {MAX_MARKDOWN_PDF_ATTACHMENTS}"
+        )
+
+        def _handle_pdf_progress(event: MarkdownPdfProgressEvent) -> None:
+            source = _short_pdf_source(event.source_path, workspace_dir)
+            pdf_status = {
+                "stage": event.stage,
+                "source_path": source or event.source_path,
+                "pdf_path": event.pdf_path,
+                "engine": event.engine,
+                "index": event.index,
+                "total": event.total,
+                "generated": event.generated,
+                "skipped": event.skipped,
+                "reason": event.reason,
+                "cap": MAX_MARKDOWN_PDF_ATTACHMENTS,
+                "active": event.stage != "completed",
+            }
+            pdf_status = {k: v for k, v in pdf_status.items() if v is not None}
+            if event.stage == "started":
+                print(
+                    "[PDF] preparing Markdown PDFs "
+                    f"({event.total or 0} source(s), "
+                    f"cap {MAX_MARKDOWN_PDF_ATTACHMENTS})"
+                )
+            elif event.stage == "source_started":
+                print(f"[PDF] {event.index}/{event.total} {source}")
+            elif event.stage == "engine_started":
+                print(
+                    f"[PDF] {event.index}/{event.total} trying {event.engine}: {source}"
+                )
+            elif event.stage == "source_succeeded":
+                print(f"[PDF] {event.index}/{event.total} done: {source}")
+            elif event.stage == "source_failed":
+                print(
+                    f"[PDF] {event.index}/{event.total} failed: {source}"
+                    f" ({event.reason})"
+                )
+            elif event.stage == "skipped":
+                print(
+                    f"[PDF] {event.index}/{event.total} skipped: {source}"
+                    f" ({event.reason})"
+                )
+            elif event.stage == "completed":
+                print(
+                    "[PDF] complete: "
+                    f"{event.generated or 0} generated, {event.skipped or 0} skipped"
+                )
+            _update_workflow_pdf_status(state.current_artifacts_dir, pdf_status)
+
         if markdown_source_count <= MAX_MARKDOWN_PDF_ATTACHMENTS:
             markdown_pdf_paths = render_markdown_pdf_attachments(
                 markdown_paths,
                 workspace_dir=workspace_dir,
                 artifacts_dir=state.current_artifacts_dir,
+                progress=_handle_pdf_progress,
             )
+        else:
+            reason = (
+                f"over attachment limit ({markdown_source_count} > "
+                f"{MAX_MARKDOWN_PDF_ATTACHMENTS})"
+            )
+            print(f"[PDF] skipped Markdown PDF rendering: {reason}")
+            _update_workflow_pdf_status(
+                state.current_artifacts_dir,
+                {
+                    "stage": "completed",
+                    "total": markdown_source_count,
+                    "generated": 0,
+                    "skipped": markdown_source_count,
+                    "reason": reason,
+                    "cap": MAX_MARKDOWN_PDF_ATTACHMENTS,
+                    "active": False,
+                },
+            )
+        _clear_workflow_pdf_activity(state.current_artifacts_dir)
         image_paths = collect_agent_image_paths(
             workspace_dir,
             diff_path=diff_path,

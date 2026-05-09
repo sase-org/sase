@@ -159,6 +159,12 @@ def load_workflow_states(
             # Read appears_as_agent and is_anonymous flags
             appears_as_agent = data.get("appears_as_agent", False)
             is_anonymous = data.get("is_anonymous", False)
+            activity = data.get("activity")
+            if not isinstance(activity, str):
+                activity = None
+            pdf_status = data.get("pdf_status")
+            if not isinstance(pdf_status, dict):
+                pdf_status = None
 
             # Extract diff_path: search backward through all steps for a
             # "diff_path" output.  Handles embedded workflows (e.g.
@@ -213,6 +219,8 @@ def load_workflow_states(
                     diff_path=diff_path,
                     error_message=error_message,
                     error_traceback=error_traceback,
+                    activity=activity,
+                    pdf_status=pdf_status,
                 )
             )
         except Exception:
@@ -309,6 +317,8 @@ def load_workflow_agents(
             extra_files=extra_files,
             error_message=entry.error_message,
             error_traceback=entry.error_traceback,
+            activity=entry.activity,
+            pdf_status=entry.pdf_status,
             step_output=step_output,
             workspace_num=workspace_num,
         )

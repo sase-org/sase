@@ -12,6 +12,8 @@ from struct import pack, unpack
 from sys import stdout
 
 import fcntl
+from rich.console import Console
+from rich.panel import Panel
 
 from sase.attachments.markdown_pdf import (
     PDF_ENGINES,
@@ -205,10 +207,12 @@ def _render_paginated_artifact(
 ) -> ArtifactRenderResult:
     cache_dir.mkdir(parents=True, exist_ok=True)
     if mode == "pdf":
+        _print_render_status("Converting PDF pages...")
         return convert_pdf_to_png_pages(path, cache_dir / "pdf_pages")
 
     pdf_path = cache_dir / f"{path.stem or 'artifact'}.pdf"
     profile = artifact_markdown_pdf_profile_for_image_area(image_area)
+    _print_render_status("Rendering Markdown as PDF...")
     rendered = (
         render_markdown_pdf(path, pdf_path, profile=profile)
         if profile is not None
@@ -224,7 +228,12 @@ def _render_paginated_artifact(
                 ),
             ),
         )
+    _print_render_status("Converting PDF pages...")
     return convert_pdf_to_png_pages(rendered, cache_dir / "markdown_pages")
+
+
+def _print_render_status(message: str) -> None:
+    Console().print(Panel(message, style="bold #D7AF5F", expand=False))
 
 
 def artifact_markdown_pdf_profile_for_image_area(

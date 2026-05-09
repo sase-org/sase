@@ -11,6 +11,7 @@ from sase.ace.testing import AcePage, make_changespec
 from sase.ace.tui import AceApp
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets import ChangeSpecInfoPanel, TabBar
+from sase.ace.tui.widgets._agent_list_render_agent import format_agent_option
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.commits_builder import _should_show_commits_drawers
 from sase.ace.tui.widgets.prompt_panel import (
@@ -163,6 +164,7 @@ def _make_agent(
     step_name: str | None = None,
     step_type: str | None = None,
     step_output: dict[str, Any] | None = None,
+    activity: str | None = None,
 ) -> Agent:
     """Create a minimal Agent for prompt panel testing."""
     return Agent(
@@ -176,7 +178,20 @@ def _make_agent(
         step_name=step_name,
         step_type=step_type,
         step_output=step_output,
+        activity=activity,
     )
+
+
+def test_agent_row_displays_pdf_activity_suffix() -> None:
+    agent = _make_agent(activity="PDF 2/5 docs/notes.md")
+
+    _left, suffix, _option_id = format_agent_option(
+        agent,
+        0,
+        is_selected=False,
+    )
+
+    assert "PDF 2/5 docs/notes.md" in suffix.plain
 
 
 def test_get_prompt_content_workflow_child_filters_by_step(

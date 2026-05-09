@@ -363,6 +363,10 @@ def build_header_text(
                 header_text.append(f"{agent.fallback_model}\n", style="dim #FF8700")
 
     # Timestamp(s)
+    if agent.activity:
+        header_text.append("Activity: ", style="bold #87D7FF")
+        header_text.append(f"{agent.activity}\n", style="bold #D7AF5F")
+
     header_text.append("Timestamps: ", style="bold #87D7FF")
     if hint_state is None:
         header_text.append(f"{agent.timestamps_display}\n", style="#D7D7FF")

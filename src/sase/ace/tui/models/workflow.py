@@ -37,6 +37,8 @@ class WorkflowEntry:
     diff_path: str | None = None
     error_message: str | None = None
     error_traceback: str | None = None
+    activity: str | None = None
+    pdf_status: dict | None = None
 
     @property
     def display_type(self) -> str:

@@ -108,6 +108,9 @@ class WorkflowDisplayMixin:
             "QUESTION": "#FFAF00",
         }.get(agent.status, "#D7D7FF")
         header_text.append(f"{agent.status}\n", style=status_style)
+        if agent.activity:
+            header_text.append("Activity: ", style="bold #87D7FF")
+            header_text.append(f"{agent.activity}\n", style="bold #D7AF5F")
 
         # Timestamp(s)
         header_text.append("Timestamps: ", style="bold #87D7FF")

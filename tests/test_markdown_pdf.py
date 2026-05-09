@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from sase.attachments import markdown_pdf
 from sase.attachments.markdown_pdf import (
+    MarkdownPdfProgressEvent,
     MarkdownPdfProfile,
     render_markdown_pdf,
     render_markdown_pdf_attachments,
@@ -251,6 +252,40 @@ def test_render_markdown_pdf_falls_back_to_latex_engine(tmp_path):
     assert "linestretch=1.32" in latex_cmd
 
 
+def test_render_markdown_pdf_reports_engine_fallback_progress(tmp_path):
+    source = tmp_path / "notes.md"
+    source.write_text("# Notes\n")
+    dest = tmp_path / "notes.pdf"
+    events: list[MarkdownPdfProgressEvent] = []
+
+    def fake_which(name: str) -> str | None:
+        return {
+            "pandoc": "/usr/bin/pandoc",
+            "wkhtmltopdf": "/usr/bin/wkhtmltopdf",
+            "xelatex": "/usr/bin/xelatex",
+        }.get(name)
+
+    def fake_run(cmd, **kwargs):
+        engine = next(arg for arg in cmd if arg.startswith("--pdf-engine="))
+        if engine == "--pdf-engine=wkhtmltopdf":
+            raise subprocess.CalledProcessError(1, cmd)
+        Path(cmd[3]).write_bytes(b"%PDF")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    with (
+        patch("sase.attachments.markdown_pdf.shutil.which", side_effect=fake_which),
+        patch("sase.attachments.markdown_pdf.subprocess.run", side_effect=fake_run),
+    ):
+        assert render_markdown_pdf(source, dest, progress=events.append) == dest
+
+    assert [(event.stage, event.engine) for event in events] == [
+        ("source_started", None),
+        ("engine_started", "wkhtmltopdf"),
+        ("engine_started", "xelatex"),
+        ("source_succeeded", "xelatex"),
+    ]
+
+
 def test_render_markdown_pdf_custom_profile_updates_latex_variables(tmp_path):
     source = tmp_path / "notes.markdown"
     source.write_text("# Notes\n")
@@ -298,11 +333,14 @@ def test_render_markdown_pdf_returns_none_when_pandoc_missing(tmp_path):
         patch("sase.attachments.markdown_pdf.shutil.which", return_value=None),
         patch("sase.attachments.markdown_pdf.subprocess.run") as run,
     ):
-        result = render_markdown_pdf(source, dest)
+        events: list[MarkdownPdfProgressEvent] = []
+        result = render_markdown_pdf(source, dest, progress=events.append)
 
     assert result is None
     assert not dest.exists()
     run.assert_not_called()
+    assert [event.stage for event in events] == ["source_started", "skipped"]
+    assert events[-1].reason == "pandoc not found"
 
 
 def test_render_markdown_pdf_returns_none_when_no_engine_available(tmp_path):
@@ -335,6 +373,20 @@ def test_render_markdown_pdf_rejects_non_markdown_and_non_pdf_dest(tmp_path):
     )
 
 
+def test_render_markdown_pdf_reports_unsupported_source_progress(tmp_path):
+    source = tmp_path / "notes.txt"
+    source.write_text("# Notes\n")
+    events: list[MarkdownPdfProgressEvent] = []
+
+    assert (
+        render_markdown_pdf(source, tmp_path / "notes.pdf", progress=events.append)
+        is None
+    )
+
+    assert [event.stage for event in events] == ["source_started", "skipped"]
+    assert events[-1].reason == "unsupported source"
+
+
 def test_render_markdown_pdf_removes_failed_partial_output(tmp_path):
     source = tmp_path / "notes.md"
     source.write_text("# Notes\n")
@@ -354,11 +406,18 @@ def test_render_markdown_pdf_removes_failed_partial_output(tmp_path):
         patch("sase.attachments.markdown_pdf.shutil.which", side_effect=fake_which),
         patch("sase.attachments.markdown_pdf.subprocess.run", side_effect=fake_run),
     ):
-        result = render_markdown_pdf(source, dest, timeout=1)
+        events: list[MarkdownPdfProgressEvent] = []
+        result = render_markdown_pdf(source, dest, timeout=1, progress=events.append)
 
     assert result is None
     assert not dest.exists()
     assert list(tmp_path.glob("*.pdf")) == []
+    assert [event.stage for event in events] == [
+        "source_started",
+        "engine_started",
+        "source_failed",
+    ]
+    assert events[-1].reason == "all PDF engines failed"
 
 
 def test_render_markdown_pdf_attachments_writes_artifacts_and_index(tmp_path):
@@ -368,7 +427,7 @@ def test_render_markdown_pdf_attachments_writes_artifacts_and_index(tmp_path):
     source.parent.mkdir(parents=True)
     source.write_text("# Notes\n")
 
-    def fake_render(src, dest):
+    def fake_render(src, dest, **kwargs):
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(b"%PDF")
         return dest
@@ -407,3 +466,49 @@ def test_render_markdown_pdf_attachments_skips_failed_sources(tmp_path):
 
     assert result == []
     assert not (artifacts / "markdown_pdfs" / "index.json").exists()
+
+
+def test_render_markdown_pdf_attachments_reports_progress_order(tmp_path):
+    workspace = tmp_path / "workspace"
+    artifacts = tmp_path / "artifacts"
+    source = workspace / "docs" / "notes.md"
+    source.parent.mkdir(parents=True)
+    source.write_text("# Notes\n")
+    events: list[MarkdownPdfProgressEvent] = []
+
+    def fake_which(name: str) -> str | None:
+        return {
+            "pandoc": "/usr/bin/pandoc",
+            "wkhtmltopdf": "/usr/bin/wkhtmltopdf",
+        }.get(name)
+
+    def fake_run(cmd, **kwargs):
+        Path(cmd[3]).write_bytes(b"%PDF")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    with (
+        patch("sase.attachments.markdown_pdf.shutil.which", side_effect=fake_which),
+        patch("sase.attachments.markdown_pdf.subprocess.run", side_effect=fake_run),
+    ):
+        result = render_markdown_pdf_attachments(
+            [str(source)],
+            workspace_dir=workspace,
+            artifacts_dir=artifacts,
+            progress=events.append,
+        )
+
+    assert result == [str(artifacts / "markdown_pdfs" / "docs__notes.md.pdf")]
+    assert [event.stage for event in events] == [
+        "started",
+        "source_started",
+        "engine_started",
+        "source_succeeded",
+        "completed",
+    ]
+    assert [(event.index, event.total) for event in events[1:4]] == [
+        (1, 1),
+        (1, 1),
+        (1, 1),
+    ]
+    assert events[-1].generated == 1
+    assert events[-1].skipped == 0

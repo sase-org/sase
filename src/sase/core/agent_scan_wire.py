@@ -401,6 +401,8 @@ class WorkflowStateWire:
     start_time: str | None = None
     error: str | None = None
     traceback: str | None = None
+    activity: str | None = None
+    pdf_status: dict[str, Any] | None = None
     steps: list[WorkflowStepStateWire] = field(default_factory=list)
 
 

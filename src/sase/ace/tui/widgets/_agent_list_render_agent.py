@@ -13,7 +13,12 @@ from ..models.agent import Agent, AgentType, format_compact_duration
 from ..models.agent_bead import derive_agent_bead_id
 from ._agent_list_helpers import short_model_name, step_role_suffix
 from ._agent_list_render_cache import AgentRenderCache, agent_render_key
-from ._agent_list_render_layout import build_runtime_suffix, render_tier_gutter
+from ._agent_list_render_layout import (
+    build_activity_suffix,
+    build_runtime_suffix,
+    combine_suffixes,
+    render_tier_gutter,
+)
 from ._agent_list_styling import (
     _AGENT_TYPE_COLORS,
     _APPROVE_ICON,
@@ -237,7 +242,10 @@ def format_agent_option(
             text.append("▼", style="bold #D7AF5F")
         text.append(f"#{agent.embedded_workflow_name}", style="dim #AF87D7")
 
-    suffix = build_runtime_suffix(agent, now=now, is_unread=is_unread)
+    suffix = combine_suffixes(
+        build_activity_suffix(agent),
+        build_runtime_suffix(agent, now=now, is_unread=is_unread),
+    )
     option_id = f"{index}:{agent.agent_type.value}:{agent.cl_name}"
     return text, suffix, option_id
 

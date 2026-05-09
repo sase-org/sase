@@ -140,6 +140,8 @@ def load_workflow_states_from_snapshot(
                 diff_path=diff_path,
                 error_message=error_message,
                 error_traceback=error_traceback,
+                activity=wf_state.activity,
+                pdf_status=wf_state.pdf_status,
             )
         )
 
@@ -213,6 +215,8 @@ def load_workflow_agents_from_snapshot(
             extra_files=extra_files,
             error_message=entry.error_message,
             error_traceback=entry.error_traceback,
+            activity=entry.activity,
+            pdf_status=entry.pdf_status,
             step_output=step_output,
             workspace_num=workspace_num,
         )

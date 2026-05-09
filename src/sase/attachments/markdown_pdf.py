@@ -8,7 +8,7 @@ import re
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -56,11 +56,30 @@ class MarkdownPdfRecord:
     pdf_path: str
 
 
+@dataclass(frozen=True)
+class MarkdownPdfProgressEvent:
+    """Progress update emitted while rendering Markdown PDFs."""
+
+    stage: str
+    source_path: str | None = None
+    pdf_path: str | None = None
+    engine: str | None = None
+    index: int | None = None
+    total: int | None = None
+    generated: int | None = None
+    skipped: int | None = None
+    reason: str | None = None
+
+
+MarkdownPdfProgressCallback = Callable[[MarkdownPdfProgressEvent], None]
+
+
 def render_markdown_pdf_attachments(
     source_paths: Iterable[str],
     *,
     workspace_dir: str | Path,
     artifacts_dir: str | Path,
+    progress: MarkdownPdfProgressCallback | None = None,
 ) -> list[str]:
     """Render Markdown sources into ``artifacts_dir/markdown_pdfs``.
 
@@ -72,16 +91,49 @@ def render_markdown_pdf_attachments(
     pdf_dir = Path(artifacts_dir).expanduser() / "markdown_pdfs"
     records: list[MarkdownPdfRecord] = []
     used_destinations: set[Path] = set()
+    sources = list(source_paths)
+    total = len(sources)
+    skipped = 0
 
-    for source_str in source_paths:
+    _emit_progress(
+        progress,
+        MarkdownPdfProgressEvent(
+            stage="started",
+            total=total,
+            generated=0,
+            skipped=0,
+        ),
+    )
+
+    for index, source_str in enumerate(sources, start=1):
         source = Path(source_str).expanduser()
         dest = _unique_pdf_destination(
             pdf_dir / _pdf_filename_for_source(source, workspace),
             used_destinations,
         )
         used_destinations.add(dest)
-        rendered = render_markdown_pdf(source, dest)
+
+        def _source_progress(
+            event: MarkdownPdfProgressEvent,
+            *,
+            current_index: int = index,
+        ) -> None:
+            enriched = MarkdownPdfProgressEvent(
+                stage=event.stage,
+                source_path=event.source_path,
+                pdf_path=event.pdf_path,
+                engine=event.engine,
+                index=current_index if event.index is None else event.index,
+                total=total if event.total is None else event.total,
+                generated=event.generated,
+                skipped=event.skipped,
+                reason=event.reason,
+            )
+            _emit_progress(progress, enriched)
+
+        rendered = render_markdown_pdf(source, dest, progress=_source_progress)
         if rendered is None:
+            skipped += 1
             continue
         record = MarkdownPdfRecord(
             source_path=str(source),
@@ -95,6 +147,15 @@ def render_markdown_pdf_attachments(
             json.dumps([asdict(record) for record in records], indent=2),
             encoding="utf-8",
         )
+    _emit_progress(
+        progress,
+        MarkdownPdfProgressEvent(
+            stage="completed",
+            total=total,
+            generated=len(records),
+            skipped=skipped,
+        ),
+    )
     return [record.pdf_path for record in records]
 
 
@@ -105,6 +166,7 @@ def render_markdown_pdf(
     timeout: int = DEFAULT_PANDOC_TIMEOUT_SECONDS,
     css_path: str | Path | None = None,
     profile: MarkdownPdfProfile = MOBILE_MARKDOWN_PDF_PROFILE,
+    progress: MarkdownPdfProgressCallback | None = None,
 ) -> Path | None:
     """Render Markdown at *source_path* to the caller-provided PDF path.
 
@@ -114,23 +176,76 @@ def render_markdown_pdf(
     """
     source = Path(source_path).expanduser()
     dest = Path(dest_path).expanduser()
+    _emit_progress(
+        progress,
+        MarkdownPdfProgressEvent(
+            stage="source_started",
+            source_path=str(source),
+            pdf_path=str(dest),
+        ),
+    )
 
     if source.suffix.lower() not in SUPPORTED_MARKDOWN_EXTENSIONS:
+        _emit_progress(
+            progress,
+            MarkdownPdfProgressEvent(
+                stage="skipped",
+                source_path=str(source),
+                pdf_path=str(dest),
+                reason="unsupported source",
+            ),
+        )
         return None
     if dest.suffix.lower() != ".pdf":
+        _emit_progress(
+            progress,
+            MarkdownPdfProgressEvent(
+                stage="skipped",
+                source_path=str(source),
+                pdf_path=str(dest),
+                reason="destination is not a PDF",
+            ),
+        )
         return None
     if not source.is_file():
         log.warning("Cannot render missing Markdown file to PDF: %s", source)
+        _emit_progress(
+            progress,
+            MarkdownPdfProgressEvent(
+                stage="skipped",
+                source_path=str(source),
+                pdf_path=str(dest),
+                reason="missing source",
+            ),
+        )
         return None
 
     pandoc = shutil.which("pandoc")
     if not pandoc:
         log.warning("pandoc not found; cannot render Markdown PDF for %s", source)
+        _emit_progress(
+            progress,
+            MarkdownPdfProgressEvent(
+                stage="skipped",
+                source_path=str(source),
+                pdf_path=str(dest),
+                reason="pandoc not found",
+            ),
+        )
         return None
 
     engines = _find_available_engines()
     if not engines:
         log.warning("No PDF engine found; cannot render Markdown PDF for %s", source)
+        _emit_progress(
+            progress,
+            MarkdownPdfProgressEvent(
+                stage="skipped",
+                source_path=str(source),
+                pdf_path=str(dest),
+                reason="no PDF engine found",
+            ),
+        )
         return None
 
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -148,9 +263,27 @@ def render_markdown_pdf(
         for engine in engines:
             tmp_path = _temporary_pdf_path(dest)
             cmd = _pandoc_cmd(pandoc, source, tmp_path, engine, css, profile)
+            _emit_progress(
+                progress,
+                MarkdownPdfProgressEvent(
+                    stage="engine_started",
+                    source_path=str(source),
+                    pdf_path=str(dest),
+                    engine=engine,
+                ),
+            )
             try:
                 subprocess.run(cmd, check=True, capture_output=True, timeout=timeout)
                 tmp_path.replace(dest)
+                _emit_progress(
+                    progress,
+                    MarkdownPdfProgressEvent(
+                        stage="source_succeeded",
+                        source_path=str(source),
+                        pdf_path=str(dest),
+                        engine=engine,
+                    ),
+                )
                 return dest
             except subprocess.TimeoutExpired as exc:
                 log.warning(
@@ -175,7 +308,28 @@ def render_markdown_pdf(
 
     log.warning("All PDF engines failed for %s (last: %s)", source, last_error)
     dest.unlink(missing_ok=True)
+    _emit_progress(
+        progress,
+        MarkdownPdfProgressEvent(
+            stage="source_failed",
+            source_path=str(source),
+            pdf_path=str(dest),
+            reason="all PDF engines failed",
+        ),
+    )
     return None
+
+
+def _emit_progress(
+    progress: MarkdownPdfProgressCallback | None,
+    event: MarkdownPdfProgressEvent,
+) -> None:
+    if progress is None:
+        return
+    try:
+        progress(event)
+    except Exception:
+        log.debug("Markdown PDF progress callback failed", exc_info=True)
 
 
 def _find_available_engines() -> list[str]:

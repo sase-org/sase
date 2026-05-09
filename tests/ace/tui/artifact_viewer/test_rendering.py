@@ -222,6 +222,7 @@ def test_validate_artifact_viewer_dependencies_reports_missing_tools(
 def test_render_markdown_artifact_uses_transient_pdf_and_pdf_pages(
     tmp_path: Path,
     monkeypatch,
+    capsys,
 ) -> None:
     source = tmp_path / "chat.md"
     source.write_text("# Chat\n", encoding="utf-8")
@@ -263,6 +264,9 @@ def test_render_markdown_artifact_uses_transient_pdf_and_pdf_pages(
         ]
     ]
     assert [path.name for path in result.pages] == ["page-1.png"]
+    output = capsys.readouterr().out
+    assert "Rendering Markdown as PDF..." in output
+    assert "Converting PDF pages..." in output
 
 
 def test_render_markdown_artifact_passes_pane_aware_profile(
