@@ -8,9 +8,6 @@ permissions:
   contents: read
   deployments: write
 
-env:
-  CLOUDFLARE_PROJECT_NAME: sase-sh
-
 jobs:
   deploy:
     name: Build and deploy docs
@@ -48,17 +45,12 @@ jobs:
           test -f site/downloads/sase-handbook.pdf
           test "$(head -c 4 site/downloads/sase-handbook.pdf)" = "%PDF"
 
-      - name: Deploy to Cloudflare Pages
+      - name: Deploy to Cloudflare Worker
         id: deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: >
-            pages deploy site
-            --project-name=${{ env.CLOUDFLARE_PROJECT_NAME }}
-            --branch=${{ github.ref_name }}
-            --commit-hash=${{ github.sha }}
+          command: deploy
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Smoke deployed PDF

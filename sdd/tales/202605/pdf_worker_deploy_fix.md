@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 14:07:29
-status: wip
+status: done
 prompt: sdd/prompts/202605/pdf_worker_deploy_fix.md
 ---
 # Plan: Fix SASE Handbook Deployment To Cloudflare Worker
