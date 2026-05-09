@@ -47,17 +47,37 @@ class TestGetNextAutoName:
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "aa"
 
-    def test_reuses_name_of_dead_process(self, tmp_path: Path) -> None:
-        """Agent without done.json but with a dead PID gets its name reused."""
+    def test_uses_numeric_tail_after_letter_tails(self, tmp_path: Path) -> None:
+        for i, letter in enumerate("abcdefghijklmnopqrstuvwxyz"):
+            _make_agent(tmp_path, "proj", f"single-{i}", letter, pid=os.getpid())
+        for i, suffix in enumerate("abcdefghijklmnopqrstuvwxyz"):
+            _make_agent(
+                tmp_path, "proj", f"a-suffix-{i}", f"a{suffix}", pid=os.getpid()
+            )
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "a0"
+
+    def test_wraps_numeric_tail_to_next_first_letter(self, tmp_path: Path) -> None:
+        for i, letter in enumerate("abcdefghijklmnopqrstuvwxyz"):
+            _make_agent(tmp_path, "proj", f"single-{i}", letter, pid=os.getpid())
+        for i, suffix in enumerate("abcdefghijklmnopqrstuvwxyz0123456789"):
+            _make_agent(
+                tmp_path, "proj", f"a-suffix-{i}", f"a{suffix}", pid=os.getpid()
+            )
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "ba"
+
+    def test_dead_process_still_reserves_name(self, tmp_path: Path) -> None:
+        """Existing artifact state keeps a permanent name reserved."""
         _make_agent(tmp_path, "proj", "run1", "a", pid=_DEAD_PID)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert get_next_auto_name() == "a"
+            assert get_next_auto_name() == "b"
 
-    def test_reuses_name_when_no_pid(self, tmp_path: Path) -> None:
-        """Agent without done.json and no PID info gets its name reused."""
+    def test_artifact_without_pid_still_reserves_name(self, tmp_path: Path) -> None:
+        """Names are reserved by state existence, not process liveness."""
         _make_agent(tmp_path, "proj", "run1", "a")
         with patch.object(Path, "home", return_value=tmp_path):
-            assert get_next_auto_name() == "a"
+            assert get_next_auto_name() == "b"
 
     def test_done_workflow_without_appears_as_agent_reserves_name(
         self, tmp_path: Path
@@ -158,8 +178,10 @@ class TestGetNextAutoName:
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "n"
 
-    def test_dead_parent_tracked_child_releases_prefix(self, tmp_path: Path) -> None:
-        """A dead ``parent_timestamp`` child without done.json releases the prefix."""
+    def test_dead_parent_tracked_child_still_reserves_prefix(
+        self, tmp_path: Path
+    ) -> None:
+        """A dead child still reserves the prefix while its artifact exists."""
         for letter in "abcdefghijkl":
             _make_agent(tmp_path, "proj", f"run-{letter}", letter, pid=os.getpid())
         _make_agent(
@@ -172,7 +194,7 @@ class TestGetNextAutoName:
             pid=_DEAD_PID,
         )
         with patch.object(Path, "home", return_value=tmp_path):
-            assert get_next_auto_name() == "m"
+            assert get_next_auto_name() == "n"
 
     def test_live_parent_tracked_child_reserves_prefix_without_root(
         self, tmp_path: Path
@@ -207,10 +229,8 @@ class TestGetNextAutoName:
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "a"
 
-    def test_orphaned_dotted_agent_does_not_reserve_prefix(
-        self, tmp_path: Path
-    ) -> None:
-        """``m.claude.plan`` with a dead PID and no done.json frees ``m``."""
+    def test_orphaned_dotted_agent_still_reserves_prefix(self, tmp_path: Path) -> None:
+        """``m.claude.plan`` reserves ``m`` while its artifact exists."""
         for letter in "abcdefghijkl":
             _make_agent(tmp_path, "proj", f"run-{letter}", letter, pid=os.getpid())
         _make_agent(
@@ -222,7 +242,7 @@ class TestGetNextAutoName:
             pid=_DEAD_PID,
         )
         with patch.object(Path, "home", return_value=tmp_path):
-            assert get_next_auto_name() == "m"
+            assert get_next_auto_name() == "n"
 
     def test_dotted_done_agent_reserves_prefix(self, tmp_path: Path) -> None:
         """A done (not dismissed) ``m.claude.plan`` reserves ``m``."""
@@ -300,8 +320,8 @@ class TestGetNextAutoName:
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "b"
 
-    def test_dismissed_suffix_does_not_hold_name(self, tmp_path: Path) -> None:
-        """Dismissed agent suffixes are excluded from auto-name reservation."""
+    def test_dismissed_suffix_holds_name(self, tmp_path: Path) -> None:
+        """Dismissed agents remain reserved until their state is wiped."""
         _make_agent(tmp_path, "proj", "run1", "a", pid=os.getpid())
         _make_agent(tmp_path, "proj", "run2", "b", pid=os.getpid())
         dismissed_file = tmp_path / ".sase" / "dismissed_agents.json"
@@ -311,10 +331,10 @@ class TestGetNextAutoName:
             patch.object(Path, "home", return_value=tmp_path),
             patch("sase.ace.dismissed_agents._DISMISSED_AGENTS_FILE", dismissed_file),
         ):
-            assert get_next_auto_name() == "a"
+            assert get_next_auto_name() == "c"
 
-    def test_dismissed_done_suffix_does_not_hold_name(self, tmp_path: Path) -> None:
-        """Dismissal releases a completed agent's reserved auto-name slot."""
+    def test_dismissed_done_suffix_holds_name(self, tmp_path: Path) -> None:
+        """Dismissed completed agents remain reserved until wiped."""
         _make_agent(tmp_path, "proj", "run1", "a", done=True)
         _make_agent(tmp_path, "proj", "run2", "b", pid=os.getpid())
         dismissed_file = tmp_path / ".sase" / "dismissed_agents.json"
@@ -324,4 +344,4 @@ class TestGetNextAutoName:
             patch.object(Path, "home", return_value=tmp_path),
             patch("sase.ace.dismissed_agents._DISMISSED_AGENTS_FILE", dismissed_file),
         ):
-            assert get_next_auto_name() == "a"
+            assert get_next_auto_name() == "c"

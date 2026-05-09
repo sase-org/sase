@@ -37,6 +37,12 @@ def claim_agent_name(name: str, claiming_dir: str, *, explicit: bool = False) ->
         _claim_explicit(name, claiming_dir)
     else:
         _claim_strip(name, claiming_dir)
+    try:
+        from sase.agent.names._registry import claim_registered_name
+
+        claim_registered_name(name, claiming_dir)
+    except Exception:
+        pass
 
 
 def _claim_strip(name: str, claiming_dir: str) -> None:

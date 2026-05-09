@@ -43,6 +43,17 @@ from sase.agent.names._lookup import (
     get_most_recent_agent_name,
     is_workflow_complete,
 )
+from sase.agent.names._registry import (
+    claim_registered_name,
+    delete_registered_name,
+    get_reserved_agent_name_map,
+    get_reserved_agent_names,
+    is_name_reserved,
+    load_name_registry,
+    lookup_registered_name,
+    lowest_name_suggestion,
+    rebuild_name_registry,
+)
 from sase.agent.names._retry import allocate_retry_name
 from sase.agent.names._resume import (
     agent_name_allocation_lock,
@@ -150,7 +161,9 @@ __all__ = [
     "allocate_resume_names",
     "allocate_revived_name",
     "claim_agent_name",
+    "claim_registered_name",
     "collect_dismissed_taken_names",
+    "delete_registered_name",
     "dedup_name",
     "find_named_agent",
     "first_resume_agent_name",
@@ -160,10 +173,17 @@ __all__ = [
     "get_live_agent_name_map",
     "get_most_recent_agent_name",
     "get_next_auto_name",
+    "get_reserved_agent_name_map",
+    "get_reserved_agent_names",
+    "is_name_reserved",
     "is_dismissed_prefixed",
     "is_process_alive",
     "is_workflow_complete",
+    "load_name_registry",
+    "lookup_registered_name",
+    "lowest_name_suggestion",
     "reserve_repeat_name_base",
+    "rebuild_name_registry",
     "resolve_agent_changespec",
     "strip_dismissed_prefix",
 ]

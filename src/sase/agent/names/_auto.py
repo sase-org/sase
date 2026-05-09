@@ -16,6 +16,7 @@ from sase.agent.names._common import (
     is_process_alive,
     strip_dismissed_prefix,
 )
+from sase.agent.names._registry import get_reserved_agent_names
 
 _COLLISION_DEDUP_FIRST_SUFFIX = 2
 _COLLISION_DEDUP_SEPARATOR = "_"
@@ -26,14 +27,12 @@ def _collision_dedup_name(base: str, suffix: int) -> str:
 
 
 def get_next_auto_name() -> str:
-    """Return the lowest available alphabetic agent name.
+    """Return the lowest available permanent auto-generated agent name.
 
-    Scans visible, non-dismissed agents across all projects and returns the
-    first name in the sequence ``a, b, ..., z, aa, ab, ...`` that is not
-    currently in use. Completed agents keep reserving their slot until
-    dismissed because they remain visible on the Agents tab.
+    Uses the durable name registry so every existing agent state keeps its
+    slot reserved until the agent is explicitly wiped/deleted.
     """
-    used = get_active_agent_names()
+    used = get_reserved_agent_names()
     return _next_available_name(used)
 
 
@@ -41,7 +40,7 @@ def allocate_auto_names(count: int, *, reserved: set[str] | None = None) -> list
     """Allocate *count* auto names from one active-name snapshot."""
     if count <= 0:
         raise ValueError(f"count must be positive, got {count}")
-    used = get_active_agent_names() if reserved is None else reserved
+    used = get_reserved_agent_names() if reserved is None else reserved
     names: list[str] = []
     for _ in range(count):
         name = _next_available_name(used)
@@ -253,11 +252,16 @@ def _load_dismissed_suffixes() -> set[str]:
 
 
 def _name_sequence() -> Iterator[str]:
-    """Yield alphabetic names: a, b, ..., z, aa, ab, ..."""
+    """Yield auto names: a, b, ..., z, aa, ..., az, a0, ..., a9, ba, ..."""
+    tail_chars = string.ascii_lowercase + string.digits
     length = 1
     while True:
-        for combo in itertools.product(string.ascii_lowercase, repeat=length):
-            yield "".join(combo)
+        if length == 1:
+            yield from string.ascii_lowercase
+        else:
+            for first in string.ascii_lowercase:
+                for tail in itertools.product(tail_chars, repeat=length - 1):
+                    yield first + "".join(tail)
         length += 1
 
 

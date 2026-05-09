@@ -23,19 +23,19 @@ class NameCollisionError(ValueError):
     """Raised when an explicit repeat-name base conflicts with existing agents."""
 
 
-# Auto-name prefix: the ``[a-z]+`` segment before the first ``.`` in an
+# Auto-name prefix: the ``[a-z][a-z0-9]*`` segment before the first ``.`` in an
 # agent name or workflow name. The base is intentionally restricted to
-# ``[a-z]+`` so that only names reachable by the auto-name sequence
-# (``a``, ``b``, ..., ``aa``, ...) are extracted as prefixes by
+# names reachable by the auto-name sequence
+# (``a``, ``b``, ..., ``z``, ``aa``, ..., ``a0``, ...) so they are extracted by
 # ``_get_active_agent_names``. Multi-segment user bases like ``sase-z``
 # are already reserved via the ``workflow_name`` path.
-_AUTO_NAME_PREFIX_RE = re.compile(r"^([a-z]+)\.")
+_AUTO_NAME_PREFIX_RE = re.compile(r"^([a-z][a-z0-9]*)\.")
 
 DISMISSED_NAME_PREFIX_RE = re.compile(r"^(\d{6})\.")
 
 
 def extract_auto_name_prefix(*values: object) -> str | None:
-    """Return the longest ``[a-z]+`` prefix before the first ``.`` in any value."""
+    """Return the longest auto-name prefix before the first ``.`` in any value."""
     best: str | None = None
     for v in values:
         if not isinstance(v, str):
