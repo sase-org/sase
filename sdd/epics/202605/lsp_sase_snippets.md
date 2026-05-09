@@ -2,6 +2,8 @@
 create_time: 2026-05-09 00:57:55
 status: wip
 prompt: sdd/prompts/202605/lsp_sase_snippets.md
+bead_id: sase-2f
+tier: epic
 ---
 # Plan: Expose SASE Snippets Through The XPrompt LSP
 
