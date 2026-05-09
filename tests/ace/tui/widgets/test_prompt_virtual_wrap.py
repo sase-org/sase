@@ -104,6 +104,29 @@ async def test_wrapped_prompt_height_includes_completion_panel() -> None:
         )
 
 
+async def test_prompt_text_area_resize_resyncs_stale_bar_height() -> None:
+    initial = "gamma " * 20 + "tail"
+    app = _PromptBarApp(initial)
+
+    async with app.run_test(size=(30, 16)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        text_area = app.query_one(PromptTextArea)
+        expected_height = min(
+            text_area.wrapped_document.height + 2,
+            app.screen.size.height - 2,
+        )
+        assert expected_height > 3
+
+        bar.styles.height = expected_height - 1
+
+        text_area._on_resize()
+        await pilot.pause()
+
+        assert _style_height_value(bar.styles.height) == expected_height
+
+
 async def test_cursor_line_end_moves_to_physical_line_end_not_wrap_boundary() -> None:
     prompt = "abcdefghijklmnopqrstuvwxyz0123456789"
     app = _PromptBarApp(prompt)

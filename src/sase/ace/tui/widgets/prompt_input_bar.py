@@ -130,13 +130,13 @@ class PromptInputBar(Static):
             self.add_class("feedback-mode")
         else:
             self.border_subtitle = "[Enter] send  [Esc] normal  [^C] cancel"
-        self.call_after_refresh(self._update_height)
+        self._schedule_height_update()
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Update height and line numbers when text changes."""
         text_area = self.query_one("#prompt-input", PromptTextArea)
         text_area.show_line_numbers = text_area.document.line_count > 1
-        self._update_height()
+        self._schedule_height_update()
 
     def _get_visual_line_count(self) -> int:
         """Count rendered text rows using Textual's wrapped document."""
@@ -164,10 +164,14 @@ class PromptInputBar(Static):
         new_height = min(max(visual_lines + 2 + completion_rows, 3), max_height)
         self.styles.height = new_height
 
-    def on_resize(self) -> None:
-        """Recalculate height when the terminal is resized."""
+    def _schedule_height_update(self) -> None:
+        """Update now and once more after Textual has refreshed wrapping."""
         self._update_height()
         self.call_after_refresh(self._update_height)
+
+    def on_resize(self) -> None:
+        """Recalculate height when the terminal is resized."""
+        self._schedule_height_update()
 
     def show_file_completions(
         self,
