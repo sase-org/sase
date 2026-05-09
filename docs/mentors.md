@@ -2,17 +2,31 @@
 
 ## Overview
 
-Mentors are automated AI code review agents that run in the background when a ChangeSpec's commits match configurable
-criteria. Each mentor produces structured comments with severity levels that can be reviewed and applied through the ACE
-TUI.
+Mentors are automated AI code review agents for ChangeSpecs. A ChangeSpec is SASE's local record for one proposed code
+change; mentors watch its commits, decide whether configured review profiles match, and then run focused review agents
+in the background.
 
-Mentors are triggered by the Axe daemon, run in isolated workspaces, and produce JSON output. The review workflow is:
-profile matching -> hook readiness -> execution -> structured output -> user review -> apply.
+The Axe daemon drives mentor checks. When a mentor finds issues, it writes structured JSON comments with severities
+(`error`, `warning`, or `suggestion`). You review those comments in the ACE TUI and can launch an apply agent for the
+accepted comments.
+
+The lifecycle is:
+
+1. Match mentor profiles against ChangeSpec commits.
+2. Register matching profiles in the ChangeSpec `MENTORS` field.
+3. Wait for non-skipped hooks on the latest regular commit to become ready.
+4. Start mentor agents when runner slots are available.
+5. Save structured JSON output and file snapshots.
+6. Review, accept, and apply comments from ACE.
 
 ## Configuration
 
-Mentors are configured through `mentor_profiles` in `sase.yml`. See
-[`docs/configuration.md`](configuration.md#mentor_profiles) for the full field reference.
+Mentors are configured through `mentor_profiles` in `sase.yml`. SASE loads merged config, so user-level profiles from
+`~/.config/sase/sase.yml` and project-local profiles from `./sase.yml` can both contribute profiles. See
+[`docs/configuration.md`](configuration.md#mentor_profiles) for the field reference.
+
+A profile defines when it should run. Each profile contains one or more mentors, and each mentor has a role plus focus
+areas that constrain what it should review.
 
 ```yaml
 mentor_profiles:
@@ -52,16 +66,18 @@ mentor_profiles:
 
 ### Profile Matching Criteria
 
-Each profile must have at least one matching criterion:
+Each profile must have at least one matching criterion. If a profile has more than one criterion, SASE uses OR logic:
+any criterion can match.
 
-| Criterion            | Matches against                     |
-| -------------------- | ----------------------------------- |
-| `file_globs`         | Changed file paths (glob patterns)  |
-| `diff_regexes`       | Diff content (regex patterns)       |
-| `amend_note_regexes` | Commit/amend notes (regex patterns) |
-| `first_commit`       | First commit of a ChangeSpec        |
+| Criterion            | Matches against                                        |
+| -------------------- | ------------------------------------------------------ |
+| `file_globs`         | Changed file paths extracted from the diff             |
+| `diff_regexes`       | Diff content using Python regular expressions          |
+| `amend_note_regexes` | Commit or amend notes using Python regular expressions |
+| `first_commit`       | The first regular commit entry of a ChangeSpec         |
 
-When multiple criteria are present on a profile, they are combined with OR logic — any match triggers the profile.
+Profile matching ignores proposal entries such as `(2a)` and uses regular commit entries such as `(1)` and `(2)`.
+Matching profiles are added to the latest regular commit's `MENTORS` entry before the mentors actually start.
 
 ### Project Scoping
 
@@ -90,7 +106,7 @@ unless `projects` is explicitly set.
 
 ### Mentor Definition
 
-Each mentor in a profile requires:
+Each mentor in a profile requires these fields:
 
 - **`mentor_name`**: Unique identifier within the profile.
 - **`role`**: Persona for the review (e.g., "Python expert", "Security reviewer"). This shapes the LLM's review
@@ -100,8 +116,8 @@ Each mentor in a profile requires:
 
 ### Debugging Profile Matching
 
-Use `sase config mentor-match <changespec_name>` to trace which profiles match a given ChangeSpec and why. The output
-shows per-criterion match results with details about what matched.
+Use `sase config mentor-match <changespec_name>` to trace which profiles match a given ChangeSpec and why. The command
+loads the current config, inspects the ChangeSpec commits, and reports per-criterion results.
 
 ```bash
 sase config mentor-match my_feature_cl
@@ -111,34 +127,39 @@ sase config mentor-match my_feature_cl
 
 ### 1. Profile Registration
 
-When a commit is added to a ChangeSpec, the scheduler checks all mentor profiles against the commit's changed files and
-notes. Matching profiles are registered in the MENTORS field with `[0/N]` counts before execution begins.
+When a ChangeSpec is in a reviewable status (`Ready` or `Mailed`), the scheduler checks all mentor profiles against the
+regular commits since the last mentor entry. Matching profiles are registered in the `MENTORS` field with `[0/N]` counts
+before execution begins.
 
 ### 2. Hook Readiness
 
-Mentors wait for all non-skip hooks on the same commit to reach a terminal state (PASSED, FAILED with proposal, or
-summarized). Hooks prefixed with `!` are skipped and don't block mentor eligibility.
+Mentors wait for all non-skipped hooks on the latest regular commit to become ready. A hook is ready when it passed, or
+when a failed hook has been handled by a fix-hook, proposal, summarizer, or metahook. Hooks prefixed with `!` are
+skipped and do not block mentor eligibility.
 
 ### 3. Execution
 
-Each mentor runs as a background process in an isolated workspace:
+Each mentor runs as a background process:
 
 1. The mentor is marked STARTING (prevents race conditions).
 2. A background subprocess is spawned with its own session.
-3. The `#mentor` xprompt workflow renders the prompt with focus areas and invokes the LLM.
-4. Structured JSON output is parsed and saved to `~/.sase/mentors/`.
+3. The `#mentor` xprompt workflow renders the prompt with the mentor role and focus areas.
+4. The project VCS workflow (`#git`, `#gh`, or `#hg`) provides the workspace context.
+5. The LLM response is parsed as structured JSON and saved to `~/.sase/mentors/`.
 
 ### 4. Completion
 
-Mentors reach one of these terminal statuses:
+Mentors use these statuses:
 
-| Status    | Meaning                                                   |
-| --------- | --------------------------------------------------------- |
-| PASSED    | Completed successfully, no review comments                |
-| COMMENTED | Completed successfully, produced one or more comments     |
-| FAILED    | Execution error or invalid JSON response                  |
-| KILLED    | Manually killed or auto-killed due to newer commit        |
-| DEAD      | Process exited unexpectedly (detected via dead PID check) |
+| Status    | Meaning                                                      |
+| --------- | ------------------------------------------------------------ |
+| STARTING  | Registered and about to spawn a runner                       |
+| RUNNING   | Background mentor runner is active                           |
+| PASSED    | Completed successfully with no review comments               |
+| COMMENTED | Completed successfully with one or more comments             |
+| FAILED    | Execution error or invalid JSON response                     |
+| KILLED    | Manually killed or auto-killed because a newer commit exists |
+| DEAD      | Runner process disappeared or its PID was reused             |
 
 ### 5. Stale Mentor Cleanup
 
@@ -147,7 +168,8 @@ prevents stale reviews from continuing after new code is committed.
 
 ## Output Format
 
-Mentor output is saved as JSON to `~/.sase/mentors/`. Each comment includes:
+Mentor output is saved as JSON to `~/.sase/mentors/`. Each output file records the mentor metadata and a `comments`
+array. Each comment includes:
 
 | Field         | Type    | Description                                |
 | ------------- | ------- | ------------------------------------------ |
@@ -171,8 +193,8 @@ MENTORS:
       | python_review:style_checker - STARTING
 ```
 
-The header line shows profile names with `[started/total]` counts. Status lines show timestamp, profile:mentor name,
-status, and duration for completed mentors.
+The entry id matches a regular `COMMITS` entry. The header line shows profile names with `[started/total]` counts.
+Status lines show timestamp, `profile:mentor`, status, and duration for completed mentors.
 
 ## ACE TUI Integration
 
@@ -188,23 +210,23 @@ comments and lets you accept or reject individual suggestions.
 | `N` / `P`           | Navigate between accepted comments only                  |
 | `Ctrl+D` / `Ctrl+U` | Scroll comment details down / up                         |
 | `Space`             | Toggle acceptance of the current comment                 |
-| `Enter`             | Apply all accepted comments (launches agent)             |
 | `a`                 | Apply accepted comments and propose (amend with propose) |
 | `A`                 | Apply accepted comments and commit                       |
 | `r`                 | Run a mentor profile (opens profile picker)              |
 | `y`                 | Copy the current comment to the clipboard                |
-| `Shift+K`           | Kill a running mentor                                    |
+| `K`                 | Kill the selected running mentor                         |
 | `Esc` / `q`         | Close modal                                              |
 
 #### Apply Modes
 
-There are three ways to apply accepted mentor comments:
+There are two ways to apply accepted mentor comments:
 
-- **`Enter`** — Launches the `make_mentor_changes` workflow, which passes the accepted comments to an agent that
-  implements the suggested changes.
-- **`a`** — Same as `Enter`, but also appends the `propose` xprompt (tagged with `propose`) to the agent prompt, so the
-  agent proposes its changes as an amend rather than directly committing.
-- **`A`** — Same as `Enter`, but appends the `commit` xprompt (tagged with `commit`) so the agent commits directly.
+- **`a`** — Launches the `make_mentor_changes` workflow with the `propose` xprompt appended, so the agent proposes its
+  changes as an amend.
+- **`A`** — Launches the `make_mentor_changes` workflow with the `commit` xprompt appended, so the agent commits
+  directly.
+
+Both modes save the accepted comments as an artifact under `~/.sase/mentors/` before launching the apply agent.
 
 #### Running Mentor Profiles
 
@@ -221,10 +243,10 @@ one side panel.
 Each mentor comment in the review modal is displayed alongside a syntax-highlighted code snippet centered on the
 referenced line number. The snippet uses Rich's Monokai theme with line numbers, word wrapping, and the target line
 highlighted. Syntax highlighting is determined by the file extension (supports Python, JavaScript, TypeScript, Go, Rust,
-and 18 other languages).
+Markdown, YAML, JSON, shell, SQL, and other common languages).
 
-Code snippets are loaded from file snapshots when available (instant), falling back to the VCS provider's object store
-for older mentor outputs.
+Code snippets are loaded from file snapshots when available. Older mentor outputs without snapshots fall back to the VCS
+provider when a revision is available.
 
 ### File Snapshots
 
@@ -259,4 +281,4 @@ Mentors run on ChangeSpecs that meet **all** of the following:
 - Status is **Ready** or **Mailed** (not WIP, Draft, Submitted, Reverted, or Archived).
 - The ChangeSpec has at least one commit.
 - At least one mentor profile's matching criteria are satisfied.
-- All non-skip hooks for the matched commit have reached a terminal state.
+- All non-skipped hooks for the latest regular commit are ready.
