@@ -27,6 +27,8 @@ from sase.core.agent_cleanup_wire import (
     AgentCleanupRequestWire,
 )
 
+from .base import OptionListNavigationMixin
+
 if TYPE_CHECKING:
     from ..models import Agent
 
@@ -321,12 +323,14 @@ class _TagRow:
     plan: AgentCleanupPlanWire
 
 
-class AgentCleanupTagModal(ModalScreen[AgentCleanupTagResult | None]):
+class AgentCleanupTagModal(
+    OptionListNavigationMixin, ModalScreen[AgentCleanupTagResult | None]
+):
     """Choose a tag and preview its cleanup plan."""
 
+    _option_list_id = "agent-cleanup-tag-list"
     BINDINGS = [
-        ("escape", "cancel", "Cancel"),
-        ("q", "cancel", "Cancel"),
+        *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         ("enter", "choose_highlighted", "Choose"),
     ]
 
@@ -350,12 +354,9 @@ class AgentCleanupTagModal(ModalScreen[AgentCleanupTagResult | None]):
                 id="agent-cleanup-tag-list",
             )
             yield Static(
-                "enter choose  q close",
+                "j/k move  enter choose  q close",
                 id="agent-cleanup-hints",
             )
-
-    def action_cancel(self) -> None:
-        self.dismiss(None)
 
     def action_choose_highlighted(self) -> None:
         option_list = self.query_one("#agent-cleanup-tag-list", OptionList)

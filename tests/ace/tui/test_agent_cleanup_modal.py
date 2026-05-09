@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
+from textual.app import App, ComposeResult
+from textual.widgets import OptionList
+
 from sase.ace.tui.modals import (
     AgentCleanupCustomModal,
     AgentCleanupModal,
@@ -29,6 +32,13 @@ def _state(**overrides: Any) -> AgentCleanupPanelState:
         tag_count=2,
     )
     return replace(base, **overrides)
+
+
+class _TestApp(App[None]):
+    ENABLE_COMMAND_PALETTE = False
+
+    def compose(self) -> ComposeResult:
+        yield from ()
 
 
 def test_agent_cleanup_modal_action_availability() -> None:
@@ -106,6 +116,31 @@ def test_agent_cleanup_tag_modal_previews_and_disables_empty_tags() -> None:
     assert rows["review"].plan.counts.dismiss == 1
     assert rows["empty"].plan.counts.kill == 0
     assert rows["empty"].plan.counts.dismiss == 0
+
+
+async def test_agent_cleanup_tag_modal_supports_jk_navigation() -> None:
+    alpha = _agent(cl_name="alpha", raw_suffix="alpha-ts", tag="alpha", pid=10)
+    beta = _agent(cl_name="beta", raw_suffix="beta-ts", tag="beta", pid=11)
+    gamma = _agent(cl_name="gamma", raw_suffix="gamma-ts", tag="gamma", pid=12)
+
+    async with _TestApp().run_test() as pilot:
+        modal = AgentCleanupTagModal(
+            tags=("alpha", "beta", "gamma"),
+            targets=[alpha, beta, gamma],
+        )
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        option_list = modal.query_one("#agent-cleanup-tag-list", OptionList)
+        assert option_list.highlighted == 0
+
+        await pilot.press("j")
+        await pilot.pause()
+        assert option_list.highlighted == 1
+
+        await pilot.press("k")
+        await pilot.pause()
+        assert option_list.highlighted == 0
 
 
 def test_agent_cleanup_custom_modal_filters_and_selects_done_agents() -> None:
