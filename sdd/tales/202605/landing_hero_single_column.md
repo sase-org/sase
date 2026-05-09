@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 10:42:38
-status: wip
+status: done
 prompt: sdd/prompts/202605/landing_hero_single_column.md
 ---
 # Landing Hero Single Column Plan
