@@ -506,7 +506,8 @@ extension APIs:
 
 The `docs/` directory is also a MkDocs Material site, with the generated site configured by [`mkdocs.yml`](mkdocs.yml)
 and blog posts under [`docs/blog/`](docs/blog/). Run `just docs-check` to build the site with strict warnings-as-errors
-behavior; the command installs the `docs` extra before invoking `mkdocs build --strict`.
+behavior; the command installs the MkDocs tooling directly before invoking `mkdocs build --strict`, without installing
+the `sase` package.
 
 ## Acknowledgements
 

@@ -158,8 +158,10 @@ check: _setup
     @tools/run_silent "test"               just test
 
 # Build the MkDocs Material site with strict warnings-as-errors behavior.
-docs-check: _setup
-    uv pip install --no-sources -e ".[docs]"
+# This target installs only docs tooling, because the docs build does not
+# import the Python package and should not need the Rust core checkout.
+docs-check: _venv
+    uv pip install --python {{ venv_bin }}/python --no-sources "mkdocs-material>=9.7,<10" "mkdocs-rss-plugin>=1.18,<2"
     {{ venv_bin }}/mkdocs build --strict
 
 # Validate SDD prompt/plan frontmatter links.

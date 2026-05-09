@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 11:49:00
-status: wip
+status: done
 prompt: sdd/prompts/202605/docs_check_core_dependency.md
 ---
 # Fix GitHub Actions `docs-check` dependency resolution
