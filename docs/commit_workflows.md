@@ -25,13 +25,15 @@ and injects an instruction telling the agent **not** to create commits directly.
 
 When the agent finishes, the **stop hook** (`sase_commit_stop_hook`) detects uncommitted changes and blocks the agent
 with an instruction to use the commit skill for the detected VCS provider, such as `/sase_git_commit` or
-`/sase_hg_commit`. The skill calls:
+`/sase_hg_commit` when that provider skill is installed for the current runtime. The skill calls `sase commit` with
+flags, usually using a message file and explicit file pathspecs:
 
 ```bash
-sase commit '<json_payload>' -t <method>
+sase commit -M commit_message.md -f src/example.py -t <method>
 ```
 
-The method defaults to `$SASE_COMMIT_METHOD` if the `-t` flag is omitted.
+The method defaults to `$SASE_COMMIT_METHOD` if the `-t` flag is omitted. If both the environment and `-t/--type` are
+set, they must resolve to the same method unless `SASE_COMMIT_METHOD_ALLOW_OVERRIDE=1` is set.
 
 If `SASE_BEAD_ID` is set, the stop hook first asks the agent to decide whether the uncommitted changes were made in the
 current session. For changes the agent did make, it instructs the agent to close and verify the bead before invoking the
@@ -70,19 +72,23 @@ The COMMITS entry note is always derived from the first line of the commit messa
 `CommitWorkflow` (`src/sase/workflows/commit/workflow.py`) is the central dispatcher. It runs through these stages:
 
 ```
-Precommit command  (e.g. `just fix`)
-    |
 Bead association   (inject SASE_BEAD_ID into message when set)
     |
 Bead lifecycle     (close bead, sync beads)                               [skip for proposals]
     |
 Plan handling      (append PLAN= to message, mark plan done)              [skip for proposals]
     |
-PR tags            (append configured pr_tags as TAG=VALUE lines)         [PR only]
+Precommit command  (e.g. `just fix`)
+    |
+PR name suffixing  (compute _<N> suffix for unique branch names)          [PR only]
     |
 Detect parent CL   (auto-set PARENT from current branch's ChangeSpec)     [PR only]
     |
-PR name suffixing  (compute _<N> suffix for unique branch names)          [PR only]
+PR tags/body       (append PR tags, project prefix, and agent footer)     [PR only]
+    |
+Diff capture       (save the pre-dispatch diff for tracking)
+    |
+Checkpoint         (save resolved payload and tracking state for resume)
     |
 VCS dispatch       (call provider.create_commit / create_proposal / create_pull_request)
     |
@@ -98,9 +104,24 @@ COMMITS entry      (append entry to project file)                         [commi
 The xprompt post-steps read `commit_result.json` from `$SASE_ARTIFACTS_DIR` and emit metadata outputs
 (`meta_new_commit`, `meta_commit_message`, `meta_changespec`, etc.) for downstream consumption.
 
-## Payload Format
+## CLI Inputs and Internal Payload
 
-All three methods accept the same JSON payload structure:
+The `sase commit` CLI builds an internal `CommitWorkflow` payload from flags. It does **not** accept a positional JSON
+payload.
+
+Typical commit or proposal:
+
+```bash
+sase commit -M commit_message.md -f src/auth.py -f src/login.py -t commit
+```
+
+Typical PR:
+
+```bash
+sase commit -M pr_description.md -n feature_branch -B 12345 -s ready -t pr
+```
+
+The internal payload has this shape:
 
 ```json
 {
@@ -109,6 +130,10 @@ All three methods accept the same JSON payload structure:
   "files": ["optional", "list", "of", "specific", "files"]
 }
 ```
+
+The CLI maps `-m` / `-M` to `message`, repeated `-f` flags to `files`, `-n` to `name`, `-B` to `bug_id`, `-c` to
+`checkout_target`, `-p` to `parent`, and `-s` to `status`. Omitted `-f` means "stage all changes" and is represented as
+an empty `files` list.
 
 Bead association is not a user-supplied CLI flag. For new commit attempts, `sase commit` reads `SASE_BEAD_ID`; when it
 is set, the CLI adds that bead to the workflow payload, and `CommitWorkflow` enforces that the bead ID appears in the
@@ -137,9 +162,13 @@ After a successful dispatch, `commit_result.json` contains:
   "name": "Branch/CL name",
   "bead_id": "Bead ID if SASE_BEAD_ID was set",
   "changespec_name": "ChangeSpec name (PR only)",
-  "entry_id": "COMMITS entry ID (commit/propose only)"
+  "entry_id": "COMMITS entry ID (commit/propose only)",
+  "diff_path": "Saved pre-dispatch diff path, when available"
 }
 ```
+
+For compatibility with older xprompt post-steps, the marker also includes alias keys: `commit_result`,
+`commit_changespec_name`, `commit_entry_id`, and `commit_diff_path`.
 
 ## Workflow Details
 
@@ -152,7 +181,7 @@ Creates an actual git commit on the current branch and pushes it.
 1. Stage files (`git add -A` or specific files)
 2. Stage `sdd/beads/` directory and plan file
 3. Validate staged changes exist
-4. Merge with `origin/master` to keep branch current
+4. Merge with `origin/<default_branch>` to keep the branch current
 5. `git commit -m <message>`
 6. Post-commit bead amend (append bead note)
 7. Push to remote with retry on failure
@@ -192,6 +221,8 @@ input:
     type: word
   - name: bug_id # Bug ID (optional, default: 0)
     type: int
+  - name: status # Initial ChangeSpec status: draft, wip, or ready (optional, default: draft)
+    type: word
 ```
 
 **Git operations:**
@@ -298,17 +329,19 @@ instructions automatically, so agents know to hand control back to the user rath
 
 ## Environment Variables
 
-| Variable                  | Purpose                                                 |
-| ------------------------- | ------------------------------------------------------- |
-| `SASE_COMMIT_METHOD`      | Dispatch method (set by xprompt `environment:` section) |
-| `SASE_ARTIFACTS_DIR`      | Directory for `commit_result.json` and other artifacts  |
-| `SASE_BEAD_ID`            | Bead ID to automatically associate with the commit      |
-| `SASE_PLAN`               | Plan file path for staging and status update            |
-| `SASE_AGENT_PROJECT_FILE` | Project file for COMMITS/ChangeSpec tracking            |
-| `SASE_AGENT_CL_NAME`      | CL name used for proposal diff naming                   |
-| `SASE_PR_NAME`            | PR name (set by `#pr` xprompt input)                    |
-| `SASE_BUG_ID`             | Bug ID for PR metadata                                  |
-| `SASE_VCS_PROVIDER`       | Override VCS provider detection (see [vcs.md](vcs.md))  |
+| Variable                            | Purpose                                                          |
+| ----------------------------------- | ---------------------------------------------------------------- |
+| `SASE_COMMIT_METHOD`                | Dispatch method (set by xprompt `environment:` section)          |
+| `SASE_COMMIT_METHOD_ALLOW_OVERRIDE` | Allow `-t/--type` to override a conflicting `SASE_COMMIT_METHOD` |
+| `SASE_ARTIFACTS_DIR`                | Directory for `commit_result.json` and other artifacts           |
+| `SASE_BEAD_ID`                      | Bead ID to automatically associate with the commit               |
+| `SASE_PLAN`                         | Plan file path for staging and status update                     |
+| `SASE_AGENT_PROJECT_FILE`           | Project file for COMMITS/ChangeSpec tracking                     |
+| `SASE_AGENT_CL_NAME`                | CL name used for proposal diff naming                            |
+| `SASE_PR_NAME`                      | PR name (set by `#pr` xprompt input)                             |
+| `SASE_PR_STATUS`                    | Initial PR ChangeSpec status (`draft`, `wip`, `ready`)           |
+| `SASE_BUG_ID`                       | Bug ID for PR metadata                                           |
+| `SASE_VCS_PROVIDER`                 | Override VCS provider detection (see [vcs.md](vcs.md))           |
 
 ## Stop Hook
 

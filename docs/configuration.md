@@ -864,7 +864,6 @@ full flow, payload, checkpoint, and resume semantics.
 
 | Flag                    | Values                        | Default                 | Description                                                                                      |
 | ----------------------- | ----------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
-| `payload`               | JSON string                   | -                       | JSON payload (message, name, files). Ignored when `--resume` is set.                             |
 | `-m, --message`         | string                        | -                       | Commit message (mutually exclusive with `-M`).                                                   |
 | `-M, --message-file`    | path                          | -                       | File containing the commit message / PR description (mutually exclusive with `-m`).              |
 | `-f, --file`            | path (repeatable)             | stage all               | Specific file to stage. Repeat for multiple; omit to stage everything.                           |
