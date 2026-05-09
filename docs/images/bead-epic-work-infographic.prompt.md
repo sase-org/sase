@@ -7,7 +7,7 @@ pdf: false
 ## Target
 
 - Document: `docs/beads.md`
-- Insertion point: after the opening paragraph and before `## Table of Contents`
+- Insertion point: after the opening paragraph and before `## Table of Contents` (already inserted)
 - Image: `docs/images/bead-epic-work-infographic.png`
 - Alt text: `Bead issue model, storage sync, and epic wave execution`
 
@@ -41,3 +41,7 @@ architecture diagram aesthetic. The final image should look complete even after 
 The generated base was intentionally text-free. Final labels were added deterministically with ImageMagick using DejaVu
 Sans. Labels summarize the bead model, SQLite/JSONL Rust-backed storage, multi-workspace read/write behavior, Kahn-wave
 phase scheduling, pre-claimed agents, and the final land agent.
+
+Audit note: `docs/beads.md`, `src/sase/bead/work.py`, and `tests/test_bead/test_work_epic_plan.py` describe the current
+epic behavior: the land agent waits on every launched phase agent, not just leaf phases. The raster label near the land
+agent was updated to say `waits on all phases` so the image matches that behavior.
