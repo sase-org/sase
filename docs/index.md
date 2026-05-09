@@ -16,6 +16,7 @@
     <div class="sase-actions">
       <a class="md-button md-button--primary" href="blog/why-coding-agents-need-orchestration/">Read the launch essay</a>
       <a class="md-button" href="ace/">Start with ACE</a>
+      <a class="md-button" href="series/agentic-software-engineering/">Explore the series</a>
       <a class="md-button" href="https://github.com/sase-org/sase">View on GitHub</a>
     </div>
 
@@ -144,7 +145,7 @@
 
   <p>Follow the agentic software engineering launch track as it grows.</p>
 
-<a href="blog/">Open the blog</a>
+<a href="series/agentic-software-engineering/">Explore the series</a>
 
   </article>
 

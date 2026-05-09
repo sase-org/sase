@@ -1,8 +1,15 @@
 ---
 date: 2026-05-08
+description:
+  A launch stub for the SASE essay on why coding-agent work needs durable orchestration around planning, state, review,
+  and handoff.
 categories:
   - Agentic Software Engineering
 slug: why-coding-agents-need-orchestration
+links:
+  - Agentic Software Engineering Series: series/agentic-software-engineering.md
+  - Start with ACE: ace.md
+  - View on GitHub: https://github.com/sase-org/sase
 ---
 
 # Why Coding Agents Need Orchestration
@@ -21,5 +28,14 @@ interruptions.
 
 ## Status
 
-This launch stub validates the blog route, post metadata, excerpt handling, and evergreen URL shape. The full article is
-not published yet.
+This launch stub validates the blog route, post metadata, excerpt handling, RSS metadata, and evergreen URL shape. The
+full article is not published yet.
+
+## Series Navigation
+
+This is the first entry in the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
+
+- Previous: none.
+- Next: ChangeSpecs: Turning Agent Output Into Reviewable Work.
+- Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
+  [ACE guide](../../ace.md).

@@ -41,6 +41,7 @@ dev = [
 ]
 docs = [
     "mkdocs-material",
+    "mkdocs-rss-plugin",
 ]
 
 [project.scripts]
