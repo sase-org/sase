@@ -279,13 +279,16 @@ class RenameMixin:
             if os.path.exists(meta_path):
                 with open(meta_path) as f:
                     meta = json.load(f)
+            from sase.agent.names import NameCollisionError, claim_agent_name
+
+            try:
+                claim_agent_name(new_name, artifacts_dir, explicit=True)
+            except NameCollisionError as exc:
+                self.notify(str(exc), severity="error")  # type: ignore[attr-defined]
+                return
             meta["name"] = new_name
             with open(meta_path, "w") as f:
                 json.dump(meta, f, indent=2)
-
-            from sase.agent.names import claim_agent_name
-
-            claim_agent_name(new_name, artifacts_dir)
 
             # Find the current agent by identity (may have been replaced by
             # periodic refresh while the modal was open)

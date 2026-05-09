@@ -4,10 +4,16 @@ import json
 from pathlib import Path
 
 from sase.agent.names._common import NameCollisionError
-from sase.agent.names._registry import lowest_name_suggestion
+from sase.agent.names._registry import claim_registered_name, lowest_name_suggestion
 
 
-def claim_agent_name(name: str, claiming_dir: str, *, explicit: bool = False) -> None:
+def claim_agent_name(
+    name: str,
+    claiming_dir: str,
+    *,
+    explicit: bool = False,
+    force_reuse: bool = False,
+) -> None:
     """Record *name* for *claiming_dir*.
 
     Explicit ``%name:<name>`` claims reject existing owners instead of
@@ -15,14 +21,17 @@ def claim_agent_name(name: str, claiming_dir: str, *, explicit: bool = False) ->
     free new name before claiming; this function no longer strips or rewrites
     prior artifact metadata on their behalf.
     """
-    if explicit:
+    if explicit and not force_reuse:
         _reject_explicit_collision(name, claiming_dir)
     try:
-        from sase.agent.names._registry import claim_registered_name
-
-        claim_registered_name(name, claiming_dir)
-    except Exception:
-        pass
+        claim_registered_name(
+            name,
+            claiming_dir,
+            replace_existing=force_reuse or not explicit,
+        )
+    except NameCollisionError:
+        if explicit:
+            raise
 
 
 def _reject_explicit_collision(name: str, claiming_dir: str) -> None:

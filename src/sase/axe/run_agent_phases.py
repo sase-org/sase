@@ -185,7 +185,10 @@ def extract_directives_and_write_meta(
                 from sase.agent.names import claim_agent_name
 
                 claim_agent_name(
-                    agent_name, artifacts_dir, explicit=directives.name_explicit
+                    agent_name,
+                    artifacts_dir,
+                    explicit=directives.name_explicit,
+                    force_reuse=directives.name_force_reuse,
                 )
                 os.environ["SASE_AGENT_NAME"] = agent_name
 

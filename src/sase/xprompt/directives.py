@@ -209,6 +209,10 @@ def extract_prompt_directives(
     # auto-fill happens. Bare ``%name`` (no arg) and auto-named flows
     # (no %name at all) leave this False.
     name_explicit = bool(seen.get("name"))
+    name_force_reuse = False
+    if name_explicit and seen.get("name", "").startswith("!"):
+        name_force_reuse = True
+        seen["name"] = seen["name"][1:]
 
     # Auto-generate name if %name was used bare (no argument)
     if "name" in seen and not seen["name"]:
@@ -330,6 +334,7 @@ def extract_prompt_directives(
         model=expanded_args.get("model") or None,
         name=expanded_args.get("name") or None,
         name_explicit=name_explicit,
+        name_force_reuse=name_force_reuse,
         plan="plan" in expanded_args,
         repeat_count=repeat_count,
         tag=parsed_tag,

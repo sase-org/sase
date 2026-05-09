@@ -63,6 +63,8 @@ def extract_static_name_directive(prompt: str) -> str | None:
                 else colon_arg
             )
 
+        if value.startswith("!"):
+            value = value[1:]
         if not value or "#" in value:
             return None
         return value

@@ -136,6 +136,16 @@ def test_name_with_arg_is_explicit() -> None:
     _, directives = extract_prompt_directives(prompt)
     assert directives.name == "foo"
     assert directives.name_explicit is True
+    assert directives.name_force_reuse is False
+
+
+def test_name_force_reuse_arg_sets_separate_flag() -> None:
+    """%name:!foo keeps the actual name separate from forced reuse intent."""
+    prompt = "%name:!foo\nDo work"
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.name == "foo"
+    assert directives.name_explicit is True
+    assert directives.name_force_reuse is True
 
 
 def test_name_paren_arg_is_explicit() -> None:

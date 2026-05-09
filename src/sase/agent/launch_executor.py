@@ -144,6 +144,10 @@ def execute_launch_plan(
     if not plan.slots:
         return _LaunchExecutionResult(records=[])
 
+    from sase.agent.launch_validation import validate_launch_name_requests
+
+    validate_launch_name_requests([slot.prompt for slot in plan.slots])
+
     allocator = timestamp_allocator or LaunchTimestampBatchAllocator()
     missing_timestamp_count = sum(1 for slot in plan.slots if slot.timestamp is None)
     if base_timestamp is not None and missing_timestamp_count == 1:

@@ -122,6 +122,50 @@ class AgentLaunchMixin(
             self.notify("No prompt context - cannot launch", severity="error")  # type: ignore[attr-defined]
             return
 
+        from sase.agent.launch_validation import (
+            force_reuse_owner_names,
+            launch_prompts_need_force_reuse_confirmation,
+            rewrite_force_reuse_name_directives,
+            wipe_names_for_forced_reuse,
+        )
+
+        if launch_prompts_need_force_reuse_confirmation([prompt]):
+            ctx = self._prompt_context
+
+            def _on_confirmed(confirmed: bool | None) -> None:
+                if not confirmed:
+                    from sase.history.prompt import add_or_update_prompt
+
+                    add_or_update_prompt(
+                        prompt,
+                        project_name=ctx.project_name,
+                        branch_or_workspace=ctx.history_sort_key,
+                        cancelled=True,
+                    )
+                    self.notify("Agent launch cancelled")  # type: ignore[attr-defined]
+                    return
+                try:
+                    wipe_names_for_forced_reuse(force_reuse_owner_names([prompt]))
+                except Exception:
+                    log.exception("Forced agent-name reuse wipe failed")
+                    self.notify(  # type: ignore[attr-defined]
+                        "Agent name reuse failed (see log)", severity="error"
+                    )
+                    return
+                self._finish_agent_launch(rewrite_force_reuse_name_directives(prompt))
+
+            from ...modals import ConfirmActionModal
+
+            names = ", ".join(force_reuse_owner_names([prompt]))
+            self.push_screen(  # type: ignore[attr-defined]
+                ConfirmActionModal(
+                    title="Reuse Agent Name",
+                    message=f"Wipe previous owner of agent name: {names}?",
+                ),
+                _on_confirmed,
+            )
+            return
+
         # Regenerate timestamp at launch time (not when prompt bar was opened)
         from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
 
@@ -247,6 +291,26 @@ class AgentLaunchMixin(
             from sase.history.prompt import add_or_update_prompt
 
             with timer.stage("history_write", launch_kind="multi_prompt"):
+                try:
+                    from sase.agent.launch_validation import (
+                        validate_launch_name_requests,
+                    )
+
+                    validate_launch_name_requests(multi.segments)
+                except RuntimeError as exc:
+                    err_msg = str(exc)
+                    add_or_update_prompt(
+                        normalized_prompt,
+                        project_name=ctx.project_name,
+                        branch_or_workspace=ctx.history_sort_key,
+                        cancelled=True,
+                    )
+                    self.call_later(  # type: ignore[attr-defined]
+                        lambda: self.notify(err_msg, severity="error")  # type: ignore[attr-defined]
+                    )
+                    self._prompt_context = None
+                    timer.finish(dispatch="multi_prompt", outcome="cancelled")
+                    return
                 add_or_update_prompt(
                     normalized_prompt,
                     project_name=ctx.project_name,
@@ -339,6 +403,24 @@ class AgentLaunchMixin(
         from sase.history.prompt import add_or_update_prompt
 
         with timer.stage("history_write"):
+            try:
+                from sase.agent.launch_validation import validate_launch_name_requests
+
+                validate_launch_name_requests([prompt])
+            except RuntimeError as exc:
+                err_msg = str(exc)
+                add_or_update_prompt(
+                    prompt,
+                    project_name=ctx.project_name,
+                    branch_or_workspace=ctx.history_sort_key,
+                    cancelled=True,
+                )
+                self._prompt_context = None
+                timer.finish(dispatch="single", outcome="cancelled")
+                self.call_later(  # type: ignore[attr-defined]
+                    lambda: self.notify(err_msg, severity="error")  # type: ignore[attr-defined]
+                )
+                return
             add_or_update_prompt(
                 prompt,
                 project_name=ctx.project_name,

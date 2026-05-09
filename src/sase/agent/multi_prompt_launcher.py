@@ -159,6 +159,10 @@ def _spawn_segments_into(
         raise ValueError(
             "segment_extra_env must have one entry per multi-prompt segment"
         )
+    from sase.agent.launch_validation import validate_launch_name_requests
+
+    validate_launch_name_requests(segments)
+
     name_allocator = _PlannedNameAllocator()
     previous_agent_name: str | None = None
     for i, segment in enumerate(segments):

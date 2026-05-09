@@ -415,6 +415,28 @@ def launch_agents_from_cwd(
                     mp_vcs_ref = (wf_name, ref_value)
                     break
 
+        try:
+            from sase.agent.launch_validation import (
+                AgentNameLaunchCollisionError,
+                AgentNameReuseConfirmationRequiredError,
+                validate_launch_name_requests,
+            )
+
+            validate_launch_name_requests(expanded_segments)
+        except (
+            AgentNameLaunchCollisionError,
+            AgentNameReuseConfirmationRequiredError,
+        ):
+            add_or_update_prompt(
+                normalized_query,
+                project_name=project_name,
+                branch_or_workspace=(
+                    mp_cl_name if mp_cl_name != project_name else None
+                ),
+                cancelled=True,
+            )
+            raise
+
         add_or_update_prompt(
             normalized_query,
             project_name=project_name,
@@ -458,6 +480,20 @@ def launch_agents_from_cwd(
     if repeat_count is not None and repeat_count > 1:
         slot_results: list[AgentLaunchResult] = []
         repeat_timestamps = reserve_launch_timestamp_batch(repeat_count)
+        repeat_specs: list[RepeatAgentSpec] = []
+
+        spawn_repeat_batch(
+            query,
+            base_spawn_fn=repeat_specs.append,
+            timestamps=repeat_timestamps,
+        )
+        try:
+            from sase.agent.launch_validation import validate_launch_name_requests
+
+            validate_launch_name_requests([spec.prompt for spec in repeat_specs])
+        except RuntimeError:
+            add_or_update_prompt(query, project_name=project_name, cancelled=True)
+            raise
 
         def _spawn_repeat_slot(spec: RepeatAgentSpec) -> None:
             assert spec.timestamp is not None
@@ -476,11 +512,8 @@ def launch_agents_from_cwd(
                 )
             )
 
-        spawn_repeat_batch(
-            query,
-            base_spawn_fn=_spawn_repeat_slot,
-            timestamps=repeat_timestamps,
-        )
+        for spec in repeat_specs:
+            _spawn_repeat_slot(spec)
         return slot_results
 
     # --- Alt-split detection ---
@@ -501,6 +534,21 @@ def launch_agents_from_cwd(
                     alt_cl_name = ref_value
                     alt_vcs_ref = (wf_name, ref_value)
                     break
+
+        try:
+            from sase.agent.launch_validation import validate_launch_name_requests
+
+            validate_launch_name_requests([slot.prompt for slot in alt_plan.slots])
+        except RuntimeError:
+            add_or_update_prompt(
+                query,
+                project_name=project_name,
+                branch_or_workspace=(
+                    alt_cl_name if alt_cl_name != project_name else None
+                ),
+                cancelled=True,
+            )
+            raise
 
         add_or_update_prompt(
             query,
@@ -600,6 +648,19 @@ def launch_agents_from_cwd(
         cl_name = project_name
         history_sort_key = ""
         update_target = ""
+
+    try:
+        from sase.agent.launch_validation import validate_launch_name_requests
+
+        validate_launch_name_requests([query])
+    except RuntimeError:
+        add_or_update_prompt(
+            query,
+            project_name=project_name,
+            branch_or_workspace=history_sort_key or None,
+            cancelled=True,
+        )
+        raise
 
     # --- Save prompt to history ---
     add_or_update_prompt(
