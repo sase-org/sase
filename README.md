@@ -72,7 +72,8 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
 
 ## Key Features
 
-- **ACE** — Interactive TUI for navigating, filtering, and managing ChangeSpecs
+- **ACE** — Interactive TUI for navigating, filtering, and managing ChangeSpecs, live agents, notifications, and
+  per-panel agent status summaries
 - **AXE** — Lumberjack-based daemon for continuous automation via configurable chop scripts
 - **XPrompt** — Typed prompt templates with reference expansion, YAML front matter, semantic tags, TUI/mobile argument
   hints, and CLI tools for expansion, listing, catalog generation, workflow visualization, and DAG graphing

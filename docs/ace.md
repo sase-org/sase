@@ -370,10 +370,12 @@ progress such as `PDF 2/4 <path>` or `PDFs done 3/4 (1 skipped)` instead of look
 ### Tag Side Panels
 
 The Agents tab is laid out as a series of vertically-stacked side panels, one per agent **tag**. Untagged agents live in
-their own `(untagged)` panel; each tagged group renders as `@<tag>` with an agent count in the panel title. Panel
-heights are sized to their content and separated by a one-row gap. When the panels fit, the first panel grows to absorb
-leftover vertical space while later panels stay pinned to their natural height; when the panels overflow, space is
-weighted by each panel's rendered row count.
+their own `(untagged)` panel; each tagged group renders as `#<tag>` with an agent count in the panel title. Each panel
+title can also show compact scoped metrics in the form `[H1 R2 W1 F1 U1 D3]`: `H` is human-in-the-loop, `R` is running,
+`W` is waiting, `F` is failed, `U` is unread terminal work, and `D` is done/read terminal work. Zero-count metrics are
+omitted. Panel heights are sized to their content and separated by a one-row gap. When the panels fit, the first panel
+grows to absorb leftover vertical space while later panels stay pinned to their natural height; when the panels
+overflow, space is weighted by each panel's rendered row count.
 
 Use `J` / `K` to move focus across panels (forward / reverse). `J` lands on the first selectable row in the new panel;
 `K` lands on the last selectable row, including collapsed group banners when those are visible. Per-panel actions (kill,
@@ -453,14 +455,16 @@ you had in `STANDARD`. `BY_STATUS` banners are prefixed with semantic glyphs (`�
 title still leads visually.
 
 The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the current
-session mode is always visible after the cycle toast fades. The same header starts with a visible-agent metric strip in
-the form `N Agents [R running · W waiting · U unread · D read]`. `running` excludes waiting rows, `waiting` is the
-blocked/queued subset, `unread` counts terminal rows that still need acknowledgement, and `read` is completed visible
-rows that have already been acknowledged. During startup the metric strip renders `Agents: …` until the first agent scan
-has loaded, avoiding a misleading zero-agent count. Each TUI launch starts in by-project grouping; cycling only changes
-the current session. **Waiting** holds agents that are blocked but progressing on their own — `WAITING` with a
-`wait_until` timer (`%wait:5m`, `%wait:1430`) or a non-empty `waiting_for` dependency. **Needs Attention** keeps the
-strict "you need to act" semantics: a `WAITING` agent with neither a timer nor a dependency stays there because it's
+session mode is always visible after the cycle toast fades. The same header starts with a visible top-level agent metric
+strip in the form `N Agents [H hitl · R running · W waiting · F failed · U unread · D done]`, with numeric counts in
+place of the letters and zero-count metrics omitted. `hitl` counts agents paused for plan approval, questions, or
+workflow human-input steps; `running` excludes waiting, failed, and HITL rows; `waiting` is the blocked/queued subset;
+`failed` is terminal failed work; `unread` counts terminal rows that still need acknowledgement; and `done` is completed
+visible work that has already been acknowledged. During startup the metric strip renders `Agents: …` until the first
+agent scan has loaded, avoiding a misleading zero-agent count. Each TUI launch starts in by-project grouping; cycling
+only changes the current session. **Waiting** holds agents that are blocked but progressing on their own — `WAITING`
+with a `wait_until` timer (`%wait:5m`, `%wait:1430`) or a non-empty `waiting_for` dependency. **Needs Attention** keeps
+the strict "you need to act" semantics: a `WAITING` agent with neither a timer nor a dependency stays there because it's
 parked waiting on the user.
 
 ### Agent Row Glyphs

@@ -204,6 +204,8 @@ See [`docs/configuration.md`](configuration.md#sase-notify) for the full CLI ref
 
 Notifications are stored in JSONL format at `~/.sase/notifications/notifications.jsonl`. The production store backend is
 `sase_core_rs`: appends and state mutations take a shared sidecar lock, and rewrites use a tempfile plus rename so
-multiple axe processes and the TUI can access the file without truncate-before-lock exposure.
+multiple axe processes and the TUI can access the file without truncate-before-lock exposure. Common state-only updates
+such as mark-read, mark-all-read, mute, snooze, and dismiss use a count-only Rust mutation path unless the caller needs
+rehydrated notification rows; this keeps inbox counters cheap when ACE or a bridge process only needs mutation metadata.
 
 Source: `src/sase/notifications/`
