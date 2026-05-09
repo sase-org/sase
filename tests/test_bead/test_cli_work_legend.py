@@ -233,8 +233,16 @@ def test_legend_collision_helpers_report_live_planning_agents(
         land_waits_on=("l1.2",),
     )
     monkeypatch.setattr(
-        "sase.agent.names.get_live_agent_name_map",
-        lambda: {"l1.2.0": "/tmp/l1.2.0", "l1": "/tmp/l1", "other": "/tmp/other"},
+        "sase.agent.names.get_live_agent_name_subset",
+        lambda expected: {
+            name: path
+            for name, path in {
+                "l1.2.0": "/tmp/l1.2.0",
+                "l1": "/tmp/l1",
+                "other": "/tmp/other",
+            }.items()
+            if name in expected
+        },
     )
 
     assert _expected_legend_agent_names(plan) == {"l1.1.0", "l1.2.0", "l1"}

@@ -228,6 +228,82 @@ def get_live_agent_name_map() -> dict[str, str]:
     return name_map
 
 
+def get_live_agent_name_subset(expected_names: set[str]) -> dict[str, str]:
+    """Return live name collisions for a small expected-name set.
+
+    The full live-name map is useful for broad diagnostics. Bead work already
+    knows the exact names it wants, so this path avoids liveness checks until a
+    metadata file names one of those agents and stops once every expected name
+    has been found.
+    """
+    remaining = set(expected_names)
+    if not remaining:
+        return {}
+
+    projects_dir = Path.home() / ".sase" / "projects"
+    if not projects_dir.exists():
+        return {}
+
+    dismissed_suffixes = _load_dismissed_suffixes()
+    name_map: dict[str, str] = {}
+    try:
+        project_iter = projects_dir.iterdir()
+    except OSError:
+        return {}
+
+    for project_dir in project_iter:
+        if not project_dir.is_dir():
+            continue
+
+        ace_run_dir = project_dir / "artifacts" / "ace-run"
+        if not ace_run_dir.exists():
+            continue
+
+        try:
+            artifact_iter = ace_run_dir.iterdir()
+        except OSError:
+            continue
+
+        for artifact_dir in artifact_iter:
+            if not artifact_dir.is_dir():
+                continue
+            if artifact_dir.name in dismissed_suffixes:
+                continue
+            if (artifact_dir / "done.json").exists():
+                continue
+
+            meta_path = artifact_dir / "agent_meta.json"
+            if not meta_path.exists():
+                continue
+
+            try:
+                with open(meta_path, encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                continue
+
+            if not isinstance(data, dict):
+                continue
+
+            names = {
+                value
+                for value in (data.get("name"), data.get("workflow_name"))
+                if isinstance(value, str) and value in remaining
+            }
+            if not names:
+                continue
+            if not is_process_alive(data, artifact_dir):
+                continue
+
+            for name in names:
+                name_map.setdefault(name, str(artifact_dir))
+                remaining.discard(name)
+            if not remaining:
+                return name_map
+
+    return name_map
+
+
 def _load_dismissed_suffixes() -> set[str]:
     """Return dismissed raw suffixes, ignoring load/import errors."""
     try:

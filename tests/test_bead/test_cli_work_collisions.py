@@ -237,3 +237,21 @@ def test_work_passes_when_no_collisions(
 
     bead_cli.handle_bead_work(make_args(epic_id, yes=True))
     assert "---" in captured["query"]
+
+
+def test_live_agent_name_subset_filters_to_expected_live_names(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agent.names import get_live_agent_name_subset
+
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    live_dir = write_orphan_meta(fake_home, "target")
+    write_orphan_meta(fake_home, "done-target", done=True)
+    write_orphan_meta(fake_home, "other")
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+    assert get_live_agent_name_subset({"target", "done-target"}) == {
+        "target": str(live_dir),
+    }

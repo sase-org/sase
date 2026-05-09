@@ -158,15 +158,14 @@ def _handle_epic_bead_work(
 
     claimed: list[tuple[str, Status, str]] = []
     try:
-        for wave in plan.waves:
-            for assignment in wave:
-                prior = proj.show(assignment.bead_id)
-                proj.update(
-                    assignment.bead_id,
-                    status="in_progress",
-                    assignee=assignment.agent_name,
-                )
-                claimed.append((assignment.bead_id, prior.status, prior.assignee or ""))
+        claimed = proj.preclaim_epic_work(
+            epic_id,
+            [
+                (assignment.bead_id, assignment.agent_name)
+                for wave in plan.waves
+                for assignment in wave
+            ],
+        )
     except (KeyError, ValueError) as e:
         print(f"Error: pre-claim failed for epic {epic_id}: {e}", file=sys.stderr)
         rollback_work_launch(proj, epic_id, claimed, unmark_ready=marked_ready_this_run)
@@ -390,14 +389,13 @@ def _legacy_land_agent_name(plan: EpicWorkPlan) -> str | None:
 
 def find_live_name_collisions(plan: EpicWorkPlan) -> dict[str, str]:
     """Return ``{agent_name: artifact_dir}`` for plan names owned by live agents."""
-    from sase.agent.names import get_live_agent_name_map
+    from sase.agent.names import get_live_agent_name_subset
 
     expected = expected_agent_names(plan)
     legacy_land_name = _legacy_land_agent_name(plan)
     if legacy_land_name:
         expected.add(legacy_land_name)
-    live = get_live_agent_name_map()
-    return {name: live[name] for name in expected if name in live}
+    return get_live_agent_name_subset(expected)
 
 
 def _expected_legend_agent_names(plan: LegendWorkPlan) -> set[str]:
@@ -408,11 +406,10 @@ def _expected_legend_agent_names(plan: LegendWorkPlan) -> set[str]:
 
 def _find_live_legend_name_collisions(plan: LegendWorkPlan) -> dict[str, str]:
     """Return live collisions for legend epic-planning agent names."""
-    from sase.agent.names import get_live_agent_name_map
+    from sase.agent.names import get_live_agent_name_subset
 
     expected = _expected_legend_agent_names(plan)
-    live = get_live_agent_name_map()
-    return {name: live[name] for name in expected if name in live}
+    return get_live_agent_name_subset(expected)
 
 
 def print_work_plan_summary(epic_id: str, title: str, plan: EpicWorkPlan) -> None:

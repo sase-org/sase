@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 15:47:37
-status: wip
+status: done
 prompt: sdd/prompts/202605/bead_work_speed.md
 ---
 # Make `sase bead work` Faster

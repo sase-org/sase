@@ -194,6 +194,33 @@ class BeadProject:
         self._refresh_db_from_jsonl()
         return issue
 
+    def preclaim_epic_work(
+        self,
+        epic_id: str,
+        assignments: list[tuple[str, str]],
+    ) -> list[tuple[str, Status, str]]:
+        """Batch-claim epic phase beads for ``sase bead work``.
+
+        Returns rollback entries as ``(bead_id, prior_status, prior_assignee)``.
+        """
+        from sase.core import bead_mutation_facade as rust_beads
+
+        _issues, rollback, _outcome = rust_beads.preclaim_epic_work(
+            self.beads_dir,
+            epic_id,
+            assignments,
+            now=_now(),
+        )
+        BEAD_OPERATIONS.labels(operation="preclaim_epic_work").inc()
+        for _bead_id, prior_status, _prior_assignee in rollback:
+            if prior_status != Status.IN_PROGRESS:
+                BEAD_STATUS_TRANSITIONS.labels(
+                    from_status=prior_status.value,
+                    to_status=Status.IN_PROGRESS.value,
+                ).inc()
+        self._refresh_db_from_jsonl()
+        return rollback
+
     def close(self, issue_ids: list[str], reason: str | None = None) -> list[Issue]:
         """Close one or more issues.
 

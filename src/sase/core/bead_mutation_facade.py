@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from sase.bead.model import BeadTier, Dependency, Issue, IssueType
+from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
 from sase.bead.project import AlreadyReadyError, NotAPlanError
 from sase.core.bead_wire import (
     issue_from_dict,
@@ -75,6 +75,35 @@ def update(
     binding = require_rust_binding("bead_update")
     payload = _call_issue_operation(binding, str(beads_dir), issue_id, fields)
     return _issue_payload(payload), payload
+
+
+def preclaim_epic_work(
+    beads_dir: Path | str,
+    epic_id: str,
+    assignments: list[tuple[str, str]],
+    *,
+    now: str | None = None,
+) -> tuple[list[Issue], list[tuple[str, Status, str]], dict[str, Any]]:
+    binding = require_rust_binding("bead_preclaim_epic_work")
+    payload = _call_issue_operation(
+        binding,
+        str(beads_dir),
+        epic_id,
+        [
+            {"bead_id": bead_id, "agent_name": agent_name}
+            for bead_id, agent_name in assignments
+        ],
+        now,
+    )
+    rollback = [
+        (
+            str(item["bead_id"]),
+            Status(str(item["status"])),
+            "" if item.get("assignee") is None else str(item.get("assignee", "")),
+        )
+        for item in payload.get("rollback_preclaims", [])
+    ]
+    return issues_from_list(payload.get("issues", [])), rollback, payload
 
 
 def open_issue(
@@ -201,6 +230,7 @@ __all__ = [
     "init_store",
     "mark_ready_to_work",
     "open_issue",
+    "preclaim_epic_work",
     "remove",
     "sync_is_clean",
     "unmark_ready_to_work",
