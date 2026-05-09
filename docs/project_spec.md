@@ -1,127 +1,148 @@
 # ProjectSpec Format
 
-A ProjectSpec is a sase format specification for a project plan consisting of multiple CLs (change lists). The format
-starts with a BUG field, followed by a collection of ChangeSpecs (see change_spec.md), each separated by two blank
-lines.
+A ProjectSpec is SASE's project-level `.gp` file. It groups the active [ChangeSpecs](change_spec.md) for one project and
+may also store project metadata used by workspace and agent coordination.
 
-ProjectSpec files are stored at `~/.sase/projects/<filename>/<filename>.gp`.
+ProjectSpec files live under `~/.sase/projects/<project>/<project>.gp`. Terminal ChangeSpecs are moved to the adjacent
+archive file, `~/.sase/projects/<project>/<project>-archive.gp`.
 
 ## Format
 
-A ProjectSpec starts with a BUG field at the top, followed by one or more ChangeSpecs, each separated by two blank
-lines. PARENT and CL are optional (omit them for the initial / unparented state — see
-[`change_spec.md`](change_spec.md)):
+A ProjectSpec has two parts:
 
-```
-BUG: <BUG_ID>
+1. Optional project metadata before the first `NAME:` line.
+2. One or more ChangeSpec blocks, separated by two blank lines.
+
+The ChangeSpec parser finds blocks by scanning for `NAME:` lines. Project metadata is read by narrower helpers and must
+stay before the first ChangeSpec.
+
+```text
+BARE_REPO_DIR: ~/.sase/repos/my_project.git
+WORKSPACE_DIR: ~/projects/git/my_project/
+RUNNING:
+  #2 | 12345 | run | my_project_add_config_parser_1 | 260509_121314
 
 
-NAME: <NAME1>
+NAME: my_project_add_config_parser_1
 DESCRIPTION:
-  <TITLE1>
+  Add configuration file parser
 
-  <BODY1>
-STATUS: <STATUS1>
+  This CL implements configuration loading and validation.
+BUG: http://b/12345
+STATUS: WIP
 
 
-NAME: <NAME2>
+NAME: my_project_add_docs_1
 DESCRIPTION:
-  <TITLE2>
+  Document configuration setup
 
-  <BODY2>
-PARENT: <NAME1>
-STATUS: <STATUS2>
+  This CL adds user-facing documentation for the configuration file.
+PARENT: my_project_add_config_parser_1
+STATUS: WIP
 ```
 
 ## BUG Field
 
-The BUG field is required at the very top of the ProjectSpec file, separated by two blank lines from the first
-ChangeSpec:
+`BUG:` is a ChangeSpec field, not required project metadata. Put it inside each ChangeSpec that should link to a bug or
+issue. SASE stores the value as text; common values are a plain identifier or a URL:
 
-- **BUG**: Bug ID to track this project. Supports multiple formats:
-  - Plain ID: `BUG: 12345`
-  - URL format: `BUG: http://b/12345` or `BUG: https://b/12345`
+```text
+BUG: 12345
+BUG: http://b/12345
+BUG: https://b/12345
+```
+
+PR workflows that receive `SASE_BUG_ID` or `sase commit --bug-id` write the ChangeSpec field as `http://b/<id>`. Child
+ChangeSpecs may inherit the parent's `BUG:` when SASE creates them through the commit workflow.
+
+## Project Metadata Fields
+
+Project metadata fields are optional and appear before the first `NAME:` line. SASE currently uses these fields:
+
+- **BARE_REPO_DIR**: Path to the local bare git repository for the built-in `#git` workflow.
+- **WORKSPACE_DIR**: Path to workspace clone `#1`, used as the base for numbered clones such as `<workspace>_2/`.
+- **RUNNING**: Active workspace claims written and released by SASE while agents or workflows are running.
+
+`BARE_REPO_DIR` and `WORKSPACE_DIR` are created by `sase init-git` or by first-use `#git:<project>` initialization. They
+are parsed only before the first ChangeSpec.
+
+The `RUNNING` section is managed by SASE. Each entry has this shape:
+
+```text
+RUNNING:
+  #<WORKSPACE_NUM> | <PID> | <WORKFLOW> | <CHANGESPEC_NAME> | <TIMESTAMP> | PINNED
+```
+
+The timestamp and `PINNED` marker are optional. Do not edit `RUNNING` by hand unless you are repairing a stale workspace
+claim and have verified the process is gone.
 
 ## ChangeSpec Fields
 
-Each ChangeSpec within a ProjectSpec must contain the following fields:
+Each ChangeSpec in a ProjectSpec follows the [ChangeSpec format](change_spec.md). For hand-written entries, the normal
+minimum fields are:
 
-1. **NAME**: Must start with the project filename (without .gp extension) followed by an underscore and a descriptive
-   suffix (words separated by underscores). Format: `<BASENAME>_<descriptive_suffix>` where the suffix thoughtfully
-   describes the CL's intent (strive for shorter names)
-2. **DESCRIPTION**:
-   - First line (TITLE): A brief one-line description of the CL (2-space indented)
-   - Followed by a blank line (still 2-space indented)
-   - Body (BODY): Multi-line detailed description of what the CL does, including:
-     - What changes are being made
-     - Why the changes are needed
-     - High-level approach or implementation details
-   - All DESCRIPTION lines must be 2-space indented
-   - **DO NOT include file modification lists** - that will be handled by a different workflow
-3. **PARENT** (optional): The NAME of the parent CL that must be completed first. Omit the field entirely when the CL
-   has no dependencies (preferred for parallelization). The PARENT field is a ChangeSpec **name**, never a VCS ref —
-   `sase commit` drops the PARENT field and warns when the value passed via `-p` does not resolve to an existing
-   ChangeSpec.
-4. **CL / PR** (optional): Identifier of the created CL/PR. Omit the field entirely until the CL exists; both `CL:` and
-   `PR:` are accepted and treated identically. Supported value formats:
-   - URL format: `CL: http://cl/12345` or `https://cl/12345`
-   - GitHub PR URL: `PR: https://github.com/<owner>/<repo>/pull/<N>`
-5. **STATUS**: Must be one of the valid statuses: WIP, Draft, Ready, Mailed, Submitted, Reverted, Archived. New
-   ChangeSpecs typically start as "WIP". See [`change_spec.md`](change_spec.md) for the full status lifecycle.
+1. **NAME**: Unique ChangeSpec identifier. SASE-generated names normally start with `<project>_` and end with a numeric
+   uniqueness suffix such as `_1`.
+2. **DESCRIPTION**: A title, a blank line, and a body, all indented by two spaces.
+3. **STATUS**: One of the lifecycle statuses documented in [`change_spec.md`](change_spec.md#status). New manual work
+   typically starts as `WIP`.
+
+Common optional fields include:
+
+- **PARENT**: The `NAME` of a parent ChangeSpec that must land first. Omit it when there is no dependency.
+- **CL / PR**: URL for the created review, omitted until the CL or PR exists. `CL:` and `PR:` are parsed the same way.
+- **BUG**: Bug or issue reference for this ChangeSpec.
+- **TEST TARGETS**, **COMMITS**, **DELTAS**, **HOOKS**, **COMMENTS**, **MENTORS**, and **TIMESTAMPS**: See
+  [`change_spec.md`](change_spec.md) for details.
 
 ## Example
 
-```
-BUG: 12345
+```text
+WORKSPACE_DIR: ~/projects/git/my_project/
 
 
-NAME: my-project_add_config_parser
+NAME: my_project_add_config_parser_1
 DESCRIPTION:
   Add configuration file parser for user settings
 
   This CL implements a YAML-based configuration parser that reads
-  user settings from ~/.myapp/config.yaml. The parser will include
-  a ConfigParser class with load() and validate() methods, along
-  with type definitions for the configuration schema. Tests will
-  cover valid YAML parsing, invalid config validation, and missing
-  file handling.
+  user settings from ~/.myapp/config.yaml. The parser includes load
+  and validation behavior, plus tests for valid YAML, invalid config,
+  and missing file handling.
+BUG: http://b/12345
 STATUS: WIP
+TEST TARGETS: //my/project:config_parser_test
 
 
-NAME: my-project_integrate_parser
+NAME: my_project_integrate_parser_1
 DESCRIPTION:
-  Integrate config parser into main application
+  Integrate config parser into application startup
 
-  This CL integrates the configuration parser from the previous CL
-  into the main application initialization flow. The main application
-  will import ConfigParser and load the config at startup, with proper
-  error handling for invalid configurations. Tests will verify both
-  valid and invalid config scenarios.
-PARENT: my-project_add_config_parser
+  This CL loads the parser during application initialization and
+  surfaces validation errors clearly. Tests cover valid and invalid
+  startup configuration.
+PARENT: my_project_add_config_parser_1
 STATUS: WIP
+TEST TARGETS: //my/project:startup_test
 
 
-NAME: my-project_add_docs
+NAME: my_project_add_docs_1
 DESCRIPTION:
-  Add documentation for configuration system
+  Document configuration setup
 
-  This CL adds user-facing documentation explaining how to configure
-  the application using the config file. The documentation will cover
-  the configuration file format, provide examples of common scenarios,
-  and document all available configuration options.
-PARENT: my-project_integrate_parser
+  This CL explains where the configuration file lives, shows common
+  examples, and documents the supported keys.
+PARENT: my_project_integrate_parser_1
 STATUS: WIP
 ```
 
 ## Important Notes
 
-- **BUG field**: Must be the first line of the ProjectSpec file, followed by two blank lines
-- **Blank lines between ChangeSpecs**: Each ChangeSpec must be separated by exactly two blank lines
-- **NAME field**: All ChangeSpecs in a project MUST start with `<basename>_` where basename is the project filename
-  (without .gp), followed by a descriptive suffix (words separated by underscores, strive for shorter names)
-- **CL / PR field**: Omit until the CL/PR is created; once it exists, set to its URL (or PR URL for GitHub)
-- **STATUS field**: Must be a valid status (WIP, Draft, Ready, Mailed, Submitted, Reverted, Archived). New ChangeSpecs
-  typically start as "WIP"
-- **PARENT field**: Optional. Omit it when there is no dependency; otherwise set it to the NAME of the parent CL
-- **No file modifications**: The DESCRIPTION should NOT include specific file modification lists — that will be handled
-  by a different workflow
+- **Project file path**: Use `~/.sase/projects/<project>/<project>.gp` for active ChangeSpecs and
+  `~/.sase/projects/<project>/<project>-archive.gp` for terminal history.
+- **Project metadata**: Keep `BARE_REPO_DIR`, `WORKSPACE_DIR`, and `RUNNING` before the first `NAME:` line.
+- **Blank lines between ChangeSpecs**: Separate ChangeSpecs with exactly two blank lines.
+- **NAME field**: Prefer SASE-generated names, which use the project prefix and a numeric suffix.
+- **PARENT field**: Set it only to another ChangeSpec `NAME`; omit it when there is no dependency.
+- **CL / PR field**: Omit until the CL or PR exists, then set it to the review URL.
+- **No file modification lists**: Keep file lists out of `DESCRIPTION`; SASE records file-level deltas separately.
