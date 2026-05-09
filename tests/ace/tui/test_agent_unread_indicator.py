@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
+from unittest.mock import Mock
+
+import pytest
 
 from sase.ace.tui.actions.agents._loading_finalize import (
     _sync_unread_completed_agents,
@@ -16,6 +19,15 @@ from sase.ace.tui.models.agent_panels import AgentPanelGroup, panel_key_per_agen
 from sase.ace.tui.widgets.agent_list import AgentList
 
 _DEFAULT_START_TIME = datetime(2026, 5, 7, 9, 0, 0)
+
+
+@pytest.fixture(autouse=True)
+def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    dismiss = Mock(return_value=0)
+    monkeypatch.setattr(
+        "sase.notifications.dismiss_notifications_matching_agents", dismiss
+    )
+    return dismiss
 
 
 def _agent(
@@ -53,7 +65,7 @@ class _SelectionEvent:
         self.group_key = group_key
 
 
-class _SelectionApp(EventHandlersMixin):
+class _SelectionApp(EventHandlersMixin, AgentsMixinCore):
     def __init__(self, agents: list[Agent], *, patch_result: bool = True) -> None:
         self.current_tab = "agents"
         self.current_idx = 0
@@ -67,6 +79,7 @@ class _SelectionApp(EventHandlersMixin):
         self._patch_result = patch_result
         self.patch_calls: list[Agent] = []
         self.refresh_calls: list[dict[str, Any]] = []
+        self.notification_count_refresh_calls = 0
 
     def _panel_keys_per_agent(self) -> list[str | None]:
         return panel_key_per_agent(self._agents)
@@ -77,6 +90,9 @@ class _SelectionApp(EventHandlersMixin):
 
     def _refresh_agents_display(self, **kwargs: Any) -> None:
         self.refresh_calls.append(kwargs)
+
+    def _refresh_notification_count(self) -> None:
+        self.notification_count_refresh_calls += 1
 
 
 def test_agent_row_selection_clears_unread_and_patches_row() -> None:
@@ -174,7 +190,39 @@ def test_manual_unread_mouse_selection_arms_then_acknowledges_on_return() -> Non
     assert app.patch_calls == [first]
 
 
-class _UnreadFinalizeApp:
+def test_acknowledge_agent_unread_dismisses_matching_notification(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.return_value = 1
+    agent = _agent(status="DONE")
+    app = _SelectionApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+
+    assert app._acknowledge_agent_unread(agent)
+
+    assert agent.identity not in app._unread_completed_agent_ids
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
+    )
+    assert app.notification_count_refresh_calls == 1
+
+
+def test_acknowledge_agent_unread_does_not_dismiss_manual_guard(
+    notification_dismiss: Mock,
+) -> None:
+    agent = _agent(status="DONE")
+    app = _SelectionApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+    app._manual_unread_agent_ids.add(agent.identity)
+
+    assert not app._acknowledge_agent_unread(agent)
+
+    assert agent.identity in app._unread_completed_agent_ids
+    notification_dismiss.assert_not_called()
+    assert app.notification_count_refresh_calls == 0
+
+
+class _UnreadFinalizeApp(AgentsMixinCore):
     def __init__(self, agents: list[Agent]) -> None:
         self._agents = agents
         self.current_idx = 0
@@ -184,6 +232,10 @@ class _UnreadFinalizeApp:
         self._agent_display_status_by_identity: dict[
             tuple[AgentType, str, str | None], str
         ] = {}
+        self.notification_count_refresh_calls = 0
+
+    def _refresh_notification_count(self) -> None:
+        self.notification_count_refresh_calls += 1
 
 
 def test_finalizer_marks_new_terminal_agent_unread() -> None:
@@ -225,6 +277,24 @@ def test_finalizer_clears_unread_for_saved_selection_on_agents_tab() -> None:
     _sync_unread_completed_agents(app, on_agents_tab=True)  # type: ignore[arg-type]
 
     assert app._unread_completed_agent_ids == set()
+
+
+def test_finalizer_dismisses_notification_for_saved_selection_on_agents_tab(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.return_value = 1
+    agent = _agent(status="DONE")
+    app = _UnreadFinalizeApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+    app._agent_display_status_by_identity[agent.identity] = "DONE"
+
+    _sync_unread_completed_agents(app, on_agents_tab=True)  # type: ignore[arg-type]
+
+    assert app._unread_completed_agent_ids == set()
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
+    )
+    assert app.notification_count_refresh_calls == 1
 
 
 def test_finalizer_preserves_selected_manually_unread_agent() -> None:
@@ -303,6 +373,7 @@ class _UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin):
         self.patch_calls: list[Agent] = []
         self.refresh_calls: list[dict[str, Any]] = []
         self.debounced_refresh_calls = 0
+        self.notification_count_refresh_calls = 0
 
     def _agents_visible_order(self) -> list[int]:
         if self._visible is not None:
@@ -330,8 +401,13 @@ class _UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin):
     def _refresh_agents_display_debounced(self) -> None:
         self.debounced_refresh_calls += 1
 
+    def _refresh_notification_count(self) -> None:
+        self.notification_count_refresh_calls += 1
 
-def test_toggle_agent_unread_marks_selected_row_without_moving() -> None:
+
+def test_toggle_agent_unread_marks_selected_row_without_moving(
+    notification_dismiss: Mock,
+) -> None:
     agent = _agent(status="RUNNING")
     app = _UnreadJumpApp([agent])
 
@@ -342,9 +418,13 @@ def test_toggle_agent_unread_marks_selected_row_without_moving() -> None:
     assert app._manual_unread_agent_ids == {agent.identity}
     assert app.patch_calls == [agent]
     assert app.refresh_calls == []
+    notification_dismiss.assert_not_called()
 
 
-def test_toggle_agent_unread_again_marks_selected_row_read() -> None:
+def test_toggle_agent_unread_again_marks_selected_row_read(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.return_value = 1
     agent = _agent(status="DONE")
     app = _UnreadJumpApp([agent])
     app._unread_completed_agent_ids.add(agent.identity)
@@ -355,6 +435,10 @@ def test_toggle_agent_unread_again_marks_selected_row_read() -> None:
     assert app._unread_completed_agent_ids == set()
     assert app._manual_unread_agent_ids == set()
     assert app.patch_calls == [agent]
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
+    )
+    assert app.notification_count_refresh_calls == 1
 
 
 def test_toggle_agent_unread_refreshes_when_patch_fails() -> None:
@@ -543,7 +627,10 @@ def test_jump_to_next_unread_done_agent_uses_start_time_when_stop_time_missing()
     assert missing_time.identity not in app._unread_completed_agent_ids
 
 
-def test_jump_to_next_unread_done_agent_acknowledges_target_unread_state() -> None:
+def test_jump_to_next_unread_done_agent_acknowledges_target_unread_state(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.return_value = 1
     done = _agent(name="done", status="PLAN DONE")
     app = _UnreadJumpApp([done])
     app._unread_completed_agent_ids.add(done.identity)
@@ -554,6 +641,10 @@ def test_jump_to_next_unread_done_agent_acknowledges_target_unread_state() -> No
     assert app.current_attempt_number is None
     assert app.patch_calls == [done]
     assert app.refresh_calls == []
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": done.cl_name, "raw_suffix": done.raw_suffix}]
+    )
+    assert app.notification_count_refresh_calls == 1
 
 
 def test_jump_to_next_unread_done_agent_falls_back_to_full_refresh() -> None:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 23:57:52
-status: wip
+status: done
 prompt: sdd/prompts/202605/dismiss_agent_completion_notifications_on_read.md
 ---
 # Plan: Dismiss Agent Completion Notifications When Agents Become Read

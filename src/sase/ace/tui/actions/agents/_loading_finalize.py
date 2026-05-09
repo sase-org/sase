@@ -49,9 +49,16 @@ def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -
         and getattr(app, "_current_group_key", None) is None
         and 0 <= app.current_idx < len(app._agents)
     ):
-        selected_visible_identity = app._agents[app.current_idx].identity
+        selected_agent = app._agents[app.current_idx]
+        selected_visible_identity = selected_agent.identity
         if selected_visible_identity not in manual_ids:
-            unread_ids.discard(selected_visible_identity)
+            clear_unread = getattr(
+                app, "_clear_agent_unread_and_dismiss_notification", None
+            )
+            if callable(clear_unread):
+                clear_unread(selected_agent)
+            else:
+                unread_ids.discard(selected_visible_identity)
 
     for agent in app._agents:
         old_status = old_status_by_identity.get(agent.identity)
