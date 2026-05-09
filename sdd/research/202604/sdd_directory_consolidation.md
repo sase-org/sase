@@ -405,7 +405,7 @@ you also have a `sase sdd migrate --rewrite-bead-designs` command with a dry run
 4. **Beads ID renumbering.** If you adopt option D3-(B) (`MY-`, `LG-` prefixes), don't try to rewrite existing
    `beads-NNN` plan IDs. Just start the new tiers fresh. Cross-tier references go by ID, not by tier name.
 5. **Tooling that scans `plans/`.** Anything outside `src/sase/` (skills, mentor scripts, sase-google plugin,
-   sase-nvim, chezmoi dotfiles) might hard-code `plans/` or `specs/`. Run `rg -F 'plans/' lib/ public_api_methods.txt`
+   sase-nvim, chezmoi dotfiles) might hard-code `plans/` or `specs/`. Run `rg -F 'plans/' lib/ <legacy-public-api-list>`
    and across the plugin repos before flipping the switch.
 6. **`.sase_plan_*.md` at project root.** These are pre-persistence WIP files written by the `sase_plan` skill. They
    should _not_ move; they're orthogonal to SDD storage. Just confirm no proposed change touches them.

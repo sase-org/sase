@@ -16,7 +16,7 @@ from sase.status_state_machine.constants import (
 from sase.workspace_provider import detect_workflow_type
 
 
-# pyvision: public_api_methods.txt
+# pyvision: docs/integrations.md
 @dataclass(frozen=True)
 class ChangeSpecTagEntry:
     """A ChangeSpec with its corresponding VCS xprompt workflow tag."""
@@ -28,7 +28,7 @@ class ChangeSpecTagEntry:
     tag: str
 
 
-# pyvision: public_api_methods.txt
+# pyvision: docs/integrations.md
 @dataclass(frozen=True)
 class ChangeSpecTagListing:
     """Result of listing active ChangeSpec xprompt tags."""

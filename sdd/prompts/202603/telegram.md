@@ -16,8 +16,7 @@ retrieved by using the `pass show telegram_sase_bot_token` command. Some design 
     variable), we should send a message for each new notification that has been received since the last user
     interaction.
   - We should also add a new `I` keymap to the `sase ace` TUI that allows users to mark themselves as inactive.
-  - This will require changes to the core codebase and (likely) a new public API method (see the public_api_methods.txt
-    file) that chops can use.
+  - This will require changes to the core codebase and (likely) a new public API method that chops can use.
 - **Question** How should outbound messages be formatted and what content should be included? **Answer**:
   - I want you to take the lead on this design, but err on the side of including too much rather than too little. And
     make sure that the formatting you decide on results in beautiful outbound messsages! One constraint: We NEED to

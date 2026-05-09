@@ -30,9 +30,8 @@ _ACTION_KIND_BY_NOTIFICATION_ACTION = {
 }
 
 
-# pyvision: public_api_methods.txt
 @dataclass(frozen=True)
-class PrefixResolution:
+class _PrefixResolution:
     notification_id: str
     prefix: str
     prefix_len: int
@@ -84,7 +83,7 @@ def action_state_for_notification(
     return _state_for_notification(notification, pending, current)
 
 
-def resolve_prefix(prefix: str, *, include_legacy: bool = True) -> PrefixResolution:
+def resolve_prefix(prefix: str, *, include_legacy: bool = True) -> _PrefixResolution:
     """Resolve a full notification id or unique notification-id prefix."""
     store = load_store(include_legacy=include_legacy)
     ids = [
@@ -94,17 +93,17 @@ def resolve_prefix(prefix: str, *, include_legacy: bool = True) -> PrefixResolut
     ]
     exact = [notification_id for notification_id in ids if notification_id == prefix]
     if len(exact) == 1:
-        return PrefixResolution(prefix, prefix, len(prefix), "exact")
+        return _PrefixResolution(prefix, prefix, len(prefix), "exact")
     if len(exact) > 1:
-        return PrefixResolution(prefix, prefix, len(prefix), "duplicate_full_id")
+        return _PrefixResolution(prefix, prefix, len(prefix), "duplicate_full_id")
     matches = [
         notification_id for notification_id in ids if notification_id.startswith(prefix)
     ]
     if len(matches) == 1:
-        return PrefixResolution(matches[0], prefix, len(prefix), "unique_prefix")
+        return _PrefixResolution(matches[0], prefix, len(prefix), "unique_prefix")
     if not matches:
-        return PrefixResolution("", prefix, len(prefix), "missing")
-    return PrefixResolution("", prefix, len(prefix), "ambiguous_prefix")
+        return _PrefixResolution("", prefix, len(prefix), "missing")
+    return _PrefixResolution("", prefix, len(prefix), "ambiguous_prefix")
 
 
 def cleanup_stale(*, now: float | None = None) -> list[str]:
@@ -309,7 +308,6 @@ def _write_store(store: dict[str, Any]) -> None:
 __all__ = [
     "LEGACY_TELEGRAM_PENDING_ACTIONS_PATH",
     "PENDING_ACTIONS_PATH",
-    "PrefixResolution",
     "action_state_for_notification",
     "cleanup_stale",
     "load_store",

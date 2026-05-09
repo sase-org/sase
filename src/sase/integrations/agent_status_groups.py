@@ -21,7 +21,7 @@ __all__ = [
 ]
 
 
-# pyvision: public_api_methods.txt
+# pyvision: docs/integrations.md
 @dataclass(frozen=True)
 class AgentStatusGroup:
     """A non-empty status bucket and its agents in original order."""
@@ -39,7 +39,6 @@ def agent_status_bucket(info: RunningAgentInfo) -> str:
     return status_bucket_for_values(status, retried_as_timestamp)
 
 
-# pyvision: public_api_methods.txt
 def agent_status_bucket_glyph(bucket: str) -> str:
     """Return the shared glyph for a status bucket."""
     return AGENT_STATUS_BUCKET_GLYPHS.get(bucket, "")
@@ -62,7 +61,8 @@ def group_agent_statuses(
     ]
 
 
-# pyvision: public_api_methods.txt
+# pyvision: https://github.com/sase-org/sase-telegram.git
+# pyvision: https://github.com/sase-org/sase-gchat.git
 def status_bucket_header(bucket: str, count: int) -> str:
     """Return the shared plain-text status bucket header."""
     glyph = agent_status_bucket_glyph(bucket)

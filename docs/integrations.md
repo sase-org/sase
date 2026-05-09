@@ -2,8 +2,9 @@
 
 SASE exposes a small set of Python helpers for external plugins, chat clients, mobile clients, and editor integrations.
 These APIs live under `sase.integrations` when they are meant for integration-facing use, or under the subsystem package
-when they are already part of an existing provider contract. The public symbols are tracked in `public_api_methods.txt`
-so unused-code tooling does not treat external consumers as dead code.
+when they are already part of an existing provider contract. Externally consumed public symbols use
+`# pyvision: <repo-uri>` pragmas so unused-code tooling validates them against the tracked files of the consuming
+repository.
 
 ## ChangeSpec XPrompt Tags
 
@@ -58,6 +59,8 @@ for group in group_agent_statuses(list_all_agents()):
 ```
 
 Buckets are emitted in ACE display order and empty buckets are omitted:
+
+Each returned `AgentStatusGroup` contains the bucket label and the running-agent records assigned to that bucket.
 
 | Bucket            | Meaning                                                               |
 | ----------------- | --------------------------------------------------------------------- |

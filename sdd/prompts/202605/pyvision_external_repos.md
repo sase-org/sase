@@ -3,7 +3,7 @@ plan: sdd/epics/202605/pyvision_external_repos.md
 ---
  Can you help me add support to pyvision (defined in my chezmoi repo) for checking for references in external
 repos? Once pyvision has the necessary functionality you should completely obsolete and remove the
-public_api_methods.txt file and remove all `# pyvision: public_api_methods.txt` pragmas in this repo in favor of pragmas
+legacy public API whitelist file and remove all old whitelist pyvision pragmas in this repo in favor of pragmas
 of the form `# pyvision: <uri_of_external_repo>`.
 
 This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but

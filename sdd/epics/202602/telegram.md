@@ -79,7 +79,7 @@ Uses atomic write (write to `.tmp`, then `os.replace`) for crash safety.
 
 ### 1.4 Public API registration
 
-**File**: `public_api_methods.txt` -- add `get_tui_last_activity` and `get_tui_inactive_seconds`.
+**File**: legacy public API whitelist -- add `get_tui_last_activity` and `get_tui_inactive_seconds`.
 
 ### 1.5 Tests
 
@@ -573,7 +573,7 @@ Create `CLAUDE.md` and `AGENTS.md` for the `sase-telegram` repo following the sa
 - `src/sase/ace/tui_activity.py` -- NEW: activity tracking module
 - `src/sase/ace/tui/app.py` -- add `I` binding, init activity tracking
 - `src/sase/ace/tui/actions/event_handlers.py` -- track keypress times, flush to disk
-- `public_api_methods.txt` -- register new public API methods
+- Legacy public API whitelist -- register new public API methods
 
 ### sase core (reference only, do not modify)
 

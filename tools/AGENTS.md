@@ -1,18 +1,18 @@
 # SASE Tools (executable scripts)
 
-Any script in this directory that has a suffix of the form `-YYmmdd` (ex: `executable_pyvision-260501`) was vendored
+Any script in this directory that has a suffix of the form `-YYmmdd` (ex: `executable_pyvision-260509`) was vendored
 into this repo from my chezmoi dotfile repo (the ../lib/bugyi-260221.sh file was also vendored using `pyvendor`). If you
 are asked to modify any of these files, you should NOT. Instead make the change in the original source file in my
 dotfiles repo, use your commit skill (NOT `git commit`) to commit the change in that repo, and then re-vendor it here
 using `pyvendor`.
 
-## `executable_pyvision-260501`
+## `executable_pyvision-260509`
 
 This linter will fail if any public symbol is unused by other files, if any private symbol is used by other files, or if
 any private symbol is NOT used in the file it is defined in. It scans tracked Python usage outside `src/`, including
 tests, so Python test references do not need pragmas.
 
-### How do I whitelist a symbol for `executable_pyvision-260501`? When am I allowed to do so?
+### How do I whitelist a symbol for `executable_pyvision-260509`? When am I allowed to do so?
 
 This linter should normally be obeyed since it does a good job of preventing unused code from accumulating. With that
 said, there are a few exceptions:
@@ -27,6 +27,12 @@ said, there are a few exceptions:
   repository. For example, if a symbol is used by `xprompts/foo.yaml`, the pragma comment would be
   `# pyvision: xprompts/foo.yaml`. Pragmas must not point at test files; Python test references are detected
   automatically.
+- When a symbol is consumed by another repository, use a repository URI pragma such as
+  `# pyvision: https://github.com/sase-org/sase-telegram.git`. Pyvision resolves URI pragmas by first matching local
+  checkout origins from explicit `--external-repo-path` / `PYVISION_EXTERNAL_REPO_PATHS` values and sibling directories,
+  then falling back to a deterministic cache clone. URI pragmas are allowed only for real external consumers; do not use
+  them as broad whitelists.
+- The former public API whitelist file is obsolete. Do not recreate it or point pyvision pragmas at it.
 - When all functions/classes decorated with a specific decorator should be excluded from analysis, use the
   `--exclude-decorator <name>` option. This can be repeated for multiple decorator names. The decorator is matched by
   its simple name (e.g. `--exclude-decorator hook` matches `@hook`, `@hook(...)`, and `@hook.sub`).

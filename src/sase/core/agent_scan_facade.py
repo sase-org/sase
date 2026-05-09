@@ -101,7 +101,7 @@ def rebuild_agent_artifact_index(
     return agent_artifact_index_update_from_dict(payload)
 
 
-# pyvision: public_api_methods.txt
+# pyvision: docs/rust_backend.md
 def upsert_agent_artifact_index_row(
     index_path: Path | str,
     projects_root: Path | str,
@@ -120,7 +120,7 @@ def upsert_agent_artifact_index_row(
     return agent_artifact_index_update_from_dict(payload)
 
 
-# pyvision: public_api_methods.txt
+# pyvision: docs/rust_backend.md
 def delete_agent_artifact_index_row(
     index_path: Path | str,
     artifact_dir: Path | str,

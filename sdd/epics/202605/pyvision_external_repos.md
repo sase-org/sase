@@ -10,8 +10,8 @@ prompt: sdd/prompts/202605/pyvision_external_repos.md
 ## Goal
 
 Teach `pyvision` to validate public-symbol pragmas against real references in external git repositories, then remove
-SASE's `public_api_methods.txt` whitelist entirely. After the migration, no pragma in this repository should point at
-`public_api_methods.txt`; remaining external-consumer pragmas should use repository URIs such as:
+SASE's legacy public API whitelist entirely. After the migration, no pragma in this repository should point at the old
+whitelist; remaining external-consumer pragmas should use repository URIs such as:
 
 ```python
 # pyvision: https://github.com/sase-org/sase-telegram.git
@@ -21,8 +21,8 @@ The source of truth for `pyvision` is the chezmoi repo:
 
 - Source script: `/home/bryan/.local/share/chezmoi/home/bin/executable_pyvision`
 - Source tests: `/home/bryan/.local/share/chezmoi/tests/bash/pyvision_test.sh`
-- Vendored SASE copy: `tools/executable_pyvision-260501` or its next date-stamped replacement
-- SASE invocation: `BD_COMMAND=tools/sase_bead .venv/bin/python tools/executable_pyvision-260501 src/sase`
+- Vendored SASE copy: `tools/executable_pyvision-260509` or its next date-stamped replacement
+- SASE invocation: `BD_COMMAND=tools/sase_bead .venv/bin/python tools/executable_pyvision-260509 src/sase`
 
 ## Current State
 
@@ -30,7 +30,7 @@ The source of truth for `pyvision` is the chezmoi repo:
 tree, and uses AST-backed import and module-alias detection. The current pragma validator treats every pragma target as
 a path relative to the current repository root.
 
-The SASE repo currently has seven pragmas that point at `public_api_methods.txt`:
+The SASE repo currently has seven pragmas that point at the legacy public API whitelist:
 
 - `src/sase/core/agent_scan_facade.py`: `upsert_agent_artifact_index_row`, `delete_agent_artifact_index_row`
 - `src/sase/notifications/pending_actions.py`: `PrefixResolution`
@@ -152,10 +152,10 @@ Owner: one SASE repo agent instance, starting after Phases 1 and 2 are committed
 
 Files likely touched:
 
-- `tools/executable_pyvision-260501` or its date-stamped successor
+- `tools/executable_pyvision-260509` or its date-stamped successor
 - `Justfile`
 - `tools/AGENTS.md`
-- `public_api_methods.txt`
+- Legacy public API whitelist file
 - Current pragma-bearing files under `src/sase/`
 - `docs/integrations.md`
 
@@ -166,7 +166,7 @@ Work:
    pyvendor /home/bryan/.local/share/chezmoi/home/bin/executable_pyvision /home/bryan/projects/github/sase-org/sase_100
    ```
    Let `pyvendor` remove the old dated copy and update references.
-2. Replace all `# pyvision: public_api_methods.txt` pragmas:
+2. Replace all legacy whitelist pyvision pragmas:
    - Use canonical external repo URIs for directly or indirectly proven external consumers.
    - Prefer HTTPS GitHub URIs in pragmas unless Phase 1 explicitly proves SSH URIs work in local and CI contexts.
    - Add multiple URI pragmas only when multiple external repos independently preserve the symbol.
@@ -176,17 +176,17 @@ Work:
      model.
    - If a symbol has no real external or in-repo use, remove the pragma and either make it private or delete it,
      depending on the surrounding code.
-4. Delete `public_api_methods.txt`.
+4. Delete the legacy public API whitelist file.
 5. Update `docs/integrations.md` to remove the whitelist-file reference and describe repo-URI pragmas as the maintenance
    mechanism for externally consumed Python APIs.
 6. Update `tools/AGENTS.md` to document:
    - External repo URI pragma syntax.
    - How pyvision resolves external repos.
    - When such pragmas are allowed.
-   - That `public_api_methods.txt` is obsolete and must not be recreated.
+   - That the legacy public API whitelist is obsolete and must not be recreated.
 7. Verification in SASE:
    ```bash
-   rg "public_api_methods.txt|# pyvision: public_api_methods.txt"
+   rg "public[_]api[_]methods[.]txt|# pyvision: public[_]api[_]methods[.]txt"
    just install
    just pyvision
    just check
@@ -194,8 +194,8 @@ Work:
 
 Acceptance:
 
-- `public_api_methods.txt` is gone.
-- No pragma points at `public_api_methods.txt`.
+- The legacy public API whitelist file is gone.
+- No pragma points at the legacy public API whitelist.
 - All remaining pyvision pragmas either point at real relative files or external repo URIs.
 - `just pyvision` and `just check` pass in SASE.
 
@@ -221,7 +221,7 @@ Work:
    and run that repo's `just check` if it has one. Avoid adding artificial references solely to satisfy pyvision.
 4. Run final SASE checks:
    ```bash
-   rg "public_api_methods.txt|# pyvision: public_api_methods.txt"
+   rg "public[_]api[_]methods[.]txt|# pyvision: public[_]api[_]methods[.]txt"
    just pyvision
    just check
    ```
@@ -250,8 +250,8 @@ Phase 2 prompt:
 Phase 3 prompt:
 
 > Implement Phase 3 from `sase_plan_pyvision_external_repos.md`: vendor the updated pyvision into this SASE repo,
-> replace every `# pyvision: public_api_methods.txt` pragma with real external repo URI pragmas or remove stale symbols,
-> delete `public_api_methods.txt`, update docs/tooling instructions, and run `just install`, `just pyvision`, and
+> replace every legacy whitelist pyvision pragma with real external repo URI pragmas or remove stale symbols,
+> delete the legacy public API whitelist file, update docs/tooling instructions, and run `just install`, `just pyvision`, and
 > `just check`.
 
 Phase 4 prompt:

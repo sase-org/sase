@@ -19,8 +19,8 @@ from sase.core import notification_store_facade as facade
 facade.NotificationStoreRecord(...)
 ```
 
-Pragmas should remain available for legitimate non-Python references such as `xprompts/*.yml` and
-`public_api_methods.txt`, but pyvision should reject pragmas that reference test files.
+Pragmas should remain available for legitimate non-Python references such as `xprompts/*.yml` and the legacy public API
+whitelist, but pyvision should reject pragmas that reference test files.
 
 ## Current Context
 
@@ -29,7 +29,7 @@ Pragmas should remain available for legitimate non-Python references such as `xp
 - SASE pyvision invocation: `BD_COMMAND=tools/sase_bead .venv/bin/python tools/pyvision-260225 src/sase`
 - Current test-target pragmas: `rg "# pyvision: tests/" src/sase` reports 77 matches.
 - Current total SASE pragmas under `src/sase`: 92 matches.
-- Non-test pragmas currently point at `public_api_methods.txt` and `xprompts/pylimit_split.yml`; those should not be
+- Non-test pragmas currently point at the legacy public API whitelist and `xprompts/pylimit_split.yml`; those should not be
   removed as part of this work unless pyvision can prove those usages another way.
 - `tools/AGENTS.md` says dated scripts under `tools/` must be changed in the source dotfiles repo, committed there with
   the SASE commit workflow, and then re-vendored with `pyvendor`.
@@ -120,7 +120,7 @@ Tasks:
 
 2. Review the pyvendor changes. Ensure the new vendored filename is the one referenced by `Justfile`.
 3. Remove every `# pyvision: tests/...` pragma from `src/sase`.
-4. Keep legitimate non-test pragmas, including `public_api_methods.txt` and `xprompts/pylimit_split.yml`, unless
+4. Keep legitimate non-test pragmas, including the legacy public API whitelist and `xprompts/pylimit_split.yml`, unless
    pyvision now proves a specific one stale.
 5. Update `tools/AGENTS.md` so the pyvision section reflects the new dated filename and policy:
    - pyvision scans tracked Python usage outside `src/`.
