@@ -1,5 +1,7 @@
 ---
 create_time: 2026-05-09 04:30:12
+bead_id: sase-2h
+tier: epic
 status: wip
 prompt: sdd/prompts/202605/gai_org_ideas_research.md
 ---
