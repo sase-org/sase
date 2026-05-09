@@ -126,6 +126,20 @@ without VCS" behavior through an explicit user-facing workflow tag.
 Supported examples include `#cd:~`, `#cd:/tmp/project`, `#cd:../sibling`, and `#cd(.)`. The target must already exist
 and must be a directory.
 
+## Bare-Git Reference Auto-Initialization
+
+The bundled bare-git provider resolves `#git:<ref>` in four modes:
+
+1. A registered project shorthand, using `~/.sase/projects/<name>/<name>.gp` when it contains `BARE_REPO_DIR` and
+   `WORKSPACE_DIR`.
+2. A ChangeSpec name found across registered projects.
+3. A missing project shorthand with no slash, which initializes a new bare-git project with the same defaults as
+   `sase init-git <name>` and then resolves it.
+4. A bare repository path, deriving the project name from the path basename and creating the matching ProjectSpec.
+
+The missing-project shorthand is intended for first use from an xprompt or prompt bar: `#git:new_tool #!workflow`
+creates the bare-git project on demand instead of requiring a separate `sase init-git new_tool` step.
+
 ## Known-Project VCS Fallback
 
 SASE also recognizes provider-prefixed VCS refs that target registered project names even when the corresponding

@@ -346,10 +346,10 @@ Viewer controls:
 
 | Key | Action                                              |
 | --- | --------------------------------------------------- |
-| `n` | Next page; wraps from the last page to the first    |
-| `p` | Previous page; wraps from the first page to last    |
-| `N` | Next artifact when viewing an artifact sequence     |
-| `P` | Previous artifact when viewing an artifact sequence |
+| `j` | Next page; wraps from the last page to the first    |
+| `k` | Previous page; wraps from the first page to last    |
+| `n` | Next artifact when viewing an artifact sequence     |
+| `p` | Previous artifact when viewing an artifact sequence |
 | `r` | Refresh the current page                            |
 | `q` | Close the viewer                                    |
 
@@ -926,6 +926,11 @@ cancelled history entry and the error suggests the lowest free numeric suffix, s
 a reserved name from the TUI, launch with `%name:!<name>`; after confirmation, SASE wipes the previous owner and then
 claims the name for the new agent. Reviving and dismissing agents preserve their stored names.
 
+The durable registry lives at `~/.sase/agent_name_registry.json` and is rebuilt from visible artifacts plus dismissed
+bundles when missing or stale. Use `sase agents names migrate-auto` to run the historical auto-name migration that moves
+older generated names into the permanent namespace; pass `--force` to rerun after the migration marker is present or
+`--json` for machine-readable output.
+
 ### Per-Step Naming for Multi-Agent Workflows
 
 When a workflow spawns follow-up agents (e.g., plan approval followed by a coder step), the agents receive dotted names
@@ -983,6 +988,12 @@ feedback on cold-start latency. A safety timeout forcibly retires the stopwatch 
 
 Completed agents can be dismissed with `x` on a single row, or through the `X` cleanup panel for focused-panel, global,
 tag, marked, group, and custom selections.
+
+When a terminal agent becomes unread, ACE marks it with the completed-agent indicator and includes it in the Agents
+header unread count. Selecting that row, jumping to it with `,j`, or toggling it back to read with `U` acknowledges the
+row and dismisses the matching user-agent completion notification. Manually marking a row unread with `U` arms it for
+normal acknowledgement after you move away and return, so the marker can be used as a short-lived reminder without
+leaving stale inbox entries.
 
 ### Agent Revival
 

@@ -775,7 +775,8 @@ xprompts:
     content: "Hello {{ name }}, count is {{ count }}"
 ```
 
-Config-based xprompts have priority 6 (below file-based, above plugin and built-in).
+Config-based xprompts have priority 7 (below file-backed project, user, and memory xprompts; above plugin and built-in
+definitions).
 
 ## Config-Based Standalone Workflows
 

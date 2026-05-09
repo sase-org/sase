@@ -95,6 +95,11 @@ In ACE, completion artifacts are opened from the Agents tab with `A`. The artifa
 and opening the full artifact sequence, so notification attachments, generated PDFs/images, plan files, and explicit
 artifacts use one selection workflow.
 
+The Agents tab also treats user-agent completions as unread work items. When a terminal agent is selected after it has
+been marked unread, or when the user jumps to it with the unread-agent shortcut, ACE clears the row's unread marker and
+dismisses the matching completion notification. Plan approvals and user questions remain explicit response workflows and
+are not auto-read merely by selection.
+
 See [`agent_images.md`](agent_images.md) for the full attachment contract and ACE image preview notes.
 
 For user-agent completion and failure notifications, `action_data` also includes `bead_display` when the agent name maps

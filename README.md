@@ -152,6 +152,7 @@ sase
 | `sase agents tag`              | Manage the user-defined tag on an agent (`set` / `unset` / `list`)                                             |
 | `sase agents archive`          | Rebuild or verify the dismissed-agent bundle summary index                                                     |
 | `sase agents index`            | Rebuild or verify the persistent agent artifact index used for fast agent startup                              |
+| `sase agents names`            | Maintain the permanent agent-name registry and historical auto-name migration                                  |
 | `sase artifact create`         | Move a file produced by the current agent into persistent artifact storage                                     |
 | `sase axe chop`                | List or run individual chop scripts                                                                            |
 | `sase axe lumberjack`          | List, run, or check status of lumberjacks                                                                      |
@@ -311,15 +312,22 @@ src/sase/
 │   ├── scheduler/         # Task scheduling within ACE
 │   └── workflows/         # ACE-specific workflow integrations
 ├── agent/                 # Agent subprocess management
-│   ├── launcher.py        # Agent subprocess launcher
+│   ├── launcher.py        # Compatibility facade for launch helpers
+│   ├── launch_cwd.py      # Public launch-from-CWD entry point and workspace setup
+│   ├── launch_executor.py # Agent subprocess execution orchestration
+│   ├── launch_spawn.py    # Detached subprocess spawn and metadata bootstrap
+│   ├── launch_types.py    # Launch request/result dataclasses
+│   ├── launch_validation.py # Permanent-name validation and forced-reuse wipe flow
 │   ├── multi_prompt.py    # Multi-prompt parsing (frontmatter + segment splitting)
 │   ├── multi_prompt_launcher.py # Sequential multi-agent launch orchestration
+│   ├── multi_prompt_references.py # `%wait` / `@name` reference helpers
 │   ├── repeat_launcher.py # %repeat fan-out / iteration variable expansion
 │   ├── running.py         # Live agent registry (PID + artifacts lookup)
 │   ├── agent_artifacts_cache.py # Cached agent metadata reads
-│   ├── dismissed_name_rewrites.py # YYmmdd-prefix dismissal/revival helpers
-│   └── names/             # Auto-naming, dedup, dismissal, claim helpers
-├── agents/                # `sase agents` subcommand handlers (status/show/kill/tag/archive/index)
+│   ├── bead_display.py    # Agent-name to bead display lookup for ACE/notifications
+│   ├── status_buckets.py  # Shared agent status bucket semantics
+│   └── names/             # Permanent registry, auto-naming, lookup, migration, wipe helpers
+├── agents/                # `sase agents` handlers (status/show/kill/tag/archive/index/names)
 ├── chats/                 # `sase chats` subcommand handlers (list/show transcripts)
 ├── memory/                # Dynamic-memory keyword matching (#memory injection)
 ├── axe/                   # Lumberjack-based daemon and agent runners
@@ -463,6 +471,7 @@ semantics, and benchmarking.
 Start with the user-facing guides for the surface you are operating, then drop into the references for exact formats and
 extension APIs:
 
+- [`docs/index.md`](docs/index.md) — MkDocs documentation home page
 - [`docs/ace.md`](docs/ace.md) — ACE TUI user guide
 - [`docs/agent_images.md`](docs/agent_images.md) — Agent attachments, ACE artifact viewer, and terminal graphics preview
   notes
@@ -489,6 +498,10 @@ extension APIs:
 - [`docs/workflow_spec.md`](docs/workflow_spec.md) — YAML workflow format
 - [`docs/telemetry.md`](docs/telemetry.md) — Prometheus telemetry and monitoring
 - [`docs/xprompt.md`](docs/xprompt.md) — XPrompt template reference
+
+The `docs/` directory is also a MkDocs Material site, with the generated site configured by [`mkdocs.yml`](mkdocs.yml)
+and blog posts under [`docs/blog/`](docs/blog/). Run `just docs-check` to build the site with strict warnings-as-errors
+behavior; the command installs the `docs` extra before invoking `mkdocs build --strict`.
 
 ## Acknowledgements
 

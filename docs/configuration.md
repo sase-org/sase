@@ -1122,6 +1122,7 @@ it with `A`, even after the agent has been dismissed and revived.
 | `tag`      | `set` / `unset` / `list`                                                   | Manage the user-defined tag on an agent (used by the Agents tab tag side panels). `tag set -n <agent> -t <tag>` replaces any prior tag; `tag unset -n <agent>` clears it; `tag list [-n <agent>]` prints tags as JSON (filtered when given). |
 | `archive`  | `rebuild-index` / `verify`                                                 | Maintain the dismissed-agent bundle summary index under `~/.sase/dismissed_bundles/`. `verify` exits non-zero if rows are stale or missing.                                                                                                  |
 | `index`    | `rebuild` / `verify`, `-i/--index-path`, `-p/--projects-root`, `-j/--json` | Maintain the persistent agent artifact index. Defaults are `~/.sase/agent_artifact_index.sqlite` and `~/.sase/projects`; `verify` exits non-zero when the index diverges from source artifacts.                                              |
+| `names`    | `migrate-auto`, `-f/--force`, `-j/--json`                                  | Maintain the permanent agent-name registry. `migrate-auto` runs the historical generated-name namespace migration; `--force` reruns it after the completion marker exists and `--json` emits a machine-readable summary.                     |
 
 ### `sase chats`
 
