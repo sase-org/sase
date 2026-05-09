@@ -42,7 +42,7 @@ _PANEL_METRIC_STYLES: dict[str, str] = {
     "read": "bold #5FD7FF",
 }
 _PANEL_METRIC_LABELS: tuple[tuple[str, str], ...] = (
-    ("asking", "A"),
+    ("asking", "H"),
     ("running", "R"),
     ("waiting", "W"),
     ("failed", "F"),

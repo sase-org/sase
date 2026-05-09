@@ -152,6 +152,10 @@ class AgentInfoPanel(Static):
         "read": "bold #5FD7FF",
     }
 
+    _COUNT_LABELS: dict[str, str] = {
+        "asking": "hitl",
+    }
+
     def _metric_counts(self) -> list[tuple[str, int]]:
         return [
             ("asking", self._asking_count),
@@ -171,7 +175,7 @@ class AgentInfoPanel(Static):
             if index:
                 text.append(" · ", style="dim")
             text.append(f"{count}", style=self._COUNT_STYLES[label])
-            text.append(f" {label}", style="dim")
+            text.append(f" {self._COUNT_LABELS.get(label, label)}", style="dim")
         text.append("]", style="dim")
 
     def _update_display(self) -> None:

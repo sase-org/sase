@@ -65,7 +65,7 @@ def test_agent_info_panel_loading_clears() -> None:
     panel._loading = False
     plain = _collect_text(panel)
     assert plain.startswith("5 Agents")
-    assert "0 asking" not in plain
+    assert "0 hitl" not in plain
     assert "2/5" not in plain
     assert "…" not in plain
 
