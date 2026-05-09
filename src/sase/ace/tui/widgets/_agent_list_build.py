@@ -346,7 +346,7 @@ def build_list(
 
     try:
         if highlighted_row is not None:
-            widget.highlighted = highlighted_row
+            widget._set_highlighted_programmatically(highlighted_row)
     finally:
         widget._programmatic_update = False
 

@@ -234,11 +234,7 @@ class AgentList(OptionList, inherit_bindings=False):
             if group_key is not None:
                 row = self._banner_row_by_key.get(group_key)
                 if row is not None:
-                    self._programmatic_update = True
-                    try:
-                        self.highlighted = row
-                    finally:
-                        self._programmatic_update = False
+                    self._set_highlighted_programmatically(row)
                     return
             if not self._agents or not (0 <= current_idx < len(self._agents)):
                 return
@@ -246,11 +242,16 @@ class AgentList(OptionList, inherit_bindings=False):
             if row is None and current_attempt_number is not None:
                 row = self._row_by_agent_idx.get(current_idx)
             if row is not None:
-                self._programmatic_update = True
-                try:
-                    self.highlighted = row
-                finally:
-                    self._programmatic_update = False
+                self._set_highlighted_programmatically(row)
+
+    def _set_highlighted_programmatically(self, row: int) -> None:
+        """Assign highlight silently while still keeping the row visible."""
+        self._programmatic_update = True
+        try:
+            self.highlighted = row
+            self.scroll_to_highlight()
+        finally:
+            self._programmatic_update = False
 
     def _clear_programmatic_flag(self) -> None:
         """Clear programmatic update flag after event processing."""

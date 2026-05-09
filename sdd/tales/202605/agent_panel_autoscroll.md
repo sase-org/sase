@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 15:55:04
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_panel_autoscroll.md
 ---
 # Plan: Agent Panel Auto-Scroll

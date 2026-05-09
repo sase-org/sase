@@ -21,7 +21,11 @@ The fix is two-fold:
 
 from __future__ import annotations
 
+from textual.widgets import OptionList
+
+from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.widgets.agent_list import AgentList
+from tests.ace.tui.widgets._agent_list_grouping_helpers import make_agent
 
 
 def test_watch_highlighted_short_circuits_during_programmatic_update() -> None:
@@ -85,4 +89,102 @@ def test_update_highlight_clears_flag_synchronously() -> None:
     # (the synchronous clear only fires when there's a row to highlight).
     # Reset for the populated case below.
     widget._programmatic_update = False
+    assert widget._programmatic_update is False
+
+
+def test_update_highlight_scrolls_to_agent_row() -> None:
+    widget = AgentList()
+    widget.update_list(
+        [
+            make_agent(cl_name="a", project_file="/r/projA/proj.gp"),
+            make_agent(cl_name="b", project_file="/r/projB/proj.gp"),
+        ],
+        current_idx=0,
+    )
+
+    calls: list[int | None] = []
+
+    def _scroll_to_highlight() -> None:
+        calls.append(widget.highlighted)
+
+    widget.scroll_to_highlight = _scroll_to_highlight  # type: ignore[method-assign]
+
+    widget.update_highlight(1)
+
+    assert calls == [widget._row_by_agent_idx[1]]
+    assert widget._programmatic_update is False
+
+
+def test_update_highlight_scrolls_to_collapsed_banner_row() -> None:
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("projA",))
+    registry.collapse(("projB",))
+    widget = AgentList()
+    widget.update_list(
+        [
+            make_agent(cl_name="a", project_file="/r/projA/proj.gp"),
+            make_agent(cl_name="b", project_file="/r/projB/proj.gp"),
+        ],
+        current_idx=0,
+        fold_registry=registry,
+        current_group_key=("projA",),
+    )
+
+    calls: list[int | None] = []
+
+    def _scroll_to_highlight() -> None:
+        calls.append(widget.highlighted)
+
+    widget.scroll_to_highlight = _scroll_to_highlight  # type: ignore[method-assign]
+
+    widget.update_highlight(0, group_key=("projB",))
+
+    assert calls == [widget._banner_row_by_key[("projB",)]]
+    assert widget._programmatic_update is False
+
+
+def test_update_list_scrolls_to_restored_highlight() -> None:
+    widget = AgentList()
+    calls: list[int | None] = []
+
+    def _scroll_to_highlight() -> None:
+        calls.append(widget.highlighted)
+
+    widget.scroll_to_highlight = _scroll_to_highlight  # type: ignore[method-assign]
+
+    widget.update_list(
+        [
+            make_agent(cl_name="a", project_file="/r/projA/proj.gp"),
+            make_agent(cl_name="b", project_file="/r/projB/proj.gp"),
+        ],
+        current_idx=1,
+    )
+
+    assert calls == [widget._row_by_agent_idx[1]]
+    assert widget._programmatic_update is False
+
+
+def test_programmatic_highlight_updates_do_not_post_option_highlighted() -> None:
+    widget = AgentList()
+    posted: list[object] = []
+
+    def _post_message(message: object) -> None:
+        posted.append(message)
+
+    widget.post_message = _post_message  # type: ignore[method-assign]
+    widget.update_list(
+        [
+            make_agent(cl_name="a", project_file="/r/projA/proj.gp"),
+            make_agent(cl_name="b", project_file="/r/projB/proj.gp"),
+        ],
+        current_idx=0,
+    )
+    widget.update_highlight(1)
+
+    option_highlighted = [
+        message
+        for message in posted
+        if isinstance(message, OptionList.OptionHighlighted)
+    ]
+    assert option_highlighted == []
     assert widget._programmatic_update is False
