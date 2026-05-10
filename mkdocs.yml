@@ -43,6 +43,7 @@ nav:
       - Query Language: query_language.md
       - ProjectSpec: project_spec.md
       - Agent Attachments: agent_images.md
+      - Acknowledgements: acknowledgements.md
 
 theme:
   name: material

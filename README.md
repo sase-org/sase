@@ -116,6 +116,8 @@ sase builds on Boris Cherny's practical demonstration of parallel agentic develo
 sessions. sase keeps that core insight - one developer supervising several agents - and adds structured workspaces,
 ChangeSpecs, XPrompts, SDD artifacts, ACE, and AXE around it.
 
+The expanded acknowledgements live in [docs/acknowledgements.md](docs/acknowledgements.md).
+
 `sase bead` is influenced by Steve Yegge's [beads](https://github.com/steveyegge/beads), especially the idea that agents
 need a structured, persistent, dependency-aware memory layer rather than ad hoc TODO files. sase adapts that idea with
 SQLite, JSONL export, plan tiers, and multi-workspace aggregation.
