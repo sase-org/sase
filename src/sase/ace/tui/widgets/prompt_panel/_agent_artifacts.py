@@ -65,6 +65,28 @@ def _agent_artifact_paths(agent: Agent) -> list[_ArtifactPath]:
         for artifact in artifacts
         if artifact.path and artifact.kind not in {"chat", "pdf"}
     ]
+
+    # Aggregate follow-up prompt artifacts from child feedback agents onto
+    # the parent so users can locate "what feedback was sent" from the same
+    # ARTIFACTS list that already shows other parent-level artifacts.
+    for child in agent.followup_agents:
+        child_dir = child.get_artifacts_dir()
+        if not child_dir:
+            continue
+        try:
+            child_artifacts = list_agent_artifacts(child_dir)
+        except Exception:
+            continue
+        for artifact in child_artifacts:
+            if not artifact.path:
+                continue
+            basename = os.path.basename(artifact.path)
+            if not (
+                basename.startswith("followup_prompt") and basename.endswith(".md")
+            ):
+                continue
+            display_items.append((artifact.path, artifact.workspace_dir))
+
     return _dedupe_paths(display_items, agent.workspace_dir)
 
 
