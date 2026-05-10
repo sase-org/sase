@@ -35,8 +35,11 @@ ACE is already in the right shape for in-process visual snapshots:
 - Existing TUI tests mostly assert state, widget behavior, or rendered text. There are no committed visual snapshot
   goldens for ACE today.
 - `pyproject.toml` currently includes `textual[syntax]>=0.45.0`, `pillow`, `pytest`, `pytest-asyncio`, `pytest-xdist`,
-  and `inline-snapshot`. It does not include `pytest-textual-snapshot`, `cairosvg`, `pytest-regressions`, `playwright`,
-  or `pixelmatch`.
+  and `inline-snapshot`. It does not include `pytest-textual-snapshot`, `syrupy`, `cairosvg`, `pytest-regressions`,
+  `playwright`, `pixelmatch`, or `pyte`.
+- The `inline-snapshot` dep is relevant: it can already store small expected strings (or normalized SVG fragments)
+  literally inside the test source and updated with `pytest --inline-snapshot=fix`. This gives SASE a zero-extra-deps
+  option for very small visual assertions before committing to a full snapshot tree.
 - Prior research in `sdd/research/202605/tui_agent_screenshot_automation.md` recommends Textual-native screenshot
   capture for agent automation. This research extends that direction for pytest visual regression and pixel diffs.
 
@@ -60,7 +63,11 @@ them a poor default for routine CI.
 
 Textual documents `App.run_test()` as a headless test context that returns a `Pilot`, and `App.export_screenshot()` /
 `App.save_screenshot()` as SVG screenshot APIs. Textual also documents `pytest-textual-snapshot` as its official pytest
-snapshot plugin for visual regression testing.
+snapshot plugin for visual regression testing. Internally, `pytest-textual-snapshot` is implemented on top of
+[`syrupy`](https://github.com/syrupy-project/syrupy), so adopting it transitively brings in the syrupy snapshot
+framework and CLI conventions (`--snapshot-update`, `--snapshot-warn-unused`, etc.). Textual itself uses this exact
+plugin to gate every release — see `tests/snapshot_tests/test_snapshots.py` in the Textual repo — which is the strongest
+signal of upstream support.
 
 How it would look in SASE:
 
@@ -95,6 +102,10 @@ Cons:
 - The official plugin updates all accepted snapshots through `pytest --snapshot-update`, so SASE should document a
   review workflow before accepting changes.
 
+Prior art worth copying: Harlequin (a Textual-based SQL IDE) exposes an `app_snapshot` fixture and produces a
+`snapshot_report.html` browser report with side-by-side before/after and a "Show Difference" toggle. That report is the
+single biggest UX improvement over a raw text diff and should be the bar for whichever route SASE picks.
+
 Best fit: first milestone.
 
 ## Option B: SASE-Owned SVG Fixture
@@ -128,6 +139,11 @@ Cons:
 - More code to maintain.
 - Need to build reporting/update ergonomics that the official plugin already provides.
 - Still not a pixel diff without rasterization.
+
+A SASE fixture can also lean on the already-installed `inline-snapshot` for the very smallest assertions — for
+example, snapshotting a single rendered status line or an extracted SVG region directly inside the test source. This is
+not a substitute for full-page goldens but is useful for small targeted regressions where a separate file would be
+overkill.
 
 Best fit: if SASE wants tighter control than the official plugin, especially around deterministic fixtures and artifact
 paths.
@@ -206,7 +222,41 @@ Cons:
 
 Best fit: if SASE wants true image baselines without inventing a PNG comparison fixture.
 
-## Option E: Browser-Based Screenshot And Pixelmatch
+## Option E: In-Process VT Emulator With `pyte`
+
+[`pyte`](https://github.com/selectel/pyte) is a pure-Python, in-memory VT100/VT220 terminal emulator. It accepts a
+stream of bytes/escape sequences (the same ones Textual writes to stdout) and exposes a 2D grid of `Char` cells with
+attributes (fg, bg, bold, reverse, underline). It is what most "scrape a TUI without a real PTY" projects use and sits
+between Option A (Textual's own render model) and Option F (a real terminal emulator).
+
+Two ways it could plug into SASE:
+
+1. **Drive Textual's renderer through pyte.** Wire Textual's output stream into a `pyte.Screen` + `pyte.ByteStream`,
+   run the app via `Pilot`, and snapshot the resulting grid as text-with-attributes (or as an in-house "ANSI grid"
+   serialization). This catches escape-sequence bugs that the SVG screenshot bypasses, while still being deterministic
+   and font-free.
+2. **Render the pyte grid to PNG.** Use Pillow with a single bundled monospace font (e.g. DejaVu Sans Mono shipped in
+   the test extras) to draw each cell. This produces a PNG without depending on a real terminal, browser, or Cairo.
+
+Pros:
+
+- No native deps beyond pure Python.
+- Captures actual ANSI byte stream, so it tests Textual's compositor and color/attribute output, not just its SVG
+  exporter.
+- `pyte.HistoryScreen` supports scrollback, useful for log-heavy panels.
+- Deterministic: no real PTY, no fonts (in mode 1), no GPU.
+
+Cons:
+
+- pyte's VT support is broad but not exhaustive; some less-common Textual sequences may render slightly differently
+  than a real emulator.
+- Mode 2 still has font-determinism considerations, just narrower than Option F.
+- One more abstraction to maintain on top of Textual's already-tested `Pilot` machinery.
+
+Best fit: a useful middle layer when SASE wants more "real terminal" coverage than SVG but doesn't want a PTY-bound
+suite. Could become a dedicated assertion type in `AcePage`, e.g. `page.assert_cell(row, col, char="X", bold=True)`.
+
+## Option F: Browser-Based Screenshot And Pixelmatch
 
 Playwright's JavaScript test runner has first-class screenshot comparison via `toHaveScreenshot()` and uses
 `pixelmatch` under the hood. Playwright Python can capture screenshots, including screenshot bytes, but its Python docs
@@ -229,14 +279,38 @@ Cons:
 - Adds Node or Playwright browser management to a test suite that does not otherwise need it.
 - Still does not test terminal-emulator pixels unless a terminal is rendered inside the browser.
 
-Best fit: not recommended for the first SASE implementation. Consider only if SASE later has a browser-rendered ACE
-surface or wants richer HTML visual-diff reports than Python fixtures provide.
+A lighter sibling of this option is to drop Playwright and use the [`pixelmatch`](https://pypi.org/project/pixelmatch/)
+Python port (a direct port of Mapbox's JS library, which is what Playwright's `toHaveScreenshot()` uses under the hood)
+plus Pillow. That gives the same pixel-comparison algorithm — anti-aliasing-aware, configurable threshold, diff PNG
+output — without booting a browser. It composes well with Option C (rasterize Textual SVG, then run pixelmatch).
+`pixelmatch-fast` provides a Numba-accelerated variant if comparison speed matters.
 
-## Option F: PTY Or Real Terminal Capture
+Best fit: not recommended for the first SASE implementation. Consider only if SASE later has a browser-rendered ACE
+surface or wants richer HTML visual-diff reports than Python fixtures provide. Use the standalone `pixelmatch` PyPI
+package if you only want its diff algorithm, not the browser.
+
+## Option G: PTY Or Real Terminal Capture
 
 Tools in this family launch the TUI in a pseudo-terminal or terminal emulator, drive keyboard input, and capture either
-the terminal buffer or a raster screenshot. Prior art includes Microsoft's `tui-test`, terminal automation tools such as
-VHS/Freeze-style workflows, and generic PTY automation.
+the terminal buffer or a raster screenshot. The notable concrete options here:
+
+- **Microsoft `tui-test`** (<https://github.com/microsoft/tui-test>) — a Playwright-style E2E framework written in
+  TypeScript, specifically for CLI/TUI apps. It runs each test in an isolated worker with its own terminal context,
+  exposes a Playwright-like assertion API including `toMatchSnapshot()` for terminal screenshots, color and visibility
+  assertions, and ships a tracing/replay system. It is cross-platform (Windows/macOS/Linux) and currently the closest
+  thing to a "Playwright for terminals". Cost: Node toolchain in CI, TypeScript test code separate from SASE's pytest
+  suite.
+- **Charm `vhs`** (<https://github.com/charmbracelet/vhs>) — a Go tool that runs a `.tape` script (deterministic
+  keystroke timeline) inside a headless terminal and emits GIF/MP4/PNG/`.txt`/`.ascii` artifacts. The `Screenshot`
+  tape command captures a single PNG; `.txt`/`.ascii` outputs are well-suited to golden-file integration testing
+  because the exact same tape produces byte-identical text output across runs. VHS is also useful purely as a
+  documentation generator for ACE (animated demos in the docs).
+- **`asciinema` + `agg`** — record an interactive ACE session into a `.cast` file with `asciinema rec`, then convert
+  to GIF or PNG with `agg`. Lower-fidelity than VHS for golden testing but higher fidelity for human review and
+  debugging artifacts.
+- **Generic PTY automation** — `pexpect`/`ptyprocess` to spawn `sase ace`, send keystrokes, and capture stdout, then
+  feed into `pyte` (Option E) for a rendered grid. This is what SASE would build if it wanted "real subprocess, real
+  terminal sequences, no real terminal emulator."
 
 Pros:
 
@@ -253,6 +327,38 @@ Cons:
 
 Best fit: a small optional integration suite, marked `slow` or run in a dedicated CI job with a pinned container image.
 It should not replace Textual-native snapshots for ACE layout regression coverage.
+
+## Image Comparison Algorithms
+
+Once SASE has PNGs to compare, the choice of comparison algorithm matters as much as the choice of renderer:
+
+| Algorithm | What it catches | What it misses | Best for |
+| --- | --- | --- | --- |
+| Exact pixel diff (`ImageChops.difference`, `getbbox()`) | Any single-pixel change | Nothing — too strict for AA/font drift | SVG-rasterized goldens with a frozen renderer and font |
+| `pixelmatch` (anti-aliasing-aware) | Layout/color changes, ignores common AA noise | Subtle font hinting differences if threshold tuned loose | Cross-platform PNG goldens; matches Playwright's algorithm |
+| SSIM (`scikit-image.metrics.structural_similarity`) | Structural shifts, layout drift | Color-only or single-pixel changes | "Did the layout move?" rather than "does it match exactly?" |
+| Perceptual hash (`imagehash`) | Gross structural changes | Color, fine layout, text content | Fast pre-filter to skip pages that obviously did not change |
+
+The SASE-recommended starting point is exact pixel diff for SVG-rasterized goldens (Option C) and `pixelmatch` for any
+goldens captured from a real terminal or browser (Options F/G). SSIM and pHash are useful as secondary signals on top
+of those, not as the primary gate.
+
+## Font And Environment Determinism
+
+Font rendering is the single biggest source of flake in pixel tests. SVG-only tests (Option A/B) avoid this entirely.
+Any path that produces a PNG (Options C, E mode 2, F, G) needs explicit font control:
+
+- Pin one font that ships with the test extras, e.g. DejaVu Sans Mono. Do not rely on the system font cache.
+- For CairoSVG, set `fonts-conf` / `FONTCONFIG_PATH` to a directory holding only the pinned font, and disable
+  fontconfig caches in CI.
+- For Playwright/Chromium, mount a font directory and disable subpixel rendering (`--disable-lcd-text`) for
+  deterministic AA.
+- For VHS, use `Set FontFamily "DejaVu Sans Mono"` and `Set FontSize` in every tape; pin VHS version in CI.
+- Run pixel tests in a single Linux container image (e.g. a slim Debian with the pinned font installed). Do not gate
+  on macOS/Windows pixels.
+- Lock locale (`LC_ALL=C.UTF-8`) and `TERM` so terminfo capability lookup does not vary.
+
+Even with all of this, pixel goldens should allow a small `max_diff_pixels` budget to absorb the remaining noise.
 
 ## Determinism Requirements
 
@@ -332,6 +438,21 @@ If SASE needs terminal-emulator fidelity, create a separate slow test job that p
 
 Use it for a few smoke screenshots, not as the main visual regression mechanism.
 
+## Prior Art In Textual-Based Projects
+
+Concrete patterns worth borrowing from real Textual apps already in production:
+
+- **Textual itself** uses `pytest-textual-snapshot` in `tests/snapshot_tests/test_snapshots.py` to gate every release.
+  This is the reference implementation for the official plugin.
+- **Harlequin** (terminal SQL IDE) uses an `app_snapshot` fixture that drives the app via `Pilot` and supports multiple
+  assertions per test. Failures emit a `snapshot_report.html` with side-by-side before/after and a "Show Difference"
+  toggle. Worth replicating in any SASE-owned fixture.
+- **Posting** (terminal HTTP client) and **Dolphie** (MySQL TUI) both rely on `pytest-textual-snapshot` with SVG
+  goldens checked in next to tests. These are good references for what a "real" snapshot tree looks like at scale and
+  for review-PR ergonomics.
+- The Textual blog ("A year of building for the terminal") describes the rationale for SVG snapshots over plain-text
+  capture, which is useful framing when justifying the approach internally.
+
 ## Recommended File Layout
 
 One possible structure:
@@ -350,6 +471,17 @@ tests/ace/tui/visual/
 
 If PNGs are generated from SVG goldens, consider committing only SVGs initially and producing PNG diff artifacts on
 failure. Commit PNG goldens only for tests that explicitly need pixel thresholds.
+
+Storage notes:
+
+- A typical Textual SVG screenshot at 120x40 is ~30-80 KB. Several hundred SVG goldens stay well under 50 MB total —
+  comfortable for plain git, no LFS needed.
+- A 120x40 PNG rasterized from that SVG is typically 20-60 KB. Pixel goldens for the same set of surfaces are still
+  manageable in plain git unless every interactive state gets a snapshot.
+- Once the snapshot tree exceeds ~100 MB or PNG diffs dominate PR sizes, switch the `snapshots_png/` tree to git LFS
+  rather than letting binary churn balloon the repo.
+- Avoid checking in MP4/GIF artifacts from VHS or asciinema; those are documentation, not test fixtures, and belong in
+  a separate path or generated on demand.
 
 ## Update Workflow
 
@@ -377,11 +509,32 @@ Do not update visual snapshots as part of `just fmt` or default `just check`.
 - Textual testing guide: <https://textual.textualize.io/guide/testing/>
 - Textual `App` API (`run_test`, `export_screenshot`, `save_screenshot`):
   <https://textual.textualize.io/api/app/>
+- Textual upstream snapshot tests:
+  <https://github.com/Textualize/textual/blob/main/tests/snapshot_tests/test_snapshots.py>
 - `pytest-textual-snapshot` PyPI page: <https://pypi.org/project/pytest-textual-snapshot/>
 - `pytest-textual-snapshot` GitHub README: <https://github.com/Textualize/pytest-textual-snapshot>
+- `syrupy` (the snapshot framework `pytest-textual-snapshot` builds on): <https://github.com/syrupy-project/syrupy>
+- `inline-snapshot`: <https://github.com/15r10nk/inline-snapshot>
+- `pyte` VT100 terminal emulator: <https://github.com/selectel/pyte>
 - CairoSVG documentation: <https://cairosvg.org/documentation/index.html>
 - Playwright visual comparisons: <https://playwright.dev/docs/next/test-snapshots>
 - Playwright Python screenshots: <https://playwright.dev/python/docs/screenshots>
-- `pytest-regressions` image fixture API: <https://pytest-regressions.readthedocs.io/en/latest/api.html#image-regression>
+- `pixelmatch` Python port: <https://pypi.org/project/pixelmatch/> and
+  <https://github.com/whtsky/pixelmatch-py>
+- `pixelmatch-fast` (Numba-accelerated): <https://pypi.org/project/pixelmatch-fast/>
+- `pytest-regressions` image fixture API:
+  <https://pytest-regressions.readthedocs.io/en/latest/api.html#image-regression>
+- Microsoft `tui-test`: <https://github.com/microsoft/tui-test>
+- Charm `vhs` (terminal recordings + screenshots from `.tape` scripts):
+  <https://github.com/charmbracelet/vhs>
+- Asciinema recording format and tooling: <https://docs.asciinema.org/>
+- Harlequin testing discussion (`app_snapshot` fixture, `snapshot_report.html`):
+  <https://github.com/tconbeer/harlequin/discussions/551>
+- Textual blog "A year of building for the terminal" (rationale for SVG snapshots):
+  <https://textual.textualize.io/blog/2022/12/20/a-year-of-building-for-the-terminal/>
+- Waleed Khan, "Testing terminal user interface apps":
+  <https://blog.waleedkhan.name/testing-tui-apps/>
+- Max Rossmannek, "Testing TUI applications in Python":
+  <https://mrossinek.gitlab.io/programming/testing-tui-applications-in-python/>
 - Related SASE research: `sdd/research/202605/tui_agent_screenshot_automation.md`
 - Earlier SASE TUI E2E research: `sdd/research/202604/tui_e2e_testing.md`
