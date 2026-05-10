@@ -1,19 +1,18 @@
 ---
-create_time: 2026-05-09 20:11:52
+create_time: 2026-05-09 20:16:56
 status: done
-prompt: sdd/prompts/202605/fix_retired_chat_plugin_sdd_links.md
 ---
-# Plan: Fix retired_chat_plugin SDD Link Validation
+# Plan: Fix legacy_chat_integration SDD Link Validation
 
 ## Problem
 
-GitHub Actions fails at `sase sdd validate` because the two SDD artifacts for `retired_chat_plugin` have stale
+GitHub Actions fails at `sase sdd validate` because the two SDD artifacts for `legacy_chat_integration` have stale
 reciprocal frontmatter links:
 
-- `sdd/epics/202604/retired_chat_plugin.md` points `prompt` at
-  `sdd/prompts/202604/retired_chat_plugin_integration.md`
-- `sdd/prompts/202604/retired_chat_plugin.md` points `plan` at
-  `sdd/epics/202604/retired_chat_plugin_integration.md`
+- `sdd/epics/202604/legacy_chat_integration.md` points `prompt` at
+  `sdd/prompts/202604/legacy_chat_integration_integration.md`
+- `sdd/prompts/202604/legacy_chat_integration.md` points `plan` at
+  `sdd/epics/202604/legacy_chat_integration_integration.md`
 
 Those `_integration.md` targets do not exist. The actual prompt and epic files both exist without the duplicate suffix.
 
@@ -25,14 +24,14 @@ Those `_integration.md` targets do not exist. The actual prompt and epic files b
   use matching same-name prompt/epic links.
 - `.venv/bin/sase sdd validate` reproduces the CI failure with exactly two errors.
 - `.venv/bin/sase sdd repair-links` dry-run proposes exactly two actions and no warnings or errors:
-  - update the prompt file's `plan` target to `sdd/epics/202604/retired_chat_plugin.md`
-  - update the epic file's `prompt` target to `sdd/prompts/202604/retired_chat_plugin.md`
+  - update the prompt file's `plan` target to `sdd/epics/202604/legacy_chat_integration.md`
+  - update the epic file's `prompt` target to `sdd/prompts/202604/legacy_chat_integration.md`
 
 ## Implementation Plan
 
 1. Edit only the frontmatter of:
-   - `sdd/prompts/202604/retired_chat_plugin.md`
-   - `sdd/epics/202604/retired_chat_plugin.md`
+   - `sdd/prompts/202604/legacy_chat_integration.md`
+   - `sdd/epics/202604/legacy_chat_integration.md`
 2. Replace the stale `_integration.md` links with the existing same-name counterpart paths.
 3. Do not rename or create SDD artifacts; the existing filenames are canonical and match the repair command's
    unambiguous inference.
