@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-10 12:33:05
-status: wip
+status: done
 prompt: sdd/prompts/202605/stop_sign_marker.md
 ---
 # Plan: Swap 🙋 → 🛑 For User-Paused (Stopped) Agent Rows

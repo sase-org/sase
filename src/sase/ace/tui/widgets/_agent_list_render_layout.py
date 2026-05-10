@@ -45,8 +45,8 @@ _RUNTIME_UNREAD_COMPLETED_MARKER = "🎉 "
 _RUNTIME_UNREAD_COMPLETED_MARKER_STYLE = "#FFD75F"
 # User-paused marker: same suffix slot, used when the row is waiting on
 # an explicit user action instead of active runtime.
-_RUNTIME_USER_PAUSED_MARKER = "🙋 "
-_RUNTIME_USER_PAUSED_MARKER_STYLE = "#FFAF00"
+_RUNTIME_USER_PAUSED_MARKER = "🛑 "
+_RUNTIME_USER_PAUSED_MARKER_STYLE = "#FF5F5F"
 _ACTIVITY_STYLE = "bold #D7AF5F"
 
 

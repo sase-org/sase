@@ -138,7 +138,7 @@ def test_format_agent_option_planning_suffix_has_user_paused_marker() -> None:
         now=now,
     )
 
-    assert suffix.plain == "13:14:53 · 🙋 5m53s"
+    assert suffix.plain == "13:14:53 · 🛑 5m53s"
     assert "🏃‍♂️" not in suffix.plain
     assert "🎉" not in suffix.plain
 
@@ -155,7 +155,7 @@ def test_format_agent_option_question_without_time_has_user_paused_marker() -> N
         now=datetime(2026, 5, 6, 13, 23, 0),
     )
 
-    assert suffix.plain == "🙋"
+    assert suffix.plain == "🛑"
 
 
 def test_format_agent_option_waiting_input_has_user_paused_marker() -> None:
@@ -170,7 +170,7 @@ def test_format_agent_option_waiting_input_has_user_paused_marker() -> None:
         now=datetime(2026, 5, 6, 13, 23, 0),
     )
 
-    assert suffix.plain == "🙋"
+    assert suffix.plain == "🛑"
 
 
 def test_format_agent_option_plan_approved_active_suffix_has_running_marker() -> None:
@@ -189,7 +189,7 @@ def test_format_agent_option_plan_approved_active_suffix_has_running_marker() ->
     )
 
     assert suffix.plain == "🏃‍♂️ 5m51s"
-    assert "🙋" not in suffix.plain
+    assert "🛑" not in suffix.plain
 
 
 def test_format_agent_option_unread_terminal_suffix_uses_completed_marker() -> None:
@@ -201,7 +201,7 @@ def test_format_agent_option_unread_terminal_suffix_uses_completed_marker() -> N
     )
 
     assert suffix.plain == "🎉"
-    assert "🙋" not in suffix.plain
+    assert "🛑" not in suffix.plain
 
 
 def test_format_agent_option_finished_yesterday_suffix_human_readable() -> None:
