@@ -13,7 +13,7 @@ from sase.integrations._mobile_notification_models import (
 )
 from sase.integrations._mobile_notification_paths import normalize_home_path
 from sase.notifications.models import Notification
-from sase.notifications.priority import is_priority
+from sase.notifications.priority import is_error, is_priority
 from sase.notifications.store import read_notification_snapshot
 
 
@@ -48,6 +48,7 @@ def read_mobile_notification_snapshot(
         rows=[_bridge_row(row) for row in rows],
         counts=MobileNotificationBridgeCounts(
             priority=int(snapshot.counts.priority),
+            errors=int(snapshot.counts.errors),
             rest=int(snapshot.counts.rest),
             muted=int(snapshot.counts.muted),
         ),
@@ -73,7 +74,7 @@ def _bridge_row(notification: Notification) -> MobileNotificationBridgeRow:
         id=notification.id,
         timestamp=notification.timestamp,
         sender=notification.sender,
-        priority=is_priority(notification),
+        priority=is_priority(notification) or is_error(notification),
         notes=list(notification.notes),
         display_files=[normalize_home_path(path) for path in notification.files],
         host_files=[str(Path(path).expanduser()) for path in notification.files],

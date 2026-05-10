@@ -17,12 +17,14 @@ from sase.notifications import (
     Notification,
     format_relative_time,
     format_relative_until,
+    is_error,
     is_priority,
 )
 
 from .notification_modal_constants import (
     ACTION_BADGES,
     DEFAULT_HINT_TEXT,
+    GAP_ID_PREFIX,
     HEADER_ID_PREFIX,
     SECTIONS,
 )
@@ -98,9 +100,11 @@ class NotificationOptionMixin:
 
     @staticmethod
     def _section_for(notification: Notification) -> str:
-        """Return the section key for a notification (mute dominates priority)."""
+        """Return the section key for a notification (mute dominates everything)."""
         if notification.muted:
             return "muted"
+        if is_error(notification):
+            return "errors"
         if is_priority(notification):
             return "priority"
         return "inbox"
@@ -119,26 +123,32 @@ class NotificationOptionMixin:
     def _create_sectioned_options(
         self: Any, *, jump_hints: dict[int, str] | None = None
     ) -> list[Option]:
-        """Create options grouped by section, with disabled header rows."""
+        """Create options grouped by section, with disabled header rows.
+
+        Adjacent populated sections are separated by a disabled spacer row
+        so headers don't sit flush against the previous section's last entry.
+        """
         groups: dict[str, list[tuple[int, Notification]]] = {
             key: [] for key, _, _ in SECTIONS
         }
         for i, n in enumerate(self._notifications):
             groups[self._section_for(n)].append((i, n))
 
+        populated_keys = [key for key, _, _ in SECTIONS if groups[key]]
         options: list[Option] = []
-        for key, _, _ in SECTIONS:
-            items = groups[key]
-            if not items:
-                continue
+        for position, key in enumerate(populated_keys):
+            if position > 0:
+                options.append(
+                    Option(Text(""), id=f"{GAP_ID_PREFIX}{key}", disabled=True)
+                )
             options.append(
                 Option(
-                    self._build_header_text(key, len(items)),
+                    self._build_header_text(key, len(groups[key])),
                     id=f"{HEADER_ID_PREFIX}{key}",
                     disabled=True,
                 )
             )
-            for idx, n in items:
+            for idx, n in groups[key]:
                 options.append(
                     Option(
                         self._create_styled_label(

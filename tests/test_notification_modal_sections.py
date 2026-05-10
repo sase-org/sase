@@ -7,18 +7,67 @@ from sase.ace.tui.modals.notification_modal import NotificationModal
 from tests._notification_modal_helpers import _make_notification
 
 
-def test_sections_render_in_priority_inbox_muted_order() -> None:
-    """Options appear in PRIORITY → INBOX → MUTED order, with header rows."""
+def test_sections_render_in_priority_errors_inbox_muted_order() -> None:
+    """Options appear in PRIORITY → ERRORS → INBOX → MUTED order with gap spacers."""
     priority = _make_notification("p1", action="PlanApproval")
+    error = _make_notification("e1", action="ViewErrorReport")
+    error.sender = "axe"
     inbox = _make_notification("i1", action="JumpToAgent")
     muted = _make_notification("m1", action="JumpToAgent")
     muted.muted = True
 
-    modal = NotificationModal([priority, inbox, muted])
+    modal = NotificationModal([priority, error, inbox, muted])
     options = modal._create_sectioned_options()
 
     ids = [opt.id for opt in options]
-    assert ids == ["hdr:priority", "0", "hdr:inbox", "1", "hdr:muted", "2"]
+    assert ids == [
+        "hdr:priority",
+        "0",
+        "hdr:gap:errors",
+        "hdr:errors",
+        "1",
+        "hdr:gap:inbox",
+        "hdr:inbox",
+        "2",
+        "hdr:gap:muted",
+        "hdr:muted",
+        "3",
+    ]
+
+
+def test_no_gap_before_first_or_after_last_section() -> None:
+    """Spacer rows only appear between adjacent populated sections."""
+    inbox = _make_notification("i1", action="JumpToAgent")
+    modal = NotificationModal([inbox])
+    options = modal._create_sectioned_options()
+
+    ids = [opt.id for opt in options]
+    assert ids == ["hdr:inbox", "0"]
+
+
+def test_axe_error_lives_in_errors_section() -> None:
+    """An axe ViewErrorReport notification renders under ERRORS, not PRIORITY."""
+    n = _make_notification("e1", action="ViewErrorReport")
+    n.sender = "axe"
+    modal = NotificationModal([n])
+    assert modal._section_for(n) == "errors"
+
+
+def test_user_agent_error_lives_in_errors_section() -> None:
+    """A failed-agent ViewErrorReport notification renders under ERRORS."""
+    n = _make_notification("e1", action="ViewErrorReport")
+    n.sender = "user-agent"
+    modal = NotificationModal([n])
+    assert modal._section_for(n) == "errors"
+
+
+def test_muted_error_falls_back_to_muted() -> None:
+    """A muted error still goes to MUTED; mute precedence wins."""
+    n = _make_notification("e1", action="ViewErrorReport")
+    n.sender = "axe"
+    n.muted = True
+    modal = NotificationModal([n])
+    assert modal._section_for(n) == "muted"
 
 
 def test_visual_notification_index_order_skips_section_headers() -> None:

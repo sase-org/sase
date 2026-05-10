@@ -74,7 +74,7 @@ class LifecycleMixin:
             if not n.muted:
                 unread_ids.add(n.id)
         counts = snapshot.counts
-        priority_count = counts.priority
+        priority_count = counts.priority + counts.errors
         rest_count = counts.rest
         muted_count = counts.muted
         return unread_ids, priority_count, rest_count, muted_count

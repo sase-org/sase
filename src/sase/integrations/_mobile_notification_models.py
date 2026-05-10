@@ -9,6 +9,7 @@ from typing import Any
 @dataclass(frozen=True)
 class MobileNotificationBridgeCounts:
     priority: int = 0
+    errors: int = 0
     rest: int = 0
     muted: int = 0
 

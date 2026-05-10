@@ -68,10 +68,10 @@ def test_read_notifications_for_startup_uses_snapshot_counts() -> None:
     n_muted = MagicMock(id="b", read=False, silent=False, muted=True)
     snapshot = SimpleNamespace(
         notifications=[n_priority, n_muted],
-        counts=SimpleNamespace(priority=7, rest=3, muted=2),
+        counts=SimpleNamespace(priority=7, errors=4, rest=3, muted=2),
     )
     with patch("sase.notifications.read_notification_snapshot", return_value=snapshot):
-        assert mixin._read_notifications_for_startup() == ({"a"}, 7, 3, 2)
+        assert mixin._read_notifications_for_startup() == ({"a"}, 11, 3, 2)
 
 
 def test_read_last_selection_name_delegates_to_loader() -> None:

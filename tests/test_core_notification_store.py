@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 
 from sase.ace.tui.actions.agents._killing_utils import dismiss_notifications_for_agents
-from sase.notifications import is_priority
+from sase.notifications import is_error, is_priority
 from sase.notifications.models import Notification
 from sase.notifications.store import (
     append_notification,
@@ -89,10 +89,13 @@ def test_contract_fixture_covers_priority_classifier_inputs(
     assert is_priority(by_id["priority-plan"])
     assert is_priority(by_id["priority-question"])
     assert is_priority(by_id["priority-mentor"])
-    assert is_priority(by_id["priority-axe"])
+    assert is_error(by_id["priority-axe"])
+    assert not is_priority(by_id["priority-axe"])
     assert is_priority(by_id["priority-crs"])
-    assert is_priority(by_id["priority-user-agent-error"])
+    assert is_error(by_id["priority-user-agent-error"])
+    assert not is_priority(by_id["priority-user-agent-error"])
     assert not is_priority(by_id["agent-jump-no-suffix"])
+    assert not is_error(by_id["agent-jump-no-suffix"])
     assert not is_priority(by_id["silent-row"])
 
 

@@ -1,6 +1,6 @@
-"""Tests for the notification priority classifier."""
+"""Tests for the notification priority/error classifiers."""
 
-from sase.notifications import is_priority
+from sase.notifications import is_error, is_priority
 from sase.notifications.models import Notification
 
 
@@ -20,16 +20,26 @@ def test_jump_to_mentor_review_is_priority() -> None:
     assert is_priority(_n(sender="mentors", action="JumpToMentorReview"))
 
 
-def test_axe_sender_is_priority() -> None:
-    assert is_priority(_n(sender="axe", action="ViewErrorReport"))
+def test_axe_view_error_report_is_error_not_priority() -> None:
+    n = _n(sender="axe", action="ViewErrorReport")
+    assert is_error(n)
+    assert not is_priority(n)
+
+
+def test_axe_non_error_action_stays_priority() -> None:
+    n = _n(sender="axe", action="JumpToChangeSpec")
+    assert is_priority(n)
+    assert not is_error(n)
 
 
 def test_crs_sender_is_priority() -> None:
     assert is_priority(_n(sender="crs", action="JumpToChangeSpec"))
 
 
-def test_user_agent_view_error_report_is_priority() -> None:
-    assert is_priority(_n(sender="user-agent", action="ViewErrorReport"))
+def test_user_agent_view_error_report_is_error_not_priority() -> None:
+    n = _n(sender="user-agent", action="ViewErrorReport")
+    assert is_error(n)
+    assert not is_priority(n)
 
 
 def test_sync_result_is_not_priority() -> None:
@@ -41,9 +51,17 @@ def test_hitl_is_not_priority() -> None:
 
 
 def test_user_agent_jump_to_agent_is_not_priority() -> None:
-    """A successful agent (JumpToAgent) is not priority — only errors are."""
-    assert not is_priority(_n(sender="user-agent", action="JumpToAgent"))
+    """A successful agent (JumpToAgent) is neither priority nor error."""
+    n = _n(sender="user-agent", action="JumpToAgent")
+    assert not is_priority(n)
+    assert not is_error(n)
 
 
 def test_workflow_complete_is_not_priority() -> None:
     assert not is_priority(_n(sender="user-workflow", action=None))
+
+
+def test_view_error_report_with_other_sender_is_not_error() -> None:
+    """Only axe and user-agent error reports count as errors."""
+    n = _n(sender="planner", action="ViewErrorReport")
+    assert not is_error(n)

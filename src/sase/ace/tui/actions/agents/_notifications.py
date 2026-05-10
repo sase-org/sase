@@ -17,21 +17,27 @@ TabName = Literal["changespecs", "agents", "axe"]
 
 def _unread_notification_buckets(
     notifications: list[Notification],
-) -> tuple[list[Notification], list[Notification], list[Notification]]:
-    from sase.notifications import is_priority
+) -> tuple[
+    list[Notification], list[Notification], list[Notification], list[Notification]
+]:
+    from sase.notifications import is_error, is_priority
 
-    unread_priority = [
-        n
-        for n in notifications
-        if not n.read and not n.silent and not n.muted and is_priority(n)
-    ]
-    unread_rest = [
-        n
-        for n in notifications
-        if not n.read and not n.silent and not n.muted and not is_priority(n)
-    ]
-    unread_muted = [n for n in notifications if not n.read and not n.silent and n.muted]
-    return unread_priority, unread_rest, unread_muted
+    unread_priority: list[Notification] = []
+    unread_errors: list[Notification] = []
+    unread_rest: list[Notification] = []
+    unread_muted: list[Notification] = []
+    for n in notifications:
+        if n.read or n.silent:
+            continue
+        if n.muted:
+            unread_muted.append(n)
+        elif is_error(n):
+            unread_errors.append(n)
+        elif is_priority(n):
+            unread_priority.append(n)
+        else:
+            unread_rest.append(n)
+    return unread_priority, unread_errors, unread_rest, unread_muted
 
 
 class AgentNotificationMixin:
@@ -71,11 +77,11 @@ class AgentNotificationMixin:
         )
         notifications = snapshot.notifications
         expired_snoozes = snapshot.expired_ids
-        unread_priority, unread_rest, unread_muted = _unread_notification_buckets(
-            notifications
+        unread_priority, unread_errors, unread_rest, unread_muted = (
+            _unread_notification_buckets(notifications)
         )
 
-        unread_active = unread_priority + unread_rest
+        unread_active = unread_priority + unread_errors + unread_rest
         current_ids = {n.id for n in unread_active}
         new_ids = current_ids - self._last_unread_ids
         new_notifications = [n for n in unread_active if n.id in new_ids]
@@ -103,7 +109,7 @@ class AgentNotificationMixin:
         indicator = self.query_one(  # type: ignore[attr-defined]
             "#notification-indicator", NotificationIndicator
         )
-        indicator.set_counts(counts.priority, counts.rest, counts.muted)
+        indicator.set_counts(counts.priority + counts.errors, counts.rest, counts.muted)
 
         # Status overrides apply regardless of mute — muting quiets the
         # indicator, it shouldn't break the agent's lifecycle.
@@ -281,17 +287,19 @@ class AgentNotificationMixin:
         from ...widgets import NotificationIndicator
 
         snapshot = read_notification_snapshot()
-        unread_priority, unread_rest, unread_muted = _unread_notification_buckets(
+        unread_priority, unread_errors, unread_rest, _ = _unread_notification_buckets(
             snapshot.notifications
         )
         counts = snapshot.counts
 
-        self._last_unread_ids = {n.id for n in unread_priority + unread_rest}
+        self._last_unread_ids = {
+            n.id for n in unread_priority + unread_errors + unread_rest
+        }
 
         indicator = self.query_one(  # type: ignore[attr-defined]
             "#notification-indicator", NotificationIndicator
         )
-        indicator.set_counts(counts.priority, counts.rest, counts.muted)
+        indicator.set_counts(counts.priority + counts.errors, counts.rest, counts.muted)
 
     async def _refresh_notification_count_async(self) -> None:
         """Async variant that reads the notifications file off the main thread.
@@ -305,17 +313,19 @@ class AgentNotificationMixin:
         from ...widgets import NotificationIndicator
 
         snapshot = await asyncio.to_thread(read_notification_snapshot)
-        unread_priority, unread_rest, unread_muted = _unread_notification_buckets(
+        unread_priority, unread_errors, unread_rest, _ = _unread_notification_buckets(
             snapshot.notifications
         )
         counts = snapshot.counts
 
-        self._last_unread_ids = {n.id for n in unread_priority + unread_rest}
+        self._last_unread_ids = {
+            n.id for n in unread_priority + unread_errors + unread_rest
+        }
 
         indicator = self.query_one(  # type: ignore[attr-defined]
             "#notification-indicator", NotificationIndicator
         )
-        indicator.set_counts(counts.priority, counts.rest, counts.muted)
+        indicator.set_counts(counts.priority + counts.errors, counts.rest, counts.muted)
 
     def _ring_tmux_bell(self) -> None:
         """Ring tmux bell to notify user of agent completion."""

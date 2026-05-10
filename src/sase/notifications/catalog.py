@@ -8,7 +8,7 @@ from pathlib import Path
 
 from sase.core.time import get_timezone
 from sase.notifications.models import Notification, format_relative_time
-from sase.notifications.priority import is_priority
+from sase.notifications.priority import is_error, is_priority
 from sase.notifications.store import load_notifications
 
 
@@ -57,7 +57,7 @@ def _notification_info(notification: Notification) -> NotificationInfo:
         timestamp=notification.timestamp,
         age=format_relative_time(notification.timestamp),
         sender=notification.sender,
-        priority=is_priority(notification),
+        priority=is_priority(notification) or is_error(notification),
         notes=list(notification.notes),
         files=[_normalize_home_path(path) for path in notification.files],
         action=notification.action,

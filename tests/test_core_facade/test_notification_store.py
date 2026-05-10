@@ -267,7 +267,8 @@ def test_real_extension_reads_phase1_contract_fixture(tmp_path: Path) -> None:
     assert len(all_rows.notifications) == 13
     assert active.stats.invalid_json_lines == 1
     assert active.stats.invalid_record_lines == 1
-    assert active.counts.priority == 6
+    assert active.counts.priority == 4
+    assert active.counts.errors == 2
     assert active.counts.muted == 2
 
 

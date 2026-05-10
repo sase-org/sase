@@ -22,7 +22,7 @@ from sase.notifications.models import Notification
 def _snapshot(rows: list[Notification]) -> SimpleNamespace:
     return SimpleNamespace(
         notifications=rows,
-        counts=SimpleNamespace(priority=1, rest=1, muted=0),
+        counts=SimpleNamespace(priority=1, errors=0, rest=1, muted=0),
         expired_ids=["expired-row"],
     )
 

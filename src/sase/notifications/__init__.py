@@ -11,7 +11,7 @@ from sase.notifications.models import (
     format_relative_time,
     format_relative_until,
 )
-from sase.notifications.priority import is_priority
+from sase.notifications.priority import is_error, is_priority
 from sase.notifications.senders import (
     notify_axe_error_digest,
     notify_hitl_request,
@@ -42,6 +42,7 @@ __all__ = [
     "expire_due_snoozes",
     "format_relative_time",
     "format_relative_until",
+    "is_error",
     "is_priority",
     "list_notification_infos",
     "load_notifications",
