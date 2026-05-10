@@ -24,6 +24,12 @@ dependencies = [
     "textual[syntax]>=0.45.0",
 ]
 
+[project.urls]
+Homepage = "https://sase.sh/"
+Documentation = "https://sase.sh/"
+Repository = "https://github.com/sase-org/sase"
+Issues = "https://github.com/sase-org/sase/issues"
+
 [project.optional-dependencies]
 dev = [
     "ruff",

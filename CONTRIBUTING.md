@@ -1,5 +1,7 @@
 # Contributing to sase
 
+For project background and how the system fits together, see <https://sase.sh/>.
+
 ## Setup
 
 ```bash
@@ -9,6 +11,8 @@ just install
 ```
 
 ## Development Workflow
+
+See <https://sase.sh/development/> for the full development workflow.
 
 ```bash
 just fmt           # Auto-format code

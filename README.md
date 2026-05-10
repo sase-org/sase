@@ -1,5 +1,6 @@
 # sase - Structured Agentic Software Engineering
 
+[![Docs](https://img.shields.io/badge/docs-sase.sh-3b82f6?logo=readthedocs&logoColor=white)](https://sase.sh/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![mypy](https://img.shields.io/badge/type_checker-mypy-blue.svg)](https://mypy-lang.org/)
 [![pytest](https://img.shields.io/badge/tests-pytest-blue.svg)](https://docs.pytest.org/)
@@ -8,6 +9,8 @@
 **sase** (pronounced "sassy") orchestrates coding agents into tracked, repeatable engineering workflows. It gives agent
 runs a durable operating layer: isolated workspaces, reusable prompts, scheduling, status, review state, and commit
 flow.
+
+**Full documentation: [sase.sh](https://sase.sh/).**
 
 <img src="docs/images/sase_overview.png" alt="Overview of SASE coordinating parallel coding agents, isolated workspaces, and durable workflow state" width="800">
 
@@ -69,7 +72,7 @@ sase bead onboard         # see the bead issue-tracking quick start
 
 ## Keep reading
 
-The full documentation lives at [sase.sh](https://sase.sh/). Start with:
+The full documentation lives at **[sase.sh](https://sase.sh/)**. Start with:
 
 - [ACE TUI](https://sase.sh/ace/) ([local](docs/ace.md))
 - [AXE Automation](https://sase.sh/axe/) ([local](docs/axe.md))
