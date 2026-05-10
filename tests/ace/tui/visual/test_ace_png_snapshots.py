@@ -1,4 +1,4 @@
-"""ACE TUI SVG visual snapshot coverage."""
+"""ACE TUI PNG visual snapshot coverage."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from sase.ace.testing import AcePage, make_changespec
 from sase.ace.tui import AceApp
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import AgentLoadState
-from tests.ace.tui.visual.svg_snapshot import AceSvgSnapshotFixture
+from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
@@ -119,7 +119,7 @@ def _patch_startup_loaders(
         return SimpleNamespace(
             notifications=[],
             expired_ids=[],
-            counts=SimpleNamespace(priority=1, rest=18, muted=0),
+            counts=SimpleNamespace(priority=1, rest=18, muted=0, errors=0),
         )
 
     monkeypatch.setattr(_loading, "load_agents_from_disk_with_state", _fake_load_agents)
@@ -139,8 +139,8 @@ async def _wait_for_startup(page: AcePage) -> None:
     )
 
 
-async def test_changespec_initial_svg_snapshot(
-    ace_visual: AceSvgSnapshotFixture,
+async def test_changespec_initial_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_startup_loaders(monkeypatch)
@@ -150,15 +150,15 @@ async def test_changespec_initial_svg_snapshot(
         await page.expect_state("tab", "changespecs")
         await page.expect_state("selected.name", "visual_auth")
 
-        ace_visual.assert_svg(
+        ace_png_visual.assert_page_png(
             page,
             "changespec_initial_120x40",
             title="ACE changespec initial",
         )
 
 
-async def test_changespec_selected_row_svg_snapshot(
-    ace_visual: AceSvgSnapshotFixture,
+async def test_changespec_selected_row_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_startup_loaders(monkeypatch)
@@ -169,15 +169,15 @@ async def test_changespec_selected_row_svg_snapshot(
         await page.press("j")
         await page.expect_state("selected.name", "visual_billing")
 
-        ace_visual.assert_svg(
+        ace_png_visual.assert_page_png(
             page,
             "changespec_selected_row_120x40",
             title="ACE changespec selected row",
         )
 
 
-async def test_query_edit_modal_svg_snapshot(
-    ace_visual: AceSvgSnapshotFixture,
+async def test_query_edit_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_startup_loaders(monkeypatch)
@@ -188,15 +188,15 @@ async def test_query_edit_modal_svg_snapshot(
         await page.press("slash")
         await page.expect_modal("QueryEditModal")
 
-        ace_visual.assert_svg(
+        ace_png_visual.assert_page_png(
             page,
             "query_edit_modal_120x40",
             title="ACE query edit modal",
         )
 
 
-async def test_agent_list_svg_snapshot(
-    ace_visual: AceSvgSnapshotFixture,
+async def test_agent_list_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_startup_loaders(monkeypatch, agents=_agents())
@@ -207,7 +207,7 @@ async def test_agent_list_svg_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
 
-        ace_visual.assert_svg(
+        ace_png_visual.assert_page_png(
             page,
             "agents_list_120x40",
             title="ACE agents list",
