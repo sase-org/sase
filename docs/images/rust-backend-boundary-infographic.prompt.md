@@ -19,31 +19,42 @@ Layered diagram showing Python host responsibilities, the `sase.core` facade and
 
 ```text
 Use case: infographic-diagram
-Asset type: GitHub Markdown documentation infographic, 16:9 landscape PNG
-Primary request: Create a clean architecture infographic background for the SASE Rust backend boundary and ownership
-model. It should be a polished technical diagram foundation, not marketing art.
-Composition: four horizontal layers stacked vertically with generous spacing and crisp rounded rectangles: top layer for
-Python UI/CLI/TUI/workflow host, second layer for sase.core Python facade and stable wire records, third layer for
-required sase_core_rs PyO3 extension, bottom layer for sibling ../sase-core Rust workspace. Add a vertical boundary
-connector between the facade and extension, plus two side panels for ownership groups and a small bottom-right
-contract/health loop.
-Text policy: do not render any words, letters, numbers, code snippets, logos, watermarks, terminal screenshots, or fake
-UI text. Use only abstract shapes, short blank label placeholders, arrows, lanes, and icon-like marks. Leave clear empty
-space inside every block and panel for deterministic labels to be added later.
-Visual style: neutral light background, high contrast outlines, subtle depth, restrained palette with distinct accents
-(teal for Python facade/host, blue for Rust extension/workspace, amber for contracts, muted gray for shared wire
-boundary). Crisp arrows and swimlanes, clean documentation style, readable at GitHub Markdown width.
-Avoid: dark background, dense paragraphs, tiny text, fake terminal windows, third-party logos, optional fallback
-symbolism, one-hue purple/blue gradient theme.
+Asset type: GitHub Markdown documentation infographic background, 16:9 landscape PNG
+Primary request: Create a clean no-text architecture infographic background for the SASE Rust backend boundary and
+ownership model. This will be post-processed with exact deterministic labels, so the generated image must contain no
+readable words, letters, numbers, logos, watermarks, or fake UI text.
+Composition: 1600x900 landscape. Four wide horizontal architecture layers stacked vertically with generous spacing: top
+host layer, second facade/wire layer, a strong amber horizontal boundary divider between layer 2 and layer 3, third
+extension layer, bottom Rust workspace layer. Include a single clear downward arrow crossing the amber boundary divider,
+plus a modest bottom-right contract loop panel and a left-side legend panel. In the bottom Rust workspace layer, show a
+neat 3x3 grid of small blank operation cards with ample empty interior space. Add a small blank badge between the
+extension and Rust workspace layers for a wheel/distribution label. Include an adjacent small companion box near the
+bottom Rust layer for a secondary gateway surface. Keep all boxes blank inside for later labels.
+Visual style: neutral light background, crisp documentation-diagram aesthetic, high contrast outlines, subtle depth,
+restrained palette with distinct accents: teal for Python host/facade, blue for Rust extension/workspace, amber for the
+required boundary and contract, muted gray for wire records. Rounded rectangles may be used but keep radius small and
+professional. Clean swimlanes, readable at GitHub Markdown width.
+Avoid: any rendered text, any letters or numerals, fake terminal windows, code snippets, company logos, optional
+fallback symbolism, dark background, dense decorative gradients, purple-blue dominant palette, tiny placeholders that
+look like text.
 ```
 
 ## Post-Processing Notes
 
-The generated image was used as the no-text architecture background. Final labels were added deterministically with
-ImageMagick so the committed PNG uses exact doc terminology and avoids generated-text misspellings.
+The generated base was used as a washed, no-text architecture background. Final labels, cards, dividers, arrows, and
+side panels were composited deterministically with ImageMagick using DejaVu Sans fonts so the committed PNG uses exact
+documentation terminology and avoids generated-text misspellings.
 
-The committed image now includes the layered labels from `docs/rust_backend.md`: SASE Python host layer, `sase.core`
-facade, stable wire records, required Rust boundary with no Python fallback, `sase_core_rs` PyO3 extension,
-`../sase-core` deterministic cores, Python-owned host responsibilities, Rust-owned operation groups, and the
-health/fixtures/tests contract loop. Phase 7 QA adjusted overlapping layer, ownership, and contract-loop labels for
-GitHub Markdown readability.
+The regenerated diagram addresses the 2026-05-10 critique by:
+
+- promoting `REQUIRED RUST BOUNDARY - NO PYTHON FALLBACK` to the dominant divider between the Python facade and
+  `sase_core_rs`;
+- showing a one-way `Python -> Rust` call arrow labeled as wire-record flow;
+- replacing the left annotation column with the four Python host responsibilities from `docs/rust_backend.md`;
+- naming Python-owned facade examples: `parse_project_file`, `evaluate_query*`, and `transition_status`;
+- naming concrete `sase core health` probes: `parse_query`, launch schema/fanout, and `bead_cli_execute`;
+- expanding the Rust workspace layer into nine categories: project parsing, query parse/corpus, agent artifact
+  scan/index, status helpers/planner, git query parsers, notification JSONL store, agent cleanup, agent launch/RUNNING
+  claims, and bead data operations;
+- adding the PyPI wheel badge `sase-core-rs >=0.1.1,<0.2.0`;
+- adding a companion `crates/sase_gateway` box so the `../sase-core` workspace framing stays honest.
