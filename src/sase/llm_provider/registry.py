@@ -21,7 +21,7 @@ import pluggy
 from ._hookspec import LLMHookSpec
 from ._plugin_manager import LLMPluginManager
 from .base import LLMProvider
-from .config import get_llm_provider_config
+from .config import get_llm_provider_config, resolve_model_alias
 
 _PROVIDER_FAMILY_COLORS: dict[str, str] = {
     "claude": "#D97757",
@@ -175,10 +175,11 @@ def get_provider(name: str | None = None) -> LLMProvider:
 def resolve_model_provider(model_override: str) -> tuple[str | None, str]:
     """Resolve a model override string to (provider_name, model_name).
 
-    Supports two resolution strategies:
+    Supports three resolution strategies:
 
-    1. Explicit provider syntax: ``"codex/o3"`` → ``("codex", "o3")``
-    2. Implicit via plugin metadata: ``"o3"`` → ``("codex", "o3")``
+    1. Configured aliases: ``"other"`` → ``"claude/opus"``
+    2. Explicit provider syntax: ``"codex/o3"`` → ``("codex", "o3")``
+    3. Implicit via plugin metadata: ``"o3"`` → ``("codex", "o3")``
 
     If neither matches, returns ``(None, model_override)`` so the caller
     falls back to the default provider.
@@ -189,6 +190,8 @@ def resolve_model_provider(model_override: str) -> tuple[str | None, str]:
     Returns:
         Tuple of (provider_name_or_none, clean_model_name).
     """
+    model_override = resolve_model_alias(model_override)
+
     # 1. Check for explicit provider/model syntax
     if "/" in model_override:
         prefix, rest = model_override.split("/", 1)

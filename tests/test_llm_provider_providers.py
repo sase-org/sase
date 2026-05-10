@@ -10,6 +10,8 @@ import pytest
 from sase.llm_provider._subprocess import stream_process_output
 from sase.llm_provider.base import LLMProvider
 from sase.llm_provider.claude import ClaudeCodeProvider
+from sase.llm_provider.config import get_model_aliases, resolve_model_alias
+from sase.llm_provider.registry import resolve_model_provider
 from sase.llm_provider.gemini import GeminiProvider
 from sase.llm_provider.types import InvokeResult, ModelTier
 
@@ -37,6 +39,60 @@ def test_gemini_provider_is_llm_provider() -> None:
     """Test that GeminiProvider is a proper LLMProvider subclass."""
     provider = GeminiProvider()
     assert isinstance(provider, LLMProvider)
+
+
+@patch("sase.llm_provider.config.get_llm_provider_config")
+def test_model_aliases_ignore_invalid_entries(mock_config: MagicMock) -> None:
+    """Model aliases are stripped and invalid keys/values are ignored."""
+    mock_config.return_value = {
+        "model_aliases": {
+            " other ": " claude/opus ",
+            123: "opus",
+            "empty": "   ",
+            "bad": ["opus"],
+        }
+    }
+
+    assert get_model_aliases() == {"other": "claude/opus"}
+
+
+@patch("sase.llm_provider.config.get_llm_provider_config")
+def test_resolve_model_alias_handles_chains_and_cycles(
+    mock_config: MagicMock,
+) -> None:
+    """Alias chains resolve, but cycles fall back to the raw input."""
+    mock_config.return_value = {
+        "model_aliases": {
+            "other": "review",
+            "review": "opus",
+            "a": "b",
+            "b": "a",
+        }
+    }
+
+    assert resolve_model_alias("other") == "opus"
+    assert resolve_model_alias("missing") == "missing"
+    assert resolve_model_alias("a") == "a"
+
+
+@patch("sase.llm_provider.config.get_llm_provider_config")
+def test_resolve_model_provider_resolves_explicit_alias(
+    mock_config: MagicMock,
+) -> None:
+    """An alias can point at explicit provider/model syntax."""
+    mock_config.return_value = {"model_aliases": {"other": "claude/opus"}}
+
+    assert resolve_model_provider("other") == ("claude", "opus")
+
+
+@patch("sase.llm_provider.config.get_llm_provider_config")
+def test_resolve_model_provider_resolves_bare_alias(
+    mock_config: MagicMock,
+) -> None:
+    """An alias can point at a known bare model name."""
+    mock_config.return_value = {"model_aliases": {"other": "opus"}}
+
+    assert resolve_model_provider("other") == ("claude", "opus")
 
 
 # --- Backward compatibility tests ---

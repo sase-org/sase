@@ -414,9 +414,11 @@ def _model_value_for_naming(
     *,
     extra_xprompts: dict[str, XPrompt] | None = None,
 ) -> str:
-    """Resolve xprompt shorthand in a model token for naming only."""
+    """Resolve xprompt shorthand and configured aliases for naming only."""
+    from sase.llm_provider.config import resolve_model_alias
+
     if "#" not in model:
-        return model
+        return resolve_model_alias(model)
 
     from .processor import process_xprompt_references
 
@@ -425,8 +427,8 @@ def _model_value_for_naming(
         extra_xprompts=extra_xprompts or None,
     ).strip()
     if expanded == model:
-        return model
-    return expanded
+        return resolve_model_alias(model)
+    return resolve_model_alias(expanded)
 
 
 def _model_disambiguator_for_naming(raw_model: str, label_model: str) -> str:

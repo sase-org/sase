@@ -367,6 +367,13 @@
             }
           }
         },
+        "model_aliases": {
+          "type": "object",
+          "description": "Configurable model aliases usable from %model/%m directives",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "retry": {
           "type": "object",
           "description": "Per-provider retry configuration. Keys are provider names (e.g., 'gemini', 'claude').",

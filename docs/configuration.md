@@ -171,13 +171,20 @@ llm_provider:
   model_tier_map:
     large: opus
     small: sonnet
+  model_aliases:
+    other: claude/opus
 ```
 
-| Field                               | Type   | Default     | Description                                                                                                                                 |
-| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → gemini. |
-| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                                                                                      |
-| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                                                                                      |
+| Field                               | Type   | Default     | Description                                                                                                                                                  |
+| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → gemini.                  |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                                                                                                       |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                                                                                                       |
+| `llm_provider.model_aliases`        | dict   | -           | Model aliases usable from `%model:<alias>` / `%m:<alias>`. Values can be bare known models, explicit `provider/model`, or nested provider-local model paths. |
+
+Model aliases are resolved when an agent launches, so reusable xprompts can point at names such as `%model:other` while
+each user's `sase.yml` controls the concrete provider/model. Unknown aliases and unknown model values keep the existing
+fallback behavior and run on the default provider.
 
 The TUI also supports a **temporary** session-level provider/model override that does **not** edit this config. The
 override is set/cleared from the ACE `,P` modal and persisted to `~/.sase/llm_override.json`; expired entries are

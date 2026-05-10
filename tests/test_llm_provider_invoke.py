@@ -8,6 +8,7 @@ import pytest
 from sase.llm_provider._invoke import invoke_agent
 from sase.llm_provider.types import InvokeResult, LLMInvocationError
 from sase.llm_provider.preprocessing import _PreprocessResult
+from sase.xprompt.directives import PromptDirectives
 
 
 @patch("sase.llm_provider._invoke.get_provider")
@@ -97,6 +98,37 @@ def test_invoke_agent_model_tier_override_env(
         )
     finally:
         del os.environ["SASE_MODEL_TIER_OVERRIDE"]
+
+
+@patch("sase.llm_provider.config.get_llm_provider_config")
+@patch("sase.llm_provider._invoke.get_provider")
+@patch("sase.llm_provider._invoke.postprocess_success")
+def test_invoke_agent_resolves_model_alias_for_provider_and_model(
+    mock_postprocess: MagicMock,
+    mock_get_provider: MagicMock,
+    mock_config: MagicMock,
+) -> None:
+    """A %model alias selects the resolved provider and provider-local model."""
+    mock_config.return_value = {"model_aliases": {"other": "claude/opus"}}
+    mock_provider = MagicMock()
+    mock_provider.invoke.return_value = InvokeResult(content="response")
+    mock_get_provider.return_value = mock_provider
+
+    invoke_agent(
+        "prompt",
+        agent_type="test",
+        suppress_output=True,
+        skip_preprocessing=True,
+        directives=PromptDirectives(model="other"),
+    )
+
+    mock_get_provider.assert_called_once_with("claude")
+    mock_provider.invoke.assert_called_once_with(
+        "prompt",
+        model_tier="large",
+        suppress_output=True,
+        model_override="opus",
+    )
 
 
 @patch("sase.llm_provider._invoke.get_provider")

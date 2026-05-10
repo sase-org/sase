@@ -365,20 +365,45 @@ llm_provider:
   model_tier_map:
     large: opus
     small: sonnet
+  model_aliases:
+    other: claude/opus
 ```
 
 ### Config Fields
 
-| Field                               | Type   | Default     | Description                                                                                                                                 |
-| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → gemini. |
-| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                                       |
-| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                                       |
+| Field                               | Type   | Default     | Description                                                                                                                                          |
+| ----------------------------------- | ------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → gemini.          |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                                                |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                                                |
+| `llm_provider.model_aliases`        | dict   | -           | Model aliases for `%model:<alias>` / `%m:<alias>`. Values can be bare known models, explicit `provider/model`, or nested provider-local model paths. |
 
 ## Per-Prompt Provider Switching
 
 The `%model` directive (see [xprompt directives](xprompt.md#directives)) can switch both the model and the LLM provider
-for a single prompt. Provider resolution uses two strategies:
+for a single prompt. Provider resolution uses configured aliases first, then concrete provider/model syntax and known
+model metadata.
+
+### Configured Model Aliases
+
+Use `llm_provider.model_aliases` to define launch-time aliases for reusable prompts:
+
+```yaml
+llm_provider:
+  model_aliases:
+    other: claude/opus
+```
+
+Then prompts can use:
+
+```
+%model:other
+%m(other,gpt-5.5)
+```
+
+Alias values may point at another alias, a bare known model such as `opus`, an explicit provider/model string such as
+`claude/opus`, or a nested provider-local path such as `opencode/anthropic/claude-sonnet-4-5`. Cycles are ignored and
+fall back to the raw input.
 
 ### Explicit Provider/Model Syntax
 

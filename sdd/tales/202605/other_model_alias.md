@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 22:30:36
-status: wip
+status: done
 prompt: sdd/prompts/202605/other_model_alias.md
 ---
 # Plan: Configured `other` Model Alias

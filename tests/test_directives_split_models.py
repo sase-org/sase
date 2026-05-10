@@ -1,7 +1,7 @@
 """Tests for split_prompt_for_models."""
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from sase.xprompt.directives import split_prompt_for_models
 from sase.xprompt.models import XPrompt
@@ -203,6 +203,21 @@ def test_split_prompt_for_models_multi_model_distinct_runtimes() -> None:
     assert result is not None
     assert len(result) == 2
     assert result[0] == "%name:foo.cld\n%model:opus\nReview this code"
+    assert result[1] == "%name:foo.cdx\n%model:gpt-5.5\nReview this code"
+
+
+@patch("sase.llm_provider.config.get_llm_provider_config")
+def test_split_prompt_for_models_alias_uses_resolved_suffix(
+    mock_config: MagicMock,
+) -> None:
+    """Fan-out names use the concrete configured model behind an alias."""
+    mock_config.return_value = {"model_aliases": {"other": "claude/opus"}}
+
+    prompt = "%n:foo\n%m(other,gpt-5.5)\nReview this code"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%name:foo.cld\n%model:other\nReview this code"
     assert result[1] == "%name:foo.cdx\n%model:gpt-5.5\nReview this code"
 
 
