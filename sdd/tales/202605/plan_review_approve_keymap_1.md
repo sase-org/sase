@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-10 11:43:43
-status: wip
+status: done
 prompt: sdd/prompts/202605/plan_review_approve_keymap_1.md
 ---
 # Plan: Plan Review `a`/`t` Keymap Swap and New Approve Action

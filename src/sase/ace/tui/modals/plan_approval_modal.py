@@ -120,7 +120,8 @@ class PlanApprovalModal(
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
         ("q", "cancel", "Cancel"),
-        ("a", "approve", "Tale"),
+        ("a", "approve", "Approve"),
+        ("t", "tale", "Tale"),
         ("c", "custom", "Custom"),
         ("r", "reject", "Reject"),
         ("f", "feedback", "Feedback"),
@@ -173,7 +174,7 @@ class PlanApprovalModal(
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         hints = (
-            "[green]a[/green]=Tale  [green]c[/green]=Custom  [red]r[/red]=Reject  "
+            "[green]a[/green]=Approve  [green]t[/green]=Tale  [green]c[/green]=Custom  [red]r[/red]=Reject  "
             "[yellow]f[/yellow]=Feedback  "
             "[blue]e[/blue]=Edit  "
             "[magenta]E[/magenta]=Epic  "
@@ -249,6 +250,10 @@ class PlanApprovalModal(
         self.dismiss(None)
 
     def action_approve(self) -> None:
+        """Approve the plan without an SDD commit."""
+        self.dismiss(plan_approval_result_for_choice("approve"))
+
+    def action_tale(self) -> None:
         """Approve the plan as an SDD tale."""
         self.dismiss(plan_approval_result_for_choice("tale"))
 

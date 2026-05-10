@@ -96,9 +96,13 @@ def test_bindings_include_legend_action() -> None:
     assert ("L", "legend", "Legend") in PlanApprovalModal.BINDINGS
 
 
-def test_bindings_show_tale_for_approve_action() -> None:
-    assert ("a", "approve", "Tale") in PlanApprovalModal.BINDINGS
-    assert ("a", "approve", "Approve") not in PlanApprovalModal.BINDINGS
+def test_bindings_show_approve_for_approve_action() -> None:
+    assert ("a", "approve", "Approve") in PlanApprovalModal.BINDINGS
+    assert ("a", "approve", "Tale") not in PlanApprovalModal.BINDINGS
+
+
+def test_bindings_include_tale_action() -> None:
+    assert ("t", "tale", "Tale") in PlanApprovalModal.BINDINGS
 
 
 def test_bindings_include_custom_action_instead_of_options() -> None:
@@ -106,18 +110,40 @@ def test_bindings_include_custom_action_instead_of_options() -> None:
     assert ("A", "approve_options", "Options") not in PlanApprovalModal.BINDINGS
 
 
-def test_action_approve_still_returns_internal_approve_action() -> None:
+def test_action_approve_returns_pure_approve_choice() -> None:
     modal = PlanApprovalModal.__new__(PlanApprovalModal)
-    result: PlanApprovalResult | None = None
+    captured: list[PlanApprovalResult] = []
 
     def fake_dismiss(value: PlanApprovalResult) -> None:
-        nonlocal result
-        result = value
+        captured.append(value)
 
     modal.dismiss = fake_dismiss  # type: ignore[assignment]
     modal.action_approve()
 
-    assert result == PlanApprovalResult(action="approve", choice="tale")
+    assert len(captured) == 1
+    result = captured[0]
+    assert result.action == "approve"
+    assert result.choice == "approve"
+    assert result.commit_plan is False
+    assert result.run_coder is True
+
+
+def test_action_tale_returns_tale_choice_with_commit() -> None:
+    modal = PlanApprovalModal.__new__(PlanApprovalModal)
+    captured: list[PlanApprovalResult] = []
+
+    def fake_dismiss(value: PlanApprovalResult) -> None:
+        captured.append(value)
+
+    modal.dismiss = fake_dismiss  # type: ignore[assignment]
+    modal.action_tale()
+
+    assert len(captured) == 1
+    result = captured[0]
+    assert result.action == "approve"
+    assert result.choice == "tale"
+    assert result.commit_plan is True
+    assert result.run_coder is True
 
 
 def test_action_custom_uses_custom_modal_path() -> None:
