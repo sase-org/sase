@@ -9,7 +9,7 @@
 runs a durable operating layer: isolated workspaces, reusable prompts, scheduling, status, review state, and commit
 flow.
 
-<img src="docs/images/sase_overview.png" alt="Visual overview of sase" width="800">
+<img src="docs/images/sase_overview.png" alt="Overview of SASE coordinating parallel coding agents, isolated workspaces, and durable workflow state" width="800">
 
 ## Why sase
 
