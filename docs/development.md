@@ -30,7 +30,7 @@ just fmt           # Auto-format code and Markdown
 just lint          # Run ruff, mypy, pyvision, keep-sorted, and SDD validation
 just test          # Fast parallel test run
 just test-slow     # Slow pytest subset only
-just test-visual   # ACE visual regression snapshots
+just test-visual   # ACE PNG visual regression snapshots
 just test-terminal-smoke  # Optional real-terminal ACE smoke test
 just test-cov      # Parallel test run with coverage + 50% gate
 just check         # CI-style checks: formatting, lint, SDD validation, tests
@@ -47,8 +47,8 @@ directory where `just` was invoked, so this works the same from the repository r
 just test tests/main/test_parser.py::test_example
 ```
 
-Default test runs exclude both `slow` and `visual` markers. Use `just test-visual` for ACE screenshot regression tests;
-the recipe installs the optional visual renderer dependencies when they are missing.
+Default test runs exclude both `slow` and `visual` markers. Use `just test-visual` for ACE PNG snapshot regression
+tests; the recipe installs the optional PNG rasterizer dependencies when they are missing.
 
 Use `just test-terminal-smoke` only when you need to verify the ACE startup path through a real PTY. It installs
 `pexpect` and `pyte`, runs the optional `terminal_smoke` marker, and stays out of default tests, visual snapshots, and

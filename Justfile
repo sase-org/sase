@@ -164,8 +164,8 @@ test-slow *args: _setup (_header "test-slow")
     @printf "\n---------- Running slow pytest subset... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest slow "$@"
 
-# Run ACE visual regression tests. This suite is explicit because it uses
-# snapshot goldens and optional SVG-to-PNG rendering dependencies.
+# Run ACE PNG visual regression tests. This suite is explicit because it uses
+# committed PNG snapshot goldens and a PNG rasterizer dependency.
 [positional-arguments]
 test-visual *args: _setup-visual (_header "test-visual")
     @printf "\n---------- Running visual pytest subset... ----------\n"

@@ -93,7 +93,7 @@ just fmt           # Auto-format code
 just lint          # Run ruff, mypy, pyvision, keep-sorted, and SDD validation
 just test          # Fast parallel test run
 just test-slow     # Slow pytest subset only
-just test-visual   # ACE visual regression snapshots
+just test-visual   # ACE PNG visual regression snapshots
 just test-cov      # Parallel test run with coverage + 50% gate
 just check         # All checks: formatting, lint, SDD validation, and tests
 just test-tox      # Test across Python 3.12, 3.13, 3.14
@@ -103,7 +103,7 @@ just build         # Build wheel + sdist
 
 `just test`, `just test-slow`, `just test-visual`, and `just test-cov` size the pytest-xdist worker pool from local CPU
 count, capped at 16. Set `SASE_PYTEST_WORKERS=<N>` to override that value. Default test runs exclude slow and visual
-tests. Use `just test-visual` for ACE screenshot snapshots, and accept intentional golden changes with
+tests. Use `just test-visual` for ACE PNG visual regression snapshots, and accept intentional PNG golden changes with
 `--sase-update-visual-snapshots` only after inspecting `.pytest_cache/sase-visual/`.
 
 ### Required Rust core
