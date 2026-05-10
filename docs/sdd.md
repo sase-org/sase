@@ -159,7 +159,8 @@ but they are not part of the prompt-plan link validator.
 ### Model Field
 
 Plan files may carry an optional top-level `model:` field in YAML frontmatter to record the model the work should run
-under. The value can be a provider-qualified model id (e.g. `codex/gpt-5.5`) or a configured local alias (e.g. `#pro`).
+under. The value uses the same syntax `%model` accepts: a bare known model name (e.g. `opus`), a provider-qualified id
+(e.g. `codex/gpt-5.5`), or a configured local alias (e.g. `#pro`).
 
 ```yaml
 # sdd/tales/202605/example.md
@@ -169,9 +170,11 @@ model: opus
 
 Epic plan files can additionally annotate individual phases with their own `model:` lines so different phases can be
 worked by different models. The `bd/new_epic` xprompt forwards the top-level `model:` field to `sase bead create`'s
-`-m/--model` flag on the epic plan bead (so the land agent inherits it), and forwards each phase's `model:` annotation
-to its phase-bead `-m/--model` flag. The `bd/new_legend` xprompt does the same for legend plan beads. When the field is
-absent, `--model` is omitted and the bead falls back to the launcher default.
+`-m/--model` flag on the epic plan bead (so the land agent inherits it) and forwards each phase's `model:` annotation to
+that phase bead's `-m/--model` flag. The `bd/new_legend` xprompt forwards only the top-level `model:` to the legend plan
+bead (the legend's land-legend agent inherits it); legend plans propose epics rather than phases, so per-phase model
+assignment happens later when each epic is split via `bd/new_epic`. When the field is absent, `--model` is omitted and
+the bead falls back to the launcher default.
 
 ## CLI
 
