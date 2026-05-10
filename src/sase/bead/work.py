@@ -325,7 +325,7 @@ def render_multi_prompt(
             lines.extend(
                 [
                     f"%name:{assignment.agent_name}",
-                    _tag_directive(plan.launch_tag_id),
+                    _group_directive(plan.launch_tag_id),
                     "%approve",
                 ]
             )
@@ -336,7 +336,7 @@ def render_multi_prompt(
 
     land_lines = _segment_prefix(launch_context, is_first_phase=False)
     land_lines.append(f"%name:{plan.land_agent_name}")
-    land_lines.append(_tag_directive(plan.launch_tag_id))
+    land_lines.append(_group_directive(plan.launch_tag_id))
     land_lines.append("%approve")
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
@@ -373,7 +373,7 @@ def render_legend_multi_prompt(
         lines.extend(
             [
                 f"%name:{assignment.agent_name}",
-                _tag_directive(plan.legend_id),
+                _group_directive(plan.legend_id),
                 "%epic",
             ]
         )
@@ -390,7 +390,7 @@ def render_legend_multi_prompt(
 
     land_lines = _segment_prefix(vcs_context, is_first_phase=True)
     land_lines.append(f"%name:{plan.land_agent_name}")
-    land_lines.append(_tag_directive(plan.legend_id))
+    land_lines.append(_group_directive(plan.legend_id))
     land_lines.append("%approve")
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
@@ -430,8 +430,8 @@ def _validate_changespec_context(ctx: ChangeSpecLaunchContext) -> None:
         )
 
 
-def _tag_directive(bead_id: str) -> str:
-    return f"%tag:{bead_id}"
+def _group_directive(bead_id: str) -> str:
+    return f"%group:{bead_id}"
 
 
 def _bead_env(bead_id: str) -> dict[str, str]:

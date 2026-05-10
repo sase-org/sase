@@ -234,57 +234,73 @@ def test_disabled_region_markers_preserved_when_flag_false() -> None:
     assert "Rest of prompt" in cleaned
 
 
-# --- %tag directive ---
+# --- %group directive ---
 
 
-def test_tag_directive_colon_arg() -> None:
-    """``%tag:<name>`` sets directives.tag and is stripped from the prompt."""
-    prompt = "%tag:review\nFix the bug"
+def test_group_directive_colon_arg() -> None:
+    """``%group:<name>`` sets directives.tag and is stripped from the prompt."""
+    prompt = "%group:review\nFix the bug"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Fix the bug"
     assert directives.tag == "review"
 
 
-def test_tag_directive_accepts_dotted_bead_id() -> None:
-    prompt = "%tag:sase-42.3\nFix the bug"
+def test_group_directive_accepts_dotted_bead_id() -> None:
+    prompt = "%group:sase-42.3\nFix the bug"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Fix the bug"
     assert directives.tag == "sase-42.3"
 
 
-def test_tag_short_alias_t() -> None:
-    """``%t:<name>`` is a short alias for ``%tag:<name>``."""
-    prompt = "%t:exp\nFix the bug"
+def test_group_short_alias_g() -> None:
+    """``%g:<name>`` is a short alias for ``%group:<name>``."""
+    prompt = "%g:exp\nFix the bug"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Fix the bug"
     assert directives.tag == "exp"
 
 
-def test_tag_directive_paren_arg() -> None:
-    """``%tag(<name>)`` works the same as the colon form."""
-    prompt = "%tag(release)\nFix"
+def test_group_directive_paren_arg() -> None:
+    """``%group(<name>)`` works the same as the colon form."""
+    prompt = "%group(release)\nFix"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Fix"
     assert directives.tag == "release"
 
 
-def test_tag_directive_rejects_at_prefix() -> None:
+def test_group_directive_rejects_at_prefix() -> None:
     with pytest.raises(DirectiveError, match="must not start with '@'"):
-        extract_prompt_directives("%tag:`@review`\nDo it")
+        extract_prompt_directives("%group:`@review`\nDo it")
 
 
-def test_tag_directive_rejects_invalid_chars() -> None:
+def test_group_directive_rejects_invalid_chars() -> None:
     with pytest.raises(DirectiveError, match="must match"):
-        extract_prompt_directives("%tag:`has space`\nDo it")
+        extract_prompt_directives("%group:`has space`\nDo it")
 
 
-def test_tag_directive_bare_is_error() -> None:
-    """``%tag`` with no argument is invalid."""
+def test_group_directive_bare_is_error() -> None:
+    """``%group`` with no argument is invalid."""
     with pytest.raises(DirectiveError, match="requires a tag name"):
-        extract_prompt_directives("%tag\nDo it")
+        extract_prompt_directives("%group\nDo it")
 
 
-def test_tag_directive_default_none() -> None:
-    """When ``%tag`` is not present, directives.tag is None."""
+def test_group_directive_default_none() -> None:
+    """When ``%group`` is not present, directives.tag is None."""
     _, directives = extract_prompt_directives("Just a prompt")
+    assert directives.tag is None
+
+
+def test_legacy_tag_directive_left_in_prompt() -> None:
+    """``%tag:<name>`` is no longer a directive — left in the prompt unchanged."""
+    prompt = "%tag:foo\nRest of prompt"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "%tag:foo\nRest of prompt"
+    assert directives.tag is None
+
+
+def test_legacy_t_alias_left_in_prompt() -> None:
+    """``%t:<name>`` is no longer an alias — left in the prompt unchanged."""
+    prompt = "%t:foo\nRest of prompt"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "%t:foo\nRest of prompt"
     assert directives.tag is None

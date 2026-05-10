@@ -310,8 +310,10 @@ def extract_prompt_directives(
                 f"Invalid repeat count '{repeat_count}' — must be a positive integer"
             )
 
-    # Validate the %tag directive value, if present.
-    raw_tag = expanded_args.get("tag")
+    # Validate the %group directive value, if present. The user-facing
+    # directive is %group (alias %g); it is stored on PromptDirectives.tag
+    # because the persisted concept retains the "tag" name.
+    raw_tag = expanded_args.get("group")
     parsed_tag: str | None = None
     if raw_tag:
         from sase.ace.agent_tags import InvalidTagError, validate_tag_name
@@ -319,10 +321,10 @@ def extract_prompt_directives(
         try:
             parsed_tag = validate_tag_name(raw_tag)
         except InvalidTagError as exc:
-            raise DirectiveError(f"Invalid '%tag' value: {exc}") from exc
-    elif "tag" in expanded_args:
+            raise DirectiveError(f"Invalid '%group' value: {exc}") from exc
+    elif "group" in expanded_args:
         raise DirectiveError(
-            "'%tag' directive requires a tag name argument (e.g., %tag:review)"
+            "'%group' directive requires a tag name argument (e.g., %group:review)"
         )
 
     # Build PromptDirectives from expanded args

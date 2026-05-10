@@ -34,7 +34,7 @@ _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
     "name": ":agent",
     "plan": "flag",
     "repeat": ":count",
-    "tag": ":tag",
+    "group": ":tag",
     "wait": ":agent or :duration",
 }
 
@@ -49,7 +49,7 @@ _DIRECTIVE_DESCRIPTIONS: dict[str, str] = {
     "name": "assign, auto-generate, or force-reuse an agent name",
     "plan": "create a plan first, then wait for approval",
     "repeat": "run the prompt multiple serial iterations",
-    "tag": "assign a user-managed agent tag",
+    "group": "assign a user-managed agent tag",
     "wait": "defer launch until agents complete or time elapses",
 }
 

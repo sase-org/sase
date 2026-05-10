@@ -316,7 +316,7 @@ Workflows launched via `sase run` are visible in the Agents tab alongside ACE-la
 `artifacts/run/*` directories in addition to `workflow-*` and `ace-run` directories, and writes an initial
 `workflow_state.json` before execution so that step data appears immediately rather than showing a bare RUNNING entry.
 Specialized review runners launched by axe (mentor, CRS, fix-hook, and summarize-hook review agents) are also visible
-and are automatically grouped under the `@review` tag, matching the behavior of a `%tag:review` prompt launch.
+and are automatically grouped under the `@review` tag, matching the behavior of a `%group:review` prompt launch.
 
 ### Agent Artifacts
 
@@ -387,7 +387,7 @@ and `c` opens the custom selector.
 Tags are set or cleared with `N` (see [Agent Actions](#agent-actions)). When opening the modal on an untagged agent the
 input is pre-seeded with `pinned` so a single Enter promotes the agent into the standard "pinned" panel; that default
 makes tag removal discoverable too — opening the modal on a tagged agent and submitting an empty string clears the tag.
-The `%tag <name>` directive in a prompt assigns the tag at launch.
+The `%group <name>` directive in a prompt assigns the tag at launch.
 
 ### Group Banners and Folding
 

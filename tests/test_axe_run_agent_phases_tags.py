@@ -31,7 +31,7 @@ def test_extract_directives_persists_tag_with_atomic_helper(
         patch("sase.ace.agent_tags.update_agent_tag") as update_agent_tag,
     ):
         info = extract_directives_and_write_meta(
-            "%name:taggy\n%tag:sase-26\nDo work",
+            "%name:taggy\n%group:sase-26\nDo work",
             str(workspace_dir),
             str(artifacts_dir),
             cl_name="legend-cl",

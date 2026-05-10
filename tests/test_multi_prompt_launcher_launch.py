@@ -290,7 +290,7 @@ def test_launch_multi_prompt_does_not_infer_bead_env_from_tag(
     mock_wait.return_value = "alpha"
 
     launch_multi_prompt_agents(
-        segments=["%tag:review\nReview this"],
+        segments=["%group:review\nReview this"],
         local_xprompts={},
         cl_name="test",
         project_file="/test.gp",

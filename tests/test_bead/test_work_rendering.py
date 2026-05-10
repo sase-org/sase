@@ -89,8 +89,8 @@ class TestRenderEdgeCases:
         )
 
         assert plan.launch_tag_id == "l1"
-        assert rendered.count("%tag:l1") == 2
-        assert "%tag:e1" not in rendered
+        assert rendered.count("%group:l1") == 2
+        assert "%group:e1" not in rendered
         assert "#bd/work_phase_bead:p1" in rendered
         assert "#bd/land_epic:e1" in rendered
 
@@ -206,13 +206,13 @@ class TestChangeSpecRendering:
         expected = (
             "#git:sase #pr:feature_epic\n"
             "%name:p1\n"
-            "%tag:e1\n"
+            "%group:e1\n"
             "%approve\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "#git:feature_epic\n"
             "%name:e1\n"
-            "%tag:e1\n"
+            "%group:e1\n"
             "%approve\n"
             "%w:p1\n"
             "#bd/land_epic:e1"
@@ -244,27 +244,27 @@ class TestChangeSpecRendering:
         expected = (
             "#gh:sase #pr:feature_epic\n"
             "%name:p1\n"
-            "%tag:e1\n"
+            "%group:e1\n"
             "%approve\n"
             "#custom/work:p1\n"
             "---\n"
             "#gh:feature_epic\n"
             "%name:p2\n"
-            "%tag:e1\n"
+            "%group:e1\n"
             "%approve\n"
             "%w:p1\n"
             "#custom/work:p2\n"
             "---\n"
             "#gh:feature_epic\n"
             "%name:p3\n"
-            "%tag:e1\n"
+            "%group:e1\n"
             "%approve\n"
             "%w:p2\n"
             "#custom/work:p3\n"
             "---\n"
             "#gh:feature_epic\n"
             "%name:e1\n"
-            "%tag:e1\n"
+            "%group:e1\n"
             "%approve\n"
             "%w:p1,p2,p3\n"
             "#custom/land:e1"
@@ -291,9 +291,9 @@ class TestChangeSpecRendering:
         )
 
         assert rendered.count("#pr:feature_epic") == 1
-        assert "#git:sase #pr:feature_epic\n%name:p1\n%tag:e1" in rendered
-        assert "#git:feature_epic\n%name:p2\n%tag:e1" in rendered
-        assert "#git:feature_epic\n%name:e1\n%tag:e1" in rendered
+        assert "#git:sase #pr:feature_epic\n%name:p1\n%group:e1" in rendered
+        assert "#git:feature_epic\n%name:p2\n%group:e1" in rendered
+        assert "#git:feature_epic\n%name:e1\n%group:e1" in rendered
 
     def test_bug_id_uses_keyword_pr_syntax(self, conn: sqlite3.Connection) -> None:
         seed(conn, [epic("e1"), phase("p1")])

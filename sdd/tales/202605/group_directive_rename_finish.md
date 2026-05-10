@@ -1,7 +1,7 @@
 ---
 prompt: sdd/prompts/202605/group_directive_rename_finish.md
 create_time: 2026-05-10 11:34:25
-status: wip
+status: done
 ---
 
 # Finish `%tag` → `%group` Directive Rename (Python Side)
