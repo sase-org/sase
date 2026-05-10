@@ -94,6 +94,7 @@ def _patch_startup_loaders(
     agents: list[Agent] | None = None,
 ) -> None:
     """Replace background startup data sources with deterministic fixtures."""
+    import sase.notifications as notifications
     from sase.ace.tui.actions.agents import _loading
 
     state = AgentLoadState(
@@ -114,8 +115,20 @@ def _patch_startup_loaders(
         app._axe_first_load_done = True
         app._maybe_end_startup_stopwatch()
 
+    def _fake_notification_snapshot(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            notifications=[],
+            expired_ids=[],
+            counts=SimpleNamespace(priority=1, rest=18, muted=0),
+        )
+
     monkeypatch.setattr(_loading, "load_agents_from_disk_with_state", _fake_load_agents)
     monkeypatch.setattr(AceApp, "_run_axe_startup_init", _fake_axe_startup)
+    monkeypatch.setattr(
+        notifications,
+        "read_notification_snapshot",
+        _fake_notification_snapshot,
+    )
 
 
 async def _wait_for_startup(page: AcePage) -> None:

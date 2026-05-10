@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from html import escape
 from pathlib import Path
 from typing import Protocol
+
+_TERMINAL_ID_RE = re.compile(r"terminal-\d+")
 
 
 class SvgExporter(Protocol):
@@ -36,7 +39,7 @@ class AceSvgSnapshotFixture:
         simplify: bool = True,
     ) -> None:
         """Assert that *page*'s SVG matches the named golden."""
-        actual = page.export_svg(title=title, simplify=simplify)
+        actual = normalize_svg(page.export_svg(title=title, simplify=simplify))
         expected_path = self.snapshot_path(name)
 
         if self.update:
@@ -58,7 +61,7 @@ class AceSvgSnapshotFixture:
                 "snapshot intentionally."
             )
 
-        expected = expected_path.read_text()
+        expected = normalize_svg(expected_path.read_text())
         if actual == expected:
             return
 
@@ -133,6 +136,11 @@ def _slug(value: str) -> str:
     chars = [char if char.isalnum() or char in "._-" else "_" for char in value]
     slug = "".join(chars).strip("._-")
     return slug or "snapshot"
+
+
+def normalize_svg(svg: str) -> str:
+    """Normalize proven volatile Textual SVG identifiers."""
+    return _TERMINAL_ID_RE.sub("terminal-sase", svg)
 
 
 def _html_report(

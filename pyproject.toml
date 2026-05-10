@@ -39,6 +39,9 @@ dev = [
     "build",
     "twine",
 ]
+visual = [
+    "cairosvg>=2.7,<3",
+]
 docs = [
     "mkdocs-material>=9.7,<10",
     "mkdocs-rss-plugin>=1.18,<2",

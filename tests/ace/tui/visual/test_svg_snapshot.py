@@ -80,6 +80,24 @@ def test_matching_svg_passes(tmp_path: Path) -> None:
     ace_visual.assert_svg(_Page("<svg>same</svg>"), "matching")
 
 
+def test_terminal_svg_ids_are_normalized(tmp_path: Path) -> None:
+    ace_visual = _fixture(tmp_path)
+    golden = tmp_path / "snapshots" / "svg" / "matching.svg"
+    golden.parent.mkdir(parents=True)
+    golden.write_text(
+        "<svg><style>.terminal-123-r1 { fill: red }</style>"
+        '<clipPath id="terminal-123-line-0" /></svg>'
+    )
+
+    ace_visual.assert_svg(
+        _Page(
+            "<svg><style>.terminal-456-r1 { fill: red }</style>"
+            '<clipPath id="terminal-456-line-0" /></svg>'
+        ),
+        "matching",
+    )
+
+
 def test_mismatched_svg_writes_failure_artifacts(tmp_path: Path) -> None:
     ace_visual = _fixture(tmp_path)
     golden = tmp_path / "snapshots" / "svg" / "mismatch.svg"
