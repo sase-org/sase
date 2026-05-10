@@ -97,7 +97,7 @@ def test_by_status_mode_emits_status_bucket_banners() -> None:
     )
     # Absent buckets are omitted.
     assert widget._row_entries == [
-        BR,  # Needs Attention
+        BR,  # Stopped
         (1, None),
         BR,  # spacer
         BR,  # Running
@@ -123,7 +123,7 @@ def test_by_status_mode_renders_actionable_and_failed_buckets_adjacent() -> None
     )
 
     assert _status_bucket_banner_labels(widget) == [
-        "Needs Attention",
+        "Stopped",
         "Failed",
         "Running",
         "Waiting",
@@ -131,8 +131,8 @@ def test_by_status_mode_renders_actionable_and_failed_buckets_adjacent() -> None
     ]
 
 
-def test_by_status_needs_attention_banner_carries_status_glyph() -> None:
-    """``Needs Attention`` bucket leads with the ``▲`` status glyph."""
+def test_by_status_stopped_banner_carries_status_glyph() -> None:
+    """``Stopped`` bucket leads with the ``▲`` status glyph."""
     widget = AgentList()
     widget.update_list(
         [make_agent(cl_name="a", status="QUESTION")],
@@ -141,9 +141,7 @@ def test_by_status_needs_attention_banner_carries_status_glyph() -> None:
     )
     options = list(widget._options)
     plain = options[0].prompt.plain  # type: ignore[union-attr]
-    assert plain.startswith(
-        f"{_STATUS_BUCKET_GLYPHS['Needs Attention']} Needs Attention"
-    )
+    assert plain.startswith(f"{_STATUS_BUCKET_GLYPHS['Stopped']} Stopped")
 
 
 def test_by_status_running_banner_carries_status_glyph() -> None:

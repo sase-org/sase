@@ -481,7 +481,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                 ),
                 ("by date", "Sub-grouped by hour, day, or week"),
                 ("⏳ Waiting", "Timer or dependency wait"),
-                ("▲ Needs Attention", "User must act"),
+                ("▲ Stopped", "User must act"),
                 ("▶ Running", "Actively executing"),
                 ("✗ Failed", "Failed and retried"),
                 ("✓ Done", "Completed"),

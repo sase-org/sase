@@ -64,7 +64,7 @@ def test_agent_count_strip_renders_total_before_agents_label() -> None:
     plain = _collect_text(panel)
 
     assert plain.startswith(
-        "12 Agents [2 hitl · 5 running · 2 waiting · 1 failed · 3 unread]"
+        "12 Agents [2 stopped · 5 running · 2 waiting · 1 failed · 3 unread]"
     )
     assert "Agents: 2/12" not in plain
 
@@ -111,7 +111,7 @@ def test_update_agent_counts_uses_plain_metric_text() -> None:
     plain = captured[-1]
 
     assert (
-        "10 Agents [2 hitl · 3 running · 4 waiting · 5 failed · 1 unread · 6 done]"
+        "10 Agents [2 stopped · 3 running · 4 waiting · 5 failed · 1 unread · 6 done]"
     ) in plain
     assert "Agents(" not in plain
     assert "#FFAF5F" not in plain
@@ -135,7 +135,7 @@ def test_agent_count_strip_omits_zero_metric_types() -> None:
     counts_prefix = plain.split("   [group:", 1)[0]
 
     assert plain.startswith("9 Agents [3 running · 1 failed · 2 unread]")
-    assert "hitl" not in counts_prefix
+    assert "stopped" not in counts_prefix
     assert "waiting" not in counts_prefix
     assert " done" not in counts_prefix
 

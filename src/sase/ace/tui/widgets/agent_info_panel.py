@@ -154,7 +154,7 @@ class AgentInfoPanel(Static):
     }
 
     _COUNT_LABELS: dict[str, str] = {
-        "asking": "hitl",
+        "asking": "stopped",
         "read": "done",
     }
 

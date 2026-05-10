@@ -49,7 +49,7 @@ _TIER_GUIDE_SEGMENT_WIDTH = 3
 
 # Status-bucket prefix glyphs for ``BY_STATUS`` mode L0 banners.  Reuses
 # semantically-loaded glyphs from agent rendering so the banner reads as
-# "this bucket is the X kind".  ``Needs Attention`` borrows the embedded-
+# "this bucket is the X kind".  ``Stopped`` borrows the embedded-
 # workflow ``▲`` (the only attention-grabbing arrow already in use);
 # remaining buckets use minimal play / cross / check marks so the bucket
 # title still leads visually.  Each glyph is rendered in the L0 sky-blue

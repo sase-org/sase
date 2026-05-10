@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 AGENT_STATUS_BUCKETS: tuple[str, ...] = (
-    "Needs Attention",
+    "Stopped",
     "Failed",
     "Running",
     "Waiting",
@@ -11,7 +11,7 @@ AGENT_STATUS_BUCKETS: tuple[str, ...] = (
 )
 
 AGENT_STATUS_BUCKET_GLYPHS: dict[str, str] = {
-    "Needs Attention": "▲",
+    "Stopped": "▲",
     "Running": "▶",
     "Waiting": "⏳",
     "Failed": "✗",
@@ -26,10 +26,11 @@ AGENT_ASKING_STATUSES: frozenset[str] = frozenset(
 )
 
 # Status mapping for status bucketing.  The semantic line is:
-# **Needs Attention** = "you need to act right now"; **Failed** = terminal
-# failure; everything else is a state the agent is moving through on its own.
+# **Stopped** = the agent has stopped and is waiting for you to act;
+# **Failed** = terminal failure; everything else is a state the agent is
+# moving through on its own.
 #
-# Members of Needs Attention:
+# Members of Stopped:
 #   * ``PLANNING`` — a plan is being drafted and the user is expected to
 #     review/answer questions as they arise
 #   * ``QUESTION`` — the agent has explicitly paused for an answer
@@ -41,7 +42,7 @@ AGENT_ASKING_STATUSES: frozenset[str] = frozenset(
 # states: the planning work is finished and any code work has been spun off,
 # so they read as **Done**.  ``PLAN APPROVED`` is an actively executing state
 # and reads as **Running**.
-_NEEDS_ATTENTION_STATUSES: frozenset[str] = frozenset({"PLANNING", "QUESTION"})
+_STOPPED_STATUSES: frozenset[str] = frozenset({"PLANNING", "QUESTION"})
 
 #: Terminal statuses — agents that have finished and have a meaningful
 #: ``stop_time``.  Shared by TUI date bucketing (which sorts these by
@@ -77,8 +78,8 @@ def status_bucket_for_values(
     status_text = status or ""
     if status_text in _TERMINAL_STATUSES:
         return "Done"
-    if status_text in _NEEDS_ATTENTION_STATUSES:
-        return "Needs Attention"
+    if status_text in _STOPPED_STATUSES:
+        return "Stopped"
     if status_text in {"PLAN APPROVED", "TALE APPROVED"}:
         return "Running"
     if status_text == "WAITING":

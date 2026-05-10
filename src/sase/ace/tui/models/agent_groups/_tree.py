@@ -414,7 +414,7 @@ def compute_banner_summary(group: GroupRow, agents: list[Agent]) -> _BannerSumma
             running += 1
         elif bucket == "Failed":
             failed += 1
-        elif bucket == "Needs Attention":
+        elif bucket == "Stopped":
             awaiting += 1
     return _BannerSummary(
         count=count, running=running, failed=failed, awaiting=awaiting

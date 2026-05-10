@@ -437,11 +437,11 @@ selection always lands somewhere meaningful in the rendered tree.
 Press `o` on the Agents tab to cycle the L0 grouping bucket through three modes. The Agents tab shows a brief toast
 (`Grouping: by project` / `by date` / `by status`) on each cycle:
 
-| Mode        | L0 buckets                                                    | Notes                                                                                                                                       |
-| ----------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `STANDARD`  | Project (with optional ChangeSpec sub-level)                  | The "by project" default. Uses the 2-/3-level layout described above.                                                                       |
-| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`               | Date bucket at L0 and 4-hour window at L1; hour-of-day (`HH:00`) L2 appears only inside 4-hour windows with 2+ agents. Sorted newest-first. |
-| `BY_STATUS` | `Needs Attention` / `Failed` / `Running` / `Waiting` / `Done` | Bucketed by shared status semantics; name-root sub-level inside each bucket.                                                                |
+| Mode        | L0 buckets                                            | Notes                                                                                                                                       |
+| ----------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STANDARD`  | Project (with optional ChangeSpec sub-level)          | The "by project" default. Uses the 2-/3-level layout described above.                                                                       |
+| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`       | Date bucket at L0 and 4-hour window at L1; hour-of-day (`HH:00`) L2 appears only inside 4-hour windows with 2+ agents. Sorted newest-first. |
+| `BY_STATUS` | `Stopped` / `Failed` / `Running` / `Waiting` / `Done` | Bucketed by shared status semantics; name-root sub-level inside each bucket.                                                                |
 
 In `BY_DATE` mode the L0 date bucket is sub-grouped by compact **4-hour windows** (`8AM-12PM`), then by **hour-of-day**
 (`09:00`) only when the 4-hour window contains at least two agents, so long Today/Yesterday lists are easier to scan
@@ -449,23 +449,23 @@ without adding extra headings for singleton windows. The time anchor is `stop_ti
 otherwise; both time levels sort newest-first within their date bucket. Workflow children inherit the parent's anchor so
 they stay adjacent regardless of their own start time, and agents with no usable timestamp fall into a `(no time)`
 bucket that sorts last. In `BY_STATUS` mode the L0 banner is the status bucket and L1 is the name-root, with the same
-singleton-suppression rule as `STANDARD`. The bucket order is fixed: Needs Attention, Failed, Running, Waiting, Done.
-Each mode keeps its own per-group fold registry, so collapsing buckets in `BY_STATUS` doesn't affect the project layout
-you had in `STANDARD`. `BY_STATUS` banners are prefixed with semantic glyphs (`▲`, `✗`, `▶`, `⏳`, `✓`) so the bucket
-title still leads visually.
+singleton-suppression rule as `STANDARD`. The bucket order is fixed: Stopped, Failed, Running, Waiting, Done. Each mode
+keeps its own per-group fold registry, so collapsing buckets in `BY_STATUS` doesn't affect the project layout you had in
+`STANDARD`. `BY_STATUS` banners are prefixed with semantic glyphs (`▲`, `✗`, `▶`, `⏳`, `✓`) so the bucket title still
+leads visually.
 
 The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the current
 session mode is always visible after the cycle toast fades. The same header starts with a visible top-level agent metric
-strip in the form `N Agents [H hitl · R running · W waiting · F failed · U unread · D done]`, with numeric counts in
-place of the letters and zero-count metrics omitted. `hitl` counts agents paused for plan approval, questions, or
-workflow human-input steps; `running` excludes waiting, failed, and HITL rows; `waiting` is the blocked/queued subset;
-`failed` is terminal failed work; `unread` counts terminal rows that still need acknowledgement; and `done` is completed
-visible work that has already been acknowledged. During startup the metric strip renders `Agents: …` until the first
-agent scan has loaded, avoiding a misleading zero-agent count. Each TUI launch starts in by-project grouping; cycling
-only changes the current session. **Waiting** holds agents that are blocked but progressing on their own — `WAITING`
-with a `wait_until` timer (`%wait:5m`, `%wait:1430`) or a non-empty `waiting_for` dependency. **Needs Attention** keeps
-the strict "you need to act" semantics: a `WAITING` agent with neither a timer nor a dependency stays there because it's
-parked waiting on the user.
+strip in the form `N Agents [S stopped · R running · W waiting · F failed · U unread · D done]`, with numeric counts in
+place of the letters and zero-count metrics omitted. `stopped` counts agents paused for plan approval, questions, or
+workflow human-input steps; `running` excludes waiting, failed, and stopped rows; `waiting` is the blocked/queued
+subset; `failed` is terminal failed work; `unread` counts terminal rows that still need acknowledgement; and `done` is
+completed visible work that has already been acknowledged. During startup the metric strip renders `Agents: …` until the
+first agent scan has loaded, avoiding a misleading zero-agent count. Each TUI launch starts in by-project grouping;
+cycling only changes the current session. **Waiting** holds agents that are blocked but progressing on their own —
+`WAITING` with a `wait_until` timer (`%wait:5m`, `%wait:1430`) or a non-empty `waiting_for` dependency. **Stopped**
+keeps the strict "you need to act" semantics: a `WAITING` agent with neither a timer nor a dependency stays there
+because it's parked waiting on the user.
 
 ### Agent Row Glyphs
 

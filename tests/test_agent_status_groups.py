@@ -41,7 +41,7 @@ def test_agent_status_bucket_waiting() -> None:
 
 
 def test_agent_status_bucket_question() -> None:
-    assert agent_status_bucket(_agent("a", "QUESTION")) == "Needs Attention"
+    assert agent_status_bucket(_agent("a", "QUESTION")) == "Stopped"
 
 
 def test_agent_status_bucket_failed_without_retry() -> None:
@@ -71,7 +71,7 @@ def test_group_agent_statuses_omits_empty_buckets_and_preserves_order() -> None:
     )
 
     assert [group.bucket for group in groups] == [
-        "Needs Attention",
+        "Stopped",
         "Failed",
         "Running",
         "Done",

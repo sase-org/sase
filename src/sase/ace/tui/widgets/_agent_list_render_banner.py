@@ -61,7 +61,7 @@ def format_banner_option(
     - BY_DATE L0 (date bucket): bold sky-blue label + heavy rule, no
       project bar — the bucket name is the visual anchor.
     - BY_STATUS L0 (status bucket): leading status glyph (``▲`` for
-      ``Needs Attention``) + bold sky-blue label + heavy rule.
+      ``Stopped``) + bold sky-blue label + heavy rule.
     - L1/L2 (name-root) in any mode: dim-gray ``▸`` branch glyph, teal
       label, dim-gray light rule ``─`` and chip.
 

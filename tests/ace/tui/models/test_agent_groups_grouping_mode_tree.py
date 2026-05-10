@@ -63,7 +63,7 @@ def test_build_agent_tree_by_date_orders_buckets_newest_first_regardless_of_inpu
 
 def test_build_agent_tree_by_status_orders_buckets_priority_first() -> None:
     """BY_STATUS bucket order is fixed at
-    Needs Attention → Failed → Running → Waiting → Done.
+    Stopped → Failed → Running → Waiting → Done.
     """
     needs = _agent(cl_name="a", agent_name="x.a", status="QUESTION")
     running = _agent(cl_name="b", agent_name="y.a", status="RUNNING")
@@ -87,7 +87,7 @@ def test_build_agent_tree_by_status_orders_buckets_priority_first() -> None:
         if e.kind == "group" and e.group is not None and e.group.level == 0
     ]
     assert l0_banners == [
-        ("Needs Attention",),
+        ("Stopped",),
         ("Failed",),
         ("Running",),
         ("Waiting",),

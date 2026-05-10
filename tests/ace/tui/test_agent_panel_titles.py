@@ -235,7 +235,7 @@ def test_panel_title_counts_are_scoped_to_each_panel() -> None:
         "(untagged) · 1 [W1]"
     )
     assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == (
-        "#apple · 2 [H1 R1]"
+        "#apple · 2 [S1 R1]"
     )
     assert _title_text(app._panel_widgets["agent-list-panel-2"]).plain == (
         "#banana · 3 [F1 U1 D1]"

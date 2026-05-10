@@ -125,7 +125,7 @@ def _match_tag(prop: PropertyMatch, agent: Agent) -> bool:
 
 def _match_bool_property(prop: PropertyMatch, agent: Agent) -> bool:
     """Match a boolean-shaped key (``pinned``/``hidden``/``attention``)."""
-    from ..tui.models.agent_groups import _NEEDS_ATTENTION_STATUSES
+    from ..tui.models.agent_groups import _STOPPED_STATUSES
     from ..tui.models.agent_pin import is_pinned
 
     want_true = prop.value == "true"
@@ -134,7 +134,7 @@ def _match_bool_property(prop: PropertyMatch, agent: Agent) -> bool:
     elif prop.key == "hidden":
         actual = bool(agent.hidden)
     elif prop.key == "attention":
-        actual = (agent.status or "") in _NEEDS_ATTENTION_STATUSES
+        actual = (agent.status or "") in _STOPPED_STATUSES
     else:
         return False  # pragma: no cover
     return actual is want_true

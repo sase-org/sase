@@ -7,8 +7,8 @@ from enum import Enum
 
 from sase.agent.status_buckets import (
     AGENT_STATUS_BUCKETS,
-    _NEEDS_ATTENTION_STATUSES,
     _NEEDS_INPUT_STATUSES,
+    _STOPPED_STATUSES,
     _TERMINAL_STATUSES,
     status_bucket_for_values,
 )
@@ -42,7 +42,7 @@ class GroupingMode(Enum):
       level is added per-panel when at least one agent has a ``cl_name``.
     - ``BY_DATE``: L0 is a date bucket (``Today`` / ``Yesterday`` /
       ``This Week`` / ``Earlier``) derived from each agent's ``start_time``.
-    - ``BY_STATUS``: L0 is a status bucket (``Needs Attention`` /
+    - ``BY_STATUS``: L0 is a status bucket (``Stopped`` /
       ``Failed`` / ``Running`` / ``Waiting`` / ``Done``) derived from each
       agent's ``status``.
 
@@ -157,7 +157,7 @@ def date_subgroup_sort_key(
 def status_bucket_for(agent: Agent) -> str:
     """Map ``agent.status`` to a status bucket.
 
-    See the ``_NEEDS_ATTENTION_STATUSES`` comment above for the mapping
+    See the ``_STOPPED_STATUSES`` comment above for the mapping
     rules.  ``FAILED`` display statuses land in ``Failed`` and ``WAITING``
     statuses land in ``Waiting``.  Anything not explicitly bucketed lands in
     ``Running`` (the agent is in flight from the user's perspective).

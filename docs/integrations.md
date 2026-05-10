@@ -62,13 +62,13 @@ Buckets are emitted in ACE display order and empty buckets are omitted:
 
 Each returned `AgentStatusGroup` contains the bucket label and the running-agent records assigned to that bucket.
 
-| Bucket            | Meaning                                                               |
-| ----------------- | --------------------------------------------------------------------- |
-| `Needs Attention` | User-facing blockers such as `PLANNING` and `QUESTION`.               |
-| `Failed`          | Terminal failure statuses (`FAILED...`).                              |
-| `Running`         | Active execution, including `PLAN APPROVED` and unrecognized actives. |
-| `Waiting`         | `WAITING` agents with timer/dependency progress.                      |
-| `Done`            | Terminal success/plan handoff states.                                 |
+| Bucket    | Meaning                                                               |
+| --------- | --------------------------------------------------------------------- |
+| `Stopped` | User-facing blockers such as `PLANNING` and `QUESTION`.               |
+| `Failed`  | Terminal failure statuses (`FAILED...`).                              |
+| `Running` | Active execution, including `PLAN APPROVED` and unrecognized actives. |
+| `Waiting` | `WAITING` agents with timer/dependency progress.                      |
+| `Done`    | Terminal success/plan handoff states.                                 |
 
 Source: `src/sase/integrations/agent_status_groups.py`, `src/sase/agent/status_buckets.py`
 

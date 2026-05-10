@@ -42,7 +42,7 @@ def test_grouping_keys_for_agents_by_status_uses_bucket_at_l0() -> None:
     needs = _agent(status="QUESTION")
     running = _agent(status="RUNNING")
     keys = _grouping_keys_for_agents([needs, running], GroupingMode.BY_STATUS, _NOW)
-    assert [k.project for k in keys] == ["Needs Attention", "Running"]
+    assert [k.project for k in keys] == ["Stopped", "Running"]
     assert all(k.changespec == "" for k in keys)
 
 
