@@ -11,12 +11,18 @@ from sase.bead.work import EpicWorkPlan, PhaseAssignment
 NOW = "2026-04-25T00:00:00Z"
 
 
-def epic(epic_id: str = "e1", *, parent_id: str | None = None) -> Issue:
+def epic(
+    epic_id: str = "e1",
+    *,
+    parent_id: str | None = None,
+    model: str = "",
+) -> Issue:
     return Issue(
         id=epic_id,
         title=f"Epic {epic_id}",
         issue_type=IssueType.PLAN,
         parent_id=parent_id,
+        model=model,
         created_at=NOW,
         updated_at=NOW,
     )
@@ -27,6 +33,7 @@ def legend(
     *,
     epic_count: int | None = 3,
     design: str = "sdd/legends/202605/roadmap.md",
+    model: str = "",
 ) -> Issue:
     return Issue(
         id=legend_id,
@@ -35,6 +42,7 @@ def legend(
         tier=BeadTier.LEGEND,
         epic_count=epic_count,
         design=design,
+        model=model,
         created_at=NOW,
         updated_at=NOW,
     )
@@ -46,6 +54,7 @@ def phase(
     *,
     status: Status = Status.OPEN,
     created_at: str = NOW,
+    model: str = "",
 ) -> Issue:
     return Issue(
         id=phase_id,
@@ -53,6 +62,7 @@ def phase(
         issue_type=IssueType.PHASE,
         parent_id=parent_id,
         status=status,
+        model=model,
         created_at=created_at,
         updated_at=created_at,
     )

@@ -313,3 +313,135 @@ class TestChangeSpecRendering:
 
         assert rendered.startswith("#git:sase #pr(name=feature_epic, bug_id=12345)")
         assert "#pr:" not in rendered
+
+
+class TestModelDirective:
+    def test_phase_model_emits_directive_after_group_before_approve(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        seed(conn, [epic("e1"), phase("p1", model="claude/opus")])
+        plan = build_epic_work_plan(conn, "e1")
+
+        rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+        )
+
+        phase_segment, land_segment = rendered.split("\n---\n")
+        assert phase_segment == (
+            "%name:p1\n%group:e1\n%model:claude/opus\n%approve\n#bd/work_phase_bead:p1"
+        )
+        assert "%model" not in land_segment
+
+    def test_phase_model_empty_renders_no_directive(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        seed(conn, [epic("e1"), phase("p1")])
+        plan = build_epic_work_plan(conn, "e1")
+
+        rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+        )
+
+        assert "%model" not in rendered
+
+    def test_mixed_phase_models_only_decorate_set_phases(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        seed(
+            conn,
+            [
+                epic("e1"),
+                phase("p1", model="codex/gpt-5.5"),
+                phase("p2"),
+                phase("p3", model="#pro"),
+            ],
+        )
+        plan = build_epic_work_plan(conn, "e1")
+
+        rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+        )
+
+        segments = rendered.split("\n---\n")
+        p1_seg = next(s for s in segments if "%name:p1\n" in s)
+        p2_seg = next(s for s in segments if "%name:p2\n" in s)
+        p3_seg = next(s for s in segments if "%name:p3\n" in s)
+        land_seg = segments[-1]
+        assert "%model:codex/gpt-5.5" in p1_seg
+        assert "%model" not in p2_seg
+        assert "%model:#pro" in p3_seg
+        assert "%model" not in land_seg
+
+    def test_epic_land_model_emits_on_land_segment(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        seed(conn, [epic("e1", model="claude/opus"), phase("p1")])
+        plan = build_epic_work_plan(conn, "e1")
+
+        rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+        )
+
+        segments = rendered.split("\n---\n")
+        phase_segment, land_segment = segments
+        assert "%model" not in phase_segment
+        assert land_segment == (
+            "%name:e1\n%group:e1\n%model:claude/opus\n%approve\n%w:p1\n#bd/land_epic:e1"
+        )
+
+    def test_no_model_renders_byte_identical_to_pre_model_baseline(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        seed(conn, [epic("e1"), phase("p1"), phase("p2")])
+        plan = build_epic_work_plan(conn, "e1")
+
+        rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+        )
+
+        expected = (
+            "%name:p1\n"
+            "%group:e1\n"
+            "%approve\n"
+            "#bd/work_phase_bead:p1\n"
+            "---\n"
+            "%name:p2\n"
+            "%group:e1\n"
+            "%approve\n"
+            "#bd/work_phase_bead:p2\n"
+            "---\n"
+            "%name:e1\n"
+            "%group:e1\n"
+            "%approve\n"
+            "%w:p1,p2\n"
+            "#bd/land_epic:e1"
+        )
+        assert rendered == expected
+
+    def test_model_does_not_inject_extra_directives(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        # The Rust side validates model values on write; the renderer only
+        # forwards them through. This test confirms the renderer doesn't
+        # double-handle escaping (a literal value renders as one directive).
+        seed(conn, [epic("e1"), phase("p1", model="provider/some-model")])
+        plan = build_epic_work_plan(conn, "e1")
+
+        rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+        )
+
+        assert rendered.count("%model:") == 1
+        assert "%model:provider/some-model" in rendered

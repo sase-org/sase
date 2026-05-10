@@ -71,6 +71,20 @@ class TestLegendWorkPlan:
         with pytest.raises(LegendPlanError, match="not a plan/legend bead"):
             build_legend_work_plan(conn, "p1")
 
+    def test_land_model_flows_from_legend_bead(self, conn: sqlite3.Connection) -> None:
+        seed(conn, [legend("l1", epic_count=2, model="claude/opus")])
+
+        plan = build_legend_work_plan(conn, "l1")
+
+        assert plan.land_model == "claude/opus"
+
+    def test_missing_model_defaults_to_empty(self, conn: sqlite3.Connection) -> None:
+        seed(conn, [legend("l1", epic_count=1)])
+
+        plan = build_legend_work_plan(conn, "l1")
+
+        assert plan.land_model == ""
+
     def test_builds_from_beads_dir(self, tmp_path: Path) -> None:
         with BeadProject.init(tmp_path) as proj:
             legend_bead = proj.create(
@@ -174,3 +188,44 @@ class TestLegendRendering:
         )
 
         assert "#custom/land_legend:l1" in rendered
+
+
+class TestLegendModelDirective:
+    def test_land_model_emits_only_on_land_segment(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        seed(conn, [legend("l1", epic_count=2, model="codex/gpt-5.5")])
+        plan = build_legend_work_plan(conn, "l1")
+
+        assert plan.land_model == "codex/gpt-5.5"
+
+        rendered = render_legend_multi_prompt(
+            plan,
+            land_legend_xprompt=Workflow(name="bd/land_legend"),
+        )
+
+        segments = rendered.split("\n---\n")
+        # Intermediate epic-planning segments must NOT carry %model.
+        assert all("%model" not in segment for segment in segments[:-1])
+        # The final land segment carries the legend's model.
+        assert segments[-1] == (
+            "%name:l1\n"
+            "%group:l1\n"
+            "%model:codex/gpt-5.5\n"
+            "%approve\n"
+            "%w:l1.2\n"
+            "#bd/land_legend:l1"
+        )
+
+    def test_no_legend_model_renders_no_directive(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        seed(conn, [legend("l1", epic_count=1)])
+        plan = build_legend_work_plan(conn, "l1")
+
+        assert plan.land_model == ""
+        rendered = render_legend_multi_prompt(
+            plan,
+            land_legend_xprompt=Workflow(name="bd/land_legend"),
+        )
+        assert "%model" not in rendered

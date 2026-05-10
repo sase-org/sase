@@ -350,6 +350,38 @@ class TestCycleDetection:
             build_epic_work_plan(conn, "e1")
 
 
+class TestModelPropagationFromPayload:
+    def test_phase_model_flows_into_assignment(self, conn: sqlite3.Connection) -> None:
+        seed(
+            conn,
+            [
+                epic("e1"),
+                phase("p1", model="claude/opus"),
+                phase("p2"),
+            ],
+        )
+        plan = build_epic_work_plan(conn, "e1")
+
+        assignments = {a.bead_id: a for wave in plan.waves for a in wave}
+        assert assignments["p1"].model == "claude/opus"
+        assert assignments["p2"].model == ""
+        assert plan.land_model == ""
+
+    def test_epic_model_flows_into_land_model(self, conn: sqlite3.Connection) -> None:
+        seed(
+            conn,
+            [
+                epic("e1", model="codex/gpt-5.5"),
+                phase("p1"),
+            ],
+        )
+        plan = build_epic_work_plan(conn, "e1")
+
+        assert plan.land_model == "codex/gpt-5.5"
+        assignments = [a for wave in plan.waves for a in wave]
+        assert all(a.model == "" for a in assignments)
+
+
 class TestEpicValidation:
     def test_missing_epic_raises(self, conn: sqlite3.Connection) -> None:
         with pytest.raises(EpicPlanError):

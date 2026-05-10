@@ -31,6 +31,7 @@ class PhaseAssignment:
     agent_name: str
     waits_on: tuple[str, ...]
     wave: int
+    model: str = ""
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,7 @@ class EpicWorkPlan:
     waves: tuple[tuple[PhaseAssignment, ...], ...]
     land_agent_name: str
     land_waits_on: tuple[str, ...]
+    land_model: str = ""
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,7 @@ class LegendWorkPlan:
     assignments: tuple[LegendEpicAssignment, ...]
     land_agent_name: str
     land_waits_on: tuple[str, ...]
+    land_model: str = ""
 
 
 @dataclass(frozen=True)
@@ -199,6 +202,7 @@ def _plan_from_payload(payload: dict[str, Any]) -> EpicWorkPlan:
                     agent_name=str(assignment["agent_name"]),
                     waits_on=tuple(str(v) for v in assignment.get("waits_on", [])),
                     wave=int(assignment["wave"]),
+                    model=str(assignment.get("model", "")),
                 )
                 for assignment in wave
             )
@@ -206,6 +210,7 @@ def _plan_from_payload(payload: dict[str, Any]) -> EpicWorkPlan:
         ),
         land_agent_name=str(payload["land_agent_name"]),
         land_waits_on=tuple(str(v) for v in payload.get("land_waits_on", [])),
+        land_model=str(payload.get("land_model", "")),
     )
 
 
@@ -228,6 +233,7 @@ def _legend_plan_from_payload(payload: dict[str, Any]) -> LegendWorkPlan:
         assignments=assignments,
         land_agent_name=legend_id,
         land_waits_on=land_waits_on,
+        land_model=str(payload.get("land_model", "")),
     )
 
 
@@ -323,13 +329,11 @@ def render_multi_prompt(
         for assignment in wave:
             lines = _segment_prefix(launch_context, is_first_phase)
             is_first_phase = False
-            lines.extend(
-                [
-                    f"%name:{assignment.agent_name}",
-                    _group_directive(plan.launch_tag_id),
-                    "%approve",
-                ]
-            )
+            lines.append(f"%name:{assignment.agent_name}")
+            lines.append(_group_directive(plan.launch_tag_id))
+            if assignment.model:
+                lines.append(f"%model:{assignment.model}")
+            lines.append("%approve")
             if assignment.waits_on:
                 lines.append(f"%w:{','.join(assignment.waits_on)}")
             lines.append(f"#{work_phase_xprompt.name}:{assignment.bead_id}")
@@ -338,6 +342,8 @@ def render_multi_prompt(
     land_lines = _segment_prefix(launch_context, is_first_phase=False)
     land_lines.append(f"%name:{plan.land_agent_name}")
     land_lines.append(_group_directive(plan.launch_tag_id))
+    if plan.land_model:
+        land_lines.append(f"%model:{plan.land_model}")
     land_lines.append("%approve")
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
@@ -392,6 +398,8 @@ def render_legend_multi_prompt(
     land_lines = _segment_prefix(vcs_context, is_first_phase=True)
     land_lines.append(f"%name:{plan.land_agent_name}")
     land_lines.append(_group_directive(plan.legend_id))
+    if plan.land_model:
+        land_lines.append(f"%model:{plan.land_model}")
     land_lines.append("%approve")
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")

@@ -155,6 +155,38 @@ def test_work_dry_run_never_mutates_or_launches(
     assert out.count(f"%group:{epic_id}") == len(phase_ids) + 1
 
 
+def test_work_dry_run_renders_model_directives(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        epic = proj.create("Models epic", IssueType.PLAN, model="claude/opus")
+        p1 = proj.create(
+            "P1",
+            IssueType.PHASE,
+            parent_id=epic.id,
+            model="codex/gpt-5.5",
+        )
+        p2 = proj.create("P2", IssueType.PHASE, parent_id=epic.id)
+    epic_id, p1_id, p2_id = epic.id, p1.id, p2.id
+
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None, segment_extra_env=None: FakeLaunchResult(),
+    )
+
+    bead_cli.handle_bead_work(make_args(epic_id, dry_run=True, yes=True))
+
+    out = capsys.readouterr().out
+    assert f"%name:{p1_id}\n%group:{epic_id}\n%model:codex/gpt-5.5\n%approve" in out
+    # Phase without model has no %model directive between %group and %approve.
+    assert f"%name:{p2_id}\n%group:{epic_id}\n%approve" in out
+    assert f"%name:{epic_id}\n%group:{epic_id}\n%model:claude/opus\n%approve" in out
+    # Two %model directives: one phase, one land.
+    assert out.count("%model:") == 2
+
+
 def test_work_dry_run_regular_epic_renders_vcs_launch_wrappers(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
