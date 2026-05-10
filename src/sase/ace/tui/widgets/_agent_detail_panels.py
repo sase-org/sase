@@ -181,6 +181,14 @@ class AgentDetailPanelMixin(Static):
             prompt_scroll.remove_class("expanded")
             thinking_scroll.add_class("hidden")
             file_scroll.remove_class("hidden")
+            # Invalidate file_panel state so the next dispatch skips the
+            # same-agent fast paths in both `_update_display_body` and
+            # `set_file_list` and forces a fresh render. Required because the
+            # panel may have been hidden across a navigation that bypassed it,
+            # leaving its visible content out of sync with the new agent.
+            file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+            file_panel._current_agent = None
+            file_panel._file_list = []
             self.update_display(agent)
 
             # If file panel has no content, expand prompt instead of

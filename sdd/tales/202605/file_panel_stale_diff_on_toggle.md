@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-10 13:01:32
-status: wip
+status: done
 prompt: sdd/prompts/202605/file_panel_stale_diff_on_toggle.md
 ---
 # Plan: Fix Stale File Panel Diff on `]` Visibility Toggle
