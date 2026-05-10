@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 21:10:25
-status: wip
+status: done
 prompt: sdd/prompts/202605/tui_screenshot_diff_testing.md
 bead_id: sase-2m
 tier: epic
