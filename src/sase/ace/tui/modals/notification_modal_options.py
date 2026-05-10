@@ -44,10 +44,17 @@ class NotificationOptionMixin:
         )
 
     def _create_styled_label(
-        self: Any, notification: Notification, *, hint_char: str | None = None
+        self: Any,
+        notification: Notification,
+        *,
+        hint_char: str | None = None,
+        is_marked: bool = False,
     ) -> Text:
         """Create styled text for a notification option."""
         text = Text()
+
+        if is_marked:
+            text.append("▶ ", style="bold #FFFF00")
 
         if hint_char is not None:
             text.append("[", style="dim")
@@ -148,6 +155,7 @@ class NotificationOptionMixin:
                     disabled=True,
                 )
             )
+            marked_ids: set[str] = getattr(self, "_marked_notification_ids", set())
             for idx, n in groups[key]:
                 options.append(
                     Option(
@@ -156,6 +164,7 @@ class NotificationOptionMixin:
                             hint_char=(
                                 None if jump_hints is None else jump_hints.get(idx)
                             ),
+                            is_marked=n.id in marked_ids,
                         ),
                         id=str(idx),
                     )

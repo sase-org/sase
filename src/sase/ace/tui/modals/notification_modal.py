@@ -54,7 +54,8 @@ class NotificationModal(
         ("ctrl+n", "next_file", "Next File"),
         ("ctrl+p", "prev_file", "Previous File"),
         ("R", "read_all", "Read All"),
-        ("m", "toggle_mute", "Toggle Mute"),
+        ("M", "toggle_mute", "Toggle Mute"),
+        ("m", "toggle_mark", "Mark"),
         ("s", "snooze", "Snooze"),
         ("apostrophe", "jump_to_entry", "Jump"),
         ("ctrl+d", "scroll_file_down", "Scroll down"),
@@ -75,6 +76,8 @@ class NotificationModal(
         self._initial_index = initial_index
         self._current_file_index: int = 0
         self._pending_confirm_notification_id: str | None = None
+        self._pending_confirm_notification_ids: list[str] | None = None
+        self._marked_notification_ids: set[str] = set()
         self._entry_jump_mode_active = False
         self._entry_jump_hint_to_index: dict[str, int] = {}
         self._entry_jump_index_to_hint: dict[int, str] = {}
@@ -182,6 +185,31 @@ class NotificationModal(
             return None
 
         return self._notifications[replacement_idx].id
+
+    def _replacement_notification_id_after_bulk_dismiss(
+        self, indices: list[int]
+    ) -> str | None:
+        """Return the notification id to highlight after bulk dismiss."""
+        if not indices:
+            return None
+        visual_order = self._visual_notification_index_order()
+        marked = set(indices)
+        last_visual_position: int | None = None
+        for position, idx in enumerate(visual_order):
+            if idx in marked:
+                last_visual_position = position
+        if last_visual_position is None:
+            return None
+
+        for position in range(last_visual_position + 1, len(visual_order)):
+            idx = visual_order[position]
+            if idx not in marked:
+                return self._notifications[idx].id
+        for position in range(last_visual_position - 1, -1, -1):
+            idx = visual_order[position]
+            if idx not in marked:
+                return self._notifications[idx].id
+        return None
 
     def _row_for_notification_index(
         self, option_list: OptionList, notification_idx: int
