@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 19:34:27
-status: wip
+status: done
 prompt: sdd/prompts/202605/plan_approval_custom_model_picker.md
 bead_id: sase-2l
 tier: epic
