@@ -62,6 +62,12 @@ _write_plan_path_artifact = write_plan_path_artifact
 def _accepted_plan_action_for_meta(plan_result: Any) -> str:
     if plan_result.action == "approve" and not plan_result.run_coder:
         return "commit"
+    if (
+        plan_result.action == "approve"
+        and plan_result.commit_plan
+        and plan_result.run_coder
+    ):
+        return "tale"
     return str(plan_result.action)
 
 
