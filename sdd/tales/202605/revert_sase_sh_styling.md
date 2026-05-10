@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 20:08:01
-status: wip
+status: done
 prompt: sdd/prompts/202605/revert_sase_sh_styling.md
 ---
 # Revert recent sase.sh styling while preserving desktop sidebar section emphasis
