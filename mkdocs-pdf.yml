@@ -18,7 +18,7 @@ plugins:
         as_creation: date
       categories:
         - categories
-      image: https://sase.sh/images/sase_overview.jpg
+      image: https://sase.sh/images/sase_overview.png
   - exporter:
       formats:
         pdf:

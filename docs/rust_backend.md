@@ -441,7 +441,7 @@ A handful of commands cover "is my install healthy?" end-to-end:
 sase core health             # Rust health: status + module path + version + platform
 sase core health -j          # same, JSON for scripting
 
-just check                   # full lint + type + test pass
+just check                   # formatting, lint, SDD validation, and tests
 just rust-check              # cargo fmt --check + clippy + cargo test (requires sibling ../sase-core checkout)
 just bead-perf-smoke         # tiny Rust-backed bead shell/facade/work-plan benchmark
 just launch-perf-check       # launch fan-out regression floor against the Phase 1 baseline

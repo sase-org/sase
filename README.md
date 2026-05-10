@@ -90,11 +90,11 @@ strict docs build and `just docs-pdf-check` for the handbook PDF validation.
 ```bash
 just install       # Install with dev deps
 just fmt           # Auto-format code
-just lint          # Run ruff + mypy
+just lint          # Run ruff, mypy, pyvision, keep-sorted, and SDD validation
 just test          # Fast parallel test run
 just test-slow     # Slow pytest subset only
 just test-cov      # Parallel test run with coverage + 50% gate
-just check         # All checks: fmt-check + lint + test
+just check         # All checks: formatting, lint, SDD validation, and tests
 just test-tox      # Test across Python 3.12, 3.13, 3.14
 just clean         # Remove build artifacts
 just build         # Build wheel + sdist
