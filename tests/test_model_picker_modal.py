@@ -1,7 +1,7 @@
 """Tests for the model picker modal."""
 
 from textual.app import App, ComposeResult
-from textual.widgets import OptionList
+from textual.widgets import Input, OptionList
 
 from sase.ace.tui.modals.model_picker_modal import (
     CUSTOM_SENTINEL,
@@ -163,3 +163,140 @@ async def test_model_picker_vim_navigation() -> None:
         await pilot.pause()
         after_k = option_list.highlighted
         assert after_k == initial
+
+
+async def test_model_picker_filters_by_provider() -> None:
+    """Provider filters should show that provider's full model group."""
+    async with _TestApp().run_test() as pilot:
+        modal = ModelPickerModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        filter_input = modal.query_one("#model-picker-filter", Input)
+        filter_input.value = "codex"
+        await pilot.pause()
+
+        option_list = modal.query_one("#model-picker-list", OptionList)
+        ids = {option.id for option in option_list.options}
+        assert "__header_codex__" in ids
+        assert "o3" in ids
+        assert "gpt-5.5" in ids
+        assert "__header_gemini__" not in ids
+
+
+async def test_model_picker_filters_by_model_substring() -> None:
+    """Model substring filters should keep matching models and their header."""
+    async with _TestApp().run_test() as pilot:
+        modal = ModelPickerModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        filter_input = modal.query_one("#model-picker-filter", Input)
+        filter_input.value = "2.5-pro"
+        await pilot.pause()
+
+        option_list = modal.query_one("#model-picker-list", OptionList)
+        ids = {option.id for option in option_list.options}
+        assert "__header_gemini__" in ids
+        assert "gemini-2.5-pro" in ids
+        assert "gemini-3-flash-preview" not in ids
+
+
+async def test_model_picker_filters_by_alias() -> None:
+    """Short aliases from provider metadata should be searchable."""
+    async with _TestApp().run_test() as pilot:
+        modal = ModelPickerModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        filter_input = modal.query_one("#model-picker-filter", Input)
+        filter_input.value = "sonnet45"
+        await pilot.pause()
+
+        option_list = modal.query_one("#model-picker-list", OptionList)
+        ids = {option.id for option in option_list.options}
+        assert "__header_opencode__" in ids
+        assert "anthropic/claude-sonnet-4-5" in ids
+
+
+async def test_model_picker_no_results_keeps_escape_hatches() -> None:
+    """No-results rendering should keep default/custom paths available."""
+    async with _TestApp().run_test() as pilot:
+        modal = ModelPickerModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        filter_input = modal.query_one("#model-picker-filter", Input)
+        filter_input.value = "definitely-no-such-model"
+        await pilot.pause()
+
+        option_list = modal.query_one("#model-picker-list", OptionList)
+        ids = {option.id for option in option_list.options}
+        labels = [str(option.prompt) for option in option_list.options]
+        assert "__default__" in ids
+        assert CUSTOM_SENTINEL in ids
+        assert "__empty__" in ids
+        assert "  No matching models" in labels
+
+
+async def test_model_picker_selection_remains_valid_after_filter_change() -> None:
+    """Filtering away the highlighted model should move selection to a visible row."""
+    async with _TestApp().run_test() as pilot:
+        modal = ModelPickerModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        option_list = modal.query_one("#model-picker-list", OptionList)
+        option_list.highlighted = option_list.get_option_index("o3")
+        filter_input = modal.query_one("#model-picker-filter", Input)
+        filter_input.value = "gemini"
+        await pilot.pause()
+
+        highlighted = option_list.highlighted
+        assert highlighted is not None
+        option = option_list.get_option_at_index(highlighted)
+        assert option.id != "o3"
+        assert str(option.id).startswith("gemini-")
+
+
+async def test_model_picker_escape_clears_filter_before_cancel() -> None:
+    """Escape clears an active filter before the modal cancel path."""
+    result: str | None = "sentinel"
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(r: str | None) -> None:
+            nonlocal result
+            result = r
+
+        modal = ModelPickerModal()
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        filter_input = modal.query_one("#model-picker-filter", Input)
+        filter_input.value = "codex"
+        await pilot.pause()
+
+        await pilot.press("escape")
+        await pilot.pause()
+
+        assert filter_input.value == ""
+        assert result == "sentinel"
+
+
+async def test_model_picker_without_default_filters_correctly() -> None:
+    """Temporary override callers should still omit the default option."""
+    async with _TestApp().run_test() as pilot:
+        modal = ModelPickerModal(include_default_option=False)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        filter_input = modal.query_one("#model-picker-filter", Input)
+        filter_input.value = "codex"
+        await pilot.pause()
+
+        option_list = modal.query_one("#model-picker-list", OptionList)
+        ids = {option.id for option in option_list.options}
+        assert "__default__" not in ids
+        assert CUSTOM_SENTINEL in ids
+        assert "o3" in ids

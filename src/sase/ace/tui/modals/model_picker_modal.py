@@ -1,15 +1,180 @@
 """Model picker modal for selecting a coder LLM model."""
 
+from dataclasses import dataclass
+from typing import Literal
+
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import OptionList, Static
+from textual.widgets import Input, OptionList, Static
 from textual.widgets._option_list import Option
 
-from .base import OptionListNavigationMixin
+from .base import FilterInput, OptionListNavigationMixin
 
 # Sentinel returned when user selects "Custom..."
 CUSTOM_SENTINEL = "__custom__"
+_DEFAULT_SENTINEL = "__default__"
+_EMPTY_SENTINEL = "__empty__"
+
+_RowKind = Literal["default", "provider", "model", "custom", "empty"]
+
+
+@dataclass(frozen=True)
+class _ModelPickerRow:
+    kind: _RowKind
+    label: str
+    option_id: str
+    provider: str | None = None
+    model_id: str | None = None
+    alias: str | None = None
+
+    @property
+    def disabled(self) -> bool:
+        return self.kind in {"provider", "empty"}
+
+    @property
+    def is_model(self) -> bool:
+        return self.kind == "model"
+
+    @property
+    def search_terms(self) -> tuple[str, ...]:
+        return tuple(
+            part.lower()
+            for part in (
+                self.provider,
+                self.provider.upper() if self.provider else None,
+                self.model_id,
+                self.label,
+                self.alias,
+            )
+            if part
+        )
+
+
+def _build_model_rows(*, include_default_option: bool = True) -> list[_ModelPickerRow]:
+    """Build typed model-picker rows grouped by provider."""
+    from sase.llm_provider.registry import model_short_alias_map, model_to_provider_map
+
+    aliases = model_short_alias_map()
+    provider_models: dict[str, list[str]] = {}
+    for model, provider in model_to_provider_map().items():
+        provider_models.setdefault(provider, []).append(model)
+
+    rows: list[_ModelPickerRow] = []
+    if include_default_option:
+        rows.append(
+            _ModelPickerRow(
+                kind="default",
+                label="Same as planner",
+                option_id=_DEFAULT_SENTINEL,
+            )
+        )
+
+    for provider, models in provider_models.items():
+        rows.append(
+            _ModelPickerRow(
+                kind="provider",
+                label=f"  {provider.upper()}",
+                option_id=f"__header_{provider}__",
+                provider=provider,
+            )
+        )
+        for model in models:
+            alias = aliases.get(model)
+            label = f"    {model}"
+            if alias:
+                label = f"{label}  ({alias})"
+            rows.append(
+                _ModelPickerRow(
+                    kind="model",
+                    label=label,
+                    option_id=model,
+                    provider=provider,
+                    model_id=model,
+                    alias=alias,
+                )
+            )
+
+    rows.append(
+        _ModelPickerRow(
+            kind="custom",
+            label="  Custom...",
+            option_id=CUSTOM_SENTINEL,
+        )
+    )
+    return rows
+
+
+def _row_matches(row: _ModelPickerRow, query: str) -> bool:
+    if not query:
+        return True
+    return any(query in term for term in row.search_terms)
+
+
+def _filter_model_rows(
+    rows: list[_ModelPickerRow],
+    query: str,
+) -> list[_ModelPickerRow]:
+    """Return rows matching the filter while keeping provider groups coherent."""
+    query = query.strip().lower()
+    if not query:
+        return rows
+
+    special_rows = [row for row in rows if row.kind in {"default", "custom"}]
+    filtered: list[_ModelPickerRow] = [
+        row for row in special_rows if row.kind == "default"
+    ]
+    matched_models = 0
+    index = 0
+    while index < len(rows):
+        row = rows[index]
+        if row.kind != "provider":
+            index += 1
+            continue
+
+        provider_row = row
+        provider_models: list[_ModelPickerRow] = []
+        index += 1
+        while index < len(rows) and rows[index].kind == "model":
+            provider_models.append(rows[index])
+            index += 1
+
+        provider_matches = _row_matches(provider_row, query)
+        matching_models = (
+            provider_models
+            if provider_matches
+            else [model for model in provider_models if _row_matches(model, query)]
+        )
+        if matching_models:
+            filtered.append(provider_row)
+            filtered.extend(matching_models)
+            matched_models += len(matching_models)
+
+    if matched_models == 0:
+        filtered.append(
+            _ModelPickerRow(
+                kind="empty",
+                label="  No matching models",
+                option_id=_EMPTY_SENTINEL,
+            )
+        )
+    filtered.extend(row for row in special_rows if row.kind == "custom")
+    return filtered
+
+
+def _rows_to_options(rows: list[_ModelPickerRow]) -> list[Option | None]:
+    """Render typed rows into Textual OptionList content."""
+    items: list[Option | None] = []
+    previous_kind: _RowKind | None = None
+    for row in rows:
+        if items and (
+            row.kind == "provider" or row.kind == "custom" or previous_kind == "default"
+        ):
+            items.append(None)
+        items.append(Option(row.label, id=row.option_id, disabled=row.disabled))
+        previous_kind = row.kind
+    return items
 
 
 def _build_model_options(*, include_default_option: bool = True) -> list[Option | None]:
@@ -21,32 +186,55 @@ def _build_model_options(*, include_default_option: bool = True) -> list[Option 
             Callers like the temporary-override modal that have no
             "use planner default" semantics pass ``False`` to omit it.
     """
-    from sase.llm_provider.registry import model_to_provider_map
+    return _rows_to_options(
+        _build_model_rows(include_default_option=include_default_option)
+    )
 
-    # Group models by provider, preserving insertion order
-    provider_models: dict[str, list[str]] = {}
-    for model, provider in model_to_provider_map().items():
-        provider_models.setdefault(provider, []).append(model)
 
-    items: list[Option | None] = []
-    if include_default_option:
-        items.append(Option("Same as planner", id="__default__"))
+class _ModelPickerFilterInput(FilterInput):
+    """Filter input that forwards picker navigation keys to the modal."""
 
-    first_section = not include_default_option
-    for provider, models in provider_models.items():
-        if not first_section:
-            items.append(None)  # separator
-        first_section = False
-        items.append(
-            Option(f"  {provider.upper()}", id=f"__header_{provider}__", disabled=True)
-        )
-        for model in models:
-            items.append(Option(f"    {model}", id=model))
+    BINDINGS = [
+        *FilterInput.BINDINGS,
+        ("j", "forward('next_option')", "Next"),
+        ("k", "forward('prev_option')", "Previous"),
+        ("down", "forward('next_option')", "Next"),
+        ("up", "forward('prev_option')", "Previous"),
+        ("ctrl+n", "forward('next_option')", "Next"),
+        ("ctrl+p", "forward('prev_option')", "Previous"),
+        ("enter", "forward('select_model')", "Select"),
+        ("escape", "forward('cancel')", "Cancel"),
+    ]
 
-    items.append(None)  # separator
-    items.append(Option("  Custom...", id=CUSTOM_SENTINEL))
+    def action_forward(self, action_name: str) -> None:
+        modal = self.screen
+        if isinstance(modal, ModelPickerModal):
+            getattr(modal, f"action_{action_name}")()
 
-    return items
+    async def _on_key(self, event: events.Key) -> None:
+        if event.key in {
+            "j",
+            "k",
+            "down",
+            "up",
+            "ctrl+n",
+            "ctrl+p",
+            "escape",
+        }:
+            event.prevent_default()
+            event.stop()
+            action = {
+                "j": "next_option",
+                "down": "next_option",
+                "ctrl+n": "next_option",
+                "k": "prev_option",
+                "up": "prev_option",
+                "ctrl+p": "prev_option",
+                "escape": "cancel",
+            }[event.key]
+            self.action_forward(action)
+            return
+        await super()._on_key(event)
 
 
 class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
@@ -63,7 +251,7 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
     _option_list_id = "model-picker-list"
 
     BINDINGS = [
-        *OptionListNavigationMixin.NAVIGATION_BINDINGS,
+        ("escape", "cancel", "Cancel"),
         ("enter", "select_model", "Select"),
     ]
 
@@ -76,12 +264,20 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
         super().__init__()
         self._title = title
         self._include_default_option = include_default_option
+        self._all_rows = _build_model_rows(
+            include_default_option=include_default_option
+        )
+        self._visible_rows = self._all_rows
 
     def compose(self) -> ComposeResult:
         with Container(id="model-picker-container"):
             yield Static(
                 f"[bold cyan]{self._title}[/bold cyan]",
                 id="model-picker-title",
+            )
+            yield _ModelPickerFilterInput(
+                placeholder="Filter providers or models...",
+                id="model-picker-filter",
             )
             yield OptionList(
                 *_build_model_options(
@@ -91,13 +287,71 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
             )
             yield Static(
                 "[green]enter[/green]=Select  "
+                "[dim]type[/dim]=Filter  "
                 "[dim]j/k[/dim]=Navigate  "
-                "[dim]q/esc[/dim]=Cancel",
+                "[dim]esc[/dim]=Clear/Cancel",
                 id="model-picker-footer",
             )
 
     def on_mount(self) -> None:
-        self.query_one("#model-picker-list", OptionList).focus()
+        self.query_one("#model-picker-filter", _ModelPickerFilterInput).focus()
+        self._ensure_highlight()
+
+    def _render_options(self) -> list[Option | None]:
+        return _rows_to_options(self._visible_rows)
+
+    def _apply_filter(self, query: str) -> None:
+        option_list = self.query_one("#model-picker-list", OptionList)
+        previous_id = self._highlighted_option_id()
+        self._visible_rows = _filter_model_rows(self._all_rows, query)
+        option_list.clear_options()
+        option_list.add_options(self._render_options())
+        self._ensure_highlight(
+            preferred_id=previous_id, prefer_model=bool(query.strip())
+        )
+
+    def _highlighted_option_id(self) -> str | None:
+        option_list = self.query_one("#model-picker-list", OptionList)
+        highlighted = option_list.highlighted
+        if highlighted is None:
+            return None
+        try:
+            option = option_list.get_option_at_index(highlighted)
+        except Exception:
+            return None
+        return str(option.id) if option.id is not None else None
+
+    def _ensure_highlight(
+        self,
+        *,
+        preferred_id: str | None = None,
+        prefer_model: bool = False,
+    ) -> None:
+        option_list = self.query_one("#model-picker-list", OptionList)
+        if preferred_id is not None:
+            try:
+                option_list.highlighted = option_list.get_option_index(preferred_id)
+                return
+            except Exception:
+                pass
+
+        target = None
+        if prefer_model:
+            for row in self._visible_rows:
+                if row.is_model:
+                    target = row.option_id
+                    break
+
+        if target is None:
+            for row in self._visible_rows:
+                if not row.disabled:
+                    target = row.option_id
+                    break
+
+        if target is None:
+            option_list.highlighted = None
+            return
+        option_list.highlighted = option_list.get_option_index(target)
 
     def action_select_model(self) -> None:
         option_list = self.query_one("#model-picker-list", OptionList)
@@ -105,11 +359,43 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
         if highlighted is None:
             return
         option = option_list.get_option_at_index(highlighted)
+        if option.disabled:
+            return
         option_id = str(option.id)
-        if option_id == "__default__":
+        if option_id == _DEFAULT_SENTINEL:
             self.dismiss(None)
         else:
             self.dismiss(option_id)
+
+    def action_cancel(self) -> None:
+        filter_input = self.query_one("#model-picker-filter", FilterInput)
+        if filter_input.value:
+            filter_input.value = ""
+            self._apply_filter("")
+            return
+        self.dismiss(None)
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id != "model-picker-filter":
+            return
+        self._apply_filter(event.value)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id != "model-picker-filter":
+            return
+        event.stop()
+        self.action_select_model()
+
+    def on_key(self, event: events.Key) -> None:
+        """Forward navigation keys while the filter input has focus."""
+        if event.key in {"down", "ctrl+n", "j"}:
+            event.prevent_default()
+            event.stop()
+            self.action_next_option()
+        elif event.key in {"up", "ctrl+p", "k"}:
+            event.prevent_default()
+            event.stop()
+            self.action_prev_option()
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle double-click or enter on the option list."""
