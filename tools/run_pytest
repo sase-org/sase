@@ -105,6 +105,8 @@ def _pytest_command(mode: str, args: list[str]) -> list[str]:
     ]
     if mode == "slow":
         command.extend(["-m", "slow"])
+    elif mode == "visual":
+        command.extend(["-m", "visual"])
     elif mode == "cov":
         command.extend(
             [
@@ -123,7 +125,7 @@ def _pytest_command(mode: str, args: list[str]) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("fast", "slow", "cov"))
+    parser.add_argument("mode", choices=("fast", "slow", "visual", "cov"))
     parser.add_argument("pytest_args", nargs=argparse.REMAINDER)
     namespace = parser.parse_args(argv)
 

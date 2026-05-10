@@ -161,7 +161,7 @@ addopts = [
     "--strict-config",
     "--durations=20",
     "-m",
-    "not slow",
+    "not slow and not visual",
 ]
 asyncio_mode = "auto"
 markers = [

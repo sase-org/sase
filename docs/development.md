@@ -30,6 +30,7 @@ just fmt           # Auto-format code and Markdown
 just lint          # Run ruff, mypy, pyvision, keep-sorted, and SDD validation
 just test          # Fast parallel test run
 just test-slow     # Slow pytest subset only
+just test-visual   # ACE visual regression snapshots
 just test-cov      # Parallel test run with coverage + 50% gate
 just check         # CI-style checks: formatting, lint, SDD validation, tests
 just test-tox      # Test across Python 3.12, 3.13, 3.14
@@ -37,13 +38,40 @@ just clean         # Remove build artifacts
 just build         # Build wheel and sdist
 ```
 
-`just test`, `just test-slow`, and `just test-cov` size the pytest-xdist worker pool from local CPU count, capped at 16.
-Set `SASE_PYTEST_WORKERS=<N>` to override that value. Test selectors are normalized from the directory where `just` was
-invoked, so this works the same from the repository root or a subdirectory:
+`just test`, `just test-slow`, `just test-visual`, and `just test-cov` size the pytest-xdist worker pool from local CPU
+count, capped at 16. Set `SASE_PYTEST_WORKERS=<N>` to override that value. Test selectors are normalized from the
+directory where `just` was invoked, so this works the same from the repository root or a subdirectory:
 
 ```bash
 just test tests/main/test_parser.py::test_example
 ```
+
+Default test runs exclude both `slow` and `visual` markers. Use `just test-visual` for ACE screenshot regression tests;
+the recipe installs the optional visual renderer dependencies when they are missing.
+
+## Visual Snapshot Workflow
+
+ACE visual tests live under `tests/ace/tui/visual/` and compare deterministic Textual screenshots against committed SVG
+or PNG goldens. Run them normally first:
+
+```bash
+just test-visual
+```
+
+When a visual test fails, inspect the artifacts under `.pytest_cache/sase-visual/`. They include the actual capture and,
+when a golden exists, the expected capture plus a comparison report or PNG diff summary. Accept intentional visual
+changes only by rerunning the relevant test with the explicit update flag:
+
+```bash
+just test-visual -- --sase-update-visual-snapshots tests/ace/tui/visual/test_ace_svg_snapshots.py
+```
+
+Review changed SVG and PNG files as normal test data. Do not pass `--sase-update-visual-snapshots` to `just check`,
+`just fmt`, or broad CI-style commands.
+
+Add a visual test when the risk is layout, styling, focus highlighting, modal composition, or a regression that is hard
+to express as state. Prefer a plain state/widget test when the behavior can be asserted through model state, rendered
+text, selection identity, key handling, or a small widget contract.
 
 ## Required Rust Core
 

@@ -52,6 +52,21 @@ install: _venv
     fi
     uv pip install --no-sources -e ".[dev]"
 
+# Install in editable mode with dev and visual-test dependencies.
+install-visual: _venv
+    @if [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
+        printf "[install-visual] Building sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
+        just rust-install; \
+    fi
+    uv pip install --no-sources -e ".[dev,visual]"
+
+# Bootstrap visual-test dependencies without making them part of the default
+# development install.
+_setup-visual: _setup
+    @if ! {{ venv_bin }}/python -c "import cairosvg" > /dev/null 2>&1; then \
+        uv pip install --no-sources -e ".[dev,visual]"; \
+    fi
+
 # Run linters (ruff + mypy + pyscripts + pyvision + keep-sorted + SDD validation)
 lint: _setup (_header "lint") lint-keep-sorted
     @printf "\n---------- Running ruff linter on Python files... ----------\n"
@@ -133,6 +148,13 @@ test *args: _setup (_header "test")
 test-slow *args: _setup (_header "test-slow")
     @printf "\n---------- Running slow pytest subset... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest slow "$@"
+
+# Run ACE visual regression tests. This suite is explicit because it uses
+# snapshot goldens and optional SVG-to-PNG rendering dependencies.
+[positional-arguments]
+test-visual *args: _setup-visual (_header "test-visual")
+    @printf "\n---------- Running visual pytest subset... ----------\n"
+    @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest visual "$@"
 
 # Parallel test run with coverage reports + 50% gate (used by CI)
 [positional-arguments]

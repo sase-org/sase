@@ -65,3 +65,12 @@ def test_strips_just_separator_and_preserves_keyword_expression() -> None:
         "test_repeat_launcher.py",
         "tests/test_repeat_launcher.py",
     ]
+
+
+def test_visual_mode_selects_visual_marker() -> None:
+    runner = _load_run_pytest()
+
+    result = runner._pytest_command("visual", ["tests/ace/tui/visual"])
+
+    assert result[0:3] == [runner.sys.executable, "-m", "pytest"]
+    assert result[-3:] == ["-m", "visual", "tests/ace/tui/visual"]
