@@ -116,7 +116,7 @@ class TestLegendRendering:
         )
 
         expected = (
-            "%name:l1.1.0\n"
+            "%name:!l1.1.0\n"
             "%group:l1\n"
             "%epic\n"
             "Can you help me implement epic #1 from the legend plan in the "
@@ -124,7 +124,7 @@ class TestLegendRendering:
             "this epic will be split into phases and worked by separate "
             "agents after approval.\n"
             "---\n"
-            "%name:l1.2.0\n"
+            "%name:!l1.2.0\n"
             "%group:l1\n"
             "%epic\n"
             "%w:l1.1\n"
@@ -133,7 +133,7 @@ class TestLegendRendering:
             "this epic will be split into phases and worked by separate "
             "agents after approval.\n"
             "---\n"
-            "%name:l1\n"
+            "%name:!l1\n"
             "%group:l1\n"
             "%approve\n"
             "%w:l1.2\n"
@@ -161,11 +161,11 @@ class TestLegendRendering:
         segments = rendered.split("\n---\n")
         assert len(segments) == 3
         assert all(segment.startswith("#git:sase\n") for segment in segments)
-        assert "#git:sase\n%name:l1.1.0\n%group:l1\n%epic" in rendered
-        assert "#git:sase\n%name:l1\n%group:l1\n%approve\n%w:l1.2" in rendered
-        assert "%name:l1.1.0" in rendered
-        assert "%name:l1.2.0" in rendered
-        assert "%name:l1" in rendered
+        assert "#git:sase\n%name:!l1.1.0\n%group:l1\n%epic" in rendered
+        assert "#git:sase\n%name:!l1\n%group:l1\n%approve\n%w:l1.2" in rendered
+        assert "%name:!l1.1.0" in rendered
+        assert "%name:!l1.2.0" in rendered
+        assert "%name:!l1" in rendered
         assert all("%group:l1" in segment for segment in segments)
         for segment in segments[:2]:
             assert "%epic" in segment
@@ -209,7 +209,7 @@ class TestLegendModelDirective:
         assert all("%model" not in segment for segment in segments[:-1])
         # The final land segment carries the legend's model.
         assert segments[-1] == (
-            "%name:l1\n"
+            "%name:!l1\n"
             "%group:l1\n"
             "%model:codex/gpt-5.5\n"
             "%approve\n"

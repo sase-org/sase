@@ -123,9 +123,9 @@ class TestRenderEdgeCases:
             _, directives = extract_prompt_directives(segment)
             assert directives.tag == "sase-42.3"
 
-        assert "%name:sase-42.3.1" in phase_segment
+        assert "%name:!sase-42.3.1" in phase_segment
         assert "#bd/work_phase_bead:sase-42.3.1" in phase_segment
-        assert "%name:sase-42.3" in land_segment
+        assert "%name:!sase-42.3" in land_segment
         assert "%w:sase-42.3.1" in land_segment
         assert "#bd/land_epic:sase-42.3" in land_segment
 
@@ -205,13 +205,13 @@ class TestChangeSpecRendering:
 
         expected = (
             "#git:sase #pr:feature_epic\n"
-            "%name:p1\n"
+            "%name:!p1\n"
             "%group:e1\n"
             "%approve\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "#git:feature_epic\n"
-            "%name:e1\n"
+            "%name:!e1\n"
             "%group:e1\n"
             "%approve\n"
             "%w:p1\n"
@@ -243,27 +243,27 @@ class TestChangeSpecRendering:
 
         expected = (
             "#gh:sase #pr:feature_epic\n"
-            "%name:p1\n"
+            "%name:!p1\n"
             "%group:e1\n"
             "%approve\n"
             "#custom/work:p1\n"
             "---\n"
             "#gh:feature_epic\n"
-            "%name:p2\n"
+            "%name:!p2\n"
             "%group:e1\n"
             "%approve\n"
             "%w:p1\n"
             "#custom/work:p2\n"
             "---\n"
             "#gh:feature_epic\n"
-            "%name:p3\n"
+            "%name:!p3\n"
             "%group:e1\n"
             "%approve\n"
             "%w:p2\n"
             "#custom/work:p3\n"
             "---\n"
             "#gh:feature_epic\n"
-            "%name:e1\n"
+            "%name:!e1\n"
             "%group:e1\n"
             "%approve\n"
             "%w:p1,p2,p3\n"
@@ -291,9 +291,9 @@ class TestChangeSpecRendering:
         )
 
         assert rendered.count("#pr:feature_epic") == 1
-        assert "#git:sase #pr:feature_epic\n%name:p1\n%group:e1" in rendered
-        assert "#git:feature_epic\n%name:p2\n%group:e1" in rendered
-        assert "#git:feature_epic\n%name:e1\n%group:e1" in rendered
+        assert "#git:sase #pr:feature_epic\n%name:!p1\n%group:e1" in rendered
+        assert "#git:feature_epic\n%name:!p2\n%group:e1" in rendered
+        assert "#git:feature_epic\n%name:!e1\n%group:e1" in rendered
 
     def test_bug_id_uses_keyword_pr_syntax(self, conn: sqlite3.Connection) -> None:
         seed(conn, [epic("e1"), phase("p1")])
@@ -330,7 +330,7 @@ class TestModelDirective:
 
         phase_segment, land_segment = rendered.split("\n---\n")
         assert phase_segment == (
-            "%name:p1\n%group:e1\n%model:claude/opus\n%approve\n#bd/work_phase_bead:p1"
+            "%name:!p1\n%group:e1\n%model:claude/opus\n%approve\n#bd/work_phase_bead:p1"
         )
         assert "%model" not in land_segment
 
@@ -369,9 +369,9 @@ class TestModelDirective:
         )
 
         segments = rendered.split("\n---\n")
-        p1_seg = next(s for s in segments if "%name:p1\n" in s)
-        p2_seg = next(s for s in segments if "%name:p2\n" in s)
-        p3_seg = next(s for s in segments if "%name:p3\n" in s)
+        p1_seg = next(s for s in segments if "%name:!p1\n" in s)
+        p2_seg = next(s for s in segments if "%name:!p2\n" in s)
+        p3_seg = next(s for s in segments if "%name:!p3\n" in s)
         land_seg = segments[-1]
         assert "%model:codex/gpt-5.5" in p1_seg
         assert "%model" not in p2_seg
@@ -394,7 +394,7 @@ class TestModelDirective:
         phase_segment, land_segment = segments
         assert "%model" not in phase_segment
         assert land_segment == (
-            "%name:e1\n%group:e1\n%model:claude/opus\n%approve\n%w:p1\n#bd/land_epic:e1"
+            "%name:!e1\n%group:e1\n%model:claude/opus\n%approve\n%w:p1\n#bd/land_epic:e1"
         )
 
     def test_no_model_renders_byte_identical_to_pre_model_baseline(
@@ -410,17 +410,17 @@ class TestModelDirective:
         )
 
         expected = (
-            "%name:p1\n"
+            "%name:!p1\n"
             "%group:e1\n"
             "%approve\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
-            "%name:p2\n"
+            "%name:!p2\n"
             "%group:e1\n"
             "%approve\n"
             "#bd/work_phase_bead:p2\n"
             "---\n"
-            "%name:e1\n"
+            "%name:!e1\n"
             "%group:e1\n"
             "%approve\n"
             "%w:p1,p2\n"

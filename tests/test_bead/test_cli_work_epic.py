@@ -120,6 +120,47 @@ def test_work_linked_legend_epic_uses_legend_tag_and_links(
     )
 
 
+def test_work_stale_owner_round_trip_wipes_and_rewrites(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stale name registry entries are wiped, and the launcher sees a rewritten prompt."""
+    epic_id, phase_ids = seed_diamond(project_dir)
+    captured: dict[str, Any] = {}
+    wiped: list[list[str]] = []
+
+    def fake_wipe(names: list[str]) -> None:
+        wiped.append(list(names))
+
+    monkeypatch.setattr(
+        "sase.agent.launch_validation.wipe_names_for_forced_reuse",
+        fake_wipe,
+    )
+
+    def fake_launch(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
+        captured["query"] = query
+        return FakeLaunchResult()
+
+    monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
+
+    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+
+    query = captured["query"]
+    # Launcher receives the rewritten prompt: ordinary %name:<n> (no '!').
+    assert "%name:!" not in query
+    for pid in phase_ids:
+        assert f"%name:{pid}\n" in query
+    assert f"%name:{epic_id}\n" in query
+
+    assert len(wiped) == 1
+    expected_names = {*phase_ids, epic_id}
+    assert set(wiped[0]) == expected_names
+
+
 def test_work_dry_run_never_mutates_or_launches(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -179,10 +220,10 @@ def test_work_dry_run_renders_model_directives(
     bead_cli.handle_bead_work(make_args(epic_id, dry_run=True, yes=True))
 
     out = capsys.readouterr().out
-    assert f"%name:{p1_id}\n%group:{epic_id}\n%model:codex/gpt-5.5\n%approve" in out
+    assert f"%name:!{p1_id}\n%group:{epic_id}\n%model:codex/gpt-5.5\n%approve" in out
     # Phase without model has no %model directive between %group and %approve.
-    assert f"%name:{p2_id}\n%group:{epic_id}\n%approve" in out
-    assert f"%name:{epic_id}\n%group:{epic_id}\n%model:claude/opus\n%approve" in out
+    assert f"%name:!{p2_id}\n%group:{epic_id}\n%approve" in out
+    assert f"%name:!{epic_id}\n%group:{epic_id}\n%model:claude/opus\n%approve" in out
     # Two %model directives: one phase, one land.
     assert out.count("%model:") == 2
 
@@ -224,9 +265,9 @@ def test_work_dry_run_regular_epic_renders_vcs_launch_wrappers(
     assert launch_calls == []
     out = capsys.readouterr().out
     for pid in phase_ids:
-        assert f"#git:sase\n%name:{pid}\n%group:{epic_id}" in out
+        assert f"#git:sase\n%name:!{pid}\n%group:{epic_id}" in out
         assert f"#bd/work_phase_bead:{pid}" in out
-    assert f"#git:sase\n%name:{epic_id}\n%group:{epic_id}" in out
+    assert f"#git:sase\n%name:!{epic_id}\n%group:{epic_id}" in out
     assert f"#bd/land_epic:{epic_id}" in out
     assert out.count(f"%group:{epic_id}") == len(phase_ids) + 1
 
@@ -276,11 +317,11 @@ def test_work_dry_run_renders_changespec_launch_wrappers(
     out = capsys.readouterr().out
     assert "#git:sase #pr(name=feature_epic, bug_id=12345)" in out
     assert (
-        f"#git:sase #pr(name=feature_epic, bug_id=12345)\n%name:{phase_ids[0]}\n%group:{epic_id}"
+        f"#git:sase #pr(name=feature_epic, bug_id=12345)\n%name:!{phase_ids[0]}\n%group:{epic_id}"
         in out
     )
-    assert f"#git:feature_epic\n%name:{phase_ids[1]}\n%group:{epic_id}" in out
-    assert f"#git:feature_epic\n%name:{epic_id}\n%group:{epic_id}" in out
+    assert f"#git:feature_epic\n%name:!{phase_ids[1]}\n%group:{epic_id}" in out
+    assert f"#git:feature_epic\n%name:!{epic_id}\n%group:{epic_id}" in out
     assert f"#bd/work_phase_bead:{phase_ids[0]}" in out
     assert f"#bd/land_epic:{epic_id}" in out
     assert out.count(f"%group:{epic_id}") == len(phase_ids) + 1

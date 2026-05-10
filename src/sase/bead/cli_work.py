@@ -145,6 +145,8 @@ def _handle_epic_bead_work(
         print("Aborted.")
         return
 
+    query = _wipe_and_rewrite_force_reuse(query)
+
     marked_ready_this_run = False
     if not issue.is_ready_to_work:
         try:
@@ -272,6 +274,8 @@ def _handle_legend_bead_work(
     if not yes and not confirm_launch():
         print("Aborted.")
         return
+
+    query = _wipe_and_rewrite_force_reuse(query)
 
     marked_ready_this_run = False
     if not issue.is_ready_to_work:
@@ -501,6 +505,34 @@ def rollback_work_launch(
                 f"Warning: failed to roll back is_ready_to_work on {epic_id}: {exc}",
                 file=sys.stderr,
             )
+
+
+def _wipe_and_rewrite_force_reuse(query: str) -> str:
+    """Wipe stale owners of force-reuse names and rewrite the prompt for the launcher.
+
+    Mirrors the TUI's ``_finish_agent_launch`` handshake: parse ``%name:!<n>``
+    directives out of the rendered prompt, wipe any prior owners (best-effort —
+    a partial failure surfaces from the launcher's name validation), then
+    rewrite to ordinary ``%name:<n>`` so ``validate_launch_name_requests``
+    accepts the prompt.
+    """
+    from sase.agent.launch_validation import (
+        force_reuse_owner_names,
+        rewrite_force_reuse_name_directives,
+        wipe_names_for_forced_reuse,
+    )
+
+    segments = query.split("\n---\n")
+    owner_names = force_reuse_owner_names(segments)
+    if owner_names:
+        try:
+            wipe_names_for_forced_reuse(owner_names)
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"Warning: forced agent-name reuse wipe failed: {exc}",
+                file=sys.stderr,
+            )
+    return rewrite_force_reuse_name_directives(query)
 
 
 def _rollback_legend_work_launch(

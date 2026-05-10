@@ -309,6 +309,12 @@ def render_multi_prompt(
     launched phase agent. Tag-resolved xprompt names are substituted into the
     ``#...`` references so user overrides flow through unchanged.
 
+    The emitted ``%name`` directives use the force-reuse prefix
+    (``%name:!<name>``) so re-running ``sase bead work`` after a prior failed
+    or killed launch wipes stale owner records before relaunching. Callers
+    are responsible for the wipe/rewrite handshake before passing the rendered
+    prompt to the launcher.
+
     When *vcs_context* is provided, every segment is prefixed with the project
     VCS xprompt. When *changespec_context* is provided, the first phase segment
     targets the project ref and includes ``#pr`` to create/own the ChangeSpec;
@@ -329,7 +335,7 @@ def render_multi_prompt(
         for assignment in wave:
             lines = _segment_prefix(launch_context, is_first_phase)
             is_first_phase = False
-            lines.append(f"%name:{assignment.agent_name}")
+            lines.append(f"%name:!{assignment.agent_name}")
             lines.append(_group_directive(plan.launch_tag_id))
             if assignment.model:
                 lines.append(f"%model:{assignment.model}")
@@ -340,7 +346,7 @@ def render_multi_prompt(
             segments.append("\n".join(lines))
 
     land_lines = _segment_prefix(launch_context, is_first_phase=False)
-    land_lines.append(f"%name:{plan.land_agent_name}")
+    land_lines.append(f"%name:!{plan.land_agent_name}")
     land_lines.append(_group_directive(plan.launch_tag_id))
     if plan.land_model:
         land_lines.append(f"%model:{plan.land_model}")
@@ -368,7 +374,14 @@ def render_legend_multi_prompt(
     land_legend_xprompt: Workflow,
     vcs_context: VCSLaunchContext | None = None,
 ) -> str:
-    """Render legend epic-planning assignments and final land agent."""
+    """Render legend epic-planning assignments and final land agent.
+
+    The emitted ``%name`` directives use the force-reuse prefix
+    (``%name:!<name>``) so re-running ``sase bead work`` after a prior failed
+    or killed launch wipes stale owner records before relaunching. Callers
+    are responsible for the wipe/rewrite handshake before passing the rendered
+    prompt to the launcher.
+    """
     if isinstance(vcs_context, ChangeSpecLaunchContext):
         raise ValueError("legend work does not support ChangeSpec launch context")
     if vcs_context is not None:
@@ -379,7 +392,7 @@ def render_legend_multi_prompt(
         lines = _segment_prefix(vcs_context, is_first_phase=True)
         lines.extend(
             [
-                f"%name:{assignment.agent_name}",
+                f"%name:!{assignment.agent_name}",
                 _group_directive(plan.legend_id),
                 "%epic",
             ]
@@ -396,7 +409,7 @@ def render_legend_multi_prompt(
         segments.append("\n".join(lines))
 
     land_lines = _segment_prefix(vcs_context, is_first_phase=True)
-    land_lines.append(f"%name:{plan.land_agent_name}")
+    land_lines.append(f"%name:!{plan.land_agent_name}")
     land_lines.append(_group_directive(plan.legend_id))
     if plan.land_model:
         land_lines.append(f"%model:{plan.land_model}")

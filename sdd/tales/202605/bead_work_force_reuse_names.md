@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-10 12:23:09
-status: wip
+status: done
 prompt: sdd/prompts/202605/bead_work_force_reuse_names.md
 ---
 # Plan: `sase bead work` agent prompts use `%name:!` (forced-reuse) directives

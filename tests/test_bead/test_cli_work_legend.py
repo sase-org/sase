@@ -40,9 +40,9 @@ def test_legend_work_dry_run_never_mutates_or_launches(
     out = capsys.readouterr().out
     assert f"Legend {legend_id}" in out
     assert "2 epic agent(s) plus 1 land agent" in out
-    assert f"%name:{legend_id}.1.0" in out
-    assert f"%name:{legend_id}.2.0" in out
-    assert f"%name:{legend_id}" in out
+    assert f"%name:!{legend_id}.1.0" in out
+    assert f"%name:!{legend_id}.2.0" in out
+    assert f"%name:!{legend_id}" in out
     assert out.count(f"%group:{legend_id}") == 3
     assert f"%w:{legend_id}.1" in out
     assert f"#bd/land_legend:{legend_id}" in out
@@ -85,7 +85,7 @@ def test_legend_work_dry_run_renders_three_epic_chain(
     segments = prompt.split("\n---\n")
     assert len(segments) == 4
     for number, segment in enumerate(segments[:3], start=1):
-        assert f"%name:{legend_id}.{number}.0" in segment
+        assert f"%name:!{legend_id}.{number}.0" in segment
         assert f"%group:{legend_id}" in segment
         assert f"epic #{number} from the legend plan" in segment
         assert "%epic" in segment
@@ -93,7 +93,7 @@ def test_legend_work_dry_run_renders_three_epic_chain(
     assert f"%w:{legend_id}.1" in segments[1]
     assert f"%w:{legend_id}.2" in segments[2]
     assert "%w:" not in segments[0]
-    assert f"%name:{legend_id}" in segments[3]
+    assert f"%name:!{legend_id}" in segments[3]
     assert f"%group:{legend_id}" in segments[3]
     assert f"%w:{legend_id}.3" in segments[3]
     assert f"#bd/land_legend:{legend_id}" in segments[3]
@@ -215,6 +215,50 @@ def test_legend_work_retry_keeps_already_ready_flag_on_launch_failure(
     captured = capsys.readouterr()
     assert "already ready; retrying epic agent launch" in captured.out
     assert "Rolling back is_ready_to_work flag" not in captured.err
+
+
+def test_legend_work_stale_owner_round_trip_wipes_and_rewrites(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stale name registry entries are wiped, and the launcher sees a rewritten prompt."""
+    legend_id = seed_legend(project_dir, epic_count=2)
+    captured: dict[str, Any] = {}
+    wiped: list[list[str]] = []
+
+    def fake_wipe(names: list[str]) -> None:
+        wiped.append(list(names))
+
+    monkeypatch.setattr(
+        "sase.agent.launch_validation.wipe_names_for_forced_reuse",
+        fake_wipe,
+    )
+
+    def fake_launch(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
+        captured["query"] = query
+        return FakeLaunchResult()
+
+    monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
+
+    bead_cli.handle_bead_work(make_args(legend_id, yes=True))
+
+    query = captured["query"]
+    # Launcher receives the rewritten prompt: ordinary %name:<n> (no '!').
+    assert "%name:!" not in query
+    assert f"%name:{legend_id}.1.0\n" in query
+    assert f"%name:{legend_id}.2.0\n" in query
+    assert f"%name:{legend_id}\n" in query
+
+    assert len(wiped) == 1
+    assert set(wiped[0]) == {
+        f"{legend_id}.1.0",
+        f"{legend_id}.2.0",
+        legend_id,
+    }
 
 
 def test_legend_collision_helpers_report_live_planning_agents(
