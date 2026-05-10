@@ -58,6 +58,23 @@ from .state import (
 
 LogCallback = Callable[[str, str | None], None]
 
+_NO_PYTHON_TRACEBACK = "<no python traceback: subprocess error>"
+_TRACEBACK_UNAVAILABLE = "<traceback unavailable>"
+
+
+def _capture_traceback() -> str:
+    """Capture the active exception traceback.
+
+    Must be called from inside an ``except`` block.  When ``sys.exc_info``
+    is empty (no active exception) ``traceback.format_exc()`` returns the
+    string ``"NoneType: None"`` — surface a clearly-marked placeholder
+    instead so error digests don't carry that footgun.
+    """
+    formatted = traceback.format_exc().rstrip("\n")
+    if formatted == "NoneType: None" or not formatted:
+        return _TRACEBACK_UNAVAILABLE
+    return formatted
+
 
 @dataclass
 class _ChopResult:
@@ -72,7 +89,9 @@ class _ChopResult:
     # Captured ``traceback.format_exc()`` output. Must be recorded inside the
     # ``except`` block — by the time ``_handle_error`` runs we are no longer in
     # the active exception context, so a deferred ``format_exc()`` would
-    # produce ``"NoneType: None"``.
+    # produce ``"NoneType: None"``.  When the chop failed without a Python
+    # traceback (e.g. a subprocess exited nonzero), set this to a constant
+    # placeholder rather than leaving it ``None``.
     traceback: str | None = None
     agent_pid: int | None = None  # Set for successful agent chop launches
 
@@ -269,6 +288,7 @@ class Lumberjack:
                     success=False,
                     update_timestamp=False,
                     error=RuntimeError(f"Chop script not found: {chop.name}"),
+                    traceback=_NO_PYTHON_TRACEBACK,
                 )
             env = dict(chop.env)
             env.update(self._chop_launch_env(chop))
@@ -303,6 +323,7 @@ class Lumberjack:
                         f"exit code {result.returncode}"
                         + (f": {stderr}" if stderr else "")
                     ),
+                    traceback=_NO_PYTHON_TRACEBACK,
                 )
         except subprocess.TimeoutExpired:
             return _ChopResult(
@@ -312,7 +333,7 @@ class Lumberjack:
                 update_timestamp=False,
                 log_lines=log_lines,
                 error=RuntimeError(f"timed out after {resolved_timeout}s"),
-                traceback=traceback.format_exc(),
+                traceback=_capture_traceback(),
             )
         except Exception as e:
             return _ChopResult(
@@ -322,7 +343,7 @@ class Lumberjack:
                 update_timestamp=False,
                 log_lines=log_lines,
                 error=e,
-                traceback=traceback.format_exc(),
+                traceback=_capture_traceback(),
             )
 
     def _is_agent_eligible(self, chop: ChopConfig) -> bool:
@@ -420,7 +441,7 @@ class Lumberjack:
                 # tick and flood error digests.
                 update_timestamp=chop.run_every is not None,
                 error=e,
-                traceback=traceback.format_exc(),
+                traceback=_capture_traceback(),
             )
 
     def _handle_error(
@@ -429,12 +450,18 @@ class Lumberjack:
         self._log(f"Error in {job_name}: {error}", style="red")
         self._metrics.errors_encountered += 1
         AXE_ERRORS.labels(error_type="chop").inc()
+        # Never call ``traceback.format_exc()`` here as a fallback: by the
+        # time ``_handle_error`` runs we're outside the active ``except``
+        # block, so it would yield the literal string ``"NoneType: None"``.
+        # Every error-bearing ``_ChopResult`` is responsible for capturing
+        # its own traceback inside the ``except`` block (or setting an
+        # explicit placeholder for non-exception failures).
         error_info = {
             "timestamp": get_timestamp(),
             "lumberjack": self.name,
             "job": job_name,
             "error": str(error),
-            "traceback": tb if tb is not None else traceback.format_exc(),
+            "traceback": tb if tb is not None else _TRACEBACK_UNAVAILABLE,
         }
         append_error(error_info)
 

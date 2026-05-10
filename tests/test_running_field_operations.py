@@ -53,8 +53,9 @@ def test_claim_workspace_new_running_field() -> None:
     project_file = _create_project_file_with_running()
     try:
         # PID is required - pass it as 4th positional arg
-        success = claim_workspace(project_file, 1, "crs", 12345, "my_feature")
-        assert success is True
+        result = claim_workspace(project_file, 1, "crs", 12345, "my_feature")
+        assert result.success is True
+        assert result.error is None
 
         with open(project_file) as f:
             content = f.read()
@@ -77,8 +78,8 @@ def test_claim_workspace_existing_running_field() -> None:
         running_claims=[WorkspaceClaim(1, "crs", "existing", pid=11111)]
     )
     try:
-        success = claim_workspace(project_file, 2, "run", 22222, "new_feature")
-        assert success is True
+        result = claim_workspace(project_file, 2, "run", 22222, "new_feature")
+        assert result.success is True
 
         claims = get_claimed_workspaces(project_file)
         assert len(claims) == 2
@@ -94,8 +95,8 @@ def test_release_workspace_single() -> None:
         running_claims=[WorkspaceClaim(1, "crs", "feature", pid=12345)]
     )
     try:
-        success = release_workspace(project_file, 1)
-        assert success is True
+        result = release_workspace(project_file, 1)
+        assert result.success is True
 
         with open(project_file) as f:
             content = f.read()
@@ -116,8 +117,8 @@ def test_release_workspace_with_workflow_filter() -> None:
     )
     try:
         # Should only release the "crs" claim
-        success = release_workspace(project_file, 1, workflow="crs")
-        assert success is True
+        result = release_workspace(project_file, 1, workflow="crs")
+        assert result.success is True
 
         claims = get_claimed_workspaces(project_file)
         assert len(claims) == 1
@@ -302,8 +303,10 @@ def test_claim_workspace_rejects_duplicate_workspace_num() -> None:
     )
     try:
         # Second claim for workspace #100 should be rejected
-        success = claim_workspace(project_file, 100, "hg-foo", 22222, "foo")
-        assert success is False
+        result = claim_workspace(project_file, 100, "hg-foo", 22222, "foo")
+        assert result.success is False
+        assert result.error is not None
+        assert "100" in result.error
 
         # Only the original claim should remain
         claims = get_claimed_workspaces(project_file)
@@ -319,8 +322,8 @@ def test_claim_workspace_allows_workspace_zero_duplicates() -> None:
         running_claims=[WorkspaceClaim(0, "ace(run)-1", "foo", pid=11111)]
     )
     try:
-        success = claim_workspace(project_file, 0, "ace(run)-2", 22222, "bar")
-        assert success is True
+        result = claim_workspace(project_file, 0, "ace(run)-2", 22222, "bar")
+        assert result.success is True
 
         claims = get_claimed_workspaces(project_file)
         assert len(claims) == 2
@@ -396,7 +399,7 @@ def test_transfer_workspace_claim_by_pid() -> None:
         ]
     )
     try:
-        success = transfer_workspace_claim(
+        result = transfer_workspace_claim(
             project_file,
             100,
             from_pid=11111,
@@ -405,7 +408,7 @@ def test_transfer_workspace_claim_by_pid() -> None:
             new_artifacts_timestamp="20260501120000",
             cl_name="feature",
         )
-        assert success is True
+        assert result.success is True
 
         claims = get_claimed_workspaces(project_file)
         assert len(claims) == 1

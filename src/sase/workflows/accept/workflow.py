@@ -255,15 +255,19 @@ class AcceptWorkflow(BaseWorkflow):
         )
 
         # Claim the workspace
-        claim_success = claim_workspace(
+        claim_result = claim_workspace(
             project_file,
             workspace_num,
             "accept",
             os.getpid(),
             cl_name,
         )
-        if not claim_success:
-            print_status("Error: Failed to claim workspace", "error")
+        if not claim_result.success:
+            print_status(
+                f"Error: Failed to claim workspace: "
+                f"{claim_result.error or 'unknown reason'}",
+                "error",
+            )
             return None, None
 
         if workspace_suffix:

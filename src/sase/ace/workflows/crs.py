@@ -55,15 +55,18 @@ def run_crs_workflow(
     )
 
     # Claim the workspace FIRST to reserve it before doing any work
-    claim_success = claim_workspace(
+    claim_result = claim_workspace(
         changespec.file_path,
         workspace_num,
         "crs",
         os.getpid(),
         changespec.name,
     )
-    if not claim_success:
-        console.print("[red]Error: Failed to claim workspace[/red]")
+    if not claim_result.success:
+        console.print(
+            "[red]Error: Failed to claim workspace: "
+            f"{claim_result.error or 'unknown reason'}[/red]"
+        )
         return False
 
     if workspace_suffix:

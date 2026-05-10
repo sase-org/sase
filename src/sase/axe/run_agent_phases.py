@@ -529,20 +529,24 @@ def claim_deferred_workspace(
                     workspace_num, project_name
                 )
 
-            if claim_ws(
+            claim_result = claim_ws(
                 project_file,
                 workspace_num,
                 workflow_name,
                 os.getpid(),
                 cl_name,
                 artifacts_timestamp=artifacts_timestamp,
-            ):
+            )
+            if claim_result.success:
                 if prefix:
                     os.environ[f"{prefix}_PRE_ALLOCATED"] = "1"
                     os.environ[f"{prefix}_WORKSPACE_NUM"] = str(workspace_num)
                     os.environ[f"{prefix}_WORKSPACE_DIR"] = workspace_dir
                 break
-            last_error = RuntimeError(f"Failed to claim workspace #{workspace_num}")
+            last_error = RuntimeError(
+                f"Failed to claim workspace #{workspace_num}: "
+                f"{claim_result.error or 'unknown reason'}"
+            )
         except RuntimeError as exc:
             last_error = exc
             workspace_num = 0

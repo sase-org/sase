@@ -15,7 +15,11 @@ from sase.running_field._formatting import (
     clean_orphaned_blank_lines,
     normalize_running_field_spacing,
 )
-from sase.running_field._model import WorkspaceClaim
+from sase.running_field._model import (
+    ClaimResult,
+    WorkspaceClaim,
+    WorkspaceClaimError,
+)
 from sase.telemetry.metrics import (
     WORKSPACE_ACQUISITIONS,
     WORKSPACE_ACTIVE,
@@ -50,7 +54,7 @@ def claim_workspace(
     cl_name: str | None = None,
     artifacts_timestamp: str | None = None,
     pinned: bool = False,
-) -> bool:
+) -> ClaimResult:
     """Claim a workspace by adding it to the RUNNING field.
 
     Acquires a lock for the entire read-modify-write cycle.
@@ -65,15 +69,21 @@ def claim_workspace(
         pinned: If True, the claim is pinned and won't be cleaned up as stale
 
     Returns:
-        True if claim was successful, False otherwise
+        ClaimResult.  ``success`` is True on a successful claim.  On failure
+        ``error`` carries a human-readable reason: the Rust outcome's
+        ``error`` field for Rust-rejected claims, or ``repr(exc)`` for
+        Python-side failures (transient IO errors after the retry budget,
+        a missing project file, etc.).
     """
     max_retries = 2
+    last_error: str | None = None
     for attempt in range(1 + max_retries):
         if not os.path.exists(project_file):
+            last_error = f"project file does not exist: {project_file}"
             if attempt < max_retries:
                 time.sleep(0.5)
                 continue
-            return False
+            return ClaimResult(success=False, error=last_error)
 
         try:
             with changespec_lock(project_file):
@@ -94,7 +104,10 @@ def claim_workspace(
                 )
                 outcome = dict(plan["outcome"])
                 if not bool(outcome["success"]):
-                    return False
+                    reason = outcome.get("error") or (
+                        f"workspace #{workspace_num} claim rejected by core"
+                    )
+                    return ClaimResult(success=False, error=str(reason))
 
                 cl_part = f" for {cl_name}" if cl_name else ""
                 write_changespec_atomic(
@@ -105,14 +118,17 @@ def claim_workspace(
                 project = os.path.splitext(os.path.basename(project_file))[0]
                 WORKSPACE_ACQUISITIONS.labels(project=project).inc()
                 WORKSPACE_ACTIVE.labels(project=project).inc()
-                return True
-        except Exception:
+                return ClaimResult(success=True)
+        except (OSError, BlockingIOError) as exc:
+            last_error = repr(exc)
             if attempt < max_retries:
                 time.sleep(0.5)
                 continue
-            return False
+            return ClaimResult(success=False, error=last_error)
 
-    return False
+    return ClaimResult(
+        success=False, error=last_error or "claim retry budget exhausted"
+    )
 
 
 def release_workspace(
@@ -120,7 +136,7 @@ def release_workspace(
     workspace_num: int,
     workflow: str | None = None,
     cl_name: str | None = None,
-) -> bool:
+) -> ClaimResult:
     """Release a workspace by removing it from the RUNNING field.
 
     Acquires a lock for the entire read-modify-write cycle.
@@ -132,10 +148,15 @@ def release_workspace(
         cl_name: Optional ChangeSpec name to match (for more specific release)
 
     Returns:
-        True if release was successful, False otherwise
+        ClaimResult.  ``success`` is True on a successful release; on
+        failure ``error`` carries the reason (missing project file or a
+        captured exception's ``repr``).
     """
     if not os.path.exists(project_file):
-        return False
+        return ClaimResult(
+            success=False,
+            error=f"project file does not exist: {project_file}",
+        )
 
     try:
         with changespec_lock(project_file):
@@ -208,9 +229,9 @@ def release_workspace(
             project = os.path.splitext(os.path.basename(project_file))[0]
             WORKSPACE_RELEASES.labels(project=project).inc()
             WORKSPACE_ACTIVE.labels(project=project).dec()
-            return True
-    except Exception:
-        return False
+            return ClaimResult(success=True)
+    except (OSError, BlockingIOError) as exc:
+        return ClaimResult(success=False, error=repr(exc))
 
 
 def transfer_workspace_claim(
@@ -222,7 +243,7 @@ def transfer_workspace_claim(
     new_workflow: str,
     new_artifacts_timestamp: str | None,
     cl_name: str | None = None,
-) -> bool:
+) -> ClaimResult:
     """Atomically transfer ownership of an existing workspace claim to a new PID.
 
     Used by the spawn-on-retry flow to hand a workspace claim from a failing
@@ -230,10 +251,16 @@ def transfer_workspace_claim(
     other agents in between.  Updates the claim row in place under the
     ProjectSpec lock — the workspace slot stays continuously claimed.
 
-    Returns True iff the matching claim row was found and updated.
+    Returns:
+        ClaimResult.  ``success`` is True iff the matching claim row was
+        found and updated; ``error`` carries the Rust outcome reason on
+        rejection or ``repr(exc)`` on a Python-side failure.
     """
     if not os.path.exists(project_file):
-        return False
+        return ClaimResult(
+            success=False,
+            error=f"project file does not exist: {project_file}",
+        )
 
     try:
         with changespec_lock(project_file):
@@ -254,16 +281,20 @@ def transfer_workspace_claim(
             )
             outcome = dict(plan["outcome"])
             if not bool(outcome["success"]):
-                return False
+                reason = outcome.get("error") or (
+                    f"transfer of workspace #{workspace_num} from pid {from_pid} "
+                    "rejected by core"
+                )
+                return ClaimResult(success=False, error=str(reason))
 
             write_changespec_atomic(
                 project_file,
                 str(plan["content"]),
                 f"Transfer workspace #{workspace_num} from pid {from_pid} to {to_pid}",
             )
-            return True
-    except Exception:
-        return False
+            return ClaimResult(success=True)
+    except (OSError, BlockingIOError) as exc:
+        return ClaimResult(success=False, error=repr(exc))
 
 
 def update_running_field_cl_name(
@@ -369,7 +400,9 @@ def claim_next_axe_workspace(
         The claimed workspace number.
 
     Raises:
-        RuntimeError: If no workspace could be claimed.
+        WorkspaceClaimError: If no workspace could be claimed.  The message
+            includes the Rust outcome's ``error`` field when present so
+            callers / digests can see why.
     """
     max_retries = 2
     for attempt in range(1 + max_retries):
@@ -377,7 +410,7 @@ def claim_next_axe_workspace(
             if attempt < max_retries:
                 time.sleep(0.5)
                 continue
-            raise RuntimeError(f"Project file does not exist: {project_file}")
+            raise WorkspaceClaimError(f"Project file does not exist: {project_file}")
 
         try:
             with changespec_lock(project_file):
@@ -402,8 +435,8 @@ def claim_next_axe_workspace(
                 if not bool(outcome["success"]):
                     error = outcome.get("error")
                     if error:
-                        raise RuntimeError(f"{error} in {project_file}")
-                    raise RuntimeError(
+                        raise WorkspaceClaimError(f"{error} in {project_file}")
+                    raise WorkspaceClaimError(
                         f"All axe workspaces ({min_workspace}-{max_workspace}) "
                         f"are claimed in {project_file}"
                     )
@@ -419,18 +452,18 @@ def claim_next_axe_workspace(
                 WORKSPACE_ACQUISITIONS.labels(project=project).inc()
                 WORKSPACE_ACTIVE.labels(project=project).inc()
                 return workspace_num
-        except RuntimeError:
+        except WorkspaceClaimError:
             raise
-        except Exception as exc:
+        except (OSError, BlockingIOError) as exc:
             if attempt < max_retries:
                 time.sleep(0.5)
                 continue
-            raise RuntimeError(
+            raise WorkspaceClaimError(
                 f"Failed to claim axe workspace in {project_file} "
-                f"after {1 + max_retries} attempts"
+                f"after {1 + max_retries} attempts: {exc!r}"
             ) from exc
 
-    raise RuntimeError(
+    raise WorkspaceClaimError(
         f"Failed to claim axe workspace in {project_file} "
         f"after {1 + max_retries} attempts"
     )

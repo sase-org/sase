@@ -278,7 +278,7 @@ def test_launch_agent_from_cwd_known_project_ref_without_provider_is_not_home_wr
             return_value=spawn_result,
         ) as spawn,
         patch(
-            "sase.running_field.get_first_available_axe_workspace",
+            "sase.running_field.claim_next_axe_workspace",
             return_value=101,
         ) as first_ws,
         patch(
@@ -300,7 +300,9 @@ def test_launch_agent_from_cwd_known_project_ref_without_provider_is_not_home_wr
     assert kwargs["cl_name"] == "sase"
     assert kwargs["history_sort_key"] == "sase"
     assert kwargs["vcs_ref"] == ("gh", "sase")
-    first_ws.assert_called_once_with(project_file)
+    # Pre-claim under parent PID — atomic find+claim under the project lock.
+    first_ws.assert_called_once()
+    assert first_ws.call_args.args[0] == project_file
     ws_dir.assert_called_once_with(101, "sase")
 
 

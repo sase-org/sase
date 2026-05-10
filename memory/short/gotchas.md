@@ -20,3 +20,13 @@
   standalone `foo` but not `"update /path/to/foo/"`). A negative hit that doesn't cover any positive hit is a no-op. In
   YAML, `!`-prefixed entries MUST be quoted (`"!vendor"`) — an unquoted `!foo` is parsed as a YAML tag directive and
   errors at load time.
+- **Workspace claim failures** raise `WorkspaceClaimError` (a `RuntimeError` subclass exported from
+  `sase.running_field`). The retry wrapper in `launch_executor._spawn_slot_with_workspace_retry` catches by type rather
+  than string-prefix matching the exception message. `claim_workspace`, `release_workspace`, and
+  `transfer_workspace_claim` return `ClaimResult(success, error)` — the `error` field carries the Rust outcome's reason
+  or `repr(exc)` so failures surface a real diagnosis instead of a bare `False`.
+- **Never call `traceback.format_exc()` outside an active `except` block** — it returns the literal string
+  `"NoneType: None"` (because `sys.exc_info()` is empty). Capture the traceback inside the `except` (use
+  `axe.lumberjack._capture_traceback`) or set an explicit placeholder for non-exception failures (subprocess nonzero
+  exits, etc.). The lumberjack `_handle_error` fallback no longer calls `format_exc()` — every error-bearing
+  `_ChopResult` is responsible for carrying its own captured traceback.

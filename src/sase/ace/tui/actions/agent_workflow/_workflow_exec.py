@@ -328,17 +328,19 @@ class WorkflowExecMixin:
 
         # Claim workspace with subprocess PID
         workflow_field_name = f"workflow({workflow_name})"
-        if not claim_workspace(
+        claim_result = claim_workspace(
             ctx.project_file,
             ctx.workspace_num,
             workflow_field_name,
             process.pid,
             ctx.display_name,
             artifacts_timestamp=timestamp,
-        ):
+        )
+        if not claim_result.success:
+            err = claim_result.error or "unknown reason"
             self.call_later(  # type: ignore[attr-defined]
-                lambda: self.notify(  # type: ignore[attr-defined]
-                    "Failed to claim workspace", severity="error"
+                lambda err=err: self.notify(  # type: ignore[attr-defined]
+                    f"Failed to claim workspace: {err}", severity="error"
                 )
             )
             process.terminate()

@@ -10,6 +10,7 @@ from sase.ace.tui.actions.proposal_rebase import (
     _format_parent_for_timestamp,
     _rebase_task,
 )
+from sase.running_field import ClaimResult
 from sase.status_state_machine import update_changespec_parent_atomic
 from sase.status_state_machine.field_updates import _apply_parent_update
 
@@ -212,7 +213,9 @@ STATUS: Ready
     )
     monkeypatch.setattr(
         "sase.running_field.claim_workspace",
-        lambda project, workspace_num, workflow, pid, changespec: True,
+        lambda project, workspace_num, workflow, pid, changespec: ClaimResult(
+            success=True
+        ),
     )
     monkeypatch.setattr(
         "sase.running_field.release_workspace",

@@ -263,17 +263,19 @@ def _start_crs_workflow(
         return None
 
     # Now claim workspace with actual subprocess PID
-    if not claim_workspace(
+    claim_result = claim_workspace(
         changespec.file_path,
         workspace_num,
         workflow_name,
         pid,
         changespec.name,
         artifacts_timestamp=timestamp,
-    ):
+    )
+    if not claim_result.success:
         log(
             f"[WS#{workspace_num}] Warning: Failed to claim workspace for CRS on "
-            f"{changespec.name}, terminating subprocess",
+            f"{changespec.name}: {claim_result.error or 'unknown reason'}, "
+            "terminating subprocess",
             "yellow",
         )
         proc.terminate()

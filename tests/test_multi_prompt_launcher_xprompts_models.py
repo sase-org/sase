@@ -14,7 +14,7 @@ from sase.xprompt.models import XPrompt
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
-@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
+@patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
     side_effect=[("/ws1", None), ("/ws2", None)],
@@ -62,7 +62,7 @@ def test_launch_multi_prompt_passes_segment_local_xprompts_file(
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
-@patch("sase.running_field.get_first_available_axe_workspace", return_value=100)
+@patch("sase.running_field.claim_next_axe_workspace", return_value=100)
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
     return_value=("/ws", None),
@@ -108,7 +108,7 @@ def test_launch_multi_prompt_includes_transitive_local_xprompts(
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
-@patch("sase.running_field.get_first_available_axe_workspace")
+@patch("sase.running_field.claim_next_axe_workspace")
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
 )
@@ -163,7 +163,7 @@ def test_launch_multi_prompt_with_multi_model_segment(
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
-@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
+@patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
 @patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
@@ -202,7 +202,7 @@ def test_launch_multi_prompt_waits_on_last_multi_model_generated_name(
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
-@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
+@patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
 @patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
@@ -244,7 +244,7 @@ def test_launch_multi_prompt_waits_on_last_alt_generated_name(
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
-@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
+@patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
     side_effect=[("/ws1", None), ("/ws2", None)],

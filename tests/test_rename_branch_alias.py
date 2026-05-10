@@ -12,6 +12,9 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 from sase.ace.tui.actions.rename import RenameMixin
+from sase.running_field import ClaimResult
+
+_OK_CLAIM = ClaimResult(success=True)
 
 # Patches for lazy imports inside _execute_rename / run_handler.
 _PATCHES = {
@@ -63,7 +66,7 @@ def _make_changespec(
 @patch(_PATCHES["release"])
 @patch(_PATCHES["provider_fn"])
 @patch(_PATCHES["hg_clean"], return_value=(True, None))
-@patch(_PATCHES["claim"], return_value=True)
+@patch(_PATCHES["claim"], return_value=_OK_CLAIM)
 @patch(_PATCHES["running"])
 @patch(_PATCHES["parent_refs"])
 @patch(_PATCHES["update_name"])
@@ -114,7 +117,7 @@ def test_immutable_writes_alias_no_existing(
 @patch(_PATCHES["release"])
 @patch(_PATCHES["provider_fn"])
 @patch(_PATCHES["hg_clean"], return_value=(True, None))
-@patch(_PATCHES["claim"], return_value=True)
+@patch(_PATCHES["claim"], return_value=_OK_CLAIM)
 @patch(_PATCHES["running"])
 @patch(_PATCHES["parent_refs"])
 @patch(_PATCHES["update_name"])
@@ -163,7 +166,7 @@ def test_immutable_rekeys_existing_alias(
 @patch(_PATCHES["release"])
 @patch(_PATCHES["provider_fn"])
 @patch(_PATCHES["hg_clean"], return_value=(True, None))
-@patch(_PATCHES["claim"], return_value=True)
+@patch(_PATCHES["claim"], return_value=_OK_CLAIM)
 @patch(_PATCHES["running"])
 @patch(_PATCHES["parent_refs"])
 @patch(_PATCHES["update_name"])

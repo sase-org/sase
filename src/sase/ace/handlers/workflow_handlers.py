@@ -227,15 +227,18 @@ def handle_run_fix_hook_workflow(
     )
 
     # Claim the workspace
-    claim_success = claim_workspace(
+    claim_result = claim_workspace(
         changespec.file_path,
         workspace_num,
         "fix-hook",
         os.getpid(),
         changespec.name,
     )
-    if not claim_success:
-        self.console.print("[red]Error: Failed to claim workspace[/red]")
+    if not claim_result.success:
+        self.console.print(
+            "[red]Error: Failed to claim workspace: "
+            f"{claim_result.error or 'unknown reason'}[/red]"
+        )
         return changespecs, current_idx
 
     if workspace_suffix:

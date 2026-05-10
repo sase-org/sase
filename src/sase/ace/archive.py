@@ -103,10 +103,15 @@ def archive_changespec(
     if console:
         console.print(f"[cyan]Claiming workspace #{workspace_num}[/cyan]")
 
-    if not claim_workspace(
+    claim_result = claim_workspace(
         changespec.file_path, workspace_num, workflow_name, pid, changespec.name
-    ):
-        return (False, f"Failed to claim workspace #{workspace_num}")
+    )
+    if not claim_result.success:
+        return (
+            False,
+            f"Failed to claim workspace #{workspace_num}: "
+            f"{claim_result.error or 'unknown reason'}",
+        )
 
     try:
         # Checkout the CL

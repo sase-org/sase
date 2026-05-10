@@ -288,6 +288,41 @@ def test_spawn_prepared_agent_process_cleans_up_on_claim_failure(
     assert not _pid_alive(seen_pid[0])
 
 
+@pytest.mark.skipif(os.name != "posix", reason="uses POSIX pid liveness check")
+def test_spawn_prepared_agent_process_propagates_workspace_claim_error_type(
+    tmp_path: Path,
+) -> None:
+    """The pyo3/FFI boundary must preserve WorkspaceClaimError's type."""
+    pytest.importorskip("sase_core_rs")
+    from sase.running_field import WorkspaceClaimError
+
+    seen_pid: list[int] = []
+    prepared = _prepared_process(
+        tmp_path,
+        [sys.executable, "-c", "import time; time.sleep(60)"],
+    )
+
+    def fail_claim(pid: int) -> bool:
+        seen_pid.append(pid)
+        raise WorkspaceClaimError(
+            "Failed to claim workspace #100: simulated race", workspace_num=100
+        )
+
+    with pytest.raises(WorkspaceClaimError, match="simulated race") as excinfo:
+        spawn_prepared_agent_process(
+            prepared,
+            env=dict(os.environ),
+            claim_callback=fail_claim,
+        )
+
+    assert excinfo.value.workspace_num == 100
+    assert seen_pid
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline and _pid_alive(seen_pid[0]):
+        time.sleep(0.02)
+    assert not _pid_alive(seen_pid[0])
+
+
 def test_fanout_plan_round_trips_slots() -> None:
     plan = LaunchFanoutPlanWire(
         schema_version=AGENT_LAUNCH_WIRE_SCHEMA_VERSION,

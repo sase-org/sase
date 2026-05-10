@@ -27,3 +27,7 @@
   (in `agent_meta.json` / `done.json`): `retry_of_timestamp` (backward), `retried_as_timestamp` (forward),
   `retry_chain_root_timestamp` (root), `retry_attempt` (depth). State is carried across the boundary by
   `retry_handoff.json` written to the parent's artifacts dir. Spawn lives in `src/sase/axe/run_agent_retry_spawn.py`.
+  The regular launch path (`launch_executor._spawn_slot_with_workspace_retry`) now uses the same atomic primitives: it
+  pre-claims a workspace under the parent PID via `claim_next_axe_workspace`, then the spawn callback transfers the
+  claim to the child PID via `transfer_workspace_claim` — so the slot stays continuously claimed across the parent →
+  child handoff. On spawn failure the parent claim is released so the slot doesn't leak across retries.

@@ -56,10 +56,14 @@ def _rebase_task(
         return (False, f"Failed to get workspace directory: {e}")
 
     pid = os.getpid()
-    if not claim_workspace(
+    claim_result = claim_workspace(
         changespec_file_path, workspace_num, workflow_name, pid, changespec_name
-    ):
-        return (False, "Failed to claim workspace")
+    )
+    if not claim_result.success:
+        return (
+            False,
+            f"Failed to claim workspace: {claim_result.error or 'unknown reason'}",
+        )
 
     try:
         # Clean workspace before switching branches

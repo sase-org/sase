@@ -311,10 +311,14 @@ class BaseActionsMixin:
         # Claim workspace before suspend (needed for both prepare and execute)
         workspace_num = get_first_available_axe_workspace(project_file)
 
-        if not claim_workspace(
+        claim_result = claim_workspace(
             project_file, workspace_num, "mail", os.getpid(), cl_name
-        ):
-            self.notify("Failed to claim workspace", severity="error")  # type: ignore[attr-defined]
+        )
+        if not claim_result.success:
+            self.notify(  # type: ignore[attr-defined]
+                f"Failed to claim workspace: {claim_result.error or 'unknown reason'}",
+                severity="error",
+            )
             return
 
         try:

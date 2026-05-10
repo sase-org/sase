@@ -4,6 +4,32 @@ import re
 from dataclasses import dataclass
 
 
+@dataclass(frozen=True)
+class ClaimResult:
+    """Outcome of a workspace claim/release/transfer operation.
+
+    ``success`` is the headline outcome; ``error`` carries the human-readable
+    reason on failure (sourced from the Rust outcome dict when the Rust core
+    rejected the claim, or ``repr(exc)`` when a Python exception was caught).
+    """
+
+    success: bool
+    error: str | None = None
+
+
+class WorkspaceClaimError(RuntimeError):
+    """Raised when a workspace claim or transfer fails.
+
+    Subclasses ``RuntimeError`` so existing ``except RuntimeError`` blocks
+    continue to handle it; the retry wrapper in ``launch_executor`` catches
+    this type explicitly so the predicate doesn't depend on a string match.
+    """
+
+    def __init__(self, message: str, *, workspace_num: int | None = None) -> None:
+        super().__init__(message)
+        self.workspace_num = workspace_num
+
+
 @dataclass
 class WorkspaceClaim:
     """Represents a single workspace claim in the RUNNING field."""

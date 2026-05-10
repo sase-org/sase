@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.axe.run_agent_phases import _AgentInfo
+from sase.running_field import ClaimResult
 from sase.llm_provider.retry_config import (
     RETRY_STATE_FILENAME,
     ProviderRetryConfig,
@@ -454,7 +455,7 @@ class TestDeferredWorkspacePreparation:
 
         workspace_dir = tmp_path / "ws7"
         release_mock = MagicMock()
-        claim_mock = MagicMock(return_value=True)
+        claim_mock = MagicMock(return_value=ClaimResult(success=True))
 
         with (
             patch("sase.running_field.release_workspace", release_mock),
@@ -489,7 +490,12 @@ class TestDeferredWorkspacePreparation:
 
         monkeypatch.setenv("SASE_AGENT_WORKSPACE_ALLOCATION_MAX_RETRIES", "2")
         release_mock = MagicMock()
-        claim_mock = MagicMock(side_effect=[False, True])
+        claim_mock = MagicMock(
+            side_effect=[
+                ClaimResult(success=False, error="claim race"),
+                ClaimResult(success=True),
+            ]
+        )
 
         with (
             patch("sase.running_field.release_workspace", release_mock),
@@ -544,7 +550,10 @@ class TestDeferredWorkspacePreparation:
                     (str(tmp_path / "ws8"), None),
                 ],
             ),
-            patch("sase.running_field.claim_workspace", return_value=False),
+            patch(
+                "sase.running_field.claim_workspace",
+                return_value=ClaimResult(success=False, error="claim rejected"),
+            ),
             patch("sase.axe.run_agent_phases.os.chdir") as chdir_mock,
         ):
             with pytest.raises(SystemExit) as exc_info:

@@ -116,15 +116,18 @@ class RewindWorkflow:
         )
 
         # Claim the workspace
-        claim_success = claim_workspace(
+        claim_result = claim_workspace(
             project_file,
             workspace_num,
             "rewind",
             os.getpid(),
             cl_name,
         )
-        if not claim_success:
-            return (False, "Failed to claim workspace")
+        if not claim_result.success:
+            return (
+                False,
+                f"Failed to claim workspace: {claim_result.error or 'unknown reason'}",
+            )
 
         if workspace_suffix:
             print_status(f"Using workspace share: {workspace_suffix}", "progress")

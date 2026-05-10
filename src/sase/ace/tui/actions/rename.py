@@ -142,10 +142,15 @@ class RenameMixin:
 
             # Claim workspace
             pid = os.getpid()
-            if not claim_workspace(
+            claim_result = claim_workspace(
                 changespec.file_path, workspace_num, workflow_name, pid, old_name
-            ):
-                return (False, "Failed to claim workspace")
+            )
+            if not claim_result.success:
+                return (
+                    False,
+                    "Failed to claim workspace: "
+                    f"{claim_result.error or 'unknown reason'}",
+                )
 
             try:
                 # Clean workspace before switching branches

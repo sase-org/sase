@@ -360,7 +360,7 @@ class TestTransferWorkspaceClaim:
             pid=11111,
             cl_name="branch-x",
             artifacts_timestamp="20260424120000",
-        )
+        ).success
 
         ok = transfer_workspace_claim(
             project_file,
@@ -371,7 +371,7 @@ class TestTransferWorkspaceClaim:
             new_artifacts_timestamp="20260424130000",
             cl_name="branch-x",
         )
-        assert ok is True
+        assert ok.success is True
 
         claims = get_claimed_workspaces(project_file)
         assert len(claims) == 1
@@ -397,8 +397,8 @@ class TestTransferWorkspaceClaim:
             pid=11111,
             cl_name="branch-x",
             artifacts_timestamp="20260424120000",
-        )
-        # Wrong from_pid → returns False, no change
+        ).success
+        # Wrong from_pid → returns failure ClaimResult with reason, no change
         ok = transfer_workspace_claim(
             project_file,
             workspace_num=42,
@@ -408,7 +408,8 @@ class TestTransferWorkspaceClaim:
             new_artifacts_timestamp="20260424130000",
             cl_name="branch-x",
         )
-        assert ok is False
+        assert ok.success is False
+        assert ok.error is not None
 
 
 # ---------------------------------------------------------------------------

@@ -150,6 +150,12 @@ def _run_launch_body_with_common_patches(app: _LaunchBodyApp, prompt: str) -> No
         )
         stack.enter_context(
             patch(
+                "sase.running_field.claim_next_axe_workspace",
+                return_value=100,
+            )
+        )
+        stack.enter_context(
+            patch(
                 "sase.running_field.get_workspace_directory_for_num",
                 return_value=("/tmp/ws100", None),
             )
@@ -514,7 +520,7 @@ def test_run_agent_launch_body_known_project_ref_without_provider_targets_projec
         )
         first_ws = stack.enter_context(
             patch(
-                "sase.running_field.get_first_available_axe_workspace",
+                "sase.running_field.claim_next_axe_workspace",
                 return_value=101,
             )
         )
@@ -549,7 +555,8 @@ def test_run_agent_launch_body_known_project_ref_without_provider_targets_projec
     assert launch["is_home_mode"] is False
     assert launch["update_target"] == VCS_DEFAULT_REVISION
     assert launch["vcs_ref"] == ("gh", "sase")
-    first_ws.assert_called_once_with(project_file)
+    first_ws.assert_called_once()
+    assert first_ws.call_args.args[0] == project_file
     ws_dir.assert_called_once_with(101, "sase")
 
 

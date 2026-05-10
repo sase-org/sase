@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.running_field import ClaimResult
 from tests._cd_launch_resolution_helpers import patch_cd_git_metadata
 
 
@@ -102,8 +103,14 @@ def test_spawn_git_home_sets_preallocated_workspace_env(
             "sase.core.agent_launch_facade.spawn_prepared_agent_process",
             side_effect=fake_spawn,
         ),
-        patch("sase.running_field.claim_workspace", return_value=True) as claim,
-        patch("sase.running_field.transfer_workspace_claim") as transfer,
+        patch(
+            "sase.running_field.claim_workspace",
+            return_value=ClaimResult(success=True),
+        ) as claim,
+        patch(
+            "sase.running_field.transfer_workspace_claim",
+            return_value=ClaimResult(success=True),
+        ) as transfer,
         patch("sase.axe.chop_agents.record_chop_agent_launch_from_env"),
     ):
         spawn_agent_subprocess(

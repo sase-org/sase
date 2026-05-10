@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import os
 from unittest.mock import patch
 
 import pytest
@@ -67,6 +68,7 @@ def test_execute_single_launch_plan_uses_preallocated_context_and_timestamp() ->
         "deferred_workspace": False,
         "local_xprompts_file": None,
         "extra_env": None,
+        "retry_transfer_from_pid": None,
     }
 
 
@@ -84,7 +86,7 @@ def test_execute_fanout_plan_allocates_workspace_per_slot_and_merges_env() -> No
 
     with (
         patch(
-            "sase.running_field.get_first_available_axe_workspace",
+            "sase.running_field.claim_next_axe_workspace",
             side_effect=[10, 11],
         ),
         patch(
@@ -116,12 +118,21 @@ def test_execute_fanout_plan_allocates_workspace_per_slot_and_merges_env() -> No
         {"BASE": "1", "SLOT": "0"},
         {"BASE": "1", "SLOT": "1"},
     ]
+    # Pre-claimed slot is transferred to the spawned child via the
+    # transfer_from_pid mechanism; ensure both slots carry it.
+    parent_pid = os.getpid()
+    assert [request.transfer_from_pid for request in requests] == [
+        parent_pid,
+        parent_pid,
+    ]
     assert executed == ["260501_120000", "260501_120001"]
 
 
 def test_workspace_claim_failure_retries_with_new_allocation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from sase.running_field import WorkspaceClaimError
+
     plan = plan_fake_fanout("single", ["do work"])
     requests: list[LaunchSpawnRequest] = []
     monkeypatch.setenv("SASE_AGENT_WORKSPACE_ALLOCATION_MAX_RETRIES", "2")
@@ -129,18 +140,26 @@ def test_workspace_claim_failure_retries_with_new_allocation(
     def _spawn(request: LaunchSpawnRequest) -> AgentLaunchResult:
         requests.append(request)
         if len(requests) == 1:
-            raise RuntimeError("Failed to claim workspace #100")
+            raise WorkspaceClaimError(
+                "Failed to claim workspace #100: workspace #100 is already claimed",
+                workspace_num=100,
+            )
         return _result_for(request)
 
+    released: list[tuple[int, str | None]] = []
     with (
         patch(
-            "sase.running_field.get_first_available_axe_workspace",
+            "sase.running_field.claim_next_axe_workspace",
             side_effect=[100, 101],
         ) as first_ws,
         patch(
             "sase.running_field.get_workspace_directory_for_num",
             side_effect=[("/workspace/100", None), ("/workspace/101", None)],
         ) as ws_dir,
+        patch(
+            "sase.running_field.release_workspace",
+            side_effect=lambda pf, n, wf, cl: released.append((n, cl)),
+        ) as release,
     ):
         execution = execute_launch_plan(
             plan,
@@ -157,25 +176,32 @@ def test_workspace_claim_failure_retries_with_new_allocation(
     assert [request.workspace_num for request in requests] == [100, 101]
     assert first_ws.call_count == 2
     assert ws_dir.call_count == 2
+    # Workspace #100 must be released after the failed spawn attempt so the
+    # slot doesn't leak across the retry boundary.
+    assert release.call_count == 1
+    assert released == [(100, "change")]
 
 
 def test_workspace_claim_retry_exhaustion_raises_clear_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from sase.running_field import WorkspaceClaimError
+
     monkeypatch.setenv("SASE_AGENT_WORKSPACE_ALLOCATION_MAX_RETRIES", "1")
 
     with (
         patch(
-            "sase.running_field.get_first_available_axe_workspace",
+            "sase.running_field.claim_next_axe_workspace",
             side_effect=[100, 101],
         ),
         patch(
             "sase.running_field.get_workspace_directory_for_num",
             side_effect=[("/workspace/100", None), ("/workspace/101", None)],
         ),
+        patch("sase.running_field.release_workspace"),
     ):
         with pytest.raises(
-            RuntimeError,
+            WorkspaceClaimError,
             match=(
                 r"Failed to claim an available workspace for project/change "
                 r"after 2 attempts"
@@ -189,7 +215,10 @@ def test_workspace_claim_retry_exhaustion_raises_clear_error(
                     project_name="project",
                 ),
                 spawn=lambda _request: (_ for _ in ()).throw(
-                    RuntimeError("Failed to claim workspace #100")
+                    WorkspaceClaimError(
+                        "Failed to claim workspace #100: race lost",
+                        workspace_num=100,
+                    )
                 ),
                 base_timestamp="ts",
             )

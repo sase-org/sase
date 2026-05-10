@@ -3,6 +3,7 @@
 import os
 from unittest.mock import MagicMock, patch
 
+from sase.running_field import ClaimResult
 from sase.ace.handlers.reword import (
     _add_prettier_ignore_before_tags,
     _fetch_cl_description,
@@ -208,7 +209,7 @@ def test_handle_reword_prepare_returns_edited_description(
     "sase.running_field.get_workspace_directory_for_num",
     return_value=("/ws", "fig_101"),
 )
-@patch("sase.running_field.claim_workspace", return_value=True)
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
 @patch("sase.running_field.get_first_available_axe_workspace", return_value=101)
 @patch("sase.running_field.release_workspace")
 def test_reword_execute_task_full_flow(
@@ -248,7 +249,7 @@ def test_reword_execute_task_full_flow(
     "sase.running_field.get_workspace_directory_for_num",
     return_value=("/ws", "fig_101"),
 )
-@patch("sase.running_field.claim_workspace", return_value=True)
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
 @patch("sase.running_field.get_first_available_axe_workspace", return_value=101)
 @patch("sase.running_field.release_workspace")
 def test_reword_execute_task_checkout_fails(
@@ -277,7 +278,10 @@ def test_reword_execute_task_checkout_fails(
     "sase.running_field.get_workspace_directory_for_num",
     return_value=("/ws", "fig_101"),
 )
-@patch("sase.running_field.claim_workspace", return_value=False)
+@patch(
+    "sase.running_field.claim_workspace",
+    return_value=ClaimResult(success=False, error="workspace #101 is already claimed"),
+)
 @patch("sase.running_field.get_first_available_axe_workspace", return_value=101)
 def test_reword_execute_task_workspace_claim_fails(
     _mock_first_ws: MagicMock,

@@ -140,10 +140,14 @@ class AcceptMailMixin(HintMixinBase):
         # Claim a workspace in the 100-199 range
         workspace_num = get_first_available_axe_workspace(changespec.file_path)
 
-        if not claim_workspace(
+        claim_result = claim_workspace(
             changespec.file_path, workspace_num, "mail", os.getpid(), changespec.name
-        ):
-            self.notify("Failed to claim workspace", severity="error")  # type: ignore[attr-defined]
+        )
+        if not claim_result.success:
+            self.notify(  # type: ignore[attr-defined]
+                f"Failed to claim workspace: {claim_result.error or 'unknown reason'}",
+                severity="error",
+            )
             return
 
         try:

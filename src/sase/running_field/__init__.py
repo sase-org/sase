@@ -14,7 +14,11 @@ Where:
 - CL_NAME is the ChangeSpec name being worked on (optional, can be empty)
 """
 
-from sase.running_field._model import WorkspaceClaim
+from sase.running_field._model import (
+    ClaimResult,
+    WorkspaceClaim,
+    WorkspaceClaimError,
+)
 from sase.running_field._operations import (
     claim_next_axe_workspace,
     claim_workspace,
@@ -31,7 +35,9 @@ from sase.running_field._workspace import (
 )
 
 __all__ = [
+    "ClaimResult",
     "WorkspaceClaim",
+    "WorkspaceClaimError",
     "claim_next_axe_workspace",
     "claim_workspace",
     "get_claimed_workspaces",

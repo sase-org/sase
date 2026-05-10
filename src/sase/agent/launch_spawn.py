@@ -103,7 +103,11 @@ def spawn_agent_subprocess(
         AgentLaunchRequestWire,
     )
     from sase.core.paths import get_sase_tmpdir, sharded_path
-    from sase.running_field import claim_workspace, transfer_workspace_claim
+    from sase.running_field import (
+        WorkspaceClaimError,
+        claim_workspace,
+        transfer_workspace_claim,
+    )
 
     timer = LaunchTimingRecorder(
         "agent_launch_spawn",
@@ -189,7 +193,7 @@ def spawn_agent_subprocess(
             claim_request = prepared.claim_request
             claim_num = claim_request.workspace_num
             if claim_request.transfer_from_pid is not None:
-                transferred = transfer_workspace_claim(
+                result = transfer_workspace_claim(
                     claim_request.project_file,
                     claim_num,
                     from_pid=claim_request.transfer_from_pid,
@@ -198,22 +202,30 @@ def spawn_agent_subprocess(
                     new_artifacts_timestamp=artifacts_timestamp,
                     cl_name=claim_request.cl_name,
                 )
-                if not transferred:
+                if not result.success:
                     timer.finish(outcome="claim_failed")
-                    raise RuntimeError(
+                    raise WorkspaceClaimError(
                         f"Failed to transfer workspace #{claim_num} from "
-                        f"pid {claim_request.transfer_from_pid}"
+                        f"pid {claim_request.transfer_from_pid}: "
+                        f"{result.error or 'unknown reason'}",
+                        workspace_num=claim_num,
                     )
-            elif not claim_workspace(
-                claim_request.project_file,
-                claim_num,
-                claim_request.workflow_name,
-                pid,
-                claim_request.cl_name,
-                artifacts_timestamp=artifacts_timestamp,
-            ):
-                timer.finish(outcome="claim_failed")
-                raise RuntimeError(f"Failed to claim workspace #{claim_num}")
+            else:
+                result = claim_workspace(
+                    claim_request.project_file,
+                    claim_num,
+                    claim_request.workflow_name,
+                    pid,
+                    claim_request.cl_name,
+                    artifacts_timestamp=artifacts_timestamp,
+                )
+                if not result.success:
+                    timer.finish(outcome="claim_failed")
+                    raise WorkspaceClaimError(
+                        f"Failed to claim workspace #{claim_num}: "
+                        f"{result.error or 'unknown reason'}",
+                        workspace_num=claim_num,
+                    )
         else:
             # Ensure home project directory and file exist
             home_project_dir = os.path.expanduser("~/.sase/projects/home")

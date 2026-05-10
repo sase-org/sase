@@ -39,10 +39,12 @@ _PATCH_WORKFLOW = "sase.xprompt.execute_workflow"
 @pytest.fixture
 def _patch_running_field():
     """Patch workspace management functions with sensible defaults."""
+    from sase.running_field import ClaimResult
+
     with (
         patch(_PATCH_GET_FIRST, return_value=100) as m_first,
         patch(_PATCH_GET_DIR, return_value=("/ws/100", None)) as m_dir,
-        patch(_PATCH_CLAIM, return_value=True) as m_claim,
+        patch(_PATCH_CLAIM, return_value=ClaimResult(success=True)) as m_claim,
         patch(_PATCH_RELEASE) as m_release,
     ):
         yield {
@@ -116,7 +118,11 @@ class TestSyncTaskFailure:
         assert "Failed to get workspace directory" in message
 
     def test_returns_failure_on_claim_failure(self, _patch_running_field) -> None:
-        _patch_running_field["claim"].return_value = False
+        from sase.running_field import ClaimResult
+
+        _patch_running_field["claim"].return_value = ClaimResult(
+            success=False, error="claim rejected"
+        )
         success, message = _sync_task("CL-1", "/proj.gp", "proj")
 
         assert success is False
@@ -216,7 +222,11 @@ class TestSyncTaskWorkspaceLifecycle:
     def test_workspace_not_released_on_claim_failure(
         self, _patch_running_field
     ) -> None:
-        _patch_running_field["claim"].return_value = False
+        from sase.running_field import ClaimResult
+
+        _patch_running_field["claim"].return_value = ClaimResult(
+            success=False, error="claim rejected"
+        )
         _sync_task("CL-1", "/proj.gp", "proj")
 
         _patch_running_field["release"].assert_not_called()

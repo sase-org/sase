@@ -292,16 +292,18 @@ def _start_stale_hooks_for_proposal(
         workspace_num = get_first_available_axe_workspace(changespec.file_path)
         newly_claimed = True
 
-        if not claim_workspace(
+        claim_result = claim_workspace(
             changespec.file_path,
             workspace_num,
             proposal_workflow,
             os.getpid(),
             changespec.name,
-        ):
+        )
+        if not claim_result.success:
             log(
                 f"[WS#{workspace_num}] Warning: Failed to claim workspace for proposal "
-                f"{entry_id} on {changespec.name}",
+                f"{entry_id} on {changespec.name}: "
+                f"{claim_result.error or 'unknown reason'}",
                 "yellow",
             )
             return updates, started_hooks, limited_count
@@ -541,16 +543,17 @@ def _start_stale_hooks_shared_workspace(
         workspace_num = get_first_available_axe_workspace(changespec.file_path)
         newly_claimed = True
 
-        if not claim_workspace(
+        claim_result = claim_workspace(
             changespec.file_path,
             workspace_num,
             entry_workflow,
             os.getpid(),
             changespec.name,
-        ):
+        )
+        if not claim_result.success:
             log(
                 f"[WS#{workspace_num}] Warning: Failed to claim workspace for hooks on "
-                f"{changespec.name}",
+                f"{changespec.name}: {claim_result.error or 'unknown reason'}",
                 "yellow",
             )
             return updates, started_hooks, limited_count

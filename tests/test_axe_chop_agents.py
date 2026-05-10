@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.agent.launcher import spawn_agent_subprocess
+from sase.running_field import ClaimResult
 from sase.axe.chop_agents import (
     ENV_CHOP_LUMBERJACK,
     ENV_CHOP_NAME,
@@ -104,7 +105,7 @@ def test_agent_meta_from_chop_env() -> None:
     }
 
 
-@patch("sase.running_field.claim_workspace", return_value=True)
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
 @patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
 def test_spawn_agent_subprocess_removes_inherited_sase_codex_home(
     mock_spawn: MagicMock,
@@ -125,7 +126,7 @@ def test_spawn_agent_subprocess_removes_inherited_sase_codex_home(
     assert "CODEX_HOME" not in env
 
 
-@patch("sase.running_field.claim_workspace", return_value=True)
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
 @patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
 def test_spawn_agent_subprocess_preserves_custom_codex_home(
     mock_spawn: MagicMock,
@@ -146,7 +147,7 @@ def test_spawn_agent_subprocess_preserves_custom_codex_home(
     assert env["CODEX_HOME"] == str(custom_home)
 
 
-@patch("sase.running_field.claim_workspace", return_value=True)
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
 @patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
 def test_spawn_agent_subprocess_extra_env_codex_home_wins(
     mock_spawn: MagicMock,
@@ -171,7 +172,7 @@ def test_spawn_agent_subprocess_extra_env_codex_home_wins(
     assert env["CODEX_HOME"] == str(explicit_shadow)
 
 
-@patch("sase.running_field.claim_workspace", return_value=True)
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
 @patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
 def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     mock_spawn: MagicMock,
@@ -259,7 +260,7 @@ def test_live_records_prune_when_done_marker_exists(
     assert get_live_chop_agent_records("hooks", chop_name="split") == []
 
 
-@patch("sase.running_field.claim_workspace", return_value=True)
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
 @patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
 def test_spawn_agent_subprocess_prepares_vcs_and_local_xprompt_env(
     mock_spawn: MagicMock,
@@ -311,7 +312,7 @@ def test_spawn_agent_subprocess_prepares_vcs_and_local_xprompt_env(
     assert mock_claim.call_args.args[1] == 0
 
 
-@patch("sase.running_field.claim_workspace", return_value=True)
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
 @patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
 def test_spawn_agent_subprocess_does_not_record_without_chop_env(
     mock_spawn: MagicMock,

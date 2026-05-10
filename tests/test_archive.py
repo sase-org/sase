@@ -4,6 +4,9 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from sase.ace.archive import archive_changespec
+from sase.running_field import ClaimResult
+
+_OK_CLAIM = ClaimResult(success=True)
 
 
 def test_archive_changespec_fails_without_cl(make_changespec) -> None:  # type: ignore[no-untyped-def]
@@ -36,7 +39,7 @@ def test_archive_changespec_fails_with_non_terminal_children(make_changespec) ->
                 "sase.ace.archive.get_workspace_directory_for_num",
                 return_value=("/tmp", None),
             ):
-                with patch("sase.ace.archive.claim_workspace", return_value=True):
+                with patch("sase.ace.archive.claim_workspace", return_value=_OK_CLAIM):
                     with patch(
                         "sase.ace.archive.get_vcs_provider", return_value=mock_provider
                     ):
@@ -71,7 +74,7 @@ def test_archive_changespec_claims_workspace_100_plus(make_changespec) -> None: 
                 return_value=("/tmp", None),
             ):
                 with patch(
-                    "sase.ace.archive.claim_workspace", return_value=True
+                    "sase.ace.archive.claim_workspace", return_value=_OK_CLAIM
                 ) as mock_claim:
                     with patch(
                         "sase.ace.archive.get_vcs_provider", return_value=mock_provider
@@ -119,7 +122,7 @@ def test_archive_changespec_fails_on_archive_error(make_changespec) -> None:  # 
                 "sase.ace.archive.get_workspace_directory_for_num",
                 return_value=("/tmp", None),
             ):
-                with patch("sase.ace.archive.claim_workspace", return_value=True):
+                with patch("sase.ace.archive.claim_workspace", return_value=_OK_CLAIM):
                     with patch(
                         "sase.ace.archive.get_vcs_provider", return_value=mock_provider
                     ):
@@ -152,7 +155,7 @@ def test_archive_changespec_releases_workspace_on_failure(make_changespec) -> No
                 "sase.ace.archive.get_workspace_directory_for_num",
                 return_value=("/tmp", None),
             ):
-                with patch("sase.ace.archive.claim_workspace", return_value=True):
+                with patch("sase.ace.archive.claim_workspace", return_value=_OK_CLAIM):
                     with patch(
                         "sase.ace.archive.get_vcs_provider", return_value=mock_provider
                     ):

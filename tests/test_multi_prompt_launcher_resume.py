@@ -15,7 +15,7 @@ from sase.xprompt.models import XPrompt
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
 @patch(
-    "sase.running_field.get_first_available_axe_workspace",
+    "sase.running_field.claim_next_axe_workspace",
     side_effect=[100, 101, 102],
 )
 @patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
@@ -55,7 +55,7 @@ def test_launch_multi_prompt_rewrites_bare_resume_to_explicit_previous_name(
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
 @patch("sase.agent.names.get_active_agent_names", return_value=set())
-@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
+@patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
 @patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
@@ -97,7 +97,7 @@ def test_launch_multi_prompt_plans_auto_name_for_bare_resume_predecessor(
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/artifacts/alpha")
-@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
+@patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
     side_effect=[("/ws1", None), ("/ws2", None)],
@@ -139,7 +139,7 @@ def test_launch_multi_prompt_polls_for_unplanned_resume_predecessor(
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
-@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
+@patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
 @patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
@@ -201,7 +201,7 @@ def test_bare_resume_rewrite_ignores_explicit_fenced_and_disabled_regions() -> N
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
 @patch(
-    "sase.running_field.get_first_available_axe_workspace",
+    "sase.running_field.claim_next_axe_workspace",
     side_effect=[100, 101, 102],
 )
 @patch("sase.running_field.get_workspace_directory", return_value="/ws/main")

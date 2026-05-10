@@ -344,7 +344,7 @@ def test_multi_model_launch_runs_off_main_thread_and_unifies_refresh() -> None:
     app = _MultiModelApp()
     ctx = _ctx()
 
-    with patch("sase.running_field.get_first_available_axe_workspace", return_value=2):
+    with patch("sase.running_field.claim_next_axe_workspace", return_value=2):
         with patch(
             "sase.running_field.get_workspace_directory_for_num",
             return_value=("/tmp/ws", None),
@@ -396,7 +396,7 @@ def test_repeat_launch_runs_off_main_thread_and_unifies_refresh() -> None:
             base_spawn_fn(spec)
         return specs
 
-    with patch("sase.running_field.get_first_available_axe_workspace", return_value=2):
+    with patch("sase.running_field.claim_next_axe_workspace", return_value=2):
         with patch(
             "sase.running_field.get_workspace_directory_for_num",
             return_value=("/tmp/ws", None),

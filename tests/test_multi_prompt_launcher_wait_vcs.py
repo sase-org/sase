@@ -10,7 +10,7 @@ from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
-@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
+@patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
 @patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
@@ -48,7 +48,7 @@ def test_launch_multi_prompt_rewrites_bare_wait_to_explicit_previous_name(
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
 @patch("sase.agent.names.get_active_agent_names", return_value=set())
-@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
+@patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
 @patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
