@@ -1,5 +1,7 @@
 ---
 title: PNG-only ACE visual snapshots
+bead_id: sase-2p
+tier: epic
 create_time: 2026-05-10 01:05:51
 status: wip
 prompt: sdd/prompts/202605/png_only_visual_snapshots.md
