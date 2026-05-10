@@ -15,14 +15,14 @@ def test_badge_markup_claude_contains_provider_and_model() -> None:
     markup = _provider_badge_markup("claude", "opus")
     assert "CLAUDE" in markup
     assert "opus" in markup
-    assert "#FF5F00" in markup
+    assert "#D97757" in markup
 
 
 def test_badge_markup_codex_uses_lime_theme() -> None:
     markup = _provider_badge_markup("codex", "o3")
     assert "CODEX" in markup
     assert "o3" in markup
-    assert "#87FF00" in markup
+    assert "#10A37F" in markup
 
 
 def test_badge_markup_gemini_uses_google_blue() -> None:
@@ -34,8 +34,9 @@ def test_badge_markup_gemini_uses_google_blue() -> None:
 
 def test_badge_markup_unknown_provider_falls_back_to_plain_label() -> None:
     markup = _provider_badge_markup("mystery", "x1")
-    # Falls back to format_provider_model_label output with neutral muted color
-    assert "MYSTERY(x1)" in markup
+    assert "MYSTERY" in markup
+    assert "x1" in markup
+    assert "#AF87D7" in markup
 
 
 def test_badge_markup_infers_claude_from_model_name() -> None:

@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Container
@@ -14,6 +15,7 @@ from sase.ace.tui.actions.navigation.jump_hints import (
     build_jump_hint_maps,
     normalize_jump_key,
 )
+from sase.ace.tui.provider_styles import model_option_text, provider_header_text
 
 from .base import FilterInput, OptionListNavigationMixin
 
@@ -33,6 +35,7 @@ class _ModelPickerRow:
     provider: str | None = None
     model_id: str | None = None
     alias: str | None = None
+    model_count: int | None = None
 
     @property
     def disabled(self) -> bool:
@@ -80,9 +83,10 @@ def _build_model_rows(*, include_default_option: bool = True) -> list[_ModelPick
         rows.append(
             _ModelPickerRow(
                 kind="provider",
-                label=f"  {provider.upper()}",
+                label=f"  {provider.upper()}  {len(models)} models",
                 option_id=f"__header_{provider}__",
                 provider=provider,
+                model_count=len(models),
             )
         )
         for model in models:
@@ -181,11 +185,26 @@ def _rows_to_options(
             row.kind == "provider" or row.kind == "custom" or previous_kind == "default"
         ):
             items.append(None)
-        label = row.label
-        if jump_hints is not None and not row.disabled:
+        label: str | Text
+        if row.kind == "provider" and row.provider is not None:
+            label = provider_header_text(row.provider, row.model_count or 0)
+        elif row.kind == "model" and row.model_id is not None:
+            label = model_option_text(
+                provider=row.provider,
+                model_id=row.model_id,
+                alias=row.alias,
+                hint=jump_hints.get(row.option_id) if jump_hints else None,
+            )
+        elif jump_hints is not None and not row.disabled:
             hint = jump_hints.get(row.option_id)
+            label = Text()
             if hint is not None:
-                label = f"[{hint}] {label}"
+                label.append(f"{hint:>2} ", style="bold #87D7FF")
+            else:
+                label.append("   ")
+            label.append(row.label)
+        else:
+            label = row.label
         items.append(Option(label, id=row.option_id, disabled=row.disabled))
         previous_kind = row.kind
     return items

@@ -396,9 +396,9 @@ ModelPickerModal {
 }
 
 #model-picker-container {
-    width: 42;
+    width: 64;
     height: auto;
-    max-height: 24;
+    max-height: 26;
     border: double $primary;
     background: $surface;
     padding: 1 2;
@@ -418,7 +418,7 @@ ModelPickerModal {
 
 #model-picker-list {
     height: auto;
-    max-height: 16;
+    max-height: 18;
 }
 
 #model-picker-footer {
