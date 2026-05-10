@@ -2,6 +2,8 @@
 create_time: 2026-05-09 23:55:37
 status: wip
 prompt: sdd/prompts/202605/lumberjack_quality_chops.md
+bead_id: sase-2n
+tier: epic
 ---
 # Plan: Add Commit-Threshold Bug and Improvement Lumberjack Chops
 
