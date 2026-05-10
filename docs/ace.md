@@ -1087,7 +1087,7 @@ HITL prompts.
 | Key          | Action                                                   |
 | ------------ | -------------------------------------------------------- |
 | `a`          | Save as tale and continue                                |
-| `A`          | Tale with options (opens [Tale Options](#tale-options))  |
+| `c`          | Open [Custom Approval](#custom-approval)                 |
 | `r`          | Reject the plan                                          |
 | `f`          | Request feedback (send follow-up questions to the agent) |
 | `e`          | Edit the plan file in `$EDITOR`                          |
@@ -1101,29 +1101,35 @@ HITL prompts.
 
 The question modal also supports `y` to copy questions and selected answers.
 
-### Tale Options
+### Custom Approval
 
-Pressing `A` in the plan approval modal opens an options dialog with fine-grained control over what happens after
-approval:
+Pressing `c` in the plan approval modal opens a custom approval dialog. Choose the approval outcome directly: Approve,
+Tale, Epic, or Legend. These choices map to the same response protocol used by external approval transports: Approve
+runs the coder without committing an SDD tale, Tale commits under `sdd/tales`, Epic commits under `sdd/epics`, and
+Legend commits under `sdd/legends`.
 
-| Key         | Action                |
-| ----------- | --------------------- |
-| `Enter`     | Tale with selections  |
-| `Space`     | Toggle focused switch |
-| `Ctrl+N`    | Next field            |
-| `Ctrl+P`    | Previous field        |
-| `q` / `Esc` | Cancel                |
+| Key          | Action                        |
+| ------------ | ----------------------------- |
+| `Enter`      | Choose the highlighted action |
+| `a`          | Highlight Approve             |
+| `t`          | Highlight Tale                |
+| `e`          | Highlight Epic                |
+| `l`          | Highlight Legend              |
+| `m`          | Select coder model            |
+| `p`          | Edit additional coder prompt  |
+| `Ctrl+N`/`P` | Next / previous action        |
+| `q` / `Esc`  | Cancel                        |
 
-The dialog presents toggle switches, an optional text input, and a model picker:
+The dialog keeps the custom coder prompt and model controls:
 
-- **Commit plan** (default: ON) — Whether to commit the plan file
-- **Run coder agent** (default: ON) — Whether to launch a coder agent after approval
-- **Additional prompt** — Optional extra instructions for the coder agent (only editable when coder is ON)
+- **Additional prompt** — Optional extra instructions for the follow-up agent.
 - **Coder model** — Select an LLM model for the coder agent instead of inheriting the planner's model. Shows all
   registered models grouped by provider (Claude, Codex, Gemini, Qwen, OpenCode) with a "Custom..." option for freeform
-  input.
+  input. Type to filter by provider, model id, label, or short alias; use `j`/`k` or arrows to navigate, `Enter` to
+  select, `Esc` to clear the filter or cancel, and `'` for jump hints over the visible selectable rows.
 
-At least one of commit/coder must be enabled — disabling one locks the other ON.
+The custom approval dialog no longer exposes separate commit/run switches because the selected outcome determines the
+commit location and follow-up behavior.
 
 ## Linked Chats in Multi-Step Workflows
 
