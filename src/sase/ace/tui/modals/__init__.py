@@ -53,6 +53,9 @@ from .approve_options_modal import (
     ApproveOptionsEditPrompt,
     ApproveOptionsModal,
     ApproveOptionsResult,
+    CustomApprovalEditPrompt,
+    CustomApprovalModal,
+    CustomApprovalResult,
 )
 from .custom_model_input_modal import CustomModelInputModal
 from .model_picker_modal import ModelPickerModal
@@ -99,6 +102,9 @@ __all__ = [
     "ApproveOptionsEditPrompt",
     "ApproveOptionsModal",
     "ApproveOptionsResult",
+    "CustomApprovalEditPrompt",
+    "CustomApprovalModal",
+    "CustomApprovalResult",
     "AgentNameModal",
     "AgentArtifactSelectionModal",
     "AgentCleanupAction",

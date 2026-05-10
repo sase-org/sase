@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
+    from ...modals.plan_approval_modal import PlanApprovalChoice
     from ...models.agent import AgentType
 
 
@@ -32,3 +33,4 @@ class ApprovePromptContext:
     run_coder: bool
     current_prompt: str
     coder_model: str | None = None
+    choice: PlanApprovalChoice | None = None

@@ -100,6 +100,11 @@ def test_bindings_show_tale_for_approve_action() -> None:
     assert ("a", "approve", "Approve") not in PlanApprovalModal.BINDINGS
 
 
+def test_bindings_include_custom_action_instead_of_options() -> None:
+    assert ("c", "custom", "Custom") in PlanApprovalModal.BINDINGS
+    assert ("A", "approve_options", "Options") not in PlanApprovalModal.BINDINGS
+
+
 def test_action_approve_still_returns_internal_approve_action() -> None:
     modal = PlanApprovalModal.__new__(PlanApprovalModal)
     result: PlanApprovalResult | None = None
@@ -112,3 +117,17 @@ def test_action_approve_still_returns_internal_approve_action() -> None:
     modal.action_approve()
 
     assert result == PlanApprovalResult(action="approve", choice="tale")
+
+
+def test_action_custom_uses_custom_modal_path() -> None:
+    modal = PlanApprovalModal.__new__(PlanApprovalModal)
+    called = False
+
+    def fake_push_approve_options() -> None:
+        nonlocal called
+        called = True
+
+    modal._push_approve_options = fake_push_approve_options  # type: ignore[method-assign]
+    modal.action_custom()
+
+    assert called

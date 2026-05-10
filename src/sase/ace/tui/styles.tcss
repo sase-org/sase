@@ -322,7 +322,7 @@ PlanApprovalModal {
 }
 
 
-/* Approve Options Modal styling */
+/* Custom Approval Modal styling */
 ApproveOptionsModal {
     align: center middle;
 }
@@ -330,7 +330,7 @@ ApproveOptionsModal {
 #approve-options-container {
     width: 70;
     height: auto;
-    max-height: 24;
+    max-height: 26;
     border: double $primary;
     background: $surface;
     padding: 1 2;
@@ -343,31 +343,15 @@ ApproveOptionsModal {
     margin-bottom: 1;
 }
 
-.approve-options-row {
-    height: 3;
-    align: center middle;
+.approval-choice-row {
+    height: 1;
+    margin-bottom: 1;
+    color: $text;
 }
 
-.approve-options-label {
-    width: 1fr;
-    content-align-vertical: middle;
-}
-
-.approve-options-label.disabled {
-    color: $text-disabled;
-}
-
-.approve-options-label.locked {
-    color: $text-disabled;
-}
-
-.approve-options-prompt-label {
-    height: auto;
-    margin-top: 1;
-}
-
-.approve-options-prompt-label.disabled {
-    color: $text-disabled;
+.approval-choice-row.selected {
+    color: $success;
+    text-style: bold;
 }
 
 #coder-prompt-display {

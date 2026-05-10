@@ -211,7 +211,7 @@ def handle_plan_approval(
                 if action in ("approve", "epic", "legend", "commit"):
                     response_path.unlink()
                     assert plan_file is not None
-                    # Read approve-with-options fields with type validation
+                    # Read custom approval fields with type validation
                     raw_commit = response_data.get("commit_plan")
                     commit_plan = raw_commit if isinstance(raw_commit, bool) else True
                     raw_run = response_data.get("run_coder")

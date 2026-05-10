@@ -189,7 +189,7 @@ def handle_plan_approval(
         notification: The notification with action_data containing
             response_dir and session_id.
         pending_approve_state: Optional PendingApproveState to auto-push
-            the approve options modal with restored state.
+            the custom approval modal with restored state.
 
     Returns:
         True if the plan approval modal was pushed.
@@ -277,6 +277,7 @@ def handle_plan_approval(
                 run_coder=result.run_coder,
                 current_prompt=result.coder_prompt or "",
                 coder_model=result.coder_model,
+                choice=result.choice,
             )
             app.mount(  # type: ignore[attr-defined]
                 PromptInputBar(

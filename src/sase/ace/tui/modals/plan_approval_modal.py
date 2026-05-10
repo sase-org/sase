@@ -150,6 +150,7 @@ class PendingApproveState:
     run_coder: bool
     coder_prompt: str
     coder_model: str | None = None
+    choice: PlanApprovalChoice | None = None
 
 
 class PlanApprovalModal(
@@ -161,7 +162,7 @@ class PlanApprovalModal(
         ("escape", "cancel", "Cancel"),
         ("q", "cancel", "Cancel"),
         ("a", "approve", "Tale"),
-        ("A", "approve_options", "Options"),
+        ("c", "custom", "Custom"),
         ("r", "reject", "Reject"),
         ("f", "feedback", "Feedback"),
         ("e", "edit", "Edit"),
@@ -187,7 +188,7 @@ class PlanApprovalModal(
 
         Args:
             plan_file: Path to the plan markdown file.
-            pending_approve_state: If set, auto-push ApproveOptionsModal on mount
+            pending_approve_state: If set, auto-push the custom approval modal on mount
                 with the given state (used after prompt editing round-trip).
             llm_provider: Provider that produced the plan (e.g. "claude"), for
                 display in the modal title. Optional — when absent the title
@@ -213,7 +214,7 @@ class PlanApprovalModal(
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         hints = (
-            "[green]a[/green]=Tale  [green]A[/green]=Options  [red]r[/red]=Reject  "
+            "[green]a[/green]=Tale  [green]c[/green]=Custom  [red]r[/red]=Reject  "
             "[yellow]f[/yellow]=Feedback  "
             "[blue]e[/blue]=Edit  "
             "[magenta]E[/magenta]=Epic  "
@@ -250,6 +251,7 @@ class PlanApprovalModal(
                 run_coder=state.run_coder,
                 coder_prompt=state.coder_prompt,
                 coder_model=state.coder_model,
+                choice=state.choice,
             )
 
     def _read_plan_file(self) -> str:
@@ -297,8 +299,9 @@ class PlanApprovalModal(
         run_coder: bool = True,
         coder_prompt: str = "",
         coder_model: str | None = None,
+        choice: PlanApprovalChoice | None = None,
     ) -> None:
-        """Push the approve-with-options modal with the given initial state."""
+        """Push the custom approval modal with the given initial state."""
         from .approve_options_modal import (
             ApproveOptionsEditPrompt,
             ApproveOptionsModal,
@@ -318,14 +321,13 @@ class PlanApprovalModal(
                         run_coder=result.run_coder,
                         coder_prompt=result.coder_prompt,
                         coder_model=result.coder_model,
+                        choice=result.choice,
                     )
                 )
                 return
             self.dismiss(
-                PlanApprovalResult(
-                    action="approve",
-                    commit_plan=result.commit_plan,
-                    run_coder=result.run_coder,
+                plan_approval_result_for_choice(
+                    result.choice,
                     coder_prompt=result.coder_prompt,
                     coder_model=result.coder_model,
                 )
@@ -337,13 +339,18 @@ class PlanApprovalModal(
                 run_coder=run_coder,
                 coder_prompt=coder_prompt,
                 coder_model=coder_model,
+                choice=choice,
             ),
             on_options_dismiss,
         )
 
-    def action_approve_options(self) -> None:
-        """Open the approve-with-options modal."""
+    def action_custom(self) -> None:
+        """Open the custom approval modal."""
         self._push_approve_options()
+
+    def action_approve_options(self) -> None:
+        """Backward-compatible alias for the old action name."""
+        self.action_custom()
 
     def action_reject(self) -> None:
         """Reject the plan without feedback."""

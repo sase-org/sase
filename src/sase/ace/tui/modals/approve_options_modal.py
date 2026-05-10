@@ -1,12 +1,43 @@
-"""Approve-with-options modal for plan approval."""
+"""Custom approval modal for plan approval."""
 
 from dataclasses import dataclass
 
 from textual import events
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal
+from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import Static, Switch
+from textual.widgets import Static
+
+from .plan_approval_modal import (
+    PlanApprovalChoice,
+    approval_protocol_for_choice,
+)
+
+
+_CHOICE_ORDER: tuple[PlanApprovalChoice, ...] = (
+    "approve",
+    "tale",
+    "epic",
+    "legend",
+)
+_CHOICE_KEYS: dict[str, PlanApprovalChoice] = {
+    "a": "approve",
+    "t": "tale",
+    "e": "epic",
+    "l": "legend",
+}
+_CHOICE_LABELS: dict[PlanApprovalChoice, str] = {
+    "approve": "Approve",
+    "tale": "Tale",
+    "epic": "Epic",
+    "legend": "Legend",
+}
+_CHOICE_CONSEQUENCES: dict[PlanApprovalChoice, str] = {
+    "approve": "No SDD commit; run coder",
+    "tale": "Commit to sdd/tales; run coder",
+    "epic": "Commit to sdd/epics; launch bd/new_epic",
+    "legend": "Commit to sdd/legends; launch bd/new_legend",
+}
 
 
 def _model_display_label(coder_model: str | None) -> str:
@@ -24,32 +55,53 @@ def _model_display_label(coder_model: str | None) -> str:
 
 @dataclass
 class ApproveOptionsResult:
-    """Result from the approve-with-options modal."""
+    """Result from the custom approval modal.
 
-    commit_plan: bool
-    run_coder: bool
+    The class name is preserved for compatibility with existing imports.
+    """
+
+    choice: PlanApprovalChoice
     coder_prompt: str | None
     coder_model: str | None = None
+
+    @property
+    def commit_plan(self) -> bool:
+        return approval_protocol_for_choice(self.choice).commit_plan
+
+    @property
+    def run_coder(self) -> bool:
+        return approval_protocol_for_choice(self.choice).run_coder
 
 
 @dataclass
 class ApproveOptionsEditPrompt:
     """Sentinel result: user wants to edit the coder prompt via PromptInputBar."""
 
-    commit_plan: bool
-    run_coder: bool
+    choice: PlanApprovalChoice
     coder_prompt: str
     coder_model: str | None = None
+
+    @property
+    def commit_plan(self) -> bool:
+        return approval_protocol_for_choice(self.choice).commit_plan
+
+    @property
+    def run_coder(self) -> bool:
+        return approval_protocol_for_choice(self.choice).run_coder
 
 
 class ApproveOptionsModal(
     ModalScreen[ApproveOptionsResult | ApproveOptionsEditPrompt | None],
 ):
-    """Modal for configuring plan approval options."""
+    """Modal for choosing a custom plan approval action."""
 
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
-        ("enter", "approve", "Tale"),
+        ("enter", "approve", "Choose"),
+        ("a", "choose_approve", "Approve"),
+        ("t", "choose_tale", "Tale"),
+        ("e", "choose_epic", "Epic"),
+        ("l", "choose_legend", "Legend"),
         ("p", "edit_prompt", "Edit prompt"),
         ("m", "select_model", "Model"),
         ("q", "cancel", "Quit"),
@@ -61,35 +113,26 @@ class ApproveOptionsModal(
         run_coder: bool = True,
         coder_prompt: str = "",
         coder_model: str | None = None,
+        choice: PlanApprovalChoice | None = None,
     ) -> None:
         super().__init__()
-        self._init_commit_plan = commit_plan
-        self._init_run_coder = run_coder
+        self._choice = choice or _choice_from_legacy_flags(commit_plan, run_coder)
         self._coder_prompt = coder_prompt
         self._coder_model = coder_model
 
     def compose(self) -> ComposeResult:
         with Container(id="approve-options-container"):
             yield Static(
-                "[bold cyan]Tale Options[/bold cyan]",
+                "[bold cyan]Custom Approval[/bold cyan]",
                 id="approve-options-title",
             )
 
-            with Horizontal(classes="approve-options-row"):
+            for choice in _CHOICE_ORDER:
                 yield Static(
-                    "Commit plan",
-                    id="commit-plan-label",
-                    classes="approve-options-label",
+                    self._choice_row_markup(choice),
+                    id=f"approval-choice-{choice}",
+                    classes="approval-choice-row",
                 )
-                yield Switch(value=self._init_commit_plan, id="commit-plan-switch")
-
-            with Horizontal(classes="approve-options-row"):
-                yield Static(
-                    "Run coder agent",
-                    id="run-coder-label",
-                    classes="approve-options-label",
-                )
-                yield Switch(value=self._init_run_coder, id="run-coder-switch")
 
             yield Static("Coder model:", classes="approve-options-model-label")
             yield Static(
@@ -104,8 +147,8 @@ class ApproveOptionsModal(
             yield Static(display, id="coder-prompt-display")
 
             yield Static(
-                "[green]enter[/green]=Tale  "
-                "[blue]space[/blue]=Toggle  "
+                "[green]enter[/green]=Choose  "
+                "[green]a/t/e/l[/green]=Action  "
                 "[magenta]m[/magenta]=Model  "
                 "[magenta]p[/magenta]=Edit prompt  "
                 "[dim]ctrl+n[/dim]=Next  "
@@ -115,59 +158,32 @@ class ApproveOptionsModal(
             )
 
     def on_mount(self) -> None:
-        self.query_one("#commit-plan-switch", Switch).focus()
-        self._sync_constraints()
+        self._refresh_choice_rows()
 
-    def on_switch_changed(self, event: Switch.Changed) -> None:  # noqa: ARG002
-        self._sync_constraints()
+    def _choice_row_markup(self, choice: PlanApprovalChoice) -> str:
+        """Render one selectable action row."""
+        marker = ">" if choice == self._choice else " "
+        key = next(
+            k for k, mapped_choice in _CHOICE_KEYS.items() if mapped_choice == choice
+        )
+        label = _CHOICE_LABELS[choice]
+        consequence = _CHOICE_CONSEQUENCES[choice]
+        if choice == self._choice:
+            return f"[bold green]{marker} {key} {label:<7}[/] [dim]{consequence}[/]"
+        return (
+            f"[dim]{marker}[/] [green]{key}[/green] {label:<7} [dim]{consequence}[/dim]"
+        )
 
-    def _sync_constraints(self) -> None:
-        """Enforce the invariant: at least one of commit/coder must be ON."""
-        commit_sw = self.query_one("#commit-plan-switch", Switch)
-        coder_sw = self.query_one("#run-coder-switch", Switch)
-        commit_lbl = self.query_one("#commit-plan-label", Static)
-        coder_lbl = self.query_one("#run-coder-label", Static)
-        prompt_display = self.query_one("#coder-prompt-display", Static)
-        prompt_label = self.query_one(".approve-options-prompt-label", Static)
-        model_display = self.query_one("#coder-model-display", Static)
-        model_label = self.query_one(".approve-options-model-label", Static)
+    def _refresh_choice_rows(self) -> None:
+        """Refresh action rows after the current choice changes."""
+        for choice in _CHOICE_ORDER:
+            row = self.query_one(f"#approval-choice-{choice}", Static)
+            row.update(self._choice_row_markup(choice))
+            row.set_class(choice == self._choice, "selected")
 
-        if not commit_sw.value:
-            # Coder only -- lock coder ON
-            coder_sw.disabled = True
-            coder_lbl.update("Run coder agent (required)")
-            coder_lbl.add_class("locked")
-            commit_sw.disabled = False
-            commit_lbl.update("Commit plan")
-            commit_lbl.remove_class("locked")
-        elif not coder_sw.value:
-            # Commit only -- lock commit ON
-            commit_sw.disabled = True
-            commit_lbl.update("Commit plan (required)")
-            commit_lbl.add_class("locked")
-            coder_sw.disabled = False
-            coder_lbl.update("Run coder agent")
-            coder_lbl.remove_class("locked")
-        else:
-            # Both ON -- unlock both
-            commit_sw.disabled = False
-            coder_sw.disabled = False
-            commit_lbl.update("Commit plan")
-            commit_lbl.remove_class("locked")
-            coder_lbl.update("Run coder agent")
-            coder_lbl.remove_class("locked")
-
-        # Prompt/model display and p/m keys enabled only when coder is ON
-        if coder_sw.value:
-            prompt_label.remove_class("disabled")
-            prompt_display.remove_class("disabled")
-            model_label.remove_class("disabled")
-            model_display.remove_class("disabled")
-        else:
-            prompt_label.add_class("disabled")
-            prompt_display.add_class("disabled")
-            model_label.add_class("disabled")
-            model_display.add_class("disabled")
+    def _select_choice(self, choice: PlanApprovalChoice) -> None:
+        self._choice = choice
+        self._refresh_choice_rows()
 
     def on_key(self, event: events.Key) -> None:
         """Handle key events within the modal.
@@ -186,6 +202,10 @@ class ApproveOptionsModal(
             event.prevent_default()
             event.stop()
             self.action_cancel()
+        elif event.key in _CHOICE_KEYS:
+            event.prevent_default()
+            event.stop()
+            self._select_choice(_CHOICE_KEYS[event.key])
         elif event.key == "p":
             event.prevent_default()
             event.stop()
@@ -201,22 +221,35 @@ class ApproveOptionsModal(
         elif event.key == "ctrl+n":
             event.prevent_default()
             event.stop()
-            self.focus_next()
+            self._select_relative_choice(1)
         elif event.key == "ctrl+p":
             event.prevent_default()
             event.stop()
-            self.focus_previous()
-        elif event.character and event.character.isprintable() and event.key != "space":
+            self._select_relative_choice(-1)
+        elif event.character and event.character.isprintable():
             event.stop()
+
+    def _select_relative_choice(self, offset: int) -> None:
+        index = _CHOICE_ORDER.index(self._choice)
+        self._select_choice(_CHOICE_ORDER[(index + offset) % len(_CHOICE_ORDER)])
 
     def action_cancel(self) -> None:
         self.dismiss(None)
 
+    def action_choose_approve(self) -> None:
+        self._select_choice("approve")
+
+    def action_choose_tale(self) -> None:
+        self._select_choice("tale")
+
+    def action_choose_epic(self) -> None:
+        self._select_choice("epic")
+
+    def action_choose_legend(self) -> None:
+        self._select_choice("legend")
+
     def action_select_model(self) -> None:
-        """Open the model picker modal (no-op when coder is OFF)."""
-        coder_sw = self.query_one("#run-coder-switch", Switch)
-        if not coder_sw.value:
-            return
+        """Open the model picker modal."""
 
         from .custom_model_input_modal import CustomModelInputModal
         from .model_picker_modal import CUSTOM_SENTINEL, ModelPickerModal
@@ -247,27 +280,33 @@ class ApproveOptionsModal(
 
     def action_edit_prompt(self) -> None:
         """Dismiss with edit-prompt sentinel so the caller can delegate to PromptInputBar."""
-        coder_sw = self.query_one("#run-coder-switch", Switch)
-        if not coder_sw.value:
-            return  # Prompt irrelevant when coder is OFF
         self.dismiss(
             ApproveOptionsEditPrompt(
-                commit_plan=self.query_one("#commit-plan-switch", Switch).value,
-                run_coder=True,
+                choice=self._choice,
                 coder_prompt=self._coder_prompt,
                 coder_model=self._coder_model,
             )
         )
 
     def action_approve(self) -> None:
-        commit_plan = self.query_one("#commit-plan-switch", Switch).value
-        run_coder = self.query_one("#run-coder-switch", Switch).value
         coder_prompt = self._coder_prompt if self._coder_prompt else None
         self.dismiss(
             ApproveOptionsResult(
-                commit_plan=commit_plan,
-                run_coder=run_coder,
+                choice=self._choice,
                 coder_prompt=coder_prompt,
                 coder_model=self._coder_model,
             )
         )
+
+
+def _choice_from_legacy_flags(
+    commit_plan: bool,
+    run_coder: bool,  # noqa: ARG001 - kept to accept old caller state.
+) -> PlanApprovalChoice:
+    """Map old switch state to the closest explicit custom action."""
+    return "tale" if commit_plan else "approve"
+
+
+CustomApprovalModal = ApproveOptionsModal
+CustomApprovalResult = ApproveOptionsResult
+CustomApprovalEditPrompt = ApproveOptionsEditPrompt

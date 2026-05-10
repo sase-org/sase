@@ -181,7 +181,7 @@ def test_handle_plan_approval_none_plan_file() -> None:
 def test_handle_plan_approval_approve_with_options(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test isinstance validation and whitespace trimming of approve-with-options fields."""
+    """Test isinstance validation and whitespace trimming of custom approval fields."""
     import json
 
     plan_file = str(tmp_path / "plan.md")

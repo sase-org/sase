@@ -1,6 +1,6 @@
-"""Coder-model tests for the approve-options modal."""
+"""Coder-model tests for the custom approval modal."""
 
-from textual.widgets import Static, Switch
+from textual.widgets import Static
 
 from sase.ace.tui.modals.approve_options_modal import (
     ApproveOptionsEditPrompt,
@@ -11,29 +11,18 @@ from sase.ace.tui.modals.approve_options_modal import (
 from ._approve_options_modal_helpers import ApproveOptionsApp
 
 
-async def test_m_key_no_op_when_coder_off() -> None:
-    """Pressing 'm' when coder is OFF should not push a modal."""
+async def test_m_key_opens_model_picker() -> None:
+    """Pressing 'm' should keep model selection reachable for every action."""
     async with ApproveOptionsApp().run_test() as pilot:
-        modal = ApproveOptionsModal()
+        modal = ApproveOptionsModal(choice="approve")
         pilot.app.push_screen(modal)
         await pilot.pause()
 
-        # Turn coder OFF
-        coder_sw = modal.query_one("#run-coder-switch", Switch)
-        coder_sw.focus()
-        await pilot.pause()
-        await pilot.press("space")
-        await pilot.pause()
-        assert not coder_sw.value
-
-        # Count screens before pressing m
         screen_count_before = len(pilot.app.screen_stack)
-
         await pilot.press("m")
         await pilot.pause()
 
-        # No new screen should have been pushed
-        assert len(pilot.app.screen_stack) == screen_count_before
+        assert len(pilot.app.screen_stack) == screen_count_before + 1
 
 
 async def test_model_persists_through_approve() -> None:
@@ -56,6 +45,7 @@ async def test_model_persists_through_approve() -> None:
         await pilot.pause()
 
         assert isinstance(result, ApproveOptionsResult)
+        assert result.choice == "tale"
         assert result.coder_model == "opus"
 
 
@@ -79,6 +69,7 @@ async def test_model_persists_through_edit_prompt() -> None:
         await pilot.pause()
 
         assert isinstance(result, ApproveOptionsEditPrompt)
+        assert result.choice == "tale"
         assert result.coder_model == "codex/o3"
 
 
