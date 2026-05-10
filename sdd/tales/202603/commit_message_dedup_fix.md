@@ -9,7 +9,7 @@ prompt: sdd/prompts/202603/commit_message_dedup_fix.md
 ## Problem
 
 The "Commit message:" xprompt workflow output variable is not showing in the agent metadata panel on the Agents tab.
-This affects agents that commit via the stop hook (e.g., on machines using the legacy-mercurial-plugin plugin with bare git VCS).
+This affects agents that commit via the stop hook (e.g., on machines using the retired Mercurial plugin plugin with bare git VCS).
 
 ## Root Cause
 

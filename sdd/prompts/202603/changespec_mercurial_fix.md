@@ -4,7 +4,7 @@ plan: sdd/tales/202603/changespec_mercurial_fix.md
 This agent (see the `sase ace` snapshot below) created a CL with the right name (`eval_foobar`), but a ChangeSpec
 associated with the CL was never created. Also, a `_<N>` suffix should have been added to the CL name (so the name
 wasn't completely right) since the ChangeSpec have a STATUS field of "Draft" by default. Can you help me diagnose the
-root cause of this issue and fix it? This issue is occurring on another machine that uses the ../legacy-mercurial-plugin plugin.
+root cause of this issue and fix it? This issue is occurring on another machine that uses the ../retired Mercurial plugin plugin.
 I've saved a `sase logs` logpack to the ~/tmp/260325_173943/ directory to help you figure this out. Think this through
 thoroughly and create a plan using your `/sase_plan` skill.
 

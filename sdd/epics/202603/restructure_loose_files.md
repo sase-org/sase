@@ -56,7 +56,7 @@ Each phase follows the same pattern:
    from sase.core.paths import get_sase_directory, ...          # noqa: F401
    ```
 3. **Update all importers** in `src/` and `tests/` to use the new paths
-4. **Check plugin repos** (`../sase-github`, `../legacy-mercurial-plugin`, `../sase-telegram`) for old imports — update if found
+4. **Check plugin repos** (`../sase-github`, `../retired Mercurial plugin`, `../sase-telegram`) for old imports — update if found
 5. **Run `just check`** (fmt-check + lint + test) to verify nothing breaks
 
 The shims remain until the final cleanup phase, protecting any external consumers we miss.
@@ -260,7 +260,7 @@ simple path change. The shim ensures nothing breaks if we miss one.
 **Verification steps**:
 
 1. Grep the entire repo for old import paths to confirm none remain
-2. Grep plugin repos (`../sase-github`, `../legacy-mercurial-plugin`, `../sase-telegram`) for old import paths — update if found
+2. Grep plugin repos (`../sase-github`, `../retired Mercurial plugin`, `../sase-telegram`) for old import paths — update if found
 3. Check `xprompts/` YAML files for any `from sase.old_module` references (e.g., `resume.yml` has inline Python)
 4. Run `just check` in this repo
 5. Run checks in plugin repos if they were modified

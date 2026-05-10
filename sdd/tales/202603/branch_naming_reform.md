@@ -31,7 +31,7 @@ checkout failure:
 3. **GitHub immutable branches**: When a PR exists, the branch can't be renamed. The original branch name (with suffix)
    must be persisted and used for resolution.
 4. **VCS-agnostic**: The branch alias mechanism must be available to any VCS provider, not just GitHub.
-5. **legacy-mercurial-plugin unchanged**: The Mercurial provider's behavior must not change.
+5. **retired Mercurial plugin unchanged**: The Mercurial provider's behavior must not change.
 
 ## Phase 1: Branch Naming Reform — Branch Names = ChangeSpec Names for Git
 
@@ -48,7 +48,7 @@ Add two new VCS provider hooks that each provider implements to control its own 
   `_N` suffix (i.e., the "Draft" form).
 
 **Default implementation** (in base class): calls existing `changespec_name_to_branch()` / `_with_suffix()`. This
-preserves Mercurial behavior without any changes to legacy-mercurial-plugin.
+preserves Mercurial behavior without any changes to retired Mercurial plugin.
 
 **GitCommon override**:
 
@@ -150,7 +150,7 @@ to it when a branch can't be renamed.
 5. Removes old key, writes new: `{"sase_xprompt_snippets_2": "sase_xprompt_snippets_1"}`.
 6. The actual branch on GitHub is still `sase_xprompt_snippets_1`. Resolution works via branch_map.
 
-## Phase 3: End-to-End Validation and legacy-mercurial-plugin Compatibility
+## Phase 3: End-to-End Validation and retired Mercurial plugin Compatibility
 
 **Goal**: Verify the full system works across all VCS providers and clean up.
 
@@ -160,7 +160,7 @@ to it when a branch can't be renamed.
 | ------------------------------------ | -------------------------------------------------------------------------------------------------- |
 | Run `just check` in sase repo        | Lint, type-check, tests                                                                            |
 | Run `just check` in sase-github repo | Verify plugin changes compile and pass                                                             |
-| Run `just check` in legacy-mercurial-plugin repo | Verify NO changes needed and existing tests pass                                                   |
+| Run `just check` in retired Mercurial plugin repo | Verify NO changes needed and existing tests pass                                                   |
 | Verify backward compat               | Existing branches with old hyphenated names should still resolve via fallback candidates           |
 | Verify TUI checkout                  | ChangeSpec with BRANCH alias resolves and checks out correctly                                     |
 | Clean up deprecated code             | Mark `changespec_name_to_branch()` / `_with_suffix()` as backward-compat-only (add docstring note) |

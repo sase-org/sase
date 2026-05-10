@@ -2,7 +2,7 @@
 plan: sdd/tales/202604/sync_hg_conflict_detection.md
 ---
 The `#sync` xprompt workflow (see the src/sase/xprompts/sync.yml file) does not seem to be detecting merge conflicts
-from the hg VCS provider (defined in the ../legacy-mercurial-plugin repo) correctly (see the `sase ace` snapshot below). Can you
+from the hg VCS provider (defined in the ../retired Mercurial plugin repo) correctly (see the `sase ace` snapshot below). Can you
 help me diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan using your
 `/sase_plan` skill before making any file changes.
 
@@ -56,7 +56,7 @@ help me diagnose the root cause of this issue and fix it? Think this through tho
 │     █  │                                                                                        │ │   Output:                                                                                                                               █ │    │
 │     █  │                                                                                        │ │     success: false                                                                                                                      █ │    │
 │     █  │                                                                                        │ │     has_conflicts: false                                                                                                                █─╯    │
-│     █  │                                                                                        │ │     error: 'legacy_mercurial_plugin_sync failed: pulling from piper://piper-fig.corp.google.com/'                                                   █      │
+│     █  │                                                                                        │ │     error: 'retired_mercurial_plugin_sync failed: pulling from piper://piper-fig.corp.google.com/'                                                   █      │
 │     █  │                                                                                        │ │     conflicted_files: ''                                                                                                                █      │
 │     █  │                                                                                        │ │                                                                                                                                         █      │
 │     █  │                                                                                        │ │ Step 3/4: resolve (agent)                                                                                                               █      │

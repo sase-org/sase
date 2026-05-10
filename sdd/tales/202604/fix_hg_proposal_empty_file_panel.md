@@ -7,7 +7,7 @@ prompt: sdd/prompts/202604/fix_hg_proposal_empty_file_panel.md
 
 ## Problem Statement
 
-In `sase ace`, when a Mercurial agent (Gemini + legacy-mercurial-plugin plugin) successfully creates a proposal via the
+In `sase ace`, when a Mercurial agent (Gemini + retired Mercurial plugin plugin) successfully creates a proposal via the
 `/sase_hg_commit` skill, the agent's **file panel is empty** (bottom status bar shows `○ files`). This happens even
 though:
 
@@ -29,10 +29,10 @@ JSON that the TUI reads for the file panel. Step-by-step:
    `src/sase/workflows/commit/commit_tracking.py`:
    - `capture_pre_commit_diff()` (lines 48–84) writes the working-tree diff to `<SASE_ARTIFACTS_DIR>/commit_diff.diff`.
    - `write_result_marker()` (lines 205–231) writes a JSON marker `commit_result.json` including the `diff_path` field.
-   - The proposal is then created via the legacy-mercurial-plugin plugin's `vcs_create_proposal` hook, and the workspace is cleaned.
+   - The proposal is then created via the retired Mercurial plugin plugin's `vcs_create_proposal` hook, and the workspace is cleaned.
 
 2. **After the agent finishes**, the `#propose` embedded workflow's post-steps run. The plugin's
-   `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/xprompts/propose.yml` overrides the in-repo `src/sase/xprompts/propose.yml`. The
+   `../retired Mercurial plugin/src/retired_mercurial_plugin/xprompts/propose.yml` overrides the in-repo `src/sase/xprompts/propose.yml`. The
    plugin version gates every post-step (`save_response`, `propose`, `report`) on `{{ check_changes.has_changes }}`. But
    the skill already committed and cleaned the workspace, so `has_changes` is `false` and **every post-step is
    skipped**. The `report` step (which already emits `diff_path: path`) never runs.
@@ -55,7 +55,7 @@ Net result: a valid proposal diff exists on disk, but the TUI has no pointer to 
 The in-repo `src/sase/xprompts/propose.yml` already added a `_has_commit_result.exists` probe so its `propose` /
 `report` steps do run even when the agent pre-committed. But that file:
 
-- Is overridden by the legacy-mercurial-plugin plugin copy on hg workspaces.
+- Is overridden by the retired Mercurial plugin plugin copy on hg workspaces.
 - Still never emits `diff_path: path` as an output field, so even when its post-steps run, the diff path is not
   surfaced.
 
@@ -63,11 +63,11 @@ The same secondary gap exists in `src/sase/xprompts/commit.yml` and `src/sase/xp
 
 ## Goals
 
-1. On Mercurial / legacy-mercurial-plugin, the file panel populates after `/sase_hg_commit` creates a proposal.
+1. On Mercurial / retired Mercurial plugin, the file panel populates after `/sase_hg_commit` creates a proposal.
 2. On GitHub / bare-git, the file panel populates after a `#commit` or `#pr` workflow that went through the skill path.
 3. The fix must not regress the case where the agent leaves uncommitted changes and the xprompt post-steps do the
    committing themselves (legacy path).
-4. Keep the two propose.yml files (in-repo vs. legacy-mercurial-plugin plugin) consistent in spirit so future edits don't drift.
+4. Keep the two propose.yml files (in-repo vs. retired Mercurial plugin plugin) consistent in spirit so future edits don't drift.
 
 ## Non-Goals
 
@@ -87,7 +87,7 @@ embedded-output collector and the TUI loader can both pick it up.
 
 ### Changes
 
-#### 1. legacy-mercurial-plugin plugin: `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/xprompts/propose.yml`
+#### 1. retired Mercurial plugin plugin: `../retired Mercurial plugin/src/retired_mercurial_plugin/xprompts/propose.yml`
 
 - Insert a hidden `_has_commit_result` probe step (same shape as the in-repo `propose.yml`) that sets `exists: bool`
   based on `commit_result.json` presence.
@@ -122,7 +122,7 @@ means no ordering risk and minimal churn.
 
 ### Risk: duplicate proposal creation
 
-The current legacy-mercurial-plugin `propose.yml` calls `sase_propose_workflow --create` unconditionally when `has_changes` is true.
+The current retired Mercurial plugin `propose.yml` calls `sase_propose_workflow --create` unconditionally when `has_changes` is true.
 If a future skill path somehow left `has_changes=true` _and_ wrote `commit_result.json`, we'd double-propose. Guarding
 the legacy branch with `if: "{{ check_changes.has_changes and not _has_commit_result.exists }}"` makes the two branches
 mutually exclusive.
@@ -146,7 +146,7 @@ normal operation.
    - End-to-end: run a mock embedded workflow whose last post-step emits a `path` field. Assert
      `_collect_embedded_step_outputs` returns that path and `step_state.output["diff_path"]` is populated.
 
-### Tests in `legacy-mercurial-plugin`
+### Tests in `retired Mercurial plugin`
 
 1. `tests/xprompts/test_propose_yml.py`:
    - Skill path: marker present, `has_changes=false`. Assert `report.diff_path` equals the marker's value and that
@@ -165,16 +165,16 @@ normal operation.
 
 | File                                                  | Type                              |
 | ----------------------------------------------------- | --------------------------------- |
-| `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/xprompts/propose.yml` | rework gates + split commit path  |
+| `../retired Mercurial plugin/src/retired_mercurial_plugin/xprompts/propose.yml` | rework gates + split commit path  |
 | `src/sase/xprompts/propose.yml`                       | add `diff_path: path` to `report` |
 | `src/sase/xprompts/commit.yml`                        | add `diff_path: path` to `report` |
 | `src/sase/xprompts/pr.yml`                            | add `diff_path: path` to `report` |
 | `tests/xprompt/test_*_yml.py` (sase)                  | new/extended coverage             |
-| `../legacy-mercurial-plugin/tests/xprompts/test_propose_yml.py`   | new/extended coverage             |
+| `../retired Mercurial plugin/tests/xprompts/test_propose_yml.py`   | new/extended coverage             |
 
 ## Post-Implementation
 
 - Run `just check` in `sase_100` (required before reporting).
-- Run `just check` in `../legacy-mercurial-plugin` (plugin repo).
+- Run `just check` in `../retired Mercurial plugin` (plugin repo).
 - If any chezmoi skill files consume the `diff_path` output (unlikely but check `src/sase/xprompts/skills/`), run
   `sase init-skills --force` + `chezmoi apply` per memory/long-generated-skills.

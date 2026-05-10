@@ -2,7 +2,7 @@
 plan: sdd/tales/202603/gemini_commit_dispatch.md
 ---
 This agent failed to create a new CL, despite the fact that it's prompt contained the `#pr` xprompt. This issue is
-occurring on another machine that uses the ../legacy-mercurial-plugin plugin. I've saved a `sase logs` logpack to the
+occurring on another machine that uses the ../retired Mercurial plugin plugin. I've saved a `sase logs` logpack to the
 ~/tmp/260324_170452/ directory to help you figure this out. Think this through thoroughly and create a plan using your
 `/sase_plan` skill.
 

@@ -91,7 +91,7 @@ PR).
 - `vcs_create_proposal` — same as create_commit for GitHub
 - `vcs_create_pull_request` — `git checkout -b name` + `git add` + `git commit` + `git push -u` + `gh pr create`
 
-**legacy-mercurial-plugin** (`../legacy-mercurial-plugin/src/legacy_mercurial_plugin/plugin.py`):
+**retired Mercurial plugin** (`../retired Mercurial plugin/src/retired_mercurial_plugin/plugin.py`):
 
 - `vcs_create_commit` — `hg addremove` + `hg amend` (with COMMITS entry note)
 - `vcs_create_proposal` — creates proposal on CL

@@ -12,7 +12,7 @@ This work spans three repos:
 
 - `sase_100` at `/home/bryan/projects/github/sase-org/sase_100`
 - `sase-telegram` at `/home/bryan/projects/github/sase-org/sase-telegram`
-- `legacy-chat-integration` at `/home/bryan/projects/github/sase-org/legacy-chat-integration`
+- `retired chat plugin` at `/home/bryan/projects/github/sase-org/retired chat plugin`
 
 The user-visible goal is:
 
@@ -36,8 +36,8 @@ Existing code shape:
   detection.
 - Telegram already has slash-command registration and dispatch in `sase_telegram/scripts/sase_tg_inbound.py`, and
   `/resume` already uses Telegram `CopyTextButton` buttons.
-- Google Chat dot commands are parsed in `legacy_chat_integration/inbound.py` and dispatched in
-  `legacy_chat_integration/scripts/sase_gc_inbound.py`. Current gchat "copyable" UX is fenced code snippets, not true platform copy
+- Google Chat dot commands are parsed in `retired_chat_plugin/inbound.py` and dispatched in
+  `retired_chat_plugin/scripts/sase_gc_inbound.py`. Current gchat "copyable" UX is fenced code snippets, not true platform copy
   buttons, because `gchat_client.py` only wraps text messages, edits, uploads, reactions, and message reads.
 
 Every phase below should be executed by a distinct agent instance. Each phase should begin by reading this plan and the
@@ -166,12 +166,12 @@ Acceptance criteria:
 
 ## Phase 3: Google Chat `.changes [project]`
 
-**Repo:** `../legacy-chat-integration`
+**Repo:** `../retired chat plugin`
 
 **Primary files likely involved:**
 
-- `src/legacy_chat_integration/inbound.py`
-- `src/legacy_chat_integration/scripts/sase_gc_inbound.py`
+- `src/retired_chat_plugin/inbound.py`
+- `src/retired_chat_plugin/scripts/sase_gc_inbound.py`
 - `tests/test_inbound.py`
 - `README.md`
 - `docs/inbound.md`
@@ -211,11 +211,11 @@ Acceptance criteria:
 - The output is copyable using the repo's established Google Chat convention, or true card copy buttons if the agent
   verifies and implements supported transport.
 - `.help`, README, and inbound docs mention `.changes`.
-- `just check` passes in `../legacy-chat-integration`.
+- `just check` passes in `../retired chat plugin`.
 
 ## Phase 4: Cross-Repo Documentation and UX Consistency
 
-**Repos:** `../sase-telegram`, `../legacy-chat-integration`, and only `sase_100` if Phase 1 docs need a follow-up.
+**Repos:** `../sase-telegram`, `../retired chat plugin`, and only `sase_100` if Phase 1 docs need a follow-up.
 
 **Objective:** Make the finished feature coherent across the two chat integrations.
 
@@ -259,7 +259,7 @@ Work:
 - Run final checks:
   - `just check` in `sase_100`
   - `just check` in `../sase-telegram`
-  - `just check` in `../legacy-chat-integration`
+  - `just check` in `../retired chat plugin`
 - Prepare the final implementation summary:
   - user-visible changes;
   - shared helper design;

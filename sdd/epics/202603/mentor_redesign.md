@@ -399,12 +399,12 @@ support.
 
 ## Phase 5: Plugin Migration & Cleanup
 
-**Goal**: Migrate the legacy-mercurial-plugin plugin to the new config format, remove old mentor xprompts, and clean up deprecated
+**Goal**: Migrate the retired Mercurial plugin plugin to the new config format, remove old mentor xprompts, and clean up deprecated
 code paths.
 
-### 5a. Update legacy-mercurial-plugin `default_config.yml`
+### 5a. Update retired Mercurial plugin `default_config.yml`
 
-- **`../legacy-mercurial-plugin/src/legacy_mercurial_plugin/default_config.yml`**: Rewrite `mentor_profiles` to use the new schema. Convert each
+- **`../retired Mercurial plugin/src/retired_mercurial_plugin/default_config.yml`**: Rewrite `mentor_profiles` to use the new schema. Convert each
   `#mentor/<name>` xprompt's review instructions into `role` + `focus_areas` entries. Example conversion:
 
   Current:
@@ -443,10 +443,10 @@ code paths.
     file_globs: ["**/*.java", "**/*.dart"]
   ```
 
-### 5b. Remove old mentor xprompts from legacy-mercurial-plugin
+### 5b. Remove old mentor xprompts from retired Mercurial plugin
 
-- **Delete** `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/xprompts/mentor.md` — replaced by built-in `#mentor` workflow.
-- **Remove** all `mentor/*` xprompt definitions from `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/default_config.yml` (the
+- **Delete** `../retired Mercurial plugin/src/retired_mercurial_plugin/xprompts/mentor.md` — replaced by built-in `#mentor` workflow.
+- **Remove** all `mentor/*` xprompt definitions from `../retired Mercurial plugin/src/retired_mercurial_plugin/default_config.yml` (the
   `mentor/aaa`, `mentor/code_quality`, `mentor/sound_tests`, etc. entries in the `xprompts` section).
 
 ### 5c. Remove `#propose` from mentor flow
@@ -470,7 +470,7 @@ code paths.
 
 ### Tests
 
-- Verify `just check` passes across both sase and legacy-mercurial-plugin repos.
+- Verify `just check` passes across both sase and retired Mercurial plugin repos.
 - End-to-end: run full mentor cycle (trigger → structured output → review popup → apply).
 - Verify old config format is rejected with a clear error message.
 

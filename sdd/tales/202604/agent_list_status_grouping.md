@@ -11,7 +11,7 @@ This work spans three sibling repos:
 
 - `sase_100` at `/home/bryan/projects/github/sase-org/sase_100`
 - `sase-telegram` at `/home/bryan/projects/github/sase-org/sase-telegram`
-- `legacy-chat-integration` at `/home/bryan/projects/github/sase-org/legacy-chat-integration`
+- `retired chat plugin` at `/home/bryan/projects/github/sase-org/retired chat plugin`
 
 The user-visible goal is to make the Telegram `/list` slash command and Google Chat `.list` dot command group their
 agent reply messages by status, matching the mental model of the Agents tab's `by status` grouping.
@@ -20,7 +20,7 @@ Current shape:
 
 - Telegram `/list` is implemented in `sase-telegram/src/sase_telegram/scripts/sase_tg_inbound.py::_handle_list_command`.
   It calls `sase.agent.running.list_running_agents()` and renders one flat HTML message.
-- Google Chat `.list` is implemented in `legacy-chat-integration/src/legacy_chat_integration/scripts/sase_gc_inbound.py::_format_running_agents`.
+- Google Chat `.list` is implemented in `retired chat plugin/src/retired_chat_plugin/scripts/sase_gc_inbound.py::_format_running_agents`.
   It also calls `list_running_agents()` and renders one flat CommonMark message.
 - The Agents tab status grouping semantics live in
   `sase_100/src/sase/ace/tui/models/agent_groups/_buckets.py::status_bucket_for`, with ordered buckets:
@@ -163,11 +163,11 @@ Acceptance criteria:
 
 ### Phase 3: Google Chat `.list` Grouped Reply
 
-Repo: `../legacy-chat-integration`
+Repo: `../retired chat plugin`
 
 Primary file:
 
-- `src/legacy_chat_integration/scripts/sase_gc_inbound.py`
+- `src/retired_chat_plugin/scripts/sase_gc_inbound.py`
 
 Update `_format_running_agents()` to:
 
@@ -205,7 +205,7 @@ Acceptance criteria:
 
 - `.list` output is grouped and readable.
 - Existing Google Chat dot-command behavior outside `.list` is unchanged.
-- `just check` passes in `../legacy-chat-integration`.
+- `just check` passes in `../retired chat plugin`.
 
 ### Phase 4: Cross-Repo Consistency Pass
 
@@ -226,7 +226,7 @@ Validation commands:
 ```bash
 cd /home/bryan/projects/github/sase-org/sase_100 && just install && just check
 cd /home/bryan/projects/github/sase-org/sase-telegram && just check
-cd /home/bryan/projects/github/sase-org/legacy-chat-integration && just check
+cd /home/bryan/projects/github/sase-org/retired chat plugin && just check
 ```
 
 ## Risks And Non-Goals

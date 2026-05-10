@@ -15,8 +15,8 @@ Launching an agent from the `sase ace` TUI with a prompt like
 
 fails with `Agent launch failed (see log)`. The same prompt succeeds when passed to `sase run`.
 
-The `#launch/free` xprompt is a **simple xprompt** defined by the `legacy-mercurial-plugin` plugin (via the `sase_xprompts` /
-`sase_config` entry points) in `src/legacy_mercurial_plugin/default_config.yml`:
+The `#launch/free` xprompt is a **simple xprompt** defined by the `retired Mercurial plugin` plugin (via the `sase_xprompts` /
+`sase_config` entry points) in `src/retired_mercurial_plugin/default_config.yml`:
 
 ```yaml
 launch/free:

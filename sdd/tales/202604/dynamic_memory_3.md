@@ -114,7 +114,7 @@ Also print a console section for the runner's stdout log:
 ```yaml
 memory/external_repos:
   tags: memory
-  keywords: [chezmoi, plugin, sase-github, legacy-mercurial-plugin, sase-telegram, sase-nvim, dotfile, cross-repo]
+  keywords: [chezmoi, plugin, sase-github, retired Mercurial plugin, sase-telegram, sase-nvim, dotfile, cross-repo]
   content: "@memory/long/external_repos.md"
 memory/generated_skills:
   tags: memory

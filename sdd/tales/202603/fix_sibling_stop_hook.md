@@ -13,7 +13,7 @@ prompt: sdd/prompts/202603/fix_sibling_stop_hook.md
 The `sase_sibling_commit_stop_hook` has three bugs and one design issue:
 
 1. **False positives on ephemeral workspaces**: The glob `"$PROJECT_DIR"/../sase-*/` matches ephemeral workspace
-   directories like `sase-telegram_100` and `legacy-mercurial-plugin_100`. These are agent clones and should be ignored — only
+   directories like `sase-telegram_100` and `retired Mercurial plugin_100`. These are agent clones and should be ignored — only
    primary repos (e.g., `sase-github`, `sase-telegram`) should be checked.
 
 2. **Imperative tone forces commits**: The message says "Use your /sase*git_commit skill to commit these changes now."

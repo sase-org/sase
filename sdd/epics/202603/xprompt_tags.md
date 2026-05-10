@@ -73,7 +73,7 @@ Replace the `wraps_all: true` boolean with `tags: vcs`. Maintain backward compat
 
 - `src/sase/xprompts/git.yml` — add `tags: vcs`
 - `../sase-github/src/sase_github/xprompts/gh.yml` — add `tags: vcs`
-- `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/xprompts/hg.yml` — add `tags: vcs`
+- `../retired Mercurial plugin/src/retired_mercurial_plugin/xprompts/hg.yml` — add `tags: vcs`
 
 **`src/sase/xprompt/workflow_loader.py`** — backward compat
 
@@ -109,7 +109,7 @@ Replace hardcoded `#crs` and `#fix_hook` xprompt name references with tag-based 
 
 **Xprompt files — add tags:**
 
-- `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/xprompts/crs.md` — add `tags: crs` to frontmatter
+- `../retired Mercurial plugin/src/retired_mercurial_plugin/xprompts/crs.md` — add `tags: crs` to frontmatter
 - `src/sase/xprompts/fix_hook.md` — add `tags: fix_hook` to frontmatter
 
 **`src/sase/crs_workflow.py`** — replace hardcoded `#crs`

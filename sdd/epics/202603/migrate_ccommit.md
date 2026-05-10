@@ -24,7 +24,7 @@ delete the old artifacts.
 **Design decisions** (from `sdd/research/202603/migrate_ccommit_prompt_critique.md`):
 
 - Migrate ccommit to `src/sase/scripts/sase_git_commit` (new bash script in this repo)
-- Add `precommit_command` config field (set to `just fix` in sase repo, `sase_hg_fix` in legacy-mercurial-plugin)
+- Add `precommit_command` config field (set to `just fix` in sase repo, `sase_hg_fix` in retired Mercurial plugin)
 - Merge/pull from origin/master: add to VCS providers (git: replicate ccommit logic; hg: `hg update <branch>`)
 - Bead operations: performed by `sase commit` (support repos without `sdd.version_controlled`)
 - SASE_PLAN in commit message + mark done: supported for all repos
@@ -47,24 +47,24 @@ delete the old artifacts.
 - `sase.yml` — Add `precommit_command: "just fix"` to the local config
 - `src/sase/config/core.py` — No changes needed (config loading already merges arbitrary keys)
 
-**legacy-mercurial-plugin repo (../legacy-mercurial-plugin):**
+**retired Mercurial plugin repo (../retired Mercurial plugin):**
 
-- `src/legacy_mercurial_plugin/default_config.yml` — Add `precommit_command: "sase_hg_fix"`
+- `src/retired_mercurial_plugin/default_config.yml` — Add `precommit_command: "sase_hg_fix"`
 - Create a new `sase_hg_fix` script: a thin wrapper that checks if we're in an hg repo (`hg root` succeeds) and runs
   `hg fix` if so, otherwise exits 0. This should be a shell script registered as an entry point in `pyproject.toml`
-  (following the same pattern as other scripts in legacy-mercurial-plugin — check how they register scripts there).
+  (following the same pattern as other scripts in retired Mercurial plugin — check how they register scripts there).
 
 ### Validation
 
 - `just install && just check` passes in sase
 - Verify `precommit_command` is loadable:
   `python -c "from sase.config.core import load_merged_config; print(load_merged_config().get('precommit_command'))"`
-- In legacy-mercurial-plugin: install and verify `sase_hg_fix` is available on PATH
+- In retired Mercurial plugin: install and verify `sase_hg_fix` is available on PATH
 
 ### Commit instructions
 
 Use `ccommit` to commit changes in each repo after validation passes. For sase:
-`cd <repo_root> && ccommit chore "Add precommit_command config field" <files...>`. For legacy-mercurial-plugin:
+`cd <repo_root> && ccommit chore "Add precommit_command config field" <files...>`. For retired Mercurial plugin:
 `cd <repo_root> && ccommit feat "Add sase_hg_fix script and precommit_command config" <files...>`.
 
 ---
@@ -116,7 +116,7 @@ Python commit workflow and git VCS provider.
 
 **`src/sase/vcs_provider/_hookspec.py`** — No changes needed (payload dict is flexible).
 
-**legacy-mercurial-plugin repo (../legacy-mercurial-plugin/src/legacy_mercurial_plugin/plugin.py):**
+**retired Mercurial plugin repo (../retired Mercurial plugin/src/retired_mercurial_plugin/plugin.py):**
 
 - `vcs_create_commit()` — Add `hg update <branch>` before amend to sync with remote (equivalent of merge-with-master for
   hg). Best effort — if it fails, continue.
@@ -127,13 +127,13 @@ Python commit workflow and git VCS provider.
 - `just install && just check` passes in sase
 - Manual test: create a test commit in a scratch git repo using `sase commit '{"message": "test: foo", "files": [...]}'`
   and verify the new features work (fmt runs, push retries, etc.)
-- In legacy-mercurial-plugin: `just install` or equivalent passes
+- In retired Mercurial plugin: `just install` or equivalent passes
 
 ### Commit instructions
 
 Use `ccommit` to commit after validation. For sase:
 `cd <repo_root> && ccommit feat "Add precommit, merge, push retry, bead lifecycle, and SASE_PLAN to commit workflow" <files...>`.
-For legacy-mercurial-plugin: `cd <repo_root> && ccommit feat "Add hg update sync to vcs_create_commit" <files...>`.
+For retired Mercurial plugin: `cd <repo_root> && ccommit feat "Add hg update sync to vcs_create_commit" <files...>`.
 
 ---
 
@@ -254,8 +254,8 @@ For chezmoi: use `ccommit` one last time, then apply:
 
 | Phase | Description                                                  | Repos affected    |
 | ----- | ------------------------------------------------------------ | ----------------- |
-| 1     | `precommit_command` config + `sase_hg_fix` script            | sase, legacy-mercurial-plugin |
-| 2     | Enhance CommitWorkflow + VCS providers with ccommit features | sase, legacy-mercurial-plugin |
+| 1     | `precommit_command` config + `sase_hg_fix` script            | sase, retired Mercurial plugin |
+| 2     | Enhance CommitWorkflow + VCS providers with ccommit features | sase, retired Mercurial plugin |
 | 3     | Create `sase_git_commit` bash script with JSON logging       | sase              |
 | 4     | Update skill SKILL.md files                                  | chezmoi           |
 | 5     | Delete old `/commit` skill and `ccommit`                     | chezmoi, sase     |

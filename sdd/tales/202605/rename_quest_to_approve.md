@@ -11,7 +11,7 @@ Rename the user-facing plan approval option currently shown as "Quest" to exactl
 the no-commit coder launch path:
 
 - Telegram plan approval buttons in `../sase-telegram`.
-- Google Chat plan approval numbered options in `../legacy-chat-integration`.
+- Google Chat plan approval numbered options in `../retired chat plugin`.
 - Any current TUI surface in this repo that exposes the same path as a user-facing "Quest" option.
 
 The behavior must not change. This option still approves the plan, does not commit the plan file, and starts the coder
@@ -44,10 +44,10 @@ agent.
      response fields.
 
 2. Update Google Chat presentation only.
-   - In `../legacy-chat-integration/src/legacy_chat_integration/formatting.py`, change `Option("🚀 Quest", "run")` to `Option("Approve", "run")`.
+   - In `../retired chat plugin/src/retired_chat_plugin/formatting.py`, change `Option("🚀 Quest", "run")` to `Option("Approve", "run")`.
    - Keep numeric option ordering unchanged so existing mental models and tests remain stable: `Tale`, `Approve`,
      `Epic`, `Legend`, `Reject`, `Feedback`.
-   - Leave `../legacy-chat-integration/src/legacy_chat_integration/inbound.py` behavior unchanged.
+   - Leave `../retired chat plugin/src/retired_chat_plugin/inbound.py` behavior unchanged.
 
 3. Handle the TUI carefully.
    - Re-run focused searches for `Quest` and `🚀 Quest` in `src/sase/ace/tui`, `tests`, and `docs` before editing.
@@ -67,8 +67,8 @@ agent.
        button while callback data still ends in `:run`.
      - Keep inbound tests asserting the `run` behavior unchanged.
    - Google Chat:
-     - Update `../legacy-chat-integration/tests/test_formatting.py`, `../legacy-chat-integration/tests/test_inbound.py`,
-       `../legacy-chat-integration/tests/test_integration.py`, and `../legacy-chat-integration/tests/test_externally_handled_cleanup.py` fixtures
+     - Update `../retired chat plugin/tests/test_formatting.py`, `../retired chat plugin/tests/test_inbound.py`,
+       `../retired chat plugin/tests/test_integration.py`, and `../retired chat plugin/tests/test_externally_handled_cleanup.py` fixtures
        and assertions that include `🚀 Quest`.
      - Preserve payload assertions for `run` and response assertions for `commit_plan: false` / `run_coder: true`.
    - Main TUI:
@@ -79,8 +79,8 @@ agent.
    - Replace current user-facing plan option lists in:
      - `../sase-telegram/README.md`
      - `../sase-telegram/docs/outbound.md`
-     - `../legacy-chat-integration/README.md`
-     - `../legacy-chat-integration/docs/outbound.md`
+     - `../retired chat plugin/README.md`
+     - `../retired chat plugin/docs/outbound.md`
    - Use `Tale / Approve / Epic / Legend / Reject / Feedback`.
    - Where docs discuss protocol details, keep the internal payload name `run` and clarify that the visible `Approve`
      option maps to the `run` payload for compatibility.

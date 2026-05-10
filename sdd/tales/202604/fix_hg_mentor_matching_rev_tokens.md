@@ -3,11 +3,11 @@ create_time: 2026-04-03 20:31:45
 status: done
 ---
 
-# Plan: Fix Missing MENTORS on hg/legacy-mercurial-plugin Due to Diff Header Parsing
+# Plan: Fix Missing MENTORS on hg/retired Mercurial plugin Due to Diff Header Parsing
 
 ## Problem Summary
 
-`axe` is not adding a `MENTORS` field for some Mercurial-backed ChangeSpecs (observed on a machine using `legacy-mercurial-plugin`).
+`axe` is not adding a `MENTORS` field for some Mercurial-backed ChangeSpecs (observed on a machine using `retired Mercurial plugin`).
 
 The logpack confirms hook completion for `pat_fix_pg_view_details` but no subsequent mentor profile registration in the
 same period. This points to mentor profile matching returning no matches rather than hook lifecycle failure.

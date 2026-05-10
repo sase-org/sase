@@ -8,7 +8,7 @@ prompt: sdd/prompts/202604/gemini_memory_files.md
 
 ## Context
 
-Four mentor profiles in legacy-mercurial-plugin (`aaa`, `g3doc`, `sql`, `ui`) encode domain knowledge as review guidelines. The user
+Four mentor profiles in retired Mercurial plugin (`aaa`, `g3doc`, `sql`, `ui`) encode domain knowledge as review guidelines. The user
 wants this knowledge extracted into standalone long-term memory files at `~/tmp/gemini/memory/long/`, following the same
 format as existing sase memory files (YAML frontmatter with keywords, markdown body). The files must NOT reference
 mentors — only the underlying knowledge/rules.

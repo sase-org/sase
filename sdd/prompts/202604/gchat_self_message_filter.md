@@ -1,7 +1,7 @@
 ---
 plan: sdd/tales/202604/gchat_self_message_filter.md
 ---
- It looks like our legacy-chat-integration integration is launching agents based on outbound messages (i.e. it is confusing outbound messages, sent by sase, with inbound messages, sent my me). See the `sase ace` snapshot below for an example
+ It looks like our retired chat plugin integration is launching agents based on outbound messages (i.e. it is confusing outbound messages, sent by sase, with inbound messages, sent my me). See the `sase ace` snapshot below for an example
 of what I'm talking about. Can you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 
 

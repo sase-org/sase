@@ -17,7 +17,7 @@ done in `sdd/beads/issues.jsonl` but the epic is still open.
 | #   | Gap                                                            | Severity | Scope                     |
 | --- | -------------------------------------------------------------- | -------- | ------------------------- |
 | 1   | sase-github missing 3 VCS dispatch hooks                       | Critical | ../sase-github/           |
-| 2   | legacy-mercurial-plugin missing 3 VCS dispatch hooks                       | Critical | ../legacy-mercurial-plugin/ (complex) |
+| 2   | retired Mercurial plugin missing 3 VCS dispatch hooks                       | Critical | ../retired Mercurial plugin/ (complex) |
 | 3   | bare_git `vcs_create_pull_request` missing ChangeSpec creation | Medium   | sase core                 |
 | 4   | No tests for CommitWorkflow or VCS dispatch                    | Medium   | sase core                 |
 | 5   | Stop hook sibling repo check uses old `/commit` skill          | Bug      | sase core                 |
@@ -183,24 +183,24 @@ This keeps CommitWorkflow simple but duplicates logic across skills.
 
 ---
 
-## Phase 4: legacy-mercurial-plugin VCS dispatch hooks
+## Phase 4: retired Mercurial plugin VCS dispatch hooks
 
 **Goal**: Implement the three dispatch hooks for Mercurial/Google VCS.
 
-**Scope**: `../legacy-mercurial-plugin/`
+**Scope**: `../retired Mercurial plugin/`
 
 ### Complexity Note
 
-This is the most complex gap. The old legacy-mercurial-plugin workflows (`legacy_mercurial_plugin_commit_workflow`, `sase_propose_workflow`,
+This is the most complex gap. The old retired Mercurial plugin workflows (`retired_mercurial_plugin_commit_workflow`, `sase_propose_workflow`,
 `sase_cl_workflow`) contained substantial Google-internal logic: `hg amend`, `hg addremove`, `hg commit --name`,
-`hg fix`, `hg upload tree`, branch/CL number resolution, etc. These scripts still exist in the legacy-mercurial-plugin repo and can
+`hg fix`, `hg upload tree`, branch/CL number resolution, etc. These scripts still exist in the retired Mercurial plugin repo and can
 be used as reference.
 
 ### Implementation
 
-**File: `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/plugin.py`** — Add 3 `@hookimpl` methods:
+**File: `../retired Mercurial plugin/src/retired_mercurial_plugin/plugin.py`** — Add 3 `@hookimpl` methods:
 
-1. **`vcs_create_commit(payload, cwd)`** — Port from `legacy_mercurial_plugin_commit_workflow`:
+1. **`vcs_create_commit(payload, cwd)`** — Port from `retired_mercurial_plugin_commit_workflow`:
    - Get CL name from branch
    - Save diff and chat history
    - Build note with `[who]` prefix
@@ -221,7 +221,7 @@ be used as reference.
 
 ### Verification
 
-- Tests pass in `../legacy-mercurial-plugin/`
+- Tests pass in `../retired Mercurial plugin/`
 - End-to-end verification with Mercurial workspace (if available)
 
 ---
@@ -266,4 +266,4 @@ This is a user decision — flagging it for discussion.
 2. **Phase 1** (sase-github hooks) — High-impact, moderate effort
 3. **Phase 3** (ChangeSpec creation) — Needs design decision on payload extension
 4. **Phase 5** (cleanup) — Low risk
-5. **Phase 4** (legacy-mercurial-plugin hooks) — Most complex, may need dedicated attention
+5. **Phase 4** (retired Mercurial plugin hooks) — Most complex, may need dedicated attention

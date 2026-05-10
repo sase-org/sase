@@ -16,9 +16,9 @@ misclassified as a "non-conflict error."
 
 Two bugs work together to produce this failure:
 
-### Bug 1: `legacy_mercurial_plugin_sync` aborts the rebase before conflict detection can run
+### Bug 1: `retired_mercurial_plugin_sync` aborts the rebase before conflict detection can run
 
-The `legacy_mercurial_plugin_sync` bash script (in legacy-mercurial-plugin repo) has this flow:
+The `retired_mercurial_plugin_sync` bash script (in retired Mercurial plugin repo) has this flow:
 
 ```bash
 if ! hg sync "$@"; then
@@ -62,9 +62,9 @@ multi-commit rebase could hit conflicts at each commit boundary — the repeat l
 
 ## Fix
 
-### Phase 1: Stop aborting the rebase in `legacy_mercurial_plugin_sync` (legacy-mercurial-plugin repo)
+### Phase 1: Stop aborting the rebase in `retired_mercurial_plugin_sync` (retired Mercurial plugin repo)
 
-**File**: `src/legacy_mercurial_plugin/scripts/legacy_mercurial_plugin_sync`
+**File**: `src/retired_mercurial_plugin/scripts/retired_mercurial_plugin_sync`
 
 When merge conflicts are detected, exit with failure but **do not** abort the rebase. This leaves the workspace in a
 conflicted state that `sync_attempt.py` can detect.

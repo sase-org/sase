@@ -1,7 +1,7 @@
 ---
 plan: sdd/tales/202604/fix_split_cl_name.md
 ---
-Can you help me fix the `#split` xprompt workflow (defined in the ../legacy-mercurial-plugin repo)? See the command output below for
+Can you help me fix the `#split` xprompt workflow (defined in the ../retired Mercurial plugin repo)? See the command output below for
 reference. Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 
 ```

@@ -24,7 +24,7 @@ The `prepare_description_for_reword(description)` method demonstrates the exact 
 - **Base class** (`_base.py`): default returns `description` unchanged
 - **Hookspec** (`_hookspec.py`): `@hookspec(firstresult=True)` declaration
 - **Plugin manager** (`_plugin_manager.py`): delegates to hook, falls back to default if no plugin handles it
-- **Google plugin** (`legacy-mercurial-plugin/plugin.py`): overrides to escape special chars for hg
+- **Google plugin** (`retired Mercurial plugin/plugin.py`): overrides to escape special chars for hg
 - **GitHub plugin**: does not override (uses default)
 
 ## Phase 1: Add `normalize_bug_value()` to VCS Provider Interface
@@ -65,9 +65,9 @@ def normalize_bug_value(self, tag_value: str) -> str:
     return result
 ```
 
-## Phase 2: Google Plugin Override (`../legacy-mercurial-plugin`)
+## Phase 2: Google Plugin Override (`../retired Mercurial plugin`)
 
-In `legacy-mercurial-plugin/src/legacy_mercurial_plugin/plugin.py`, add after `vcs_prepare_description_for_reword`:
+In `retired Mercurial plugin/src/retired_mercurial_plugin/plugin.py`, add after `vcs_prepare_description_for_reword`:
 
 ```python
 @hookimpl
@@ -105,9 +105,9 @@ The `provider` variable is already in scope (line 228).
 Add a test in `tests/vcs_provider/` verifying `VCSPluginManager.normalize_bug_value()` returns the value unchanged when
 no plugin overrides it (the default/GitHub behavior).
 
-### 4b. legacy-mercurial-plugin tests
+### 4b. retired Mercurial plugin tests
 
-Add a test in `../legacy-mercurial-plugin/tests/test_hg_plugin.py` verifying the Google provider normalizes various input formats to
+Add a test in `../retired Mercurial plugin/tests/test_hg_plugin.py` verifying the Google provider normalizes various input formats to
 `http://b/<id>`:
 
 - Bare ID: `"487724502"` → `"http://b/487724502"`

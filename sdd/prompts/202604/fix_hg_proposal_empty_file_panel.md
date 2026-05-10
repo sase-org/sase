@@ -1,7 +1,7 @@
 ---
 plan: sdd/tales/202604/fix_hg_proposal_empty_file_panel.md
 ---
- This agent (see the `sase ace` snapshot below) created a proposal properly, but I don't see the diff in the file panel. This agent was run on another machine that uses the ../legacy-mercurial-plugin repo. Can you help me diagnose the
+ This agent (see the `sase ace` snapshot below) created a proposal properly, but I don't see the diff in the file panel. This agent was run on another machine that uses the ../retired Mercurial plugin repo. Can you help me diagnose the
 root cause of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 
 
@@ -90,5 +90,5 @@ root cause of this issue and fix it? Think this through thoroughly and create a 
 ```
 
 ### DYNAMIC MEMORY
-- @.sase/memory/long-external-repos.md (matched: `legacy-mercurial-plugin`)
+- @.sase/memory/long-external-repos.md (matched: `retired Mercurial plugin`)
 - @.sase/memory/long-generated-skills.md (matched: `SKILL.md`, `sase_hg_commit`)

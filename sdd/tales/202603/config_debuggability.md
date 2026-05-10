@@ -66,7 +66,7 @@ and immediately flagged the root cause.
 ```python
 @dataclass
 class ConfigLayer:
-    name: str              # e.g., "default", "plugin:legacy_mercurial_plugin", "user", "overlay:sase_hg.yml", "local"
+    name: str              # e.g., "default", "plugin:retired_mercurial_plugin", "user", "overlay:sase_hg.yml", "local"
     path: str | None       # File path, or None for built-in defaults
     exists: bool           # Whether the file was found
     list_strategy: str     # "concatenate" or "replace"
@@ -143,7 +143,7 @@ useful for post-mortem debugging without needing to reproduce.
   ```
 - In `load_merged_config()`, log each layer as it's loaded:
   ```
-  DEBUG config.core: Loading layer 'plugin:legacy_mercurial_plugin' from /path/to/default_config.yml (keys: mentor_profiles, xprompts)
+  DEBUG config.core: Loading layer 'plugin:retired_mercurial_plugin' from /path/to/default_config.yml (keys: mentor_profiles, xprompts)
   DEBUG config.core: Loading layer 'local' from ./sase.yml (keys: mentor_profiles) [list_strategy=concatenate]
   ```
 

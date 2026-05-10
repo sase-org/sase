@@ -220,7 +220,7 @@ via `git rev-parse` in the post-step if ever needed.
 
 **sase-github plugin** (`../sase-github/`): Already returns `(True, pr_url)` — no change needed.
 
-**legacy-mercurial-plugin plugin** (`../legacy-mercurial-plugin/`):
+**retired Mercurial plugin plugin** (`../retired Mercurial plugin/`):
 
 - `vcs_create_proposal`: Currently returns `(True, None)`. Should return `(True, cl_url)` where `cl_url` comes from
   `vcs_get_cl_number()` → `http://cl/{cl_number}`. The `meta_proposal_id` post-step will output the full URL as the
@@ -285,7 +285,7 @@ xprompts (their step_output was persisted to disk and may still be loaded).
 | `src/sase/xprompts/pr.yml`                                 | Add `report` post-step: `meta_pr_header` + `meta_pr_url` + `meta_changespec` |
 | `src/sase/vcs_provider/plugins/bare_git.py`                | Return commit hash from `vcs_create_commit`                                  |
 | `src/sase/ace/tui/actions/agents/_notification_actions.py` | Update `get_meta_changespec_name()` for new variable names                   |
-| `../legacy-mercurial-plugin/src/legacy_mercurial_plugin/plugin.py`                 | Return CL URL from `vcs_create_proposal`                                     |
+| `../retired Mercurial plugin/src/retired_mercurial_plugin/plugin.py`                 | Return CL URL from `vcs_create_proposal`                                     |
 | `tests/test_commit_workflow.py`                            | Add tests for marker file writing and `_create_changespec()` return          |
 
 ## Design notes

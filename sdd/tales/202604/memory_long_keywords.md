@@ -70,7 +70,7 @@ than config but lower than explicit xprompt files.
 ### 1. Add frontmatter to `memory/long/` files
 
 - `memory/long/external_repos.md` - add
-  `keywords: [chezmoi, plugin, sase-github, legacy-mercurial-plugin, sase-telegram, sase-nvim, dotfile, cross-repo]`
+  `keywords: [chezmoi, plugin, sase-github, retired Mercurial plugin, sase-telegram, sase-nvim, dotfile, cross-repo]`
 - `memory/long/generated_skills.md` - add
   `keywords: [skill, SKILL.md, init-skills, sase_commit, sase_git_commit, sase_hg_commit, commit workflow, commit skill]`
 

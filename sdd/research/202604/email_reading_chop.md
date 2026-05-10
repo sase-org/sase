@@ -29,8 +29,8 @@ Relevant local patterns checked:
 - `src/sase/axe/lumberjack.py` passes `--context <ctx.json>`, runs eligible chops concurrently, and records
   `run_every` timestamps only after a successful exit.
 - `src/sase/scripts/sase_chop_error_digest.py` is the minimal built-in script-chop reference.
-- `legacy-chat-integration` and `sase-telegram` register chop executables with `[project.scripts]`, not with pluggy entry points.
-- `legacy-chat-integration` stores channel state under `~/.sase/gchat/`, uses a lock file, bootstraps its high-water mark on first
+- `retired chat plugin` and `sase-telegram` register chop executables with `[project.scripts]`, not with pluggy entry points.
+- `retired chat plugin` stores channel state under `~/.sase/gchat/`, uses a lock file, bootstraps its high-water mark on first
   run to avoid backlog floods, and advances state only after successful delivery.
 - `src/sase/notifications/senders.py` is the right place to add a typed sender helper, but arbitrary external tools can
   already append notification JSONL through the public store model.
@@ -38,7 +38,7 @@ Relevant local patterns checked:
 Two corrections to the first draft:
 
 1. A package does **not** need a custom `chop_script_dirs` entry if its console scripts are installed into the same
-   environment or visible on `$PATH`; this is how `legacy-chat-integration` and `sase-telegram` work.
+   environment or visible on `$PATH`; this is how `retired chat plugin` and `sase-telegram` work.
 2. A notification with an unknown `action` is fine for display, but an email notification probably should use
    `action=None` in v1 unless we also add a concrete action handler. Put IDs in `action_data` for future use.
 
@@ -46,12 +46,12 @@ Two corrections to the first draft:
 
 ### Recommendation: new `sase-gmail` repo
 
-Create a sibling plugin at `~/projects/github/sase-org/sase-gmail`, mirroring `legacy-chat-integration` and `sase-telegram`.
+Create a sibling plugin at `~/projects/github/sase-org/sase-gmail`, mirroring `retired chat plugin` and `sase-telegram`.
 
 Why:
 
 - Email has its own dependencies (`google-api-python-client`, `google-auth-oauthlib`, likely `google-auth-httplib2`).
-- `legacy-mercurial-plugin` is currently Mercurial/external provider-focused; bundling Gmail there would make "Google" mean unrelated things.
+- `retired Mercurial plugin` is currently Mercurial/external provider-focused; bundling Gmail there would make "Google" mean unrelated things.
 - The existing comm-channel packages are standalone chop-script packages.
 - A separate repo keeps auth docs, setup tests, and optional CLI commands isolated.
 
@@ -256,7 +256,7 @@ v1 can rely on generic ACE / telegram / gchat rendering. It will be readable if 
 
 Optional follow-up polish:
 
-- Add gmail-specific formatter branches in `legacy-chat-integration` and `sase-telegram`.
+- Add gmail-specific formatter branches in `retired chat plugin` and `sase-telegram`.
 - Add an ACE action handler to open a local text export or run `sase-gmail show --message-id ...`.
 - Add muted defaults for noisy labels/senders.
 
@@ -376,7 +376,7 @@ tail -n 5 ~/.sase/notifications/notifications.jsonl
 
 ## 12. Implementation Plan
 
-1. Create `sase-gmail` skeleton mirroring `legacy-chat-integration`: `pyproject.toml`, `Justfile`, `README.md`, `src/sase_gmail/`,
+1. Create `sase-gmail` skeleton mirroring `retired chat plugin`: `pyproject.toml`, `Justfile`, `README.md`, `src/sase_gmail/`,
    `tests/`.
 2. Implement local state helpers: permissions, atomic JSON write, lock, delivered-ID cache.
 3. Implement `gmail_client.py` with OAuth token loading, service construction, `list_message_ids`, `get_message_summary`,
@@ -406,8 +406,8 @@ tail -n 5 ~/.sase/notifications/notifications.jsonl
 - `src/sase/scripts/sase_chop_error_digest.py` - minimal built-in script chop.
 - `src/sase/notifications/senders.py` - typed notification sender helpers.
 - `src/sase/notifications/models.py` and `src/sase/notifications/store.py` - JSONL notification model/storage.
-- `~/projects/github/sase-org/legacy-chat-integration/src/legacy_chat_integration/scripts/sase_gc_outbound.py` - modern chop entry point.
-- `~/projects/github/sase-org/legacy-chat-integration/src/legacy_chat_integration/outbound.py` - high-water mark and lock pattern.
-- `~/projects/github/sase-org/legacy-chat-integration/src/legacy_chat_integration/gchat_client.py` - retry/debug-log wrapper pattern.
+- `~/projects/github/sase-org/retired chat plugin/src/retired_chat_plugin/scripts/sase_gc_outbound.py` - modern chop entry point.
+- `~/projects/github/sase-org/retired chat plugin/src/retired_chat_plugin/outbound.py` - high-water mark and lock pattern.
+- `~/projects/github/sase-org/retired chat plugin/src/retired_chat_plugin/gchat_client.py` - retry/debug-log wrapper pattern.
 - `~/projects/github/sase-org/sase-telegram/src/sase_telegram/credentials.py` - `pass`-backed secret pattern.
 - `~/.local/share/chezmoi/home/dot_config/sase/sase_athena.yml` - user lumberjack config target.

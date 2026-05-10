@@ -123,7 +123,7 @@ grouping logic already suppresses L1 banners when the name-root is empty (single
     coder.2                                                 5m · 03:22
     coder.3 ⚡                                                running
                                                                           ← spacer
-▌ legacy-mercurial-plugin · feature/provider-skills  ━━━━━━━━━━━━━━━━  3 agents · 0 done
+▌ retired Mercurial plugin · feature/provider-skills  ━━━━━━━━━━━━━━━━  3 agents · 0 done
   ╭─ planner ─────────────────────────────────────────────────────  0 done
     planner.1                                                running
   ╭─ coder ───────────────────────────────────────────────────────  0 done

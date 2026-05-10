@@ -9,13 +9,13 @@ prompt: sdd/prompts/202604/fix_hg_commit_message.md
 ## Problem
 
 The `sase ace` TUI agent details panel shows the wrong `Commit Message:` for agents that run on hg (Mercurial)
-workspaces via the legacy-mercurial-plugin plugin. Instead of showing the specific commit entry message (e.g., "Restore
+workspaces via the retired Mercurial plugin plugin. Instead of showing the specific commit entry message (e.g., "Restore
 LINE_ITEM_BACKFILL validation to AdContentProtectionValidator"), it shows the overall CL description (e.g., "[bs_allow]
 Extract AdvertiserBrandBlock validation into a standalone validator class.").
 
 ## Root Cause
 
-The `hg.yml` xprompt in legacy-mercurial-plugin has a `diff` step that runs as a `finally` step after every agent run. When it
+The `hg.yml` xprompt in retired Mercurial plugin has a `diff` step that runs as a `finally` step after every agent run. When it
 detects a commit (head hash changed), it sets `meta_commit_message` using:
 
 ```bash
@@ -58,7 +58,7 @@ TUI displays: "Commit Message: [bs_allow] Extract AdvertiserBrandBlock..."  (WRO
 
 ## Fix
 
-**File: `legacy-mercurial-plugin/src/legacy_mercurial_plugin/xprompts/hg.yml`** (the `diff` step)
+**File: `retired Mercurial plugin/src/retired_mercurial_plugin/xprompts/hg.yml`** (the `diff` step)
 
 When `commit_result.json` exists in `SASE_ARTIFACTS_DIR`, read the commit message from it (first line of the `message`
 field) instead of from `hg log`. Fall back to `hg log` only when `commit_result.json` doesn't exist (i.e., the agent

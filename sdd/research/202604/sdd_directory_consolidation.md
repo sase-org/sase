@@ -404,7 +404,7 @@ you also have a `sase sdd migrate --rewrite-bead-designs` command with a dry run
    repo. Don't conflate.
 4. **Beads ID renumbering.** If you adopt option D3-(B) (`MY-`, `LG-` prefixes), don't try to rewrite existing
    `beads-NNN` plan IDs. Just start the new tiers fresh. Cross-tier references go by ID, not by tier name.
-5. **Tooling that scans `plans/`.** Anything outside `src/sase/` (skills, mentor scripts, legacy-mercurial-plugin plugin,
+5. **Tooling that scans `plans/`.** Anything outside `src/sase/` (skills, mentor scripts, retired Mercurial plugin plugin,
    sase-nvim, chezmoi dotfiles) might hard-code `plans/` or `specs/`. Run `rg -F 'plans/' lib/ <legacy-public-api-list>`
    and across the plugin repos before flipping the switch.
 6. **`.sase_plan_*.md` at project root.** These are pre-persistence WIP files written by the `sase_plan` skill. They
@@ -422,7 +422,7 @@ you also have a `sase sdd migrate --rewrite-bead-designs` command with a dry run
 10. **Second-pass external scan.** Known sibling repos mostly do not hard-code SDD paths. Hits found on 2026-04-30:
     `sase-telegram/tests/test_bead_format.py` expects `../sase/plans/202604/...`, and
     `sase-telegram/src/sase_telegram/formatting.py` documents `sdd/research/*.md`. No hits were found in `sase-github`,
-    `legacy-mercurial-plugin`, `sase-nvim`, `~/.local/share/chezmoi/home/dot_config/sase`, or `~/.config/sase` for the scanned
+    `retired Mercurial plugin`, `sase-nvim`, `~/.local/share/chezmoi/home/dot_config/sase`, or `~/.config/sase` for the scanned
     path patterns. Still rerun the scan in the final migration CL because these repos move independently.
 11. **Docs outside SDD docs.** `README.md`, `docs/configuration.md`, `docs/beads.md`, `docs/xprompt.md`,
     `docs/change_spec.md`, and `docs/rust_backend.md` all contain user-facing `plans/`/`specs/`/`sdd/research/` examples.

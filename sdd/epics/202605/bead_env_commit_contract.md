@@ -161,7 +161,7 @@ Owned files:
 - `docs/configuration.md`
 - any README/config docs that list commit flags or payload fields
 - sibling repos only if the sweep finds live references:
-  - `../legacy-mercurial-plugin`
+  - `../retired Mercurial plugin`
   - `../sase-github`
   - `~/.local/share/chezmoi`
 

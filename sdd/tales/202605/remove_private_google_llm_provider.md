@@ -6,7 +6,7 @@ status: done
 
 ## Goal
 
-Remove repo-local references to the Google-private LLM provider that now belongs only in the private `../legacy-mercurial-plugin`
+Remove repo-local references to the Google-private LLM provider that now belongs only in the private `../retired Mercurial plugin`
 plugin repository. The public `sase` repo should continue to describe external LLM provider plugins generically without
 naming or documenting that private provider, its CLI, model names, environment variables, skill deploy path, or Python
 implementation paths.
@@ -19,15 +19,15 @@ references are documentation, memory, skill targeting metadata, and historical S
 Live, non-SDD references:
 
 - `README.md`: supported-agent table and LLM provider feature summary name the private provider as available through
-  `legacy-mercurial-plugin`.
-- `docs/plugins.md`: plugin group examples, `legacy-mercurial-plugin` package description, entry-point table, and LLM plugin section
+  `retired Mercurial plugin`.
+- `docs/plugins.md`: plugin group examples, `retired Mercurial plugin` package description, entry-point table, and LLM plugin section
   name the private provider and document its special skill path.
 - `docs/llms.md`: overview, external provider section, model-name hook example, and environment variable section name
   the private provider and document private implementation details.
 - `docs/xprompt.md`: negative-keyword YAML example uses the private provider name even though the concept is generic.
 - `memory/short/gotchas.md`: contains provider-specific operational guidance and a generic YAML example using the
   private name.
-- `memory/long/external_repos.md`: lists the private provider as part of `../legacy-mercurial-plugin`.
+- `memory/long/external_repos.md`: lists the private provider as part of `../retired Mercurial plugin`.
 - `memory/long/generated_skills.md`: commit-skill matrix and prose include the private provider runtime.
 - `src/sase/xprompts/skills/sase_hg_commit.md`: frontmatter installs the Mercurial commit skill for `gemini` and the
   private runtime.
@@ -43,7 +43,7 @@ Historical SDD references:
 
 1. Preserve the plugin architecture while removing private-provider specifics.
    - Keep docs saying `sase_llm` supports built-in providers and optional external provider plugins.
-   - Keep `legacy-mercurial-plugin` documented as the Mercurial/GitHub-internal VCS/config/xprompt plugin where appropriate, but do
+   - Keep `retired Mercurial plugin` documented as the Mercurial/GitHub-internal VCS/config/xprompt plugin where appropriate, but do
      not mention a private LLM provider.
    - Replace provider-specific examples with generic external-provider examples that do not expose private names,
      models, paths, or env vars.
@@ -53,7 +53,7 @@ Historical SDD references:
      core skill.
    - Update generated-skill memory so it no longer claims that the private runtime receives core-generated skills.
    - Do not add replacement behavior for the private provider in this repo; any provider-specific skill generation
-     belongs in `../legacy-mercurial-plugin`.
+     belongs in `../retired Mercurial plugin`.
 
 3. Clean live memory and docs.
    - Delete the provider-specific gotcha from `memory/short/gotchas.md`.
@@ -93,7 +93,7 @@ Historical SDD references:
 
 ## Non-Goals
 
-- Do not edit `../legacy-mercurial-plugin` unless verification proves this repo depends on a cross-repo change.
+- Do not edit `../retired Mercurial plugin` unless verification proves this repo depends on a cross-repo change.
 - Do not remove the `sase_llm` plugin system or generic external-provider support.
 - Do not introduce provider-specific compatibility shims in public `sase`.
 

@@ -96,7 +96,7 @@ Telegram changes in `sase-telegram`:
 
 Google Chat follow-up:
 
-- Because `.update` uses the same shared worker, add the same pending/delivery flow in `legacy-chat-integration` either in the same
+- Because `.update` uses the same shared worker, add the same pending/delivery flow in `retired chat plugin` either in the same
   change or as a follow-up bead.
 - If this work is scoped only to Telegram, design the core completion record so Google Chat can adopt it without another
   core refactor.
@@ -132,13 +132,13 @@ Run targeted tests first:
 
 - In `sase`: `just test tests/test_chat_install.py`
 - In `sase-telegram`: `just test tests/test_inbound.py`
-- If touched: in `legacy-chat-integration`: `just test tests/test_inbound.py`
+- If touched: in `retired chat plugin`: `just test tests/test_inbound.py`
 
 Then run required checks in each modified repo:
 
 - In `sase`: `just check`
 - In `sase-telegram`: `just check`
-- In `legacy-chat-integration` if modified: `just check`
+- In `retired chat plugin` if modified: `just check`
 
 Because this workspace may be stale, run `just install` in a repo before checks if dependencies are not already current.
 

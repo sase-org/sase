@@ -8,7 +8,7 @@ prompt: sdd/prompts/202604/hitl_approved_validation.md
 
 ## Problem
 
-The `#split` xprompt workflow (in legacy-mercurial-plugin) fails validation with:
+The `#split` xprompt workflow (in retired Mercurial plugin) fails validation with:
 
 ```
 Step 'execute_revert': references 'revert_prompt.approved' but 'revert_prompt' output has no field 'approved'. Available: ['message']

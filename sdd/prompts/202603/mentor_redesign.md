@@ -70,7 +70,7 @@ numbered sections in that file, below:
    the focus area (should be included in the `#json` output schema and displayed on the Mentors Review popup) and
    `review_focus_desc` is a description of the focus area. These pairs are also passed to the `#mentor` xprompt, which
    will format them properly in a pre-step (we'll need to use an xprompt YAML workflow for this) so they can be injected
-   into the `#mentor` agent's prompt. Remove the legacy-mercurial-plugin plugin repo's mentor.md file and make sure to update the
+   into the `#mentor` agent's prompt. Remove the retired Mercurial plugin plugin repo's mentor.md file and make sure to update the
    default_config.yml file (which defines `mentor_profiles`) in that repo.
 6. The "one and only one" constraint should be enforced (throw an error) if the xprompts have the same priority
    (otherwise, we just use the higher priority xprompt). xprompt tag overrides are a complete replacement for the lower

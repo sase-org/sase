@@ -21,7 +21,7 @@ me figure out why this is happening and fix the issue? Think this through thorou
 │                                                  ││  Good, Jinja syntax works. Let me now look at the tests directory to understand what I need to extend.                                                                                         │
 │                                                  ││  ─── 15:00:31 ─────────────────────────────────────                                                                                                                                            │
 │                                                  ││                                                                                                                                                                                                │
-│                                                  ││  Let me look at the existing test files to understand the testing conventions in legacy-mercurial-plugin.                                                                                                  │
+│                                                  ││  Let me look at the existing test files to understand the testing conventions in retired Mercurial plugin.                                                                                                  │
 │                                                  ││  ─── 15:01:44 ─────────────────────────────────────                                                                                                                                            │
 │                                                  ││                                                                                                                                                                                                │
 │                                                  ││  Let me refactor `sase_split_setup` to extract a testable helper function.                                                                                                                     │
@@ -30,7 +30,7 @@ me figure out why this is happening and fix the issue? Think this through thorou
 │                                                  ││  Now replace the inline logic in `main()` with a call to the helper.                                                                                                                           │
 │                                                  ││  ─── 15:02:13 ─────────────────────────────────────                                                                                                                                            │
 │                                                  ││                                                                                                                                                                                                │
-│                                                  ││  Now let me write the tests. First I'll set up fake `legacy_mercurial_plugin_update` and `legacy_mercurial_plugin_clean` on PATH for the prepare_execute test.                                                         │
+│                                                  ││  Now let me write the tests. First I'll set up fake `retired_mercurial_plugin_update` and `retired_mercurial_plugin_clean` on PATH for the prepare_execute test.                                                         │
 │                                                  ││  ─── 15:03:12 ─────────────────────────────────────                                                                                                                                            │
 │                                                  ││                                                                                                                                                                                                │
 │                                                  ││  Let me simplify the module loading.                                                                                                                                                           │
@@ -92,4 +92,4 @@ me figure out why this is happening and fix the issue? Think this through thorou
 
 ### DYNAMIC MEMORY
 
-- @.sase/memory/long-external-repos.md (matched: `legacy-mercurial-plugin`)
+- @.sase/memory/long-external-repos.md (matched: `retired Mercurial plugin`)

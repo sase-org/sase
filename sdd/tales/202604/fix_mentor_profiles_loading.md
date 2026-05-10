@@ -13,7 +13,7 @@ is never populated. This affects all ChangeSpecs globally.
 
 ## Root Cause
 
-In `legacy-mercurial-plugin/src/legacy_mercurial_plugin/default_config.yml`, the `bugs` mentor in the `code` profile (line 100-104) has
+In `retired Mercurial plugin/src/retired_mercurial_plugin/default_config.yml`, the `bugs` mentor in the `code` profile (line 100-104) has
 `focus_areas` formatted as a flat dict instead of a list:
 
 ```yaml
@@ -40,9 +40,9 @@ raises a `ValueError` that aborts loading of ALL profiles, even valid ones.
 
 ## Changes
 
-### Phase 1: Fix the YAML (legacy-mercurial-plugin repo)
+### Phase 1: Fix the YAML (retired Mercurial plugin repo)
 
-**File:** `legacy-mercurial-plugin/src/legacy_mercurial_plugin/default_config.yml` (line 100-104)
+**File:** `retired Mercurial plugin/src/retired_mercurial_plugin/default_config.yml` (line 100-104)
 
 Add the missing `-` and fix indentation so `focus_areas` is a list:
 

@@ -155,7 +155,7 @@ Validation:
 
 ## Phase 4: Telegram and Google Chat Plan Approval Support
 
-Owner: one agent across `../sase-telegram` and `../legacy-chat-integration`.
+Owner: one agent across `../sase-telegram` and `../retired chat plugin`.
 
 Scope:
 
@@ -168,7 +168,7 @@ Scope:
 Validation:
 
 - `just check` in `../sase-telegram`.
-- `just check` in `../legacy-chat-integration`.
+- `just check` in `../retired chat plugin`.
 - Manual smoke instructions in phase notes: trigger a plan approval, choose Legend externally, confirm SASE launches the
   legend-creation follow-up rather than the epic-creation follow-up.
 
@@ -192,7 +192,7 @@ Scope:
 
 Validation:
 
-- `rg` scans across `sase_100`, `../sase-telegram`, `../legacy-chat-integration`, `../legacy-mercurial-plugin`, `../sase-github`, `../sase-nvim`,
+- `rg` scans across `sase_100`, `../sase-telegram`, `../retired chat plugin`, `../retired Mercurial plugin`, `../sase-github`, `../sase-nvim`,
   `~/.local/share/chezmoi/home/dot_config/sase`, and `~/.config/sase`.
 - `just install && just check` in `sase_100`.
 - `just check` in any plugin repo changed during this phase.

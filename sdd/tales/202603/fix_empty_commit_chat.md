@@ -6,7 +6,7 @@ status: done
 
 ## Problem
 
-When the ace-run agent runs `sase commit --method create_pull_request` (e.g. Gemini on Mercurial via legacy-mercurial-plugin), the
+When the ace-run agent runs `sase commit --method create_pull_request` (e.g. Gemini on Mercurial via retired Mercurial plugin), the
 resulting ChangeSpec's COMMITS entry references a chat file that has empty Prompt and Response sections:
 
 ```
@@ -58,7 +58,7 @@ new (empty) chat file.
 - `create_pull_request`: uses `_create_changespec()` → `create_changespec_for_workflow()` which creates its own chat
   file
 
-On Mercurial (legacy-mercurial-plugin), `create_pull_request` is the method used for new CLs, so this bug surfaces there.
+On Mercurial (retired Mercurial plugin), `create_pull_request` is the method used for new CLs, so this bug surfaces there.
 
 ## Fix
 

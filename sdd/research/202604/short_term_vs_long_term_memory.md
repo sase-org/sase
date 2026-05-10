@@ -296,7 +296,7 @@ The following files contain detailed reference material. Read them when working 
 
 - [memory/e2e_testing.md](memory/e2e_testing.md) — AcePage testing DSL and patterns. Read when writing or modifying
   end-to-end TUI tests.
-- [memory/external_repos.md](memory/external_repos.md) — Chezmoi repo and plugin repo (sase-github, legacy-mercurial-plugin,
+- [memory/external_repos.md](memory/external_repos.md) — Chezmoi repo and plugin repo (sase-github, retired Mercurial plugin,
   sase-telegram, sase-nvim) locations and workflows. Read when cross-repo work is needed.
 - [memory/generated_skills.md](memory/generated_skills.md) — Skill file generation pipeline, CLI/skill contract
   synchronization, commit skills per runtime. Read when modifying skill source files or the commit workflow.

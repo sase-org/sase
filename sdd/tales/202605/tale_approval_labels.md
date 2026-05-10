@@ -11,7 +11,7 @@ Change the user-facing normal plan approval control from "Approve" to "Tale" in:
 
 - ACE TUI plan review flow in this repo.
 - Telegram plan approval messages in `../sase-telegram`.
-- Google Chat plan approval messages in `../legacy-chat-integration`.
+- Google Chat plan approval messages in `../retired chat plugin`.
 
 This should align the normal approval action with the new SDD artifact name: normal approved plans are tales, while
 alternate plan actions remain Run, Epic, Legend, Reject, and Feedback.
@@ -82,18 +82,18 @@ Do not change inbound handling:
 
 Update the current numbered option label:
 
-- `../legacy-chat-integration/src/legacy_chat_integration/formatting.py`
+- `../retired chat plugin/src/retired_chat_plugin/formatting.py`
   - First plan approval option from `✅ Approve` to `📖 Tale`.
   - Keep payload `approve` unchanged.
 
 Update tests and docs that hard-code the numbered option:
 
-- `../legacy-chat-integration/tests/test_inbound.py`
-- `../legacy-chat-integration/tests/test_integration.py`
-- `../legacy-chat-integration/tests/test_externally_handled_cleanup.py`
-- `../legacy-chat-integration/tests/test_formatting.py` where the assertion covers the PlanApproval option set.
-- `../legacy-chat-integration/README.md`
-- `../legacy-chat-integration/docs/outbound.md`
+- `../retired chat plugin/tests/test_inbound.py`
+- `../retired chat plugin/tests/test_integration.py`
+- `../retired chat plugin/tests/test_externally_handled_cleanup.py`
+- `../retired chat plugin/tests/test_formatting.py` where the assertion covers the PlanApproval option set.
+- `../retired chat plugin/README.md`
+- `../retired chat plugin/docs/outbound.md`
 
 Do not change inbound handling:
 
