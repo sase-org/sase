@@ -393,6 +393,7 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
 
     # Find PID
     pid: int | None = None
+    cl_name: str | None = None
     is_home = project_name == "home"
 
     if is_home:
@@ -405,6 +406,7 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
                 pid = data.get("pid")
             except (json.JSONDecodeError, OSError):
                 pass
+        cl_name = _read_cl_name_from_meta(artifacts_path)
     else:
         # Non-home: scan RUNNING field for matching artifacts_timestamp
         from sase.running_field import get_claimed_workspaces
@@ -412,6 +414,7 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
         for claim in get_claimed_workspaces(project_file):
             if claim.artifacts_timestamp == timestamp:
                 pid = claim.pid
+                cl_name = claim.cl_name
                 break
 
     if pid is None:
@@ -463,6 +466,8 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
                 )
                 break
 
+    _record_dismissal(cl_name, timestamp)
+
     return _KillResult(
         True,
         f"Killed agent '{name}' (PID {pid})",
@@ -473,6 +478,40 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
         project=project_name,
         timestamp=timestamp,
     )
+
+
+def _read_cl_name_from_meta(artifacts_path: Path) -> str | None:
+    try:
+        with open(artifacts_path / "agent_meta.json", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    value = data.get("cl_name")
+    return value if isinstance(value, str) else None
+
+
+def _record_dismissal(cl_name: str | None, raw_suffix: str) -> None:
+    """Add the killed agent to the persistent dismissed-agents index.
+
+    Failure to write the index must never flip a successful kill into a
+    failure — the kill itself already happened.
+    """
+    try:
+        from sase.ace.dismissed_agents import (
+            load_dismissed_agents,
+            save_dismissed_agents,
+        )
+        from sase.ace.tui.models.agent import AgentType
+
+        identity = (AgentType.RUNNING, cl_name or "unknown", raw_suffix)
+        dismissed = load_dismissed_agents()
+        if identity not in dismissed:
+            dismissed.add(identity)
+            save_dismissed_agents(dismissed)
+    except Exception:
+        pass
 
 
 def _agent_meta_name_matches(artifacts_dir: str, expected_name: str) -> bool:

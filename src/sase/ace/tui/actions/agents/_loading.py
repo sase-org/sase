@@ -137,6 +137,29 @@ class AgentLoadingMixin:
     _nav_gate: NavigationGate
     _agent_load_state: AgentLoadState | None
 
+    def _merge_external_dismissals(self) -> None:
+        """Union on-disk dismissed-agent identities into the in-memory set.
+
+        External processes (Telegram kill, ``sase agents kill``, gchat) write
+        to ``~/.sase/dismissed_agents.json`` directly via
+        :func:`sase.agent.running.kill_named_agent`. Without this merge a
+        long-lived TUI would never observe those entries on its next refresh
+        and would re-classify the killed agent as FAILED.
+
+        Only unions in new entries — never drops in-memory entries that
+        haven't been flushed to disk yet (the optimistic kill flow updates
+        memory first and persists asynchronously).
+        """
+        from ....dismissed_agents import load_dismissed_agents
+
+        try:
+            on_disk = load_dismissed_agents()
+        except Exception:
+            return
+        new_external = on_disk - self._dismissed_agents
+        if new_external:
+            self._dismissed_agents.update(new_external)
+
     def _load_agents(self) -> None:
         """Load agents from all sources."""
         from ....changespec import find_all_changespecs_cached
@@ -152,6 +175,7 @@ class AgentLoadingMixin:
             # than whatever drifted into ``_agents_last_idx``'s slot.
             selected_identity = getattr(self, "_agents_last_identity", None)
 
+        self._merge_external_dismissals()
         dismissed_snapshot = set(self._dismissed_agents)
         changespec_snapshot = find_all_changespecs_cached()
         load_result = load_agents_from_disk_with_state(
@@ -182,6 +206,7 @@ class AgentLoadingMixin:
 
         from ....changespec import find_all_changespecs_cached
 
+        self._merge_external_dismissals()
         dismissed_snapshot = set(self._dismissed_agents)
         changespec_snapshot = await asyncio.to_thread(find_all_changespecs_cached)
         disk_start = time.perf_counter()
