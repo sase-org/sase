@@ -3,11 +3,17 @@
 The SASE Blog is the publishing surface for essays about Structured Agentic Software Engineering (SASE): durable work
 units, orchestration, provider-independent workflows, review state, and the coordination layer around coding agents.
 
-## Start With The Launch Series
+## Start Here
 
-The [Agentic Software Engineering series](../series/agentic-software-engineering.md) introduces the ideas behind SASE in
-order. Start with the current [Why Coding Agents Need Orchestration](posts/why-coding-agents-need-orchestration.md)
-launch stub, then use the series hub to follow planned posts as they are published.
+New to SASE? Read these two posts in order:
+
+1. [Hello, SASE: Your First 15 Minutes Orchestrating Coding Agents](posts/hello-sase-your-first-15-minutes.md) — the
+   hands-on on-ramp: install, launch an agent, find the result in ACE, and learn the names of every major component.
+2. [Why Coding Agents Need Orchestration](posts/why-coding-agents-need-orchestration.md) — the launch essay on _why_
+   coding-agent work needs durable orchestration around plans, state, review, dependencies, retries, and handoff.
+
+The [Agentic Software Engineering series](../series/agentic-software-engineering.md) hub tracks the launch arc and links
+the current product guides for posts still in planning.
 
 ## From Reading To Practice
 

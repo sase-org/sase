@@ -7,6 +7,13 @@ dependencies, and handoffs. The series explains why that coordination layer matt
 The canonical essays live on the [SASE Blog](../blog/index.md). This page is the series hub for readers who want the
 launch arc in order, plus the current product guides for topics whose essays are still planned.
 
+## Start Here
+
+If you have not run SASE yet, read the hands-on companion first:
+[Hello, SASE: Your First 15 Minutes Orchestrating Coding Agents](../blog/posts/hello-sase-your-first-15-minutes.md). It
+walks through install, your first `sase run`, the resulting ChangeSpec in ACE, and the vocabulary used in every post
+below.
+
 ## Series Track
 
 | Order | Post                                                                                          | Status                                                      |

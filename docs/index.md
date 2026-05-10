@@ -16,7 +16,8 @@ title: Structured Agentic Software Engineering
     </p>
 
     <div class="sase-actions">
-      <a class="md-button md-button--primary" href="blog/why-coding-agents-need-orchestration/">Read the launch essay</a>
+      <a class="md-button md-button--primary" href="blog/hello-sase-your-first-15-minutes/">Start in 15 minutes</a>
+      <a class="md-button" href="blog/why-coding-agents-need-orchestration/">Read the launch essay</a>
       <a class="md-button" href="ace/">Start with ACE</a>
       <a class="md-button" href="series/agentic-software-engineering/">Explore the series</a>
       <a class="md-button" href="/downloads/sase-handbook.pdf">Download PDF</a>
