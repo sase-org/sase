@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 20:59:18
-status: wip
+status: done
 prompt: sdd/prompts/202605/readme_reduction.md
 ---
 # Plan: Reduce README to a concise project front door
