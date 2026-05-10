@@ -225,6 +225,13 @@ _APP_COMMAND_META: tuple[
     ("show_notifications", "Show notifications", "Display", _ALL_TABS, ()),
     ("show_help", "Show help", "Display", _ALL_TABS, ("?",)),
     ("browse_xprompts", "Browse xprompts", "Display", _ALL_TABS, ("#",)),
+    (
+        "dismiss_toasts",
+        "Dismiss toasts",
+        "Display",
+        _ALL_TABS,
+        ("clear toasts", "clear notifications"),
+    ),
     # Workspace prefixes
     ("checkout", "Checkout workspace (primary)", "Workspace", _ALL_TABS, ()),
     ("start_checkout_mode", "Checkout workspace mode", "Modes", _ALL_TABS, ()),

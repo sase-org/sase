@@ -113,6 +113,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("cycle_grouping_mode_reverse", "Cycle Grouping Rev", False),
     ("show_agent_run_log", "Agent Run Log", False),
     ("open_command_palette", "Command Palette", False),
+    ("dismiss_toasts", "Dismiss Toasts", False),
 ]
 
 # Maps mode name -> the app-level action that activates it.
@@ -297,6 +298,7 @@ class AppKeymaps:
     show_help: str
     browse_xprompts: str
     open_command_palette: str
+    dismiss_toasts: str
     # Workspace mode prefixes
     checkout: str
     start_checkout_mode: str

@@ -149,6 +149,16 @@ class LifecycleMixin:
             if task.status == "running":
                 self._kill_background_task(task.task_id)  # type: ignore[attr-defined]
 
+    def action_dismiss_toasts(self) -> None:
+        """Dismiss all currently-visible toast notifications.
+
+        Uses Textual's private ``_notifications`` / ``_refresh_notifications``
+        because the Textual version in use has no public clear API. This
+        mirrors what ``App._unnotify()`` does internally per-toast on expiry.
+        """
+        self._notifications.clear()  # type: ignore[attr-defined]
+        self._refresh_notifications()  # type: ignore[attr-defined]
+
     async def action_quit(self) -> None:
         """Quit the application, saving the current selection."""
         toggle_artifact = getattr(self, "_toggle_tracked_artifact_tmux_pane", None)

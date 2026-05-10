@@ -114,4 +114,5 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # Jump to CL from agent (agents tab)
     Binding("enter", "jump_to_agent_changespec", "Go to CL", show=False),
     Binding("V", "show_agent_run_log", "Agent Run Log", show=False),
+    Binding("ctrl+l", "dismiss_toasts", "Dismiss Toasts", show=False),
 ]

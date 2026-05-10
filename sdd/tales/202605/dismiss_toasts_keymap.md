@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-10 13:58:28
-status: wip
+status: done
 prompt: sdd/prompts/202605/dismiss_toasts_keymap.md
 ---
 # Plan: Add `<ctrl+l>` Keymap to Dismiss Visible Toasts
