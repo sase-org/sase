@@ -198,6 +198,11 @@ class AcePage:
         assert self._app is not None
         return _capture_screen(self._app, self._size[1])
 
+    def export_svg(self, title: str | None = None, simplify: bool = True) -> str:
+        """Export the current Textual screen as an SVG screenshot."""
+        assert self._app is not None
+        return self._app.export_screenshot(title=title, simplify=simplify)
+
     @property
     def app(self) -> AceApp:
         """Access the underlying AceApp directly."""

@@ -32,6 +32,15 @@ async def test_ace_page_screen() -> None:
         assert len(screen) > 0
 
 
+async def test_ace_page_export_svg() -> None:
+    """export_svg returns a Textual SVG screenshot."""
+    async with AcePage() as page:
+        svg = page.export_svg(title="ACE Test")
+        assert isinstance(svg, str)
+        assert "<svg" in svg
+        assert "rich-terminal" in svg
+
+
 async def test_ace_page_custom_changespecs() -> None:
     """Passing custom changespecs overrides defaults."""
     custom = [

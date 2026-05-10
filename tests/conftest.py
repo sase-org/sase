@@ -14,6 +14,20 @@ from sase.ace.changespec import (
 )
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--sase-update-visual-snapshots",
+        action="store_true",
+        default=False,
+        help="Update ACE visual snapshot goldens instead of asserting them.",
+    )
+    parser.addoption(
+        "--sase-visual-artifact-dir",
+        default=".pytest_cache/sase-visual",
+        help="Directory for ACE visual snapshot failure artifacts.",
+    )
+
+
 def redirect_sase_home(monkeypatch: pytest.MonkeyPatch, home: Path) -> Path:
     """Redirect all ``~/.sase/...`` expansions to ``home``.
 
