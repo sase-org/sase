@@ -309,9 +309,9 @@ def launch_agents_from_cwd(
         return results
 
     # --- Detect VCS refs in prompt ---
-    from sase.xprompt.directives import has_wait_directive
+    from sase.xprompt.directives import has_deferred_start_directive
 
-    has_wait = has_wait_directive(query)
+    has_wait = has_deferred_start_directive(query)
     vcs_ref: tuple[str, str] | None = None
     workspace_dir: str | None = None
     use_preallocated_workspace = False

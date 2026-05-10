@@ -230,42 +230,62 @@ def test_wait_mixed_bare_and_explicit() -> None:
     assert directives.wait == ["bar", "prev"]
 
 
-# --- %wait duration directive tests ---
+# --- %time duration directive tests ---
 
 
-def test_wait_duration_sets_field() -> None:
-    """%wait:5m sets wait_duration=300.0 and wait=[]."""
-    prompt = "%wait:5m\nDo work"
+def test_time_duration_sets_field() -> None:
+    """%time:5m sets wait_duration=300.0 and leaves wait=[]."""
+    prompt = "%time:5m\nDo work"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Do work"
     assert directives.wait == []
     assert directives.wait_duration == 300.0
 
 
-def test_wait_duration_and_agent_name() -> None:
-    """Mixed %wait:agent and %wait:5m sets both fields."""
-    prompt = "%wait:agent\n%wait:5m\nDo work"
+def test_time_alias_t() -> None:
+    """%t:5m sets wait_duration=300.0 (alias)."""
+    prompt = "%t:5m\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait_duration == 300.0
+
+
+def test_time_compound_duration() -> None:
+    """%time:1h30m sets wait_duration=5400.0."""
+    prompt = "%time:1h30m\nDo work"
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.wait_duration == 5400.0
+
+
+def test_time_seconds_duration() -> None:
+    """%time:90s sets wait_duration=90.0."""
+    prompt = "%time:90s\nDo work"
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.wait_duration == 90.0
+
+
+def test_time_with_wait_agent() -> None:
+    """%wait:agent + %time:5m sets both fields."""
+    prompt = "%wait:agent\n%time:5m\nDo work"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Do work"
     assert directives.wait == ["agent"]
     assert directives.wait_duration == 300.0
 
 
-def test_wait_duration_multiple_takes_max() -> None:
-    """Multiple duration waits take the maximum."""
-    prompt = "%wait:5m\n%wait:10m\nDo work"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Do work"
-    assert directives.wait == []
+def test_time_duration_multiple_takes_max() -> None:
+    """Multiple %time durations take the maximum."""
+    prompt = "%time:5m\n%time:10m\nDo work"
+    _, directives = extract_prompt_directives(prompt)
     assert directives.wait_duration == 600.0
 
 
-# --- %wait absolute time directive tests ---
+# --- %time absolute time directive tests ---
 
 
-def test_wait_absolute_time_hhmm() -> None:
-    """%wait:1430 sets wait_until to an ISO string."""
-    prompt = "%wait:0000\nDo work"
+def test_time_absolute_time_hhmm() -> None:
+    """%time:0000 sets wait_until to an ISO string."""
+    prompt = "%time:0000\nDo work"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Do work"
     assert directives.wait == []
@@ -274,26 +294,92 @@ def test_wait_absolute_time_hhmm() -> None:
     assert "T00:00:00" in directives.wait_until
 
 
-def test_wait_absolute_time_with_agent_names() -> None:
-    """Absolute time can be combined with agent-name waits."""
-    prompt = "%wait:agent_a\n%wait:0000\nDo work"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Do work"
+def test_time_absolute_time_yymmdd() -> None:
+    """%time:300415/0900 sets wait_until."""
+    prompt = "%time:300415/0900\nDo work"
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.wait_until is not None
+    assert directives.wait_until.startswith("2030-04-15T09:00")
+
+
+def test_time_absolute_with_wait_agent() -> None:
+    """Absolute %time can be combined with %wait:agent."""
+    prompt = "%wait:agent_a\n%time:0000\nDo work"
+    _, directives = extract_prompt_directives(prompt)
     assert directives.wait == ["agent_a"]
     assert directives.wait_until is not None
 
 
-def test_wait_absolute_time_with_duration_raises() -> None:
-    """Combining absolute time and duration raises DirectiveError."""
-    prompt = "%wait:5m\n%wait:0000\nDo work"
+def test_time_absolute_with_duration_raises() -> None:
+    """Combining %time:5m and %time:0000 raises DirectiveError."""
+    prompt = "%time:5m\n%time:0000\nDo work"
     with pytest.raises(DirectiveError, match="Cannot combine duration and absolute"):
         extract_prompt_directives(prompt)
 
 
-def test_wait_absolute_time_multiple_raises() -> None:
-    """Multiple absolute time waits raise DirectiveError."""
-    prompt = "%wait:0000\n%wait:0100\nDo work"
+def test_time_absolute_multiple_raises() -> None:
+    """Multiple absolute %time waits raise DirectiveError."""
+    prompt = "%time:0000\n%time:0100\nDo work"
     with pytest.raises(DirectiveError, match="Multiple absolute time"):
+        extract_prompt_directives(prompt)
+
+
+# --- %time error cases ---
+
+
+def test_time_bare_raises() -> None:
+    """Bare %time raises DirectiveError."""
+    prompt = "%time\nDo work"
+    with pytest.raises(DirectiveError, match="Bare '%time' requires"):
+        extract_prompt_directives(prompt)
+
+
+def test_time_invalid_value_suggests_wait() -> None:
+    """%time:review errors with a hint to use %wait:review."""
+    prompt = "%time:review\nDo work"
+    with pytest.raises(DirectiveError, match=r"%wait:review"):
+        extract_prompt_directives(prompt)
+
+
+# --- %time comma-separated colon-arg tests ---
+
+
+def test_time_comma_durations_take_max() -> None:
+    """%time:5m,10m yields the maximum duration."""
+    prompt = "%time:5m,10m\nDo work"
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.wait_duration == 600.0
+
+
+def test_time_paren_form() -> None:
+    """%time(5m) behaves the same as %time:5m."""
+    prompt = "%time(5m)\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait_duration == 300.0
+
+
+# --- %wait migration error tests ---
+
+
+def test_wait_duration_arg_raises_with_migration_hint() -> None:
+    """%wait:5m raises with a migration hint pointing to %time."""
+    prompt = "%wait:5m\nDo work"
+    with pytest.raises(DirectiveError, match=r"%time:5m"):
+        extract_prompt_directives(prompt)
+
+
+def test_wait_hhmm_arg_raises_with_migration_hint() -> None:
+    """%wait:1430 raises with a migration hint pointing to %time."""
+    prompt = "%wait:1430\nDo work"
+    with pytest.raises(DirectiveError, match=r"%time:1430"):
+        extract_prompt_directives(prompt)
+
+
+def test_wait_yymmdd_arg_raises_with_migration_hint() -> None:
+    """%wait:300415/0900 raises with a migration hint pointing to %time."""
+    prompt = "%wait:300415/0900\nDo work"
+    with pytest.raises(DirectiveError, match=r"%time:300415/0900"):
         extract_prompt_directives(prompt)
 
 
@@ -308,25 +394,6 @@ def test_wait_comma_two_agents() -> None:
     assert directives.wait == ["a", "b"]
     assert directives.wait_duration is None
     assert directives.wait_until is None
-
-
-def test_wait_comma_agents_and_duration() -> None:
-    """%wait:a,b,5m yields two agents plus a duration."""
-    prompt = "%wait:a,b,5m\nDo work"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Do work"
-    assert directives.wait == ["a", "b"]
-    assert directives.wait_duration == 300.0
-
-
-def test_wait_comma_agent_and_absolute_time() -> None:
-    """%wait:a,1430 yields an agent plus an absolute-time wait."""
-    prompt = "%wait:a,0000\nDo work"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Do work"
-    assert directives.wait == ["a"]
-    assert directives.wait_until is not None
-    assert "T00:00:00" in directives.wait_until
 
 
 def test_wait_comma_backtick_is_single_arg() -> None:
@@ -346,12 +413,11 @@ def test_wait_comma_empty_segments_filtered() -> None:
 
 
 def test_wait_paren_form_matches_colon_form() -> None:
-    """%wait(a, b, 5m) behaves the same as %wait:a,b,5m."""
-    prompt = "%wait(a, b, 5m)\nDo work"
+    """%wait(a, b) behaves the same as %wait:a,b."""
+    prompt = "%wait(a, b)\nDo work"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Do work"
     assert directives.wait == ["a", "b"]
-    assert directives.wait_duration == 300.0
 
 
 def test_model_colon_arg_with_comma_is_single_value() -> None:

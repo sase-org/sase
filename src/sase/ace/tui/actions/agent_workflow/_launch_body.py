@@ -90,7 +90,7 @@ class AgentLaunchBodyMixin:
             return
 
         from sase.workspace_provider import get_ref_patterns, get_workflow_names
-        from sase.xprompt.directives import has_wait_directive
+        from sase.xprompt.directives import has_deferred_start_directive
         from sase.xprompt._parsing import (
             normalize_default_vcs_workflow,
             normalize_default_vcs_workflow_segment,
@@ -180,7 +180,7 @@ class AgentLaunchBodyMixin:
             if ctx.is_home_mode:
                 prompt = normalize_default_vcs_workflow(prompt)
 
-            has_wait = has_wait_directive(prompt)
+            has_wait = has_deferred_start_directive(prompt)
 
         # Resolve @name agent references in VCS tags (e.g. #gh:@d -> #gh:sase)
         # so the VCS ref pattern can match the resolved name for display_name.

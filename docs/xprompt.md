@@ -854,19 +854,20 @@ the prompt before further processing.
 
 ### Supported Directives
 
-| Directive  | Alias | Description                                                 |
-| ---------- | ----- | ----------------------------------------------------------- |
-| `%model`   | `%m`  | Override the LLM model for this prompt                      |
-| `%name`    | `%n`  | Assign, auto-generate, or force-reuse an agent name         |
-| `%wait`    | `%w`  | Wait for another agent to succeed, or for a duration        |
-| `%hide`    | `%h`  | Hide the agent from the default Agents tab display          |
-| `%approve` | `%a`  | Run the agent fully autonomously (skip approval)            |
-| `%plan`    | `%p`  | Enable plan mode (plan first, then execute)                 |
-| `%epic`    |       | Enable plan mode and auto-approve the plan as an epic       |
-| `%edit`    | `%e`  | Return editor text to the prompt bar for review             |
-| `%repeat`  | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)           |
-| `%group`   | `%g`  | Assign the agent's user-managed tag (e.g., `%group:review`) |
-| `%alt`     | `%(`  | Split prompt into variants with different text              |
+| Directive  | Alias | Description                                                     |
+| ---------- | ----- | --------------------------------------------------------------- |
+| `%model`   | `%m`  | Override the LLM model for this prompt                          |
+| `%name`    | `%n`  | Assign, auto-generate, or force-reuse an agent name             |
+| `%wait`    | `%w`  | Wait for another agent or workflow to succeed                   |
+| `%time`    | `%t`  | Defer launch by a duration or until an absolute wall-clock time |
+| `%hide`    | `%h`  | Hide the agent from the default Agents tab display              |
+| `%approve` | `%a`  | Run the agent fully autonomously (skip approval)                |
+| `%plan`    | `%p`  | Enable plan mode (plan first, then execute)                     |
+| `%epic`    |       | Enable plan mode and auto-approve the plan as an epic           |
+| `%edit`    | `%e`  | Return editor text to the prompt bar for review                 |
+| `%repeat`  | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)               |
+| `%group`   | `%g`  | Assign the agent's user-managed tag (e.g., `%group:review`)     |
+| `%alt`     | `%(`  | Split prompt into variants with different text                  |
 
 ### Syntax
 
@@ -886,13 +887,14 @@ Directives use the same argument syntax as xprompt references:
 %wait:agent1                 # Wait for agent1
 %w:agent2                    # Wait for agent2 (alias)
 %wait                        # Bare — waits for the most recently named agent
-%wait:5m                     # Wait for 5 minutes before starting
-%wait:1h30m                  # Wait for 1 hour 30 minutes
-%wait:90s                    # Wait for 90 seconds
-%wait:1430                   # Wait until 14:30 today (wraps to tomorrow if past)
-%wait:260415/0900            # Wait until 2026-04-15 at 09:00
-%wait:agent1,agent2,5m       # Multi-value: equivalent to three separate %wait: lines
-%wait(agent1, agent2, 5m)    # Same, paren form
+%wait:agent1,agent2          # Multi-value: equivalent to two separate %wait: lines
+%wait(agent1, agent2)        # Same, paren form
+%time:5m                     # Wait for 5 minutes before starting
+%t:1h30m                     # Wait for 1 hour 30 minutes (alias)
+%time:90s                    # Wait for 90 seconds
+%time:1430                   # Wait until 14:30 today (wraps to tomorrow if past)
+%time:260415/0900            # Wait until 2026-04-15 at 09:00
+%wait:agent1 %time:5m        # Wait for agent1, then a 5-minute floor
 %repeat:3                    # Run the prompt 3 times
 %r:5                         # Same, using alias
 %alt(#review,#test)          # Split into two prompts: one with #review, one with #test
@@ -929,24 +931,25 @@ For a multi-agent workflow name, the workflow root and every child agent for tha
 Failed, killed, crashed, still-running, malformed, or missing `done.json` artifacts do not satisfy the wait; the
 dependent agent stays parked until a later successful run of the same dependency name appears.
 
-The `%wait` directive also accepts duration arguments in `XhYmZs` format (e.g., `%wait:5m`, `%wait:1h30m`, `%wait:90s`).
-Duration waits delay the agent's start by the specified amount. When a prompt contains both agent-name waits and
-duration waits, the agent waits for all named agents to complete successfully and then waits for the remaining duration
-(the maximum duration is used if multiple are specified).
+The `%time` directive (alias `%t`) defers launch by a duration or until an absolute wall-clock time:
 
-The `%wait` directive additionally accepts absolute time arguments:
-
-- **`HHMM`** — wait until that time today (e.g., `%wait:1430` for 14:30). If the time has already passed, it wraps to
+- **Durations** in `XhYmZs` format (e.g., `%time:5m`, `%time:1h30m`, `%time:90s`). When multiple `%time` durations are
+  specified, the maximum is used.
+- **`HHMM`** — wait until that time today (e.g., `%time:1430` for 14:30). If the time has already passed, it wraps to
   tomorrow.
-- **`yymmdd/HHMM`** — wait until a specific date and time (e.g., `%wait:260415/0900` for 2026-04-15 at 09:00). Raises an
+- **`yymmdd/HHMM`** — wait until a specific date and time (e.g., `%time:260415/0900` for 2026-04-15 at 09:00). Raises an
   error if the target is in the past.
 
-Absolute time waits cannot be combined with duration waits or with each other. They can, however, be combined with
-agent-name waits.
+`%time` and `%wait` combine freely: dependencies wait first, then the time floor applies.
 
-Multi-value directives (`%wait`, `%model`, `%alt`) accept comma-separated arguments to collapse what would otherwise be
-several lines: `%wait:agent_a,agent_b,5m` is equivalent to three separate `%wait:` directives. Backtick-quoted values
-(e.g. `` %wait:`a,b` ``) are treated as a single literal and not split on commas.
+Absolute time waits cannot be combined with duration waits or with each other.
+
+Bare `%time` is invalid — `%time` requires a duration or absolute time argument. Time-shaped values passed to `%wait`
+(e.g. `%wait:5m`) raise an error with a migration hint pointing to `%time:5m`.
+
+Multi-value directives (`%wait`, `%time`, `%model`, `%alt`) accept comma-separated arguments to collapse what would
+otherwise be several lines: `%wait:agent_a,agent_b` is equivalent to two separate `%wait:` directives. Backtick-quoted
+values (e.g. `` %wait:`a,b` ``) are treated as a single literal and not split on commas.
 
 The `%approve`, `%edit`, `%plan`, and `%epic` directives are boolean flags — they take no arguments and are simply
 present or absent.
@@ -1156,11 +1159,11 @@ The `%wait` directive supports multiple occurrences — each adds to the wait li
 Do work after all three agents finish.
 ```
 
-Agent names and durations can be mixed freely:
+Agent dependencies and time floors can be mixed freely:
 
 ```
 %wait:agent1
-%wait:5m
+%time:5m
 Wait for agent1 to finish, then wait at least 5 minutes from launch.
 ```
 

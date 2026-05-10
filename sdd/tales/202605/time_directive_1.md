@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-10 11:54:25
-status: wip
+status: done
 prompt: sdd/prompts/202605/time_directive_1.md
 ---
 # Plan: Add `%t` / `%time` Directive For Time-Based Waits

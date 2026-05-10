@@ -40,12 +40,24 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     model, _ = _single_candidate("%mo")
     wait, _ = _single_candidate("%w")
     alt, _ = _single_candidate("%al")
+    time_, _ = _single_candidate("%ti")
 
     assert _metadata(model).description == "choose one or more provider/model targets"
-    assert _metadata(wait).description == (
-        "defer launch until agents complete or time elapses"
-    )
+    assert _metadata(wait).description == "defer launch until agents complete"
     assert _metadata(alt).description == "split a prompt into text/model variants"
+    assert _metadata(time_).description == (
+        "defer launch until a duration or wall-clock time"
+    )
+
+
+def test_directive_completion_t_alias_completes_to_time() -> None:
+    time_, _ = _single_candidate("%t")
+    assert time_.insertion == "%time"
+
+
+def test_directive_completion_includes_group() -> None:
+    group, _ = _single_candidate("%gr")
+    assert group.insertion == "%group"
 
 
 def test_all_directive_completion_candidates_have_descriptions() -> None:

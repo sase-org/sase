@@ -28,12 +28,13 @@ _KNOWN_DIRECTIVES = frozenset(
         "group",
         "plan",
         "repeat",
+        "time",
         "wait",
     }
 )
 
 # Directives that allow multiple occurrences (values are collected into a list)
-_MULTI_VALUE_DIRECTIVES = frozenset({"wait"})
+_MULTI_VALUE_DIRECTIVES = frozenset({"time", "wait"})
 
 # Short aliases for directives (alias -> canonical name)
 _DIRECTIVE_ALIASES: dict[str, str] = {
@@ -45,6 +46,7 @@ _DIRECTIVE_ALIASES: dict[str, str] = {
     "n": "name",
     "r": "repeat",
     "p": "plan",
+    "t": "time",
     "w": "wait",
 }
 

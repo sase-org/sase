@@ -58,6 +58,7 @@ __all__ = [
     "apply_fanout_naming",
     "extract_prompt_directives",
     "has_alt_directive",
+    "has_deferred_start_directive",
     "has_model_directive",
     "has_wait_directive",
     "parse_absolute_time",
@@ -77,6 +78,20 @@ def has_wait_directive(prompt: str) -> bool:
     if "%" not in prompt:
         return False
     return bool(re.search(r"(?:^|\s)%(?:wait|w)(?:[:+(]|\s|$)", prompt, re.MULTILINE))
+
+
+def has_deferred_start_directive(prompt: str) -> bool:
+    """Quick check whether a prompt defers launch (``%wait``/``%w`` or ``%time``/``%t``).
+
+    Used at the workspace-allocation boundary so a prompt that delays its
+    start (waiting on a dependency or a wall-clock time) does not claim a
+    workspace until it is actually ready to run.
+    """
+    if "%" not in prompt:
+        return False
+    return bool(
+        re.search(r"(?:^|\s)%(?:wait|w|time|t)(?:[:+(]|\s|$)", prompt, re.MULTILINE)
+    )
 
 
 def has_model_directive(prompt: str) -> bool:
@@ -220,10 +235,8 @@ def extract_prompt_directives(
 
         seen["name"] = get_next_auto_name()
 
-    # Resolve bare %wait directives to the most recently named agent,
-    # and separate duration/absolute-time arguments from agent-name arguments.
-    wait_duration: float | None = None
-    wait_until: str | None = None
+    # %wait branch: resolve bare to previous agent; reject time-shaped args
+    # with a migration hint pointing users to %time.
     if "wait" in seen_multi:
         resolved_wait: list[str] = []
         prev_name: str | None = None  # lazily fetched
@@ -239,28 +252,53 @@ def extract_prompt_directives(
                         " named agent exists"
                     )
                 resolved_wait.append(prev_name)
-            else:
-                dur = parse_duration(raw_arg)
-                if dur is not None:
-                    # Take the max if multiple durations appear
-                    wait_duration = max(wait_duration or 0.0, dur)
-                else:
-                    abs_time = parse_absolute_time(raw_arg)
-                    if abs_time is not None:
-                        if wait_until is not None:
-                            raise DirectiveError(
-                                "Multiple absolute time waits are not allowed"
-                            )
-                        if wait_duration is not None:
-                            raise DirectiveError(
-                                "Cannot combine duration and absolute time waits"
-                            )
-                        wait_until = abs_time
-                    else:
-                        resolved_wait.append(raw_arg)
-        if wait_until is not None and wait_duration is not None:
-            raise DirectiveError("Cannot combine duration and absolute time waits")
+                continue
+            if parse_duration(raw_arg) is not None:
+                raise DirectiveError(
+                    f"%wait:{raw_arg} is a time wait; use %time:{raw_arg} instead"
+                )
+            if parse_absolute_time(raw_arg) is not None:
+                raise DirectiveError(
+                    f"%wait:{raw_arg} is a time wait; use %time:{raw_arg} instead"
+                )
+            resolved_wait.append(raw_arg)
         seen_multi["wait"] = resolved_wait
+
+    # %time branch: durations fold to wait_duration (max); a single absolute
+    # time sets wait_until. Bare %time is invalid; non-time arguments error.
+    wait_duration: float | None = None
+    wait_until: str | None = None
+    if "time" in seen_multi:
+        for raw_arg in seen_multi["time"]:
+            if not raw_arg:
+                raise DirectiveError(
+                    "Bare '%time' requires a duration or absolute time argument"
+                )
+            dur = parse_duration(raw_arg)
+            if dur is not None:
+                if wait_until is not None:
+                    raise DirectiveError(
+                        "Cannot combine duration and absolute time waits"
+                    )
+                wait_duration = max(wait_duration or 0.0, dur)
+                continue
+            abs_time = parse_absolute_time(raw_arg)
+            if abs_time is not None:
+                if wait_until is not None:
+                    raise DirectiveError("Multiple absolute time waits are not allowed")
+                if wait_duration is not None:
+                    raise DirectiveError(
+                        "Cannot combine duration and absolute time waits"
+                    )
+                wait_until = abs_time
+                continue
+            raise DirectiveError(
+                f"Invalid %time value '{raw_arg}'; %time accepts only durations"
+                " (e.g. 5m) and absolute times (e.g. 1430)."
+                f" Use %wait:{raw_arg} to wait for an agent."
+            )
+        # Drop %time from multi-value collection — it's not stored as a list.
+        seen_multi.pop("time", None)
 
     # Remove directive regions from prompt (last-to-first to preserve positions)
     cleaned = prompt

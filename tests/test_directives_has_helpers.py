@@ -2,6 +2,7 @@
 
 from sase.xprompt.directives import (
     has_alt_directive,
+    has_deferred_start_directive,
     has_model_directive,
     has_wait_directive,
 )
@@ -53,9 +54,37 @@ def test_has_wait_directive_no_percent() -> None:
     assert has_wait_directive("Just a plain prompt") is False
 
 
-def test_has_wait_directive_duration() -> None:
-    """has_wait_directive detects %wait:5m."""
-    assert has_wait_directive("%wait:5m\nDo something") is True
+def test_has_wait_directive_does_not_match_time() -> None:
+    """has_wait_directive must not match %time/%t (scoped to %wait/%w only)."""
+    assert has_wait_directive("%time:5m\nDo something") is False
+    assert has_wait_directive("%t:5m\nDo something") is False
+
+
+# --- has_deferred_start_directive tests ---
+
+
+def test_has_deferred_start_directive_wait() -> None:
+    """Matches %wait variants."""
+    assert has_deferred_start_directive("%wait:agent\nDo something") is True
+    assert has_deferred_start_directive("Do %w:agent more") is True
+    assert has_deferred_start_directive("%wait\nDo something") is True
+
+
+def test_has_deferred_start_directive_time() -> None:
+    """Matches %time variants."""
+    assert has_deferred_start_directive("%time:5m\nDo something") is True
+    assert has_deferred_start_directive("%t:5m\nDo something") is True
+    assert has_deferred_start_directive("Do %time(5m) more") is True
+
+
+def test_has_deferred_start_directive_absent() -> None:
+    """Returns False when no deferred-start directive present."""
+    assert has_deferred_start_directive("Do something %model:opus") is False
+
+
+def test_has_deferred_start_directive_no_percent() -> None:
+    """Returns False quickly when no % in prompt."""
+    assert has_deferred_start_directive("Just a plain prompt") is False
 
 
 # --- has_model_directive tests ---

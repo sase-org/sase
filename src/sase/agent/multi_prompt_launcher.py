@@ -142,7 +142,7 @@ def _spawn_segments_into(
     from sase.core.agent_launch_facade import plan_fake_fanout
     from sase.artifacts import create_artifacts_directory
     from sase.xprompt.directives import (
-        has_wait_directive,
+        has_deferred_start_directive,
         plan_prompt_fanout_variants,
     )
     from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
@@ -185,7 +185,7 @@ def _spawn_segments_into(
                         segment, previous_agent_name
                     )
         with timer.stage("prompt_parse", segment_index=i):
-            has_wait = has_wait_directive(segment)
+            has_wait = has_deferred_start_directive(segment)
             segment_local_xprompts = _local_xprompts_for_segment(
                 segment, local_xprompts
             )
