@@ -355,10 +355,18 @@ xprompts:
       No ChangeSpec metadata was provided, so do not pass `-c/--changespec` or `-b/--bug-id` when creating the plan bead.
       {% endif %}
 
+      If the plan file's frontmatter contains a top-level `model:` field, pass its value via `-m/--model <value>` on the
+      epic plan bead's `sase bead create` call so the final land agent runs with that model. If no `model:` field is
+      present in the frontmatter, omit `--model` entirely.
+
       Create the epic plan bead first. Then create the phase beads one at a time, in the exact order they appear in the
       plan file. Do not run phase bead creation commands in parallel: child bead suffixes are allocated by creation order,
       so the first phase bead you create should receive the first child ID suffix, the second phase bead should receive
       the second suffix, and so on.
+
+      For each phase, if the plan file annotates that phase with a `model:` value (matching the simple convention from
+      the plan frontmatter — e.g. a `model:` line in the phase's owner/metadata section), pass `-m/--model <value>` on
+      that phase bead's `sase bead create` call. If a phase has no `model:` annotation, omit `--model` for that phase.
 
       Make sure that each phase bead has the appropriate dependencies set up.
 
@@ -376,6 +384,10 @@ xprompts:
 
       Create exactly one plan bead linked to the plan file using the `sase bead create` command's `--type plan(<plan_file>)`
       option, `--tier legend`, and `--epic-count <epic_count>`. Do not create phase beads or epic beads directly.
+
+      If the plan file's frontmatter contains a top-level `model:` field, pass its value via `-m/--model <value>` on the
+      legend bead's `sase bead create` call so the final land agent runs with that model. If no `model:` field is
+      present in the frontmatter, omit `--model` entirely.
 
       Add the new bead ID to the plan file frontmatter as `legend_bead_id`, add `tier: legend`, and add
       `epic_count: <epic_count>`. Then commit the bead and plan-file metadata.
