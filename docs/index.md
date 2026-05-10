@@ -26,7 +26,7 @@ title: Structured Agentic Software Engineering
   </div>
 
   <figure class="sase-hero__visual">
-    <img src="images/sase_overview.jpg" alt="Overview of SASE coordinating agents, prompts, workflows, and engineering state">
+    <img src="images/sase_overview.png" alt="Overview of SASE coordinating agents, prompts, workflows, and engineering state">
   </figure>
 </section>
 
