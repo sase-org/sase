@@ -57,26 +57,26 @@ def _fixture(
 
 
 def test_update_mode_writes_png_golden(tmp_path: Path) -> None:
-    ace_visual = _fixture(tmp_path, update=True)
+    ace_png_visual = _fixture(tmp_path, update=True)
     png = _png((255, 0, 0, 255), size=(1, 1))
 
-    ace_visual.assert_png("accepted", png)
+    ace_png_visual.assert_png("accepted", png)
 
     assert (tmp_path / "snapshots" / "png" / "accepted.png").read_bytes() == png
 
 
 def test_matching_png_passes(tmp_path: Path) -> None:
-    ace_visual = _fixture(tmp_path)
+    ace_png_visual = _fixture(tmp_path)
     png = _png((255, 0, 0, 255), size=(1, 1))
     golden = tmp_path / "snapshots" / "png" / "matching.png"
     golden.parent.mkdir(parents=True)
     golden.write_bytes(png)
 
-    ace_visual.assert_png("matching", png)
+    ace_png_visual.assert_png("matching", png)
 
 
 def test_mismatched_png_writes_failure_artifacts(tmp_path: Path) -> None:
-    ace_visual = _fixture(tmp_path)
+    ace_png_visual = _fixture(tmp_path)
     expected = _png((255, 0, 0, 255), (0, 255, 0, 255), size=(2, 1))
     actual = _png((255, 0, 0, 255), (0, 0, 255, 255), size=(2, 1))
     golden = tmp_path / "snapshots" / "png" / "mismatch.png"
@@ -84,7 +84,7 @@ def test_mismatched_png_writes_failure_artifacts(tmp_path: Path) -> None:
     golden.write_bytes(expected)
 
     with pytest.raises(AssertionError, match="Changed pixels: 1/2"):
-        ace_visual.assert_png("mismatch.png", actual, source_svg="<svg />")
+        ace_png_visual.assert_png("mismatch.png", actual, source_svg="<svg />")
 
     failure_dir = (
         tmp_path
@@ -102,11 +102,11 @@ def test_mismatched_png_writes_failure_artifacts(tmp_path: Path) -> None:
 
 
 def test_missing_png_golden_writes_actual_artifacts(tmp_path: Path) -> None:
-    ace_visual = _fixture(tmp_path)
+    ace_png_visual = _fixture(tmp_path)
     actual = _png((0, 0, 255, 255), size=(1, 1))
 
     with pytest.raises(AssertionError, match="Missing ACE PNG snapshot golden"):
-        ace_visual.assert_png("missing", actual, source_svg="<svg>actual</svg>")
+        ace_png_visual.assert_png("missing", actual, source_svg="<svg>actual</svg>")
 
     failure_dir = (
         tmp_path
@@ -121,10 +121,10 @@ def test_missing_png_golden_writes_actual_artifacts(tmp_path: Path) -> None:
 
 
 def test_png_names_must_stay_under_snapshot_root(tmp_path: Path) -> None:
-    ace_visual = _fixture(tmp_path)
+    ace_png_visual = _fixture(tmp_path)
 
     with pytest.raises(ValueError, match="invalid snapshot name"):
-        ace_visual.assert_png("../escape", _png((0, 0, 0, 0), size=(1, 1)))
+        ace_png_visual.assert_png("../escape", _png((0, 0, 0, 0), size=(1, 1)))
 
 
 def test_diff_pngs_handles_dimension_changes() -> None:
@@ -140,17 +140,17 @@ def test_diff_pngs_handles_dimension_changes() -> None:
     assert diff.startswith(b"\x89PNG")
 
 
-def test_assert_svg_png_rasterizes_page_svg(
+def test_assert_page_png_rasterizes_page_svg(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    ace_visual = _fixture(tmp_path, update=True)
+    ace_png_visual = _fixture(tmp_path, update=True)
     actual = _png((0, 255, 0, 255), size=(1, 1))
     page = _Page("<svg>source</svg>")
 
     monkeypatch.setattr(png_diff, "render_svg_to_png", lambda svg: actual)
 
-    ace_visual.assert_svg_png(page, "from_svg", title="ACE", simplify=False)
+    ace_png_visual.assert_page_png(page, "from_svg", title="ACE", simplify=False)
 
     assert (tmp_path / "snapshots" / "png" / "from_svg.png").read_bytes() == actual
     assert page.title == "ACE"

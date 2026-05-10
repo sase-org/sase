@@ -54,7 +54,7 @@ class AcePngSnapshotFixture:
     update: bool
     node_id: str
 
-    def assert_svg_png(
+    def assert_page_png(
         self,
         page: SvgExporter,
         name: str,
@@ -64,7 +64,7 @@ class AcePngSnapshotFixture:
         max_diff_pixels: int = 0,
         max_diff_ratio: float = 0.0,
     ) -> None:
-        """Rasterize *page*'s SVG and assert that the PNG matches the golden."""
+        """Capture *page* as PNG and assert that it matches the golden."""
         svg = page.export_svg(title=title, simplify=simplify)
         png_bytes = render_svg_to_png(svg)
         self.assert_png(
