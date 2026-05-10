@@ -31,6 +31,7 @@ just lint          # Run ruff, mypy, pyvision, keep-sorted, and SDD validation
 just test          # Fast parallel test run
 just test-slow     # Slow pytest subset only
 just test-visual   # ACE visual regression snapshots
+just test-terminal-smoke  # Optional real-terminal ACE smoke test
 just test-cov      # Parallel test run with coverage + 50% gate
 just check         # CI-style checks: formatting, lint, SDD validation, tests
 just test-tox      # Test across Python 3.12, 3.13, 3.14
@@ -48,6 +49,10 @@ just test tests/main/test_parser.py::test_example
 
 Default test runs exclude both `slow` and `visual` markers. Use `just test-visual` for ACE screenshot regression tests;
 the recipe installs the optional visual renderer dependencies when they are missing.
+
+Use `just test-terminal-smoke` only when you need to verify the ACE startup path through a real PTY. It installs
+`pexpect` and `pyte`, runs the optional `terminal_smoke` marker, and stays out of default tests, visual snapshots, and
+CI until that path has proved stable.
 
 ## Visual Snapshot Workflow
 

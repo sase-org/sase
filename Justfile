@@ -67,6 +67,21 @@ _setup-visual: _setup
         uv pip install --no-sources -e ".[dev,visual]"; \
     fi
 
+# Install in editable mode with dev and real-terminal smoke-test dependencies.
+install-terminal-smoke: _venv
+    @if [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
+        printf "[install-terminal-smoke] Building sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
+        just rust-install; \
+    fi
+    uv pip install --no-sources -e ".[dev,terminal-smoke]"
+
+# Bootstrap real-terminal smoke-test dependencies without making them part of
+# the default development install.
+_setup-terminal-smoke: _setup
+    @if ! {{ venv_bin }}/python -c "import pexpect, pyte" > /dev/null 2>&1; then \
+        uv pip install --no-sources -e ".[dev,terminal-smoke]"; \
+    fi
+
 # Run linters (ruff + mypy + pyscripts + pyvision + keep-sorted + SDD validation)
 lint: _setup (_header "lint") lint-keep-sorted
     @printf "\n---------- Running ruff linter on Python files... ----------\n"
@@ -155,6 +170,13 @@ test-slow *args: _setup (_header "test-slow")
 test-visual *args: _setup-visual (_header "test-visual")
     @printf "\n---------- Running visual pytest subset... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest visual "$@"
+
+# Run optional real-terminal ACE smoke coverage. This launches the TUI in a
+# PTY, so keep it separate from the default and visual snapshot lanes.
+[positional-arguments]
+test-terminal-smoke *args: _setup-terminal-smoke (_header "test-terminal-smoke")
+    @printf "\n---------- Running terminal smoke pytest subset... ----------\n"
+    @{{ venv_bin }}/python -m pytest -m terminal_smoke tests/ace/tui/terminal_smoke "$@"
 
 # Parallel test run with coverage reports + 50% gate (used by CI)
 [positional-arguments]
