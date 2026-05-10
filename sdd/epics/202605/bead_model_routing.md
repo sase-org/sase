@@ -1,5 +1,7 @@
 ---
 create_time: 2026-05-10 00:07:15
+bead_id: sase-2o
+tier: epic
 status: wip
 prompt: sdd/prompts/202605/bead_model_routing.md
 ---
