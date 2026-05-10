@@ -49,6 +49,31 @@ def test_bead_project_create_delegates_to_rust_mutation(
         assert project.beads_dir in calls[0]["workspace_beads_dirs"]
 
 
+def test_bead_project_show_returns_issue_with_model(
+    tmp_path: Path, monkeypatch
+) -> None:
+    with BeadProject.init(tmp_path) as project:
+        expected = Issue(
+            id="delegated-1",
+            title="Delegated",
+            issue_type=IssueType.PLAN,
+            model="codex/gpt-5.5",
+        )
+
+        calls: list[tuple[Path | str, str]] = []
+
+        def fake_show(beads_dir: Path | str, issue_id: str) -> Issue:
+            calls.append((beads_dir, issue_id))
+            return expected
+
+        monkeypatch.setattr(bead_read_facade, "show", fake_show)
+
+        result = project.show("delegated-1")
+        assert result is not None
+        assert result.model == "codex/gpt-5.5"
+        assert calls == [(project.beads_dir, "delegated-1")]
+
+
 def test_merged_bead_view_delegates_to_rust_merged_read(
     tmp_path: Path, monkeypatch
 ) -> None:

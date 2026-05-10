@@ -294,6 +294,7 @@ def _bead_detail_wire(
         "summary": _bead_summary_wire(issue, project, all_issues),
         "description": issue.description or None,
         "notes": issue.notes or None,
+        "model": issue.model or None,
         "design_path_display": _issue_plan_path(issue, issue_by_id),
         "dependencies": [dependency.depends_on_id for dependency in issue.dependencies],
         "blocks": blocks,

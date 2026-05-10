@@ -55,6 +55,20 @@ class TestIssueValidation:
         issue = Issue(id="test-1", title="Test")
         assert issue.is_ready_to_work is False
 
+    def test_default_model_empty(self) -> None:
+        issue = Issue(id="test-1", title="Test")
+        assert issue.model == ""
+
+    def test_model_assignment(self) -> None:
+        issue = Issue(
+            id="test-1",
+            title="Test",
+            issue_type=IssueType.PLAN,
+            model="codex/gpt-5.5",
+        )
+        assert issue.model == "codex/gpt-5.5"
+        issue.validate()
+
     def test_phase_with_is_ready_to_work_raises(self) -> None:
         issue = Issue(
             id="test-1",

@@ -100,6 +100,32 @@ class TestExport:
         assert data["changespec_name"] == "feature_epic"
         assert data["changespec_bug_id"] == "12345"
 
+    def test_export_includes_model(
+        self, conn: sqlite3.Connection, tmp_path: object
+    ) -> None:
+        from pathlib import Path
+
+        assert isinstance(tmp_path, Path)
+        epic = _epic("e-1")
+        epic.model = "codex/gpt-5.5"
+        create_issue(conn, epic)
+        jsonl_path = tmp_path / "issues.jsonl"
+        export_to_jsonl(conn, jsonl_path)
+        data = json.loads(jsonl_path.read_text())
+        assert data["model"] == "codex/gpt-5.5"
+
+    def test_export_default_model_empty(
+        self, conn: sqlite3.Connection, tmp_path: object
+    ) -> None:
+        from pathlib import Path
+
+        assert isinstance(tmp_path, Path)
+        create_issue(conn, _epic("e-1"))
+        jsonl_path = tmp_path / "issues.jsonl"
+        export_to_jsonl(conn, jsonl_path)
+        data = json.loads(jsonl_path.read_text())
+        assert data["model"] == ""
+
     def test_export_includes_legend_epic_count(
         self, conn: sqlite3.Connection, tmp_path: object
     ) -> None:
@@ -206,6 +232,51 @@ class TestImport:
         assert issue is not None
         assert issue.changespec_name == ""
         assert issue.changespec_bug_id == ""
+
+    def test_import_model(self, conn: sqlite3.Connection, tmp_path: object) -> None:
+        from pathlib import Path
+
+        assert isinstance(tmp_path, Path)
+        jsonl_path = tmp_path / "issues.jsonl"
+        data = {
+            "id": "e-1",
+            "title": "Imported Epic",
+            "status": "open",
+            "issue_type": "plan",
+            "parent_id": None,
+            "created_at": NOW,
+            "updated_at": NOW,
+            "model": "codex/gpt-5.5",
+            "dependencies": [],
+        }
+        jsonl_path.write_text(json.dumps(data) + "\n")
+        import_from_jsonl(jsonl_path, conn)
+        issue = get_issue(conn, "e-1")
+        assert issue is not None
+        assert issue.model == "codex/gpt-5.5"
+
+    def test_import_missing_model_defaults_empty(
+        self, conn: sqlite3.Connection, tmp_path: object
+    ) -> None:
+        from pathlib import Path
+
+        assert isinstance(tmp_path, Path)
+        jsonl_path = tmp_path / "issues.jsonl"
+        data = {
+            "id": "e-1",
+            "title": "Imported Epic",
+            "status": "open",
+            "issue_type": "plan",
+            "parent_id": None,
+            "created_at": NOW,
+            "updated_at": NOW,
+            "dependencies": [],
+        }
+        jsonl_path.write_text(json.dumps(data) + "\n")
+        import_from_jsonl(jsonl_path, conn)
+        issue = get_issue(conn, "e-1")
+        assert issue is not None
+        assert issue.model == ""
 
     def test_import_missing_epic_count_defaults_none(
         self, conn: sqlite3.Connection, tmp_path: object

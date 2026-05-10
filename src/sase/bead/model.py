@@ -49,6 +49,7 @@ class Issue:
     description: str = ""
     notes: str = ""
     design: str = ""
+    model: str = ""
     is_ready_to_work: bool = False
     epic_count: int | None = None
     changespec_name: str = ""

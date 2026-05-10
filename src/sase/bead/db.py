@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS issues (
     description TEXT,
     notes       TEXT,
     design      TEXT,
+    model       TEXT NOT NULL DEFAULT '',
     is_ready_to_work INTEGER NOT NULL DEFAULT 0,
     epic_count  INTEGER,
     changespec_name TEXT NOT NULL DEFAULT '',
@@ -121,6 +122,17 @@ def _migrate_add_epic_count(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_add_model(conn: sqlite3.Connection) -> None:
+    """Add model column to a pre-existing issues table if missing."""
+    columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(issues)").fetchall()
+    }
+    if not columns or "model" in columns:
+        return
+    conn.execute("ALTER TABLE issues ADD COLUMN model TEXT NOT NULL DEFAULT ''")
+    conn.commit()
+
+
 def _migrate_add_tier(conn: sqlite3.Connection) -> None:
     """Add plan-tier metadata to a pre-existing issues table."""
     columns = {
@@ -201,6 +213,7 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     _migrate_add_changespec_metadata(conn)
     _migrate_add_tier(conn)
     _migrate_add_epic_count(conn)
+    _migrate_add_model(conn)
     conn.executescript(_SCHEMA)
     return conn
 
@@ -232,6 +245,7 @@ def _row_to_issue(row: sqlite3.Row) -> Issue:
         description=row["description"] or "",
         notes=row["notes"] or "",
         design=row["design"] or "",
+        model=row["model"] or "",
         is_ready_to_work=bool(row["is_ready_to_work"]),
         epic_count=row["epic_count"],
         changespec_name=row["changespec_name"] or "",
@@ -265,9 +279,9 @@ def create_issue(conn: sqlite3.Connection, issue: Issue) -> Issue:
         "INSERT INTO issues "
         "(id, title, status, issue_type, parent_id, owner, assignee, "
         "tier, created_at, created_by, updated_at, closed_at, close_reason, "
-        "description, notes, design, is_ready_to_work, epic_count, "
+        "description, notes, design, model, is_ready_to_work, epic_count, "
         "changespec_name, changespec_bug_id) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             issue.id,
             issue.title,
@@ -285,6 +299,7 @@ def create_issue(conn: sqlite3.Connection, issue: Issue) -> Issue:
             issue.description,
             issue.notes,
             issue.design,
+            issue.model,
             int(issue.is_ready_to_work),
             issue.epic_count,
             issue.changespec_name,
@@ -350,6 +365,7 @@ def update_issue(
         "description",
         "notes",
         "design",
+        "model",
         "tier",
         "is_ready_to_work",
         "epic_count",

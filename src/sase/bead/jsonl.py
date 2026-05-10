@@ -36,6 +36,7 @@ def _issue_to_dict(issue: Issue) -> dict[str, object]:
         "description": issue.description,
         "notes": issue.notes,
         "design": issue.design,
+        "model": issue.model,
         "is_ready_to_work": issue.is_ready_to_work,
         **({"epic_count": issue.epic_count} if issue.epic_count is not None else {}),
         "changespec_name": issue.changespec_name,
@@ -81,6 +82,7 @@ def _dict_to_issue(data: dict[str, object]) -> Issue:
         description=_optional_str(data.get("description", "")),
         notes=_optional_str(data.get("notes", "")),
         design=_optional_str(data.get("design", "")),
+        model=_optional_str(data.get("model", "")),
         is_ready_to_work=bool(data.get("is_ready_to_work", False)),
         epic_count=(
             None if data.get("epic_count") is None else int(str(data["epic_count"]))
@@ -149,6 +151,7 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
                 description=issue.description,
                 notes=issue.notes,
                 design=issue.design,
+                model=issue.model,
                 tier=issue.tier.value if issue.tier else None,
                 is_ready_to_work=int(issue.is_ready_to_work),
                 epic_count=issue.epic_count,

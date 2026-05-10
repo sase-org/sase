@@ -249,6 +249,7 @@ def _issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "description": issue.description,
         "notes": issue.notes,
         "design": issue.design,
+        "model": issue.model,
         "is_ready_to_work": issue.is_ready_to_work,
         "epic_count": issue.epic_count,
         "changespec_name": issue.changespec_name,

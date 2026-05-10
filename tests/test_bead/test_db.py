@@ -447,6 +447,95 @@ class TestMigrationAddsColumn:
             conn.close()
 
 
+class TestModelField:
+    def test_create_and_get_with_model(self, conn: sqlite3.Connection) -> None:
+        create_issue(
+            conn,
+            Issue(
+                id="e-1",
+                title="Epic",
+                issue_type=IssueType.PLAN,
+                created_at=NOW,
+                updated_at=NOW,
+                model="codex/gpt-5.5",
+            ),
+        )
+        issue = get_issue(conn, "e-1")
+        assert issue is not None
+        assert issue.model == "codex/gpt-5.5"
+
+    def test_default_model_empty(self, conn: sqlite3.Connection) -> None:
+        create_issue(conn, _epic())
+        issue = get_issue(conn, "e-1")
+        assert issue is not None
+        assert issue.model == ""
+
+    def test_update_model(self, conn: sqlite3.Connection) -> None:
+        create_issue(conn, _epic())
+        updated = update_issue(conn, "e-1", model="#pro", updated_at=NOW)
+        assert updated is not None
+        assert updated.model == "#pro"
+
+    def test_clear_model(self, conn: sqlite3.Connection) -> None:
+        create_issue(
+            conn,
+            Issue(
+                id="e-1",
+                title="Epic",
+                issue_type=IssueType.PLAN,
+                created_at=NOW,
+                updated_at=NOW,
+                model="codex/gpt-5.5",
+            ),
+        )
+        updated = update_issue(conn, "e-1", model="", updated_at=NOW)
+        assert updated is not None
+        assert updated.model == ""
+
+    def test_pre_model_db_gets_migrated(self, tmp_path) -> None:
+        """A database created without the model column gains it as ''."""
+        import sqlite3 as sq
+
+        db_path = tmp_path / "old_model.db"
+        old = sq.connect(str(db_path))
+        old.execute(
+            "CREATE TABLE issues ("
+            "  id TEXT PRIMARY KEY, title TEXT NOT NULL,"
+            "  status TEXT NOT NULL DEFAULT 'open'"
+            "    CHECK(status IN ('open','in_progress','closed')),"
+            "  issue_type TEXT NOT NULL DEFAULT 'phase'"
+            "    CHECK(issue_type IN ('plan','phase')),"
+            "  tier TEXT CHECK(tier IN ('plan','epic','legend')),"
+            "  parent_id TEXT, owner TEXT, assignee TEXT,"
+            "  created_at TEXT NOT NULL, created_by TEXT,"
+            "  updated_at TEXT NOT NULL, closed_at TEXT,"
+            "  close_reason TEXT, description TEXT, notes TEXT, design TEXT,"
+            "  is_ready_to_work INTEGER NOT NULL DEFAULT 0,"
+            "  epic_count INTEGER,"
+            "  changespec_name TEXT NOT NULL DEFAULT '',"
+            "  changespec_bug_id TEXT NOT NULL DEFAULT '',"
+            "  CHECK((issue_type='phase' AND parent_id IS NOT NULL)"
+            "    OR (issue_type='plan'))"
+            ")"
+        )
+        old.execute(
+            "INSERT INTO issues "
+            "(id, title, issue_type, tier, created_at, updated_at) "
+            "VALUES ('e-old', 'Old', 'plan', 'epic', ?, ?)",
+            (NOW, NOW),
+        )
+        old.commit()
+        old.close()
+
+        conn = init_db(db_path)
+        try:
+            issue = get_issue(conn, "e-old")
+            assert issue is not None
+            assert issue.model == ""
+        finally:
+            conn.close()
+
+
 class TestUpdateIssueRejectsNothingDB:
     """The internal db.update_issue allows is_ready_to_work for round-tripping;
     user-facing rejection lives in BeadProject.update."""
