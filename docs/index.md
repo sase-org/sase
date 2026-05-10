@@ -47,7 +47,7 @@ title: Structured Agentic Software Engineering
 
   <h2>Pick the surface that matches your work</h2>
 
-  <div class="sase-card-grid sase-card-grid--three">
+  <div class="sase-card-grid sase-card-grid--four">
   <article class="sase-card">
   <h3>I want a TUI for agent work</h3>
 
@@ -80,6 +80,18 @@ title: Structured Agentic Software Engineering
   </p>
 
 <a href="xprompt/">Build with XPrompts</a>
+
+  </article>
+
+  <article class="sase-card">
+  <h3>I want implementation context</h3>
+
+  <p>
+    Use the architecture overview, command index, and development guide to understand the CLI surface, source layout,
+    provider boundaries, and docs workflow.
+  </p>
+
+<a href="architecture/">Read the architecture map</a>
 
   </article>
   </div>
@@ -134,6 +146,33 @@ title: Structured Agentic Software Engineering
   <h2>Move from overview to practice</h2>
 
   <div class="sase-card-grid sase-card-grid--four">
+  <article class="sase-card sase-card--compact">
+  <h3>Find a command</h3>
+
+  <p>Use the CLI index to route from a command to its detailed owner page.</p>
+
+<a href="cli/">Open the CLI reference</a>
+
+  </article>
+
+  <article class="sase-card sase-card--compact">
+  <h3>Understand the system</h3>
+
+  <p>See how CLI, ACE, axe, workflows, providers, and the Rust core fit together.</p>
+
+<a href="architecture/">Open architecture</a>
+
+  </article>
+
+  <article class="sase-card sase-card--compact">
+  <h3>Contribute locally</h3>
+
+  <p>Review setup, verification commands, source layout, and docs deployment.</p>
+
+<a href="development/">Open development</a>
+
+  </article>
+
   <article class="sase-card sase-card--compact">
   <h3>Read the launch essay</h3>
 

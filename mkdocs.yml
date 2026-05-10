@@ -20,6 +20,7 @@ nav:
       - Spec-Driven Development: sdd.md
       - XPrompts: xprompt.md
   - Concepts:
+      - Architecture: architecture.md
       - ChangeSpecs: change_spec.md
       - Beads: beads.md
       - Workflows: workflow_spec.md
@@ -39,6 +40,8 @@ nav:
       - VCS Providers: vcs.md
       - Rust Backend: rust_backend.md
   - Reference:
+      - CLI Reference: cli.md
+      - Development: development.md
       - Configuration: configuration.md
       - Query Language: query_language.md
       - ProjectSpec: project_spec.md

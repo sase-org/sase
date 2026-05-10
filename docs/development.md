@@ -1,0 +1,138 @@
+# Development
+
+This page orients contributors working in the `sase` repository. It covers local setup, verification, source layout, and
+documentation publishing paths.
+
+## Setup
+
+Requirements:
+
+- Python 3.12+
+- [`uv`](https://docs.astral.sh/uv/)
+- [`just`](https://github.com/casey/just)
+
+```bash
+uv venv .venv
+source .venv/bin/activate
+just install
+sase
+```
+
+`just install` installs the package in editable mode with development dependencies. When a sibling `../sase-core`
+checkout is present and `cargo` is available, it also builds and installs the local `sase_core_rs` extension before
+resolving Python dependencies.
+
+## Verification Commands
+
+```bash
+just install       # Install with dev deps
+just fmt           # Auto-format code and Markdown
+just lint          # Run ruff, mypy, pyvision, keep-sorted, and SDD validation
+just test          # Fast parallel test run
+just test-slow     # Slow pytest subset only
+just test-cov      # Parallel test run with coverage + 50% gate
+just check         # CI-style checks: formatting, lint, SDD validation, tests
+just test-tox      # Test across Python 3.12, 3.13, 3.14
+just clean         # Remove build artifacts
+just build         # Build wheel and sdist
+```
+
+`just test`, `just test-slow`, and `just test-cov` size the pytest-xdist worker pool from local CPU count, capped at 16.
+Set `SASE_PYTEST_WORKERS=<N>` to override that value. Test selectors are normalized from the directory where `just` was
+invoked, so this works the same from the repository root or a subdirectory:
+
+```bash
+just test tests/main/test_parser.py::test_example
+```
+
+## Required Rust Core
+
+Ported `sase.core` operations are served by the required Rust extension `sase_core_rs`, distributed as the
+`sase-core-rs` package and built from the sibling `../sase-core` repo during source development. Normal installs pull a
+prebuilt wheel; local source installs can build the extension with `just install` or `just rust-install`.
+
+There is no pure-Python fallback for ported operations. Use the health check after install changes:
+
+```bash
+sase core health
+```
+
+See the [Rust backend reference](rust_backend.md) for the Python/Rust boundary, shipped Rust-backed operations, source
+build path, and benchmark expectations.
+
+## Source Map
+
+The repository is organized around the CLI entry point, operational subsystems, provider boundaries, and docs/tests:
+
+| Path                           | Purpose                                                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `src/sase/main/`               | CLI parser registration and subcommand handlers.                                                       |
+| `src/sase/ace/`                | ACE TUI, ChangeSpec rendering, query integration, actions, widgets, and TUI state.                     |
+| `src/sase/agent/`              | Agent launch, detached spawn, prompt fan-out, running-agent metadata, artifact lookup, and naming.     |
+| `src/sase/axe/`                | Axe orchestrator, lumberjacks, chop execution, scheduled jobs, maintenance mode, and automation state. |
+| `src/sase/xprompt/`            | XPrompt expansion, directives, workflow loading, execution, tracing, explaining, and graphing.         |
+| `src/sase/xprompts/`           | Bundled xprompt templates, workflows, and schemas shipped with the package.                            |
+| `src/sase/workflows/`          | Change lifecycle workflows for commit, mentor, CRS, accept, and rewind operations.                     |
+| `src/sase/core/`               | Python facade and stable wire records for operations served by `sase_core_rs`.                         |
+| `src/sase/bead/`               | Python host layer for bead storage discovery, CLI integration, and epic/legend launch flow.            |
+| `src/sase/sdd/`                | Spec-driven development file and bead integration helpers.                                             |
+| `src/sase/llm_provider/`       | Built-in LLM providers and provider registry.                                                          |
+| `src/sase/vcs_provider/`       | VCS provider hook specs, plugin registry, and built-in git provider.                                   |
+| `src/sase/workspace_provider/` | Workspace provider hook specs, plugin registry, `#cd`, and bare-git workspace support.                 |
+| `src/sase/running_field/`      | Workspace claim and slot-management helpers.                                                           |
+| `src/sase/notifications/`      | Notification delivery and storage integration.                                                         |
+| `src/sase/telemetry/`          | Prometheus metrics, health, dashboard, and monitoring export support.                                  |
+| `src/sase/integrations/`       | Public helper APIs consumed by external plugins and editors.                                           |
+| `src/sase/scripts/`            | Packaged utility scripts used by axe chops and support commands.                                       |
+| `tests/`                       | Python test suite, with subdirectories mirroring major `src/sase/` areas.                              |
+| `docs/`                        | MkDocs Material site source.                                                                           |
+| `sdd/`                         | Project-local prompt, tale, epic, legend, research, and bead artifacts.                                |
+| `tools/`                       | Development scripts used by `just` targets and CI checks.                                              |
+| `memory/`                      | SASE memory files used by repository agents.                                                           |
+
+Detailed subsystem pages often include narrower source-layout tables. Use this page for initial orientation, then jump
+to the specific reference for the area you are changing.
+
+## Documentation Workflow
+
+The docs site is a MkDocs Material project:
+
+| Path             | Purpose                                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------------- |
+| `mkdocs.yml`     | Main docs site configuration, strict build, navigation, blog, RSS, and theme settings.            |
+| `mkdocs-pdf.yml` | PDF handbook build configuration, inheriting the main site config.                                |
+| `docs/`          | Markdown, images, stylesheets, JavaScript, redirects, headers, and PDF templates.                 |
+| `site/`          | Generated site output. It is rebuilt by docs commands and deployed as the static asset directory. |
+
+Run the strict site build after changing docs navigation, links, images, or Markdown pages:
+
+```bash
+just docs-check
+```
+
+Run the handbook build and validation when a change materially affects the public handbook, PDF styling, navigation, or
+generated-site assets:
+
+```bash
+just docs-pdf-check
+```
+
+`just docs-check` installs only MkDocs tooling, then runs `mkdocs build --strict`. `just docs-pdf-check` installs the
+PDF tooling, installs Chromium for Playwright, builds with `mkdocs-pdf.yml`, post-processes the handbook, and validates
+`site/downloads/sase-handbook.pdf`.
+
+## Docs Deployment
+
+Production docs are deployed by `.github/workflows/docs-deploy.yml`, not by a Cloudflare dashboard build command. The
+workflow:
+
+1. Checks out the repo and installs `uv`, `just`, and Python 3.12.
+2. Runs `just docs-check`.
+3. Runs `just docs-pdf-check`.
+4. Verifies `site/index.html`, `site/_headers`, and `site/downloads/sase-handbook.pdf`.
+5. Deploys the prebuilt `site/` directory through `wrangler.jsonc`.
+6. Smoke-tests the deployed handbook PDF from the deployment URL and `https://sase.sh/`.
+
+The GitHub repository must provide a `CLOUDFLARE_API_TOKEN` Actions secret with permission to deploy the `sase`
+Cloudflare Worker. Keep dashboard-managed Git builds disabled or unused for production so they cannot race the checked
+in workflow's prebuilt artifact deploy.

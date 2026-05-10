@@ -1,0 +1,109 @@
+# Architecture
+
+SASE is a Python orchestration layer for agentic software engineering, backed by a required Rust core for selected
+deterministic data operations. The system keeps work state outside any one chat transcript so agents can be launched,
+tracked, resumed, reviewed, retried, and handed off through stable project artifacts.
+
+![SASE component communication diagram](images/sase-component-communication.png)
+
+## System Boundary
+
+| Area         | Responsibility                                                                                                                | Main References                   |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                               | [CLI reference](cli.md)           |
+| ACE          | Interactive TUI for ChangeSpecs, agents, notifications, artifacts, and axe status.                                            | [ACE TUI](ace.md)                 |
+| Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                        | [Axe](axe.md)                     |
+| XPrompt      | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                      | [XPrompts](xprompt.md)            |
+| Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                               | [Workflow spec](workflow_spec.md) |
+| ChangeSpecs  | CL/PR-sized review records with lifecycle state, commits, hooks, comments, mentors, and timestamps.                           | [ChangeSpecs](change_spec.md)     |
+| SDD          | Durable prompt, tale, epic, legend, myth, and research artifacts.                                                             | [SDD](sdd.md)                     |
+| Beads        | Git-portable issue/dependency tracking and executable epic/legend launch plans.                                               | [Beads](beads.md)                 |
+| Providers    | Pluggable LLM, VCS, workspace, config, and xprompt boundaries.                                                                | [Plugins](plugins.md)             |
+| Rust core    | Required `sase_core_rs` extension for ported parsing, query, notification, agent scan, launch prep, and bead data operations. | [Rust backend](rust_backend.md)   |
+| Integrations | Public helpers and fixed bridge APIs for editors, mobile gateway, and external packages.                                      | [Integrations](integrations.md)   |
+
+The Python host owns user-facing orchestration, plugin calls, subprocess handling, filesystem context, TUI rendering,
+and workflow side effects. Rust owns reusable deterministic backend operations that need speed, stable wire contracts,
+or cross-frontend consistency.
+
+## Agent Launch Flow
+
+Most agent work enters through `sase run`, ACE, axe agent chops, bead epic execution, or mobile/editor helper bridges.
+The launch path follows the same shape across those entry points:
+
+1. Parse prompt text, directives, and optional multi-prompt separators.
+2. Resolve workspace references such as `#cd:<path>`, `#git:<project>`, or plugin-provided forms.
+3. Allocate or prepare the target workspace through the workspace provider layer.
+4. Expand xprompt references and standalone workflow references.
+5. Invoke the selected LLM provider or workflow executor.
+6. Stream subprocess output, write chat history, and persist launch metadata.
+7. Record agent artifacts such as prompts, diffs, generated Markdown PDFs, images, plans, and explicit files.
+8. Emit notifications and update ACE-visible status.
+9. Hand review, revert, restore, or commit work to the VCS and workspace provider layers when requested.
+
+Detached launches appear in the agent registry and ACE Agents tab. Multi-prompt launches create a sequence of detached
+agents. Workflow launches persist step state so ACE and axe can inspect progress and recover meaningful output.
+
+## State Model
+
+SASE avoids making a live chat session the source of truth. The durable state lives in files and stores that can be
+inspected by users, agents, and automation:
+
+| State            | Location / Owner                                                   | Use                                                                                         |
+| ---------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| ChangeSpecs      | Project `.gp` files under `~/.sase/projects/`                      | Review lifecycle, commits, hooks, comments, mentors, dependencies, and timestamps.          |
+| Agent metadata   | Agent artifact directories under `~/.sase/`                        | Running/completed status, prompt snapshots, output, diffs, workflow state, and attachments. |
+| SDD artifacts    | `sdd/` or `.sase/sdd/`                                             | Prompt snapshots, plans, executable epics, legends, myths, and research notes.              |
+| Beads            | `sdd/beads/` or `.sase/sdd/beads/`                                 | Issue graph, JSONL export, SQLite query cache, epic/legend execution metadata.              |
+| Configuration    | `~/.config/sase/sase.yml`, overlays, optional project-local config | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.   |
+| Notifications    | Notification store facade backed by Rust operations                | User-visible actions, unread state, agent completion, errors, and mobile events.            |
+| Workspace claims | Running-field state and provider metadata                          | Reservation and release of numbered workspaces for parallel agents.                         |
+
+This model lets ACE, CLI commands, axe, and future frontends read the same engineering state without depending on one
+terminal session.
+
+## Provider Boundaries
+
+Provider abstractions keep SASE above any single agent runtime, version-control host, or workspace strategy:
+
+| Provider Layer     | What It Owns                                                                                                     | Details                         |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| LLM provider       | Agent CLI selection, concrete model mapping, subprocess invocation, retry defaults, usage metadata.              | [LLM providers](llms.md)        |
+| VCS provider       | Diff, checkout, commit, amend, proposal/PR dispatch, reword, submit, sync, revert, restore, and review metadata. | [VCS providers](vcs.md)         |
+| Workspace provider | Workspace reference resolution, workspace directory allocation, submit/mail preparation, workflow metadata.      | [Workspaces](workspace.md)      |
+| Resource plugins   | Extra xprompt/workflow files and default configuration.                                                          | [Plugins](plugins.md)           |
+| Integration APIs   | Public Python helpers and fixed JSON bridge contracts for companion tools.                                       | [Integrations](integrations.md) |
+
+Core SASE ships built-in providers for common local use: bundled LLM provider entry points, plain-git VCS support,
+bare-git workspaces, and `#cd` directory runs. Optional packages can add hosted VCS workflows, notification delivery,
+editor integrations, or extra prompt resources.
+
+## Rust Core Boundary
+
+The required `sase_core_rs` extension is the shared backend boundary for deterministic logic that benefits from a stable
+wire contract or from being reused by non-Python frontends. Current Rust-backed areas include:
+
+- ChangeSpec parsing and batch query operations.
+- Status transition planning.
+- Git command output parsing.
+- Notification JSONL reads and mutations.
+- Agent artifact scanning and persistent indexing.
+- Agent launch preparation, timestamp allocation, fan-out planning, low-level detached spawn, and workspace-claim
+  planning.
+- Bead read, mutation, JSONL, SQLite, merged-workspace, and deterministic work-plan operations.
+
+The Python host still owns side effects that require app context: plugin dispatch, VCS/workspace calls, process
+signalling, file locks, TUI rendering, user confirmation, xprompt lookup, and workflow orchestration. See
+[Rust backend](rust_backend.md) for the complete operation list and facade map.
+
+## Read Next
+
+| Need                                     | Page                                                                                                 |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Command discovery                        | [CLI reference](cli.md)                                                                              |
+| Contributor setup and source orientation | [Development](development.md)                                                                        |
+| Runtime operations                       | [ACE](ace.md), [Axe](axe.md), [notifications](notifications.md)                                      |
+| Durable work records                     | [ChangeSpecs](change_spec.md), [SDD](sdd.md), [beads](beads.md)                                      |
+| Prompt and workflow execution            | [XPrompts](xprompt.md), [workflow spec](workflow_spec.md)                                            |
+| Extension boundaries                     | [Plugins](plugins.md), [LLM providers](llms.md), [VCS providers](vcs.md), [workspaces](workspace.md) |
+| Backend boundary                         | [Rust backend](rust_backend.md)                                                                      |
