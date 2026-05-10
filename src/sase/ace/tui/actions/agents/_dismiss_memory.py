@@ -122,8 +122,6 @@ class AgentDismissMemoryMixin:
             self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
         if hasattr(self, "_restore_focus_after_removal"):
             self._restore_focus_after_removal(prior_pos)  # type: ignore[attr-defined]
-        if hasattr(self, "_refresh_tab_bar_agent_counts"):
-            self._refresh_tab_bar_agent_counts()  # type: ignore[attr-defined]
         if self.current_tab == "agents":
             self._refresh_agents_display(  # type: ignore[attr-defined]
                 list_changed=False, defer_detail=True

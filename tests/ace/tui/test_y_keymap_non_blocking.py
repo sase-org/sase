@@ -42,16 +42,11 @@ class FakeApp(ChangeSpecMixin):
         self.hide_submitted = False
         self._all_changespecs: list = changespecs  # type: ignore[assignment]
         self.marked_indices: set[int] = set()
-        self._query_reverted_count = 0
-        self._query_submitted_count = 0
         self._hidden_reverted_count = 0
         self._hidden_submitted_count = 0
         self._changespecs_loading: bool = False
         self._changespecs_refresh_pending: bool = False
         self._scheduled: list[Any] = []
-
-    def _update_cls_tab_count(self) -> None:
-        pass
 
     def _refresh_display(self) -> None:
         pass

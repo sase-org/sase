@@ -154,16 +154,3 @@ def test_navigation_does_not_read_from_disk() -> None:
         _, callback = app._scheduled_callbacks[-1]
         app._scheduled_callbacks.clear()
         callback()
-
-
-def test_update_axe_tab_count_does_not_read_from_disk() -> None:
-    """The AXE tab count derives from the cache, not per-name disk reads."""
-    app = FakeAxeApp()
-
-    def _boom(*_args: Any, **_kwargs: Any) -> Any:
-        raise AssertionError("tab count must not read from disk")
-
-    with patch(
-        "sase.ace.tui.actions.axe_display._loaders.read_lumberjack_status", _boom
-    ):
-        app._update_axe_tab_count()

@@ -6,28 +6,6 @@ from unittest.mock import patch
 
 from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
 from sase.ace.tui.widgets.axe_info_panel import AxeInfoPanel
-from sase.ace.tui.widgets.tab_bar import TabBar
-
-
-def test_tab_bar_agents_loading_renders_ellipsis() -> None:
-    """Agents tab label shows a dim ellipsis while loading."""
-    tab_bar = TabBar()
-    tab_bar.update_agents_count(0, 0, show_hidden=False, loading=True)
-    plain = tab_bar._build_content().plain
-    assert "…" in plain
-    # Loading suffix should not render the count-parentheses form.
-    assert "Agents (" not in plain
-
-
-def test_tab_bar_agents_loaded_renders_counts() -> None:
-    """Once loading flips to False, Agents tab shows the count suffix."""
-    tab_bar = TabBar()
-    tab_bar.update_agents_count(3, 0, show_hidden=False, loading=False)
-    plain = tab_bar._build_content().plain
-    # The "Agents" segment sits between the two separators.
-    agents_segment = plain.split("│")[1]
-    assert "…" not in agents_segment
-    assert "3" in agents_segment
 
 
 def _collect_text(panel: AgentInfoPanel | AxeInfoPanel) -> str:

@@ -94,23 +94,6 @@ def test_tab_bar_update_tab_to_agents() -> None:
     assert tab_bar._current_tab == "agents"
 
 
-def test_tab_bar_agents_dismissable_only() -> None:
-    """Tab shows x2 when 2 dismissable agents exist."""
-    tab_bar = TabBar()
-    tab_bar.update_agents_count(0, 0, show_hidden=False, done_count=2)
-    content = tab_bar._build_content()
-    assert "x2" in content.plain
-
-
-def test_tab_bar_agents_no_dismissable() -> None:
-    """Tab shows no suffix when no dismissable agents exist."""
-    tab_bar = TabBar()
-    tab_bar.update_agents_count(0, 0, show_hidden=False)
-    content = tab_bar._build_content()
-    agents_part = content.plain.split("Agents")[1].split("│")[0]
-    assert "(" not in agents_part
-
-
 def test_info_panel_fold_indicator_hidden_when_all_collapsed() -> None:
     """No fold indicator when all sections are collapsed (default)."""
     panel = ChangeSpecInfoPanel()

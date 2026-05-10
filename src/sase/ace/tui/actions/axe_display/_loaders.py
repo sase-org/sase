@@ -175,9 +175,6 @@ class AxeDisplayLoadersMixin:
         self._update_bgcmd_count()
         self._build_axe_items()
 
-        # Update AXE tab bar count
-        self._update_axe_tab_count()
-
         # Update display if on axe tab
         if self.current_tab == "axe":
             self._refresh_axe_display()  # type: ignore[attr-defined]
@@ -327,34 +324,6 @@ class AxeDisplayLoadersMixin:
             else:
                 done_count += 1
         return running_count, done_count
-
-    def _update_axe_tab_count(self) -> None:
-        """Update the AXE tab bar label with lumberjack and bgcmd counts."""
-        from ...widgets import TabBar
-
-        # Count running lumberjacks from the cache populated by the async
-        # collector — avoids an extra N round-trip of disk reads on every
-        # apply.
-        running_lumberjacks = 0
-        if self.axe_running:
-            for lumberjack_name in self._axe_lumberjack_names:
-                lumberjack_status = self._axe_lumberjack_statuses.get(lumberjack_name)
-                if lumberjack_status and lumberjack_status.status == "running":
-                    running_lumberjacks += 1
-
-        bgcmd_count = len(self._bgcmd_slots)
-        _, done_bgcmds = self._get_bgcmd_counts()
-
-        try:
-            tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
-            tab_bar.update_axe_count(
-                running_lumberjacks,
-                bgcmd_count,
-                show_hidden=not self._axe_cmds_hidden,
-                done_count=done_bgcmds,
-            )
-        except Exception:
-            pass
 
     def _build_axe_items(self) -> None:
         """Build the flat list of AXE side-panel items based on fold and hidden state."""

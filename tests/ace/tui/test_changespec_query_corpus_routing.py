@@ -43,8 +43,6 @@ class _FakeApp(ChangeSpecMixin):
         self.marked_indices: set[int] = set()
         self._changespecs_last_idx = 0
         self._changespecs_last_name: str | None = None
-        self._query_reverted_count = 0
-        self._query_submitted_count = 0
         self._hidden_reverted_count = 0
         self._hidden_submitted_count = 0
         self.restored_selection = False
@@ -54,9 +52,6 @@ class _FakeApp(ChangeSpecMixin):
         from sase.ace.query import to_canonical_string
 
         return to_canonical_string(self.parsed_query)
-
-    def _update_cls_tab_count(self) -> None:
-        return
 
     def _refresh_display(self) -> None:
         return
@@ -199,8 +194,6 @@ def test_hide_counts_are_preserved_on_corpus_route(
     app._apply_changespecs(specs)
 
     assert [cs.name for cs in app.changespecs] == ["ready"]
-    assert app._query_submitted_count == 1
-    assert app._query_reverted_count == 2
     assert app._hidden_submitted_count == 1
     assert app._hidden_reverted_count == 2
 

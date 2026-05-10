@@ -142,9 +142,7 @@ class _FakeApp(ChangeSpecMixin, MarkingMixin):
         self.refresh_interval = 0
         self._countdown_remaining = 0
         self._hidden_reverted_count = 0
-        self._query_reverted_count = 0
         self._hidden_submitted_count = 0
-        self._query_submitted_count = 0
         self._hint_mode_active = False
         self._hint_mode_hints_for: str | None = None
         self._hint_mappings: dict[int, str] = {}
@@ -189,9 +187,6 @@ class _FakeApp(ChangeSpecMixin, MarkingMixin):
 
     def notify(self, msg: str, *, severity: str = "information") -> None:
         self.notifications.append((msg, severity))
-
-    def _update_cls_tab_count(self) -> None:
-        return
 
 
 def test_debounced_refresh_50_idx_changes_zero_update_list() -> None:

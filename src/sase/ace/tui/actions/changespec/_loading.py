@@ -26,9 +26,7 @@ class ChangeSpecLoadingMixin:
     _changespecs_last_name: str | None
     _all_changespecs: list[ChangeSpec]
     _hidden_reverted_count: int
-    _query_reverted_count: int
     _hidden_submitted_count: int
-    _query_submitted_count: int
     _changespecs_loading: bool
     _changespecs_refresh_pending: bool
     _current_changespec_group_key: tuple[str, ...] | None
@@ -49,8 +47,7 @@ class ChangeSpecLoadingMixin:
     def _apply_changespecs(self, all_changespecs: list[ChangeSpec]) -> None:
         """Apply a pre-loaded changespec list to app state.
 
-        Must run on the main thread: touches widgets via
-        ``_update_cls_tab_count`` / ``_refresh_display``.
+        Must run on the main thread: touches widgets via ``_refresh_display``.
         """
         self._all_changespecs = all_changespecs  # Cache for ancestry lookup
         self.changespecs = self._filter_changespecs(all_changespecs)
@@ -65,7 +62,6 @@ class ChangeSpecLoadingMixin:
         else:
             self.current_idx = 0
 
-        self._update_cls_tab_count()  # type: ignore[attr-defined]
         self._refresh_display()  # type: ignore[attr-defined]
 
     def _load_changespecs(self) -> None:
@@ -99,16 +95,6 @@ class ChangeSpecLoadingMixin:
         corpus = self._get_query_corpus_for_changespecs(changespecs)
         mask = evaluate_query_many_with_corpus(self.query_string, corpus)
         result = [cs for cs, keep in zip(changespecs, mask, strict=True) if keep]
-
-        # Count reverted/archived and submitted in query results (for tab bar)
-        self._query_reverted_count = 0
-        self._query_submitted_count = 0
-        for cs in result:
-            base_status = get_base_status(cs.status)
-            if base_status in ("Reverted", "Archived"):
-                self._query_reverted_count += 1
-            elif base_status == "Submitted":
-                self._query_submitted_count += 1
 
         # Determine effective hide settings (disabled if query targets them)
         effective_hide_reverted = (
@@ -287,7 +273,6 @@ class ChangeSpecLoadingMixin:
         # highlight a banner that no longer exists.
         if not self._changespec_banner_focus_still_valid():  # type: ignore[attr-defined]
             self._current_changespec_group_key = None  # type: ignore[attr-defined]
-        self._update_cls_tab_count()  # type: ignore[attr-defined]
         self._refresh_display()  # type: ignore[attr-defined]
 
     def _schedule_changespecs_async_refresh(self) -> None:

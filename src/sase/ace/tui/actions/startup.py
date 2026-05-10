@@ -343,17 +343,11 @@ class StartupMixin(StateInitMixin):
             AgentList,
             AxeDashboard,
             AxeInfoPanel,
-            TabBar,
         )
 
         if not self._agents_first_load_done:
             try:
                 self.query_one("#agent-list-panel", AgentList).loading = True  # type: ignore[attr-defined]
-            except Exception:
-                pass
-            try:
-                tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
-                tab_bar.update_agents_count(0, 0, show_hidden=False, loading=True)
             except Exception:
                 pass
             try:

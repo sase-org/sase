@@ -85,7 +85,6 @@ def _build_kill_app(panel_widget: AgentList | None) -> Any:
             self.refresh_calls: list[tuple[bool, bool]] = []
             self._agent_search_query = ""
             self._grouping_mode = GroupingMode.STANDARD
-            self._tab_bar_refreshes = 0
             self._panel_cache_invalidations = 0
 
         def notify(self, msg: str, severity: str = "information") -> None:
@@ -113,9 +112,6 @@ def _build_kill_app(panel_widget: AgentList | None) -> Any:
 
         def _invalidate_agent_panel_cache(self) -> None:
             self._panel_cache_invalidations += 1
-
-        def _refresh_tab_bar_agent_counts(self) -> None:
-            self._tab_bar_refreshes += 1
 
         def query_one(self, *_args: Any, **_kwargs: Any) -> Any:
             if panel_widget is None:
@@ -160,7 +156,6 @@ def test_single_kill_uses_fast_path(monkeypatch: Any) -> None:
     assert update_calls == []  # update_list never invoked
     # The widget's option list is one row shorter.
     assert b.identity not in {a.identity for a in panel._agents}
-    assert app._tab_bar_refreshes == 1
     assert app._panel_cache_invalidations == 1
 
 
@@ -237,7 +232,6 @@ def _build_dismiss_app(panel_widget: AgentList | None) -> Any:
             self.refresh_calls: list[tuple[bool, bool]] = []
             self._agent_search_query = ""
             self._grouping_mode = GroupingMode.STANDARD
-            self._tab_bar_refreshes = 0
 
         def notify(self, msg: str, severity: str = "information") -> None:
             self._notifications.append((msg, severity))
@@ -273,9 +267,6 @@ def _build_dismiss_app(panel_widget: AgentList | None) -> Any:
 
         def _invalidate_agent_panel_cache(self) -> None:
             return
-
-        def _refresh_tab_bar_agent_counts(self) -> None:
-            self._tab_bar_refreshes += 1
 
         def _try_remove_agent_rows(self, removed_identities: set[Any]) -> bool:
             # Lightweight wrapper that delegates straight to the widget
@@ -321,7 +312,6 @@ def test_single_dismiss_uses_fast_path(monkeypatch: Any) -> None:
     assert leaf.identity not in {a.identity for a in app._agents}
     # Same-session revive snapshot still records the dismissed agent.
     assert leaf.identity in {a.identity for a in app._dismissed_agent_objects}
-    assert app._tab_bar_refreshes == 1
 
 
 def test_dismiss_falls_back_when_widget_missing() -> None:

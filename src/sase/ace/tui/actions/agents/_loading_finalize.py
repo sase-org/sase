@@ -286,44 +286,6 @@ def finalize_agent_list(
         enumerate_group_keys(app._agents, mode=grouping_mode)
     )
 
-    # Update the running agent counts on the tab bar.
-    # Exclude workflow children -- they are sub-steps of a parent agent
-    # and should not inflate the top-level running count.
-    # All counts use the final displayed list (self._agents) rather than
-    # the pre-filter always_visible/all_agents -- fold-state filtering
-    # removes workflow parents whose children are all hidden steps, so
-    # the pre-filter lists can contain agents not shown in the UI.
-    manual_running = sum(
-        1
-        for a in app._agents
-        if a.status not in DISMISSABLE_STATUSES and not a.is_workflow_child
-    )
-    if app._has_always_visible:
-        hidden_running = sum(
-            1
-            for a in app._hideable_agents
-            if a.status not in DISMISSABLE_STATUSES and not a.is_workflow_child
-        )
-    else:
-        hidden_running = 0
-    done_visible = sum(
-        1
-        for a in app._agents
-        if a.status in DISMISSABLE_STATUSES and not a.is_workflow_child
-    )
-    from ...widgets import TabBar
-
-    try:
-        tab_bar = app.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
-        tab_bar.update_agents_count(
-            manual_running,
-            hidden_running,
-            show_hidden=not app.hide_non_run_agents,
-            done_count=done_visible,
-        )
-    except Exception:
-        pass
-
     # Only refresh display if on agents tab
     if on_agents_tab:
         app._refresh_agents_display(  # type: ignore[attr-defined]

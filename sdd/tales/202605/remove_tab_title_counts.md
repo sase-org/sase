@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-10 11:43:12
-status: wip
+status: done
 prompt: sdd/prompts/202605/remove_tab_title_counts.md
 ---
 # Plan: Remove counts from ace TUI tab titles

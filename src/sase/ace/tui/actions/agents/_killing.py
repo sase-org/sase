@@ -269,7 +269,6 @@ class AgentKillingMixin(AgentDismissingMixin):
             return
 
         if fast_path:
-            self._refresh_tab_bar_agent_counts()  # type: ignore[attr-defined]
             self._refresh_agents_display(  # type: ignore[attr-defined]
                 list_changed=False, defer_detail=True
             )

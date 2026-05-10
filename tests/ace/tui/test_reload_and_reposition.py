@@ -30,13 +30,8 @@ class FakeApp(ChangeSpecMixin):
         self.marked_indices: set[int] = set()
         self._changespecs_last_idx: int = 0
         self._changespecs_last_name: str | None = None
-        self._query_reverted_count = 0
-        self._query_submitted_count = 0
         self._hidden_reverted_count = 0
         self._hidden_submitted_count = 0
-
-    def _update_cls_tab_count(self) -> None:
-        pass
 
     def _refresh_display(self) -> None:
         pass

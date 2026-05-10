@@ -225,7 +225,6 @@ def test_axe_first_load_path_no_longer_ends_stopwatch_directly() -> None:
         patch.object(app, "query_one", side_effect=_query_one),
         patch.object(app, "_update_bgcmd_count", return_value=None),
         patch.object(app, "_build_axe_items", return_value=None),
-        patch.object(app, "_update_axe_tab_count", return_value=None),
         patch.object(app, "_update_axe_keybinding", return_value=None),
     ):
         app._apply_axe_status_data(data)

@@ -59,9 +59,7 @@ class ChangeSpecMixin(
     _children_keys: dict[str, str]
     _sibling_keys: dict[str, str]
     _hidden_reverted_count: int
-    _query_reverted_count: int
     _hidden_submitted_count: int
-    _query_submitted_count: int
     _axe_cmds_hidden: bool
     _changespecs_loading: bool
     _changespecs_refresh_pending: bool
@@ -158,7 +156,6 @@ class ChangeSpecMixin(
             ):
                 self.current_idx = 0
             self._build_axe_items()  # type: ignore[attr-defined]
-            self._update_axe_tab_count()  # type: ignore[attr-defined]
             self._refresh_axe_display()  # type: ignore[attr-defined]
             return
         if self.current_tab != "changespecs":

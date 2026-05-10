@@ -57,9 +57,7 @@ class ChangeSpecDisplayMixin:
     _children_keys: dict[str, str]
     _sibling_keys: dict[str, str]
     _hidden_reverted_count: int
-    _query_reverted_count: int
     _hidden_submitted_count: int
-    _query_submitted_count: int
     _changespec_detail_debouncer: DetailPanelDebouncer
     _w_changespec_list: object
     _w_changespec_detail: object
@@ -88,32 +86,6 @@ class ChangeSpecDisplayMixin:
         self._changespec_graph_index = index
         self._changespec_graph_index_for_id = list_id
         return index
-
-    def _update_cls_tab_count(self) -> None:
-        """Update the CLs tab bar label with current ChangeSpec counts."""
-        from ...widgets import TabBar
-
-        show_reverted = not self.hide_reverted
-        show_submitted = not self.hide_submitted
-
-        # Main count: total displayed minus any visible special statuses
-        main = len(self.changespecs)
-        if show_reverted:
-            main -= self._query_reverted_count
-        if show_submitted:
-            main -= self._query_submitted_count
-
-        try:
-            tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
-            tab_bar.update_cls_count(
-                main,
-                self._query_reverted_count,
-                show_hidden=show_reverted,
-                submitted_count=self._query_submitted_count,
-                show_submitted=show_submitted,
-            )
-        except Exception:
-            pass
 
     def _refresh_changespecs_display_debounced(self) -> None:
         """Debounced refresh for j/k navigation on the changespecs tab.
