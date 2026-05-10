@@ -56,23 +56,23 @@ CI until that path has proved stable.
 
 ## Visual Snapshot Workflow
 
-ACE visual tests live under `tests/ace/tui/visual/` and compare deterministic Textual screenshots against committed SVG
-or PNG goldens. Run them normally first:
+ACE visual tests live under `tests/ace/tui/visual/` and compare deterministic Textual screenshots against committed PNG
+goldens. Run them normally first:
 
 ```bash
 just test-visual
 ```
 
-When a visual test fails, inspect the artifacts under `.pytest_cache/sase-visual/`. They include the actual capture and,
-when a golden exists, the expected capture plus a comparison report or PNG diff summary. Accept intentional visual
-changes only by rerunning the relevant test with the explicit update flag:
+When a visual test fails, inspect the artifacts under `.pytest_cache/sase-visual/`. They include the actual PNG capture
+and, when a golden exists, the expected PNG plus a diff PNG and summary. Accept intentional visual changes only by
+rerunning the relevant test with the explicit update flag:
 
 ```bash
-just test-visual -- --sase-update-visual-snapshots tests/ace/tui/visual/test_ace_svg_snapshots.py
+just test-visual -- --sase-update-visual-snapshots tests/ace/tui/visual/test_ace_png_snapshots.py
 ```
 
-Review changed SVG and PNG files as normal test data. Do not pass `--sase-update-visual-snapshots` to `just check`,
-`just fmt`, or broad CI-style commands.
+Review changed PNG files as normal test data. Do not pass `--sase-update-visual-snapshots` to `just check`, `just fmt`,
+or broad CI-style commands.
 
 Add a visual test when the risk is layout, styling, focus highlighting, modal composition, or a regression that is hard
 to express as state. Prefer a plain state/widget test when the behavior can be asserted through model state, rendered
