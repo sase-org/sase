@@ -69,6 +69,11 @@ class _ChopResult:
     update_timestamp: bool  # Whether to update run_every timestamp
     log_lines: list[str] = field(default_factory=list)
     error: Exception | None = None
+    # Captured ``traceback.format_exc()`` output. Must be recorded inside the
+    # ``except`` block — by the time ``_handle_error`` runs we are no longer in
+    # the active exception context, so a deferred ``format_exc()`` would
+    # produce ``"NoneType: None"``.
+    traceback: str | None = None
     agent_pid: int | None = None  # Set for successful agent chop launches
 
 
@@ -220,7 +225,7 @@ class Lumberjack:
             for line in result.log_lines:
                 self._log(line)
             if result.error is not None:
-                self._handle_error(result.chop_name, result.error)
+                self._handle_error(result.chop_name, result.error, result.traceback)
             if result.executed and result.success:
                 self._metrics.chops_executed += 1
             if result.update_timestamp:
@@ -307,6 +312,7 @@ class Lumberjack:
                 update_timestamp=False,
                 log_lines=log_lines,
                 error=RuntimeError(f"timed out after {resolved_timeout}s"),
+                traceback=traceback.format_exc(),
             )
         except Exception as e:
             return _ChopResult(
@@ -316,6 +322,7 @@ class Lumberjack:
                 update_timestamp=False,
                 log_lines=log_lines,
                 error=e,
+                traceback=traceback.format_exc(),
             )
 
     def _is_agent_eligible(self, chop: ChopConfig) -> bool:
@@ -408,11 +415,17 @@ class Lumberjack:
                 chop_name=chop.name,
                 executed=True,
                 success=False,
-                update_timestamp=False,
+                # Throttle persistent launch failures by the chop's normal
+                # cadence so a misconfigured agent chop doesn't retry every
+                # tick and flood error digests.
+                update_timestamp=chop.run_every is not None,
                 error=e,
+                traceback=traceback.format_exc(),
             )
 
-    def _handle_error(self, job_name: str, error: Exception) -> None:
+    def _handle_error(
+        self, job_name: str, error: Exception, tb: str | None = None
+    ) -> None:
         self._log(f"Error in {job_name}: {error}", style="red")
         self._metrics.errors_encountered += 1
         AXE_ERRORS.labels(error_type="chop").inc()
@@ -421,7 +434,7 @@ class Lumberjack:
             "lumberjack": self.name,
             "job": job_name,
             "error": str(error),
-            "traceback": traceback.format_exc(),
+            "traceback": tb if tb is not None else traceback.format_exc(),
         }
         append_error(error_info)
 

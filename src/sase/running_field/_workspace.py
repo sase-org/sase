@@ -116,19 +116,31 @@ def get_workspace_directory(project: str, workspace_num: int = 1) -> str:
     Raises:
         RuntimeError: If workspace resolution fails
     """
+    import os
+
     from sase.workspace_provider import (
         detect_workflow_type,
         get_workspace_directory as ws_get_workspace_directory,
     )
-    from sase.workspace_provider.utils import parse_workspace_dir
+    from sase.workspace_provider.utils import ensure_git_clone, parse_workspace_dir
     from sase.workflows.utils import get_project_file_path
 
     project_file = get_project_file_path(project)
+    workspace_dir = parse_workspace_dir(project_file) or ""
     try:
         workflow_type = detect_workflow_type(project_file)
     except ValueError as e:
+        # Generic fallback: if no workspace plugin claims the project but the
+        # project file declares a usable WORKSPACE_DIR, route the workspace
+        # request through that directory directly. This keeps configured agent
+        # chops working when provider entry points are temporarily unavailable
+        # (e.g. fresh source checkouts without the GitHub plugin installed).
+        if workspace_dir and os.path.isdir(workspace_dir):
+            if workspace_num == 1:
+                return workspace_dir
+            if os.path.isdir(os.path.join(workspace_dir, ".git")):
+                return ensure_git_clone(workspace_dir, workspace_num)
         raise RuntimeError(str(e)) from e
-    workspace_dir = parse_workspace_dir(project_file) or ""
     return ws_get_workspace_directory(
         workflow_type, workspace_num, project, workspace_dir
     )

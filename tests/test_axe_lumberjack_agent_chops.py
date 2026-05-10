@@ -532,6 +532,84 @@ def test_agent_chop_live_durable_child_record_blocks_relaunch(
         assert lumberjack._is_agent_eligible(config.chops[0]) is False
 
 
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_agent_chop_launch_failure_throttles_with_run_every(
+    mock_find: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """A failed agent-chop launch still updates the run_every timestamp.
+
+    Without throttling, a persistent launch misconfiguration would retry every
+    lumberjack tick and flood error digests.
+    """
+    config = LumberjackConfig(
+        name="failing_chop",
+        interval=10,
+        chops=[
+            ChopConfig(
+                name="busted_agent",
+                description="",
+                agent="some_agent",
+                run_every=3600,
+            )
+        ],
+    )
+    lumberjack = Lumberjack("failing_chop", config, axe_config)
+
+    with patch(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        side_effect=RuntimeError("workspace plugin missing"),
+    ):
+        lumberjack._run_tick()
+
+    # The run_every timestamp must advance even though the launch failed,
+    # so the next tick within the interval skips the chop.
+    assert "busted_agent" in lumberjack._chop_timestamps
+    assert lumberjack._metrics.errors_encountered == 1
+
+
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_agent_chop_launch_failure_preserves_traceback(
+    mock_find: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Launch failures record the real traceback, not 'NoneType: None'."""
+    from sase.axe.state import AXE_STATE_DIR
+
+    config = LumberjackConfig(
+        name="tb_chop",
+        interval=10,
+        chops=[
+            ChopConfig(
+                name="busted_agent",
+                description="",
+                agent="some_agent",
+                run_every=3600,
+            )
+        ],
+    )
+    lumberjack = Lumberjack("tb_chop", config, axe_config)
+
+    with patch(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        side_effect=RuntimeError("boom from inner frame"),
+    ):
+        lumberjack._run_tick()
+
+    import json
+
+    errors_file = AXE_STATE_DIR / "recent_errors.json"
+    errors = json.loads(errors_file.read_text())
+    assert errors, "expected an error entry"
+    last_error = errors[-1]
+    assert last_error["job"] == "busted_agent"
+    assert last_error["error"] == "boom from inner frame"
+    assert "NoneType: None" not in last_error["traceback"]
+    assert "RuntimeError" in last_error["traceback"]
+
+
 @patch("sase.axe.lumberjack.run_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
