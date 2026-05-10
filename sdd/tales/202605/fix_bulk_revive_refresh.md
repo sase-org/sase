@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-10 11:24:36
-status: wip
+status: done
 prompt: sdd/prompts/202605/fix_bulk_revive_refresh.md
 ---
 # Fix bulk revive: revived agents must appear on the agents tab

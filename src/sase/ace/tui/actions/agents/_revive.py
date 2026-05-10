@@ -347,8 +347,9 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         self.notify(f"Revived agent for {agent.cl_name}")  # type: ignore[attr-defined]
         self._load_agents()  # type: ignore[attr-defined]
 
-        if self.current_tab == "agents" and self._select_revived_agent(agent):
+        if self.current_tab == "agents":
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+            self._select_revived_agent(agent)
 
     def _do_revive_agents(self, agents: list[Agent]) -> None:
         """Revive multiple dismissed agents in a single batch.
@@ -412,6 +413,7 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         self.notify(f"Revived {count} agent{'s' if count != 1 else ''}")  # type: ignore[attr-defined]
         self._load_agents()  # type: ignore[attr-defined]
         if self.current_tab == "agents":
+            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
             revive_candidates = [
                 agent for agent in valid_agents if not agent.is_workflow_child
             ]
@@ -419,5 +421,4 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
                 revive_candidates = valid_agents
             for agent in revive_candidates:
                 if self._select_revived_agent(agent):
-                    self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
                     break
