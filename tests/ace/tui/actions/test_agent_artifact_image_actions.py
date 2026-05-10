@@ -51,9 +51,12 @@ class _ImageActionApp(AgentPanelsMixin):
         self.notify = MagicMock()
         self._selected_agent = None
         self._artifacts = []
+        self._artifacts_by_agent: dict[object, list[object]] = {}
         self.pushed = []
         self._artifact_tmux_pane_id = None
         self._artifact_tmux_decoration_state = None
+        self._agents_with_children = []
+        self._marked_agents = set()
 
     def query_one(self, selector, *_args, **_kwargs):
         if selector == "#agents-content":
@@ -69,7 +72,8 @@ class _ImageActionApp(AgentPanelsMixin):
         return self._selected_agent
 
     def _list_selected_agent_artifacts(self, agent):
-        del agent
+        if agent is not None and id(agent) in self._artifacts_by_agent:
+            return self._artifacts_by_agent[id(agent)]
         return self._artifacts
 
     def push_screen(self, modal, callback=None):
@@ -633,3 +637,137 @@ def test_agents_artifact_close_signal_path_clears_layout_without_tmux_check(
     assert app._artifact_tmux_pane_id is None
     assert app._artifact_tmux_decoration_state is None
     assert "-artifact-viewer-active" not in app.content.classes
+
+
+def _marked_agent(
+    *,
+    name: str,
+    artifacts: list[object],
+    agent_name: str | None = None,
+) -> SimpleNamespace:
+    identity = ("RUNNING", name, None)
+    return SimpleNamespace(
+        status="DONE",
+        identity=identity,
+        display_name=name,
+        agent_name=agent_name,
+        _artifacts=artifacts,
+    )
+
+
+def test_agents_open_artifacts_action_aggregates_marked_agents() -> None:
+    foo = _marked_agent(
+        name="foo",
+        artifacts=[
+            SimpleNamespace(path="/tmp/foo/proposal.md", kind="plan", label="Plan"),
+            SimpleNamespace(path="/tmp/foo/diff.patch", kind="diff", label="Diff"),
+        ],
+    )
+    bar = _marked_agent(
+        name="bar",
+        artifacts=[
+            SimpleNamespace(path="/tmp/bar/proposal.md", kind="plan", label="Plan"),
+            SimpleNamespace(path="/tmp/bar/diff.patch", kind="diff", label="Diff"),
+        ],
+    )
+    app = _ImageActionApp(None)
+    app._selected_agent = foo
+    app._agents_with_children = [foo, bar]
+    app._marked_agents = {foo.identity, bar.identity}
+    app._artifacts_by_agent = {
+        id(foo): foo._artifacts,
+        id(bar): bar._artifacts,
+    }
+
+    app.action_open_agent_artifacts()
+
+    assert len(app.pushed) == 1
+    modal, _callback = app.pushed[0]
+    assert modal.__class__.__name__ == "AgentArtifactSelectionModal"
+    assert len(modal._artifacts) == 4
+    assert modal._artifacts[0] is foo._artifacts[0]
+    assert modal._artifacts[1] is foo._artifacts[1]
+    assert modal._artifacts[2] is bar._artifacts[0]
+    assert modal._artifacts[3] is bar._artifacts[1]
+    assert modal._agent_labels == ["foo", "foo", "bar", "bar"]
+    assert modal._agent_count == 2
+    assert modal._title_text() == "Agent Artifacts  [4 from 2 agents]"
+    app.notify.assert_not_called()
+
+
+def test_agents_open_artifacts_action_marked_path_skips_stale_marks() -> None:
+    foo = _marked_agent(
+        name="foo",
+        artifacts=[
+            SimpleNamespace(path="/tmp/foo/diff.patch", kind="diff", label="Diff"),
+        ],
+    )
+    stale_identity = ("RUNNING", "ghost", None)
+    app = _ImageActionApp(None)
+    app._selected_agent = foo
+    app._agents_with_children = [foo]
+    app._marked_agents = {foo.identity, stale_identity}
+    app._artifacts_by_agent = {id(foo): foo._artifacts}
+
+    app.action_open_agent_artifacts()
+
+    assert len(app.pushed) == 1
+    modal, _callback = app.pushed[0]
+    assert len(modal._artifacts) == 1
+    assert modal._agent_count == 1
+    assert modal._title_text() == "Agent Artifacts  [1]"
+
+
+def test_agents_open_artifacts_action_warns_when_marked_artifacts_empty() -> None:
+    foo = _marked_agent(name="foo", artifacts=[])
+    bar = _marked_agent(name="bar", artifacts=[])
+    app = _ImageActionApp(None)
+    app._selected_agent = foo
+    app._agents_with_children = [foo, bar]
+    app._marked_agents = {foo.identity, bar.identity}
+    app._artifacts_by_agent = {id(foo): [], id(bar): []}
+
+    app.action_open_agent_artifacts()
+
+    assert app.pushed == []
+    app.notify.assert_called_once_with(
+        "No artifacts found in marked agents",
+        severity="warning",
+    )
+
+
+def test_agents_open_artifacts_action_warns_when_all_marks_stale() -> None:
+    stale_a = ("RUNNING", "ghost-a", None)
+    stale_b = ("RUNNING", "ghost-b", None)
+    app = _ImageActionApp(None)
+    app._agents_with_children = []
+    app._marked_agents = {stale_a, stale_b}
+
+    app.action_open_agent_artifacts()
+
+    assert app.pushed == []
+    app.notify.assert_called_once_with(
+        "No marked agents remain",
+        severity="warning",
+    )
+
+
+def test_agents_open_artifacts_action_uses_agent_name_suffix_when_distinct() -> None:
+    foo = _marked_agent(
+        name="cl-name-foo",
+        agent_name="planner",
+        artifacts=[
+            SimpleNamespace(path="/tmp/foo/plan.md", kind="plan", label="Plan"),
+        ],
+    )
+    app = _ImageActionApp(None)
+    app._selected_agent = foo
+    app._agents_with_children = [foo]
+    app._marked_agents = {foo.identity}
+    app._artifacts_by_agent = {id(foo): foo._artifacts}
+
+    app.action_open_agent_artifacts()
+
+    assert len(app.pushed) == 1
+    modal, _callback = app.pushed[0]
+    assert modal._agent_labels == ["cl-name-foo @planner"]

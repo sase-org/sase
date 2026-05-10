@@ -172,6 +172,8 @@ class _ArtifactActionApp(AgentPanelsMixin):
         self.agent_list = MagicMock()
         self.pushed: list[tuple[object, object | None]] = []
         self.suspend_recorder = _SuspendRecorder()
+        self._agents_with_children = []  # type: ignore[var-annotated]
+        self._marked_agents = set()  # type: ignore[var-annotated]
 
     def _get_selected_agent(self) -> object:
         return self._selected_agent

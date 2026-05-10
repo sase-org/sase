@@ -89,6 +89,11 @@ class KeybindingBindingsMixin:
             bindings.append((self._kd("next_tab"), "focus artifact pane"))
             bindings.append((self._kd("quit"), "close artifact pane"))
 
+        # When marks exist, A operates on the union of marked-agent artifacts.
+        # Surface the affordance even if the focused agent has none of its own.
+        if marked_count > 0:
+            bindings.append((self._kd("open_agent_artifacts"), "artifacts (marked)"))
+
         if agent is None:
             # Even with no selected agent, show app-state bindings
             if completed_count > 0:
@@ -158,7 +163,7 @@ class KeybindingBindingsMixin:
         if can_jump_to_changespec:
             bindings.append((self._kd("jump_to_agent_changespec"), "go to CL"))
 
-        if has_agent_artifacts:
+        if has_agent_artifacts and marked_count == 0:
             bindings.append((self._kd("open_agent_artifacts"), "artifacts"))
         if agent and agent.attempt_history and not attempt_pinned:
             bindings.append((self._kd("toggle_attempt_view"), "attempt view"))

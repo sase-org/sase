@@ -19,6 +19,7 @@ from .base import OptionListNavigationMixin
 _SELECTOR_KEYS = "1234567890abcdefghijklmnopqrstuvwxyz"
 _RESERVED_KEYS = {"j", "k", "m", "q"}
 _MAX_LABEL_LEN = 54
+_MAX_AGENT_LABEL_LEN = 28
 _MAX_KIND_LEN = 18
 _MAX_PATH_LEN = 72
 
@@ -61,12 +62,12 @@ def _artifact_kind(artifact: Any) -> str:
     )
 
 
-def _artifact_label(artifact: Any) -> str:
+def _artifact_label(artifact: Any, *, max_len: int = _MAX_LABEL_LEN) -> str:
     path = _artifact_path(artifact)
     fallback = Path(path).name if path else _artifact_kind(artifact)
     return _short_text(
         getattr(artifact, "label", None) or fallback,
-        max_len=_MAX_LABEL_LEN,
+        max_len=max_len,
     )
 
 
@@ -115,6 +116,7 @@ def _artifact_option_text(
     artifact: Any,
     *,
     marked: bool = False,
+    agent_label: str | None = None,
 ) -> Text:
     text = Text()
     if selector is None:
@@ -124,7 +126,13 @@ def _artifact_option_text(
     marker = "[x] " if marked else "    "
     marker_style = "bold #A6E3A1" if marked else "dim"
     text.append(marker, style=marker_style)
-    text.append(_artifact_label(artifact))
+    label_budget = _MAX_LABEL_LEN
+    if agent_label:
+        prefix = _short_text(agent_label, max_len=_MAX_AGENT_LABEL_LEN)
+        text.append(prefix, style="bold #87D7FF")
+        text.append("  ·  ", style="dim")
+        label_budget = max(16, _MAX_LABEL_LEN - len(prefix) - 5)
+    text.append(_artifact_label(artifact, max_len=label_budget))
     text.append(f"  [{_artifact_kind(artifact)}]", style="dim #87D7FF")
     text.append("\n")
     display_path = _short_path(
@@ -149,9 +157,19 @@ class AgentArtifactSelectionModal(
         ("enter", "open_selected", "Open"),
     ]
 
-    def __init__(self, artifacts: list[Any]) -> None:
+    def __init__(
+        self,
+        artifacts: list[Any],
+        *,
+        agent_labels: list[str | None] | None = None,
+        agent_count: int = 1,
+    ) -> None:
         super().__init__()
         self._artifacts = artifacts
+        if agent_labels is not None and len(agent_labels) != len(artifacts):
+            raise ValueError("agent_labels must align with artifacts")
+        self._agent_labels = agent_labels
+        self._agent_count = max(1, agent_count)
         selectors = _artifact_selector_keys(len(artifacts))
         self._selector_by_index = selectors
         self._index_by_selector = {key: index for index, key in enumerate(selectors)}
@@ -160,7 +178,7 @@ class AgentArtifactSelectionModal(
     def compose(self) -> ComposeResult:
         with Container(id="agent-artifacts-container"):
             yield Label(
-                f"Agent Artifacts  [{len(self._artifacts)}]",
+                self._title_text(),
                 id="agent-artifacts-title",
             )
             yield OptionList(*self._create_options(), id=self._option_list_id)
@@ -168,6 +186,21 @@ class AgentArtifactSelectionModal(
                 self._hint_text(),
                 id="agent-artifacts-hints",
             )
+
+    def _title_text(self) -> str:
+        if self._agent_count > 1:
+            return (
+                f"Agent Artifacts  [{len(self._artifacts)} from "
+                f"{self._agent_count} agents]"
+            )
+        return f"Agent Artifacts  [{len(self._artifacts)}]"
+
+    def _agent_label_for(self, index: int) -> str | None:
+        if self._agent_labels is None:
+            return None
+        if index < 0 or index >= len(self._agent_labels):
+            return None
+        return self._agent_labels[index]
 
     def _create_options(self) -> list[Option]:
         options: list[Option] = []
@@ -183,6 +216,7 @@ class AgentArtifactSelectionModal(
                         selector,
                         artifact,
                         marked=index in self._marked_indexes,
+                        agent_label=self._agent_label_for(index),
                     )
                 )
             )
@@ -246,6 +280,7 @@ class AgentArtifactSelectionModal(
                 selector,
                 self._artifacts[index],
                 marked=index in self._marked_indexes,
+                agent_label=self._agent_label_for(index),
             ),
         )
         option_list.highlighted = index

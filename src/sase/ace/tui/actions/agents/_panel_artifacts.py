@@ -18,12 +18,15 @@ from ._panel_types import (
 if TYPE_CHECKING:
     from ...graphics import ArtifactViewerResult, TmuxPaneDecorationState
     from ...models import Agent
+    from ...models.agent import AgentType
 
 
 class AgentPanelArtifactMixin:
     """Mixin providing agent artifact viewer actions and tmux pane tracking."""
 
     current_tab: TabName
+    _agents_with_children: list[Agent]
+    _marked_agents: set[tuple[AgentType, str, str | None]]
     _artifact_tmux_pane_id: str | None
     _artifact_tmux_decoration_state: TmuxPaneDecorationState | None
     _artifact_viewer_previous_sigusr1_handler: (
@@ -278,11 +281,69 @@ class AgentPanelArtifactMixin:
         except Exception:
             return
 
+    def _agent_artifact_prefix_label(self, agent: Agent) -> str:
+        """Return a short, human-readable prefix to identify *agent* in the picker."""
+        name = agent.display_name or ""
+        agent_name = getattr(agent, "agent_name", None) or ""
+        if agent_name and agent_name != name:
+            return f"{name} @{agent_name}" if name else f"@{agent_name}"
+        return name
+
+    def _collect_marked_agent_artifacts(
+        self,
+    ) -> tuple[list[Any], list[str | None], int]:
+        """Return artifacts, per-row agent labels, and marked-agent count."""
+        marked: list[Agent] = [
+            a for a in self._agents_with_children if a.identity in self._marked_agents
+        ]
+        artifacts: list[Any] = []
+        labels: list[str | None] = []
+        for agent in marked:
+            agent_label = self._agent_artifact_prefix_label(agent)
+            for artifact in self._list_selected_agent_artifacts(agent):
+                artifacts.append(artifact)
+                labels.append(agent_label)
+        return artifacts, labels, len(marked)
+
     def action_open_agent_artifacts(self) -> None:
         """Open or choose artifacts associated with the selected agent."""
         if self.current_tab != "agents":
             return
         if self._toggle_tracked_artifact_tmux_pane():
+            return
+
+        from ...modals import AgentArtifactSelectionModal
+
+        def _open_selected(selection: Any) -> None:
+            try:
+                selected_artifacts = self._normalize_agent_artifact_selection(selection)
+                if selected_artifacts:
+                    self._open_agent_artifacts(selected_artifacts)
+            finally:
+                self._focus_agent_list_after_artifact_modal()
+
+        if self._marked_agents:
+            artifacts, labels, marked_count = self._collect_marked_agent_artifacts()
+            if marked_count == 0:
+                self.notify(  # type: ignore[attr-defined]
+                    "No marked agents remain",
+                    severity="warning",
+                )
+                return
+            if not artifacts:
+                self.notify(  # type: ignore[attr-defined]
+                    "No artifacts found in marked agents",
+                    severity="warning",
+                )
+                return
+            self.push_screen(  # type: ignore[attr-defined]
+                AgentArtifactSelectionModal(
+                    artifacts,
+                    agent_labels=labels,
+                    agent_count=marked_count,
+                ),
+                _open_selected,
+            )
             return
 
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
@@ -299,16 +360,6 @@ class AgentPanelArtifactMixin:
             )
             self.notify(message, severity="warning")  # type: ignore[attr-defined]
             return
-
-        from ...modals import AgentArtifactSelectionModal
-
-        def _open_selected(selection: Any) -> None:
-            try:
-                selected_artifacts = self._normalize_agent_artifact_selection(selection)
-                if selected_artifacts:
-                    self._open_agent_artifacts(selected_artifacts)
-            finally:
-                self._focus_agent_list_after_artifact_modal()
 
         self.push_screen(AgentArtifactSelectionModal(artifacts), _open_selected)  # type: ignore[attr-defined]
 

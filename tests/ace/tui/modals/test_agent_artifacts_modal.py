@@ -345,6 +345,43 @@ def test_artifact_modal_displays_committed_plan_workspace_relative_path(
     assert str(archived_plan) not in plain
 
 
+def test_artifact_modal_option_text_renders_agent_prefix() -> None:
+    plain = _artifact_option_text(
+        "1",
+        _artifact(1, label="proposal.md"),
+        agent_label="agent-foo",
+    ).plain
+
+    assert "agent-foo" in plain
+    assert "·" in plain
+    assert "proposal.md" in plain
+
+
+async def test_artifact_modal_title_shows_agent_count_when_multiple() -> None:
+    artifacts = [_artifact(index) for index in range(3)]
+    labels: list[str | None] = ["foo", "foo", "bar"]
+
+    async with _TestApp().run_test() as pilot:
+        modal = AgentArtifactSelectionModal(
+            artifacts,
+            agent_labels=labels,
+            agent_count=2,
+        )
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        assert modal._title_text() == "Agent Artifacts  [3 from 2 agents]"
+
+
+async def test_artifact_modal_rejects_misaligned_agent_labels() -> None:
+    with pytest.raises(ValueError):
+        AgentArtifactSelectionModal(
+            [_artifact(1), _artifact(2)],
+            agent_labels=["only-one"],
+            agent_count=2,
+        )
+
+
 def test_artifact_modal_option_text_displays_pdf_markdown_source_path(
     tmp_path: Path,
 ) -> None:
