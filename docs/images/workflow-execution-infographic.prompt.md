@@ -10,46 +10,53 @@ Embedded in `docs/workflow_spec.md` after the opening paragraph and before `## T
 
 ## Intended Alt Text
 
-Workflow execution model showing inputs, environment, ordered steps, prompt injection, control flow wrappers, artifacts,
-parallel branches, join modes, and human-in-the-loop gates.
+Workflow execution model showing inputs, environment, five execution step types, prompt injection, per-step control
+modifiers, named outputs, artifacts, parallel branch joins, HITL gates, and finally cleanup.
 
 ## Final GPT Image Prompt
 
-Create a 16:9 landscape documentation infographic for a technical Markdown manual, light neutral background, crisp
-architecture diagram style, clean blocks and arrows, restrained but distinct accent colors.
+Use case: infographic-diagram Asset type: documentation PNG for `docs/images/workflow-execution-infographic.png` in a
+technical Markdown manual.
 
-Subject: SASE YAML workflow execution model.
+Primary request: Create a revised 16:9 landscape architecture infographic for the SASE YAML workflow execution model,
+addressing these correctness requirements: five real step execution types are `agent`, `prompt_part`, `bash`, `python`,
+and `parallel`; `hidden` is a modifier badge, not a step type; HITL is a `hitl: true` approval gate attached after
+`agent` / `bash` / `python` steps, not a step type; `prompt_part` expands into a calling prompt at the `#name(args)`
+reference site; named outputs and `artifact: stdout` flow forward; parallel branches join and then feed a downstream
+next step; `finally:` cleanup runs even after failure or HITL rejection.
 
-Composition:
+Style/medium: crisp software documentation architecture diagram, light neutral background, clean vector-like blocks,
+restrained but distinct accent colors, readable at GitHub Markdown width, no logos, no screenshots.
 
-- Left column: "Inputs" and "Environment" as two source blocks flowing into a central execution lane.
-- Center lane: ordered workflow steps moving left to right / top to bottom. Include short labels for the execution forms
-  and workflow controls readers see in `docs/workflow_spec.md`: agent, bash, python, hidden, parallel, and HITL.
-- Make prompt_part visually distinct as text injection into an agent prompt, not a separate LLM/model call. Show it as a
-  small document fragment feeding into the agent prompt path.
-- Show bash/python producing stdout and optional artifacts; show named outputs/artifacts flowing forward between steps.
-- Around the center lane, show control wrappers as thin bands or brackets labeled: if, for, while, repeat/until.
-- Right side: parallel branches split, execute concurrently, and join back together. Include four compact join labels:
-  object, array, text, lastOf.
-- Make HITL read as a `hitl: true` human approval gate that can pause after agent, bash, or python work, not as a
-  standalone execution type.
+Composition/framing: 16:9, generous spacing, three zones. Left zone has two distinct source blocks titled `Inputs` and
+`Environment`. Center zone has an ordered workflow lane with five horizontal step cards in order: `agent`,
+`prompt_part`, `bash`, `python`, `parallel`. Put small per-step control brackets near example cards labeled `if:`,
+`for:`, `while:`, `repeat/until`; make the bracket scope visibly per-step. Attach a small `hidden: true` badge to one
+example card. Add a reusable `use:` import badge on one step. Place a HITL approval gate diamond on the downstream side
+of the `agent` / `bash` / `python` area with short labels `Accept`, `Edit`, `Reject` and an `approved -> downstream`
+hint. Right zone shows parallel fan-out into branches A, B, C, then a join panel with four modes and default notes, then
+a downstream next step tile consuming a named field. Bottom strip shows `finally:` cleanup steps with a dotted connector
+from failure/reject paths and the note `always runs`.
 
-Style requirements:
+Text constraints: use only short labels from the workflow spec, including `Inputs`, `typed params`,
+`validated at invocation`, `Environment`, `Jinja2 env vars`, `os.environ session`, `output: { field: type }`,
+`{{ step.field }}`, `artifact: stdout`, `{{ step._artifact }}`, `#name(args)`, `calling prompt`, `expanded inline`,
+`hitl: true`, `Accept`, `Edit`, `Reject`, `approved`, `object default for parallel`, `array default for for`,
+`text opt-in`, `lastOf opt-in`, `{{ parallel_step.branch.field }}`, `finally:`, `cleanup`, `always runs`,
+`after failure or reject`, and `no nested for/while/repeat, parallel, or HITL`.
 
-- Technical architecture infographic, not marketing art.
-- No logos, no screenshots, no code paragraphs, no dense body text.
-- Use short legible labels only; dark text on light blocks; generous spacing.
-- Avoid decorative gradients and avoid a one-hue palette.
-- Use simple line icons and arrows; readable at GitHub Markdown width.
-- Final image should feel consistent with a software documentation diagram.
+Constraints: Do not show `hidden` or HITL as rows in the execution-type lane. Do not draw control wrappers around the
+whole workflow lane; show per-step brackets only. Do not make the parallel join the terminus; it must feed a next step.
+Keep labels large and legible, dark text on light blocks. Avoid dense paragraphs and avoid decorative gradients. No
+watermarks.
 
 ## Post-Processing Notes
 
-Generated with the built-in image generation tool, copied into `docs/images/workflow-execution-infographic.png`, then
-post-processed with ImageMagick to replace generated left-column labels with deterministic workflow-spec terminology:
-input parameters, defaults and types, invocation arguments, template context, environment variables, Jinja2 rendering,
-shared step environment, and values available to steps.
+Generated with the built-in image generation tool on 2026-05-10, copied into
+`docs/images/workflow-execution-infographic.png`, then lightly post-processed with ImageMagick to correct generated text
+defects in the title and environment block while preserving the generated composition.
 
-Audited on 2026-05-09 against `docs/workflow_spec.md`, `docs/images/infographic-style-brief.md`, and the current
-`docs/images/workflow-execution-infographic.png` (1672x941). The target insertion point, Markdown alt text, left-column
-labels, prompt_part injection depiction, join labels, and HITL approval-gate framing match the current documentation.
+The regenerated image addresses the critique in `docs/images/workflow-execution-infographic.critique.md`: `hidden` is a
+badge, HITL appears as approval gates rather than a step row, control wrappers are scoped to example steps,
+`prompt_part` is shown expanding into a calling prompt, parallel join feeds a downstream next step, and a `finally:`
+cleanup strip is present.
