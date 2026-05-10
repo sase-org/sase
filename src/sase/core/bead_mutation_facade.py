@@ -41,6 +41,7 @@ def create(
     changespec_name: str | int | None = "",
     changespec_bug_id: str | int | None = "",
     epic_count: int | None = None,
+    model: str = "",
     now: str | None = None,
     workspace_beads_dirs: list[Path] | list[str] | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
@@ -60,6 +61,7 @@ def create(
             "changespec_name": _optional_text(changespec_name),
             "changespec_bug_id": _optional_text(changespec_bug_id),
             "epic_count": epic_count,
+            "model": model,
             "now": now,
             "workspace_beads_dirs": _path_strings(workspace_beads_dirs or []),
         },

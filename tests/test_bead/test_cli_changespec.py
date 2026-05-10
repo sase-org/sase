@@ -10,6 +10,7 @@ import pytest
 
 from sase.bead import cli as bead_cli
 from sase.bead.project import BeadProject
+from sase.main.parser import create_parser
 
 
 @pytest.fixture
@@ -29,6 +30,7 @@ def _create_args(
     changespec: str | None = None,
     bug_id: str | None = None,
     epic_count: int | None = None,
+    model: str | None = None,
 ) -> argparse.Namespace:
     return argparse.Namespace(
         title=title,
@@ -39,6 +41,7 @@ def _create_args(
         changespec=changespec,
         bug_id=bug_id,
         epic_count=epic_count,
+        model=model,
     )
 
 
@@ -244,6 +247,130 @@ def test_update_legend_epic_count(
     with BeadProject(project_dir) as proj:
         assert proj.show(legend.id).epic_count == 6
     assert "Updated issue" in capsys.readouterr().out
+
+
+def test_parser_accepts_model_on_create_short_and_long() -> None:
+    parser = create_parser()
+    short = parser.parse_args(
+        ["bead", "create", "-t", "x", "-T", "phase(p)", "-m", "claude/opus"]
+    )
+    long = parser.parse_args(
+        ["bead", "create", "-t", "x", "-T", "phase(p)", "--model", "codex/gpt-5.5"]
+    )
+    assert short.model == "claude/opus"
+    assert long.model == "codex/gpt-5.5"
+
+
+def test_parser_accepts_model_on_update_short_and_long() -> None:
+    parser = create_parser()
+    short = parser.parse_args(["bead", "update", "x", "-m", "claude/opus"])
+    long_clear = parser.parse_args(["bead", "update", "x", "--model", ""])
+    assert short.model == "claude/opus"
+    assert long_clear.model == ""
+
+
+def test_create_with_model_persists(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plan = project_dir / "plan.md"
+    plan.write_text("# Plan\n")
+    args = _create_args(
+        title="Epic",
+        type_value=f"plan({plan})",
+        model="claude/opus",
+    )
+
+    bead_cli.handle_bead_create(args)
+
+    with BeadProject(project_dir) as proj:
+        issue = proj.list_issues()[0]
+        assert issue.model == "claude/opus"
+    capsys.readouterr()
+
+
+def test_update_clears_model_with_empty_string(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        epic = proj.create(
+            "Epic",
+            issue_type=bead_cli.IssueType.PLAN,
+            model="codex/gpt-5.5",
+        )
+
+    bead_cli.handle_bead_update(
+        argparse.Namespace(
+            id=epic.id,
+            status=None,
+            title=None,
+            description=None,
+            notes=None,
+            design=None,
+            assignee=None,
+            tier=None,
+            epic_count=None,
+            model="",
+        )
+    )
+
+    with BeadProject(project_dir) as proj:
+        assert proj.show(epic.id).model == ""
+    capsys.readouterr()
+
+
+def test_update_changes_model_value(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        epic = proj.create("Epic", issue_type=bead_cli.IssueType.PLAN)
+
+    bead_cli.handle_bead_update(
+        argparse.Namespace(
+            id=epic.id,
+            status=None,
+            title=None,
+            description=None,
+            notes=None,
+            design=None,
+            assignee=None,
+            tier=None,
+            epic_count=None,
+            model="codex/gpt-5.5",
+        )
+    )
+
+    with BeadProject(project_dir) as proj:
+        assert proj.show(epic.id).model == "codex/gpt-5.5"
+    capsys.readouterr()
+
+
+def test_show_displays_model(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        epic = proj.create(
+            "Epic", issue_type=bead_cli.IssueType.PLAN, model="claude/opus"
+        )
+
+    bead_cli.handle_bead_show(argparse.Namespace(id=epic.id))
+
+    assert "Model: claude/opus" in capsys.readouterr().out
+
+
+def test_show_omits_model_when_empty(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        epic = proj.create("Epic", issue_type=bead_cli.IssueType.PLAN)
+
+    bead_cli.handle_bead_show(argparse.Namespace(id=epic.id))
+
+    assert "Model:" not in capsys.readouterr().out
 
 
 def test_create_phase_rejects_epic_count(

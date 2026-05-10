@@ -101,6 +101,7 @@ class BeadProject:
         changespec_name: str | int | None = "",
         changespec_bug_id: str | int | None = "",
         epic_count: int | None = None,
+        model: str = "",
     ) -> Issue:
         """Create a new issue.
 
@@ -123,6 +124,7 @@ class BeadProject:
             changespec_name=changespec_name,
             changespec_bug_id=changespec_bug_id,
             epic_count=epic_count,
+            model=model,
             now=_now(),
             workspace_beads_dirs=self._workspace_beads_dirs(),
         )

@@ -53,6 +53,16 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         type=int,
         help="Number of epics proposed by a legend plan bead",
     )
+    bead_create_parser.add_argument(
+        "-m",
+        "--model",
+        help=(
+            "Model to use when this bead is launched. Provider-qualified "
+            "(e.g. codex/gpt-5.5) or local alias (e.g. #pro). For epic/legend "
+            "plan beads this becomes the land-agent model; for phase beads it "
+            "is the per-phase work model."
+        ),
+    )
 
     # sase bead dep
     bead_dep_parser = bead_subparsers.add_parser("dep", help="Manage dependencies")
@@ -151,3 +161,11 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     bead_update_parser.add_argument("-a", "--assignee")
     bead_update_parser.add_argument("--tier", choices=["plan", "epic", "legend"])
     bead_update_parser.add_argument("-E", "--epic-count", type=int)
+    bead_update_parser.add_argument(
+        "-m",
+        "--model",
+        help=(
+            "Model for this bead's launch. Provider-qualified (e.g. "
+            "codex/gpt-5.5) or local alias (e.g. #pro). Pass '' to clear."
+        ),
+    )

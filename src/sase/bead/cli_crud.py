@@ -115,6 +115,7 @@ def handle_bead_create(args: argparse.Namespace) -> None:
                 changespec_name=changespec_name,
                 changespec_bug_id=changespec_bug_id,
                 epic_count=epic_count,
+                model=getattr(args, "model", None) or "",
             )
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
@@ -141,6 +142,8 @@ def handle_bead_update(args: argparse.Namespace) -> None:
             fields["tier"] = args.tier
         if getattr(args, "epic_count", None) is not None:
             fields["epic_count"] = args.epic_count
+        if getattr(args, "model", None) is not None:
+            fields["model"] = args.model
         if not fields:
             print("No fields to update.", file=sys.stderr)
             sys.exit(1)

@@ -85,6 +85,19 @@ def test_create_rejects_epic_count_on_epic_plan(project):
         )
 
 
+def test_create_and_update_model(project):
+    epic = project.create("Epic", IssueType.PLAN, model="claude/opus")
+    assert epic.model == "claude/opus"
+    assert project.show(epic.id).model == "claude/opus"
+
+    cleared = project.update(epic.id, model="")
+    assert cleared.model == ""
+
+    relabeled = project.update(epic.id, model="codex/gpt-5.5")
+    assert relabeled.model == "codex/gpt-5.5"
+    assert project.show(epic.id).model == "codex/gpt-5.5"
+
+
 def test_create_epic_with_changespec_metadata(project):
     issue = project.create(
         "My Epic",
