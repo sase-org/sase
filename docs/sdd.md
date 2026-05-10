@@ -156,6 +156,23 @@ prompt: sdd/prompts/202605/example.md
 historical files as warnings by default and as errors with `--strict`. Myths and research notes are durable SDD context,
 but they are not part of the prompt-plan link validator.
 
+### Model Field
+
+Plan files may carry an optional top-level `model:` field in YAML frontmatter to record the model the work should run
+under. The value can be a provider-qualified model id (e.g. `codex/gpt-5.5`) or a configured local alias (e.g. `#pro`).
+
+```yaml
+# sdd/tales/202605/example.md
+prompt: sdd/prompts/202605/example.md
+model: opus
+```
+
+Epic plan files can additionally annotate individual phases with their own `model:` lines so different phases can be
+worked by different models. The `bd/new_epic` xprompt forwards the top-level `model:` field to `sase bead create`'s
+`-m/--model` flag on the epic plan bead (so the land agent inherits it), and forwards each phase's `model:` annotation
+to its phase-bead `-m/--model` flag. The `bd/new_legend` xprompt does the same for legend plan beads. When the field is
+absent, `--model` is omitted and the bead falls back to the launcher default.
+
 ## CLI
 
 The `sase sdd` command group manages generated SDD documentation and frontmatter links:

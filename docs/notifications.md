@@ -13,38 +13,47 @@ Press `i` on any tab in ACE to open the notifications modal. Notifications displ
 
 ### Modal Keybindings
 
-| Key                 | Action                                                      |
-| ------------------- | ----------------------------------------------------------- |
-| `j` / `k`           | Navigate between notifications                              |
-| `Enter`             | Select notification (jump to CL, approve plan, etc)         |
-| `x`                 | Dismiss notification (with confirmation for plans)          |
-| `m`                 | Toggle mute on the highlighted notification                 |
-| `s`                 | Snooze the highlighted notification (opens duration picker) |
-| `e`                 | Open attached file in `$EDITOR`                             |
-| `V`                 | Open the current image attachment in the image viewer       |
-| `Ctrl+N` / `Ctrl+P` | Cycle through attached files                                |
-| `Ctrl+D` / `Ctrl+U` | Scroll file content down / up                               |
-| `R`                 | Mark all notifications as read                              |
-| `Esc` / `q`         | Close modal                                                 |
+| Key                 | Action                                                                         |
+| ------------------- | ------------------------------------------------------------------------------ |
+| `j` / `k`           | Navigate between notifications                                                 |
+| `Enter`             | Select notification (jump to CL, approve plan, etc)                            |
+| `x`                 | Dismiss notification (or bulk-dismiss every marked row when marks are present) |
+| `m`                 | Toggle the per-row mark on the highlighted notification                        |
+| `M`                 | Toggle mute on the highlighted notification                                    |
+| `s`                 | Snooze the highlighted notification (opens duration picker)                    |
+| `e`                 | Open attached file in `$EDITOR`                                                |
+| `V`                 | Open the current image attachment in the image viewer                          |
+| `Ctrl+N` / `Ctrl+P` | Cycle through attached files                                                   |
+| `Ctrl+D` / `Ctrl+U` | Scroll file content down / up                                                  |
+| `R`                 | Mark all notifications as read                                                 |
+| `Esc` / `q`         | Close modal                                                                    |
 
 Plan and question notifications require confirmation (`y` / `n`) before dismissal to prevent accidental loss of pending
-approvals.
+approvals. The same `y` / `n` confirmation is used for bulk dismissal when at least one marked plan or question
+notification is included in the batch.
 
 ### Sectioned Layout
 
-The modal renders notifications in three fixed-order sections, each with a colored header row and per-section count:
+The modal renders notifications in four fixed-order sections, each with a colored header row and per-section count:
 
-| Section      | Color | Contents                                                                                                                                |
-| ------------ | ----- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| **PRIORITY** | Red   | Plan approvals, user questions, mentor reviews, axe error digests, CRS workflow results, and agent error reports                        |
-| **INBOX**    | Gold  | Everything else                                                                                                                         |
-| **MUTED**    | Cyan  | Notifications the user has muted (or that are still snoozed). Mute dominates priority — a muted plan appears under MUTED, not PRIORITY. |
+| Section      | Color  | Contents                                                                                                                                |
+| ------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **PRIORITY** | Red    | Plan approvals, user questions, mentor reviews, non-error axe notifications, and CRS workflow results                                   |
+| **ERRORS**   | Orange | Axe error digests and agent error reports (sender `axe` or `user-agent` paired with the `ViewErrorReport` action)                       |
+| **INBOX**    | Gold   | Everything else                                                                                                                         |
+| **MUTED**    | Cyan   | Notifications the user has muted (or that are still snoozed). Mute dominates priority — a muted plan appears under MUTED, not PRIORITY. |
 
 Empty sections are not rendered. Section header rows are non-selectable; `j` / `k` skip over them automatically.
 
+### Marks and Bulk Dismiss
+
+Press `m` on a notification to toggle a per-row mark. Marks are scoped to the open modal — closing the modal clears
+them. While at least one row is marked, `x` switches from "dismiss the highlighted row" to "dismiss every marked row";
+plan and question rows in the batch use the same `y` / `n` confirmation prompt as a single dismissal.
+
 ### Mute and Snooze
 
-Press `m` on a notification to toggle its muted state. Muted notifications are dimmed in the list, prefixed with `~`,
+Press `M` on a notification to toggle its muted state. Muted notifications are dimmed in the list, prefixed with `~`,
 and moved to the **MUTED** section. They are still delivered to the JSONL store and remain visible in the modal — only
 the bell indicator and toast pipeline ignore them.
 
@@ -57,7 +66,8 @@ from MUTED on its own once the timer runs out.
 
 The notification indicator in the TUI top bar takes its color from the highest-priority unread bucket present:
 
-- **Orange** — at least one unread PRIORITY notification (plan approval, user question, mentor review, axe error, …)
+- **Orange** — at least one unread PRIORITY or ERRORS notification (plan approval, user question, mentor review, axe
+  error digest, agent error report, …)
 - **Gold** — only regular INBOX notifications are unread
 - **Cyan** — only MUTED (or snoozed) notifications are unread
 - **Dim zero** — no unread notifications at all

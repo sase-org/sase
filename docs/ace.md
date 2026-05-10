@@ -877,19 +877,8 @@ the Mentor Review modal.
 
 ## Tab Bar Display
 
-The tab bar shows contextual counts alongside each tab label using the format `(MxD.H)`:
-
-- **M** — main count (CLs, running agents, or running lumberjacks)
-- **x*D*** — done/completed count (separated by `x`)
-- **._H_** — hidden count, shown when hidden items are visible (separated by `.`)
-
-Examples:
-
-- **CLs tab**: `CLs (5)` for 5 CLs, or `CLs (5.2)` when 2 hidden (reverted) CLs are visible
-- **Agents tab**: `Agents (2)` for 2 running agents, `Agents (2x1)` for 2 running + 1 done, `Agents (2x1.3)` with 3
-  hidden also visible
-- **AXE tab**: `AXE (3)` for 3 running lumberjacks, `AXE (3x2.1)` for 3 lumberjacks + 2 done bgcmds + 1 hidden command
-  visible
+The tab bar renders plain tab labels (`CLs`, `Agents`, `AXE`). Per-bucket counts live inside each tab's body — for
+example the per-panel count summaries on the Agents tab — rather than as suffixes on the tab title itself.
 
 ### Background Task Indicator
 
