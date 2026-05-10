@@ -1,5 +1,5 @@
 ---
-bead_id: sase-2o
+bead_id: sase-2r
 tier: epic
 status: wip
 create_time: 2026-05-10 11:29:15
