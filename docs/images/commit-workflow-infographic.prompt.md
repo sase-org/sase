@@ -18,9 +18,9 @@ Use case: infographic-diagram
 
 Asset type: GitHub Markdown documentation infographic for docs/commit_workflows.md
 
-Primary request: Create a clean 16:9 architecture infographic showing the shared Sase commit/propose/pull-request
-workflow. Use a light neutral background, crisp blocks, clear arrows, a restrained palette with distinct accents, and
-short legible labels only. This is documentation art, not marketing art.
+Primary request: Create a clean 16:9 architecture infographic foundation showing the shared Sase
+commit/propose/pull-request workflow. Use a light neutral background, crisp blocks, clear arrows, a restrained palette
+with distinct accents, and large empty label zones. This is documentation art, not marketing art.
 
 Exact visible labels to include, spelled exactly:
 
@@ -34,18 +34,41 @@ Exact visible labels to include, spelled exactly:
 - Provider note label: VCS providers: Git, GitHub, Mercurial
 
 Composition: left-to-right flow. Put the three input xprompts in a compact stack on the left feeding Agent changes. Then
-Stop hook and Commit skill feed into a large central CommitWorkflow band with the stage labels as small chips. Put bead
-lifecycle and plan handling before precommit: the workflow closes/syncs beads and stages plan files before it runs the
-configured precommit command. From VCS dispatch, split into three clearly distinct output branches on the right. Add a
-small curved side loop around the checkpoint and dispatch area labeled Conflict checkpoint + resume, using a warning
-accent but not presenting it as a normal success branch. Add the provider note near the dispatch area.
+Stop hook and Commit skill feed into `sase commit` and a large central CommitWorkflow band. Inside the band, reserve
+room for ten ordered stage chips. Put bead lifecycle and plan handling before precommit: the workflow closes/syncs beads
+and stages plan files before it runs the configured precommit command. Mark bead lifecycle and plan handling as skipped
+for `#propose`; mark PR tags and parent detection as PR-only. From VCS dispatch, split into three clearly distinct
+output branches on the right. Add a curved warning-accent conflict/resume loop that leaves VCS dispatch on conflict and
+returns through the Checkpoint/VCS dispatch area after manual resolution; do not present it as a normal success branch.
+Add the provider note near the dispatch area.
 
 Avoid: logos, fake terminal screenshots, code blocks, dense paragraphs, tiny text, decorative gradients, dark
 background, one-hue palette, misspelled labels, extra made-up product names, watermarks.
 
+For reliable text, generate a mostly text-free visual foundation first, then add the exact labels locally as a raster
+overlay. Keep the final stage order numbered left-to-right and top-to-bottom:
+
+1. Bead lifecycle
+2. Plan handling
+3. Precommit
+4. PR tags
+5. Parent detection
+6. Diff capture
+7. Checkpoint
+8. VCS dispatch
+9. Result marker
+10. Tracking
+
 ## Post-Processing Notes
 
-No manual label post-processing was needed for the checked-in PNG. The current raster is 1672x941 and readable at GitHub
-Markdown width, but it was generated from an earlier compact stage list that places Precommit before Bead lifecycle and
-omits separate Diff capture and Checkpoint chips. Use the corrected prompt above for the next regeneration or relabeling
-pass.
+The checked-in PNG is 1672x941. It was regenerated with GPT image generation as a mostly text-free architecture
+foundation, then post-processed locally with exact labels and readable stage chips. The overlay fixes the prior critique
+items by:
+
+- labeling the left stack as `xprompts`;
+- ordering the central stages as bead lifecycle, plan handling, precommit, PR tags, parent detection, diff capture,
+  checkpoint, VCS dispatch, result marker, tracking;
+- marking bead lifecycle and plan handling as skipped for `#propose`;
+- marking PR tags and parent detection as PR-only;
+- anchoring the conflict resume path around Checkpoint and VCS dispatch; and
+- keeping the three output branches and VCS provider note visible on the right.
