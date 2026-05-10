@@ -1,0 +1,360 @@
+"""Tests for approved plan follow-up actions."""
+
+import os
+from unittest.mock import call, patch
+
+import pytest
+
+from sase.axe import run_agent_exec_plan as plan_mod
+from sase.axe.run_agent_exec_plan import handle_plan_marker
+from sase.llm_provider._plan_utils import PlanApprovalResult
+from tests._axe_run_agent_exec_plan_helpers import (
+    make_ctx,
+    make_state,
+    patched_plan_deps,
+)
+
+
+@pytest.fixture
+def patch_plan_deps():
+    with patched_plan_deps() as mocks:
+        yield mocks
+
+
+@pytest.mark.usefixtures("patch_plan_deps")
+class TestPlanFollowupApprovals:
+    """Verify plan approval follow-up actions and metadata."""
+
+    def test_accepted_plan_persists_epic_action(self, tmp_path) -> None:
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_artifacts_dir = state.current_artifacts_dir
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(action="epic", plan_file=plan_file)
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        assert call(plan_artifacts_dir, "plan_approved", True) in (
+            plan_mod.update_meta_field.call_args_list
+        )
+        assert call(plan_artifacts_dir, "plan_action", "epic") in (
+            plan_mod.update_meta_field.call_args_list
+        )
+
+    def test_legend_prompt_uses_legend_sdd_ref(self, tmp_path) -> None:
+        """Legend approval writes to sdd/legends and launches bd/new_legend."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "scratch_plan.md")
+        (tmp_path / "scratch_plan.md").write_text("# Plan")
+        sdd_plan = tmp_path / "sdd" / "legends" / "202605" / "scratch_plan.md"
+        sdd_plan.parent.mkdir(parents=True)
+        sdd_plan.write_text("# Saved Legend")
+
+        approval = PlanApprovalResult(action="legend", plan_file=plan_file)
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(
+                    tmp_path / "sdd" / "prompts" / "202605" / "scratch_plan.md",
+                    sdd_plan,
+                ),
+            ) as write_sdd_files,
+            patch("sase.axe.run_agent_exec_plan._commit_sdd_files") as mock_commit,
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        assert state.current_role_suffix == ".legend"
+        assert (
+            "#bd/new_legend:sdd/legends/202605/scratch_plan.md" in state.current_prompt
+        )
+        assert write_sdd_files.call_args.kwargs["plan_kind"] == "legends"
+        assert mock_commit.call_args.kwargs["plan_kind"] == "legends"
+
+    @pytest.mark.parametrize(
+        ("action", "expected_kind"),
+        [("epic", "epics"), ("legend", "legends")],
+    )
+    def test_epic_and_legend_force_sdd_commit(
+        self, tmp_path, action: str, expected_kind: str
+    ) -> None:
+        """Epic and legend approvals commit SDD files even with stale false flags."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(
+            action=action,
+            plan_file=plan_file,
+            commit_plan=False,
+            run_coder=False,
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch("sase.axe.run_agent_exec_plan._commit_sdd_files") as mock_commit,
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        mock_commit.assert_called_once()
+        assert mock_commit.call_args.kwargs["plan_kind"] == expected_kind
+
+    def test_approve_no_coder_commit_true_returns_plan_committed(
+        self, tmp_path
+    ) -> None:
+        """run_coder=False, commit_plan=True -> outcome 'plan_committed', SDD committed."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            run_coder=False,
+            commit_plan=True,
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch("sase.axe.run_agent_exec_plan._commit_sdd_files") as mock_commit,
+        ):
+            outcome = handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        assert outcome == "plan_committed"
+        mock_commit.assert_called_once()
+        assert call(state.current_artifacts_dir, "plan_committed", True) in (
+            plan_mod.update_meta_field.call_args_list
+        )
+
+    def test_approve_no_coder_commit_false_skips_commit(self, tmp_path) -> None:
+        """run_coder=False, commit_plan=False -> outcome 'plan_committed', no SDD commit."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            run_coder=False,
+            commit_plan=False,
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch("sase.axe.run_agent_exec_plan._commit_sdd_files") as mock_commit,
+        ):
+            outcome = handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        assert outcome == "plan_committed"
+        mock_commit.assert_not_called()
+        assert call(state.current_artifacts_dir, "plan_committed", False) in (
+            plan_mod.update_meta_field.call_args_list
+        )
+
+    def test_approve_followup_propagates_plan_committed_flag(self, tmp_path) -> None:
+        """Coder follow-up metadata records whether the SDD plan was committed."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        sdd_plan = tmp_path / "sdd" / "tales" / "202605" / "plan.md"
+        (tmp_path / "plan.md").write_text("# Plan")
+        sdd_plan.parent.mkdir(parents=True)
+        sdd_plan.write_text("# SDD")
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            run_coder=True,
+            commit_plan=True,
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", sdd_plan),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        relationships = plan_mod.create_followup_artifacts.call_args.kwargs[
+            "relationships"
+        ]
+        assert relationships["plan_committed"] is True
+
+    def test_coder_prompt_uses_saved_sdd_plan_ref(self, tmp_path) -> None:
+        """Normal approved plans hand off the committed sdd/tales file."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "scratch_plan.md")
+        (tmp_path / "scratch_plan.md").write_text("# Plan")
+        sdd_plan = tmp_path / "sdd" / "tales" / "202605" / "scratch_plan.md"
+        sdd_plan.parent.mkdir(parents=True)
+        sdd_plan.write_text("# Saved Plan")
+
+        approval = PlanApprovalResult(action="approve", plan_file=plan_file)
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(
+                    tmp_path / "sdd" / "prompts" / "202605" / "scratch_plan.md",
+                    sdd_plan,
+                ),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        assert "@sdd/tales/202605/scratch_plan.md" in state.current_prompt
+
+    def test_coder_prompt_no_commit_uses_archived_plan_ref(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """No-commit approvals hand off the archived plan, not local SDD."""
+        monkeypatch.delenv("SASE_PLAN", raising=False)
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        archived_plan = tmp_path / "archive" / "scratch_plan.md"
+        archived_plan.parent.mkdir()
+        archived_plan.write_text("# Archived Plan")
+        sdd_plan = tmp_path / "sdd" / "tales" / "202605" / "scratch_plan.md"
+        sdd_plan.parent.mkdir(parents=True)
+        sdd_plan.write_text("# Saved Plan")
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=str(archived_plan),
+            commit_plan=False,
+            run_coder=True,
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(
+                    tmp_path / "sdd" / "prompts" / "202605" / "scratch_plan.md",
+                    sdd_plan,
+                ),
+            ),
+        ):
+            handle_plan_marker({"plan_file": str(archived_plan)}, ctx, state)
+
+        assert state.current_prompt.startswith("#gh:sase ")
+        assert f"@{archived_plan}" in state.current_prompt
+        assert "@sdd/tales/202605/scratch_plan.md" not in state.current_prompt
+        assert os.environ["SASE_PLAN"] == str(archived_plan)
+
+    def test_coder_meta_updated_when_coder_model_differs(self, tmp_path) -> None:
+        """agent_meta.json reflects coder_model when it differs from planner model."""
+        ctx = make_ctx(tmp_path, agent_model="gemini-3.1-pro-preview")
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        meta_updates: dict[str, str] = {}
+
+        def track_meta(artifacts_dir, key, value):
+            meta_updates[key] = value
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            coder_model="gemini-3-flash-preview",
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch(
+                "sase.axe.run_agent_exec_plan.update_meta_field",
+                side_effect=track_meta,
+            ),
+            patch(
+                "sase.llm_provider.registry.resolve_model_provider",
+                return_value=("gemini", "gemini-3-flash-preview"),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        assert meta_updates.get("model") == "gemini-3-flash-preview"
+        assert meta_updates.get("llm_provider") == "gemini"
+
+    def test_coder_meta_not_updated_when_model_same(self, tmp_path) -> None:
+        """agent_meta.json not updated when coder_model matches planner model."""
+        ctx = make_ctx(tmp_path, agent_model="opus")
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        meta_updates: dict[str, str] = {}
+
+        def track_meta(artifacts_dir, key, value):
+            meta_updates[key] = value
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            coder_model=None,
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch(
+                "sase.axe.run_agent_exec_plan.update_meta_field",
+                side_effect=track_meta,
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        assert "model" not in meta_updates
