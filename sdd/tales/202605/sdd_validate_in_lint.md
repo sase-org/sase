@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-09 20:19:28
-status: wip
+status: done
 prompt: sdd/prompts/202605/sdd_validate_in_lint.md
 ---
 # Plan: Run SDD Validation From `just lint`
