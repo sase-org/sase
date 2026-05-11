@@ -147,20 +147,11 @@ def _patch_startup_loaders(
         else:
             app._axe_first_load_done = True
 
-    from sase.notifications.filters import (
-        ClientNotificationSnapshot,
-        NotificationCounts,
-    )
-
-    def _fake_client_snapshot(
-        *_args: Any, **_kwargs: Any
-    ) -> ClientNotificationSnapshot:
-        counts = NotificationCounts(priority=1, rest=18, muted=0, errors=0)
-        return ClientNotificationSnapshot(
+    def _fake_notification_snapshot(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
             notifications=[],
-            counts=counts,
             expired_ids=[],
-            raw=SimpleNamespace(notifications=[], expired_ids=[], counts=counts),
+            counts=SimpleNamespace(priority=1, rest=18, muted=0, errors=0),
         )
 
     monkeypatch.setattr(_loading, "load_agents_from_disk_with_state", _fake_load_agents)
@@ -168,8 +159,8 @@ def _patch_startup_loaders(
     monkeypatch.setattr(AceApp, "_load_axe_status_async", _fake_axe_status_async)
     monkeypatch.setattr(
         notifications,
-        "read_notification_snapshot_for_client",
-        _fake_client_snapshot,
+        "read_notification_snapshot",
+        _fake_notification_snapshot,
     )
 
 
