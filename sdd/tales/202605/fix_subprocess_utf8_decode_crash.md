@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 11:45:37
-status: wip
+status: done
 prompt: sdd/prompts/202605/fix_subprocess_utf8_decode_crash.md
 ---
 # Fix: LLM subprocess crash on partial multi-byte UTF-8 across non-blocking reads

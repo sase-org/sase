@@ -1,10 +1,27 @@
 """Shared nonblocking stream loop for JSON-line LLM subprocesses."""
 
+import io
 import os
 import select
 import subprocess
 import sys
 from collections.abc import Callable
+from typing import IO
+
+
+def prepare_nonblocking_text_stream(stream: IO[str] | None) -> None:
+    """Set *stream* to non-blocking mode with lenient UTF-8 error handling.
+
+    Reconfigures the underlying ``TextIOWrapper`` to use ``errors='replace'``
+    so a multi-byte UTF-8 sequence that straddles a non-blocking read boundary
+    yields ``U+FFFD`` instead of raising ``UnicodeDecodeError`` and killing
+    the agent.
+    """
+    if stream is None:
+        return
+    if isinstance(stream, io.TextIOWrapper):
+        stream.reconfigure(errors="replace")
+    os.set_blocking(stream.fileno(), False)
 
 
 def stream_json_lines(
@@ -15,10 +32,8 @@ def stream_json_lines(
     """Stream stdout JSON lines through *handle_stdout_line* and collect stderr."""
     stderr_lines: list[str] = []
 
-    if process.stdout:
-        os.set_blocking(process.stdout.fileno(), False)
-    if process.stderr:
-        os.set_blocking(process.stderr.fileno(), False)
+    prepare_nonblocking_text_stream(process.stdout)
+    prepare_nonblocking_text_stream(process.stderr)
 
     while True:
         readable: list[object] = []

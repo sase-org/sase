@@ -17,6 +17,7 @@ from ._subprocess_artifacts import (
     open_live_reply_timestamps_file,
     strip_ansi,
 )
+from ._subprocess_stream import prepare_nonblocking_text_stream
 
 
 def start_interrupt_monitor(
@@ -77,10 +78,8 @@ def stream_process_output(
     prev_line_blank = True
 
     try:
-        if process.stdout:
-            os.set_blocking(process.stdout.fileno(), False)
-        if process.stderr:
-            os.set_blocking(process.stderr.fileno(), False)
+        prepare_nonblocking_text_stream(process.stdout)
+        prepare_nonblocking_text_stream(process.stderr)
 
         while True:
             readable: list[object] = []
