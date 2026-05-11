@@ -10,6 +10,8 @@ import pytest
 
 from sase.ace.testing import AcePage, make_changespec
 from sase.ace.tui import AceApp
+from sase.ace.tui.actions.axe_display._data import AxeCollectedData, BgCmdSnapshot
+from sase.ace.tui.bgcmd import BackgroundCommandInfo
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import AgentLoadState
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -88,10 +90,31 @@ def _agents() -> list[Agent]:
     ]
 
 
+def _axe_collected_data(
+    *,
+    bgcmd_slots: list[tuple[int, BackgroundCommandInfo]] | None = None,
+    bgcmd_details: dict[int, BgCmdSnapshot] | None = None,
+) -> AxeCollectedData:
+    """Build a deterministic AxeCollectedData fixture for the Axe tab."""
+    return AxeCollectedData(
+        axe_running=False,
+        axe_status=None,
+        axe_metrics=None,
+        axe_output="",
+        lumberjack_names=[],
+        bgcmd_slots=list(bgcmd_slots or []),
+        lumberjack_statuses={},
+        lumberjack_metrics={},
+        lumberjack_log_tails={},
+        bgcmd_details=dict(bgcmd_details or {}),
+    )
+
+
 def _patch_startup_loaders(
     monkeypatch: pytest.MonkeyPatch,
     *,
     agents: list[Agent] | None = None,
+    axe_data: AxeCollectedData | None = None,
 ) -> None:
     """Replace background startup data sources with deterministic fixtures."""
     import sase.notifications as notifications
@@ -112,8 +135,17 @@ def _patch_startup_loaders(
         )
 
     async def _fake_axe_startup(app: AceApp) -> None:
-        app._axe_first_load_done = True
-        app._maybe_end_startup_stopwatch()
+        if axe_data is not None:
+            app._apply_axe_status_data(axe_data)
+        else:
+            app._axe_first_load_done = True
+            app._maybe_end_startup_stopwatch()
+
+    async def _fake_axe_status_async(app: AceApp) -> None:
+        if axe_data is not None:
+            app._apply_axe_status_data(axe_data)
+        else:
+            app._axe_first_load_done = True
 
     def _fake_notification_snapshot(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
         return SimpleNamespace(
@@ -124,6 +156,7 @@ def _patch_startup_loaders(
 
     monkeypatch.setattr(_loading, "load_agents_from_disk_with_state", _fake_load_agents)
     monkeypatch.setattr(AceApp, "_run_axe_startup_init", _fake_axe_startup)
+    monkeypatch.setattr(AceApp, "_load_axe_status_async", _fake_axe_status_async)
     monkeypatch.setattr(
         notifications,
         "read_notification_snapshot",
@@ -211,4 +244,76 @@ async def test_agent_list_png_snapshot(
             page,
             "agents_list_120x40",
             title="ACE agents list",
+        )
+
+
+async def test_agents_selected_row_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_startup_loaders(monkeypatch, agents=_agents())
+
+    async with AcePage(query='"visual"', changespecs=_changespecs()) as page:
+        await _wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+        initial_idx = page.app.current_idx
+        for _ in range(8):
+            await page.press("j")
+            if page.app.current_idx != initial_idx:
+                break
+        else:
+            raise AssertionError("j navigation did not move off the initial agent row")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_selected_row_120x40",
+            title="ACE agents selected row",
+        )
+
+
+def _axe_bgcmd_fixture() -> AxeCollectedData:
+    info_a = BackgroundCommandInfo(
+        command="just test --visual",
+        project="visual_project",
+        workspace_num=1,
+        workspace_dir="/workspace/sase_1",
+        started_at="2026-05-09T10:00:00",
+        pid=12345,
+    )
+    info_b = BackgroundCommandInfo(
+        command="just check",
+        project="visual_project",
+        workspace_num=2,
+        workspace_dir="/workspace/sase_2",
+        started_at="2026-05-09T10:05:00",
+        pid=None,
+        finished_at="2026-05-09T10:09:00",
+    )
+    slots = [(1, info_a), (2, info_b)]
+    details = {
+        1: BgCmdSnapshot(info=info_a, running=True, output_tail="running tests..."),
+        2: BgCmdSnapshot(info=info_b, running=False, output_tail="check passed"),
+    }
+    return _axe_collected_data(bgcmd_slots=slots, bgcmd_details=details)
+
+
+async def test_axe_selected_row_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_startup_loaders(monkeypatch, axe_data=_axe_bgcmd_fixture())
+
+    async with AcePage(query='"visual"', changespecs=_changespecs()) as page:
+        await _wait_for_startup(page)
+        await page.press("tab")
+        await page.press("tab")
+        await page.expect_state("tab", "axe")
+        await page.press("j")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_selected_row_120x40",
+            title="ACE axe selected row",
         )
