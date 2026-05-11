@@ -159,7 +159,8 @@ def apply_status_overrides(agents: list[Agent]) -> None:
                     else:
                         followup_override[agent.parent_timestamp] = (
                             "TALE APPROVED"
-                            if parent.status == "TALE APPROVED"
+                            if parent.plan_action == "tale"
+                            or parent.status == "TALE APPROVED"
                             else "PLAN APPROVED"
                         )
                 elif (

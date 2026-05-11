@@ -433,6 +433,37 @@ def test_epic_started_at_from_agent_meta(tmp_path: Path) -> None:
     assert agent.epic_time == expected
 
 
+def test_plan_action_from_agent_meta_for_non_running_status(tmp_path: Path) -> None:
+    """plan_action is populated from meta even when the agent is not RUNNING.
+
+    The status-mapping `_plan_enrichment_status` gate stays bound to RUNNING,
+    but plan_action itself must be independently inspectable so the parent's
+    approved-status variant survives across `sase ace` restart.
+    """
+    meta = {"pid": 1234, "plan_action": "tale"}
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+
+    agent = _make_agent(status="DONE")
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.plan_action == "tale"
+    assert agent.status == "DONE"
+
+
+def test_plan_action_from_agent_meta_wire_for_non_running_status() -> None:
+    """Wire metadata mirrors filesystem plan_action enrichment for DONE agents."""
+    agent = _make_agent(status="DONE")
+
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(plan_action="tale"),
+        None,
+    )
+
+    assert agent.plan_action == "tale"
+    assert agent.status == "DONE"
+
+
 def test_epic_started_at_from_agent_meta_wire() -> None:
     """wire metadata enrichment mirrors filesystem epic_started_at parsing."""
     timestamp = "2026-04-27T15:05:00Z"

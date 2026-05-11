@@ -449,6 +449,123 @@ def test_apply_status_overrides_parent_with_active_code_after_question_is_plan_a
     assert parent.status == "PLAN APPROVED"
 
 
+def test_apply_status_overrides_active_code_child_with_tale_plan_action_is_tale_approved() -> (
+    None
+):
+    """A DONE plan parent with plan_action=tale and an active .code child becomes TALE APPROVED."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 5, 11, 9, 0, 0),
+        raw_suffix="20260511090000",
+        role_suffix=".plan",
+        plan_action="tale",
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 11, 9, 10, 0),
+        parent_timestamp="20260511090000",
+        role_suffix=".code",
+    )
+    agents = [parent, code_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "TALE APPROVED"
+
+
+def test_apply_status_overrides_active_code_child_without_plan_action_is_plan_approved() -> (
+    None
+):
+    """Regression guard: a generic-approve parent (no plan_action) stays PLAN APPROVED."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 5, 11, 9, 0, 0),
+        raw_suffix="20260511090000",
+        role_suffix=".plan",
+        plan_action=None,
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 11, 9, 10, 0),
+        parent_timestamp="20260511090000",
+        role_suffix=".code",
+    )
+    agents = [parent, code_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "PLAN APPROVED"
+
+
+def test_apply_status_overrides_active_code_child_with_parent_status_tale_approved() -> (
+    None
+):
+    """In-session-mask path: parent.status starts as TALE APPROVED, no plan_action."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="TALE APPROVED",
+        start_time=datetime(2026, 5, 11, 9, 0, 0),
+        raw_suffix="20260511090000",
+        role_suffix=".plan",
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 11, 9, 10, 0),
+        parent_timestamp="20260511090000",
+        role_suffix=".code",
+    )
+    agents = [parent, code_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "TALE APPROVED"
+
+
+def test_apply_status_overrides_questioning_code_with_tale_plan_action_still_becomes_question() -> (
+    None
+):
+    """A parent with plan_action=tale whose .code child has an unanswered question still becomes QUESTION."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 5, 11, 9, 0, 0),
+        raw_suffix="20260511090000",
+        role_suffix=".plan",
+        plan_action="tale",
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 5, 11, 9, 10, 0),
+        raw_suffix="20260511091000",
+        parent_timestamp="20260511090000",
+        role_suffix=".code",
+        questions_times=[datetime(2026, 5, 11, 9, 30, 0)],
+    )
+    agents = [parent, code_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "QUESTION"
+
+
 def test_apply_status_overrides_done_without_questions_stays_done() -> None:
     """A DONE agent with empty questions_times stays DONE."""
     agent = Agent(

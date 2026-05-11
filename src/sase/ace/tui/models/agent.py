@@ -196,6 +196,12 @@ class Agent:
     # Explicit plan-only auto-approval action, e.g. "epic".
     auto_approve_plan_action: str | None = None
 
+    # The plan action chosen at approval time, e.g. "tale", "epic", "commit",
+    # "legend". Persisted in agent_meta.json so the parent's approved-status
+    # variant can be reconstructed across `sase ace` restart even after the
+    # workflow itself has completed.
+    plan_action: str | None = None
+
     # Role suffix annotation (e.g., ".plan", ".code", ".q") for follow-up agents
     role_suffix: str | None = None
 
