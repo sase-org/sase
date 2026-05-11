@@ -173,6 +173,6 @@ The names you'll keep bumping into, in one place:
 This is Post 2 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
 
 - Previous: [Post 1: Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md).
-- Next: none (latest post).
+- Next: [Post 3: XPrompts in Depth — From One File to Full Workflows](xprompts-in-depth.md).
 - Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [ACE guide](../../ace.md).

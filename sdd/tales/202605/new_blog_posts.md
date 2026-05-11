@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 19:23:48
-status: wip
+status: done
 prompt: sdd/prompts/202605/new_blog_posts.md
 ---
 # Plan: Add Posts 3–8 to the Agentic Software Engineering Blog Series

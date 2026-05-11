@@ -16,6 +16,12 @@ nav:
       - Agentic Software Engineering Series: series/agentic-software-engineering.md
       - "Post 1: Why Coding Agents Need Orchestration": blog/posts/why-coding-agents-need-orchestration.md
       - "Post 2: Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents": blog/posts/hello-sase-your-first-15-minutes.md
+      - "Post 3: XPrompts in Depth": blog/posts/xprompts-in-depth.md
+      - "Post 4: AXE — The Background Daemon That Keeps Agent Work Moving": blog/posts/axe-background-daemon.md
+      - "Post 5: Beads and SDD — Planning Multi-Agent Work That Actually Lands": blog/posts/beads-and-sdd.md
+      - "Post 6: Commit Workflows — The Pluggable Path From Diff to PR": blog/posts/commit-workflows-plugins.md
+      - "Post 7: ChangeSpecs in Practice — Review State Outside the Chat": blog/posts/changespecs-in-practice.md
+      - "Post 8: What's Next — Shared Memory, Mobile, and the Web Surface": blog/posts/whats-next-memory-mobile-web.md
   - Start:
       - ACE TUI: ace.md
       - AXE Automation: axe.md
