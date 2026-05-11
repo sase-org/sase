@@ -40,7 +40,7 @@ def _handle_validate(args: argparse.Namespace) -> None:
     if args.json:
         print(json.dumps(validation_to_json(validation), indent=2))
     elif not args.quiet or not validation.ok:
-        _print_validation(validation)
+        _print_validation(validation, show_warnings=args.show_warnings)
     sys.exit(0 if validation.ok else 1)
 
 
@@ -87,18 +87,26 @@ def _handle_repair_links(args: argparse.Namespace) -> None:
     sys.exit(1 if has_errors else 0)
 
 
-def _print_validation(validation: Any) -> None:
+def _print_validation(validation: Any, *, show_warnings: bool) -> None:
+    warning_count = len(validation.warnings)
+    hint = (
+        " (use --show-warnings to display)"
+        if warning_count and not show_warnings
+        else ""
+    )
     if validation.ok:
         print(
             f"SDD validation passed: {len(validation.files)} files, "
-            f"{len(validation.warnings)} warnings"
+            f"{warning_count} warnings{hint}"
         )
     else:
         print(
             f"SDD validation failed: {len(validation.errors)} errors, "
-            f"{len(validation.warnings)} warnings"
+            f"{warning_count} warnings{hint}"
         )
     for issue in validation.issues:
+        if issue.severity == "warning" and not show_warnings:
+            continue
         stream = sys.stderr if issue.severity == "error" else sys.stdout
         print(
             f"{issue.severity}: {issue.path}: {issue.message} ({issue.code})",

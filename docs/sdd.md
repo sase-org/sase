@@ -187,13 +187,13 @@ the bead falls back to the launcher default.
 
 The `sase sdd` command group manages generated SDD documentation and frontmatter links:
 
-| Command                 | Purpose                                                                                          |
-| ----------------------- | ------------------------------------------------------------------------------------------------ |
-| `sase sdd init`         | Create or refresh `sdd/README.md`, tier READMEs, and `sdd/assets/sdd-directory-map.png`          |
-| `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, `legends`, or `all` |
-| `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact               |
-| `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, and `--strict` tune output                |
-| `sase sdd repair-links` | Infer unambiguous prompt/artifact pairs; add `-w/--write` to update files                        |
+| Command                 | Purpose                                                                                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------------------- |
+| `sase sdd init`         | Create or refresh `sdd/README.md`, tier READMEs, and `sdd/assets/sdd-directory-map.png`                 |
+| `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, `legends`, or `all`        |
+| `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact                      |
+| `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, `--strict`, and `-W/--show-warnings` tune output |
+| `sase sdd repair-links` | Infer unambiguous prompt/artifact pairs; add `-w/--write` to update files                               |
 
 Each subcommand accepts `-p/--path`, which may point at an SDD root or a project root. Validation treats unpaired or
 ambiguous historical files as warnings by default and promotes them to errors with `--strict`; parse errors, missing

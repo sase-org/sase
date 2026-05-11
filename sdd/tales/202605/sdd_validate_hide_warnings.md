@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 18:36:13
-status: wip
+status: done
 prompt: sdd/prompts/202605/sdd_validate_hide_warnings.md
 ---
 # Plan: Hide `sase sdd validate` warning lines by default

@@ -35,6 +35,12 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Treat unpaired historical files as validation errors",
     )
+    validate_parser.add_argument(
+        "-W",
+        "--show-warnings",
+        action="store_true",
+        help="Show warning-severity issues (hidden by default)",
+    )
 
     links_parser = sdd_sub.add_parser(
         "links",

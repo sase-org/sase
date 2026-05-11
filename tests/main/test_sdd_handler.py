@@ -19,6 +19,7 @@ def _args(**overrides: object) -> argparse.Namespace:
         "json": False,
         "quiet": False,
         "strict": False,
+        "show_warnings": False,
     }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
@@ -55,13 +56,16 @@ def test_parser_registers_sdd_subcommands() -> None:
     assert args.sdd_subcommand == "init"
     assert args.path == "sdd"
 
-    args = parser.parse_args(["sdd", "validate", "-p", "sdd", "-j", "-q", "--strict"])
+    args = parser.parse_args(
+        ["sdd", "validate", "-p", "sdd", "-j", "-q", "--strict", "-W"]
+    )
     assert args.command == "sdd"
     assert args.sdd_subcommand == "validate"
     assert args.path == "sdd"
     assert args.json is True
     assert args.quiet is True
     assert args.strict is True
+    assert args.show_warnings is True
 
     args = parser.parse_args(["sdd", "list", "-p", "sdd", "-k", "prompts", "-j"])
     assert args.sdd_subcommand == "list"
@@ -164,7 +168,27 @@ def test_validate_allows_default_unpaired_warnings(
     assert excinfo.value.code == 0
     out = capsys.readouterr().out
     assert "SDD validation passed" in out
+    assert "unpaired-file" not in out
+    assert "(use --show-warnings to display)" in out
+
+
+def test_validate_show_warnings_flag_displays_warning_lines(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "sdd"
+    _write_pair(root)
+    unpaired = root / "tales" / "202605" / "legacy.md"
+    unpaired.parent.mkdir(parents=True, exist_ok=True)
+    unpaired.write_text("# Legacy plan\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(_args(path=str(root), show_warnings=True))
+
+    assert excinfo.value.code == 0
+    out = capsys.readouterr().out
+    assert "SDD validation passed" in out
     assert "unpaired-file" in out
+    assert "(use --show-warnings to display)" not in out
 
 
 def test_validate_strict_fails_unpaired_warnings(tmp_path: Path) -> None:
