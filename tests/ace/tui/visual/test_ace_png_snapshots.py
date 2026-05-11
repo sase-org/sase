@@ -611,3 +611,137 @@ async def test_axe_lumberjack_tree_png_snapshot(
             "axe_lumberjack_tree_120x40",
             title="ACE axe lumberjack tree",
         )
+
+
+async def test_axe_empty_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AXE tab with no lumberjacks and no bgcmds (empty-state placeholder)."""
+    _patch_startup_loaders(monkeypatch, axe_data=_axe_collected_data())
+
+    async with AcePage(query='"visual"', changespecs=_changespecs()) as page:
+        await _wait_for_startup(page)
+        await page.press("tab")
+        await page.press("tab")
+        await page.expect_state("tab", "axe")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_empty_120x40",
+            title="ACE axe empty",
+        )
+
+
+async def test_axe_chop_run_info_panel_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Chop row selected → chop-run-detail view exercises update_chop_status."""
+    from sase.ace.tui.widgets.bgcmd_list import ChopItem
+
+    _patch_startup_loaders(monkeypatch, axe_data=_axe_lumberjack_tree_fixture())
+
+    async with AcePage(query='"visual"', changespecs=_changespecs()) as page:
+        await _wait_for_startup(page)
+        await page.press("tab")
+        await page.press("tab")
+        await page.expect_state("tab", "axe")
+        # Items are: [hooks LJ, hooks/fast_lint chop, hooks/slow_typecheck chop,
+        # checks LJ, checks/smoke chop, bgcmd slot 1]. Two j presses from the
+        # default idx=0 lands on hooks/slow_typecheck (the chop with a
+        # failure run + non-empty output_tail).
+        await page.press("j")
+        await page.press("j")
+        assert page.app.current_idx == 2, (
+            f"expected idx 2 (hooks/slow_typecheck), got {page.app.current_idx}"
+        )
+        selected = page.app._axe_items[page.app.current_idx]
+        assert isinstance(selected, ChopItem), (
+            f"expected ChopItem at idx 2, got {type(selected).__name__}"
+        )
+        assert (selected.lumberjack_name, selected.chop_name) == (
+            "hooks",
+            "slow_typecheck",
+        )
+        # j-navigation routes the dashboard repaint through a 0.15s debouncer;
+        # force the chop-run-detail view to render before snapshotting so the
+        # output panel reflects the new selection rather than the idx=0
+        # lumberjack overview.
+        page.app._refresh_axe_display()
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_chop_run_info_panel_120x40",
+            title="ACE axe chop run info panel",
+        )
+
+
+def _axe_lumberjack_error_fixture() -> AxeCollectedData:
+    """Single lumberjack in error state with one failing chop run."""
+    failed_chop = ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name="fast_lint",
+        description="fast lint",
+        runs=[
+            _make_chop_run(
+                "hooks",
+                "fast_lint",
+                run_id="20260509T100000_000000",
+                status="failure",
+            ),
+        ],
+    )
+    error_status = LumberjackStatus(
+        name="hooks",
+        pid=4242,
+        started_at="2026-05-09T10:00:00",
+        status="error",
+        interval=60,
+        chops=["fast_lint"],
+        last_cycle="2026-05-09T10:05:00",
+        cycles_run=5,
+        errors_encountered=3,
+        uptime_seconds=300,
+    )
+    metrics = LumberjackMetrics(
+        cycles_run=5, chops_executed=5, total_updates=2, errors_encountered=3
+    )
+    log_tail = "ERROR: hooks crashed at cycle 5"
+    return _axe_collected_data(
+        lumberjack_names=["hooks"],
+        lumberjack_statuses={"hooks": error_status},
+        lumberjack_metrics={"hooks": metrics},
+        lumberjack_log_tails={"hooks": log_tail},
+        lumberjack_chop_names={"hooks": ["fast_lint"]},
+        chop_snapshots={("hooks", "fast_lint"): failed_chop},
+        lumberjack_snapshots={
+            "hooks": LumberjackSnapshot(
+                name="hooks",
+                status=error_status,
+                metrics=metrics,
+                log_tail=log_tail,
+                chops=[failed_chop],
+            ),
+        },
+    )
+
+
+async def test_axe_lumberjack_error_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Errored lumberjack exercises red/warning styling in tree row + panel."""
+    _patch_startup_loaders(monkeypatch, axe_data=_axe_lumberjack_error_fixture())
+
+    async with AcePage(query='"visual"', changespecs=_changespecs()) as page:
+        await _wait_for_startup(page)
+        await page.press("tab")
+        await page.press("tab")
+        await page.expect_state("tab", "axe")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_lumberjack_error_120x40",
+            title="ACE axe lumberjack error",
+        )

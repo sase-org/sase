@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 18:31:40
-status: wip
+status: done
 prompt: sdd/prompts/202605/axe_png_snapshots.md
 ---
 # Plan — Expand AXE Tab PNG Snapshot Coverage
