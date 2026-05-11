@@ -20,6 +20,7 @@ from sase.notifications import (
     is_error,
     is_priority,
 )
+from sase.notifications.sort import timestamp_sort_key
 
 from .notification_modal_constants import (
     ACTION_BADGES,
@@ -140,6 +141,9 @@ class NotificationOptionMixin:
         }
         for i, n in enumerate(self._notifications):
             groups[self._section_for(n)].append((i, n))
+
+        for key in groups:
+            groups[key].sort(key=lambda pair: timestamp_sort_key(pair[1]), reverse=True)
 
         populated_keys = [key for key, _, _ in SECTIONS if groups[key]]
         options: list[Option] = []

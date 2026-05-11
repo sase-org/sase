@@ -187,6 +187,132 @@ def test_header_text_includes_label_and_count() -> None:
     assert "· 3" in text.plain
 
 
+def test_inbox_group_sorted_newest_first() -> None:
+    """Inbox entries render in descending-timestamp order within their section."""
+    older = _make_notification(
+        "i1", action="JumpToAgent", timestamp="2026-03-17T10:00:00-04:00"
+    )
+    newest = _make_notification(
+        "i2", action="JumpToAgent", timestamp="2026-03-17T13:00:00-04:00"
+    )
+    middle = _make_notification(
+        "i3", action="JumpToAgent", timestamp="2026-03-17T12:00:00-04:00"
+    )
+
+    modal = NotificationModal([older, newest, middle])
+    options = modal._create_sectioned_options()
+
+    ids = [opt.id for opt in options]
+    assert ids == ["hdr:inbox", "1", "2", "0"]
+
+
+def test_each_group_sorts_independently() -> None:
+    """Each section is sorted newest-first; section order is unchanged."""
+    p_old = _make_notification(
+        "p1", action="PlanApproval", timestamp="2026-03-17T08:00:00-04:00"
+    )
+    p_new = _make_notification(
+        "p2", action="PlanApproval", timestamp="2026-03-17T14:00:00-04:00"
+    )
+    e_old = _make_notification(
+        "e1", action="ViewErrorReport", timestamp="2026-03-17T09:00:00-04:00"
+    )
+    e_old.sender = "axe"
+    e_new = _make_notification(
+        "e2", action="ViewErrorReport", timestamp="2026-03-17T15:00:00-04:00"
+    )
+    e_new.sender = "axe"
+    i_old = _make_notification(
+        "i1", action="JumpToAgent", timestamp="2026-03-17T07:00:00-04:00"
+    )
+    i_new = _make_notification(
+        "i2", action="JumpToAgent", timestamp="2026-03-17T16:00:00-04:00"
+    )
+    m_old = _make_notification(
+        "m1", action="JumpToAgent", timestamp="2026-03-17T06:00:00-04:00"
+    )
+    m_old.muted = True
+    m_new = _make_notification(
+        "m2", action="JumpToAgent", timestamp="2026-03-17T17:00:00-04:00"
+    )
+    m_new.muted = True
+
+    modal = NotificationModal([p_old, e_old, i_old, m_old, p_new, e_new, i_new, m_new])
+    options = modal._create_sectioned_options()
+    ids = [opt.id for opt in options]
+
+    assert ids == [
+        "hdr:priority",
+        "4",
+        "0",
+        "hdr:gap:errors",
+        "hdr:errors",
+        "5",
+        "1",
+        "hdr:gap:inbox",
+        "hdr:inbox",
+        "6",
+        "2",
+        "hdr:gap:muted",
+        "hdr:muted",
+        "7",
+        "3",
+    ]
+
+
+def test_jump_visual_order_matches_sorted_render() -> None:
+    """_visual_notification_index_order returns indexes in the new sorted order."""
+    older = _make_notification(
+        "i1", action="JumpToAgent", timestamp="2026-03-17T10:00:00-04:00"
+    )
+    newest = _make_notification(
+        "i2", action="JumpToAgent", timestamp="2026-03-17T13:00:00-04:00"
+    )
+    middle = _make_notification(
+        "i3", action="JumpToAgent", timestamp="2026-03-17T12:00:00-04:00"
+    )
+
+    modal = NotificationModal([older, newest, middle])
+
+    assert modal._visual_notification_index_order() == [1, 2, 0]
+
+
+def test_malformed_timestamp_does_not_crash_and_sinks() -> None:
+    """A non-parseable timestamp sinks to the bottom of its group without raising."""
+    good_old = _make_notification(
+        "i1", action="JumpToAgent", timestamp="2026-03-17T10:00:00-04:00"
+    )
+    bad = _make_notification("i2", action="JumpToAgent", timestamp="not-a-timestamp")
+    good_new = _make_notification(
+        "i3", action="JumpToAgent", timestamp="2026-03-17T13:00:00-04:00"
+    )
+
+    modal = NotificationModal([good_old, bad, good_new])
+    options = modal._create_sectioned_options()
+
+    ids = [opt.id for opt in options]
+    assert ids == ["hdr:inbox", "2", "0", "1"]
+
+
+def test_equal_timestamps_preserve_insertion_order() -> None:
+    """Byte-equal timestamps keep their original relative order (stable sort)."""
+    first = _make_notification(
+        "i1", action="JumpToAgent", timestamp="2026-03-17T12:00:00-04:00"
+    )
+    second = _make_notification(
+        "i2", action="JumpToAgent", timestamp="2026-03-17T12:00:00-04:00"
+    )
+    third = _make_notification(
+        "i3", action="JumpToAgent", timestamp="2026-03-17T12:00:00-04:00"
+    )
+
+    modal = NotificationModal([first, second, third])
+    options = modal._create_sectioned_options()
+
+    ids = [opt.id for opt in options]
+    assert ids == ["hdr:inbox", "0", "1", "2"]
+
+
 def test_jump_hints_render_only_on_notification_rows_in_visual_order() -> None:
     """Jump markers are assigned to selectable rows, not section headers."""
     inbox = _make_notification("i1", action="JumpToAgent")

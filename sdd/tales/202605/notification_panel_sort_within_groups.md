@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 13:09:01
-status: wip
+status: done
 prompt: sdd/prompts/202605/notification_panel_sort_within_groups.md
 ---
 # Plan: Sort notifications within groups by timestamp (most recent first)

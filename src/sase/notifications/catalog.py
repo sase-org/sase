@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
-from sase.core.time import get_timezone
 from sase.notifications.models import Notification, format_relative_time
 from sase.notifications.priority import is_error, is_priority
+from sase.notifications.sort import timestamp_sort_key
 from sase.notifications.store import load_notifications
 
 
@@ -30,16 +29,6 @@ class NotificationInfo:
     silent: bool
     muted: bool
     snooze_until: str | None
-
-
-def _timestamp_sort_key(notification: Notification) -> datetime:
-    try:
-        timestamp = datetime.fromisoformat(notification.timestamp)
-    except ValueError:
-        return datetime.min.replace(tzinfo=get_timezone())
-    if timestamp.tzinfo is None:
-        timestamp = timestamp.replace(tzinfo=get_timezone())
-    return timestamp
 
 
 def _normalize_home_path(value: str) -> str:
@@ -104,7 +93,7 @@ def list_notification_infos(
 ) -> list[NotificationInfo]:
     """Return filtered notification info rows, newest first."""
     notifications = load_notifications(include_dismissed=include_dismissed)
-    rows = sorted(notifications, key=_timestamp_sort_key, reverse=True)
+    rows = sorted(notifications, key=timestamp_sort_key, reverse=True)
 
     if sender is not None:
         rows = [notification for notification in rows if notification.sender == sender]

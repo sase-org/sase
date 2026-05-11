@@ -9,11 +9,15 @@ from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.notifications import Notification
 
 
-def _make_notification(notification_id: str, action: str | None = None) -> Notification:
+def _make_notification(
+    notification_id: str,
+    action: str | None = None,
+    timestamp: str = "2026-03-17T12:00:00-04:00",
+) -> Notification:
     """Create a minimal notification object for modal tests."""
     return Notification(
         id=notification_id,
-        timestamp="2026-03-17T12:00:00-04:00",
+        timestamp=timestamp,
         sender="test",
         action=action,
     )
