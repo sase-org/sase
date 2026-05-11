@@ -498,6 +498,12 @@ phase agent named `<epic_id>.<N>` displays that phase bead ID; the final `<epic_
 bead ID. Legacy `<epic_id>.land` land agents keep the same badge. Dismissed agents keep the badge by stripping only the
 date-prefix used for dismissal.
 
+Workflow child rows for `python` and `bash` steps render a leading 🐍 / 🐚 glyph after the `N/M` step number, styled
+with the matching step-type accent. The glyph is a stronger signal than the step-type color alone for colorblind users
+and for rapid scanning. Agent, parallel, and `prompt_part` step rows are left unchanged — agent rows already carry a
+meaningful display name, parallel rows fan out into structural children, and `prompt_part` rows are invisible by
+default.
+
 The right-hand edge of each row carries a runtime suffix (`<start-timestamp> · <elapsed>`) right-aligned within the
 panel. Active rows that have actually started include a `🏃‍♂️` marker before the ticking elapsed duration; unread
 completed rows use a `🎉` marker in the same suffix slot; and user-paused rows (`PLANNING`, `QUESTION`, `WAITING INPUT`)
@@ -578,12 +584,12 @@ cached by raw query string so re-renders skip the parse.
 
 ### Navigation
 
-| Key                 | Action                              |
-| ------------------- | ----------------------------------- |
-| `j` / `k`           | Move to next / previous command     |
-| `Ctrl+N` / `Ctrl+P` | Next / previous lumberjack output   |
-| `g`                 | Scroll to top                       |
-| `G`                 | Scroll to bottom (pins auto-scroll) |
+| Key                 | Action                                                           |
+| ------------------- | ---------------------------------------------------------------- |
+| `j` / `k`           | Move to next / previous sidebar row (lumberjack, chop, or bgcmd) |
+| `Ctrl+N` / `Ctrl+P` | Page through the focused chop's run history (newer / older)      |
+| `g`                 | Scroll to top                                                    |
+| `G`                 | Scroll to bottom (pins auto-scroll)                              |
 
 ### Commands
 

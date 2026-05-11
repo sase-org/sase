@@ -199,6 +199,11 @@ Each subcommand accepts `-p/--path`, which may point at an SDD root or a project
 ambiguous historical files as warnings by default and promotes them to errors with `--strict`; parse errors, missing
 targets, wrong link kinds, and broken reverse links are errors unless explicitly allowlisted for legacy migration.
 
+`sase sdd validate` hides warning-severity issues from its text output by default — the summary line still reports the
+warning count and appends `(use --show-warnings to display)` so they remain discoverable without scrolling through noise
+on the happy path. Pass `-W/--show-warnings` to print each warning, or `--strict` to promote warnings to errors before
+filtering. JSON mode (`-j/--json`) and exit codes are unaffected by `-W`.
+
 The `sase sdd init` output is intentionally short project-local documentation. It refreshes `sdd/README.md`, the
 directory map asset, and generated `README.md` files in `tales/`, `epics/`, `legends/`, `myths/`, and `research/`. Keep
 conceptual details here in `docs/sdd.md`; use `sase sdd init` to refresh generated project guides. The generated guides

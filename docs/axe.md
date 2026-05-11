@@ -211,6 +211,10 @@ directory, and paths to serialized `all_changespecs.json` and `filtered_changesp
 within one lumberjack tick run concurrently; use `timeout` or `chop_timeout` to keep a slow script from blocking later
 ticks indefinitely.
 
+Script chop stdout and stderr are streamed to the chop's per-run log file while the subprocess is still alive (see
+[Chop Run History](#chop-run-history) below). The Axe-tab dashboard tails that file so a long-running chop's output
+becomes visible immediately rather than only after process exit.
+
 ### Agent Chops and Visibility
 
 When a chop has an `agent` field, axe launches a real background agent (via the same launcher as `sase run`) instead of
@@ -228,6 +232,43 @@ other for workspace allocation while preserving parallel script execution.
 
 `sase axe chop run <agent-chop>` follows the same path as the scheduled lumberjack tick, so a one-shot run records the
 same chop registry metadata as the periodic invocation.
+
+### Chop Run History
+
+Each lumberjack tick (and each `sase axe chop run …`) records the attempt under
+`~/.sase/axe/lumberjacks/<lumberjack>/chops/<chop>/`. The newest 10 runs per chop are retained; older runs are pruned on
+the next launch. A live `index.json` lists run IDs newest-first, and each run has its own metadata JSON plus an output
+log:
+
+```
+~/.sase/axe/lumberjacks/<lumberjack>/chops/<chop>/
+├── index.json              # Ordered run IDs (newest first)
+└── <run_id>/
+    ├── metadata.json       # status, started_at, finished_at, pid, source, started_by, exit code
+    └── output.log          # Streamed stdout+stderr from the chop process
+```
+
+A run is created in `running` state before the subprocess is launched and finalized (`completed`, `failed`, or
+`timeout`) on exit. `finished_at` is `null` while the run is still active. Pruning never deletes an in-flight run, so a
+slow chop is safe even if its `MAX_CHOP_RUN_HISTORY` window shifts during execution.
+
+### AXE Tab Views
+
+The Axe tab sidebar emits each lumberjack as a top-level row with its configured chops as indented children, followed by
+any background commands (`!!`). Selection drives three distinct dashboard views:
+
+- **Lumberjack overview** — selecting a lumberjack row shows its status, interval, cycle count, error count, and a
+  per-chop table with each chop's last-run status, relative timestamp, and elapsed runtime. Running chops report live
+  elapsed time instead of `0ms`.
+- **Chop detail** — selecting a chop row renders the latest run's metadata (`● running` status with live elapsed
+  runtime, PID, and a `Source:` chip for non-scheduled runs) and tails its `output.log`. While the run is still
+  producing nothing, the panel shows a `Waiting for output…` placeholder; the exit code is suppressed until the run
+  finalizes. Sidebar chop rows render a `[●]` marker when the newest cached run is active.
+- **Background command output** — the existing live output stream for the focused `!!` row.
+
+`Ctrl+N` / `Ctrl+P` on the Axe tab page through the focused chop's run history (newest run first). The viewer pins to
+the run you selected so that a new run prepended by a fresh tick does not bump you forward; if the pinned run is pruned
+or itself becomes newest, the pin is cleared.
 
 ### Chop-Agent Registry
 
@@ -307,6 +348,12 @@ is no longer running.
 │       ├── metrics.json            # Cumulative metrics (updated every 30s)
 │       ├── chop_timestamps.json    # Last successful run_every timestamp per chop
 │       ├── agent_chops.json        # Durable registry of agents launched by this lumberjack's chops
+│       ├── chops/                  # Per-chop run history (newest 10 runs per chop)
+│       │   └── {chop}/
+│       │       ├── index.json      # Ordered run IDs (newest first)
+│       │       └── {run_id}/
+│       │           ├── metadata.json
+│       │           └── output.log
 │       ├── tick/
 │       │   ├── context.json        # Context passed to script chops
 │       │   ├── all_changespecs.json
@@ -337,10 +384,9 @@ is no longer running.
 
 The Axe tab in the ACE TUI provides live monitoring of the daemon:
 
-- View lumberjack status, uptime, and error counts
-- Read lumberjack output logs
-- Start/stop the orchestrator (`x` key or `!x`)
-- See current runner counts
+- A lumberjack tree sidebar (lumberjack rows + their chops as children + background-command rows)
+- A lumberjack overview, per-chop detail view, and run-history pager (see [AXE Tab Views](#axe-tab-views))
+- Start/stop the orchestrator (`x` key or `!x`) and runner counts
 - Footer shows daemon status: RUNNING, STOPPED, STARTING, STOPPING, or RESTARTING
 
 The RESTARTING indicator appears when `sase ace --restart-axe` (`-R`) is used — the daemon restarts in the background
