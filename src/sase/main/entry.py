@@ -186,6 +186,12 @@ def main() -> NoReturn:
 
         handle_logs_command(args)
 
+    # --- revive-log ---
+    if args.command == "revive-log":
+        from sase.logs.revive_log_cli import handle_revive_log_command
+
+        handle_revive_log_command(args)
+
     # --- lsp ---
     if args.command == "lsp":
         from sase.integrations.xprompt_lsp import handle_xprompt_lsp_command

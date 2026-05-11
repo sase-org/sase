@@ -260,6 +260,11 @@ class Agent:
         default=False, compare=False, repr=False
     )
 
+    # On-disk path of the dismissed bundle file this agent was loaded from.
+    # Populated alongside ``_loaded_from_dismissed_bundle`` by the dismissed
+    # bundle loader so the revive audit log can record which file was deleted.
+    _dismissed_bundle_path: str | None = field(default=None, compare=False, repr=False)
+
     @property
     def effective_workspace_num(self) -> int | None:
         """Workspace number considering meta_workspace from step_output.

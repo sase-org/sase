@@ -19,6 +19,7 @@ from sase.main.parser_commands import (
     register_path_parser,
     register_plan_parser,
     register_questions_parser,
+    register_revive_log_parser,
     register_run_parser,
 )
 from sase.main.parser_commit import (
@@ -97,6 +98,7 @@ def create_parser() -> argparse.ArgumentParser:
     register_questions_parser(top_level_subparsers)
     register_restore_parser(top_level_subparsers)
     register_revert_parser(top_level_subparsers)
+    register_revive_log_parser(top_level_subparsers)
     register_run_parser(top_level_subparsers)
     register_sdd_parser(top_level_subparsers)
     register_telemetry_parser(top_level_subparsers)

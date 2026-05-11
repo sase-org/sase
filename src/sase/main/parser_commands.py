@@ -202,6 +202,49 @@ def register_logs_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
+def register_revive_log_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Register the 'revive-log' subcommand parser."""
+    revive_log_parser = subparsers.add_parser(
+        "revive-log",
+        help="Show recent agent revive attempts from ~/.sase/logs/events.jsonl",
+    )
+    revive_log_parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Show every record in events.jsonl (default: most recent 20)",
+    )
+    revive_log_parser.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        help="Maximum number of records to show (default: 20)",
+    )
+    revive_log_parser.add_argument(
+        "--since",
+        default=None,
+        help="Only show records on/after this date (same grammar as 'sase logs')",
+    )
+    revive_log_parser.add_argument(
+        "--outcome",
+        choices=("success", "failure"),
+        default=None,
+        help="Filter by outcome",
+    )
+    output_group = revive_log_parser.add_mutually_exclusive_group()
+    output_group.add_argument(
+        "--json",
+        dest="as_json",
+        action="store_true",
+        help="Emit one JSON object per line for machine consumption",
+    )
+    output_group.add_argument(
+        "--jsonl",
+        dest="as_json",
+        action="store_true",
+        help="Alias for --json",
+    )
+
+
 def register_lsp_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'lsp' subcommand parser."""
     lsp_parser = subparsers.add_parser(

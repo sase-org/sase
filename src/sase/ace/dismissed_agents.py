@@ -367,9 +367,11 @@ def _load_bundle_file(filepath: Path) -> Agent | None:
     if not isinstance(data, dict):
         return None
     try:
-        return Agent.from_bundle_dict(data)
+        agent = Agent.from_bundle_dict(data)
     except (KeyError, ValueError, TypeError):
         return None
+    agent._dismissed_bundle_path = str(filepath)
+    return agent
 
 
 def remove_bundle_by_identity(

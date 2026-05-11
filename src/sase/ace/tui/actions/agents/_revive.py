@@ -154,8 +154,12 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
     def _revive_agent(self) -> None:
         """Show project selection modal, then dismissed agent selection."""
         from ...modals import ProjectSelectModal, ProjectSelectResult, SelectionItem
+        from ._revive_log import log_revive_failure
 
         if not self._dismissed_agent_objects and not self._dismissed_agents:
+            log_revive_failure(
+                stage="no_dismissed_agents", reason="no_dismissed_agents"
+            )
             self.notify("No dismissed agents to revive")  # type: ignore[attr-defined]
             return
 
@@ -191,9 +195,11 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             if not isinstance(agents, list) or not agents:
                 return
             if len(agents) == 1:
-                self._do_revive_agent(agents[0])
+                self._do_revive_agent(agents[0], selection_scope=selection)
             else:
-                self._do_revive_agents(agents)  # type: ignore[attr-defined]
+                self._do_revive_agents(  # type: ignore[attr-defined]
+                    agents, selection_scope=selection
+                )
 
         modal = DismissedAgentSelectModal(
             filtered,
@@ -297,61 +303,117 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             agent._loaded_from_dismissed_bundle = True
         return archive_agents
 
-    def _do_revive_agent(self, agent: object) -> None:
+    def _do_revive_agent(
+        self,
+        agent: object,
+        *,
+        selection_scope: object | None = None,
+    ) -> None:
         """Revive a dismissed agent by removing it from the dismissed set."""
         from ....dismissed_agents import (
             remove_bundle_by_identity,
             save_dismissed_agents,
         )
         from ...models import Agent
+        from ...modals import SelectionItem
+        from ._revive_log import (
+            log_revive_failure,
+            log_revive_started,
+            log_revive_success,
+        )
 
         if not isinstance(agent, Agent):
             return
 
-        self._dismissed_agents.discard(agent.identity)
-        revived_suffixes: set[str] = set()
-        if agent.raw_suffix:
-            revived_suffixes.add(agent.raw_suffix)
+        scope = selection_scope if isinstance(selection_scope, SelectionItem) else None
+        log_revive_started(agents=[agent], selection_scope=scope)
 
-        # Also revive child steps and follow-up agents (e.g. .code, .q)
         child_raw_suffixes: set[str] = set()
-        if not agent.is_workflow_child and agent.raw_suffix:
-            for dismissed_agent in list(self._dismissed_agent_objects):
-                if _is_child_of(dismissed_agent, agent):
-                    self._dismissed_agents.discard(dismissed_agent.identity)
-                    if dismissed_agent.raw_suffix:
-                        child_raw_suffixes.add(dismissed_agent.raw_suffix)
-                        revived_suffixes.add(dismissed_agent.raw_suffix)
+        stage = "dismissed_set_update"
+        try:
+            self._dismissed_agents.discard(agent.identity)
+            revived_suffixes: set[str] = set()
+            if agent.raw_suffix:
+                revived_suffixes.add(agent.raw_suffix)
 
-        # Remove all dismissed aliases that share revived suffixes.
-        self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
+            # Also revive child steps and follow-up agents (e.g. .code, .q)
+            if not agent.is_workflow_child and agent.raw_suffix:
+                for dismissed_agent in list(self._dismissed_agent_objects):
+                    if _is_child_of(dismissed_agent, agent):
+                        self._dismissed_agents.discard(dismissed_agent.identity)
+                        if dismissed_agent.raw_suffix:
+                            child_raw_suffixes.add(dismissed_agent.raw_suffix)
+                            revived_suffixes.add(dismissed_agent.raw_suffix)
 
-        save_dismissed_agents(self._dismissed_agents)
+            # Remove all dismissed aliases that share revived suffixes.
+            self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
 
-        # Restore minimal artifact files so load_all_agents() rediscovers the agent
-        self._restore_agent_artifacts(agent)
+            save_dismissed_agents(self._dismissed_agents)
 
-        # Also restore child step / follow-up artifacts for workflow parents
-        if not agent.is_workflow_child and agent.raw_suffix:
-            for dismissed_agent in list(self._dismissed_agent_objects):
-                if _is_child_of(dismissed_agent, agent):
-                    self._restore_agent_artifacts(
-                        dismissed_agent,
-                        parent_artifacts_dir=agent.artifacts_dir,
-                    )
+            stage = "artifact_restore"
+            # Restore minimal artifact files so load_all_agents() rediscovers
+            # the agent.
+            self._restore_agent_artifacts(agent)
 
-        # Clean up the bundle now that artifacts are restored
-        remove_bundle_by_identity(agent.identity, child_raw_suffixes=child_raw_suffixes)
-        self._record_revived_agent_suffixes(revived_suffixes)
+            # Also restore child step / follow-up artifacts for workflow parents
+            if not agent.is_workflow_child and agent.raw_suffix:
+                for dismissed_agent in list(self._dismissed_agent_objects):
+                    if _is_child_of(dismissed_agent, agent):
+                        self._restore_agent_artifacts(
+                            dismissed_agent,
+                            parent_artifacts_dir=agent.artifacts_dir,
+                        )
+
+            stage = "bundle_removal"
+            # Clean up the bundle now that artifacts are restored
+            remove_bundle_by_identity(
+                agent.identity, child_raw_suffixes=child_raw_suffixes
+            )
+            self._record_revived_agent_suffixes(revived_suffixes)
+        except Exception as exc:
+            log_revive_failure(
+                stage=stage,
+                agent=agent,
+                error=exc,
+                selection_scope=scope,
+            )
+            self.notify(  # type: ignore[attr-defined]
+                f"Failed to revive {agent.cl_name}: {exc}", severity="error"
+            )
+            return
+
+        log_revive_success(
+            agent=agent,
+            child_suffixes=child_raw_suffixes,
+            batch_size=1,
+            selection_scope=scope,
+        )
 
         self.notify(f"Revived agent for {agent.cl_name}")  # type: ignore[attr-defined]
-        self._load_agents()  # type: ignore[attr-defined]
 
-        if self.current_tab == "agents":
-            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
-            self._select_revived_agent(agent)
+        stage = "reload"
+        try:
+            self._load_agents()  # type: ignore[attr-defined]
 
-    def _do_revive_agents(self, agents: list[Agent]) -> None:
+            if self.current_tab == "agents":
+                stage = "refresh_display"
+                self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+                self._select_revived_agent(agent)
+        except Exception as exc:
+            log_revive_failure(
+                stage=stage,
+                agent=agent,
+                error=exc,
+                selection_scope=scope,
+            )
+            return
+
+    def _do_revive_agents(
+        self,
+        agents: list[Agent],
+        *,
+        selection_scope: object | None = None,
+    ) -> None:
         """Revive multiple dismissed agents in a single batch.
 
         Batches disk operations for efficiency: one save_dismissed_agents()
@@ -362,49 +424,96 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             save_dismissed_agents,
         )
         from ...models import Agent as AgentModel
+        from ...modals import SelectionItem
+        from ._revive_log import (
+            log_revive_failure,
+            log_revive_started,
+            log_revive_success,
+        )
 
         valid_agents = [a for a in agents if isinstance(a, AgentModel)]
         if not valid_agents:
             return
 
+        scope = selection_scope if isinstance(selection_scope, SelectionItem) else None
+        batch_size = len(valid_agents)
+        log_revive_started(agents=valid_agents, selection_scope=scope)
+
         # Phase 1: Remove all from dismissed set (including children/follow-ups)
         # and collect child suffixes for bundle removal
         child_suffixes_map: dict[tuple[AgentType, str, str | None], set[str]] = {}
         revived_suffixes: set[str] = set()
-        for agent in valid_agents:
-            self._dismissed_agents.discard(agent.identity)
-            if agent.raw_suffix:
-                revived_suffixes.add(agent.raw_suffix)
-            child_suffixes: set[str] = set()
-            if not agent.is_workflow_child and agent.raw_suffix:
-                for dismissed_agent in list(self._dismissed_agent_objects):
-                    if _is_child_of(dismissed_agent, agent):
-                        self._dismissed_agents.discard(dismissed_agent.identity)
-                        if dismissed_agent.raw_suffix:
-                            child_suffixes.add(dismissed_agent.raw_suffix)
-                            revived_suffixes.add(dismissed_agent.raw_suffix)
-            child_suffixes_map[agent.identity] = child_suffixes
+        stage = "dismissed_set_update"
+        try:
+            for agent in valid_agents:
+                self._dismissed_agents.discard(agent.identity)
+                if agent.raw_suffix:
+                    revived_suffixes.add(agent.raw_suffix)
+                child_suffixes: set[str] = set()
+                if not agent.is_workflow_child and agent.raw_suffix:
+                    for dismissed_agent in list(self._dismissed_agent_objects):
+                        if _is_child_of(dismissed_agent, agent):
+                            self._dismissed_agents.discard(dismissed_agent.identity)
+                            if dismissed_agent.raw_suffix:
+                                child_suffixes.add(dismissed_agent.raw_suffix)
+                                revived_suffixes.add(dismissed_agent.raw_suffix)
+                child_suffixes_map[agent.identity] = child_suffixes
 
-        # Remove all dismissed aliases that share revived suffixes.
-        self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
+            # Remove all dismissed aliases that share revived suffixes.
+            self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
 
-        # Phase 2: Single disk write for dismissed set
-        save_dismissed_agents(self._dismissed_agents)
-
-        # Phase 3: Restore artifacts and clean bundles
-        for agent in valid_agents:
-            self._restore_agent_artifacts(agent)
-            if not agent.is_workflow_child and agent.raw_suffix:
-                for dismissed_agent in list(self._dismissed_agent_objects):
-                    if _is_child_of(dismissed_agent, agent):
-                        self._restore_agent_artifacts(
-                            dismissed_agent,
-                            parent_artifacts_dir=agent.artifacts_dir,
-                        )
-            remove_bundle_by_identity(
-                agent.identity,
-                child_raw_suffixes=child_suffixes_map.get(agent.identity),
+            # Phase 2: Single disk write for dismissed set
+            save_dismissed_agents(self._dismissed_agents)
+        except Exception as exc:
+            for agent in valid_agents:
+                log_revive_failure(
+                    stage=stage,
+                    agent=agent,
+                    error=exc,
+                    batch_size=batch_size,
+                    selection_scope=scope,
+                )
+            self.notify(  # type: ignore[attr-defined]
+                f"Failed to revive {batch_size} agents: {exc}", severity="error"
             )
+            return
+
+        # Phase 3: Restore artifacts and clean bundles. Per-agent failures
+        # produce a per-agent ``agent_revive_failed`` event, so partial
+        # success leaves an accurate log.
+        succeeded: list[Agent] = []
+        for agent in valid_agents:
+            per_stage = "artifact_restore"
+            try:
+                self._restore_agent_artifacts(agent)
+                if not agent.is_workflow_child and agent.raw_suffix:
+                    for dismissed_agent in list(self._dismissed_agent_objects):
+                        if _is_child_of(dismissed_agent, agent):
+                            self._restore_agent_artifacts(
+                                dismissed_agent,
+                                parent_artifacts_dir=agent.artifacts_dir,
+                            )
+                per_stage = "bundle_removal"
+                remove_bundle_by_identity(
+                    agent.identity,
+                    child_raw_suffixes=child_suffixes_map.get(agent.identity),
+                )
+            except Exception as exc:
+                log_revive_failure(
+                    stage=per_stage,
+                    agent=agent,
+                    error=exc,
+                    batch_size=batch_size,
+                    selection_scope=scope,
+                )
+                continue
+            log_revive_success(
+                agent=agent,
+                child_suffixes=child_suffixes_map.get(agent.identity),
+                batch_size=batch_size,
+                selection_scope=scope,
+            )
+            succeeded.append(agent)
 
         self._record_revived_agent_suffixes(revived_suffixes)
 

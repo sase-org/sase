@@ -8,10 +8,15 @@ Uses atomic append with file locking (same pattern as the notifications store).
 import fcntl
 import json
 import os
+from collections.abc import Iterator
 from datetime import datetime
 from typing import Any
 
 from sase.core.time import get_timezone
+
+REVIVE_EVENTS: frozenset[str] = frozenset(
+    {"agent_revive_started", "agent_revived", "agent_revive_failed"}
+)
 
 LOGS_DIR = os.path.expanduser("~/.sase/logs")
 RUNS_FILE = os.path.join(LOGS_DIR, "runs.jsonl")
@@ -85,3 +90,70 @@ def log_event(
         **kwargs,
     }
     _append_jsonl(EVENTS_FILE, record)
+
+
+def _parse_event_timestamp(record: dict[str, Any]) -> datetime | None:
+    """Parse the ``%y%m%d_%H%M%S`` timestamp on an event record."""
+    raw = record.get("timestamp")
+    if not isinstance(raw, str):
+        return None
+    try:
+        return datetime.strptime(raw, "%y%m%d_%H%M%S")
+    except ValueError:
+        return None
+
+
+def iter_revive_events(
+    *,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    outcome: str | None = None,
+    events_file: str | None = None,
+) -> Iterator[dict[str, Any]]:
+    """Yield agent-revive records from ``events.jsonl`` in reverse-chronological order.
+
+    Records are read from the end of the file so the most recent attempt
+    is yielded first. Filters:
+
+    - ``since`` / ``until``: inclusive bounds on the record timestamp
+      (parsed from the ``timestamp`` field, naive local time matching how
+      ``log_event`` writes them).
+    - ``outcome``: ``"success"`` or ``"failure"``.
+
+    Malformed JSON lines and records missing required fields are skipped.
+    """
+    path = events_file if events_file is not None else EVENTS_FILE
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path) as f:
+            lines = f.readlines()
+    except OSError:
+        return
+    for raw in reversed(lines):
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            record = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(record, dict):
+            continue
+        if record.get("event") not in REVIVE_EVENTS:
+            continue
+        if outcome is not None:
+            record_outcome = record.get("outcome")
+            if record_outcome is None:
+                if record["event"] == "agent_revived":
+                    record_outcome = "success"
+                elif record["event"] == "agent_revive_failed":
+                    record_outcome = "failure"
+            if record_outcome != outcome:
+                continue
+        ts = _parse_event_timestamp(record)
+        if since is not None and (ts is None or ts < since):
+            continue
+        if until is not None and (ts is None or ts > until):
+            continue
+        yield record

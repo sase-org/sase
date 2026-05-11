@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 14:41:31
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_revival_logging.md
 ---
 # Agent Revival Logging and Query Tooling
