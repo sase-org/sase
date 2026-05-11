@@ -1,5 +1,6 @@
 ---
 create_time: 2026-05-11 18:46:32
+bead_id: sase-2x
 tier: epic
 status: wip
 prompt: sdd/prompts/202605/manual_chop_runs_live_output.md
