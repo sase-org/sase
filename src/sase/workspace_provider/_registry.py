@@ -103,6 +103,20 @@ def get_vcs_tag_pattern() -> re.Pattern[str]:
     return re.compile(rf"^#(?:{names})(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)\s")
 
 
+def get_embedded_vcs_tag_pattern() -> re.Pattern[str]:
+    """Build a regex matching a VCS workflow tag anywhere in a prompt.
+
+    Unlike :func:`get_vcs_tag_pattern` (which is anchored at the start of the
+    string), this pattern allows the tag to appear after a token boundary —
+    start of string or whitespace — so it can recover the workspace context
+    from a prompt where the user wrote the tag on a later line or mid-line.
+    """
+    names = "|".join(re.escape(n) for n in sorted(get_workflow_names()))
+    return re.compile(
+        rf"(?:^|(?<=\s))#(?:{names})(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)\s"
+    )
+
+
 def detect_workflow_type(project_file: str) -> str:
     """Detect the workflow type for *project_file* via plugins.
 

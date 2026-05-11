@@ -54,6 +54,7 @@ def _preprocess_paren_shorthand(prompt: str, xprompt_names: set[str]) -> str:
 
 
 _VCS_TAG_PATTERN: re.Pattern[str] | None = None
+_VCS_TAG_EMBEDDED_PATTERN: re.Pattern[str] | None = None
 _VCS_UNDERSCORE_NORMALIZER: re.Pattern[str] | None = None
 _GENERIC_PROJECT_VCS_REF_PATTERN = re.compile(
     r"(?:^|(?<=\s)|(?<=[(\"']))"
@@ -172,6 +173,16 @@ def _get_vcs_tag_pattern() -> re.Pattern[str]:
     return _VCS_TAG_PATTERN
 
 
+def _get_embedded_vcs_tag_pattern() -> re.Pattern[str]:
+    """Lazily initialize and return the embedded VCS tag pattern."""
+    global _VCS_TAG_EMBEDDED_PATTERN  # noqa: PLW0603
+    if _VCS_TAG_EMBEDDED_PATTERN is None:
+        from sase.workspace_provider import get_embedded_vcs_tag_pattern
+
+        _VCS_TAG_EMBEDDED_PATTERN = get_embedded_vcs_tag_pattern()
+    return _VCS_TAG_EMBEDDED_PATTERN
+
+
 _DIRECTIVE_PREFIX_RE = re.compile(r"(%\S+[\s]+)+")
 _SEGMENT_SEPARATOR_RE = re.compile(r"^---\s*$", re.MULTILINE)
 
@@ -188,6 +199,26 @@ def extract_vcs_workflow_tag(prompt: str) -> str | None:
     stripped = prompt[m.end() :] if m else prompt
 
     match = _get_vcs_tag_pattern().match(stripped)
+    if match:
+        return match.group(0)
+    return None
+
+
+def find_vcs_workflow_tag(prompt: str) -> str | None:
+    """Find the first VCS workflow tag anywhere in *prompt*.
+
+    Unlike :func:`extract_vcs_workflow_tag`, the tag does NOT need to be at
+    the start of the prompt — it may appear on a later line or after some
+    text on the first line, as long as it is preceded by a token boundary
+    (start of string or whitespace).
+
+    Use this for resume/display callers that want to recover the agent's
+    workspace context from the original prompt regardless of where the user
+    wrote the tag. Continue using :func:`extract_vcs_workflow_tag` when the
+    tag must be the strict leading token (e.g. agent launch, where the tag
+    is stripped from the prompt body).
+    """
+    match = _get_embedded_vcs_tag_pattern().search(prompt)
     if match:
         return match.group(0)
     return None
@@ -548,6 +579,7 @@ __all__ = [
     "find_double_colon_text_end",
     "find_matching_paren_for_args",
     "find_shorthand_text_end",
+    "find_vcs_workflow_tag",
     "inherit_vcs_workflow_tag",
     "iter_xprompt_references",
     "normalize_launch_xprompt_at_refs",

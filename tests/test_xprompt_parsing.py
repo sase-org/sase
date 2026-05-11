@@ -7,6 +7,7 @@ from sase.xprompt._parsing import (
     _preprocess_paren_shorthand,
     extract_vcs_workflow_tag,
     find_matching_paren_for_args,
+    find_vcs_workflow_tag,
     inherit_vcs_workflow_tag,
     normalize_launch_xprompt_at_refs,
     normalize_vcs_underscore_refs,
@@ -235,6 +236,81 @@ def test_extract_vcs_workflow_tag_directive_mixed_lines() -> None:
     with _patch_vcs_pattern():
         result = extract_vcs_workflow_tag("%plan\n%n:a #gh:sase Fix the bug")
         assert result == "#gh:sase "
+
+
+# Tests for find_vcs_workflow_tag
+
+_TEST_EMBEDDED_VCS_PATTERN = re.compile(
+    r"(?:^|(?<=\s))#(?:gh|git|hg)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)\s"
+)
+
+
+def _patch_embedded_vcs_pattern():
+    """Patch _get_embedded_vcs_tag_pattern to use the test pattern."""
+    return patch(
+        "sase.xprompt._parsing._get_embedded_vcs_tag_pattern",
+        return_value=_TEST_EMBEDDED_VCS_PATTERN,
+    )
+
+
+def test_find_vcs_workflow_tag_leading() -> None:
+    """find_vcs_workflow_tag matches a leading tag like extract_vcs_workflow_tag."""
+    with _patch_embedded_vcs_pattern():
+        assert find_vcs_workflow_tag("#gh:sase Fix the bug") == "#gh:sase "
+
+
+def test_find_vcs_workflow_tag_second_line() -> None:
+    """Embedded tag on line 2 is recovered."""
+    with _patch_embedded_vcs_pattern():
+        result = find_vcs_workflow_tag("Some intro\n#gh:sase Fix the bug")
+        assert result == "#gh:sase "
+
+
+def test_find_vcs_workflow_tag_mid_line() -> None:
+    """Embedded tag mid-line is recovered."""
+    with _patch_embedded_vcs_pattern():
+        result = find_vcs_workflow_tag("tweak something #gh:sase quickly")
+        assert result == "#gh:sase "
+
+
+def test_find_vcs_workflow_tag_after_xprompt_directive() -> None:
+    """Embedded tag after a non-%directive xprompt line is recovered."""
+    with _patch_embedded_vcs_pattern():
+        result = find_vcs_workflow_tag("#fast\n#gh:sase fix it")
+        assert result == "#gh:sase "
+
+
+def test_find_vcs_workflow_tag_no_tag() -> None:
+    """Returns None when no VCS tag is present."""
+    with _patch_embedded_vcs_pattern():
+        assert find_vcs_workflow_tag("Just a normal prompt") is None
+
+
+def test_find_vcs_workflow_tag_glued_prefix_skipped() -> None:
+    """Returns None when the only #gh:... is glued to a non-whitespace prefix."""
+    with _patch_embedded_vcs_pattern():
+        assert find_vcs_workflow_tag("foo#gh:sase ") is None
+
+
+def test_find_vcs_workflow_tag_first_match_wins() -> None:
+    """First boundary-anchored tag wins when multiple are present."""
+    with _patch_embedded_vcs_pattern():
+        result = find_vcs_workflow_tag("#gh:sase first\n#gh:other later")
+        assert result == "#gh:sase "
+
+
+def test_find_vcs_workflow_tag_paren_format() -> None:
+    """Embedded paren-format tag is recovered."""
+    with _patch_embedded_vcs_pattern():
+        result = find_vcs_workflow_tag("intro\n#git(repo) do stuff")
+        assert result == "#git(repo) "
+
+
+def test_find_vcs_workflow_tag_hitl_suffix() -> None:
+    """Embedded tag with HITL suffix is recovered."""
+    with _patch_embedded_vcs_pattern():
+        result = find_vcs_workflow_tag("intro #hg!!:cl Fix it")
+        assert result == "#hg!!:cl "
 
 
 # Tests for replace_ref_in_vcs_tag

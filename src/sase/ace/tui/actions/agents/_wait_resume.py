@@ -39,7 +39,11 @@ def _resolve_vcs_tag(
 
     Returns the tag string (with trailing space) or None if no VCS tag found.
     """
-    from sase.xprompt import extract_vcs_workflow_tag, replace_ref_in_vcs_tag
+    from sase.xprompt import (
+        extract_vcs_workflow_tag,
+        find_vcs_workflow_tag,
+        replace_ref_in_vcs_tag,
+    )
 
     raw_content = agent.get_raw_xprompt_content()
     if not raw_content and agent.parent_timestamp and agents:
@@ -50,7 +54,9 @@ def _resolve_vcs_tag(
     if not raw_content:
         return None
 
-    vcs_tag = extract_vcs_workflow_tag(raw_content)
+    vcs_tag = extract_vcs_workflow_tag(raw_content) or find_vcs_workflow_tag(
+        raw_content
+    )
     if not vcs_tag:
         return None
 

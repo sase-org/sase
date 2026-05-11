@@ -96,6 +96,28 @@ class TestResolveVcsTag:
         assert result is not None
         assert "@bob" in result
 
+    def test_embedded_tag_second_line_project_agent(self) -> None:
+        """VCS tag embedded on line 2 is recovered for project agents."""
+        agent = _make_agent(
+            cl_name="my_project",
+            project_dir="my_project",
+            raw_content="some intro line\n#git:my_project do stuff",
+        )
+        result = _resolve_vcs_tag(agent, "agentname")
+        assert result == "#git:my_project "
+
+    def test_embedded_tag_mid_line_branch_substitution(self) -> None:
+        """VCS tag embedded mid-line is recovered and branch substitution applies."""
+        agent = _make_agent(
+            cl_name="my_feature_branch",
+            project_dir="my_project",
+            raw_content="tweak #git:my_project quickly",
+        )
+        result = _resolve_vcs_tag(agent, "agentname")
+        assert result is not None
+        assert "my_feature_branch" in result
+        assert "#git:my_project " not in result
+
 
 class TestCoderFollowupSuffix:
     """Tests for plan-done resume coder follow-up classification."""
