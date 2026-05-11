@@ -314,6 +314,31 @@ class AgentsMixinCore(
             for agent in self._agents
         )
 
+    def _refresh_agents_tab_unread_badge(self) -> None:
+        """Sync the Agents tab title badge with current unread state.
+
+        The badge counts visible top-level (non-workflow-child) terminal
+        rows still in ``_unread_completed_agent_ids``. When the Agents
+        tab is currently focused the count is forced to zero so the
+        active tab keeps its plain title; the TabBar widget also
+        suppresses the badge for the active tab as a safety net.
+        """
+        from ._loading_finalize import compute_visible_unread_completed_count
+
+        tab_bar = getattr(self, "_w_tab_bar", None)
+        if tab_bar is None:
+            return
+        if getattr(self, "current_tab", None) == "agents":
+            count = 0
+        else:
+            count = compute_visible_unread_completed_count(self)  # type: ignore[arg-type]
+        try:
+            tab_bar.set_tab_badge("agents", count)
+        except Exception:
+            # The cached widget ref can outlive its mount during shutdown;
+            # never let a TabBar refresh failure break unread bookkeeping.
+            pass
+
     def _panel_idx_for_agent(self, agent_idx: int) -> int | None:
         """Return the current rendered panel index for a global agent index."""
         panel_group = getattr(self, "_panel_group", None)
@@ -470,6 +495,7 @@ class AgentsMixinCore(
         if agent is None:
             return
         self._manual_unread_ids().discard(agent.identity)
+        self._refresh_agents_tab_unread_badge()
 
     def _clear_agent_unread(self, agent: Agent) -> bool:
         """Clear unread state for *agent*.
@@ -484,6 +510,7 @@ class AgentsMixinCore(
             return False
 
         unread_ids.discard(agent.identity)
+        self._refresh_agents_tab_unread_badge()
         return True
 
     def _acknowledge_agent_unread(self, agent: Agent) -> bool:
@@ -522,6 +549,8 @@ class AgentsMixinCore(
         else:
             manual_ids.add(identity)
             unread_ids.add(identity)
+
+        self._refresh_agents_tab_unread_badge()
 
         if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
             self._refresh_agents_display(  # type: ignore[attr-defined]

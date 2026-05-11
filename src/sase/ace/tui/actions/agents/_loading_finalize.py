@@ -28,7 +28,14 @@ log = logging.getLogger(__name__)
 
 
 def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -> None:
-    """Mark newly terminal visible agent rows as unread for this TUI session."""
+    """Mark newly terminal visible agent rows as unread for this TUI session.
+
+    First-seen terminal rows (no prior display status snapshot) are marked
+    unread only when ``on_agents_tab`` is false. On the Agents tab,
+    first-seen rows are treated as acknowledged so opening the tab on a
+    cold load doesn't immediately surface noise; the existing
+    selected-row clear still fires for the focused agent.
+    """
     old_status_by_identity = getattr(app, "_agent_display_status_by_identity", {})
     unread_ids = getattr(app, "_unread_completed_agent_ids", None)
     if unread_ids is None:
@@ -59,18 +66,40 @@ def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -
                 unread_ids.discard(selected_visible_identity)
 
     for agent in app._agents:
+        if agent.identity == selected_visible_identity:
+            continue
+        if agent.status not in DISMISSABLE_STATUSES:
+            continue
         old_status = old_status_by_identity.get(agent.identity)
-        if (
-            old_status is not None
-            and old_status not in DISMISSABLE_STATUSES
-            and agent.status in DISMISSABLE_STATUSES
-            and agent.identity != selected_visible_identity
-        ):
+        transitioned_to_terminal = (
+            old_status is not None and old_status not in DISMISSABLE_STATUSES
+        )
+        first_seen_off_tab = old_status is None and not on_agents_tab
+        if transitioned_to_terminal or first_seen_off_tab:
             unread_ids.add(agent.identity)
 
     app._agent_display_status_by_identity = {  # type: ignore[attr-defined]
         agent.identity: agent.status for agent in app._agents
     }
+
+
+def compute_visible_unread_completed_count(app: AgentLoadingMixin) -> int:
+    """Count visible top-level agent rows that are unread and terminal.
+
+    Workflow child rows are excluded so the tab badge reflects the
+    parent rows the user navigates between. Stale identities not in the
+    visible agent list are also ignored.
+    """
+    unread_ids = getattr(app, "_unread_completed_agent_ids", None)
+    if not unread_ids:
+        return 0
+    return sum(
+        1
+        for agent in app._agents
+        if not agent.is_workflow_child
+        and agent.status in DISMISSABLE_STATUSES
+        and agent.identity in unread_ids
+    )
 
 
 def get_or_parse_agent_query(app: AgentLoadingMixin) -> QueryExpr | None:
@@ -267,6 +296,9 @@ def finalize_agent_list(
                 app._agents_last_identity = None  # type: ignore[attr-defined]
 
     _sync_unread_completed_agents(app, on_agents_tab)
+    refresh_badge = getattr(app, "_refresh_agents_tab_unread_badge", None)
+    if callable(refresh_badge):
+        refresh_badge()
 
     # Garbage-collect collapse entries for groups that vanished after
     # the latest fold/search/filter pipeline so a re-appearing group

@@ -77,11 +77,20 @@ def test_finalizer_preserves_selected_manually_unread_agent() -> None:
     assert app._manual_unread_agent_ids == {agent.identity}
 
 
-def test_finalizer_does_not_mark_terminal_agent_on_first_seen_load() -> None:
+def test_finalizer_marks_first_seen_terminal_agent_unread_off_tab() -> None:
     agent = make_agent(status="DONE")
     app = _UnreadFinalizeApp([agent])
 
     _sync_unread_completed_agents(app, on_agents_tab=False)  # type: ignore[arg-type]
+
+    assert app._unread_completed_agent_ids == {agent.identity}
+
+
+def test_finalizer_does_not_mark_terminal_agent_on_first_seen_load_on_tab() -> None:
+    agent = make_agent(status="DONE")
+    app = _UnreadFinalizeApp([agent])
+
+    _sync_unread_completed_agents(app, on_agents_tab=True)  # type: ignore[arg-type]
 
     assert app._unread_completed_agent_ids == set()
 

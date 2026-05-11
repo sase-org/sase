@@ -315,6 +315,15 @@ class AceApp(
         tab_bar = self.query_one("#tab-bar", TabBar)
         tab_bar.update_tab(new_tab)
 
+        # The Agents tab title badge follows tab focus: leaving Agents
+        # may need to surface a non-zero count, and entering it
+        # immediately clears the badge regardless of underlying row
+        # unread state (row-level acknowledgment is handled by the
+        # Agents-tab finalize pipeline below).
+        refresh_badge = getattr(self, "_refresh_agents_tab_unread_badge", None)
+        if callable(refresh_badge):
+            refresh_badge()
+
         changespecs_view = self.query_one("#changespecs-view")
         agents_view = self.query_one("#agents-view")
         axe_view = self.query_one("#axe-view")
