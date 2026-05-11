@@ -138,7 +138,14 @@ consumed by the inotify-based artifact watcher and is harmless when no TUI is op
 ### Q&A Sections
 
 If the agent asks clarifying questions during planning (via the `/sase_questions` skill), the Q&A exchange is appended
-to the prompt snapshot. This preserves the full context of planning decisions.
+to the prompt snapshot so the full context of planning decisions is preserved.
+
+Multi-round Q&A is rendered as a single merged `### Questions and Answers` section with monotonic `Q1..QN` numbering
+across all rounds (a second round of questions continues at the next free number rather than restarting at `Q1`). The
+section is wrapped in exactly one `%xprompts_enabled` pair regardless of round count, and follow-up writes strip any
+prior Q&A block (including legacy duplicate blocks from older runs) before re-emitting the merged section. When a round
+carries a global note the "last non-empty wins" rule applies — a later round's note replaces the earlier one, but an
+empty later note preserves the earlier value.
 
 ### Frontmatter Links
 

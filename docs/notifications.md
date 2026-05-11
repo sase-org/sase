@@ -109,13 +109,18 @@ picker; those prompt-referenced images are local artifact-list entries and are n
 payloads unless they also appear in `done.json.image_paths`.
 
 The Agents tab also treats user-agent completions as unread work items. When a terminal agent is selected after it has
-been marked unread, or when the user jumps to it with the unread-agent shortcut, ACE clears the row's unread marker.
-Plan approvals and user questions remain explicit response workflows and are not auto-read merely by selection.
+been marked unread, or when the user jumps to it with the unread-agent shortcut, ACE clears the row's unread marker —
+but the completion notification itself remains in the JSONL store and the notifications modal. Reading or selecting an
+agent no longer auto-dismisses its completion notification; explicit dismissal (or killing the agent via
+`sase agents kill`, Telegram, or gchat) is what removes it. Plan approvals and user questions remain explicit response
+workflows and are not auto-read merely by selection.
 
 By default the TUI does not surface successful agent-completion rows at all — they are filtered out of the unread
 counts, toast pipeline, bell indicator, and notification modal via the `notifications.suppress` client projection (see
 [Client-Side Suppression](#client-side-suppression) below). The underlying JSONL store still receives the row, so
-Telegram, the mobile gateway, and `sase notify list` continue to see successful completions exactly as before.
+Telegram, the mobile gateway, and `sase notify list` continue to see successful completions exactly as before. The
+Agents tab's own off-tab `Agents(N)` unread badge (see the ACE docs) is driven by the per-row unread marker, not by the
+notifications pipeline, so completed agents still surface there even with `agent_completion` suppression in effect.
 
 See [`agent_images.md`](agent_images.md) for the full attachment contract and ACE image preview notes.
 

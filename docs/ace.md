@@ -429,6 +429,11 @@ glance. L0 project / bucket banners use a sky-blue `▌` left bar and a heavy `�
 visual headings (name-root banners and conditional `BY_DATE` hourly windows) use a `▸` branch glyph with a teal label.
 Singleton name-root groups suppress their banner entirely to reduce visual noise.
 
+The currently-focused side-panel row is marked with a thick accent-colored left bar, **bold** text, and a translucent
+accent tint applied to the row background. The tint is intentionally light so per-token status colors (running cyan,
+failed red, waiting yellow, etc.) remain readable through the highlight — the bar and bold weight do most of the work of
+marking the selection.
+
 After a kill or dismiss, focus re-anchors on the visually-next row (rather than the next row in input order) so the
 selection always lands somewhere meaningful in the rendered tree.
 
@@ -659,6 +664,7 @@ These work on all tabs:
 | `,i`                | Open Activity Dashboard modal                                                     |
 | `i`                 | Show notifications inbox                                                          |
 | `I`                 | Pin idle mode (IDLE stays until `I` is pressed again; keypresses don't clear it)  |
+| `Ctrl+L`            | Dismiss all currently-visible toast notifications                                 |
 | `Q`                 | Stop axe daemon and quit                                                          |
 | `y`                 | Refresh current tab                                                               |
 | `q`                 | Quit                                                                              |
@@ -879,6 +885,17 @@ the Mentor Review modal.
 
 The tab bar renders plain tab labels (`CLs`, `Agents`, `AXE`). Per-bucket counts live inside each tab's body — for
 example the per-panel count summaries on the Agents tab — rather than as suffixes on the tab title itself.
+
+### Unread Badge
+
+When the Agents tab is **not** the active tab, a yellow `Agents(N)` badge surfaces the count of visible top-level
+terminal agents that are still unread. Workflow children and stale identities are excluded from the count. Newly-seen
+terminal rows that arrive while another tab is focused (including cold startup with completed agents) are marked unread
+so the off-tab badge alerts you to work that finished out of sight.
+
+The badge stays in sync with every unread mutator: completion finalize, tab switch, manual unread toggle, dismiss,
+filter change, jump-to-next-unread, and selection acknowledgment. Switching to the Agents tab clears the badge for that
+tab (the active tab keeps a plain title); individual rows still show their per-row unread marker until they're read.
 
 ### Background Task Indicator
 
