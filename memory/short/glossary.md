@@ -8,6 +8,11 @@ Reverted) in `<project>-archive.gp`. Status lifecycle: WIP → Draft → Ready �
 **ChangeSpec COMMITS Drawer**  
 A line of the form `| <NAME>: <FILE_PATH>` under a ChangeSpec COMMITS entry.
 
+**Multi-agent xprompt**  
+An xprompt whose body contains `---` segment separators (outside fenced blocks). Normal user prompts can also use `---`
+to create multi-agent prompts (i.e. prompts that result in the prompt being split in order to launch one agent for each
+part of the prompt).
+
 **xprompt**  
 Triggered with `#foo` in agent prompts. Defined in an xprompts/ directory (.md or .yml file) or in
 ~/.config/sase/sase.yml (`xprompts` field).
@@ -17,8 +22,3 @@ Triggered with `#foo` in agent prompts. Defined in an xprompts/ directory (.md o
 
 **xprompt Workflow**  
 .yml file → multiple steps (`prompt_part`, `python`, `bash`, etc.).
-
-**Multi-agent xprompt**  
-An xprompt whose body contains `---` segment separators (outside fenced blocks). Normal user prompts can also use `---`
-to create multi-agent prompts (i.e. prompts that result in the prompt being split in order to launch one agent for each
-part of the prompt).
