@@ -13,6 +13,9 @@ An xprompt whose body contains `---` segment separators (outside fenced blocks).
 to create multi-agent prompts (i.e. prompts that result in the prompt being split in order to launch one agent for each
 part of the prompt).
 
+**Root Agent/Workflow Entry**  
+Any agent row entry on the "Agents" tab of the `sase ace` TUI that has child entries.
+
 **xprompt**  
 Triggered with `#foo` in agent prompts. Defined in an xprompts/ directory (.md or .yml file) or in
 ~/.config/sase/sase.yml (`xprompts` field).
