@@ -45,6 +45,11 @@ The modal renders notifications in four fixed-order sections, each with a colore
 
 Empty sections are not rendered. Section header rows are non-selectable; `j` / `k` skip over them automatically.
 
+Within each section, entries render newest-first by parsed timestamp. The fixed group order (PRIORITY → ERRORS → INBOX →
+MUTED) is unaffected; only the rows inside each section are sorted. Stable sort preserves insertion order for equal
+timestamps, and malformed timestamps sink to the bottom of their group rather than raising. Live actions (mark-read,
+dismiss, mute, snooze) re-order correctly because the sort runs on every modal rebuild.
+
 ### Marks and Bulk Dismiss
 
 Press `m` on a notification to toggle a per-row mark. Marks are scoped to the open modal — closing the modal clears
@@ -112,6 +117,13 @@ The Agents tab also treats user-agent completions as unread work items. When a t
 been marked unread, or when the user jumps to it with the unread-agent shortcut, ACE clears the row's unread marker and
 dismisses the matching completion notification. Plan approvals and user questions remain explicit response workflows and
 are not auto-read merely by selection.
+
+Entering the Agents tab additionally bulk-dismisses every outstanding agent-completion notification, and subsequent
+activity on that tab (`j`/`k`, marks, folds, etc.) dismisses any new completion notifications that polling has observed
+since the last acknowledgement. A latch armed by `_poll_agent_completions` keeps the steady-state hot path empty when no
+unread completions exist, and an in-flight flag coalesces overlapping dismiss workers so j/k bursts do not multiply
+work. The notification indicator only refreshes when the store reports a non-zero changed count; this path is silent (no
+toast) since it is an acknowledgement side effect rather than a user-facing command result.
 
 See [`agent_images.md`](agent_images.md) for the full attachment contract and ACE image preview notes.
 

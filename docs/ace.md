@@ -976,6 +976,11 @@ active (the agent is still running or awaiting input) and completed (the agent h
 | **QUESTION**       | Amber        | Agent is asking the user a question (via `/sase_questions`)        |
 | **RETRYING**       | Orange       | Agent hit a retryable error and is in a countdown before retrying  |
 
+`QUESTION` status is sourced from a `pending_question.json` marker the agent writes before the response-wait loop and
+clears on every exit. ACE flips a `RUNNING` row to `QUESTION` whenever the marker is present, so the row keeps reporting
+"waiting on you" even after the user dismisses the matching `UserQuestion` notification. The `,n` shortcut falls back to
+the marker's `request_path` to reopen the question modal when no unread notification remains.
+
 The footer also shows axe daemon status indicators:
 
 | Status         | Color         | Description                                                  |
@@ -1010,6 +1015,14 @@ row and dismisses the matching user-agent completion notification. Manually mark
 normal acknowledgement after you move away and return, so the marker can be used as a short-lived reminder without
 leaving stale inbox entries.
 
+The Agents-header `unread` metric is rendered as black-on-gold (`#1a1a1a on #FFD700`) so the "you still have unseen
+completed work" signal pops out of the colorful metric strip — it matches the notification-indicator highlight.
+
+Entering the Agents tab bulk-dismisses every outstanding agent-completion notification. While the tab stays focused,
+subsequent navigation activity (`j`/`k`, marks, folds, etc.) dismisses any new completion notifications that polling has
+observed since the last acknowledgement. Plan approvals and user questions remain explicit response workflows and are
+never auto-dismissed by Agents-tab activity.
+
 ### Agent Revival
 
 Press `R` on the Agents tab to revive a previously dismissed agent. All dismissed agent chats are saved as individual
@@ -1019,6 +1032,10 @@ agents that can be stored.
 Dismiss operations are O(1) per agent — each agent is saved to its own file rather than a monolithic store. ACE keeps a
 SQLite summary index in that directory so revival and run-log lookups can load dismissed agents lazily. Use
 `sase agents archive verify` to check the index, or `sase agents archive rebuild-index` to rebuild it from bundle files.
+
+Every revival also writes structured events to `~/.sase/logs/events.jsonl` (start, per-agent success, per-agent
+failure). Read them back with `sase revive-log` — see [Agent revival audit log](troubleshooting/agent-revival.md) for
+the record schema and CLI flags.
 
 #### Legacy Dismissed-Name Prefix
 
