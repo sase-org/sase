@@ -216,6 +216,36 @@
         }
       }
     },
+    "notifications": {
+      "type": "object",
+      "description": "User-configured notification suppression rules. Suppression is a client projection concern: filtered rows remain in ~/.sase/notifications/notifications.jsonl and are still visible to non-filtered consumers (Telegram, raw store inspection).",
+      "additionalProperties": false,
+      "properties": {
+        "suppress": {
+          "type": "array",
+          "description": "List of suppression rules. Each rule names a client and the semantic notification types to hide from that client.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["client", "types"],
+            "properties": {
+              "client": {
+                "type": "string",
+                "description": "Client name to suppress notifications for (case-insensitive). Common values: 'tui', 'telegram', 'mobile'. Unknown client names are accepted by the parser."
+              },
+              "types": {
+                "type": "array",
+                "description": "Non-empty list of semantic notification type names to suppress. Recognized types: 'agent_completion', 'agent_failure', 'plan_approval', 'user_question', 'mentor_review', 'hitl', 'sync_result', 'axe_error_digest'.",
+                "minItems": 1,
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "metahooks": {
       "type": "array",
       "description": "Metahooks intercept failing hooks before the summarize agent runs",

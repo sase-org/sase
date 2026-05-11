@@ -23,6 +23,7 @@ and CLI flags.
   - [chat_install](#chat_install)
   - [mobile_gateway](#mobile_gateway)
   - [sdd](#sdd)
+  - [notifications](#notifications)
   - [telemetry](#telemetry)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
@@ -691,6 +692,69 @@ repo in the primary workspace. See [`docs/sdd.md`](sdd.md) for storage behavior 
 bead system reference.
 
 Source: `src/sase/default_config.yml`
+
+### notifications
+
+Configures per-client notification suppression. Suppression is a **client projection** concern: matched rows stay in
+`~/.sase/notifications/notifications.jsonl` and remain visible to non-filtered consumers such as Telegram, the mobile
+gateway, and `sase notify list`. Only the listed client's UI hides them.
+
+```yaml
+notifications:
+  suppress:
+    - client: tui
+      types:
+        - agent_completion
+```
+
+| Field                    | Type   | Default                       | Description                                                                                               |
+| ------------------------ | ------ | ----------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `notifications.suppress` | list   | `[{tui: [agent_completion]}]` | Suppression rules. Each entry suppresses the listed semantic types from one client's projection.          |
+| `suppress[].client`      | string | -                             | Client name (case-insensitive, normalized with `casefold()`). Common values: `tui`, `telegram`, `mobile`. |
+| `suppress[].types`       | list   | -                             | Non-empty list of semantic notification type names to hide from `client`.                                 |
+
+Supported semantic type names map to underlying notification fields:
+
+| Type               | Match                                                      |
+| ------------------ | ---------------------------------------------------------- |
+| `agent_completion` | `sender == "user-agent"` and `action == "JumpToAgent"`     |
+| `agent_failure`    | `sender == "user-agent"` and `action == "ViewErrorReport"` |
+| `plan_approval`    | `action == "PlanApproval"`                                 |
+| `user_question`    | `action == "UserQuestion"`                                 |
+| `mentor_review`    | `action == "JumpToMentorReview"`                           |
+| `hitl`             | `action == "HITL"`                                         |
+| `sync_result`      | `action == "JumpToChangeSpec"` and `sender == "sync"`      |
+| `axe_error_digest` | `sender == "axe"` and `action == "ViewErrorReport"`        |
+
+Merge behavior follows the standard [deep-merge rules](#deep-merge-system): user `~/.config/sase/sase.yml` **replaces**
+the default `suppress` list, while overlay files (`sase_*.yml`) and project-local `sase.yml` **concatenate** additional
+entries onto the merged list. Unknown client names are accepted (not rejected) so a future Telegram/mobile filter can
+populate the same structure without parser changes. Invalid entries are skipped non-fatally at the consumer.
+
+The default ships with the TUI's `agent_completion` suppression so successful user-agent completions no longer toast,
+ring the bell, or appear in the ACE notification modal. The same notifications are still written to the JSONL store and
+still surface in Telegram or `sase notify list` exactly as before. To restore TUI agent-completion toasts, override with
+an empty list in your user config:
+
+```yaml
+notifications:
+  suppress: []
+```
+
+`agent_failure` is deliberately **not** suppressed by default — failed agent runs continue to surface in the TUI error
+section. To suppress an additional type from one client (without disabling the default), use an overlay or local config:
+
+```yaml
+# ~/.config/sase/sase_quiet.yml
+notifications:
+  suppress:
+    - client: tui
+      types:
+        - sync_result
+```
+
+Source: `src/sase/default_config.yml`, `src/sase/notifications/filters.py`. See
+[`docs/notifications.md`](notifications.md) for the full client projection model.
 
 ### telemetry
 
