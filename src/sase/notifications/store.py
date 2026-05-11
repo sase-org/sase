@@ -302,3 +302,14 @@ def dismiss_notifications_matching_agents(
         )
     )
     return int(outcome.changed_count)
+
+
+def dismiss_agent_completion_notifications() -> int:
+    """Dismiss every outstanding agent completion notification in one call.
+
+    Matches ``sender="user-agent"`` rows with action ``JumpToAgent`` or
+    ``ViewErrorReport`` that carry a ``cl_name`` in ``action_data``. Returns
+    the number of newly dismissed rows.
+    """
+    outcome = _apply_state_update(_state_update(kind="dismiss_agent_completions"))
+    return int(outcome.changed_count)
