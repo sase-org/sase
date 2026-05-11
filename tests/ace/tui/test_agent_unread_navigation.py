@@ -106,7 +106,6 @@ def test_toggle_agent_unread_marks_selected_row_without_moving(
 def test_toggle_agent_unread_again_marks_selected_row_read(
     notification_dismiss: Mock,
 ) -> None:
-    notification_dismiss.return_value = 1
     agent = make_agent(status="DONE")
     app = _UnreadJumpApp([agent])
     app._unread_completed_agent_ids.add(agent.identity)
@@ -117,10 +116,8 @@ def test_toggle_agent_unread_again_marks_selected_row_read(
     assert app._unread_completed_agent_ids == set()
     assert app._manual_unread_agent_ids == set()
     assert app.patch_calls == [agent]
-    notification_dismiss.assert_called_once_with(
-        [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
-    )
-    assert app.notification_count_refresh_calls == 1
+    notification_dismiss.assert_not_called()
+    assert app.notification_count_refresh_calls == 0
 
 
 def test_toggle_agent_unread_refreshes_when_patch_fails() -> None:
@@ -312,7 +309,6 @@ def test_jump_to_next_unread_done_agent_uses_start_time_when_stop_time_missing()
 def test_jump_to_next_unread_done_agent_acknowledges_target_unread_state(
     notification_dismiss: Mock,
 ) -> None:
-    notification_dismiss.return_value = 1
     done = make_agent(name="done", status="PLAN DONE")
     app = _UnreadJumpApp([done])
     app._unread_completed_agent_ids.add(done.identity)
@@ -323,10 +319,8 @@ def test_jump_to_next_unread_done_agent_acknowledges_target_unread_state(
     assert app.current_attempt_number is None
     assert app.patch_calls == [done]
     assert app.refresh_calls == []
-    notification_dismiss.assert_called_once_with(
-        [{"cl_name": done.cl_name, "raw_suffix": done.raw_suffix}]
-    )
-    assert app.notification_count_refresh_calls == 1
+    notification_dismiss.assert_not_called()
+    assert app.notification_count_refresh_calls == 0
 
 
 def test_jump_to_next_unread_done_agent_falls_back_to_full_refresh() -> None:
@@ -408,6 +402,35 @@ def test_jump_to_next_unread_done_agent_finds_non_focused_panel_row() -> None:
     assert target.identity not in app._unread_completed_agent_ids
     assert app.patch_calls == []
     assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+
+
+def test_manual_unread_does_not_block_global_completion_dismissal(
+    notification_dismiss: Mock,
+) -> None:
+    """Phase 3 regression: per-row unread acknowledgement is independent of
+    notification dismissal. A manually-unread row stays highlighted (the
+    per-row helper returns False) but no longer holds a completion
+    notification hostage — the bulk Agents-tab dismissal (Phase 2) clears
+    completion notifications regardless of manual-unread state because it
+    never consults ``_manual_unread_agent_ids``.
+    """
+    agent = make_agent(status="DONE")
+    app = _UnreadJumpApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+    app._manual_unread_agent_ids.add(agent.identity)
+
+    # The per-row helper preserves manual unread and never dismisses.
+    assert not app._clear_agent_unread(agent)
+    assert agent.identity in app._unread_completed_agent_ids
+    assert agent.identity in app._manual_unread_agent_ids
+    notification_dismiss.assert_not_called()
+    assert app.notification_count_refresh_calls == 0
+
+    # Acknowledgement on the manual-unread row leaves it visually unread and
+    # still does not dismiss its notification through the per-row path.
+    assert not app._acknowledge_agent_unread(agent)
+    assert agent.identity in app._unread_completed_agent_ids
+    notification_dismiss.assert_not_called()
 
 
 def test_jump_to_next_unread_done_agent_returns_false_when_no_unread_panels() -> None:

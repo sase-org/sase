@@ -193,10 +193,9 @@ def test_agent_row_selection_guard_ignores_different_agent() -> None:
     )
 
 
-def test_acknowledge_agent_unread_dismisses_matching_notification(
+def test_acknowledge_agent_unread_clears_unread_without_dismissing(
     notification_dismiss: Mock,
 ) -> None:
-    notification_dismiss.return_value = 1
     agent = make_agent(status="DONE")
     app = _SelectionApp([agent])
     app._unread_completed_agent_ids.add(agent.identity)
@@ -204,13 +203,11 @@ def test_acknowledge_agent_unread_dismisses_matching_notification(
     assert app._acknowledge_agent_unread(agent)
 
     assert agent.identity not in app._unread_completed_agent_ids
-    notification_dismiss.assert_called_once_with(
-        [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
-    )
-    assert app.notification_count_refresh_calls == 1
+    notification_dismiss.assert_not_called()
+    assert app.notification_count_refresh_calls == 0
 
 
-def test_acknowledge_agent_unread_does_not_dismiss_manual_guard(
+def test_acknowledge_agent_unread_keeps_manual_unread_highlighted(
     notification_dismiss: Mock,
 ) -> None:
     agent = make_agent(status="DONE")
