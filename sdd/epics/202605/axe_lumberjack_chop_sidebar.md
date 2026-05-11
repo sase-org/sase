@@ -1,5 +1,7 @@
 ---
 create_time: 2026-05-11 16:33:33
+bead_id: sase-2w
+tier: epic
 status: wip
 prompt: sdd/prompts/202605/axe_lumberjack_chop_sidebar.md
 ---
