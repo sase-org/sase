@@ -38,10 +38,10 @@ AGENT_ASKING_STATUSES: frozenset[str] = frozenset(
 # ``FAILED`` statuses are terminal failure states and always land in
 # **Failed**, independent of retry-chain lineage.
 #
-# ``PLAN DONE``, ``PLAN REJECTED``, and ``EPIC CREATED`` are post-plan handoff
-# states: the planning work is finished and any code work has been spun off,
-# so they read as **Done**.  ``PLAN APPROVED`` is an actively executing state
-# and reads as **Running**.
+# ``PLAN DONE``, ``TALE DONE``, ``PLAN REJECTED``, and ``EPIC CREATED`` are
+# post-plan handoff states: the planning work is finished and any code work
+# has been spun off, so they read as **Done**.  ``PLAN APPROVED`` is an
+# actively executing state and reads as **Running**.
 _STOPPED_STATUSES: frozenset[str] = frozenset({"PLANNING", "QUESTION"})
 
 #: Terminal statuses — agents that have finished and have a meaningful
@@ -49,7 +49,7 @@ _STOPPED_STATUSES: frozenset[str] = frozenset({"PLANNING", "QUESTION"})
 #: ``stop_time`` rather than ``start_time``) and status bucketing (which maps
 #: these into the ``Done`` bucket).
 _TERMINAL_STATUSES: frozenset[str] = frozenset(
-    {"DONE", "PLAN DONE", "PLAN REJECTED", "EPIC CREATED"}
+    {"DONE", "PLAN DONE", "TALE DONE", "PLAN REJECTED", "EPIC CREATED"}
 )
 
 # TODO(@user): confirm needs:input mapping. Initial set drawn from

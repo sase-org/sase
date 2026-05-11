@@ -11,7 +11,14 @@ from sase.ace.tui.models.agent_panel_index import (
     build_agent_panel_index,
 )
 
-_DISMISSABLE = {"DONE", "FAILED", "PLAN COMMITTED", "PLAN DONE", "EPIC CREATED"}
+_DISMISSABLE = {
+    "DONE",
+    "FAILED",
+    "PLAN COMMITTED",
+    "PLAN DONE",
+    "TALE DONE",
+    "EPIC CREATED",
+}
 
 
 def _agent(

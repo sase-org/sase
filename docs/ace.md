@@ -510,10 +510,10 @@ queued waits do not look like live runtime. For finished agents, the start-times
 - **Different year**: `Mon DD 'YY` (date only)
 
 The elapsed duration starts at `BEGIN` when a row recorded wait-before-run metadata, otherwise at the row start time.
-Completed `DONE` / `PLAN DONE` workflow rows use the terminal agent stop time when one exists; plan-step rows that
-finish without a subprocess stop time anchor to the latest recorded plan submission time so completed planning rows do
-not keep ticking. `PLAN APPROVED` rows with a running follow-up show active elapsed time for the planner segment plus
-the coder segment, excluding the idle approval gap between plan submission and code launch. The date prefix uses a
+Completed `DONE` / `PLAN DONE` / `TALE DONE` workflow rows use the terminal agent stop time when one exists; plan-step
+rows that finish without a subprocess stop time anchor to the latest recorded plan submission time so completed planning
+rows do not keep ticking. `PLAN APPROVED` rows with a running follow-up show active elapsed time for the planner segment
+plus the coder segment, excluding the idle approval gap between plan submission and code launch. The date prefix uses a
 softer `dim #8787AF` while the time half keeps the standard `#8787AF`, giving the column internal hierarchy without
 inflating the palette. Statuses not in the table fall back to `(STATUS)` text for forwards compatibility.
 
@@ -997,6 +997,7 @@ feedback on cold-start latency. A safety timeout forcibly retires the stopwatch 
 | ---------------- | ----- | ------------------------------------------------------------------------------ |
 | **DONE**         | Green | Agent completed successfully                                                   |
 | **PLAN DONE**    | Green | Plan workflow fully completed (all steps)                                      |
+| **TALE DONE**    | Green | Tale plan workflow fully completed (all follow-ups)                            |
 | **EPIC CREATED** | Green | Plan workflow completed and its latest `.epic` follow-up finished successfully |
 | **FAILED**       | Red   | Agent exited with an error                                                     |
 

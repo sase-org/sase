@@ -140,6 +140,7 @@ class ArtifactRestorationMixin:
         if status in {
             "DONE",
             "PLAN DONE",
+            "TALE DONE",
             "PLAN COMMITTED",
             "PLAN REJECTED",
             "EPIC APPROVED",
@@ -168,6 +169,7 @@ class ArtifactRestorationMixin:
         if status in {
             "DONE",
             "PLAN DONE",
+            "TALE DONE",
             "PLAN COMMITTED",
             "PLAN REJECTED",
             "EPIC APPROVED",
@@ -397,6 +399,7 @@ class ArtifactRestorationMixin:
             "TALE APPROVED",
             "PLAN COMMITTED",
             "PLAN DONE",
+            "TALE DONE",
             "PLAN REJECTED",
             "EPIC APPROVED",
             "EPIC CREATED",

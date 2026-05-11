@@ -316,6 +316,26 @@ def test_bundle_preserves_plan_chain_stored_name() -> None:
     assert restored.agent_name == "by.plan"
 
 
+def test_bundle_round_trips_tale_done_status() -> None:
+    """A revived tale workflow with ``TALE DONE`` survives bundle round-tripping."""
+    bundle = {
+        "agent_type": AgentType.RUNNING.value,
+        "cl_name": "feature_by",
+        "project_file": "/tmp/test.gp",
+        "status": "TALE DONE",
+        "start_time": datetime(2026, 5, 11, 12, 0, 0).isoformat(),
+        "stop_time": datetime(2026, 5, 11, 13, 0, 0).isoformat(),
+        "raw_suffix": "20260511120000",
+        "agent_name": "by.plan",
+        "role_suffix": ".plan",
+        "plan_action": "tale",
+    }
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.status == "TALE DONE"
+    assert restored.plan_action == "tale"
+    assert restored.agent_name == "by.plan"
+
+
 def test_old_bundle_synthesis_skips_workflow_children() -> None:
     """Workflow children inherit identity from their parent — leave them alone."""
     bundle = {

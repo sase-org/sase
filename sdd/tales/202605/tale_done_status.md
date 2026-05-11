@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 14:54:40
-status: wip
+status: done
 prompt: sdd/prompts/202605/tale_done_status.md
 ---
 # Plan: Add `TALE DONE` agent status

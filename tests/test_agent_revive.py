@@ -281,6 +281,7 @@ def test_do_revive_agents_batch_selects_first_selected_parent() -> None:
     [
         ("DONE", "completed"),
         ("PLAN DONE", "completed"),
+        ("TALE DONE", "completed"),
         ("PLAN COMMITTED", "completed"),
         ("EPIC APPROVED", "completed"),
         ("EPIC CREATED", "completed"),
@@ -302,6 +303,7 @@ def test_build_workflow_state_data_canonicalizes_statuses(
     [
         ("DONE", "completed"),
         ("PLAN DONE", "completed"),
+        ("TALE DONE", "completed"),
         ("PLAN COMMITTED", "completed"),
         ("EPIC CREATED", "completed"),
         ("FAILED", "failed"),

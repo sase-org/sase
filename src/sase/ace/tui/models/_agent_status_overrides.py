@@ -50,6 +50,7 @@ def apply_status_overrides(agents: list[Agent]) -> None:
 
     - DONE -> PLAN APPROVED: parent has active follow-up children
     - DONE -> PLAN DONE: plan workflow where all follow-ups completed
+    - DONE -> TALE DONE: tale plan workflow where all follow-ups completed
     - DONE -> EPIC CREATED: plan workflow whose latest completed follow-up is `.epic`
     - DONE -> PLANNING: plan workflow with no follow-up spawned yet
     - DONE -> QUESTION: agent submitted a question that was never answered
@@ -213,12 +214,14 @@ def apply_status_overrides(agents: list[Agent]) -> None:
         if parent and parent.status == "DONE":
             parent.status = status
 
-    # Override DONE -> PLAN DONE / EPIC CREATED for plan workflows where all
-    # follow-ups completed. If a parent still has status "DONE" at this point
-    # and has follow-ups in parents_with_followup, all follow-ups must be
-    # complete (active ones would have triggered the PLAN APPROVED override
-    # above). When the newest completed follow-up is `.epic` DONE, surface
-    # EPIC CREATED instead of the generic PLAN DONE.
+    # Override DONE -> PLAN DONE / TALE DONE / EPIC CREATED for plan workflows
+    # where all follow-ups completed. If a parent still has status "DONE" at
+    # this point and has follow-ups in parents_with_followup, all follow-ups
+    # must be complete (active ones would have triggered the PLAN APPROVED
+    # override above). When the newest completed follow-up is `.epic` DONE,
+    # surface EPIC CREATED. Otherwise, tale plan workflows surface TALE DONE
+    # (mirrors the TALE APPROVED active-phase override) and everything else
+    # surfaces the generic PLAN DONE.
     for agent in agents:
         if (
             is_root_plan_workflow(agent)
@@ -228,6 +231,8 @@ def apply_status_overrides(agents: list[Agent]) -> None:
             completed_override = completed_followup_override.get(agent.raw_suffix)
             if completed_override == "EPIC CREATED":
                 agent.status = "EPIC CREATED"
+            elif agent.plan_action == "tale":
+                agent.status = "TALE DONE"
             else:
                 agent.status = "PLAN DONE"
 

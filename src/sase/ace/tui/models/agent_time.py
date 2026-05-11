@@ -9,7 +9,7 @@ from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX
 if TYPE_CHECKING:
     from sase.ace.tui.models.agent import Agent
 
-_PLAN_RUNTIME_TERMINAL_STATUSES = {"DONE", "PLAN DONE"}
+_PLAN_RUNTIME_TERMINAL_STATUSES = {"DONE", "PLAN DONE", "TALE DONE"}
 _ACTIVE_LEAF_STATUSES = {"RUNNING", "RETRYING"}
 _SEGMENTED_FOLLOWUP_RUNTIME_STATUSES = {"PLAN APPROVED", "TALE APPROVED"}
 _WORKFLOW_PLAN_STEP_NAMES = {"plan"}
@@ -117,7 +117,7 @@ def _row_runtime_terminal_time(agent: "Agent") -> datetime | None:
 
 def _is_planner_phase_row(agent: "Agent") -> bool:
     """Return whether a row's own runtime should end at plan submission."""
-    if agent.status == "PLAN DONE":
+    if agent.status in {"PLAN DONE", "TALE DONE"}:
         return True
     if agent.parent_workflow is None or agent.step_type != "agent":
         return False

@@ -34,6 +34,11 @@ def test_status_bucket_plan_done_is_done() -> None:
     assert _status_bucket_for(_agent(status="PLAN DONE")) == "Done"
 
 
+def test_status_bucket_tale_done_is_done() -> None:
+    """``TALE DONE`` is a post-plan handoff state for tale-approved plans."""
+    assert _status_bucket_for(_agent(status="TALE DONE")) == "Done"
+
+
 def test_status_bucket_plan_rejected_is_done() -> None:
     """``PLAN REJECTED`` is a terminal plan decision, not active planning."""
     assert _status_bucket_for(_agent(status="PLAN REJECTED")) == "Done"

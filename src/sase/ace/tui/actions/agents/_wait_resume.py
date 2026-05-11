@@ -13,6 +13,11 @@ if TYPE_CHECKING:
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
 
+# Post-plan handoff statuses where a `R` resume should pick up the coder
+# follow-up's chat rather than the planner's. Symmetric with the
+# DISMISSABLE_STATUSES set used by other consumers.
+_PLAN_HANDOFF_DONE_STATUSES: frozenset[str] = frozenset({"PLAN DONE", "TALE DONE"})
+
 
 def _is_coder_followup_suffix(suffix: str | None) -> bool:
     """Return True for the coder follow-up suffix."""
@@ -227,7 +232,7 @@ class AgentWaitResumeMixin:
             )
             return
 
-        if agent.status == "PLAN DONE":
+        if agent.status in _PLAN_HANDOFF_DONE_STATUSES:
             # Find the coder follow-up agent to resume its conversation
             coder = next(
                 (
