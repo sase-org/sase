@@ -34,6 +34,24 @@ from sase.plan_chain import (
 from sase.telemetry.metrics import AGENT_KILLS
 
 
+def _publish_phase_env(artifacts_dir: str) -> None:
+    """Publish env vars that identify the current phase of the agent run.
+
+    Both ``SASE_ARTIFACTS_DIR`` and ``SASE_AGENT_TIMESTAMP`` refer to the
+    *current* phase — followup phases (Q&A, feedback, coder) mint fresh
+    timestamped artifacts directories, and the TUI notification router keys
+    notifications back to the visible agent row via the timestamp. The runner
+    process inherits the original launch timestamp from its parent; we
+    overwrite it per iteration so notifications emitted from a followup carry
+    the followup's timestamp (which matches the row's ``raw_suffix``).
+    """
+    from sase.ace.tui.models._timestamps import normalize_to_14_digit
+
+    os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
+    basename = os.path.basename(artifacts_dir.rstrip("/"))
+    os.environ["SASE_AGENT_TIMESTAMP"] = normalize_to_14_digit(basename) or basename
+
+
 def _short_pdf_source(source_path: str | None, workspace_dir: str) -> str:
     if not source_path:
         return ""
@@ -176,6 +194,10 @@ class LoopState:
     feedback_round: int = 0
     agent_step: int = 1
     saved_chat_paths: list[tuple[str, str]] = field(default_factory=list)
+    # Snapshot of SASE_AGENT_TIMESTAMP at loop entry — restored in _finalize_loop
+    # so post-loop callers (e.g. commit stop hook dedup keys) keep their
+    # original semantics after we overwrite per-phase via _publish_phase_env.
+    original_agent_timestamp: str | None = None
 
 
 def _resolve_workflow_project(ctx: AgentExecContext) -> str | None:
@@ -211,6 +233,13 @@ def _finalize_loop(
     # Clean up SASE_ARTIFACTS_DIR and SASE_PLAN env vars
     os.environ.pop("SASE_ARTIFACTS_DIR", None)
     os.environ.pop("SASE_PLAN", None)
+    # SASE_AGENT_TIMESTAMP is per-phase (see _publish_phase_env); restore the
+    # value the runner was launched with so post-loop callers (e.g. the commit
+    # stop hook's session-dedup key) keep their original semantics.
+    if state.original_agent_timestamp is None:
+        os.environ.pop("SASE_AGENT_TIMESTAMP", None)
+    else:
+        os.environ["SASE_AGENT_TIMESTAMP"] = state.original_agent_timestamp
 
     # Compute the final agent name for the done marker.
     # Multi-agent workflows use the last child name; single-agent keeps original.
@@ -542,12 +571,13 @@ def run_execution_loop(
         loop_outcome="completed",
         sdd_spec_path=None,
         original_prompt=prompt,
+        original_agent_timestamp=os.environ.get("SASE_AGENT_TIMESTAMP"),
     )
     result = None
 
     while True:
         reset_killed()
-        os.environ["SASE_ARTIFACTS_DIR"] = state.current_artifacts_dir
+        _publish_phase_env(state.current_artifacts_dir)
         anon_workflow = create_anonymous_workflow(state.current_prompt)
         if ctx.local_xprompts:
             anon_workflow.xprompts = ctx.local_xprompts

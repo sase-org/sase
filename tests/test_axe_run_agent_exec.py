@@ -12,6 +12,7 @@ from sase.axe.run_agent_exec import (
     AgentExecContext,
     _AgentExecResult,
     _finalize_loop,
+    _publish_phase_env,
     _resolve_workflow_project,
     LoopState,
     run_execution_loop,
@@ -489,3 +490,177 @@ def _write_markdown_sources(tmp_path: Path, count: int) -> list[str]:
 
 def _run(cwd: Path, *args: str) -> None:
     subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True)
+
+
+def test_publish_phase_env_sets_both_vars_to_phase(tmp_path: Path, monkeypatch) -> None:
+    """The helper publishes the current phase's artifacts dir + 14-digit timestamp."""
+    monkeypatch.delenv("SASE_AGENT_TIMESTAMP", raising=False)
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+
+    phase_dir = tmp_path / "20260501123045"
+    phase_dir.mkdir()
+    _publish_phase_env(str(phase_dir))
+
+    import os as _os
+
+    assert _os.environ["SASE_ARTIFACTS_DIR"] == str(phase_dir)
+    assert _os.environ["SASE_AGENT_TIMESTAMP"] == "20260501123045"
+
+
+def test_run_execution_loop_publishes_phase_timestamp(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """When the loop runs, SASE_AGENT_TIMESTAMP is set to the current phase's
+    14-digit timestamp (matching the agent row's raw_suffix), not the original
+    launch timestamp inherited from the parent runner. This is the bug from
+    followup_plan_notification_routing.md: PlanApproval / UserQuestion
+    notifications emitted from a followup were carrying the original launch
+    timestamp, and the TUI router silently dropped them on the floor.
+    """
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "260408_120000")
+
+    artifacts = tmp_path / "20260408120000"
+    artifacts.mkdir()
+    ctx = AgentExecContext(
+        cl_name="test-cl",
+        project_file=str(tmp_path / "project.gp"),
+        workspace_dir=str(tmp_path),
+        output_path=str(tmp_path / "output.log"),
+        workspace_num=1,
+        timestamp="20260408_120000",
+        update_target="",
+        project_name="sase",
+        is_home_mode=False,
+        artifacts_dir=str(artifacts),
+        artifacts_timestamp="20260408_120000",
+        vcs_tag=None,
+        agent_name="agent",
+        agent_model=None,
+        agent_llm_provider=None,
+        agent_vcs_provider=None,
+        agent_hidden=False,
+        agent_meta={},
+        local_xprompts={},
+    )
+    anon_workflow = SimpleNamespace(name="anon", xprompts={})
+    final_result = _AgentExecResult(success=True, current_artifacts_dir=str(artifacts))
+    observed_timestamp: dict[str, str] = {}
+
+    def _capture_env(*_args, **_kwargs):
+        import os as _os
+
+        observed_timestamp["value"] = _os.environ.get("SASE_AGENT_TIMESTAMP", "")
+        return SimpleNamespace(response_text="")
+
+    with (
+        patch("sase.history.chat.generate_chat_filename", return_value="test_chat"),
+        patch(
+            "sase.history.chat.get_chat_file_path",
+            return_value="/tmp/test_chat.md",
+        ),
+        patch(
+            "sase.xprompt.models.create_anonymous_workflow",
+            return_value=anon_workflow,
+        ),
+        patch(
+            "sase.xprompt.workflow_runner.execute_workflow",
+            side_effect=_capture_env,
+        ),
+        patch("sase.axe.run_agent_exec.was_killed", return_value=False),
+        patch("sase.axe.run_agent_exec.reset_killed"),
+        patch("sase.axe.run_agent_exec._finalize_loop", return_value=final_result),
+    ):
+        run_execution_loop(ctx, "prompt")
+
+    # The phase timestamp must match the artifacts dir basename (14-digit),
+    # NOT the inherited YYmmdd_HHMMSS launch-time value.
+    assert observed_timestamp["value"] == "20260408120000"
+
+
+def test_finalize_loop_restores_original_agent_timestamp(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """_finalize_loop restores SASE_AGENT_TIMESTAMP to its pre-loop value so
+    post-loop callers (e.g. commit stop hook session-dedup keys) keep their
+    original semantics.
+    """
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "260408_120000")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", "/should/be/cleared")
+
+    ctx = _make_ctx(tmp_path, is_home_mode=True, project_name="home")
+    state = LoopState(
+        current_prompt="prompt",
+        current_role_suffix="",
+        current_artifacts_dir=ctx.artifacts_dir,
+        loop_outcome="completed",
+        sdd_spec_path=None,
+        original_prompt="prompt",
+        original_agent_timestamp="260408_120000",
+    )
+    chat = tmp_path / "chat.md"
+
+    # Pretend the phase env got rewritten by _publish_phase_env earlier in the loop.
+    import os as _os
+
+    _os.environ["SASE_AGENT_TIMESTAMP"] = "20260408120000"
+
+    with (
+        patch("sase.axe.run_agent_exec.save_chat_history", return_value=str(chat)),
+        patch(
+            "sase.axe.image_attachments.collect_agent_markdown_paths",
+            return_value=[],
+        ),
+        patch("sase.axe.image_attachments.collect_agent_image_paths", return_value=[]),
+    ):
+        _finalize_loop(
+            ctx,
+            state,
+            RetryTracker(retry_cfg=None),
+            SimpleNamespace(response_text="done"),
+        )
+
+    assert _os.environ.get("SASE_AGENT_TIMESTAMP") == "260408_120000"
+    assert "SASE_ARTIFACTS_DIR" not in _os.environ
+
+
+def test_finalize_loop_clears_agent_timestamp_when_unset_at_entry(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """If SASE_AGENT_TIMESTAMP wasn't set at loop entry, finalize clears it
+    rather than leaking the per-phase value.
+    """
+    monkeypatch.delenv("SASE_AGENT_TIMESTAMP", raising=False)
+
+    ctx = _make_ctx(tmp_path, is_home_mode=True, project_name="home")
+    state = LoopState(
+        current_prompt="prompt",
+        current_role_suffix="",
+        current_artifacts_dir=ctx.artifacts_dir,
+        loop_outcome="completed",
+        sdd_spec_path=None,
+        original_prompt="prompt",
+        original_agent_timestamp=None,
+    )
+    chat = tmp_path / "chat.md"
+
+    import os as _os
+
+    _os.environ["SASE_AGENT_TIMESTAMP"] = "20260408120000"
+
+    with (
+        patch("sase.axe.run_agent_exec.save_chat_history", return_value=str(chat)),
+        patch(
+            "sase.axe.image_attachments.collect_agent_markdown_paths",
+            return_value=[],
+        ),
+        patch("sase.axe.image_attachments.collect_agent_image_paths", return_value=[]),
+    ):
+        _finalize_loop(
+            ctx,
+            state,
+            RetryTracker(retry_cfg=None),
+            SimpleNamespace(response_text="done"),
+        )
+
+    assert "SASE_AGENT_TIMESTAMP" not in _os.environ
