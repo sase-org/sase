@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 10:20:32
-status: wip
+status: done
 prompt: sdd/prompts/202605/notification_filters_1.md
 bead_id: sase-2t
 tier: epic
