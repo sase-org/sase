@@ -37,6 +37,7 @@ class KeybindingBindingsMixin:
         axe_current_view: str | int,
         *,
         selected_slot_done: bool = False,
+        chop_run_total: int = 0,
     ) -> list[tuple[str, str]]:
         """Compute entry-dependent bindings for Axe tab.
 
@@ -44,6 +45,8 @@ class KeybindingBindingsMixin:
         (no selectable axe-parent row in Phase 3; daemon controls remain on
         lumberjack and chop rows) and "kill" (bgcmd rows).
         ``r`` (re-run) is shown only when a done background command is selected.
+        Ctrl+N / Ctrl+P surface only on chop rows with at least two recorded
+        runs, since with zero or one run the keys cannot do anything useful.
         """
         bindings: list[tuple[str, str]] = []
         if axe_current_view == "axe":
@@ -53,6 +56,13 @@ class KeybindingBindingsMixin:
         bindings.append((self._kd("kill_agent"), label))
         if selected_slot_done:
             bindings.append((self._kd("run_workflow"), "re-run"))
+        if axe_current_view == "axe" and chop_run_total >= 2:
+            bindings.append(
+                (
+                    f"{self._kd('next_agent_file')}/{self._kd('prev_agent_file')}",
+                    "chop run",
+                )
+            )
         return bindings
 
     def _compute_agent_bindings(

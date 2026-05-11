@@ -405,6 +405,15 @@ class StateInitMixin:
         self._axe_chop_snapshots: dict[tuple[str, str], ChopSnapshot] = {}
         self._axe_lumberjack_snapshots: dict[str, LumberjackSnapshot] = {}
 
+        # Per-chop run-history view offset for Ctrl+N / Ctrl+P navigation.
+        # 0 == newest. Absent entry means "follow newest" — a newer recorded
+        # run keeps the view pinned to offset 0. Once the user moves off the
+        # newest (offset > 0), the entry sticks; subsequent newer runs shift
+        # what the offset points to but the offset itself is preserved until
+        # the user steps back to 0, at which point the entry is removed and
+        # the chop returns to auto-following the newest run.
+        self._axe_chop_run_offsets: dict[tuple[str, str], int] = {}
+
         # Debouncer for axe j/k navigation detail updates.
         self._axe_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]
         self._axe_loading_placeholder_shown: bool = False

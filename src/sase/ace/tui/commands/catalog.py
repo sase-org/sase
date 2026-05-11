@@ -82,8 +82,8 @@ _APP_COMMAND_META: tuple[
         _CL_ONLY,
         ("history",),
     ),
-    ("next_agent_file", "Next agent file", "Navigation", _AGENTS_ONLY, ()),
-    ("prev_agent_file", "Previous agent file", "Navigation", _AGENTS_ONLY, ()),
+    ("next_agent_file", "Next file / chop run", "Navigation", _AGENTS_AXE, ()),
+    ("prev_agent_file", "Previous file / chop run", "Navigation", _AGENTS_AXE, ()),
     ("jump_to_entry", "Jump to entry", "Navigation", _ALL_TABS, ("hint",)),
     ("jump_to_all_entries", "Jump to any entry", "Navigation", _ALL_TABS, ("hint",)),
     # Tab switching

@@ -127,6 +127,8 @@ class AxeDisplayLoadersMixin:
     # configured chops). Mirrors the per-attribute caches above for
     # callers that prefer a single object.
     _axe_lumberjack_snapshots: dict[str, LumberjackSnapshot]
+    # Per-chop view offset for Ctrl+N / Ctrl+P run-history navigation.
+    _axe_chop_run_offsets: dict[tuple[str, str], int]
     # Debouncer for axe detail-panel refresh on j/k navigation.
     _axe_detail_debouncer: DetailPanelDebouncer
     _axe_loading_placeholder_shown: bool
@@ -439,6 +441,57 @@ class AxeDisplayLoadersMixin:
         # never touch ``current_idx`` (it belongs to whatever tab is active).
         self._axe_last_idx = restored_idx
         self._axe_last_item_key = selected_axe_item_key(items, restored_idx)
+
+    # Max number of recorded runs kept per chop (mirrors the on-disk cap).
+    _MAX_CHOP_RUN_HISTORY: int = 10
+
+    def _axe_resolve_chop_run_offset(self, chop_key: tuple[str, str]) -> int:
+        """Return the displayed run offset for a chop, clamped to history.
+
+        Absent or out-of-range entries collapse to ``0`` (newest run).
+        """
+        snap = self._axe_chop_snapshots.get(chop_key)
+        run_total = len(snap.runs) if snap is not None else 0
+        if run_total <= 0:
+            return 0
+        raw = self._axe_chop_run_offsets.get(chop_key, 0)
+        upper = min(run_total, self._MAX_CHOP_RUN_HISTORY) - 1
+        if raw <= 0:
+            return 0
+        if raw > upper:
+            return upper
+        return raw
+
+    def _axe_step_chop_run_offset(self, direction: int) -> bool:
+        """Move the selected chop's run-history offset by ``direction``.
+
+        Returns:
+            True iff the offset actually changed (so the caller knows it
+            needs to repaint). No-ops when no chop is selected, the chop
+            has zero recorded runs, or the move is already clamped.
+        """
+        chop_key = self._axe_chop_selection
+        if chop_key is None:
+            return False
+        snap = self._axe_chop_snapshots.get(chop_key)
+        run_total = len(snap.runs) if snap is not None else 0
+        if run_total <= 0:
+            return False
+        current = self._axe_resolve_chop_run_offset(chop_key)
+        upper = min(run_total, self._MAX_CHOP_RUN_HISTORY) - 1
+        target = current + direction
+        if target < 0:
+            target = 0
+        elif target > upper:
+            target = upper
+        if target == current:
+            return False
+        if target == 0:
+            # Back to newest → drop the pin so future newer runs auto-track.
+            self._axe_chop_run_offsets.pop(chop_key, None)
+        else:
+            self._axe_chop_run_offsets[chop_key] = target
+        return True
 
     def _derive_axe_view_from_selection(self) -> None:
         """Derive _axe_current_view, _axe_lumberjack_idx, and _axe_chop_selection.

@@ -67,20 +67,24 @@ class AgentPanelDetailMixin:
             subprocess.run([editor, file_path], check=False)
 
     def action_next_agent_file(self) -> None:
-        """Cycle to the next file (agents tab only)."""
+        """Cycle to the next file / next (older) chop run."""
         if self.current_tab == "agents":
             from ...widgets import AgentDetail
 
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
             agent_detail.cycle_next_file()
+        elif self.current_tab == "axe":
+            self._axe_step_chop_run(direction=1)  # type: ignore[attr-defined]
 
     def action_prev_agent_file(self) -> None:
-        """Cycle to the previous file (agents tab only)."""
+        """Cycle to the previous file / previous (newer) chop run."""
         if self.current_tab == "agents":
             from ...widgets import AgentDetail
 
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
             agent_detail.cycle_prev_file()
+        elif self.current_tab == "axe":
+            self._axe_step_chop_run(direction=-1)  # type: ignore[attr-defined]
 
     def action_toggle_layout(self) -> None:
         """Toggle the layout between prompt-priority and file-priority."""

@@ -555,7 +555,7 @@ def axe_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 (
                     f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",
-                    "Next / prev lumberjack output",
+                    "Next / previous chop run",
                 ),
                 (d(a.scroll_to_top), "Scroll to top"),
                 (d(a.scroll_to_bottom), "Scroll to bottom"),

@@ -15,6 +15,24 @@ from ._loaders import AxeDisplayLoadersMixin
 class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
     """Mixin providing the axe display rendering and state-setter methods."""
 
+    def _axe_step_chop_run(self, *, direction: int) -> None:
+        """Cycle the displayed run for the selected chop.
+
+        ``direction == 1`` moves toward older runs (Ctrl+N); ``-1`` toward
+        newer runs (Ctrl+P). No-op on lumberjack and bgcmd rows, or when
+        the selected chop has no recorded runs. Repaints from cache only —
+        never reads from disk.
+        """
+        if self.current_tab != "axe":
+            return
+        # Make sure the derived chop-selection field reflects what the user
+        # is actually pointing at; navigation may have happened before the
+        # debounced refresh fired.
+        self._derive_axe_view_from_selection()
+        if not self._axe_step_chop_run_offset(direction):
+            return
+        self._refresh_axe_display()
+
     def _refresh_axe_display_debounced(self) -> None:
         """Debounced refresh for j/k navigation on the axe tab.
 
@@ -78,15 +96,16 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                             description="",
                             runs=[],
                         )
+                    run_idx = self._axe_resolve_chop_run_offset(chop_selection)
                     axe_info.update_chop_status(
                         lumberjack_name=lj_name,
                         chop_name=chop_name,
-                        run_idx=0,
+                        run_idx=run_idx,
                         run_total=len(chop_snap.runs),
                     )
                     axe_dashboard.update_chop_run_display(
                         snapshot=chop_snap,
-                        run_idx=0,
+                        run_idx=run_idx,
                         countdown=self._countdown_remaining,
                     )
                 elif (
@@ -185,9 +204,15 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                             selected_slot_done = not sel_snapshot.running
                         else:
                             selected_slot_done = not is_slot_running(sel_item.slot)
+                chop_run_total = 0
+                if self._axe_chop_selection is not None:
+                    chop_snap = self._axe_chop_snapshots.get(self._axe_chop_selection)
+                    if chop_snap is not None:
+                        chop_run_total = len(chop_snap.runs)
                 footer.update_axe_bindings(
                     axe_current_view=self._axe_current_view,
                     selected_slot_done=selected_slot_done,
+                    chop_run_total=chop_run_total,
                 )
 
             # Always update the side-panel list. Pass cached statuses and
@@ -234,10 +259,11 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                     lj_name, chop_name = chop_selection
                     chop_snap = self._axe_chop_snapshots.get(chop_selection)
                     run_total = len(chop_snap.runs) if chop_snap is not None else 0
+                    run_idx = self._axe_resolve_chop_run_offset(chop_selection)
                     axe_info.update_chop_status(
                         lumberjack_name=lj_name,
                         chop_name=chop_name,
-                        run_idx=0,
+                        run_idx=run_idx,
                         run_total=run_total,
                     )
                 elif (

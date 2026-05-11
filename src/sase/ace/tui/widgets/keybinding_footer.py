@@ -375,10 +375,13 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         *,
         axe_current_view: str | int = "axe",
         selected_slot_done: bool = False,
+        chop_run_total: int = 0,
     ) -> None:
         """Update bindings for Axe tab (entry-dependent only)."""
         bindings = self._compute_axe_bindings(
-            axe_current_view, selected_slot_done=selected_slot_done
+            axe_current_view,
+            selected_slot_done=selected_slot_done,
+            chop_run_total=chop_run_total,
         )
         text = self._format_bindings(bindings)
         self._update_display(text)
