@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 14:44:28
-status: wip
+status: done
 prompt: sdd/prompts/202605/revive_keymap_surfacing.md
 ---
 # Plan: Surface `R` (revive) keymap and clean up confusing `r` vs `R` wording
