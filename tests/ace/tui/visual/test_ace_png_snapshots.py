@@ -90,6 +90,36 @@ def _agents() -> list[Agent]:
     ]
 
 
+def _two_completed_unread_agents() -> list[Agent]:
+    """Two terminal top-level agents for tab-badge visual coverage."""
+    return [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-plan",
+            project_file="/workspace/sase/visual_project.gp",
+            status="DONE",
+            start_time=datetime(2026, 5, 9, 10, 0, 0),
+            stop_time=datetime(2026, 5, 9, 10, 7, 30),
+            raw_suffix="20260509-100000-plan",
+            agent_name="planner",
+            llm_provider="codex",
+            model="gpt-5",
+            response_path="/workspace/sase/artifacts/visual-plan/response.md",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-code",
+            project_file="/workspace/sase/visual_project.gp",
+            status="FAILED",
+            start_time=datetime(2026, 5, 9, 10, 8, 0),
+            stop_time=datetime(2026, 5, 9, 10, 9, 5),
+            raw_suffix="20260509-100800-code",
+            agent_name="coder",
+            error_message="focused fixture failure",
+        ),
+    ]
+
+
 def _axe_collected_data(
     *,
     bgcmd_slots: list[tuple[int, BackgroundCommandInfo]] | None = None,
@@ -316,4 +346,57 @@ async def test_axe_selected_row_png_snapshot(
             page,
             "axe_selected_row_120x40",
             title="ACE axe selected row",
+        )
+
+
+async def test_agents_tab_unread_badge_off_tab_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Startup on CLs with two completed agents shows yellow ``Agents(2)``."""
+    _patch_startup_loaders(monkeypatch, agents=_two_completed_unread_agents())
+
+    async with AcePage(query='"visual"', changespecs=_changespecs()) as page:
+        await _wait_for_startup(page)
+        await page.expect_state("tab", "changespecs")
+        await page.wait_for(
+            lambda _state: (
+                page.app._w_tab_bar is not None
+                and page.app._w_tab_bar._tab_badges["agents"] == 2
+            )
+        )
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_tab_unread_badge_off_tab_120x40",
+            title="ACE agents tab unread badge off-tab",
+        )
+
+
+async def test_agents_tab_unread_badge_cleared_on_focus_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Switching to Agents clears the tab badge back to plain ``Agents``."""
+    _patch_startup_loaders(monkeypatch, agents=_two_completed_unread_agents())
+
+    async with AcePage(query='"visual"', changespecs=_changespecs()) as page:
+        await _wait_for_startup(page)
+        await page.expect_state("tab", "changespecs")
+        await page.wait_for(
+            lambda _state: (
+                page.app._w_tab_bar is not None
+                and page.app._w_tab_bar._tab_badges["agents"] == 2
+            )
+        )
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.wait_for(
+            lambda _state: page.app._w_tab_bar._tab_badges["agents"] == 0
+        )
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_tab_unread_badge_cleared_120x40",
+            title="ACE agents tab unread badge cleared",
         )
