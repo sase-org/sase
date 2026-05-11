@@ -205,7 +205,9 @@ class BgCmdList(OptionList):
         runs = snapshot.runs if snapshot is not None else []
         if runs:
             latest = runs[0].entry.status
-            if latest == "success":
+            if latest == "running":
+                marker = ("[", "●", "] ", "bold green")
+            elif latest == "success":
                 marker = ("[", "✓", "] ", "bold green")
             elif latest in ("failure", "timeout"):
                 marker = ("[", "!", "] ", "bold red")

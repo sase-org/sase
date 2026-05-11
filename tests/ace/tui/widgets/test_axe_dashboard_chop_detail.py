@@ -22,17 +22,25 @@ def _entry(
     status: str = "success",
     duration_ms: int = 250,
     output_log: str = "run.log",
+    finished_at: str | None = "2026-05-11T12:34:57",
+    exit_code: int | None = None,
+    pid: int | None = None,
+    source: str = "scheduled",
 ) -> ChopRunEntry:
     return ChopRunEntry(
         run_id=run_id,
         lumberjack_name="hooks",
         chop_name="fast",
         started_at="2026-05-11T12:34:56",
-        finished_at="2026-05-11T12:34:57",
+        finished_at=finished_at,
         duration_ms=duration_ms,
         status=status,  # type: ignore[arg-type]
-        exit_code=0 if status == "success" else 1,
+        exit_code=exit_code
+        if exit_code is not None
+        else (0 if status == "success" else 1),
         output_log=output_log,
+        pid=pid,
+        source=source,  # type: ignore[arg-type]
     )
 
 
@@ -290,6 +298,7 @@ def test_chop_status_label_mapping() -> None:
         "timeout",
         "missing_script",
         "agent_launched",
+        "running",
     ):
         label, style = axe_dashboard._chop_status_label(status)
         assert label
@@ -301,3 +310,195 @@ def test_format_duration_ms_buckets() -> None:
     assert axe_dashboard._format_duration_ms(250).endswith("ms")
     assert axe_dashboard._format_duration_ms(2_500).endswith("s")
     assert "m" in axe_dashboard._format_duration_ms(75_000)
+
+
+def test_chop_status_running_label_style() -> None:
+    """The running status renders as a non-empty live label."""
+    label, style = axe_dashboard._chop_status_label("running")
+    assert "running" in label.lower()
+    assert "green" in style
+
+
+def test_render_chop_display_running_run_shows_elapsed_and_pid() -> None:
+    """Running runs show Elapsed/PID/source instead of Took/Exit."""
+    running = ChopRunSnapshot(
+        entry=_entry(
+            "live",
+            status="running",
+            finished_at=None,
+            duration_ms=0,
+            exit_code=None,
+            pid=12345,
+            source="manual",
+        ),
+        output_tail="",
+    )
+    snap = _snapshot_with_runs(running)
+
+    captured: dict[str, object] = {}
+
+    class _OutputSection:
+        def update_display(self, *args: object, **kwargs: object) -> None:
+            captured["display"] = (args, kwargs)
+
+        def update(self, content: object) -> None:
+            captured["update"] = content
+
+    # Reuse the real status section so we can inspect its rendered Text.
+    section = axe_dashboard._AxeStatusSection.__new__(axe_dashboard._AxeStatusSection)
+    section.__init__()  # type: ignore[misc]
+
+    rendered: dict[str, object] = {}
+
+    def _capture_update(content: object) -> None:
+        rendered["content"] = content
+
+    section.update = _capture_update  # type: ignore[assignment]
+
+    dashboard = AxeDashboard.__new__(AxeDashboard)
+
+    def _query_one(selector: str, _cls: type) -> object:
+        if "status" in selector:
+            return section
+        return _OutputSection()
+
+    dashboard.query_one = _query_one  # type: ignore[assignment]
+    dashboard.update_chop_run_display(snapshot=snap, run_idx=0, countdown=0)
+
+    text = rendered["content"]
+    assert isinstance(text, Text)
+    plain = text.plain
+    assert "running" in plain.lower()
+    assert "Elapsed:" in plain
+    assert "Took:" not in plain
+    assert "PID:" in plain
+    assert "12345" in plain
+    # Manual source surfaces a marker so the user can tell why it ran.
+    assert "manual" in plain
+    # Exit code is suppressed for active runs.
+    assert "Exit:" not in plain
+
+
+def test_render_chop_display_scheduled_run_hides_source_marker() -> None:
+    """The default scheduled source stays compact (no Source: chip)."""
+    running = ChopRunSnapshot(
+        entry=_entry(
+            "live",
+            status="running",
+            finished_at=None,
+            duration_ms=0,
+            exit_code=None,
+            pid=4242,
+            source="scheduled",
+        ),
+        output_tail="",
+    )
+    snap = _snapshot_with_runs(running)
+
+    rendered: dict[str, object] = {}
+    section = axe_dashboard._AxeStatusSection.__new__(axe_dashboard._AxeStatusSection)
+    section.__init__()  # type: ignore[misc]
+    section.update = lambda content: rendered.__setitem__("content", content)  # type: ignore[assignment]
+
+    class _OutputSection:
+        def update_display(self, *_a: object, **_kw: object) -> None:
+            pass
+
+        def update(self, *_a: object, **_kw: object) -> None:
+            pass
+
+    dashboard = AxeDashboard.__new__(AxeDashboard)
+    dashboard.query_one = lambda sel, _cls: (  # type: ignore[assignment]
+        section if "status" in sel else _OutputSection()
+    )
+    dashboard.update_chop_run_display(snapshot=snap, run_idx=0, countdown=0)
+
+    plain = rendered["content"].plain  # type: ignore[union-attr]
+    assert "Source:" not in plain
+
+
+def test_render_chop_display_running_with_no_output_shows_waiting() -> None:
+    """An active run with no output yet shows a 'Waiting…' placeholder."""
+    running = ChopRunSnapshot(
+        entry=_entry(
+            "live",
+            status="running",
+            finished_at=None,
+            duration_ms=0,
+            exit_code=None,
+        ),
+        output_tail="",
+    )
+    snap = _snapshot_with_runs(running)
+
+    captured: dict[str, object] = {}
+
+    class _OutputSection:
+        def update_display(self, *args: object, **kwargs: object) -> None:
+            captured.setdefault("display", (args, kwargs))
+
+        def update(self, content: object) -> None:
+            captured["update"] = content
+
+    class _StatusSection:
+        def update_chop_display(self, *args: object, **kwargs: object) -> None:
+            captured.setdefault("status", (args, kwargs))
+
+    dashboard = AxeDashboard.__new__(AxeDashboard)
+    dashboard.query_one = lambda sel, _cls: (  # type: ignore[assignment]
+        _StatusSection() if "status" in sel else _OutputSection()
+    )
+    dashboard.update_chop_run_display(snapshot=snap, run_idx=0, countdown=0)
+
+    rendered = captured["update"]
+    assert isinstance(rendered, Text)
+    assert "waiting" in rendered.plain.lower()
+    # Output section's update_display path (for non-empty output) is unused.
+    assert "display" not in captured
+
+
+def test_lumberjack_overview_renders_running_chop_with_elapsed() -> None:
+    """Running chops in the lumberjack overview table show elapsed runtime."""
+    running = ChopRunSnapshot(
+        entry=_entry(
+            "live",
+            status="running",
+            finished_at=None,
+            duration_ms=0,
+            exit_code=None,
+        ),
+        output_tail="",
+    )
+    chop = ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name="fast",
+        description="",
+        runs=[running],
+    )
+
+    rendered: dict[str, object] = {}
+
+    section = axe_dashboard._AxeOutputSection.__new__(axe_dashboard._AxeOutputSection)
+    section.update = lambda content: rendered.__setitem__("content", content)  # type: ignore[assignment]
+
+    section.update_lumberjack_overview(
+        LumberjackSnapshot(
+            name="hooks",
+            status=LumberjackStatus(
+                name="hooks",
+                pid=1,
+                started_at="2026-05-11T00:00:00",
+                status="running",
+                interval=60,
+            ),
+            metrics=LumberjackMetrics(),
+            log_tail="",
+            chops=[chop],
+        )
+    )
+
+    plain = rendered["content"].plain  # type: ignore[union-attr]
+    assert "running" in plain.lower()
+    # Running rows do not display the static "0ms" final duration; the
+    # column shows the elapsed runtime label instead.
+    assert "0ms" not in plain

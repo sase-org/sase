@@ -71,6 +71,8 @@ def _chop_status_label(status: str) -> tuple[str, str]:
         return ("? missing", "bold yellow")
     if status == "agent_launched":
         return ("→ agent", "bold #00D7AF")
+    if status == "running":
+        return ("● running", "bold green")
     return (status, "dim")
 
 
@@ -354,6 +356,7 @@ class _AxeStatusSection(Static):
         run = self._chop_run
         if run is not None:
             entry = run.entry
+            is_running = entry.status == "running"
             text.append("  │  ", style="dim")
             status_text, status_style = _chop_status_label(entry.status)
             text.append(status_text, style=status_style)
@@ -363,17 +366,34 @@ class _AxeStatusSection(Static):
             text.append("When: ", style="bold #87D7FF")
             text.append(_format_relative_time(entry.started_at), style="#87D7FF")
 
-            # Duration
+            # Duration — label changes for active runs to convey "still running".
             text.append("  │  ", style="dim")
-            text.append("Took: ", style="bold #87D7FF")
-            text.append(_format_duration_ms(entry.duration_ms), style="#00D7AF")
+            if is_running:
+                text.append("Elapsed: ", style="bold #87D7FF")
+                text.append(_format_runtime(entry.started_at), style="#00D7AF")
+            else:
+                text.append("Took: ", style="bold #87D7FF")
+                text.append(_format_duration_ms(entry.duration_ms), style="#00D7AF")
 
-            # Exit code when present (non-agent runs)
-            if entry.exit_code is not None:
+            # Exit code when present (non-agent, non-running runs)
+            if entry.exit_code is not None and not is_running:
                 text.append("  │  ", style="dim")
                 text.append("Exit: ", style="bold #87D7FF")
                 code_style = "bold red" if entry.exit_code != 0 else "#00D7AF"
                 text.append(str(entry.exit_code), style=code_style)
+
+            # PID for active script runs.
+            if is_running and entry.pid is not None:
+                text.append("  │  ", style="dim")
+                text.append("PID: ", style="bold #87D7FF")
+                text.append(str(entry.pid), style="#FF87D7")
+
+            # Source marker (manual vs scheduled) — only surface when it
+            # is non-default so the header stays compact for scheduled runs.
+            if entry.source and entry.source != "scheduled":
+                text.append("  │  ", style="dim")
+                text.append("Source: ", style="bold #87D7FF")
+                text.append(entry.source, style="#FFD700")
 
             # Run N/M
             text.append("  │  ", style="dim")
@@ -548,10 +568,18 @@ class _AxeOutputSection(Static):
                         f"{_format_relative_time(latest.started_at):<14}",
                         style="#87D7FF",
                     )
-                    text.append(
-                        f"{_format_duration_ms(latest.duration_ms):>10}",
-                        style="#00D7AF",
-                    )
+                    if latest.status == "running":
+                        # Show elapsed runtime so the row reflects an
+                        # active subprocess instead of a stale 0ms.
+                        text.append(
+                            f"{_format_runtime(latest.started_at):>10}",
+                            style="#00D7AF",
+                        )
+                    else:
+                        text.append(
+                            f"{_format_duration_ms(latest.duration_ms):>10}",
+                            style="#00D7AF",
+                        )
                 else:
                     text.append(f"{'—':<14}", style="dim")
                     text.append(f"{'never':<14}", style="dim")
@@ -879,6 +907,8 @@ class AxeDashboard(Static):
                         "captured in the agent's own logs.",
                         style="dim italic",
                     )
+                elif run.entry.status == "running":
+                    empty.append("Waiting for output…", style="dim italic")
                 elif run.entry.error:
                     empty.append(run.entry.error, style="bold red")
                     if run.entry.traceback:

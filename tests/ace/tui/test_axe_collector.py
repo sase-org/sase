@@ -228,6 +228,91 @@ def test_collector_populates_all_cache_maps() -> None:
     assert run_log_reader.call_count == len(fast_runs)
 
 
+def test_collector_carries_running_run_through_snapshot() -> None:
+    """A chop with a ``running`` newest run keeps the active entry plus
+    its in-progress log tail in the cached snapshot — the dashboard reads
+    both straight from this snapshot without hitting disk again.
+    """
+    config = _FakeAxeConfig({"hooks": _lj_cfg("hooks", ["fast"])})
+
+    running_id = "20260511T100200_000000"
+    finished_id = "20260511T100100_000000"
+    running_entry = ChopRunEntry(
+        run_id=running_id,
+        lumberjack_name="hooks",
+        chop_name="fast",
+        started_at="2026-05-11T10:02:00",
+        finished_at=None,
+        duration_ms=0,
+        status="running",
+        pid=99999,
+        source="manual",
+    )
+    finished_entry = _make_run_entry("hooks", "fast", finished_id)
+
+    def _fake_run_index(_lj: str, _chop: str) -> list[str]:
+        return [running_id, finished_id]
+
+    def _fake_read_run(_lj: str, _chop: str, run_id: str) -> ChopRunEntry | None:
+        return {running_id: running_entry, finished_id: finished_entry}.get(run_id)
+
+    def _fake_read_run_log(_lj: str, _chop: str, run_id: str, _lines: int) -> str:
+        if run_id == running_id:
+            return "first line of live output\n"
+        return "older output\n"
+
+    with (
+        patch(
+            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
+        ) as get_proc,
+        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
+            return_value="",
+        ),
+        patch("sase.axe.config.load_axe_config", return_value=config),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_status",
+            return_value=None,
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_metrics",
+            return_value=None,
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_log_tail",
+            return_value="",
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run_index",
+            side_effect=_fake_run_index,
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run",
+            side_effect=_fake_read_run,
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run_log_tail",
+            side_effect=_fake_read_run_log,
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.get_active_slots", return_value=[]
+        ),
+    ):
+        proc = get_proc.return_value
+        proc.is_axe_running.return_value = False
+        proc.get_axe_status.return_value = None
+
+        data = collect_axe_status_data()
+
+    fast = data.chop_snapshots[("hooks", "fast")]
+    assert [r.entry.run_id for r in fast.runs] == [running_id, finished_id]
+    assert fast.runs[0].entry.status == "running"
+    assert fast.runs[0].entry.finished_at is None
+    assert fast.runs[0].entry.pid == 99999
+    assert fast.runs[0].output_tail == "first line of live output\n"
+
+
 def test_collector_records_empty_history_for_missing_chops() -> None:
     """A lumberjack with chops but no recorded run history still gets a
     ``ChopSnapshot`` per configured chop, with an empty ``runs`` list.

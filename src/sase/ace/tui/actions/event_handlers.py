@@ -293,6 +293,9 @@ class EventHandlersMixin:
             self._patch_agent_runtime_rows()  # type: ignore[attr-defined]
         else:  # axe
             self._update_axe_info_panel()  # type: ignore[attr-defined]
+            # Stream live output for an active chop run without waiting for
+            # the slower full-fleet refresh interval.
+            self._axe_live_tick()  # type: ignore[attr-defined]
 
     def _check_idle_state(self, now_mono: float) -> None:
         """Update the idle indicator based on elapsed inactivity."""

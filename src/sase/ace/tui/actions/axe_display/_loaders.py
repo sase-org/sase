@@ -200,6 +200,9 @@ class AxeDisplayLoadersMixin:
         # Apply chop-history caches. The sidebar (Phase 3) and the
         # chop-run dashboard (Phase 4) read from these without disk I/O.
         self._axe_lumberjack_chop_names = data.lumberjack_chop_names
+        # Translate any pinned run-history offsets to keep the user looking
+        # at the same run_id when new runs arrive at the head of history.
+        self._reconcile_chop_run_offsets(data.chop_snapshots)
         self._axe_chop_snapshots = data.chop_snapshots
         self._axe_lumberjack_snapshots = data.lumberjack_snapshots
 
@@ -259,6 +262,9 @@ class AxeDisplayLoadersMixin:
                 return collect_chop_snapshot(lj_name, chop_name, description)
 
             snap = await asyncio.to_thread(_read_chop)
+            # Keep the user's pinned offset (if any) on the same run_id
+            # across the targeted refresh.
+            self._reconcile_chop_run_offsets({(lj_name, chop_name): snap})
             self._axe_chop_snapshots[(lj_name, chop_name)] = snap
             jack_snap = self._axe_lumberjack_snapshots.get(lj_name)
             if jack_snap is not None:
@@ -312,6 +318,77 @@ class AxeDisplayLoadersMixin:
     def _schedule_targeted_axe_refresh(self) -> None:
         """Schedule a targeted refresh of the selected item's on-disk state."""
         self.call_later(self._refresh_selected_axe_item_async)  # type: ignore[attr-defined]
+
+    def _axe_selected_chop_has_running_run(self) -> bool:
+        """Return True when the selected chop's newest cached run is active.
+
+        Used to drive the per-second live refresh while a script chop is
+        streaming output. Lumberjack and bgcmd selections always return
+        False since they don't participate in run-history streaming.
+        """
+        chop_key = self._axe_chop_selection
+        if chop_key is None:
+            return False
+        snap = self._axe_chop_snapshots.get(chop_key)
+        if snap is None or not snap.runs:
+            return False
+        return snap.runs[0].entry.status == "running"
+
+    def _axe_live_tick(self) -> None:
+        """Per-second hook that pulls fresh data for an active chop run.
+
+        Called from the AXE-tab branch of the countdown tick. Routes through
+        the existing targeted refresh so disk I/O still happens in a worker
+        thread and the cache write goes through the same reconciliation as
+        ``y``. No-op when the selected row is not a chop with a running run.
+        """
+        if self.current_tab != "axe":
+            return
+        if not self._axe_selected_chop_has_running_run():
+            return
+        self._schedule_targeted_axe_refresh()
+
+    def _reconcile_chop_run_offsets(
+        self, new_snapshots: dict[tuple[str, str], ChopSnapshot]
+    ) -> None:
+        """Translate pinned chop run offsets so they follow the same run_id.
+
+        Called before installing a new collector payload (full or targeted).
+        For each chop with a non-zero offset, the user is "pinned" to a
+        specific older run. When the new snapshot prepends additional runs,
+        the offset must shift forward to keep pointing at the same run_id.
+        If the pinned run_id is no longer present, the pin is dropped so
+        the next render clamps to the newest run.
+        """
+        offsets = getattr(self, "_axe_chop_run_offsets", None)
+        if not offsets:
+            return
+        for chop_key, offset in list(offsets.items()):
+            if offset <= 0:
+                continue
+            old_snap = self._axe_chop_snapshots.get(chop_key)
+            if old_snap is None or offset >= len(old_snap.runs):
+                offsets.pop(chop_key, None)
+                continue
+            pinned_run_id = old_snap.runs[offset].entry.run_id
+            new_snap = new_snapshots.get(chop_key)
+            if new_snap is None:
+                offsets.pop(chop_key, None)
+                continue
+            new_idx = next(
+                (
+                    i
+                    for i, r in enumerate(new_snap.runs)
+                    if r.entry.run_id == pinned_run_id
+                ),
+                None,
+            )
+            if new_idx is None or new_idx == 0:
+                # Pinned run disappeared or is now newest → drop the pin
+                # so resolution falls back to newest-tracking.
+                offsets.pop(chop_key, None)
+            else:
+                offsets[chop_key] = new_idx
 
     async def _run_axe_startup_init(self) -> None:
         """Load axe status and trigger startup auto-start/restart off the critical path."""
