@@ -1,6 +1,6 @@
 # User-Authored File Line Comments
 
-Date: 2026-05-11
+Date: 2026-05-11 (revised)
 
 ## Question
 
@@ -63,9 +63,15 @@ JSON schema (`MENTOR_OUTPUT_JSON_SCHEMA`, same file, lines 40-68):
 }
 ```
 
-Validated and previewed via the existing CLI: `sase comments <file>` (`src/sase/main/comments_handler.py:25-67`)
-already runs `jsonschema.validate(...)` against this schema and exits non-zero on failure — so any new producer of
-"user comments" should round-trip cleanly through `sase comments` for free.
+The existing CLI `sase comments <file>` (`src/sase/main/comments_handler.py:25-84`) does **two** things, not one:
+
+1. Validates the JSON against `MENTOR_OUTPUT_JSON_SCHEMA` (exits 1 on schema failure, 2 if any referenced source file is
+   missing) — so any new producer round-trips cleanly through validation for free.
+2. **Renders** the comments to the terminal with Rich `Syntax`, line numbers, severity color
+   (`_SEVERITY_STYLE` at `src/sase/main/comments_handler.py:18-22`: red/yellow/`#87D7FF`), and `context` lines of
+   surrounding source. Lexer chosen via `lexer_for_path()` from `mentor_review_models.py`. This is meaningful for the
+   user-comments feature because it gives us a **non-TUI preview path** out of the box (`sase comments <user-json>`
+   shows the comments rendered identically to mentor output).
 
 ### On-disk layout
 
@@ -109,7 +115,7 @@ producer** that writes the same artifact from human input.
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
 | JSON schema + validation           | `MENTOR_OUTPUT_JSON_SCHEMA`, `sase comments`                                                         | None                                                      |
 | Comments JSON storage              | `~/.sase/comments/<name>-<reviewer>-<ts>.json`                                                       | None (just write the file)                                |
-| ChangeSpec `COMMENTS:` registration | `add_comment_entry()` in `src/sase/ace/comments/operations.py`, `CommentEntry` model                 | Decide which ChangeSpec, decide reviewer name, call API   |
+| ChangeSpec `COMMENTS:` registration | `add_comment_entry(project_file, changespec_name, entry, existing_comments=None) -> bool` in `src/sase/ace/comments/operations.py:189-244`, takes `changespec_lock` internally | Decide which ChangeSpec, decide reviewer name, call API. **Note: this function replaces any existing entry with the same reviewer** (lines 211-216, 232-238). |
 | TUI display of comments            | `comments_builder.py`, `MentorReviewModal`, `comments_handler.py` rich rendering                     | None (works as soon as the entry is registered)           |
 | Apply / accept / propose / commit  | Mentor review modal + `_launch_mentor_apply_agent()` (`actions/agent_workflow/_mentor_review.py`)    | None (no-op — user comments may or may not be "applied")  |
 | File viewing UI                    | `AgentFilePanel` (`src/sase/ace/tui/widgets/file_panel/__init__.py:1-531`), syntax highlighting map  | A **read-with-line-numbers** view focused on review       |
@@ -118,6 +124,30 @@ producer** that writes the same artifact from human input.
 | CLI surface                        | `sase comments` (read), nothing for write                                                            | A small `sase comment add` (or `sase review`) producer    |
 
 The takeaway: the **plumbing is done**. The new code is mostly an entry-experience question.
+
+### Critical semantic gotcha: one entry per reviewer per ChangeSpec
+
+`add_comment_entry()` is **upsert-by-reviewer**: if a `CommentEntry` with the same `reviewer` string already exists on
+the target ChangeSpec, it gets *replaced*, not appended (`operations.py:209-217` and `230-242`). This is how mentor
+re-runs replace their previous output on rerun.
+
+For user comments this constrains the design:
+
+- **Option 1 — Session JSON, fixed reviewer**: one accumulating JSON file per session under
+  `~/.sase/comments/<changespec>-user-<session_ts>.json`. The COMMENTS drawer points at this one file via
+  `reviewer="user"`. Subsequent `add_comment_entry(... reviewer="user", file_path=<same path>)` is a no-op (same entry).
+  *Problem*: a new session would replace the previous session's drawer entry — older user comments disappear from the
+  TUI even though the JSON still exists on disk.
+- **Option 2 — Per-session reviewer**: `reviewer="user_2026-05-11_1432"` (or similar). Each session has its own
+  drawer line, so old sessions stay visible. *Problem*: noisier drawer, breaks the "one bucket per author" mental
+  model, and `MentorReviewModal` groups by reviewer so the user sees N "user_*" sections.
+- **Option 3 — Accumulate forever**: single `~/.sase/comments/<changespec>-user.json` (no timestamp). All user
+  comments on the ChangeSpec live in one file across sessions. Drawer entry is `[user] <path>`, always the same.
+  *Problem*: harder to attribute when (or in what session) a comment was authored — and the schema has no
+  `created_at` field. The mentor approach (timestamped filename, one file per run) is at odds with this.
+
+**Recommendation**: Option 3 for v1 — single accumulating file. Add a `created_at` field to a v2 schema rather than
+fight the upsert semantics or pollute the drawer.
 
 ---
 
@@ -263,18 +293,173 @@ on any JSON in the right format.
   the file alongside (mentor already does this via `save_file_snapshots()` in `mentor_output.py:74-156` — reuse it).
 - **Multiple comments on the same line**: schema permits this, but the existing TUI modal flattens by index. Verify
   it doesn't collapse them.
-- **Keybinding collision**: `,c` in leader mode is currently `clear_comments` per `default_config.yml`. Don't reuse;
-  pick a free slot like `,r` (review). Direct keys to avoid: `V` `E` `A` `-` `=` `d` `c` (in their respective modes).
+- **Keybinding collision** (correction): in `default_config.yml` `leader_mode.keys`, taken slots include `r` (runners),
+  `c` (clear_comments), `m` (review_mentors), `n` (jump_to_notification), `i` (activity_info), `t` (task_queue),
+  `x` (kill_and_edit), `j` (jump_to_next_unread_done_agent), `g` (toggle_agent_panel_grouping), `h` (agent_home),
+  `space` (agent_from_cl), `A` (agent_run_log), `I` (mark_inactive), `M` (kill_mentors), `P` (temporary_llm_override),
+  and others. Free candidates for a "review/note" action: `,e`, `,b`, `,N`, `,R`, `,v`. Direct top-level keys to avoid:
+  `V` `E` `A` `-` `=` `d` `c`. Recommend `,N` ("Note") since `N` is already mnemonic for the existing
+  `add_agent_tag` and stays in the same family.
 - **`$EDITOR` suspension on tmux/SSH**: the suspend pattern works but can flicker; document expected behavior.
-- **Validation race**: writing to `~/.sase/comments/...` then registering in `.gp` are two writes. Use the existing
-  `changespec_lock()` (`src/sase/ace/changespec/`) so concurrent agents and the user don't corrupt the drawer.
+- **Validation race**: writing to `~/.sase/comments/...` then registering in `.gp` are two writes. `add_comment_entry()`
+  already wraps the drawer write in `changespec_lock()` (`src/sase/ace/changespec/locking.py:128-184`, `fcntl.flock`).
+  The JSON write happens *first* and is not under that lock, so a session that crashes between writes leaves an orphan
+  JSON with no drawer entry — acceptable (idempotent retry recovers it).
 - **Cross-platform paths**: comments JSON stores `file_path` strings — be explicit about whether they're absolute,
   repo-relative, or `~`-anchored. Mentor uses absolute paths today; match that.
-- **Don't reinvent the rust core boundary**: per `memory/short/rust_core_backend_boundary.md`, the comment data model
-  already exists in Rust as `CommentWire` (`sase-core/crates/sase_core/src/wire.rs:69-76`). The writer probably
-  belongs on the Rust side with a thin Python adapter — confirm before implementation.
+- **Suffix-styling fan-out** (from `src/sase/ace/AGENTS.md`): introducing a new suffix value like `"Resolved"` or
+  `"User Review"` means updating styling in **four** files in lockstep:
+  `home/dot_config/nvim/syntax/saseproject.vim`, `src/sase/ace/display.py`,
+  `src/sase/ace/query/highlighting.py`, and `src/sase/ace/tui/widgets/changespec_detail.py`. Prefer reusing existing
+  suffix conventions (e.g. plain string suffix without a special `suffix_type`) for v1 to avoid this fan-out, and
+  defer custom styling to v2 if it proves needed.
+- **Help-popup sync** (from `src/sase/ace/AGENTS.md`): a new `,N` keybinding requires updating the `?` help modal
+  content in `help_modal.py`, respecting the 57-char box width.
+- **Rust core boundary nuance** (correction): `CommentWire`
+  (`../sase-core/crates/sase_core/src/wire.rs:69-76`) models only the **ChangeSpec drawer entry**
+  (`reviewer`, `file_path`, `suffix`, `suffix_type`) — i.e., the same shape as Python `CommentEntry`. It does **not**
+  model the body (`focus_name`, `line_number`, `description`, `severity`). There is no Rust analogue to `MentorComment`
+  today. Implication: the JSON-writer for user comments has no existing Rust counterpart to defer to. Two clean
+  options:
+    1. Write the JSON in Python for v1 (matches mentor today — `save_mentor_output()` is Python at
+       `src/sase/ace/mentor_output.py:74-156`).
+    2. Add a `MentorCommentWire` to `sase-core` first and route both producers through it.
+  Per the boundary memo, option 2 is the long-term direction; for v1, option 1 is consistent with the existing mentor
+  producer.
 
 ---
+
+## Prior art
+
+How analogous tools model the same problem — and what's worth borrowing.
+
+- **GitHub PR line comments**: model is `{path, line, side, body}` with optional `start_line` for ranges, plus an
+  implicit `created_at`/`author`/`commit_sha` (the commit the line refers to). Threads have a state
+  (`OPEN`/`RESOLVED`/`OUTDATED`). The `commit_sha` is what lets GitHub mark a comment "outdated" when the underlying
+  line moves. SASE's mentor schema has none of these — but mentor comments are *generated and reviewed in one sitting*,
+  so they don't need them. User comments authored over hours/days plausibly do. Cheapest path: store the file SHA-256
+  in the JSON alongside the comment, fall back to `save_file_snapshots()` (`src/sase/ace/mentor_output.py:74-156`) for
+  the full text. The mentor producer already snapshots files; reusing that gets us "outdated" detection nearly for
+  free.
+- **VSCode comment threads** (CommentController API): threads anchor to a `Range` (line range, optional column range)
+  and survive through document edits via the editor's text-buffer transformations. SASE has no document model — files
+  are read-only artifacts during review — so range anchoring isn't worth the cost. Line-number-plus-snapshot is the
+  pragmatic equivalent.
+- **JetBrains "TODO" / scratch notes / Code With Me review mode**: per-line notes stored as IDE workspace state, not in
+  the repo. Not portable, not shareable. Reject this model — SASE comments live in `.gp` (and the JSON sidecar) on
+  purpose so they show up for mentor review and CRS.
+- **`magit-blame` / `git notes`**: stored in a refs/notes namespace, addressed by commit-sha. Useful for "this commit
+  had a problem" but the wrong granularity for "this line of this file in this CL." Not a fit.
+- **Reviewable, Phabricator, Gerrit**: same data model as GitHub PR comments with richer threading. The shared
+  takeaway: every serious code-review tool ends up modeling **{path, line(-range), body, author, state, anchored_to}**.
+  SASE's mentor schema is missing `author` (collapsed into `reviewer` at the entry level), `state` (no
+  resolved/dismissed/outdated), and `anchored_to` (no commit/sha/snapshot pointer at the comment level — only at the
+  entry level via `save_file_snapshots`).
+- **`comment-tags-mode` (Emacs) / inline marker scanners**: Option B above. Rejected for the same reasons everywhere
+  else: file pollution, doesn't work on read-only or vendored files, conflicts with formatters.
+
+## Resolution lifecycle (gap previously unaddressed)
+
+The original recommendation said user comments "are informational unless explicitly applied via the existing mentor
+review modal." That's incomplete — there's an existing **resolution lifecycle** built for critique comments that user
+comments should also reuse.
+
+- **CRS workflow** at `src/sase/ace/workflows/crs.py` (Critique Review System) writes the suffix
+  `"Unresolved Critique Comments"` on a `CommentEntry` when CRS finishes with comments the agent could not resolve
+  (`suffix_type=None`, plain `(Unresolved Critique Comments)` rendering in `.gp`).
+- The `MentorReviewModal` "apply" path (`src/sase/ace/tui/actions/agent_workflow/_mentor_review.py`) flips this state
+  by re-writing the drawer entry after acceptance.
+- For user comments, the same two-state model works: a `CommentEntry` with `suffix=None` is "open"; one with
+  `suffix="Resolved"` (or just removing the drawer entry) is "done." No new schema fields, just a discipline about
+  what `suffix` values mean.
+
+Recommend: add a single hotkey in `MentorReviewModal` (or a new sibling modal) that marks a user comment "resolved" by
+either (a) removing the comment from the JSON, or (b) appending a `resolved_at` timestamp to its `description`. Option
+(a) keeps the schema clean; option (b) preserves history. Lean toward (b) for v1, with a `,N` ⇒ pop-up filter that
+hides resolved comments by default.
+
+## Notifications (gap previously unaddressed)
+
+Mentor agent completion emits a SASE notification (notification inbox shows "mentor finished with N comments"). User
+comments don't *need* a notification — the user just authored them — but the **receiving end** (a teammate, another
+agent reviewing the same CL) currently has no signal that fresh user comments landed.
+
+Options:
+
+1. **No notification** (recommended for v1): user comments are author-local; the drawer entry is the signal.
+2. **Reuse mentor-completed notification kind**: emit a fake "user_review finished" notification on session-end so
+   downstream consumers (e.g., the mobile app per `mobile_app_vs_telegram_value.md`) get a uniform event.
+3. **New notification kind `user_comment`**: requires schema + UI work in
+   `src/sase/core/facade/notification_store.py` and the mobile notifier — overkill for v1.
+
+If we go with (2), make sure not to re-trigger the mentor apply pipeline (which keys off the same notification type for
+some consumers).
+
+## Concrete writer API surface
+
+The new writer is small enough to sketch in full. Suggested location:
+`src/sase/ace/comments/user_writer.py` (new module, sibling of `operations.py`).
+
+```python
+def add_user_comment(
+    *,
+    changespec_name: str | None,
+    project_file: str | None,
+    file_path: str,
+    line_number: int,
+    description: str,
+    severity: str = "suggestion",
+    focus_name: str = "user_review",
+    reviewer: str = "user",
+) -> Path:
+    """Append a user comment to the per-CL user-comments JSON; register drawer entry if needed.
+
+    - If a JSON file for (changespec_name, reviewer) exists, load + append.
+    - Otherwise, create it under ~/.sase/comments/<changespec>-<reviewer>.json.
+    - Validate against MENTOR_OUTPUT_JSON_SCHEMA before writing.
+    - If changespec_name + project_file are provided, call add_comment_entry() to register/refresh the drawer line.
+    - Returns the path to the JSON file.
+    """
+```
+
+A thin CLI wrapper in `src/sase/main/comment_add_handler.py`:
+
+```text
+sase comment add <file>:<line> -m "body" [-s warning] [-f focus_tag] [-n changespec_name]
+sase comment add <file>:<line>                                 # opens $EDITOR for body
+sase review <file>                                             # opens TUI viewer (Option C)
+```
+
+Argparse: per `memory/short/gotchas.md`, every option needs a short flag — already covered above (`-m -s -f -n`).
+
+The TUI viewer (Option C primary path) calls `add_user_comment()` once per `c`-on-line hotkey, after popping
+`$EDITOR` for the body via the existing pattern in `src/sase/ace/tui/actions/agents/_panel_detail.py:123-140`.
+
+## Test plan
+
+Existing test infrastructure to reuse:
+
+- **CLI / handler tests**: pattern lives in `tests/test_main/` (one file per handler). Mock `~/.sase/` via `tmp_path`,
+  call the handler with an `argparse.Namespace`, assert files/JSON/.gp contents.
+- **Operations tests**: `tests/test_ace/test_comments/` already covers `add_comment_entry()` upsert semantics —
+  extend with a `reviewer="user"` case.
+- **TUI snapshot tests**: SVG/PNG snapshots in `tests/ace/tui/visual/test_ace_png_snapshots.py` and
+  `tests/ace/tui/visual/test_png_diff.py`. New TUI screen for Option C needs at least one snapshot covering
+  (a) viewer open on a python file, (b) cursor on a line with cursor highlight, (c) modal-open state after `c` press.
+  Per `memory/short/build_and_run.md`, `just test` already runs the visual suite.
+- **End-to-end**: `tests/ace/tui/test_launch_fan_out_unified.py` is the closest analogue for a full TUI session test;
+  use the same harness to drive `,N → file picker → c → $EDITOR body → save` and assert the JSON + drawer state.
+
+Specific cases to cover:
+
+1. First comment in a session: creates JSON, creates drawer entry.
+2. Second comment in same session: appends to JSON, no drawer change (idempotent upsert).
+3. Comment with no active ChangeSpec: writes JSON, prints path, no drawer touched.
+4. Schema validation rejection (invalid severity): writer surfaces the `jsonschema.ValidationError` to the user.
+5. Resolution: marking a comment "resolved" updates `description` (or removes from JSON, depending on chosen model).
+6. Concurrent `add_user_comment` + mentor run on the same `.gp` file: `changespec_lock()` serializes; neither write
+   corrupts the drawer.
+7. Round-trip: `sase comment add ...` then `sase comments <path>` renders the new comment identically to mentor output.
 
 ## Open questions for the user
 
@@ -289,5 +474,14 @@ on any JSON in the right format.
 6. **Apply integration**: should user comments be applyable via the existing mentor apply pipeline, or
    informational-only?
 7. **Where does the writer live**: in the Rust core (`sase-core`) with a Python adapter, or Python-only for v1?
+   (Recommendation: Python-only for v1 — there is no Rust `MentorCommentWire` today; adding one is a larger,
+   independent project.)
+8. **Session model**: single accumulating `~/.sase/comments/<changespec>-user.json` (Option 3 in the gotcha above),
+   per-session timestamped reviewers (Option 2), or something else?
+9. **Snapshot anchoring**: store a file SHA-256 (or full snapshot via `save_file_snapshots()`) per user comment, so
+   "outdated" comments can be flagged when the line moves? Mentor doesn't do this per-comment today.
+10. **Resolution affordance**: should resolved comments be removed from the JSON (clean) or annotated in place (history
+    preserved)?
+11. **Notification on session-end**: silent, reuse mentor notification kind, or new `user_comment` kind?
 
 Answer these and the implementation plan writes itself from this doc.
