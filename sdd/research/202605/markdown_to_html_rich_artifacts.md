@@ -68,6 +68,35 @@ What's already there (from `src/sase/attachments/`, `src/sase/core/`,
   consistency in *user-visible* rendering would be nice.
 - `pyproject.toml` already depends on `jinja2`. No `markdown-it-py`,
   `python-markdown`, `mistune`, `markdown2`, `bleach`, or `nh3`.
+  (`markdown-it-py 4.2` shows up in `.venv/` transitively via
+  `mkdocs-material`, but it is **not** a declared runtime dep — adding it
+  to `pyproject.toml` makes it explicit and version-pinnable.)
+- `src/sase/sdd/frontmatter.py` already exposes a YAML-frontmatter parser
+  (`parse_frontmatter(text) -> (dict, body, had_frontmatter)`). SDD
+  markdown and memory files use this. **`markdown_pdf.py` does not strip
+  frontmatter today** — pandoc treats unrecognized YAML between `---`
+  fences as content and often emits visible junk at the top of the PDF.
+  The new HTML path should `parse_frontmatter()` first, render only the
+  body, and (optionally) surface selected frontmatter keys as `<meta>`
+  tags or a small header block.
+- `src/sase/ace/tui/models/agent_content_search.py:59-60` hardcodes the
+  artifact files it indexes for in-TUI search (`raw_xprompt.md`,
+  `live_reply.md`). Adding `markdown_html/*.html` does **not** break
+  search, but search should continue to read from the Markdown *source*,
+  not the generated HTML — grepping rendered HTML is a regression in
+  precision and recall (tags, entities, inlined CSS).
+- `src/sase/integrations/_mobile_notification_attachments.py:145-161`
+  classifies by extension. `.html` currently falls through to
+  `"unknown"` with no MIME and `can_inline=False`. Needs a branch.
+- No usage of `textual.widgets.Markdown` anywhere; the TUI uses
+  `rich.markdown.Markdown` for inline previews. Either remains a valid
+  HTML-free path for inline rendering (see "Inline TUI Preview" below).
+- No mermaid generation in agent code today (171 hits, all in docs / blog
+  posts that get rendered by MkDocs-Material's own mermaid integration).
+  Agents *will* start emitting mermaid blocks once we tell them they can.
+- No existing base64 image inlining in any renderer. Pandoc handles
+  image refs natively in the PDF path; the HTML renderer has to do it
+  itself.
 - Tier 1 memory `memory/short/rust_core_backend_boundary.md`: shared
   backend behavior belongs in `../sase-core`. Markdown→HTML rendering is
   borderline — see "Boundary Question" below.
@@ -160,6 +189,56 @@ This is the only new C-extension dep on the table (`nh3` builds a Rust
 extension). Worth it — Python HTML sanitizers are slow and have had
 parser-confusion CVEs.
 
+### Frontmatter
+
+SDD markdown files, memory entries, and many agent-emitted artifacts
+have YAML frontmatter:
+
+```markdown
+---
+name: foo
+type: feedback
+---
+
+# Body starts here
+```
+
+`render_markdown_html()` must:
+
+1. Call `sase.sdd.frontmatter.parse_frontmatter()` first.
+2. Render only the body via markdown-it-py.
+3. Emit selected frontmatter keys as `<meta name="sase-{key}" content="…">`
+   — at minimum `name`, `type`, `description`. This makes the HTML
+   self-describing for the web client (filter / facet by type without
+   re-parsing source markdown).
+4. *Optionally* render a small `<header class="sase-frontmatter">` block
+   at the top with `<dt>/<dd>` pairs. Behind a profile flag; the
+   `HTML_DESKTOP_PROFILE` should default to "on", the
+   `HTML_MOBILE_PROFILE` to "off" (no room).
+
+This also closes a latent bug in `render_markdown_pdf()`, which silently
+renders frontmatter as visible content. Fix that in passing or open a
+follow-up bead.
+
+### Mermaid and Other Diagram Blocks
+
+Markdown-it-py treats ```` ```mermaid ```` as a fenced code block by
+default and emits `<pre><code class="language-mermaid">…</code></pre>`.
+Three render strategies:
+
+- **v1 (no diagram support):** Leave as a fenced code block. Source is
+  legible; nothing breaks. Document this explicitly so agents don't
+  silently start emitting mermaid expecting it to render.
+- **v2 (server-side SVG):** Use `mermaid-cli` (`mmdc`) to convert each
+  block to inlined SVG at render time. External Node binary dep — same
+  trap pattern as pandoc; opt-in only.
+- **v3 (client-side in web view):** Ship `mermaid.js` in the web client
+  and execute the language-mermaid blocks at view time. Zero impact on
+  the artifact files.
+
+Recommend (1) now, (3) when the web client lands, skip (2). Same calculus
+applies to PlantUML, Graphviz, etc.
+
 ### Syntax Highlighting
 
 Code blocks need highlighting. Two options:
@@ -189,8 +268,32 @@ images means a single `.html` file is portable. The trade-off is file size
 for image-heavy artifacts; we can revisit if it becomes a problem.
 
 **Cache key.** Absolute source path + source `mtime_ns` + source size +
-CSS-profile hash. Same invariants as the PDF cache key
-(`markdown_view_image_keymap.md` §Cache Strategy).
+CSS-profile hash + **renderer-version hash** (markdown-it-py version +
+plugin set + sanitizer allowlist hash). The renderer-version component
+is new compared to the PDF cache key; markdown-it-py output is
+sensitive to plugin lineup in a way pandoc-pdf isn't, and we don't want
+to serve stale HTML after upgrading the parser.
+
+**Atomic `index.json` writes.** `markdown_pdf.py` writes individual
+`.pdf` files atomically (tmp file + `Path.replace()`) but writes
+`index.json` directly with `Path.write_text()` (see
+`markdown_pdf.py:146-149`). A concurrent renderer can read a torn
+index. The new HTML helper should fix this for itself (tmp + fsync +
+rename) **and** the same fix should be backported to `markdown_pdf.py`
+in a small follow-up — both pipelines may run in parallel from the
+mobile-notification path. No file locks needed; atomic rename is
+sufficient on Linux/macOS.
+
+**HTML size budget.** Base64 inlining of images is the easy win but can
+balloon a single `.html` to tens of MB. Cap per-artifact size at 10 MB
+(configurable). On overflow:
+
+  - For images: write the image as a sidecar under `markdown_html/`
+    and emit a relative `<img src>` pointing to it. The artifact loses
+    "single-file portability" only for the affected blobs.
+  - For text: truncate-with-warning and surface the truncation in the
+    artifact index so the TUI / web client can show "artifact too
+    large — open source".
 
 **Index schema bump.** Adding a parallel `markdown_html/` directory does
 not require touching `AGENT_ARTIFACT_INDEX_SCHEMA_VERSION` because the
@@ -229,6 +332,29 @@ don't translate).
 **Dark mode.** Add `@media (prefers-color-scheme: dark)` overrides from
 day one. The web client and the future Textual-Serve session will inherit
 the user's system preference; cheap to support, expensive to bolt on later.
+
+**Print stylesheet.** Add `@media print` rules (page-break-inside:
+avoid for tables and code blocks, restore page margins, drop the dark
+scheme). With print CSS in place, the same `.html` file can be
+"printed to PDF" by any browser — meaning the *long-term* version of
+this work could deprecate the pandoc/wkhtmltopdf path entirely:
+HTML is the source, PDF is just `chromium --headless --print-to-pdf`.
+That's a v3 conversation; mention only because it argues for getting
+print CSS right *now* rather than retrofitting.
+
+**Accessibility (a11y).** markdown-it-py emits semantic HTML by
+default (`<h1>`–`<h6>`, `<ul>`, `<table>` with `<thead>`/`<tbody>`,
+etc.), so we mostly inherit a good baseline. Two concrete asks:
+
+  - **Require alt text on images** at the renderer level — if the
+    Markdown is `![](path.png)` with no alt, emit a warning *and* a
+    placeholder alt like `"unlabeled image"`. Agents that produce
+    artifacts will learn the convention quickly.
+  - **Heading-level continuity.** Markdown that jumps from `#` to
+    `###` is technically valid but trips screen readers. Warn at
+    render time; do not auto-fix.
+
+Skip ARIA roles — semantic HTML is enough at our complexity.
 
 ## Terminal Rendering Options
 
@@ -302,10 +428,22 @@ web reuse costs nothing now and saves a migration later. Specifically:
   collisions. Lets the web client deep-link into a long artifact.
 - **`<base target="_blank">`** so any links in the artifact open in a new
   tab when embedded in an iframe in the web client.
+- **`<meta charset="utf-8">`** as the *first* element under `<head>` —
+  required by HTML5 for charset detection to be reliable across browsers
+  (especially mobile WebView).
 - **`<meta name="viewport" content="width=device-width, initial-scale=1">`**
   so mobile renders sanely.
 - **`<meta name="generator" content="sase markdown-html v1">`** for
   debugging and so future readers know what produced the file.
+- **Sandbox the iframe.** Recommended attribute set for the web
+  client's `<iframe>`: `sandbox="allow-same-origin allow-popups"` (no
+  `allow-scripts`, no `allow-top-navigation`). With our "no JS"
+  guarantee plus nh3 sanitization, this is safe and prevents
+  artifact-borne XSS from escaping the iframe.
+- **CSP via `<meta http-equiv="Content-Security-Policy">`** inside the
+  artifact itself: `default-src 'none'; img-src data:; style-src
+  'unsafe-inline'; font-src data:`. Belt-and-suspenders with the
+  sanitizer.
 
 The web-client repo can then be a thin viewer: list artifacts from the
 JSONL index, render each `<artifact>.html` in an iframe (sandboxed:
@@ -334,6 +472,11 @@ In rough dependency order:
    `AGENT_ARTIFACT_INDEX_SCHEMA_VERSION` to 2.
 5. **`src/sase/integrations/_mobile_notification_attachments.py`** —
    classify `.html` as kind `"html"` with MIME `text/html; charset=utf-8`.
+   Set `can_inline=False`: Telegram's `parse_mode=HTML` accepts only a
+   ~10-tag subset (`b`, `i`, `u`, `s`, `a`, `code`, `pre`, `tg-spoiler`,
+   `blockquote`, `tg-emoji`) and will reject the artifact's full HTML
+   body. HTML attachments must travel as `sendDocument` files, same as
+   the PDF path.
 6. **`src/sase/ace/tui/graphics/_viewer_render.py`** — no change for v1.
    Once Playwright is wired in, add an `"html"` arm next to the existing
    `"markdown"` arm, going HTML → PNG → `kitten icat`.
@@ -342,6 +485,15 @@ In rough dependency order:
    `render_markdown_pdf_attachments` — at least the mobile-notification
    pipeline), call `render_markdown_html_attachments()` in parallel.
    They're independent; failure of one shouldn't fail the other.
+8. **`src/sase/ace/tui/models/agent_content_search.py:59-60`** — *do
+   not* add `.html` files to the search index. Search reads the
+   `.md` source; the `.html` is derived. Add a comment to that effect
+   so the next contributor doesn't "fix" it.
+9. **Tests under `tests/test_markdown_html.py`** — model on
+   `tests/test_markdown_pdf.py`'s `tmp_path` + mocked-binary pattern,
+   but since markdown-it-py is a pure-Python library, the new tests
+   can call it directly with no `shutil.which()` / `subprocess.run()`
+   mocking. Simpler and more deterministic than the PDF tests.
 
 ## Boundary Question — sase-core?
 
@@ -426,9 +578,19 @@ fsync, rename) — same pattern as `markdown_pdf.py` already uses.
   someone actually emits an artifact with math.
 - **Single `.html` per artifact vs. a directory with sidecar assets.**
   Recommend single self-contained file. Revisit if image sizes blow up.
-- **Whether to retire the PDF path long-term.** Out of scope. The PDF
-  path is good for "print this artifact" workflows; HTML is for "view
-  this artifact." Different jobs.
+- **Whether to retire the PDF path long-term.** Out of scope today.
+  But: once HTML has a working `@media print` profile, a future
+  `chromium --headless --print-to-pdf` could replace pandoc entirely.
+  Worth a follow-up bead, not a v1 blocker.
+- **Mermaid / diagrams.** Render as fenced code blocks for v1 (no
+  visual diagram). Decide v2 between server-side `mermaid-cli` and
+  web-client `mermaid.js`. Recommend the latter.
+- **Should `render_markdown_pdf()` learn to strip frontmatter** as
+  part of this work, or leave that bug as-is? Recommend fixing it in
+  the same PR — `parse_frontmatter()` is a couple of lines and the
+  PDF output is visibly nicer with frontmatter gone.
+- **HTML size cap.** Recommend 10 MB; will need empirical tuning once
+  agents actually start emitting large rich artifacts.
 
 ## tmux / SSH Caveats
 
@@ -440,7 +602,11 @@ happen outside the Textual frame loop (suspended app or worker thread).
 
 ## Sources
 
-- Local: `src/sase/attachments/markdown_pdf.py`
+- Local: `src/sase/attachments/markdown_pdf.py` (also: `index.json`
+  write is not atomic at lines 146-149 — fix-in-passing candidate)
+- Local: `src/sase/sdd/frontmatter.py` (YAML frontmatter parser
+  already in the repo)
+- Local: `tests/test_markdown_pdf.py` (test-fixture pattern to mirror)
 - Local: `src/sase/core/agent_artifact_types.py` (artifact kinds, schema
   version, `infer_artifact_kind`)
 - Local: `src/sase/integrations/_mobile_notification_attachments.py`
@@ -479,3 +645,9 @@ happen outside the Textual frame loop (suspended app or worker thread).
 - mdcat (CLI Markdown viewer): https://github.com/swsnr/mdcat
 - frogmouth (Textual-based Markdown viewer):
   https://github.com/Textualize/frogmouth
+- Telegram Bot API HTML parse-mode tag allowlist:
+  https://core.telegram.org/bots/api#html-style
+- `mermaid-cli` (server-side mermaid → SVG):
+  https://github.com/mermaid-js/mermaid-cli
+- MDN iframe `sandbox` reference:
+  https://developer.mozilla.org/en-US/docs/Web/HTML/Element/iframe#sandbox
