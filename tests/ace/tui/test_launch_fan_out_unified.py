@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import threading
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
@@ -29,6 +30,7 @@ from sase.ace.tui.actions.agent_workflow._launch_repeat import RepeatLaunchMixin
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
 from sase.ace.tui.actions.agents._loading import AgentLoadingMixin
 from sase.ace.tui.util.nav_gate import NavigationGate
+from sase.xprompt.models import XPrompt
 
 
 def _ctx() -> PromptContext:
@@ -161,6 +163,7 @@ class _FanOutHarness:
         self.refresh_requests: list[str] = []
         self.launched: list[dict[str, Any]] = []
         self.refresh_display_calls: int = 0
+        self.notification_refresh_count: int = 0
 
     def notify(self, msg: str, *, severity: str | None = None) -> None:
         self.notifications.append((msg, severity))
@@ -181,6 +184,9 @@ class _FanOutHarness:
 
     def _refresh_display(self) -> None:
         self.refresh_display_calls += 1
+
+    def _refresh_notification_count(self) -> None:
+        self.notification_refresh_count += 1
 
     def _launch_background_agent(self, **kwargs: Any) -> None:
         self.launched.append(kwargs)
@@ -340,31 +346,138 @@ def test_multi_prompt_launch_context_is_immutable_snapshot() -> None:
     assert captured["display_name"] == "cl"
 
 
-def test_multi_model_launch_runs_off_main_thread_and_unifies_refresh() -> None:
+def test_multi_model_launch_uses_canonical_multi_prompt_launcher() -> None:
     app = _MultiModelApp()
     ctx = _ctx()
+    local_xprompts = {"_plan": XPrompt(name="_plan", content="Plan locally")}
+    launched = [object(), object()]
 
-    with patch("sase.running_field.claim_next_axe_workspace", return_value=2):
-        with patch(
-            "sase.running_field.get_workspace_directory_for_num",
-            return_value=("/tmp/ws", None),
-        ):
-            with patch(
-                "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
-                return_value=["260501_120000", "260501_120001"],
-            ):
-                # Run the worker body directly to verify behavior.
-                app._run_multi_model_launch(
-                    ["%model:a p", "%model:b p"], ctx, None, has_wait=False
-                )
+    with patch(
+        "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+        return_value=launched,
+    ) as launch_multi:
+        app._run_multi_model_launch(
+            ["%model:a p", "%model:b p"],
+            ctx,
+            ("git", "proj"),
+            has_wait=False,
+            fanout_kind="model",
+            local_xprompts=local_xprompts,
+        )
 
-    assert len(app.launched) == 2
-    # Each spawn issues a "launch" refresh request.
+    launch_multi.assert_called_once()
+    kwargs = launch_multi.call_args.kwargs
+    assert kwargs["segments"] == ["%model:a p", "%model:b p"]
+    assert kwargs["local_xprompts"] == local_xprompts
+    assert kwargs["cl_name"] == "cl"
+    assert kwargs["project_file"] == "/tmp/proj.gp"
+    assert kwargs["project_name"] == "proj"
+    assert kwargs["is_home_mode"] is False
+    assert kwargs["vcs_ref"] == ("git", "proj")
+    assert kwargs["default_bare_segments_to_home"] is False
+
+    kwargs["on_agent_spawned"]()
     refresh_calls = [
         (fn, args) for fn, args in app.scheduled if fn == app.request_agents_refresh
     ]
-    assert len(refresh_calls) == 2
-    assert all(args[0] == "launch" for _, args in refresh_calls)
+    assert len(refresh_calls) == 1
+    assert refresh_calls[0][1] == ("launch",)
+
+
+@pytest.mark.asyncio
+async def test_multi_model_dispatch_requests_immediate_refresh_and_snapshots_xprompts() -> (
+    None
+):
+    app = _MultiModelApp()
+    ctx = _ctx()
+    local_xprompts = {"_epic": XPrompt(name="_epic", content="Epic")}
+    captured: dict[str, Any] = {}
+
+    app._launch_multi_model_agents(
+        ["#_epic"],
+        ctx,
+        None,
+        has_wait=False,
+        fanout_kind="alternatives",
+        local_xprompts=local_xprompts,
+    )
+    local_xprompts["_late"] = XPrompt(name="_late", content="Late")
+
+    assert app.refresh_requests == ["launch"]
+    runners = [fn for fn, _ in app.scheduled if asyncio.iscoroutinefunction(fn)]
+    assert runners, "expected an async runner via call_later"
+    app.scheduled.clear()
+
+    async def _capture_to_thread(fn: Any, *args: Any, **kwargs: Any) -> None:
+        del fn, kwargs
+        captured["local_xprompts"] = args[5]
+
+    with patch("asyncio.to_thread", side_effect=_capture_to_thread):
+        await runners[0]()
+
+    assert set(captured["local_xprompts"]) == {"_epic"}
+
+
+def test_multi_model_xprompt_alternatives_are_passed_as_planned_segments() -> None:
+    app = _MultiModelApp()
+    ctx = _ctx()
+    segments = ["%name:ag.1\n#plan\nDo", "%name:ag.2\n#epic\nDo"]
+
+    with patch(
+        "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+        return_value=[object(), object()],
+    ) as launch_multi:
+        app._run_multi_model_launch(
+            segments,
+            ctx,
+            None,
+            has_wait=False,
+            fanout_kind="alternatives",
+        )
+
+    assert launch_multi.call_args.kwargs["segments"] == segments
+
+
+def test_multi_model_failure_records_toast_and_persistent_notification() -> None:
+    app = _MultiModelApp()
+    ctx = _ctx()
+
+    with (
+        patch(
+            "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+            side_effect=RuntimeError("workspace claim failed"),
+        ),
+        patch(
+            "sase.ace.tui.actions.agent_workflow._launch_multi_model._write_fanout_failure_report",
+            return_value=Path("/tmp/fanout_failure.txt"),
+        ),
+        patch("sase.notifications.append_notification") as append_notification,
+    ):
+        app._run_multi_model_launch(
+            ["%name:ag.1\n#plan", "%name:ag.2\n#epic"],
+            ctx,
+            ("git", "proj"),
+            has_wait=True,
+            fanout_kind="alternatives",
+        )
+
+    append_notification.assert_called_once()
+    notification = append_notification.call_args.args[0]
+    assert notification.sender == "user-agent"
+    assert notification.action == "ViewErrorReport"
+    assert notification.action_data["source"] == "tui_prompt_fanout"
+    assert notification.action_data["fanout_kind"] == "alternatives"
+    assert "workspace claim failed" in notification.notes[1]
+
+    while app.scheduled:
+        fn, args = app.scheduled.pop(0)
+        fn(*args)
+
+    assert app.notification_refresh_count == 1
+    assert (
+        "Prompt fan-out launch failed (see log)",
+        "error",
+    ) in app.notifications
 
 
 def test_repeat_launch_runs_off_main_thread_and_unifies_refresh() -> None:

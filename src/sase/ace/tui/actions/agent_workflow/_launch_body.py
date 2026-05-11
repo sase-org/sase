@@ -393,6 +393,7 @@ class AgentLaunchBodyMixin:
                 vcs_ref,
                 has_wait,
                 fanout_plan.launch_kind,
+                local_xprompts,
             )
             return
 

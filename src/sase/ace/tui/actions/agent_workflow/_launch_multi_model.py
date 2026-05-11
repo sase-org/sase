@@ -5,11 +5,15 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
 log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from sase.xprompt.models import XPrompt
+
     from ._types import PromptContext
 
 
@@ -23,6 +27,7 @@ class MultiModelLaunchMixin:
         vcs_ref: tuple[str, str] | None,
         has_wait: bool,
         fanout_kind: str = "model",
+        local_xprompts: dict[str, XPrompt] | None = None,
     ) -> None:
         """Launch one agent per slot for a prompt fan-out directive.
 
@@ -35,9 +40,11 @@ class MultiModelLaunchMixin:
             vcs_ref: Resolved VCS reference, if any.
             has_wait: Whether the prompt has ``%wait`` directives.
             fanout_kind: Launch fan-out kind used for telemetry.
+            local_xprompts: Local prompt definitions parsed from frontmatter.
         """
         n = len(model_prompts)
         snap = dataclasses.replace(ctx)
+        local_xprompts = dict(local_xprompts or {})
 
         async def _runner() -> None:
             await asyncio.to_thread(
@@ -47,8 +54,10 @@ class MultiModelLaunchMixin:
                 vcs_ref,
                 has_wait,
                 fanout_kind,
+                local_xprompts,
             )
 
+        self.request_agents_refresh("launch")  # type: ignore[attr-defined]
         self.notify(f"Launching {n} agent(s) for {snap.display_name}...")  # type: ignore[attr-defined]
         self.call_later(_runner)  # type: ignore[attr-defined]
 
@@ -59,79 +68,166 @@ class MultiModelLaunchMixin:
         vcs_ref: tuple[str, str] | None,
         has_wait: bool,
         fanout_kind: str = "model",
+        local_xprompts: dict[str, XPrompt] | None = None,
     ) -> None:
         """Worker-thread body for :meth:`_launch_multi_model_agents`."""
+        from sase.agent.launch_timing import LaunchTimingRecorder
+
+        timer = LaunchTimingRecorder(
+            "tui_agent_launch_fanout",
+            {
+                "fanout_kind": fanout_kind,
+                "slot_count": len(model_prompts),
+                "project_name": ctx.project_name,
+                "home_mode": ctx.is_home_mode,
+            },
+        )
         try:
-            from sase.agent.launch_timing import LaunchTimingRecorder
-            from sase.agent.launch_executor import (
-                LaunchExecutionContext,
-                LaunchSpawnRequest,
-                execute_launch_plan,
-            )
-            from sase.core.agent_launch_facade import plan_fake_fanout
+            from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 
-            def _spawn_from_tui(request: LaunchSpawnRequest) -> None:
-                self._launch_background_agent(  # type: ignore[attr-defined]
-                    cl_name=request.cl_name,
-                    project_file=request.project_file,
-                    workspace_dir=request.workspace_dir,
-                    workspace_num=request.workspace_num,
-                    workflow_name=request.workflow_name,
-                    prompt=request.prompt,
-                    timestamp=request.timestamp,
-                    update_target=request.update_target,
-                    project_name=request.project_name,
-                    history_sort_key=request.history_sort_key,
-                    is_home_mode=request.is_home_mode,
-                    vcs_ref=request.vcs_ref,
-                    deferred_workspace=request.deferred_workspace,
-                    extra_env=request.extra_env,
-                )
-
-            def _refresh_after_slot(_record: object) -> None:
-                self.call_later(  # type: ignore[attr-defined]
-                    self.request_agents_refresh,  # type: ignore[attr-defined]
-                    "launch",
-                )
-
-            plan = plan_fake_fanout(fanout_kind, model_prompts)
-            context = LaunchExecutionContext(
-                cl_name=ctx.display_name,
-                project_file=ctx.project_file,
-                project_name=ctx.project_name,
-                update_target=ctx.update_target,
-                history_sort_key=ctx.history_sort_key,
-                is_home_mode=ctx.is_home_mode,
-                vcs_ref=vcs_ref,
+            with timer.stage(
+                "launch_multi_prompt_agents",
+                slot_count=len(model_prompts),
                 deferred_workspace=has_wait,
-                workspace_num=ctx.workspace_num,
-                workspace_dir=ctx.workspace_dir,
-            )
-
-            timer = LaunchTimingRecorder(
-                "tui_agent_launch_fanout",
-                {
-                    "fanout_kind": fanout_kind,
-                    "slot_count": len(model_prompts),
-                    "project_name": ctx.project_name,
-                    "home_mode": ctx.is_home_mode,
-                },
-            )
-            with timer.stage("execute_launch_plan", slot_count=len(model_prompts)):
-                execution = execute_launch_plan(
-                    plan,
-                    context,
-                    spawn=_spawn_from_tui,
-                    on_slot_executed=_refresh_after_slot,
+            ):
+                results = launch_multi_prompt_agents(
+                    segments=model_prompts,
+                    local_xprompts=local_xprompts or {},
+                    cl_name=ctx.display_name,
+                    project_file=ctx.project_file,
+                    project_name=ctx.project_name,
+                    is_home_mode=ctx.is_home_mode,
+                    vcs_ref=vcs_ref,
+                    on_agent_spawned=lambda: self.call_later(  # type: ignore[attr-defined]
+                        self.request_agents_refresh,  # type: ignore[attr-defined]
+                        "launch",
+                    ),
+                    default_bare_segments_to_home=ctx.is_home_mode,
                 )
 
-            msg = f"Started {execution.launched_count} agent(s) for {ctx.display_name}"
-            timer.finish(outcome="ok", launched=execution.launched_count)
+            msg = f"Started {len(results)} agent(s) for {ctx.display_name}"
+            timer.finish(outcome="ok", launched=len(results))
             self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
-        except Exception:
+        except Exception as exc:
+            timer.finish(outcome="error")
             log.exception("Prompt fan-out launch failed")
+            _record_fanout_launch_failure(
+                exc,
+                ctx=ctx,
+                vcs_ref=vcs_ref,
+                has_wait=has_wait,
+                fanout_kind=fanout_kind,
+                slot_count=len(model_prompts),
+            )
+            self.call_later(  # type: ignore[attr-defined]
+                _refresh_notification_count_if_available, self
+            )
             self.call_later(  # type: ignore[attr-defined]
                 lambda: self.notify(  # type: ignore[attr-defined]
                     "Prompt fan-out launch failed (see log)", severity="error"
                 )
             )
+
+
+def _record_fanout_launch_failure(
+    exc: BaseException,
+    *,
+    ctx: PromptContext,
+    vcs_ref: tuple[str, str] | None,
+    has_wait: bool,
+    fanout_kind: str,
+    slot_count: int,
+) -> None:
+    """Persist a compact notification for fan-out failures before agents exist."""
+    try:
+        from datetime import datetime
+
+        from sase.core.time import get_timezone
+        from sase.notifications import Notification, append_notification
+
+        exc_summary = f"{type(exc).__name__}: {exc}"
+        report_path = _write_fanout_failure_report(
+            exc_summary,
+            ctx=ctx,
+            vcs_ref=vcs_ref,
+            has_wait=has_wait,
+            fanout_kind=fanout_kind,
+            slot_count=slot_count,
+        )
+        notes = [
+            f"Prompt fan-out launch failed for {ctx.display_name}",
+            exc_summary,
+            (
+                f"kind={fanout_kind} slots={slot_count} "
+                f"project={ctx.project_name} home_mode={ctx.is_home_mode}"
+            ),
+        ]
+        append_notification(
+            Notification(
+                id=str(uuid4()),
+                timestamp=datetime.now(get_timezone()).isoformat(),
+                sender="user-agent",
+                notes=notes,
+                files=[str(report_path)],
+                action="ViewErrorReport",
+                action_data={
+                    "error_report_path": str(report_path),
+                    "source": "tui_prompt_fanout",
+                    "fanout_kind": fanout_kind,
+                    "slot_count": str(slot_count),
+                    "project_name": ctx.project_name,
+                    "display_name": ctx.display_name,
+                },
+            )
+        )
+    except Exception:
+        log.warning(
+            "Failed to record prompt fan-out failure notification", exc_info=True
+        )
+
+
+def _write_fanout_failure_report(
+    exc_summary: str,
+    *,
+    ctx: PromptContext,
+    vcs_ref: tuple[str, str] | None,
+    has_wait: bool,
+    fanout_kind: str,
+    slot_count: int,
+) -> Path:
+    from datetime import datetime
+
+    from sase.core.time import get_timezone
+
+    report_dir = Path.home() / ".sase" / "notifications" / "fanout_failures"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(get_timezone()).strftime("%Y%m%d_%H%M%S_%f")
+    report_path = report_dir / f"prompt_fanout_failure_{timestamp}.txt"
+    vcs_label = "" if vcs_ref is None else f"{vcs_ref[0]}:{vcs_ref[1]}"
+    report_path.write_text(
+        "\n".join(
+            [
+                "Prompt fan-out launch failed before any child agents were created.",
+                "",
+                f"Error: {exc_summary}",
+                f"Fanout kind: {fanout_kind}",
+                f"Slot count: {slot_count}",
+                f"Display name: {ctx.display_name}",
+                f"Project name: {ctx.project_name}",
+                f"Project file: {ctx.project_file}",
+                f"History key: {ctx.history_sort_key}",
+                f"Home mode: {ctx.is_home_mode}",
+                f"Deferred workspace: {has_wait}",
+                f"VCS ref: {vcs_label}",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return report_path
+
+
+def _refresh_notification_count_if_available(app: object) -> None:
+    refresh = getattr(app, "_refresh_notification_count", None)
+    if callable(refresh):
+        refresh()

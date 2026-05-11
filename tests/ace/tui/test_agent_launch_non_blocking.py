@@ -321,6 +321,31 @@ def test_run_agent_launch_body_dispatches_pure_alt_fanout() -> None:
         "%name:ag.perf\nperformance pass\nReview",
     ]
     assert args[4] == "alternatives"
+    assert args[5] == {}
+
+
+def test_run_agent_launch_body_forwards_local_xprompts_to_fanout_worker() -> None:
+    app = _LaunchBodyApp()
+
+    _run_launch_body_with_common_patches(
+        app,
+        "---\n"
+        "xprompts:\n"
+        '  _flash: "gemini-3-flash-preview"\n'
+        "---\n"
+        "%n:ag\n"
+        "%m(#_flash,sonnet)\n"
+        "Review",
+    )
+
+    fanout_calls = [
+        (fn, args) for fn, args in app.scheduled if fn == app._launch_multi_model_agents
+    ]
+    assert len(fanout_calls) == 1
+    _, args = fanout_calls[0]
+    local_xprompts = args[5]
+    assert set(local_xprompts) == {"_flash"}
+    assert local_xprompts["_flash"].content == "gemini-3-flash-preview"
 
 
 def test_run_agent_launch_body_direct_single_agent_refreshes_after_success() -> None:
