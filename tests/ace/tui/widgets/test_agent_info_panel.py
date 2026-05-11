@@ -100,6 +100,23 @@ def test_agent_count_numbers_have_rich_styles() -> None:
         "read": "bold #5FD7FF",
     }
 
+    label_styles = {
+        " stopped": _style_for_plain_segment(text, " stopped"),
+        " running": _style_for_plain_segment(text, " running"),
+        " waiting": _style_for_plain_segment(text, " waiting"),
+        " failed": _style_for_plain_segment(text, " failed"),
+        " unread": _style_for_plain_segment(text, " unread"),
+        " done": _style_for_plain_segment(text, " done"),
+    }
+    assert label_styles == {
+        " stopped": "dim",
+        " running": "dim",
+        " waiting": "dim",
+        " failed": "dim",
+        " unread": "bold #1a1a1a on #FFD700",
+        " done": "dim",
+    }
+
 
 def test_update_agent_counts_uses_plain_metric_text() -> None:
     panel = AgentInfoPanel()

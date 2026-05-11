@@ -176,8 +176,11 @@ class AgentInfoPanel(Static):
         for index, (label, count) in enumerate(metrics):
             if index:
                 text.append(" · ", style="dim")
-            text.append(f"{count}", style=self._COUNT_STYLES[label])
-            text.append(f" {self._COUNT_LABELS.get(label, label)}", style="dim")
+            count_style = self._COUNT_STYLES[label]
+            text.append(f"{count}", style=count_style)
+            suffix = f" {self._COUNT_LABELS.get(label, label)}"
+            label_style = count_style if label == "unread" else "dim"
+            text.append(suffix, style=label_style)
         text.append("]", style="dim")
 
     def _update_display(self) -> None:
