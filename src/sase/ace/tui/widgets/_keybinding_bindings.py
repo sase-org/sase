@@ -38,13 +38,18 @@ class KeybindingBindingsMixin:
         *,
         selected_slot_done: bool = False,
         chop_run_total: int = 0,
+        chop_selected: bool = False,
+        chop_selected_running: bool = False,
     ) -> list[tuple[str, str]]:
         """Compute entry-dependent bindings for Axe tab.
 
         ``x`` is entry-dependent: its label changes between "start/stop axe"
         (no selectable axe-parent row in Phase 3; daemon controls remain on
         lumberjack and chop rows) and "kill" (bgcmd rows).
-        ``r`` (re-run) is shown only when a done background command is selected.
+        ``r`` is dispatched off the selected row: ``re-run`` on a done
+        background command, ``run chop`` on an idle chop row, or ``running``
+        on a chop whose newest run is still active (the backend refuses an
+        overlapping launch, so the affordance reflects that).
         Ctrl+N / Ctrl+P surface only on chop rows with at least two recorded
         runs, since with zero or one run the keys cannot do anything useful.
         """
@@ -56,6 +61,9 @@ class KeybindingBindingsMixin:
         bindings.append((self._kd("kill_agent"), label))
         if selected_slot_done:
             bindings.append((self._kd("run_workflow"), "re-run"))
+        elif chop_selected:
+            label = "running" if chop_selected_running else "run chop"
+            bindings.append((self._kd("run_workflow"), label))
         if axe_current_view == "axe" and chop_run_total >= 2:
             bindings.append(
                 (

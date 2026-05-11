@@ -205,14 +205,22 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                         else:
                             selected_slot_done = not is_slot_running(sel_item.slot)
                 chop_run_total = 0
+                chop_selected = self._axe_chop_selection is not None
+                chop_selected_running = False
                 if self._axe_chop_selection is not None:
                     chop_snap = self._axe_chop_snapshots.get(self._axe_chop_selection)
                     if chop_snap is not None:
                         chop_run_total = len(chop_snap.runs)
+                        if chop_snap.runs:
+                            chop_selected_running = (
+                                chop_snap.runs[0].entry.status == "running"
+                            )
                 footer.update_axe_bindings(
                     axe_current_view=self._axe_current_view,
                     selected_slot_done=selected_slot_done,
                     chop_run_total=chop_run_total,
+                    chop_selected=chop_selected,
+                    chop_selected_running=chop_selected_running,
                 )
 
             # Always update the side-panel list. Pass cached statuses and

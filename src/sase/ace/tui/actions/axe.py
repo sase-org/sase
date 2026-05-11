@@ -14,6 +14,7 @@ from sase.axe.state import (
 
 from ..bgcmd import BackgroundCommandInfo, clear_slot_output
 from .axe_bgcmd import AxeBgCmdMixin
+from .axe_chop_run import AxeChopRunMixin
 from .axe_display import AxeDisplayMixin, get_axe_process_module
 
 if TYPE_CHECKING:
@@ -28,7 +29,7 @@ TabName = Literal["changespecs", "agents", "axe"]
 AxeViewType = Literal["axe"] | int
 
 
-class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
+class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
     """Mixin providing axe daemon control and display methods."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
