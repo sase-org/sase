@@ -168,7 +168,12 @@ def stream_chop_script(
                 log_file.write(chunk)
                 with bytes_lock:
                     bytes_written += len(chunk)
-        except OSError:
+        except (OSError, ValueError):
+            # ValueError covers writes to ``log_file`` after the main thread
+            # closed it — possible if ``pump_thread.join`` timed out because
+            # a detached grandchild kept the pipe open past parent cleanup.
+            # Without it the daemon would crash with an unhandled traceback
+            # and drop the tail bytes silently.
             pass
 
     pump_thread = threading.Thread(target=pump, daemon=True)
