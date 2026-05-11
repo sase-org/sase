@@ -15,6 +15,20 @@ if TYPE_CHECKING:
 TabName = Literal["changespecs", "agents", "axe"]
 
 
+def _is_agent_completion_notification(n: Notification) -> bool:
+    """Return True iff ``n`` is an agent completion notification.
+
+    Matches the same shape the Rust `dismiss_agent_completions` predicate
+    targets: ``sender="user-agent"`` plus ``action`` in ``{JumpToAgent,
+    ViewErrorReport}`` with a ``cl_name`` in ``action_data``.
+    """
+    if n.sender != "user-agent":
+        return False
+    if n.action not in ("JumpToAgent", "ViewErrorReport"):
+        return False
+    return bool(n.action_data.get("cl_name"))
+
+
 def _unread_notification_buckets(
     notifications: list[Notification],
 ) -> tuple[
@@ -55,6 +69,8 @@ class AgentNotificationMixin:
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
     _plan_feedback_context: PlanFeedbackContext | None
+    _agent_completion_dismiss_inflight: bool
+    _agent_completion_ack_latch: bool
 
     async def _poll_agent_completions(self) -> None:
         """Poll notification store for new unread notifications.
@@ -101,6 +117,14 @@ class AgentNotificationMixin:
             self._ring_tmux_bell()
 
         self._last_unread_ids = current_ids
+
+        # Arm the Agents-tab acknowledgement latch whenever any unread
+        # completion notification is in the snapshot. The latch is cleared
+        # by `_dismiss_agent_completion_notifications_for_agents_tab` after
+        # the next user activity on the Agents tab (or on Agents-tab entry,
+        # which bypasses the latch entirely).
+        if any(_is_agent_completion_notification(n) for n in unread_active):
+            self._agent_completion_ack_latch = True
 
         # Update persistent notification indicator
         from ...widgets import NotificationIndicator
@@ -326,6 +350,55 @@ class AgentNotificationMixin:
             "#notification-indicator", NotificationIndicator
         )
         indicator.set_counts(counts.priority + counts.errors, counts.rest, counts.muted)
+
+    async def _dismiss_agent_completion_notifications_for_agents_tab(
+        self, *, force: bool = False
+    ) -> None:
+        """Bulk-dismiss agent completion notifications as Agents-tab ack.
+
+        Fires on Agents-tab entry (``force=True``) and on any user activity
+        while already on the Agents tab (``force=False``). When ``force`` is
+        False, the latch short-circuits the call so j/k bursts in a
+        steady-state inbox do not hammer the store.
+        """
+        import asyncio
+
+        from sase.notifications import dismiss_agent_completion_notifications
+
+        if self._agent_completion_dismiss_inflight:
+            return
+        if not force and not self._agent_completion_ack_latch:
+            return
+
+        self._agent_completion_dismiss_inflight = True
+        try:
+            changed = await asyncio.to_thread(dismiss_agent_completion_notifications)
+        finally:
+            self._agent_completion_dismiss_inflight = False
+            # Always clear the latch; future polls will re-arm it if any
+            # new completion notification arrives.
+            self._agent_completion_ack_latch = False
+
+        if changed > 0:
+            await self._refresh_notification_count_async()
+
+    def _request_agent_completion_dismiss(self, *, force: bool = False) -> None:
+        """Sync entry point: schedule the async Agents-tab dismissal helper.
+
+        Cheap fast-path: when the latch is clear and ``force`` is False, no
+        worker is spawned, so j/k navigation in a steady-state inbox stays
+        on the hot path. When in-flight, dropping the request is safe — the
+        next user activity (or tab entry) will retry.
+        """
+        if self._agent_completion_dismiss_inflight:
+            return
+        if not force and not self._agent_completion_ack_latch:
+            return
+        self.run_worker(  # type: ignore[attr-defined]
+            self._dismiss_agent_completion_notifications_for_agents_tab(force=force),
+            exclusive=False,
+            name="agents-tab-completion-dismiss",
+        )
 
     def _ring_tmux_bell(self) -> None:
         """Ring tmux bell to notify user of agent completion."""

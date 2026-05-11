@@ -342,6 +342,13 @@ class EventHandlersMixin:
             write_activity_timestamp(time.time())
             self._last_activity_flush = time.monotonic()
             self._activity_log.record(ActivityEventType.ACTIVE)
+        # Agents-tab activity acknowledges queued completion notifications.
+        # Latch-gated inside the helper so non-Agents activity and idle j/k
+        # bursts (already-empty inbox) skip the worker entirely.
+        if getattr(self, "current_tab", None) == "agents":
+            request = getattr(self, "_request_agent_completion_dismiss", None)
+            if request is not None:
+                request(force=False)
 
     def on_key(self, event: events.Key) -> None:
         """Handle key events, including fold, checkout, copy, and ancestry sub-keys."""

@@ -348,6 +348,12 @@ class StateInitMixin:
         )
         self._kill_persistence_inflight: set[tuple[AgentType, str, str | None]] = set()
 
+        # Agents-tab acknowledgement of completion notifications: the latch
+        # arms a bulk dismiss on the next user activity, and the in-flight
+        # flag coalesces overlapping dismiss calls (e.g. fast j/k bursts).
+        self._agent_completion_dismiss_inflight: bool = False
+        self._agent_completion_ack_latch: bool = False
+
         # Plan feedback context (set when user presses 'f' in plan approval modal)
         from .agents._types import PlanFeedbackContext
 

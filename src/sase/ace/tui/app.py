@@ -340,6 +340,9 @@ class AceApp(
             else:
                 # First load ever — must block to populate initial state
                 self._load_agents()
+            # Tab entry acknowledges any pre-existing completion notifications;
+            # bypass the latch so pre-session rows are dismissed too.
+            self._request_agent_completion_dismiss(force=True)
         else:  # axe
             changespecs_view.add_class("hidden")
             agents_view.add_class("hidden")
