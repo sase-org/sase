@@ -10,22 +10,22 @@ def test_bgcmd_list_selection_changed_slot() -> None:
     assert msg.index == 3
 
 
-def test_bgcmd_list_format_axe_parent_option_stopped() -> None:
-    """Test formatting axe parent option when stopped."""
+def test_bgcmd_list_format_lumberjack_option_stopped() -> None:
+    """Test formatting a top-level lumberjack option without a status."""
     widget = BgCmdList()
-    option = widget._format_axe_parent_option(
-        is_running=False, is_selected=False, child_count=0, is_expanded=False
+    option = widget._format_lumberjack_option(
+        name="hooks", status=None, is_selected=False
     )
-    assert option.id == "axe"
+    assert option.id == "lumberjack-hooks"
 
 
-def test_bgcmd_list_format_axe_parent_option_selected() -> None:
-    """Test formatting axe parent option when selected."""
+def test_bgcmd_list_format_lumberjack_option_selected() -> None:
+    """Test formatting a top-level lumberjack option when selected."""
     widget = BgCmdList()
-    option = widget._format_axe_parent_option(
-        is_running=True, is_selected=True, child_count=0, is_expanded=False
+    option = widget._format_lumberjack_option(
+        name="hooks", status=None, is_selected=True
     )
-    assert option.id == "axe"
+    assert option.id == "lumberjack-hooks"
 
 
 def test_bgcmd_list_format_bgcmd_option_long_command() -> None:

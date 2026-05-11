@@ -29,7 +29,6 @@ from ...bgcmd import (
 )
 from ...widgets.bgcmd_list import (
     AxeItem,
-    AxeParentItem,
     BgCmdItem,
     ChopItem,
     LumberjackItem,
@@ -51,8 +50,7 @@ if TYPE_CHECKING:
 
 
 type AxeItemKey = (
-    tuple[Literal["axe"], None]
-    | tuple[Literal["lumberjack"], str]
+    tuple[Literal["lumberjack"], str]
     | tuple[Literal["chop"], str, str]
     | tuple[Literal["bgcmd"], int]
 )
@@ -61,8 +59,6 @@ type AxeItemKey = (
 def _axe_item_key(item: AxeItem) -> AxeItemKey:
     """Return the stable identity key for an AXE side-panel item."""
     match item:
-        case AxeParentItem():
-            return ("axe", None)
         case LumberjackItem(name=name):
             return ("lumberjack", name)
         case ChopItem(lumberjack_name=lj_name, chop_name=chop_name):
@@ -396,14 +392,26 @@ class AxeDisplayLoadersMixin:
             selected_key = self._axe_last_item_key
             prior_visual_row = self._axe_last_idx
 
-        items: list[AxeItem] = [AxeParentItem()]
+        items: list[AxeItem] = []
 
-        # Add lumberjack children when expanded
-        if self._axe_fold_manager.get("axe") != FoldLevel.COLLAPSED:
-            for lumberjack_name in self._axe_lumberjack_names:
-                items.append(LumberjackItem(name=lumberjack_name))
+        # Top-level lumberjacks, each followed by its configured chops
+        # when its per-lumberjack fold is expanded. First-time sightings
+        # default to expanded so chops are visible without an extra keystroke.
+        for lumberjack_name in self._axe_lumberjack_names:
+            items.append(LumberjackItem(name=lumberjack_name))
+            fold_key = f"lumberjack:{lumberjack_name}"
+            if not self._axe_fold_manager.has(fold_key):
+                self._axe_fold_manager.expand(fold_key)
+            if self._axe_fold_manager.get(fold_key) != FoldLevel.COLLAPSED:
+                for chop_name in self._axe_lumberjack_chop_names.get(
+                    lumberjack_name, []
+                ):
+                    items.append(
+                        ChopItem(lumberjack_name=lumberjack_name, chop_name=chop_name)
+                    )
 
-        # Add bgcmd entries when not hidden
+        # Add bgcmd entries when not hidden, visually separated below the
+        # lumberjack tree.
         if not self._axe_cmds_hidden:
             for slot, _ in sorted(self._bgcmd_slots, key=lambda x: x[0]):
                 items.append(BgCmdItem(slot=slot))
@@ -435,9 +443,6 @@ class AxeDisplayLoadersMixin:
 
         item = self._axe_items[self.current_idx]
         match item:
-            case AxeParentItem():
-                self._axe_current_view = "axe"
-                self._axe_lumberjack_idx = None
             case LumberjackItem(name=name):
                 self._axe_current_view = "axe"
                 try:

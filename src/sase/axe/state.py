@@ -308,15 +308,6 @@ def read_output_log_tail(lines: int = 1000) -> str:
     return _read_tail_seek(AXE_OUTPUT_LOG, lines)
 
 
-def clear_output_log() -> None:
-    """Clear the axe output log file."""
-    if AXE_OUTPUT_LOG.exists():
-        try:
-            AXE_OUTPUT_LOG.write_text("")
-        except OSError:
-            pass
-
-
 # --- Utility ---
 
 

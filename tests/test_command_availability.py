@@ -24,7 +24,6 @@ from sase.ace.tui.commands import (
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.bgcmd_list import (
-    AxeParentItem,
     BgCmdItem,
     LumberjackItem,
 )
@@ -333,7 +332,7 @@ def test_jump_to_next_unread_done_agent_requires_unread_completed_agent() -> Non
 def test_axe_run_workflow_only_on_done_bgcmd_row() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.run_workflow"]
-    parent_ctx = CommandContext(tab="axe", axe_item=AxeParentItem())
+    lumberjack_ctx = CommandContext(tab="axe", axe_item=LumberjackItem(name="hooks"))
     bgcmd_running = CommandContext(
         tab="axe",
         axe_item=BgCmdItem(slot=1),
@@ -344,7 +343,7 @@ def test_axe_run_workflow_only_on_done_bgcmd_row() -> None:
         axe_item=BgCmdItem(slot=1),
         selected_axe_slot_done=True,
     )
-    assert not is_command_available(spec, parent_ctx)
+    assert not is_command_available(spec, lumberjack_ctx)
     assert not is_command_available(spec, bgcmd_running)
     assert is_command_available(spec, bgcmd_done)
 
@@ -352,10 +351,10 @@ def test_axe_run_workflow_only_on_done_bgcmd_row() -> None:
 def test_axe_kill_agent_always_meaningful() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.kill_agent"]
-    parent_ctx = CommandContext(tab="axe", axe_item=AxeParentItem())
+    no_item_ctx = CommandContext(tab="axe", axe_item=None)
     bgcmd_ctx = CommandContext(tab="axe", axe_item=BgCmdItem(slot=1))
     lumberjack_ctx = CommandContext(tab="axe", axe_item=LumberjackItem(name="hooks"))
-    assert is_command_available(spec, parent_ctx)
+    assert is_command_available(spec, no_item_ctx)
     assert is_command_available(spec, bgcmd_ctx)
     assert is_command_available(spec, lumberjack_ctx)
 

@@ -446,27 +446,98 @@ class AgentFoldingMixin:
         if self._fold_manager.collapse_all(keys):
             self._refilter_agents()  # type: ignore[attr-defined]
 
+    def _focused_axe_lumberjack_name(self) -> str | None:
+        """Return the lumberjack name for the focused AXE row, if any.
+
+        Chops resolve to their parent lumberjack so ``l``/``h`` on a chop
+        operates on the enclosing fold.
+        """
+        from ...widgets.bgcmd_list import ChopItem, LumberjackItem
+
+        axe_items: list[object] = self._axe_items  # type: ignore[attr-defined]
+        if not axe_items or not (0 <= self.current_idx < len(axe_items)):
+            return None
+        item = axe_items[self.current_idx]
+        if isinstance(item, LumberjackItem):
+            return item.name
+        if isinstance(item, ChopItem):
+            return item.lumberjack_name
+        return None
+
+    def _navigate_to_axe_lumberjack(self, name: str) -> None:
+        """Move the AXE cursor to the row for ``name`` if it is visible."""
+        from ...widgets.bgcmd_list import LumberjackItem
+
+        axe_items: list[object] = self._axe_items  # type: ignore[attr-defined]
+        for idx, item in enumerate(axe_items):
+            if isinstance(item, LumberjackItem) and item.name == name:
+                self.current_idx = idx
+                return
+
     def _expand_axe_fold(self) -> None:
-        """Expand the AXE lumberjack fold."""
+        """Expand the fold for the focused lumberjack (or chop's parent)."""
         axe_fold_manager: FoldStateManager = self._axe_fold_manager  # type: ignore[attr-defined]
-        if axe_fold_manager.expand("axe"):
+        name = self._focused_axe_lumberjack_name()
+        if name is None:
+            return
+        if axe_fold_manager.expand(f"lumberjack:{name}"):
             self._build_axe_items()  # type: ignore[attr-defined]
             self._refresh_axe_display()  # type: ignore[attr-defined]
 
     def _collapse_axe_fold(self) -> None:
-        """Collapse the AXE lumberjack fold.
+        """Collapse the fold for the focused lumberjack.
 
-        If on a lumberjack child, navigate to parent first.
+        If on a chop child, navigate to its parent lumberjack first so the
+        cursor doesn't end up on a row that just disappeared.
         """
-        from ...widgets.bgcmd_list import LumberjackItem
+        from ...widgets.bgcmd_list import ChopItem
+
+        axe_fold_manager: FoldStateManager = self._axe_fold_manager  # type: ignore[attr-defined]
+        name = self._focused_axe_lumberjack_name()
+        if name is None:
+            return
 
         axe_items: list[object] = self._axe_items  # type: ignore[attr-defined]
         if axe_items and 0 <= self.current_idx < len(axe_items):
-            if isinstance(axe_items[self.current_idx], LumberjackItem):
-                self.current_idx = 0  # Navigate to axe parent
+            if isinstance(axe_items[self.current_idx], ChopItem):
+                self._navigate_to_axe_lumberjack(name)
+
+        if axe_fold_manager.collapse(f"lumberjack:{name}"):
+            self._build_axe_items()  # type: ignore[attr-defined]
+            self._refresh_axe_display()  # type: ignore[attr-defined]
+
+    def _expand_all_axe_folds(self) -> None:
+        """Expand every lumberjack fold one level (``L`` on AXE)."""
+        axe_fold_manager: FoldStateManager = self._axe_fold_manager  # type: ignore[attr-defined]
+        names: list[str] = list(self._axe_lumberjack_names)  # type: ignore[attr-defined]
+        if not names:
+            return
+        keys = [f"lumberjack:{n}" for n in names]
+        if axe_fold_manager.expand_all(keys):
+            self._build_axe_items()  # type: ignore[attr-defined]
+            self._refresh_axe_display()  # type: ignore[attr-defined]
+
+    def _collapse_all_axe_folds(self) -> None:
+        """Collapse every lumberjack fold one level (``H`` on AXE).
+
+        If the cursor is on a chop child, snap to its parent lumberjack
+        first so the cursor stays on a still-visible row.
+        """
+        from ...widgets.bgcmd_list import ChopItem
 
         axe_fold_manager: FoldStateManager = self._axe_fold_manager  # type: ignore[attr-defined]
-        if axe_fold_manager.collapse("axe"):
+        names: list[str] = list(self._axe_lumberjack_names)  # type: ignore[attr-defined]
+        if not names:
+            return
+
+        axe_items: list[object] = self._axe_items  # type: ignore[attr-defined]
+        if axe_items and 0 <= self.current_idx < len(axe_items):
+            sel = axe_items[self.current_idx]
+            if isinstance(sel, ChopItem):
+                self._navigate_to_axe_lumberjack(sel.lumberjack_name)
+
+        keys = [f"lumberjack:{n}" for n in names]
+        if axe_fold_manager.collapse_all(keys):
             self._build_axe_items()  # type: ignore[attr-defined]
             self._refresh_axe_display()  # type: ignore[attr-defined]
 
@@ -495,7 +566,7 @@ class AgentFoldingMixin:
         if self.current_tab == "agents":
             self._collapse_all_folds()
         elif self.current_tab == "axe":
-            self._collapse_axe_fold()
+            self._collapse_all_axe_folds()
         elif self.current_tab == "changespecs":
             if self._collapse_all_changespec_group_folds():  # type: ignore[attr-defined]
                 self._refresh_display()  # type: ignore[attr-defined]
@@ -505,7 +576,7 @@ class AgentFoldingMixin:
         if self.current_tab == "agents":
             self._expand_all_folds()
         elif self.current_tab == "axe":
-            self._expand_axe_fold()
+            self._expand_all_axe_folds()
         elif self.current_tab == "changespecs":
             if self._expand_all_changespec_group_folds():  # type: ignore[attr-defined]
                 self._refresh_display()  # type: ignore[attr-defined]

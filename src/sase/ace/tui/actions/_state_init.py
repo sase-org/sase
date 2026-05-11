@@ -418,8 +418,10 @@ class StateInitMixin:
         self._axe_items: list[AxeItem] = []
         self._axe_last_idx: int = 0
         self._axe_last_item_key: AxeItemKey | None = None
+        # Per-lumberjack fold keys ("lumberjack:<name>") are initialized
+        # to EXPANDED lazily in ``_build_axe_items`` the first time each
+        # lumberjack is seen.
         self._axe_fold_manager = FoldStateManager()
-        self._axe_fold_manager.expand("axe")  # start expanded by default
 
         # Query history stacks for prev/next navigation
         from ...query_history import load_query_history

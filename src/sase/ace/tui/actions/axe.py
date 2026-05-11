@@ -10,7 +10,6 @@ from sase.axe.state import (
     AxeMetrics,
     AxeStatus,
     clear_lumberjack_output_log,
-    clear_output_log,
 )
 
 from ..bgcmd import BackgroundCommandInfo, clear_slot_output
@@ -183,23 +182,24 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
 
     def action_clear_axe_output(self) -> None:
         """Clear the output log for the current view."""
-        from ..widgets.bgcmd_list import AxeParentItem, BgCmdItem, LumberjackItem
+        from ..widgets.bgcmd_list import BgCmdItem, ChopItem, LumberjackItem
 
         if self.current_tab != "axe":
             return
 
-        # Derive what to clear from the selected item
+        # Derive what to clear from the selected item. Chop run history is
+        # immutable from the TUI in Phase 3 — the affordance still clears
+        # the parent lumberjack log when a chop child is selected.
         axe_items = self._axe_items  # type: ignore[attr-defined]
         if not axe_items or self.current_idx >= len(axe_items):
             return
 
         item = axe_items[self.current_idx]
         match item:
-            case AxeParentItem():
-                clear_output_log()
-                self._axe_output = ""
             case LumberjackItem(name=name):
                 clear_lumberjack_output_log(name)
+            case ChopItem(lumberjack_name=lj_name):
+                clear_lumberjack_output_log(lj_name)
             case BgCmdItem(slot=slot):
                 clear_slot_output(slot)
 
@@ -215,13 +215,16 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
         from .axe_display._loaders import find_axe_item_idx
 
         self._axe_current_view = view
-        key: AxeItemKey = ("axe", None) if view == "axe" else ("bgcmd", view)
-        idx = find_axe_item_idx(self._axe_items, key)  # type: ignore[attr-defined]
-        if idx is not None:
-            if self.current_tab == "axe":
-                self.current_idx = idx
-            self._axe_last_idx = idx
-            self._axe_last_item_key = key
+        # The synthetic "axe" view no longer has a selectable row in the
+        # sidebar; only bgcmd slots have a stable identity to home to.
+        if view != "axe":
+            key: AxeItemKey = ("bgcmd", view)
+            idx = find_axe_item_idx(self._axe_items, key)  # type: ignore[attr-defined]
+            if idx is not None:
+                if self.current_tab == "axe":
+                    self.current_idx = idx
+                self._axe_last_idx = idx
+                self._axe_last_item_key = key
         self._refresh_axe_display()
 
     def _start_axe(self) -> None:

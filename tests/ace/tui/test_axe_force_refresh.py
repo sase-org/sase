@@ -21,7 +21,6 @@ from sase.ace.tui.actions.axe_display import (
     LumberjackSnapshot,
 )
 from sase.ace.tui.widgets.bgcmd_list import (
-    AxeParentItem,
     BgCmdItem,
     ChopItem,
     LumberjackItem,
@@ -42,7 +41,7 @@ def _status(name: str, kind: str = "running") -> LumberjackStatus:
 class FakeAxeApp(AxeDisplayMixin):
     def __init__(self) -> None:
         self.current_tab = "axe"
-        self.current_idx = 1  # select the "hooks" lumberjack
+        self.current_idx = 0  # select the "hooks" lumberjack (top-level row)
         self.refresh_interval = 10
         self.axe_running = True
         self._countdown_remaining = 10
@@ -56,7 +55,6 @@ class FakeAxeApp(AxeDisplayMixin):
         self._axe_lumberjack_names = ["hooks"]
         self._axe_lumberjack_idx = 0
         self._axe_items = [
-            AxeParentItem(),
             LumberjackItem(name="hooks"),
             BgCmdItem(slot=1),
         ]
@@ -143,7 +141,7 @@ async def test_targeted_refresh_updates_selected_bgcmd_slot() -> None:
     """When a bgcmd row is selected, the targeted refresh rewrites that
     slot's snapshot."""
     app = FakeAxeApp()
-    app.current_idx = 2  # BgCmdItem(slot=1)
+    app.current_idx = 1  # BgCmdItem(slot=1)
 
     with (
         patch(
@@ -175,12 +173,11 @@ async def test_targeted_refresh_updates_selected_chop() -> None:
     """
     app = FakeAxeApp()
     app._axe_items = [
-        AxeParentItem(),
         LumberjackItem(name="hooks"),
         ChopItem(lumberjack_name="hooks", chop_name="fast"),
         BgCmdItem(slot=1),
     ]
-    app.current_idx = 2  # ChopItem
+    app.current_idx = 1  # ChopItem
 
     new_run = ChopRunEntry(
         run_id="20260511T100100_000000",

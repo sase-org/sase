@@ -26,13 +26,8 @@ ItemType = Literal["axe"] | int
 
 
 @dataclass(frozen=True)
-class AxeParentItem:
-    """The main 'sase axe' parent entry."""
-
-
-@dataclass(frozen=True)
 class LumberjackItem:
-    """A lumberjack child entry."""
+    """A top-level lumberjack entry."""
 
     name: str
 
@@ -52,7 +47,7 @@ class BgCmdItem:
     slot: int
 
 
-AxeItem = AxeParentItem | LumberjackItem | ChopItem | BgCmdItem
+AxeItem = LumberjackItem | ChopItem | BgCmdItem
 
 
 class BgCmdList(OptionList):
@@ -89,7 +84,7 @@ class BgCmdList(OptionList):
             items: Flat list of AxeItem entries to display.
             current_idx: Index of currently selected item.
             axe_running: Whether axe daemon is running.
-            lumberjack_names: Lumberjack names for status lookup.
+            lumberjack_names: Configured lumberjack names (ordered).
             bgcmd_infos: Mapping of slot -> info for bgcmds.
             jump_hints: Optional local row index -> hint character mapping.
             lumberjack_statuses: Cached status per lumberjack. If omitted, the
@@ -97,33 +92,18 @@ class BgCmdList(OptionList):
                 behavior — only used by tests / legacy callers).
             bgcmd_running: Cached running flag per slot. If omitted, falls
                 back to a synchronous process check.
+            chop_snapshots: Cached per-chop snapshots, keyed by
+                ``(lumberjack_name, chop_name)``.
         """
+        del axe_running, lumberjack_names  # accepted for callers; not rendered
         self._programmatic_update = True
         self._item_count = len(items)
 
         self.clear_options()
 
-        # Count lumberjack children currently in the list (vs. configured),
-        # then reuse the configured-name list for the collapsed-fold label.
-        # Both are precomputed by the caller so this hot row-render path
-        # never reads ``axe.config`` from disk.
-        lumberjack_child_count = sum(
-            1 for item in items if isinstance(item, LumberjackItem)
-        )
-        configured_lumberjack_total = len(lumberjack_names)
-
         for idx, item in enumerate(items):
             is_selected = idx == current_idx
             match item:
-                case AxeParentItem():
-                    option = self._format_axe_parent_option(
-                        is_running=axe_running,
-                        is_selected=is_selected,
-                        child_count=lumberjack_child_count,
-                        is_expanded=lumberjack_child_count > 0,
-                        configured_lumberjack_total=configured_lumberjack_total,
-                        hint_char=(jump_hints or {}).get(idx),
-                    )
                 case LumberjackItem(name=name):
                     if lumberjack_statuses is not None:
                         lumberjack_status = lumberjack_statuses.get(name)
@@ -174,47 +154,6 @@ class BgCmdList(OptionList):
         finally:
             self._programmatic_update = False
 
-    def _format_axe_parent_option(
-        self,
-        is_running: bool,
-        is_selected: bool,
-        child_count: int,
-        is_expanded: bool,
-        configured_lumberjack_total: int = 0,
-        hint_char: str | None = None,
-    ) -> Option:
-        """Format the axe parent option for display."""
-        text = Text()
-        if hint_char is not None:
-            text.append(f"[{hint_char}] ", style="bold #FFFF00")
-
-        # Status indicator
-        if is_running:
-            text.append("[", style="dim")
-            text.append("*", style="bold green")
-            text.append("] ", style="dim")
-        else:
-            text.append("[ ] ", style="dim")
-
-        # Label
-        label_style = "bold #FFD700" if is_selected else "#FFD700"
-        text.append("sase axe", style=label_style)
-
-        # Fold annotation: only show the count when collapsed.  The total
-        # comes from the precomputed ``lumberjack_names`` list — no disk
-        # config read on this row-render hot path.
-        if (
-            (child_count > 0 or not is_expanded)
-            and configured_lumberjack_total > 0
-            and not is_expanded
-        ):
-            text.append(
-                f" ({configured_lumberjack_total} lumberjacks)",
-                style="dim",
-            )
-
-        return Option(text, id="axe")
-
     def _format_lumberjack_option(
         self,
         name: str,
@@ -222,13 +161,10 @@ class BgCmdList(OptionList):
         is_selected: bool,
         hint_char: str | None = None,
     ) -> Option:
-        """Format a lumberjack child option for display."""
+        """Format a top-level lumberjack option for display."""
         text = Text()
         if hint_char is not None:
             text.append(f"[{hint_char}] ", style="bold #FFFF00")
-
-        # Indentation + tree connector
-        text.append("  \u2514\u2500 ", style="dim")
 
         # Status indicator
         if status and status.status == "running":
@@ -241,7 +177,7 @@ class BgCmdList(OptionList):
             text.append("] ", style="dim")
         else:
             text.append("[", style="dim")
-            text.append("\u00b7", style="dim")
+            text.append("·", style="dim")
             text.append("] ", style="dim")
 
         # Name
@@ -258,18 +194,13 @@ class BgCmdList(OptionList):
         is_selected: bool,
         hint_char: str | None = None,
     ) -> Option:
-        """Format a chop child option for display.
-
-        Phase 3 will replace this stub with proper tree-indent rendering
-        and last-run status markers; Phase 2 only needs a rendering path
-        that does not crash if a chop row reaches the widget.
-        """
+        """Format a chop child option for display."""
         text = Text()
         if hint_char is not None:
             text.append(f"[{hint_char}] ", style="bold #FFFF00")
 
-        # Deeper indent than lumberjack rows to suggest the tree.
-        text.append("    └─ ", style="dim")
+        # Indent + tree connector to suggest a chop child under its parent.
+        text.append("  └─ ", style="dim")
 
         runs = snapshot.runs if snapshot is not None else []
         if runs:

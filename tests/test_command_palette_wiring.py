@@ -34,8 +34,8 @@ from sase.ace.tui.commands.context import (
     _unread_completed_agent_count,
 )
 from sase.ace.tui.widgets.bgcmd_list import (
-    AxeParentItem,
     BgCmdItem,
+    LumberjackItem,
 )
 
 
@@ -138,8 +138,8 @@ def test_extract_context_agents_tab_group_banner_focused() -> None:
     assert ctx.attempt_pinned is True
 
 
-def test_extract_context_axe_tab_parent_row_is_not_done() -> None:
-    items = [AxeParentItem()]
+def test_extract_context_axe_tab_lumberjack_row_is_not_done() -> None:
+    items = [LumberjackItem(name="hooks")]
     app = _make_app_stub(
         tab="axe",
         axe_items=items,
@@ -148,7 +148,7 @@ def test_extract_context_axe_tab_parent_row_is_not_done() -> None:
     )
     ctx = extract_command_context(app)  # type: ignore[arg-type]
     assert ctx.tab == "axe"
-    assert isinstance(ctx.axe_item, AxeParentItem)
+    assert isinstance(ctx.axe_item, LumberjackItem)
     assert ctx.axe_running is True
     # selected_axe_slot_done only tracks bgcmd rows.
     assert ctx.selected_axe_slot_done is False
@@ -214,7 +214,7 @@ def test_unread_completed_agent_count_includes_plan_done() -> None:
 
 def test_selected_axe_slot_states_non_bgcmd_returns_false() -> None:
     app = SimpleNamespace(_bgcmd_slots=[])
-    assert _selected_axe_slot_states(app, AxeParentItem()) == (  # type: ignore[arg-type]
+    assert _selected_axe_slot_states(app, LumberjackItem(name="hooks")) == (  # type: ignore[arg-type]
         False,
         False,
     )

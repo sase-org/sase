@@ -46,6 +46,10 @@ class FoldStateManager:
         """
         return self._states.get(key, FoldLevel.COLLAPSED)
 
+    def has(self, key: str) -> bool:
+        """Return ``True`` if a level has been explicitly stored for *key*."""
+        return key in self._states
+
     def expand(self, key: str) -> bool:
         """Advance fold level one step: COLLAPSED -> EXPANDED -> FULLY_EXPANDED.
 

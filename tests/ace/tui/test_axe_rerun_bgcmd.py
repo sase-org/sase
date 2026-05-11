@@ -16,7 +16,6 @@ from sase.ace.tui.actions.base import BaseActionsMixin
 from sase.ace.tui.bgcmd import BackgroundCommandInfo
 from sase.ace.tui.widgets import KeybindingFooter
 from sase.ace.tui.widgets.bgcmd_list import (
-    AxeParentItem,
     BgCmdItem,
     LumberjackItem,
 )
@@ -43,7 +42,7 @@ class _FakeRerunApp(AxeBgCmdMixin, BaseActionsMixin):
         self.axe_running = False
         self.changespecs = []  # type: ignore[assignment]
         self._bgcmd_slots = []
-        self._axe_items = [AxeParentItem()]
+        self._axe_items = []
         self.notifications: list[tuple[str, str]] = []
         self.pushed_modals: list[Any] = []
         self.pushed_callbacks: list[Any] = []
@@ -240,7 +239,7 @@ def test_rerun_bgcmd_cancel_does_nothing() -> None:
 def test_action_run_workflow_axe_done_bgcmd_dispatches_to_rerun() -> None:
     """Done BgCmdItem selection routes `r` to `_rerun_bgcmd`."""
     app = _FakeRerunApp()
-    app._axe_items = [AxeParentItem(), BgCmdItem(slot=5)]
+    app._axe_items = [LumberjackItem(name="hooks"), BgCmdItem(slot=5)]
     app.current_idx = 1
 
     with patch("sase.ace.tui.bgcmd.is_slot_running", return_value=False):
@@ -252,7 +251,7 @@ def test_action_run_workflow_axe_done_bgcmd_dispatches_to_rerun() -> None:
 def test_action_run_workflow_axe_running_bgcmd_is_noop() -> None:
     """Running BgCmdItem does not dispatch to re-run."""
     app = _FakeRerunApp()
-    app._axe_items = [AxeParentItem(), BgCmdItem(slot=5)]
+    app._axe_items = [LumberjackItem(name="hooks"), BgCmdItem(slot=5)]
     app.current_idx = 1
 
     with patch("sase.ace.tui.bgcmd.is_slot_running", return_value=True):
@@ -262,9 +261,9 @@ def test_action_run_workflow_axe_running_bgcmd_is_noop() -> None:
 
 
 def test_action_run_workflow_axe_non_bgcmd_is_noop() -> None:
-    """AxeParentItem / LumberjackItem do not dispatch to re-run."""
+    """LumberjackItem rows do not dispatch to re-run."""
     app = _FakeRerunApp()
-    app._axe_items = [AxeParentItem(), LumberjackItem(name="hooks")]
+    app._axe_items = [LumberjackItem(name="hooks"), LumberjackItem(name="checks")]
 
     app.current_idx = 0
     BaseActionsMixin.action_run_workflow(app)

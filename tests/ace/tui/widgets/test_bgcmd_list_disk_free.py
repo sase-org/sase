@@ -10,7 +10,7 @@ from __future__ import annotations
 from textual.app import App, ComposeResult
 
 from sase.ace.tui.widgets.bgcmd_list import (
-    AxeParentItem,
+    AxeItem,
     BgCmdList,
     LumberjackItem,
 )
@@ -24,7 +24,7 @@ class _Host(App):
 async def test_update_list_does_not_call_load_axe_config(
     monkeypatch,
 ) -> None:
-    """Rendering parent + lumberjack items must skip ``load_axe_config``."""
+    """Rendering lumberjack items must skip ``load_axe_config``."""
     calls = 0
 
     def _trip(*_args, **_kwargs):
@@ -37,8 +37,7 @@ async def test_update_list_does_not_call_load_axe_config(
     app = _Host()
     async with app.run_test():
         widget = app.query_one(BgCmdList)
-        items = [
-            AxeParentItem(),
+        items: list[AxeItem] = [
             LumberjackItem(name="alpha"),
             LumberjackItem(name="beta"),
         ]

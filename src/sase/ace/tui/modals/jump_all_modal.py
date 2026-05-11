@@ -20,7 +20,7 @@ from textual.widgets import Static
 
 from ..actions.navigation.jump_hints import JUMP_HINT_CHARS, normalize_jump_key
 from ..bgcmd import get_slot_info
-from ..widgets.bgcmd_list import AxeParentItem, BgCmdItem, LumberjackItem
+from ..widgets.bgcmd_list import BgCmdItem, ChopItem, LumberjackItem
 
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
@@ -142,13 +142,14 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
         # AXE
         _, axe_color = _TAB_STYLES["axe"]
         for i, item in enumerate(axe_items):
-            if isinstance(item, AxeParentItem):
+            if isinstance(item, LumberjackItem):
                 entries.append(
-                    _Entry("axe", i, "sase axe", "", "", name_style=axe_color, indent=0)
+                    _Entry("axe", i, item.name, "", "", name_style=axe_color, indent=0)
                 )
-            elif isinstance(item, LumberjackItem):
+            elif isinstance(item, ChopItem):
+                label = f"{item.lumberjack_name} / {item.chop_name}"
                 entries.append(
-                    _Entry("axe", i, item.name, "", "", name_style=axe_color, indent=1)
+                    _Entry("axe", i, label, "", "", name_style=axe_color, indent=1)
                 )
             elif isinstance(item, BgCmdItem):
                 info = get_slot_info(item.slot)

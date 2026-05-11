@@ -23,7 +23,6 @@ from sase.ace.tui.actions.axe_display import (
 )
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.widgets.bgcmd_list import (
-    AxeParentItem,
     BgCmdItem,
     ChopItem,
     LumberjackItem,
@@ -60,7 +59,6 @@ class FakeAxeApp(AxeDisplayMixin):
         self._axe_lumberjack_names = ["hooks", "checks"]
         self._axe_lumberjack_idx = 0
         self._axe_items = [
-            AxeParentItem(),
             LumberjackItem(name="hooks"),
             ChopItem(lumberjack_name="hooks", chop_name="fast"),
             LumberjackItem(name="checks"),
@@ -168,8 +166,8 @@ def test_navigation_does_not_read_from_disk() -> None:
         patch("sase.ace.tui.actions.axe_display._data.read_chop_run", _boom),
         patch("sase.ace.tui.actions.axe_display._data.read_chop_run_log_tail", _boom),
     ):
-        # Lumberjack view
-        app.current_idx = 1
+        # Lumberjack view (hooks → top-level row 0).
+        app.current_idx = 0
         app._refresh_axe_display_debounced()
         # Fire the debounced callback and verify no reader was hit.
         assert app._scheduled_callbacks, "debounce did not schedule a callback"
@@ -179,21 +177,21 @@ def test_navigation_does_not_read_from_disk() -> None:
 
         # Chop view: the row's parent lumberjack snapshot is cached, so
         # the dashboard repaints from memory.
+        app.current_idx = 1
+        app._refresh_axe_display_debounced()
+        _, callback = app._scheduled_callbacks[-1]
+        app._scheduled_callbacks.clear()
+        callback()
+
+        # Second lumberjack view.
         app.current_idx = 2
         app._refresh_axe_display_debounced()
         _, callback = app._scheduled_callbacks[-1]
         app._scheduled_callbacks.clear()
         callback()
 
-        # Parent-axe view
-        app.current_idx = 0
-        app._refresh_axe_display_debounced()
-        _, callback = app._scheduled_callbacks[-1]
-        app._scheduled_callbacks.clear()
-        callback()
-
         # Bgcmd view: cache hit means no disk readers are touched.
-        app.current_idx = 4
+        app.current_idx = 3
         app._refresh_axe_display_debounced()
         _, callback = app._scheduled_callbacks[-1]
         app._scheduled_callbacks.clear()

@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 from sase.ace.tui.actions.agents._core import is_unread_completed_status
 from sase.ace.tui.commands.types import CommandContext, CommandTab
-from sase.ace.tui.widgets.bgcmd_list import AxeParentItem, BgCmdItem
+from sase.ace.tui.widgets.bgcmd_list import BgCmdItem
 
 if TYPE_CHECKING:
     from sase.ace.tui.app import AceApp
@@ -193,4 +193,4 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
     )
 
 
-__all__ = ["extract_command_context", "AxeParentItem"]
+__all__ = ["extract_command_context"]

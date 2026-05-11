@@ -40,8 +40,9 @@ class KeybindingBindingsMixin:
     ) -> list[tuple[str, str]]:
         """Compute entry-dependent bindings for Axe tab.
 
-        ``x`` is entry-dependent: its label changes between
-        "start/stop axe" (AxeParentItem) and "kill" (LumberjackItem / BgCmdItem).
+        ``x`` is entry-dependent: its label changes between "start/stop axe"
+        (no selectable axe-parent row in Phase 3; daemon controls remain on
+        lumberjack and chop rows) and "kill" (bgcmd rows).
         ``r`` (re-run) is shown only when a done background command is selected.
         """
         bindings: list[tuple[str, str]] = []
