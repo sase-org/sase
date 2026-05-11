@@ -1,5 +1,7 @@
 # Structured Agentic Software Engineering (SASE) - Agent Instructions
 
+IMPORTANT: You should not modify any of these memory files without approval from the user.
+
 ## Tier 1 (short-term) Memory
 
 The following memory files contain core (always loaded) context:
