@@ -11,6 +11,7 @@ from sase.ace.testing import AcePage, make_changespec
 from sase.ace.tui import AceApp
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets import ChangeSpecInfoPanel, TabBar
+from sase.ace.tui.widgets.tab_bar import TabName
 from sase.ace.tui.widgets._agent_list_render_agent import format_agent_option
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.commits_builder import _should_show_commits_drawers
@@ -92,6 +93,74 @@ def test_tab_bar_update_tab_to_agents() -> None:
     tab_bar = TabBar()
     tab_bar.update_tab("agents")
     assert tab_bar._current_tab == "agents"
+
+
+def _agents_span_style(tab_bar: TabBar) -> str:
+    """Return the style string applied to the Agents label span."""
+    content = tab_bar._build_content()
+    start, end = tab_bar._tab_ranges["agents"]
+    for span in content.spans:
+        if span.start == start and span.end == end:
+            return str(span.style)
+    raise AssertionError("Agents tab span not found in rendered content")
+
+
+def test_tab_bar_inactive_agents_badge_renders_count_and_alert_style() -> None:
+    """Inactive Agents tab with a positive count shows Agents(N) in yellow."""
+    tab_bar = TabBar()
+    tab_bar.update_tab("changespecs")
+    tab_bar.set_tab_badge("agents", 2)
+
+    content = tab_bar._build_content()
+    assert "Agents(2)" in content.plain
+    assert "Agents(2 )" not in content.plain
+    assert " Agents(2)" in content.plain  # leading padding space
+    assert _agents_span_style(tab_bar) == "bold #FFAF00"
+
+
+def test_tab_bar_active_agents_suppresses_badge() -> None:
+    """Active Agents tab keeps its normal active style and hides the count."""
+    tab_bar = TabBar()
+    tab_bar.set_tab_badge("agents", 2)
+    tab_bar.update_tab("agents")
+
+    content = tab_bar._build_content()
+    assert "Agents(2)" not in content.plain
+    assert " Agents " in content.plain
+    assert _agents_span_style(tab_bar) == "bold #87D7FF"
+
+
+def test_tab_bar_zero_badge_restores_plain_label() -> None:
+    """Setting the badge back to zero restores the inactive plain label."""
+    tab_bar = TabBar()
+    tab_bar.update_tab("changespecs")
+    tab_bar.set_tab_badge("agents", 3)
+    tab_bar.set_tab_badge("agents", 0)
+
+    content = tab_bar._build_content()
+    assert "Agents(" not in content.plain
+    assert " Agents " in content.plain
+    assert _agents_span_style(tab_bar) == "#888888"
+
+
+def test_tab_bar_click_range_still_identifies_agents_with_badge() -> None:
+    """Click ranges cover the badge-augmented Agents label."""
+    tab_bar = TabBar()
+    tab_bar.update_tab("changespecs")
+    tab_bar.set_tab_badge("agents", 7)
+
+    content = tab_bar._build_content()
+    start, end = tab_bar._tab_ranges["agents"]
+    assert content.plain[start:end] == " Agents(7) "
+
+    # Each character position inside the range resolves to the agents tab.
+    for x in range(start, end):
+        hit: TabName | None = None
+        for tab, (s, e) in tab_bar._tab_ranges.items():
+            if s <= x < e:
+                hit = tab
+                break
+        assert hit == "agents", f"position {x} did not resolve to agents tab"
 
 
 def test_info_panel_fold_indicator_hidden_when_all_collapsed() -> None:
