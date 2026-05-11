@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 15:25:37
-status: wip
+status: done
 prompt: sdd/prompts/202605/highlight_unread_agent_count.md
 ---
 # Highlight the Agents-tab Unread Count with a Yellow Background

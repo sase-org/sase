@@ -96,7 +96,7 @@ def test_agent_count_numbers_have_rich_styles() -> None:
         "running": "bold #00D7AF",
         "waiting": "bold #AF87FF",
         "failed": "bold #FF5F5F",
-        "unread": "bold #FFAF5F",
+        "unread": "bold #1a1a1a on #FFD700",
         "read": "bold #5FD7FF",
     }
 
