@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 19:13:07
-status: wip
+status: done
 prompt: sdd/prompts/202605/number_blog_posts.md
 ---
 # Number Each Blog Post Across sase.sh

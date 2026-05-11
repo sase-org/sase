@@ -15,7 +15,7 @@ nav:
       - Blog Home: blog/index.md
       - Agentic Software Engineering Series: series/agentic-software-engineering.md
       - "Post 1: Why Coding Agents Need Orchestration": blog/posts/why-coding-agents-need-orchestration.md
-      - "Post 2: Hello, SASE — Your First 15 Minutes": blog/posts/hello-sase-your-first-15-minutes.md
+      - "Post 2: Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents": blog/posts/hello-sase-your-first-15-minutes.md
   - Start:
       - ACE TUI: ace.md
       - AXE Automation: axe.md

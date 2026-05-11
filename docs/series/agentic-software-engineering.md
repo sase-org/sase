@@ -12,10 +12,10 @@ make up the series today and points readers at the current product guides for fu
 The series has two posts. Read them in numbered order for the conceptual argument first, hands-on practice second; or
 flip the order if you'd rather run the system before reading about why it exists.
 
-| Order | Post                                                                                                                | Status               |
-| ----- | ------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| 1     | [Why Coding Agents Need Orchestration](../blog/posts/why-coding-agents-need-orchestration.md)                       | Published 2026-05-08 |
-| 2     | [Hello, SASE: Your First 15 Minutes Orchestrating Coding Agents](../blog/posts/hello-sase-your-first-15-minutes.md) | Published 2026-05-10 |
+| Post                                                                                                                         | Status               |
+| ---------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| [Post 1: Why Coding Agents Need Orchestration](../blog/posts/why-coding-agents-need-orchestration.md)                        | Published 2026-05-08 |
+| [Post 2: Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents](../blog/posts/hello-sase-your-first-15-minutes.md) | Published 2026-05-10 |
 
 ## Reader Paths
 

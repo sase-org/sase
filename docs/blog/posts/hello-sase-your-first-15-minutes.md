@@ -9,13 +9,13 @@ categories:
 slug: hello-sase-your-first-15-minutes
 links:
   - Agentic Software Engineering Series: series/agentic-software-engineering.md
-  - Why Coding Agents Need Orchestration: blog/posts/why-coding-agents-need-orchestration.md
+  - "Post 1: Why Coding Agents Need Orchestration": blog/posts/why-coding-agents-need-orchestration.md
   - ACE TUI: ace.md
   - Spec-Driven Development: sdd.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
-# Hello, SASE: Your First 15 Minutes Orchestrating Coding Agents
+# Post 2: Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents
 
 SASE (pronounced "sassy" — yes, really) is a coordination layer that sits above coding-agent CLIs like Claude Code,
 Codex, or Gemini. This post is the practical on-ramp: by the end you'll have installed `sase`, launched an agent, found
@@ -172,7 +172,7 @@ The names you'll keep bumping into, in one place:
 
 This is Post 2 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
 
-- Previous: [Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md).
+- Previous: [Post 1: Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md).
 - Next: none (latest post).
 - Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [ACE guide](../../ace.md).

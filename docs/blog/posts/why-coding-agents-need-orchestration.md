@@ -11,7 +11,7 @@ links:
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
-# Why Coding Agents Need Orchestration
+# Post 1: Why Coding Agents Need Orchestration
 
 Coding agents are strongest when they operate inside a workflow that can preserve intent, track state, and recover from
 interruptions. The model can produce a patch, but the surrounding engineering system has to remember what the work was
@@ -131,6 +131,6 @@ has to make the work durable, reviewable, resumable, and transferable.
 This is Post 1 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
 
 - Previous: none.
-- Next: [Hello, SASE: Your First 15 Minutes Orchestrating Coding Agents](hello-sase-your-first-15-minutes.md).
+- Next: [Post 2: Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents](hello-sase-your-first-15-minutes.md).
 - Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [ACE guide](../../ace.md).
