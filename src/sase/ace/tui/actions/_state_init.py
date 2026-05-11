@@ -388,11 +388,18 @@ class StateInitMixin:
         # Ctrl+N / Ctrl+P render without touching disk. Empty until the
         # first async load completes (first-paint shows empty placeholders).
         from .axe_display import BgCmdSnapshot
+        from .axe_display._data import ChopSnapshot, LumberjackSnapshot
 
         self._axe_lumberjack_statuses: dict[str, LumberjackStatus | None] = {}
         self._axe_lumberjack_metrics: dict[str, LumberjackMetrics | None] = {}
         self._axe_lumberjack_log_tails: dict[str, str] = {}
         self._axe_bgcmd_details: dict[int, BgCmdSnapshot] = {}
+        # Per-lumberjack ordered chop-name lists and per-chop snapshots
+        # (config metadata + bounded run history) populated by the same
+        # async collector so navigation paints chop rows from memory.
+        self._axe_lumberjack_chop_names: dict[str, list[str]] = {}
+        self._axe_chop_snapshots: dict[tuple[str, str], ChopSnapshot] = {}
+        self._axe_lumberjack_snapshots: dict[str, LumberjackSnapshot] = {}
 
         # Debouncer for axe j/k navigation detail updates.
         self._axe_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]

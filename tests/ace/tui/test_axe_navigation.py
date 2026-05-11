@@ -15,11 +15,17 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from sase.ace.tui.actions.axe_display import AxeDisplayMixin, BgCmdSnapshot
+from sase.ace.tui.actions.axe_display import (
+    AxeDisplayMixin,
+    BgCmdSnapshot,
+    ChopSnapshot,
+    LumberjackSnapshot,
+)
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.widgets.bgcmd_list import (
     AxeParentItem,
     BgCmdItem,
+    ChopItem,
     LumberjackItem,
 )
 from sase.axe.state import LumberjackMetrics, LumberjackStatus
@@ -56,6 +62,7 @@ class FakeAxeApp(AxeDisplayMixin):
         self._axe_items = [
             AxeParentItem(),
             LumberjackItem(name="hooks"),
+            ChopItem(lumberjack_name="hooks", chop_name="fast"),
             LumberjackItem(name="checks"),
             BgCmdItem(slot=1),
         ]
@@ -78,6 +85,31 @@ class FakeAxeApp(AxeDisplayMixin):
         }
         self._axe_bgcmd_details = {
             1: BgCmdSnapshot(info=None, running=True, output_tail="slot log\n"),
+        }
+        self._axe_lumberjack_chop_names = {"hooks": ["fast"], "checks": []}
+        self._axe_chop_snapshots: dict[tuple[str, str], ChopSnapshot] = {
+            ("hooks", "fast"): ChopSnapshot(
+                lumberjack_name="hooks",
+                chop_name="fast",
+                description="fast desc",
+                runs=[],
+            ),
+        }
+        self._axe_lumberjack_snapshots: dict[str, LumberjackSnapshot] = {
+            "hooks": LumberjackSnapshot(
+                name="hooks",
+                status=_status("hooks"),
+                metrics=LumberjackMetrics(chops_executed=3),
+                log_tail="hooks log\n",
+                chops=[self._axe_chop_snapshots[("hooks", "fast")]],
+            ),
+            "checks": LumberjackSnapshot(
+                name="checks",
+                status=_status("checks"),
+                metrics=LumberjackMetrics(chops_executed=1),
+                log_tail="checks log\n",
+                chops=[],
+            ),
         }
         self._axe_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]
 
@@ -131,12 +163,24 @@ def test_navigation_does_not_read_from_disk() -> None:
             "sase.ace.tui.actions.axe_display._render.is_slot_running",
             side_effect=_boom,
         ),
+        # Chop run-history readers must never fire on navigation either.
+        patch("sase.ace.tui.actions.axe_display._data.read_chop_run_index", _boom),
+        patch("sase.ace.tui.actions.axe_display._data.read_chop_run", _boom),
+        patch("sase.ace.tui.actions.axe_display._data.read_chop_run_log_tail", _boom),
     ):
         # Lumberjack view
         app.current_idx = 1
         app._refresh_axe_display_debounced()
         # Fire the debounced callback and verify no reader was hit.
         assert app._scheduled_callbacks, "debounce did not schedule a callback"
+        _, callback = app._scheduled_callbacks[-1]
+        app._scheduled_callbacks.clear()
+        callback()
+
+        # Chop view: the row's parent lumberjack snapshot is cached, so
+        # the dashboard repaints from memory.
+        app.current_idx = 2
+        app._refresh_axe_display_debounced()
         _, callback = app._scheduled_callbacks[-1]
         app._scheduled_callbacks.clear()
         callback()
@@ -149,7 +193,7 @@ def test_navigation_does_not_read_from_disk() -> None:
         callback()
 
         # Bgcmd view: cache hit means no disk readers are touched.
-        app.current_idx = 3
+        app.current_idx = 4
         app._refresh_axe_display_debounced()
         _, callback = app._scheduled_callbacks[-1]
         app._scheduled_callbacks.clear()

@@ -13,11 +13,16 @@ from unittest.mock import patch
 
 from sase.ace.tui.actions.axe_display import collect_axe_status_data
 from sase.ace.tui.bgcmd import BackgroundCommandInfo
-from sase.axe.state import LumberjackMetrics, LumberjackStatus
+from sase.axe.config import ChopConfig, LumberjackConfig
+from sase.axe.state import (
+    ChopRunEntry,
+    LumberjackMetrics,
+    LumberjackStatus,
+)
 
 
 class _FakeAxeConfig:
-    def __init__(self, lumberjacks: dict[str, object]) -> None:
+    def __init__(self, lumberjacks: dict[str, LumberjackConfig]) -> None:
         self.lumberjacks = lumberjacks
 
 
@@ -50,17 +55,61 @@ def _make_bgcmd_info() -> BackgroundCommandInfo:
     )
 
 
+def _lj_cfg(name: str, chop_names: list[str]) -> LumberjackConfig:
+    return LumberjackConfig(
+        name=name,
+        interval=60,
+        chops=[ChopConfig(name=c, description=f"{c} desc") for c in chop_names],
+    )
+
+
+def _make_run_entry(lj: str, chop: str, run_id: str) -> ChopRunEntry:
+    return ChopRunEntry(
+        run_id=run_id,
+        lumberjack_name=lj,
+        chop_name=chop,
+        started_at="2026-05-11T10:00:00",
+        finished_at="2026-05-11T10:00:01",
+        duration_ms=1000,
+        status="success",
+        exit_code=0,
+        output_bytes=10,
+        output_log=f"{run_id}.log",
+    )
+
+
 def test_collector_populates_all_cache_maps() -> None:
     """For every configured lumberjack and every active bgcmd slot, the
     collector records a cache entry. This is what the navigation path
     relies on to avoid disk I/O on each Ctrl+N / Ctrl+P.
     """
-    config = _FakeAxeConfig({"hooks": None, "checks": None})
+    config = _FakeAxeConfig(
+        {
+            "hooks": _lj_cfg("hooks", ["fast", "slow"]),
+            "checks": _lj_cfg("checks", []),
+        }
+    )
     bgcmd_info = _make_bgcmd_info()
 
     status_map = {"hooks": _make_status("hooks"), "checks": _make_status("checks")}
     metrics_map = {"hooks": _make_metrics(), "checks": _make_metrics()}
     log_map = {"hooks": "hooks log\n", "checks": "checks log\n"}
+
+    # Chop run-history wiring: ``hooks/fast`` has two recorded runs;
+    # everyone else has no recorded history yet.
+    fast_runs = ["20260511T100100_000000", "20260511T100000_000000"]
+    fast_entries = {rid: _make_run_entry("hooks", "fast", rid) for rid in fast_runs}
+
+    def _fake_run_index(lj: str, chop: str) -> list[str]:
+        if (lj, chop) == ("hooks", "fast"):
+            return fast_runs
+        return []
+
+    def _fake_read_run(_lj: str, _chop: str, run_id: str) -> ChopRunEntry | None:
+        return fast_entries.get(run_id)
+
+    def _fake_read_run_log(_lj: str, _chop: str, run_id: str, _lines: int) -> str:
+        return f"{run_id} output\n"
 
     with (
         patch(
@@ -85,8 +134,20 @@ def test_collector_populates_all_cache_maps() -> None:
         ) as metrics_reader,
         patch(
             "sase.ace.tui.actions.axe_display._data.read_lumberjack_log_tail",
-            side_effect=lambda name, _n: log_map[name],
+            side_effect=lambda name, _lines: log_map[name],
         ) as log_reader,
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run_index",
+            side_effect=_fake_run_index,
+        ) as run_index_reader,
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run",
+            side_effect=_fake_read_run,
+        ) as run_reader,
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run_log_tail",
+            side_effect=_fake_read_run_log,
+        ) as run_log_reader,
         patch(
             "sase.ace.tui.actions.axe_display._data.get_active_slots",
             return_value=[1],
@@ -130,3 +191,87 @@ def test_collector_populates_all_cache_maps() -> None:
     assert status_reader.call_count == 2
     assert metrics_reader.call_count == 2
     assert log_reader.call_count == 2
+
+    # Chop names recorded in config order for every lumberjack.
+    assert data.lumberjack_chop_names == {
+        "checks": [],
+        "hooks": ["fast", "slow"],
+    }
+    # Every configured chop has a snapshot, even with no history. The
+    # snapshot's ``runs`` list is empty for unrun chops — that is the
+    # invariant the dashboard relies on for an empty-state path.
+    assert set(data.chop_snapshots) == {
+        ("hooks", "fast"),
+        ("hooks", "slow"),
+    }
+    assert data.chop_snapshots[("hooks", "slow")].runs == []
+    assert data.chop_snapshots[("hooks", "slow")].description == "slow desc"
+
+    # The chop with recorded history carries up to MAX (10) newest-first
+    # entries, paired with their bounded output tails.
+    fast_snap = data.chop_snapshots[("hooks", "fast")]
+    assert [r.entry.run_id for r in fast_snap.runs] == fast_runs
+    assert fast_snap.runs[0].output_tail == f"{fast_runs[0]} output\n"
+    assert fast_snap.description == "fast desc"
+
+    # Composite per-lumberjack snapshot mirrors the dicts above.
+    hooks_snap = data.lumberjack_snapshots["hooks"]
+    assert hooks_snap.status is status_map["hooks"]
+    assert hooks_snap.metrics is metrics_map["hooks"]
+    assert hooks_snap.log_tail == "hooks log\n"
+    assert [c.chop_name for c in hooks_snap.chops] == ["fast", "slow"]
+
+    # Run-history readers are called once per configured chop and once
+    # per recorded run respectively — not once per navigation keypress.
+    assert run_index_reader.call_count == 2
+    assert run_reader.call_count == len(fast_runs)
+    assert run_log_reader.call_count == len(fast_runs)
+
+
+def test_collector_records_empty_history_for_missing_chops() -> None:
+    """A lumberjack with chops but no recorded run history still gets a
+    ``ChopSnapshot`` per configured chop, with an empty ``runs`` list.
+
+    The empty-state contract is what the dashboard renders against on
+    first paint, so the collector must always emit a snapshot — never
+    omit the key.
+    """
+    config = _FakeAxeConfig({"hooks": _lj_cfg("hooks", ["only"])})
+
+    with (
+        patch(
+            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
+        ) as get_proc,
+        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
+            return_value="",
+        ),
+        patch("sase.axe.config.load_axe_config", return_value=config),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_status",
+            return_value=None,
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_metrics",
+            return_value=None,
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_log_tail",
+            return_value="",
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run_index",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.get_active_slots", return_value=[]
+        ),
+    ):
+        proc = get_proc.return_value
+        proc.is_axe_running.return_value = False
+        proc.get_axe_status.return_value = None
+
+        data = collect_axe_status_data()
+
+    assert data.chop_snapshots[("hooks", "only")].runs == []

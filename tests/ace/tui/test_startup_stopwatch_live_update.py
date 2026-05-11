@@ -219,6 +219,9 @@ def test_axe_first_load_path_no_longer_ends_stopwatch_directly() -> None:
         lumberjack_metrics={},
         lumberjack_log_tails={},
         bgcmd_details={},
+        lumberjack_chop_names={},
+        chop_snapshots={},
+        lumberjack_snapshots={},
     )
 
     with (

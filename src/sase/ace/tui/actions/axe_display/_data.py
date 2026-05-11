@@ -9,8 +9,12 @@ from typing import Literal
 from sase.axe.state import (
     AxeMetrics,
     AxeStatus,
+    ChopRunEntry,
     LumberjackMetrics,
     LumberjackStatus,
+    read_chop_run,
+    read_chop_run_index,
+    read_chop_run_log_tail,
     read_lumberjack_log_tail,
     read_lumberjack_metrics,
     read_lumberjack_status,
@@ -33,12 +37,10 @@ TabName = Literal["changespecs", "agents", "axe"]
 # Type alias for axe view: "axe" for daemon view, int for bgcmd slot (1-9)
 AxeViewType = Literal["axe"] | int
 
-
-def get_axe_process_module() -> types.ModuleType:
-    """Return the axe process module."""
-    import importlib
-
-    return importlib.import_module("sase.axe.process")
+# Lines of run output tail to capture per recorded chop run. Matches the
+# 500-line tail used for lumberjack/bgcmd logs so the same bounded reader
+# behavior applies on the navigation path.
+_CHOP_RUN_TAIL_LINES = 500
 
 
 @dataclasses.dataclass
@@ -48,6 +50,49 @@ class BgCmdSnapshot:
     info: BackgroundCommandInfo | None
     running: bool
     output_tail: str
+
+
+@dataclasses.dataclass
+class ChopRunSnapshot:
+    """Cached view of a single recorded chop run.
+
+    Pairs the persisted run metadata with the bounded output tail so the
+    navigation path can repaint a chop's "Run N/M" view without any
+    further disk I/O.
+    """
+
+    entry: ChopRunEntry
+    output_tail: str
+
+
+@dataclasses.dataclass
+class ChopSnapshot:
+    """Cached view of a single configured chop under a lumberjack.
+
+    ``runs`` is newest-first and capped at :data:`MAX_CHOP_RUN_HISTORY`.
+    An empty list means no run has been recorded yet for this chop.
+    """
+
+    lumberjack_name: str
+    chop_name: str
+    description: str
+    runs: list[ChopRunSnapshot]
+
+
+@dataclasses.dataclass
+class LumberjackSnapshot:
+    """Cached view of a single lumberjack and its configured chops.
+
+    Bundles per-lumberjack status/metrics/log-tail with per-chop run
+    history so the AXE tab can render the lumberjack overview and chop
+    detail views from a single in-memory structure.
+    """
+
+    name: str
+    status: LumberjackStatus | None
+    metrics: LumberjackMetrics | None
+    log_tail: str
+    chops: list[ChopSnapshot]
 
 
 @dataclasses.dataclass
@@ -64,6 +109,50 @@ class AxeCollectedData:
     lumberjack_metrics: dict[str, LumberjackMetrics | None]
     lumberjack_log_tails: dict[str, str]
     bgcmd_details: dict[int, BgCmdSnapshot]
+    # Per-lumberjack ordered list of configured chop names. Populated
+    # from the axe config so the sidebar can paint chop child rows
+    # without re-parsing the config on every render.
+    lumberjack_chop_names: dict[str, list[str]]
+    # Per-chop snapshot (config metadata + bounded run history with
+    # output tails). Keyed by (lumberjack_name, chop_name) so render and
+    # targeted-refresh paths can look up a single chop in O(1).
+    chop_snapshots: dict[tuple[str, str], ChopSnapshot]
+    # Per-lumberjack composite snapshot bundling everything above for
+    # any caller that prefers a single per-lumberjack object.
+    lumberjack_snapshots: dict[str, LumberjackSnapshot]
+
+
+def get_axe_process_module() -> types.ModuleType:
+    """Return the axe process module."""
+    import importlib
+
+    return importlib.import_module("sase.axe.process")
+
+
+def collect_chop_snapshot(
+    lumberjack_name: str, chop_name: str, description: str = ""
+) -> ChopSnapshot:
+    """Read a chop's bounded run history from disk into a snapshot.
+
+    Returns an empty ``runs`` list when no history has been recorded.
+    Run metadata that fails to parse is skipped so a single corrupt file
+    cannot break the rest of the cache.
+    """
+    runs: list[ChopRunSnapshot] = []
+    for run_id in read_chop_run_index(lumberjack_name, chop_name):
+        entry = read_chop_run(lumberjack_name, chop_name, run_id)
+        if entry is None:
+            continue
+        tail = read_chop_run_log_tail(
+            lumberjack_name, chop_name, run_id, _CHOP_RUN_TAIL_LINES
+        )
+        runs.append(ChopRunSnapshot(entry=entry, output_tail=tail))
+    return ChopSnapshot(
+        lumberjack_name=lumberjack_name,
+        chop_name=chop_name,
+        description=description,
+        runs=runs,
+    )
 
 
 def collect_axe_status_data() -> AxeCollectedData:
@@ -90,7 +179,9 @@ def collect_axe_status_data() -> AxeCollectedData:
 
     axe_output = read_output_log_tail(500)
 
-    # Load lumberjack names from config
+    # Load lumberjack config so we can iterate configured chops per
+    # lumberjack — not just the lumberjack names — and populate the
+    # chop run-history cache the navigation path renders from.
     from sase.axe.config import load_axe_config as load_new_axe_config
 
     config = load_new_axe_config()
@@ -101,10 +192,38 @@ def collect_axe_status_data() -> AxeCollectedData:
     lumberjack_statuses: dict[str, LumberjackStatus | None] = {}
     lumberjack_metrics: dict[str, LumberjackMetrics | None] = {}
     lumberjack_log_tails: dict[str, str] = {}
+    lumberjack_chop_names: dict[str, list[str]] = {}
+    chop_snapshots: dict[tuple[str, str], ChopSnapshot] = {}
+    lumberjack_snapshots: dict[str, LumberjackSnapshot] = {}
     for name in lumberjack_names:
-        lumberjack_statuses[name] = read_lumberjack_status(name)
-        lumberjack_metrics[name] = read_lumberjack_metrics(name)
-        lumberjack_log_tails[name] = read_lumberjack_log_tail(name, 500)
+        status = read_lumberjack_status(name)
+        metrics = read_lumberjack_metrics(name)
+        log_tail = read_lumberjack_log_tail(name, 500)
+        lumberjack_statuses[name] = status
+        lumberjack_metrics[name] = metrics
+        lumberjack_log_tails[name] = log_tail
+
+        # Iterate the configured chops (not the run-directory listing) so
+        # newly-added chops with no recorded runs still appear in the UI
+        # tree as empty entries rather than missing entries.
+        chops_cfg = config.lumberjacks[name].chops
+        chop_names: list[str] = []
+        chops_for_jack: list[ChopSnapshot] = []
+        for chop_cfg in chops_cfg:
+            snap = collect_chop_snapshot(
+                name, chop_cfg.name, description=chop_cfg.description
+            )
+            chop_names.append(chop_cfg.name)
+            chop_snapshots[(name, chop_cfg.name)] = snap
+            chops_for_jack.append(snap)
+        lumberjack_chop_names[name] = chop_names
+        lumberjack_snapshots[name] = LumberjackSnapshot(
+            name=name,
+            status=status,
+            metrics=metrics,
+            log_tail=log_tail,
+            chops=chops_for_jack,
+        )
 
     # Load bgcmd state
     active_slots = get_active_slots()
@@ -136,4 +255,7 @@ def collect_axe_status_data() -> AxeCollectedData:
         lumberjack_metrics=lumberjack_metrics,
         lumberjack_log_tails=lumberjack_log_tails,
         bgcmd_details=bgcmd_details,
+        lumberjack_chop_names=lumberjack_chop_names,
+        chop_snapshots=chop_snapshots,
+        lumberjack_snapshots=lumberjack_snapshots,
     )

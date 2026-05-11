@@ -14,13 +14,19 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.ace.tui.actions.axe_display import AxeDisplayMixin, BgCmdSnapshot
+from sase.ace.tui.actions.axe_display import (
+    AxeDisplayMixin,
+    BgCmdSnapshot,
+    ChopSnapshot,
+    LumberjackSnapshot,
+)
 from sase.ace.tui.widgets.bgcmd_list import (
     AxeParentItem,
     BgCmdItem,
+    ChopItem,
     LumberjackItem,
 )
-from sase.axe.state import LumberjackMetrics, LumberjackStatus
+from sase.axe.state import ChopRunEntry, LumberjackMetrics, LumberjackStatus
 
 
 def _status(name: str, kind: str = "running") -> LumberjackStatus:
@@ -67,6 +73,24 @@ class FakeAxeApp(AxeDisplayMixin):
         self._axe_lumberjack_log_tails = {"hooks": "stale\n"}
         self._axe_bgcmd_details = {
             1: BgCmdSnapshot(info=None, running=False, output_tail="old\n"),
+        }
+        self._axe_lumberjack_chop_names = {"hooks": ["fast"]}
+        self._axe_chop_snapshots = {
+            ("hooks", "fast"): ChopSnapshot(
+                lumberjack_name="hooks",
+                chop_name="fast",
+                description="fast desc",
+                runs=[],
+            ),
+        }
+        self._axe_lumberjack_snapshots = {
+            "hooks": LumberjackSnapshot(
+                name="hooks",
+                status=_status("hooks", "stopped"),
+                metrics=LumberjackMetrics(),
+                log_tail="stale\n",
+                chops=[self._axe_chop_snapshots[("hooks", "fast")]],
+            ),
         }
         self._axe_detail_update_timer = None
         self._refreshed = 0
@@ -140,6 +164,65 @@ async def test_targeted_refresh_updates_selected_bgcmd_slot() -> None:
     snap = app._axe_bgcmd_details[1]
     assert snap.running is True
     assert snap.output_tail == "refreshed\n"
+    assert app._refreshed == 1
+
+
+@pytest.mark.asyncio
+async def test_targeted_refresh_updates_selected_chop() -> None:
+    """A `y`-driven targeted refresh on a chop row rewrites only that
+    chop's run-history cache and triggers a repaint. Lumberjack-level
+    caches are intentionally untouched — that's the full-fleet path.
+    """
+    app = FakeAxeApp()
+    app._axe_items = [
+        AxeParentItem(),
+        LumberjackItem(name="hooks"),
+        ChopItem(lumberjack_name="hooks", chop_name="fast"),
+        BgCmdItem(slot=1),
+    ]
+    app.current_idx = 2  # ChopItem
+
+    new_run = ChopRunEntry(
+        run_id="20260511T100100_000000",
+        lumberjack_name="hooks",
+        chop_name="fast",
+        started_at="2026-05-11T10:01:00",
+        finished_at="2026-05-11T10:01:01",
+        duration_ms=1000,
+        status="success",
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.actions.axe_display._loaders.read_lumberjack_status",
+            side_effect=AssertionError("should not refresh lumberjack on chop refresh"),
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run_index",
+            return_value=[new_run.run_id],
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run",
+            return_value=new_run,
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run_log_tail",
+            return_value="fresh chop output\n",
+        ),
+    ):
+        await app._refresh_selected_axe_item_async()
+
+    snap = app._axe_chop_snapshots[("hooks", "fast")]
+    assert [r.entry.run_id for r in snap.runs] == [new_run.run_id]
+    assert snap.runs[0].output_tail == "fresh chop output\n"
+    # Preserve config description across refresh — we only know it from
+    # the most recent collector pass, never from the run log.
+    assert snap.description == "fast desc"
+    # Composite snapshot tracks the per-chop update.
+    hooks_snap = app._axe_lumberjack_snapshots["hooks"]
+    assert hooks_snap.chops[0] is snap
+    # Lumberjack-level caches untouched.
+    assert app._axe_lumberjack_log_tails["hooks"] == "stale\n"
     assert app._refreshed == 1
 
 

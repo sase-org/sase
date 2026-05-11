@@ -15,6 +15,7 @@ from textual.widgets.option_list import Option
 from ..bgcmd import BackgroundCommandInfo, is_slot_running
 
 if TYPE_CHECKING:
+    from ..actions.axe_display._data import ChopSnapshot
     from sase.axe.state import LumberjackStatus
 
 # Item type: "axe" or slot number (1-9)
@@ -37,13 +38,21 @@ class LumberjackItem:
 
 
 @dataclass(frozen=True)
+class ChopItem:
+    """A chop child entry under a lumberjack."""
+
+    lumberjack_name: str
+    chop_name: str
+
+
+@dataclass(frozen=True)
 class BgCmdItem:
     """A background command entry."""
 
     slot: int
 
 
-AxeItem = AxeParentItem | LumberjackItem | BgCmdItem
+AxeItem = AxeParentItem | LumberjackItem | ChopItem | BgCmdItem
 
 
 class BgCmdList(OptionList):
@@ -72,6 +81,7 @@ class BgCmdList(OptionList):
         jump_hints: dict[int, str] | None = None,
         lumberjack_statuses: "dict[str, LumberjackStatus | None] | None" = None,
         bgcmd_running: dict[int, bool] | None = None,
+        chop_snapshots: "dict[tuple[str, str], ChopSnapshot] | None" = None,
     ) -> None:
         """Update the list with current AXE items.
 
@@ -124,6 +134,19 @@ class BgCmdList(OptionList):
                     option = self._format_lumberjack_option(
                         name=name,
                         status=lumberjack_status,
+                        is_selected=is_selected,
+                        hint_char=(jump_hints or {}).get(idx),
+                    )
+                case ChopItem(lumberjack_name=lj_name, chop_name=chop_name):
+                    snap = (
+                        chop_snapshots.get((lj_name, chop_name))
+                        if chop_snapshots is not None
+                        else None
+                    )
+                    option = self._format_chop_option(
+                        lumberjack_name=lj_name,
+                        chop_name=chop_name,
+                        snapshot=snap,
                         is_selected=is_selected,
                         hint_char=(jump_hints or {}).get(idx),
                     )
@@ -226,6 +249,49 @@ class BgCmdList(OptionList):
         text.append(name, style=label_style)
 
         return Option(text, id=f"lumberjack-{name}")
+
+    def _format_chop_option(
+        self,
+        lumberjack_name: str,
+        chop_name: str,
+        snapshot: "ChopSnapshot | None",
+        is_selected: bool,
+        hint_char: str | None = None,
+    ) -> Option:
+        """Format a chop child option for display.
+
+        Phase 3 will replace this stub with proper tree-indent rendering
+        and last-run status markers; Phase 2 only needs a rendering path
+        that does not crash if a chop row reaches the widget.
+        """
+        text = Text()
+        if hint_char is not None:
+            text.append(f"[{hint_char}] ", style="bold #FFFF00")
+
+        # Deeper indent than lumberjack rows to suggest the tree.
+        text.append("    └─ ", style="dim")
+
+        runs = snapshot.runs if snapshot is not None else []
+        if runs:
+            latest = runs[0].entry.status
+            if latest == "success":
+                marker = ("[", "✓", "] ", "bold green")
+            elif latest in ("failure", "timeout"):
+                marker = ("[", "!", "] ", "bold red")
+            elif latest == "missing_script":
+                marker = ("[", "?", "] ", "bold yellow")
+            else:
+                marker = ("[", "*", "] ", "bold #00D7AF")
+        else:
+            marker = ("[", "·", "] ", "dim")
+        text.append(marker[0], style="dim")
+        text.append(marker[1], style=marker[3])
+        text.append(marker[2], style="dim")
+
+        label_style = "bold #FFD700" if is_selected else "#FFD700"
+        text.append(chop_name, style=label_style)
+
+        return Option(text, id=f"chop-{lumberjack_name}-{chop_name}")
 
     def _format_bgcmd_option(
         self,

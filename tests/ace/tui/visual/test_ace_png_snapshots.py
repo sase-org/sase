@@ -107,6 +107,9 @@ def _axe_collected_data(
         lumberjack_metrics={},
         lumberjack_log_tails={},
         bgcmd_details=dict(bgcmd_details or {}),
+        lumberjack_chop_names={},
+        chop_snapshots={},
+        lumberjack_snapshots={},
     )
 
 

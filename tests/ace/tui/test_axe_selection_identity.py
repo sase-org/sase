@@ -9,7 +9,8 @@ from sase.ace.tui.actions.axe_display import AxeDisplayMixin
 from sase.ace.tui.actions.axe_display._loaders import AxeItemKey
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.models.fold_state import FoldStateManager
-from sase.ace.tui.widgets.bgcmd_list import AxeItem
+from sase.ace.tui.actions.axe_display._loaders import _axe_item_key
+from sase.ace.tui.widgets.bgcmd_list import AxeItem, ChopItem
 
 
 class FakeAxeSelectionApp(AxeMixin, BasicNavigationMixin, AxeDisplayMixin):
@@ -131,6 +132,17 @@ def test_off_tab_rebuild_does_not_mutate_current_idx() -> None:
     # saved AXE row follows the identity to its new position
     assert app._axe_last_item_key == ("bgcmd", 7)
     assert app._axe_last_idx == 3
+
+
+def test_chop_item_identity_key() -> None:
+    """Phase 2: chop rows use a 3-tuple identity key so selection
+    survives lumberjack re-orderings and chop additions/removals.
+
+    The key shape is exercised here so Phase 3 (which actually emits
+    chop rows in ``_build_axe_items``) inherits a stable contract.
+    """
+    item = ChopItem(lumberjack_name="hooks", chop_name="fast")
+    assert _axe_item_key(item) == ("chop", "hooks", "fast")
 
 
 def test_switch_to_axe_view_moves_highlight_to_matching_row() -> None:

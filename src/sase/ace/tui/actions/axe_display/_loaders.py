@@ -27,13 +27,22 @@ from ...bgcmd import (
     mark_slot_finished,
     read_slot_output_tail,
 )
-from ...widgets.bgcmd_list import AxeItem, AxeParentItem, BgCmdItem, LumberjackItem
+from ...widgets.bgcmd_list import (
+    AxeItem,
+    AxeParentItem,
+    BgCmdItem,
+    ChopItem,
+    LumberjackItem,
+)
 from ._data import (
     AxeCollectedData,
     AxeViewType,
     BgCmdSnapshot,
+    ChopSnapshot,
+    LumberjackSnapshot,
     TabName,
     collect_axe_status_data,
+    collect_chop_snapshot,
 )
 
 if TYPE_CHECKING:
@@ -44,6 +53,7 @@ if TYPE_CHECKING:
 type AxeItemKey = (
     tuple[Literal["axe"], None]
     | tuple[Literal["lumberjack"], str]
+    | tuple[Literal["chop"], str, str]
     | tuple[Literal["bgcmd"], int]
 )
 
@@ -55,6 +65,8 @@ def _axe_item_key(item: AxeItem) -> AxeItemKey:
             return ("axe", None)
         case LumberjackItem(name=name):
             return ("lumberjack", name)
+        case ChopItem(lumberjack_name=lj_name, chop_name=chop_name):
+            return ("chop", lj_name, chop_name)
         case BgCmdItem(slot=slot):
             return ("bgcmd", slot)
 
@@ -103,6 +115,16 @@ class AxeDisplayLoadersMixin:
     _axe_lumberjack_metrics: dict[str, LumberjackMetrics | None]
     _axe_lumberjack_log_tails: dict[str, str]
     _axe_bgcmd_details: dict[int, BgCmdSnapshot]
+    # Configured chops per lumberjack, in axe-config order, so the
+    # sidebar can paint chop child rows without re-parsing the config.
+    _axe_lumberjack_chop_names: dict[str, list[str]]
+    # Per-chop snapshot (config metadata + bounded run history with
+    # output tails). Keyed by (lumberjack_name, chop_name).
+    _axe_chop_snapshots: dict[tuple[str, str], ChopSnapshot]
+    # Composite per-lumberjack snapshot (status + metrics + log tail +
+    # configured chops). Mirrors the per-attribute caches above for
+    # callers that prefer a single object.
+    _axe_lumberjack_snapshots: dict[str, LumberjackSnapshot]
     # Debouncer for axe detail-panel refresh on j/k navigation.
     _axe_detail_debouncer: DetailPanelDebouncer
     _axe_loading_placeholder_shown: bool
@@ -171,6 +193,11 @@ class AxeDisplayLoadersMixin:
         self._axe_lumberjack_metrics = data.lumberjack_metrics
         self._axe_lumberjack_log_tails = data.lumberjack_log_tails
         self._axe_bgcmd_details = data.bgcmd_details
+        # Apply chop-history caches. The sidebar (Phase 3) and the
+        # chop-run dashboard (Phase 4) read from these without disk I/O.
+        self._axe_lumberjack_chop_names = data.lumberjack_chop_names
+        self._axe_chop_snapshots = data.chop_snapshots
+        self._axe_lumberjack_snapshots = data.lumberjack_snapshots
 
         self._update_bgcmd_count()
         self._build_axe_items()
@@ -212,6 +239,31 @@ class AxeDisplayLoadersMixin:
         view = self._axe_current_view
         lumberjack_idx = self._axe_lumberjack_idx
         names = list(self._axe_lumberjack_names)
+
+        # Chop row selected: refresh only that chop's bounded run-history
+        # cache. This is the Phase 2 fast path for ``y`` on a chop.
+        selected_item: AxeItem | None = None
+        if 0 <= self.current_idx < len(self._axe_items):
+            selected_item = self._axe_items[self.current_idx]
+        if isinstance(selected_item, ChopItem):
+            lj_name = selected_item.lumberjack_name
+            chop_name = selected_item.chop_name
+            existing = self._axe_chop_snapshots.get((lj_name, chop_name))
+            description = existing.description if existing is not None else ""
+
+            def _read_chop() -> ChopSnapshot:
+                return collect_chop_snapshot(lj_name, chop_name, description)
+
+            snap = await asyncio.to_thread(_read_chop)
+            self._axe_chop_snapshots[(lj_name, chop_name)] = snap
+            jack_snap = self._axe_lumberjack_snapshots.get(lj_name)
+            if jack_snap is not None:
+                jack_snap.chops = [
+                    snap if c.chop_name == chop_name else c for c in jack_snap.chops
+                ]
+            if self.current_tab == "axe":
+                self._refresh_axe_display()  # type: ignore[attr-defined]
+            return
 
         if (
             view == "axe"
@@ -390,6 +442,15 @@ class AxeDisplayLoadersMixin:
                 self._axe_current_view = "axe"
                 try:
                     self._axe_lumberjack_idx = self._axe_lumberjack_names.index(name)
+                except ValueError:
+                    self._axe_lumberjack_idx = None
+            case ChopItem(lumberjack_name=lj_name):
+                # Phase 4 will introduce a dedicated chop-detail view. For
+                # Phase 2/3 the chop's parent lumberjack supplies the
+                # cached context that the dashboard needs to render.
+                self._axe_current_view = "axe"
+                try:
+                    self._axe_lumberjack_idx = self._axe_lumberjack_names.index(lj_name)
                 except ValueError:
                     self._axe_lumberjack_idx = None
             case BgCmdItem(slot=slot):
