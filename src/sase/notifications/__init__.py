@@ -6,6 +6,19 @@ from sase.notifications.catalog import (
     notification_info_to_json,
     resolve_notification_ref,
 )
+from sase.notifications.filters import (
+    ClientNotificationSnapshot,
+    KNOWN_SEMANTIC_TYPES,
+    NotificationCounts,
+    SuppressionRule,
+    classify_notification,
+    compute_counts,
+    filter_notifications_for_client,
+    is_suppressed_for_client,
+    parse_suppression_rules,
+    read_notification_snapshot_for_client,
+    suppressed_types_for_client,
+)
 from sase.notifications.models import (
     Notification,
     format_relative_time,
@@ -35,9 +48,20 @@ from sase.notifications.store import (
 )
 
 __all__ = [
+    "ClientNotificationSnapshot",
+    "KNOWN_SEMANTIC_TYPES",
     "Notification",
+    "NotificationCounts",
     "NotificationInfo",
+    "SuppressionRule",
     "append_notification",
+    "classify_notification",
+    "compute_counts",
+    "filter_notifications_for_client",
+    "is_suppressed_for_client",
+    "parse_suppression_rules",
+    "read_notification_snapshot_for_client",
+    "suppressed_types_for_client",
     "dismiss_notifications_matching_agents",
     "expire_due_snoozes",
     "format_relative_time",
