@@ -273,6 +273,80 @@ async def test_agents_selected_row_png_snapshot(
         )
 
 
+def _done_agents() -> list[Agent]:
+    """Three completed agents in the ``Done`` bucket.
+
+    Used by the unread-highlight snapshot — all three rows are then
+    marked unread post-startup so the Agents-tab info-panel header
+    renders a non-zero ``N unread`` count that exercises the yellow
+    background style.
+    """
+    return [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-plan",
+            project_file="/workspace/sase/visual_project.gp",
+            status="DONE",
+            start_time=datetime(2026, 5, 9, 10, 0, 0),
+            stop_time=datetime(2026, 5, 9, 10, 7, 30),
+            raw_suffix="20260509-100000-plan",
+            agent_name="planner",
+            llm_provider="codex",
+            model="gpt-5",
+            response_path="/workspace/sase/artifacts/visual-plan/response.md",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-code",
+            project_file="/workspace/sase/visual_project.gp",
+            status="DONE",
+            start_time=datetime(2026, 5, 9, 10, 8, 0),
+            stop_time=datetime(2026, 5, 9, 10, 9, 5),
+            raw_suffix="20260509-100800-code",
+            agent_name="coder",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-review",
+            project_file="/workspace/sase/visual_project.gp",
+            status="PLAN DONE",
+            start_time=datetime(2026, 5, 9, 10, 10, 0),
+            stop_time=datetime(2026, 5, 9, 10, 12, 0),
+            raw_suffix="20260509-101000-review",
+            agent_name="reviewer",
+            tag="visual",
+        ),
+    ]
+
+
+async def test_agents_unread_highlight_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agents = _done_agents()
+    _patch_startup_loaders(monkeypatch, agents=agents)
+
+    async with AcePage(query='"visual"', changespecs=_changespecs()) as page:
+        await _wait_for_startup(page)
+        identities = {agent.identity for agent in agents}
+        page.app._unread_completed_agent_ids = set(identities)
+        page.app._manual_unread_agent_ids = set(identities)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+        page.app._update_agents_info_panel()
+        from sase.ace.tui.widgets import AgentInfoPanel
+
+        panel = page.app.query_one("#agent-info-panel", AgentInfoPanel)
+        assert panel._unread_count == 3, f"expected 3 unread, got {panel._unread_count}"
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_unread_highlight_120x40",
+            title="ACE agents unread highlight",
+        )
+
+
 def _axe_bgcmd_fixture() -> AxeCollectedData:
     info_a = BackgroundCommandInfo(
         command="just test --visual",
