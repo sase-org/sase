@@ -1,8 +1,9 @@
 # Glossary
 
 **Agent Family**  
-Refers to a group of agents that are all named with the same prefix separated from the rest of its name by a dot. For
-example, agents named `foo`, `foo.bar`, `foo.baz`, and `foo.bar.1` are all apart of the same agent family.
+A `<name>` agent family refers to a group of agents that are all named with the same `<name>` prefix separated from the
+rest of its name by a dot. For example, agents named `foo`, `foo.bar`, `foo.baz`, and `foo.bar.1` are all apart of the
+same `foo` agent family.
 
 **ChangeSpec**  
 Represents a single CL/PR. Stored in `.gp` files at `~/.sase/projects/<project>/`. Sections: NAME, DESCRIPTION, PARENT,
