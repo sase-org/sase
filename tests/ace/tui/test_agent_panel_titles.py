@@ -249,8 +249,13 @@ def test_panel_title_counts_are_scoped_to_each_panel() -> None:
     )
     _assert_title_metric_styles(
         banana_title,
-        neutral_ranges=[(11, 14), (15, 17), (18, 20), (21, 22)],
-        metric_digits=[(14, "failed"), (17, "unread"), (20, "read")],
+        neutral_ranges=[(11, 14), (15, 16), (18, 20), (21, 22)],
+        metric_digits=[
+            (14, "failed"),
+            (16, "unread"),
+            (17, "unread"),
+            (20, "read"),
+        ],
     )
 
 

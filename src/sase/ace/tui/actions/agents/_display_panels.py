@@ -38,7 +38,7 @@ _PANEL_METRIC_STYLES: dict[str, str] = {
     "running": "bold #00D7AF",
     "waiting": "bold #AF87FF",
     "failed": "bold #FF5F5F",
-    "unread": "bold #FFAF5F",
+    "unread": "bold #1a1a1a on #FFD700",
     "read": "bold #5FD7FF",
 }
 _PANEL_METRIC_LABELS: tuple[tuple[str, str], ...] = (
@@ -132,8 +132,11 @@ def _agent_panel_border_title(
             for index, (name, count) in enumerate(metrics):
                 if index:
                     title.append(" ", style=_PANEL_COUNT_STYLE)
-                title.append(label_by_name[name], style=_PANEL_COUNT_STYLE)
-                title.append(f"{count}", style=_PANEL_METRIC_STYLES[name])
+                metric_style = _PANEL_METRIC_STYLES[name]
+                # Unread is the only metric whose letter is part of the highlight.
+                letter_style = metric_style if name == "unread" else _PANEL_COUNT_STYLE
+                title.append(label_by_name[name], style=letter_style)
+                title.append(f"{count}", style=metric_style)
             title.append("]", style=_PANEL_COUNT_STYLE)
     return title
 
