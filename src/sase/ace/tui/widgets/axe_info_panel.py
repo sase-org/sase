@@ -26,6 +26,11 @@ class AxeInfoPanel(Static):
         self._lumberjack_name: str = ""
         self._lumberjack_idx: int = 0
         self._lumberjack_total: int = 0
+        self._chop_mode = False
+        self._chop_lumberjack_name: str = ""
+        self._chop_name: str = ""
+        self._chop_run_idx: int = 0
+        self._chop_run_total: int = 0
         self._loading: bool = False
 
     def set_loading(self, loading: bool) -> None:
@@ -48,6 +53,7 @@ class AxeInfoPanel(Static):
         self._is_running = is_running
         self._bgcmd_mode = False
         self._lumberjack_mode = False
+        self._chop_mode = False
         self._update_display()
 
     def update_lumberjack_status(self, name: str, idx: int, total: int) -> None:
@@ -60,9 +66,34 @@ class AxeInfoPanel(Static):
         """
         self._bgcmd_mode = False
         self._lumberjack_mode = True
+        self._chop_mode = False
         self._lumberjack_name = name
         self._lumberjack_idx = idx
         self._lumberjack_total = total
+        self._update_display()
+
+    def update_chop_status(
+        self,
+        lumberjack_name: str,
+        chop_name: str,
+        run_idx: int,
+        run_total: int,
+    ) -> None:
+        """Update the top-bar copy for a chop-run-detail view.
+
+        Args:
+            lumberjack_name: Parent lumberjack name.
+            chop_name: Chop name.
+            run_idx: 0-based displayed run index.
+            run_total: Total runs in cached history.
+        """
+        self._bgcmd_mode = False
+        self._lumberjack_mode = False
+        self._chop_mode = True
+        self._chop_lumberjack_name = lumberjack_name
+        self._chop_name = chop_name
+        self._chop_run_idx = run_idx
+        self._chop_run_total = run_total
         self._update_display()
 
     def update_bgcmd_status(
@@ -80,6 +111,7 @@ class AxeInfoPanel(Static):
         """
         self._bgcmd_mode = True
         self._lumberjack_mode = False
+        self._chop_mode = False
         self._bgcmd_slot = slot
         self._bgcmd_info = info
         self._bgcmd_running = is_running
@@ -106,7 +138,20 @@ class AxeInfoPanel(Static):
             self.update(text)
             return
 
-        if self._lumberjack_mode:
+        if self._chop_mode:
+            text.append(
+                f"[{self._chop_lumberjack_name} / {self._chop_name}]",
+                style="bold #FFD700",
+            )
+            if self._chop_run_total > 0:
+                text.append(
+                    f" Run {self._chop_run_idx + 1}/{self._chop_run_total}",
+                    style="dim",
+                )
+            else:
+                text.append(" (no runs)", style="dim italic")
+            text.append("  ", style="")
+        elif self._lumberjack_mode:
             # Show lumberjack name with index
             text.append(f"[{self._lumberjack_name}]", style="bold #FFD700")
             text.append(

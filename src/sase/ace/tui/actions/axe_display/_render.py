@@ -62,69 +62,81 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
             # in-memory cache populated by the async collector; navigation must
             # never hit disk.
             if self._axe_current_view == "axe":
-                if self._axe_lumberjack_idx is not None and self._axe_lumberjack_names:
-                    # Show lumberjack-specific view
+                chop_selection = self._axe_chop_selection
+                if chop_selection is not None:
+                    # Chop child row selected → chop-run-detail view.
+                    lj_name, chop_name = chop_selection
+                    from ._data import ChopSnapshot
+
+                    chop_snap = self._axe_chop_snapshots.get(chop_selection)
+                    if chop_snap is None:
+                        # Cache miss (e.g. config changed mid-flight): fall
+                        # back to an empty snapshot so the panel still paints.
+                        chop_snap = ChopSnapshot(
+                            lumberjack_name=lj_name,
+                            chop_name=chop_name,
+                            description="",
+                            runs=[],
+                        )
+                    axe_info.update_chop_status(
+                        lumberjack_name=lj_name,
+                        chop_name=chop_name,
+                        run_idx=0,
+                        run_total=len(chop_snap.runs),
+                    )
+                    axe_dashboard.update_chop_run_display(
+                        snapshot=chop_snap,
+                        run_idx=0,
+                        countdown=self._countdown_remaining,
+                    )
+                elif (
+                    self._axe_lumberjack_idx is not None and self._axe_lumberjack_names
+                ):
+                    # Lumberjack row selected → lumberjack overview view.
                     lumberjack_name = self._axe_lumberjack_names[
                         self._axe_lumberjack_idx
                     ]
-                    lumberjack_output = self._axe_lumberjack_log_tails.get(
-                        lumberjack_name, ""
-                    )
-                    lumberjack_status = self._axe_lumberjack_statuses.get(
-                        lumberjack_name
-                    )
                     lumberjack_idx = self._axe_lumberjack_idx
                     lumberjack_total = len(self._axe_lumberjack_names)
+
+                    from ._data import LumberjackSnapshot
+
+                    jack_snap = self._axe_lumberjack_snapshots.get(lumberjack_name)
+                    if jack_snap is None:
+                        jack_snap = LumberjackSnapshot(
+                            name=lumberjack_name,
+                            status=self._axe_lumberjack_statuses.get(lumberjack_name),
+                            metrics=self._axe_lumberjack_metrics.get(lumberjack_name),
+                            log_tail=self._axe_lumberjack_log_tails.get(
+                                lumberjack_name, ""
+                            ),
+                            chops=[],
+                        )
 
                     axe_info.update_lumberjack_status(
                         lumberjack_name, lumberjack_idx, lumberjack_total
                     )
-                    axe_dashboard.update_lumberjack_display(
-                        name=lumberjack_name,
+                    axe_dashboard.update_lumberjack_overview(
+                        snapshot=jack_snap,
                         idx=lumberjack_idx,
                         total=lumberjack_total,
-                        status=lumberjack_status,
-                        output=lumberjack_output,
                         countdown=self._countdown_remaining,
                     )
                 else:
-                    # Show main axe page with lumberjack activity summary
+                    # No selectable lumberjack — paint a quiet placeholder.
+                    # The synthetic "axe" sidebar row is gone, so this branch
+                    # only fires when zero lumberjacks are configured.
                     axe_info.update_status(self.axe_running)
-
-                    # Get full cycles from metrics if available
                     full_cycles = 0
                     if self._axe_metrics:
                         full_cycles = self._axe_metrics.full_cycles_run
-
-                    # Gather lumberjack summaries from the cache
-                    from sase.axe.state import LumberjackStatus
-
-                    lumberjack_summaries: list[
-                        tuple[str, LumberjackStatus | None, int]
-                    ] = []
-                    for lumberjack_name in self._axe_lumberjack_names:
-                        lumberjack_status = self._axe_lumberjack_statuses.get(
-                            lumberjack_name
-                        )
-                        lumberjack_metrics_entry = self._axe_lumberjack_metrics.get(
-                            lumberjack_name
-                        )
-                        chops_executed = (
-                            lumberjack_metrics_entry.chops_executed
-                            if lumberjack_metrics_entry
-                            else 0
-                        )
-                        lumberjack_summaries.append(
-                            (lumberjack_name, lumberjack_status, chops_executed)
-                        )
-
                     axe_dashboard.update_display(
                         is_running=self.axe_running,
                         status=self._axe_status,
                         output=self._axe_output,
                         full_cycles=full_cycles,
                         countdown=self._countdown_remaining,
-                        lumberjack_summaries=lumberjack_summaries,
+                        lumberjack_summaries=[],
                     )
             else:
                 # Showing a bgcmd view — paint from cache when available. On a
@@ -132,11 +144,11 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                 # running) so the header still renders; the log panel shows an
                 # empty string until the async collector lands.
                 slot = self._axe_current_view
-                snapshot = self._axe_bgcmd_details.get(slot)
-                if snapshot is not None:
-                    info = snapshot.info
-                    running = snapshot.running
-                    output = snapshot.output_tail
+                bg_snap = self._axe_bgcmd_details.get(slot)
+                if bg_snap is not None:
+                    info = bg_snap.info
+                    running = bg_snap.running
+                    output = bg_snap.output_tail
                 else:
                     info = get_slot_info(slot)
                     running = is_slot_running(slot)
@@ -217,7 +229,26 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
         try:
             axe_info = self.query_one("#axe-info-panel", AxeInfoPanel)  # type: ignore[attr-defined]
             if self._axe_current_view == "axe":
-                axe_info.update_status(self.axe_running)
+                chop_selection = self._axe_chop_selection
+                if chop_selection is not None:
+                    lj_name, chop_name = chop_selection
+                    chop_snap = self._axe_chop_snapshots.get(chop_selection)
+                    run_total = len(chop_snap.runs) if chop_snap is not None else 0
+                    axe_info.update_chop_status(
+                        lumberjack_name=lj_name,
+                        chop_name=chop_name,
+                        run_idx=0,
+                        run_total=run_total,
+                    )
+                elif (
+                    self._axe_lumberjack_idx is not None and self._axe_lumberjack_names
+                ):
+                    name = self._axe_lumberjack_names[self._axe_lumberjack_idx]
+                    axe_info.update_lumberjack_status(
+                        name, self._axe_lumberjack_idx, len(self._axe_lumberjack_names)
+                    )
+                else:
+                    axe_info.update_status(self.axe_running)
             else:
                 slot = self._axe_current_view
                 snapshot = self._axe_bgcmd_details.get(slot)

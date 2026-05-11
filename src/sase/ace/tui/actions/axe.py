@@ -188,8 +188,9 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
             return
 
         # Derive what to clear from the selected item. Chop run history is
-        # immutable from the TUI in Phase 3 — the affordance still clears
-        # the parent lumberjack log when a chop child is selected.
+        # immutable from the TUI (the safer default): the affordance is
+        # a no-op on chop rows and surfaces a warning instead of silently
+        # mutating the parent lumberjack log behind the user's back.
         axe_items = self._axe_items  # type: ignore[attr-defined]
         if not axe_items or self.current_idx >= len(axe_items):
             return
@@ -198,13 +199,17 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
         match item:
             case LumberjackItem(name=name):
                 clear_lumberjack_output_log(name)
-            case ChopItem(lumberjack_name=lj_name):
-                clear_lumberjack_output_log(lj_name)
+                self._refresh_axe_display()
+                self.notify("Output cleared")  # type: ignore[attr-defined]
+            case ChopItem():
+                self.notify(  # type: ignore[attr-defined]
+                    "Chop run history is immutable from the TUI",
+                    severity="warning",
+                )
             case BgCmdItem(slot=slot):
                 clear_slot_output(slot)
-
-        self._refresh_axe_display()
-        self.notify("Output cleared")  # type: ignore[attr-defined]
+                self._refresh_axe_display()
+                self.notify("Output cleared")  # type: ignore[attr-defined]
 
     def _switch_to_axe_view(self, view: AxeViewType) -> None:
         """Switch to a different axe view.

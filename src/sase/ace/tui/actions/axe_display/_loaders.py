@@ -99,6 +99,12 @@ class AxeDisplayLoadersMixin:
     _axe_pinned_to_bottom: bool
     _axe_cmds_hidden: bool
     _axe_current_view: AxeViewType
+    # When a chop child row is selected, ``_axe_current_view`` stays at
+    # ``"axe"`` (since chops are not bgcmd slots) and this companion field
+    # carries the (lumberjack_name, chop_name) identity that the render
+    # layer uses to pick the chop-detail view instead of the lumberjack
+    # overview. ``None`` means a lumberjack row (or no row) is selected.
+    _axe_chop_selection: tuple[str, str] | None
     _bgcmd_slots: list[tuple[int, BackgroundCommandInfo]]
     _axe_lumberjack_names: list[str]
     _axe_lumberjack_idx: int | None
@@ -435,29 +441,44 @@ class AxeDisplayLoadersMixin:
         self._axe_last_item_key = selected_axe_item_key(items, restored_idx)
 
     def _derive_axe_view_from_selection(self) -> None:
-        """Derive _axe_current_view and _axe_lumberjack_idx from selected item."""
+        """Derive _axe_current_view, _axe_lumberjack_idx, and _axe_chop_selection.
+
+        The render layer distinguishes three AXE views off the resulting
+        state:
+
+        - Lumberjack row → ``_axe_current_view == "axe"`` with
+          ``_axe_chop_selection is None``.
+        - Chop row → ``_axe_current_view == "axe"`` with
+          ``_axe_chop_selection`` set to the (lumberjack, chop) identity.
+        - Bgcmd row → ``_axe_current_view`` set to the slot number.
+        """
         if not self._axe_items or self.current_idx >= len(self._axe_items):
             self._axe_current_view = "axe"
             self._axe_lumberjack_idx = None
+            self._axe_chop_selection = None
             return
 
         item = self._axe_items[self.current_idx]
         match item:
             case LumberjackItem(name=name):
                 self._axe_current_view = "axe"
+                self._axe_chop_selection = None
                 try:
                     self._axe_lumberjack_idx = self._axe_lumberjack_names.index(name)
                 except ValueError:
                     self._axe_lumberjack_idx = None
-            case ChopItem(lumberjack_name=lj_name):
-                # Phase 4 will introduce a dedicated chop-detail view. For
-                # Phase 2/3 the chop's parent lumberjack supplies the
-                # cached context that the dashboard needs to render.
+            case ChopItem(lumberjack_name=lj_name, chop_name=chop_name):
+                # Chops live under their parent lumberjack; the render
+                # layer keys off ``_axe_chop_selection`` to pick the
+                # chop-run-detail view from the same cached snapshot the
+                # lumberjack overview uses.
                 self._axe_current_view = "axe"
+                self._axe_chop_selection = (lj_name, chop_name)
                 try:
                     self._axe_lumberjack_idx = self._axe_lumberjack_names.index(lj_name)
                 except ValueError:
                     self._axe_lumberjack_idx = None
             case BgCmdItem(slot=slot):
                 self._axe_current_view = slot
+                self._axe_chop_selection = None
                 self._axe_lumberjack_idx = None

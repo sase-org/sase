@@ -11,6 +11,11 @@ from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 if TYPE_CHECKING:
+    from ..actions.axe_display._data import (
+        ChopRunSnapshot,
+        ChopSnapshot,
+        LumberjackSnapshot,
+    )
     from ..bgcmd import BackgroundCommandInfo
 
 from ..util.lazy_syntax import cap_ansi_output
@@ -54,6 +59,33 @@ def _render_ansi_cached(source_id: str, output: str) -> Text:
     return text
 
 
+def _chop_status_label(status: str) -> tuple[str, str]:
+    """Return (label, rich style) for a chop run status."""
+    if status == "success":
+        return ("✓ success", "bold green")
+    if status == "failure":
+        return ("✗ failure", "bold red")
+    if status == "timeout":
+        return ("⏱ timeout", "bold yellow")
+    if status == "missing_script":
+        return ("? missing", "bold yellow")
+    if status == "agent_launched":
+        return ("→ agent", "bold #00D7AF")
+    return (status, "dim")
+
+
+def _format_duration_ms(duration_ms: int) -> str:
+    """Format a millisecond duration for compact display."""
+    if duration_ms < 1000:
+        return f"{duration_ms}ms"
+    seconds = duration_ms / 1000.0
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    minutes = int(seconds // 60)
+    rem = int(seconds - minutes * 60)
+    return f"{minutes}m {rem}s"
+
+
 class _AxeStatusSection(Static):
     """Compact status bar showing runtime, cycles, and runners."""
 
@@ -74,6 +106,13 @@ class _AxeStatusSection(Static):
         self._lumberjack_name: str = ""
         self._lumberjack_idx: int = 0
         self._lumberjack_total: int = 0
+        # State for chop-run mode (Phase 4 chop detail header)
+        self._chop_mode = False
+        self._chop_lumberjack_name: str = ""
+        self._chop_name: str = ""
+        self._chop_run: ChopRunSnapshot | None = None
+        self._chop_run_idx: int = 0
+        self._chop_run_total: int = 0
         # Shared state
         self._countdown = 0
 
@@ -138,11 +177,43 @@ class _AxeStatusSection(Static):
             countdown: Seconds until next auto-refresh.
         """
         self._lumberjack_mode = True
+        self._chop_mode = False
         self._axe_mode = False
         self._lumberjack_status = status
         self._lumberjack_name = name
         self._lumberjack_idx = idx
         self._lumberjack_total = total
+        self._countdown = countdown
+        self._refresh_display()
+
+    def update_chop_display(
+        self,
+        lumberjack_name: str,
+        chop_name: str,
+        run: "ChopRunSnapshot | None",
+        run_idx: int,
+        run_total: int,
+        countdown: int = 0,
+    ) -> None:
+        """Update the status section header for a chop's selected run.
+
+        Args:
+            lumberjack_name: Parent lumberjack name.
+            chop_name: Chop name.
+            run: The selected run snapshot, or None when no runs recorded.
+            run_idx: 0-based index of the displayed run within history
+                (0 = newest).
+            run_total: Total number of runs in cached history.
+            countdown: Seconds until next auto-refresh.
+        """
+        self._chop_mode = True
+        self._lumberjack_mode = False
+        self._axe_mode = False
+        self._chop_lumberjack_name = lumberjack_name
+        self._chop_name = chop_name
+        self._chop_run = run
+        self._chop_run_idx = run_idx
+        self._chop_run_total = run_total
         self._countdown = countdown
         self._refresh_display()
 
@@ -159,7 +230,9 @@ class _AxeStatusSection(Static):
 
     def _refresh_display(self) -> None:
         """Refresh the display based on current state."""
-        if self._lumberjack_mode:
+        if self._chop_mode:
+            self._render_chop_display()
+        elif self._lumberjack_mode:
             self._render_lumberjack_display()
         elif self._axe_mode:
             self._render_axe_display()
@@ -268,6 +341,60 @@ class _AxeStatusSection(Static):
 
         self.update(text)
 
+    def _render_chop_display(self) -> None:
+        """Render the chop-detail status header."""
+        text = Text()
+
+        # Chop name + parent lumberjack
+        text.append(
+            f"[{self._chop_lumberjack_name} / {self._chop_name}]",
+            style="bold #FFD700",
+        )
+
+        run = self._chop_run
+        if run is not None:
+            entry = run.entry
+            text.append("  │  ", style="dim")
+            status_text, status_style = _chop_status_label(entry.status)
+            text.append(status_text, style=status_style)
+
+            # Started-at (relative)
+            text.append("  │  ", style="dim")
+            text.append("When: ", style="bold #87D7FF")
+            text.append(_format_relative_time(entry.started_at), style="#87D7FF")
+
+            # Duration
+            text.append("  │  ", style="dim")
+            text.append("Took: ", style="bold #87D7FF")
+            text.append(_format_duration_ms(entry.duration_ms), style="#00D7AF")
+
+            # Exit code when present (non-agent runs)
+            if entry.exit_code is not None:
+                text.append("  │  ", style="dim")
+                text.append("Exit: ", style="bold #87D7FF")
+                code_style = "bold red" if entry.exit_code != 0 else "#00D7AF"
+                text.append(str(entry.exit_code), style=code_style)
+
+            # Run N/M
+            text.append("  │  ", style="dim")
+            text.append("Run ", style="bold #87D7FF")
+            text.append(
+                f"{self._chop_run_idx + 1}/{self._chop_run_total}",
+                style="bold #00D7AF",
+            )
+        else:
+            text.append("  │  ", style="dim")
+            text.append("no runs recorded yet", style="dim italic")
+
+        # Countdown
+        if self._countdown > 0:
+            text.append("  │  ", style="dim")
+            text.append("(auto-refresh in ", style="dim")
+            text.append(f"{self._countdown}s", style="bold #FFD700")
+            text.append(")", style="dim")
+
+        self.update(text)
+
     def _render_lumberjack_display(self) -> None:
         """Render the lumberjack-specific status display."""
         text = Text()
@@ -347,6 +474,90 @@ class _AxeOutputSection(Static):
         # Convert ANSI codes to Rich Text via the per-source cache so an
         # unchanged log tick skips ``Text.from_ansi`` entirely.
         text = _render_ansi_cached(source_id, output)
+        self.update(text)
+
+    def update_lumberjack_overview(self, snapshot: "LumberjackSnapshot") -> None:
+        """Render a single lumberjack's overview: status + per-chop table.
+
+        Args:
+            snapshot: Cached lumberjack snapshot.
+        """
+        text = Text()
+        status = snapshot.status
+        metrics = snapshot.metrics
+
+        # Status / interval / cycles / errors line
+        text.append("  ")
+        text.append("Status: ", style="bold #87D7FF")
+        if status is None:
+            text.append("unknown", style="dim")
+        elif status.status == "running":
+            text.append("● running", style="bold green")
+        elif status.status == "error":
+            text.append("● error", style="bold red")
+        else:
+            text.append("○ stopped", style="#FFD700")
+
+        if status is not None:
+            text.append("    ")
+            text.append("Interval: ", style="bold #87D7FF")
+            text.append(f"{status.interval}s", style="#00D7AF")
+            text.append("    ")
+            text.append("Cycles: ", style="bold #87D7FF")
+            text.append(f"{status.cycles_run}", style="#00D7AF")
+            text.append("    ")
+            text.append("Errors: ", style="bold #87D7FF")
+            err_style = "bold red" if status.errors_encountered else "dim"
+            text.append(f"{status.errors_encountered}", style=err_style)
+
+        if metrics is not None:
+            text.append("    ")
+            text.append("Chops run: ", style="bold #87D7FF")
+            text.append(f"{metrics.chops_executed}", style="#00D7AF")
+
+        text.append("\n\n")
+
+        # Chops table
+        chops = snapshot.chops
+        text.append("  CHOPS\n", style="bold #FFD700")
+        text.append("  " + "─" * 68 + "\n", style="dim")
+        text.append("  ")
+        text.append(f"{'NAME':<20}", style="bold #87D7FF")
+        text.append(f"{'LAST RUN':<14}", style="bold #87D7FF")
+        text.append(f"{'WHEN':<14}", style="bold #87D7FF")
+        text.append(f"{'DURATION':>10}", style="bold #87D7FF")
+        text.append("\n")
+        text.append("  " + "─" * 68 + "\n", style="dim")
+
+        if not chops:
+            text.append(
+                "  No chops configured for this lumberjack.\n", style="dim italic"
+            )
+        else:
+            for chop in chops:
+                text.append("  ")
+                name = chop.chop_name
+                if len(name) > 18:
+                    name = name[:15] + "..."
+                text.append(f"{name:<20}", style="#FFFFFF")
+                if chop.runs:
+                    latest = chop.runs[0].entry
+                    status_label, status_style = _chop_status_label(latest.status)
+                    text.append(f"{status_label:<14}", style=status_style)
+                    text.append(
+                        f"{_format_relative_time(latest.started_at):<14}",
+                        style="#87D7FF",
+                    )
+                    text.append(
+                        f"{_format_duration_ms(latest.duration_ms):>10}",
+                        style="#00D7AF",
+                    )
+                else:
+                    text.append(f"{'—':<14}", style="dim")
+                    text.append(f"{'never':<14}", style="dim")
+                    text.append(f"{'—':>10}", style="dim")
+                text.append("\n")
+
         self.update(text)
 
     def update_lumberjack_summary(self, summaries: list[LumberjackSummary]) -> None:
@@ -567,6 +778,115 @@ class AxeDashboard(Static):
 
         status_section.update_lumberjack_display(status, name, idx, total, countdown)
         output_section.update_display(output, source_id=f"lumberjack:{name}")
+
+    def update_lumberjack_overview(
+        self,
+        snapshot: "LumberjackSnapshot",
+        idx: int,
+        total: int,
+        countdown: int = 0,
+    ) -> None:
+        """Update the dashboard with the lumberjack overview view.
+
+        Shows lumberjack runtime status in the header and a per-chop
+        table (last-run status + time) in the body so the user can see
+        what is configured under this lumberjack without expanding it.
+
+        Args:
+            snapshot: Cached lumberjack snapshot (status, metrics, chops).
+            idx: Current 0-based lumberjack index.
+            total: Total number of configured lumberjacks.
+            countdown: Seconds until next auto-refresh.
+        """
+        with tui_trace(
+            "widget.axe_dashboard.update_lumberjack_overview",
+            lumberjack=snapshot.name,
+            chops=len(snapshot.chops),
+        ):
+            status_section = self.query_one("#axe-status-section", _AxeStatusSection)
+            output_section = self.query_one("#axe-output-section", _AxeOutputSection)
+
+            status_section.update_lumberjack_display(
+                snapshot.status, snapshot.name, idx, total, countdown
+            )
+            output_section.update_lumberjack_overview(snapshot)
+
+    def update_chop_run_display(
+        self,
+        snapshot: "ChopSnapshot",
+        run_idx: int,
+        countdown: int = 0,
+    ) -> None:
+        """Update the dashboard with a chop's selected run output.
+
+        Args:
+            snapshot: Cached chop snapshot (newest-first run history).
+            run_idx: 0-based index of the run to display (0 = newest).
+                Clamped to the available history range.
+            countdown: Seconds until next auto-refresh.
+        """
+        runs = snapshot.runs
+        run_total = len(runs)
+        if run_total == 0:
+            run = None
+            display_idx = 0
+        else:
+            display_idx = max(0, min(run_idx, run_total - 1))
+            run = runs[display_idx]
+
+        with tui_trace(
+            "widget.axe_dashboard.update_chop_run_display",
+            lumberjack=snapshot.lumberjack_name,
+            chop=snapshot.chop_name,
+            run_total=run_total,
+            run_idx=display_idx,
+        ):
+            status_section = self.query_one("#axe-status-section", _AxeStatusSection)
+            output_section = self.query_one("#axe-output-section", _AxeOutputSection)
+
+            status_section.update_chop_display(
+                snapshot.lumberjack_name,
+                snapshot.chop_name,
+                run,
+                display_idx,
+                run_total,
+                countdown,
+            )
+
+            if run is None:
+                # Empty state: configured chop with no recorded runs.
+                empty = Text()
+                empty.append(
+                    "No runs recorded for this chop yet.\n", style="dim italic"
+                )
+                if snapshot.description:
+                    empty.append("\n  ", style="")
+                    empty.append(snapshot.description, style="dim")
+                output_section.update(empty)
+                return
+
+            source_id = (
+                f"chop:{snapshot.lumberjack_name}:{snapshot.chop_name}"
+                f":{run.entry.run_id}"
+            )
+            if run.output_tail:
+                output_section.update_display(run.output_tail, source_id=source_id)
+            else:
+                empty = Text()
+                if run.entry.status == "agent_launched":
+                    empty.append(
+                        "Agent was launched for this chop run; output is "
+                        "captured in the agent's own logs.",
+                        style="dim italic",
+                    )
+                elif run.entry.error:
+                    empty.append(run.entry.error, style="bold red")
+                    if run.entry.traceback:
+                        empty.append("\n\n")
+                        empty.append(run.entry.traceback, style="dim red")
+                else:
+                    empty.append("Run captured no output.", style="dim italic")
+                output_section.update(empty)
 
     def update_countdown(self, countdown: int) -> None:
         """Update just the countdown display.

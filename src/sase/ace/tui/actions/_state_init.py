@@ -382,6 +382,10 @@ class StateInitMixin:
         from ..bgcmd import BackgroundCommandInfo
 
         self._axe_current_view: Literal["axe"] | int = "axe"
+        # Set when a chop child row is selected; the render layer uses
+        # this to pick the chop-run-detail view rather than the
+        # lumberjack overview.
+        self._axe_chop_selection: tuple[str, str] | None = None
         self._bgcmd_slots: list[tuple[int, BackgroundCommandInfo]] = []
 
         # Axe navigation caches: populated by the async collector so that
