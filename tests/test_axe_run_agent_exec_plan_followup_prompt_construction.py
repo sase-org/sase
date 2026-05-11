@@ -126,6 +126,83 @@ class TestPlanFollowupPromptConstruction:
             label="Full question prompt",
         )
 
+    def test_multiple_question_rounds_merge_into_one_section(self, tmp_path) -> None:
+        """Two question rounds produce one merged Q&A section with continuous numbering."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+
+        round1_questions = [
+            {
+                "question": "Q1 text",
+                "options": [{"label": "A"}],
+                "header": "Repro",
+            },
+            {
+                "question": "Q2 text",
+                "options": [{"label": "B"}],
+                "header": "Symptom",
+            },
+        ]
+        round1_response = {
+            "answers": [
+                {"selected": ["A"], "custom_feedback": None},
+                {"selected": ["B"], "custom_feedback": None},
+            ],
+            "global_note": "",
+        }
+
+        round2_questions = [
+            {
+                "question": "Q3 text",
+                "options": [{"label": "C"}],
+                "header": "Launch surface",
+            },
+            {
+                "question": "Q4 text",
+                "options": [{"label": "D"}],
+                "header": "Symptom",
+            },
+        ]
+        round2_response = {
+            "answers": [
+                {"selected": ["C"], "custom_feedback": None},
+                {"selected": ["D"], "custom_feedback": None},
+            ],
+            "global_note": "final note",
+        }
+
+        with patch(
+            "sase.axe.run_agent_exec_plan.handle_questions_flow",
+            return_value=round1_response,
+        ):
+            handle_questions_marker({"questions": round1_questions}, ctx, state)
+
+        # After round 1: one Q&A section with Q1, Q2.
+        assert state.current_prompt.count("### Questions and Answers") == 1
+        assert "#### Q1: Repro" in state.current_prompt
+        assert "#### Q2: Symptom" in state.current_prompt
+        assert len(state.qa_rounds) == 1
+
+        with patch(
+            "sase.axe.run_agent_exec_plan.handle_questions_flow",
+            return_value=round2_response,
+        ):
+            handle_questions_marker({"questions": round2_questions}, ctx, state)
+
+        # After round 2: still ONE Q&A section, with continuous Q1..Q4.
+        assert state.current_prompt.count("### Questions and Answers") == 1
+        assert "#### Q1: Repro" in state.current_prompt
+        assert "#### Q2: Symptom" in state.current_prompt
+        assert "#### Q3: Launch surface" in state.current_prompt
+        assert "#### Q4: Symptom" in state.current_prompt
+        # Single wrapper pair.
+        assert state.current_prompt.count("%xprompts_enabled:false") == 1
+        assert state.current_prompt.count("%xprompts_enabled:true") == 1
+        # Last-non-empty global note wins.
+        assert "final note" in state.current_prompt
+        # State carries one QARound per round.
+        assert len(state.qa_rounds) == 2
+
     def test_coder_prompt_model_override_skips_inherited(self, tmp_path) -> None:
         """Custom prompt with %m:sonnet overrides inherited model."""
         ctx = make_ctx(tmp_path, agent_model="opus")

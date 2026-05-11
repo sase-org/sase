@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from sase.axe.run_agent_helpers import format_qa_for_prompt
-from sase.main.qa_markdown import build_qa_markdown
+from sase.axe.run_agent_helpers import (
+    build_qa_round,
+    format_qa_for_prompt,
+    merge_qa_for_prompt,
+)
+from sase.main.qa_markdown import QARound, build_merged_qa_markdown, build_qa_markdown
 from sase.xprompt._disabled_regions import (
     protect_disabled_regions,
     strip_disabled_region_markers,
@@ -245,6 +249,116 @@ def test_qa_xprompt_token_in_question_survives_expansion_pipeline() -> None:
     assert "#some_xprompt_name" in final
     assert "EXPANDED-CONTENT-SHOULD-NOT-APPEAR" not in final
     assert "%xprompts_enabled" not in final
+
+
+def test_build_merged_qa_markdown_continuous_numbering() -> None:
+    """Two rounds × two questions → single header, continuous Q1..Q4."""
+    r1 = QARound(
+        questions=[
+            _q("First?", [("A", "")], header="Repro"),
+            _q("Second?", [("B", "")], header="Symptom"),
+        ],
+        answers=[{"selected": ["A"]}, {"selected": ["B"]}],
+        global_note=None,
+    )
+    r2 = QARound(
+        questions=[
+            _q("Third?", [("C", "")], header="Launch surface"),
+            _q("Fourth?", [("D", "")], header="Symptom"),
+        ],
+        answers=[{"selected": ["C"]}, {"selected": ["D"]}],
+        global_note=None,
+    )
+    out = build_merged_qa_markdown([r1, r2])
+    assert out.count("### Questions and Answers") == 1
+    assert "#### Q1: Repro" in out
+    assert "#### Q2: Symptom" in out
+    assert "#### Q3: Launch surface" in out
+    assert "#### Q4: Symptom" in out
+    # round-2 question text appears under the round-2 numbering
+    assert out.index("Third?") > out.index("Second?")
+
+
+def test_merge_qa_for_prompt_single_wrapper_pair() -> None:
+    """Wrapper markers appear exactly once regardless of round count."""
+    r = QARound(
+        questions=[_q("Pick", [("A", "")])],
+        answers=[{"selected": ["A"]}],
+        global_note=None,
+    )
+    out = merge_qa_for_prompt([r, r, r])
+    assert out.count("%xprompts_enabled:false") == 1
+    assert out.count("%xprompts_enabled:true") == 1
+    assert out.startswith("%xprompts_enabled:false\n")
+    assert out.endswith("\n%xprompts_enabled:true")
+
+
+def test_merged_global_note_last_wins() -> None:
+    r1 = QARound(
+        questions=[_q("Q1", [("A", "")])],
+        answers=[{"selected": ["A"]}],
+        global_note="A-note",
+    )
+    r2 = QARound(
+        questions=[_q("Q2", [("B", "")])],
+        answers=[{"selected": ["B"]}],
+        global_note="B-note",
+    )
+    out = build_merged_qa_markdown([r1, r2])
+    assert "B-note" in out
+    assert "A-note" not in out
+    assert out.count("Global Note") == 1
+
+
+def test_merged_global_note_round1_only_renders() -> None:
+    """Last non-empty wins: a None/empty later round doesn't clobber earlier."""
+    r1 = QARound(
+        questions=[_q("Q1", [("A", "")])],
+        answers=[{"selected": ["A"]}],
+        global_note="keep me",
+    )
+    r2 = QARound(
+        questions=[_q("Q2", [("B", "")])],
+        answers=[{"selected": ["B"]}],
+        global_note=None,
+    )
+    out = build_merged_qa_markdown([r1, r2])
+    assert "keep me" in out
+
+
+def test_build_qa_markdown_single_round_unchanged() -> None:
+    """Single-round wrapper output matches a direct build_merged_qa_markdown call."""
+    q = _q("Pick", [("A", "a"), ("B", "b")], header="hdr", multi=True)
+    questions = [q]
+    answers = [{"selected": ["A"], "custom_feedback": None}]
+
+    direct = build_qa_markdown(questions=questions, answers=answers, global_note="note")
+    via_merged = build_merged_qa_markdown(
+        [QARound(questions=questions, answers=answers, global_note="note")]
+    )
+    assert direct == via_merged
+    # Stable single-round shape
+    assert direct.count("### Questions and Answers") == 1
+    assert "#### Q1: hdr" in direct
+    assert "*Multi-select*" in direct
+    assert "> **Global Note:** note" in direct
+
+
+def test_build_qa_round_aligns_by_text_on_length_mismatch() -> None:
+    q1 = _q("First?", [("A", "")])
+    q2 = _q("Second?", [("X", "")])
+    response = {
+        "answers": [
+            {"question": "Second?", "selected": ["X"], "custom_feedback": None}
+        ],
+        "global_note": "g",
+    }
+    rnd = build_qa_round([q1, q2], response)
+    assert rnd.global_note == "g"
+    assert len(rnd.questions) == 2
+    assert len(rnd.answers) == 2
+    assert rnd.answers[0] == {}  # no answer for q1
+    assert rnd.answers[1].get("selected") == ["X"]
 
 
 def test_qa_custom_feedback_with_hash_token_preserved_verbatim() -> None:

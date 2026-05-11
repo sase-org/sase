@@ -26,9 +26,10 @@ from sase.axe.run_agent_exec_plan_sdd import (
     plan_kind_for_action,
 )
 from sase.axe.run_agent_helpers import (
+    build_qa_round,
     create_followup_artifacts,
-    format_qa_for_prompt,
     handle_questions_flow,
+    merge_qa_for_prompt,
     normalize_handoff_interruption_state,
     promote_to_workflow,
     update_meta_field,
@@ -254,10 +255,10 @@ def handle_plan_marker(
             },
         )
 
-        # Reconstruct prompt: original + all Q&A + requirements
+        # Reconstruct prompt: original + merged Q&A + requirements.
         base = state.original_prompt
-        for qa in state.qa_sections:
-            base += "\n\n" + qa
+        if state.qa_rounds:
+            base += "\n\n" + merge_qa_for_prompt(state.qa_rounds)
         reqs = "\n".join(f"- {fb}" for fb in state.feedback_bullets)
         state.current_prompt = f"{base}\n\n### Additional Requirements\n\n{reqs}"
         _store_followup_prompt_artifact(
@@ -578,9 +579,15 @@ def handle_questions_marker(
     )
     _q_agent = f"{ctx.agent_name}{_q_suffix}" if ctx.agent_name else None
     _q_extra = format_extra_sections(state.current_artifacts_dir)
+
+    # Append this round before rendering so the chat transcript and the
+    # follow-up prompt share the same monotonic merged section.
+    state.qa_rounds.append(build_qa_round(q_data.get("questions", []), response))
+    merged_qa_text = merge_qa_for_prompt(state.qa_rounds)
+
     _q_chat = save_chat_history(
         prompt=state.current_prompt,
-        response=format_qa_for_prompt(q_data.get("questions", []), response),
+        response=merged_qa_text,
         workflow="ace-run",
         agent=_q_agent,
         timestamp=ctx.timestamp,
@@ -616,21 +623,21 @@ def handle_questions_marker(
             "source_plan_agent_name": _agent_name_for_suffix(ctx, previous_role_suffix),
         },
     )
-    qa_text = format_qa_for_prompt(q_data.get("questions", []), response)
-    state.qa_sections.append(qa_text)
-    state.current_prompt = state.current_prompt + "\n\n" + qa_text
+    state.current_prompt = state.original_prompt + "\n\n" + merged_qa_text
     _store_followup_prompt_artifact(
         state.current_artifacts_dir,
         state.current_prompt,
         label="Full question prompt",
     )
 
-    # Update SDD prompt snapshot with Q&A answers
+    # Update SDD prompt snapshot with the merged Q&A section so the
+    # snapshot mirrors the prompt the follow-up agent will see (one
+    # block, continuous numbering — not an appended per-round delta).
     if state.sdd_spec_path is not None:
         try:
-            from sase.sdd.files import update_spec_with_qa
+            from sase.sdd.files import set_prompt_qa
 
-            update_spec_with_qa(Path(state.sdd_spec_path), qa_text)
+            set_prompt_qa(Path(state.sdd_spec_path), merged_qa_text)
         except Exception:
             pass  # Best effort
 

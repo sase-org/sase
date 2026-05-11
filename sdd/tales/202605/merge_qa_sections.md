@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 11:12:55
-status: wip
+status: done
 prompt: sdd/prompts/202605/merge_qa_sections.md
 ---
 # Plan: Merge Multiple `### Questions and Answers` Sections in Agent Prompts

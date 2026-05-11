@@ -15,6 +15,7 @@ from sase.axe.run_agent_exec_plan import (
     handle_plan_marker,
     handle_questions_marker,
 )
+from sase.main.qa_markdown import QARound
 from sase.axe.run_agent_exec_retry import RetryTracker, handle_workflow_error
 from sase.axe.run_agent_helpers import (
     extract_step_output_and_diff_path,
@@ -188,8 +189,14 @@ class LoopState:
     current_artifacts_dir: str
     loop_outcome: str
     sdd_spec_path: str | None
+    # The bare initial prompt with no accumulated Q&A or feedback
+    # appended. The question-handler and feedback-retry paths rebuild
+    # ``current_prompt`` from scratch by concatenating
+    # ``original_prompt + merge_qa_for_prompt(qa_rounds)`` (+ any
+    # feedback requirements) so the merged Q&A section is rendered in
+    # exactly one place.
     original_prompt: str
-    qa_sections: list[str] = field(default_factory=list)
+    qa_rounds: list[QARound] = field(default_factory=list)
     feedback_bullets: list[str] = field(default_factory=list)
     feedback_round: int = 0
     agent_step: int = 1

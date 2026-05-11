@@ -61,7 +61,7 @@ class RetryHandoff:
     agent_vcs_provider: str | None
     fallback_model: str | None
     use_fallback: bool
-    qa_sections: list[str] = field(default_factory=list)
+    qa_rounds: list[dict[str, Any]] = field(default_factory=list)
     feedback_bullets: list[str] = field(default_factory=list)
 
     def write_to(self, artifacts_dir: str) -> str:
@@ -80,6 +80,14 @@ class RetryHandoff:
                 data = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             return None
+        # Legacy handoff files (written before the qa_rounds rename) used
+        # ``qa_sections: list[str]``. We can't reconstruct merged QARounds
+        # from raw text, so treat such files as having zero prior rounds
+        # rather than crashing — the rendered prompt may miss prior Q&A,
+        # but the agent boots and the retry chain continues.
+        if isinstance(data, dict) and "qa_sections" in data:
+            data.pop("qa_sections", None)
+            data.setdefault("qa_rounds", [])
         try:
             return cls(**data)
         except TypeError:

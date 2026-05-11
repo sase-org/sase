@@ -134,6 +134,96 @@ class TestRetryHandoffRoundTrip:
     def test_read_returns_none_for_missing_file(self, tmp_path: Path) -> None:
         assert RetryHandoff.read_from_path(str(tmp_path / "nope.json")) is None
 
+    def test_qa_rounds_round_trips_through_json(self, tmp_path: Path) -> None:
+        """Non-empty qa_rounds survives asdict → json → fromdict."""
+        qa_rounds = [
+            {
+                "questions": [
+                    {"question": "First?", "options": [], "header": "Repro"},
+                ],
+                "answers": [{"selected": ["A"], "custom_feedback": None}],
+                "global_note": "note",
+            },
+            {
+                "questions": [
+                    {"question": "Second?", "options": [], "header": "Symptom"},
+                ],
+                "answers": [{"selected": ["B"], "custom_feedback": None}],
+                "global_note": None,
+            },
+        ]
+        h = RetryHandoff(
+            parent_timestamp="20260424120000",
+            retry_attempt=1,
+            chain_root_timestamp="20260424120000",
+            error_snippet="x",
+            error_category="other",
+            continuation_prompt=None,
+            original_prompt="prompt",
+            chat_path=None,
+            plan_path=None,
+            role_suffix=None,
+            workspace_num=1,
+            workspace_dir=str(tmp_path),
+            vcs_ref=None,
+            cl_name="x",
+            project_file=str(tmp_path / "p.gp"),
+            project_name="sase",
+            update_target="trunk",
+            is_home_mode=False,
+            agent_name="a",
+            agent_model=None,
+            agent_llm_provider=None,
+            agent_vcs_provider=None,
+            fallback_model=None,
+            use_fallback=False,
+            qa_rounds=qa_rounds,
+        )
+        path = h.write_to(str(tmp_path))
+        loaded = RetryHandoff.read_from_path(path)
+        assert loaded is not None
+        assert loaded.qa_rounds == qa_rounds
+
+    def test_legacy_qa_sections_field_is_dropped_gracefully(
+        self, tmp_path: Path
+    ) -> None:
+        """A handoff file written by an older version (with qa_sections)
+        deserializes to an empty qa_rounds rather than crashing."""
+        legacy = {
+            "parent_timestamp": "20260424120000",
+            "retry_attempt": 1,
+            "chain_root_timestamp": "20260424120000",
+            "error_snippet": "x",
+            "error_category": "other",
+            "continuation_prompt": None,
+            "original_prompt": "prompt",
+            "chat_path": None,
+            "plan_path": None,
+            "role_suffix": None,
+            "workspace_num": 1,
+            "workspace_dir": str(tmp_path),
+            "vcs_ref": None,
+            "cl_name": "x",
+            "project_file": str(tmp_path / "p.gp"),
+            "project_name": "sase",
+            "update_target": "trunk",
+            "is_home_mode": False,
+            "agent_name": "a",
+            "agent_model": None,
+            "agent_llm_provider": None,
+            "agent_vcs_provider": None,
+            "fallback_model": None,
+            "use_fallback": False,
+            "qa_sections": ["legacy-text"],
+            "feedback_bullets": [],
+        }
+        path = tmp_path / RETRY_HANDOFF_FILENAME
+        path.write_text(json.dumps(legacy))
+
+        loaded = RetryHandoff.read_from_path(str(path))
+        assert loaded is not None
+        assert loaded.qa_rounds == []
+
 
 # ---------------------------------------------------------------------------
 # build_handoff seeds chain root and increments retry_attempt
@@ -192,7 +282,7 @@ class TestBuildHandoff:
             "agent_vcs_provider": None,
             "fallback_model": None,
             "use_fallback": False,
-            "qa_sections": [],
+            "qa_rounds": [],
             "feedback_bullets": [],
         }
         (Path(ctx.artifacts_dir) / RETRY_HANDOFF_FILENAME).write_text(

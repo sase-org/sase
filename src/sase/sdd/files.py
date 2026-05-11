@@ -353,22 +353,85 @@ def write_sdd_files(
     return prompt_path, plan_path
 
 
-def update_prompt_with_qa(prompt_path: Path, qa_markdown: str) -> None:
-    """Append Q&A section to an existing prompt snapshot."""
+_QA_HEADER = "### Questions and Answers"
+
+
+def _strip_qa_block(text: str) -> str:
+    """Remove existing ``### Questions and Answers`` block(s) (and their
+    enclosing ``%xprompts_enabled`` wrappers if present) from ``text``.
+
+    Multiple legacy blocks (e.g. a snapshot written by an old version
+    that appended a per-round block on each call) are all stripped, so a
+    subsequent ``set_prompt_qa`` call yields exactly one block.
+    """
+    end_marker = "%xprompts_enabled:true"
+    start_marker = "%xprompts_enabled:false"
+    while _QA_HEADER in text:
+        idx = text.find(_QA_HEADER)
+        wrapper_start = text.rfind(start_marker, 0, idx)
+        wrapper_end = -1
+        if wrapper_start != -1:
+            # The wrapper only applies if it directly precedes the header
+            # (no intervening non-whitespace) — otherwise the start marker
+            # belongs to some other region.
+            between = text[wrapper_start + len(start_marker) : idx]
+            if between.strip() != "":
+                wrapper_start = -1
+            else:
+                wrapper_end = text.find(end_marker, idx)
+                if wrapper_end == -1:
+                    wrapper_start = -1  # malformed → strip bare block
+
+        if wrapper_start != -1:
+            block_start = wrapper_start
+            block_end = wrapper_end + len(end_marker)
+        else:
+            # No clean terminator for a bare block: strip from the header
+            # to the end of the file (legacy: appended as final section).
+            block_start = idx
+            block_end = len(text)
+
+        # Strip any blank-line padding immediately before the block so
+        # we don't leave a trailing blank tail.
+        while block_start > 0 and text[block_start - 1] in ("\n", " ", "\t"):
+            block_start -= 1
+        text = text[:block_start] + text[block_end:]
+    return text
+
+
+def set_prompt_qa(prompt_path: Path, qa_markdown: str) -> None:
+    """Replace (or insert) the Q&A section in an SDD prompt snapshot.
+
+    Any pre-existing ``### Questions and Answers`` block is stripped
+    first (along with its ``%xprompts_enabled`` wrapper if present), so
+    the snapshot ends up with exactly one merged block matching the
+    follow-up agent's prompt.
+
+    No-op if the prompt file doesn't exist.
+    """
     if not prompt_path.exists():
         return
     existing = prompt_path.read_text(encoding="utf-8")
-    prompt_path.write_text(
-        existing.rstrip("\n") + "\n\n" + qa_markdown + "\n", encoding="utf-8"
-    )
+    stripped = _strip_qa_block(existing).rstrip("\n")
+    prompt_path.write_text(stripped + "\n\n" + qa_markdown + "\n", encoding="utf-8")
+
+
+def update_prompt_with_qa(prompt_path: Path, qa_markdown: str) -> None:
+    """Replace the Q&A section in an existing prompt snapshot.
+
+    Delegates to :func:`set_prompt_qa` (replace-not-append semantics) so
+    repeated calls produce a single merged Q&A block rather than
+    accumulating duplicate ``### Questions and Answers`` sections.
+    """
+    set_prompt_qa(prompt_path, qa_markdown)
 
 
 def update_spec_with_qa(spec_path: Path, qa_markdown: str) -> None:
-    """Append Q&A to an SDD prompt snapshot.
+    """Replace Q&A in an SDD prompt snapshot.
 
     Compatibility wrapper for callers still using the old ``spec`` terminology.
     """
-    update_prompt_with_qa(spec_path, qa_markdown)
+    set_prompt_qa(spec_path, qa_markdown)
 
 
 def expand_prompt_for_spec(prompt: str) -> str:

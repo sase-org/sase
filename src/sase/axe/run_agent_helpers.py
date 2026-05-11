@@ -4,15 +4,20 @@ Pure utility functions for workflow state extraction, marker files,
 follow-up artifacts, and question flows.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import time
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.axe.runner_utils import was_killed
 from sase.artifacts import create_artifacts_directory
+
+if TYPE_CHECKING:
+    from sase.main.qa_markdown import QARound
 from sase.plan_chain import (
     PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
     PLAN_CHAIN_PLAN_SUFFIX,
@@ -508,29 +513,20 @@ def handle_questions_flow(
         time.sleep(0.5)
 
 
-def format_qa_for_prompt(
+def build_qa_round(
     questions: list[dict[str, Any]],
     response: dict[str, Any],
-) -> str:
-    """Render Q&A response as markdown for prompt appending.
+) -> QARound:
+    """Build a :class:`QARound` from a question list and response dict.
 
-    Includes every option (with checkbox state) so the follow-up agent
-    can see the full ballot, not just the picked label.
-
-    The output is wrapped in ``%xprompts_enabled:false`` /
-    ``%xprompts_enabled:true`` markers so user-supplied free text in
-    answers, custom feedback, or the global note is not subject to
-    xprompt expansion (e.g. a literal ``#some_name`` in an answer is
-    preserved verbatim). The markers are stripped before the agent
-    sees the prompt.
+    Pairs questions with answers by index, falling back to
+    question-text match if lengths differ (defensive — modal always
+    emits one slot per question, but auto-approve / future schema
+    drift might not).
     """
-    from sase.main.qa_markdown import build_qa_markdown
+    from sase.main.qa_markdown import QARound
 
     response_answers = response.get("answers", []) or []
-
-    # Pair questions with answers by index, falling back to question-text
-    # match if lengths differ (defensive — modal always emits one slot
-    # per question, but auto-approve / future schema drift might not).
     if len(response_answers) == len(questions):
         aligned = list(response_answers)
     else:
@@ -542,9 +538,47 @@ def format_qa_for_prompt(
             match = by_text.get(q.get("question", ""))
             aligned.append(match if match is not None else {})
 
-    body = build_qa_markdown(
-        questions=questions,
+    return QARound(
+        questions=list(questions),
         answers=aligned,
         global_note=response.get("global_note") or None,
     )
+
+
+def merge_qa_for_prompt(rounds: list[QARound]) -> str:
+    """Render accumulated Q&A rounds as a single prompt-bound section.
+
+    Emits exactly one ``### Questions and Answers`` block wrapped in
+    one ``%xprompts_enabled:false`` / ``%xprompts_enabled:true`` pair,
+    regardless of round count. See :func:`build_merged_qa_markdown` for
+    rendering semantics.
+    """
+    from sase.main.qa_markdown import build_merged_qa_markdown
+
+    body = build_merged_qa_markdown(rounds)
     return f"%xprompts_enabled:false\n{body}\n%xprompts_enabled:true"
+
+
+def format_qa_for_prompt(
+    questions: list[dict[str, Any]],
+    response: dict[str, Any],
+) -> str:
+    """Render a single Q&A round as markdown for prompt appending.
+
+    Single-round convenience: builds one :class:`QARound` from the
+    given questions + response and delegates to
+    :func:`merge_qa_for_prompt`. Multi-round callers should accumulate
+    :class:`QARound` instances and render via :func:`merge_qa_for_prompt`
+    directly.
+
+    Includes every option (with checkbox state) so the follow-up agent
+    can see the full ballot, not just the picked label.
+
+    The output is wrapped in ``%xprompts_enabled:false`` /
+    ``%xprompts_enabled:true`` markers so user-supplied free text in
+    answers, custom feedback, or the global note is not subject to
+    xprompt expansion (e.g. a literal ``#some_name`` in an answer is
+    preserved verbatim). The markers are stripped before the agent
+    sees the prompt.
+    """
+    return merge_qa_for_prompt([build_qa_round(questions, response)])
