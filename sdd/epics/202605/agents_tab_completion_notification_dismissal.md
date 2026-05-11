@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 14:27:35
-status: wip
+status: done
 prompt: sdd/prompts/202605/agents_tab_completion_notification_dismissal.md
 bead_id: sase-2v
 tier: epic
