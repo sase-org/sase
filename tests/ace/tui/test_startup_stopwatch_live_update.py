@@ -52,13 +52,14 @@ def test_read_unread_notification_ids_returns_set() -> None:
     n_muted = MagicMock(id="d", read=False, silent=False, muted=True)
     n_unread = MagicMock(id="c", read=False, silent=False, muted=False)
     with patch(
-        "sase.notifications.read_notification_snapshot",
+        "sase.notifications.read_notification_snapshot_for_client",
         return_value=SimpleNamespace(
             notifications=[n_read, n_silent, n_muted, n_unread]
         ),
-    ):
+    ) as patched:
         result = mixin._read_unread_notification_ids()
     assert result == {"c"}
+    assert patched.call_args.args == ("tui",)
 
 
 def test_read_notifications_for_startup_uses_snapshot_counts() -> None:
@@ -70,8 +71,51 @@ def test_read_notifications_for_startup_uses_snapshot_counts() -> None:
         notifications=[n_priority, n_muted],
         counts=SimpleNamespace(priority=7, errors=4, rest=3, muted=2),
     )
-    with patch("sase.notifications.read_notification_snapshot", return_value=snapshot):
+    with patch(
+        "sase.notifications.read_notification_snapshot_for_client",
+        return_value=snapshot,
+    ) as patched:
         assert mixin._read_notifications_for_startup() == ({"a"}, 11, 3, 2)
+    assert patched.call_args.args == ("tui",)
+
+
+def test_read_notifications_for_startup_uses_tui_client_projection() -> None:
+    """Startup must read via the TUI client projection so suppressed rows don't seed counts."""
+    from sase.notifications.filters import (
+        ClientNotificationSnapshot,
+        NotificationCounts,
+    )
+    from sase.notifications.models import Notification
+
+    mixin = LifecycleMixin.__new__(LifecycleMixin)
+    plan = Notification(
+        id="p1",
+        timestamp="t",
+        sender="x",
+        action="PlanApproval",
+        notes=["plan ready"],
+    )
+    # The projection has already dropped the agent_completion row before
+    # the startup wiring sees it; counts are recomputed on the visible set.
+    fake_snapshot = ClientNotificationSnapshot(
+        notifications=[plan],
+        counts=NotificationCounts(priority=1, errors=0, rest=0, muted=0),
+        expired_ids=[],
+        raw=None,
+    )
+
+    def fake_reader(client: str, **_kwargs: object) -> ClientNotificationSnapshot:
+        assert client == "tui"
+        return fake_snapshot
+
+    with patch(
+        "sase.notifications.read_notification_snapshot_for_client",
+        side_effect=fake_reader,
+    ):
+        unread_ids, priority, rest, muted = mixin._read_notifications_for_startup()
+
+    assert unread_ids == {"p1"}
+    assert (priority, rest, muted) == (1, 0, 0)
 
 
 def test_read_last_selection_name_delegates_to_loader() -> None:

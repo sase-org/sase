@@ -63,17 +63,23 @@ class AgentNotificationMixin:
         Called on every auto-refresh regardless of current tab. The disk
         parse happens off the main thread so the polling tick doesn't
         block the event loop while the user is settling into the TUI.
+        Reads through the TUI client projection so suppressed rows never
+        toast, bell, or move the indicator counts.
         """
         import asyncio
+        import functools
 
-        from sase.notifications import read_notification_snapshot
+        from sase.notifications import read_notification_snapshot_for_client
 
         from ._toasts import format_batch_toasts
 
         snapshot = await asyncio.to_thread(
-            read_notification_snapshot,
-            False,
-            True,
+            functools.partial(
+                read_notification_snapshot_for_client,
+                "tui",
+                include_dismissed=False,
+                expire_due_snoozes=True,
+            )
         )
         notifications = snapshot.notifications
         expired_snoozes = snapshot.expired_ids
@@ -280,13 +286,14 @@ class AgentNotificationMixin:
         """Reload unread notification count from disk and update the indicator.
 
         Called after notifications are dismissed outside the notification modal
-        (e.g. when an agent is killed or dismissed-done).
+        (e.g. when an agent is killed or dismissed-done). Reads through the
+        TUI client projection so suppressed rows stay out of the indicator.
         """
-        from sase.notifications import read_notification_snapshot
+        from sase.notifications import read_notification_snapshot_for_client
 
         from ...widgets import NotificationIndicator
 
-        snapshot = read_notification_snapshot()
+        snapshot = read_notification_snapshot_for_client("tui")
         unread_priority, unread_errors, unread_rest, _ = _unread_notification_buckets(
             snapshot.notifications
         )
@@ -305,14 +312,19 @@ class AgentNotificationMixin:
         """Async variant that reads the notifications file off the main thread.
 
         The widget update still runs on the asyncio event loop (main thread).
+        Reads through the TUI client projection so suppressed rows stay out
+        of the indicator.
         """
         import asyncio
+        import functools
 
-        from sase.notifications import read_notification_snapshot
+        from sase.notifications import read_notification_snapshot_for_client
 
         from ...widgets import NotificationIndicator
 
-        snapshot = await asyncio.to_thread(read_notification_snapshot)
+        snapshot = await asyncio.to_thread(
+            functools.partial(read_notification_snapshot_for_client, "tui")
+        )
         unread_priority, unread_errors, unread_rest, _ = _unread_notification_buckets(
             snapshot.notifications
         )
@@ -385,11 +397,11 @@ class AgentNotificationMixin:
         if agent is None:
             return
 
-        from sase.notifications import read_notification_snapshot
+        from sase.notifications import read_notification_snapshot_for_client
 
         from ...models._timestamps import normalize_to_14_digit
 
-        snapshot = read_notification_snapshot()
+        snapshot = read_notification_snapshot_for_client("tui")
         notifications = snapshot.notifications
         unread = [n for n in notifications if not n.read]
 
@@ -431,7 +443,7 @@ class AgentNotificationMixin:
         Args:
             initial_index: Index of the notification to highlight initially.
         """
-        from sase.notifications import mark_read, read_notification_snapshot
+        from sase.notifications import mark_read, read_notification_snapshot_for_client
 
         from ._notification_actions import (
             handle_hitl,
@@ -445,7 +457,7 @@ class AgentNotificationMixin:
         )
         from ...modals import NotificationModal
 
-        snapshot = read_notification_snapshot()
+        snapshot = read_notification_snapshot_for_client("tui")
         notifications = snapshot.notifications
         unread = [n for n in notifications if not n.read and not n.silent]
 

@@ -49,10 +49,12 @@ class LifecycleMixin:
         Pure disk I/O with no widget access — safe to call from a worker
         thread (e.g. via ``asyncio.to_thread``) during startup so the
         Textual event loop stays free for the startup stopwatch to tick.
+        Suppressed-for-TUI rows are excluded so the seed matches what the
+        rest of the TUI will see.
         """
-        from sase.notifications import read_notification_snapshot
+        from sase.notifications import read_notification_snapshot_for_client
 
-        notifications = read_notification_snapshot().notifications
+        notifications = read_notification_snapshot_for_client("tui").notifications
         return {
             n.id for n in notifications if not n.read and not n.silent and not n.muted
         }
@@ -61,11 +63,12 @@ class LifecycleMixin:
         """Single-pass disk read returning unread_ids + priority/rest/muted counts.
 
         Avoids parsing the JSONL twice during startup (once for the unread-id
-        seed, once for the indicator counts).
+        seed, once for the indicator counts). Counts come from the TUI
+        client projection so suppressed rows never contribute.
         """
-        from sase.notifications import read_notification_snapshot
+        from sase.notifications import read_notification_snapshot_for_client
 
-        snapshot = read_notification_snapshot()
+        snapshot = read_notification_snapshot_for_client("tui")
         notifications = snapshot.notifications
         unread_ids: set[str] = set()
         for n in notifications:
