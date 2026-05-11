@@ -91,7 +91,7 @@ extra_css:
 plugins:
   - search
   - blog:
-      post_url_format: "{slug}"
+      post_url_format: "posts/{slug}"
   - rss:
       match_path: blog/posts/.*
       use_git: false

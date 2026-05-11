@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 17:07:53
-status: wip
+status: done
 prompt: sdd/prompts/202605/fix_recent_ci_failures.md
 ---
 # Plan: Fix Recent GitHub Actions Failures on master
