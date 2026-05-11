@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 11:06:25
-status: done
+status: wip
 prompt: sdd/prompts/202605/agents_tab_unread_badge_1.md
 bead_id: sase-2u
 tier: epic
