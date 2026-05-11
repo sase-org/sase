@@ -23,8 +23,6 @@ _TAB_LABELS: list[tuple[TabName, str]] = [
     ("axe", "AXE"),
 ]
 
-_TAB_ALERT_STYLE = "bold #FFAF00"
-
 
 class TabBar(Static):
     """Horizontal tab bar showing available tabs with selection indicator."""
@@ -44,11 +42,6 @@ class TabBar(Static):
             "agents": (0, 0),
             "axe": (0, 0),
         }
-        self._tab_badges: dict[TabName, int] = {
-            "changespecs": 0,
-            "agents": 0,
-            "axe": 0,
-        }
         super().__init__(self._build_content(), **kwargs)
 
     def set_keymap_registry(self, registry: KeymapRegistry) -> None:
@@ -61,19 +54,6 @@ class TabBar(Static):
         self._current_tab = tab
         self._refresh_content()
 
-    def set_tab_badge(self, tab: TabName, count: int) -> None:
-        """Set the unread badge count for a tab.
-
-        A count of 0 (or negative) clears the badge. When the tab is inactive
-        and the count is positive, the label renders as ``Name(count)`` in the
-        alert style; the focused tab always suppresses its badge rendering.
-        """
-        normalized = count if count > 0 else 0
-        if self._tab_badges[tab] == normalized:
-            return
-        self._tab_badges[tab] = normalized
-        self._refresh_content()
-
     def _build_content(self) -> Text:
         """Build the tab bar content."""
         text = Text()
@@ -81,17 +61,9 @@ class TabBar(Static):
             if i > 0:
                 text.append(" │ ", style="#444444")
             is_active = self._current_tab == tab
-            badge = self._tab_badges[tab]
-            show_badge = not is_active and badge > 0
-            label = f"{name}({badge})" if show_badge else name
-            if is_active:
-                style = f"bold {_TAB_COLORS[tab]}"
-            elif show_badge:
-                style = _TAB_ALERT_STYLE
-            else:
-                style = "#888888"
+            style = f"bold {_TAB_COLORS[tab]}" if is_active else "#888888"
             start = len(text.plain)
-            text.append(f" {label} ", style=style)
+            text.append(f" {name} ", style=style)
             self._tab_ranges[tab] = (start, len(text.plain))
         return text
 
