@@ -27,6 +27,7 @@ from ._agent_list_styling import (
     _CHILD_INDENT,
     _HIDDEN_ICON,
     _STEP_TYPE_COLORS,
+    _STEP_TYPE_GLYPHS,
     _TYPE_GLYPHS,
 )
 
@@ -91,6 +92,10 @@ def format_agent_option(
                 text.append(
                     f"{step_num}/{agent.total_steps}{role} ", style="dim #AAAAAA"
                 )
+        step_glyph = _STEP_TYPE_GLYPHS.get(agent.step_type or "")
+        if step_glyph is not None:
+            glyph_color = _STEP_TYPE_COLORS.get(agent.step_type or "", "#FFFFFF")
+            text.append(f"{step_glyph} ", style=f"bold {glyph_color}")
 
     # Hidden icon for agents that are normally hidden
     if agent.hidden:

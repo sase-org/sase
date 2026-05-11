@@ -72,6 +72,15 @@ _STEP_TYPE_COLORS: dict[str, str] = {
     "parallel": "#D7AFFF",  # Soft lavender — parallel orchestration
 }
 
+# Per-step-type glyphs for workflow child entries. Only python/bash get
+# a glyph: agent rows already carry a meaningful display name (and are
+# the common case, so a glyph would be noise), parallel uses its accent
+# + structural fan-out children, and prompt_part is invisible by default.
+_STEP_TYPE_GLYPHS: dict[str, str] = {
+    "python": "🐍",
+    "bash": "🐚",
+}
+
 # Icon for autonomous (%approve) agents
 _APPROVE_ICON = "⚡"
 

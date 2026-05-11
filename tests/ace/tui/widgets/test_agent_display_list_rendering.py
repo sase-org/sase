@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from datetime import UTC, datetime, timedelta
 
+from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_header_text,
@@ -111,6 +112,50 @@ class TestRenderPhaseDivider:
             for s in divider._spans
         )
         assert has_bold
+
+
+# -- workflow step-type glyphs -------------------------------------------------
+
+
+class TestWorkflowStepTypeGlyph:
+    def _make_child(self, step_type: str) -> Agent:
+        return make_agent(
+            parent_workflow="olcr",
+            step_name=step_type,
+            step_type=step_type,
+            step_index=0,
+            total_steps=3,
+        )
+
+    def test_python_step_renders_snake_glyph(self) -> None:
+        agent = self._make_child("python")
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "1/3 \U0001f40d " in left.plain
+
+    def test_bash_step_renders_shell_glyph(self) -> None:
+        agent = self._make_child("bash")
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "1/3 \U0001f41a " in left.plain
+
+    def test_agent_step_has_no_step_type_glyph(self) -> None:
+        agent = self._make_child("agent")
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "\U0001f40d" not in left.plain
+        assert "\U0001f41a" not in left.plain
+
+    def test_parallel_step_has_no_step_type_glyph(self) -> None:
+        agent = self._make_child("parallel")
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "\U0001f40d" not in left.plain
+        assert "\U0001f41a" not in left.plain
 
 
 # -- followup_agents field -----------------------------------------------------

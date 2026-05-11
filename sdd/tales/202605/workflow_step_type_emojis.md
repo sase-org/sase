@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 17:43:18
-status: wip
+status: done
 prompt: sdd/prompts/202605/workflow_step_type_emojis.md
 ---
 # Workflow Step Type Emojis in Agent Rows
