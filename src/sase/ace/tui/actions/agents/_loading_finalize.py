@@ -52,9 +52,7 @@ def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -
         selected_agent = app._agents[app.current_idx]
         selected_visible_identity = selected_agent.identity
         if selected_visible_identity not in manual_ids:
-            clear_unread = getattr(
-                app, "_clear_agent_unread_and_dismiss_notification", None
-            )
+            clear_unread = getattr(app, "_clear_agent_unread", None)
             if callable(clear_unread):
                 clear_unread(selected_agent)
             else:
