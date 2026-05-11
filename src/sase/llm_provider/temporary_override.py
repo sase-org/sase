@@ -40,7 +40,16 @@ def _state_path() -> Path:
 
 @dataclass(frozen=True)
 class TemporaryLLMOverride:
-    """Active temporary default provider/model override."""
+    """Active temporary default provider/model override.
+
+    ``pre_override_*`` captures the ``(provider, model)`` that was the
+    effective default *immediately before* this override was set. It's
+    consumed by the ``"other"`` alias short-circuit in
+    :func:`sase.llm_provider.config.resolve_model_alias` so that
+    ``%model:other`` resolves to the displaced model rather than the
+    statically-configured alias target. Legacy state files (written
+    before this field existed) leave all three as ``None``.
+    """
 
     provider: str
     model: str
@@ -48,6 +57,9 @@ class TemporaryLLMOverride:
     created_at: float
     expires_at: float | None
     source: str
+    pre_override_provider: str | None = None
+    pre_override_model: str | None = None
+    pre_override_raw_model: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -169,6 +181,15 @@ def _load_state() -> dict | None:
         _delete_state_best_effort()
         return None
 
+    for key in (
+        "pre_override_provider",
+        "pre_override_model",
+        "pre_override_raw_model",
+    ):
+        value = data.get(key)
+        if value is not None and not isinstance(value, str):
+            data[key] = None
+
     return data
 
 
@@ -203,6 +224,9 @@ def get_active_temporary_override(
         created_at=float(data["created_at"]),
         expires_at=float(expires_at) if expires_at is not None else None,
         source=data["source"],
+        pre_override_provider=data.get("pre_override_provider"),
+        pre_override_model=data.get("pre_override_model"),
+        pre_override_raw_model=data.get("pre_override_raw_model"),
     )
 
 
@@ -239,6 +263,19 @@ def set_temporary_override(
     # module's siblings via __init__.py).
     from .registry import get_default_provider_name, resolve_model_provider
 
+    # Snapshot the model that's effectively active right now, BEFORE we
+    # overwrite the state file. If a prior override is on disk it's
+    # honored (via resolve_effective_default_provider_model); otherwise
+    # the configured default is captured. The "other" alias resolves
+    # against this snapshot for the duration of the new override.
+    prior = get_active_temporary_override()
+    snap_provider, snap_model = resolve_effective_default_provider_model()
+    pre_override_provider: str | None = snap_provider
+    pre_override_model: str | None = snap_model
+    pre_override_raw_model: str | None = (
+        prior.raw_model if prior is not None else snap_model
+    )
+
     resolved_provider, resolved_model = resolve_model_provider(cleaned)
     if resolved_provider is None:
         resolved_provider = get_default_provider_name()
@@ -253,6 +290,9 @@ def set_temporary_override(
         created_at=now,
         expires_at=expires_at,
         source=source.strip(),
+        pre_override_provider=pre_override_provider,
+        pre_override_model=pre_override_model,
+        pre_override_raw_model=pre_override_raw_model,
     )
     _atomic_write_json(_state_path(), asdict(override))
     return override

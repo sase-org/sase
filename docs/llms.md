@@ -405,6 +405,18 @@ Alias values may point at another alias, a bare known model such as `opus`, an e
 `claude/opus`, or a nested provider-local path such as `opencode/anthropic/claude-sonnet-4-5`. Cycles are ignored and
 fall back to the raw input.
 
+#### Reserved alias: `other`
+
+The literal alias name `other` is reserved as a context-aware key. When a
+[temporary default override](#temporary-default-override) is active, `%model:other` (and `%m:other`) resolves to the
+`(provider, model)` that was the effective default _immediately before_ the override was set — captured in the
+override's `pre_override_*` snapshot. When no override is active, `other` falls back to whatever the user configured
+under `llm_provider.model_aliases.other` (or the literal model name `other` if no alias is configured).
+
+This makes `%m(other, …)` always pair "the alternate model" with the current default, even when the user has temporarily
+switched their default via the ACE `,P` chord. Without the snapshot, `%m(other, …)` on an override-displaced default
+could otherwise launch the override's model side-by-side with itself.
+
 ### Explicit Provider/Model Syntax
 
 Use `provider/model` to specify both explicitly:
@@ -507,18 +519,24 @@ configured default.
   "raw_model": "opencode/anthropic/claude-sonnet-4-5",
   "created_at": 1777470000.0,
   "expires_at": 1777473600.0,
-  "source": "ace"
+  "source": "ace",
+  "pre_override_provider": "claude",
+  "pre_override_model": "opus",
+  "pre_override_raw_model": "opus"
 }
 ```
 
-| Field        | Type            | Description                                                             |
-| ------------ | --------------- | ----------------------------------------------------------------------- |
-| `provider`   | `str`           | Resolved provider name (e.g. `"claude"`, `"codex"`, `"opencode"`).      |
-| `model`      | `str`           | Concrete model passed to the provider (e.g. `"o3"`, `"opus"`).          |
-| `raw_model`  | `str`           | Original user input (e.g. `"codex/o3"`, `"opencode/anthropic/..."`).    |
-| `created_at` | `float`         | Unix timestamp when the override was set.                               |
-| `expires_at` | `float \| None` | Unix timestamp when the override expires; `null` means "until cleared". |
-| `source`     | `str`           | Free-form tag indicating who set the override (e.g. `"ace"`).           |
+| Field                    | Type            | Description                                                                                                                 |
+| ------------------------ | --------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `provider`               | `str`           | Resolved provider name (e.g. `"claude"`, `"codex"`, `"opencode"`).                                                          |
+| `model`                  | `str`           | Concrete model passed to the provider (e.g. `"o3"`, `"opus"`).                                                              |
+| `raw_model`              | `str`           | Original user input (e.g. `"codex/o3"`, `"opencode/anthropic/..."`).                                                        |
+| `created_at`             | `float`         | Unix timestamp when the override was set.                                                                                   |
+| `expires_at`             | `float \| None` | Unix timestamp when the override expires; `null` means "until cleared".                                                     |
+| `source`                 | `str`           | Free-form tag indicating who set the override (e.g. `"ace"`).                                                               |
+| `pre_override_provider`  | `str \| None`   | Snapshot of the effective provider _before_ the override was set. Used to resolve the reserved `"other"` alias dynamically. |
+| `pre_override_model`     | `str \| None`   | Snapshot of the effective model _before_ the override. Pairs with `pre_override_provider` to form the `"other"` target.     |
+| `pre_override_raw_model` | `str \| None`   | Cosmetic copy of the displaced model's raw user-input form. May be `None` on legacy state files written before this field.  |
 
 Writes are atomic (temp file + `os.replace`). Reads are best-effort self-cleaning: an expired or unparseable file is
 deleted on next access, so a forgotten override never lingers past its `expires_at`, even with no TUI running.

@@ -95,6 +95,113 @@ def test_resolve_model_provider_resolves_bare_alias(
     assert resolve_model_provider("other") == ("claude", "opus")
 
 
+# --- "other" alias override-aware tests ---
+
+
+def _mock_provider_config(
+    monkeypatch: pytest.MonkeyPatch, cfg: dict[str, object]
+) -> None:
+    """Patch the config lookup at every module that imported it directly."""
+    monkeypatch.setattr("sase.llm_provider.config.get_llm_provider_config", lambda: cfg)
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_llm_provider_config", lambda: cfg
+    )
+
+
+def test_other_alias_uses_snapshot_when_override_active(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Active override makes %model:other resolve to the displaced model."""
+    from sase.llm_provider.temporary_override import set_temporary_override
+
+    # Configured alias says claude/sonnet; configured default is claude → opus.
+    _mock_provider_config(
+        monkeypatch,
+        {"provider": "claude", "model_aliases": {"other": "claude/sonnet"}},
+    )
+
+    set_temporary_override("codex/o3", 3600.0, source="test")
+
+    # Snapshot captured claude/opus (the default that was displaced).
+    assert resolve_model_provider("other") == ("claude", "opus")
+
+
+def test_other_alias_uses_snapshot_even_without_configured_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Override-driven snapshot fires even with no model_aliases.other configured."""
+    from sase.llm_provider.temporary_override import set_temporary_override
+
+    _mock_provider_config(monkeypatch, {"provider": "claude"})
+
+    set_temporary_override("codex/o3", 3600.0, source="test")
+
+    assert resolve_model_provider("other") == ("claude", "opus")
+
+
+def test_other_alias_falls_back_to_config_when_no_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without an active override, the configured alias target wins."""
+    _mock_provider_config(monkeypatch, {"model_aliases": {"other": "claude/sonnet"}})
+
+    assert resolve_model_provider("other") == ("claude", "sonnet")
+
+
+def test_other_alias_falls_back_when_override_cleared(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """After clear, "other" reverts to the configured alias target."""
+    from sase.llm_provider.temporary_override import (
+        clear_temporary_override,
+        set_temporary_override,
+    )
+
+    _mock_provider_config(
+        monkeypatch,
+        {"provider": "claude", "model_aliases": {"other": "claude/sonnet"}},
+    )
+
+    set_temporary_override("codex/o3", 3600.0, source="test")
+    clear_temporary_override()
+
+    assert resolve_model_provider("other") == ("claude", "sonnet")
+
+
+def test_other_alias_legacy_state_falls_back_to_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A legacy state file (no snapshot fields) falls back to the configured alias."""
+    import json
+    import time
+
+    from sase.llm_provider.temporary_override import _state_path
+
+    _mock_provider_config(
+        monkeypatch,
+        {"provider": "claude", "model_aliases": {"other": "claude/sonnet"}},
+    )
+
+    path = _state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "provider": "codex",
+                "model": "o3",
+                "raw_model": "codex/o3",
+                "created_at": time.time(),
+                "expires_at": time.time() + 3600,
+                "source": "ace",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # Snapshot fields absent → short-circuit declines → configured alias wins.
+    assert resolve_model_provider("other") == ("claude", "sonnet")
+
+
 # --- Backward compatibility tests ---
 
 

@@ -52,7 +52,28 @@ def resolve_model_alias(model: str) -> str:
 
     Unknown aliases return *model* unchanged.  Cycles and overly deep chains
     also fall back to the original input so a bad config cannot crash launches.
+
+    The literal alias ``"other"`` is reserved: when a temporary LLM override
+    is active, ``"other"`` short-circuits to the ``(provider, model)`` that
+    was the effective default immediately before the override was set. This
+    lets ``%model:other`` always mean "the model I would have been using
+    if I hadn't taken this temporary detour." When no override is active
+    (or the override predates the snapshot field), behavior falls through
+    to the normal ``model_aliases.other`` target.
     """
+    if model.strip() == "other":
+        # Lazy import to avoid an import cycle: temporary_override imports
+        # resolve_model_provider from registry, which imports this module.
+        from .temporary_override import get_active_temporary_override
+
+        override = get_active_temporary_override()
+        if (
+            override is not None
+            and override.pre_override_provider
+            and override.pre_override_model
+        ):
+            return f"{override.pre_override_provider}/{override.pre_override_model}"
+
     aliases = get_model_aliases()
     if not aliases:
         return model

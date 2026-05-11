@@ -186,6 +186,11 @@ Model aliases are resolved when an agent launches, so reusable xprompts can poin
 each user's `sase.yml` controls the concrete provider/model. Unknown aliases and unknown model values keep the existing
 fallback behavior and run on the default provider.
 
+The alias name `other` is reserved: when a temporary LLM override is active (see
+[Temporary Default Override](llms.md#temporary-default-override)), `%model:other` resolves to the `(provider, model)`
+that was the effective default _immediately before_ the override was set, rather than to the static
+`model_aliases.other` target. When no override is active, `other` falls back to the configured alias as usual.
+
 The TUI also supports a **temporary** session-level provider/model override that does **not** edit this config. The
 override is set/cleared from the ACE `,P` modal and persisted to `~/.sase/llm_override.json`; expired entries are
 deleted on next read. See [docs/llms.md](llms.md#temporary-default-override) for the resolution order, state-file

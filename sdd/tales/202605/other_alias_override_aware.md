@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 16:05:42
-status: wip
+status: done
 prompt: sdd/prompts/202605/other_alias_override_aware.md
 ---
 # Plan: Make the `other` Model Alias Override-Aware

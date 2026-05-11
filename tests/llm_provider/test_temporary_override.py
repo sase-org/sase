@@ -289,3 +289,72 @@ def test_resolve_effective_default_ignores_expired_override() -> None:
     assert provider != "codex" or _ != "o3"
     # And the stale state file is cleaned up by the read.
     assert not path.exists()
+
+
+# ---------------------------------------------------------------------------
+# pre-override snapshot (for the reserved "other" alias)
+# ---------------------------------------------------------------------------
+
+
+def test_set_captures_configured_default_as_pre_override_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no prior override, the snapshot is the configured default."""
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_llm_provider_config",
+        lambda: {"provider": "claude"},
+    )
+
+    override = set_temporary_override("codex/o3", 3600.0, source="ace")
+
+    assert override.pre_override_provider == "claude"
+    # ClaudeCodeProvider resolves "large" → "opus".
+    assert override.pre_override_model == "opus"
+
+
+def test_set_on_top_of_existing_captures_prior_override_snapshot() -> None:
+    """A second override snapshots the first override's resolved (provider, model)."""
+    set_temporary_override("opus", 3600.0, source="ace")
+    override = set_temporary_override("codex/o3", 3600.0, source="ace")
+
+    assert override.pre_override_provider == "claude"
+    assert override.pre_override_model == "opus"
+    assert override.pre_override_raw_model == "opus"
+
+
+def test_legacy_state_file_loads_with_none_pre_override_fields() -> None:
+    """A state file written before pre_override_* existed still loads."""
+    path = _state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    legacy = {
+        "provider": "codex",
+        "model": "o3",
+        "raw_model": "codex/o3",
+        "created_at": time.time(),
+        "expires_at": time.time() + 3600,
+        "source": "ace",
+    }
+    path.write_text(json.dumps(legacy), encoding="utf-8")
+
+    fetched = get_active_temporary_override()
+    assert fetched is not None
+    assert fetched.provider == "codex"
+    assert fetched.pre_override_provider is None
+    assert fetched.pre_override_model is None
+    assert fetched.pre_override_raw_model is None
+
+
+def test_state_file_persists_pre_override_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The new snapshot fields round-trip through the state file."""
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_llm_provider_config",
+        lambda: {"provider": "claude"},
+    )
+    set_temporary_override("codex/o3", 3600.0, source="ace")
+    data = json.loads(_state_path().read_text(encoding="utf-8"))
+
+    assert data["pre_override_provider"] == "claude"
+    assert data["pre_override_model"] == "opus"
+    assert data["pre_override_raw_model"] == "opus"
