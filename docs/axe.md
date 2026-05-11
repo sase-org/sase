@@ -235,40 +235,52 @@ same chop registry metadata as the periodic invocation.
 
 ### Chop Run History
 
-Each lumberjack tick (and each `sase axe chop run …`) records the attempt under
-`~/.sase/axe/lumberjacks/<lumberjack>/chops/<chop>/`. The newest 10 runs per chop are retained; older runs are pruned on
-the next launch. A live `index.json` lists run IDs newest-first, and each run has its own metadata JSON plus an output
-log:
+Every chop execution — whether kicked off by a scheduled lumberjack tick or by `sase axe chop run …` — is recorded as a
+separate run under `~/.sase/axe/lumberjacks/<lumberjack>/chops/<chop>/`. Each run is assigned a sortable, microsecond-
+precision `run_id` and persisted as a pair of files in a shared `runs/` directory. `index.json` (kept next to `runs/`)
+lists the chop's run IDs newest-first:
 
 ```
 ~/.sase/axe/lumberjacks/<lumberjack>/chops/<chop>/
 ├── index.json              # Ordered run IDs (newest first)
-└── <run_id>/
-    ├── metadata.json       # status, started_at, finished_at, pid, source, started_by, exit code
-    └── output.log          # Streamed stdout+stderr from the chop process
+└── runs/
+    ├── <run_id>.json       # Run metadata (see below)
+    └── <run_id>.log        # Streamed stdout+stderr from the chop process
 ```
 
-A run is created in `running` state before the subprocess is launched and finalized (`completed`, `failed`, or
-`timeout`) on exit. `finished_at` is `null` while the run is still active. Pruning never deletes an in-flight run, so a
-slow chop is safe even if its `MAX_CHOP_RUN_HISTORY` window shifts during execution.
+Each `<run_id>.json` is a serialized `ChopRunEntry` (see `src/sase/axe/state.py`). The most relevant fields are
+`status`, `started_at`, `finished_at`, `duration_ms`, `exit_code`, `pid` (script chops) / `agent_pid` (agent chops),
+`source` (`scheduled`, `manual`, or `oneshot`), `started_by`, and `output_bytes`.
+
+A run is created in `running` state before the subprocess is launched. On exit it is updated in place with a terminal
+status — `success`, `failure`, `timeout`, `missing_script`, or `agent_launched` (the last is used when a chop only
+launches a background agent rather than running a script). `finished_at` is `null` while the run is still active.
+
+History is pruned after every run write, retaining the newest `MAX_CHOP_RUN_HISTORY` (10) terminal runs per chop. Runs
+still in `running` state are always kept regardless of position, so a slow chop is never deleted out from under its own
+process.
 
 ### AXE Tab Views
 
-The Axe tab sidebar emits each lumberjack as a top-level row with its configured chops as indented children, followed by
-any background commands (`!!`). Selection drives three distinct dashboard views:
+The Axe tab sidebar renders each lumberjack as a top-level row with its configured chops as indented children, followed
+by any background commands (`!!`). Each chop row shows a status marker derived from its newest cached run: `[●]` while a
+run is active, `[✓]` for the most recent `success`, `[!]` for `failure` or `timeout`, `[?]` for `missing_script`, `[*]`
+for `agent_launched` (agent chops that only spawn a background agent), and `[·]` for chops that have never run.
+Selection drives three distinct dashboard views:
 
 - **Lumberjack overview** — selecting a lumberjack row shows its status, interval, cycle count, error count, and a
-  per-chop table with each chop's last-run status, relative timestamp, and elapsed runtime. Running chops report live
-  elapsed time instead of `0ms`.
+  per-chop table with each chop's last-run status, relative timestamp, and duration. For a chop whose newest run is
+  still active, the duration column shows live elapsed runtime rather than the stale `0ms` you would otherwise see
+  before the run finalizes.
 - **Chop detail** — selecting a chop row renders the latest run's metadata (`● running` status with live elapsed
-  runtime, PID, and a `Source:` chip for non-scheduled runs) and tails its `output.log`. While the run is still
-  producing nothing, the panel shows a `Waiting for output…` placeholder; the exit code is suppressed until the run
-  finalizes. Sidebar chop rows render a `[●]` marker when the newest cached run is active.
+  runtime, PID, and a `Source:` chip for non-scheduled runs — i.e. `manual` or `oneshot`) and tails the run's `.log`
+  file. Until the log has accumulated any bytes, the panel shows a `Waiting for output…` placeholder; the exit code is
+  suppressed until the run finalizes.
 - **Background command output** — the existing live output stream for the focused `!!` row.
 
-`Ctrl+N` / `Ctrl+P` on the Axe tab page through the focused chop's run history (newest run first). The viewer pins to
-the run you selected so that a new run prepended by a fresh tick does not bump you forward; if the pinned run is pruned
-or itself becomes newest, the pin is cleared.
+`Ctrl+N` / `Ctrl+P` on the Axe tab page through the focused chop's run history (newer / older). The viewer pins to the
+run you selected so that a fresh tick prepending a new run does not bump you forward; the pin is cleared automatically
+if the pinned run is pruned or itself becomes the newest run.
 
 ### Chop-Agent Registry
 
@@ -348,12 +360,12 @@ is no longer running.
 │       ├── metrics.json            # Cumulative metrics (updated every 30s)
 │       ├── chop_timestamps.json    # Last successful run_every timestamp per chop
 │       ├── agent_chops.json        # Durable registry of agents launched by this lumberjack's chops
-│       ├── chops/                  # Per-chop run history (newest 10 runs per chop)
+│       ├── chops/                  # Per-chop run history (newest 10 terminal runs per chop)
 │       │   └── {chop}/
 │       │       ├── index.json      # Ordered run IDs (newest first)
-│       │       └── {run_id}/
-│       │           ├── metadata.json
-│       │           └── output.log
+│       │       └── runs/
+│       │           ├── {run_id}.json   # ChopRunEntry metadata
+│       │           └── {run_id}.log    # Streamed stdout+stderr
 │       ├── tick/
 │       │   ├── context.json        # Context passed to script chops
 │       │   ├── all_changespecs.json

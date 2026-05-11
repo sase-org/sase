@@ -584,21 +584,21 @@ cached by raw query string so re-renders skip the parse.
 
 ### Navigation
 
-| Key                 | Action                                                           |
-| ------------------- | ---------------------------------------------------------------- |
-| `j` / `k`           | Move to next / previous sidebar row (lumberjack, chop, or bgcmd) |
-| `Ctrl+N` / `Ctrl+P` | Page through the focused chop's run history (newer / older)      |
-| `g`                 | Scroll to top                                                    |
-| `G`                 | Scroll to bottom (pins auto-scroll)                              |
+| Key                 | Action                                                                        |
+| ------------------- | ----------------------------------------------------------------------------- |
+| `j` / `k`           | Move to next / previous sidebar row (lumberjack, chop, or background command) |
+| `Ctrl+N` / `Ctrl+P` | Page through the focused chop's run history (newer / older)                   |
+| `g`                 | Scroll to top                                                                 |
+| `G`                 | Scroll to bottom (pins auto-scroll)                                           |
 
 ### Commands
 
-| Key | Action                                                                 |
-| --- | ---------------------------------------------------------------------- |
-| `@` | Run agent                                                              |
-| `r` | Re-run the selected bgcmd (only when a completed bgcmd row is focused) |
-| `x` | Start / stop axe (or kill bgcmd)                                       |
-| `X` | Clear output                                                           |
+| Key | Action                                                                             |
+| --- | ---------------------------------------------------------------------------------- |
+| `@` | Run agent                                                                          |
+| `r` | Re-run the selected background command (only when a completed `!!` row is focused) |
+| `x` | Start / stop axe (or kill the focused background command)                          |
+| `X` | Clear output                                                                       |
 
 ### Leader Mode (`,` prefix)
 
