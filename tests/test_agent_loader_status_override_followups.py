@@ -351,6 +351,104 @@ def test_apply_status_overrides_done_with_answered_question_stays_done() -> None
     assert parent.status == "DONE"
 
 
+def test_apply_status_overrides_parent_with_questioning_code_child_becomes_question() -> (
+    None
+):
+    """A DONE .plan parent whose .code child has an unanswered question becomes QUESTION."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 5, 11, 9, 0, 0),
+        raw_suffix="20260511090000",
+        role_suffix=".plan",
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 5, 11, 9, 10, 0),
+        raw_suffix="20260511091000",
+        parent_timestamp="20260511090000",
+        role_suffix=".code",
+        questions_times=[datetime(2026, 5, 11, 9, 30, 0)],
+    )
+    agents = [parent, code_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "QUESTION"
+    assert code_child.status == "QUESTION"
+
+
+def test_apply_status_overrides_parent_with_answered_question_stays_plan_done() -> None:
+    """A DONE .plan parent whose .code child's question was answered (has .q follow-up) stays PLAN DONE."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 5, 11, 9, 0, 0),
+        raw_suffix="20260511090000",
+        role_suffix=".plan",
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 5, 11, 9, 10, 0),
+        raw_suffix="20260511091000",
+        parent_timestamp="20260511090000",
+        role_suffix=".code",
+        questions_times=[datetime(2026, 5, 11, 9, 30, 0)],
+    )
+    q_grandchild = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 5, 11, 9, 40, 0),
+        parent_timestamp="20260511091000",
+        role_suffix=".q",
+    )
+    agents = [parent, code_child, q_grandchild]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "PLAN DONE"
+
+
+def test_apply_status_overrides_parent_with_active_code_after_question_is_plan_approved() -> (
+    None
+):
+    """An active .code child (answer in flight) keeps the parent at PLAN APPROVED."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 5, 11, 9, 0, 0),
+        raw_suffix="20260511090000",
+        role_suffix=".plan",
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 11, 9, 10, 0),
+        raw_suffix="20260511091000",
+        parent_timestamp="20260511090000",
+        role_suffix=".code",
+        questions_times=[datetime(2026, 5, 11, 9, 30, 0)],
+    )
+    agents = [parent, code_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "PLAN APPROVED"
+
+
 def test_apply_status_overrides_done_without_questions_stays_done() -> None:
     """A DONE agent with empty questions_times stays DONE."""
     agent = Agent(

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 10:19:10
-status: wip
+status: done
 prompt: sdd/prompts/202605/parent_question_status.md
 ---
 # Plan: Propagate `QUESTION` from follow-up child to parent workflow

@@ -109,7 +109,18 @@ def apply_status_overrides(agents: list[Agent]) -> None:
                 if parent.status == "PLANNING":
                     parent.status = "RUNNING"
 
+    # Pre-compute which parents have follow-up children so the loop below can
+    # ask, for a given child, "does this child have a follow-up of its own?"
+    # by checking `child.raw_suffix in parents_with_followup`.
     parents_with_followup: set[str] = set()
+    for agent in agents:
+        if (
+            agent.parent_timestamp
+            and not agent.parent_workflow
+            and not is_feedback_suffix(agent.role_suffix)
+        ):
+            parents_with_followup.add(agent.parent_timestamp)
+
     # Iterate children in start-time order so that, if multiple are active, the
     # most-recently-started child's role_suffix wins the override.
     followup_override: dict[str, str] = {}
@@ -127,16 +138,17 @@ def apply_status_overrides(agents: list[Agent]) -> None:
             and not agent.parent_workflow  # Follow-up agent, not workflow step
             and not is_feedback_suffix(agent.role_suffix)  # Skip feedback rounds
         ):
-            parents_with_followup.add(agent.parent_timestamp)
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
                 # Pick override status based on the follow-up child's role_suffix.
                 # Active children: `.epic`/`.commit` map to EPIC APPROVED /
                 # PLAN COMMITTED; anything else is PLAN APPROVED. Completed
                 # children: a DONE `.epic` yields EPIC CREATED once every
-                # follow-up has finished. Both paths resolve multiple children
-                # via last-writer-wins on the start-time-ordered iteration
-                # (newest child wins).
+                # follow-up has finished. A DONE child with an unanswered
+                # question (no `.q` follow-up of its own) propagates QUESTION
+                # to the parent — the child is "active, blocked on the user."
+                # Multiple children resolve via last-writer-wins on the
+                # start-time-ordered iteration (newest child wins).
                 if agent.status not in completed_statuses:
                     if agent.role_suffix == ".epic":
                         followup_override[agent.parent_timestamp] = "EPIC APPROVED"
@@ -150,6 +162,13 @@ def apply_status_overrides(agents: list[Agent]) -> None:
                             if parent.status == "TALE APPROVED"
                             else "PLAN APPROVED"
                         )
+                elif (
+                    agent.status == "DONE"
+                    and agent.questions_times
+                    and agent.raw_suffix
+                    and agent.raw_suffix not in parents_with_followup
+                ):
+                    followup_override[agent.parent_timestamp] = "QUESTION"
                 else:
                     if agent.status == "DONE" and agent.role_suffix == ".epic":
                         completed_followup_override[agent.parent_timestamp] = (
