@@ -235,6 +235,7 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                     ),
                     lumberjack_statuses=self._axe_lumberjack_statuses,
                     bgcmd_running=bgcmd_running_cache,
+                    chop_snapshots=self._axe_chop_snapshots,
                 )
             except Exception:
                 pass

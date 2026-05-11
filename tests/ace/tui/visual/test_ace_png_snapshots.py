@@ -10,10 +10,17 @@ import pytest
 
 from sase.ace.testing import AcePage, make_changespec
 from sase.ace.tui import AceApp
-from sase.ace.tui.actions.axe_display._data import AxeCollectedData, BgCmdSnapshot
+from sase.ace.tui.actions.axe_display._data import (
+    AxeCollectedData,
+    BgCmdSnapshot,
+    ChopRunSnapshot,
+    ChopSnapshot,
+    LumberjackSnapshot,
+)
 from sase.ace.tui.bgcmd import BackgroundCommandInfo
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import AgentLoadState
+from sase.axe.state import ChopRunEntry, LumberjackMetrics, LumberjackStatus
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
@@ -94,6 +101,13 @@ def _axe_collected_data(
     *,
     bgcmd_slots: list[tuple[int, BackgroundCommandInfo]] | None = None,
     bgcmd_details: dict[int, BgCmdSnapshot] | None = None,
+    lumberjack_names: list[str] | None = None,
+    lumberjack_statuses: dict[str, LumberjackStatus | None] | None = None,
+    lumberjack_metrics: dict[str, LumberjackMetrics | None] | None = None,
+    lumberjack_log_tails: dict[str, str] | None = None,
+    lumberjack_chop_names: dict[str, list[str]] | None = None,
+    chop_snapshots: dict[tuple[str, str], ChopSnapshot] | None = None,
+    lumberjack_snapshots: dict[str, LumberjackSnapshot] | None = None,
 ) -> AxeCollectedData:
     """Build a deterministic AxeCollectedData fixture for the Axe tab."""
     return AxeCollectedData(
@@ -101,15 +115,15 @@ def _axe_collected_data(
         axe_status=None,
         axe_metrics=None,
         axe_output="",
-        lumberjack_names=[],
+        lumberjack_names=list(lumberjack_names or []),
         bgcmd_slots=list(bgcmd_slots or []),
-        lumberjack_statuses={},
-        lumberjack_metrics={},
-        lumberjack_log_tails={},
+        lumberjack_statuses=dict(lumberjack_statuses or {}),
+        lumberjack_metrics=dict(lumberjack_metrics or {}),
+        lumberjack_log_tails=dict(lumberjack_log_tails or {}),
         bgcmd_details=dict(bgcmd_details or {}),
-        lumberjack_chop_names={},
-        chop_snapshots={},
-        lumberjack_snapshots={},
+        lumberjack_chop_names=dict(lumberjack_chop_names or {}),
+        chop_snapshots=dict(chop_snapshots or {}),
+        lumberjack_snapshots=dict(lumberjack_snapshots or {}),
     )
 
 
@@ -449,4 +463,151 @@ async def test_axe_selected_row_png_snapshot(
             page,
             "axe_selected_row_120x40",
             title="ACE axe selected row",
+        )
+
+
+def _make_lumberjack_status(
+    name: str, status: str = "running", chops: list[str] | None = None
+) -> LumberjackStatus:
+    return LumberjackStatus(
+        name=name,
+        pid=4242,
+        started_at="2026-05-09T10:00:00",
+        status=status,  # type: ignore[arg-type]
+        interval=60,
+        chops=list(chops or []),
+        last_cycle="2026-05-09T10:05:00",
+        cycles_run=12,
+        errors_encountered=0,
+        uptime_seconds=300,
+    )
+
+
+def _make_chop_run(
+    lumberjack: str,
+    chop: str,
+    *,
+    run_id: str,
+    status: str,
+) -> ChopRunSnapshot:
+    entry = ChopRunEntry(
+        run_id=run_id,
+        lumberjack_name=lumberjack,
+        chop_name=chop,
+        started_at="2026-05-09T10:00:00",
+        finished_at="2026-05-09T10:00:01",
+        duration_ms=1000,
+        status=status,  # type: ignore[arg-type]
+        exit_code=0 if status == "success" else 1,
+        output_bytes=64,
+        output_log=f"{run_id}.log",
+    )
+    return ChopRunSnapshot(entry=entry, output_tail=f"{chop} {status} output\n")
+
+
+def _axe_lumberjack_tree_fixture() -> AxeCollectedData:
+    """Fixture covering lumberjacks with chops alongside a bgcmd row."""
+    hooks_fast = ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name="fast_lint",
+        description="fast lint",
+        runs=[
+            _make_chop_run(
+                "hooks",
+                "fast_lint",
+                run_id="20260509T100100_000000",
+                status="success",
+            ),
+        ],
+    )
+    hooks_slow = ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name="slow_typecheck",
+        description="slow typecheck",
+        runs=[
+            _make_chop_run(
+                "hooks",
+                "slow_typecheck",
+                run_id="20260509T100000_000000",
+                status="failure",
+            ),
+        ],
+    )
+    checks_smoke = ChopSnapshot(
+        lumberjack_name="checks",
+        chop_name="smoke",
+        description="smoke",
+        runs=[],
+    )
+    chop_snapshots = {
+        ("hooks", "fast_lint"): hooks_fast,
+        ("hooks", "slow_typecheck"): hooks_slow,
+        ("checks", "smoke"): checks_smoke,
+    }
+    hooks_status = _make_lumberjack_status(
+        "hooks", chops=["fast_lint", "slow_typecheck"]
+    )
+    checks_status = _make_lumberjack_status("checks", status="stopped", chops=["smoke"])
+    metrics = LumberjackMetrics(
+        cycles_run=12, chops_executed=24, total_updates=12, errors_encountered=1
+    )
+    lumberjack_snapshots = {
+        "hooks": LumberjackSnapshot(
+            name="hooks",
+            status=hooks_status,
+            metrics=metrics,
+            log_tail="",
+            chops=[hooks_fast, hooks_slow],
+        ),
+        "checks": LumberjackSnapshot(
+            name="checks",
+            status=checks_status,
+            metrics=metrics,
+            log_tail="",
+            chops=[checks_smoke],
+        ),
+    }
+    bgcmd_info = BackgroundCommandInfo(
+        command="just check",
+        project="visual_project",
+        workspace_num=1,
+        workspace_dir="/workspace/sase_1",
+        started_at="2026-05-09T10:05:00",
+        pid=12345,
+    )
+    return _axe_collected_data(
+        lumberjack_names=["hooks", "checks"],
+        lumberjack_statuses={"hooks": hooks_status, "checks": checks_status},
+        lumberjack_metrics={"hooks": metrics, "checks": metrics},
+        lumberjack_log_tails={"hooks": "", "checks": ""},
+        lumberjack_chop_names={
+            "hooks": ["fast_lint", "slow_typecheck"],
+            "checks": ["smoke"],
+        },
+        chop_snapshots=chop_snapshots,
+        lumberjack_snapshots=lumberjack_snapshots,
+        bgcmd_slots=[(1, bgcmd_info)],
+        bgcmd_details={
+            1: BgCmdSnapshot(info=bgcmd_info, running=True, output_tail="building...")
+        },
+    )
+
+
+async def test_axe_lumberjack_tree_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Lumberjack tree with expanded chops and a bgcmd row below."""
+    _patch_startup_loaders(monkeypatch, axe_data=_axe_lumberjack_tree_fixture())
+
+    async with AcePage(query='"visual"', changespecs=_changespecs()) as page:
+        await _wait_for_startup(page)
+        await page.press("tab")
+        await page.press("tab")
+        await page.expect_state("tab", "axe")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_lumberjack_tree_120x40",
+            title="ACE axe lumberjack tree",
         )

@@ -9,6 +9,16 @@ import pytest
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 
+@pytest.fixture(autouse=True)
+def _force_color_for_visual_snapshots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Visual snapshots pin Textual's colored output. A NO_COLOR=1 inherited
+    # from the caller's shell would otherwise force grayscale rendering and
+    # cause every snapshot to diff against the committed golden.
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
+
 @pytest.fixture
 def ace_png_visual(request: pytest.FixtureRequest) -> AcePngSnapshotFixture:
     """ACE PNG visual snapshot assertion helper."""
