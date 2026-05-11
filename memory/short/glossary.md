@@ -11,7 +11,8 @@ A line of the form `| <NAME>: <FILE_PATH>` under a ChangeSpec COMMITS entry.
 **Child Agent/Workflow Step Entry**  
 Any agent row entry on the "Agents" tab of the `sase ace` TUI that is a child of some root agent/workflow entry.
 Workflow entries can have python/bash children as well as agent children. Agents root entries can only have (one or
-more) agent child entries.
+more) agent child entries. Child entries are not visible by default; the `h` and `l` keymaps are used to hide and reveal
+them, respectively.
 
 **Multi-agent xprompt**  
 An xprompt whose body contains `---` segment separators (outside fenced blocks). Normal user prompts can also use `---`
