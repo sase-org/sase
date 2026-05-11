@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 19:00:20
-status: wip
+status: done
 prompt: sdd/prompts/202605/remove_blog_archive_categories.md
 ---
 # Remove "Archive" and "Categories" from sase.sh Blog Sidebar

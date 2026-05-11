@@ -92,6 +92,8 @@ plugins:
   - search
   - blog:
       post_url_format: "posts/{slug}"
+      archive: false
+      categories: false
   - rss:
       match_path: blog/posts/.*
       use_git: false
