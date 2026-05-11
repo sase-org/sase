@@ -976,10 +976,12 @@ active (the agent is still running or awaiting input) and completed (the agent h
 | **QUESTION**       | Amber        | Agent is asking the user a question (via `/sase_questions`)        |
 | **RETRYING**       | Orange       | Agent hit a retryable error and is in a countdown before retrying  |
 
-`QUESTION` status is sourced from a `pending_question.json` marker the agent writes before the response-wait loop and
-clears on every exit. ACE flips a `RUNNING` row to `QUESTION` whenever the marker is present, so the row keeps reporting
-"waiting on you" even after the user dismisses the matching `UserQuestion` notification. The `,n` shortcut falls back to
-the marker's `request_path` to reopen the question modal when no unread notification remains.
+`QUESTION` status survives notification dismissal. While an agent is waiting for an answer it writes a
+`pending_question.json` marker into its run directory and removes the marker once it resumes (whether the user replied,
+the agent was killed, or it crashed). Any `RUNNING` row whose run directory contains the marker is shown as `QUESTION`,
+so the "waiting on you" status keeps appearing even after you dismiss the matching question notification from the inbox.
+The `,n` shortcut (jump to the open question) reads the marker directly when no unread notification is left, so it can
+still reopen the question modal.
 
 The footer also shows axe daemon status indicators:
 
@@ -1015,13 +1017,15 @@ row and dismisses the matching user-agent completion notification. Manually mark
 normal acknowledgement after you move away and return, so the marker can be used as a short-lived reminder without
 leaving stale inbox entries.
 
-The Agents-header `unread` metric is rendered as black-on-gold (`#1a1a1a on #FFD700`) so the "you still have unseen
-completed work" signal pops out of the colorful metric strip — it matches the notification-indicator highlight.
+The `unread` count in the Agents header is drawn as black text on a gold pill so the "you still have unseen completed
+work" signal stands out from the rest of the colored metrics. It uses the same gold tone as the top-bar notification
+indicator, giving you a single color to scan for.
 
-Entering the Agents tab bulk-dismisses every outstanding agent-completion notification. While the tab stays focused,
-subsequent navigation activity (`j`/`k`, marks, folds, etc.) dismisses any new completion notifications that polling has
-observed since the last acknowledgement. Plan approvals and user questions remain explicit response workflows and are
-never auto-dismissed by Agents-tab activity.
+Switching to the Agents tab dismisses every outstanding agent-completion notification in one shot. While the tab stays
+focused, ordinary navigation (`j`/`k`, marks, folds, and similar) also dismisses any _new_ completion notifications that
+arrive while you're looking at the list — the idea is that if you're on the Agents tab you've already seen the completed
+work. Plan approvals and user questions are never auto-dismissed by this flow; they always require explicit `y` / `n`
+confirmation from their respective modals.
 
 ### Agent Revival
 

@@ -45,10 +45,11 @@ The modal renders notifications in four fixed-order sections, each with a colore
 
 Empty sections are not rendered. Section header rows are non-selectable; `j` / `k` skip over them automatically.
 
-Within each section, entries render newest-first by parsed timestamp. The fixed group order (PRIORITY → ERRORS → INBOX →
-MUTED) is unaffected; only the rows inside each section are sorted. Stable sort preserves insertion order for equal
-timestamps, and malformed timestamps sink to the bottom of their group rather than raising. Live actions (mark-read,
-dismiss, mute, snooze) re-order correctly because the sort runs on every modal rebuild.
+Within each section, rows are ordered newest-first by their `timestamp` field. The fixed section order (PRIORITY →
+ERRORS → INBOX → MUTED) is never reshuffled — only the rows inside each section are sorted. Rows with equal timestamps
+keep their original arrival order, and rows whose timestamp can't be parsed fall to the bottom of their section rather
+than breaking the modal. The sort runs on every modal rebuild, so live actions like mark-read, dismiss, mute, and snooze
+update the visible order immediately.
 
 ### Marks and Bulk Dismiss
 
@@ -118,12 +119,12 @@ been marked unread, or when the user jumps to it with the unread-agent shortcut,
 dismisses the matching completion notification. Plan approvals and user questions remain explicit response workflows and
 are not auto-read merely by selection.
 
-Entering the Agents tab additionally bulk-dismisses every outstanding agent-completion notification, and subsequent
-activity on that tab (`j`/`k`, marks, folds, etc.) dismisses any new completion notifications that polling has observed
-since the last acknowledgement. A latch armed by `_poll_agent_completions` keeps the steady-state hot path empty when no
-unread completions exist, and an in-flight flag coalesces overlapping dismiss workers so j/k bursts do not multiply
-work. The notification indicator only refreshes when the store reports a non-zero changed count; this path is silent (no
-toast) since it is an acknowledgement side effect rather than a user-facing command result.
+Switching to the Agents tab additionally bulk-dismisses every outstanding agent-completion notification, and ordinary
+activity on that tab (`j`/`k`, marks, folds, and similar) keeps dismissing any new completion notifications that arrive
+while the tab is focused. The flow only runs when there is something to dismiss, multiple navigation events do not pile
+up overlapping dismiss workers, and the top-bar bell only refreshes when the store actually changed — so navigating
+through agents does not produce stray toasts or noisy redraws. Plan approvals and user questions are excluded from this
+auto-dismiss and still require an explicit `y` / `n` response.
 
 See [`agent_images.md`](agent_images.md) for the full attachment contract and ACE image preview notes.
 
