@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
+from unittest.mock import Mock
+
+import pytest
 
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
@@ -11,6 +14,15 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panels import AgentPanelGroup, panel_key_per_agent
 
 from ._agent_unread_helpers import make_agent
+
+
+@pytest.fixture(autouse=True)
+def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    dismiss = Mock(return_value=0)
+    monkeypatch.setattr(
+        "sase.notifications.dismiss_notifications_matching_agents", dismiss
+    )
+    return dismiss
 
 
 class _UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin):
@@ -43,6 +55,7 @@ class _UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin):
         self.patch_calls: list[Agent] = []
         self.refresh_calls: list[dict[str, Any]] = []
         self.debounced_refresh_calls = 0
+        self.notification_count_refresh_calls = 0
 
     def _agents_visible_order(self) -> list[int]:
         if self._visible is not None:
@@ -70,8 +83,13 @@ class _UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin):
     def _refresh_agents_display_debounced(self) -> None:
         self.debounced_refresh_calls += 1
 
+    def _refresh_notification_count(self) -> None:
+        self.notification_count_refresh_calls += 1
 
-def test_toggle_agent_unread_marks_selected_row_without_moving() -> None:
+
+def test_toggle_agent_unread_marks_selected_row_without_moving(
+    notification_dismiss: Mock,
+) -> None:
     agent = make_agent(status="RUNNING")
     app = _UnreadJumpApp([agent])
 
@@ -82,9 +100,13 @@ def test_toggle_agent_unread_marks_selected_row_without_moving() -> None:
     assert app._manual_unread_agent_ids == {agent.identity}
     assert app.patch_calls == [agent]
     assert app.refresh_calls == []
+    notification_dismiss.assert_not_called()
 
 
-def test_toggle_agent_unread_again_marks_selected_row_read() -> None:
+def test_toggle_agent_unread_again_marks_selected_row_read(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.return_value = 1
     agent = make_agent(status="DONE")
     app = _UnreadJumpApp([agent])
     app._unread_completed_agent_ids.add(agent.identity)
@@ -95,6 +117,10 @@ def test_toggle_agent_unread_again_marks_selected_row_read() -> None:
     assert app._unread_completed_agent_ids == set()
     assert app._manual_unread_agent_ids == set()
     assert app.patch_calls == [agent]
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
+    )
+    assert app.notification_count_refresh_calls == 1
 
 
 def test_toggle_agent_unread_refreshes_when_patch_fails() -> None:
@@ -283,7 +309,10 @@ def test_jump_to_next_unread_done_agent_uses_start_time_when_stop_time_missing()
     assert missing_time.identity not in app._unread_completed_agent_ids
 
 
-def test_jump_to_next_unread_done_agent_acknowledges_target_unread_state() -> None:
+def test_jump_to_next_unread_done_agent_acknowledges_target_unread_state(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.return_value = 1
     done = make_agent(name="done", status="PLAN DONE")
     app = _UnreadJumpApp([done])
     app._unread_completed_agent_ids.add(done.identity)
@@ -294,6 +323,10 @@ def test_jump_to_next_unread_done_agent_acknowledges_target_unread_state() -> No
     assert app.current_attempt_number is None
     assert app.patch_calls == [done]
     assert app.refresh_calls == []
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": done.cl_name, "raw_suffix": done.raw_suffix}]
+    )
+    assert app.notification_count_refresh_calls == 1
 
 
 def test_jump_to_next_unread_done_agent_falls_back_to_full_refresh() -> None:

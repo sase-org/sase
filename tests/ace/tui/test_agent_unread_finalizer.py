@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from unittest.mock import Mock
+
+import pytest
+
 from sase.ace.tui.actions.agents._loading_finalize import (
     _sync_unread_completed_agents,
 )
@@ -9,6 +13,15 @@ from sase.ace.tui.actions.agents._core import AgentsMixinCore
 from sase.ace.tui.models.agent import Agent, AgentType
 
 from ._agent_unread_helpers import make_agent
+
+
+@pytest.fixture(autouse=True)
+def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    dismiss = Mock(return_value=0)
+    monkeypatch.setattr(
+        "sase.notifications.dismiss_notifications_matching_agents", dismiss
+    )
+    return dismiss
 
 
 class _UnreadFinalizeApp(AgentsMixinCore):
@@ -21,6 +34,10 @@ class _UnreadFinalizeApp(AgentsMixinCore):
         self._agent_display_status_by_identity: dict[
             tuple[AgentType, str, str | None], str
         ] = {}
+        self.notification_count_refresh_calls = 0
+
+    def _refresh_notification_count(self) -> None:
+        self.notification_count_refresh_calls += 1
 
 
 def test_finalizer_marks_new_terminal_agent_unread() -> None:
@@ -62,6 +79,24 @@ def test_finalizer_clears_unread_for_saved_selection_on_agents_tab() -> None:
     _sync_unread_completed_agents(app, on_agents_tab=True)  # type: ignore[arg-type]
 
     assert app._unread_completed_agent_ids == set()
+
+
+def test_finalizer_dismisses_notification_for_saved_selection_on_agents_tab(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.return_value = 1
+    agent = make_agent(status="DONE")
+    app = _UnreadFinalizeApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+    app._agent_display_status_by_identity[agent.identity] = "DONE"
+
+    _sync_unread_completed_agents(app, on_agents_tab=True)  # type: ignore[arg-type]
+
+    assert app._unread_completed_agent_ids == set()
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
+    )
+    assert app.notification_count_refresh_calls == 1
 
 
 def test_finalizer_preserves_selected_manually_unread_agent() -> None:

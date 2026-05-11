@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import Mock
 
+import pytest
+
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
 from sase.ace.tui.actions.event_handlers import EventHandlersMixin
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -12,6 +14,15 @@ from sase.ace.tui.models.agent_panels import AgentPanelGroup, panel_key_per_agen
 from sase.ace.tui.widgets.agent_list import AgentList
 
 from ._agent_unread_helpers import make_agent
+
+
+@pytest.fixture(autouse=True)
+def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    dismiss = Mock(return_value=0)
+    monkeypatch.setattr(
+        "sase.notifications.dismiss_notifications_matching_agents", dismiss
+    )
+    return dismiss
 
 
 class _SelectionEvent:
@@ -42,6 +53,7 @@ class _SelectionApp(EventHandlersMixin, AgentsMixinCore):
         self._patch_result = patch_result
         self.patch_calls: list[Agent] = []
         self.refresh_calls: list[dict[str, Any]] = []
+        self.notification_count_refresh_calls = 0
         self.artifact_viewer_guard_active = False
         self.notify = Mock()
 
@@ -63,6 +75,9 @@ class _SelectionApp(EventHandlersMixin, AgentsMixinCore):
 
     def _refresh_agents_display(self, **kwargs: Any) -> None:
         self.refresh_calls.append(kwargs)
+
+    def _refresh_notification_count(self) -> None:
+        self.notification_count_refresh_calls += 1
 
 
 def test_agent_row_selection_clears_unread_and_patches_row() -> None:
@@ -178,7 +193,10 @@ def test_agent_row_selection_guard_ignores_different_agent() -> None:
     )
 
 
-def test_acknowledge_agent_unread_clears_unread_state() -> None:
+def test_acknowledge_agent_unread_dismisses_matching_notification(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.return_value = 1
     agent = make_agent(status="DONE")
     app = _SelectionApp([agent])
     app._unread_completed_agent_ids.add(agent.identity)
@@ -186,9 +204,15 @@ def test_acknowledge_agent_unread_clears_unread_state() -> None:
     assert app._acknowledge_agent_unread(agent)
 
     assert agent.identity not in app._unread_completed_agent_ids
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
+    )
+    assert app.notification_count_refresh_calls == 1
 
 
-def test_acknowledge_agent_unread_does_not_clear_manual_guard() -> None:
+def test_acknowledge_agent_unread_does_not_dismiss_manual_guard(
+    notification_dismiss: Mock,
+) -> None:
     agent = make_agent(status="DONE")
     app = _SelectionApp([agent])
     app._unread_completed_agent_ids.add(agent.identity)
@@ -197,3 +221,5 @@ def test_acknowledge_agent_unread_does_not_clear_manual_guard() -> None:
     assert not app._acknowledge_agent_unread(agent)
 
     assert agent.identity in app._unread_completed_agent_ids
+    notification_dismiss.assert_not_called()
+    assert app.notification_count_refresh_calls == 0
