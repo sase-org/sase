@@ -376,6 +376,23 @@ class WaitingMarkerWire:
 
 
 @dataclass(frozen=True)
+class PendingQuestionMarkerWire:
+    """Compact projection of ``pending_question.json``.
+
+    The marker is written by ``handle_questions_flow()`` immediately
+    before the response-wait poll loop begins and removed on every loop
+    exit path (response, kill, exception). Its presence is the
+    authoritative signal that the agent is currently blocked on user
+    input, independent of the corresponding ``UserQuestion``
+    notification's dismissed/read state.
+    """
+
+    session_id: str | None = None
+    request_path: str | None = None
+    submitted_at: str | None = None
+
+
+@dataclass(frozen=True)
 class WorkflowStepStateWire:
     """One step entry from ``workflow_state.json``'s ``steps`` array."""
 
@@ -478,6 +495,7 @@ class AgentArtifactRecordWire:
         done: Parsed ``done.json``, or ``None``.
         running: Parsed ``running.json``, or ``None``.
         waiting: Parsed ``waiting.json``, or ``None``.
+        pending_question: Parsed ``pending_question.json``, or ``None``.
         workflow_state: Parsed ``workflow_state.json``, or ``None``.
         plan_path: Parsed ``plan_path.json``, or ``None``.
         prompt_steps: Sorted (by file name) list of parsed
@@ -502,6 +520,7 @@ class AgentArtifactRecordWire:
     done: DoneMarkerWire | None = None
     running: RunningMarkerWire | None = None
     waiting: WaitingMarkerWire | None = None
+    pending_question: PendingQuestionMarkerWire | None = None
     workflow_state: WorkflowStateWire | None = None
     plan_path: PlanPathMarkerWire | None = None
     prompt_steps: list[PromptStepMarkerWire] = field(default_factory=list)
@@ -609,6 +628,7 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
     done = data.get("done")
     running = data.get("running")
     waiting = data.get("waiting")
+    pending_question = data.get("pending_question")
     workflow_state = data.get("workflow_state")
     plan_path = data.get("plan_path")
     return AgentArtifactRecordWire(
@@ -624,6 +644,9 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
         done=DoneMarkerWire(**done) if isinstance(done, dict) else None,
         running=RunningMarkerWire(**running) if isinstance(running, dict) else None,
         waiting=WaitingMarkerWire(**waiting) if isinstance(waiting, dict) else None,
+        pending_question=PendingQuestionMarkerWire(**pending_question)
+        if isinstance(pending_question, dict)
+        else None,
         workflow_state=(
             _workflow_state_from_dict(workflow_state)
             if isinstance(workflow_state, dict)
@@ -683,6 +706,7 @@ __all__ = [
     "AgentArtifactScanWire",
     "AgentMetaWire",
     "DoneMarkerWire",
+    "PendingQuestionMarkerWire",
     "PlanPathMarkerWire",
     "PromptStepMarkerWire",
     "RunningMarkerWire",

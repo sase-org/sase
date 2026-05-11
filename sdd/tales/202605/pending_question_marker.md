@@ -4,7 +4,7 @@ description: Show QUESTION status for agents currently blocked on an unanswered 
   question, decoupled from notification state.
 type: ace_tui
 create_time: 2026-05-11 11:30:27
-status: wip
+status: done
 prompt: sdd/prompts/202605/pending_question_marker.md
 ---
 

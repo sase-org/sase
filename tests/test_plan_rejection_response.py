@@ -513,3 +513,70 @@ def test_user_question_response_dismisses_notification_and_restores_status(
     assert app._agent_status_overrides[agent.identity] == "PLAN APPROVED"
     assert agent.identity not in app._agent_pre_question_status
     app._load_agents.assert_called_once()
+
+
+def test_open_user_question_modal_from_marker_dismissed_notification(
+    tmp_path: Path,
+) -> None:
+    """The fallback opens the modal directly from a pending_question marker.
+
+    When the UserQuestion notification has already been dismissed (the bug
+    fixed by the pending_question.json marker), the "jump to current agent's
+    question" keybind must still be able to open the modal by reading the
+    request_path out of the marker.
+    """
+    response_dir = tmp_path / "response"
+    response_dir.mkdir()
+    (response_dir / "question_request.json").write_text(
+        json.dumps({"questions": [{"question": "Resume from marker?"}]})
+    )
+
+    app = MagicMock()
+
+    from sase.ace.tui.actions.agents._notification_modals import (
+        open_user_question_modal_from_marker,
+    )
+
+    assert open_user_question_modal_from_marker(app, str(response_dir)) is True
+    on_dismiss = app.push_screen.call_args[0][1]
+
+    on_dismiss(
+        UserQuestionResult(
+            answers=[
+                _QuestionAnswer(
+                    question="Resume from marker?",
+                    selected=["yes"],
+                    custom_feedback=None,
+                )
+            ],
+            global_note="",
+        )
+    )
+
+    response_data = json.loads((response_dir / "question_response.json").read_text())
+    assert response_data == {
+        "answers": [
+            {
+                "question": "Resume from marker?",
+                "selected": ["yes"],
+                "custom_feedback": None,
+            }
+        ],
+        "global_note": "",
+    }
+
+
+def test_open_user_question_modal_from_marker_missing_request(tmp_path: Path) -> None:
+    """A missing question_request.json surfaces a warning and returns False."""
+    response_dir = tmp_path / "response"
+    response_dir.mkdir()
+
+    app = MagicMock()
+
+    from sase.ace.tui.actions.agents._notification_modals import (
+        open_user_question_modal_from_marker,
+    )
+
+    assert open_user_question_modal_from_marker(app, str(response_dir)) is False
+    app.push_screen.assert_not_called()
+    app.notify.assert_called_once()

@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 
 from sase.core.agent_scan_wire import (
     AgentMetaWire,
+    PendingQuestionMarkerWire,
     PromptStepMarkerWire,
     WaitingMarkerWire,
 )
@@ -261,6 +262,15 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         if isinstance(raw_until, str) and raw_until:
             agent.wait_until = raw_until
 
+    # Check for pending_question.json to set QUESTION status. The marker is
+    # written by handle_questions_flow() before the response-wait poll loop
+    # and cleared on every exit path, so its presence is the authoritative
+    # signal that the agent is currently blocked on user input — independent
+    # of the notification's dismissed/read state.
+    pending_question_path = Path(artifacts_dir) / "pending_question.json"
+    if pending_question_path.exists() and agent.status == "RUNNING":
+        agent.status = "QUESTION"
+
     # Set plan review / approval statuses for agents launched with %plan
     # directives. PLANNING means a submitted plan is waiting on manual review;
     # agents still drafting a plan, or using an auto-approval path, remain
@@ -307,6 +317,7 @@ def enrich_agent_from_meta_wire(
     agent: Agent,
     meta: AgentMetaWire | None,
     waiting: WaitingMarkerWire | None,
+    pending_question: PendingQuestionMarkerWire | None = None,
 ) -> None:
     """Snapshot-aware mirror of :func:`enrich_agent_from_meta`.
 
@@ -419,6 +430,10 @@ def enrich_agent_from_meta_wire(
         agent.wait_duration = meta.wait_duration
     if agent.wait_until is None and meta.wait_until:
         agent.wait_until = meta.wait_until
+
+    # pending_question.json: marker presence flips RUNNING → QUESTION.
+    if pending_question is not None and agent.status == "RUNNING":
+        agent.status = "QUESTION"
 
     if meta.plan and agent.status == "RUNNING":
         plan_status = _plan_enrichment_status(

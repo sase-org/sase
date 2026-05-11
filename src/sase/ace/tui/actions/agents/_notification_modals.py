@@ -113,15 +113,49 @@ def handle_user_question(app: object, notification: Notification) -> bool:
     Returns:
         True if the user question modal was pushed.
     """
-    import json
-    from pathlib import Path
-
-    from ...modals import UserQuestionModal, UserQuestionResult
-
     response_dir = notification.action_data.get("response_dir")
     if not response_dir:
         app.notify("No response_dir in notification", severity="warning")  # type: ignore[attr-defined]
         return False
+
+    return _open_user_question_modal(
+        app,
+        response_dir,
+        on_response_written=lambda: _on_user_question_response_written(
+            app, notification
+        ),
+    )
+
+
+def _on_user_question_response_written(app: object, notification: Notification) -> None:
+    from sase.notifications import mark_dismissed
+
+    mark_dismissed(notification.id)
+    _restore_pre_question_status(app, notification)
+
+
+def open_user_question_modal_from_marker(app: object, response_dir: str) -> bool:
+    """Open the UserQuestionModal directly from a pending_question.json marker.
+
+    Used by the "jump to current agent's question" keybind when the matching
+    notification has been dismissed but the agent is still blocked on user
+    input (marker is still present). No notification is dismissed because
+    none is present — the marker is cleared by ``handle_questions_flow()``
+    itself once the response is consumed.
+    """
+    return _open_user_question_modal(app, response_dir, on_response_written=None)
+
+
+def _open_user_question_modal(
+    app: object,
+    response_dir: str,
+    *,
+    on_response_written: object,
+) -> bool:
+    import json
+    from pathlib import Path
+
+    from ...modals import UserQuestionModal, UserQuestionResult
 
     response_path = Path(response_dir)
     request_path = response_path / "question_request.json"
@@ -145,7 +179,6 @@ def handle_user_question(app: object, notification: Notification) -> bool:
         if not isinstance(result, UserQuestionResult):
             return
 
-        # Build response data matching user_question_handler._format_answers format
         response_data: dict[str, object] = {
             "answers": [
                 {
@@ -162,16 +195,13 @@ def handle_user_question(app: object, notification: Notification) -> bool:
         try:
             with open(question_response_path, "w", encoding="utf-8") as f:
                 json.dump(response_data, f, indent=2)
-            from sase.notifications import mark_dismissed
-
-            mark_dismissed(notification.id)
             app.notify("Sent question response")  # type: ignore[attr-defined]
         except Exception as e:
             app.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
             return
 
-        # Restore agent status override to pre-question value
-        _restore_pre_question_status(app, notification)
+        if callable(on_response_written):
+            on_response_written()
 
     app.push_screen(UserQuestionModal(questions), on_dismiss)  # type: ignore[attr-defined]
     return True

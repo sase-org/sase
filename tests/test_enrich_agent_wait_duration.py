@@ -9,7 +9,7 @@ from sase.ace.tui.models._loaders._meta_enrichment import (
     enrich_agent_from_meta_wire,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.core.agent_scan_wire import AgentMetaWire
+from sase.core.agent_scan_wire import AgentMetaWire, PendingQuestionMarkerWire
 from sase.core.time import get_timezone
 
 
@@ -481,3 +481,89 @@ def test_epic_started_at_from_agent_meta_wire() -> None:
         .replace(tzinfo=None)
     )
     assert agent.epic_time == expected
+
+
+# --- pending_question.json marker tests ---
+
+
+def test_pending_question_marker_flips_running_to_question(tmp_path: Path) -> None:
+    """pending_question.json marker flips a RUNNING agent to QUESTION."""
+    (tmp_path / "agent_meta.json").write_text(json.dumps({"pid": 1234}))
+    (tmp_path / "pending_question.json").write_text(
+        json.dumps({"session_id": "abc", "request_path": "/x", "submitted_at": "t"})
+    )
+
+    agent = _make_agent(status="RUNNING")
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "QUESTION"
+
+
+def test_pending_question_marker_no_op_when_absent(tmp_path: Path) -> None:
+    """Without the marker, status stays RUNNING."""
+    (tmp_path / "agent_meta.json").write_text(json.dumps({"pid": 1234}))
+
+    agent = _make_agent(status="RUNNING")
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "RUNNING"
+
+
+def test_pending_question_marker_does_not_override_done(tmp_path: Path) -> None:
+    """A stale marker next to a DONE agent must NOT downgrade the status."""
+    (tmp_path / "agent_meta.json").write_text(json.dumps({"pid": 1234}))
+    (tmp_path / "pending_question.json").write_text(
+        json.dumps({"session_id": "abc", "request_path": "/x", "submitted_at": "t"})
+    )
+
+    agent = _make_agent(status="DONE")
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "DONE"
+
+
+def test_pending_question_marker_does_not_override_waiting(tmp_path: Path) -> None:
+    """The WAITING override runs first; the QUESTION check only fires for RUNNING."""
+    (tmp_path / "agent_meta.json").write_text(json.dumps({"pid": 1234}))
+    (tmp_path / "waiting.json").write_text(
+        json.dumps({"waiting_for": ["dep"], "wait_duration": 300.0})
+    )
+    (tmp_path / "pending_question.json").write_text(
+        json.dumps({"session_id": "abc", "request_path": "/x", "submitted_at": "t"})
+    )
+
+    agent = _make_agent(status="RUNNING")
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "WAITING"
+
+
+def test_pending_question_marker_wire_flips_running_to_question() -> None:
+    """Snapshot enrichment mirrors filesystem pending_question handling."""
+    agent = _make_agent(status="RUNNING")
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(),
+        None,
+        PendingQuestionMarkerWire(session_id="abc"),
+    )
+    assert agent.status == "QUESTION"
+
+
+def test_pending_question_marker_wire_no_op_when_absent() -> None:
+    """Without the marker the wire enricher leaves status alone."""
+    agent = _make_agent(status="RUNNING")
+    enrich_agent_from_meta_wire(agent, AgentMetaWire(), None, None)
+    assert agent.status == "RUNNING"
+
+
+def test_pending_question_marker_wire_does_not_override_done() -> None:
+    """A stale wire marker next to a DONE agent must not downgrade status."""
+    agent = _make_agent(status="DONE")
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(),
+        None,
+        PendingQuestionMarkerWire(session_id="abc"),
+    )
+    assert agent.status == "DONE"

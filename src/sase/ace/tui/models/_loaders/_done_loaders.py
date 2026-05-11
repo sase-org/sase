@@ -309,7 +309,9 @@ def _build_done_agent_from_record(
     if done.retry_error_category:
         agent.retry_error_category = done.retry_error_category
 
-    enrich_agent_from_meta_wire(agent, record.agent_meta, record.waiting)
+    enrich_agent_from_meta_wire(
+        agent, record.agent_meta, record.waiting, record.pending_question
+    )
     enrich_agent_from_prompt_markers_wire(agent, record.prompt_steps)
     return agent
 

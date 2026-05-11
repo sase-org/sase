@@ -10,6 +10,7 @@ import json
 import os
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -357,7 +358,7 @@ def create_followup_artifacts(
 
     Returns the new artifacts_dir path.
     """
-    from datetime import UTC, datetime
+    from datetime import UTC
 
     new_artifacts_dir = create_artifacts_directory("ace-run", project_name=project_name)
 
@@ -492,25 +493,49 @@ def handle_questions_flow(
     )
     ring_tmux_bell()
 
+    # Write pending_question.json marker so the TUI can flip status to
+    # QUESTION independent of notification dismissed/read state. Cleared
+    # on every exit path via try/finally so DONE/FAILED agents never
+    # carry a stale marker.
+    from datetime import UTC
+
+    pending_marker_path = os.path.join(artifacts_dir, "pending_question.json")
+    try:
+        marker_payload = {
+            "session_id": session_id,
+            "request_path": request_path,
+            "submitted_at": datetime.now(UTC).isoformat(),
+        }
+        with open(pending_marker_path, "w", encoding="utf-8") as f:
+            json.dump(marker_payload, f, indent=2)
+    except OSError:
+        pass
+
     # Poll for response
     response_path = os.path.join(response_dir, "question_response.json")
-    while True:
-        if was_killed():
-            return None
+    try:
+        while True:
+            if was_killed():
+                return None
 
-        if os.path.exists(response_path):
-            try:
-                with open(response_path, encoding="utf-8") as f:
-                    response = json.load(f)
-                if isinstance(response, dict):
-                    response["_question_request_path"] = request_path
-                    response["_question_response_path"] = response_path
-                    response["_question_session_id"] = session_id
-                return response
-            except (json.JSONDecodeError, OSError):
-                pass
+            if os.path.exists(response_path):
+                try:
+                    with open(response_path, encoding="utf-8") as f:
+                        response = json.load(f)
+                    if isinstance(response, dict):
+                        response["_question_request_path"] = request_path
+                        response["_question_response_path"] = response_path
+                        response["_question_session_id"] = session_id
+                    return response
+                except (json.JSONDecodeError, OSError):
+                    pass
 
-        time.sleep(0.5)
+            time.sleep(0.5)
+    finally:
+        try:
+            os.unlink(pending_marker_path)
+        except OSError:
+            pass
 
 
 def build_qa_round(

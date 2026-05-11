@@ -14,6 +14,7 @@ from ._notification_modals import (
     handle_hitl as handle_hitl,
     handle_plan_approval as handle_plan_approval,
     handle_user_question as handle_user_question,
+    open_user_question_modal_from_marker as open_user_question_modal_from_marker,
     persist_plan_approved as persist_plan_approved,
 )
 from ._notification_navigation import (
@@ -36,5 +37,6 @@ __all__ = [
     "handle_view_error_report",
     "navigate_to_agent_tab",
     "navigate_to_changespec_tab",
+    "open_user_question_modal_from_marker",
     "persist_plan_approved",
 ]

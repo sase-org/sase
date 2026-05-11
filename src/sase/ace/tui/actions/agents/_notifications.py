@@ -421,6 +421,14 @@ class AgentNotificationMixin:
             break
 
         if matched is None:
+            # Dismissed-notification fallback: the agent is still blocked on a
+            # question but the matching UserQuestion notification has already
+            # been dismissed. The pending_question.json marker is the
+            # authoritative source of the live request path in that case.
+            if agent.status == "QUESTION" and self._open_question_modal_from_marker(
+                agent
+            ):
+                self._refresh_notification_count()
             return
 
         # Directly dispatch the notification action, skipping the modal
@@ -436,6 +444,35 @@ class AgentNotificationMixin:
             return
 
         self._refresh_notification_count()
+
+    def _open_question_modal_from_marker(self, agent: Agent) -> bool:
+        """Open the UserQuestionModal for an agent whose notification was dismissed.
+
+        Reads ``pending_question.json`` from the agent's artifacts dir to
+        recover the request path, then opens the modal directly. Returns
+        True if the modal was opened.
+        """
+        import json
+        from pathlib import Path
+
+        from ._notification_actions import open_user_question_modal_from_marker
+
+        artifacts_dir = agent.get_artifacts_dir()
+        if not artifacts_dir:
+            return False
+        marker_path = Path(artifacts_dir) / "pending_question.json"
+        if not marker_path.exists():
+            return False
+        try:
+            with open(marker_path, encoding="utf-8") as f:
+                marker = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return False
+        request_path = marker.get("request_path")
+        if not isinstance(request_path, str) or not request_path:
+            return False
+        response_dir = str(Path(request_path).parent)
+        return open_user_question_modal_from_marker(self, response_dir)
 
     def _show_notification_modal(self, *, initial_index: int = 0) -> None:
         """Show the notification modal with optional pre-selection.
