@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 18:09:27
-status: wip
+status: done
 prompt: sdd/prompts/202605/fix_visual_snapshot_state_leakage.md
 ---
 # Plan: Fix ACE PNG visual snapshot state leakage in CI
