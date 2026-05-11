@@ -607,3 +607,156 @@ def ensure_shared_dir() -> Path:
     """
     SHARED_STATE_DIR.mkdir(parents=True, exist_ok=True)
     return SHARED_STATE_DIR
+
+
+# ---------------------------------------------------------------------------
+# Per-chop run history
+# ---------------------------------------------------------------------------
+
+#: Maximum number of run-history entries retained per chop. Older runs are
+#: pruned (both metadata and log) when a new run is recorded.
+MAX_CHOP_RUN_HISTORY = 10
+
+ChopRunStatus = Literal[
+    "success",
+    "failure",
+    "timeout",
+    "missing_script",
+    "agent_launched",
+]
+
+
+@dataclass
+class ChopRunEntry:
+    """Metadata for a single recorded chop run attempt."""
+
+    run_id: str
+    lumberjack_name: str
+    chop_name: str
+    started_at: str
+    finished_at: str
+    duration_ms: int
+    status: ChopRunStatus
+    exit_code: int | None = None
+    agent_pid: int | None = None
+    error: str | None = None
+    traceback: str | None = None
+    output_bytes: int = 0
+    output_log: str = ""
+
+
+def _chop_dir(lumberjack_name: str, chop_name: str) -> Path:
+    """Return the state directory for a single chop under a lumberjack."""
+    return _lumberjack_dir(lumberjack_name) / "chops" / chop_name
+
+
+def chop_runs_dir(lumberjack_name: str, chop_name: str) -> Path:
+    """Return the directory holding per-run metadata/log files for a chop."""
+    return _chop_dir(lumberjack_name, chop_name) / "runs"
+
+
+def chop_index_path(lumberjack_name: str, chop_name: str) -> Path:
+    """Return the index.json path that records ordered run ids for a chop."""
+    return _chop_dir(lumberjack_name, chop_name) / "index.json"
+
+
+def chop_run_meta_path(lumberjack_name: str, chop_name: str, run_id: str) -> Path:
+    """Return the metadata JSON path for a recorded chop run."""
+    return chop_runs_dir(lumberjack_name, chop_name) / f"{run_id}.json"
+
+
+def chop_run_log_path(lumberjack_name: str, chop_name: str, run_id: str) -> Path:
+    """Return the output log path for a recorded chop run."""
+    return chop_runs_dir(lumberjack_name, chop_name) / f"{run_id}.log"
+
+
+def ensure_chop_dirs(lumberjack_name: str, chop_name: str) -> Path:
+    """Lazily create the run-history directory tree for a single chop.
+
+    Returns:
+        Path to ``~/.sase/axe/lumberjacks/{lumberjack}/chops/{chop}/``.
+    """
+    chop_dir = _chop_dir(lumberjack_name, chop_name)
+    (chop_dir / "runs").mkdir(parents=True, exist_ok=True)
+    return chop_dir
+
+
+def generate_chop_run_id(when: datetime | None = None) -> str:
+    """Produce a sortable, filesystem-safe run id from a timestamp.
+
+    Microsecond precision keeps same-second runs from colliding while
+    preserving lexicographic newest-last ordering.
+    """
+    ts = when or datetime.now(get_timezone())
+    return ts.strftime("%Y%m%dT%H%M%S_%f")
+
+
+def _safe_unlink(path: Path) -> None:
+    try:
+        path.unlink()
+    except OSError:
+        pass
+
+
+def write_chop_run(entry: ChopRunEntry, output: str = "") -> None:
+    """Persist a chop run-history entry, prune older runs to the cap.
+
+    Writes the run log first, then the metadata JSON, then updates the index.
+    Old entries beyond ``MAX_CHOP_RUN_HISTORY`` have their metadata and log
+    files removed.
+    """
+    lumberjack_name = entry.lumberjack_name
+    chop_name = entry.chop_name
+    ensure_chop_dirs(lumberjack_name, chop_name)
+
+    log_path = chop_run_log_path(lumberjack_name, chop_name, entry.run_id)
+    log_path.write_text(output)
+    entry.output_bytes = len(output.encode("utf-8"))
+    entry.output_log = log_path.name
+
+    meta_path = chop_run_meta_path(lumberjack_name, chop_name, entry.run_id)
+    _atomic_write_json(meta_path, asdict(entry))
+
+    index_path = chop_index_path(lumberjack_name, chop_name)
+    existing_raw = _read_json(index_path)
+    existing: list = existing_raw if isinstance(existing_raw, list) else []
+    ordered: list[str] = [str(r) for r in existing if r != entry.run_id]
+    ordered.insert(0, entry.run_id)
+    to_prune = ordered[MAX_CHOP_RUN_HISTORY:]
+    kept = ordered[:MAX_CHOP_RUN_HISTORY]
+    _atomic_write_json(index_path, kept)
+
+    for old_id in to_prune:
+        _safe_unlink(chop_run_meta_path(lumberjack_name, chop_name, old_id))
+        _safe_unlink(chop_run_log_path(lumberjack_name, chop_name, old_id))
+
+
+def read_chop_run_index(lumberjack_name: str, chop_name: str) -> list[str]:
+    """Read the newest-first list of run ids for a chop (capped to MAX)."""
+    data = _read_json(chop_index_path(lumberjack_name, chop_name))
+    if not isinstance(data, list):
+        return []
+    return [str(r) for r in data[:MAX_CHOP_RUN_HISTORY]]
+
+
+def read_chop_run(
+    lumberjack_name: str, chop_name: str, run_id: str
+) -> ChopRunEntry | None:
+    """Read a single chop run metadata entry, or None if unavailable."""
+    data = _read_json(chop_run_meta_path(lumberjack_name, chop_name, run_id))
+    if not isinstance(data, dict):
+        return None
+    try:
+        return ChopRunEntry(**data)
+    except TypeError:
+        return None
+
+
+def read_chop_run_log_tail(
+    lumberjack_name: str, chop_name: str, run_id: str, lines: int = 1000
+) -> str:
+    """Read the last ``lines`` lines of a chop run's output log."""
+    log_path = chop_run_log_path(lumberjack_name, chop_name, run_id)
+    if not log_path.exists():
+        return ""
+    return _read_tail_seek(log_path, lines)

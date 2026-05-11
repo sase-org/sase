@@ -42,14 +42,18 @@ from .config import AxeConfig, ChopConfig, LumberjackConfig
 from .maintenance import clear_stale_maintenance, read_maintenance
 from .state import (
     AxeMetrics,
+    ChopRunEntry,
+    ChopRunStatus,
     LumberjackMetrics,
     LumberjackStatus,
     append_error,
     ensure_lumberjack_dirs,
+    generate_chop_run_id,
     get_timestamp,
     lumberjack_log_path,
     read_chop_timestamps,
     remove_lumberjack_pid,
+    write_chop_run,
     write_chop_timestamps,
     write_lumberjack_metrics,
     write_lumberjack_pid,
@@ -60,6 +64,21 @@ LogCallback = Callable[[str, str | None], None]
 
 _NO_PYTHON_TRACEBACK = "<no python traceback: subprocess error>"
 _TRACEBACK_UNAVAILABLE = "<traceback unavailable>"
+
+
+def _combine_script_output(stdout: str | None, stderr: str | None) -> str:
+    """Combine subprocess stdout/stderr into a single output blob for history.
+
+    Stderr is included with a header so operators can tell the two streams
+    apart in the TUI viewer.
+    """
+    out = stdout or ""
+    err = stderr or ""
+    if err.strip():
+        if out and not out.endswith("\n"):
+            out += "\n"
+        return out + "[stderr]\n" + err
+    return out
 
 
 def _capture_traceback() -> str:
@@ -277,18 +296,53 @@ class Lumberjack:
         if chop.agent is not None:
             return self._launch_agent_chop(chop)
 
+        started_at = datetime.now(get_timezone())
         resolved_timeout = chop.timeout or self.config.chop_timeout
         log_lines: list[str] = []
+
+        def finalize(
+            *,
+            status: ChopRunStatus,
+            success: bool,
+            executed: bool,
+            update_timestamp: bool,
+            exit_code: int | None,
+            output: str,
+            error: Exception | None,
+            tb: str | None,
+        ) -> _ChopResult:
+            self._record_chop_run(
+                chop.name,
+                started_at,
+                status=status,
+                exit_code=exit_code,
+                error=error,
+                tb=tb,
+                output=output,
+            )
+            return _ChopResult(
+                chop_name=chop.name,
+                executed=executed,
+                success=success,
+                update_timestamp=update_timestamp,
+                log_lines=log_lines,
+                error=error,
+                traceback=tb,
+            )
+
         try:
             script = discover_chop_script(chop.name, self.axe_config.chop_script_dirs)
             if script is None:
-                return _ChopResult(
-                    chop_name=chop.name,
-                    executed=False,
+                error = RuntimeError(f"Chop script not found: {chop.name}")
+                return finalize(
+                    status="missing_script",
                     success=False,
+                    executed=False,
                     update_timestamp=False,
-                    error=RuntimeError(f"Chop script not found: {chop.name}"),
-                    traceback=_NO_PYTHON_TRACEBACK,
+                    exit_code=None,
+                    output="",
+                    error=error,
+                    tb=_NO_PYTHON_TRACEBACK,
                 )
             env = dict(chop.env)
             env.update(self._chop_launch_env(chop))
@@ -303,47 +357,53 @@ class Lumberjack:
                 for line in result.stdout.strip().splitlines():
                     if line:
                         log_lines.append(line)
+            output = _combine_script_output(result.stdout, result.stderr)
             if result.returncode == 0:
-                return _ChopResult(
-                    chop_name=chop.name,
-                    executed=True,
+                return finalize(
+                    status="success",
                     success=True,
-                    update_timestamp=chop.run_every is not None,
-                    log_lines=log_lines,
-                )
-            else:
-                stderr = result.stderr.strip() if result.stderr else ""
-                return _ChopResult(
-                    chop_name=chop.name,
                     executed=True,
-                    success=False,
-                    update_timestamp=False,
-                    log_lines=log_lines,
-                    error=RuntimeError(
-                        f"exit code {result.returncode}"
-                        + (f": {stderr}" if stderr else "")
-                    ),
-                    traceback=_NO_PYTHON_TRACEBACK,
+                    update_timestamp=chop.run_every is not None,
+                    exit_code=0,
+                    output=output,
+                    error=None,
+                    tb=None,
                 )
-        except subprocess.TimeoutExpired:
-            return _ChopResult(
-                chop_name=chop.name,
-                executed=True,
+            stderr = result.stderr.strip() if result.stderr else ""
+            error = RuntimeError(
+                f"exit code {result.returncode}" + (f": {stderr}" if stderr else "")
+            )
+            return finalize(
+                status="failure",
                 success=False,
+                executed=True,
                 update_timestamp=False,
-                log_lines=log_lines,
+                exit_code=result.returncode,
+                output=output,
+                error=error,
+                tb=_NO_PYTHON_TRACEBACK,
+            )
+        except subprocess.TimeoutExpired:
+            return finalize(
+                status="timeout",
+                success=False,
+                executed=True,
+                update_timestamp=False,
+                exit_code=None,
+                output="",
                 error=RuntimeError(f"timed out after {resolved_timeout}s"),
-                traceback=_capture_traceback(),
+                tb=_capture_traceback(),
             )
         except Exception as e:
-            return _ChopResult(
-                chop_name=chop.name,
-                executed=True,
+            return finalize(
+                status="failure",
                 success=False,
+                executed=True,
                 update_timestamp=False,
-                log_lines=log_lines,
+                exit_code=None,
+                output="",
                 error=e,
-                traceback=_capture_traceback(),
+                tb=_capture_traceback(),
             )
 
     def _is_agent_eligible(self, chop: ChopConfig) -> bool:
@@ -413,6 +473,7 @@ class Lumberjack:
     def _launch_agent_chop(self, chop: ChopConfig) -> _ChopResult:
         """Launch an agent chop as a background process."""
         assert chop.agent is not None
+        started_at = datetime.now(get_timezone())
         try:
             from sase.agent.launcher import launch_agent_from_cwd
 
@@ -423,15 +484,31 @@ class Lumberjack:
                 prompt=chop.agent,
                 env=extra_env,
             )
+            launch_line = f"Launched agent chop '{chop.name}' (PID {result.pid})"
+            self._record_chop_run(
+                chop.name,
+                started_at,
+                status="agent_launched",
+                agent_pid=result.pid,
+                output=launch_line + "\n",
+            )
             return _ChopResult(
                 chop_name=chop.name,
                 executed=True,
                 success=True,
                 update_timestamp=chop.run_every is not None,
-                log_lines=[f"Launched agent chop '{chop.name}' (PID {result.pid})"],
+                log_lines=[launch_line],
                 agent_pid=result.pid,
             )
         except Exception as e:
+            tb = _capture_traceback()
+            self._record_chop_run(
+                chop.name,
+                started_at,
+                status="failure",
+                error=e,
+                tb=tb,
+            )
             return _ChopResult(
                 chop_name=chop.name,
                 executed=True,
@@ -441,8 +518,45 @@ class Lumberjack:
                 # tick and flood error digests.
                 update_timestamp=chop.run_every is not None,
                 error=e,
-                traceback=_capture_traceback(),
+                traceback=tb,
             )
+
+    def _record_chop_run(
+        self,
+        chop_name: str,
+        started_at: datetime,
+        *,
+        status: ChopRunStatus,
+        exit_code: int | None = None,
+        agent_pid: int | None = None,
+        error: Exception | None = None,
+        tb: str | None = None,
+        output: str = "",
+    ) -> None:
+        """Persist a run-history entry for an attempted chop run.
+
+        Errors writing history must never propagate up into the tick — history
+        is observational, not load-bearing for the scheduler.
+        """
+        finished_at = datetime.now(get_timezone())
+        duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
+        entry = ChopRunEntry(
+            run_id=generate_chop_run_id(started_at),
+            lumberjack_name=self.name,
+            chop_name=chop_name,
+            started_at=started_at.isoformat(),
+            finished_at=finished_at.isoformat(),
+            duration_ms=duration_ms,
+            status=status,
+            exit_code=exit_code,
+            agent_pid=agent_pid,
+            error=str(error) if error is not None else None,
+            traceback=tb,
+        )
+        try:
+            write_chop_run(entry, output)
+        except OSError:
+            pass
 
     def _handle_error(
         self, job_name: str, error: Exception, tb: str | None = None
