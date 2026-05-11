@@ -886,17 +886,6 @@ the Mentor Review modal.
 The tab bar renders plain tab labels (`CLs`, `Agents`, `AXE`). Per-bucket counts live inside each tab's body — for
 example the per-panel count summaries on the Agents tab — rather than as suffixes on the tab title itself.
 
-### Unread Badge
-
-When the Agents tab is **not** the active tab, a yellow `Agents(N)` badge surfaces the count of visible top-level
-terminal agents that are still unread. Workflow children and stale identities are excluded from the count. Newly-seen
-terminal rows that arrive while another tab is focused (including cold startup with completed agents) are marked unread
-so the off-tab badge alerts you to work that finished out of sight.
-
-The badge stays in sync with every unread mutator: completion finalize, tab switch, manual unread toggle, dismiss,
-filter change, jump-to-next-unread, and selection acknowledgment. Switching to the Agents tab clears the badge for that
-tab (the active tab keeps a plain title); individual rows still show their per-row unread marker until they're read.
-
 ### Background Task Indicator
 
 A gear icon (⚙) with a count appears in the top bar when background tasks are running (e.g., sync, mail, accept
