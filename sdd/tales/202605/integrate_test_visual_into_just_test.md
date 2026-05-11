@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 12:08:50
-status: wip
+status: done
 prompt: sdd/prompts/202605/integrate_test_visual_into_just_test.md
 ---
 # Plan: Integrate `test-visual` into `just test`

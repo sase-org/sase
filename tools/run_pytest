@@ -107,9 +107,13 @@ def _pytest_command(mode: str, args: list[str]) -> list[str]:
         command.extend(["-m", "slow"])
     elif mode == "visual":
         command.extend(["-m", "visual"])
+    elif mode == "fast":
+        command.extend(["-m", "not slow"])
     elif mode == "cov":
         command.extend(
             [
+                "-m",
+                "not slow",
                 "--cov=src/sase",
                 "--cov-branch",
                 "--cov-report=term-missing:skip-covered",
