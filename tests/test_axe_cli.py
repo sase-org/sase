@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.axe.cli import (
-    _run_agent_chop_oneshot,
     handle_axe_chop_list,
+    handle_axe_chop_run,
     handle_axe_lumberjack_list,
     handle_axe_lumberjack_status,
 )
@@ -125,7 +125,7 @@ def test_handle_axe_chop_list_deduplicates(
     assert "shared_chop" in output
 
 
-# --- _run_agent_chop_oneshot Tests ---
+# --- handle_axe_chop_run agent oneshot ---
 
 
 def test_oneshot_agent_chop_passes_chop_env_metadata(
@@ -133,26 +133,235 @@ def test_oneshot_agent_chop_passes_chop_env_metadata(
 ) -> None:
     """One-shot ``sase axe chop run`` records chop metadata like the scheduled path."""
     chop = ChopConfig(name="my_agent", description="", agent="some_agent")
+    config = AxeConfig(
+        lumberjacks={
+            "agentj": LumberjackConfig(name="agentj", interval=10, chops=[chop])
+        }
+    )
 
     mock_proc = MagicMock()
     mock_proc.pid = 4242
 
+    args = argparse.Namespace(chop_name="my_agent", lumberjack=None)
     with (
+        patch("sase.axe.cli.load_axe_config", return_value=config),
         patch(
             "sase.agent.launcher.launch_agent_from_cwd", return_value=mock_proc
         ) as mock_launch,
-        patch("sase.axe.chop_agents.record_chop_agent_launch_result"),
+        patch("sase.axe.chop_runner.record_chop_agent_launch_result"),
         pytest.raises(SystemExit) as exc_info,
     ):
-        _run_agent_chop_oneshot(chop)
+        handle_axe_chop_run(args)
 
     assert exc_info.value.code == 0
     extra_env = mock_launch.call_args.kwargs["extra_env"]
-    assert extra_env["SASE_CHOP_LUMBERJACK"] == "_oneshot"
+    assert extra_env["SASE_CHOP_LUMBERJACK"] == "agentj"
     assert extra_env["SASE_CHOP_NAME"] == "my_agent"
     assert extra_env["SASE_CHOP_RUN_ID"]
     assert extra_env["SASE_CHOP_PROMPT_HASH"]
     assert "SASE_AGENT_AUTO_DISMISS" not in extra_env
+
+
+# --- handle_axe_chop_run --lumberjack Tests ---
+
+
+def _config_with(**chops_per_jack: list[ChopConfig]) -> AxeConfig:
+    return AxeConfig(
+        lumberjacks={
+            name: LumberjackConfig(name=name, interval=10, chops=chops)
+            for name, chops in chops_per_jack.items()
+        }
+    )
+
+
+def test_handle_axe_chop_run_ambiguous_requires_lumberjack(
+    temp_state_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A duplicate chop name without --lumberjack exits with a clear error."""
+    config = _config_with(
+        hooks=[ChopConfig(name="dup", description="")],
+        comments=[ChopConfig(name="dup", description="")],
+    )
+    args = argparse.Namespace(chop_name="dup", lumberjack=None)
+    with (
+        patch("sase.axe.cli.load_axe_config", return_value=config),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        handle_axe_chop_run(args)
+
+    assert exc_info.value.code == 2
+    err = capsys.readouterr().err
+    assert "multiple lumberjacks" in err
+    assert "--lumberjack" in err
+
+
+def test_handle_axe_chop_run_with_lumberjack_disambiguates(
+    temp_state_dir: Path,
+) -> None:
+    """Passing --lumberjack selects the configured chop under that lumberjack."""
+    chop = ChopConfig(name="dup", description="agent under comments", agent="x")
+    config = _config_with(
+        hooks=[ChopConfig(name="dup", description="")],
+        comments=[chop],
+    )
+    args = argparse.Namespace(chop_name="dup", lumberjack="comments")
+
+    mock_proc = MagicMock()
+    mock_proc.pid = 99
+    with (
+        patch("sase.axe.cli.load_axe_config", return_value=config),
+        patch(
+            "sase.agent.launcher.launch_agent_from_cwd", return_value=mock_proc
+        ) as mock_launch,
+        patch("sase.axe.chop_runner.record_chop_agent_launch_result"),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        handle_axe_chop_run(args)
+
+    assert exc_info.value.code == 0
+    extra_env = mock_launch.call_args.kwargs["extra_env"]
+    assert extra_env["SASE_CHOP_LUMBERJACK"] == "comments"
+    assert extra_env["SASE_CHOP_NAME"] == "dup"
+
+
+def test_handle_axe_chop_run_with_lumberjack_not_configured(
+    temp_state_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """--lumberjack pointing at a chop that doesn't exist there errors out."""
+    config = _config_with(
+        hooks=[ChopConfig(name="hook_checks", description="")],
+    )
+    args = argparse.Namespace(chop_name="hook_checks", lumberjack="comments")
+    with (
+        patch("sase.axe.cli.load_axe_config", return_value=config),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        handle_axe_chop_run(args)
+
+    assert exc_info.value.code == 1
+    assert "not configured under lumberjack" in capsys.readouterr().err
+
+
+def test_handle_axe_chop_run_unknown_chop(
+    temp_state_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config = _config_with(hooks=[])
+    args = argparse.Namespace(chop_name="absent", lumberjack=None)
+    with (
+        patch("sase.axe.cli.load_axe_config", return_value=config),
+        patch("sase.axe.cli.discover_chop_script", return_value=None),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        handle_axe_chop_run(args)
+
+    assert exc_info.value.code == 1
+    assert "unknown chop" in capsys.readouterr().err
+
+
+def test_handle_axe_chop_run_records_run_history_under_lumberjack(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    """A successful CLI run writes the run-history entry under the configured lumberjack."""
+    from sase.axe.state import read_chop_run_index
+
+    scripts_dir = tmp_path / "scripts"
+    scripts_dir.mkdir()
+    script = scripts_dir / "hook_checks"
+    script.write_text("#!/bin/sh\necho hello\n")
+    import stat as _stat
+
+    script.chmod(script.stat().st_mode | _stat.S_IXUSR | _stat.S_IXGRP | _stat.S_IXOTH)
+
+    chop = ChopConfig(name="hook_checks", description="")
+    config = AxeConfig(
+        chop_script_dirs=[str(scripts_dir)],
+        lumberjacks={
+            "hooks": LumberjackConfig(name="hooks", interval=10, chops=[chop]),
+        },
+    )
+    args = argparse.Namespace(chop_name="hook_checks", lumberjack="hooks")
+    with (
+        patch("sase.axe.cli.load_axe_config", return_value=config),
+        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        handle_axe_chop_run(args)
+
+    assert exc_info.value.code == 0
+    index = read_chop_run_index("hooks", "hook_checks")
+    assert len(index) == 1
+
+
+def test_handle_axe_chop_run_unconfigured_script_uses_oneshot(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    """A discoverable but unconfigured script still runs under ``_oneshot``."""
+    from sase.axe.state import read_chop_run_index
+
+    scripts_dir = tmp_path / "scripts"
+    scripts_dir.mkdir()
+    script = scripts_dir / "freestanding"
+    script.write_text("#!/bin/sh\ntrue\n")
+    import stat as _stat
+
+    script.chmod(script.stat().st_mode | _stat.S_IXUSR | _stat.S_IXGRP | _stat.S_IXOTH)
+
+    config = AxeConfig(chop_script_dirs=[str(scripts_dir)])
+    args = argparse.Namespace(chop_name="freestanding", lumberjack=None)
+    with (
+        patch("sase.axe.cli.load_axe_config", return_value=config),
+        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        handle_axe_chop_run(args)
+
+    assert exc_info.value.code == 0
+    assert read_chop_run_index("_oneshot", "freestanding")
+
+
+def test_handle_axe_chop_run_already_running_skips(
+    temp_state_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """When a chop is already running, the CLI notifies and exits nonzero."""
+    from datetime import datetime
+
+    from sase.axe.state import ChopRunEntry, start_chop_run
+
+    chop = ChopConfig(name="hook_checks", description="")
+    config = AxeConfig(
+        lumberjacks={
+            "hooks": LumberjackConfig(name="hooks", interval=10, chops=[chop]),
+        }
+    )
+
+    live_entry = ChopRunEntry(
+        run_id="20260101T120000_000000",
+        lumberjack_name="hooks",
+        chop_name="hook_checks",
+        started_at=datetime(2026, 1, 1, 12, 0, 0).isoformat(),
+        finished_at=None,
+        duration_ms=0,
+        status="running",
+    )
+    start_chop_run(live_entry)
+
+    args = argparse.Namespace(chop_name="hook_checks", lumberjack=None)
+    with (
+        patch("sase.axe.cli.load_axe_config", return_value=config),
+        patch("sase.axe.chop_runner.stream_chop_script") as mock_stream,
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        handle_axe_chop_run(args)
+
+    assert exc_info.value.code == 1
+    assert "already running" in capsys.readouterr().err
+    mock_stream.assert_not_called()
 
 
 # --- handle_axe_lumberjack_list Tests ---

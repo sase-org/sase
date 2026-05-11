@@ -70,8 +70,8 @@ def test_lumberjack_with_query(
 # --- Tick Execution Tests ---
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_multiple_chops(
     mock_find: MagicMock,
@@ -99,8 +99,8 @@ def test_run_tick_multiple_chops(
     assert lumberjack._metrics.chops_executed == 2
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_error_handling(
     mock_find: MagicMock,
@@ -121,8 +121,8 @@ def test_run_tick_error_handling(
     assert lumberjack._metrics.cycles_run == 1
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_skips_without_error_during_maintenance(
     mock_find: MagicMock,
@@ -146,8 +146,8 @@ def test_run_tick_skips_without_error_during_maintenance(
     assert lumberjack._metrics.cycles_run == 1
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_clears_dead_pid_maintenance_and_runs_chops(
     mock_find: MagicMock,
@@ -174,8 +174,8 @@ def test_run_tick_clears_dead_pid_maintenance_and_runs_chops(
     assert lumberjack._metrics.cycles_run == 1
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_resumes_after_maintenance_cleared(
     mock_find: MagicMock,
@@ -200,7 +200,7 @@ def test_run_tick_resumes_after_maintenance_cleared(
     assert lumberjack._metrics.cycles_run == 1
 
 
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_missing_script(
     mock_find: MagicMock,
@@ -220,8 +220,8 @@ def test_run_tick_missing_script(
     assert lumberjack._metrics.cycles_run == 1
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_every_skips_when_not_enough_time_elapsed(
     mock_find: MagicMock,
@@ -259,8 +259,8 @@ def test_run_every_skips_when_not_enough_time_elapsed(
     assert mock_run.call_count == 2
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_all_chops_run_on_first_tick(
     mock_find: MagicMock,
@@ -288,8 +288,8 @@ def test_all_chops_run_on_first_tick(
     assert mock_run.call_count == 3
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_chops_without_run_every_run_every_tick(
     mock_find: MagicMock,
@@ -355,8 +355,8 @@ def test_update_metrics_writes_file(
 # --- Timeout Tests ---
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_timeout_expired_records_error_and_continues(
     mock_find: MagicMock,
@@ -386,8 +386,8 @@ def test_timeout_expired_records_error_and_continues(
     assert lumberjack._metrics.cycles_run == 1
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_per_chop_timeout_overrides_lumberjack_default(
     mock_find: MagicMock,
@@ -425,8 +425,8 @@ def test_per_chop_timeout_overrides_lumberjack_default(
 # --- Tick Overrun Warning Tests ---
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_tick_overrun_logs_warning(
     mock_find: MagicMock,
@@ -477,8 +477,8 @@ def test_handle_shutdown_sets_running_false(
 # --- Concurrency Tests ---
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_chops_run_concurrently(
     mock_find: MagicMock,
@@ -526,8 +526,8 @@ def _single_chop_run_id(lumberjack_name: str, chop_name: str) -> str:
     return index[0]
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_successful_chop_records_run_history(
     mock_find: MagicMock,
@@ -556,8 +556,8 @@ def test_successful_chop_records_run_history(
     assert "hello" in log_tail
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_failed_chop_records_failure_history(
     mock_find: MagicMock,
@@ -584,8 +584,8 @@ def test_failed_chop_records_failure_history(
     assert "boom" in log_tail
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_timed_out_chop_records_timeout_history(
     mock_find: MagicMock,
@@ -610,7 +610,7 @@ def test_timed_out_chop_records_timeout_history(
     assert entry.error is not None and "timed out" in entry.error
 
 
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_missing_script_records_missing_script_history(
     mock_find: MagicMock,
@@ -664,8 +664,8 @@ def test_agent_chop_launch_records_agent_launched_history(
     assert entry.agent_pid == 4242
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_every_skip_does_not_record_history(
     mock_find: MagicMock,
@@ -692,8 +692,8 @@ def test_run_every_skip_does_not_record_history(
     assert len(index) == 1
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_chop_history_is_pruned_to_max(
     mock_find: MagicMock,
@@ -721,8 +721,8 @@ def test_chop_history_is_pruned_to_max(
         assert read_chop_run("test_lumberjack", "hook_checks", run_id) is not None
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_one_chop_failure_does_not_block_others(
     mock_find: MagicMock,
@@ -838,8 +838,8 @@ def test_streaming_chop_writes_output_before_exit(
     )
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_streaming_chop_records_pid_on_running_entry(
     mock_find: MagicMock,
@@ -880,8 +880,8 @@ def test_streaming_chop_records_pid_on_running_entry(
     assert entry.status == "success"
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_streaming_chop_records_source_scheduled(
     mock_find: MagicMock,

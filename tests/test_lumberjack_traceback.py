@@ -15,14 +15,16 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.axe.lumberjack import (
-    _NO_PYTHON_TRACEBACK,
-    _TRACEBACK_UNAVAILABLE,
-    Lumberjack,
+from sase.axe.chop_runner import (
+    NO_PYTHON_TRACEBACK as _NO_PYTHON_TRACEBACK,
+    TRACEBACK_UNAVAILABLE as _TRACEBACK_UNAVAILABLE,
     _capture_traceback,
-    _ChopResult,
 )
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
+from sase.axe.lumberjack import (
+    Lumberjack,
+    _ChopResult,
+)
 
 
 def _make_lumberjack(tmp_path: Any) -> Lumberjack:

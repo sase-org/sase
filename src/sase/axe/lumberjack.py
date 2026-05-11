@@ -9,7 +9,6 @@ housekeeping).
 import os
 import signal
 import time
-import traceback
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -25,43 +24,34 @@ from sase.telemetry import init_telemetry, register_push_on_exit
 from sase.telemetry.metrics import AXE_CYCLE_DURATION, AXE_CYCLES, AXE_ERRORS
 
 from .check_cycles import CheckCycleRunner
+from .chop_agents import (
+    build_chop_launch_env,
+    get_live_chop_agent_records,
+    prompt_hash,
+)
+from .chop_runner import (
+    TRACEBACK_UNAVAILABLE as _TRACEBACK_UNAVAILABLE,
+    ChopRunOutcome,
+    run_configured_chop_once,
+)
 from .chop_script_context import (
     ChopScriptContext,
     serialize_changespecs,
     write_chop_context,
 )
-from .chop_script_runner import (
-    StreamedScriptResult,
-    discover_chop_script,
-    stream_chop_script,
-)
-from .chop_agents import (
-    build_chop_launch_env,
-    get_live_chop_agent_records,
-    prompt_hash,
-    record_chop_agent_launch_result,
-)
 from .config import AxeConfig, ChopConfig, LumberjackConfig
 from .maintenance import clear_stale_maintenance, read_maintenance
 from .state import (
     AxeMetrics,
-    ChopRunEntry,
-    ChopRunStatus,
     LumberjackMetrics,
     LumberjackStatus,
     append_error,
-    chop_run_log_path,
     ensure_lumberjack_dirs,
-    finish_chop_run,
-    generate_chop_run_id,
     get_timestamp,
     lumberjack_log_path,
     read_chop_run_log_tail,
     read_chop_timestamps,
     remove_lumberjack_pid,
-    start_chop_run,
-    update_chop_run_pid,
-    write_chop_run,
     write_chop_timestamps,
     write_lumberjack_metrics,
     write_lumberjack_pid,
@@ -69,23 +59,6 @@ from .state import (
 )
 
 LogCallback = Callable[[str, str | None], None]
-
-_NO_PYTHON_TRACEBACK = "<no python traceback: subprocess error>"
-_TRACEBACK_UNAVAILABLE = "<traceback unavailable>"
-
-
-def _capture_traceback() -> str:
-    """Capture the active exception traceback.
-
-    Must be called from inside an ``except`` block.  When ``sys.exc_info``
-    is empty (no active exception) ``traceback.format_exc()`` returns the
-    string ``"NoneType: None"`` — surface a clearly-marked placeholder
-    instead so error digests don't carry that footgun.
-    """
-    formatted = traceback.format_exc().rstrip("\n")
-    if formatted == "NoneType: None" or not formatted:
-        return _TRACEBACK_UNAVAILABLE
-    return formatted
 
 
 @dataclass
@@ -285,144 +258,30 @@ class Lumberjack:
         AXE_CYCLE_DURATION.labels(cycle_type=self.name).observe(tick_duration)
 
     def _run_single_chop(self, chop: ChopConfig, context_file: str) -> _ChopResult:
-        """Execute a single chop."""
-        if chop.agent is not None:
-            return self._launch_agent_chop(chop)
+        """Execute a single chop via the shared chop-runner service.
 
-        started_at = datetime.now(get_timezone())
-        resolved_timeout = chop.timeout or self.config.chop_timeout
-        log_lines: list[str] = []
-        run_id = generate_chop_run_id(started_at)
-
-        script = discover_chop_script(chop.name, self.axe_config.chop_script_dirs)
-        if script is None:
-            error = RuntimeError(f"Chop script not found: {chop.name}")
-            self._record_chop_run(
-                chop.name,
-                started_at,
-                status="missing_script",
-                error=error,
-                tb=_NO_PYTHON_TRACEBACK,
-            )
-            return _ChopResult(
-                chop_name=chop.name,
-                executed=False,
-                success=False,
-                update_timestamp=False,
-                log_lines=log_lines,
-                error=error,
-                traceback=_NO_PYTHON_TRACEBACK,
-            )
-
-        env = dict(chop.env)
-        env.update(self._chop_launch_env(chop))
-
-        # Open the run-history entry in ``running`` state *before* the
-        # subprocess starts so the TUI collector and dashboard can observe
-        # the run while it's executing. Finalization re-reads this entry
-        # and stamps terminal status without creating a second row.
-        start_entry = ChopRunEntry(
-            run_id=run_id,
+        The runner owns context, env, timeout, and run-history persistence;
+        this method translates the typed :class:`ChopRunOutcome` it returns
+        into the tick-level :class:`_ChopResult` (log lines for the aggregate
+        log, run_every timestamp updates, agent PID tracking).
+        """
+        outcome = run_configured_chop_once(
             lumberjack_name=self.name,
-            chop_name=chop.name,
-            started_at=started_at.isoformat(),
-            finished_at=None,
-            duration_ms=0,
-            status="running",
+            chop=chop,
+            axe_config=self.axe_config,
+            chop_timeout_default=self.config.chop_timeout,
+            context_file=context_file,
             source="scheduled",
         )
-        try:
-            start_chop_run(start_entry)
-        except OSError:
-            # History is observational; never fail the tick on disk errors.
-            pass
+        return self._outcome_to_result(chop, outcome)
 
-        log_path = chop_run_log_path(self.name, chop.name, run_id)
+    def _outcome_to_result(
+        self, chop: ChopConfig, outcome: ChopRunOutcome
+    ) -> _ChopResult:
+        log_lines: list[str] = []
 
-        def _record_pid(pid: int) -> None:
-            try:
-                update_chop_run_pid(self.name, chop.name, run_id, pid)
-            except OSError:
-                pass
-
-        try:
-            result: StreamedScriptResult = stream_chop_script(
-                script,
-                context_file,
-                log_path=log_path,
-                timeout=resolved_timeout,
-                env=env,
-                cwd=str(self._state_dir),
-                on_pid=_record_pid,
-            )
-        except Exception as e:
-            tb = _capture_traceback()
-            self._finalize_chop_run(
-                chop_name=chop.name,
-                run_id=run_id,
-                started_at=started_at,
-                status="failure",
-                exit_code=None,
-                error=e,
-                tb=tb,
-            )
-            return _ChopResult(
-                chop_name=chop.name,
-                executed=True,
-                success=False,
-                update_timestamp=False,
-                log_lines=log_lines,
-                error=e,
-                traceback=tb,
-            )
-
-        if result.timed_out:
-            error = RuntimeError(f"timed out after {resolved_timeout}s")
-            # A timed-out chop is recorded with exit_code=None even when the
-            # OS reported a kill-signal code, to match the existing run-history
-            # contract for timeout entries.
-            self._finalize_chop_run(
-                chop_name=chop.name,
-                run_id=run_id,
-                started_at=started_at,
-                status="timeout",
-                exit_code=None,
-                error=error,
-                tb=_NO_PYTHON_TRACEBACK,
-                output_bytes=result.output_bytes,
-            )
-            return _ChopResult(
-                chop_name=chop.name,
-                executed=True,
-                success=False,
-                update_timestamp=False,
-                log_lines=log_lines,
-                error=error,
-                traceback=_NO_PYTHON_TRACEBACK,
-            )
-
-        # Aggregate-log echo of script stdout: best-effort tail read so the
-        # lumberjack output log keeps roughly the same shape it had under
-        # ``capture_output=True``. Per-chop run output lives in ``log_path``
-        # — this is purely human-readable noise.
-        try:
-            tail = read_chop_run_log_tail(self.name, chop.name, run_id, lines=200)
-        except OSError:
-            tail = ""
-        if tail:
-            for line in tail.splitlines():
-                if line:
-                    log_lines.append(line)
-
-        if result.returncode == 0:
-            self._finalize_chop_run(
-                chop_name=chop.name,
-                run_id=run_id,
-                started_at=started_at,
-                status="success",
-                exit_code=0,
-                output_bytes=result.output_bytes,
-            )
+        if outcome.status == "success":
+            self._append_log_tail(chop.name, outcome.run_id, log_lines)
             return _ChopResult(
                 chop_name=chop.name,
                 executed=True,
@@ -431,26 +290,117 @@ class Lumberjack:
                 log_lines=log_lines,
             )
 
-        error = RuntimeError(f"exit code {result.returncode}")
-        self._finalize_chop_run(
-            chop_name=chop.name,
-            run_id=run_id,
-            started_at=started_at,
-            status="failure",
-            exit_code=result.returncode,
-            error=error,
-            tb=_NO_PYTHON_TRACEBACK,
-            output_bytes=result.output_bytes,
-        )
+        if outcome.status == "failure" and outcome.exit_code is not None:
+            # Process completed with nonzero exit; echo its tail into the
+            # aggregate log to match the legacy ``capture_output=True`` shape.
+            self._append_log_tail(chop.name, outcome.run_id, log_lines)
+            return _ChopResult(
+                chop_name=chop.name,
+                executed=True,
+                success=False,
+                update_timestamp=False,
+                log_lines=log_lines,
+                error=outcome.error,
+                traceback=outcome.traceback,
+            )
+
+        if outcome.status == "failure":
+            # Exception raised before/during streaming — no tail to echo.
+            return _ChopResult(
+                chop_name=chop.name,
+                executed=True,
+                success=False,
+                update_timestamp=False,
+                log_lines=log_lines,
+                error=outcome.error,
+                traceback=outcome.traceback,
+            )
+
+        if outcome.status == "timeout":
+            return _ChopResult(
+                chop_name=chop.name,
+                executed=True,
+                success=False,
+                update_timestamp=False,
+                log_lines=log_lines,
+                error=outcome.error,
+                traceback=outcome.traceback,
+            )
+
+        if outcome.status == "missing_script":
+            return _ChopResult(
+                chop_name=chop.name,
+                executed=False,
+                success=False,
+                update_timestamp=False,
+                log_lines=log_lines,
+                error=outcome.error,
+                traceback=outcome.traceback,
+            )
+
+        if outcome.status == "agent_launched":
+            launch_line = f"Launched agent chop '{chop.name}' (PID {outcome.agent_pid})"
+            return _ChopResult(
+                chop_name=chop.name,
+                executed=True,
+                success=True,
+                update_timestamp=chop.run_every is not None,
+                log_lines=[launch_line],
+                agent_pid=outcome.agent_pid,
+            )
+
+        if outcome.status == "agent_failed":
+            # Throttle persistent launch failures by the chop's normal
+            # cadence so a misconfigured agent chop doesn't retry every
+            # tick and flood error digests.
+            return _ChopResult(
+                chop_name=chop.name,
+                executed=True,
+                success=False,
+                update_timestamp=chop.run_every is not None,
+                log_lines=log_lines,
+                error=outcome.error,
+                traceback=outcome.traceback,
+            )
+
+        if outcome.status == "already_running":
+            # Scheduled tick should not double-launch; treat as a quiet skip
+            # so we don't increment chops_executed or error counters.
+            return _ChopResult(
+                chop_name=chop.name,
+                executed=False,
+                success=False,
+                update_timestamp=False,
+                log_lines=log_lines,
+            )
+
+        # Unknown status: surface as an error so silent drift is loud.
         return _ChopResult(
             chop_name=chop.name,
-            executed=True,
+            executed=False,
             success=False,
             update_timestamp=False,
             log_lines=log_lines,
-            error=error,
-            traceback=_NO_PYTHON_TRACEBACK,
+            error=RuntimeError(f"unexpected chop run outcome: {outcome.status}"),
+            traceback=_TRACEBACK_UNAVAILABLE,
         )
+
+    def _append_log_tail(
+        self,
+        chop_name: str,
+        run_id: str | None,
+        log_lines: list[str],
+    ) -> None:
+        if run_id is None:
+            return
+        try:
+            tail = read_chop_run_log_tail(self.name, chop_name, run_id, lines=200)
+        except OSError:
+            tail = ""
+        if tail:
+            for line in tail.splitlines():
+                if line:
+                    log_lines.append(line)
 
     def _is_agent_eligible(self, chop: ChopConfig) -> bool:
         """Check if an agent chop should run (no live instances).
@@ -517,127 +467,20 @@ class Lumberjack:
         )
 
     def _launch_agent_chop(self, chop: ChopConfig) -> _ChopResult:
-        """Launch an agent chop as a background process."""
-        assert chop.agent is not None
-        started_at = datetime.now(get_timezone())
-        try:
-            from sase.agent.launcher import launch_agent_from_cwd
+        """Launch an agent chop via the shared runner.
 
-            extra_env = self._chop_launch_env(chop)
-            result = launch_agent_from_cwd(chop.agent, extra_env=extra_env)
-            record_chop_agent_launch_result(
-                result=result,
-                prompt=chop.agent,
-                env=extra_env,
-            )
-            launch_line = f"Launched agent chop '{chop.name}' (PID {result.pid})"
-            self._record_chop_run(
-                chop.name,
-                started_at,
-                status="agent_launched",
-                agent_pid=result.pid,
-                output=launch_line + "\n",
-            )
-            return _ChopResult(
-                chop_name=chop.name,
-                executed=True,
-                success=True,
-                update_timestamp=chop.run_every is not None,
-                log_lines=[launch_line],
-                agent_pid=result.pid,
-            )
-        except Exception as e:
-            tb = _capture_traceback()
-            self._record_chop_run(
-                chop.name,
-                started_at,
-                status="failure",
-                error=e,
-                tb=tb,
-            )
-            return _ChopResult(
-                chop_name=chop.name,
-                executed=True,
-                success=False,
-                # Throttle persistent launch failures by the chop's normal
-                # cadence so a misconfigured agent chop doesn't retry every
-                # tick and flood error digests.
-                update_timestamp=chop.run_every is not None,
-                error=e,
-                traceback=tb,
-            )
-
-    def _record_chop_run(
-        self,
-        chop_name: str,
-        started_at: datetime,
-        *,
-        status: ChopRunStatus,
-        exit_code: int | None = None,
-        agent_pid: int | None = None,
-        error: Exception | None = None,
-        tb: str | None = None,
-        output: str = "",
-    ) -> None:
-        """Persist a single-shot run-history entry for a fully-known chop run.
-
-        Used for agent launches and missing-script records. Streaming script
-        runs use :func:`start_chop_run` + :meth:`_finalize_chop_run` so the
-        same run id can carry ``running`` and terminal states.
-
-        Errors writing history must never propagate up into the tick — history
-        is observational, not load-bearing for the scheduler.
+        Kept as a method so the existing test suite can call it directly;
+        delegates to :func:`run_configured_chop_once` for the actual launch
+        and history-writing work.
         """
-        finished_at = datetime.now(get_timezone())
-        duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
-        entry = ChopRunEntry(
-            run_id=generate_chop_run_id(started_at),
+        outcome = run_configured_chop_once(
             lumberjack_name=self.name,
-            chop_name=chop_name,
-            started_at=started_at.isoformat(),
-            finished_at=finished_at.isoformat(),
-            duration_ms=duration_ms,
-            status=status,
-            exit_code=exit_code,
-            agent_pid=agent_pid,
-            error=str(error) if error is not None else None,
-            traceback=tb,
+            chop=chop,
+            axe_config=self.axe_config,
+            chop_timeout_default=self.config.chop_timeout,
+            source="scheduled",
         )
-        try:
-            write_chop_run(entry, output)
-        except OSError:
-            pass
-
-    def _finalize_chop_run(
-        self,
-        *,
-        chop_name: str,
-        run_id: str,
-        started_at: datetime,
-        status: ChopRunStatus,
-        exit_code: int | None = None,
-        error: Exception | None = None,
-        tb: str | None = None,
-        output_bytes: int | None = None,
-    ) -> None:
-        """Stamp the terminal state onto a previously-opened streaming run."""
-        finished_at = datetime.now(get_timezone())
-        duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
-        try:
-            finish_chop_run(
-                self.name,
-                chop_name,
-                run_id,
-                status=status,
-                finished_at=finished_at.isoformat(),
-                duration_ms=duration_ms,
-                exit_code=exit_code,
-                error=str(error) if error is not None else None,
-                traceback=tb,
-                output_bytes=output_bytes,
-            )
-        except OSError:
-            pass
+        return self._outcome_to_result(chop, outcome)
 
     def _handle_error(
         self, job_name: str, error: Exception, tb: str | None = None

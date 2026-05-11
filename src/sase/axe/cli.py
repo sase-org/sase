@@ -9,15 +9,18 @@ import sys
 
 from sase.ace.hooks.processes import is_process_running
 
-from .chop_script_context import (
-    ChopScriptContext,
-    serialize_changespecs,
-    write_chop_context,
+from .chop_runner import (
+    ONESHOT_LUMBERJACK_NAME,
+    AmbiguousChopError,
+    ChopNotFoundError,
+    ChopRunOutcome,
+    find_configured_chop,
+    run_configured_chop_once,
 )
-from .chop_script_runner import discover_chop_script, run_chop_script
+from .chop_script_runner import discover_chop_script
 from .config import AxeConfig, ChopConfig, load_axe_config
 from .state import (
-    ensure_lumberjack_dirs,
+    read_chop_run_log_tail,
     read_lumberjack_status,
 )
 
@@ -44,107 +47,107 @@ def handle_axe_chop_list(args: argparse.Namespace) -> None:
 
 
 def handle_axe_chop_run(args: argparse.Namespace) -> None:
-    """Run a single chop once in the foreground, then exit."""
+    """Run a single chop once in the foreground, then exit.
+
+    Routes through :func:`run_configured_chop_once` so the CLI shares context
+    building, env propagation, timeout, and run-history writing with the
+    scheduled lumberjack and the TUI manual-run action. When the chop name
+    is not configured (a discoverable but unattached script), falls back to
+    the legacy ``_oneshot`` lumberjack name so it still runs with history.
+
+    The ``--lumberjack`` flag disambiguates chop names that appear in more
+    than one configured lumberjack.
+    """
     chop_name: str = args.chop_name
+    lumberjack_override: str | None = getattr(args, "lumberjack", None)
     config = load_axe_config()
 
-    # Check if this is an agent chop (defined in config with agent field)
-    chop_config = _find_chop_config(chop_name, config)
-    if chop_config is not None and chop_config.agent is not None:
-        _run_agent_chop_oneshot(chop_config)
-        return
-
-    # Script-based chop
-    script = discover_chop_script(chop_name, config.chop_script_dirs)
-    if script is None:
-        print(f"Error: unknown chop '{chop_name}'")
-        sys.exit(1)
-
-    from sase.ace.changespec import find_all_changespecs
-    from sase.core.query_facade import evaluate_query_many
-
-    query: str = getattr(args, "query", "") or config.query
-
-    max_hook_runners: int = (
-        getattr(args, "max_hook_runners", None) or config.max_hook_runners
-    )
-    max_agent_runners: int = (
-        getattr(args, "max_agent_runners", None) or config.max_agent_runners
-    )
-    zombie_timeout: int = (
-        getattr(args, "zombie_timeout", None) or config.zombie_timeout_seconds
-    )
-
-    all_changespecs = find_all_changespecs()
-    filtered_changespecs = all_changespecs
-    if query:
-        mask = evaluate_query_many(query, all_changespecs)
-        filtered_changespecs = [
-            cs for cs, keep in zip(all_changespecs, mask, strict=True) if keep
-        ]
-
-    state_dir = ensure_lumberjack_dirs("_oneshot")
-    tick_dir = state_dir / "tick"
-    tick_dir.mkdir(parents=True, exist_ok=True)
-
-    all_cs_file = str(tick_dir / "all_changespecs.json")
-    filtered_cs_file = str(tick_dir / "filtered_changespecs.json")
-    context_file = str(tick_dir / "context.json")
-
-    serialize_changespecs(all_changespecs, all_cs_file)
-    serialize_changespecs(filtered_changespecs, filtered_cs_file)
-
-    ctx = ChopScriptContext(
-        max_hook_runners=max_hook_runners,
-        max_agent_runners=max_agent_runners,
-        zombie_timeout_seconds=zombie_timeout,
-        query=query,
-        lumberjack_name="_oneshot",
-        state_dir=str(state_dir),
-        all_changespecs_file=all_cs_file,
-        filtered_changespecs_file=filtered_cs_file,
-    )
-    write_chop_context(ctx, context_file)
-
-    chop_env = chop_config.env if chop_config is not None else {}
-    result = run_chop_script(script, context_file, env=chop_env)
-    if result.stdout:
-        print(result.stdout, end="")
-    if result.stderr:
-        print(result.stderr, end="", file=sys.stderr)
-    sys.exit(result.returncode)
-
-
-def _find_chop_config(chop_name: str, config: AxeConfig) -> ChopConfig | None:
-    """Look up a chop by name across all lumberjack configs."""
-    for lumberjack in config.lumberjacks.values():
-        for chop in lumberjack.chops:
-            if chop.name == chop_name:
-                return chop
-    return None
-
-
-def _run_agent_chop_oneshot(chop: ChopConfig) -> None:
-    """Run an agent chop as a one-shot launch."""
-    from sase.agent.launcher import launch_agent_from_cwd
-
-    from .chop_agents import build_chop_launch_env, record_chop_agent_launch_result
-
-    assert chop.agent is not None
-    extra_env = build_chop_launch_env(
-        lumberjack_name="_oneshot",
-        chop_name=chop.name,
-        prompt=chop.agent,
-    )
     try:
-        result = launch_agent_from_cwd(chop.agent, extra_env=extra_env)
-    except RuntimeError as e:
+        match = find_configured_chop(config, chop_name, lumberjack_override)
+        lumberjack_name = match.lumberjack_name
+        chop_cfg = match.chop
+        chop_timeout_default = match.lumberjack.chop_timeout
+    except AmbiguousChopError as e:
         print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+        sys.exit(2)
+    except ChopNotFoundError:
+        if lumberjack_override is not None:
+            print(
+                f"Error: chop '{chop_name}' is not configured under lumberjack "
+                f"'{lumberjack_override}'",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        # Legacy fallback: unconfigured script discoverable on disk runs under
+        # the synthetic ``_oneshot`` lumberjack so history is still recorded.
+        script = discover_chop_script(chop_name, config.chop_script_dirs)
+        if script is None:
+            print(f"Error: unknown chop '{chop_name}'", file=sys.stderr)
+            sys.exit(1)
+        lumberjack_name = ONESHOT_LUMBERJACK_NAME
+        chop_cfg = ChopConfig(name=chop_name, description="")
+        chop_timeout_default = None
 
-    record_chop_agent_launch_result(result=result, prompt=chop.agent, env=extra_env)
-    print(f"Agent started for chop '{chop.name}' (PID {result.pid})")
-    sys.exit(0)
+    outcome = run_configured_chop_once(
+        lumberjack_name=lumberjack_name,
+        chop=chop_cfg,
+        axe_config=config,
+        chop_timeout_default=chop_timeout_default,
+        source="oneshot",
+        started_by="cli",
+    )
+    _print_outcome_and_exit(outcome)
+
+
+def _print_outcome_and_exit(outcome: ChopRunOutcome) -> None:
+    """Render a chop run outcome to stdout/stderr and exit with the right code."""
+    if outcome.status == "success":
+        _print_chop_log_tail(outcome)
+        sys.exit(0)
+    if outcome.status == "failure":
+        _print_chop_log_tail(outcome)
+        if outcome.error is not None:
+            print(f"Error: {outcome.error}", file=sys.stderr)
+        sys.exit(outcome.exit_code or 1)
+    if outcome.status == "timeout":
+        _print_chop_log_tail(outcome)
+        print(f"Error: {outcome.error}", file=sys.stderr)
+        sys.exit(1)
+    if outcome.status == "missing_script":
+        print(f"Error: {outcome.error}", file=sys.stderr)
+        sys.exit(1)
+    if outcome.status == "agent_launched":
+        print(f"Agent started for chop '{outcome.chop_name}' (PID {outcome.agent_pid})")
+        sys.exit(0)
+    if outcome.status == "agent_failed":
+        print(f"Error: {outcome.error}", file=sys.stderr)
+        sys.exit(1)
+    if outcome.status == "already_running":
+        suffix = f" (PID {outcome.agent_pid})" if outcome.agent_pid is not None else ""
+        print(
+            f"Chop '{outcome.chop_name}' is already running"
+            f" under lumberjack '{outcome.lumberjack_name}'{suffix}; skipping.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    # Defensive default: unknown status surfaces with a nonzero exit code.
+    print(f"Error: unexpected chop run outcome: {outcome.status}", file=sys.stderr)
+    sys.exit(1)
+
+
+def _print_chop_log_tail(outcome: ChopRunOutcome) -> None:
+    if outcome.run_id is None:
+        return
+    try:
+        tail = read_chop_run_log_tail(
+            outcome.lumberjack_name, outcome.chop_name, outcome.run_id
+        )
+    except OSError:
+        tail = ""
+    if tail:
+        sys.stdout.write(tail)
+        if not tail.endswith("\n"):
+            sys.stdout.write("\n")
 
 
 def handle_axe_lumberjack_list(args: argparse.Namespace) -> None:

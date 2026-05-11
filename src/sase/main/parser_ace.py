@@ -107,6 +107,13 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
         "run", help="Run a single chop once in the foreground"
     )
     axe_chop_run_parser.add_argument("chop_name", help="Name of the chop to run")
+    axe_chop_run_parser.add_argument(
+        "-L",
+        "--lumberjack",
+        default=None,
+        help="Configured lumberjack to attribute the run to (required when the "
+        "chop name appears in multiple lumberjacks)",
+    )
 
     # --- axe lumberjack ---
     axe_lumberjack_parser = axe_subparsers.add_parser(

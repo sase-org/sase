@@ -321,8 +321,8 @@ def test_run_tick_launches_agent_chops_sequentially_in_config_order(
     assert set(lumberjack._chop_timestamps) == {"first_agent", "second_agent"}
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_launches_agent_chop_while_script_chop_is_running(
     mock_find: MagicMock,
@@ -611,8 +611,8 @@ def test_agent_chop_launch_failure_preserves_traceback(
     assert "RuntimeError" in last_error["traceback"]
 
 
-@patch("sase.axe.lumberjack.stream_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_script_chop_receives_chop_env(
     mock_find: MagicMock,
