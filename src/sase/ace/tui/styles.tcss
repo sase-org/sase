@@ -131,7 +131,7 @@ ChangeSpecList > .option-list--option {
 }
 
 ChangeSpecList > .option-list--option-highlighted {
-    background: $boost;
+    background: $accent 25%;
     text-style: bold;
     border-left: thick $accent;
     padding: 0 1 0 0;
@@ -990,7 +990,7 @@ AgentList > .option-list--option {
 }
 
 AgentList > .option-list--option-highlighted {
-    background: $boost;
+    background: $accent 25%;
     text-style: bold;
     border-left: thick $accent;
     padding: 0 1 0 0;
@@ -1354,7 +1354,7 @@ BgCmdList > .option-list--option {
 }
 
 BgCmdList > .option-list--option-highlighted {
-    background: $boost;
+    background: $accent 25%;
     text-style: bold;
     border-left: thick $accent;
     padding: 0 1 0 0;
