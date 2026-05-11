@@ -284,12 +284,6 @@ telemetry:
 sdd:
   version_controlled: false
 
-notifications:
-  suppress:
-    - client: tui
-      types:
-        - agent_completion
-
 xprompt_aliases:
   c: commit
   p: propose

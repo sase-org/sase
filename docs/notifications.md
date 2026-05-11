@@ -109,18 +109,9 @@ picker; those prompt-referenced images are local artifact-list entries and are n
 payloads unless they also appear in `done.json.image_paths`.
 
 The Agents tab also treats user-agent completions as unread work items. When a terminal agent is selected after it has
-been marked unread, or when the user jumps to it with the unread-agent shortcut, ACE clears the row's unread marker —
-but the completion notification itself remains in the JSONL store and the notifications modal. Reading or selecting an
-agent no longer auto-dismisses its completion notification; explicit dismissal (or killing the agent via
-`sase agents kill`, Telegram, or gchat) is what removes it. Plan approvals and user questions remain explicit response
-workflows and are not auto-read merely by selection.
-
-By default the TUI does not surface successful agent-completion rows at all — they are filtered out of the unread
-counts, toast pipeline, bell indicator, and notification modal via the `notifications.suppress` client projection (see
-[Client-Side Suppression](#client-side-suppression) below). The underlying JSONL store still receives the row, so
-Telegram, the mobile gateway, and `sase notify list` continue to see successful completions exactly as before. The
-Agents tab's own off-tab `Agents(N)` unread badge (see the ACE docs) is driven by the per-row unread marker, not by the
-notifications pipeline, so completed agents still surface there even with `agent_completion` suppression in effect.
+been marked unread, or when the user jumps to it with the unread-agent shortcut, ACE clears the row's unread marker and
+dismisses the matching completion notification. Plan approvals and user questions remain explicit response workflows and
+are not auto-read merely by selection.
 
 See [`agent_images.md`](agent_images.md) for the full attachment contract and ACE image preview notes.
 
@@ -174,91 +165,6 @@ indicator, toast, notification modal, and Telegram delivery. They remain visible
 
 Agent completion and failure events from hidden background agents still write a notification row, but with the silent
 flag set. This keeps the JSONL audit trail complete while keeping the inbox focused on user-facing agent work.
-
-## Client-Side Suppression
-
-Notification suppression is a **client projection** concern, not a store mutation. A suppressed notification still
-appears in `~/.sase/notifications/notifications.jsonl`, still surfaces in `sase notify list`, and is still delivered to
-other clients (Telegram, the mobile gateway, future clients) unless those clients explicitly request the same projection
-by passing their own `client=` value to `read_notification_snapshot_for_client`.
-
-Suppression is configured in `sase.yml` under the top-level `notifications.suppress` section:
-
-```yaml
-notifications:
-  suppress:
-    - client: tui
-      types:
-        - agent_completion
-```
-
-Default config ships with the TUI rule above, so successful user-agent completions are hidden from ACE startup counts,
-top-bar counts, toasts, the bell indicator, and the notification modal. Failed agents (`agent_failure`) are deliberately
-left visible so the TUI error path keeps surfacing them.
-
-### Clients And Types
-
-`client` is case-insensitive and normalized with `casefold()`. Known consumers include:
-
-- `tui` — the ACE TUI notification reader.
-- `telegram` — the Telegram bridge.
-- `mobile` — the mobile gateway.
-
-Unknown client names are accepted (not rejected) so a future client can adopt the same rule structure without parser
-changes.
-
-`types` is a non-empty list of semantic type names rather than raw sender/action pairs, so users do not need to know
-storage internals to configure filters. The recognized types and their matchers are:
-
-| Type               | Match                                                      |
-| ------------------ | ---------------------------------------------------------- |
-| `agent_completion` | `sender == "user-agent"` and `action == "JumpToAgent"`     |
-| `agent_failure`    | `sender == "user-agent"` and `action == "ViewErrorReport"` |
-| `plan_approval`    | `action == "PlanApproval"`                                 |
-| `user_question`    | `action == "UserQuestion"`                                 |
-| `mentor_review`    | `action == "JumpToMentorReview"`                           |
-| `hitl`             | `action == "HITL"`                                         |
-| `sync_result`      | `action == "JumpToChangeSpec"` and `sender == "sync"`      |
-| `axe_error_digest` | `sender == "axe"` and `action == "ViewErrorReport"`        |
-
-### Merge And Override Behavior
-
-The `suppress` list follows the standard sase deep-merge rules. User `~/.config/sase/sase.yml` **replaces** the bundled
-default list, while overlay files (`sase_*.yml`) and project-local `sase.yml` **concatenate** additional entries. To
-restore TUI agent-completion toasts, set an empty list in your user config:
-
-```yaml
-notifications:
-  suppress: []
-```
-
-To add additional suppression without losing the default, use an overlay or local config so list concatenation applies:
-
-```yaml
-# ~/.config/sase/sase_quiet.yml
-notifications:
-  suppress:
-    - client: tui
-      types:
-        - sync_result
-```
-
-Malformed entries (missing `client`, empty `types`, wrong field types) are skipped non-fatally so a single bad rule does
-not silence the entire pipeline.
-
-### Suppression Vs. Other Hiding Mechanisms
-
-Suppression is intentionally separate from the other notification flags so each preserves its own semantics across all
-clients:
-
-- `silent` is **global** — it hides a row from every TUI/Telegram/mobile consumer at the same time. Continue to use
-  `silent=True` for hidden background-agent rows.
-- `read` / `dismissed` / `muted` mutate shared store state and affect every client. Don't reuse them to filter rows for
-  one client only.
-- `notifications.suppress` filters at read time, per client, and never mutates the store. This is the only correct
-  primitive for "hide this from the TUI but keep delivering it to Telegram".
-
-See [`docs/configuration.md`](configuration.md#notifications) for the full schema reference.
 
 ## CLI
 
