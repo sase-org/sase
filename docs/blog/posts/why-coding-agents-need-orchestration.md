@@ -128,9 +128,9 @@ has to make the work durable, reviewable, resumable, and transferable.
 
 ## Series Navigation
 
-This is the first entry in the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
+This is Post 1 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
 
 - Previous: none.
-- Next: ChangeSpecs: Turning Agent Output Into Reviewable Work.
+- Next: [Hello, SASE: Your First 15 Minutes Orchestrating Coding Agents](hello-sase-your-first-15-minutes.md).
 - Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [ACE guide](../../ace.md).

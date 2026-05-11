@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 16:10:36
-status: wip
+status: done
 prompt: sdd/prompts/202605/blog_series_two_posts.md
 ---
 # Plan: Reframe sase.sh around a single blog series with two posts

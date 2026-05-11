@@ -24,9 +24,9 @@ roughly fifteen minutes at a terminal, plus however long your favorite model tak
 
 <!-- more -->
 
-If you'd rather read about _why_ a system like this exists before touching it, the companion essay
-[Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md) makes that argument. This post does the
-opposite: run first, name the parts afterward.
+This is Post 2 in the Agentic Software Engineering series. If you'd rather read about _why_ a system like this exists
+before touching it, [Post 1: Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md) makes that
+argument. The two posts can be read in either order; this one runs first and names the parts afterward.
 
 ## Step 1 — Install (≈90 seconds)
 
@@ -160,15 +160,19 @@ The names you'll keep bumping into, in one place:
 
 ## What to read next
 
-- [Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md) — the conceptual companion to this
-  post, for when you want the _why_ to match the _how_.
-- [Agentic Software Engineering series hub](../../series/agentic-software-engineering.md) — the launch arc, with linked
-  guides for each planned essay.
+- [Post 1: Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md) — the conceptual half of the
+  series, for when you want the _why_ to match the _how_.
+- [Agentic Software Engineering series hub](../../series/agentic-software-engineering.md) — both published posts in one
+  place.
 - [CLI reference](../../cli.md) — every `sase` subcommand on one page.
 - [The SASE repository](https://github.com/sase-org/sase) — source, issues, and project direction. If something on this
   page didn't work, an issue is the fastest way to make the next reader's first 15 minutes smoother.
 
 ## Series Navigation
 
-This is a hands-on companion to the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
-Read the [launch essay](why-coding-agents-need-orchestration.md) next for the motivation behind the system you just ran.
+This is Post 2 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
+
+- Previous: [Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md).
+- Next: none (latest post).
+- Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
+  [ACE guide](../../ace.md).

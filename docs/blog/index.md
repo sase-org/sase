@@ -5,15 +5,17 @@ units, orchestration, provider-independent workflows, review state, and the coor
 
 ## Start Here
 
-New to SASE? Read these two posts in order:
+The [Agentic Software Engineering series](../series/agentic-software-engineering.md) has two posts:
 
-1. [Hello, SASE: Your First 15 Minutes Orchestrating Coding Agents](posts/hello-sase-your-first-15-minutes.md) — the
-   hands-on on-ramp: install, launch an agent, find the result in ACE, and learn the names of every major component.
-2. [Why Coding Agents Need Orchestration](posts/why-coding-agents-need-orchestration.md) — the launch essay on _why_
-   coding-agent work needs durable orchestration around plans, state, review, dependencies, retries, and handoff.
+1. **Post 1.** [Why Coding Agents Need Orchestration](posts/why-coding-agents-need-orchestration.md) — the launch essay
+   on _why_ coding-agent work needs durable orchestration around plans, state, review, dependencies, retries, and
+   handoff.
+2. **Post 2.**
+   [Hello, SASE: Your First 15 Minutes Orchestrating Coding Agents](posts/hello-sase-your-first-15-minutes.md) — the
+   hands-on follow-up: install, launch an agent, find the result in ACE, and learn the names of every major component.
 
-The [Agentic Software Engineering series](../series/agentic-software-engineering.md) hub tracks the launch arc and links
-the current product guides for posts still in planning.
+If you'd rather run the system before reading about why it exists, start with Post 2 and circle back to Post 1
+afterward. The series hub lists the two published posts in one place.
 
 ## From Reading To Practice
 

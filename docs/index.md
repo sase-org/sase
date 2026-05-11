@@ -195,7 +195,7 @@ title: Structured Agentic Software Engineering
   <article class="sase-card sase-card--compact">
   <h3>Explore the series</h3>
 
-  <p>Follow the agentic software engineering launch track as it grows.</p>
+  <p>Read both posts in the agentic software engineering series from one hub.</p>
 
 <a href="series/agentic-software-engineering/">Explore the series</a>
 

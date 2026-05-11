@@ -4,30 +4,22 @@ SASE, short for **Structured Agentic Software Engineering**, uses **agentic soft
 where AI agents operate inside durable engineering systems: plans, work queues, review records, tests, commits,
 dependencies, and handoffs. The series explains why that coordination layer matters and how SASE implements it.
 
-The canonical essays live on the [SASE Blog](../blog/index.md). This page is the series hub for readers who want the
-launch arc in order, plus the current product guides for topics whose essays are still planned.
+The canonical essays live on the [SASE Blog](../blog/index.md). This page is the series hub: it lists the two posts that
+make up the series today and points readers at the current product guides for further reading.
 
-## Start Here
+## The Series
 
-If you have not run SASE yet, read the hands-on companion first:
-[Hello, SASE: Your First 15 Minutes Orchestrating Coding Agents](../blog/posts/hello-sase-your-first-15-minutes.md). It
-walks through install, your first `sase run`, the resulting ChangeSpec in ACE, and the vocabulary used in every post
-below.
+The series has two posts. Read them in numbered order for the conceptual argument first, hands-on practice second; or
+flip the order if you'd rather run the system before reading about why it exists.
 
-## Series Track
-
-| Order | Post                                                                                          | Status                                                      |
-| ----- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| 1     | [Why Coding Agents Need Orchestration](../blog/posts/why-coding-agents-need-orchestration.md) | Published launch essay                                      |
-| 2     | ChangeSpecs: Turning Agent Output Into Reviewable Work                                        | Planned; current guide: [ChangeSpecs](../change_spec.md)    |
-| 3     | Beads: Dependency-Aware Work Units For Multi-Agent Execution                                  | Planned; current guide: [Beads](../beads.md)                |
-| 4     | XPrompts: Reusable Workflows Above One-Off Prompts                                            | Planned; current guide: [XPrompts](../xprompt.md)           |
-| 5     | ACE and Axe: Operating Agents From A Durable Control Plane                                    | Planned; current guides: [ACE](../ace.md), [Axe](../axe.md) |
+| Order | Post                                                                                                                | Status               |
+| ----- | ------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| 1     | [Why Coding Agents Need Orchestration](../blog/posts/why-coding-agents-need-orchestration.md)                       | Published 2026-05-08 |
+| 2     | [Hello, SASE: Your First 15 Minutes Orchestrating Coding Agents](../blog/posts/hello-sase-your-first-15-minutes.md) | Published 2026-05-10 |
 
 ## Reader Paths
 
-Start with the [launch essay](../blog/posts/why-coding-agents-need-orchestration.md) for the motivation. Then move to
-the current guides that make each concept concrete:
+After the two posts, the current product guides make each concept concrete:
 
 - [ACE TUI](../ace.md) for the interactive control surface.
 - [Spec-Driven Development](../sdd.md) for plans, epics, legends, and executable phase work.
@@ -38,6 +30,6 @@ the current guides that make each concept concrete:
 
 ## Publishing Notes
 
-The blog is the canonical publishing surface for SASE essays. Series posts should keep stable slugs, include frontmatter
-dates and categories, and link back here so readers can continue through the launch track without relying on archive
-pages alone.
+The blog is the canonical publishing surface for SASE essays. Series posts keep stable slugs, include frontmatter dates
+and categories, and link back here so readers can move between the series hub and the individual posts without relying
+on archive pages alone.
