@@ -1,7 +1,7 @@
 """Tests for the Lumberjack class."""
 
 import os
-import subprocess
+import stat
 import time
 from collections.abc import Iterator
 from datetime import datetime, timedelta
@@ -19,7 +19,12 @@ from sase.axe.state import (
     read_chop_run_index,
     read_chop_run_log_tail,
 )
-from tests._axe_lumberjack_fixtures import fail_result, ok_result
+from tests._axe_lumberjack_fixtures import (
+    streamed_fail,
+    streamed_ok,
+    streamed_seq,
+    streamed_timeout,
+)
 
 
 @pytest.fixture
@@ -65,7 +70,7 @@ def test_lumberjack_with_query(
 # --- Tick Execution Tests ---
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_multiple_chops(
@@ -85,7 +90,7 @@ def test_run_tick_multiple_chops(
         ],
     )
     mock_discover.return_value = Path("/fake/script")
-    mock_run.return_value = ok_result()
+    mock_run.side_effect = streamed_ok()
 
     lumberjack = Lumberjack("multi", multi_config, axe_config)
     lumberjack._run_tick()
@@ -94,7 +99,7 @@ def test_run_tick_multiple_chops(
     assert lumberjack._metrics.chops_executed == 2
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_error_handling(
@@ -107,7 +112,7 @@ def test_run_tick_error_handling(
 ) -> None:
     """Test that chop script failures are caught and recorded."""
     mock_discover.return_value = Path("/fake/script")
-    mock_run.return_value = fail_result()
+    mock_run.side_effect = streamed_fail()
 
     lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
     lumberjack._run_tick()
@@ -116,7 +121,7 @@ def test_run_tick_error_handling(
     assert lumberjack._metrics.cycles_run == 1
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_skips_without_error_during_maintenance(
@@ -141,7 +146,7 @@ def test_run_tick_skips_without_error_during_maintenance(
     assert lumberjack._metrics.cycles_run == 1
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_clears_dead_pid_maintenance_and_runs_chops(
@@ -155,7 +160,7 @@ def test_run_tick_clears_dead_pid_maintenance_and_runs_chops(
     """A dead maintenance owner is cleared before the tick decides to skip."""
     start_maintenance("install_sase_github")
     mock_discover.return_value = Path("/fake/script")
-    mock_run.return_value = ok_result()
+    mock_run.side_effect = streamed_ok()
 
     lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
     with patch("sase.axe.maintenance.is_process_running", return_value=False):
@@ -169,7 +174,7 @@ def test_run_tick_clears_dead_pid_maintenance_and_runs_chops(
     assert lumberjack._metrics.cycles_run == 1
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_resumes_after_maintenance_cleared(
@@ -184,7 +189,7 @@ def test_run_tick_resumes_after_maintenance_cleared(
     start_maintenance("install_sase_github")
     clear_maintenance()
     mock_discover.return_value = Path("/fake/script")
-    mock_run.return_value = fail_result()
+    mock_run.side_effect = streamed_fail()
 
     lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
     lumberjack._run_tick()
@@ -215,7 +220,7 @@ def test_run_tick_missing_script(
     assert lumberjack._metrics.cycles_run == 1
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_every_skips_when_not_enough_time_elapsed(
@@ -232,7 +237,7 @@ def test_run_every_skips_when_not_enough_time_elapsed(
         chops=[ChopConfig(name="slow_chop", description="", run_every=3600)],
     )
     mock_discover.return_value = Path("/fake/script")
-    mock_run.return_value = ok_result()
+    mock_run.side_effect = streamed_ok()
 
     lumberjack = Lumberjack("throttled", config, axe_config)
 
@@ -254,7 +259,7 @@ def test_run_every_skips_when_not_enough_time_elapsed(
     assert mock_run.call_count == 2
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_all_chops_run_on_first_tick(
@@ -275,7 +280,7 @@ def test_all_chops_run_on_first_tick(
         ],
     )
     mock_discover.return_value = Path("/fake/script")
-    mock_run.return_value = ok_result()
+    mock_run.side_effect = streamed_ok()
 
     lumberjack = Lumberjack("first_tick", config, axe_config)
     lumberjack._run_tick()
@@ -283,7 +288,7 @@ def test_all_chops_run_on_first_tick(
     assert mock_run.call_count == 3
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_chops_without_run_every_run_every_tick(
@@ -300,7 +305,7 @@ def test_chops_without_run_every_run_every_tick(
         chops=[ChopConfig(name="always_chop", description="")],
     )
     mock_discover.return_value = Path("/fake/script")
-    mock_run.return_value = ok_result()
+    mock_run.side_effect = streamed_ok()
 
     lumberjack = Lumberjack("always", config, axe_config)
     lumberjack._run_tick()
@@ -350,7 +355,7 @@ def test_update_metrics_writes_file(
 # --- Timeout Tests ---
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_timeout_expired_records_error_and_continues(
@@ -371,10 +376,7 @@ def test_timeout_expired_records_error_and_continues(
         ],
     )
     mock_discover.return_value = Path("/fake/script")
-    mock_run.side_effect = [
-        subprocess.TimeoutExpired(cmd="slow_chop", timeout=5),
-        ok_result(),
-    ]
+    mock_run.side_effect = streamed_seq([streamed_timeout(), streamed_ok()])
 
     lumberjack = Lumberjack("timeout_test", config, axe_config)
     lumberjack._run_tick()
@@ -384,7 +386,7 @@ def test_timeout_expired_records_error_and_continues(
     assert lumberjack._metrics.cycles_run == 1
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_per_chop_timeout_overrides_lumberjack_default(
@@ -405,7 +407,7 @@ def test_per_chop_timeout_overrides_lumberjack_default(
         ],
     )
     mock_discover.return_value = Path("/fake/script")
-    mock_run.return_value = ok_result()
+    mock_run.side_effect = streamed_ok()
 
     lumberjack = Lumberjack("override_test", config, axe_config)
     lumberjack._run_tick()
@@ -423,7 +425,7 @@ def test_per_chop_timeout_overrides_lumberjack_default(
 # --- Tick Overrun Warning Tests ---
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_tick_overrun_logs_warning(
@@ -441,11 +443,11 @@ def test_tick_overrun_logs_warning(
     )
     mock_discover.return_value = Path("/fake/script")
 
-    def slow_run(*args, **kwargs):
-        import time
+    streamed = streamed_ok()
 
+    def slow_run(*args: object, **kwargs: object):
         time.sleep(1.1)
-        return ok_result()
+        return streamed(*args, **kwargs)
 
     mock_run.side_effect = slow_run
 
@@ -475,7 +477,7 @@ def test_handle_shutdown_sets_running_false(
 # --- Concurrency Tests ---
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_chops_run_concurrently(
@@ -495,10 +497,11 @@ def test_chops_run_concurrently(
         ],
     )
     mock_discover.return_value = Path("/fake/script")
+    streamed = streamed_ok()
 
-    def slow_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+    def slow_run(*args: object, **kwargs: object):
         time.sleep(1.0)
-        return ok_result()
+        return streamed(*args, **kwargs)
 
     mock_run.side_effect = slow_run
 
@@ -523,7 +526,7 @@ def _single_chop_run_id(lumberjack_name: str, chop_name: str) -> str:
     return index[0]
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_successful_chop_records_run_history(
@@ -536,9 +539,7 @@ def test_successful_chop_records_run_history(
 ) -> None:
     """A successful chop run produces a status=success entry with exit_code 0."""
     mock_discover.return_value = Path("/fake/script")
-    mock_run.return_value = subprocess.CompletedProcess(
-        args=[], returncode=0, stdout="hello\n", stderr=""
-    )
+    mock_run.side_effect = streamed_ok(output="hello\n")
 
     lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
     lumberjack._run_tick()
@@ -555,7 +556,7 @@ def test_successful_chop_records_run_history(
     assert "hello" in log_tail
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_failed_chop_records_failure_history(
@@ -568,9 +569,7 @@ def test_failed_chop_records_failure_history(
 ) -> None:
     """A failing chop run produces a status=failure entry with the exit code."""
     mock_discover.return_value = Path("/fake/script")
-    mock_run.return_value = subprocess.CompletedProcess(
-        args=[], returncode=2, stdout="", stderr="boom"
-    )
+    mock_run.side_effect = streamed_fail(code=2, output="boom")
 
     lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
     lumberjack._run_tick()
@@ -585,7 +584,7 @@ def test_failed_chop_records_failure_history(
     assert "boom" in log_tail
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_timed_out_chop_records_timeout_history(
@@ -598,7 +597,7 @@ def test_timed_out_chop_records_timeout_history(
 ) -> None:
     """A chop that times out produces a status=timeout entry."""
     mock_discover.return_value = Path("/fake/script")
-    mock_run.side_effect = subprocess.TimeoutExpired(cmd="x", timeout=5)
+    mock_run.side_effect = streamed_timeout()
 
     lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
     lumberjack._run_tick()
@@ -665,7 +664,7 @@ def test_agent_chop_launch_records_agent_launched_history(
     assert entry.agent_pid == 4242
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_every_skip_does_not_record_history(
@@ -682,7 +681,7 @@ def test_run_every_skip_does_not_record_history(
         chops=[ChopConfig(name="slow_chop", description="", run_every=3600)],
     )
     mock_discover.return_value = Path("/fake/script")
-    mock_run.return_value = ok_result()
+    mock_run.side_effect = streamed_ok()
 
     lumberjack = Lumberjack("throttled", config, axe_config)
     lumberjack._run_tick()
@@ -693,7 +692,7 @@ def test_run_every_skip_does_not_record_history(
     assert len(index) == 1
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_chop_history_is_pruned_to_max(
@@ -708,7 +707,7 @@ def test_chop_history_is_pruned_to_max(
     from sase.axe.state import MAX_CHOP_RUN_HISTORY
 
     mock_discover.return_value = Path("/fake/script")
-    mock_run.return_value = ok_result()
+    mock_run.side_effect = streamed_ok()
 
     lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
     for _ in range(MAX_CHOP_RUN_HISTORY + 2):
@@ -722,7 +721,7 @@ def test_chop_history_is_pruned_to_max(
         assert read_chop_run("test_lumberjack", "hook_checks", run_id) is not None
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_one_chop_failure_does_not_block_others(
@@ -743,11 +742,9 @@ def test_one_chop_failure_does_not_block_others(
         ],
     )
     mock_discover.return_value = Path("/fake/script")
-    mock_run.side_effect = [
-        fail_result(),
-        ok_result(),
-        RuntimeError("unexpected crash"),
-    ]
+    mock_run.side_effect = streamed_seq(
+        [streamed_fail(), streamed_ok(), RuntimeError("unexpected crash")]
+    )
 
     lumberjack = Lumberjack("isolation_test", config, axe_config)
     lumberjack._run_tick()
@@ -755,3 +752,153 @@ def test_one_chop_failure_does_not_block_others(
     assert mock_run.call_count == 3
     assert lumberjack._metrics.chops_executed == 1
     assert lumberjack._metrics.errors_encountered == 2
+
+
+# --- Streaming Run Tests ---
+
+
+def _make_streaming_script(tmp: Path, name: str, body: str) -> Path:
+    """Drop an executable shell script under tmp/scripts/<name>."""
+    scripts = tmp / "scripts"
+    scripts.mkdir(exist_ok=True)
+    script = scripts / name
+    script.write_text("#!/bin/sh\n" + body)
+    script.chmod(script.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    return script
+
+
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_streaming_chop_writes_output_before_exit(
+    mock_find: MagicMock,
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    """A long-running script chop appears in the run log before its subprocess exits."""
+    import threading
+
+    _make_streaming_script(
+        tmp_path,
+        "live_chop",
+        "echo first\nsleep 0.6\necho second\n",
+    )
+    axe_config = AxeConfig(
+        max_hook_runners=3,
+        max_agent_runners=3,
+        zombie_timeout_seconds=3600,
+        query="",
+        chop_script_dirs=[str(tmp_path / "scripts")],
+    )
+    config = LumberjackConfig(
+        name="live",
+        interval=10,
+        chops=[ChopConfig(name="live_chop", description="")],
+    )
+
+    lumberjack = Lumberjack("live", config, axe_config)
+
+    # Run the tick on a worker thread so the main thread can poll the
+    # on-disk run history while the script subprocess is still alive.
+    worker = threading.Thread(target=lumberjack._run_tick, daemon=True)
+    worker.start()
+
+    mid_run_tail: str | None = None
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        index = read_chop_run_index("live", "live_chop")
+        if index:
+            run_id = index[0]
+            entry = read_chop_run("live", "live_chop", run_id)
+            tail = read_chop_run_log_tail("live", "live_chop", run_id)
+            if (
+                entry is not None
+                and entry.status == "running"
+                and "first" in tail
+                and "second" not in tail
+            ):
+                mid_run_tail = tail
+                break
+        time.sleep(0.02)
+
+    worker.join(timeout=5.0)
+    assert not worker.is_alive(), "lumberjack tick failed to finish"
+
+    index = read_chop_run_index("live", "live_chop")
+    assert len(index) == 1
+    run_id = index[0]
+    entry = read_chop_run("live", "live_chop", run_id)
+    assert entry is not None
+    assert entry.status == "success"
+    assert entry.finished_at is not None
+    assert entry.exit_code == 0
+    final_tail = read_chop_run_log_tail("live", "live_chop", run_id)
+    assert "first" in final_tail
+    assert "second" in final_tail
+    assert mid_run_tail is not None, (
+        "expected first line in log while entry was still ``running``"
+    )
+
+
+@patch("sase.axe.lumberjack.stream_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_streaming_chop_records_pid_on_running_entry(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
+    temp_state_dir: Path,
+    lumberjack_config: LumberjackConfig,
+    axe_config: AxeConfig,
+) -> None:
+    """When the runner reports a pid, the running entry stores it before finalizing."""
+    mock_discover.return_value = Path("/fake/script")
+    seen_pids: dict[str, int | None] = {"during_run": None}
+    streamed = streamed_ok(pid=54321)
+
+    def _side_effect(*args: object, **kwargs: object):
+        # ``streamed_ok`` already drives ``on_pid``; capture the live entry
+        # immediately afterwards to verify the metadata reflects the pid
+        # before finalization runs.
+        result = streamed(*args, **kwargs)
+        index = read_chop_run_index("test_lumberjack", "hook_checks")
+        if index:
+            entry = read_chop_run("test_lumberjack", "hook_checks", index[0])
+            if entry is not None:
+                seen_pids["during_run"] = entry.pid
+        return result
+
+    mock_run.side_effect = _side_effect
+
+    lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
+    lumberjack._run_tick()
+
+    assert seen_pids["during_run"] == 54321
+    # After finalize, the pid is preserved on the terminal entry.
+    run_id = read_chop_run_index("test_lumberjack", "hook_checks")[0]
+    entry = read_chop_run("test_lumberjack", "hook_checks", run_id)
+    assert entry is not None
+    assert entry.pid == 54321
+    assert entry.status == "success"
+
+
+@patch("sase.axe.lumberjack.stream_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_streaming_chop_records_source_scheduled(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
+    temp_state_dir: Path,
+    lumberjack_config: LumberjackConfig,
+    axe_config: AxeConfig,
+) -> None:
+    """Scheduled runs persist ``source='scheduled'`` so manual runs can be distinguished."""
+    mock_discover.return_value = Path("/fake/script")
+    mock_run.side_effect = streamed_ok()
+
+    lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
+    lumberjack._run_tick()
+
+    run_id = read_chop_run_index("test_lumberjack", "hook_checks")[0]
+    entry = read_chop_run("test_lumberjack", "hook_checks", run_id)
+    assert entry is not None
+    assert entry.source == "scheduled"

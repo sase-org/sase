@@ -2,6 +2,8 @@
 
 import os
 import stat
+import time
+from pathlib import Path
 from unittest.mock import patch
 
 
@@ -9,6 +11,7 @@ from sase.axe.chop_script_runner import (
     discover_chop_script,
     list_chop_scripts,
     run_chop_script,
+    stream_chop_script,
 )
 
 
@@ -99,6 +102,132 @@ class TestRunChopScript:
             run_chop_script(script, str(ctx_file))
 
         assert mock_run.call_args.kwargs["cwd"] is None
+
+
+class TestStreamChopScript:
+    """Tests for stream_chop_script."""
+
+    def test_writes_stdout_to_log(self, tmp_path):
+        script = tmp_path / "my_chop"
+        _make_executable(script, "#!/bin/sh\necho hello\necho world")
+        ctx_file = tmp_path / "ctx.json"
+        ctx_file.write_text("{}")
+        log_path = tmp_path / "run.log"
+
+        result = stream_chop_script(script, str(ctx_file), log_path)
+
+        assert result.returncode == 0
+        assert result.timed_out is False
+        assert result.pid is not None
+        assert result.output_bytes > 0
+        assert log_path.read_text() == "hello\nworld\n"
+
+    def test_merges_stderr_into_log(self, tmp_path):
+        script = tmp_path / "my_chop"
+        _make_executable(script, "#!/bin/sh\necho out\necho err 1>&2")
+        ctx_file = tmp_path / "ctx.json"
+        ctx_file.write_text("{}")
+        log_path = tmp_path / "run.log"
+
+        stream_chop_script(script, str(ctx_file), log_path)
+
+        contents = log_path.read_text()
+        assert "out" in contents
+        assert "err" in contents
+
+    def test_propagates_env_and_cwd(self, tmp_path):
+        script = tmp_path / "my_chop"
+        _make_executable(
+            script,
+            "#!/bin/sh\necho HELLO=$HELLO\npwd",
+        )
+        ctx_file = tmp_path / "ctx.json"
+        ctx_file.write_text("{}")
+        log_path = tmp_path / "run.log"
+        cwd_dir = tmp_path / "stable"
+        cwd_dir.mkdir()
+
+        stream_chop_script(
+            script,
+            str(ctx_file),
+            log_path,
+            env={"HELLO": "world"},
+            cwd=str(cwd_dir),
+        )
+
+        contents = log_path.read_text()
+        assert "HELLO=world" in contents
+        assert str(cwd_dir) in contents
+
+    def test_on_pid_callback_invoked(self, tmp_path):
+        script = tmp_path / "my_chop"
+        _make_executable(script)
+        ctx_file = tmp_path / "ctx.json"
+        ctx_file.write_text("{}")
+        log_path = tmp_path / "run.log"
+
+        seen: list[int] = []
+        stream_chop_script(script, str(ctx_file), log_path, on_pid=seen.append)
+        assert len(seen) == 1
+        assert seen[0] > 0
+
+    def test_timeout_kills_child_and_flags_timed_out(self, tmp_path):
+        script = tmp_path / "my_chop"
+        _make_executable(script, "#!/bin/sh\nsleep 5")
+        ctx_file = tmp_path / "ctx.json"
+        ctx_file.write_text("{}")
+        log_path = tmp_path / "run.log"
+
+        start = time.monotonic()
+        result = stream_chop_script(script, str(ctx_file), log_path, timeout=0.5)
+        elapsed = time.monotonic() - start
+
+        assert result.timed_out is True
+        # Should not wait the full 5-second sleep — kill must happen fast.
+        assert elapsed < 3.0
+
+    def test_log_visible_before_process_exit(self, tmp_path):
+        """First output must reach the log file before the script exits."""
+        script = tmp_path / "my_chop"
+        _make_executable(
+            script,
+            "#!/bin/sh\necho first\nsleep 0.6\necho second",
+        )
+        ctx_file = tmp_path / "ctx.json"
+        ctx_file.write_text("{}")
+        log_path = tmp_path / "run.log"
+
+        captured: dict[str, str | None] = {"mid_run": None}
+
+        def watcher(pid: int) -> None:
+            # Poll for the first line to appear in the log file before
+            # the subprocess has had time to print the second line.
+            deadline = time.monotonic() + 0.5
+            while time.monotonic() < deadline:
+                if log_path.exists() and "first" in log_path.read_text():
+                    captured["mid_run"] = log_path.read_text()
+                    return
+                time.sleep(0.02)
+
+        result = stream_chop_script(script, str(ctx_file), log_path, on_pid=watcher)
+
+        assert result.returncode == 0
+        assert captured["mid_run"] is not None, (
+            "expected first line to be readable from log before subprocess exit"
+        )
+        assert "first" in (captured["mid_run"] or "")
+        assert "second" not in (captured["mid_run"] or "")
+
+    def test_returncode_nonzero_reported(self, tmp_path: Path):
+        script = tmp_path / "my_chop"
+        _make_executable(script, "#!/bin/sh\nexit 3")
+        ctx_file = tmp_path / "ctx.json"
+        ctx_file.write_text("{}")
+        log_path = tmp_path / "run.log"
+
+        result = stream_chop_script(script, str(ctx_file), log_path)
+        assert result.returncode == 3
+        assert result.timed_out is False
 
 
 class TestListChopScripts:

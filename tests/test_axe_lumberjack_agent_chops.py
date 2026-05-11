@@ -12,7 +12,7 @@ import pytest
 from sase.agent.launcher import AgentLaunchResult
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 from sase.axe.lumberjack import Lumberjack
-from tests._axe_lumberjack_fixtures import ok_result
+from tests._axe_lumberjack_fixtures import streamed_ok
 
 
 @pytest.fixture
@@ -321,7 +321,7 @@ def test_run_tick_launches_agent_chops_sequentially_in_config_order(
     assert set(lumberjack._chop_timestamps) == {"first_agent", "second_agent"}
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_launches_agent_chop_while_script_chop_is_running(
@@ -348,11 +348,12 @@ def test_run_tick_launches_agent_chop_while_script_chop_is_running(
     mock_discover.return_value = Path("/fake/script")
     script_started = Event()
     agent_launched = Event()
+    streamed = streamed_ok()
 
     def run_script(*args: object, **kwargs: object) -> object:
         script_started.set()
         assert agent_launched.wait(timeout=1.0), "agent launch waited for script"
-        return ok_result()
+        return streamed(*args, **kwargs)
 
     def launch_agent(
         query: str,
@@ -610,7 +611,7 @@ def test_agent_chop_launch_failure_preserves_traceback(
     assert "RuntimeError" in last_error["traceback"]
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.stream_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_script_chop_receives_chop_env(
@@ -627,7 +628,7 @@ def test_script_chop_receives_chop_env(
         chops=[ChopConfig(name="script_chop", description="", env={"EXTRA": "1"})],
     )
     mock_discover.return_value = Path("/fake/script")
-    mock_run.return_value = ok_result()
+    mock_run.side_effect = streamed_ok()
 
     lumberjack = Lumberjack("scripts", config, axe_config)
     lumberjack._run_tick()

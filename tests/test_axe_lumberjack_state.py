@@ -11,12 +11,14 @@ from sase.axe.state import (
     ChopRunEntry,
     LumberjackMetrics,
     LumberjackStatus,
+    append_chop_run_output,
     chop_index_path,
     chop_run_log_path,
     chop_run_meta_path,
     chop_runs_dir,
     ensure_chop_dirs,
     ensure_lumberjack_dirs,
+    finish_chop_run,
     generate_chop_run_id,
     list_lumberjack_names,
     lumberjack_log_path,
@@ -28,6 +30,8 @@ from sase.axe.state import (
     read_lumberjack_pid,
     read_lumberjack_status,
     remove_lumberjack_pid,
+    start_chop_run,
+    update_chop_run_pid,
     write_chop_run,
     write_lumberjack_pid,
 )
@@ -164,6 +168,7 @@ def _make_entry(
     status: str = "success",
     exit_code: int | None = 0,
     duration_ms: int = 12,
+    finished_at: str | None = "2026-05-11T20:00:00.012000+00:00",
 ) -> ChopRunEntry:
     rid = run_id or generate_chop_run_id()
     return ChopRunEntry(
@@ -171,10 +176,31 @@ def _make_entry(
         lumberjack_name=lumberjack,
         chop_name=chop,
         started_at="2026-05-11T20:00:00+00:00",
-        finished_at="2026-05-11T20:00:00.012000+00:00",
+        finished_at=finished_at,
         duration_ms=duration_ms,
         status=status,  # type: ignore[arg-type]
         exit_code=exit_code,
+    )
+
+
+def _make_running_entry(
+    lumberjack: str = "hooks",
+    chop: str = "hook_checks",
+    run_id: str | None = None,
+    pid: int | None = None,
+) -> ChopRunEntry:
+    rid = run_id or generate_chop_run_id()
+    return ChopRunEntry(
+        run_id=rid,
+        lumberjack_name=lumberjack,
+        chop_name=chop,
+        started_at="2026-05-11T20:00:00+00:00",
+        finished_at=None,
+        duration_ms=0,
+        status="running",
+        exit_code=None,
+        pid=pid,
+        source="scheduled",
     )
 
 
@@ -308,3 +334,162 @@ def test_generate_chop_run_id_sortable(temp_state_dir: Path) -> None:
     base = datetime(2026, 5, 11, 12, 0, 0, tzinfo=get_timezone())
     ids = [generate_chop_run_id(base + timedelta(microseconds=i)) for i in range(3)]
     assert ids == sorted(ids)
+
+
+# --- Streaming Run Helpers ---
+
+
+def test_start_chop_run_creates_running_metadata_and_log(
+    temp_state_dir: Path,
+) -> None:
+    """``start_chop_run`` opens an empty log + ``running`` metadata + index entry."""
+    entry = _make_running_entry(run_id="20260511T200000_000001")
+    log_path = start_chop_run(entry)
+
+    assert log_path.exists()
+    assert log_path.read_bytes() == b""
+
+    loaded = read_chop_run("hooks", "hook_checks", "20260511T200000_000001")
+    assert loaded is not None
+    assert loaded.status == "running"
+    assert loaded.finished_at is None
+    assert loaded.duration_ms == 0
+    assert loaded.output_log == "20260511T200000_000001.log"
+
+    assert read_chop_run_index("hooks", "hook_checks") == [
+        "20260511T200000_000001",
+    ]
+
+
+def test_append_chop_run_output_grows_log(temp_state_dir: Path) -> None:
+    """``append_chop_run_output`` accumulates bytes into the run log."""
+    entry = _make_running_entry(run_id="20260511T200000_000001")
+    start_chop_run(entry)
+
+    written = append_chop_run_output(
+        "hooks", "hook_checks", "20260511T200000_000001", "first\n"
+    )
+    assert written == len(b"first\n")
+    append_chop_run_output(
+        "hooks", "hook_checks", "20260511T200000_000001", b"second\n"
+    )
+
+    tail = read_chop_run_log_tail("hooks", "hook_checks", "20260511T200000_000001")
+    assert tail == "first\nsecond\n"
+
+
+def test_append_chop_run_output_returns_zero_when_missing(
+    temp_state_dir: Path,
+) -> None:
+    """Appending to a non-existent run is a no-op rather than an error."""
+    assert append_chop_run_output("hooks", "hook_checks", "missing", "data") == 0
+
+
+def test_update_chop_run_pid_patches_metadata(temp_state_dir: Path) -> None:
+    """``update_chop_run_pid`` mutates only the pid field, leaving status intact."""
+    entry = _make_running_entry(run_id="20260511T200000_000001")
+    start_chop_run(entry)
+    update_chop_run_pid("hooks", "hook_checks", "20260511T200000_000001", 99999)
+
+    loaded = read_chop_run("hooks", "hook_checks", "20260511T200000_000001")
+    assert loaded is not None
+    assert loaded.pid == 99999
+    assert loaded.status == "running"
+
+
+def test_finish_chop_run_replaces_running_with_terminal(
+    temp_state_dir: Path,
+) -> None:
+    """Finalizing updates the same run id with terminal status and exit code."""
+    entry = _make_running_entry(run_id="20260511T200000_000001")
+    start_chop_run(entry)
+    append_chop_run_output("hooks", "hook_checks", "20260511T200000_000001", "hello\n")
+
+    finish_chop_run(
+        "hooks",
+        "hook_checks",
+        "20260511T200000_000001",
+        status="success",
+        finished_at="2026-05-11T20:00:01+00:00",
+        duration_ms=1000,
+        exit_code=0,
+    )
+
+    loaded = read_chop_run("hooks", "hook_checks", "20260511T200000_000001")
+    assert loaded is not None
+    assert loaded.status == "success"
+    assert loaded.finished_at == "2026-05-11T20:00:01+00:00"
+    assert loaded.exit_code == 0
+    assert loaded.output_bytes == len(b"hello\n")
+
+    # The index still has exactly one entry — no duplicate row appears.
+    assert read_chop_run_index("hooks", "hook_checks") == [
+        "20260511T200000_000001",
+    ]
+
+
+def test_finish_chop_run_does_not_prune_active_runs(temp_state_dir: Path) -> None:
+    """A still-``running`` entry survives pruning even past MAX_CHOP_RUN_HISTORY."""
+    active_id = "20260511T200000_999999"
+    start_chop_run(_make_running_entry(run_id=active_id))
+
+    # Add MAX terminal entries (newer-first by run_id lexicographic order).
+    for i in range(MAX_CHOP_RUN_HISTORY):
+        terminal_id = f"20260511T200001_{i:06d}"
+        write_chop_run(_make_entry(run_id=terminal_id), output=f"terminal {i}\n")
+
+    # Finish one more — pushing total terminal count to MAX + 1; one must
+    # be pruned, but never the active entry.
+    extra_id = "20260511T200002_000001"
+    start_chop_run(_make_running_entry(run_id=extra_id))
+    finish_chop_run(
+        "hooks",
+        "hook_checks",
+        extra_id,
+        status="success",
+        finished_at="2026-05-11T20:00:02+00:00",
+        duration_ms=5,
+        exit_code=0,
+    )
+
+    index = read_chop_run_index("hooks", "hook_checks")
+    assert active_id in index, "active running entry was pruned"
+    terminal_kept = [rid for rid in index if rid != active_id]
+    assert len(terminal_kept) == MAX_CHOP_RUN_HISTORY
+
+
+def test_finish_chop_run_is_noop_for_missing_run(temp_state_dir: Path) -> None:
+    """Finalizing a non-existent run id silently does nothing."""
+    finish_chop_run(
+        "hooks",
+        "hook_checks",
+        "unknown",
+        status="success",
+        finished_at="2026-05-11T20:00:01+00:00",
+        duration_ms=1,
+        exit_code=0,
+    )
+    assert read_chop_run("hooks", "hook_checks", "unknown") is None
+
+
+def test_read_chop_run_log_tail_during_active_run(temp_state_dir: Path) -> None:
+    """Tail reads pick up bytes appended while the entry is still ``running``."""
+    entry = _make_running_entry(run_id="20260511T200000_000001")
+    start_chop_run(entry)
+    append_chop_run_output(
+        "hooks", "hook_checks", "20260511T200000_000001", "partial\n"
+    )
+
+    tail = read_chop_run_log_tail(
+        "hooks", "hook_checks", "20260511T200000_000001", lines=5
+    )
+    assert tail == "partial\n"
+
+
+def test_running_entry_has_nullable_finished_at(temp_state_dir: Path) -> None:
+    """The ``finished_at`` field is ``None`` for entries in ``running`` state."""
+    entry = _make_running_entry(run_id="20260511T200000_000001")
+    start_chop_run(entry)
+    loaded = read_chop_run("hooks", "hook_checks", "20260511T200000_000001")
+    assert loaded is not None
+    assert loaded.finished_at is None
