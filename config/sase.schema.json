@@ -562,57 +562,6 @@
         ]
       }
     },
-    "workflows": {
-      "type": "object",
-      "description": "Standalone YAML workflows that can be referenced with #!name syntax in prompts",
-      "additionalProperties": {
-        "type": "object",
-        "description": "Workflow definition using the same format as files in an xprompts directory",
-        "required": ["steps"],
-        "additionalProperties": true,
-        "properties": {
-          "tags": {
-            "description": "Semantic role tags for tag-based workflow lookup",
-            "oneOf": [
-              { "type": "string" },
-              {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
-            ]
-          },
-          "xprompts": {
-            "type": "object",
-            "description": "Workflow-local xprompt definitions"
-          },
-          "wraps_all": {
-            "type": "boolean",
-            "description": "If true, this workflow's pre-steps run before all other embedded workflows and post-steps run after all others.",
-            "default": false
-          },
-          "environment": {
-            "type": "object",
-            "description": "Environment variables to set at workflow start",
-            "additionalProperties": {
-              "type": "string"
-            }
-          },
-          "input": {
-            "description": "Input argument definitions"
-          },
-          "steps": {
-            "type": "array",
-            "description": "Ordered list of workflow steps to execute",
-            "minItems": 1,
-            "items": {
-              "type": "object"
-            }
-          }
-        }
-      }
-    },
     "telemetry": {
       "type": "object",
       "description": "Prometheus telemetry settings",
