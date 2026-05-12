@@ -1,8 +1,15 @@
 """Tests for Agent bundle serialization (to_bundle_dict / from_bundle_dict)."""
 
+import json
 from datetime import datetime
+from pathlib import Path
 
-from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.archive_search_text import (
+    ARCHIVE_BUNDLE_SCHEMA_VERSION,
+    ARCHIVE_REVISION,
+    ARCHIVE_SEARCH_SCRUBBER_VERSION,
+)
+from sase.ace.tui.models.agent import Agent, AgentType, AttemptRecord
 
 
 def test_bundle_round_trip_basic() -> None:
@@ -27,6 +34,80 @@ def test_bundle_round_trip_basic() -> None:
     assert restored.workspace_num == 3
     assert restored.raw_suffix == "20250615103000"
     assert restored.identity == agent.identity
+
+
+def test_bundle_includes_archive_schema_metadata() -> None:
+    """New bundles carry archive schema and revision metadata."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 30, 0),
+        raw_suffix="20250615103000",
+    )
+
+    bundle = agent.to_bundle_dict()
+
+    assert bundle["bundle_schema_version"] == ARCHIVE_BUNDLE_SCHEMA_VERSION
+    assert bundle["archive_revision"] == ARCHIVE_REVISION
+    assert bundle["archive_search_scrubber_version"] == ARCHIVE_SEARCH_SCRUBBER_VERSION
+
+
+def test_bundle_search_projection_collects_and_scrubs_files(tmp_path: Path) -> None:
+    """Archive search text is bounded and redacts obvious secrets."""
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    chat_path = tmp_path / "chat.md"
+    response_path = tmp_path / "response.md"
+    attempt_dir = tmp_path / "attempt"
+    attempt_dir.mkdir()
+    attempt_reply = attempt_dir / "live_reply.md"
+    timestamps = attempt_dir / "live_reply_timestamps.jsonl"
+    (artifacts_dir / "raw_xprompt.md").write_text("Prompt sk-test1234567890abcdef")
+    (artifacts_dir / "live_reply.md").write_text("Live reply")
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"chat_path": str(chat_path)})
+    )
+    chat_path.write_text("Chat Bearer abcdefghijklmnopqrstuvwxyz")
+    response_path.write_text("Response api_key=abcdef1234567890")
+    attempt_reply.write_text("Attempt reply ghp_abcdefghijklmnopqrstuvwx123456")
+    timestamps.write_text("")
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 30, 0),
+        raw_suffix="20250615103000",
+        artifacts_dir=str(artifacts_dir),
+        response_path=str(response_path),
+        attempt_history=[
+            AttemptRecord(
+                attempt_number=1,
+                status="failed",
+                start_epoch=0,
+                end_epoch=1,
+                model=None,
+                used_fallback=False,
+                error_snippet="",
+                error_full="",
+                live_reply_path=str(attempt_reply),
+                timestamps_path=str(timestamps),
+            )
+        ],
+    )
+
+    bundle = agent.to_bundle_dict()
+    search_text = bundle["archive_search_text"]
+
+    assert "Prompt" in search_text
+    assert "Live reply" in search_text
+    assert "Chat Bearer [REDACTED]" in search_text
+    assert "Response api_key=[REDACTED]" in search_text
+    assert "Attempt reply [REDACTED]" in search_text
+    assert "sk-test1234567890abcdef" not in search_text
+    assert len(search_text) <= 128 * 1024
 
 
 def test_bundle_round_trip_datetime_serialization() -> None:

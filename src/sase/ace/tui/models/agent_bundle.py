@@ -38,6 +38,15 @@ def to_bundle_dict(agent: Agent) -> dict[str, Any]:
                 for k, v in value.items()
             }
         result[f.name] = value
+    from sase.ace.archive_search_text import (
+        build_archive_search_text,
+        normalize_archive_bundle_projection,
+    )
+
+    archive_search_text = build_archive_search_text(agent)
+    if archive_search_text:
+        result["archive_search_text"] = archive_search_text
+    normalize_archive_bundle_projection(result)
     return result
 
 
@@ -46,6 +55,8 @@ def from_bundle_dict(data: dict[str, Any]) -> Agent:
 
     Uses .get() with defaults for forward-compatibility with new fields.
     """
+    data = dict(data)
+    _normalize_bundle_metadata(data)
     # Map removed AgentType values to RUNNING for backward compatibility
     _LEGACY_AGENT_TYPES = {"fix-hook", "summarize", "mentor", "crs"}
     raw_type = data["agent_type"]
@@ -124,6 +135,37 @@ def from_bundle_dict(data: dict[str, Any]) -> Agent:
     agent = Agent(**kwargs)
     _synthesize_dismissed_name(agent)
     return agent
+
+
+def _normalize_bundle_metadata(data: dict[str, Any]) -> None:
+    """Normalize archive metadata for old bundles without affecting Agent fields."""
+    from sase.ace.archive_search_text import (
+        ARCHIVE_BUNDLE_SCHEMA_VERSION,
+        ARCHIVE_REVISION,
+    )
+
+    bundle_schema_version = data.get("bundle_schema_version")
+    if bundle_schema_version is None:
+        data["bundle_schema_version"] = 0
+    elif not isinstance(bundle_schema_version, int):
+        try:
+            data["bundle_schema_version"] = int(bundle_schema_version)
+        except (TypeError, ValueError):
+            data["bundle_schema_version"] = 0
+
+    archive_revision = data.get("archive_revision")
+    if archive_revision is None:
+        data["archive_revision"] = ARCHIVE_REVISION
+    elif not isinstance(archive_revision, int):
+        try:
+            data["archive_revision"] = int(archive_revision)
+        except (TypeError, ValueError):
+            data["archive_revision"] = ARCHIVE_REVISION
+
+    if data["bundle_schema_version"] > ARCHIVE_BUNDLE_SCHEMA_VERSION:
+        # Future metadata is ignored by this loader; Agent fields remain
+        # forward-compatible through the dataclass-field copy loop below.
+        return
 
 
 def _synthesize_dismissed_name(agent: Agent) -> None:

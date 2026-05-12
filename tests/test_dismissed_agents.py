@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.ace.archive_search_text import ARCHIVE_BUNDLE_SCHEMA_VERSION
 from sase.ace.dismissed_agents import (
     has_dismissed_bundle,
     load_dismissed_agents,
@@ -355,17 +356,81 @@ def test_dismissed_bundle_index_v2_defaults_legacy_bundles(
         patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
     ):
         agent = _make_agent(cl_name="legacy_cl", raw_suffix="20250615100000")
-        assert save_dismissed_bundle(agent)
+        bundle = agent.to_bundle_dict()
+        bundle.pop("archive_revision", None)
+        bundle.pop("bundle_schema_version", None)
+        bundle.pop("archive_search_text", None)
+        shard = bundles_dir / "202506"
+        shard.mkdir(parents=True)
+        (shard / "20250615100000.json").write_text(json.dumps(bundle))
         [summary] = load_dismissed_bundle_summaries(cl_name="legacy_cl")
 
     assert summary.archive_revision == 1
-    assert summary.bundle_schema_version == 0
+    assert summary.bundle_schema_version == ARCHIVE_BUNDLE_SCHEMA_VERSION
     assert summary.dismissed_at is not None
     assert summary.revived_at is None
     assert summary.times_revived == 0
     assert summary.cost_usd_micros is None
     assert summary.input_tokens is None
     assert summary.output_tokens is None
+
+
+def test_save_dismissed_bundle_persists_search_projection(tmp_path: Path) -> None:
+    """New dismissed bundles keep search text after artifacts disappear."""
+    bundles_dir = tmp_path / "bundles"
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "raw_xprompt.md").write_text("findable prompt")
+    (artifacts_dir / "live_reply.md").write_text("findable reply")
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        agent = _make_agent(cl_name="indexed_cl", raw_suffix="20250615100000")
+        agent.artifacts_dir = str(artifacts_dir)
+        assert save_dismissed_bundle(agent)
+        bundle_path = bundles_dir / "202506" / "20250615100000.json"
+        bundle = json.loads(bundle_path.read_text())
+        assert bundle["bundle_schema_version"] == ARCHIVE_BUNDLE_SCHEMA_VERSION
+        assert "findable prompt" in bundle["archive_search_text"]
+        assert "findable reply" in bundle["archive_search_text"]
+
+        for path in artifacts_dir.iterdir():
+            path.unlink()
+
+        loaded_bundle = json.loads(bundle_path.read_text())
+        assert "findable prompt" in loaded_bundle["archive_search_text"]
+
+
+def test_rebuild_index_backfills_legacy_bundle_search_projection(
+    tmp_path: Path,
+) -> None:
+    """Index rebuild backfills old bundle JSON from surviving artifact files."""
+    bundles_dir = tmp_path / "bundles"
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "raw_xprompt.md").write_text("legacy prompt")
+    bundle = _make_agent(
+        cl_name="legacy_cl",
+        raw_suffix="20250615100000",
+    ).to_bundle_dict()
+    bundle["artifacts_dir"] = str(artifacts_dir)
+    bundle.pop("archive_search_text", None)
+    bundle.pop("bundle_schema_version", None)
+    shard = bundles_dir / "202506"
+    shard.mkdir(parents=True)
+    bundle_path = shard / "20250615100000.json"
+    bundle_path.write_text(json.dumps(bundle))
+
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        assert rebuild_dismissed_bundle_index() == (1, 0)
+
+    backfilled = json.loads(bundle_path.read_text())
+    assert backfilled["bundle_schema_version"] == ARCHIVE_BUNDLE_SCHEMA_VERSION
+    assert "legacy prompt" in backfilled["archive_search_text"]
 
 
 def test_dismissed_bundle_index_v1_migration_rebuilds_from_bundles(

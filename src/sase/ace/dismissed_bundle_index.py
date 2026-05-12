@@ -457,12 +457,21 @@ def _rebuild_rows_from_bundles(conn: sqlite3.Connection, root: Path) -> int:
     for path in _iter_bundle_paths(root):
         try:
             bundle = _read_bundle(path)
+            _backfill_archive_projection(path, bundle)
             summary = _summary_from_bundle(root, path, bundle)
             _upsert_summary(conn, summary, _file_signature(path))
             indexed += 1
         except (OSError, json.JSONDecodeError, ValueError, TypeError):
             continue
     return indexed
+
+
+def _backfill_archive_projection(path: Path, bundle: dict[str, Any]) -> None:
+    from .archive_search_text import normalize_archive_bundle_projection
+
+    if not normalize_archive_bundle_projection(bundle):
+        return
+    path.write_text(json.dumps(bundle, indent=2), encoding="utf-8")
 
 
 def _upsert_summary(
