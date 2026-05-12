@@ -239,7 +239,7 @@ class TestInitBareGitProject:
                 result = init_bare_git_project(
                     "test", bare_dir=bare_dir, clone_dir=clone_dir
                 )
-                assert result.endswith("test.gp")
+                assert result.endswith("test.sase")
                 # git init --bare, git clone, git config email,
                 # git config name, git commit, git push
                 assert mock_run.call_count == 6
@@ -269,7 +269,7 @@ class TestInitBareGitProject:
                 result = init_bare_git_project(
                     "test", clone_dir=clone_dir, existing_bare=existing
                 )
-                assert result.endswith("test.gp")
+                assert result.endswith("test.sase")
                 assert mock_run.call_count == 2
                 # bare_dir should be the existing path
                 mock_set_bare.assert_called_once_with(result, existing)

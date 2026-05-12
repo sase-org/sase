@@ -108,7 +108,10 @@ def mobile_prompt_vcs_ref(prompt: str) -> tuple[str, str] | None:
 
 
 def known_project_file(project: str) -> Path:
-    return sase_home() / "projects" / project / f"{project}.gp"
+    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
+    project_dir = sase_home() / "projects" / project
+    return Path(preferred_project_spec_path(str(project_dir), project))
 
 
 @contextmanager

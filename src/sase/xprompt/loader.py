@@ -391,29 +391,45 @@ def _load_xprompts_from_project(project: str) -> dict[str, XPrompt]:
 def get_known_project_workspaces() -> dict[str, Path]:
     """Enumerate all known projects and their primary workspace directories.
 
-    Parses ``~/.sase/projects/*/*.gp`` files for ``WORKSPACE_DIR:`` lines.
+    Parses project spec files at ``~/.sase/projects/<name>/<name>.sase``
+    (preferring the canonical ``.sase`` extension; falling back to legacy
+    ``.gp``) for ``WORKSPACE_DIR:`` lines.
 
     Returns:
         Mapping of project name to workspace directory path.
     """
+    from sase.ace.changespec.project_spec_path import (
+        project_spec_basename,
+        PROJECT_SPEC_EXTENSIONS,
+    )
+
     projects_dir = Path.home() / ".sase" / "projects"
     if not projects_dir.is_dir():
         return {}
 
     result: dict[str, Path] = {}
-    for gp_file in projects_dir.glob("*/*.gp"):
-        project_name = gp_file.stem
-        try:
-            text = gp_file.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        for line in text.splitlines():
-            if line.startswith("WORKSPACE_DIR:"):
-                ws_dir = line.removeprefix("WORKSPACE_DIR:").strip()
-                ws_path = Path(ws_dir)
-                if ws_path.is_dir():
-                    result[project_name] = ws_path
-                break
+    # Prefer canonical .sase entries; only fall back to legacy .gp where the
+    # canonical sibling is absent so a single project does not get listed twice.
+    seen_projects: set[str] = set()
+    for ext in PROJECT_SPEC_EXTENSIONS:
+        for spec_file in sorted(projects_dir.glob(f"*/*{ext}")):
+            if spec_file.name.endswith(f"-archive{ext}"):
+                continue
+            project_name = project_spec_basename(str(spec_file))
+            if project_name in seen_projects:
+                continue
+            try:
+                text = spec_file.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            for line in text.splitlines():
+                if line.startswith("WORKSPACE_DIR:"):
+                    ws_dir = line.removeprefix("WORKSPACE_DIR:").strip()
+                    ws_path = Path(ws_dir)
+                    if ws_path.is_dir():
+                        result[project_name] = ws_path
+                        seen_projects.add(project_name)
+                    break
 
     return result
 

@@ -321,6 +321,30 @@ def _handle_sync_deltas(args: argparse.Namespace) -> int:
     return 1
 
 
+def _handle_migrate_extension(args: argparse.Namespace) -> int:
+    """Run the ``.gp`` → ``.sase`` migration helper."""
+    from pathlib import Path
+
+    from sase.ace.changespec.project_spec_migration import migrate_all_projects
+
+    projects_dir = Path(args.projects_dir).expanduser() if args.projects_dir else None
+    report = migrate_all_projects(projects_dir, force=bool(args.force))
+
+    for legacy, canonical in report.migrated:
+        print(f"renamed {legacy} -> {canonical}")
+    for legacy in report.skipped_identical:
+        print(f"skipped (identical canonical sibling): {legacy}")
+    for legacy, reason in report.conflicts:
+        print(f"conflict: {legacy}: {reason}", file=sys.stderr)
+
+    print(
+        f"migrated={report.migrated_count} "
+        f"skipped={report.skipped_count} "
+        f"conflicts={report.conflict_count}"
+    )
+    return 0 if report.conflict_count == 0 else 1
+
+
 def handle_changespec_command(args: argparse.Namespace) -> None:
     """Dispatch ``sase changespec`` subcommands."""
     sub = getattr(args, "changespec_subcommand", None)
@@ -333,8 +357,10 @@ def handle_changespec_command(args: argparse.Namespace) -> None:
         return
     if sub == "sync-deltas":
         sys.exit(_handle_sync_deltas(args))
+    if sub == "migrate-extension":
+        sys.exit(_handle_migrate_extension(args))
     print(
-        "Usage: sase changespec {current,search,sync-deltas} [-h]",
+        "Usage: sase changespec {current,search,sync-deltas,migrate-extension} [-h]",
         file=sys.stderr,
     )
     sys.exit(1)

@@ -125,7 +125,10 @@ def _resolve_primary_workspace_by_project_scan(cwd: Path) -> Path | None:
         if not project_dir.is_dir():
             continue
         project_name = project_dir.name
-        primary = _parse_workspace_dir(project_dir / f"{project_name}.gp")
+        from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
+        project_file = Path(preferred_project_spec_path(str(project_dir), project_name))
+        primary = _parse_workspace_dir(project_file)
         if primary is None:
             continue
         if _cwd_matches_project_workspace(cwd, primary, project_name):

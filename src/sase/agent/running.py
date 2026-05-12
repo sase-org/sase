@@ -385,11 +385,13 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
 
     # Derive project context from artifacts_dir
     # Format: ~/.sase/projects/{project}/artifacts/ace-run/{timestamp}/
+    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
     artifacts_path = Path(agent.artifacts_dir)
     timestamp = artifacts_path.name
     project_name = artifacts_path.parent.parent.parent.name
     project_dir = artifacts_path.parent.parent.parent
-    project_file = str(project_dir / f"{project_name}.gp")
+    project_file = preferred_project_spec_path(str(project_dir), project_name)
 
     # Find PID
     pid: int | None = None

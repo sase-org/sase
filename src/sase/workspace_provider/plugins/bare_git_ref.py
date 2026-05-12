@@ -149,12 +149,17 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
     Raises:
         ValueError: If the reference cannot be resolved.
     """
+    from sase.ace.changespec.project_spec_path import (
+        active_project_spec_filename,
+        preferred_project_spec_path,
+    )
+
     projects_base = Path.home() / ".sase" / "projects"
 
     # --- Mode 1: project shorthand (no /) ---
     if "/" not in git_ref:
         project_dir = projects_base / git_ref
-        project_file_path = project_dir / f"{git_ref}.gp"
+        project_file_path = Path(preferred_project_spec_path(str(project_dir), git_ref))
         project_file_exists = project_file_path.exists()
         if project_dir.is_dir() and project_file_path.exists():
             bare_repo_dir = parse_bare_repo_dir(str(project_file_path))
@@ -218,7 +223,9 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
     if not project_name:
         raise ValueError(f"Cannot derive project name from path '{git_ref}'")
 
-    project_file = str(projects_base / project_name / f"{project_name}.gp")
+    project_file = str(
+        projects_base / project_name / active_project_spec_filename(project_name)
+    )
     clone_dir = str(Path.home() / "projects" / "git" / project_name) + "/"
 
     set_bare_repo_dir(project_file, bare_path)

@@ -28,7 +28,7 @@ def test_resolve_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
 
     assert resolved is not None
     assert resolved.project_file == str(
-        tmp_path / ".sase" / "projects" / "home" / "home.gp"
+        tmp_path / ".sase" / "projects" / "home" / "home.sase"
     )
     assert resolved.project_name == "home"
     assert resolved.checkout_target == str(tmp_path)

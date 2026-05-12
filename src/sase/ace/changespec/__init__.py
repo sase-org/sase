@@ -44,6 +44,18 @@ from .archive import (
     is_archive_file,
     move_changespec_to_file,
 )
+from .project_spec_migration import (
+    MigrationReport,
+    migrate_all_projects,
+    migrate_project_dir,
+)
+from .project_spec_path import (
+    PROJECT_SPEC_EXTENSIONS,
+    active_project_spec_filename,
+    archive_project_spec_filename,
+    legacy_active_project_spec_filename,
+    legacy_archive_project_spec_filename,
+)
 from .raw_text import get_raw_changespec_text
 from .validation import (
     all_hooks_passed_for_entries,
@@ -111,6 +123,14 @@ __all__ = [
     "get_main_file_path",
     "is_archive_file",
     "move_changespec_to_file",
+    "PROJECT_SPEC_EXTENSIONS",
+    "active_project_spec_filename",
+    "archive_project_spec_filename",
+    "legacy_active_project_spec_filename",
+    "legacy_archive_project_spec_filename",
+    "MigrationReport",
+    "migrate_all_projects",
+    "migrate_project_dir",
     "find_all_changespecs",
     "get_eligible_parents_in_project",
     "get_entry_id",
@@ -137,13 +157,25 @@ def find_all_changespecs() -> list[ChangeSpec]:
 
         project_name = project_dir.name
 
-        # Read main project file
-        gp_file = project_dir / f"{project_name}.gp"
-        if gp_file.exists():
-            all_changespecs.extend(parse_project_file(str(gp_file)))
+        # Read main project file (prefer canonical .sase; fall back to legacy .gp).
+        active_file = project_dir / active_project_spec_filename(project_name)
+        if not active_file.exists():
+            legacy_active = project_dir / legacy_active_project_spec_filename(
+                project_name
+            )
+            if legacy_active.exists():
+                active_file = legacy_active
+        if active_file.exists():
+            all_changespecs.extend(parse_project_file(str(active_file)))
 
-        # Also read archive file
-        archive_file = project_dir / f"{project_name}-archive.gp"
+        # Read archive file (same canonical-first, legacy-fallback policy).
+        archive_file = project_dir / archive_project_spec_filename(project_name)
+        if not archive_file.exists():
+            legacy_archive = project_dir / legacy_archive_project_spec_filename(
+                project_name
+            )
+            if legacy_archive.exists():
+                archive_file = legacy_archive
         if archive_file.exists():
             all_changespecs.extend(parse_project_file(str(archive_file)))
 

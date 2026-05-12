@@ -27,7 +27,7 @@ def test_resolve_ref_from_prompt_cd_skips_numbered_workspace(
 
     assert result is not None
     project_file, project_name, resolved_dir, workspace_num, ref_value = result
-    assert project_file.endswith("/projects/home/home.gp")
+    assert project_file.endswith("/projects/home/home.sase")
     assert project_name == tmp_path.name
     assert resolved_dir == str(tmp_path.resolve())
     assert workspace_num == 0

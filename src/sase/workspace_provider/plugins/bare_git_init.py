@@ -109,9 +109,13 @@ def init_bare_git_project(
             check=True,
         )
 
-    # Create .gp project file
+    # Create project spec file (canonical .sase extension).
+    from sase.ace.changespec.project_spec_path import active_project_spec_filename
+
     projects_base = Path.home() / ".sase" / "projects"
-    project_file = str(projects_base / project_name / f"{project_name}.gp")
+    project_file = str(
+        projects_base / project_name / active_project_spec_filename(project_name)
+    )
 
     set_bare_repo_dir(project_file, bare_dir)
     set_workspace_dir(project_file, clone_dir)

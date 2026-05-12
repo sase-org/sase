@@ -309,7 +309,9 @@ def _release_artifact_workspace(path: Path) -> None:
     project_dir = _project_dir_from_artifact(path)
     if project_dir is None or project_dir.name == "home":
         return
-    project_file = project_dir / f"{project_dir.name}.gp"
+    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
+    project_file = Path(preferred_project_spec_path(str(project_dir), project_dir.name))
     if not project_file.exists():
         return
 

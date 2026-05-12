@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 from sase.workspace_provider.utils import parse_workspace_dir
 
 
@@ -47,8 +48,8 @@ def scan_projects_for_cwd(cwd: str) -> tuple[str, Path] | None:
         if not project_dir.is_dir():
             continue
         project_name = project_dir.name
-        gp_file = project_dir / f"{project_name}.gp"
-        workspace_dir = parse_workspace_dir(str(gp_file))
+        project_file = Path(preferred_project_spec_path(str(project_dir), project_name))
+        workspace_dir = parse_workspace_dir(str(project_file))
         if not workspace_dir:
             continue
 
@@ -69,8 +70,9 @@ def infer_project_name_from_cwd(cwd: str | None = None) -> str | None:
 
         project_name = get_workspace_name(cwd_abs)
         if project_name:
-            project_file = (
-                Path.home() / ".sase" / "projects" / project_name / f"{project_name}.gp"
+            project_dir = Path.home() / ".sase" / "projects" / project_name
+            project_file = Path(
+                preferred_project_spec_path(str(project_dir), project_name)
             )
             if project_file.exists():
                 return project_name

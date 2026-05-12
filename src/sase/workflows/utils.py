@@ -10,13 +10,15 @@ from sase.vcs_provider import get_vcs_provider
 def get_project_file_path(project: str) -> str:
     """Get the path to the project file for a given project.
 
-    Args:
-        project: Project name.
-
-    Returns:
-        Path to the project file (~/.sase/projects/<project>/<project>.gp).
+    Prefers the canonical ``.sase`` file; falls back to a legacy ``.gp`` file
+    when one already exists on disk. If neither exists, the returned path
+    uses the canonical ``.sase`` extension so callers have a stable
+    destination for writes.
     """
-    return os.path.expanduser(f"~/.sase/projects/{project}/{project}.gp")
+    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
+    project_dir = os.path.expanduser(f"~/.sase/projects/{project}")
+    return preferred_project_spec_path(project_dir, project)
 
 
 def get_cl_name_from_branch() -> str | None:

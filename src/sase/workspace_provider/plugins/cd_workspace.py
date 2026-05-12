@@ -7,11 +7,12 @@ from pathlib import Path
 
 from sase.workspace_provider._hookspec import ResolvedRef, WorkflowMetadata, hookimpl
 
-HOME_PROJECT_FILE = "~/.sase/projects/home/home.gp"
-
 
 def _home_project_file() -> str:
-    return os.path.expanduser(HOME_PROJECT_FILE)
+    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
+    project_dir = os.path.expanduser("~/.sase/projects/home")
+    return preferred_project_spec_path(project_dir, "home")
 
 
 def _expand_cd_ref(ref: str) -> Path:

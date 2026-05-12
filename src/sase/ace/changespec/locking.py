@@ -213,7 +213,7 @@ def write_changespec_atomic(
         pass
 
     project_dir = os.path.dirname(project_file)
-    fd, temp_path = tempfile.mkstemp(dir=project_dir, prefix=".tmp_", suffix=".gp")
+    fd, temp_path = tempfile.mkstemp(dir=project_dir, prefix=".tmp_", suffix=".sase")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(content)

@@ -14,6 +14,12 @@ from threading import Lock
 
 from .models import ChangeSpec
 from .parser import parse_project_file
+from .project_spec_path import (
+    active_project_spec_filename,
+    archive_project_spec_filename,
+    legacy_active_project_spec_filename,
+    legacy_archive_project_spec_filename,
+)
 
 
 class ChangeSpecSnapshotCache:
@@ -58,7 +64,13 @@ class ChangeSpecSnapshotCache:
                 continue
 
             project_name = project_dir.name
-            for fname in (f"{project_name}.gp", f"{project_name}-archive.gp"):
+            candidates = (
+                active_project_spec_filename(project_name),
+                archive_project_spec_filename(project_name),
+                legacy_active_project_spec_filename(project_name),
+                legacy_archive_project_spec_filename(project_name),
+            )
+            for fname in candidates:
                 fpath = project_dir / fname
                 if fpath.exists():
                     seen.add(os.fspath(fpath))

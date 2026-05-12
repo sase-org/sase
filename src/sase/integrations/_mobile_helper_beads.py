@@ -221,7 +221,10 @@ def _known_project_names() -> list[str]:
         if not project_dir.is_dir():
             continue
         project_name = project_dir.name
-        if (project_dir / f"{project_name}.gp").is_file():
+        from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
+        project_file = Path(preferred_project_spec_path(str(project_dir), project_name))
+        if project_file.is_file():
             result.append(project_name)
     return result
 

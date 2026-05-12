@@ -93,10 +93,11 @@ def ensure_project_file_and_get_workspace_num() -> ProjectInfo:
     if not project_name:
         return (None, None, None)
 
-    # Construct project file path
-    project_file = os.path.expanduser(
-        f"~/.sase/projects/{project_name}/{project_name}.gp"
-    )
+    # Construct project file path (prefer canonical .sase, fall back to legacy .gp).
+    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
+    project_dir = os.path.expanduser(f"~/.sase/projects/{project_name}")
+    project_file = preferred_project_spec_path(project_dir, project_name)
 
     # Create project file if it doesn't exist
     if not os.path.exists(project_file):

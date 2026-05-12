@@ -47,8 +47,12 @@ def get_all_project_files() -> list[str]:
     """Get all project file paths.
 
     Returns:
-        List of paths to .gp files.
+        List of paths to project spec files. Prefers the canonical ``.sase``
+        file per project and falls back to the legacy ``.gp`` file when the
+        canonical sibling is not yet on disk.
     """
+    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
     projects_dir = Path.home() / ".sase" / "projects"
 
     if not projects_dir.exists():
@@ -61,10 +65,9 @@ def get_all_project_files() -> list[str]:
             continue
 
         project_name = project_dir.name
-        gp_file = project_dir / f"{project_name}.gp"
-
-        if gp_file.exists():
-            project_files.append(str(gp_file))
+        spec_path = preferred_project_spec_path(str(project_dir), project_name)
+        if Path(spec_path).exists():
+            project_files.append(spec_path)
 
     return project_files
 
@@ -151,8 +154,12 @@ def load_running_home_agents_from_snapshot(
     keep behavior parity, but the cleanup uses the absolute artifact
     path embedded in the record rather than rebuilding it.
     """
+    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
     agents: list[Agent] = []
-    home_project_file = str(Path.home() / ".sase" / "projects" / "home" / "home.gp")
+    home_project_file = preferred_project_spec_path(
+        str(Path.home() / ".sase" / "projects" / "home"), "home"
+    )
     for record in snapshot.records:
         if record.project_name != "home":
             continue
@@ -237,12 +244,17 @@ def load_running_home_agents() -> list[Agent]:
             start_time = parse_timestamp_14_digit(timestamp_str)
 
             cl_name = data.get("cl_name", "~")
+            from sase.ace.changespec.project_spec_path import (
+                preferred_project_spec_path,
+            )
+
+            home_project_file = preferred_project_spec_path(
+                str(Path.home() / ".sase" / "projects" / "home"), "home"
+            )
             agent = Agent(
                 agent_type=AgentType.RUNNING,
                 cl_name=cl_name,
-                project_file=str(
-                    Path.home() / ".sase" / "projects" / "home" / "home.gp"
-                ),
+                project_file=home_project_file,
                 status="RUNNING",
                 start_time=start_time,
                 workflow="ace(run)",

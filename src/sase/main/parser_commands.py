@@ -79,6 +79,33 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
         help="VCS workspace directory to query (default: current directory)",
     )
 
+    # sase changespec migrate-extension [--force] [--projects-dir DIR]
+    migrate_parser = cs_subparsers.add_parser(
+        "migrate-extension",
+        help=(
+            "Rename legacy .gp project spec files under ~/.sase/projects to "
+            "the canonical .sase extension"
+        ),
+    )
+    migrate_parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Replace an existing canonical .sase sibling whose contents differ "
+            "from the legacy .gp file. Default policy is to report the "
+            "conflict and skip the file."
+        ),
+    )
+    migrate_parser.add_argument(
+        "--projects-dir",
+        dest="projects_dir",
+        default=None,
+        help=(
+            "Override the ~/.sase/projects/ root that is scanned for legacy "
+            "spec files. Primarily useful for testing."
+        ),
+    )
+
 
 def register_comments_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'comments' subcommand parser."""

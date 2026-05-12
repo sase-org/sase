@@ -100,8 +100,11 @@ def resolve_primary_workspace_for_chat_install() -> Path | None:
 
 
 def _resolve_registered_sase_workspace() -> Path | None:
-    """Resolve ``~/.sase/projects/sase/sase.gp`` without consulting CWD."""
-    project_file = Path.home() / ".sase" / "projects" / "sase" / "sase.gp"
+    """Resolve the registered ``sase`` project workspace without consulting CWD."""
+    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
+    project_dir = Path.home() / ".sase" / "projects" / "sase"
+    project_file = Path(preferred_project_spec_path(str(project_dir), "sase"))
 
     from sase.workspace_provider.utils import parse_workspace_dir
 

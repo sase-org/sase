@@ -33,7 +33,10 @@ def resolve_known_project_vcs_launch_ref(
     if workspace_dir is None:
         return None
 
-    project_file = Path.home() / ".sase" / "projects" / ref / f"{ref}.gp"
+    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
+    project_dir = Path.home() / ".sase" / "projects" / ref
+    project_file = Path(preferred_project_spec_path(str(project_dir), ref))
     return _KnownProjectVcsLaunchRef(
         workflow_type=workflow_type,
         ref=ref,
@@ -86,8 +89,11 @@ def launch_agents_from_cwd(
 
     is_home_mode = project_file is None
     if is_home_mode:
+        from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
         project_name = "home"
-        project_file = os.path.expanduser("~/.sase/projects/home/home.gp")
+        home_dir = os.path.expanduser("~/.sase/projects/home")
+        project_file = preferred_project_spec_path(home_dir, "home")
 
     assert project_file is not None
     assert project_name is not None
@@ -358,9 +364,12 @@ def launch_agents_from_cwd(
     # workspace ref before this point; this branch covers disabled/missing
     # workspace providers and explicit non-workspace contexts.
     if vcs_ref is None and not is_home_mode:
+        from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
         is_home_mode = True
         project_name = "home"
-        project_file = os.path.expanduser("~/.sase/projects/home/home.gp")
+        home_dir = os.path.expanduser("~/.sase/projects/home")
+        project_file = preferred_project_spec_path(home_dir, "home")
 
     # --- Resolve fixed workspace contexts ---
     if timestamp is None:

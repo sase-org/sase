@@ -228,11 +228,23 @@ def spawn_agent_subprocess(
                     )
         else:
             # Ensure home project directory and file exist
+            from sase.ace.changespec.project_spec_path import (
+                active_project_spec_filename,
+                legacy_active_project_spec_filename,
+            )
+
             home_project_dir = os.path.expanduser("~/.sase/projects/home")
-            home_project_file = os.path.join(home_project_dir, "home.gp")
             os.makedirs(home_project_dir, exist_ok=True)
-            if not os.path.exists(home_project_file):
-                with open(home_project_file, "w", encoding="utf-8") as f:
+            canonical_home = os.path.join(
+                home_project_dir, active_project_spec_filename("home")
+            )
+            legacy_home = os.path.join(
+                home_project_dir, legacy_active_project_spec_filename("home")
+            )
+            # Treat the legacy `.gp` file as satisfying the existence check so
+            # users mid-migration are not forced through a one-shot rename.
+            if not os.path.exists(canonical_home) and not os.path.exists(legacy_home):
+                with open(canonical_home, "w", encoding="utf-8") as f:
                     f.write("")
         return True
 
