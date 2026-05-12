@@ -63,9 +63,11 @@ goldens. Run them normally first:
 just test-visual
 ```
 
-When a visual test fails, inspect the artifacts under `.pytest_cache/sase-visual/`. They include the actual PNG capture
-and, when a golden exists, the expected PNG plus a diff PNG and summary. Accept intentional visual changes only by
-rerunning the relevant test with the explicit update flag:
+When a visual test fails, inspect the artifacts under `.pytest_cache/sase-visual/<node>/<snapshot>/`. Each failure
+directory contains the actual PNG capture and, when a golden exists, the expected PNG plus a diff PNG, a human-readable
+`summary.txt`, and a structured `failure.json` sidecar. The sidecar carries the test source location, repo-relative
+golden path, and pixel-diff stats so tooling can map a failure back to the test and the committed golden. Accept
+intentional visual changes only by rerunning the relevant test with the explicit update flag:
 
 ```bash
 just test-visual -- --sase-update-visual-snapshots tests/ace/tui/visual/test_ace_png_snapshots.py
@@ -73,6 +75,29 @@ just test-visual -- --sase-update-visual-snapshots tests/ace/tui/visual/test_ace
 
 Review changed PNG files as normal test data. Do not pass `--sase-update-visual-snapshots` to `just check`, `just fmt`,
 or broad CI-style commands.
+
+### Visual Failure Report
+
+`tools/render_visual_snapshot_failure_report` consumes the `failure.json` sidecars and writes
+`.pytest_cache/sase-visual-report/`:
+
+- `visual-failure-report.html` - self-contained HTML with PNG/SVG embedded as data URIs, one anchored section per
+  failure.
+- `summary.md` - compact table for `$GITHUB_STEP_SUMMARY` with links into the report and to the committed golden.
+- `annotations.sh` - escaped `::error file=...,line=...` workflow commands.
+- `manifest.jsonl` - aggregate of every loaded `failure.json` for ad-hoc inspection.
+
+Run it locally against a failed run with
+`tools/render_visual_snapshot_failure_report --repo <owner/repo> --sha <commit>` and open the HTML file directly. The
+script is safe to run when there are no failures; it exits 0 without writing artifacts.
+
+In GitHub Actions the `visual-test` job invokes the renderer twice on failure: once to build the report before upload,
+then again after upload with `--report-url "$VISUAL_REPORT_URL"` so the summary and annotations point at the freshly
+uploaded artifact. The HTML is uploaded via `actions/upload-artifact@v7` with `archive: false`, which is what makes the
+per-failure anchors browsable directly from the Actions UI. Expected links point at the immutable
+`https://github.com/<repo>/blob/<sha>/<expected_repo_path>` URL; actual/diff links point at the report artifact rather
+than a public PNG URL because the raw PNGs are only uploaded as a zipped `ace-visual-artifacts` bundle and have no
+stable per-file URL.
 
 Add a visual test when the risk is layout, styling, focus highlighting, modal composition, or a regression that is hard
 to express as state. Prefer a plain state/widget test when the behavior can be asserted through model state, rendered
