@@ -78,7 +78,7 @@ def _validate_scalar_plan_timestamp(module: ModuleType) -> bool:
         project_dir = projects_root / "probe"
         artifact_dir = project_dir / "artifacts" / "ace-run" / artifact_timestamp
         artifact_dir.mkdir(parents=True)
-        (project_dir / "probe.gp").write_text("", encoding="utf-8")
+        (project_dir / "probe.sase").write_text("", encoding="utf-8")
         (artifact_dir / "agent_meta.json").write_text(
             json.dumps(
                 {
