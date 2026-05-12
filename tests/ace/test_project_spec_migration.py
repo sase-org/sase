@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 import os
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 from sase.ace.changespec.project_spec_migration import (
     migrate_all_projects,
@@ -125,3 +130,54 @@ def test_migrate_all_projects_with_default_root(tmp_path: Path, monkeypatch) -> 
     assert report.migrated_count == 1
     assert (fake_projects / "demo" / "demo.sase").read_text() == "demo"
     assert os.environ["HOME"] == str(fake_home)
+
+
+def test_migrate_compares_and_replaces_under_both_path_locks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project_dir = tmp_path / "myproj"
+    legacy = project_dir / "myproj.gp"
+    canonical = project_dir / "myproj.sase"
+    _write(legacy, "NAME: legacy\n")
+    _write(canonical, "NAME: canonical\n")
+
+    active_locks: set[str] = set()
+    checked_reads: list[Path] = []
+    original_read_bytes = Path.read_bytes
+    original_replace = os.replace
+
+    @contextmanager
+    def fake_changespec_lock(project_file: str) -> Iterator[None]:
+        active_locks.add(project_file)
+        try:
+            yield
+        finally:
+            active_locks.remove(project_file)
+
+    def checked_read_bytes(path: Path) -> bytes:
+        if path in (legacy, canonical):
+            assert str(legacy) in active_locks
+            assert str(canonical) in active_locks
+            checked_reads.append(path)
+        return original_read_bytes(path)
+
+    def checked_replace(src: Any, dst: Any) -> None:
+        assert str(legacy) in active_locks
+        assert str(canonical) in active_locks
+        original_replace(src, dst)
+
+    monkeypatch.setattr(
+        "sase.ace.changespec.project_spec_migration.changespec_lock",
+        fake_changespec_lock,
+    )
+    monkeypatch.setattr(Path, "read_bytes", checked_read_bytes)
+    monkeypatch.setattr(
+        "sase.ace.changespec.project_spec_migration.os.replace",
+        checked_replace,
+    )
+
+    report = migrate_project_dir(project_dir, force=True)
+
+    assert report.migrated_count == 1
+    assert checked_reads == [legacy, canonical]
+    assert canonical.read_text() == "NAME: legacy\n"
