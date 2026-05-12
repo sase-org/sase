@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 10:51:02
-status: wip
+status: done
 prompt: sdd/prompts/202605/phase7_agent_scan_perf_failure.md
 ---
 # Phase 7 Agent Scan Perf Failure Plan
