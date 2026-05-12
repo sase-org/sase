@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 10:11:59
-status: wip
+status: done
 prompt: sdd/prompts/202605/followup_planning_status_propagation.md
 ---
 # Followup Plan -> Parent Workflow PLANNING Status Propagation

@@ -19,6 +19,31 @@ class _NamedChangeSpec(Protocol):
     name: str
 
 
+def _notification_agent_timestamps(notification: Notification) -> set[str]:
+    """Return normalized phase/root timestamps carried by a notification."""
+    from ...models._timestamps import normalize_to_14_digit
+
+    timestamps: set[str] = set()
+    for key in ("agent_timestamp", "agent_root_timestamp"):
+        timestamp = normalize_to_14_digit(notification.action_data.get(key))
+        if timestamp:
+            timestamps.add(timestamp)
+    return timestamps
+
+
+def agent_matches_notification_identity(
+    agent: Agent, notification: Notification, cl_name: str | None = None
+) -> bool:
+    """Return True when an agent row matches the notification routing fields."""
+    agent_cl_name = cl_name or notification.action_data.get("agent_cl_name")
+    if not agent_cl_name or agent.cl_name != agent_cl_name:
+        return False
+    timestamps = _notification_agent_timestamps(notification)
+    if timestamps and agent.raw_suffix not in timestamps:
+        return False
+    return True
+
+
 def _find_changespec_index_by_name(
     changespecs: Sequence[_NamedChangeSpec], changespec_name: str
 ) -> int | None:
@@ -40,13 +65,14 @@ def find_agent_for_notification(
 ) -> Agent | None:
     """Find the agent matching a notification's identity fields.
 
-    Matches by agent_cl_name + agent_timestamp in action_data against
-    the currently loaded agents list.
+    Matches by agent_cl_name plus either agent_timestamp or
+    agent_root_timestamp in action_data against the currently loaded agents
+    list.
 
     Args:
         app: The AceApp instance.
         notification: The notification with action_data containing
-            agent_cl_name and optionally agent_timestamp.
+            agent_cl_name and optionally agent_timestamp / agent_root_timestamp.
 
     Returns:
         The matching Agent, or None if not found.
@@ -55,21 +81,10 @@ def find_agent_for_notification(
     if not cl_name:
         return None
 
-    agent_timestamp = notification.action_data.get("agent_timestamp")
-
-    # Normalize timestamp to 14-digit format for comparison with
-    # agent.raw_suffix (which is always normalized to 14-digit).
-    from ...models._timestamps import normalize_to_14_digit
-
-    agent_timestamp = normalize_to_14_digit(agent_timestamp)
-
     agents: list[Agent] = app._agents  # type: ignore[attr-defined]
     for agent in agents:
-        if agent.cl_name != cl_name:
-            continue
-        if agent_timestamp and agent.raw_suffix != agent_timestamp:
-            continue
-        return agent
+        if agent_matches_notification_identity(agent, notification, cl_name):
+            return agent
 
     return None
 

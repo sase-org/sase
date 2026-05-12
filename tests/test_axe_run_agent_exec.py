@@ -496,6 +496,7 @@ def test_publish_phase_env_sets_both_vars_to_phase(tmp_path: Path, monkeypatch) 
     """The helper publishes the current phase's artifacts dir + 14-digit timestamp."""
     monkeypatch.delenv("SASE_AGENT_TIMESTAMP", raising=False)
     monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+    monkeypatch.setenv("SASE_AGENT_ROOT_TIMESTAMP", "20260501090000")
 
     phase_dir = tmp_path / "20260501123045"
     phase_dir.mkdir()
@@ -505,6 +506,7 @@ def test_publish_phase_env_sets_both_vars_to_phase(tmp_path: Path, monkeypatch) 
 
     assert _os.environ["SASE_ARTIFACTS_DIR"] == str(phase_dir)
     assert _os.environ["SASE_AGENT_TIMESTAMP"] == "20260501123045"
+    assert _os.environ["SASE_AGENT_ROOT_TIMESTAMP"] == "20260501090000"
 
 
 def test_run_execution_loop_publishes_phase_timestamp(
@@ -518,6 +520,7 @@ def test_run_execution_loop_publishes_phase_timestamp(
     timestamp, and the TUI router silently dropped them on the floor.
     """
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "260408_120000")
+    monkeypatch.delenv("SASE_AGENT_ROOT_TIMESTAMP", raising=False)
 
     artifacts = tmp_path / "20260408120000"
     artifacts.mkdir()
@@ -545,11 +548,15 @@ def test_run_execution_loop_publishes_phase_timestamp(
     anon_workflow = SimpleNamespace(name="anon", xprompts={})
     final_result = _AgentExecResult(success=True, current_artifacts_dir=str(artifacts))
     observed_timestamp: dict[str, str] = {}
+    observed_root_timestamp: dict[str, str] = {}
 
     def _capture_env(*_args, **_kwargs):
         import os as _os
 
         observed_timestamp["value"] = _os.environ.get("SASE_AGENT_TIMESTAMP", "")
+        observed_root_timestamp["value"] = _os.environ.get(
+            "SASE_AGENT_ROOT_TIMESTAMP", ""
+        )
         return SimpleNamespace(response_text="")
 
     with (
@@ -575,6 +582,7 @@ def test_run_execution_loop_publishes_phase_timestamp(
     # The phase timestamp must match the artifacts dir basename (14-digit),
     # NOT the inherited YYmmdd_HHMMSS launch-time value.
     assert observed_timestamp["value"] == "20260408120000"
+    assert observed_root_timestamp["value"] == "20260408120000"
 
 
 def test_finalize_loop_restores_original_agent_timestamp(
@@ -586,6 +594,7 @@ def test_finalize_loop_restores_original_agent_timestamp(
     """
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "260408_120000")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", "/should/be/cleared")
+    monkeypatch.setenv("SASE_AGENT_ROOT_TIMESTAMP", "20260408120000")
 
     ctx = _make_ctx(tmp_path, is_home_mode=True, project_name="home")
     state = LoopState(
@@ -603,6 +612,7 @@ def test_finalize_loop_restores_original_agent_timestamp(
     import os as _os
 
     _os.environ["SASE_AGENT_TIMESTAMP"] = "20260408120000"
+    _os.environ["SASE_AGENT_ROOT_TIMESTAMP"] = "20260408120000"
 
     with (
         patch("sase.axe.run_agent_exec.save_chat_history", return_value=str(chat)),
@@ -621,6 +631,7 @@ def test_finalize_loop_restores_original_agent_timestamp(
 
     assert _os.environ.get("SASE_AGENT_TIMESTAMP") == "260408_120000"
     assert "SASE_ARTIFACTS_DIR" not in _os.environ
+    assert "SASE_AGENT_ROOT_TIMESTAMP" not in _os.environ
 
 
 def test_finalize_loop_clears_agent_timestamp_when_unset_at_entry(
@@ -647,6 +658,7 @@ def test_finalize_loop_clears_agent_timestamp_when_unset_at_entry(
     import os as _os
 
     _os.environ["SASE_AGENT_TIMESTAMP"] = "20260408120000"
+    _os.environ["SASE_AGENT_ROOT_TIMESTAMP"] = "20260408120000"
 
     with (
         patch("sase.axe.run_agent_exec.save_chat_history", return_value=str(chat)),
@@ -664,3 +676,4 @@ def test_finalize_loop_clears_agent_timestamp_when_unset_at_entry(
         )
 
     assert "SASE_AGENT_TIMESTAMP" not in _os.environ
+    assert "SASE_AGENT_ROOT_TIMESTAMP" not in _os.environ

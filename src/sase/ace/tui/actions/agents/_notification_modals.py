@@ -633,19 +633,11 @@ def _restore_pre_question_status(app: object, notification: Notification) -> Non
     if not cl_name:
         return
 
-    agent_timestamp = notification.action_data.get("agent_timestamp")
-
-    # Normalize timestamp to 14-digit format for comparison with
-    # agent.raw_suffix (which is always normalized to 14-digit).
-    from ...models._timestamps import normalize_to_14_digit
-
-    agent_timestamp = normalize_to_14_digit(agent_timestamp)
+    from ._notification_navigation import agent_matches_notification_identity
 
     # Find matching agent to get identity
     for agent in app._agents:  # type: ignore[attr-defined]
-        if agent.cl_name != cl_name:
-            continue
-        if agent_timestamp and agent.raw_suffix != agent_timestamp:
+        if not agent_matches_notification_identity(agent, notification, cl_name):
             continue
 
         identity = agent.identity

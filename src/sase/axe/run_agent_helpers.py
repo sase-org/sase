@@ -477,6 +477,7 @@ def handle_questions_flow(
     agent_cl_name = os.environ.get("SASE_AGENT_CL_NAME")
     agent_project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
     agent_timestamp = os.environ.get("SASE_AGENT_TIMESTAMP")
+    agent_root_timestamp = os.environ.get("SASE_AGENT_ROOT_TIMESTAMP")
     q_summary = "; ".join(q.get("question", "?") for q in questions[:3])
     notify_user_question(
         response_dir=response_dir,
@@ -485,6 +486,7 @@ def handle_questions_flow(
         agent_cl_name=agent_cl_name,
         agent_project_file=agent_project_file,
         agent_timestamp=agent_timestamp,
+        agent_root_timestamp=agent_root_timestamp,
     )
 
     prefix = get_tmux_prefix()

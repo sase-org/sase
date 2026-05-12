@@ -45,6 +45,8 @@ def _publish_phase_env(artifacts_dir: str) -> None:
     process inherits the original launch timestamp from its parent; we
     overwrite it per iteration so notifications emitted from a followup carry
     the followup's timestamp (which matches the row's ``raw_suffix``).
+    ``SASE_AGENT_ROOT_TIMESTAMP`` is set once by ``run_execution_loop`` and is
+    intentionally left unchanged here.
     """
     from sase.ace.tui.models._timestamps import normalize_to_14_digit
 
@@ -240,6 +242,7 @@ def _finalize_loop(
     # Clean up SASE_ARTIFACTS_DIR and SASE_PLAN env vars
     os.environ.pop("SASE_ARTIFACTS_DIR", None)
     os.environ.pop("SASE_PLAN", None)
+    os.environ.pop("SASE_AGENT_ROOT_TIMESTAMP", None)
     # SASE_AGENT_TIMESTAMP is per-phase (see _publish_phase_env); restore the
     # value the runner was launched with so post-loop callers (e.g. the commit
     # stop hook's session-dedup key) keep their original semantics.
@@ -583,6 +586,12 @@ def run_execution_loop(
         str(Path.home()), "~"
     )
     os.environ["SASE_AGENT_CHAT_PATH"] = predicted_chat_path
+    from sase.ace.tui.models._timestamps import normalize_to_14_digit
+
+    root_basename = os.path.basename(ctx.artifacts_dir.rstrip("/"))
+    os.environ["SASE_AGENT_ROOT_TIMESTAMP"] = (
+        normalize_to_14_digit(root_basename) or root_basename
+    )
 
     tracker = RetryTracker(
         retry_cfg=get_retry_config(ctx.agent_llm_provider)

@@ -168,6 +168,7 @@ def handle_plan_approval(
     agent_cl_name = os.environ.get("SASE_AGENT_CL_NAME")
     agent_project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
     agent_timestamp = os.environ.get("SASE_AGENT_TIMESTAMP")
+    agent_root_timestamp = os.environ.get("SASE_AGENT_ROOT_TIMESTAMP")
     notify_plan_approval(
         plan_file=plan_file,
         response_dir=str(response_dir),
@@ -176,6 +177,7 @@ def handle_plan_approval(
         agent_cl_name=agent_cl_name,
         agent_project_file=agent_project_file,
         agent_timestamp=agent_timestamp,
+        agent_root_timestamp=agent_root_timestamp,
         agent_name=agent_name,
         agent_model=agent_model,
         agent_llm_provider=agent_llm_provider,

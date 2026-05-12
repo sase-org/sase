@@ -356,6 +356,48 @@ def test_pending_question_marker_created_during_poll_and_deleted_on_response(
     assert not (tmp_path / "pending_question.json").exists()
 
 
+def test_questions_flow_passes_agent_root_timestamp(tmp_path, monkeypatch):
+    """Question notifications include both phase and root routing timestamps."""
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.is_auto_approve_active",
+        lambda: False,
+    )
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.get_tmux_prefix",
+        lambda: "",
+    )
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.ring_tmux_bell",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.send_desktop_notification",
+        lambda title, body: None,
+    )
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "20260512094333")
+    monkeypatch.setenv("SASE_AGENT_ROOT_TIMESTAMP", "20260512090000")
+    captured_kwargs: dict[str, object] = {}
+
+    def _capture_notify(**kwargs: object) -> None:
+        captured_kwargs.update(kwargs)
+
+    monkeypatch.setattr(
+        "sase.notifications.senders.notify_user_question",
+        _capture_notify,
+    )
+
+    questions = [{"question": "do thing?", "options": []}]
+    result, _marker_payload = _run_questions_flow(
+        tmp_path,
+        questions,
+        send_response_after={"answers": [], "global_note": ""},
+    )
+
+    assert result is not None
+    assert captured_kwargs["agent_timestamp"] == "20260512094333"
+    assert captured_kwargs["agent_root_timestamp"] == "20260512090000"
+
+
 def test_pending_question_marker_deleted_on_kill(tmp_path, monkeypatch):
     """Marker is deleted via the finally block even when the agent is killed."""
     monkeypatch.setattr(

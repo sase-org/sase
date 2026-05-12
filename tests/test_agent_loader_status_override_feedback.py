@@ -58,6 +58,65 @@ def test_apply_status_overrides_done_with_completed_feedback_becomes_planning() 
     assert parent.status == "PLANNING"
 
 
+def test_apply_status_overrides_running_with_unanswered_followup_plan_becomes_planning() -> (
+    None
+):
+    """A RUNNING .plan parent awaiting follow-up review is marked PLANNING."""
+    feedback_time = datetime(2026, 5, 12, 9, 30, 0)
+    followup_plan_time = datetime(2026, 5, 12, 9, 43, 33)
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 12, 9, 0, 0),
+        raw_suffix="20260512090000",
+        role_suffix=".plan",
+    )
+    feedback_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 5, 12, 9, 35, 0),
+        parent_timestamp="20260512090000",
+        role_suffix=".2",
+        feedback_times=[feedback_time],
+        plan_times=[followup_plan_time],
+    )
+
+    _apply_status_overrides([parent, feedback_child])
+
+    assert parent.status == "PLANNING"
+
+
+def test_apply_status_overrides_running_with_active_feedback_stays_running() -> None:
+    """Active feedback composition wins over an older plan timestamp."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 12, 9, 0, 0),
+        raw_suffix="20260512090000",
+        role_suffix=".plan",
+        plan_times=[datetime(2026, 5, 12, 9, 10, 0)],
+    )
+    feedback_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 12, 9, 35, 0),
+        parent_timestamp="20260512090000",
+        role_suffix=".2",
+    )
+
+    _apply_status_overrides([parent, feedback_child])
+
+    assert parent.status == "RUNNING"
+
+
 def test_apply_status_overrides_deduplicates_feedback_child_feedback_time() -> None:
     """Parent and feedback child holding the same feedback time render one event."""
     feedback_time = datetime(2026, 5, 6, 0, 16, 35)

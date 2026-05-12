@@ -190,21 +190,13 @@ class AgentNotificationMixin:
             if not cl_name:
                 continue
 
-            agent_timestamp = notification.action_data.get("agent_timestamp")
-
-            # Normalize timestamp to 14-digit format for comparison with
-            # agent.raw_suffix (which is always normalized to 14-digit).
-            # The env var SASE_AGENT_TIMESTAMP uses YYmmdd_HHMMSS (13-char)
-            # but raw_suffix uses YYYYmmddHHMMSS (14-digit).
-            from ...models._timestamps import normalize_to_14_digit
-
-            agent_timestamp = normalize_to_14_digit(agent_timestamp)
+            from ._notification_navigation import agent_matches_notification_identity
 
             # Find matching agent
             for agent in self._agents:
-                if agent.cl_name != cl_name:
-                    continue
-                if agent_timestamp and agent.raw_suffix != agent_timestamp:
+                if not agent_matches_notification_identity(
+                    agent, notification, cl_name
+                ):
                     continue
 
                 # Skip finished agents — overrides don't apply
@@ -483,7 +475,7 @@ class AgentNotificationMixin:
 
         from sase.notifications import read_notification_snapshot
 
-        from ...models._timestamps import normalize_to_14_digit
+        from ._notification_navigation import agent_matches_notification_identity
 
         snapshot = read_notification_snapshot()
         notifications = snapshot.notifications
@@ -497,9 +489,7 @@ class AgentNotificationMixin:
             cl_name = notification.action_data.get("agent_cl_name")
             if cl_name != agent.cl_name:
                 continue
-            agent_timestamp = notification.action_data.get("agent_timestamp")
-            agent_timestamp = normalize_to_14_digit(agent_timestamp)
-            if agent_timestamp and agent.raw_suffix != agent_timestamp:
+            if not agent_matches_notification_identity(agent, notification, cl_name):
                 continue
             matched = notification
             break

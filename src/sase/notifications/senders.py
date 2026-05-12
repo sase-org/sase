@@ -163,6 +163,7 @@ def notify_user_question(
     agent_cl_name: str | None = None,
     agent_project_file: str | None = None,
     agent_timestamp: str | None = None,
+    agent_root_timestamp: str | None = None,
 ) -> None:
     """Send a notification when Claude Code asks a user question via hook."""
     action_data: dict[str, str] = {
@@ -175,6 +176,8 @@ def notify_user_question(
         action_data["agent_project_file"] = agent_project_file
     if agent_timestamp:
         action_data["agent_timestamp"] = agent_timestamp
+    if agent_root_timestamp:
+        action_data["agent_root_timestamp"] = agent_root_timestamp
     n = Notification(
         id=str(uuid4()),
         timestamp=datetime.now(get_timezone()).isoformat(),
@@ -196,6 +199,7 @@ def notify_plan_approval(
     agent_cl_name: str | None = None,
     agent_project_file: str | None = None,
     agent_timestamp: str | None = None,
+    agent_root_timestamp: str | None = None,
     agent_name: str | None = None,
     agent_model: str | None = None,
     agent_llm_provider: str | None = None,
@@ -214,6 +218,8 @@ def notify_plan_approval(
         action_data["agent_project_file"] = agent_project_file
     if agent_timestamp:
         action_data["agent_timestamp"] = agent_timestamp
+    if agent_root_timestamp:
+        action_data["agent_root_timestamp"] = agent_root_timestamp
     if agent_name:
         action_data["agent_name"] = agent_name
     if agent_model:

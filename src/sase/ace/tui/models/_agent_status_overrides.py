@@ -45,6 +45,13 @@ def is_root_plan_workflow(agent: Agent) -> bool:
     )
 
 
+def _is_awaiting_plan_review(agent: Agent) -> bool:
+    """Return True when latest plan submission is newer than latest feedback."""
+    if not agent.plan_times:
+        return False
+    return not agent.feedback_times or agent.plan_times[-1] > agent.feedback_times[-1]
+
+
 def apply_status_overrides(agents: list[Agent]) -> None:
     """Override statuses based on workflow relationships (mutates in place).
 
@@ -101,6 +108,15 @@ def apply_status_overrides(agents: list[Agent]) -> None:
                 if agent.status not in completed_statuses:
                     if parent.status == "PLANNING":
                         parent.status = "RUNNING"
+
+    parents_awaiting_plan_review: set[str] = set()
+    for agent in agents:
+        if (
+            is_root_plan_workflow(agent)
+            and agent.raw_suffix
+            and _is_awaiting_plan_review(agent)
+        ):
+            parents_awaiting_plan_review.add(agent.raw_suffix)
 
     # Active workflow step child -> parent is running a step, not planning.
     for agent in agents:
@@ -245,12 +261,15 @@ def apply_status_overrides(agents: list[Agent]) -> None:
     for agent in agents:
         if (
             is_root_plan_workflow(agent)
-            and agent.status == "DONE"
+            and agent.status in {"DONE", "RUNNING"}
             and agent.raw_suffix not in parents_with_followup
         ):
             if agent.raw_suffix in parents_with_active_feedback:
                 agent.status = "RUNNING"
-            else:
+            elif (
+                agent.status == "DONE"
+                or agent.raw_suffix in parents_awaiting_plan_review
+            ):
                 agent.status = "PLANNING"
 
     # Override DONE -> QUESTION for agents whose last question was never answered.
