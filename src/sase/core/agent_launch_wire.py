@@ -103,7 +103,7 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
     return record
 
 
-def workspace_claim_request_from_dict(
+def _workspace_claim_request_from_dict(
     data: dict[str, Any],
 ) -> WorkspaceClaimRequestWire:
     return WorkspaceClaimRequestWire(
@@ -140,7 +140,7 @@ def agent_launch_prepared_from_dict(
         claim_request=(
             None
             if claim_data is None
-            else workspace_claim_request_from_dict(dict(claim_data))
+            else _workspace_claim_request_from_dict(dict(claim_data))
         ),
     )
 
@@ -190,5 +190,4 @@ __all__ = [
     "agent_launch_prepared_from_dict",
     "agent_launch_wire_to_json_dict",
     "launch_fanout_plan_from_dict",
-    "workspace_claim_request_from_dict",
 ]

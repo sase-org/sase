@@ -29,9 +29,9 @@ from sase.core.agent_launch_wire import (
     LaunchFanoutPlanWire,
     LaunchFanoutSlotWire,
     WorkspaceClaimRequestWire,
+    agent_launch_prepared_from_dict,
     agent_launch_wire_to_json_dict,
     launch_fanout_plan_from_dict,
-    workspace_claim_request_from_dict,
 )
 
 
@@ -61,7 +61,16 @@ def test_workspace_claim_request_round_trips_json_shape() -> None:
         "transfer_from_pid": 99,
         "pinned": False,
     }
-    assert workspace_claim_request_from_dict(payload) == request
+    prepared_payload = {
+        "schema_version": AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
+        "prompt_file": "/tmp/prompt.md",
+        "output_path": "/tmp/agent.log",
+        "safe_name": "agent",
+        "argv": ["python", "runner.py"],
+        "cwd": "/tmp",
+        "claim_request": payload,
+    }
+    assert agent_launch_prepared_from_dict(prepared_payload).claim_request == request
 
 
 def test_prepare_agent_launch_rust_writes_prompt_and_returns_process_shape(
