@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 12:08:33
-status: wip
+status: done
 prompt: sdd/prompts/202605/phase5_plugin_sase_migration.md
 ---
 # Phase 5 Re-Do: Maintained Plugin `.gp` → `.sase` Migration
