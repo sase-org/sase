@@ -282,12 +282,24 @@ class _StubClient:
         default_branch_value: str = "master",
         raise_on_default_branch: Exception | None = None,
         raise_on_list_runs: Exception | None = None,
+        jobs_by_run: dict[int, Any] | None = None,
+        check_runs_by_sha: dict[str, Any] | None = None,
+        annotations_by_check_run: dict[int, Any] | None = None,
+        logs_by_run: dict[int, Any] | None = None,
     ) -> None:
         self._runs = runs or []
         self._default_branch = default_branch_value
         self._raise_default = raise_on_default_branch
         self._raise_list = raise_on_list_runs
+        self._jobs_by_run = jobs_by_run or {}
+        self._check_runs_by_sha = check_runs_by_sha or {}
+        self._annotations_by_check_run = annotations_by_check_run or {}
+        self._logs_by_run = logs_by_run or {}
         self.list_runs_calls: list[dict[str, Any]] = []
+        self.list_jobs_calls: list[int] = []
+        self.list_sha_check_runs_calls: list[str] = []
+        self.list_check_run_annotations_calls: list[int] = []
+        self.fetch_failed_log_calls: list[int] = []
 
     def default_branch(self) -> str:
         if self._raise_default is not None:
@@ -301,6 +313,34 @@ class _StubClient:
             {"branch": branch, "events": tuple(events), "limit": limit}
         )
         return list(self._runs)
+
+    def list_jobs(self, run_id: int) -> list[Any]:
+        self.list_jobs_calls.append(run_id)
+        value = self._jobs_by_run.get(run_id, [])
+        if isinstance(value, Exception):
+            raise value
+        return list(value)
+
+    def list_sha_check_runs(self, sha: str) -> list[Any]:
+        self.list_sha_check_runs_calls.append(sha)
+        value = self._check_runs_by_sha.get(sha, [])
+        if isinstance(value, Exception):
+            raise value
+        return list(value)
+
+    def list_check_run_annotations(self, check_run: Any) -> list[Any]:
+        self.list_check_run_annotations_calls.append(check_run.check_run_id)
+        value = self._annotations_by_check_run.get(check_run.check_run_id, [])
+        if isinstance(value, Exception):
+            raise value
+        return list(value)
+
+    def fetch_failed_log(self, run_id: int) -> str:
+        self.fetch_failed_log_calls.append(run_id)
+        value = self._logs_by_run.get(run_id, "")
+        if isinstance(value, Exception):
+            raise value
+        return value
 
 
 def _install_stub(
@@ -708,3 +748,470 @@ def test_format_json_run_set_shape(script: types.ModuleType) -> None:
         "CI",
         "Deploy",
     }
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: failure diagnostics
+# ---------------------------------------------------------------------------
+
+
+def _make_job(
+    script: types.ModuleType,
+    *,
+    name: str,
+    conclusion: str = "failure",
+    status: str = "completed",
+    database_id: int = 0,
+    url: str = "",
+    steps: tuple[Any, ...] = (),
+) -> Any:
+    return script.Job(
+        database_id=database_id or (hash(name) & 0xFFFFFFFF),
+        name=name,
+        status=status,
+        conclusion=conclusion,
+        url=url,
+        steps=steps,
+    )
+
+
+def _make_check_run(
+    script: types.ModuleType,
+    *,
+    name: str,
+    check_run_id: int,
+    conclusion: str = "failure",
+    status: str = "completed",
+) -> Any:
+    return script.CheckRun(
+        check_run_id=check_run_id,
+        name=name,
+        status=status,
+        conclusion=conclusion,
+    )
+
+
+def _make_annotation(
+    script: types.ModuleType,
+    *,
+    check_run: Any,
+    path: str = "src/example.py",
+    start_line: int = 12,
+    title: str = "boom",
+    message: str = "It exploded.",
+) -> Any:
+    return script.Annotation(
+        check_run_id=check_run.check_run_id,
+        check_run_name=check_run.name,
+        path=path,
+        start_line=start_line,
+        end_line=start_line,
+        annotation_level="failure",
+        title=title,
+        message=message,
+    )
+
+
+def test_parse_jobs_handles_steps(script: types.ModuleType) -> None:
+    payload = {
+        "jobs": [
+            {
+                "databaseId": 7,
+                "name": "build",
+                "status": "completed",
+                "conclusion": "failure",
+                "url": "https://example/job/7",
+                "steps": [
+                    {
+                        "name": "Setup",
+                        "status": "completed",
+                        "conclusion": "success",
+                        "number": 1,
+                    },
+                    {
+                        "name": "Test",
+                        "status": "completed",
+                        "conclusion": "failure",
+                        "number": 4,
+                    },
+                ],
+            }
+        ]
+    }
+    jobs = script.parse_jobs(payload)
+    assert len(jobs) == 1
+    job = jobs[0]
+    assert job.name == "build"
+    assert not job.passed
+    failed_steps = job.failed_steps
+    assert len(failed_steps) == 1
+    assert failed_steps[0].number == 4
+    assert failed_steps[0].name == "Test"
+
+
+def test_parse_check_runs_skips_invalid(script: types.ModuleType) -> None:
+    payload = {
+        "check_runs": [
+            {"name": "no-id"},
+            {
+                "id": 99,
+                "name": "build",
+                "status": "completed",
+                "conclusion": "failure",
+            },
+        ]
+    }
+    out = script.parse_check_runs(payload)
+    assert len(out) == 1
+    assert out[0].check_run_id == 99
+    assert not out[0].passed
+    assert out[0].is_terminal
+
+
+def test_parse_annotations_uses_check_run_identity(
+    script: types.ModuleType,
+) -> None:
+    check_run = _make_check_run(script, name="build", check_run_id=42)
+    payload = [
+        {
+            "path": "src/x.py",
+            "start_line": 10,
+            "end_line": 11,
+            "annotation_level": "failure",
+            "title": "BOOM",
+            "message": "exploded",
+        }
+    ]
+    out = script.parse_annotations(payload, check_run=check_run)
+    assert len(out) == 1
+    assert out[0].check_run_id == 42
+    assert out[0].check_run_name == "build"
+    assert out[0].path == "src/x.py"
+
+
+def test_diagnostics_annotations_preferred_over_logs(
+    script: types.ModuleType,
+) -> None:
+    failed_run = _make_run(
+        script,
+        workflow="CI",
+        sha="abc",
+        conclusion="failure",
+        database_id=100,
+        workflow_id=10,
+    )
+    other_run = _make_run(
+        script,
+        workflow="Deploy",
+        sha="abc",
+        conclusion="success",
+        database_id=200,
+        workflow_id=20,
+    )
+    run_set = script.RunSet(
+        head_sha="abc",
+        head_branch="master",
+        display_title="",
+        created_at="2026-05-11T00:00:00Z",
+        runs=(failed_run, other_run),
+    )
+    failing_check_run = _make_check_run(
+        script, name="build", check_run_id=555, conclusion="failure"
+    )
+    annotation = _make_annotation(script, check_run=failing_check_run)
+    stub = _StubClient(
+        jobs_by_run={
+            100: [
+                _make_job(script, name="build", conclusion="failure", database_id=1),
+            ]
+        },
+        check_runs_by_sha={"abc": [failing_check_run]},
+        annotations_by_check_run={555: [annotation]},
+        logs_by_run={100: "should not be read"},
+    )
+
+    diagnostics = script.gather_failure_diagnostics(stub, run_set, tail=10)
+
+    assert len(diagnostics) == 1
+    diag = diagnostics[0]
+    assert diag.source == script.DIAG_SOURCE_ANNOTATIONS
+    assert diag.annotations == (annotation,)
+    assert diag.log_tail == ()
+    # Annotations were found, so the log endpoint must not have been hit.
+    assert stub.fetch_failed_log_calls == []
+
+
+def test_diagnostics_logs_tailed_to_requested_lines(
+    script: types.ModuleType,
+) -> None:
+    failed_run = _make_run(
+        script,
+        workflow="CI",
+        sha="abc",
+        conclusion="failure",
+        database_id=100,
+    )
+    run_set = script.RunSet(
+        head_sha="abc",
+        head_branch="master",
+        display_title="",
+        created_at="2026-05-11T00:00:00Z",
+        runs=(failed_run,),
+    )
+    log = "\n".join(f"line {i}" for i in range(100))
+    stub = _StubClient(
+        jobs_by_run={100: [_make_job(script, name="build", conclusion="failure")]},
+        # No matching check-runs → fall back to logs.
+        check_runs_by_sha={"abc": []},
+        logs_by_run={100: log},
+    )
+
+    diagnostics = script.gather_failure_diagnostics(stub, run_set, tail=5)
+
+    assert len(diagnostics) == 1
+    diag = diagnostics[0]
+    assert diag.source == script.DIAG_SOURCE_LOGS
+    assert diag.log_tail == (
+        "line 95",
+        "line 96",
+        "line 97",
+        "line 98",
+        "line 99",
+    )
+    assert stub.fetch_failed_log_calls == [100]
+
+
+def test_diagnostics_jobs_only_when_logs_empty(
+    script: types.ModuleType,
+) -> None:
+    failed_run = _make_run(
+        script,
+        workflow="CI",
+        sha="abc",
+        conclusion="failure",
+        database_id=100,
+    )
+    run_set = script.RunSet(
+        head_sha="abc",
+        head_branch="master",
+        display_title="",
+        created_at="2026-05-11T00:00:00Z",
+        runs=(failed_run,),
+    )
+    failing_job = _make_job(
+        script,
+        name="build",
+        conclusion="failure",
+        steps=(
+            script.JobStep(
+                name="Compile",
+                status="completed",
+                conclusion="failure",
+                number=2,
+            ),
+        ),
+    )
+    stub = _StubClient(
+        jobs_by_run={100: [failing_job]},
+        check_runs_by_sha={"abc": []},
+        logs_by_run={100: ""},
+    )
+
+    diagnostics = script.gather_failure_diagnostics(stub, run_set, tail=20)
+
+    diag = diagnostics[0]
+    assert diag.source == script.DIAG_SOURCE_JOBS_ONLY
+    assert diag.failed_jobs == (failing_job,)
+    assert diag.annotations == ()
+    assert diag.log_tail == ()
+    # We still attempt the log fetch exactly once, even when annotations
+    # are absent and the log turns out to be empty.
+    assert stub.fetch_failed_log_calls == [100]
+
+
+def test_diagnostics_cancelled_run_does_not_retry_log(
+    script: types.ModuleType,
+) -> None:
+    cancelled_run = _make_run(
+        script,
+        workflow="CI",
+        sha="abc",
+        conclusion="cancelled",
+        database_id=100,
+    )
+    run_set = script.RunSet(
+        head_sha="abc",
+        head_branch="master",
+        display_title="",
+        created_at="2026-05-11T00:00:00Z",
+        runs=(cancelled_run,),
+    )
+    log_error = script.GhCommandError(
+        ["gh", "run", "view", "100", "--log-failed"],
+        1,
+        "no logs available for cancelled run",
+    )
+    stub = _StubClient(
+        jobs_by_run={100: [_make_job(script, name="build", conclusion="cancelled")]},
+        check_runs_by_sha={"abc": []},
+        logs_by_run={100: log_error},
+    )
+
+    diagnostics = script.gather_failure_diagnostics(stub, run_set, tail=10)
+
+    diag = diagnostics[0]
+    assert diag.source == script.DIAG_SOURCE_JOBS_ONLY
+    assert diag.log_tail == ()
+    assert "cancelled" in diag.log_error
+    # Crucially, exactly one log fetch attempt — no retry loop.
+    assert stub.fetch_failed_log_calls == [100]
+
+
+def test_diagnostics_multiple_failed_workflows_reported_independently(
+    script: types.ModuleType,
+) -> None:
+    run_a = _make_run(
+        script,
+        workflow="CI",
+        sha="abc",
+        conclusion="failure",
+        database_id=100,
+        workflow_id=10,
+    )
+    run_b = _make_run(
+        script,
+        workflow="Lint",
+        sha="abc",
+        conclusion="failure",
+        database_id=200,
+        workflow_id=20,
+    )
+    run_set = script.RunSet(
+        head_sha="abc",
+        head_branch="master",
+        display_title="",
+        created_at="2026-05-11T00:00:00Z",
+        runs=(run_a, run_b),
+    )
+    cr_a = _make_check_run(script, name="build", check_run_id=11, conclusion="failure")
+    annotation_a = _make_annotation(
+        script, check_run=cr_a, path="a.py", title="A failed"
+    )
+    stub = _StubClient(
+        jobs_by_run={
+            100: [_make_job(script, name="build", conclusion="failure")],
+            200: [_make_job(script, name="ruff", conclusion="failure")],
+        },
+        # Only run_a has a matching check-run; run_b falls back to logs.
+        check_runs_by_sha={"abc": [cr_a]},
+        annotations_by_check_run={11: [annotation_a]},
+        logs_by_run={200: "tail line 1\ntail line 2\n"},
+    )
+
+    diagnostics = script.gather_failure_diagnostics(stub, run_set, tail=5)
+
+    assert len(diagnostics) == 2
+    by_run = {d.run.database_id: d for d in diagnostics}
+    diag_a = by_run[100]
+    diag_b = by_run[200]
+    assert diag_a.source == script.DIAG_SOURCE_ANNOTATIONS
+    assert diag_a.annotations == (annotation_a,)
+    assert diag_b.source == script.DIAG_SOURCE_LOGS
+    assert diag_b.log_tail == ("tail line 1", "tail line 2")
+    # Only run_b should have used the log endpoint.
+    assert stub.fetch_failed_log_calls == [200]
+
+
+def test_main_failing_set_includes_diagnostics(
+    script: types.ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    runs = [
+        _make_run(
+            script,
+            workflow="CI",
+            sha="abc",
+            conclusion="failure",
+            database_id=100,
+            workflow_id=10,
+        ),
+        _make_run(
+            script,
+            workflow="Deploy",
+            sha="abc",
+            conclusion="success",
+            database_id=200,
+            workflow_id=20,
+        ),
+    ]
+    failing_job = _make_job(
+        script,
+        name="build",
+        conclusion="failure",
+        steps=(
+            script.JobStep(
+                name="Test",
+                status="completed",
+                conclusion="failure",
+                number=3,
+            ),
+        ),
+    )
+    cr = _make_check_run(script, name="build", check_run_id=42, conclusion="failure")
+    annotation = _make_annotation(script, check_run=cr, path="src/x.py", title="oops")
+    stub = _StubClient(
+        runs=runs,
+        jobs_by_run={100: [failing_job]},
+        check_runs_by_sha={"abc": [cr]},
+        annotations_by_check_run={42: [annotation]},
+    )
+    _install_stub(script, monkeypatch, stub)
+
+    code = script.main(["--json"])
+    assert code == script.EXIT_FAIL
+    payload = json.loads(capsys.readouterr().out)
+    diags = payload["diagnostics"]
+    assert len(diags) == 1
+    assert diags[0]["source"] == script.DIAG_SOURCE_ANNOTATIONS
+    assert diags[0]["annotations"][0]["path"] == "src/x.py"
+    # Only the failed run should have been queried for jobs.
+    assert stub.list_jobs_calls == [100]
+
+
+def test_main_human_output_renders_diagnostic_block(
+    script: types.ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    runs = [
+        _make_run(
+            script,
+            workflow="CI",
+            sha="abc",
+            conclusion="failure",
+            database_id=100,
+        ),
+    ]
+    failing_job = _make_job(
+        script,
+        name="build",
+        conclusion="failure",
+    )
+    stub = _StubClient(
+        runs=runs,
+        jobs_by_run={100: [failing_job]},
+        check_runs_by_sha={"abc": []},
+        logs_by_run={100: "alpha\nbeta\ngamma\n"},
+    )
+    _install_stub(script, monkeypatch, stub)
+
+    code = script.main(["--tail", "2"])
+    assert code == script.EXIT_FAIL
+    out = capsys.readouterr().out
+    assert "CI (failure detail)" in out
+    assert "job: build" in out
+    assert "log tail (last 2 line(s))" in out
+    assert "beta" in out and "gamma" in out
+    # Tail should have trimmed the earlier line.
+    assert "alpha" not in out.split("log tail", 1)[1]

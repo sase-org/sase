@@ -213,9 +213,7 @@ def list_agent_artifacts(
         artifact for artifact in defaults if artifact.kind in {"chat", "plan"}
     ]
     return dedupe_artifacts(
-        _dedupe_plan_artifacts(
-            [*chat_and_plans, *indexed, *non_chat_plan_defaults]
-        )
+        _dedupe_plan_artifacts([*chat_and_plans, *indexed, *non_chat_plan_defaults])
     )
 
 
