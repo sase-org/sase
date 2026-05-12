@@ -5,7 +5,7 @@ units, orchestration, provider-independent workflows, review state, and the coor
 
 ## Start Here
 
-The [Agentic Software Engineering series](../series/agentic-software-engineering.md) has nine posts:
+The [Agentic Software Engineering series](../series/agentic-software-engineering.md) has ten posts:
 
 1. [Post 0: Origin Story — Where SASE Came From](posts/origin-story.md) — the prequel: large-codebase rigor, a lagging
    day-job model, and the realization that workflows should be cheap enough to spin up _and_ wind down.
@@ -24,11 +24,14 @@ The [Agentic Software Engineering series](../series/agentic-software-engineering
    `#propose`, `#pr`, the stop-hook contract, runtime-uniform skills, and the VCS provider boundary.
 8. [Post 7: ChangeSpecs in Practice — Review State Outside the Chat](posts/changespecs-in-practice.md) — the `.gp`
    record end to end, commits drawers, mentor execution, HOOKS prefixes, and the ACE keystrokes that drive review.
-9. [Post 8: What's Next — Shared Memory, Mobile, and the Web Surface](posts/whats-next-memory-mobile-web.md) — the three
-   horizons SASE is reaching for next, and why each one isn't shipping yet.
+9. [Post 8: Driving SASE From Your Phone — Telegram as the Mobile Control Surface](posts/telegram-mobile-agents.md) —
+   the sase-telegram chop: activity-aware notifications, plan approvals from inline keyboards, launching agents and
+   reviewing generated images from the chat.
+10. [Post 9: What's Next — Shared Memory, Mobile, and the Web Surface](posts/whats-next-memory-mobile-web.md) — the
+    three horizons SASE is reaching for next, and why each one isn't shipping yet.
 
-Post 0 is optional backstory; Posts 1 and 2 work in either order; Posts 3–7 deepen one subsystem at a time and can be
-read independently; Post 8 looks forward.
+Post 0 is optional backstory; Posts 1 and 2 work in either order; Posts 3–8 deepen one subsystem at a time and can be
+read independently; Post 9 looks forward.
 
 ## From Reading To Practice
 

@@ -182,14 +182,14 @@ by SASE and is not normally edited by hand.
 - [Mentors](../../mentors.md) — profile matching criteria, execution lifecycle, ACE review modal, apply modes,
   file-snapshot semantics.
 - [ACE TUI](../../ace.md) — the full keybinding reference for the CLs, Agents, and Axe tabs.
-- [Post 8: What's Next — Shared Memory, Mobile, and the Web Surface](whats-next-memory-mobile-web.md) — the next
-  horizons SASE is reaching for.
+- [Post 8: Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md) — turn an
+  existing Telegram chat into a two-way control surface for plans, agents, and generated artifacts.
 
 ## Series Navigation
 
 This is Post 7 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
 
 - Previous: [Post 6: Commit Workflows — The Pluggable Path From Diff to PR](commit-workflows-plugins.md).
-- Next: [Post 8: What's Next — Shared Memory, Mobile, and the Web Surface](whats-next-memory-mobile-web.md).
+- Next: [Post 8: Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md).
 - Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [ChangeSpec guide](../../change_spec.md).

@@ -10,20 +10,20 @@ slug: whats-next-memory-mobile-web
 links:
   - Agentic Software Engineering Series: series/agentic-software-engineering.md
   - Mobile Gateway: mobile_gateway.md
-  - "Post 7: ChangeSpecs in Practice": blog/posts/changespecs-in-practice.md
+  - "Post 8: Telegram as the Mobile Control Surface": blog/posts/telegram-mobile-agents.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
-# Post 8: What's Next — Shared Memory, Mobile, and the Web Surface
+# Post 9: What's Next — Shared Memory, Mobile, and the Web Surface
 
 SASE today is the orchestration layer. The next horizon is the things that horizon-line doesn't quite reach yet —
 durable shared memory across agents, a phone you can drive from, and a browser the team can open without learning a TUI.
 
 <!-- more -->
 
-The previous seven posts walked through what exists: XPrompts, AXE, SDD and beads, commit workflows, ChangeSpecs. This
-one is shorter and more speculative. It names three threads that are in motion but not yet shipped, and points at the
-artifacts where the design work is happening.
+The previous eight posts walked through what exists: XPrompts, AXE, SDD and beads, commit workflows, ChangeSpecs, and
+the Telegram mobile control surface. This one is shorter and more speculative. It names three threads that are in motion
+but not yet shipped, and points at the artifacts where the design work is happening.
 
 ## Shared Memory Across Agents
 
@@ -64,6 +64,9 @@ not have to land at once.
 
 ## Mobile
 
+[Post 8](telegram-mobile-agents.md) covered the Telegram chop that ships today and gives you a working mobile control
+surface right now. The native mobile path is the longer-term answer.
+
 The mobile gateway already exists. `sase mobile gateway start` runs a Rust gateway in the foreground on
 `127.0.0.1:7629`, prints a one-time pairing challenge, and waits for a mobile client to finish pairing via
 `POST /api/v1/session/pair/start` then `/session/pair/finish`. Loopback by default; Tailscale Serve for remote access
@@ -91,9 +94,9 @@ a TUI first.
 
 Every horizon in this list trades terminal-native context for context that lives outside one developer's head. Shared
 memory moves intent across agents; mobile and web move the control surface to wherever the operator is. The
-orchestration layer the series has covered — XPrompts, AXE, SDD, beads, commit workflows, ChangeSpecs — is what makes
-that move possible. Those pieces are how agent work becomes a durable object in the first place; memory, mobile, and web
-are how that durable object stays reachable.
+orchestration layer the series has covered — XPrompts, AXE, SDD, beads, commit workflows, ChangeSpecs, and the Telegram
+chop — is what makes that move possible. Those pieces are how agent work becomes a durable object in the first place;
+memory, mobile, and web are how that durable object stays reachable.
 
 ## What To Read Next
 
@@ -101,13 +104,13 @@ are how that durable object stays reachable.
   contract snapshot.
 - [Shared memory research](https://github.com/sase-org/sase/blob/master/sdd/research/202605/zettel_sase_shared_memory.md)
   — the full proposal, including external research notes, design decisions, and open questions.
-- [Agentic Software Engineering series hub](../../series/agentic-software-engineering.md) — all nine posts in one place.
+- [Agentic Software Engineering series hub](../../series/agentic-software-engineering.md) — all ten posts in one place.
 
 ## Series Navigation
 
-This is Post 8 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
+This is Post 9 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
 
-- Previous: [Post 7: ChangeSpecs in Practice — Review State Outside the Chat](changespecs-in-practice.md).
+- Previous: [Post 8: Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md).
 - Next: none (latest post).
 - Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [mobile gateway guide](../../mobile_gateway.md).
