@@ -1,0 +1,320 @@
+#!/usr/bin/env python3
+"""Report the status of the last fully-completed GitHub Actions workflow set.
+
+Phase 1 skeleton: CLI parsing, `gh` boundary, default-branch detection, and
+clear configuration-error reporting. Run-set selection and failure
+diagnostics are implemented in later phases (see
+``sdd/epics/202605/last_workflow_set_status_tool.md``).
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+
+
+EXIT_PASS = 0
+EXIT_FAIL = 1
+EXIT_CONFIG_ERROR = 2
+EXIT_NO_COMPLETE_SET = 3
+
+
+DEFAULT_LIMIT = 50
+DEFAULT_TAIL = 50
+DEFAULT_EVENTS = ("push",)
+
+
+class GhError(Exception):
+    """Base class for all GhClient failures.
+
+    Carries an exit code so the CLI layer can surface a user-friendly message
+    without re-classifying every error type.
+    """
+
+    def __init__(self, message: str, *, exit_code: int = EXIT_CONFIG_ERROR) -> None:
+        super().__init__(message)
+        self.exit_code = exit_code
+
+
+class GhMissingError(GhError):
+    """``gh`` executable could not be located on PATH."""
+
+
+class GhCommandError(GhError):
+    """A ``gh`` invocation exited non-zero."""
+
+    def __init__(
+        self,
+        argv: Sequence[str],
+        returncode: int,
+        stderr: str,
+    ) -> None:
+        joined = " ".join(argv)
+        message = (
+            f"`{joined}` failed with exit code {returncode}."
+            f"{' stderr: ' + stderr.strip() if stderr.strip() else ''}"
+        )
+        super().__init__(message)
+        self.argv = list(argv)
+        self.returncode = returncode
+        self.stderr = stderr
+
+
+class GhJsonError(GhError):
+    """``gh`` produced output that could not be decoded as JSON."""
+
+
+@dataclass
+class GhClient:
+    """Boundary around the ``gh`` CLI.
+
+    The CLI layer only ever talks to GitHub through this object. Tests replace
+    the ``runner`` callable with a fixture so subprocess execution is fully
+    controlled.
+    """
+
+    repo: str | None = None
+    executable: str = "gh"
+    runner: Callable[[Sequence[str]], subprocess.CompletedProcess[str]] | None = None
+
+    def _resolve_executable(self) -> str:
+        path = shutil.which(self.executable)
+        if path is None:
+            raise GhMissingError(
+                f"`{self.executable}` was not found on PATH. Install GitHub CLI"
+                " from https://cli.github.com/ and run `gh auth login`.",
+            )
+        return path
+
+    def _run(self, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        argv = [self._resolve_executable(), *args]
+        if self.runner is not None:
+            return self.runner(argv)
+        return subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    def _gh_args(self, args: Sequence[str], *, attach_repo: bool) -> list[str]:
+        result = list(args)
+        if attach_repo and self.repo is not None:
+            result += ["--repo", self.repo]
+        return result
+
+    def run_text(self, args: Sequence[str], *, attach_repo: bool = True) -> str:
+        """Invoke ``gh`` and return decoded stdout.
+
+        Raises :class:`GhCommandError` on a non-zero exit and
+        :class:`GhMissingError` if ``gh`` is not installed.
+        """
+        full_args = self._gh_args(args, attach_repo=attach_repo)
+        completed = self._run(full_args)
+        if completed.returncode != 0:
+            raise GhCommandError(
+                ["gh", *full_args], completed.returncode, completed.stderr or ""
+            )
+        return completed.stdout or ""
+
+    def run_json(self, args: Sequence[str], *, attach_repo: bool = True) -> object:
+        """Invoke ``gh`` and decode stdout as JSON."""
+        stdout = self.run_text(args, attach_repo=attach_repo)
+        try:
+            return json.loads(stdout)
+        except json.JSONDecodeError as exc:
+            preview = stdout[:200].replace("\n", " ")
+            raise GhJsonError(
+                "`gh` returned output that is not valid JSON"
+                f" (json error: {exc.msg}; first 200 chars: {preview!r})."
+            ) from exc
+
+    def default_branch(self) -> str:
+        """Return the default branch reported by ``gh repo view``."""
+        name = self.run_json(
+            [
+                "repo",
+                "view",
+                "--json",
+                "defaultBranchRef",
+                "--jq",
+                ".defaultBranchRef.name",
+            ]
+        )
+        if not isinstance(name, str) or not name.strip():
+            raise GhJsonError(
+                "`gh repo view` did not return a default branch name."
+            )
+        return name.strip()
+
+
+@dataclass
+class CliConfig:
+    """Parsed, validated CLI configuration."""
+
+    repo: str | None
+    branch: str | None
+    limit: int
+    tail: int
+    events: tuple[str, ...]
+    require: tuple[str, ...]
+    json_output: bool
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="last_workflow_set_status",
+        description=(
+            "Report the newest fully-completed set of GitHub Actions workflow"
+            " runs on a branch and whether every workflow in that set passed."
+        ),
+    )
+    parser.add_argument(
+        "-r",
+        "--repo",
+        default=None,
+        help="GitHub repository in OWNER/NAME form. Defaults to the repo of"
+        " the current working directory as resolved by `gh`.",
+    )
+    parser.add_argument(
+        "-b",
+        "--branch",
+        default=None,
+        help="Branch to inspect. Defaults to the repository default branch.",
+    )
+    parser.add_argument(
+        "-l",
+        "--limit",
+        type=int,
+        default=DEFAULT_LIMIT,
+        help=f"Maximum number of runs to fetch from `gh run list`."
+        f" Default: {DEFAULT_LIMIT}.",
+    )
+    parser.add_argument(
+        "-t",
+        "--tail",
+        type=int,
+        default=DEFAULT_TAIL,
+        help=f"Number of log lines to keep when tailing failed-run logs."
+        f" Default: {DEFAULT_TAIL}.",
+    )
+    parser.add_argument(
+        "-e",
+        "--event",
+        dest="events",
+        action="append",
+        default=None,
+        help="Workflow trigger event to include (repeatable). Default: push.",
+    )
+    parser.add_argument(
+        "-R",
+        "--require",
+        default="",
+        help="Comma-separated workflow names that must appear in the selected"
+        " set for it to count as complete. Default: empty (use whichever"
+        " workflows ran for the selected SHA).",
+    )
+    parser.add_argument(
+        "-j",
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="Emit machine-readable JSON instead of human-readable text.",
+    )
+    return parser
+
+
+def _parse_require(raw: str) -> tuple[str, ...]:
+    return tuple(name.strip() for name in raw.split(",") if name.strip())
+
+
+def parse_args(argv: Sequence[str]) -> CliConfig:
+    """Parse ``argv`` into a :class:`CliConfig`.
+
+    Raises ``SystemExit`` via argparse on malformed input. Additional
+    semantic validation (positive integers, etc.) is enforced here.
+    """
+    parser = _build_parser()
+    namespace = parser.parse_args(list(argv))
+
+    if namespace.limit <= 0:
+        parser.error("--limit must be a positive integer.")
+    if namespace.tail <= 0:
+        parser.error("--tail must be a positive integer.")
+    if namespace.repo is not None and "/" not in namespace.repo:
+        parser.error("--repo must be in OWNER/NAME form.")
+
+    events = tuple(namespace.events) if namespace.events else DEFAULT_EVENTS
+
+    return CliConfig(
+        repo=namespace.repo,
+        branch=namespace.branch,
+        limit=namespace.limit,
+        tail=namespace.tail,
+        events=events,
+        require=_parse_require(namespace.require),
+        json_output=bool(namespace.json_output),
+    )
+
+
+def resolve_branch(config: CliConfig, client: GhClient) -> str:
+    """Resolve the branch to inspect, falling back to ``gh``'s default."""
+    if config.branch:
+        return config.branch
+    return client.default_branch()
+
+
+def _format_phase1_placeholder(config: CliConfig, branch: str) -> str:
+    lines = [
+        "last_workflow_set_status: Phase 1 skeleton",
+        f"  repo:   {config.repo or '<auto-detected by gh>'}",
+        f"  branch: {branch}",
+        f"  limit:  {config.limit}",
+        f"  tail:   {config.tail}",
+        f"  events: {','.join(config.events)}",
+        f"  require: {','.join(config.require) if config.require else '(none)'}",
+        "",
+        "Run-set selection and pass/fail reporting are implemented in Phase 2"
+        " (sase-2z.2).",
+    ]
+    return "\n".join(lines)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """CLI entrypoint. Returns the process exit code."""
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+    try:
+        config = parse_args(raw_argv)
+    except SystemExit as exc:
+        return int(exc.code) if isinstance(exc.code, int) else EXIT_CONFIG_ERROR
+
+    client = GhClient(repo=config.repo)
+    try:
+        branch = resolve_branch(config, client)
+    except GhError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return exc.exit_code
+
+    if config.json_output:
+        payload = {
+            "phase": 1,
+            "repo": config.repo,
+            "branch": branch,
+            "limit": config.limit,
+            "tail": config.tail,
+            "events": list(config.events),
+            "require": list(config.require),
+        }
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(_format_phase1_placeholder(config, branch))
+    return EXIT_NO_COMPLETE_SET
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

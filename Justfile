@@ -233,6 +233,11 @@ docs-pdf-check: _venv
 sdd-validate: _setup
     {{ venv_bin }}/sase sdd validate
 
+# Report the status of the last fully-completed GitHub Actions workflow set.
+[positional-arguments]
+workflow-status *args:
+    @tools/last_workflow_set_status "$@"
+
 # Fix code, run linters, and run tests.
 all: fix lint pylimit test
 
