@@ -1,7 +1,7 @@
 """Background command list widget for the ace TUI.
 
-Shows a list of running commands (axe + background commands) when
-background commands are present.
+Renders the AXE-tab left sidebar as an operational tree of lumberjacks
+and their chops, with user/background commands grouped visually below.
 """
 
 from dataclasses import dataclass
@@ -48,6 +48,33 @@ class BgCmdItem:
 
 
 AxeItem = LumberjackItem | ChopItem | BgCmdItem
+
+
+# --- Row taxonomy palette ----------------------------------------------
+#
+# Each row family gets its own dominant hue so the three categories are
+# distinguishable at a glance even before reading the label text.
+#
+# - Lumberjacks: gold accent + bold name (top-level).
+# - Chops:      dimmer copper/amber, subordinate to the parent lumberjack.
+# - Bgcmds:     teal/cyan badge, clearly distinct from the AXE palette.
+
+_LJ_ACCENT_STYLE = "bold #FFD700"
+_LJ_NAME_STYLE = "#FFD700"
+_LJ_NAME_SELECTED_STYLE = "bold #FFD700"
+
+_CHOP_TREE_STYLE = "dim #FFD700"
+_CHOP_NAME_STYLE = "#D7AF87"
+_CHOP_NAME_SELECTED_STYLE = "bold #FFD700"
+
+_BGCMD_BADGE_STYLE = "bold #5FD7FF"
+_BGCMD_NAME_RUN_STYLE = "#5FD7FF"
+_BGCMD_NAME_RUN_SELECTED_STYLE = "bold #5FD7FF"
+_BGCMD_NAME_DONE_STYLE = "#87AFAF"
+_BGCMD_NAME_DONE_SELECTED_STYLE = "bold #87AFAF"
+
+_DIVIDER_STYLE = "dim #5FD7FF"
+_DIVIDER_LABEL = "── commands ──"
 
 
 class BgCmdList(OptionList):
@@ -120,9 +147,19 @@ class BgCmdList(OptionList):
 
         self.clear_options()
 
+        has_axe_rows = any(isinstance(i, (LumberjackItem, ChopItem)) for i in items)
+        has_bgcmds = any(isinstance(i, BgCmdItem) for i in items)
+        # Spacer divider gets rendered on the first bgcmd row when the
+        # sidebar contains both lumberjack/chop rows and bgcmd rows, so
+        # the user/background commands group is visually separated from
+        # the AXE-managed tree above.
+        show_bgcmd_divider = has_axe_rows and has_bgcmds
+        bgcmd_seen = False
+
         max_cell_len = 0
         for idx, item in enumerate(items):
             is_selected = idx == current_idx
+            hint_char = (jump_hints or {}).get(idx)
             match item:
                 case LumberjackItem(name=name):
                     if lumberjack_statuses is not None:
@@ -135,7 +172,7 @@ class BgCmdList(OptionList):
                         name=name,
                         status=lumberjack_status,
                         is_selected=is_selected,
-                        hint_char=(jump_hints or {}).get(idx),
+                        hint_char=hint_char,
                     )
                 case ChopItem(lumberjack_name=lj_name, chop_name=chop_name):
                     snap = (
@@ -148,7 +185,7 @@ class BgCmdList(OptionList):
                         chop_name=chop_name,
                         snapshot=snap,
                         is_selected=is_selected,
-                        hint_char=(jump_hints or {}).get(idx),
+                        hint_char=hint_char,
                     )
                 case BgCmdItem(slot=slot):
                     info = bgcmd_infos.get(slot)
@@ -156,16 +193,21 @@ class BgCmdList(OptionList):
                         running = bgcmd_running.get(slot, False)
                     else:
                         running = is_slot_running(slot)
+                    is_first_bgcmd = show_bgcmd_divider and not bgcmd_seen
+                    bgcmd_seen = True
                     option = self._format_bgcmd_option(
                         slot=slot,
                         info=info,
                         is_selected=is_selected,
                         is_running=running,
-                        hint_char=(jump_hints or {}).get(idx),
+                        hint_char=hint_char,
+                        show_divider=is_first_bgcmd,
                     )
             prompt = option.prompt
-            if isinstance(prompt, Text) and prompt.cell_len > max_cell_len:
-                max_cell_len = prompt.cell_len
+            if isinstance(prompt, Text):
+                content_len = _last_line_cell_len(prompt)
+                if content_len > max_cell_len:
+                    max_cell_len = content_len
             self.add_option(option)
 
         self._target_width = max_cell_len
@@ -194,6 +236,12 @@ class BgCmdList(OptionList):
         if hint_char is not None:
             text.append(f"[{hint_char}] ", style="bold #FFFF00")
 
+        # Strong top-level marker: a solid left accent bar in the
+        # lumberjack hue, immediately followed by the status/cycle
+        # affordance. The bar character is the visual cue that this row
+        # is a top-level section (chops indent under it).
+        text.append("▌ ", style=_LJ_ACCENT_STYLE)
+
         # Status indicator
         if status and status.status == "running":
             text.append("[", style="dim")
@@ -209,8 +257,18 @@ class BgCmdList(OptionList):
             text.append("] ", style="dim")
 
         # Name
-        label_style = "bold #FFD700" if is_selected else "#FFD700"
+        label_style = _LJ_NAME_SELECTED_STYLE if is_selected else _LJ_NAME_STYLE
         text.append(name, style=label_style)
+
+        # Optional compact status chip: cycles run / errors when known.
+        # Keeps the row a single line — the chip is appended at the end
+        # so long names still get the ellipsis treatment before the chip
+        # would be reached.
+        chip = _lumberjack_status_chip(status)
+        if chip is not None:
+            text.append("  ")
+            chip_label, chip_style = chip
+            text.append(chip_label, style=chip_style)
 
         return Option(text, id=f"lumberjack-{name}")
 
@@ -227,8 +285,10 @@ class BgCmdList(OptionList):
         if hint_char is not None:
             text.append(f"[{hint_char}] ", style="bold #FFFF00")
 
-        # Indent + tree connector to suggest a chop child under its parent.
-        text.append("  └─ ", style="dim")
+        # Tree connector — visually subordinates the chop to its parent
+        # lumberjack. The connector and indentation use the dim-gold
+        # taxonomy hue so the relationship reads at a glance.
+        text.append("  └─ ", style=_CHOP_TREE_STYLE)
 
         runs = snapshot.runs if snapshot is not None else []
         if runs:
@@ -249,7 +309,7 @@ class BgCmdList(OptionList):
         text.append(marker[1], style=marker[3])
         text.append(marker[2], style="dim")
 
-        label_style = "bold #FFD700" if is_selected else "#FFD700"
+        label_style = _CHOP_NAME_SELECTED_STYLE if is_selected else _CHOP_NAME_STYLE
         text.append(chop_name, style=label_style)
 
         return Option(text, id=f"chop-{lumberjack_name}-{chop_name}")
@@ -261,28 +321,47 @@ class BgCmdList(OptionList):
         is_selected: bool,
         is_running: bool,
         hint_char: str | None = None,
+        show_divider: bool = False,
     ) -> Option:
-        """Format a background command option for display."""
+        """Format a background command option for display.
+
+        When ``show_divider`` is True a one-line dim separator label is
+        prepended above the row so the user/background commands group is
+        visually separated from the lumberjack tree above. The divider
+        line participates in the option's height but does not contribute
+        to the requested sidebar width.
+        """
         text = Text(no_wrap=True, overflow="ellipsis")
+        if show_divider:
+            text.append(_DIVIDER_LABEL, style=_DIVIDER_STYLE)
+            text.append("\n")
         if hint_char is not None:
             text.append(f"[{hint_char}] ", style="bold #FFFF00")
 
-        # Hideable indicator
-        text.append("\u25cc ", style="bold #FF5F87")
+        # Slot badge: a clearly-labelled "#N" prefix in the bgcmd hue so
+        # user/background commands cannot be mistaken for AXE-managed
+        # lumberjack or chop rows.
+        text.append(f"#{slot} ", style=_BGCMD_BADGE_STYLE)
 
         # Status indicator: running (*) vs done (✓)
         text.append("[", style="dim")
         if is_running:
             text.append("*", style="bold #00D7AF")
         else:
-            text.append("\u2713", style="bold #FFD700")
+            text.append("✓", style="bold #FFD700")
         text.append("] ", style="dim")
 
         cmd_display = info.command if info else f"slot {slot}"
         if is_running:
-            label_style = "bold #00D7AF" if is_selected else "#00D7AF"
+            label_style = (
+                _BGCMD_NAME_RUN_SELECTED_STYLE if is_selected else _BGCMD_NAME_RUN_STYLE
+            )
         else:
-            label_style = "bold #FFD700" if is_selected else "#FFD700"
+            label_style = (
+                _BGCMD_NAME_DONE_SELECTED_STYLE
+                if is_selected
+                else _BGCMD_NAME_DONE_STYLE
+            )
         text.append(cmd_display, style=label_style)
 
         return Option(text, id=str(slot))
@@ -335,3 +414,31 @@ class BgCmdList(OptionList):
             and 0 <= event.option_index < self._item_count
         ):
             self.post_message(self.SelectionChanged(event.option_index))
+
+
+def _lumberjack_status_chip(status: Any) -> tuple[str, str] | None:
+    """Return a compact (label, style) chip for a lumberjack status, or None."""
+    if status is None:
+        return None
+    errors = getattr(status, "errors_encountered", 0) or 0
+    cycles = getattr(status, "cycles_run", 0) or 0
+    if errors > 0:
+        return (f"{errors}e", "bold red")
+    if cycles > 0:
+        return (f"{cycles}c", "dim")
+    return None
+
+
+def _last_line_cell_len(text: Text) -> int:
+    """Return the cell length of the last line of ``text``.
+
+    Rich's ``Text.cell_len`` totals all lines, which makes it the wrong
+    metric for width sizing of options whose prompts contain a leading
+    decorative divider line. We size on the data line only so the
+    divider can never inflate the requested panel width.
+    """
+    plain = text.plain
+    if "\n" not in plain:
+        return text.cell_len
+    last = plain.rsplit("\n", 1)[1]
+    return Text(last).cell_len
