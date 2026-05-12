@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 21:17:11
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_row_emojis.md
 ---
 # Plan: Choose better emojis for stopped and unread agent rows

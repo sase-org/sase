@@ -41,12 +41,12 @@ _RUNTIME_LIVE_MARKER = "🏃‍♂️ "
 _RUNTIME_LIVE_MARKER_STYLE = "#D7AF5F"
 # Completed-unread marker: occupies the same suffix slot as the live marker
 # so newly finished unseen rows scan where active runtimes did.
-_RUNTIME_UNREAD_COMPLETED_MARKER = "🎉 "
-_RUNTIME_UNREAD_COMPLETED_MARKER_STYLE = "#FFD75F"
+_RUNTIME_UNREAD_COMPLETED_MARKER = "📬 "
+_RUNTIME_UNREAD_COMPLETED_MARKER_STYLE = "#5FD7FF"
 # User-paused marker: same suffix slot, used when the row is waiting on
 # an explicit user action instead of active runtime.
-_RUNTIME_USER_PAUSED_MARKER = "🛑 "
-_RUNTIME_USER_PAUSED_MARKER_STYLE = "#FF5F5F"
+_RUNTIME_USER_PAUSED_MARKER = "✋ "
+_RUNTIME_USER_PAUSED_MARKER_STYLE = "#FFAF5F"
 _ACTIVITY_STYLE = "bold #D7AF5F"
 
 

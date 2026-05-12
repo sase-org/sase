@@ -506,8 +506,8 @@ default.
 
 The right-hand edge of each row carries a runtime suffix (`<start-timestamp> · <elapsed>`) right-aligned within the
 panel. Active rows that have actually started include a `🏃‍♂️` marker before the ticking elapsed duration; unread
-completed rows use a `🎉` marker in the same suffix slot; and user-paused rows (`PLANNING`, `QUESTION`, `WAITING INPUT`)
-use a `🛑` marker while waiting for a human response. Pre-run `WAITING` rows with no `BEGIN` time hide the suffix so
+completed rows use a `📬` marker in the same suffix slot; and user-paused rows (`PLANNING`, `QUESTION`, `WAITING INPUT`)
+use a `✋` marker while waiting for a human response. Pre-run `WAITING` rows with no `BEGIN` time hide the suffix so
 queued waits do not look like live runtime. For finished agents, the start-timestamp half is rendered as a humanized
 `(date_prefix, time)` pair sized to fit the existing 15-cell slot:
 
