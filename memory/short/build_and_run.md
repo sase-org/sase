@@ -13,3 +13,7 @@ just test-cov      # pytest with coverage + 50% gate (used by CI); also runs
 IMPORTANT: If you made file changes in this repo (the sase repo), make sure to run the `just check` command before
 terminating / replying to the user. EXCEPTION: If the only file changes you've made are bead changes (i.e. changes to
 files in the sdd/beads/ directory), then there is no point in running the `just check` command.
+
+### PNG Snapshot Tests
+
+TODO
