@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
-from dataclasses import dataclass
+import threading
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
+
+from textual.app import App, ComposeResult
 
 from sase.ace.agent_query.archive_planner import (
     ArchiveQueryError,
@@ -124,6 +129,131 @@ def _write_bundle(root: Path, **overrides: object) -> None:
     shard = root / raw_suffix[:6]
     shard.mkdir(parents=True, exist_ok=True)
     (shard / f"{raw_suffix}.json").write_text(json.dumps(bundle), encoding="utf-8")
+
+
+@dataclass
+class _RecordingProvider:
+    """Provider that records search calls and returns scripted pages."""
+
+    pages: dict[str, ArchiveQueryPage] = field(default_factory=dict)
+    calls: list[str] = field(default_factory=list)
+    delay_s: float = 0.0
+    started: threading.Event = field(default_factory=threading.Event)
+
+    def search(
+        self,
+        query: str,
+        *,
+        limit: int,
+        cursor: int | None = None,
+    ) -> ArchiveQueryPage:
+        self.calls.append(query)
+        self.started.set()
+        if self.delay_s:
+            time.sleep(self.delay_s)
+        return self.pages.get(query, ArchiveQueryPage(results=[], next_cursor=None))
+
+    def hydrate(self, result: ArchiveQueryResult) -> list[object]:
+        return []
+
+
+class _ModalTestApp(App[object | None]):
+    ENABLE_COMMAND_PALETTE = False
+
+    def compose(self) -> ComposeResult:
+        yield from ()
+
+
+async def _wait_for(predicate, *, timeout: float = 2.0, interval: float = 0.02) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        await asyncio.sleep(interval)
+    return predicate()
+
+
+async def test_typing_burst_debounces_to_single_search() -> None:
+    """Three keystrokes in quick succession should collapse to one search."""
+    provider = _RecordingProvider(
+        pages={
+            "": ArchiveQueryPage(results=[], next_cursor=None),
+            "f": ArchiveQueryPage(results=[], next_cursor=None),
+            "fo": ArchiveQueryPage(results=[], next_cursor=None),
+            "foo": ArchiveQueryPage(results=[], next_cursor=None),
+        }
+    )
+    modal = DismissedAgentSelectModal([], archive_query_provider=provider)
+
+    async with _ModalTestApp().run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await _wait_for(lambda: "" in provider.calls)
+        provider.calls.clear()
+
+        await pilot.press("f")
+        await pilot.press("o")
+        await pilot.press("o")
+        await pilot.pause(0.05)
+        assert provider.calls == []
+
+        await pilot.pause(0.2)
+        await _wait_for(lambda: "foo" in provider.calls)
+
+    assert provider.calls == ["foo"]
+
+
+async def test_enter_flushes_pending_archive_query() -> None:
+    """Pressing Enter must run the pending search synchronously and dismiss."""
+    provider = _RecordingProvider(
+        pages={
+            "": ArchiveQueryPage(results=[], next_cursor=None),
+            "x": ArchiveQueryPage(results=[], next_cursor=None),
+        }
+    )
+    modal = DismissedAgentSelectModal([], archive_query_provider=provider)
+
+    async with _ModalTestApp().run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await _wait_for(lambda: "" in provider.calls)
+        provider.calls.clear()
+
+        await pilot.press("x")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert "x" in provider.calls
+
+
+async def test_slow_provider_keeps_app_responsive() -> None:
+    """While the worker thread runs a slow search, keypresses still process."""
+    provider = _RecordingProvider(
+        pages={
+            "": ArchiveQueryPage(results=[], next_cursor=None),
+            "s": ArchiveQueryPage(results=[], next_cursor=None),
+        },
+        delay_s=0.4,
+    )
+    modal = DismissedAgentSelectModal([], archive_query_provider=provider)
+
+    async with _ModalTestApp().run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await _wait_for(lambda: "" in provider.calls)
+        provider.started.clear()
+        provider.calls.clear()
+
+        await pilot.press("s")
+        await pilot.pause(0.2)
+        await _wait_for(lambda: provider.started.is_set())
+
+        loop = asyncio.get_running_loop()
+        start = loop.time()
+        await pilot.pause()
+        elapsed = loop.time() - start
+
+    assert elapsed < 0.3
 
 
 def test_scoped_archive_provider_filters_structured_query_and_scope(

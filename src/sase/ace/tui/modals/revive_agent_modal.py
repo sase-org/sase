@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -11,6 +13,7 @@ from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from ..models.agent import Agent
+from ..util.debounce import DetailPanelDebouncer
 from .base import OptionListNavigationMixin
 from .revive_agent_filter_input import ReviveFilterInput
 from .revive_agent_formatting import ReviveAgentFormattingMixin
@@ -20,6 +23,9 @@ from .revive_agent_types import ArchiveQueryProvider, DismissedEntry
 _ArchiveQueryProvider = ArchiveQueryProvider
 _DismissedEntry = DismissedEntry
 _ReviveFilterInput = ReviveFilterInput
+
+_ARCHIVE_QUERY_DEBOUNCE_S = 0.15
+_ARCHIVE_WORKER_GROUP = "revive-archive"
 
 
 class DismissedAgentSelectModal(
@@ -74,6 +80,10 @@ class DismissedAgentSelectModal(
         self._archive_cursor: int | None = None
         self._archive_query = ""
         self._query_error: str | None = None
+        self._archive_debouncer: DetailPanelDebouncer | None = None
+        self._pending_archive_query: str | None = None
+        self._pending_archive_append = False
+        self._inflight_archive_query: str | None = None
 
     def on_mount(self) -> None:
         """Focus the filter input and pre-load chat contents."""
@@ -86,6 +96,21 @@ class DismissedAgentSelectModal(
         filter_input.focus()
         if self._filtered:
             self._update_preview_for_entry(self._filtered[0][1])
+
+        if self._archive_query_provider is not None:
+            self._archive_debouncer = DetailPanelDebouncer(
+                self.app, delay_s=_ARCHIVE_QUERY_DEBOUNCE_S
+            )
+            self._start_archive_worker("", append=False)
+
+    def on_unmount(self) -> None:
+        """Cancel pending debounce and any in-flight archive worker."""
+        if self._archive_debouncer is not None:
+            self._archive_debouncer.cancel()
+        try:
+            self.workers.cancel_group(self, _ARCHIVE_WORKER_GROUP)
+        except Exception:
+            pass
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
@@ -174,12 +199,15 @@ class DismissedAgentSelectModal(
         """Load the next page of archive-backed results."""
         if self._archive_query_provider is None or self._archive_cursor is None:
             return
-        self.refresh_archive_query(self._archive_query, append=True)
+        self._schedule_archive_query(self._archive_query, append=True)
 
     def refresh_archive_query(self, query: str, *, append: bool = False) -> bool:
         """Refresh entries from the archive provider.
 
         Invalid archive input leaves the previous valid result set intact.
+        Runs the provider call synchronously on the calling thread. The
+        modal also exposes :meth:`_schedule_archive_query` for the typing
+        path, which debounces and runs the search on a worker thread.
         """
         provider = self._archive_query_provider
         if provider is None:
@@ -194,6 +222,11 @@ class DismissedAgentSelectModal(
             self._update_hints_if_mounted()
             return False
 
+        self._apply_archive_page(query, append, page)
+        return True
+
+    def _apply_archive_page(self, query: str, append: bool, page: Any) -> None:
+        """Merge a provider result page into the modal state (UI thread)."""
         archive_entries = [
             DismissedEntry(archive_result=result) for result in page.results
         ]
@@ -238,7 +271,86 @@ class DismissedAgentSelectModal(
             self._update_hints()
         except Exception:
             pass
-        return True
+
+    def _schedule_archive_query(self, query: str, *, append: bool = False) -> None:
+        """Debounce and run an archive search on a worker thread."""
+        debouncer = self._archive_debouncer
+        if debouncer is None:
+            self.refresh_archive_query(query, append=append)
+            return
+
+        self._pending_archive_query = query
+        self._pending_archive_append = append
+        self._loading_archive = True
+        self._query_error = None
+        self._update_hints_if_mounted()
+        debouncer.schedule(self._run_pending_archive_query)
+
+    def _run_pending_archive_query(self) -> None:
+        """Fire the most recently scheduled archive search on a worker."""
+        query = self._pending_archive_query
+        if query is None:
+            return
+        append = self._pending_archive_append
+        self._pending_archive_query = None
+        self._pending_archive_append = False
+        self._start_archive_worker(query, append=append)
+
+    def _start_archive_worker(self, query: str, *, append: bool) -> None:
+        provider = self._archive_query_provider
+        if provider is None:
+            return
+        cursor = self._archive_cursor if append else None
+        page_size = self._page_size
+        self._inflight_archive_query = query
+        app = self.app
+
+        def _search() -> None:
+            try:
+                page = provider.search(query, limit=page_size, cursor=cursor)
+            except Exception as exc:
+                error = str(exc)
+                app.call_from_thread(self._on_archive_query_failed, query, error)
+                return
+            app.call_from_thread(self._on_archive_page_ready, query, append, page)
+
+        try:
+            self.run_worker(
+                _search,
+                thread=True,
+                exclusive=True,
+                group=_ARCHIVE_WORKER_GROUP,
+            )
+        except Exception as exc:
+            self._query_error = str(exc)
+            self._loading_archive = False
+            self._update_hints_if_mounted()
+
+    def _flush_pending_archive_query(self) -> bool:
+        """Cancel the debounce timer and run the pending search synchronously."""
+        debouncer = self._archive_debouncer
+        if debouncer is None or self._pending_archive_query is None:
+            return False
+        query = self._pending_archive_query
+        append = self._pending_archive_append
+        debouncer.cancel()
+        self._pending_archive_query = None
+        self._pending_archive_append = False
+        return self.refresh_archive_query(query, append=append)
+
+    def _on_archive_page_ready(self, query: str, append: bool, page: Any) -> None:
+        if query != self._inflight_archive_query:
+            return
+        self._inflight_archive_query = None
+        self._apply_archive_page(query, append, page)
+
+    def _on_archive_query_failed(self, query: str, error: str) -> None:
+        if query != self._inflight_archive_query:
+            return
+        self._inflight_archive_query = None
+        self._query_error = error
+        self._loading_archive = False
+        self._update_hints_if_mounted()
 
     def _update_hints_if_mounted(self) -> None:
         try:
@@ -304,7 +416,7 @@ class DismissedAgentSelectModal(
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle filter input change."""
         if self._archive_query_provider is not None:
-            self.refresh_archive_query(event.value)
+            self._schedule_archive_query(event.value)
             return
 
         self._filtered = self._get_filtered_entries(event.value)
@@ -334,6 +446,8 @@ class DismissedAgentSelectModal(
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in filter input."""
+        if self._archive_query_provider is not None:
+            self._flush_pending_archive_query()
         if self._marked:
             self.dismiss(self._get_marked_agents())
             return

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 19:23:45
-status: wip
+status: done
 prompt: sdd/prompts/202605/revive_modal_freeze.md
 ---
 # Plan: Fix TUI Freeze When Typing in Revive Modal

@@ -8,14 +8,48 @@ from unittest.mock import patch
 
 from sase.ace.archive_search_text import ARCHIVE_BUNDLE_SCHEMA_VERSION
 from sase.ace.dismissed_agents import (
+    ensure_dismissed_archive_ready,
     load_dismissed_bundle_summaries,
     load_dismissed_bundles,
     rebuild_dismissed_bundle_index,
     save_dismissed_bundle,
     verify_dismissed_bundle_index,
 )
+from sase.ace.dismissed_bundle_index import archive_index_exists
 from sase.ace.tui.models.agent import AgentType
 from tests._dismissed_agents_helpers import make_agent
+
+
+def test_ensure_dismissed_archive_ready_builds_index(tmp_path: Path) -> None:
+    """First call builds the index; subsequent calls short-circuit."""
+    bundles_dir = tmp_path / "bundles"
+    bundles_dir.mkdir()
+    shard = bundles_dir / "202506"
+    shard.mkdir()
+    (shard / "20250615100000.json").write_text(
+        json.dumps(
+            {
+                "raw_suffix": "20250615100000",
+                "agent_type": "run",
+                "cl_name": "ready_cl",
+                "agent_name": "ready_agent",
+                "status": "DONE",
+                "start_time": "2026-05-12T12:00:00",
+                "dismissed_at": "2026-05-12T12:30:00",
+                "project_file": "/tmp/projects/p/p.sase",
+                "model": "gpt",
+                "llm_provider": "codex",
+                "runtime": "codex",
+            }
+        )
+    )
+
+    with patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir):
+        assert not archive_index_exists(bundles_dir)
+        ensure_dismissed_archive_ready()
+        assert archive_index_exists(bundles_dir)
+        ensure_dismissed_archive_ready()
+        assert archive_index_exists(bundles_dir)
 
 
 def test_dismissed_bundle_index_rebuild_and_query(tmp_path: Path) -> None:

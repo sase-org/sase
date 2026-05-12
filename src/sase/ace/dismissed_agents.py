@@ -638,6 +638,21 @@ def load_dismissed_bundle_summaries(
         return []
 
 
+def ensure_dismissed_archive_ready() -> None:
+    """Run cold-start archive setup (migrations + index build).
+
+    Safe to call repeatedly; marker files and an index-existence check
+    short-circuit subsequent invocations. Intended to be invoked from a
+    worker thread before the revive modal issues queries so the first
+    keystroke does not pay the cold-start cost on the UI thread.
+    """
+    from .dismissed_bundle_index import archive_index_exists, rebuild_index
+
+    _run_dismissed_archive_maintenance()
+    if not archive_index_exists(_DISMISSED_BUNDLES_DIR):
+        rebuild_index(_DISMISSED_BUNDLES_DIR)
+
+
 def search_dismissed_archive(
     query: str,
     *,
@@ -646,12 +661,9 @@ def search_dismissed_archive(
 ) -> Any:
     """Search dismissed bundle summaries via the archive query planner."""
 
-    _run_dismissed_archive_maintenance()
     from .agent_query.archive_planner import search_archive
-    from .dismissed_bundle_index import archive_index_exists, rebuild_index
 
-    if not archive_index_exists(_DISMISSED_BUNDLES_DIR):
-        rebuild_index(_DISMISSED_BUNDLES_DIR)
+    ensure_dismissed_archive_ready()
     return search_archive(_DISMISSED_BUNDLES_DIR, query, limit=limit, cursor=cursor)
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from ._revive_artifacts import ArtifactRestorationMixin
 
@@ -221,6 +221,7 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
 
     def _revive_agent(self) -> None:
         """Show project selection modal, then dismissed agent selection."""
+        from ....dismissed_agents import ensure_dismissed_archive_ready
         from ...modals import ProjectSelectModal, ProjectSelectResult, SelectionItem
         from ._revive_log import log_revive_failure
 
@@ -230,6 +231,16 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             )
             self.notify("No dismissed agents to revive")  # type: ignore[attr-defined]
             return
+
+        try:
+            self.run_worker(  # type: ignore[attr-defined]
+                ensure_dismissed_archive_ready,
+                thread=True,
+                exclusive=True,
+                group="dismissed-archive-prewarm",
+            )
+        except Exception:
+            pass
 
         def _on_project_selected(result: ProjectSelectResult | None) -> None:
             if result is None:
@@ -278,16 +289,8 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         )
         self.app.push_screen(modal, _on_agents_selected)  # type: ignore[attr-defined]
 
-        async def _load_archive_for_modal() -> None:
-            modal.refresh_archive_query("")
-
         try:
-            self.run_worker(  # type: ignore[attr-defined]
-                cast(Any, _load_archive_for_modal),
-                thread=False,
-                exclusive=False,
-                group="dismissed-archive",
-            )
+            modal._schedule_archive_query("")
         except Exception:
             self.notify("Failed to load dismissed archive", severity="error")  # type: ignore[attr-defined]
 
