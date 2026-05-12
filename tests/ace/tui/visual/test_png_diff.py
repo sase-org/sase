@@ -63,6 +63,24 @@ def _fixture(
     )
 
 
+def _write_golden(tmp_path: Path, name: str, png: bytes) -> None:
+    golden = tmp_path / "snapshots" / "png" / name
+    golden.parent.mkdir(parents=True, exist_ok=True)
+    golden.write_bytes(png)
+
+
+def _clear_github_actions_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.delenv("GITHUB_WORKFLOW", raising=False)
+    monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+
+
+def _set_github_actions_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_WORKFLOW", "visual-test")
+    monkeypatch.setenv("GITHUB_RUN_ID", "123456")
+
+
 def test_update_mode_writes_png_golden(tmp_path: Path) -> None:
     ace_png_visual = _fixture(tmp_path, update=True)
     png = _png((255, 0, 0, 255), size=(1, 1))
@@ -75,20 +93,131 @@ def test_update_mode_writes_png_golden(tmp_path: Path) -> None:
 def test_matching_png_passes(tmp_path: Path) -> None:
     ace_png_visual = _fixture(tmp_path)
     png = _png((255, 0, 0, 255), size=(1, 1))
-    golden = tmp_path / "snapshots" / "png" / "matching.png"
-    golden.parent.mkdir(parents=True)
-    golden.write_bytes(png)
+    _write_golden(tmp_path, "matching.png", png)
 
     ace_png_visual.assert_png("matching", png)
+
+
+def test_local_default_fails_on_one_pixel_diff(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_github_actions_env(monkeypatch)
+    ace_png_visual = _fixture(tmp_path)
+    expected_pixels = [(255, 0, 0, 255)] * 100
+    actual_pixels = expected_pixels.copy()
+    actual_pixels[0] = (0, 0, 255, 255)
+    _write_golden(tmp_path, "local_strict.png", _png(*expected_pixels, size=(10, 10)))
+
+    with pytest.raises(AssertionError, match="local default"):
+        ace_png_visual.assert_png("local_strict", _png(*actual_pixels, size=(10, 10)))
+
+
+def test_github_actions_default_allows_one_percent_diff_without_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_github_actions_env(monkeypatch)
+    ace_png_visual = _fixture(tmp_path)
+    expected_pixels = [(255, 0, 0, 255)] * 100
+    actual_pixels = expected_pixels.copy()
+    actual_pixels[0] = (0, 0, 255, 255)
+    _write_golden(tmp_path, "ci_tolerated.png", _png(*expected_pixels, size=(10, 10)))
+
+    ace_png_visual.assert_png("ci_tolerated", _png(*actual_pixels, size=(10, 10)))
+
+    assert not (tmp_path / "artifacts").exists()
+
+
+def test_github_actions_marker_requires_workflow_context(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.delenv("GITHUB_WORKFLOW", raising=False)
+    monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+    ace_png_visual = _fixture(tmp_path)
+    expected_pixels = [(255, 0, 0, 255)] * 100
+    actual_pixels = expected_pixels.copy()
+    actual_pixels[0] = (0, 0, 255, 255)
+    _write_golden(
+        tmp_path,
+        "github_actions_without_workflow.png",
+        _png(*expected_pixels, size=(10, 10)),
+    )
+
+    with pytest.raises(AssertionError, match="local default"):
+        ace_png_visual.assert_png(
+            "github_actions_without_workflow",
+            _png(*actual_pixels, size=(10, 10)),
+        )
+
+
+def test_github_actions_default_fails_above_one_percent_and_writes_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_github_actions_env(monkeypatch)
+    ace_png_visual = _fixture(tmp_path)
+    expected_pixels = [(255, 0, 0, 255)] * 100
+    actual_pixels = expected_pixels.copy()
+    actual_pixels[0] = (0, 0, 255, 255)
+    actual_pixels[1] = (0, 0, 255, 255)
+    _write_golden(tmp_path, "ci_exceeded.png", _png(*expected_pixels, size=(10, 10)))
+
+    with pytest.raises(AssertionError, match="GitHub Actions default"):
+        ace_png_visual.assert_png("ci_exceeded", _png(*actual_pixels, size=(10, 10)))
+
+    failure_dir = (
+        tmp_path
+        / "artifacts"
+        / "tests_ace_tui_visual_test_png_diff.py__test_case"
+        / "ci_exceeded"
+    )
+    assert (failure_dir / "failure.json").exists()
+
+
+def test_github_actions_default_missing_golden_still_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_github_actions_env(monkeypatch)
+    ace_png_visual = _fixture(tmp_path)
+    actual = _png((0, 0, 255, 255), size=(1, 1))
+
+    with pytest.raises(AssertionError, match="Missing ACE PNG snapshot golden"):
+        ace_png_visual.assert_png("ci_missing", actual)
+
+
+def test_explicit_strict_tolerance_overrides_github_actions_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_github_actions_env(monkeypatch)
+    ace_png_visual = _fixture(tmp_path)
+    expected_pixels = [(255, 0, 0, 255)] * 100
+    actual_pixels = expected_pixels.copy()
+    actual_pixels[0] = (0, 0, 255, 255)
+    _write_golden(
+        tmp_path,
+        "ci_explicit_strict.png",
+        _png(*expected_pixels, size=(10, 10)),
+    )
+
+    with pytest.raises(AssertionError, match="explicit"):
+        ace_png_visual.assert_png(
+            "ci_explicit_strict",
+            _png(*actual_pixels, size=(10, 10)),
+            max_diff_pixels=0,
+            max_diff_ratio=0.0,
+        )
 
 
 def test_mismatched_png_writes_failure_artifacts(tmp_path: Path) -> None:
     ace_png_visual = _fixture(tmp_path)
     expected = _png((255, 0, 0, 255), (0, 255, 0, 255), size=(2, 1))
     actual = _png((255, 0, 0, 255), (0, 0, 255, 255), size=(2, 1))
-    golden = tmp_path / "snapshots" / "png" / "mismatch.png"
-    golden.parent.mkdir(parents=True)
-    golden.write_bytes(expected)
+    _write_golden(tmp_path, "mismatch.png", expected)
 
     with pytest.raises(AssertionError, match="Changed pixels: 1/2"):
         ace_png_visual.assert_png("mismatch.png", actual, source_svg="<svg />")
