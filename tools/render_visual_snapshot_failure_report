@@ -1,0 +1,620 @@
+#!/usr/bin/env python3
+"""Render the ACE PNG visual snapshot failure report.
+
+Consumes ``failure.json`` sidecars written by
+``tests/ace/tui/visual/png_diff.py`` and produces:
+
+* ``visual-failure-report.html`` - self-contained HTML with embedded PNG/SVG
+* ``summary.md`` - compact GitHub job-summary table
+* ``annotations.sh`` - shell script of escaped workflow-command annotations
+* ``manifest.jsonl`` - aggregate JSONL view of all failure records
+"""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import html
+import json
+import sys
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+
+DEFAULT_ARTIFACT_ROOT = Path(".pytest_cache/sase-visual")
+DEFAULT_OUTPUT_DIR = Path(".pytest_cache/sase-visual-report")
+HTML_REPORT_NAME = "visual-failure-report.html"
+SUMMARY_NAME = "summary.md"
+ANNOTATIONS_NAME = "annotations.sh"
+MANIFEST_NAME = "manifest.jsonl"
+
+
+@dataclass(frozen=True)
+class FailureRecord:
+    """Failure metadata loaded from a ``failure.json`` sidecar."""
+
+    node_id: str
+    snapshot: str
+    kind: str
+    expected_repo_path: str
+    actual_path: str
+    summary_path: str
+    test_file: str | None
+    test_line: int | None
+    expected_path: str | None
+    diff_path: str | None
+    source_svg_path: str | None
+    expected_size: tuple[int, int] | None
+    actual_size: tuple[int, int] | None
+    changed_pixels: int | None
+    total_pixels: int | None
+    changed_ratio: float | None
+    source_file: Path
+
+    @property
+    def anchor(self) -> str:
+        return f"failure-{_slug(self.node_id)}-{_slug(self.snapshot)}"
+
+
+@dataclass(frozen=True)
+class RenderContext:
+    """Inputs that depend on the surrounding CI environment."""
+
+    repo: str | None
+    sha: str | None
+    report_url: str | None
+
+
+def parse_args(argv: Sequence[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Render the ACE PNG visual snapshot failure report from "
+            "failure.json sidecars."
+        )
+    )
+    parser.add_argument(
+        "--artifact-root",
+        type=Path,
+        default=DEFAULT_ARTIFACT_ROOT,
+        help=(
+            "Directory containing per-failure subtrees with failure.json "
+            "sidecars (default: %(default)s)."
+        ),
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=DEFAULT_OUTPUT_DIR,
+        help="Directory to write report files into (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--repo",
+        default=None,
+        help=(
+            "GitHub repository in 'owner/name' form. Used to link the "
+            "committed expected golden."
+        ),
+    )
+    parser.add_argument(
+        "--sha",
+        default=None,
+        help="Git commit SHA to anchor expected-image blob URLs against.",
+    )
+    parser.add_argument(
+        "--report-url",
+        default=None,
+        help=(
+            "URL where the uploaded HTML report will be served. When "
+            "provided, summary actual/diff links resolve to "
+            "${report_url}#<anchor>; otherwise they are bare fragments."
+        ),
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(list(argv) if argv is not None else sys.argv[1:])
+    context = RenderContext(
+        repo=args.repo, sha=args.sha, report_url=args.report_url
+    )
+    artifact_root: Path = args.artifact_root
+    output_dir: Path = args.output_dir
+
+    records = list(discover_records(artifact_root))
+    write_outputs(records, output_dir=output_dir, context=context)
+    return 0
+
+
+def discover_records(artifact_root: Path) -> Iterable[FailureRecord]:
+    """Yield ``FailureRecord`` instances under *artifact_root*."""
+    if not artifact_root.exists():
+        return
+    for path in sorted(artifact_root.rglob("failure.json")):
+        yield load_record(path)
+
+
+def load_record(path: Path) -> FailureRecord:
+    """Load a single ``failure.json`` sidecar into a ``FailureRecord``."""
+    data: dict[str, Any] = json.loads(path.read_text())
+    expected_size = _as_size(data.get("expected_size"))
+    actual_size = _as_size(data.get("actual_size"))
+    return FailureRecord(
+        node_id=str(data["node_id"]),
+        snapshot=str(data["snapshot"]),
+        kind=str(data["kind"]),
+        expected_repo_path=str(data["expected_repo_path"]),
+        actual_path=str(data["actual_path"]),
+        summary_path=str(data["summary_path"]),
+        test_file=_as_optional_str(data.get("test_file")),
+        test_line=_as_optional_int(data.get("test_line")),
+        expected_path=_as_optional_str(data.get("expected_path")),
+        diff_path=_as_optional_str(data.get("diff_path")),
+        source_svg_path=_as_optional_str(data.get("source_svg_path")),
+        expected_size=expected_size,
+        actual_size=actual_size,
+        changed_pixels=_as_optional_int(data.get("changed_pixels")),
+        total_pixels=_as_optional_int(data.get("total_pixels")),
+        changed_ratio=_as_optional_float(data.get("changed_ratio")),
+        source_file=path,
+    )
+
+
+def write_outputs(
+    records: Sequence[FailureRecord],
+    *,
+    output_dir: Path,
+    context: RenderContext,
+) -> None:
+    """Write the four report files into *output_dir*."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / HTML_REPORT_NAME).write_text(
+        render_html(records, context=context)
+    )
+    (output_dir / SUMMARY_NAME).write_text(
+        render_summary(records, context=context)
+    )
+    (output_dir / ANNOTATIONS_NAME).write_text(
+        render_annotations(records)
+    )
+    (output_dir / MANIFEST_NAME).write_text(
+        render_manifest(records)
+    )
+
+
+def render_html(
+    records: Sequence[FailureRecord],
+    *,
+    context: RenderContext,
+) -> str:
+    """Render the self-contained HTML report."""
+    body_parts: list[str] = []
+    if not records:
+        body_parts.append(
+            "<p class=\"empty\">No ACE PNG snapshot failures were recorded.</p>"
+        )
+    else:
+        body_parts.append(
+            f"<p class=\"count\">{len(records)} ACE PNG snapshot failure(s).</p>"
+        )
+        for record in records:
+            body_parts.append(_render_html_section(record, context=context))
+
+    body = "\n".join(body_parts)
+    return _HTML_TEMPLATE.format(body=body)
+
+
+def _render_html_section(
+    record: FailureRecord,
+    *,
+    context: RenderContext,
+) -> str:
+    title = html.escape(record.snapshot)
+    node = html.escape(record.node_id)
+    anchor = html.escape(record.anchor)
+    location = _format_location(record)
+    expected_link = _format_expected_link_html(record, context=context)
+    stats = _format_stats_html(record)
+
+    image_blocks = []
+    diff_block = _image_block("diff", record.diff_path, record.source_file)
+    expected_block = _image_block(
+        "expected", record.expected_path, record.source_file
+    )
+    actual_block = _image_block(
+        "actual", record.actual_path, record.source_file
+    )
+    if diff_block is not None:
+        image_blocks.append(diff_block)
+    if expected_block is not None:
+        image_blocks.append(expected_block)
+    if actual_block is not None:
+        image_blocks.append(actual_block)
+    images_html = "\n".join(image_blocks)
+
+    svg_block = _svg_block(record)
+
+    return (
+        f'<section class="failure" id="{anchor}">\n'
+        f'<h2><a href="#{anchor}">{title}</a></h2>\n'
+        f'<p class="meta"><span class="kind">{html.escape(record.kind)}</span> '
+        f'<span class="node">{node}</span></p>\n'
+        f'{location}'
+        f'{expected_link}'
+        f'{stats}'
+        f'<div class="images">{images_html}</div>\n'
+        f'{svg_block}'
+        f'</section>'
+    )
+
+
+def _image_block(label: str, repo_path: str | None, source_file: Path) -> str | None:
+    if repo_path is None:
+        return None
+    data_uri = _data_uri_for(repo_path, source_file)
+    if data_uri is None:
+        return (
+            f'<figure class="img img-{label}">'
+            f'<figcaption>{html.escape(label)}</figcaption>'
+            f'<p class="missing">file not found: '
+            f'{html.escape(repo_path)}</p>'
+            f'</figure>'
+        )
+    return (
+        f'<figure class="img img-{label}">'
+        f'<figcaption>{html.escape(label)}</figcaption>'
+        f'<img alt="{html.escape(label)}" src="{data_uri}" />'
+        f'</figure>'
+    )
+
+
+def _svg_block(record: FailureRecord) -> str:
+    if record.source_svg_path is None:
+        return ""
+    svg_text = _read_text_or_none(record.source_svg_path, record.source_file)
+    if svg_text is None:
+        return (
+            '<details class="svg"><summary>actual.svg</summary>'
+            '<p class="missing">file not found: '
+            f'{html.escape(record.source_svg_path)}</p>'
+            '</details>\n'
+        )
+    return (
+        '<details class="svg"><summary>actual.svg</summary>'
+        f'<pre><code>{html.escape(svg_text)}</code></pre>'
+        '</details>\n'
+    )
+
+
+def _format_location(record: FailureRecord) -> str:
+    if record.test_file is None:
+        return ""
+    line = (
+        f":{record.test_line}" if record.test_line is not None else ""
+    )
+    return (
+        f'<p class="location">{html.escape(record.test_file)}{html.escape(line)}</p>\n'
+    )
+
+
+def _format_expected_link_html(
+    record: FailureRecord,
+    *,
+    context: RenderContext,
+) -> str:
+    href = expected_blob_url(record.expected_repo_path, context)
+    text = html.escape(record.expected_repo_path)
+    if href is None:
+        return f'<p class="expected-path">expected: {text}</p>\n'
+    return (
+        f'<p class="expected-path">expected: '
+        f'<a href="{html.escape(href)}">{text}</a></p>\n'
+    )
+
+
+def _format_stats_html(record: FailureRecord) -> str:
+    if record.changed_pixels is None or record.total_pixels is None:
+        return ""
+    ratio = record.changed_ratio if record.changed_ratio is not None else 0.0
+    return (
+        f'<p class="stats">changed pixels: '
+        f'{record.changed_pixels}/{record.total_pixels} ({ratio:.6%})</p>\n'
+    )
+
+
+def render_summary(
+    records: Sequence[FailureRecord],
+    *,
+    context: RenderContext,
+) -> str:
+    """Render the compact ``summary.md`` GitHub job summary."""
+    if not records:
+        return "# ACE PNG snapshot failures\n\nNo failures recorded.\n"
+
+    lines: list[str] = []
+    lines.append("# ACE PNG snapshot failures")
+    lines.append("")
+    lines.append(
+        f"{len(records)} ACE PNG snapshot failure(s)."
+    )
+    lines.append("")
+    lines.append(
+        "| Snapshot | Kind | Test | Expected | Actual | Diff |"
+    )
+    lines.append(
+        "| --- | --- | --- | --- | --- | --- |"
+    )
+    for record in records:
+        snapshot = _md_text(record.snapshot)
+        kind = _md_text(record.kind)
+        test = _format_md_test(record)
+        expected = _format_md_expected(record, context=context)
+        actual = _format_md_anchor_link("actual", record, context=context)
+        diff = (
+            _format_md_anchor_link("diff", record, context=context)
+            if record.diff_path is not None
+            else "—"
+        )
+        lines.append(
+            f"| {snapshot} | {kind} | {test} | {expected} | {actual} | {diff} |"
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _format_md_test(record: FailureRecord) -> str:
+    if record.test_file is None:
+        return _md_text(record.node_id)
+    if record.test_line is None:
+        return f"`{_md_text(record.test_file)}`"
+    return f"`{_md_text(record.test_file)}:{record.test_line}`"
+
+
+def _format_md_expected(
+    record: FailureRecord, *, context: RenderContext
+) -> str:
+    href = expected_blob_url(record.expected_repo_path, context)
+    text = _md_text(record.expected_repo_path)
+    if href is None:
+        return f"`{text}`"
+    return f"[`{text}`]({href})"
+
+
+def _format_md_anchor_link(
+    label: str, record: FailureRecord, *, context: RenderContext
+) -> str:
+    anchor = record.anchor
+    if context.report_url:
+        href = f"{context.report_url}#{anchor}"
+    else:
+        href = f"#{anchor}"
+    return f"[{label}]({href})"
+
+
+def expected_blob_url(
+    expected_repo_path: str, context: RenderContext
+) -> str | None:
+    """Build the GitHub blob URL for the committed expected golden."""
+    if not context.repo or not context.sha:
+        return None
+    return (
+        f"https://github.com/{context.repo}/blob/{context.sha}/"
+        f"{expected_repo_path}"
+    )
+
+
+def render_annotations(records: Sequence[FailureRecord]) -> str:
+    """Render the ``annotations.sh`` workflow-command script."""
+    lines: list[str] = ["#!/usr/bin/env bash", "set -euo pipefail", ""]
+    if not records:
+        return "\n".join(lines) + "\n"
+    for record in records:
+        lines.append(_annotation_line(record))
+    return "\n".join(lines) + "\n"
+
+
+def _annotation_line(record: FailureRecord) -> str:
+    properties: list[str] = []
+    if record.test_file is not None:
+        properties.append(f"file={_escape_property(record.test_file)}")
+    if record.test_line is not None:
+        properties.append(f"line={record.test_line}")
+    title = _annotation_title(record)
+    properties.append(f"title={_escape_property(title)}")
+    message = _annotation_message(record)
+    prefix = "::error " + ",".join(properties)
+    return f"echo '{_shell_escape(prefix + '::' + _escape_data(message))}'"
+
+
+def _annotation_title(record: FailureRecord) -> str:
+    if record.kind == "missing_golden":
+        return "ACE PNG snapshot missing golden"
+    return "ACE PNG snapshot mismatch"
+
+
+def _annotation_message(record: FailureRecord) -> str:
+    parts = [f"{record.snapshot}: {record.kind}"]
+    if (
+        record.changed_pixels is not None
+        and record.total_pixels is not None
+    ):
+        ratio = (
+            record.changed_ratio if record.changed_ratio is not None else 0.0
+        )
+        parts.append(
+            f"changed pixels {record.changed_pixels}/{record.total_pixels} "
+            f"({ratio:.6%})"
+        )
+    parts.append(f"expected={record.expected_repo_path}")
+    return " | ".join(parts)
+
+
+def render_manifest(records: Sequence[FailureRecord]) -> str:
+    """Render the JSONL manifest aggregating all failure records."""
+    lines: list[str] = []
+    for record in records:
+        payload: dict[str, Any] = {
+            "node_id": record.node_id,
+            "snapshot": record.snapshot,
+            "kind": record.kind,
+            "expected_repo_path": record.expected_repo_path,
+            "actual_path": record.actual_path,
+            "summary_path": record.summary_path,
+            "test_file": record.test_file,
+            "test_line": record.test_line,
+            "anchor": record.anchor,
+        }
+        if record.expected_path is not None:
+            payload["expected_path"] = record.expected_path
+        if record.diff_path is not None:
+            payload["diff_path"] = record.diff_path
+        if record.source_svg_path is not None:
+            payload["source_svg_path"] = record.source_svg_path
+        if record.expected_size is not None:
+            payload["expected_size"] = list(record.expected_size)
+        if record.actual_size is not None:
+            payload["actual_size"] = list(record.actual_size)
+        if record.changed_pixels is not None:
+            payload["changed_pixels"] = record.changed_pixels
+        if record.total_pixels is not None:
+            payload["total_pixels"] = record.total_pixels
+        if record.changed_ratio is not None:
+            payload["changed_ratio"] = record.changed_ratio
+        lines.append(json.dumps(payload, sort_keys=True))
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _data_uri_for(repo_path: str, source_file: Path) -> str | None:
+    target = _resolve_repo_path(repo_path, source_file)
+    if target is None or not target.exists():
+        return None
+    encoded = base64.b64encode(target.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
+
+
+def _read_text_or_none(repo_path: str, source_file: Path) -> str | None:
+    target = _resolve_repo_path(repo_path, source_file)
+    if target is None or not target.exists():
+        return None
+    return target.read_text()
+
+
+def _resolve_repo_path(repo_path: str, source_file: Path) -> Path | None:
+    """Locate the on-disk file referenced by *repo_path*.
+
+    Records store paths relative to the repo root, but the renderer may
+    be pointed at an arbitrary artifact tree. We try the path as-is and
+    then walk upward from the sidecar location to find a matching root.
+    """
+    candidate = Path(repo_path)
+    if candidate.is_absolute() and candidate.exists():
+        return candidate
+    cwd_candidate = Path.cwd() / candidate
+    if cwd_candidate.exists():
+        return cwd_candidate
+    parent = source_file.parent
+    while True:
+        guess = parent / candidate
+        if guess.exists():
+            return guess
+        if parent.parent == parent:
+            return None
+        parent = parent.parent
+
+
+def _slug(value: str) -> str:
+    chars = [char if char.isalnum() or char in "._-" else "_" for char in value]
+    slug = "".join(chars).strip("._-")
+    return slug or "snapshot"
+
+
+def _as_size(value: Any) -> tuple[int, int] | None:
+    if value is None:
+        return None
+    if not isinstance(value, list) or len(value) != 2:
+        return None
+    return int(value[0]), int(value[1])
+
+
+def _as_optional_str(value: Any) -> str | None:
+    return None if value is None else str(value)
+
+
+def _as_optional_int(value: Any) -> int | None:
+    return None if value is None else int(value)
+
+
+def _as_optional_float(value: Any) -> float | None:
+    return None if value is None else float(value)
+
+
+def _md_text(value: str) -> str:
+    return value.replace("|", r"\|").replace("\n", " ")
+
+
+def _escape_property(value: str) -> str:
+    return (
+        value.replace("%", "%25")
+        .replace("\r", "%0D")
+        .replace("\n", "%0A")
+        .replace(":", "%3A")
+        .replace(",", "%2C")
+    )
+
+
+def _escape_data(value: str) -> str:
+    return (
+        value.replace("%", "%25")
+        .replace("\r", "%0D")
+        .replace("\n", "%0A")
+    )
+
+
+def _shell_escape(value: str) -> str:
+    return value.replace("'", "'\\''")
+
+
+_HTML_TEMPLATE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>ACE PNG snapshot failure report</title>
+<style>
+body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+       margin: 2rem auto; max-width: 60rem; padding: 0 1rem; }}
+h1 {{ margin-bottom: 0.25rem; }}
+.failure {{ border: 1px solid #d0d7de; border-radius: 6px;
+            padding: 1rem; margin: 1.25rem 0; }}
+.failure h2 a {{ color: inherit; text-decoration: none; }}
+.meta {{ color: #57606a; margin: 0.1rem 0; }}
+.kind {{ display: inline-block; padding: 0.05rem 0.4rem; border-radius: 2em;
+         background: #ffebe9; color: #82071e; margin-right: 0.4rem;
+         font-size: 0.85rem; }}
+.images {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+           gap: 1rem; }}
+.images figure {{ margin: 0; }}
+.images img {{ max-width: 100%; border: 1px solid #d0d7de;
+               background: repeating-conic-gradient(#eee 0 25%, #fff 0 50%)
+                  50% / 16px 16px; }}
+.images figcaption {{ font-weight: 600; margin-bottom: 0.25rem; }}
+.svg pre {{ background: #f6f8fa; padding: 0.5rem; overflow: auto; }}
+.missing {{ color: #82071e; }}
+.empty {{ color: #57606a; font-style: italic; }}
+</style>
+</head>
+<body>
+<h1>ACE PNG snapshot failure report</h1>
+{body}
+</body>
+</html>
+"""
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
