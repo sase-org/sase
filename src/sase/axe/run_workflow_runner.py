@@ -146,6 +146,7 @@ def main() -> None:
 
         # Change to workspace directory
         os.chdir(workspace_dir)
+        os.environ["SASE_ACTIVE_PROJECT_DIR"] = workspace_dir
 
         # Ensure artifacts directory exists
         os.makedirs(artifacts_dir, exist_ok=True)

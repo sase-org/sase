@@ -190,6 +190,7 @@ def main() -> None:
 
             # Change to workspace directory
             os.chdir(workspace_dir)
+            os.environ["SASE_ACTIVE_PROJECT_DIR"] = workspace_dir
 
             # Generate dynamic memory before agent starts. The on-disk files
             # written here may be wiped by embedded-workflow pre-steps (e.g.

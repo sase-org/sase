@@ -27,6 +27,19 @@ def _remove_inherited_workspace_preallocation_env(env: dict[str, str]) -> None:
             env.pop(key, None)
 
 
+def _overwrite_project_dir_env(env: dict[str, str], workspace_dir: str) -> None:
+    """Bind project-dir env vars to the spawned child's actual workspace.
+
+    The parent's ``os.environ`` may carry stale values from
+    ``apply_chdir_output()`` workflow mutations; without this rewrite they
+    would shadow the child's true workspace when ``_resolve_codex_project_dir``
+    consults env before cwd.
+    """
+    if workspace_dir:
+        env["SASE_ACTIVE_PROJECT_DIR"] = workspace_dir
+    env.pop("CODEX_PROJECT_DIR", None)
+
+
 @lru_cache(maxsize=1)
 def _get_runner_script() -> str:
     import importlib.util
@@ -173,6 +186,7 @@ def spawn_agent_subprocess(
         _remove_inherited_sase_codex_home(subprocess_env)
         _remove_inherited_workspace_preallocation_env(subprocess_env)
         subprocess_env.update(prepared.env_delta)
+        _overwrite_project_dir_env(subprocess_env, workspace_dir)
 
     resolved_project_name = project_name or (
         "home" if is_home_mode else os.path.basename(os.path.dirname(project_file))

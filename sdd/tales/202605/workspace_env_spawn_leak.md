@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 19:15:38
-status: wip
+status: done
 prompt: sdd/prompts/202605/workspace_env_spawn_leak.md
 ---
 # Fix workspace-env leak across agent spawns

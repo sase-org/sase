@@ -486,6 +486,45 @@ class TestDeferredWorkspacePreparation:
         claim_mock.assert_called_once()
         chdir_mock.assert_called_once_with(str(workspace_dir))
 
+    def test_claim_deferred_workspace_sets_active_project_dir_on_chdir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Runner chdir must also rewrite SASE_ACTIVE_PROJECT_DIR.
+
+        Mirrors the spawn-boundary fix: if a chdir leaves the env stale, a
+        later Codex commit fallback will inspect the wrong workspace.
+        """
+        from sase.axe.run_agent_phases import claim_deferred_workspace
+
+        workspace_dir = tmp_path / "ws7"
+        monkeypatch.setenv("SASE_ACTIVE_PROJECT_DIR", "/stale/parent")
+
+        with (
+            patch("sase.running_field.release_workspace"),
+            patch(
+                "sase.running_field.get_first_available_axe_workspace",
+                return_value=7,
+            ),
+            patch(
+                "sase.running_field.get_workspace_directory_for_num",
+                return_value=(str(workspace_dir), None),
+            ),
+            patch(
+                "sase.running_field.claim_workspace",
+                return_value=ClaimResult(success=True),
+            ),
+            patch("sase.axe.run_agent_phases.os.chdir"),
+        ):
+            claim_deferred_workspace(
+                str(tmp_path / "project.sase"),
+                "test-project",
+                "test-workflow",
+                "test-cl",
+                "20260316_120000",
+            )
+
+        assert os.environ["SASE_ACTIVE_PROJECT_DIR"] == str(workspace_dir)
+
     def test_claim_deferred_workspace_retries_claim_race(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

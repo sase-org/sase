@@ -133,6 +133,92 @@ def test_spawn_git_home_sets_preallocated_workspace_env(
     transfer.assert_not_called()
 
 
+def _spawn_with_captured_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    workspace: Path,
+) -> dict[str, str]:
+    """Drive ``spawn_agent_subprocess`` and return the env passed to the child."""
+    patch_cd_git_metadata(monkeypatch)
+    from sase.agent.launcher import spawn_agent_subprocess
+
+    output = tmp_path / "agent.log"
+    captured_env: dict[str, str] = {}
+
+    def fake_spawn(
+        _prepared: object,
+        *,
+        env: dict[str, str],
+        claim_callback: Callable[[int], bool] | None = None,
+    ) -> int:
+        captured_env.update(env)
+        if claim_callback is not None:
+            assert claim_callback(12345) is True
+        return 12345
+
+    with (
+        patch("sase.core.paths.sharded_path", return_value=str(output)),
+        patch(
+            "sase.core.agent_launch_facade.spawn_prepared_agent_process",
+            side_effect=fake_spawn,
+        ),
+        patch(
+            "sase.running_field.claim_workspace",
+            return_value=ClaimResult(success=True),
+        ),
+        patch(
+            "sase.running_field.transfer_workspace_claim",
+            return_value=ClaimResult(success=True),
+        ),
+        patch("sase.axe.chop_agents.record_chop_agent_launch_from_env"),
+    ):
+        spawn_agent_subprocess(
+            cl_name="home",
+            project_file=str(tmp_path / "home.sase"),
+            workspace_dir=str(workspace),
+            workspace_num=101,
+            workflow_name="ace(run)-ts",
+            prompt="#git:home do work",
+            timestamp="20260512190000",
+            project_name="home",
+            is_home_mode=False,
+            vcs_ref=("git", "home"),
+        )
+    return captured_env
+
+
+def test_spawn_agent_subprocess_overwrites_stale_active_project_dir(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Parent's stale SASE_ACTIVE_PROJECT_DIR must not leak into the child."""
+    stale_dir = tmp_path / "stale-parent-workspace"
+    stale_dir.mkdir()
+    workspace = tmp_path / "child-workspace"
+    workspace.mkdir()
+    monkeypatch.setenv("SASE_ACTIVE_PROJECT_DIR", str(stale_dir))
+
+    captured_env = _spawn_with_captured_env(monkeypatch, tmp_path, workspace)
+
+    assert captured_env["SASE_ACTIVE_PROJECT_DIR"] == str(workspace)
+
+
+def test_spawn_agent_subprocess_strips_stale_codex_project_dir(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Inherited CODEX_PROJECT_DIR must be stripped at the spawn boundary."""
+    stale_dir = tmp_path / "stale-parent-workspace"
+    stale_dir.mkdir()
+    workspace = tmp_path / "child-workspace"
+    workspace.mkdir()
+    monkeypatch.setenv("CODEX_PROJECT_DIR", str(stale_dir))
+
+    captured_env = _spawn_with_captured_env(monkeypatch, tmp_path, workspace)
+
+    assert "CODEX_PROJECT_DIR" not in captured_env
+
+
 def test_default_git_home_auto_initializes_incomplete_home_project(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

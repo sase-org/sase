@@ -186,6 +186,7 @@ def handle_workflow_error(
                 project_basename=ctx.project_name,
             )
         os.chdir(ctx.workspace_dir)
+        os.environ["SASE_ACTIVE_PROJECT_DIR"] = ctx.workspace_dir
         tracker.attempt_start_epoch = time.time()
         return "continue"
 
@@ -221,6 +222,7 @@ def handle_workflow_error(
                 project_basename=ctx.project_name,
             )
         os.chdir(ctx.workspace_dir)
+        os.environ["SASE_ACTIVE_PROJECT_DIR"] = ctx.workspace_dir
         tracker.attempt_start_epoch = time.time()
         return "continue"
 

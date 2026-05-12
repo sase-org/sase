@@ -592,6 +592,7 @@ def claim_deferred_workspace(
         sys.exit(1)
 
     os.chdir(workspace_dir)
+    os.environ["SASE_ACTIVE_PROJECT_DIR"] = workspace_dir
     print(f"Claimed workspace #{workspace_num}: {workspace_dir}")
     return workspace_num, workspace_dir
 
