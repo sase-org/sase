@@ -139,7 +139,9 @@ def test_revive_grouping_restores_children_loaded_from_child_bundle_filenames(
 
     with (
         patch("sase.ace.dismissed_agents.save_dismissed_agents"),
-        patch("sase.ace.dismissed_agents.remove_bundle_by_identity") as mock_remove,
+        patch(
+            "sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"
+        ) as mock_mark,
     ):
         app._do_revive_agent(loaded_parent)
 
@@ -147,7 +149,7 @@ def test_revive_grouping_restores_children_loaded_from_child_bundle_filenames(
         parent.identity,
         *(child.identity for child in children),
     }
-    assert mock_remove.call_args.kwargs == {"child_raw_suffixes": {parent.raw_suffix}}
+    mock_mark.assert_called_once_with({parent.raw_suffix})
     assert app.load_count == 1
 
 

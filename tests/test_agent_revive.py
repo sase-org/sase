@@ -32,15 +32,14 @@ def test_do_revive_agent_removes_suffix_aliases() -> None:
 
     with (
         patch("sase.ace.dismissed_agents.save_dismissed_agents"),
-        patch("sase.ace.dismissed_agents.remove_bundle_by_identity") as mock_remove,
+        patch(
+            "sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"
+        ) as mock_mark,
     ):
         app._do_revive_agent(parent)
 
     assert app._dismissed_agents == {(AgentType.WORKFLOW, "keep_me", "20260202101010")}
-    mock_remove.assert_called_once_with(
-        parent.identity,
-        child_raw_suffixes={"child_suffix_1"},
-    )
+    mock_mark.assert_called_once_with({"20260201101010", "child_suffix_1"})
     assert app.load_count == 1
     assert len(app.restored) == 2
     assert app.restored[0] == (parent.identity, None)
@@ -68,7 +67,7 @@ def test_do_revive_agent_selects_revived_agent_panel_after_reload() -> None:
 
     with (
         patch("sase.ace.dismissed_agents.save_dismissed_agents"),
-        patch("sase.ace.dismissed_agents.remove_bundle_by_identity"),
+        patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agent(dismissed)
 
@@ -93,7 +92,7 @@ def test_do_revive_agent_clears_stale_banner_focus() -> None:
 
     with (
         patch("sase.ace.dismissed_agents.save_dismissed_agents"),
-        patch("sase.ace.dismissed_agents.remove_bundle_by_identity"),
+        patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agent(dismissed)
 
@@ -138,19 +137,22 @@ def test_do_revive_agents_batch_removes_suffix_aliases() -> None:
 
     with (
         patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
-        patch("sase.ace.dismissed_agents.remove_bundle_by_identity") as mock_remove,
+        patch(
+            "sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"
+        ) as mock_mark,
     ):
         app._do_revive_agents([parent_one, parent_two])
 
     assert app._dismissed_agents == {(AgentType.WORKFLOW, "keep_me", "20260401101010")}
     mock_save.assert_called_once()
-    assert mock_remove.call_count == 2
-    assert mock_remove.call_args_list[0].args == (parent_one.identity,)
-    assert mock_remove.call_args_list[0].kwargs == {
-        "child_raw_suffixes": {"child_suffix_1", "followup_suffix_1"}
-    }
-    assert mock_remove.call_args_list[1].args == (parent_two.identity,)
-    assert mock_remove.call_args_list[1].kwargs == {"child_raw_suffixes": set()}
+    mock_mark.assert_called_once_with(
+        {
+            "20260201101010",
+            "child_suffix_1",
+            "followup_suffix_1",
+            "20260301101010",
+        }
+    )
     assert app.load_count == 1
     assert len(app.restored) == 4
 
@@ -189,7 +191,7 @@ def test_do_revive_agents_batch_selects_first_selected_parent() -> None:
 
     with (
         patch("sase.ace.dismissed_agents.save_dismissed_agents"),
-        patch("sase.ace.dismissed_agents.remove_bundle_by_identity"),
+        patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agents([parent_one, parent_two])
 

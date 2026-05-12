@@ -11,7 +11,6 @@ from sase.ace.dismissed_agents import (
     load_dismissed_bundle_summaries,
     load_dismissed_bundles,
     rebuild_dismissed_bundle_index,
-    remove_bundle_by_identity,
     save_dismissed_bundle,
     verify_dismissed_bundle_index,
 )
@@ -335,22 +334,6 @@ def test_indexed_suffix_load_avoids_scanning_unrelated_children(
         loaded = load_dismissed_bundles({"20250615100000"})
 
         assert [agent.identity for agent in loaded] == [target.identity]
-
-
-def test_dismissed_bundle_index_remove_and_verify(tmp_path: Path) -> None:
-    """Removing bundles deletes matching index rows and verify reports clean."""
-    bundles_dir = tmp_path / "bundles"
-    with (
-        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
-        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
-    ):
-        agent = make_agent(cl_name="delete_me", raw_suffix="20250615100000")
-        save_dismissed_bundle(agent)
-        assert load_dismissed_bundle_summaries(suffixes={"20250615100000"})
-
-        assert remove_bundle_by_identity(agent.identity)
-        assert load_dismissed_bundle_summaries(suffixes={"20250615100000"}) == []
-        assert verify_dismissed_bundle_index()["ok"] is True
 
 
 def test_dismissed_bundle_verify_reports_fts_orphans(tmp_path: Path) -> None:

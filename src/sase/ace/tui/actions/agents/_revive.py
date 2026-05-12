@@ -393,7 +393,7 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
     ) -> None:
         """Revive a dismissed agent by removing it from the dismissed set."""
         from ....dismissed_agents import (
-            remove_bundle_by_identity,
+            mark_bundles_revived_by_suffixes,
             save_dismissed_agents,
         )
         from ...models import Agent
@@ -446,11 +446,8 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
                             parent_artifacts_dir=agent.artifacts_dir,
                         )
 
-            stage = "bundle_removal"
-            # Clean up the bundle now that artifacts are restored
-            remove_bundle_by_identity(
-                agent.identity, child_raw_suffixes=child_raw_suffixes
-            )
+            stage = "bundle_marking"
+            mark_bundles_revived_by_suffixes(revived_suffixes)
             self._record_revived_agent_suffixes(revived_suffixes)
         except Exception as exc:
             log_revive_failure(
@@ -502,7 +499,7 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         call and one _load_agents() call instead of N each.
         """
         from ....dismissed_agents import (
-            remove_bundle_by_identity,
+            mark_bundles_revived_by_suffixes,
             save_dismissed_agents,
         )
         from ...models import Agent as AgentModel
@@ -522,15 +519,17 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         log_revive_started(agents=valid_agents, selection_scope=scope)
 
         # Phase 1: Remove all from dismissed set (including children/follow-ups)
-        # and collect child suffixes for bundle removal
+        # and collect suffixes for archive revival marks.
         child_suffixes_map: dict[tuple[AgentType, str, str | None], set[str]] = {}
+        suffixes_map: dict[tuple[AgentType, str, str | None], set[str]] = {}
         revived_suffixes: set[str] = set()
         stage = "dismissed_set_update"
         try:
             for agent in valid_agents:
                 self._dismissed_agents.discard(agent.identity)
+                agent_suffixes: set[str] = set()
                 if agent.raw_suffix:
-                    revived_suffixes.add(agent.raw_suffix)
+                    agent_suffixes.add(agent.raw_suffix)
                 child_suffixes: set[str] = set()
                 if not agent.is_workflow_child and agent.raw_suffix:
                     for dismissed_agent in list(self._dismissed_agent_objects):
@@ -538,8 +537,10 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
                             self._dismissed_agents.discard(dismissed_agent.identity)
                             if dismissed_agent.raw_suffix:
                                 child_suffixes.add(dismissed_agent.raw_suffix)
-                                revived_suffixes.add(dismissed_agent.raw_suffix)
+                                agent_suffixes.add(dismissed_agent.raw_suffix)
                 child_suffixes_map[agent.identity] = child_suffixes
+                suffixes_map[agent.identity] = agent_suffixes
+                revived_suffixes.update(agent_suffixes)
 
             # Remove all dismissed aliases that share revived suffixes.
             self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
@@ -560,10 +561,11 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             )
             return
 
-        # Phase 3: Restore artifacts and clean bundles. Per-agent failures
+        # Phase 3: Restore artifacts. Per-agent failures
         # produce a per-agent ``agent_revive_failed`` event, so partial
         # success leaves an accurate log.
         succeeded: list[Agent] = []
+        succeeded_suffixes: set[str] = set()
         for agent in valid_agents:
             per_stage = "artifact_restore"
             try:
@@ -575,11 +577,6 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
                                 dismissed_agent,
                                 parent_artifacts_dir=agent.artifacts_dir,
                             )
-                per_stage = "bundle_removal"
-                remove_bundle_by_identity(
-                    agent.identity,
-                    child_raw_suffixes=child_suffixes_map.get(agent.identity),
-                )
             except Exception as exc:
                 log_revive_failure(
                     stage=per_stage,
@@ -589,15 +586,34 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
                     selection_scope=scope,
                 )
                 continue
+            succeeded.append(agent)
+            succeeded_suffixes.update(suffixes_map.get(agent.identity, set()))
+
+        try:
+            mark_bundles_revived_by_suffixes(succeeded_suffixes)
+        except Exception as exc:
+            for agent in succeeded:
+                log_revive_failure(
+                    stage="bundle_marking",
+                    agent=agent,
+                    error=exc,
+                    batch_size=batch_size,
+                    selection_scope=scope,
+                )
+            self.notify(  # type: ignore[attr-defined]
+                f"Failed to mark revived archive bundles: {exc}", severity="error"
+            )
+            return
+
+        for agent in succeeded:
             log_revive_success(
                 agent=agent,
                 child_suffixes=child_suffixes_map.get(agent.identity),
                 batch_size=batch_size,
                 selection_scope=scope,
             )
-            succeeded.append(agent)
 
-        self._record_revived_agent_suffixes(revived_suffixes)
+        self._record_revived_agent_suffixes(succeeded_suffixes)
 
         # Phase 4: Single notification and refresh
         count = len(valid_agents)

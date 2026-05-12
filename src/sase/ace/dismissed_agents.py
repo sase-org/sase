@@ -878,67 +878,6 @@ def _load_bundle_file(filepath: Path) -> Agent | None:
     return agent
 
 
-def remove_bundle_by_identity(
-    identity: tuple[Any, str, str | None],
-    child_raw_suffixes: set[str] | None = None,
-) -> bool:
-    """Remove bundle file(s) for an agent and optionally its children.
-
-    Args:
-        identity: The (AgentType, cl_name, raw_suffix) identity tuple.
-        child_raw_suffixes: Raw suffixes of child agents to also remove.
-
-    Returns:
-        True if any files were removed, False otherwise.
-    """
-    removed = False
-    _, _, raw_suffix = identity
-
-    def _unlink(path: Path) -> bool:
-        try:
-            path.unlink()
-            if path.name == "bundle.json" and path.parent.name.count(".") >= 1:
-                try:
-                    path.parent.rmdir()
-                except OSError:
-                    pass
-            return True
-        except OSError:
-            return False
-
-    def _remove_for_suffix(suffix: str) -> bool:
-        changed = False
-        for path in _bundle_paths_for_suffixes({suffix}):
-            if _unlink(path):
-                changed = True
-        return changed
-
-    if raw_suffix is not None and _remove_for_suffix(raw_suffix):
-        removed = True
-
-    removed_suffixes: set[str] = set()
-    if raw_suffix is not None:
-        removed_suffixes.add(raw_suffix)
-
-    if child_raw_suffixes:
-        for child_suffix in child_raw_suffixes:
-            if _remove_for_suffix(child_suffix):
-                removed = True
-            removed_suffixes.add(child_suffix)
-
-    if removed_suffixes:
-        try:
-            from .dismissed_bundle_index import delete_bundle_summaries_for_suffixes
-
-            delete_bundle_summaries_for_suffixes(
-                _DISMISSED_BUNDLES_DIR, removed_suffixes
-            )
-        except (OSError, ValueError):
-            pass
-
-    return removed
-
-
 def _maybe_migrate_bundles() -> None:
     """One-time migration from monolithic bundles file to per-agent files.
 

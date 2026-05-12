@@ -27,7 +27,7 @@ def test_single_revive_emits_started_and_success_events(tmp_path: Path) -> None:
     with (
         patch("sase.logs.run_log.EVENTS_FILE", str(events_file)),
         patch("sase.ace.dismissed_agents.save_dismissed_agents"),
-        patch("sase.ace.dismissed_agents.remove_bundle_by_identity"),
+        patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agent(agent)
 
@@ -62,7 +62,7 @@ def test_single_revive_failure_emits_failed_event_and_notifies(
     with (
         patch("sase.logs.run_log.EVENTS_FILE", str(events_file)),
         patch("sase.ace.dismissed_agents.save_dismissed_agents"),
-        patch("sase.ace.dismissed_agents.remove_bundle_by_identity"),
+        patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agent(agent)
 
@@ -131,7 +131,7 @@ def test_batch_revive_emits_per_agent_terminal_events(tmp_path: Path) -> None:
     with (
         patch("sase.logs.run_log.EVENTS_FILE", str(events_file)),
         patch("sase.ace.dismissed_agents.save_dismissed_agents"),
-        patch("sase.ace.dismissed_agents.remove_bundle_by_identity"),
+        patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agents([parent_one, parent_two, parent_three])
 
