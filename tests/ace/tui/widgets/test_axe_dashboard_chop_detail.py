@@ -11,6 +11,7 @@ from sase.ace.tui.actions.axe_display._data import (
     ChopSnapshot,
     LumberjackSnapshot,
 )
+from sase.ace.tui.util import axe_log_renderer
 from sase.ace.tui.widgets import axe_dashboard
 from sase.ace.tui.widgets.axe_dashboard import AxeDashboard
 from sase.axe.state import ChopRunEntry, LumberjackMetrics, LumberjackStatus
@@ -54,11 +55,11 @@ def _snapshot_with_runs(*runs: ChopRunSnapshot) -> ChopSnapshot:
 
 
 def _reset_ansi_cache() -> None:
-    axe_dashboard._ansi_parse_cache.clear()
+    axe_log_renderer._render_cache.clear()
 
 
 def test_chop_run_ansi_cache_keyed_by_run_id() -> None:
-    """Two different runs of the same chop don't collide in the ANSI cache."""
+    """Two different runs of the same chop don't collide in the render cache."""
     _reset_ansi_cache()
 
     payload = "shared\n"
@@ -72,10 +73,14 @@ def test_chop_run_ansi_cache_keyed_by_run_id() -> None:
         return real_from_ansi(text)
 
     with patch.object(Text, "from_ansi", staticmethod(_counting)):
-        axe_dashboard._render_ansi_cached("chop:hooks:fast:r1", payload)
-        axe_dashboard._render_ansi_cached("chop:hooks:fast:r2", payload)
-        axe_dashboard._render_ansi_cached("chop:hooks:fast:r1", payload)  # cached
-        axe_dashboard._render_ansi_cached("chop:hooks:fast:r2", payload)  # cached
+        axe_log_renderer.render_axe_output("chop:hooks:fast:r1", payload, "ansi")
+        axe_log_renderer.render_axe_output("chop:hooks:fast:r2", payload, "ansi")
+        axe_log_renderer.render_axe_output(
+            "chop:hooks:fast:r1", payload, "ansi"
+        )  # cached
+        axe_log_renderer.render_axe_output(
+            "chop:hooks:fast:r2", payload, "ansi"
+        )  # cached
 
     assert call_count == 2
 
@@ -131,7 +136,12 @@ def test_update_chop_run_display_renders_newest_run_by_default() -> None:
     status_calls: list[tuple[tuple, dict]] = []
 
     class _OutputSection:
-        def update_display(self, output: str, source_id: str = "axe-output") -> None:
+        def update_display(
+            self,
+            output: str,
+            source_id: str = "axe-output",
+            source_type: str = "ansi",
+        ) -> None:
             output_calls.append((output, source_id))
 
         def update(self, *_: object, **__: object) -> None:
@@ -176,7 +186,12 @@ def test_update_chop_run_display_clamps_out_of_range_idx() -> None:
     output_payloads: list[str] = []
 
     class _OutputSection:
-        def update_display(self, output: str, source_id: str = "axe-output") -> None:
+        def update_display(
+            self,
+            output: str,
+            source_id: str = "axe-output",
+            source_type: str = "ansi",
+        ) -> None:
             output_payloads.append(source_id)
 
         def update(self, *_: object, **__: object) -> None:
@@ -317,6 +332,126 @@ def test_chop_status_running_label_style() -> None:
     label, style = axe_dashboard._chop_status_label("running")
     assert "running" in label.lower()
     assert "green" in style
+
+
+def test_update_lumberjack_display_uses_semantic_source_type() -> None:
+    """Lumberjack aggregate logs route through the ``lumberjack`` source type
+    so the semantic highlighter colors timestamps, names, status words, and
+    PIDs instead of relying on raw ANSI escapes from the underlying tool."""
+    captured: dict[str, object] = {}
+
+    class _OutputSection:
+        def update_display(
+            self,
+            output: str,
+            source_id: str = "axe-output",
+            source_type: str = "ansi",
+        ) -> None:
+            captured["output"] = output
+            captured["source_id"] = source_id
+            captured["source_type"] = source_type
+
+    class _StatusSection:
+        def update_lumberjack_display(self, *_a: object, **_kw: object) -> None:
+            pass
+
+    dashboard = AxeDashboard.__new__(AxeDashboard)
+
+    def _query_one(selector: str, _cls: type) -> object:
+        if "status" in selector:
+            return _StatusSection()
+        return _OutputSection()
+
+    dashboard.query_one = _query_one  # type: ignore[assignment]
+    dashboard.update_lumberjack_display(
+        name="hooks",
+        idx=0,
+        total=1,
+        status=None,
+        output="[2026-05-11 12:34:56] [hooks] success\n",
+    )
+
+    assert captured["source_type"] == "lumberjack"
+    assert captured["source_id"] == "lumberjack:hooks"
+
+
+def test_update_chop_run_display_agent_launched_uses_controlled_source_type() -> None:
+    """Agent-launched chop runs render through the controlled-chop highlighter
+    so the synthetic launch line gets the agent-launched accent and PID color."""
+    launch_run = ChopRunSnapshot(
+        entry=_entry("run-agent", status="agent_launched"),
+        output_tail="Launched agent chop 'fast' (PID 9201)\n",
+    )
+    snap = _snapshot_with_runs(launch_run)
+
+    captured: dict[str, object] = {}
+
+    class _OutputSection:
+        def update_display(
+            self,
+            output: str,
+            source_id: str = "axe-output",
+            source_type: str = "ansi",
+        ) -> None:
+            captured["source_type"] = source_type
+
+        def update(self, *_: object, **__: object) -> None:
+            pass
+
+    class _StatusSection:
+        def update_chop_display(self, *_a: object, **_kw: object) -> None:
+            pass
+
+    dashboard = AxeDashboard.__new__(AxeDashboard)
+
+    def _query_one(selector: str, _cls: type) -> object:
+        if "status" in selector:
+            return _StatusSection()
+        return _OutputSection()
+
+    dashboard.query_one = _query_one  # type: ignore[assignment]
+    dashboard.update_chop_run_display(snapshot=snap, run_idx=0, countdown=0)
+
+    assert captured["source_type"] == "chop_controlled"
+
+
+def test_update_chop_run_display_script_run_stays_on_ansi() -> None:
+    """Script chop runs keep the ANSI fallback — their output is arbitrary."""
+    script_run = ChopRunSnapshot(
+        entry=_entry("run-script", status="success"),
+        output_tail="\x1b[32mall good\x1b[0m\n",
+    )
+    snap = _snapshot_with_runs(script_run)
+
+    captured: dict[str, object] = {}
+
+    class _OutputSection:
+        def update_display(
+            self,
+            output: str,
+            source_id: str = "axe-output",
+            source_type: str = "ansi",
+        ) -> None:
+            captured["source_type"] = source_type
+
+        def update(self, *_: object, **__: object) -> None:
+            pass
+
+    class _StatusSection:
+        def update_chop_display(self, *_a: object, **_kw: object) -> None:
+            pass
+
+    dashboard = AxeDashboard.__new__(AxeDashboard)
+
+    def _query_one(selector: str, _cls: type) -> object:
+        if "status" in selector:
+            return _StatusSection()
+        return _OutputSection()
+
+    dashboard.query_one = _query_one  # type: ignore[assignment]
+    dashboard.update_chop_run_display(snapshot=snap, run_idx=0, countdown=0)
+
+    assert captured["source_type"] == "ansi"
 
 
 def test_render_chop_display_running_run_shows_elapsed_and_pid() -> None:

@@ -1,0 +1,145 @@
+"""Tests for the semantic AXE output highlighter."""
+
+from __future__ import annotations
+
+from rich.text import Text
+
+from sase.ace.tui.util import axe_log_renderer
+
+
+def _render_lumberjack(output: str) -> Text:
+    axe_log_renderer._render_cache.clear()
+    return axe_log_renderer.render_axe_output("lumberjack:test", output, "lumberjack")
+
+
+def _render_controlled_chop(output: str) -> Text:
+    axe_log_renderer._render_cache.clear()
+    return axe_log_renderer.render_axe_output("chop:lj:cp:1", output, "chop_controlled")
+
+
+def _styles_at(text: Text, substring: str) -> set[str]:
+    """Return the styles applied over ``substring`` in ``text``.
+
+    Rich stores style spans as ``(start, end, style)`` triples on ``Text``;
+    we walk them and keep the ones whose range covers any byte of the
+    substring's first occurrence so the assertions stay robust against
+    overlapping highlight passes.
+    """
+    plain = text.plain
+    start = plain.index(substring)
+    end = start + len(substring)
+    return {
+        str(span.style) for span in text.spans if span.start < end and span.end > start
+    }
+
+
+def test_lumberjack_log_preserves_plain_text() -> None:
+    """The semantic renderer keeps the original characters intact."""
+    sample = (
+        "[2026-05-11 12:34:56] [hooks] Lumberjack 'hooks' started "
+        "(PID 9123, interval: 5s, chops: ack, send)\n"
+        "[2026-05-11 12:34:57] [hooks] Launched agent chop 'send' (PID 9201)\n"
+    )
+    text = _render_lumberjack(sample)
+    assert text.plain == sample
+
+
+def test_lumberjack_timestamp_dim() -> None:
+    """Timestamps get the dim treatment so the message text dominates."""
+    text = _render_lumberjack("[2026-05-11 12:34:56] [hooks] success\n")
+    styles = _styles_at(text, "2026-05-11 12:34:56")
+    assert any("dim" in s for s in styles)
+
+
+def test_lumberjack_name_uses_taxonomy_color() -> None:
+    """Lumberjack header name is styled with the gold sidebar accent."""
+    text = _render_lumberjack("[2026-05-11 12:34:56] [hooks] running\n")
+    styles = _styles_at(text, "hooks")
+    assert any("#FFD700" in s for s in styles)
+
+
+def test_status_word_failure_red() -> None:
+    """The literal word ``failure`` is colored as a severity marker."""
+    text = _render_lumberjack(
+        "[2026-05-11 12:34:56] [hooks] Chop failed: failure on ack\n"
+    )
+    styles = _styles_at(text, "failure")
+    assert any("red" in s for s in styles)
+
+
+def test_status_word_success_green() -> None:
+    text = _render_lumberjack("[2026-05-11 12:34:56] [hooks] tick complete: success\n")
+    styles = _styles_at(text, "success")
+    assert any("green" in s for s in styles)
+
+
+def test_pid_token_styled() -> None:
+    """``PID NNN`` should pop relative to surrounding prose."""
+    text = _render_lumberjack(
+        "[2026-05-11 12:34:56] [hooks] Launched agent chop 'send' (PID 9201)\n"
+    )
+    styles = _styles_at(text, "PID 9201")
+    assert any("#FF87D7" in s for s in styles)
+
+
+def test_quoted_chop_name_styled() -> None:
+    text = _render_lumberjack(
+        "[2026-05-11 12:34:56] [hooks] Launched agent chop 'send' (PID 9201)\n"
+    )
+    styles = _styles_at(text, "'send'")
+    assert any("#D7AF87" in s for s in styles)
+
+
+def test_duration_styled() -> None:
+    text = _render_lumberjack(
+        "[2026-05-11 12:34:56] [hooks] Tick overrun: took 7.4s but interval is 5s\n"
+    )
+    styles = _styles_at(text, "7.4s")
+    assert any("#00D7AF" in s for s in styles)
+
+
+def test_exit_code_styled() -> None:
+    text = _render_lumberjack(
+        "[2026-05-11 12:34:56] [hooks] chop returned exit code 137\n"
+    )
+    styles = _styles_at(text, "exit code 137")
+    assert any("red" in s for s in styles)
+
+
+def test_lumberjack_line_without_header_still_highlights_tokens() -> None:
+    """A line that doesn't match the ``[ts] [name]`` header still gets body
+    tokens highlighted so error tails read coherently."""
+    text = _render_lumberjack("Lumberjack tick raised: timeout after 30s\n")
+    styles = _styles_at(text, "timeout")
+    assert any("yellow" in s for s in styles)
+
+
+def test_controlled_chop_launch_line_styled() -> None:
+    """Agent launch line gets its agent-launched accent and PID styling."""
+    text = _render_controlled_chop("Launched agent chop 'send' (PID 9201)\n")
+    chop_styles = _styles_at(text, "'send'")
+    pid_styles = _styles_at(text, "9201")
+    assert any("#D7AF87" in s for s in chop_styles)
+    assert any("#FF87D7" in s for s in pid_styles)
+
+
+def test_classify_source_lumberjack_prefix() -> None:
+    assert axe_log_renderer.classify_source("lumberjack:hooks") == "lumberjack"
+
+
+def test_classify_source_default_to_ansi() -> None:
+    assert axe_log_renderer.classify_source("bgcmd:5") == "ansi"
+    assert axe_log_renderer.classify_source("axe-output") == "ansi"
+    assert axe_log_renderer.classify_source("chop:lj:cp:r") == "ansi"
+
+
+def test_render_axe_output_caps_huge_input() -> None:
+    """The semantic path goes through ``cap_ansi_output`` like ANSI does so
+    huge logs stay bounded."""
+    big = ("x" * 80_000) + "\n[2026-05-11 12:34:56] [hooks] success\n"
+    text = _render_lumberjack(big)
+    # Output is capped to a tail window, so the rendered length is much
+    # smaller than the input.
+    assert len(text.plain) < len(big)
+    # The recognizable header still appears in the tail.
+    assert "[hooks]" in text.plain
