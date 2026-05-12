@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -102,7 +103,10 @@ class GhClient:
 
     repo: str | None = None
     executable: str = "gh"
-    runner: Callable[[Sequence[str]], subprocess.CompletedProcess[str]] | None = None
+    runner: (
+        Callable[[Sequence[str], dict[str, str] | None], subprocess.CompletedProcess[str]]
+        | None
+    ) = None
 
     def _resolve_executable(self) -> str:
         path = shutil.which(self.executable)
@@ -113,22 +117,41 @@ class GhClient:
             )
         return path
 
-    def _run(self, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    def _run(
+        self, args: Sequence[str], env_overrides: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         argv = [self._resolve_executable(), *args]
         if self.runner is not None:
-            return self.runner(argv)
+            return self.runner(argv, env_overrides)
+        env: dict[str, str] | None = None
+        if env_overrides:
+            env = {**os.environ, **env_overrides}
         return subprocess.run(
             argv,
             capture_output=True,
             text=True,
             check=False,
+            env=env,
         )
 
-    def _gh_args(self, args: Sequence[str], *, attach_repo: bool) -> list[str]:
+    def _gh_args(
+        self, args: Sequence[str], *, attach_repo: bool
+    ) -> tuple[list[str], dict[str, str] | None]:
+        """Build the ``gh`` argv and any environment overrides.
+
+        ``gh api`` does not accept ``--repo``; explicit repo selection for that
+        subcommand is communicated through the ``GH_REPO`` environment variable
+        instead, which the same placeholder-substitution path inside ``gh``
+        honors.
+        """
         result = list(args)
+        env_overrides: dict[str, str] | None = None
         if attach_repo and self.repo is not None:
-            result += ["--repo", self.repo]
-        return result
+            if result and result[0] == "api":
+                env_overrides = {"GH_REPO": self.repo}
+            else:
+                result += ["--repo", self.repo]
+        return result, env_overrides
 
     def run_text(self, args: Sequence[str], *, attach_repo: bool = True) -> str:
         """Invoke ``gh`` and return decoded stdout.
@@ -136,8 +159,8 @@ class GhClient:
         Raises :class:`GhCommandError` on a non-zero exit and
         :class:`GhMissingError` if ``gh`` is not installed.
         """
-        full_args = self._gh_args(args, attach_repo=attach_repo)
-        completed = self._run(full_args)
+        full_args, env_overrides = self._gh_args(args, attach_repo=attach_repo)
+        completed = self._run(full_args, env_overrides)
         if completed.returncode != 0:
             raise GhCommandError(
                 ["gh", *full_args], completed.returncode, completed.stderr or ""
@@ -157,8 +180,13 @@ class GhClient:
             ) from exc
 
     def default_branch(self) -> str:
-        """Return the default branch reported by ``gh repo view``."""
-        name = self.run_json(
+        """Return the default branch reported by ``gh repo view``.
+
+        ``gh --jq`` emits the selected value as raw text (not JSON), so the
+        response is consumed via :meth:`run_text` and trimmed of trailing
+        whitespace.
+        """
+        stdout = self.run_text(
             [
                 "repo",
                 "view",
@@ -168,11 +196,12 @@ class GhClient:
                 ".defaultBranchRef.name",
             ]
         )
-        if not isinstance(name, str) or not name.strip():
-            raise GhJsonError(
+        name = stdout.strip()
+        if not name:
+            raise GhError(
                 "`gh repo view` did not return a default branch name."
             )
-        return name.strip()
+        return name
 
     def list_runs(
         self,
@@ -217,8 +246,9 @@ class GhClient:
         """Fetch check-runs for ``sha`` via the GitHub REST API.
 
         ``gh api`` fills in the ``{owner}``/``{repo}`` placeholders using
-        the resolved repo context, including the ``--repo`` flag attached
-        by :meth:`_gh_args`.
+        the resolved repo context. When :attr:`repo` is set explicitly,
+        :meth:`_gh_args` exposes it through the ``GH_REPO`` environment
+        variable (``gh api`` does not accept ``--repo``).
         """
         payload = self.run_json(
             [

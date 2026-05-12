@@ -111,10 +111,15 @@ def _fake_runner(
     stderr: str = "",
     returncode: int = 0,
     capture: list[list[str]] | None = None,
+    env_capture: list[dict[str, str] | None] | None = None,
 ):
-    def _run(argv):
+    def _run(argv, env_overrides=None):
         if capture is not None:
             capture.append(list(argv))
+        if env_capture is not None:
+            env_capture.append(
+                dict(env_overrides) if env_overrides is not None else None
+            )
         return subprocess.CompletedProcess(
             args=list(argv),
             returncode=returncode,
@@ -126,11 +131,12 @@ def _fake_runner(
 
 
 def test_gh_client_default_branch(script: types.ModuleType) -> None:
+    """``gh --jq`` emits the selected value as raw text — no JSON quoting."""
     capture: list[list[str]] = []
     client = script.GhClient(
         repo="sase-org/sase",
         executable=sys.executable,  # any existing executable resolves on PATH
-        runner=_fake_runner(stdout='"master"\n', capture=capture),
+        runner=_fake_runner(stdout="master\n", capture=capture),
     )
     assert client.default_branch() == "master"
 
@@ -146,6 +152,16 @@ def test_gh_client_default_branch(script: types.ModuleType) -> None:
         "--repo",
         "sase-org/sase",
     ]
+
+
+def test_gh_client_default_branch_strips_surrounding_whitespace(
+    script: types.ModuleType,
+) -> None:
+    client = script.GhClient(
+        executable=sys.executable,
+        runner=_fake_runner(stdout="   trunk   \n"),
+    )
+    assert client.default_branch() == "trunk"
 
 
 def test_gh_client_propagates_repo(script: types.ModuleType) -> None:
@@ -204,10 +220,70 @@ def test_gh_client_empty_default_branch_is_error(
 ) -> None:
     client = script.GhClient(
         executable=sys.executable,
-        runner=_fake_runner(stdout='""'),
+        runner=_fake_runner(stdout="   \n"),
     )
-    with pytest.raises(script.GhJsonError):
+    with pytest.raises(script.GhError):
         client.default_branch()
+
+
+def test_gh_client_api_uses_gh_repo_env_not_repo_flag(
+    script: types.ModuleType,
+) -> None:
+    """``gh api`` has no ``--repo`` flag — explicit repos must travel via env."""
+    capture: list[list[str]] = []
+    env_capture: list[dict[str, str] | None] = []
+    client = script.GhClient(
+        repo="sase-org/sase",
+        executable=sys.executable,
+        runner=_fake_runner(
+            stdout='{"check_runs": []}',
+            capture=capture,
+            env_capture=env_capture,
+        ),
+    )
+    client.list_sha_check_runs("deadbeef")
+
+    argv = capture[0]
+    assert argv[1] == "api"
+    assert argv[2] == "repos/{owner}/{repo}/commits/deadbeef/check-runs"
+    assert "--repo" not in argv
+    assert env_capture[0] == {"GH_REPO": "sase-org/sase"}
+
+
+def test_gh_client_api_without_repo_passes_no_env_override(
+    script: types.ModuleType,
+) -> None:
+    capture: list[list[str]] = []
+    env_capture: list[dict[str, str] | None] = []
+    client = script.GhClient(
+        repo=None,
+        executable=sys.executable,
+        runner=_fake_runner(
+            stdout='{"check_runs": []}',
+            capture=capture,
+            env_capture=env_capture,
+        ),
+    )
+    client.list_sha_check_runs("cafef00d")
+
+    argv = capture[0]
+    assert "--repo" not in argv
+    assert env_capture[0] is None
+
+
+def test_gh_client_non_api_subcommand_still_uses_repo_flag(
+    script: types.ModuleType,
+) -> None:
+    capture: list[list[str]] = []
+    env_capture: list[dict[str, str] | None] = []
+    client = script.GhClient(
+        repo="o/r",
+        executable=sys.executable,
+        runner=_fake_runner(stdout="[]", capture=capture, env_capture=env_capture),
+    )
+    client.run_json(["run", "list"])
+    assert capture[0][-2:] == ["--repo", "o/r"]
+    assert env_capture[0] is None
 
 
 # ---------------------------------------------------------------------------
