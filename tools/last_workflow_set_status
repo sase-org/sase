@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Report the status of the last fully-completed GitHub Actions workflow set.
 
-Phase 1 skeleton: CLI parsing, `gh` boundary, default-branch detection, and
-clear configuration-error reporting. Run-set selection and failure
-diagnostics are implemented in later phases (see
-``sdd/epics/202605/last_workflow_set_status_tool.md``).
+Phases 1 and 2: CLI parsing, ``gh`` boundary, default-branch detection,
+run-set selection (sort, latest-attempt dedup, SHA grouping, terminal-status
+filtering, ``--require`` filtering), and pass/fail summary output. Failure
+diagnostics (job/step summaries, annotations, log tails) are added in Phase 3
+(see ``sdd/epics/202605/last_workflow_set_status_tool.md``).
 """
 
 from __future__ import annotations
@@ -14,8 +15,8 @@ import json
 import shutil
 import subprocess
 import sys
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Sequence
+from dataclasses import asdict, dataclass, field
 
 
 EXIT_PASS = 0
@@ -27,6 +28,27 @@ EXIT_NO_COMPLETE_SET = 3
 DEFAULT_LIMIT = 50
 DEFAULT_TAIL = 50
 DEFAULT_EVENTS = ("push",)
+
+
+PASS_CONCLUSIONS = frozenset({"success", "skipped", "neutral"})
+NON_TERMINAL_STATUSES = frozenset(
+    {"queued", "in_progress", "waiting", "requested", "pending"}
+)
+RUN_LIST_JSON_FIELDS = (
+    "databaseId",
+    "workflowName",
+    "workflowDatabaseId",
+    "headSha",
+    "headBranch",
+    "status",
+    "conclusion",
+    "createdAt",
+    "updatedAt",
+    "event",
+    "attempt",
+    "displayTitle",
+    "url",
+)
 
 
 class GhError(Exception):
@@ -152,6 +174,38 @@ class GhClient:
             )
         return name.strip()
 
+    def list_runs(
+        self,
+        *,
+        branch: str,
+        events: Sequence[str],
+        limit: int,
+    ) -> list["WorkflowRun"]:
+        """Fetch recent workflow runs and return parsed :class:`WorkflowRun`s.
+
+        ``--event`` is repeatable on ``gh run list``; one fetch per event keeps
+        the implementation straightforward and matches what the design doc
+        recommends. Results across events are concatenated.
+        """
+        runs: list[WorkflowRun] = []
+        for event in events:
+            payload = self.run_json(
+                [
+                    "run",
+                    "list",
+                    "--branch",
+                    branch,
+                    "--event",
+                    event,
+                    "--limit",
+                    str(limit),
+                    "--json",
+                    ",".join(RUN_LIST_JSON_FIELDS),
+                ]
+            )
+            runs.extend(parse_runs(payload))
+        return runs
+
 
 @dataclass
 class CliConfig:
@@ -164,6 +218,197 @@ class CliConfig:
     events: tuple[str, ...]
     require: tuple[str, ...]
     json_output: bool
+
+
+@dataclass(frozen=True)
+class WorkflowRun:
+    """A single GitHub Actions workflow run row from ``gh run list``."""
+
+    database_id: int
+    workflow_name: str
+    workflow_database_id: int
+    head_sha: str
+    head_branch: str
+    status: str
+    conclusion: str
+    created_at: str
+    updated_at: str
+    event: str
+    attempt: int
+    display_title: str
+    url: str
+
+    @property
+    def passed(self) -> bool:
+        return self.conclusion in PASS_CONCLUSIONS
+
+    @property
+    def is_terminal(self) -> bool:
+        return self.status not in NON_TERMINAL_STATUSES
+
+
+@dataclass(frozen=True)
+class RunSet:
+    """A complete set of workflow runs sharing one ``head_sha``."""
+
+    head_sha: str
+    head_branch: str
+    display_title: str
+    created_at: str
+    runs: tuple[WorkflowRun, ...] = field(default_factory=tuple)
+
+    @property
+    def passed(self) -> bool:
+        return all(run.passed for run in self.runs)
+
+    @property
+    def failed_runs(self) -> tuple[WorkflowRun, ...]:
+        return tuple(run for run in self.runs if not run.passed)
+
+
+def _coerce_str(value: object) -> str:
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _coerce_int(value: object, *, default: int = 0) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip():
+        try:
+            return int(value)
+        except ValueError:
+            return default
+    return default
+
+
+def parse_runs(payload: object) -> list[WorkflowRun]:
+    """Convert the JSON payload from ``gh run list`` into typed runs.
+
+    Skips entries that lack the minimal identifying fields rather than
+    failing the whole report — ``gh`` is generally well-behaved but this keeps
+    the tool robust against schema drift.
+    """
+    if not isinstance(payload, list):
+        raise GhJsonError(
+            "`gh run list` did not return a JSON array of runs."
+        )
+    out: list[WorkflowRun] = []
+    for entry in payload:
+        if not isinstance(entry, dict):
+            continue
+        database_id = _coerce_int(entry.get("databaseId"))
+        workflow_database_id = _coerce_int(entry.get("workflowDatabaseId"))
+        head_sha = _coerce_str(entry.get("headSha"))
+        if database_id == 0 or workflow_database_id == 0 or not head_sha:
+            continue
+        out.append(
+            WorkflowRun(
+                database_id=database_id,
+                workflow_name=_coerce_str(entry.get("workflowName")),
+                workflow_database_id=workflow_database_id,
+                head_sha=head_sha,
+                head_branch=_coerce_str(entry.get("headBranch")),
+                status=_coerce_str(entry.get("status")),
+                conclusion=_coerce_str(entry.get("conclusion")),
+                created_at=_coerce_str(entry.get("createdAt")),
+                updated_at=_coerce_str(entry.get("updatedAt")),
+                event=_coerce_str(entry.get("event")),
+                attempt=_coerce_int(entry.get("attempt"), default=1),
+                display_title=_coerce_str(entry.get("displayTitle")),
+                url=_coerce_str(entry.get("url")),
+            )
+        )
+    return out
+
+
+def dedup_runs(runs: Iterable[WorkflowRun]) -> list[WorkflowRun]:
+    """Collapse multiple attempts of the same ``(workflow, sha)`` pair.
+
+    Keep the highest ``attempt``; tie-break on ``updated_at`` (newest wins).
+    """
+    best: dict[tuple[int, str], WorkflowRun] = {}
+    for run in runs:
+        key = (run.workflow_database_id, run.head_sha)
+        prior = best.get(key)
+        if prior is None:
+            best[key] = run
+            continue
+        if run.attempt > prior.attempt:
+            best[key] = run
+        elif run.attempt == prior.attempt and run.updated_at > prior.updated_at:
+            best[key] = run
+    return list(best.values())
+
+
+def group_by_sha(runs: Sequence[WorkflowRun]) -> list[tuple[str, list[WorkflowRun]]]:
+    """Group runs by ``head_sha`` in newest-first order.
+
+    Newest is determined by the maximum ``created_at`` within each group;
+    runs inside a group are also sorted newest-first for stable output.
+    """
+    buckets: dict[str, list[WorkflowRun]] = {}
+    for run in runs:
+        buckets.setdefault(run.head_sha, []).append(run)
+    sortable: list[tuple[str, str, list[WorkflowRun]]] = []
+    for sha, group in buckets.items():
+        group.sort(key=lambda r: r.created_at, reverse=True)
+        newest = group[0].created_at if group else ""
+        sortable.append((newest, sha, group))
+    sortable.sort(key=lambda item: item[0], reverse=True)
+    return [(sha, group) for _, sha, group in sortable]
+
+
+@dataclass
+class SelectionResult:
+    """Outcome of :func:`select_run_set`."""
+
+    run_set: RunSet | None
+    skipped_incomplete: int = 0
+    skipped_missing_required: int = 0
+
+
+def select_run_set(
+    runs: Iterable[WorkflowRun],
+    *,
+    require: Sequence[str] = (),
+) -> SelectionResult:
+    """Pick the newest fully-completed SHA group from ``runs``."""
+    deduped = dedup_runs(runs)
+    groups = group_by_sha(deduped)
+    required = {name for name in require if name}
+    skipped_incomplete = 0
+    skipped_missing_required = 0
+    for sha, group in groups:
+        if any(not run.is_terminal for run in group):
+            skipped_incomplete += 1
+            continue
+        if required:
+            present = {run.workflow_name for run in group}
+            if not required.issubset(present):
+                skipped_missing_required += 1
+                continue
+        first = group[0]
+        run_set = RunSet(
+            head_sha=sha,
+            head_branch=first.head_branch,
+            display_title=first.display_title,
+            created_at=first.created_at,
+            runs=tuple(group),
+        )
+        return SelectionResult(
+            run_set=run_set,
+            skipped_incomplete=skipped_incomplete,
+            skipped_missing_required=skipped_missing_required,
+        )
+    return SelectionResult(
+        run_set=None,
+        skipped_incomplete=skipped_incomplete,
+        skipped_missing_required=skipped_missing_required,
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -269,20 +514,85 @@ def resolve_branch(config: CliConfig, client: GhClient) -> str:
     return client.default_branch()
 
 
-def _format_phase1_placeholder(config: CliConfig, branch: str) -> str:
+def _short_sha(sha: str) -> str:
+    return sha[:7] if sha else "<unknown>"
+
+
+def format_human(result: SelectionResult, *, branch: str) -> str:
+    """Render the selection outcome as terminal-friendly text."""
+    run_set = result.run_set
+    if run_set is None:
+        lines = [
+            f"No fully-completed workflow set found on branch {branch!r}.",
+        ]
+        if result.skipped_incomplete:
+            lines.append(
+                f"  Skipped {result.skipped_incomplete} SHA(s) with"
+                " in-progress runs."
+            )
+        if result.skipped_missing_required:
+            lines.append(
+                f"  Skipped {result.skipped_missing_required} SHA(s)"
+                " missing required workflow(s)."
+            )
+        lines.append("Try increasing --limit to fetch more history.")
+        return "\n".join(lines)
+
+    failed = run_set.failed_runs
+    total = len(run_set.runs)
     lines = [
-        "last_workflow_set_status: Phase 1 skeleton",
-        f"  repo:   {config.repo or '<auto-detected by gh>'}",
-        f"  branch: {branch}",
-        f"  limit:  {config.limit}",
-        f"  tail:   {config.tail}",
-        f"  events: {','.join(config.events)}",
-        f"  require: {','.join(config.require) if config.require else '(none)'}",
-        "",
-        "Run-set selection and pass/fail reporting are implemented in Phase 2"
-        " (sase-2z.2).",
+        f"branch:  {branch}",
+        f"sha:     {_short_sha(run_set.head_sha)} ({run_set.head_sha})",
     ]
+    if run_set.display_title:
+        lines.append(f"title:   {run_set.display_title}")
+    if run_set.created_at:
+        lines.append(f"created: {run_set.created_at}")
+    lines.append(f"runs:    {total}")
+    lines.append("")
+    if not failed:
+        lines.append(f"All {total} workflow(s) passed.")
+    else:
+        lines.append(
+            f"FAIL: {len(failed)} of {total} workflow(s) did not pass."
+        )
+    lines.append("")
+    for run in run_set.runs:
+        marker = "PASS" if run.passed else "FAIL"
+        conclusion = run.conclusion or "<unknown>"
+        line = f"  [{marker}] {run.workflow_name} ({conclusion})"
+        if run.url:
+            line += f" — {run.url}"
+        lines.append(line)
     return "\n".join(lines)
+
+
+def format_json(result: SelectionResult, *, branch: str) -> str:
+    """Render the selection outcome as JSON."""
+    run_set = result.run_set
+    if run_set is None:
+        payload = {
+            "branch": branch,
+            "ok": False,
+            "run_set": None,
+            "skipped_incomplete": result.skipped_incomplete,
+            "skipped_missing_required": result.skipped_missing_required,
+        }
+        return json.dumps(payload, indent=2, sort_keys=True)
+    payload = {
+        "branch": branch,
+        "ok": run_set.passed,
+        "run_set": {
+            "head_sha": run_set.head_sha,
+            "head_branch": run_set.head_branch,
+            "display_title": run_set.display_title,
+            "created_at": run_set.created_at,
+            "runs": [asdict(run) for run in run_set.runs],
+        },
+        "skipped_incomplete": result.skipped_incomplete,
+        "skipped_missing_required": result.skipped_missing_required,
+    }
+    return json.dumps(payload, indent=2, sort_keys=True)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -296,24 +606,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     client = GhClient(repo=config.repo)
     try:
         branch = resolve_branch(config, client)
+        runs = client.list_runs(
+            branch=branch,
+            events=config.events,
+            limit=config.limit,
+        )
     except GhError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return exc.exit_code
 
+    result = select_run_set(runs, require=config.require)
+
     if config.json_output:
-        payload = {
-            "phase": 1,
-            "repo": config.repo,
-            "branch": branch,
-            "limit": config.limit,
-            "tail": config.tail,
-            "events": list(config.events),
-            "require": list(config.require),
-        }
-        print(json.dumps(payload, indent=2, sort_keys=True))
+        print(format_json(result, branch=branch))
     else:
-        print(_format_phase1_placeholder(config, branch))
-    return EXIT_NO_COMPLETE_SET
+        print(format_human(result, branch=branch))
+
+    if result.run_set is None:
+        return EXIT_NO_COMPLETE_SET
+    return EXIT_PASS if result.run_set.passed else EXIT_FAIL
 
 
 if __name__ == "__main__":
