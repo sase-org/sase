@@ -32,9 +32,9 @@ steps:
   - name: decide_fixers
     hidden: true
     python: |
-      fmt_success = {{ _just_fmt_check.success }}
-      lint_success = {{ _just_lint.success }}
-      test_success = {{ _just_test.success }}
+      fmt_success = {{ _just_fmt_check.success | tojson }}
+      lint_success = {{ _just_lint.success | tojson }}
+      test_success = {{ _just_test.success | tojson }}
       print(f"fmt_success={str(fmt_success).lower()}")
       print(f"lint_success={str(lint_success).lower()}")
       print(f"test_success={str(test_success).lower()}")

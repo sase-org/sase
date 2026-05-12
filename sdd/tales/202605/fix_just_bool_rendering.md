@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 17:44:39
-status: wip
+status: done
 prompt: sdd/prompts/202605/fix_just_bool_rendering.md
 ---
 # Plan: Fix `fix_just` Python Boolean Rendering
