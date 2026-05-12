@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -47,12 +48,18 @@ def _fixture(
     tmp_path: Path,
     *,
     update: bool = False,
+    node_id: str = "tests/ace/tui/visual/test_png_diff.py::test_case",
+    test_file: str | None = "tests/ace/tui/visual/test_png_diff.py",
+    test_line: int | None = 42,
 ) -> AcePngSnapshotFixture:
     return AcePngSnapshotFixture(
         snapshot_root=tmp_path / "snapshots" / "png",
         artifact_root=tmp_path / "artifacts",
         update=update,
-        node_id="tests/ace/tui/visual/test_png_diff.py::test_case",
+        node_id=node_id,
+        test_file=test_file,
+        test_line=test_line,
+        repo_root=tmp_path,
     )
 
 
@@ -100,6 +107,39 @@ def test_mismatched_png_writes_failure_artifacts(tmp_path: Path) -> None:
     assert "changed_pixels: 1" in summary
     assert "changed_ratio: 0.500000000000" in summary
 
+    record = json.loads((failure_dir / "failure.json").read_text())
+    assert record["kind"] == "mismatch"
+    assert record["node_id"] == "tests/ace/tui/visual/test_png_diff.py::test_case"
+    assert record["snapshot"] == "mismatch.png"
+    assert record["expected_repo_path"] == "snapshots/png/mismatch.png"
+    assert record["actual_path"] == (
+        "artifacts/tests_ace_tui_visual_test_png_diff.py__test_case/"
+        "mismatch.png/actual.png"
+    )
+    assert record["expected_path"] == (
+        "artifacts/tests_ace_tui_visual_test_png_diff.py__test_case/"
+        "mismatch.png/expected.png"
+    )
+    assert record["diff_path"] == (
+        "artifacts/tests_ace_tui_visual_test_png_diff.py__test_case/"
+        "mismatch.png/diff.png"
+    )
+    assert record["source_svg_path"] == (
+        "artifacts/tests_ace_tui_visual_test_png_diff.py__test_case/"
+        "mismatch.png/actual.svg"
+    )
+    assert record["summary_path"] == (
+        "artifacts/tests_ace_tui_visual_test_png_diff.py__test_case/"
+        "mismatch.png/summary.txt"
+    )
+    assert record["test_file"] == "tests/ace/tui/visual/test_png_diff.py"
+    assert record["test_line"] == 42
+    assert record["expected_size"] == [2, 1]
+    assert record["actual_size"] == [2, 1]
+    assert record["changed_pixels"] == 1
+    assert record["total_pixels"] == 2
+    assert record["changed_ratio"] == 0.5
+
 
 def test_missing_png_golden_writes_actual_artifacts(tmp_path: Path) -> None:
     ace_png_visual = _fixture(tmp_path)
@@ -118,6 +158,68 @@ def test_missing_png_golden_writes_actual_artifacts(tmp_path: Path) -> None:
     assert (failure_dir / "actual.svg").read_text() == "<svg>actual</svg>"
     assert "missing" in (failure_dir / "summary.txt").read_text()
     assert not (failure_dir / "expected.png").exists()
+
+    record = json.loads((failure_dir / "failure.json").read_text())
+    assert record["kind"] == "missing_golden"
+    assert record["node_id"] == "tests/ace/tui/visual/test_png_diff.py::test_case"
+    assert record["snapshot"] == "missing"
+    assert record["expected_repo_path"] == "snapshots/png/missing.png"
+    assert record["actual_path"] == (
+        "artifacts/tests_ace_tui_visual_test_png_diff.py__test_case/missing/actual.png"
+    )
+    assert record["source_svg_path"] == (
+        "artifacts/tests_ace_tui_visual_test_png_diff.py__test_case/missing/actual.svg"
+    )
+    assert record["summary_path"] == (
+        "artifacts/tests_ace_tui_visual_test_png_diff.py__test_case/missing/summary.txt"
+    )
+    assert record["test_file"] == "tests/ace/tui/visual/test_png_diff.py"
+    assert record["test_line"] == 42
+    assert "expected_path" not in record
+    assert "diff_path" not in record
+    assert "expected_size" not in record
+
+
+def test_failure_artifacts_use_stable_directory_for_node_and_snapshot(
+    tmp_path: Path,
+) -> None:
+    actual = _png((0, 0, 255, 255), size=(1, 1))
+
+    first = _fixture(
+        tmp_path,
+        node_id="tests/ace/tui/visual/test_png_diff.py::test_one",
+    )
+    second = _fixture(
+        tmp_path,
+        node_id="tests/ace/tui/visual/test_png_diff.py::test_two",
+    )
+
+    with pytest.raises(AssertionError):
+        first.assert_png("widget_a", actual)
+    with pytest.raises(AssertionError):
+        second.assert_png("widget_a", actual)
+    with pytest.raises(AssertionError):
+        first.assert_png("widget_b", actual)
+
+    artifacts = tmp_path / "artifacts"
+    assert (
+        artifacts
+        / "tests_ace_tui_visual_test_png_diff.py__test_one"
+        / "widget_a"
+        / "failure.json"
+    ).exists()
+    assert (
+        artifacts
+        / "tests_ace_tui_visual_test_png_diff.py__test_two"
+        / "widget_a"
+        / "failure.json"
+    ).exists()
+    assert (
+        artifacts
+        / "tests_ace_tui_visual_test_png_diff.py__test_one"
+        / "widget_b"
+        / "failure.json"
+    ).exists()
 
 
 def test_png_names_must_stay_under_snapshot_root(tmp_path: Path) -> None:

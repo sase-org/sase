@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from PIL import Image
 
@@ -53,6 +54,9 @@ class AcePngSnapshotFixture:
     artifact_root: Path
     update: bool
     node_id: str
+    test_file: str | None = None
+    test_line: int | None = None
+    repo_root: Path | None = None
 
     def assert_page_png(
         self,
@@ -95,6 +99,9 @@ class AcePngSnapshotFixture:
             source_svg=source_svg,
             max_diff_pixels=max_diff_pixels,
             max_diff_ratio=max_diff_ratio,
+            test_file=self.test_file,
+            test_line=self.test_line,
+            repo_root=self.repo_root,
         )
 
 
@@ -123,9 +130,13 @@ def assert_png_matches(
     source_svg: str | None = None,
     max_diff_pixels: int = 0,
     max_diff_ratio: float = 0.0,
+    test_file: str | None = None,
+    test_line: int | None = None,
+    repo_root: Path | None = None,
 ) -> None:
     """Assert PNG bytes against a committed golden and write diff artifacts."""
     expected_path = snapshot_path(snapshot_root, name)
+    expected_repo_path = _repo_relative(expected_path, repo_root)
 
     if update:
         _write_bytes(expected_path, png_bytes)
@@ -139,6 +150,11 @@ def assert_png_matches(
             actual=png_bytes,
             expected=None,
             source_svg=source_svg,
+            kind="missing_golden",
+            expected_repo_path=expected_repo_path,
+            test_file=test_file,
+            test_line=test_line,
+            repo_root=repo_root,
         )
         raise AssertionError(
             "Missing ACE PNG snapshot golden: "
@@ -166,6 +182,11 @@ def assert_png_matches(
         diff=diff_png,
         source_svg=source_svg,
         summary=summary,
+        kind="mismatch",
+        expected_repo_path=expected_repo_path,
+        test_file=test_file,
+        test_line=test_line,
+        repo_root=repo_root,
     )
     raise AssertionError(
         "ACE PNG snapshot mismatch: "
@@ -233,6 +254,7 @@ class _FailureArtifacts:
     diff_path: Path | None
     source_svg_path: Path | None
     summary_path: Path
+    failure_json_path: Path
 
 
 def _write_failure_artifacts(
@@ -243,6 +265,11 @@ def _write_failure_artifacts(
     actual: bytes,
     expected: bytes | None,
     source_svg: str | None,
+    kind: str,
+    expected_repo_path: str,
+    test_file: str | None = None,
+    test_line: int | None = None,
+    repo_root: Path | None = None,
     diff: bytes | None = None,
     summary: PngDiffSummary | None = None,
 ) -> _FailureArtifacts:
@@ -252,6 +279,7 @@ def _write_failure_artifacts(
     diff_path = failure_dir / "diff.png"
     source_svg_path = failure_dir / "actual.svg"
     summary_path = failure_dir / "summary.txt"
+    failure_json_path = failure_dir / "failure.json"
 
     _write_bytes(actual_path, actual)
     if expected is not None:
@@ -262,13 +290,49 @@ def _write_failure_artifacts(
         _write_text(source_svg_path, source_svg)
     _write_text(summary_path, _summary_text(summary))
 
+    record: dict[str, Any] = {
+        "node_id": node_id,
+        "snapshot": name,
+        "kind": kind,
+        "expected_repo_path": expected_repo_path,
+        "actual_path": _repo_relative(actual_path, repo_root),
+        "summary_path": _repo_relative(summary_path, repo_root),
+        "test_file": test_file,
+        "test_line": test_line,
+    }
+    if expected is not None:
+        record["expected_path"] = _repo_relative(expected_path, repo_root)
+    if diff is not None:
+        record["diff_path"] = _repo_relative(diff_path, repo_root)
+    if source_svg is not None:
+        record["source_svg_path"] = _repo_relative(source_svg_path, repo_root)
+    if summary is not None:
+        record["expected_size"] = list(summary.expected_size)
+        record["actual_size"] = list(summary.actual_size)
+        record["changed_pixels"] = summary.changed_pixels
+        record["total_pixels"] = summary.total_pixels
+        record["changed_ratio"] = summary.changed_ratio
+
+    _write_text(failure_json_path, json.dumps(record, indent=2, sort_keys=True) + "\n")
+
     return _FailureArtifacts(
         actual_path=actual_path,
         expected_path=expected_path if expected is not None else None,
         diff_path=diff_path if diff is not None else None,
         source_svg_path=source_svg_path if source_svg is not None else None,
         summary_path=summary_path,
+        failure_json_path=failure_json_path,
     )
+
+
+def _repo_relative(path: Path, repo_root: Path | None) -> str:
+    """Return *path* as a repo-relative POSIX string when possible."""
+    if repo_root is None:
+        return path.as_posix()
+    try:
+        return path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return path.as_posix()
 
 
 def _summary_text(summary: PngDiffSummary | None) -> str:
