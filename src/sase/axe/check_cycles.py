@@ -153,8 +153,21 @@ class CheckCycleRunner:
         )
         write_cycle_result(result)
 
-        if updates:
-            self._log(f"Full cycle complete: {len(updates)} update(s)", "green")
+        summary = (
+            "cl_submitted_checks: "
+            f"all_changespecs={len(all_changespecs)} "
+            f"filtered_changespecs={len(filtered_changespecs)} "
+            f"processed={len(filtered_changespecs)} started={len(updates)} "
+            f"updates={len(updates)} duration_ms={duration_ms}"
+        )
+        if not updates:
+            summary += " reason="
+            summary += (
+                "no_matching_changespecs"
+                if not filtered_changespecs
+                else "no_eligible_cl_submitted_checks"
+            )
+        self._log(summary, "green" if updates else None)
 
         return cycle_timestamp, len(filtered_changespecs), updates
 
@@ -190,8 +203,27 @@ class CheckCycleRunner:
         )
         write_cycle_result(result)
 
-        if updates:
-            self._log(f"Comment cycle complete: {len(updates)} update(s)", "green")
+        mailed_count = sum(
+            1
+            for changespec in filtered_changespecs
+            if get_base_status(changespec.status) == "Mailed"
+        )
+        summary = (
+            "comment_checks: "
+            f"all_changespecs={len(all_changespecs)} "
+            f"filtered_changespecs={len(filtered_changespecs)} "
+            f"mailed={mailed_count} processed={len(filtered_changespecs)} "
+            f"started={len(updates)} updates={len(updates)} duration_ms={duration_ms}"
+        )
+        if not updates:
+            if not filtered_changespecs:
+                reason = "no_matching_changespecs"
+            elif mailed_count == 0:
+                reason = "no_mailed_changespecs"
+            else:
+                reason = "no_eligible_comment_checks"
+            summary += f" reason={reason}"
+        self._log(summary, "green" if updates else None)
 
         return cycle_timestamp, len(filtered_changespecs), updates
 

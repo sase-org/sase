@@ -12,6 +12,8 @@ steps:
 
       marker = Path.home() / ".sase" / "projects" / "{{ project }}" / "refresh_docs_marker"
       head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+      head_short = subprocess.check_output(["git", "rev-parse", "--short=12", "HEAD"], text=True).strip()
+      threshold = {{ threshold }}
 
       if marker.exists():
           parts = marker.read_text().strip().split()
@@ -23,21 +25,47 @@ steps:
                   ["git", "rev-list", "--count", f"{last_sha}..HEAD"], text=True
               )
               count = int(result.strip())
+              base_kind = "sha"
+              base_ref = last_sha
+              range_desc = f"{last_sha}..{head}"
           elif last_ts:
               result = subprocess.check_output(
                   ["git", "rev-list", "--count", f"--after={last_ts}", "HEAD"], text=True
               )
               count = int(result.strip())
+              base_kind = "timestamp"
+              base_ref = last_ts
+              range_desc = f"commits after unix timestamp {last_ts} through {head}"
           else:
               count = 999  # Old-format marker with no timestamp, force a refresh
+              base_kind = "forced"
+              base_ref = last_sha
+              range_desc = f"forced refresh through {head}"
       else:
           count = 999  # First run, force a refresh
+          base_kind = "first-run"
+          base_ref = "none"
+          range_desc = f"first refresh through {head}"
 
+      print(f"project={{ project }}")
       print(f"count={count}")
       print(f"head={head}")
+      print(f"head_short={head_short}")
+      print(f"marker={marker}")
+      print(f"base_kind={base_kind}")
+      print(f"base_ref={base_ref}")
+      print(f"range_desc={range_desc}")
+      print(f"threshold={threshold}")
+      print(f"should_launch={str(count >= threshold).lower()}")
+      if count < threshold:
+          print("reason=below_threshold")
     output:
       count: int
       head: line
+      head_short: word
+      marker: line
+      threshold: int
+      should_launch: bool
 
   - name: launch_docs_agents
     hidden: true
@@ -53,7 +81,7 @@ steps:
       project = "{{ project }}"
       gh_ref = "{{ gh_ref }}"
       safe_project = re.sub(r"[^A-Za-z0-9_.]+", "_", project).strip("_") or "repo"
-      head = subprocess.check_output(["git", "rev-parse", "--short=12", "HEAD"], text=True).strip()
+      head = "{{ count_commits.head_short }}"
       name_prefix = f"refresh_docs.{safe_project}.{head}"
 
       docs_prompt = textwrap.dedent(f"""
@@ -75,6 +103,7 @@ steps:
       multi_prompt = build_wait_chained_multi_prompt([docs_prompt, polish_prompt])
       launch_agent_from_cwd(multi_prompt)
       print("launched=2")
+      print(f"launched_agent_names={name_prefix}.update, {name_prefix}.polish")
     output: { launched: int }
 
   - name: update_marker
@@ -89,4 +118,6 @@ steps:
       marker.parent.mkdir(parents=True, exist_ok=True)
       marker.write_text(f"{head} {ts}")
       print("updated=true")
+      print(f"marker={marker}")
+      print(f"head={head}")
     output: { updated: bool }

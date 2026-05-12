@@ -166,11 +166,23 @@ def main() -> None:
 
     projects_dir = Path.home() / ".sase" / "projects"
     if not projects_dir.exists():
+        log(
+            "wait_checks: projects=0 artifacts=0 waiting=0 ready_written=0 reason=no_projects_dir"
+        )
         return
+
+    projects = 0
+    artifacts = 0
+    waiting_markers = 0
+    ready_written = 0
+    skipped_ready = 0
+    skipped_invalid = 0
+    unresolved = 0
 
     for project_dir in projects_dir.iterdir():
         if not project_dir.is_dir():
             continue
+        projects += 1
 
         ace_run_dir = project_dir / "artifacts" / "ace-run"
         if not ace_run_dir.exists():
@@ -179,27 +191,33 @@ def main() -> None:
         for artifact_dir in ace_run_dir.iterdir():
             if not artifact_dir.is_dir():
                 continue
+            artifacts += 1
 
             waiting_path = artifact_dir / "waiting.json"
             if not waiting_path.exists():
                 continue
+            waiting_markers += 1
 
             # Already resolved -- skip
             ready_path = artifact_dir / "ready.json"
             if ready_path.exists():
+                skipped_ready += 1
                 continue
 
             try:
                 with open(waiting_path, encoding="utf-8") as f:
                     data = json.load(f)
             except (json.JSONDecodeError, OSError):
+                skipped_invalid += 1
                 continue
 
             if not isinstance(data, dict):
+                skipped_invalid += 1
                 continue
 
             waiting_for = data.get("waiting_for", [])
             if not isinstance(waiting_for, list) or not waiting_for:
+                skipped_invalid += 1
                 continue
 
             # Check if all dependencies completed successfully.
@@ -223,7 +241,31 @@ def main() -> None:
                             indent=2,
                         )
                 except OSError:
-                    pass
+                    skipped_invalid += 1
+                else:
+                    ready_written += 1
+            else:
+                unresolved += 1
+
+    summary = (
+        "wait_checks: "
+        f"projects={projects} artifacts={artifacts} waiting={waiting_markers} "
+        f"ready_written={ready_written} already_ready={skipped_ready} "
+        f"invalid={skipped_invalid} unresolved={unresolved}"
+    )
+    if ready_written == 0:
+        if projects == 0:
+            reason = "no_project_dirs"
+        elif waiting_markers == 0:
+            reason = "no_waiting_markers"
+        elif unresolved > 0:
+            reason = "dependencies_not_ready"
+        elif skipped_ready > 0:
+            reason = "waiting_markers_already_ready"
+        else:
+            reason = "no_ready_markers_written"
+        summary += f" reason={reason}"
+    log(summary)
 
 
 if __name__ == "__main__":

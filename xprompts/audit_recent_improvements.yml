@@ -13,6 +13,7 @@ steps:
       marker = Path.home() / ".sase" / "projects" / "{{ project }}" / "recent_improvement_audit_marker"
       head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
       head_short = subprocess.check_output(["git", "rev-parse", "--short=12", "HEAD"], text=True).strip()
+      threshold = {{ threshold }}
 
       if marker.exists():
           parts = marker.read_text().strip().split()
@@ -58,6 +59,10 @@ steps:
       print(f"base_context={base_context}")
       print(f"range_desc={range_desc}")
       print(f"marker={marker}")
+      print(f"threshold={threshold}")
+      print(f"should_launch={str(count >= threshold).lower()}")
+      if count < threshold:
+          print("reason=below_threshold")
     output:
       count: int
       head: line
@@ -67,6 +72,8 @@ steps:
       base_context: line
       range_desc: line
       marker: line
+      threshold: int
+      should_launch: bool
 
   - name: launch_improvement_audit_agent
     hidden: true
@@ -112,6 +119,11 @@ steps:
 
       launch_agent_from_cwd(prompt)
       print("launched=1")
+      print(f"launched_agent_name={name_prefix}")
+      print(f"pr_name={pr_name}")
+    output:
+      launched: int
+      launched_agent_name: line
 
   - name: update_recent_improvement_audit_marker
     if: "{{ count_recent_improvement_audit_commits.count >= threshold }}"
@@ -125,4 +137,6 @@ steps:
       marker.parent.mkdir(parents=True, exist_ok=True)
       marker.write_text(f"{head} {ts}")
       print("updated=true")
+      print(f"marker={marker}")
+      print(f"head={head}")
     output: { updated: bool }

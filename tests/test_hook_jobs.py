@@ -2,6 +2,8 @@
 
 from typing import Any
 
+import pytest
+
 from sase.axe.hook_jobs import HookJobRunner
 from sase.axe.state import AxeMetrics
 from test_utils import build_changespec, make_mentor_config
@@ -47,3 +49,54 @@ def test_run_mentor_checks_reuses_loaded_profiles(monkeypatch: Any) -> None:
 
     assert profile_loads == 1
     assert check_calls == 2
+
+
+def test_run_hook_checks_emits_noop_summary(monkeypatch: pytest.MonkeyPatch) -> None:
+    cs = build_changespec(name="one", hooks=[object()])
+    logs: list[str] = []
+
+    monkeypatch.setattr(
+        "sase.axe.hook_jobs.check_hooks",
+        lambda *_args, **_kwargs: ([], 0),
+    )
+
+    runner = HookJobRunner(
+        metrics=AxeMetrics(),
+        zombie_timeout_seconds=30,
+        max_hook_runners=10,
+        max_agent_runners=10,
+        log_callback=lambda msg, _style=None: logs.append(msg),
+    )
+    runner.run_hook_checks([cs])
+
+    assert logs[-1] == (
+        "hook_checks: changespecs=1 hooks=1 updates=0 started=0 "
+        "reason=no_updates_or_launches"
+    )
+
+
+def test_run_mentor_checks_emits_action_summary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cs = build_changespec(name="one", mentors=[object()])
+    logs: list[str] = []
+
+    monkeypatch.setattr("sase.axe.hook_jobs.get_all_mentor_profiles", lambda: [])
+    monkeypatch.setattr(
+        "sase.axe.hook_jobs.check_mentors",
+        lambda *_args, **_kwargs: (["Started mentor"], 1),
+    )
+
+    runner = HookJobRunner(
+        metrics=AxeMetrics(),
+        zombie_timeout_seconds=30,
+        max_hook_runners=10,
+        max_agent_runners=10,
+        log_callback=lambda msg, _style=None: logs.append(msg),
+    )
+    runner.run_mentor_checks([cs])
+
+    assert "* one: Started mentor" in logs
+    assert logs[-1] == (
+        "mentor_checks: changespecs=1 mentors=1 profiles=0 updates=1 started=1"
+    )

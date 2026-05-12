@@ -37,6 +37,20 @@ from .state import AxeMetrics
 LogCallback = Callable[[str, str | None], None]
 
 
+def _count_entries(changespecs: list[ChangeSpec], attr: str) -> int:
+    return sum(len(getattr(changespec, attr) or []) for changespec in changespecs)
+
+
+def _format_noop_reason(
+    *, inspected_changespecs: int, inspected_entries: int, noun: str
+) -> str:
+    if inspected_changespecs == 0:
+        return "no_matching_changespecs"
+    if inspected_entries == 0:
+        return f"no_{noun}"
+    return "no_updates_or_launches"
+
+
 class HookJobRunner:
     """Runner for hook cycle jobs.
 
@@ -82,6 +96,9 @@ class HookJobRunner:
         """
         self._hooks_started_this_tick = 0
         self._agents_started_this_tick = 0
+        updates_before = self.metrics.total_updates
+        hooks_started_before = self.metrics.hooks_started
+        inspected_hooks = _count_entries(filtered_changespecs, "hooks")
 
         for changespec in filtered_changespecs:
             if not changespec.hooks:
@@ -102,12 +119,30 @@ class HookJobRunner:
             for update in hook_updates:
                 self._log(f"* {changespec.name}: {update}", "green bold")
 
+        updates = self.metrics.total_updates - updates_before
+        started = self.metrics.hooks_started - hooks_started_before
+        summary = (
+            "hook_checks: "
+            f"changespecs={len(filtered_changespecs)} hooks={inspected_hooks} "
+            f"updates={updates} started={started}"
+        )
+        if updates == 0 and started == 0:
+            summary += " reason=" + _format_noop_reason(
+                inspected_changespecs=len(filtered_changespecs),
+                inspected_entries=inspected_hooks,
+                noun="hooks",
+            )
+        self._log(summary, "green" if updates or started else None)
+
     def run_mentor_checks(self, filtered_changespecs: list[ChangeSpec]) -> None:
         """Run mentor completion and startup checks.
 
         Args:
             filtered_changespecs: List of changespecs to check.
         """
+        updates_before = self.metrics.total_updates
+        mentors_started_before = self.metrics.mentors_started
+        inspected_mentors = _count_entries(filtered_changespecs, "mentors")
         all_profiles = get_all_mentor_profiles()
         for changespec in filtered_changespecs:
             mentor_updates, mentors_started = check_mentors(
@@ -126,12 +161,29 @@ class HookJobRunner:
             for update in mentor_updates:
                 self._log(f"* {changespec.name}: {update}", "green bold")
 
+        updates = self.metrics.total_updates - updates_before
+        started = self.metrics.mentors_started - mentors_started_before
+        summary = (
+            "mentor_checks: "
+            f"changespecs={len(filtered_changespecs)} mentors={inspected_mentors} "
+            f"profiles={len(all_profiles)} updates={updates} started={started}"
+        )
+        if updates == 0 and started == 0:
+            summary += " reason=" + _format_noop_reason(
+                inspected_changespecs=len(filtered_changespecs),
+                inspected_entries=inspected_mentors,
+                noun="mentors",
+            )
+        self._log(summary, "green" if updates or started else None)
+
     def run_workflow_checks(self, filtered_changespecs: list[ChangeSpec]) -> None:
         """Run CRS/fix-hook workflow checks.
 
         Args:
             filtered_changespecs: List of changespecs to check.
         """
+        updates_before = self.metrics.total_updates
+        workflows_started_before = self.metrics.workflows_started
         for changespec in filtered_changespecs:
             # Check completion of running workflows
             completion_updates = check_and_complete_workflows(changespec, self._log)
@@ -155,6 +207,22 @@ class HookJobRunner:
             for update in start_updates:
                 self._log(f"* {changespec.name}: {update}", "green bold")
 
+        updates = self.metrics.total_updates - updates_before
+        started = self.metrics.workflows_started - workflows_started_before
+        summary = (
+            "workflow_checks: "
+            f"changespecs={len(filtered_changespecs)} updates={updates} "
+            f"started={started}"
+        )
+        if updates == 0 and started == 0:
+            summary += " reason="
+            summary += (
+                "no_matching_changespecs"
+                if not filtered_changespecs
+                else "no_workflow_updates_or_launches"
+            )
+        self._log(summary, "green" if updates or started else None)
+
     def run_pending_checks_poll(self, filtered_changespecs: list[ChangeSpec]) -> None:
         """Poll for completed background checks.
 
@@ -165,10 +233,12 @@ class HookJobRunner:
         Args:
             filtered_changespecs: List of changespecs to check.
         """
-        reap_orphan_check_files(self._log)
+        updates_before = self.metrics.total_updates
+        reaped = reap_orphan_check_files(self._log)
         by_name = scan_all_pending_checks()
-        if not by_name:
-            return
+        pending_files = sum(len(pending) for pending in by_name.values())
+        matched_files = 0
+        unmatched_groups = 0
 
         # Filenames encode ChangeSpec names via make_safe_filename(), which is
         # lossy (e.g. "foo-bar" and "foo_bar" both map to "foo_bar").  Any
@@ -178,12 +248,31 @@ class HookJobRunner:
         for safe_name, pending in by_name.items():
             changespec = safe_to_cs.get(safe_name)
             if changespec is None:
+                unmatched_groups += 1
                 continue
+            matched_files += len(pending)
             updates = process_pending_checks_for(changespec, pending, self._log)
             self.metrics.total_updates += len(updates)
 
             for update in updates:
                 self._log(f"* {changespec.name}: {update}", "green bold")
+
+        update_count = self.metrics.total_updates - updates_before
+        summary = (
+            "pending_checks_poll: "
+            f"changespecs={len(filtered_changespecs)} pending_files={pending_files} "
+            f"matched_files={matched_files} unmatched_groups={unmatched_groups} "
+            f"reaped={reaped} updates={update_count}"
+        )
+        if update_count == 0 and reaped == 0:
+            if not by_name:
+                reason = "no_pending_check_files"
+            elif matched_files == 0:
+                reason = "no_pending_files_for_filtered_changespecs"
+            else:
+                reason = "no_completed_checks"
+            summary += f" reason={reason}"
+        self._log(summary, "green" if update_count or reaped else None)
 
     def run_comment_zombie_checks(self, filtered_changespecs: list[ChangeSpec]) -> None:
         """Check for zombie comment entries.
@@ -191,6 +280,9 @@ class HookJobRunner:
         Args:
             filtered_changespecs: List of changespecs to check.
         """
+        updates_before = self.metrics.total_updates
+        zombies_before = self.metrics.zombies_detected
+        inspected_comments = _count_entries(filtered_changespecs, "comments")
         for changespec in filtered_changespecs:
             updates = check_comment_zombies(changespec, self.zombie_timeout_seconds)
             if updates:
@@ -199,6 +291,21 @@ class HookJobRunner:
 
                 for update in updates:
                     self._log(f"* {changespec.name}: {update}", "yellow")
+
+        update_count = self.metrics.total_updates - updates_before
+        zombies = self.metrics.zombies_detected - zombies_before
+        summary = (
+            "comment_zombie_checks: "
+            f"changespecs={len(filtered_changespecs)} comments={inspected_comments} "
+            f"zombies={zombies} updates={update_count}"
+        )
+        if update_count == 0:
+            summary += " reason=" + _format_noop_reason(
+                inspected_changespecs=len(filtered_changespecs),
+                inspected_entries=inspected_comments,
+                noun="comments",
+            )
+        self._log(summary, "yellow" if update_count else None)
 
     def run_suffix_transforms(
         self, all_changespecs: list[ChangeSpec], filtered_changespecs: list[ChangeSpec]
@@ -212,6 +319,7 @@ class HookJobRunner:
         Returns:
             Timestamp of when the hook cycle completed.
         """
+        updates_before = self.metrics.total_updates
         for changespec in filtered_changespecs:
             updates: list[str] = []
 
@@ -229,7 +337,23 @@ class HookJobRunner:
             for update in updates:
                 self._log(f"* {changespec.name}: {update}", "green bold")
 
-        return datetime.now(get_timezone())
+        cycle_timestamp = datetime.now(get_timezone())
+        update_count = self.metrics.total_updates - updates_before
+        summary = (
+            "suffix_transforms: "
+            f"all_changespecs={len(all_changespecs)} "
+            f"filtered_changespecs={len(filtered_changespecs)} updates={update_count}"
+        )
+        if update_count == 0:
+            summary += " reason="
+            summary += (
+                "no_matching_changespecs"
+                if not filtered_changespecs
+                else "no_stale_suffix_markers"
+            )
+        self._log(summary, "green" if update_count else None)
+
+        return cycle_timestamp
 
     def run_orphan_cleanup(self, all_changespecs: list[ChangeSpec]) -> None:
         """Clean up orphaned workspace claims for reverted CLs.
@@ -240,6 +364,12 @@ class HookJobRunner:
         released = cleanup_orphaned_workspace_claims(all_changespecs, self._log)
         if released > 0:
             self.metrics.total_updates += released
+        summary = (
+            f"orphan_cleanup: changespecs={len(all_changespecs)} released={released}"
+        )
+        if released == 0:
+            summary += " reason=no_orphaned_workspace_claims"
+        self._log(summary, "green" if released else None)
 
     def run_stale_running_cleanup(self) -> None:
         """Clean up stale RUNNING entries for dead processes."""
@@ -247,3 +377,7 @@ class HookJobRunner:
         if released > 0:
             self.metrics.stale_running_cleaned += released
             self.metrics.total_updates += released
+        summary = f"stale_running_cleanup: released={released}"
+        if released == 0:
+            summary += " reason=no_dead_running_process_claims"
+        self._log(summary, "green" if released else None)

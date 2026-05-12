@@ -29,8 +29,38 @@ steps:
       fi
     output: { success: bool }
 
+  - name: decide_fixers
+    hidden: true
+    python: |
+      fmt_success = {{ _just_fmt_check.success }}
+      lint_success = {{ _just_lint.success }}
+      test_success = {{ _just_test.success }}
+      print(f"fmt_success={str(fmt_success).lower()}")
+      print(f"lint_success={str(lint_success).lower()}")
+      print(f"test_success={str(test_success).lower()}")
+      print(f"launch_fmt={str(not fmt_success).lower()}")
+      print(f"launch_linters={str(not lint_success).lower()}")
+      print(f"launch_tests={str(not test_success).lower()}")
+      branches = []
+      if not fmt_success:
+          branches.append("fix_fmt")
+      if not lint_success:
+          branches.append("fix_linters")
+      if not test_success:
+          branches.append("fix_tests")
+      print(f"branches={', '.join(branches) if branches else '-'}")
+      if not branches:
+          print("reason=all_just_checks_passed")
+    output:
+      fmt_success: bool
+      lint_success: bool
+      test_success: bool
+      launch_fmt: bool
+      launch_linters: bool
+      launch_tests: bool
+
   - name: fix_fmt
-    if: "{{ not _just_fmt_check.success }}"
+    if: "{{ decide_fixers.launch_fmt }}"
     bash: |
       just fmt
       git add -A
@@ -39,13 +69,14 @@ steps:
         git pull --rebase
         git push
       fi
+      echo "fix_fmt=done"
 
   - name: fix_linters
-    if: "{{ not _just_lint.success }}"
+    if: "{{ decide_fixers.launch_linters }}"
     agent: |
       #gh:sase Can you help me fix the `just lint` command?
 
   - name: fix_tests
-    if: "{{ not _just_test.success }}"
+    if: "{{ decide_fixers.launch_tests }}"
     agent: |
       #gh:sase Can you help me fix the `just test` command?

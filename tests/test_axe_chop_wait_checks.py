@@ -151,7 +151,7 @@ def test_successful_workflow_name_dependency_resolves(
 
 
 def test_completed_named_agent_success_path_writes_ready(
-    tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch, capsys
 ) -> None:
     waiter_dir = _make_waiting_agent(tmp_path, "foo")
     make_agent(
@@ -167,3 +167,29 @@ def test_completed_named_agent_success_path_writes_ready(
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
     assert ready == {"resolved_deps": ["foo"]}
+    out = capsys.readouterr().out
+    assert "[wait_checks] Dependencies satisfied for waiter-cl" in out
+    assert "wait_checks: projects=1 artifacts=2 waiting=1 ready_written=1" in out
+
+
+def test_wait_checks_no_projects_dir_emits_noop_summary(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    _run_wait_checks(tmp_path, monkeypatch)
+
+    assert capsys.readouterr().out == (
+        "wait_checks: projects=0 artifacts=0 waiting=0 ready_written=0 "
+        "reason=no_projects_dir\n"
+    )
+
+
+def test_wait_checks_unresolved_dependency_emits_noop_reason(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    _make_waiting_agent(tmp_path, "missing-agent")
+
+    _run_wait_checks(tmp_path, monkeypatch)
+
+    out = capsys.readouterr().out
+    assert "wait_checks: projects=1 artifacts=1 waiting=1 ready_written=0" in out
+    assert "unresolved=1 reason=dependencies_not_ready" in out
