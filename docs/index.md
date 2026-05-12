@@ -18,6 +18,7 @@ title: Structured Agentic Software Engineering
     <div class="sase-actions">
       <a class="md-button" href="/downloads/sase-handbook.pdf">Download PDF</a>
       <a class="md-button" href="https://github.com/sase-org/sase">View on GitHub</a>
+      <a class="md-button" href="series/agentic-software-engineering/">SASE Blog Series</a>
     </div>
 
   </div>

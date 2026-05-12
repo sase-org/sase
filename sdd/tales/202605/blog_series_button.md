@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 13:04:00
-status: wip
+status: done
 prompt: sdd/prompts/202605/blog_series_button.md
 ---
 # Add Homepage Blog Series Button
