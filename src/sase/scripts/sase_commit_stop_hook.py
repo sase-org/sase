@@ -51,14 +51,40 @@ def _is_gemini_runtime() -> bool:
     return bool(os.environ.get("GEMINI_PROJECT_DIR"))
 
 
-def _read_gemini_stdin() -> dict:
-    """Read hook metadata from stdin (Gemini pipes JSON on stdin)."""
+def _read_hook_stdin() -> dict:
+    """Read stop-hook metadata piped on stdin (Claude/Gemini/Codex/Qwen/opencode)."""
     if sys.stdin.isatty():
         return {}
     try:
         return json.loads(sys.stdin.read())
     except (json.JSONDecodeError, ValueError):
         return {}
+
+
+def _resolve_session_id(hook_input: dict) -> str:
+    sase_ts = os.environ.get("SASE_AGENT_TIMESTAMP")
+    if sase_ts:
+        return sase_ts
+
+    stdin_sid = hook_input.get("session_id") or hook_input.get("sessionId") or ""
+    if stdin_sid:
+        return f"stdin-{stdin_sid}"
+
+    codex_tid = os.environ.get("CODEX_THREAD_ID")
+    if codex_tid:
+        return f"codex-{codex_tid}"
+
+    try:
+        tty_path = os.ttyname(0)
+    except OSError:
+        tty_path = ""
+    if tty_path:
+        import hashlib
+
+        digest = hashlib.md5(tty_path.encode()).hexdigest()[:12]
+        return f"tty-{digest}"
+
+    return f"pid-{os.getpid()}"
 
 
 def _emit_block(reason: str, details: str | None = None) -> int:
@@ -288,7 +314,8 @@ def main() -> int:
     project_dir = _resolve_project_dir()
     os.chdir(project_dir)
 
-    session_id = os.environ.get("SASE_AGENT_TIMESTAMP") or str(os.getpid())
+    hook_input = _read_hook_stdin()
+    session_id = _resolve_session_id(hook_input)
     marker_file = (
         Path(os.environ.get("SASE_TMPDIR", "/tmp"))
         / f"sase_commit_hook_done_{session_id}"
@@ -300,6 +327,7 @@ def main() -> int:
         project_dir=project_dir,
         commit_method=commit_method,
         pid=os.getpid(),
+        session_id=session_id,
     )
 
     _log_hook_run(project_dir)
@@ -308,11 +336,8 @@ def main() -> int:
         _jlog("session_dedup_skip", marker=str(marker_file))
         return _exit(0, reason="session_dedup")
 
-    gemini = runtime == "gemini"
-    gemini_input = _read_gemini_stdin() if gemini else {}
-
     # Deduplication: Gemini uses stop_hook_active from stdin
-    if gemini and gemini_input.get("stop_hook_active"):
+    if runtime == "gemini" and hook_input.get("stop_hook_active"):
         _jlog("gemini_dedup_skip")
         return _exit(0, reason="gemini_dedup")
 

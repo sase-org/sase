@@ -5,23 +5,54 @@
 
 set -u
 
-# Gemini runtime globals
-GEMINI_HOOK_INPUT=""
+# Stop-hook stdin payload (Claude/Gemini/Codex/Qwen/opencode all pipe JSON)
+HOOK_INPUT_JSON=""
+HOOK_INPUT_SESSION_ID=""
 GEMINI_STOP_HOOK_ACTIVE=""
 
 function read_hook_input() {
     if [ -t 0 ]; then
         return
     fi
-    GEMINI_HOOK_INPUT=$(cat)
-    if [ -n "$GEMINI_HOOK_INPUT" ]; then
-        GEMINI_STOP_HOOK_ACTIVE=$(printf '%s' "$GEMINI_HOOK_INPUT" | python3 -c "
+    HOOK_INPUT_JSON=$(cat)
+    if [ -n "$HOOK_INPUT_JSON" ]; then
+        local parsed
+        parsed=$(printf '%s' "$HOOK_INPUT_JSON" | python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-if d.get('stop_hook_active', ''):
-    print('true')
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+sid = d.get('session_id') or d.get('sessionId') or ''
+active = 'true' if d.get('stop_hook_active') else ''
+print(sid)
+print(active)
 " 2>/dev/null) || true
+        HOOK_INPUT_SESSION_ID=$(printf '%s' "$parsed" | sed -n '1p')
+        GEMINI_STOP_HOOK_ACTIVE=$(printf '%s' "$parsed" | sed -n '2p')
     fi
+}
+
+function resolve_session_id() {
+    if [ -n "${SASE_AGENT_TIMESTAMP:-}" ]; then
+        echo "$SASE_AGENT_TIMESTAMP"
+        return 0
+    fi
+    if [ -n "$HOOK_INPUT_SESSION_ID" ]; then
+        echo "stdin-$HOOK_INPUT_SESSION_ID"
+        return 0
+    fi
+    if [ -n "${CODEX_THREAD_ID:-}" ]; then
+        echo "codex-$CODEX_THREAD_ID"
+        return 0
+    fi
+    local tty_path
+    tty_path=$(tty 2>/dev/null) || tty_path=""
+    if [ -n "$tty_path" ] && [ "$tty_path" != "not a tty" ]; then
+        echo "tty-$(printf '%s' "$tty_path" | md5sum | cut -c1-12)"
+        return 0
+    fi
+    echo "pid-$$"
 }
 
 function resolve_project_dir() {
@@ -119,7 +150,8 @@ function repo_has_changes() {
 }
 
 function check_sibling_repos() {
-    local session_id="${SASE_AGENT_TIMESTAMP:-$$}"
+    local session_id
+    session_id="$(resolve_session_id)"
     local marker_file="${SASE_TMPDIR:-/tmp}/sase_sibling_hook_done_${session_id}"
 
     if [ -f "$marker_file" ]; then
