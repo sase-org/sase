@@ -201,7 +201,7 @@ def test_gh_client_api_uses_gh_repo_env_not_repo_flag(
         repo="sase-org/sase",
         executable=sys.executable,
         runner=fake_runner(
-            stdout='{"check_runs": []}',
+            stdout='[{"check_runs": []}]',
             capture=capture,
             env_capture=env_capture,
         ),
@@ -210,7 +210,8 @@ def test_gh_client_api_uses_gh_repo_env_not_repo_flag(
 
     argv = capture[0]
     assert argv[1] == "api"
-    assert argv[2] == "repos/{owner}/{repo}/commits/deadbeef/check-runs"
+    assert argv[2] == "repos/{owner}/{repo}/commits/deadbeef/check-runs?per_page=100"
+    assert argv[-2:] == ["--paginate", "--slurp"]
     assert "--repo" not in argv
     assert env_capture[0] == {"GH_REPO": "sase-org/sase"}
 
@@ -224,7 +225,7 @@ def test_gh_client_api_without_repo_passes_no_env_override(
         repo=None,
         executable=sys.executable,
         runner=fake_runner(
-            stdout='{"check_runs": []}',
+            stdout='[{"check_runs": []}]',
             capture=capture,
             env_capture=env_capture,
         ),
@@ -234,6 +235,31 @@ def test_gh_client_api_without_repo_passes_no_env_override(
     argv = capture[0]
     assert "--repo" not in argv
     assert env_capture[0] is None
+
+
+def test_gh_client_annotation_api_uses_pagination(
+    script: types.ModuleType,
+) -> None:
+    capture: list[list[str]] = []
+    client = script.GhClient(
+        repo="sase-org/sase",
+        executable=sys.executable,
+        runner=fake_runner(stdout="[[]]", capture=capture),
+    )
+    check_run = script.CheckRun(
+        check_run_id=123,
+        name="CI",
+        status="completed",
+        conclusion="failure",
+    )
+
+    assert client.list_check_run_annotations(check_run) == []
+
+    argv = capture[0]
+    assert argv[1] == "api"
+    assert argv[2] == "repos/{owner}/{repo}/check-runs/123/annotations?per_page=100"
+    assert argv[-2:] == ["--paginate", "--slurp"]
+    assert "--repo" not in argv
 
 
 def test_gh_client_non_api_subcommand_still_uses_repo_flag(

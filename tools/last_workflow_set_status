@@ -249,14 +249,21 @@ class GhClient:
         the resolved repo context. When :attr:`repo` is set explicitly,
         :meth:`_gh_args` exposes it through the ``GH_REPO`` environment
         variable (``gh api`` does not accept ``--repo``).
+
+        The REST endpoint is paginated; ``--slurp`` keeps the paginated output
+        valid JSON so larger workflow sets are not silently truncated to the
+        first page.
         """
         payload = self.run_json(
             [
                 "api",
-                f"repos/{{owner}}/{{repo}}/commits/{sha}/check-runs",
+                f"repos/{{owner}}/{{repo}}/commits/{sha}/check-runs"
+                "?per_page=100",
+                "--paginate",
+                "--slurp",
             ]
         )
-        return parse_check_runs(payload)
+        return parse_paginated_check_runs(payload)
 
     def list_check_run_annotations(
         self, check_run: "CheckRun"
@@ -266,10 +273,12 @@ class GhClient:
             [
                 "api",
                 f"repos/{{owner}}/{{repo}}/check-runs/"
-                f"{check_run.check_run_id}/annotations",
+                f"{check_run.check_run_id}/annotations?per_page=100",
+                "--paginate",
+                "--slurp",
             ]
         )
-        return parse_annotations(payload, check_run=check_run)
+        return parse_paginated_annotations(payload, check_run=check_run)
 
     def fetch_failed_log(self, run_id: int) -> str:
         """Fetch the failed-step log for ``run_id`` as text."""
@@ -548,6 +557,16 @@ def parse_check_runs(payload: object) -> list[CheckRun]:
     return out
 
 
+def parse_paginated_check_runs(payload: object) -> list[CheckRun]:
+    """Convert ``gh api --paginate --slurp`` check-run pages into rows."""
+    if isinstance(payload, list):
+        out: list[CheckRun] = []
+        for page in payload:
+            out.extend(parse_check_runs(page))
+        return out
+    return parse_check_runs(payload)
+
+
 def parse_annotations(
     payload: object, *, check_run: CheckRun
 ) -> list[Annotation]:
@@ -571,6 +590,18 @@ def parse_annotations(
             )
         )
     return out
+
+
+def parse_paginated_annotations(
+    payload: object, *, check_run: CheckRun
+) -> list[Annotation]:
+    """Convert ``gh api --paginate --slurp`` annotation pages into rows."""
+    if isinstance(payload, list) and all(isinstance(page, list) for page in payload):
+        out: list[Annotation] = []
+        for page in payload:
+            out.extend(parse_annotations(page, check_run=check_run))
+        return out
+    return parse_annotations(payload, check_run=check_run)
 
 
 def dedup_runs(runs: Iterable[WorkflowRun]) -> list[WorkflowRun]:
