@@ -54,6 +54,10 @@ def test_run_log_loads_active_dismissed_and_meta_created_agents() -> None:
             return_value=dismissed_ids,
         ),
         patch(
+            "sase.ace.tui.modals.agent_run_log_modal.load_dismissed_bundle_summaries",
+            return_value=[],
+        ) as mock_load_dismissed_bundle_summaries,
+        patch(
             "sase.ace.tui.modals.agent_run_log_modal.load_dismissed_bundles",
             return_value=[
                 dismissed_direct,
@@ -70,6 +74,10 @@ def test_run_log_loads_active_dismissed_and_meta_created_agents() -> None:
         active_meta_pr,
         dismissed_direct,
     ]
+    mock_load_dismissed_bundle_summaries.assert_called_once_with(
+        cl_name=target,
+        top_level_only=True,
+    )
     mock_load_dismissed_bundles.assert_called_once_with(
         suffixes={dismissed_direct.raw_suffix, dismissed_child.raw_suffix}
     )
