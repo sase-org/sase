@@ -5,14 +5,16 @@ sase ace to monitor and control axe processes via the TUI.
 
 Includes both the flat scheduler state (legacy) and per-lumberjack state
 directories used by the new lumberjack architecture.
+
+Path constants and the shared low-level JSON / log helpers live in this
+module so tests can ``patch("sase.axe.state.AXE_STATE_DIR", ...)`` and have
+the patch apply to every caller. The dataclasses and higher-level read/write
+helpers live in sibling ``_state_*`` modules and are re-exported below.
 """
 
 import json
-import os
-from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
 
 from sase.core.time import get_timezone
 
@@ -25,73 +27,23 @@ JACK_STATE_DIR = AXE_STATE_DIR / "lumberjacks"
 # Shared cross-process state
 SHARED_STATE_DIR = AXE_STATE_DIR / "shared"
 
-
-@dataclass
-class AxeStatus:
-    """Current status of the axe scheduler for TUI display."""
-
-    pid: int
-    started_at: str
-    status: Literal["running", "stopped", "error"]
-    full_check_interval: int
-    hook_interval: int
-    max_hook_runners: int
-    max_agent_runners: int
-    query: str
-    zombie_timeout: int
-    current_hook_runners: int
-    current_agent_runners: int
-    last_full_cycle: str | None
-    last_hook_cycle: str | None
-    next_full_cycle: str | None
-    total_changespecs: int
-    filtered_changespecs: int
-    uptime_seconds: int
+# Path to the output log file with ANSI codes
+AXE_OUTPUT_LOG = AXE_STATE_DIR / "logs" / "output.log"
 
 
-@dataclass
-class CycleResult:
-    """Result of a scheduler cycle for logging/debugging."""
-
-    timestamp: str
-    cycle_type: Literal["full", "hook", "comment"]
-    duration_ms: int
-    changespecs_processed: int
-    updates: list[dict] = field(default_factory=list)
-    errors: list[str] = field(default_factory=list)
-
-
-@dataclass
-class AxeMetrics:
-    """Performance metrics for the axe scheduler."""
-
-    full_cycles_run: int = 0
-    hook_cycles_run: int = 0
-    total_updates: int = 0
-    hooks_started: int = 0
-    hooks_completed: int = 0
-    mentors_started: int = 0
-    mentors_completed: int = 0
-    workflows_started: int = 0
-    workflows_completed: int = 0
-    zombies_detected: int = 0
-    stale_running_cleaned: int = 0
-    errors_encountered: int = 0
-
-
-def _ensure_state_dir() -> None:
+def ensure_state_dir() -> None:
     """Ensure state directory exists."""
     AXE_STATE_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _atomic_write_json(path: Path, data: dict | list) -> None:
+def atomic_write_json(path: Path, data: dict | list) -> None:
     """Write JSON atomically using temp file + rename.
 
     Args:
         path: Target file path.
         data: Dictionary or list to write as JSON.
     """
-    _ensure_state_dir()
+    ensure_state_dir()
     temp_path = path.with_suffix(".tmp")
     try:
         with open(temp_path, "w") as f:
@@ -105,7 +57,7 @@ def _atomic_write_json(path: Path, data: dict | list) -> None:
             pass
 
 
-def _read_json(path: Path) -> dict | None:
+def read_json(path: Path) -> dict | None:
     """Read JSON file safely.
 
     Args:
@@ -123,405 +75,7 @@ def _read_json(path: Path) -> dict | None:
         return None
 
 
-# --- PID File ---
-
-
-def read_pid_file() -> int | None:
-    """Read PID from file.
-
-    Returns:
-        PID as integer, or None if file doesn't exist or is invalid.
-    """
-    pid_file = AXE_STATE_DIR / "pid"
-    if not pid_file.exists():
-        return None
-    try:
-        return int(pid_file.read_text().strip())
-    except (ValueError, OSError):
-        return None
-
-
-def remove_pid_file() -> None:
-    """Remove PID file on shutdown."""
-    pid_file = AXE_STATE_DIR / "pid"
-    try:
-        pid_file.unlink()
-    except OSError:
-        pass
-
-
-# --- Status ---
-
-
-def read_status() -> AxeStatus | None:
-    """Read current status from disk.
-
-    Returns:
-        AxeStatus object, or None if file doesn't exist or is invalid.
-    """
-    status_file = AXE_STATE_DIR / "status.json"
-    data = _read_json(status_file)
-    if data is None:
-        return None
-    try:
-        return AxeStatus(**data)
-    except TypeError:
-        return None
-
-
-# --- Cycle Results ---
-
-
-def write_cycle_result(result: CycleResult) -> None:
-    """Write cycle result to disk for debugging.
-
-    Args:
-        result: Result of the completed cycle.
-    """
-    filename = f"last_{result.cycle_type}_cycle.json"
-    result_file = AXE_STATE_DIR / filename
-    _atomic_write_json(result_file, asdict(result))
-
-
-def read_cycle_result(
-    cycle_type: Literal["full", "hook", "comment"],
-) -> CycleResult | None:
-    """Read last cycle result from disk.
-
-    Args:
-        cycle_type: Type of cycle to read ("full", "hook", or "comment").
-
-    Returns:
-        CycleResult object, or None if file doesn't exist or is invalid.
-    """
-    filename = f"last_{cycle_type}_cycle.json"
-    result_file = AXE_STATE_DIR / filename
-    data = _read_json(result_file)
-    if data is None:
-        return None
-    try:
-        return CycleResult(**data)
-    except TypeError:
-        return None
-
-
-# --- Metrics ---
-
-
-def read_metrics() -> AxeMetrics | None:
-    """Read metrics from disk.
-
-    Returns:
-        AxeMetrics object, or None if file doesn't exist or is invalid.
-    """
-    metrics_file = AXE_STATE_DIR / "metrics.json"
-    data = _read_json(metrics_file)
-    if data is None:
-        return None
-    try:
-        return AxeMetrics(**data)
-    except TypeError:
-        return None
-
-
-# --- Errors ---
-
-
-def append_error(error_info: dict) -> None:
-    """Append error to recent errors list.
-
-    Keeps only the last 100 errors.
-
-    Args:
-        error_info: Dictionary with error details (timestamp, job, error, traceback).
-    """
-    errors_file = AXE_STATE_DIR / "recent_errors.json"
-    errors: list[dict] = _read_json(errors_file) or []  # type: ignore[assignment]
-    if not isinstance(errors, list):
-        errors = []
-
-    errors.append(error_info)
-    # Keep only last 100 errors
-    errors = errors[-100:]
-
-    _atomic_write_json(errors_file, errors)
-
-
-def read_errors() -> list[dict]:
-    """Read recent errors from disk.
-
-    Returns:
-        List of error dictionaries, or empty list if none.
-    """
-    errors_file = AXE_STATE_DIR / "recent_errors.json"
-    errors = _read_json(errors_file)
-    if errors is None or not isinstance(errors, list):
-        return []
-    return errors
-
-
-def write_last_error_digest_ts(ts: str) -> None:
-    """Write the timestamp of the newest error in the last digest notification.
-
-    Args:
-        ts: ISO formatted timestamp string.
-    """
-    _ensure_state_dir()
-    ts_file = AXE_STATE_DIR / "last_error_digest_ts"
-    ts_file.write_text(ts)
-
-
-def read_last_error_digest_ts() -> str | None:
-    """Read the high-water mark timestamp from the last error digest.
-
-    Returns:
-        ISO timestamp string, or None if file is missing or empty.
-    """
-    ts_file = AXE_STATE_DIR / "last_error_digest_ts"
-    if not ts_file.exists():
-        return None
-    try:
-        content = ts_file.read_text().strip()
-        return content if content else None
-    except OSError:
-        return None
-
-
-# --- Output Log ---
-
-
-# Path to the output log file with ANSI codes
-AXE_OUTPUT_LOG = AXE_STATE_DIR / "logs" / "output.log"
-
-
-def read_output_log_tail(lines: int = 1000) -> str:
-    """Read the last N lines of the axe output log.
-
-    Args:
-        lines: Number of lines to read from the end (default: 1000).
-
-    Returns:
-        String containing the last N lines with ANSI codes preserved.
-    """
-    if not AXE_OUTPUT_LOG.exists():
-        return ""
-    return _read_tail_seek(AXE_OUTPUT_LOG, lines)
-
-
-# --- Utility ---
-
-
-def get_timestamp() -> str:
-    """Get current timestamp in ISO format with timezone.
-
-    Returns:
-        ISO formatted timestamp string.
-    """
-    return datetime.now(get_timezone()).isoformat()
-
-
-# ---------------------------------------------------------------------------
-# Per-lumberjack state management
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class LumberjackStatus:
-    """Status of a single lumberjack process."""
-
-    name: str
-    pid: int
-    started_at: str
-    status: Literal["running", "stopped", "error"]
-    interval: int
-    chops: list[str] = field(default_factory=list)
-    last_cycle: str | None = None
-    cycles_run: int = 0
-    errors_encountered: int = 0
-    uptime_seconds: int = 0
-
-
-@dataclass
-class LumberjackMetrics:
-    """Cumulative metrics for a single lumberjack process."""
-
-    cycles_run: int = 0
-    chops_executed: int = 0
-    total_updates: int = 0
-    errors_encountered: int = 0
-
-
-def _lumberjack_dir(name: str) -> Path:
-    """Return the state directory for a given lumberjack.
-
-    Args:
-        name: Lumberjack name (e.g. "hooks", "checks").
-
-    Returns:
-        Path to ``~/.sase/axe/lumberjacks/{name}/``.
-    """
-    return JACK_STATE_DIR / name
-
-
-def ensure_lumberjack_dirs(name: str) -> Path:
-    """Create the per-lumberjack state directory tree.
-
-    Creates::
-
-        ~/.sase/axe/lumberjacks/{name}/
-        ~/.sase/axe/lumberjacks/{name}/logs/
-
-    Args:
-        name: Lumberjack name.
-
-    Returns:
-        Path to the lumberjack state directory.
-    """
-    lumberjack_dir = _lumberjack_dir(name)
-    (lumberjack_dir / "logs").mkdir(parents=True, exist_ok=True)
-    return lumberjack_dir
-
-
-def write_lumberjack_pid(name: str) -> None:
-    """Write PID file for a lumberjack process.
-
-    Args:
-        name: Lumberjack name.
-    """
-    lumberjack_dir = ensure_lumberjack_dirs(name)
-    (lumberjack_dir / "pid").write_text(str(os.getpid()))
-
-
-def read_lumberjack_pid(name: str) -> int | None:
-    """Read PID for a lumberjack process.
-
-    Args:
-        name: Lumberjack name.
-
-    Returns:
-        PID as integer, or None if not found.
-    """
-    pid_file = _lumberjack_dir(name) / "pid"
-    if not pid_file.exists():
-        return None
-    try:
-        return int(pid_file.read_text().strip())
-    except (ValueError, OSError):
-        return None
-
-
-def remove_lumberjack_pid(name: str) -> None:
-    """Remove PID file for a lumberjack process.
-
-    Args:
-        name: Lumberjack name.
-    """
-    pid_file = _lumberjack_dir(name) / "pid"
-    try:
-        pid_file.unlink()
-    except OSError:
-        pass
-
-
-def write_lumberjack_status(status: LumberjackStatus) -> None:
-    """Write lumberjack status to disk.
-
-    Args:
-        status: Current lumberjack status.
-    """
-    lumberjack_dir = ensure_lumberjack_dirs(status.name)
-    _atomic_write_json(lumberjack_dir / "status.json", asdict(status))
-
-
-def read_lumberjack_status(name: str) -> LumberjackStatus | None:
-    """Read lumberjack status from disk.
-
-    Args:
-        name: Lumberjack name.
-
-    Returns:
-        LumberjackStatus, or None if not available.
-    """
-    status_file = _lumberjack_dir(name) / "status.json"
-    data = _read_json(status_file)
-    if data is None:
-        return None
-    try:
-        return LumberjackStatus(**data)
-    except TypeError:
-        return None
-
-
-def write_lumberjack_metrics(name: str, metrics: LumberjackMetrics) -> None:
-    """Write lumberjack metrics to disk.
-
-    Args:
-        name: Lumberjack name.
-        metrics: Current metrics.
-    """
-    lumberjack_dir = ensure_lumberjack_dirs(name)
-    _atomic_write_json(lumberjack_dir / "metrics.json", asdict(metrics))
-
-
-def read_lumberjack_metrics(name: str) -> LumberjackMetrics | None:
-    """Read lumberjack metrics from disk.
-
-    Args:
-        name: Lumberjack name.
-
-    Returns:
-        LumberjackMetrics, or None if not available.
-    """
-    metrics_file = _lumberjack_dir(name) / "metrics.json"
-    data = _read_json(metrics_file)
-    if data is None:
-        return None
-    try:
-        return LumberjackMetrics(**data)
-    except TypeError:
-        return None
-
-
-def write_chop_timestamps(name: str, timestamps: dict[str, str]) -> None:
-    """Write chop last-run timestamps to disk.
-
-    Args:
-        name: Lumberjack name.
-        timestamps: Mapping of chop name to ISO timestamp string.
-    """
-    lumberjack_dir = ensure_lumberjack_dirs(name)
-    _atomic_write_json(lumberjack_dir / "chop_timestamps.json", timestamps)
-
-
-def read_chop_timestamps(name: str) -> dict[str, str]:
-    """Read chop last-run timestamps from disk.
-
-    Args:
-        name: Lumberjack name.
-
-    Returns:
-        Mapping of chop name to ISO timestamp string, or empty dict.
-    """
-    timestamps_file = _lumberjack_dir(name) / "chop_timestamps.json"
-    data = _read_json(timestamps_file)
-    if data is None or not isinstance(data, dict):
-        return {}
-    return {str(k): str(v) for k, v in data.items()}
-
-
-def lumberjack_log_path(name: str) -> Path:
-    """Return the output log path for a lumberjack.
-
-    Args:
-        name: Lumberjack name.
-
-    Returns:
-        Path to ``~/.sase/axe/lumberjacks/{name}/logs/output.log``.
-    """
-    return _lumberjack_dir(name) / "logs" / "output.log"
-
-
-def _read_tail_seek(log_file: Path, lines: int) -> str:
+def read_tail_seek(log_file: Path, lines: int) -> str:
     """Read the last N lines of a file by seeking from the end.
 
     O(tail size), not O(file size). Safe on multi-GB log files where a
@@ -549,371 +103,134 @@ def _read_tail_seek(log_file: Path, lines: int) -> str:
         return ""
 
 
-def read_lumberjack_log_tail(name: str, lines: int = 1000) -> str:
-    """Read the last N lines of a lumberjack's output log.
-
-    Args:
-        name: Lumberjack name.
-        lines: Number of lines to read from the end (default: 1000).
+def get_timestamp() -> str:
+    """Get current timestamp in ISO format with timezone.
 
     Returns:
-        String with the last N lines (ANSI codes preserved).
+        ISO formatted timestamp string.
     """
-    log_file = lumberjack_log_path(name)
-    if not log_file.exists():
-        return ""
-    return _read_tail_seek(log_file, lines)
+    return datetime.now(get_timezone()).isoformat()
 
 
-def clear_lumberjack_output_log(name: str) -> None:
-    """Clear a lumberjack's output log file.
+# Section modules access the names above via ``import sase.axe.state as
+# _state`` and look them up at call time, which is why these re-export
+# imports go at the bottom: section modules are only loaded once the names
+# above are bound on this module.
+from sase.axe._state_chops import (  # noqa: E402
+    MAX_CHOP_RUN_HISTORY,
+    ChopRunEntry,
+    ChopRunSource,
+    ChopRunStatus,
+    append_chop_run_output,
+    chop_index_path,
+    chop_run_log_path,
+    chop_run_meta_path,
+    chop_runs_dir,
+    ensure_chop_dirs,
+    finish_chop_run,
+    generate_chop_run_id,
+    read_chop_run,
+    read_chop_run_index,
+    read_chop_run_log_tail,
+    start_chop_run,
+    update_chop_run_pid,
+    write_chop_run,
+)
+from sase.axe._state_lumberjack import (  # noqa: E402
+    LumberjackMetrics,
+    LumberjackStatus,
+    clear_lumberjack_output_log,
+    ensure_lumberjack_dirs,
+    ensure_shared_dir,
+    list_lumberjack_names,
+    lumberjack_log_path,
+    lumberjack_state_dir,
+    read_chop_timestamps,
+    read_lumberjack_log_tail,
+    read_lumberjack_metrics,
+    read_lumberjack_pid,
+    read_lumberjack_status,
+    remove_lumberjack_pid,
+    write_chop_timestamps,
+    write_lumberjack_metrics,
+    write_lumberjack_pid,
+    write_lumberjack_status,
+)
+from sase.axe._state_scheduler import (  # noqa: E402
+    AxeMetrics,
+    AxeStatus,
+    CycleResult,
+    append_error,
+    read_cycle_result,
+    read_errors,
+    read_last_error_digest_ts,
+    read_metrics,
+    read_output_log_tail,
+    read_pid_file,
+    read_status,
+    remove_pid_file,
+    write_cycle_result,
+    write_last_error_digest_ts,
+)
 
-    Args:
-        name: Lumberjack name.
-    """
-    log_file = lumberjack_log_path(name)
-    if log_file.exists():
-        try:
-            log_file.write_text("")
-        except OSError:
-            pass
-
-
-def list_lumberjack_names() -> list[str]:
-    """List all lumberjack names that have state directories.
-
-    Returns:
-        Sorted list of lumberjack names.
-    """
-    if not JACK_STATE_DIR.exists():
-        return []
-    return sorted(d.name for d in JACK_STATE_DIR.iterdir() if d.is_dir())
-
-
-def ensure_shared_dir() -> Path:
-    """Create and return the shared state directory.
-
-    Returns:
-        Path to ``~/.sase/axe/shared/``.
-    """
-    SHARED_STATE_DIR.mkdir(parents=True, exist_ok=True)
-    return SHARED_STATE_DIR
-
-
-# ---------------------------------------------------------------------------
-# Per-chop run history
-# ---------------------------------------------------------------------------
-
-#: Maximum number of run-history entries retained per chop. Older runs are
-#: pruned (both metadata and log) when a new run is recorded.
-MAX_CHOP_RUN_HISTORY = 10
-
-ChopRunStatus = Literal[
-    "running",
-    "success",
-    "failure",
-    "timeout",
-    "missing_script",
-    "agent_launched",
+__all__ = [
+    "AXE_OUTPUT_LOG",
+    "AXE_STATE_DIR",
+    "AxeMetrics",
+    "AxeStatus",
+    "ChopRunEntry",
+    "ChopRunSource",
+    "ChopRunStatus",
+    "CycleResult",
+    "JACK_STATE_DIR",
+    "LumberjackMetrics",
+    "LumberjackStatus",
+    "MAX_CHOP_RUN_HISTORY",
+    "SHARED_STATE_DIR",
+    "append_chop_run_output",
+    "append_error",
+    "atomic_write_json",
+    "chop_index_path",
+    "chop_run_log_path",
+    "chop_run_meta_path",
+    "chop_runs_dir",
+    "clear_lumberjack_output_log",
+    "ensure_chop_dirs",
+    "ensure_lumberjack_dirs",
+    "ensure_shared_dir",
+    "ensure_state_dir",
+    "finish_chop_run",
+    "generate_chop_run_id",
+    "get_timestamp",
+    "list_lumberjack_names",
+    "lumberjack_log_path",
+    "lumberjack_state_dir",
+    "read_chop_run",
+    "read_chop_run_index",
+    "read_chop_run_log_tail",
+    "read_chop_timestamps",
+    "read_cycle_result",
+    "read_errors",
+    "read_json",
+    "read_last_error_digest_ts",
+    "read_lumberjack_log_tail",
+    "read_lumberjack_metrics",
+    "read_lumberjack_pid",
+    "read_lumberjack_status",
+    "read_metrics",
+    "read_output_log_tail",
+    "read_pid_file",
+    "read_status",
+    "read_tail_seek",
+    "remove_lumberjack_pid",
+    "remove_pid_file",
+    "start_chop_run",
+    "update_chop_run_pid",
+    "write_chop_run",
+    "write_chop_timestamps",
+    "write_cycle_result",
+    "write_last_error_digest_ts",
+    "write_lumberjack_metrics",
+    "write_lumberjack_pid",
+    "write_lumberjack_status",
 ]
-
-#: Allowed values for ``ChopRunEntry.source`` — how the run was kicked off.
-ChopRunSource = Literal["scheduled", "manual", "oneshot"]
-
-
-@dataclass
-class ChopRunEntry:
-    """Metadata for a single recorded chop run attempt.
-
-    ``finished_at`` is ``None`` while ``status == "running"``; once the run
-    terminates the same entry is updated with terminal status, ``finished_at``,
-    and computed ``duration_ms``.
-    """
-
-    run_id: str
-    lumberjack_name: str
-    chop_name: str
-    started_at: str
-    finished_at: str | None
-    duration_ms: int
-    status: ChopRunStatus
-    exit_code: int | None = None
-    agent_pid: int | None = None
-    pid: int | None = None
-    error: str | None = None
-    traceback: str | None = None
-    output_bytes: int = 0
-    output_log: str = ""
-    source: ChopRunSource = "scheduled"
-    started_by: str | None = None
-
-
-def _chop_dir(lumberjack_name: str, chop_name: str) -> Path:
-    """Return the state directory for a single chop under a lumberjack."""
-    return _lumberjack_dir(lumberjack_name) / "chops" / chop_name
-
-
-def chop_runs_dir(lumberjack_name: str, chop_name: str) -> Path:
-    """Return the directory holding per-run metadata/log files for a chop."""
-    return _chop_dir(lumberjack_name, chop_name) / "runs"
-
-
-def chop_index_path(lumberjack_name: str, chop_name: str) -> Path:
-    """Return the index.json path that records ordered run ids for a chop."""
-    return _chop_dir(lumberjack_name, chop_name) / "index.json"
-
-
-def chop_run_meta_path(lumberjack_name: str, chop_name: str, run_id: str) -> Path:
-    """Return the metadata JSON path for a recorded chop run."""
-    return chop_runs_dir(lumberjack_name, chop_name) / f"{run_id}.json"
-
-
-def chop_run_log_path(lumberjack_name: str, chop_name: str, run_id: str) -> Path:
-    """Return the output log path for a recorded chop run."""
-    return chop_runs_dir(lumberjack_name, chop_name) / f"{run_id}.log"
-
-
-def ensure_chop_dirs(lumberjack_name: str, chop_name: str) -> Path:
-    """Lazily create the run-history directory tree for a single chop.
-
-    Returns:
-        Path to ``~/.sase/axe/lumberjacks/{lumberjack}/chops/{chop}/``.
-    """
-    chop_dir = _chop_dir(lumberjack_name, chop_name)
-    (chop_dir / "runs").mkdir(parents=True, exist_ok=True)
-    return chop_dir
-
-
-def generate_chop_run_id(when: datetime | None = None) -> str:
-    """Produce a sortable, filesystem-safe run id from a timestamp.
-
-    Microsecond precision keeps same-second runs from colliding while
-    preserving lexicographic newest-last ordering.
-    """
-    ts = when or datetime.now(get_timezone())
-    return ts.strftime("%Y%m%dT%H%M%S_%f")
-
-
-def _safe_unlink(path: Path) -> None:
-    try:
-        path.unlink()
-    except OSError:
-        pass
-
-
-def _prune_chop_run_history(lumberjack_name: str, chop_name: str) -> None:
-    """Trim per-chop run history to the newest ``MAX_CHOP_RUN_HISTORY`` terminal runs.
-
-    Entries with status ``running`` are always kept regardless of position;
-    pruning never deletes a run whose process is still being tracked.
-    """
-    index_path = chop_index_path(lumberjack_name, chop_name)
-    raw = _read_json(index_path)
-    if not isinstance(raw, list):
-        return
-    ordered = [str(r) for r in raw]
-
-    kept: list[str] = []
-    terminal_kept = 0
-    to_prune: list[str] = []
-    for rid in ordered:
-        entry = read_chop_run(lumberjack_name, chop_name, rid)
-        if entry is None:
-            continue
-        if entry.status == "running":
-            kept.append(rid)
-        elif terminal_kept < MAX_CHOP_RUN_HISTORY:
-            kept.append(rid)
-            terminal_kept += 1
-        else:
-            to_prune.append(rid)
-
-    _atomic_write_json(index_path, kept)
-    for old_id in to_prune:
-        _safe_unlink(chop_run_meta_path(lumberjack_name, chop_name, old_id))
-        _safe_unlink(chop_run_log_path(lumberjack_name, chop_name, old_id))
-
-
-def write_chop_run(entry: ChopRunEntry, output: str = "") -> None:
-    """Persist a single-shot chop run-history entry.
-
-    Writes the run log, the metadata JSON, then updates the index newest-first.
-    Used for runs whose lifetime is fully known at record time (agent launches,
-    missing-script records). Streaming script runs use the
-    :func:`start_chop_run`/:func:`finish_chop_run` pair instead.
-
-    History is pruned to ``MAX_CHOP_RUN_HISTORY`` terminal entries after each
-    write; entries still in ``running`` state are preserved regardless of
-    position.
-    """
-    lumberjack_name = entry.lumberjack_name
-    chop_name = entry.chop_name
-    ensure_chop_dirs(lumberjack_name, chop_name)
-
-    log_path = chop_run_log_path(lumberjack_name, chop_name, entry.run_id)
-    log_path.write_text(output)
-    entry.output_bytes = len(output.encode("utf-8"))
-    entry.output_log = log_path.name
-
-    meta_path = chop_run_meta_path(lumberjack_name, chop_name, entry.run_id)
-    _atomic_write_json(meta_path, asdict(entry))
-
-    index_path = chop_index_path(lumberjack_name, chop_name)
-    existing_raw = _read_json(index_path)
-    existing: list = existing_raw if isinstance(existing_raw, list) else []
-    ordered: list[str] = [str(r) for r in existing if r != entry.run_id]
-    ordered.insert(0, entry.run_id)
-    _atomic_write_json(index_path, ordered)
-
-    _prune_chop_run_history(lumberjack_name, chop_name)
-
-
-def start_chop_run(entry: ChopRunEntry) -> Path:
-    """Open a new run-history entry in ``running`` state and return its log path.
-
-    Creates the runs directory, writes an empty log file (the script runner
-    appends to this path as output arrives), persists the metadata JSON, and
-    inserts ``run_id`` at the top of the index. Pruning is intentionally
-    deferred to :func:`finish_chop_run` so an active run is never deleted
-    out from under a still-executing subprocess.
-    """
-    lumberjack_name = entry.lumberjack_name
-    chop_name = entry.chop_name
-    ensure_chop_dirs(lumberjack_name, chop_name)
-
-    log_path = chop_run_log_path(lumberjack_name, chop_name, entry.run_id)
-    if not log_path.exists():
-        log_path.write_bytes(b"")
-    entry.output_log = log_path.name
-    entry.output_bytes = 0
-
-    meta_path = chop_run_meta_path(lumberjack_name, chop_name, entry.run_id)
-    _atomic_write_json(meta_path, asdict(entry))
-
-    index_path = chop_index_path(lumberjack_name, chop_name)
-    existing_raw = _read_json(index_path)
-    existing: list = existing_raw if isinstance(existing_raw, list) else []
-    ordered: list[str] = [str(r) for r in existing if r != entry.run_id]
-    ordered.insert(0, entry.run_id)
-    _atomic_write_json(index_path, ordered)
-
-    return log_path
-
-
-def append_chop_run_output(
-    lumberjack_name: str,
-    chop_name: str,
-    run_id: str,
-    data: str | bytes,
-) -> int:
-    """Append output to a running chop's per-run log file.
-
-    Returns the number of bytes written. No-op (returns 0) when the log does
-    not exist — call :func:`start_chop_run` first.
-    """
-    log_path = chop_run_log_path(lumberjack_name, chop_name, run_id)
-    if not log_path.exists():
-        return 0
-    payload = data.encode("utf-8") if isinstance(data, str) else data
-    try:
-        with open(log_path, "ab") as f:
-            f.write(payload)
-    except OSError:
-        return 0
-    return len(payload)
-
-
-def update_chop_run_pid(
-    lumberjack_name: str, chop_name: str, run_id: str, pid: int
-) -> None:
-    """Patch a running chop's metadata with the subprocess PID.
-
-    Best-effort: silently no-op when the metadata is missing or unreadable.
-    """
-    meta_path = chop_run_meta_path(lumberjack_name, chop_name, run_id)
-    data = _read_json(meta_path)
-    if not isinstance(data, dict):
-        return
-    data["pid"] = pid
-    _atomic_write_json(meta_path, data)
-
-
-def finish_chop_run(
-    lumberjack_name: str,
-    chop_name: str,
-    run_id: str,
-    *,
-    status: ChopRunStatus,
-    finished_at: str,
-    duration_ms: int,
-    exit_code: int | None = None,
-    error: str | None = None,
-    traceback: str | None = None,
-    output_bytes: int | None = None,
-) -> None:
-    """Finalize a running chop entry with terminal status and prune history.
-
-    Reads the existing metadata so fields written at start (e.g. ``pid``,
-    ``source``, ``started_by``) survive finalization. Pruning runs after the
-    update and skips any entries that are still in ``running`` state.
-    """
-    meta_path = chop_run_meta_path(lumberjack_name, chop_name, run_id)
-    data = _read_json(meta_path)
-    if not isinstance(data, dict):
-        return
-
-    data["status"] = status
-    data["finished_at"] = finished_at
-    data["duration_ms"] = duration_ms
-    data["exit_code"] = exit_code
-    if error is not None:
-        data["error"] = error
-    if traceback is not None:
-        data["traceback"] = traceback
-
-    if output_bytes is None:
-        log_path = chop_run_log_path(lumberjack_name, chop_name, run_id)
-        try:
-            output_bytes = log_path.stat().st_size if log_path.exists() else 0
-        except OSError:
-            output_bytes = data.get("output_bytes", 0)
-    data["output_bytes"] = output_bytes
-
-    _atomic_write_json(meta_path, data)
-    _prune_chop_run_history(lumberjack_name, chop_name)
-
-
-def read_chop_run_index(lumberjack_name: str, chop_name: str) -> list[str]:
-    """Read the newest-first list of run ids for a chop.
-
-    Pruning bounds the index to ``MAX_CHOP_RUN_HISTORY`` terminal entries
-    plus any currently-``running`` entries, so callers do not need to slice
-    defensively. Returns an empty list if the index is missing or invalid.
-    """
-    data = _read_json(chop_index_path(lumberjack_name, chop_name))
-    if not isinstance(data, list):
-        return []
-    return [str(r) for r in data]
-
-
-def read_chop_run(
-    lumberjack_name: str, chop_name: str, run_id: str
-) -> ChopRunEntry | None:
-    """Read a single chop run metadata entry, or None if unavailable."""
-    data = _read_json(chop_run_meta_path(lumberjack_name, chop_name, run_id))
-    if not isinstance(data, dict):
-        return None
-    try:
-        return ChopRunEntry(**data)
-    except TypeError:
-        return None
-
-
-def read_chop_run_log_tail(
-    lumberjack_name: str, chop_name: str, run_id: str, lines: int = 1000
-) -> str:
-    """Read the last ``lines`` lines of a chop run's output log."""
-    log_path = chop_run_log_path(lumberjack_name, chop_name, run_id)
-    if not log_path.exists():
-        return ""
-    return _read_tail_seek(log_path, lines)

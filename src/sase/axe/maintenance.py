@@ -45,13 +45,13 @@ def start_maintenance(reason: str) -> dict[str, Any]:
         "pid": os.getpid(),
         "started_at": _now_iso(),
     }
-    axe_state._atomic_write_json(_maintenance_path(), marker)
+    axe_state.atomic_write_json(_maintenance_path(), marker)
     return marker
 
 
 def read_maintenance() -> dict[str, Any] | None:
     """Read the active maintenance marker, if present and well-formed."""
-    marker = axe_state._read_json(_maintenance_path())
+    marker = axe_state.read_json(_maintenance_path())
     if not isinstance(marker, dict):
         return None
     reason = marker.get("reason")
@@ -86,7 +86,7 @@ def clear_stale_maintenance(
     max_age_seconds: int = DEFAULT_STALE_SECONDS,
 ) -> dict[str, Any] | None:
     """Clear and return an old marker or one whose owner PID has exited."""
-    raw_marker = axe_state._read_json(_maintenance_path())
+    raw_marker = axe_state.read_json(_maintenance_path())
     if not isinstance(raw_marker, dict):
         return None
     marker = dict(raw_marker)
