@@ -56,6 +56,15 @@ plan drafts live there as `<workspace>/sase_plan_*.md`; once the agent has run `
 Rule of thumb: if a file is the agent's in-flight response and the agent is RUNNING, treat it as draft. If the file is a
 checkpoint, submission, or per-step output, treat it as stable — safe to read and quote even while the agent runs.
 
+When you use live state to answer a user question, cite the artifact paths you read and say whether each piece of
+evidence is draft/live or stable/completed.
+
+### Reviews and comparisons
+
+For review, comparison, or selection questions, inspect each relevant active agent's artifacts. Distinguish partial
+draft evidence from final evidence, and do not treat the absence of a completed transcript as the absence of useful
+evidence.
+
 ## Implementation notes
 
 The JSON shape is stable — do not reorder keys or rename fields when summarizing. `started_at` is ISO 8601 with

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 11:19:20
-status: wip
+status: done
 prompt: sdd/prompts/202605/live_agent_chat_skill_followups.md
 ---
 # Live Agent Chat Skill Followups

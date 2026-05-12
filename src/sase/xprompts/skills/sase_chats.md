@@ -47,7 +47,10 @@ If `--agent <name>` exits non-zero, walk this fallback chain before giving up:
 3. If the agent is still RUNNING, hand off to the `/sase_agents_status` skill for the artifacts-dir workflow (live
    reply, workflow checkpoints, mid-run plan drafts).
 
-Only after that chain is exhausted should you tell the user the agent has no recoverable transcript or artifact.
+Only after that chain is exhausted should you tell the user the agent has no recoverable transcript or artifact. When
+that chain reaches live artifacts, name the artifact paths you read and label the evidence source as draft/live
+(`live_reply.md` from a running agent) or stable/completed (checkpoints, submitted plans, `done.json`, or saved
+transcripts).
 
 When the user gives a path or basename:
 

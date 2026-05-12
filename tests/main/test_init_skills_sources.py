@@ -14,16 +14,37 @@ from tests.main.init_skills_handler_helpers import make_args
 
 
 @pytest.mark.parametrize(
-    ("skill_name", "expected_examples"),
+    ("skill_name", "expected_phrases"),
     [
         ("sase_artifact", ("sase artifact create -p", "--kind")),
-        ("sase_chats", ("sase chats list -j", "sase chats show")),
+        (
+            "sase_agents_status",
+            (
+                "sase agents status -j",
+                "artifacts_dir",
+                "cite the artifact paths",
+                "review, comparison, or selection questions",
+                "absence of a completed transcript",
+            ),
+        ),
+        (
+            "sase_chats",
+            (
+                "sase chats list -j",
+                "sase chats show",
+                "walk this fallback chain",
+                "sase agents status -a -j",
+                "/sase_agents_status",
+                "draft/live",
+                "stable/completed",
+            ),
+        ),
         ("sase_notify", ("sase notify list -j", "sase notify show --id")),
     ],
 )
 def test_shipped_skill_source_is_discoverable_for_all_providers(
     skill_name: str,
-    expected_examples: tuple[str, ...],
+    expected_phrases: tuple[str, ...],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -37,8 +58,8 @@ def test_shipped_skill_source_is_discoverable_for_all_providers(
     assert front_matter.get("skill") is True
     assert front_matter.get("description")
     assert body.strip(), "skill body must not be empty"
-    for example in expected_examples:
-        assert example in body
+    for phrase in expected_phrases:
+        assert phrase in body
 
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
@@ -59,8 +80,8 @@ def test_shipped_skill_source_is_discoverable_for_all_providers(
         target = _get_target_path(provider, skill_name, use_chezmoi=False)
         assert target.exists(), f"{skill_name} not generated for provider {provider}"
         rendered = target.read_text(encoding="utf-8")
-        for example in expected_examples:
-            assert example in rendered
+        for phrase in expected_phrases:
+            assert phrase in rendered
 
 
 @pytest.mark.parametrize("skill_name", ["sase_git_commit", "sase_hg_commit"])
