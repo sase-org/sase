@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 09:48:31
-status: wip
+status: done
 prompt: sdd/prompts/202605/png_snapshot_memory.md
 ---
 # Plan: Document PNG Snapshot Tests In Build Memory
