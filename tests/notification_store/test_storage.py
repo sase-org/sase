@@ -9,6 +9,7 @@ from sase.core.notification_store_wire import (
 )
 from sase.notifications.store import (
     append_notification,
+    dismiss_agent_completion_notifications_matching_agents,
     dismiss_notifications_matching_agents,
     load_notifications,
     mark_read,
@@ -249,3 +250,89 @@ class TestDismissNotificationsMatchingAgents:
         assert count == 1
         assert by_id["err"].dismissed is True
         assert by_id["axe-err"].dismissed is False
+
+
+class TestDismissAgentCompletionNotificationsMatchingAgents:
+    """Tests for completion-only bulk agent notification dismissal."""
+
+    def test_routes_through_completion_only_rust_update(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        import sase.notifications.store as store
+
+        append_notification(
+            make_notification(
+                id="jump",
+                sender="user-agent",
+                action="JumpToAgent",
+                action_data={"cl_name": "cl", "raw_suffix": "20260430120000"},
+            )
+        )
+
+        with patch(
+            "sase.notifications.store._rust_apply_notification_state_update",
+            wraps=store._rust_apply_notification_state_update,
+        ) as mock_update:
+            count = dismiss_agent_completion_notifications_matching_agents(
+                [{"cl_name": "cl", "raw_suffix": "20260430120000"}]
+            )
+
+        assert count == 1
+        mock_update.assert_called_once()
+        update = mock_update.call_args.args[1]
+        assert update.kind == "dismiss_agent_completions_matching_agents"
+        assert update.agents[0].cl_name == "cl"
+        assert update.agents[0].raw_suffix == "20260430120000"
+
+    def test_dismisses_completion_notifications_without_plan_or_question(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        append_notification(
+            make_notification(
+                id="jump",
+                sender="user-agent",
+                action="JumpToAgent",
+                action_data={"cl_name": "cl", "raw_suffix": "20260430120000"},
+            )
+        )
+        append_notification(
+            make_notification(
+                id="err",
+                sender="user-agent",
+                action="ViewErrorReport",
+                action_data={"cl_name": "cl", "raw_suffix": "20260430120000"},
+            )
+        )
+        append_notification(
+            make_notification(
+                id="plan",
+                sender="plan",
+                action="PlanApproval",
+                action_data={
+                    "agent_cl_name": "cl",
+                    "agent_timestamp": "20260430120000",
+                },
+            )
+        )
+        append_notification(
+            make_notification(
+                id="question",
+                sender="question",
+                action="UserQuestion",
+                action_data={
+                    "agent_cl_name": "cl",
+                    "agent_timestamp": "20260430120000",
+                },
+            )
+        )
+
+        count = dismiss_agent_completion_notifications_matching_agents(
+            [{"cl_name": "cl", "raw_suffix": "20260430120000"}]
+        )
+
+        by_id = {n.id: n for n in load_notifications(include_dismissed=True)}
+        assert count == 2
+        assert by_id["jump"].dismissed is True
+        assert by_id["err"].dismissed is True
+        assert by_id["plan"].dismissed is False
+        assert by_id["question"].dismissed is False

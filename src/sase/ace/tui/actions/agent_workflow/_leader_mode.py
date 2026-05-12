@@ -110,6 +110,20 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["mark_all_unread_done_agents_read"]:
+            if self.current_tab == "agents":
+                marked_count = self._mark_all_unread_done_agents_read()  # type: ignore[attr-defined]
+                if marked_count:
+                    self.notify(  # type: ignore[attr-defined]
+                        f"Marked {marked_count} completed agents read"
+                    )
+                else:
+                    self.notify("No unread completed agents")  # type: ignore[attr-defined]
+                    self._refresh_current_tab()  # type: ignore[attr-defined]
+                return True
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["kill_and_edit"]:
             if self.current_tab == "agents":
                 self._kill_and_edit_agent()  # type: ignore[attr-defined]

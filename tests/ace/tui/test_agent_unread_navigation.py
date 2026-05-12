@@ -433,6 +433,60 @@ def test_manual_unread_guards_per_row_dismissal(
     notification_dismiss.assert_not_called()
 
 
+def test_mark_all_unread_done_agents_read_clears_state_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dismiss = Mock(return_value=2)
+    monkeypatch.setattr(
+        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
+        dismiss,
+    )
+    first = make_agent(name="first", status="DONE", raw_suffix="first")
+    second = make_agent(name="second", status="FAILED", raw_suffix="second")
+    running = make_agent(name="running", status="RUNNING", raw_suffix="running")
+    app = _UnreadJumpApp([first, second, running])
+    app._unread_completed_agent_ids.update(
+        {first.identity, second.identity, running.identity}
+    )
+    app._manual_unread_agent_ids.update({first.identity, second.identity})
+
+    count = app._mark_all_unread_done_agents_read()
+
+    assert count == 2
+    assert app._unread_completed_agent_ids == {running.identity}
+    assert app._manual_unread_agent_ids == set()
+    dismiss.assert_called_once_with(
+        [
+            {"cl_name": first.cl_name, "raw_suffix": first.raw_suffix},
+            {"cl_name": second.cl_name, "raw_suffix": second.raw_suffix},
+        ]
+    )
+    assert app.notification_count_refresh_calls == 1
+    assert app.refresh_calls == [{"list_changed": True}]
+    assert app.patch_calls == []
+
+
+def test_mark_all_unread_done_agents_read_noops_without_terminal_unread(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dismiss = Mock(return_value=0)
+    monkeypatch.setattr(
+        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
+        dismiss,
+    )
+    running = make_agent(name="running", status="RUNNING", raw_suffix="running")
+    app = _UnreadJumpApp([running])
+    app._unread_completed_agent_ids.add(running.identity)
+
+    assert app._mark_all_unread_done_agents_read() == 0
+
+    assert app._unread_completed_agent_ids == {running.identity}
+    dismiss.assert_not_called()
+    assert app.notification_count_refresh_calls == 0
+    assert app.refresh_calls == []
+    assert app.patch_calls == []
+
+
 def test_jump_to_next_unread_done_agent_returns_false_when_no_unread_panels() -> None:
     focused = make_agent(name="focused", status="RUNNING", raw_suffix="focused")
     done = make_agent(name="done", status="DONE", raw_suffix="done", tag="chop")

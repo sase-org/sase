@@ -281,17 +281,7 @@ def dismiss_notifications_matching_agents(
     agent_keys: list[dict[str, Any] | Any],
 ) -> int:
     """Dismiss unread notifications that reference any supplied agent key."""
-    from sase.core import notification_store_wire
-
-    keys: list[Any] = []
-    for item in agent_keys:
-        if isinstance(item, notification_store_wire.NotificationAgentKeyWire):
-            keys.append(item)
-            continue
-        key = _agent_key_from_mapping(item)
-        if key is not None:
-            keys.append(key)
-
+    keys = _normalize_agent_keys(agent_keys)
     if not keys:
         return 0
 
@@ -302,3 +292,35 @@ def dismiss_notifications_matching_agents(
         )
     )
     return int(outcome.changed_count)
+
+
+def dismiss_agent_completion_notifications_matching_agents(
+    agent_keys: list[dict[str, Any] | Any],
+) -> int:
+    """Dismiss unread completion notifications for any supplied agent key."""
+    keys = _normalize_agent_keys(agent_keys)
+    if not keys:
+        return 0
+
+    outcome = _apply_state_update(
+        _state_update(
+            kind="dismiss_agent_completions_matching_agents",
+            agents=tuple(keys),
+        )
+    )
+    return int(outcome.changed_count)
+
+
+def _normalize_agent_keys(agent_keys: list[dict[str, Any] | Any]) -> list[Any]:
+    """Convert mapping-or-wire agent keys into Rust wire objects."""
+    from sase.core import notification_store_wire
+
+    keys: list[Any] = []
+    for item in agent_keys:
+        if isinstance(item, notification_store_wire.NotificationAgentKeyWire):
+            keys.append(item)
+            continue
+        key = _agent_key_from_mapping(item)
+        if key is not None:
+            keys.append(key)
+    return keys

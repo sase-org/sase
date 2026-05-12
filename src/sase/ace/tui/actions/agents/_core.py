@@ -92,6 +92,7 @@ class AgentsMixinCore(
     # Agent completion tracking for notifications
     _pending_attention_count: int
     _last_unread_ids: set[str]
+    _unread_completed_agent_ids: set[tuple[AgentType, str, str | None]]
     _manual_unread_agent_ids: set[tuple[AgentType, str, str | None]]
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _dismissed_agent_objects: list[Agent]
@@ -313,6 +314,46 @@ class AgentsMixinCore(
             is_unread_completed_status(agent.status) and agent.identity in unread_ids
             for agent in self._agents
         )
+
+    def _mark_all_unread_done_agents_read(self) -> int:
+        """Acknowledge all currently loaded unread terminal agent rows."""
+        unread_ids = getattr(self, "_unread_completed_agent_ids", None)
+        if not unread_ids:
+            return 0
+
+        target_agents = [
+            agent
+            for agent in self._agents
+            if agent.identity in unread_ids and is_unread_completed_status(agent.status)
+        ]
+        if not target_agents:
+            return 0
+
+        target_identities = {agent.identity for agent in target_agents}
+        unread_ids.difference_update(target_identities)
+        self._manual_unread_ids().difference_update(target_identities)
+
+        agent_keys = [
+            {"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}
+            for agent in target_agents
+        ]
+
+        from sase.notifications import (
+            dismiss_agent_completion_notifications_matching_agents,
+        )
+
+        dismissed_count = dismiss_agent_completion_notifications_matching_agents(
+            agent_keys
+        )
+        if dismissed_count:
+            refresh_count = getattr(self, "_refresh_notification_count", None)
+            if callable(refresh_count):
+                refresh_count()
+
+        self._refresh_agents_display(  # type: ignore[attr-defined]
+            list_changed=True,
+        )
+        return len(target_agents)
 
     def _panel_idx_for_agent(self, agent_idx: int) -> int | None:
         """Return the current rendered panel index for a global agent index."""

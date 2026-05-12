@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 13:24:58
-status: wip
+status: done
 prompt: sdd/prompts/202605/mark_all_unread_agents_read.md
 ---
 # Plan: Agents `,J` Mark All Unread As Read

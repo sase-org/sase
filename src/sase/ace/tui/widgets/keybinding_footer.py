@@ -476,6 +476,9 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
                 bindings.append(
                     (k("jump_to_next_unread_done_agent"), "next unread done")
                 )
+                bindings.append(
+                    (k("mark_all_unread_done_agents_read"), "mark all read")
+                )
         bindings.append((k("prompt_history"), "prompt history"))
         bindings.append((k("prompt_history_edit_first"), "edit history"))
         bindings.append((k("prompt_history_cancelled"), "history (+cancelled)"))
