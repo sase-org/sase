@@ -14,6 +14,7 @@ from pathlib import Path
 from sase.core.agent_artifact_helpers import (
     artifact_id,
     association_from_metadata,
+    file_created_at,
     hash_file,
     hash_text,
     matches_association,
@@ -87,10 +88,61 @@ def store_explicit_agent_artifact(
     return artifact
 
 
+def store_default_agent_artifact(
+    source_path: Path | str,
+    agent_artifacts_dir: Path | str,
+    *,
+    label: str | None = None,
+    kind: AgentArtifactKind | str | None = None,
+    artifacts_root: Path | str | None = None,
+    index_path: Path | str | None = None,
+    workspace_dir: str | None = None,
+    created_at: str | None = None,
+) -> AgentArtifact | None:
+    """Persist an auto-discovered (default) artifact to the global store.
+
+    Mirrors :func:`store_explicit_agent_artifact` but writes ``explicit=False``
+    and silently skips when ``source_path`` is missing.
+    """
+
+    source = Path(source_path).expanduser()
+    if not source.is_file():
+        return None
+
+    root = (
+        Path(artifacts_root).expanduser()
+        if artifacts_root
+        else default_artifacts_root()
+    )
+    idx = Path(index_path).expanduser() if index_path else root / _JSONL_INDEX_NAME
+    association = association_from_metadata(agent_artifacts_dir)
+    artifact_kind = (
+        coerce_artifact_kind(kind) if kind is not None else infer_artifact_kind(source)
+    )
+    stored_path = _store_file(source, root, association, move=False)
+    artifact = AgentArtifact(
+        id=artifact_id("default", association, stored_path, label or source.name),
+        label=label or source.name,
+        kind=artifact_kind,
+        path=str(stored_path),
+        source_path=str(source),
+        workspace_dir=workspace_dir,
+        created_at=created_at or file_created_at(source) or now_iso(),
+        agent_artifacts_dir=association.agent_artifacts_dir,
+        project=association.project,
+        workflow=association.workflow,
+        raw_timestamp=association.raw_timestamp,
+        agent_name=association.agent_name,
+        explicit=False,
+    )
+    _upsert_index_row(idx, artifact)
+    return artifact
+
+
 def read_explicit_agent_artifact_index(
     index_path: Path | str | None = None,
 ) -> list[AgentArtifact]:
-    """Read all explicit artifact rows from the persistent index."""
+    """Read all artifact rows from the persistent index."""
 
     idx = (
         Path(index_path).expanduser()
@@ -103,6 +155,18 @@ def read_explicit_agent_artifact_index(
         return _read_index_unlocked(idx)
 
 
+def list_indexed_agent_artifacts(
+    agent_artifacts_dir: Path | str,
+    *,
+    index_path: Path | str | None = None,
+) -> list[AgentArtifact]:
+    """Return all indexed artifacts (explicit + default) for one agent run."""
+
+    association = artifact_association_from_dir(agent_artifacts_dir)
+    rows = read_explicit_agent_artifact_index(index_path)
+    return [row for row in rows if matches_association(row, association)]
+
+
 def list_explicit_agent_artifacts(
     agent_artifacts_dir: Path | str,
     *,
@@ -110,9 +174,13 @@ def list_explicit_agent_artifacts(
 ) -> list[AgentArtifact]:
     """Return explicit artifacts associated with one agent run."""
 
-    association = artifact_association_from_dir(agent_artifacts_dir)
-    rows = read_explicit_agent_artifact_index(index_path)
-    return [row for row in rows if matches_association(row, association)]
+    return [
+        row
+        for row in list_indexed_agent_artifacts(
+            agent_artifacts_dir, index_path=index_path
+        )
+        if row.explicit
+    ]
 
 
 def _store_file(

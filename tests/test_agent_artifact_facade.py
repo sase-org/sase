@@ -7,7 +7,10 @@ import pytest
 from sase.core.agent_artifact_facade import (
     list_agent_artifacts,
     list_explicit_agent_artifacts,
+    list_indexed_agent_artifacts,
+    persist_default_agent_artifacts,
     read_explicit_agent_artifact_index,
+    store_default_agent_artifact,
     store_explicit_agent_artifact,
     synthesize_default_agent_artifacts,
 )
@@ -363,3 +366,192 @@ def test_explicit_artifact_association_survives_removed_and_restored_run_dir(
     revived = list_agent_artifacts(artifacts_dir, index_path=index_path)
 
     assert revived == [stored]
+
+
+def test_store_default_agent_artifact_writes_index_row_with_source_path(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _agent_dir(tmp_path)
+    workspace = tmp_path / "workspace"
+    image = workspace / "sdd" / "research" / "diagram.png"
+    image.parent.mkdir(parents=True)
+    image.write_bytes(b"png-bytes")
+
+    stored = store_default_agent_artifact(
+        image,
+        artifacts_dir,
+        artifacts_root=tmp_path / ".sase" / "artifacts",
+        workspace_dir=str(workspace),
+    )
+
+    assert stored is not None
+    assert stored.explicit is False
+    assert stored.source_path == str(image)
+    assert stored.workspace_dir == str(workspace)
+    assert Path(stored.path).is_file()
+    assert Path(stored.path).is_relative_to(tmp_path / ".sase" / "artifacts")
+
+    indexed = read_explicit_agent_artifact_index(
+        tmp_path / ".sase" / "artifacts" / "index.jsonl"
+    )
+    assert indexed == [stored]
+
+
+def test_store_default_agent_artifact_returns_none_for_missing_source(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _agent_dir(tmp_path)
+    result = store_default_agent_artifact(
+        tmp_path / "does-not-exist.png",
+        artifacts_dir,
+        artifacts_root=tmp_path / ".sase" / "artifacts",
+    )
+    assert result is None
+    indexed = read_explicit_agent_artifact_index(
+        tmp_path / ".sase" / "artifacts" / "index.jsonl"
+    )
+    assert indexed == []
+
+
+def test_persist_default_agent_artifacts_unions_image_paths_and_xprompt(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _agent_dir(tmp_path)
+    workspace = tmp_path / "workspace"
+    diff_image = workspace / "out" / "diff_image.png"
+    prompt_image = workspace / "screenshots" / "before.png"
+    for path in (diff_image, prompt_image):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"png")
+    (artifacts_dir / "coder_prompt.md").write_text(
+        "Use screenshots/before.png and a missing/absent.png\n",
+        encoding="utf-8",
+    )
+
+    artifacts_root = tmp_path / ".sase" / "artifacts"
+    index_path = artifacts_root / "index.jsonl"
+    persisted = persist_default_agent_artifacts(
+        artifacts_dir,
+        image_paths=[str(diff_image), str(workspace / "ghost.png")],
+        workspace_dir=str(workspace),
+        artifacts_root=artifacts_root,
+        index_path=index_path,
+    )
+
+    persisted_sources = sorted(a.source_path or "" for a in persisted)
+    assert persisted_sources == sorted([str(diff_image), str(prompt_image)])
+    for artifact in persisted:
+        assert artifact.kind == "image"
+        assert artifact.explicit is False
+        assert Path(artifact.path).is_file()
+
+    # Idempotent: rerun produces same set with no duplicate index rows.
+    persist_default_agent_artifacts(
+        artifacts_dir,
+        image_paths=[str(diff_image)],
+        workspace_dir=str(workspace),
+        artifacts_root=artifacts_root,
+        index_path=index_path,
+    )
+    indexed = read_explicit_agent_artifact_index(index_path)
+    assert sorted(a.source_path or "" for a in indexed) == sorted(
+        [str(diff_image), str(prompt_image)]
+    )
+
+
+def test_list_agent_artifacts_uses_indexed_images_when_persisted(
+    tmp_path: Path,
+) -> None:
+    """When done.json marks artifacts as persisted, images come from the
+    JSONL index (and survive workspace deletion)."""
+
+    artifacts_dir = _agent_dir(tmp_path)
+    workspace = tmp_path / "workspace"
+    image = workspace / "sdd" / "research" / "diagram.png"
+    image.parent.mkdir(parents=True)
+    image.write_bytes(b"png")
+
+    artifacts_root = tmp_path / ".sase" / "artifacts"
+    index_path = artifacts_root / "index.jsonl"
+    stored = store_default_agent_artifact(
+        image,
+        artifacts_dir,
+        artifacts_root=artifacts_root,
+        workspace_dir=str(workspace),
+    )
+    assert stored is not None
+
+    _write_json(
+        artifacts_dir / "done.json",
+        {
+            "workspace_dir": str(workspace),
+            "image_paths": [str(image)],
+            "default_artifacts_persisted": True,
+        },
+    )
+
+    # Workspace cleaned up, just like a recycled sase_<N> dir.
+    shutil.rmtree(workspace)
+
+    artifacts = list_agent_artifacts(artifacts_dir, index_path=index_path)
+    image_rows = [a for a in artifacts if a.kind == "image"]
+    assert len(image_rows) == 1
+    row = image_rows[0]
+    assert row.path == stored.path
+    assert row.source_path == str(image)
+    assert Path(row.path).is_file()
+
+
+def test_list_agent_artifacts_falls_back_to_legacy_synthesis_without_marker(
+    tmp_path: Path,
+) -> None:
+    """Legacy agents (no ``default_artifacts_persisted`` marker) still get
+    on-the-fly image synthesis from ``done.json``."""
+
+    artifacts_dir = _agent_dir(tmp_path)
+    image = tmp_path / "legacy.png"
+    image.write_bytes(b"png")
+    _write_json(
+        artifacts_dir / "done.json",
+        {
+            "image_paths": [str(image)],
+        },
+    )
+
+    artifacts = list_agent_artifacts(
+        artifacts_dir,
+        index_path=tmp_path / ".sase" / "artifacts" / "index.jsonl",
+    )
+    assert [(a.kind, a.path) for a in artifacts] == [("image", str(image))]
+
+
+def test_list_indexed_agent_artifacts_returns_explicit_and_default_rows(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _agent_dir(tmp_path)
+    explicit_source = tmp_path / "explicit.md"
+    explicit_source.write_text("explicit", encoding="utf-8")
+    default_source = tmp_path / "workspace" / "image.png"
+    default_source.parent.mkdir(parents=True)
+    default_source.write_bytes(b"png")
+
+    artifacts_root = tmp_path / ".sase" / "artifacts"
+    index_path = artifacts_root / "index.jsonl"
+    store_explicit_agent_artifact(
+        explicit_source,
+        artifacts_dir,
+        label="Report",
+        artifacts_root=artifacts_root,
+    )
+    store_default_agent_artifact(
+        default_source,
+        artifacts_dir,
+        artifacts_root=artifacts_root,
+    )
+
+    indexed = list_indexed_agent_artifacts(artifacts_dir, index_path=index_path)
+    explicit = list_explicit_agent_artifacts(artifacts_dir, index_path=index_path)
+
+    assert {a.label for a in indexed} == {"Report", "image.png"}
+    assert {a.explicit for a in indexed} == {True, False}
+    assert [a.label for a in explicit] == ["Report"]

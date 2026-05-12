@@ -433,6 +433,24 @@ def _finalize_loop(
             existing_files=[*base_files, *markdown_pdf_paths],
         )
 
+        # Persist auto-discovered image artifacts to the global store so they
+        # outlive the ephemeral sase_<N> workspace. See
+        # sdd/tales/202605/persist_default_artifacts.md for context.
+        try:
+            from sase.core.agent_artifact_facade import (
+                persist_default_agent_artifacts,
+            )
+
+            persist_default_agent_artifacts(
+                state.current_artifacts_dir,
+                image_paths=image_paths,
+                workspace_dir=workspace_dir,
+            )
+            default_artifacts_persisted = True
+        except Exception as exc:  # noqa: BLE001
+            print(f"[artifacts] failed to persist default artifacts: {exc}")
+            default_artifacts_persisted = False
+
         # Detect noop: workflow completed but launched zero agents
         completed_outcome = (
             "noop" if is_workflow_noop(state.current_artifacts_dir) else "completed"
@@ -460,6 +478,7 @@ def _finalize_loop(
             markdown_pdf_paths=markdown_pdf_paths,
             image_paths=image_paths,
             retry_metadata=_retry_meta,
+            default_artifacts_persisted=default_artifacts_persisted,
         )
         done_path = os.path.join(state.current_artifacts_dir, "done.json")
         with open(done_path, "w", encoding="utf-8") as f:

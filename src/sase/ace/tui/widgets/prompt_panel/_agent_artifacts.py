@@ -17,6 +17,9 @@ if TYPE_CHECKING:
 _COLOR_HEADER = "bold #87D7FF"
 _COLOR_PATH = "#87AFFF"
 _COLOR_BASENAME = "bold #87AFFF"
+_COLOR_PATH_MISSING = "dim #87AFFF"
+_COLOR_BASENAME_MISSING = "dim #87AFFF"
+_COLOR_MISSING_SUFFIX = "dim italic #FF8787"
 _GLYPH_STYLE = "bold #FFD787"
 _ARTIFACT_ENTRY_PREFIX = "•"
 
@@ -25,6 +28,7 @@ _ARTIFACT_ENTRY_PREFIX = "•"
 class _ArtifactPath:
     display_path: str
     actual_path: str
+    exists: bool = True
 
 
 def append_agent_artifacts_section(
@@ -45,7 +49,9 @@ def append_agent_artifacts_section(
             text.append(f"[{hint_state.hint_counter}] ", style="bold #FFFF00")
             hint_state.hint_mappings[hint_state.hint_counter] = artifact.actual_path
             hint_state.hint_counter += 1
-        _append_path(text, artifact.display_path)
+        _append_path(text, artifact.display_path, exists=artifact.exists)
+        if not artifact.exists:
+            text.append(" (missing)", style=_COLOR_MISSING_SUFFIX)
         text.append("\n")
 
 
@@ -60,8 +66,17 @@ def _agent_artifact_paths(agent: Agent) -> list[_ArtifactPath]:
         artifacts = list_agent_artifacts(artifacts_dir)
     except Exception:
         return []
-    display_items: list[tuple[str, str | None]] = [
-        (artifact.path, artifact.workspace_dir)
+    display_items: list[tuple[str, str | None, str | None]] = [
+        (
+            artifact.path,
+            # Persisted default artifacts live in the global store under an
+            # opaque digest-suffixed name. Their ``source_path`` records the
+            # original workspace location, which is what users recognise — use
+            # it for the display label. Explicit artifacts keep their stored
+            # path so the panel surfaces where the artifact was filed.
+            artifact.source_path if not artifact.explicit else None,
+            artifact.workspace_dir,
+        )
         for artifact in artifacts
         if artifact.path and artifact.kind not in {"chat", "pdf"}
     ]
@@ -85,35 +100,42 @@ def _agent_artifact_paths(agent: Agent) -> list[_ArtifactPath]:
                 basename.startswith("followup_prompt") and basename.endswith(".md")
             ):
                 continue
-            display_items.append((artifact.path, artifact.workspace_dir))
+            display_items.append((artifact.path, None, artifact.workspace_dir))
 
     return _dedupe_paths(display_items, agent.workspace_dir)
 
 
 def _dedupe_paths(
-    paths: list[tuple[str, str | None]],
+    paths: list[tuple[str, str | None, str | None]],
     fallback_workspace_dir: str | None,
 ) -> list[_ArtifactPath]:
     by_actual_path: dict[str, _ArtifactPath] = {}
-    for path, artifact_workspace_dir in paths:
+    for path, display_source, artifact_workspace_dir in paths:
         workspace_dir = artifact_workspace_dir or fallback_workspace_dir
         actual_path = _resolve_actual_path(path, workspace_dir)
+        display_path = _display_path(
+            display_source or actual_path,
+            workspace_dir,
+        )
         by_actual_path.setdefault(
             actual_path,
             _ArtifactPath(
-                display_path=_display_path(actual_path, workspace_dir),
+                display_path=display_path,
                 actual_path=actual_path,
+                exists=os.path.exists(actual_path),
             ),
         )
     return list(by_actual_path.values())
 
 
-def _append_path(text: Text, path: str) -> None:
+def _append_path(text: Text, path: str, *, exists: bool = True) -> None:
     """Append a path with the DELTAS-style bold basename treatment."""
+    path_style = _COLOR_PATH if exists else _COLOR_PATH_MISSING
+    basename_style = _COLOR_BASENAME if exists else _COLOR_BASENAME_MISSING
     dirname, basename = os.path.split(path)
     if dirname:
-        text.append(dirname + "/", style=_COLOR_PATH)
-    text.append(basename or path, style=_COLOR_BASENAME)
+        text.append(dirname + "/", style=path_style)
+    text.append(basename or path, style=basename_style)
 
 
 def _display_path(path: str, workspace_dir: str | None) -> str:

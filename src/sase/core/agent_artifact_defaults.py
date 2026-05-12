@@ -5,7 +5,10 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from sase.core.agent_artifact_explicit import list_explicit_agent_artifacts
+from sase.core.agent_artifact_explicit import (
+    list_indexed_agent_artifacts,
+    store_default_agent_artifact,
+)
 from sase.core.agent_artifact_helpers import (
     artifact_id,
     association_from_metadata,
@@ -34,7 +37,13 @@ _IMAGE_PATH_RE = re.compile(
 def synthesize_default_agent_artifacts(
     agent_artifacts_dir: Path | str,
 ) -> list[AgentArtifact]:
-    """Synthesize chat/plan/image artifacts from existing run metadata."""
+    """Synthesize chat/plan/image artifacts from existing run metadata.
+
+    When ``done.json`` has ``default_artifacts_persisted: True`` the
+    image-discovery branches are skipped — those rows now live in the
+    persistent JSONL index. Legacy agents without that marker still get the
+    on-the-fly image synthesis as a best-effort fallback.
+    """
 
     artifacts_dir = Path(agent_artifacts_dir).expanduser()
     done = read_json_object(artifacts_dir / "done.json")
@@ -47,6 +56,7 @@ def synthesize_default_agent_artifacts(
         done.get("workspace_dir"), agent_meta.get("workspace_dir")
     )
     markdown_pdf_sources = read_markdown_pdf_source_paths(artifacts_dir)
+    images_persisted = bool(done.get("default_artifacts_persisted"))
 
     artifacts: list[AgentArtifact] = []
 
@@ -80,31 +90,32 @@ def synthesize_default_agent_artifacts(
             )
         )
 
-    for index, image_path in enumerate(coerce_str_list(done.get("image_paths"))):
-        artifacts.append(
-            _default_artifact(
-                association,
-                label=label_for_path(image_path, fallback="Image"),
-                kind="image",
-                path=image_path,
-                ordinal=f"image-{index}",
-                workspace_dir=workspace_dir,
+    if not images_persisted:
+        for index, image_path in enumerate(coerce_str_list(done.get("image_paths"))):
+            artifacts.append(
+                _default_artifact(
+                    association,
+                    label=label_for_path(image_path, fallback="Image"),
+                    kind="image",
+                    path=image_path,
+                    ordinal=f"image-{index}",
+                    workspace_dir=workspace_dir,
+                )
             )
-        )
 
-    for index, image_path in enumerate(
-        _discover_prompt_image_paths(artifacts_dir, workspace_dir=workspace_dir)
-    ):
-        artifacts.append(
-            _default_artifact(
-                association,
-                label=label_for_path(image_path, fallback="Image"),
-                kind="image",
-                path=image_path,
-                ordinal=f"prompt-image-{index}",
-                workspace_dir=workspace_dir,
+        for index, image_path in enumerate(
+            _discover_prompt_image_paths(artifacts_dir, workspace_dir=workspace_dir)
+        ):
+            artifacts.append(
+                _default_artifact(
+                    association,
+                    label=label_for_path(image_path, fallback="Image"),
+                    kind="image",
+                    path=image_path,
+                    ordinal=f"prompt-image-{index}",
+                    workspace_dir=workspace_dir,
+                )
             )
-        )
 
     for index, pdf_path in enumerate(coerce_str_list(done.get("markdown_pdf_paths"))):
         source_path = markdown_pdf_sources.get(path_key(pdf_path))
@@ -123,6 +134,66 @@ def synthesize_default_agent_artifacts(
     return dedupe_artifacts(artifacts)
 
 
+def persist_default_agent_artifacts(
+    agent_artifacts_dir: Path | str,
+    *,
+    image_paths: list[str] | None = None,
+    workspace_dir: str | None = None,
+    artifacts_root: Path | str | None = None,
+    index_path: Path | str | None = None,
+) -> list[AgentArtifact]:
+    """Copy auto-discovered image artifacts into the persistent global store.
+
+    Called by the agent finalization path while the workspace files still
+    exist. Combines explicit ``image_paths`` (from ``done.json``) with xprompt
+    image discovery, deduplicates by resolved path, silently skips paths that
+    don't exist, and writes a row to the JSONL index for each persisted file.
+
+    Idempotent: re-running over the same workspace yields the same set of
+    persisted artifacts and the same index rows.
+    """
+
+    artifacts_dir = Path(agent_artifacts_dir).expanduser()
+
+    candidates: list[str] = []
+    seen: set[str] = set()
+
+    def _add(path: str | None) -> None:
+        if not path:
+            return
+        try:
+            key = path_key(path)
+        except OSError:
+            return
+        if key in seen:
+            return
+        seen.add(key)
+        candidates.append(path)
+
+    for path in image_paths or []:
+        _add(path)
+
+    for path in _discover_prompt_image_paths(
+        artifacts_dir, workspace_dir=workspace_dir
+    ):
+        _add(path)
+
+    persisted: list[AgentArtifact] = []
+    for source in candidates:
+        artifact = store_default_agent_artifact(
+            source,
+            artifacts_dir,
+            label=label_for_path(source, fallback="Image"),
+            kind="image",
+            artifacts_root=artifacts_root,
+            index_path=index_path,
+            workspace_dir=workspace_dir,
+        )
+        if artifact is not None:
+            persisted.append(artifact)
+    return persisted
+
+
 def list_agent_artifacts(
     agent_artifacts_dir: Path | str,
     *,
@@ -131,18 +202,20 @@ def list_agent_artifacts(
     """Return default plus explicit artifacts for one agent in display order."""
 
     defaults = synthesize_default_agent_artifacts(agent_artifacts_dir)
-    explicit = list_explicit_agent_artifacts(
+    indexed = list_indexed_agent_artifacts(
         agent_artifacts_dir,
         index_path=index_path,
     )
-    images_and_generated = [
+    non_chat_plan_defaults = [
         artifact for artifact in defaults if artifact.kind not in {"chat", "plan"}
     ]
     chat_and_plans = [
         artifact for artifact in defaults if artifact.kind in {"chat", "plan"}
     ]
     return dedupe_artifacts(
-        _dedupe_plan_artifacts([*chat_and_plans, *explicit, *images_and_generated])
+        _dedupe_plan_artifacts(
+            [*chat_and_plans, *indexed, *non_chat_plan_defaults]
+        )
     )
 
 

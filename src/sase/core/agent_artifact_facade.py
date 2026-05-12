@@ -8,11 +8,14 @@ from __future__ import annotations
 
 from sase.core.agent_artifact_defaults import (
     list_agent_artifacts,
+    persist_default_agent_artifacts,
     synthesize_default_agent_artifacts,
 )
 from sase.core.agent_artifact_explicit import (
     list_explicit_agent_artifacts,
+    list_indexed_agent_artifacts,
     read_explicit_agent_artifact_index,
+    store_default_agent_artifact,
     store_explicit_agent_artifact,
 )
 from sase.core.agent_artifact_types import (
@@ -43,7 +46,10 @@ __all__ = [
     "infer_artifact_kind",
     "list_agent_artifacts",
     "list_explicit_agent_artifacts",
+    "list_indexed_agent_artifacts",
+    "persist_default_agent_artifacts",
     "read_explicit_agent_artifact_index",
+    "store_default_agent_artifact",
     "store_explicit_agent_artifact",
     "synthesize_default_agent_artifacts",
 ]

@@ -592,6 +592,7 @@ def build_done_marker(
     plan_path: str | None = None,
     markdown_pdf_paths: list[str] | None = None,
     image_paths: list[str] | None = None,
+    default_artifacts_persisted: bool = False,
     error: str | None = None,
     traceback_str: str | None = None,
     retry_metadata: dict[str, Any] | None = None,
@@ -628,6 +629,8 @@ def build_done_marker(
         marker["plan_path"] = plan_path
         marker["markdown_pdf_paths"] = markdown_pdf_paths or []
         marker["image_paths"] = image_paths or []
+        if default_artifacts_persisted:
+            marker["default_artifacts_persisted"] = True
     # Failed outcome includes error details
     if error:
         marker["error"] = error
