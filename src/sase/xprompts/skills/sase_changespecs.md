@@ -151,6 +151,6 @@ live in `<project>-archive.sase`; active specs live in `<project>.sase` under `~
 
 ## Implementation notes
 
-ChangeSpec sections: `NAME`, `DESCRIPTION`, `PARENT`, `CL` / `PR`, `BUG`, `TEST TARGETS`, `STATUS`, `COMMITS`,
-`TIMESTAMPS`, `HOOKS`, `COMMENTS`, `MENTORS`. Search reads both `<project>.sase` and `<project>-archive.sase` (and their
-legacy `.gp` siblings during the migration window), so submitted and archived specs are reachable via the same queries.
+ChangeSpec sections: `NAME`, `DESCRIPTION`, `PARENT`, `CL` / `PR`, `BUG`, `STATUS`, `COMMITS`, `TIMESTAMPS`, `HOOKS`,
+`COMMENTS`, `MENTORS`. Search reads both `<project>.sase` and `<project>-archive.sase` (and their legacy `.gp` siblings
+during the migration window), so submitted and archived specs are reachable via the same queries.

@@ -18,7 +18,6 @@ DESCRIPTION:
 PARENT: None
 CL: None
 STATUS: {status}
-TEST TARGETS: None
 
 ---
 """
@@ -224,7 +223,6 @@ DESCRIPTION:
 PARENT: {parent_val}
 CL: None
 STATUS: {status}
-TEST TARGETS: None
 
 ---
 
@@ -299,7 +297,6 @@ def test_draft_to_ready_blocked_when_sibling_has_children() -> None:
                 parent=None,
                 cl=None,
                 status="Draft",
-                test_targets=None,
                 file_path=project_file,
                 line_number=6,
             ),
@@ -309,7 +306,6 @@ def test_draft_to_ready_blocked_when_sibling_has_children() -> None:
                 parent=None,
                 cl=None,
                 status="Draft",
-                test_targets=None,
                 file_path=project_file,
                 line_number=18,
             ),
@@ -319,7 +315,6 @@ def test_draft_to_ready_blocked_when_sibling_has_children() -> None:
                 parent="foo_bar__2",
                 cl=None,
                 status="Ready",
-                test_targets=None,
                 file_path=project_file,
                 line_number=30,
             ),
@@ -374,7 +369,6 @@ def test_draft_to_ready_allowed_when_sibling_children_reverted() -> None:
                 parent=None,
                 cl=None,
                 status="Draft",
-                test_targets=None,
                 file_path=project_file,
                 line_number=6,
             ),
@@ -384,7 +378,6 @@ def test_draft_to_ready_allowed_when_sibling_children_reverted() -> None:
                 parent=None,
                 cl=None,
                 status="Draft",
-                test_targets=None,
                 file_path=project_file,
                 line_number=18,
             ),
@@ -394,7 +387,6 @@ def test_draft_to_ready_allowed_when_sibling_children_reverted() -> None:
                 parent="foo_bar__2",
                 cl=None,
                 status="Reverted",
-                test_targets=None,
                 file_path=project_file,
                 line_number=30,
             ),

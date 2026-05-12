@@ -30,7 +30,6 @@ DESCRIPTION:
   A test feature for unit testing
 {parent_line}CL: None
 STATUS: {status}
-TEST TARGETS: None
 
 ---
 """)

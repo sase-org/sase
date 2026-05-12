@@ -22,7 +22,6 @@ CHANGESPEC_SECTION_ORDER: tuple[str, ...] = (
     "PR:",
     "BUG:",
     "STATUS:",
-    "TEST TARGETS:",
     "COMMITS:",
     "DELTAS:",
     "HOOKS:",

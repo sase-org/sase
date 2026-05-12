@@ -92,7 +92,6 @@ PARENT:
 PR: https://example.test/repo/pull/{idx}
 BUG: BUG-{idx}
 STATUS: WIP
-TEST TARGETS: tests/test_spec-{idx}.py
 COMMITS:
   (1) [run] Initial Commit {idx}
       | CHAT: ~/.sase/chats/spec-{idx}.md (0s)

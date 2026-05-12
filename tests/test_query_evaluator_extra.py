@@ -32,7 +32,6 @@ def _cs(
         parent=parent,
         cl=cl,
         status=status,
-        test_targets=None,
         file_path="/home/user/.sase/projects/myproject/myproject.sase",
         line_number=1,
         commits=commits,

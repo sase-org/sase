@@ -242,9 +242,7 @@ def _apply_parent_update(
             if (
                 in_target_changespec
                 and in_description
-                and line.startswith(
-                    ("PARENT:", "CL:", "PR:", "STATUS:", "TEST TARGETS:")
-                )
+                and line.startswith(("PARENT:", "CL:", "PR:", "STATUS:"))
             ):
                 in_description = False
             updated_lines.append(line)
@@ -320,7 +318,6 @@ _FIELD_HEADERS = (
     "CL:",
     "BUG:",
     "STATUS:",
-    "TEST TARGETS:",
     "COMMITS:",
     "HOOKS:",
     "COMMENTS:",

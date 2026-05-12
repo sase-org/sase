@@ -415,41 +415,6 @@ class ChangeSpecDetail(Static):
         status_color = get_status_color(changespec.status)
         text.append(f"{changespec.status}\n", style=f"bold {status_color}")
 
-        # TEST TARGETS field
-        self._build_test_targets_field(text, changespec)
-
-    def _build_test_targets_field(
-        self,
-        text: Text,
-        changespec: ChangeSpec,
-    ) -> None:
-        """Build the TEST TARGETS field."""
-        if not changespec.test_targets:
-            return
-
-        text.append("TEST TARGETS: ", style="bold #87D7FF")
-        if len(changespec.test_targets) == 1:
-            if changespec.test_targets[0] != "None":
-                target = changespec.test_targets[0]
-                if "(FAILED)" in target:
-                    base_target = target.replace(" (FAILED)", "")
-                    text.append(f"{base_target} ", style="bold #AFD75F")
-                    text.append("(FAILED)\n", style="bold #FF5F5F")
-                else:
-                    text.append(f"{target}\n", style="bold #AFD75F")
-            else:
-                text.append("None\n")
-        else:
-            text.append("\n")
-            for target in changespec.test_targets:
-                if target != "None":
-                    if "(FAILED)" in target:
-                        base_target = target.replace(" (FAILED)", "")
-                        text.append(f"  {base_target} ", style="bold #AFD75F")
-                        text.append("(FAILED)\n", style="bold #FF5F5F")
-                    else:
-                        text.append(f"  {target}\n", style="bold #AFD75F")
-
     def show_failed_hooks_targets(
         self,
         targets: list[str],

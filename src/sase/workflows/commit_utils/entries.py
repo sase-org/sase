@@ -122,7 +122,6 @@ def get_next_commit_number(lines: list[str], cl_name: str) -> int:
                     "PARENT:",
                     "CL:",
                     "STATUS:",
-                    "TEST TARGETS:",
                 )
             ):
                 in_commits = False
@@ -182,7 +181,6 @@ def _get_next_proposal_letter(lines: list[str], cl_name: str, base_number: int) 
                     "PARENT:",
                     "CL:",
                     "STATUS:",
-                    "TEST TARGETS:",
                 )
             ):
                 in_commits = False

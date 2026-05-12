@@ -154,7 +154,6 @@ class _ChangeSpecFactory:
             parent=parent,
             cl=cl,
             status=status,
-            test_targets=None,
             file_path=file_path,
             line_number=1,
             commits=commits,
@@ -196,7 +195,6 @@ STATUS: {status}
                 parent=parent,
                 cl=cl,
                 status=status,
-                test_targets=None,
                 file_path=f.name,
                 line_number=6,
             )

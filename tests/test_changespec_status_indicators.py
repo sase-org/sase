@@ -18,7 +18,6 @@ def _make_changespec(
         parent=None,
         cl=None,
         status=status,
-        test_targets=None,
         file_path="/tmp/test.sase",
         line_number=1,
         commits=commits,

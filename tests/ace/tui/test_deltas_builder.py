@@ -24,7 +24,6 @@ def _make_changespec(
         parent=None,
         cl=None,
         status="WIP",
-        test_targets=None,
         file_path="proj.sase",
         line_number=1,
         deltas=deltas,

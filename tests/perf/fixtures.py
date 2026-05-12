@@ -29,7 +29,6 @@ def make_changespec(name: str, file_path: Path, *, status: str = "WIP") -> Chang
         parent=None,
         cl=None,
         status=status,
-        test_targets=None,
         file_path=str(file_path),
         line_number=1,
     )

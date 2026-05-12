@@ -28,7 +28,6 @@ def _make_cs(**kwargs: object) -> ChangeSpec:
         "parent": None,
         "cl": None,
         "status": "Draft",
-        "test_targets": None,
         "file_path": "/tmp/test.sase",
         "line_number": 1,
     }

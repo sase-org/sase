@@ -27,7 +27,6 @@ DESCRIPTION:
 PARENT: None
 CL: None
 STATUS: {status}
-TEST TARGETS: None
 
 ---
 """)
@@ -179,7 +178,6 @@ DESCRIPTION:
   A parent feature
 CL: None
 STATUS: Draft
-TEST TARGETS: None
 
 
 ## ChangeSpec
@@ -190,7 +188,6 @@ DESCRIPTION:
 PARENT: Parent Feature
 CL: None
 STATUS: Draft
-TEST TARGETS: None
 
 ---
 """)
@@ -230,7 +227,6 @@ DESCRIPTION:
   A parent feature
 CL: None
 STATUS: Ready
-TEST TARGETS: None
 
 
 ## ChangeSpec
@@ -241,7 +237,6 @@ DESCRIPTION:
 PARENT: Parent Feature
 CL: None
 STATUS: Draft
-TEST TARGETS: None
 
 ---
 """)
@@ -280,7 +275,6 @@ DESCRIPTION:
   A parent feature
 CL: None
 STATUS: Draft
-TEST TARGETS: None
 
 
 ## ChangeSpec
@@ -291,7 +285,6 @@ DESCRIPTION:
 PARENT: Parent Feature
 CL: None
 STATUS: Draft
-TEST TARGETS: None
 
 ---
 """)

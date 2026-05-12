@@ -53,7 +53,6 @@ def reject_proposals_and_set_status_atomic(
                             "DESCRIPTION:",
                             "PARENT:",
                             "CL:",
-                            "TEST TARGETS:",
                             "HOOKS:",
                             "COMMENTS:",
                             "MENTORS:",
@@ -145,7 +144,6 @@ def reject_all_new_proposals(
                             "PARENT:",
                             "CL:",
                             "STATUS:",
-                            "TEST TARGETS:",
                             "HOOKS:",
                             "COMMENTS:",
                         )
@@ -235,7 +233,6 @@ def update_commit_entry_suffix(
                             "PARENT:",
                             "CL:",
                             "STATUS:",
-                            "TEST TARGETS:",
                             "HOOKS:",
                             "COMMENTS:",
                         )
@@ -332,7 +329,6 @@ def mark_proposal_broken(
                             "PARENT:",
                             "CL:",
                             "STATUS:",
-                            "TEST TARGETS:",
                             "HOOKS:",
                             "COMMENTS:",
                             "MENTORS:",

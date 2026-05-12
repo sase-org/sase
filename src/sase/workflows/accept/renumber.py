@@ -321,7 +321,6 @@ def _reject_remaining_proposals_unlocked(
                     "PARENT:",
                     "CL:",
                     "STATUS:",
-                    "TEST TARGETS:",
                     "HOOKS:",
                     "COMMENTS:",
                     "MENTORS:",

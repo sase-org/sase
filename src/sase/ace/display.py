@@ -39,8 +39,6 @@ def display_changespec(
     - CL values: bold underline #569CD6 (standard URL blue)
     - DESCRIPTION values: #D7D7AF (tan/beige)
     - STATUS values: status-specific colors
-    - TEST TARGETS: bold #AFD75F (green)
-
     Args:
         changespec: The ChangeSpec to display.
         console: The Rich console to print to.
@@ -114,34 +112,6 @@ def display_changespec(
     text.append("STATUS: ", style="bold #87D7FF")
     status_color = get_status_color(changespec.status)
     text.append(f"{changespec.status}\n", style=f"bold {status_color}")
-
-    # TEST TARGETS field (only display if present)
-    if changespec.test_targets:
-        text.append("TEST TARGETS: ", style="bold #87D7FF")
-        if len(changespec.test_targets) == 1:
-            # Check if the single value is "None" - if so, skip displaying
-            if changespec.test_targets[0] != "None":
-                target = changespec.test_targets[0]
-                if "(FAILED)" in target:
-                    # Split target to highlight (FAILED) in red
-                    base_target = target.replace(" (FAILED)", "")
-                    text.append(f"{base_target} ", style="bold #AFD75F")
-                    text.append("(FAILED)\n", style="bold #FF5F5F")
-                else:
-                    text.append(f"{target}\n", style="bold #AFD75F")
-            else:
-                text.append("None\n")
-        else:
-            text.append("\n")
-            for target in changespec.test_targets:
-                if target != "None":
-                    if "(FAILED)" in target:
-                        # Split target to highlight (FAILED) in red
-                        base_target = target.replace(" (FAILED)", "")
-                        text.append(f"  {base_target} ", style="bold #AFD75F")
-                        text.append("(FAILED)\n", style="bold #FF5F5F")
-                    else:
-                        text.append(f"  {target}\n", style="bold #AFD75F")
 
     # COMMITS field (only display if present)
     # Determine if we should show hints for history entries

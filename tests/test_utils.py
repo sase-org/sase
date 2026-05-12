@@ -36,7 +36,6 @@ def build_changespec(**kwargs: Any) -> ChangeSpec:
         "parent": None,
         "cl": None,
         "status": "Ready",
-        "test_targets": None,
         "file_path": "/tmp/test.md",
         "line_number": 1,
         "commits": None,

@@ -27,7 +27,6 @@ def test_display_changespec_without_hints_returns_empty() -> None:
         parent=None,
         cl=None,
         status="Ready",
-        test_targets=None,
         file_path="/tmp/test.sase",
         line_number=1,
     )
@@ -51,7 +50,6 @@ def test_display_changespec_renders_deltas_section() -> None:
         parent=None,
         cl=None,
         status="Ready",
-        test_targets=None,
         file_path="/tmp/test.sase",
         line_number=1,
         deltas=[
@@ -94,7 +92,6 @@ def test_display_changespec_omits_deltas_when_empty() -> None:
         parent=None,
         cl=None,
         status="Ready",
-        test_targets=None,
         file_path="/tmp/test.sase",
         line_number=1,
         deltas=None,

@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-CHANGESPEC_WIRE_SCHEMA_VERSION = 1
+CHANGESPEC_WIRE_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -166,7 +166,6 @@ class ChangeSpecWire:
     cl_or_pr: str | None
     bug: str | None
     description: str
-    test_targets: list[str] = field(default_factory=list)
     commits: list[CommitWire] = field(default_factory=list)
     hooks: list[HookWire] = field(default_factory=list)
     comments: list[CommentWire] = field(default_factory=list)

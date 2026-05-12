@@ -48,7 +48,6 @@ def _full_changespec() -> ChangeSpec:
         parent="parent_feature",
         cl="PR/42",
         status="WIP",
-        test_targets=["tests/test_x.py"],
         file_path="/proj/myproj.sase",
         line_number=10,
         bug="BUG-1",
@@ -158,7 +157,6 @@ def test_changespec_to_wire_full_round_trip() -> None:
     )
     assert wire.cl_or_pr == "PR/42"
     assert wire.bug == "BUG-1"
-    assert wire.test_targets == ["tests/test_x.py"]
     assert len(wire.commits) == 2
     assert wire.commits[0].suffix == "ZOMBIE"
     assert wire.commits[0].suffix_type == "error"
@@ -205,7 +203,6 @@ def test_changespec_to_wire_default_end_line_equals_start() -> None:
         parent=None,
         cl=None,
         status="WIP",
-        test_targets=None,
         file_path="/p/proj.sase",
         line_number=7,
     )
@@ -328,7 +325,6 @@ def test_changespec_wire_from_dict_treats_missing_lists_as_empty() -> None:
         "description": "",
     }
     wire = changespec_wire_from_dict(payload)
-    assert wire.test_targets == []
     assert wire.commits == []
     assert wire.deltas == []
 
@@ -340,7 +336,6 @@ def test_empty_changespec_collections_become_empty_lists() -> None:
         parent=None,
         cl=None,
         status="WIP",
-        test_targets=None,
         file_path="/p/proj.sase",
         line_number=1,
     )
@@ -351,4 +346,3 @@ def test_empty_changespec_collections_become_empty_lists() -> None:
     assert wire.mentors == []
     assert wire.timestamps == []
     assert wire.deltas == []
-    assert wire.test_targets == []

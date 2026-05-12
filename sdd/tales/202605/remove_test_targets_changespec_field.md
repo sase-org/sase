@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 15:44:00
-status: wip
+status: done
 prompt: sdd/prompts/202605/remove_test_targets_changespec_field.md
 ---
 # Remove Obsolete ChangeSpec TEST TARGETS Field

@@ -44,7 +44,6 @@ def _make_changespec(name: str, file_path: Path) -> ChangeSpec:
         parent=None,
         cl=None,
         status="WIP",
-        test_targets=None,
         file_path=str(file_path),
         line_number=1,
     )

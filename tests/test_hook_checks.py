@@ -42,7 +42,6 @@ def _make_changespec(
         parent=None,
         cl="http://cl/12345",
         status=status,
-        test_targets=None,
         file_path=file_path,
         line_number=1,
         commits=None,

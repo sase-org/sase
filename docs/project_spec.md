@@ -94,7 +94,7 @@ Common optional fields include:
 - **PARENT**: The `NAME` of a parent ChangeSpec that must land first. Omit it when there is no dependency.
 - **CL / PR**: URL for the created review, omitted until the CL or PR exists. `CL:` and `PR:` are parsed the same way.
 - **BUG**: Bug or issue reference for this ChangeSpec.
-- **TEST TARGETS**, **COMMITS**, **DELTAS**, **HOOKS**, **COMMENTS**, **MENTORS**, and **TIMESTAMPS**: See
+- **COMMITS**, **DELTAS**, **HOOKS**, **COMMENTS**, **MENTORS**, and **TIMESTAMPS**: See
   [`change_spec.md`](change_spec.md) for details.
 
 ## Example
@@ -113,7 +113,6 @@ DESCRIPTION:
   and missing file handling.
 BUG: http://b/12345
 STATUS: WIP
-TEST TARGETS: //my/project:config_parser_test
 
 
 NAME: my_project_integrate_parser_1
@@ -125,7 +124,6 @@ DESCRIPTION:
   startup configuration.
 PARENT: my_project_add_config_parser_1
 STATUS: WIP
-TEST TARGETS: //my/project:startup_test
 
 
 NAME: my_project_add_docs_1

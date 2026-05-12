@@ -29,7 +29,6 @@ def _make_changespec(
         parent=None,
         cl=None,
         status="Draft",
-        test_targets=None,
         file_path="/tmp/test.sase",
         line_number=1,
         hooks=hooks,

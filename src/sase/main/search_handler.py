@@ -107,10 +107,6 @@ def _display_plain(matching: list) -> None:  # type: ignore[type-arg]
         if cs.cl:
             print(f"CL: {cs.cl}")
         print(f"STATUS: {cs.status}")
-        if cs.test_targets:
-            targets = [t for t in cs.test_targets if t != "None"]
-            if targets:
-                print(f"TEST TARGETS: {', '.join(targets)}")
         if cs.commits:
             print("COMMITS:")
             for entry in cs.commits:

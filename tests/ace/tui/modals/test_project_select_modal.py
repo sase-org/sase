@@ -37,7 +37,6 @@ def _changespec(name: str, status: str, project_name: str = "valid") -> ChangeSp
         parent=None,
         cl=None,
         status=status,
-        test_targets=None,
         file_path=f"/tmp/.sase/projects/{project_name}/{project_name}.sase",
         line_number=1,
     )

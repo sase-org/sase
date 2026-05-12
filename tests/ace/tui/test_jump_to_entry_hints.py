@@ -36,7 +36,6 @@ def _make_changespec(name: str = "test_feature") -> ChangeSpec:
         parent=None,
         cl=None,
         status="Ready",
-        test_targets=None,
         file_path="/tmp/test.sase",
         line_number=1,
     )

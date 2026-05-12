@@ -34,7 +34,6 @@ class _ParserState:
         self.cl: str | None = None
         self.bug: str | None = None
         self.status: str | None = None
-        self.test_targets: list[str] = []
 
         # Entry collections
         self.commit_entries: list[CommitEntry] = []
@@ -53,7 +52,6 @@ class _ParserState:
 
         # Section flags
         self.in_description = False
-        self.in_test_targets = False
         self.in_commits = False
         self.in_hooks = False
         self.in_comments = False
@@ -64,7 +62,6 @@ class _ParserState:
     def reset_section_flags(self) -> None:
         """Reset all section flags to False."""
         self.in_description = False
-        self.in_test_targets = False
         self.in_commits = False
         self.in_hooks = False
         self.in_comments = False
@@ -96,7 +93,6 @@ class _ParserState:
                 parent=self.parent,
                 cl=self.cl,
                 status=self.status,
-                test_targets=self.test_targets if self.test_targets else None,
                 file_path=self.file_path,
                 line_number=self.line_number,
                 bug=self.bug,
@@ -201,17 +197,6 @@ def _parse_section_header(state: _ParserState, line: str) -> bool:
         state.in_deltas = True
         return True
 
-    if line.startswith("TEST TARGETS:"):
-        state.save_pending_entries()
-        state.reset_section_flags()
-        state.in_test_targets = True
-        # Check if targets are on the same line
-        targets_inline = line[13:].strip()
-        if targets_inline:
-            # Treat as single target (may contain spaces like "target (FAILED)")
-            state.test_targets.append(targets_inline)
-        return True
-
     return False
 
 
@@ -244,11 +229,6 @@ def _parse_section_content(state: _ParserState, line: str) -> None:
     elif state.in_description and line.startswith("  "):
         # Description continuation (2-space indented)
         state.description_lines.append(line[2:].rstrip("\n"))
-    elif state.in_test_targets and line.startswith("  "):
-        # Test targets continuation (2-space indented)
-        target = stripped
-        if target:
-            state.test_targets.append(target)
     elif stripped == "":
         # Blank line - preserve in description
         if state.in_description:

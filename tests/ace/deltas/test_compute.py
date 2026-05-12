@@ -31,7 +31,6 @@ def _make_changespec(
         parent=parent,
         cl=None,
         status="Draft",
-        test_targets=None,
         file_path=file_path,
         line_number=1,
     )

@@ -14,7 +14,6 @@ def _make_changespec(**kwargs: object) -> ChangeSpec:
         "parent": None,
         "cl": None,
         "status": "Ready",
-        "test_targets": None,
         "file_path": "/path/to/project.sase",
         "line_number": 1,
     }

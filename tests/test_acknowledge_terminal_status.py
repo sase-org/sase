@@ -22,7 +22,6 @@ def test_strip_terminal_status_markers_skips_drafted() -> None:
         parent=None,
         cl="123",
         status="Ready",  # Not terminal
-        test_targets=None,
         file_path="/tmp/test.sase",
         line_number=1,
         commits=[
@@ -48,7 +47,6 @@ def test_strip_terminal_status_markers_processes_reverted() -> None:
         parent=None,
         cl="123",
         status="Reverted",  # Terminal
-        test_targets=None,
         file_path="/tmp/test.sase",
         line_number=1,
         commits=[
@@ -79,7 +77,6 @@ def test_strip_terminal_status_markers_skips_plain_suffix() -> None:
         parent=None,
         cl="123",
         status="Submitted",  # Terminal
-        test_targets=None,
         file_path="/tmp/test.sase",
         line_number=1,
         commits=[
@@ -117,7 +114,6 @@ def test_strip_terminal_status_markers_processes_hooks() -> None:
         parent=None,
         cl="123",
         status="Submitted",  # Terminal
-        test_targets=None,
         file_path="/tmp/test.sase",
         line_number=1,
         hooks=[hook],
@@ -147,7 +143,6 @@ def test_strip_terminal_status_markers_processes_comments() -> None:
         parent=None,
         cl="123",
         status="Submitted",  # Terminal
-        test_targets=None,
         file_path="/tmp/test.sase",
         line_number=1,
         comments=[comment],
@@ -182,7 +177,6 @@ def test_strip_terminal_status_markers_processes_hooks_empty_running_agent() -> 
         parent=None,
         cl="123",
         status="Submitted",  # Terminal
-        test_targets=None,
         file_path="/tmp/test.sase",
         line_number=1,
         hooks=[hook],
@@ -213,7 +207,6 @@ def test_strip_terminal_status_markers_processes_comments_running_agent() -> Non
         parent=None,
         cl="123",
         status="Submitted",  # Terminal
-        test_targets=None,
         file_path="/tmp/test.sase",
         line_number=1,
         comments=[comment],
@@ -250,7 +243,6 @@ def test_strip_terminal_status_markers_processes_mentors_running_agent() -> None
         parent=None,
         cl="123",
         status="Submitted",  # Terminal
-        test_targets=None,
         file_path="/tmp/test.sase",
         line_number=1,
         mentors=[mentor],
@@ -290,7 +282,6 @@ def test_strip_terminal_status_markers_skips_mentors_without_running_agent() -> 
         parent=None,
         cl="123",
         status="Submitted",  # Terminal
-        test_targets=None,
         file_path="/tmp/test.sase",
         line_number=1,
         mentors=[mentor],

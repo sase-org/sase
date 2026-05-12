@@ -42,7 +42,6 @@ def _make_changespec(
         hooks=hooks,
         commits=commits,
         status="Ready",
-        test_targets=None,
         comments=comments,
         line_number=1,
     )

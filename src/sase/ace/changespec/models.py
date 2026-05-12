@@ -470,7 +470,6 @@ class ChangeSpec:
     parent: str | None
     cl: str | None
     status: str
-    test_targets: list[str] | None
     file_path: str
     line_number: int
     bug: str | None = None

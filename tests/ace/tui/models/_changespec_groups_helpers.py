@@ -29,7 +29,6 @@ def _cs(
         parent=None,
         cl=None,
         status=status,
-        test_targets=None,
         file_path=f"/sase/projects/{project}/{project}.sase",
         line_number=1,
         timestamps=timestamps,

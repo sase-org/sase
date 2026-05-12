@@ -97,8 +97,6 @@ def format_changespec_for_clipboard(cs: ChangeSpec) -> str:
     lines.append(f"STATUS: {cs.status}")
     if cs.bug:
         lines.append(f"BUG: {cs.bug}")
-    if cs.test_targets:
-        lines.append(f"TEST_TARGETS: {', '.join(cs.test_targets)}")
     # COMMITS section
     if cs.commits:
         lines.append("")

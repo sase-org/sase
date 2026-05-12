@@ -357,7 +357,6 @@ def test_embedded_vcs_removed_when_changespec_fix_hook_review_tagged() -> None:
         parent=None,
         cl="881522624",
         status="Mailed",
-        test_targets=None,
         file_path="/tmp/test.sase",
         line_number=1,
         hooks=[mock_hook],

@@ -21,7 +21,6 @@ PARENT: <PARENT>
 BUG: <BUG>
 CL: <CL>
 STATUS: <STATUS>
-TEST TARGETS: <TEST_TARGETS>
 COMMITS:
   <COMMIT_ENTRIES>
 DELTAS:
@@ -166,58 +165,6 @@ metadata.
 
 ```
 BUG: http://b/12345
-```
-
-### TEST TARGETS
-
-Specifies the test targets that need to pass for this CL.
-
-**This field has two useful states**:
-
-1. **Omitted entirely**: For CLs that don't require tests
-   - Config-only changes
-   - SQL data changes
-   - Documentation-only changes
-   - New enum values
-   - Small changes where tests aren't justified
-
-2. **Specified with targets**: For CLs that require specific tests
-   - Single-line format: `TEST TARGETS: //path/to:test`
-   - Multi-line format (preferred for multiple targets):
-     ```
-     TEST TARGETS:
-       //path/to:test1
-       //path/to:test2
-     ```
-   - Each target must be 2-space indented in multi-line format
-   - No blank lines between targets
-
-An empty `TEST TARGETS:` line parses the same as an omitted field in current SASE code, so do not use it to mean "tests
-required but TBD". Add the target when known, or omit the field and explain test uncertainty in the ChangeSpec
-description.
-
-**Never use `TEST TARGETS: None`** in new ChangeSpecs. Older project files may contain it, but new entries should either
-specify targets or omit the field.
-
-**Target Format**:
-
-- General: `//path/to/package:target_name`
-
-**Examples**:
-
-```
-# Single target
-TEST TARGETS: //my/project:config_parser_test
-
-# Multiple targets (single-line)
-TEST TARGETS: //my/project:test1 //my/project:test2
-
-# Multiple targets (multi-line, preferred)
-TEST TARGETS:
-  //my/project:integration_test
-  //my/project:config_parser_test
-
-# No tests required (omit field entirely)
 ```
 
 ### STATUS
@@ -439,10 +386,9 @@ DESCRIPTION:
   supports both RS256 and HS256 algorithms. Tests cover valid tokens,
   expired tokens, invalid signatures, and malformed tokens.
 STATUS: WIP
-TEST TARGETS: //auth/system:jwt_validator_test
 ```
 
-### Example 2: Dependent CL with Multiple Test Targets
+### Example 2: Dependent CL
 
 ```
 NAME: auth_system_integrate_validator
@@ -457,9 +403,6 @@ DESCRIPTION:
   signatures.
 PARENT: auth_system_add_jwt_validator
 STATUS: WIP
-TEST TARGETS:
-  //auth/system:middleware_test
-  //auth/system:integration_test
 ```
 
 ### Example 3: Config-Only CL (No Tests)
@@ -487,14 +430,13 @@ DESCRIPTION:
   under clock skew conditions.
 BUG: http://b/98765
 STATUS: Draft
-TEST TARGETS: //auth/system:jwt_validator_test
 ```
 
 ## Best Practices
 
 1. **Keep CLs Small and Focused**: Each CL should address a single, well-defined change
 2. **Maximize Parallelization**: Omit `PARENT` whenever possible
-3. **Include Tests**: Most CLs should specify TEST TARGETS
+3. **Include Tests**: Attach relevant test commands in `HOOKS`
 4. **Write Clear Descriptions**: Explain what, why, and how
 5. **Use Descriptive Names**: NAME should clearly indicate what the CL does
 6. **Think About Dependencies**: Only create dependencies when truly necessary

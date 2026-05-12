@@ -17,7 +17,6 @@ _CHANGESPEC_FIELD_HEADERS = (
     "COMMITS:",
     "COMMENTS:",
     "MENTORS:",
-    "TEST TARGETS:",
     "TIMESTAMPS:",
 )
 

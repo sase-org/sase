@@ -74,7 +74,7 @@ def test_changespec_wire_json_snapshot() -> None:
     assert payload == snapshot(
         [
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "name": "alpha",
                 "project_basename": "myproj",
                 "file_path": "myproj.sase",
@@ -88,7 +88,6 @@ def test_changespec_wire_json_snapshot() -> None:
                 "cl_or_pr": "https://example.test/repo/pull/1",
                 "bug": "BUG-100",
                 "description": "Initial feature work.\nSpans multiple lines.",
-                "test_targets": ["tests/test_alpha.py"],
                 "commits": [
                     {
                         "number": 1,
@@ -157,21 +156,20 @@ def test_changespec_wire_json_snapshot() -> None:
                 ],
             },
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "name": "beta",
                 "project_basename": "myproj",
                 "file_path": "myproj.sase",
                 "source_span": {
                     "file_path": "myproj.sase",
-                    "start_line": 30,
-                    "end_line": 30,
+                    "start_line": 29,
+                    "end_line": 29,
                 },
                 "status": "WIP",
                 "parent": "alpha",
                 "cl_or_pr": None,
                 "bug": None,
                 "description": "Sibling feature.",
-                "test_targets": [],
                 "commits": [],
                 "hooks": [],
                 "comments": [],
@@ -180,21 +178,20 @@ def test_changespec_wire_json_snapshot() -> None:
                 "deltas": [],
             },
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "name": "beta__260102_010101",
                 "project_basename": "myproj",
                 "file_path": "myproj.sase",
                 "source_span": {
                     "file_path": "myproj.sase",
-                    "start_line": 37,
-                    "end_line": 37,
+                    "start_line": 36,
+                    "end_line": 36,
                 },
                 "status": "Reverted",
                 "parent": "alpha",
                 "cl_or_pr": None,
                 "bug": None,
                 "description": "Reverted retry of beta.",
-                "test_targets": [],
                 "commits": [],
                 "hooks": [],
                 "comments": [],
@@ -203,21 +200,20 @@ def test_changespec_wire_json_snapshot() -> None:
                 "deltas": [],
             },
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "name": "gamma",
                 "project_basename": "myproj",
                 "file_path": "myproj.sase",
                 "source_span": {
                     "file_path": "myproj.sase",
-                    "start_line": 44,
-                    "end_line": 44,
+                    "start_line": 43,
+                    "end_line": 43,
                 },
                 "status": "Ready",
                 "parent": None,
                 "cl_or_pr": None,
                 "bug": None,
                 "description": "Ready feature with running agent.",
-                "test_targets": [],
                 "commits": [],
                 "hooks": [
                     {
@@ -251,7 +247,7 @@ def test_archive_corpus_wire_json_snapshot() -> None:
     assert payload == snapshot(
         [
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "name": "archived_one",
                 "project_basename": "myproj",
                 "file_path": "myproj-archive.sase",
@@ -265,7 +261,6 @@ def test_archive_corpus_wire_json_snapshot() -> None:
                 "cl_or_pr": "https://example.test/repo/pull/99",
                 "bug": None,
                 "description": "An archived spec.",
-                "test_targets": [],
                 "commits": [
                     {
                         "number": 1,
@@ -286,7 +281,7 @@ def test_archive_corpus_wire_json_snapshot() -> None:
                 "deltas": [],
             },
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "name": "reverted_two",
                 "project_basename": "myproj",
                 "file_path": "myproj-archive.sase",
@@ -300,7 +295,6 @@ def test_archive_corpus_wire_json_snapshot() -> None:
                 "cl_or_pr": None,
                 "bug": None,
                 "description": "A reverted spec.",
-                "test_targets": [],
                 "commits": [],
                 "hooks": [],
                 "comments": [],

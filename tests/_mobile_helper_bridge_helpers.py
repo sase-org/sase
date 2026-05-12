@@ -27,7 +27,6 @@ def create_changespec(
         parent=None,
         cl=None,
         status=status,
-        test_targets=None,
         file_path=f"/home/user/.sase/projects/{project}/{project}{suffix}.sase",
         line_number=1,
     )

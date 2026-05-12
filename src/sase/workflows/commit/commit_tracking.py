@@ -113,7 +113,6 @@ def _commits_drawer_has_entry_id(
                 "PARENT:",
                 "CL:",
                 "STATUS:",
-                "TEST TARGETS:",
             )
         ):
             in_commits = False

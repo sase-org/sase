@@ -28,7 +28,6 @@ def _make_snapshot() -> list[ChangeSpec]:
             parent=None,
             cl=None,
             status="WIP",
-            test_targets=None,
             file_path="/tmp/proj.sase",
             line_number=1,
         )
