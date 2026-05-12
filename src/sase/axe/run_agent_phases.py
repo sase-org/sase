@@ -247,10 +247,10 @@ def wait_for_dependencies(
     """Wait for named agent dependencies, a duration, or an absolute time.
 
     When *wait_names* is non-empty, writes waiting.json, polls for ready.json,
-    then updates agent_meta.json with run_started_at.  When *duration* is set,
-    the agent won't start before that many seconds have elapsed — even if all
-    named dependencies finish earlier.  When *wait_until* is set (ISO 8601
-    timestamp), the agent won't start before that wall-clock time.
+    then returns once the agent can proceed.  When *duration* is set, the agent
+    won't start before that many seconds have elapsed — even if all named
+    dependencies finish earlier.  When *wait_until* is set (ISO 8601 timestamp),
+    the agent won't start before that wall-clock time.
 
     Exits with SIGTERM code if killed during wait.
     """
@@ -379,12 +379,37 @@ def wait_for_dependencies(
 
     print("All dependencies satisfied, proceeding with workflow")
 
-    # Record actual run start time in agent_meta.json so the
-    # thinking panel can filter out JSONL files from the wait period.
+
+def record_run_started_at(artifacts_dir: str, agent_meta: dict[str, Any]) -> str:
+    """Persist the execution-loop start timestamp if it has not been recorded."""
     from datetime import UTC, datetime
 
-    agent_meta["run_started_at"] = datetime.now(UTC).isoformat()
-    _write_agent_meta(artifacts_dir, agent_meta)
+    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+    disk_meta: dict[str, Any] = {}
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            loaded = json.load(f)
+        if isinstance(loaded, dict):
+            disk_meta = loaded
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+
+    disk_run_started_at = disk_meta.get("run_started_at")
+    if isinstance(disk_run_started_at, str) and disk_run_started_at:
+        agent_meta["run_started_at"] = disk_run_started_at
+        return disk_run_started_at
+
+    memory_run_started_at = agent_meta.get("run_started_at")
+    if isinstance(memory_run_started_at, str) and memory_run_started_at:
+        run_started_at = memory_run_started_at
+    else:
+        run_started_at = datetime.now(UTC).isoformat()
+        agent_meta["run_started_at"] = run_started_at
+
+    merged_meta = {**disk_meta, **agent_meta, "run_started_at": run_started_at}
+    agent_meta.update(merged_meta)
+    _write_agent_meta(artifacts_dir, merged_meta)
+    return run_started_at
 
 
 def resolve_wait_chat_paths(wait_names: list[str]) -> list[str]:

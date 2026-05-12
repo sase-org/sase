@@ -211,6 +211,9 @@ def _exec_result(artifacts_dir: str) -> SimpleNamespace:
         outcome="completed",
         saved_path=None,
         diff_path=None,
+        markdown_pdf_paths=[],
+        markdown_source_count=0,
+        image_paths=[],
         current_artifacts_dir=artifacts_dir,
         step_output=None,
     )
@@ -586,19 +589,29 @@ class TestDeferredWorkspacePreparation:
         patches[f"{_RUNNER}.extract_directives_and_write_meta"] = MagicMock(
             return_value=wait_info
         )
+        meta_path = Path(artifacts_dir) / "agent_meta.json"
+
+        def assert_no_run_started_at() -> None:
+            if meta_path.exists():
+                assert "run_started_at" not in json.loads(meta_path.read_text())
 
         def wait_for_deps(*_args: Any, **_kwargs: Any) -> None:
+            assert_no_run_started_at()
             events.append("wait")
 
         def claim_deferred(*_args: Any, **_kwargs: Any) -> tuple[int, str]:
+            assert_no_run_started_at()
             events.append("claim")
             return 3, str(real_ws)
 
         def prepare_ws(workspace_dir: str, *_args: Any, **_kwargs: Any) -> bool:
+            assert_no_run_started_at()
             events.append(("prepare", workspace_dir))
             return True
 
         def run_loop(ctx: Any, _prompt: str) -> SimpleNamespace:
+            meta = json.loads(meta_path.read_text())
+            assert meta["run_started_at"] == ctx.agent_meta["run_started_at"]
             events.append(("run", ctx.workspace_num, ctx.workspace_dir))
             return _exec_result(artifacts_dir)
 
@@ -661,3 +674,85 @@ class TestDeferredWorkspacePreparation:
         )
 
         assert events == ["wait", ("run", 0, str(cd_workspace))]
+
+
+class TestRunStartedAtRecording:
+    def test_no_wait_runner_records_run_started_at_before_execution(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = str(tmp_path / "artifacts")
+        patches = _base_patches(artifacts_dir)
+        seen_run_started_at: list[str] = []
+
+        def run_loop(ctx: Any, _prompt: str) -> SimpleNamespace:
+            meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+            run_started_at = meta.get("run_started_at")
+            assert isinstance(run_started_at, str)
+            assert run_started_at == ctx.agent_meta["run_started_at"]
+            seen_run_started_at.append(run_started_at)
+            return _exec_result(artifacts_dir)
+
+        patches[f"{_RUNNER}.run_execution_loop"] = run_loop
+
+        _run_main(patches, tmp_path)
+
+        assert len(seen_run_started_at) == 1
+
+    def test_error_before_execution_does_not_record_run_started_at(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = tmp_path / "artifacts"
+        patches = _base_patches(str(artifacts_dir))
+        run_loop = MagicMock()
+        patches[f"{_RUNNER}.resolve_agent_refs_in_prompt"] = MagicMock(
+            side_effect=RuntimeError("bad agent ref")
+        )
+        patches[f"{_RUNNER}.run_execution_loop"] = run_loop
+
+        _run_main(patches, tmp_path)
+
+        run_loop.assert_not_called()
+        meta_path = artifacts_dir / "agent_meta.json"
+        if meta_path.exists():
+            assert "run_started_at" not in json.loads(meta_path.read_text())
+
+    def test_killed_while_waiting_does_not_record_run_started_at(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = tmp_path / "artifacts"
+        patches = _base_patches(str(artifacts_dir))
+        patches[f"{_RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+            return_value=_AGENT_INFO._replace(wait_duration=1.0)
+        )
+        patches[f"{_RUNNER}.wait_for_dependencies"] = MagicMock(
+            side_effect=SystemExit(128 + 15)
+        )
+        patches[f"{_RUNNER}.run_execution_loop"] = MagicMock()
+
+        _run_main(patches, tmp_path)
+
+        patches[f"{_RUNNER}.run_execution_loop"].assert_not_called()
+        meta_path = artifacts_dir / "agent_meta.json"
+        if meta_path.exists():
+            assert "run_started_at" not in json.loads(meta_path.read_text())
+
+    def test_record_run_started_at_preserves_existing_timestamp(
+        self, tmp_path: Path
+    ) -> None:
+        from sase.axe.run_agent_phases import record_run_started_at
+
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        meta_path = artifacts_dir / "agent_meta.json"
+        meta_path.write_text(
+            json.dumps({"pid": 1, "run_started_at": "2026-05-12T12:00:00+00:00"})
+        )
+        agent_meta = {"pid": 1}
+
+        recorded = record_run_started_at(str(artifacts_dir), agent_meta)
+
+        assert recorded == "2026-05-12T12:00:00+00:00"
+        assert agent_meta["run_started_at"] == "2026-05-12T12:00:00+00:00"
+        assert json.loads(meta_path.read_text())["run_started_at"] == (
+            "2026-05-12T12:00:00+00:00"
+        )

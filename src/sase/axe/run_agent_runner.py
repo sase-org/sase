@@ -20,6 +20,7 @@ from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
 from sase.axe.run_agent_phases import (
     claim_deferred_workspace,
     extract_directives_and_write_meta,
+    record_run_started_at,
     resolve_agent_refs_in_prompt,
     resolve_wait_chat_paths,
     wait_for_dependencies,
@@ -302,6 +303,7 @@ def main() -> None:
                 wait_chats=wait_chats,
             )
 
+            record_run_started_at(artifacts_dir, agent_meta)
             exec_result = run_execution_loop(ctx, prompt)
             exec_outcome = exec_result.outcome
             success = classify_exec_success(
