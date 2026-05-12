@@ -53,6 +53,11 @@ AxeItem = LumberjackItem | ChopItem | BgCmdItem
 class BgCmdList(OptionList):
     """Left sidebar showing list of AXE tab items (axe parent, lumberjacks, bgcmds)."""
 
+    # Cells reserved for border (2), inner padding (2), scrollbar gutter (1),
+    # selected-row thick border-left (2), and a small visual comfort margin
+    # so the longest formatted row never butts up against the right edge.
+    _WIDTH_PADDING: int = 8
+
     class SelectionChanged(Message):
         """Message sent when selection changes."""
 
@@ -60,11 +65,25 @@ class BgCmdList(OptionList):
             self.index = index
             super().__init__()
 
+    class WidthChanged(Message):
+        """Message sent when the natural sidebar width changes.
+
+        The sidebar emits this after :meth:`update_list` so the AXE-tab
+        container can resize to fit the widest formatted row (lumberjack,
+        chop, or background command) without wrapping.
+        """
+
+        def __init__(self, width: int) -> None:
+            self.width = width
+            super().__init__()
+
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the background command list."""
         super().__init__(**kwargs)
         self._item_count: int = 0
         self._programmatic_update: bool = False
+        self._target_width: int = 0
+        self._requested_width: int = 0
 
     def update_list(
         self,
@@ -101,6 +120,7 @@ class BgCmdList(OptionList):
 
         self.clear_options()
 
+        max_cell_len = 0
         for idx, item in enumerate(items):
             is_selected = idx == current_idx
             match item:
@@ -143,7 +163,15 @@ class BgCmdList(OptionList):
                         is_running=running,
                         hint_char=(jump_hints or {}).get(idx),
                     )
+            prompt = option.prompt
+            if isinstance(prompt, Text) and prompt.cell_len > max_cell_len:
+                max_cell_len = prompt.cell_len
             self.add_option(option)
+
+        self._target_width = max_cell_len
+        optimal_width = max_cell_len + self._WIDTH_PADDING
+        self._requested_width = optimal_width
+        self.post_message(self.WidthChanged(optimal_width))
 
         # Highlight the current item
         try:
@@ -162,7 +190,7 @@ class BgCmdList(OptionList):
         hint_char: str | None = None,
     ) -> Option:
         """Format a top-level lumberjack option for display."""
-        text = Text()
+        text = Text(no_wrap=True, overflow="ellipsis")
         if hint_char is not None:
             text.append(f"[{hint_char}] ", style="bold #FFFF00")
 
@@ -195,7 +223,7 @@ class BgCmdList(OptionList):
         hint_char: str | None = None,
     ) -> Option:
         """Format a chop child option for display."""
-        text = Text()
+        text = Text(no_wrap=True, overflow="ellipsis")
         if hint_char is not None:
             text.append(f"[{hint_char}] ", style="bold #FFFF00")
 
@@ -235,7 +263,7 @@ class BgCmdList(OptionList):
         hint_char: str | None = None,
     ) -> Option:
         """Format a background command option for display."""
-        text = Text()
+        text = Text(no_wrap=True, overflow="ellipsis")
         if hint_char is not None:
             text.append(f"[{hint_char}] ", style="bold #FFFF00")
 
@@ -250,10 +278,7 @@ class BgCmdList(OptionList):
             text.append("\u2713", style="bold #FFD700")
         text.append("] ", style="dim")
 
-        # Command (truncated)
         cmd_display = info.command if info else f"slot {slot}"
-        if len(cmd_display) > 25:
-            cmd_display = cmd_display[:22] + "..."
         if is_running:
             label_style = "bold #00D7AF" if is_selected else "#00D7AF"
         else:

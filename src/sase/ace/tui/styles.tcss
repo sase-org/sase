@@ -1329,11 +1329,13 @@ HookHistoryModal #hook-history-hints {
     height: 100%;
 }
 
-/* Background command list container (left panel) */
+/* Background command list container (left panel).  Width is computed
+   programmatically from the widest formatted row (see
+   ``BgCmdList.WidthChanged``); the values below are a fallback for the
+   first paint before the widget posts its initial width event. */
 #bgcmd-list-container {
     width: 35;
-    min-width: 30;
-    max-width: 50;
+    min-width: 35;
     height: 100%;
 }
 
@@ -1347,6 +1349,8 @@ HookHistoryModal #hook-history-hints {
 /* BgCmdList styling */
 BgCmdList {
     scrollbar-gutter: stable;
+    text-wrap: nowrap;
+    text-overflow: clip;
 }
 
 BgCmdList > .option-list--option {

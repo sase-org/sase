@@ -29,10 +29,13 @@ def test_bgcmd_list_format_lumberjack_option_selected() -> None:
 
 
 def test_bgcmd_list_format_bgcmd_option_long_command() -> None:
-    """Test formatting background command option with long command."""
+    """Long bgcmd labels are no longer hard-truncated by the formatter; the
+    widget posts a wider :class:`BgCmdList.WidthChanged` instead and Rich's
+    no-wrap text plus the panel's clamped width handle overflow."""
     widget = BgCmdList()
+    long_command = "make test-all-with-coverage-and-reports"
     info = BackgroundCommandInfo(
-        command="make test-all-with-coverage-and-reports",
+        command=long_command,
         project="myproject",
         workspace_num=1,
         workspace_dir="/path",
@@ -43,8 +46,8 @@ def test_bgcmd_list_format_bgcmd_option_long_command() -> None:
     )
     assert option.id == "1"
     text_str = str(option.prompt)
-    # Command should be truncated
-    assert "..." in text_str
+    assert long_command in text_str
+    assert "..." not in text_str
 
 
 def test_bgcmd_list_format_bgcmd_option_done() -> None:

@@ -73,6 +73,17 @@ _MAX_LIST_WIDTH = 80
 _MIN_AGENT_LIST_WIDTH = 60
 _MAX_AGENT_LIST_WIDTH = 130
 
+# Width bounds for the AXE-tab sidebar (#bgcmd-list-container).
+# Min matches the previous default of 35 so the empty / short-label
+# sidebar keeps its historical look; max is raised well above the prior
+# fixed cap of 50 so long lumberjack / chop / bgcmd labels can grow the
+# sidebar to fit (Phase 1 of sdd/epics/202605/axe_tab_visual_redesign.md).
+_MIN_BGCMD_LIST_WIDTH = 35
+_MAX_BGCMD_LIST_WIDTH = 80
+# Cells reserved for the right-hand AXE dashboard so a wide sidebar can't
+# starve it on narrow terminals.
+_BGCMD_LIST_RESERVED_FOR_DASHBOARD = 40
+
 
 class AceApp(
     AgentWorkflowMixin,

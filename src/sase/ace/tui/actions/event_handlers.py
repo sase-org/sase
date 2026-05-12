@@ -607,3 +607,31 @@ class EventHandlersMixin:
         """Handle selection change in the BgCmdList widget."""
         if self.current_tab == "axe":
             self.current_idx = event.index
+
+    def on_bg_cmd_list_width_changed(self, event: BgCmdList.WidthChanged) -> None:
+        """Resize the AXE sidebar to fit its widest formatted row."""
+        from textual.css.query import NoMatches
+
+        from ..app import (
+            _BGCMD_LIST_RESERVED_FOR_DASHBOARD,
+            _MAX_BGCMD_LIST_WIDTH,
+            _MIN_BGCMD_LIST_WIDTH,
+        )
+
+        try:
+            container = self.query_one("#bgcmd-list-container")  # type: ignore[attr-defined]
+        except NoMatches:
+            return
+        terminal_width = getattr(getattr(self, "size", None), "width", 0) or 0
+        max_for_terminal = _MAX_BGCMD_LIST_WIDTH
+        if terminal_width > 0:
+            # Leave at least ``_BGCMD_LIST_RESERVED_FOR_DASHBOARD`` cells for
+            # the right-hand AXE dashboard so a wide sidebar can never push
+            # the dashboard out of the viewport on tight terminals.
+            terminal_cap = max(
+                _MIN_BGCMD_LIST_WIDTH,
+                terminal_width - _BGCMD_LIST_RESERVED_FOR_DASHBOARD,
+            )
+            max_for_terminal = min(_MAX_BGCMD_LIST_WIDTH, terminal_cap)
+        width = max(_MIN_BGCMD_LIST_WIDTH, min(max_for_terminal, event.width))
+        container.styles.width = width
