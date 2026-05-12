@@ -15,6 +15,38 @@ if TYPE_CHECKING:
 TabName = Literal["changespecs", "agents", "axe"]
 
 
+def _active_completion_agent_keys(
+    notifications: list[Notification],
+) -> set[tuple[str, str | None]]:
+    """Return ``(cl_name, raw_suffix)`` keys for active completion notifications.
+
+    A completion notification is identified by ``sender == "user-agent"`` and
+    ``action`` in ``{"JumpToAgent", "ViewErrorReport"}`` with ``cl_name``
+    present in ``action_data``. ``raw_suffix`` may be absent when the writer
+    did not record one — those rows match agents by ``cl_name`` only.
+
+    "Active" means not yet dismissed. Default snapshots already omit
+    dismissed rows, but the predicate is enforced here as well so callers
+    that pass ``include_dismissed=True`` get the right projection. Silent
+    rows still count: per the one-to-one contract, dismissed status is
+    what gates the row, not indicator visibility.
+    """
+    keys: set[tuple[str, str | None]] = set()
+    for n in notifications:
+        if n.sender != "user-agent":
+            continue
+        if n.action not in ("JumpToAgent", "ViewErrorReport"):
+            continue
+        if n.dismissed:
+            continue
+        cl_name = n.action_data.get("cl_name")
+        if not cl_name:
+            continue
+        raw_suffix = n.action_data.get("raw_suffix") or None
+        keys.add((cl_name, raw_suffix))
+    return keys
+
+
 def _unread_notification_buckets(
     notifications: list[Notification],
 ) -> tuple[
@@ -115,6 +147,20 @@ class AgentNotificationMixin:
         # indicator, it shouldn't break the agent's lifecycle.
         self._apply_notification_status_overrides(unread_active + unread_muted)
 
+        # Project active completion notifications onto Agents-tab unread rows
+        # so dismissed status drives the row marker (one-to-one contract).
+        selected_identity = None
+        agents = getattr(self, "_agents", None) or []
+        if (
+            getattr(self, "current_tab", None) == "agents"
+            and getattr(self, "_current_group_key", None) is None
+            and 0 <= getattr(self, "current_idx", -1) < len(agents)
+        ):
+            selected_identity = agents[self.current_idx].identity
+        self._reconcile_unread_from_completion_notifications(
+            notifications, exclude_identity=selected_identity
+        )
+
     def _apply_notification_status_overrides(self, unread: list[Notification]) -> None:
         """Scan unread notifications and set PLANNING/QUESTION status overrides.
 
@@ -177,6 +223,56 @@ class AgentNotificationMixin:
 
         if dismissed_any:
             self._refresh_notification_count()
+
+    def _reconcile_unread_from_completion_notifications(
+        self,
+        notifications: list[Notification],
+        *,
+        exclude_identity: tuple[AgentType, str, str | None] | None = None,
+    ) -> None:
+        """Project active completion notifications onto agent-row unread state.
+
+        For each visible terminal agent:
+
+        - If a matching active (not-dismissed) completion notification exists,
+          mark the row unread.
+        - If no matching notification exists, clear the row's unread marker
+          unless it was manually marked unread via ``U``.
+
+        ``exclude_identity`` opts a single visible row out of being marked
+        unread — used by the agents-tab finalize step to keep the currently
+        focused row from re-appearing as unread after its notification has
+        just been dismissed.
+        """
+        from ._core import is_unread_completed_status
+
+        active_keys = _active_completion_agent_keys(notifications)
+
+        unread_ids = getattr(self, "_unread_completed_agent_ids", None)
+        if unread_ids is None:
+            unread_ids = set()
+            self._unread_completed_agent_ids = unread_ids  # type: ignore[attr-defined]
+        manual_ids: set[tuple[AgentType, str, str | None]] = getattr(
+            self, "_manual_unread_agent_ids", set()
+        )
+
+        for agent in self._agents:
+            if not is_unread_completed_status(agent.status):
+                continue
+            has_notification = (agent.cl_name, agent.raw_suffix) in active_keys or (
+                agent.cl_name,
+                None,
+            ) in active_keys
+            if has_notification:
+                if (
+                    agent.identity != exclude_identity
+                    and agent.identity not in manual_ids
+                ):
+                    unread_ids.add(agent.identity)
+            else:
+                # Manual unread guards a row even without a notification.
+                if agent.identity not in manual_ids:
+                    unread_ids.discard(agent.identity)
 
     def _auto_dismiss_external_plan_response(self, notification: Notification) -> bool:
         """Auto-dismiss a PlanApproval notification responded to externally.

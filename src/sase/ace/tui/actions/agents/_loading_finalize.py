@@ -28,8 +28,17 @@ log = logging.getLogger(__name__)
 
 
 def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -> None:
-    """Mark newly terminal visible agent rows as unread for this TUI session."""
-    old_status_by_identity = getattr(app, "_agent_display_status_by_identity", {})
+    """Reconcile Agents-tab unread rows with active completion notifications.
+
+    The notification store is the source of truth: a row is unread iff its
+    matching completion notification is still active (not dismissed) and
+    manual ``U`` marks survive on rows that lack a notification.
+
+    Stale identities (agents no longer visible) are pruned, then the
+    currently selected row is acked (which also dismisses its matching
+    completion notification). Newly-terminal rows are picked up by the
+    notification-projection reconcile step rather than a status transition.
+    """
     unread_ids = getattr(app, "_unread_completed_agent_ids", None)
     if unread_ids is None:
         unread_ids = set()
@@ -43,32 +52,29 @@ def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -
     unread_ids.intersection_update(visible_ids)
     manual_ids.intersection_update(visible_ids)
 
-    selected_visible_identity = None
+    selected_identity = None
     if (
         on_agents_tab
         and getattr(app, "_current_group_key", None) is None
         and 0 <= app.current_idx < len(app._agents)
     ):
         selected_agent = app._agents[app.current_idx]
-        selected_visible_identity = selected_agent.identity
-        if selected_visible_identity not in manual_ids:
+        selected_identity = selected_agent.identity
+        if selected_identity not in manual_ids:
             clear_unread = getattr(
                 app, "_clear_agent_unread_and_dismiss_notification", None
             )
             if callable(clear_unread):
                 clear_unread(selected_agent)
             else:
-                unread_ids.discard(selected_visible_identity)
+                unread_ids.discard(selected_identity)
 
-    for agent in app._agents:
-        old_status = old_status_by_identity.get(agent.identity)
-        if (
-            old_status is not None
-            and old_status not in DISMISSABLE_STATUSES
-            and agent.status in DISMISSABLE_STATUSES
-            and agent.identity != selected_visible_identity
-        ):
-            unread_ids.add(agent.identity)
+    from sase.notifications import read_notification_snapshot
+
+    snapshot = read_notification_snapshot()
+    reconcile = getattr(app, "_reconcile_unread_from_completion_notifications", None)
+    if callable(reconcile):
+        reconcile(snapshot.notifications, exclude_identity=selected_identity)
 
     app._agent_display_status_by_identity = {  # type: ignore[attr-defined]
         agent.identity: agent.status for agent in app._agents

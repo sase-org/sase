@@ -1,0 +1,195 @@
+"""Tests for projecting active completion notifications onto unread rows."""
+
+from __future__ import annotations
+
+from sase.ace.tui.actions.agents._core import AgentsMixinCore
+from sase.ace.tui.actions.agents._notifications import (
+    _active_completion_agent_keys,
+)
+from sase.ace.tui.models.agent import Agent, AgentType
+from sase.notifications import Notification
+
+from ._agent_unread_helpers import make_agent
+
+
+def _make_notification(
+    *,
+    sender: str = "user-agent",
+    action: str | None = "JumpToAgent",
+    cl_name: str | None = "demo",
+    raw_suffix: str | None = "20260507090000",
+    dismissed: bool = False,
+    silent: bool = False,
+    extra_data: dict[str, str] | None = None,
+) -> Notification:
+    action_data: dict[str, str] = {}
+    if cl_name is not None:
+        action_data["cl_name"] = cl_name
+    if raw_suffix is not None:
+        action_data["raw_suffix"] = raw_suffix
+    if extra_data:
+        action_data.update(extra_data)
+    return Notification(
+        id="test-id",
+        timestamp="2026-05-07T09:00:00",
+        sender=sender,
+        action=action,
+        action_data=action_data,
+        dismissed=dismissed,
+        silent=silent,
+    )
+
+
+class _ProjectionApp(AgentsMixinCore):
+    def __init__(self, agents: list[Agent]) -> None:
+        self._agents = agents
+        self.current_idx = 0
+        self.current_tab = "agents"
+        self._current_group_key: tuple[str, ...] | None = None
+        self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+
+
+def test__active_completion_agent_keys_picks_up_jump_to_agent() -> None:
+    keys = _active_completion_agent_keys(  # type: ignore[arg-type]
+        [_make_notification(cl_name="demo", raw_suffix="20260507090000")]
+    )
+    assert keys == {("demo", "20260507090000")}
+
+
+def test__active_completion_agent_keys_picks_up_view_error_report() -> None:
+    keys = _active_completion_agent_keys(  # type: ignore[arg-type]
+        [
+            _make_notification(
+                action="ViewErrorReport", cl_name="demo", raw_suffix="20260507090000"
+            )
+        ]
+    )
+    assert keys == {("demo", "20260507090000")}
+
+
+def test__active_completion_agent_keys_ignores_dismissed() -> None:
+    keys = _active_completion_agent_keys(  # type: ignore[arg-type]
+        [_make_notification(dismissed=True)]
+    )
+    assert keys == set()
+
+
+def test__active_completion_agent_keys_keeps_silent_rows() -> None:
+    """Silent rows still gate the agent-row unread marker."""
+    keys = _active_completion_agent_keys(  # type: ignore[arg-type]
+        [_make_notification(silent=True)]
+    )
+    assert keys == {("demo", "20260507090000")}
+
+
+def test__active_completion_agent_keys_ignores_unrelated_actions() -> None:
+    keys = _active_completion_agent_keys(  # type: ignore[arg-type]
+        [
+            _make_notification(action="PlanApproval"),
+            _make_notification(action="UserQuestion"),
+            _make_notification(action="JumpToChangeSpec"),
+            _make_notification(sender="fix-hook"),
+            _make_notification(cl_name=None),
+        ]
+    )
+    assert keys == set()
+
+
+def test__active_completion_agent_keys_allows_missing_raw_suffix() -> None:
+    keys = _active_completion_agent_keys(  # type: ignore[arg-type]
+        [_make_notification(raw_suffix=None)]
+    )
+    assert keys == {("demo", None)}
+
+
+def test_reconcile_marks_unread_when_notification_active() -> None:
+    agent = make_agent(status="DONE")
+    app = _ProjectionApp([agent])
+
+    app._reconcile_unread_from_completion_notifications(
+        [_make_notification(cl_name=agent.cl_name, raw_suffix=agent.raw_suffix)]
+    )
+
+    assert agent.identity in app._unread_completed_agent_ids
+
+
+def test_reconcile_clears_unread_when_notification_missing() -> None:
+    agent = make_agent(status="DONE")
+    app = _ProjectionApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+
+    app._reconcile_unread_from_completion_notifications([])
+
+    assert agent.identity not in app._unread_completed_agent_ids
+
+
+def test_reconcile_excludes_identity_kwarg() -> None:
+    agent = make_agent(status="DONE")
+    app = _ProjectionApp([agent])
+
+    app._reconcile_unread_from_completion_notifications(
+        [_make_notification(cl_name=agent.cl_name, raw_suffix=agent.raw_suffix)],
+        exclude_identity=agent.identity,
+    )
+
+    assert agent.identity not in app._unread_completed_agent_ids
+
+
+def test_reconcile_preserves_manual_unread_when_no_notification() -> None:
+    agent = make_agent(status="DONE")
+    app = _ProjectionApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+    app._manual_unread_agent_ids.add(agent.identity)
+
+    app._reconcile_unread_from_completion_notifications([])
+
+    assert agent.identity in app._unread_completed_agent_ids
+
+
+def test_reconcile_does_not_re_add_manual_cleared_agent_with_notification() -> None:
+    """A manual mark suppresses notification-driven re-add to avoid surprise."""
+    agent = make_agent(status="DONE")
+    app = _ProjectionApp([agent])
+    app._manual_unread_agent_ids.add(agent.identity)
+
+    app._reconcile_unread_from_completion_notifications(
+        [_make_notification(cl_name=agent.cl_name, raw_suffix=agent.raw_suffix)]
+    )
+
+    assert agent.identity not in app._unread_completed_agent_ids
+
+
+def test_reconcile_skips_running_agent_rows() -> None:
+    agent = make_agent(status="RUNNING")
+    app = _ProjectionApp([agent])
+
+    app._reconcile_unread_from_completion_notifications(
+        [_make_notification(cl_name=agent.cl_name, raw_suffix=agent.raw_suffix)]
+    )
+
+    assert agent.identity not in app._unread_completed_agent_ids
+
+
+def test_reconcile_disambiguates_by_raw_suffix() -> None:
+    first = make_agent(name="demo", status="DONE", raw_suffix="20260507090000")
+    second = make_agent(name="demo", status="DONE", raw_suffix="20260507100000")
+    app = _ProjectionApp([first, second])
+
+    app._reconcile_unread_from_completion_notifications(
+        [_make_notification(cl_name="demo", raw_suffix="20260507100000")]
+    )
+
+    assert first.identity not in app._unread_completed_agent_ids
+    assert second.identity in app._unread_completed_agent_ids
+
+
+def test_reconcile_unrelated_notification_does_not_affect_rows() -> None:
+    agent = make_agent(status="DONE")
+    app = _ProjectionApp([agent])
+
+    app._reconcile_unread_from_completion_notifications(
+        [_make_notification(action="PlanApproval")]
+    )
+
+    assert agent.identity not in app._unread_completed_agent_ids
