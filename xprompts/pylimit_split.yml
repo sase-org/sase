@@ -9,6 +9,7 @@ steps:
 
       from sase.agent.launcher import launch_agent_from_cwd
       from sase.agent.multi_prompt import build_wait_chained_multi_prompt
+      from sase.agent.names import is_name_reserved
 
       limits = "{{ limits }}".split()
 
@@ -27,16 +28,18 @@ steps:
       if not unique_files:
           print("launched=0")
       else:
-          seen: dict[str, int] = {}
+          claimed: set[str] = set()
           per_file_prompts: list[str] = []
           for path in unique_files:
-              stem = Path(path).stem
-              count = seen.get(stem, 0)
-              suffix = "" if count == 0 else f"-{count + 1}"
-              seen[stem] = count + 1
-              agent_name = f"pysplit.{stem}{suffix}"
+              base = f"pysplit.{Path(path).stem}"
+              candidate = base
+              n = 1
+              while candidate in claimed or is_name_reserved(candidate):
+                  n += 1
+                  candidate = f"{base}-{n}"
+              claimed.add(candidate)
               per_file_prompts.append(
-                  f"%name:{agent_name}\n#gh:sase %group:chop %approve #sase/pysplit:{path}"
+                  f"%name:{candidate}\n#gh:sase %group:chop %approve #sase/pysplit:{path}"
               )
           multi_prompt = build_wait_chained_multi_prompt(per_file_prompts)
           launch_agent_from_cwd(multi_prompt)
