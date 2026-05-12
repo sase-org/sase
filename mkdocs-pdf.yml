@@ -1,46 +1,5 @@
 INHERIT: mkdocs.yml
 
-exclude_docs: |
-  blog/
-  series/
-
-nav:
-  - Home: index.md
-  - The Basics:
-      - ACE TUI: ace.md
-      - AXE Automation: axe.md
-      - Spec-Driven Development: sdd.md
-      - XPrompts: xprompt.md
-  - Beyond the Basics:
-      - Architecture: architecture.md
-      - ChangeSpecs: change_spec.md
-      - Beads: beads.md
-      - Workflows: workflow_spec.md
-      - Workspaces: workspace.md
-      - Mentors: mentors.md
-  - The Nitty Gritty:
-      - Commit Workflows: commit_workflows.md
-      - Notifications: notifications.md
-      - Mobile Gateway: mobile_gateway.md
-      - Mobile MVP Runbook: mobile_mvp_runbook.md
-      - Performance Runbook: perf_runbook.md
-      - Telemetry: telemetry.md
-      - Agent Revival Log: troubleshooting/agent-revival.md
-  - Integrations:
-      - Integration APIs: integrations.md
-      - Plugins: plugins.md
-      - LLM Providers: llms.md
-      - VCS Providers: vcs.md
-      - Rust Backend: rust_backend.md
-  - Reference:
-      - CLI Reference: cli.md
-      - Development: development.md
-      - Configuration: configuration.md
-      - Query Language: query_language.md
-      - ProjectSpec: project_spec.md
-      - Agent Attachments: agent_images.md
-      - Acknowledgements: acknowledgements.md
-
 extra:
   pdf_handbook:
     build_date: !ENV [SASE_PDF_BUILD_DATE, ""]
@@ -50,6 +9,19 @@ extra:
 
 plugins:
   - search
+  - blog:
+      post_url_format: "posts/{slug}"
+      archive: false
+      categories: false
+      pagination: false
+  - rss:
+      match_path: blog/posts/.*
+      use_git: false
+      date_from_meta:
+        as_creation: date
+      categories:
+        - categories
+      image: https://sase.sh/images/sase_overview.png
   - exporter:
       formats:
         pdf:

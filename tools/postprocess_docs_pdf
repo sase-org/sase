@@ -16,14 +16,7 @@ from pypdf import PdfReader, PdfWriter
 
 PDF_PATH = Path("site/downloads/sase-handbook.pdf")
 SITE_DIR = Path("site")
-MKDOCS_CONFIG = Path("mkdocs-pdf.yml")
-
-
-def _ignore_env_tag(loader: yaml.SafeLoader, node: yaml.Node) -> str:
-    return ""
-
-
-yaml.SafeLoader.add_constructor("!ENV", _ignore_env_tag)
+MKDOCS_CONFIG = Path("mkdocs.yml")
 
 METADATA = {
     "/Title": "SASE Handbook",

@@ -6,5 +6,6 @@
   Cache-Control: public, max-age=31536000, immutable
 
 /downloads/*.pdf
+  Content-Type: application/pdf
   Cache-Control: public, max-age=3600, must-revalidate
   X-Content-Type-Options: nosniff
