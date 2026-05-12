@@ -8,9 +8,13 @@ corpus in ``tests.agent_scan_golden``.
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 
-from sase.core.agent_scan_facade import scan_agent_artifacts
+from sase.core.agent_scan_facade import (
+    rebuild_agent_artifact_index,
+    scan_agent_artifacts,
+)
 from sase.core.agent_scan_wire import AGENT_SCAN_WIRE_SCHEMA_VERSION
 
 from .agent_scan_golden import (
@@ -84,6 +88,25 @@ def test_running_record_carries_agent_meta(fixture_root: Path) -> None:
     assert rec.agent_meta.wait_for == ["bob", "carol"]
     assert rec.agent_meta.wait_duration == 3600.0
     assert rec.agent_meta.workspace_dir == "/tmp/workspaces/alpha"
+
+
+def test_artifact_index_summarizes_starting_records(
+    fixture_root: Path,
+    tmp_path: Path,
+) -> None:
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    rebuild_agent_artifact_index(index_path, fixture_root)
+
+    artifact_dir = str(
+        fixture_root / "myproj" / "artifacts" / "ace-run" / TS_ACE_RUN_RUNNING
+    )
+    with sqlite3.connect(index_path) as conn:
+        row = conn.execute(
+            "SELECT status, started_at FROM agent_artifacts WHERE artifact_dir = ?",
+            (artifact_dir,),
+        ).fetchone()
+
+    assert row == ("starting", None)
 
 
 def test_running_record_carries_auto_approve_plan_action(

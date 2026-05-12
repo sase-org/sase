@@ -60,3 +60,27 @@ def test_list_mobile_agents_filters_and_limits(monkeypatch, tmp_path: Path) -> N
 
     assert payload["total_count"] == 1
     assert [agent["name"] for agent in payload["agents"]] == ["alpha"]
+
+
+def test_list_mobile_agents_projects_starting_agent(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        mobile_agents,
+        "list_running_agents",
+        lambda: [
+            _agent(
+                tmp_path,
+                name="launching",
+                status="STARTING",
+            )
+        ],
+    )
+
+    payload = _list_mobile_agents({"schema_version": 1})
+    agent = payload["agents"][0]
+
+    assert agent["status"] == "starting"
+    assert agent["display"]["status_label"] == "Starting"
+    assert agent["actions"]["can_kill"] is True

@@ -47,11 +47,11 @@ _KillResult = KillResult
 
 @dataclass
 class RunningAgentInfo:
-    """Summary info for a running agent.
+    """Summary info for an active or recently completed agent.
 
-    ``status`` defaults to ``"RUNNING"`` for entries produced by
-    :func:`list_running_agents`; :func:`list_all_agents` may additionally
-    emit ``"DONE"`` and ``"FAILED"``.
+    ``status`` defaults to ``"RUNNING"`` for compatibility with direct
+    construction in tests and integrations. Listing functions may emit
+    ``"STARTING"``, ``"WAITING"``, ``"DONE"``, and ``"FAILED"`` as well.
     """
 
     name: str | None
@@ -112,6 +112,27 @@ def _parse_started_at(timestamp: str) -> datetime | None:
         return None
 
 
+def _parse_iso_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=get_timezone())
+    return parsed
+
+
+def _active_status_for_record(record: AgentArtifactRecordWire) -> str:
+    if record.waiting is not None:
+        return "WAITING"
+    meta = record.agent_meta
+    if meta is not None and meta.run_started_at:
+        return "RUNNING"
+    return "STARTING"
+
+
 def _resolve_workspace_num(
     *,
     project_name: str,
@@ -165,10 +186,15 @@ def _running_info_from_running_record(
     if not is_process_alive(meta_dict, Path(record.artifact_dir)):
         return None
 
-    started_at = _parse_started_at(record.timestamp)
+    status = _active_status_for_record(record)
+    started_at = _parse_iso_datetime(
+        meta.run_started_at if status == "RUNNING" else None
+    )
+    if started_at is None:
+        started_at = _parse_started_at(record.timestamp)
     duration = "?"
     duration_seconds: int | None = None
-    if started_at is not None:
+    if status == "RUNNING" and started_at is not None:
         duration_seconds = int((now - started_at).total_seconds())
         duration = _format_duration(duration_seconds)
 
@@ -189,7 +215,7 @@ def _running_info_from_running_record(
         duration=duration,
         approve=bool(meta.approve),
         prompt=record.raw_prompt_snippet,
-        status="RUNNING",
+        status=status,
         started_at=started_at,
         duration_seconds=duration_seconds,
         artifacts_dir=record.artifact_dir,

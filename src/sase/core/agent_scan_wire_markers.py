@@ -166,8 +166,8 @@ class WaitingMarkerWire:
     """Compact projection of ``waiting.json``.
 
     Overrides ``agent_meta.json`` wait fields when present. The TUI
-    loader uses this to flip status from ``RUNNING`` to ``WAITING`` and
-    to display an updated wait list edited from the TUI ``w`` keymap.
+    loader uses this to flip active pre-run/execution status to ``WAITING``
+    and to display an updated wait list edited from the TUI ``w`` keymap.
     """
 
     waiting_for: list[str] = field(default_factory=list)

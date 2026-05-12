@@ -18,6 +18,7 @@ from sase.agent.running import (
 )
 
 _STATUS_COLORS: dict[str, str] = {
+    "STARTING": "cyan",
     "RUNNING": "green",
     "WAITING": "yellow",
     "DONE": "bright_black",

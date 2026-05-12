@@ -66,15 +66,18 @@ def test_list_running_agents_filters_done_and_dead(
     by_ts = {_ts(info): info for info in running}
 
     # The retried child (TS_ACE_RUN_RETRIED_CHILD) has no done.json and
-    # carries a live PID; the original direct walk emitted it as RUNNING
-    # so the snapshot path must too. The waiting/malformed dirs lack a
-    # parseable PID so liveness skips them.
+    # carries a live PID. Records without run_started_at are visible as
+    # STARTING until execution reaches the RUN timestamp write.
     assert set(by_ts) == {
         TS_HOME_RUNNING,
         TS_ACE_RUN_RUNNING,
         TS_ACE_RUN_RETRIED_CHILD,
     }
-    assert all(info.status == "RUNNING" for info in running)
+    assert by_ts[TS_HOME_RUNNING].status == "RUNNING"
+    assert by_ts[TS_ACE_RUN_RUNNING].status == "STARTING"
+    assert by_ts[TS_ACE_RUN_RETRIED_CHILD].status == "STARTING"
+    assert by_ts[TS_ACE_RUN_RUNNING].duration == "?"
+    assert by_ts[TS_ACE_RUN_RUNNING].duration_seconds is None
     assert by_ts[TS_HOME_RUNNING].project == "home"
     assert by_ts[TS_ACE_RUN_RUNNING].project == "myproj"
     # Most-recent-first ordering preserved.
@@ -147,6 +150,30 @@ def test_list_running_agents_skips_parent_timestamp_followups(
     assert TS_ACE_RUN_RUNNING not in {_ts(info) for info in running}
 
 
+def test_list_running_agents_reports_waiting_marker(tmp_path: Path) -> None:
+    """A live pre-run wait marker is reported as WAITING, not RUNNING."""
+    projects_root = _projects_root_for(tmp_path)
+    build_fixture_tree(projects_root)
+    artifact_dir = (
+        projects_root / "myproj" / "artifacts" / "ace-run" / TS_ACE_RUN_RUNNING
+    )
+    (artifact_dir / "waiting.json").write_text(
+        json.dumps({"waiting_for": ["upstream"]}),
+        encoding="utf-8",
+    )
+
+    with (
+        patch("pathlib.Path.home", return_value=tmp_path),
+        patch("sase.ace.hooks.processes.is_process_running", _all_alive),
+    ):
+        running = list_running_agents()
+
+    by_ts = {_ts(info): info for info in running}
+    assert by_ts[TS_ACE_RUN_RUNNING].status == "WAITING"
+    assert by_ts[TS_ACE_RUN_RUNNING].duration == "?"
+    assert by_ts[TS_ACE_RUN_RUNNING].duration_seconds is None
+
+
 def test_list_all_agents_includes_done_and_failed(tmp_path: Path) -> None:
     """All-listing emits running + DONE/FAILED with running entries first."""
     build_fixture_tree(_projects_root_for(tmp_path))
@@ -160,8 +187,8 @@ def test_list_all_agents_includes_done_and_failed(tmp_path: Path) -> None:
 
     expected = {
         TS_HOME_RUNNING: "RUNNING",
-        TS_ACE_RUN_RUNNING: "RUNNING",
-        TS_ACE_RUN_RETRIED_CHILD: "RUNNING",
+        TS_ACE_RUN_RUNNING: "STARTING",
+        TS_ACE_RUN_RETRIED_CHILD: "STARTING",
         TS_ACE_RUN_DONE: "DONE",
         TS_ACE_RUN_FAILED: "FAILED",
         TS_ACE_RUN_RETRIED_PARENT: "FAILED",
@@ -170,11 +197,11 @@ def test_list_all_agents_includes_done_and_failed(tmp_path: Path) -> None:
     for ts, status in expected.items():
         assert by_ts[ts].status == status, (ts, by_ts[ts].status)
 
-    # Running agents must precede completed agents in the returned list.
+    # Active agents must precede completed agents in the returned list.
     statuses = [info.status for info in agents]
-    last_running = max(i for i, s in enumerate(statuses) if s == "RUNNING")
+    last_active = max(i for i, s in enumerate(statuses) if s in {"STARTING", "RUNNING"})
     first_terminal = min(i for i, s in enumerate(statuses) if s in {"DONE", "FAILED"})
-    assert last_running < first_terminal
+    assert last_active < first_terminal
 
 
 def test_list_all_agents_skips_noop_outcome(tmp_path: Path) -> None:

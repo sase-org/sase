@@ -139,6 +139,18 @@ def test_status_json_shape(capsys: pytest.CaptureFixture[str]) -> None:
     assert row["artifacts_dir"].endswith("20260423123456")
 
 
+def test_status_json_preserves_starting_status(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """JSON status output does not collapse STARTING into RUNNING."""
+    agents = [_running_info(status="STARTING", duration="?", duration_seconds=None)]
+    with patch("sase.agents.cli_status.list_running_agents", return_value=agents):
+        handle_agents_status(_status_args(json=True))
+    row = json.loads(capsys.readouterr().out)[0]
+    assert row["status"] == "STARTING"
+    assert row["duration_seconds"] is None
+
+
 def test_status_json_empty(capsys: pytest.CaptureFixture[str]) -> None:
     """JSON output with no agents is an empty list (not null)."""
     with patch("sase.agents.cli_status.list_running_agents", return_value=[]):
@@ -184,6 +196,7 @@ def test_status_all_uses_list_all_agents(capsys: pytest.CaptureFixture[str]) -> 
     """-a/--all routes through list_all_agents (DONE/FAILED included)."""
     agents = [
         _running_info(name="live-one", status="RUNNING"),
+        _running_info(name="launching-one", status="STARTING"),
         _running_info(name="finished-one", status="DONE"),
         _running_info(name="broken-one", status="FAILED"),
     ]
@@ -197,7 +210,12 @@ def test_status_all_uses_list_all_agents(capsys: pytest.CaptureFixture[str]) -> 
     mock_all.assert_called_once()
     mock_running.assert_not_called()
     data = json.loads(capsys.readouterr().out)
-    assert {row["status"] for row in data} == {"RUNNING", "DONE", "FAILED"}
+    assert {row["status"] for row in data} == {
+        "STARTING",
+        "RUNNING",
+        "DONE",
+        "FAILED",
+    }
 
 
 # === dispatch: bare `sase agents` → status ===

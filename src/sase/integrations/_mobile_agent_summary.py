@@ -27,6 +27,19 @@ from ._mobile_agent_deps import (
 )
 from ._mobile_agent_state import latest_mobile_launch_context
 
+_KILLABLE_ACTIVE_STATUSES = frozenset(
+    {
+        "STARTING",
+        "RUNNING",
+        "WAITING",
+        "QUESTION",
+        "PLAN",
+        "PLAN APPROVED",
+        "TALE APPROVED",
+        "WAITING INPUT",
+    }
+)
+
 
 def list_mobile_agents(request: dict[str, Any] | None = None) -> dict[str, Any]:
     """Return mobile-shaped agent summaries for running/recent agents."""
@@ -154,7 +167,7 @@ def agent_summary(agent: RunningAgentInfo) -> dict[str, Any]:
         "actions": {
             "can_resume": has_name,
             "can_wait": has_name,
-            "can_kill": has_name and agent.status.upper() == "RUNNING",
+            "can_kill": has_name and agent.status.upper() in _KILLABLE_ACTIVE_STATUSES,
             "can_retry": has_name and (has_artifact_dir or context is not None),
         },
         "display": {
