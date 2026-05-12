@@ -21,7 +21,10 @@ def resolve_known_project_vcs_launch_ref(
     """Resolve a generic VCS ref that points at a known project checkout."""
     from pathlib import Path
 
-    from sase.xprompt._parsing import extract_known_project_vcs_ref
+    from sase.xprompt._parsing import (
+        extract_known_project_vcs_ref,
+        resolve_known_project_ref,
+    )
     from sase.xprompt.loader import get_known_project_workspaces
 
     known_ref = extract_known_project_vcs_ref(prompt)
@@ -29,17 +32,21 @@ def resolve_known_project_vcs_launch_ref(
         return None
 
     workflow_type, ref = known_ref
-    workspace_dir = get_known_project_workspaces().get(ref)
+    known_projects = get_known_project_workspaces()
+    project_name = resolve_known_project_ref(ref, known_projects)
+    if project_name is None:
+        return None
+    workspace_dir = known_projects.get(project_name)
     if workspace_dir is None:
         return None
 
     from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 
-    project_dir = Path.home() / ".sase" / "projects" / ref
-    project_file = Path(preferred_project_spec_path(str(project_dir), ref))
+    project_dir = Path.home() / ".sase" / "projects" / project_name
+    project_file = Path(preferred_project_spec_path(str(project_dir), project_name))
     return _KnownProjectVcsLaunchRef(
         workflow_type=workflow_type,
-        ref=ref,
+        ref=project_name,
         workspace_dir=str(workspace_dir),
         project_file=str(project_file),
     )

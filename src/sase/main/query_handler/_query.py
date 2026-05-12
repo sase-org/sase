@@ -42,7 +42,10 @@ def _resolve_vcs_cwd(query: str) -> tuple[str, str] | None:
         get_workflow_names,
         resolve_ref,
     )
-    from sase.xprompt._parsing import normalize_vcs_underscore_refs
+    from sase.xprompt._parsing import (
+        normalize_vcs_underscore_refs,
+        resolve_known_project_ref,
+    )
 
     normalized = normalize_vcs_underscore_refs(query)
 
@@ -71,22 +74,26 @@ def _resolve_vcs_cwd(query: str) -> tuple[str, str] | None:
     from sase.xprompt.loader import detect_project, get_known_project_workspaces
 
     if workflow_type not in get_workflow_names():
-        workspace_dir = get_known_project_workspaces().get(ref)
+        known_projects = get_known_project_workspaces()
+        project_name = resolve_known_project_ref(ref, known_projects) or ref
+        workspace_dir = known_projects.get(project_name)
         if workspace_dir is not None:
             os.chdir(workspace_dir)
             detect_project.cache_clear()
-        return ref, ref
+        return project_name, ref
 
     try:
         resolved = resolve_ref(ref, workflow_type)
     except Exception:
         if is_non_workspace_workflow(workflow_type):
             raise
-        workspace_dir = get_known_project_workspaces().get(ref)
+        known_projects = get_known_project_workspaces()
+        project_name = resolve_known_project_ref(ref, known_projects) or ref
+        workspace_dir = known_projects.get(project_name)
         if workspace_dir is not None:
             os.chdir(workspace_dir)
             detect_project.cache_clear()
-        return ref, ref
+        return project_name, ref
 
     if resolved and resolved.primary_workspace_dir:
         os.chdir(resolved.primary_workspace_dir)

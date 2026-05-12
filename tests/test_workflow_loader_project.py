@@ -354,3 +354,55 @@ def test_get_all_workflows_loads_known_project_workspace_from_other_cwd(
 
     assert "sase/fix_just" in workflows
     assert workflows["sase/fix_just"].source_path == str(xprompts / "fix_just.yml")
+
+
+def test_get_all_workflows_loads_athena_workflows_for_normalized_gh_ref(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    """``#gh:sase-org/sase`` resolves to the ``sase`` workspace's workflows.
+
+    Phase 2 regression: confirms the migrated Athena workflows in
+    ``xprompts/`` are visible through the known-project workspace fallback
+    once the resolver has normalized ``sase-org/sase`` to the registered
+    ``sase`` project name.
+    """
+    workspace = tmp_path / "sase"
+    other_cwd = tmp_path / "other"
+    xprompts = workspace / "xprompts"
+    xprompts.mkdir(parents=True)
+    other_cwd.mkdir()
+    for name in ("refresh_docs", "audit_recent_bugs", "audit_recent_improvements"):
+        (xprompts / f"{name}.yml").write_text(
+            "steps:\n  - name: run\n    bash: echo " + name + "\n",
+            encoding="utf-8",
+        )
+    monkeypatch.chdir(other_cwd)
+
+    with (
+        patch(
+            "sase.xprompt.workflow_loader.get_known_project_workspaces",
+            return_value={"sase": workspace},
+        ),
+        patch(
+            "sase.xprompt.workflow_loader._load_workflows_from_internal",
+            return_value={},
+        ),
+        patch(
+            "sase.xprompt.workflow_loader._load_workflows_from_plugins",
+            return_value={},
+        ),
+        patch(
+            "sase.xprompt.workflow_loader._load_workflows_from_config",
+            return_value={},
+        ),
+        patch(
+            "sase.xprompt.workflow_loader._load_workflows_from_project",
+            return_value={},
+        ),
+    ):
+        workflows = get_all_workflows(project="sase")
+
+    assert "sase/refresh_docs" in workflows
+    assert "sase/audit_recent_bugs" in workflows
+    assert "sase/audit_recent_improvements" in workflows

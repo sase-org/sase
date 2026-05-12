@@ -1,6 +1,7 @@
 """Argument parsing, text block processing, and shorthand syntax."""
 
 import re
+from collections.abc import Mapping
 
 from . import _parsing_args as _args
 from . import _parsing_shorthand as _shorthand
@@ -238,13 +239,36 @@ def _prompt_segment_has_vcs_workflow_ref(segment: str) -> bool:
     )
 
 
-def extract_known_project_vcs_ref(prompt: str) -> tuple[str, str] | None:
-    """Return ``(workflow_type, project)`` for a generic known-project VCS ref.
+def resolve_known_project_ref(
+    ref: str, known_projects: Mapping[str, object]
+) -> str | None:
+    """Return the registered project name for *ref* or ``None``.
 
-    This recognizes project refs such as ``#gh:sase`` even when the ``gh``
-    workspace provider is not registered in the current process.  The project
-    must be known via ``~/.sase/projects/*/*.sase`` (or legacy ``.gp``) to avoid treating ordinary
-    xprompt references as workspace selectors.
+    Accepts both the bare project name (``sase``) and the GitHub-style
+    ``owner/repo`` form (``sase-org/sase``); the latter is normalized to its
+    repo basename before lookup.  This lets ``#gh:sase-org/sase`` map to the
+    known ``sase`` workspace when the ``gh`` workspace provider is not
+    registered in the current process.
+    """
+    if ref in known_projects:
+        return ref
+    if "/" in ref:
+        basename = ref.rsplit("/", 1)[-1]
+        if basename in known_projects:
+            return basename
+    return None
+
+
+def extract_known_project_vcs_ref(prompt: str) -> tuple[str, str] | None:
+    """Return ``(workflow_type, ref)`` for a generic known-project VCS ref.
+
+    This recognizes project refs such as ``#gh:sase`` or ``#gh:sase-org/sase``
+    even when the ``gh`` workspace provider is not registered in the current
+    process.  The project must be known via ``~/.sase/projects/*/*.sase`` (or
+    legacy ``.gp``) to avoid treating ordinary xprompt references as workspace
+    selectors.  The returned ``ref`` preserves the form that appears in
+    *prompt*; callers needing the registered project name should pass it
+    through :func:`resolve_known_project_ref`.
     """
     if "#" not in prompt:
         return None
@@ -261,7 +285,7 @@ def extract_known_project_vcs_ref(prompt: str) -> tuple[str, str] | None:
         if workflow_type not in _KNOWN_FALLBACK_VCS_PREFIXES:
             continue
         ref = match.group("colon") or match.group("paren")
-        if ref in known_projects:
+        if resolve_known_project_ref(ref, known_projects) is not None:
             return workflow_type, ref
     return None
 
@@ -279,7 +303,9 @@ def strip_known_project_vcs_refs(prompt: str) -> str:
         if workflow_type not in _KNOWN_FALLBACK_VCS_PREFIXES:
             return match.group(0)
         ref = match.group("colon") or match.group("paren")
-        return "" if ref in known_projects else match.group(0)
+        if resolve_known_project_ref(ref, known_projects) is not None:
+            return ""
+        return match.group(0)
 
     return _GENERIC_PROJECT_VCS_REF_PATTERN.sub(_replace, prompt).strip()
 
@@ -591,6 +617,7 @@ __all__ = [
     "preprocess_shorthand_syntax",
     "replace_ref_in_vcs_tag",
     "replace_vcs_workflow_tags",
+    "resolve_known_project_ref",
     "strip_known_project_vcs_refs",
     "strip_hitl_suffix",
     "strip_vcs_workflow_tag",

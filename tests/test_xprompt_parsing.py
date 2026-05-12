@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from sase.xprompt._parsing import (
     _preprocess_paren_shorthand,
+    extract_known_project_vcs_ref,
     extract_vcs_workflow_tag,
     find_matching_paren_for_args,
     find_vcs_workflow_tag,
@@ -15,7 +16,9 @@ from sase.xprompt._parsing import (
     preprocess_shorthand_syntax,
     replace_ref_in_vcs_tag,
     replace_vcs_workflow_tags,
+    resolve_known_project_ref,
     strip_hitl_suffix,
+    strip_known_project_vcs_refs,
 )
 
 
@@ -597,3 +600,41 @@ def test_inherit_vcs_tag_skips_known_project_fallback_ref() -> None:
     ):
         prompt = "#gh:sase Fix it"
         assert inherit_vcs_workflow_tag(prompt, "#git:other ") == prompt
+
+
+def test_resolve_known_project_ref_accepts_bare_name() -> None:
+    known = {"sase": object(), "sase-core": object()}
+    assert resolve_known_project_ref("sase", known) == "sase"
+    assert resolve_known_project_ref("sase-core", known) == "sase-core"
+
+
+def test_resolve_known_project_ref_normalizes_owner_repo_form() -> None:
+    """``owner/repo`` is normalized to the repo basename for known-project lookup."""
+    known = {"sase": object()}
+    assert resolve_known_project_ref("sase-org/sase", known) == "sase"
+
+
+def test_resolve_known_project_ref_returns_none_for_unknown() -> None:
+    known = {"sase": object()}
+    assert resolve_known_project_ref("other-org/other", known) is None
+    assert resolve_known_project_ref("unknown", known) is None
+
+
+def test_extract_known_project_vcs_ref_matches_owner_repo_form() -> None:
+    """``#gh:sase-org/sase`` is recognized when ``sase`` is a known project."""
+    with patch(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        return_value={"sase": object()},
+    ):
+        result = extract_known_project_vcs_ref("#gh:sase-org/sase #!sase/refresh_docs")
+    assert result == ("gh", "sase-org/sase")
+
+
+def test_strip_known_project_vcs_refs_handles_owner_repo_form() -> None:
+    """Stripping known-project refs removes ``owner/repo`` forms too."""
+    with patch(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        return_value={"sase": object()},
+    ):
+        result = strip_known_project_vcs_refs("#gh:sase-org/sase #!sase/refresh_docs")
+    assert result == "#!sase/refresh_docs"
