@@ -2,6 +2,8 @@
 create_time: 2026-05-11 22:00:29
 status: wip
 prompt: sdd/prompts/202605/github_actions_recovery.md
+bead_id: sase-31
+tier: epic
 ---
 # GitHub Actions Recovery Plan
 
