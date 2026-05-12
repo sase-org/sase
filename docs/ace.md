@@ -501,17 +501,18 @@ date-prefix used for dismissal.
 Each agent row also carries a per-provider emoji badge before the display name so the LLM provider behind a row is
 readable at a glance without scanning the right-hand model suffix:
 
-| Badge | Provider           |
-| ----- | ------------------ |
-| 🎭    | Claude / Anthropic |
-| ♊    | Gemini             |
-| 🤖    | Codex              |
-| 🐼    | Qwen               |
-| 🐙    | OpenCode           |
+| Badge | Provider |
+| ----- | -------- |
+| 🎭    | Claude   |
+| ♊    | Gemini   |
+| 🤖    | Codex    |
+| 🐼    | Qwen     |
+| 🐙    | OpenCode |
 
-The same provider palette also colors the `<PROVIDER>(<model>)` text on the right edge of the row — the name, the
-parentheses, and the model name each use distinct shades from a per-provider palette so multi-model fan-outs are easy to
-scan. Additional provider plugins fall back to a neutral purple palette and no emoji badge until they register one.
+The same provider palette also colors the `<PROVIDER>(<model>)` suffix on the right edge of the row — the provider name,
+the parentheses, and the model name each render in a distinct shade from that provider's palette so multi-model fan-outs
+are easy to scan. Providers without a dedicated palette (anything outside the table above) fall back to a neutral purple
+palette and render no emoji badge.
 
 Workflow child rows for `python` and `bash` steps render a leading 🐍 / 🐚 glyph after the `N/M` step number, styled
 with the matching step-type accent. The glyph is a stronger signal than the step-type color alone for colorblind users
@@ -1040,10 +1041,12 @@ so the "waiting on you" status keeps appearing even after you dismiss the matchi
 The `,n` shortcut (jump to the open question) reads the marker directly when no unread notification is left, so it can
 still reopen the question modal.
 
-`QUESTION` also propagates up agent families: if a follow-up child agent finishes (`DONE`) but its run directory still
-holds an unanswered `pending_question.json` marker, the root row inherits `QUESTION` status from the child so the parent
-row reflects that the family is still waiting on you. Answering or dismissing the underlying question on the child row
-clears the marker and the parent rolls back to its own status on the next refresh.
+`QUESTION` also propagates up agent families. When a follow-up child finishes `DONE` but recorded an unanswered question
+(its `questions_times` list is non-empty and it never spawned a `.q` follow-up of its own), the parent workflow row
+inherits `QUESTION` so the family still shows as waiting on you. When the question is answered or dismissed — or when
+the child spawns a `.q` follow-up to handle it — the next status pass re-evaluates the parent without the override and
+the row returns to its normal status. If the parent has several active children, the most recently started one wins, so
+a newer `RUNNING` child can overtake the `QUESTION` override on the parent.
 
 The footer also shows axe daemon status indicators:
 
@@ -1152,10 +1155,11 @@ When `sase plan` writes the plan, it also touches `~/.sase/.ace_refresh_pulse` t
 PLANNING status appears without waiting for the next auto-refresh tick. The pulse file is consumed by the inotify
 artifact watcher (see [Auto-Refresh](#auto-refresh)) and is harmless if no TUI is open.
 
-Root agent rows also surface PLANNING when a follow-up descendant proposes a plan. The plan timestamp recorded on a
-child agent propagates to the root entry so the family's most-recent planning activity wins the status race against the
-original RUNNING/DONE state of the root — the root row stops showing a stale RUNNING/DONE label while a follow-up round
-is waiting on plan review.
+Root plan workflows also surface PLANNING when a re-proposed plan is still awaiting review. Plan and feedback timestamps
+from feedback-round children (`.2`, `.3`, …) propagate onto the root entry, and whenever the root's latest plan
+timestamp is newer than its latest feedback timestamp the override engine restores `PLANNING` over a `RUNNING` or `DONE`
+label. This applies only to root plan workflows that have not yet spawned a follow-up (`.code`, `.epic`, …); once a
+follow-up is launched, the parent moves on to `PLAN APPROVED` (or the matching follow-up status) instead.
 
 The Plan Review modal title shows a provider-themed `PROVIDER(model)` badge between the "Plan Review" label and the plan
 filename — orange for Claude, lime for Codex, Google blue for Gemini, neutral muted for other providers. The badge is
