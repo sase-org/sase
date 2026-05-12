@@ -201,11 +201,6 @@ def _patch_startup_loaders(
         _fake_notification_snapshot,
     )
     monkeypatch.setattr(
-        notifications,
-        "dismiss_agent_completion_notifications",
-        lambda: 0,
-    )
-    monkeypatch.setattr(
         grouping_strategy,
         "load_agent_grouping_mode",
         _fake_load_agent_grouping_mode,

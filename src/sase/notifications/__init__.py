@@ -21,7 +21,6 @@ from sase.notifications.senders import (
 )
 from sase.notifications.store import (
     append_notification,
-    dismiss_agent_completion_notifications,
     dismiss_notifications_matching_agents,
     expire_due_snoozes,
     load_notifications,
@@ -39,7 +38,6 @@ __all__ = [
     "Notification",
     "NotificationInfo",
     "append_notification",
-    "dismiss_agent_completion_notifications",
     "dismiss_notifications_matching_agents",
     "expire_due_snoozes",
     "format_relative_time",

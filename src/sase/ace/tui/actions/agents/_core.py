@@ -475,14 +475,6 @@ class AgentsMixinCore(
         """Clear local unread state for *agent* unless it is manually guarded.
 
         Returns True only when the agent moved from unread to read.
-
-        Completion-notification dismissal is no longer tied to this path —
-        `JumpToAgent` / `ViewErrorReport` completion notifications are
-        dismissed in bulk on Agents-tab entry and Agents-tab activity (see
-        `AgentNotificationMixin._dismiss_agent_completion_notifications_for_agents_tab`).
-        Agent kill/dismiss flows still call `dismiss_notifications_for_agents`
-        directly for agent-scoped interactive notifications such as
-        `PlanApproval` and `UserQuestion`.
         """
         if agent.identity in self._manual_unread_ids():
             return False
