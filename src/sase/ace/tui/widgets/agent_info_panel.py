@@ -20,6 +20,7 @@ class AgentInfoPanel(Static):
         self._total = 0
         self._unread_count = 0
         self._asking_count = 0
+        self._starting_count = 0
         self._running_count = 0
         self._waiting_count = 0
         self._failed_count = 0
@@ -69,12 +70,15 @@ class AgentInfoPanel(Static):
         failed: int,
         read: int,
         total: int,
+        *,
+        starting: int = 0,
     ) -> None:
         """Update the visible top-level agent metric strip.
 
         Args:
             unread: Visible unread completed agent count.
             asking: Visible agent count paused for human input.
+            starting: Visible pre-run agent count.
             running: Visible active agent count, excluding waiting agents.
             waiting: Visible waiting agent count.
             failed: Visible failed agent count.
@@ -83,6 +87,7 @@ class AgentInfoPanel(Static):
         """
         self._unread_count = unread
         self._asking_count = asking
+        self._starting_count = starting
         self._running_count = running
         self._waiting_count = waiting
         self._failed_count = failed
@@ -146,6 +151,7 @@ class AgentInfoPanel(Static):
 
     _COUNT_STYLES: dict[str, str] = {
         "asking": "bold #FFAF00",
+        "starting": "bold #87D7FF",
         "running": "bold #00D7AF",
         "waiting": "bold #AF87FF",
         "failed": "bold #FF5F5F",
@@ -161,6 +167,7 @@ class AgentInfoPanel(Static):
     def _metric_counts(self) -> list[tuple[str, int]]:
         return [
             ("asking", self._asking_count),
+            ("starting", self._starting_count),
             ("running", self._running_count),
             ("waiting", self._waiting_count),
             ("failed", self._failed_count),

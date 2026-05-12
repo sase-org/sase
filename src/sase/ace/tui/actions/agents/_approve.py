@@ -88,6 +88,7 @@ class AgentApproveMixin:
             return
 
         _APPROVE_ELIGIBLE = {
+            "STARTING",
             "RUNNING",
             "PLAN",
             "PLAN APPROVED",

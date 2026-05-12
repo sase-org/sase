@@ -99,8 +99,11 @@ class AgentWaitResumeMixin:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
-        if agent.status not in ("WAITING", "RUNNING"):
-            self.notify("Agent is not waiting or running", severity="warning")  # type: ignore[attr-defined]
+        if agent.status not in ("STARTING", "WAITING", "RUNNING"):
+            self.notify(  # type: ignore[attr-defined]
+                "Agent is not starting, waiting, or running",
+                severity="warning",
+            )
             return
 
         artifacts_dir = agent.artifacts_dir or agent.get_artifacts_dir()
@@ -110,7 +113,7 @@ class AgentWaitResumeMixin:
 
         from ...modals import WaitModal
 
-        is_running = agent.status == "RUNNING"
+        is_running = agent.status in {"STARTING", "RUNNING"}
 
         def handle_wait_result(result: str | None) -> None:
             if result is None:
@@ -172,9 +175,10 @@ class AgentWaitResumeMixin:
             self.notify(f"Wait: {agent.display_name or agent.cl_name}")  # type: ignore[attr-defined]
 
     def _apply_wait_running(self, agent: Agent, name: str) -> None:
-        """Kill a RUNNING agent and restart with %w:<name> added to the prompt."""
+        """Kill an active agent and restart with %w:<name> added to the prompt."""
         if not name:
-            self.notify("Agent is already running", severity="warning")  # type: ignore[attr-defined]
+            status = (agent.status or "active").lower()
+            self.notify(f"Agent is already {status}", severity="warning")  # type: ignore[attr-defined]
             return
 
         # Get the raw prompt before killing

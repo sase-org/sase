@@ -153,7 +153,9 @@ def format_agent_option(
 
     # Status (wrapped in parentheses, parens are dim)
     text.append(" (", style="dim")
-    if agent.status == "RUNNING":
+    if agent.status == "STARTING":
+        text.append(agent.status, style="bold #87D7FF")  # Sky blue
+    elif agent.status == "RUNNING":
         text.append(agent.status, style="bold #FFD700")  # Gold
     elif agent.status in ("DONE", "PLAN DONE", "TALE DONE"):
         text.append(agent.status, style="bold #5FD75F")  # Green

@@ -172,6 +172,7 @@ def test_non_child_position_is_o1_lookup() -> None:
 def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
     visible_unread = _agent(suffix="done-unread", status="DONE")
     visible_asking = _agent(suffix="asking", status="PLAN")
+    visible_starting = _agent(suffix="starting", status="STARTING")
     visible_running = _agent(suffix="running", status="RUNNING")
     visible_waiting = _agent(suffix="waiting", status="WAITING")
     visible_failed = _agent(suffix="failed", status="FAILED")
@@ -200,6 +201,7 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
         [
             visible_unread,
             visible_asking,
+            visible_starting,
             visible_running,
             visible_waiting,
             visible_failed,
@@ -215,7 +217,7 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
     }
 
     class _InfoPanel:
-        counts: tuple[int, int, int, int, int, int, int] | None = None
+        counts: tuple[int, int, int, int, int, int, int, int] | None = None
         position: tuple[int, int] | None = None
 
         def update_position(self, position: int, total: int) -> None:
@@ -230,8 +232,19 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
             failed: int,
             read: int,
             total: int,
+            *,
+            starting: int = 0,
         ) -> None:
-            self.counts = (unread, asking, running, waiting, failed, read, total)
+            self.counts = (
+                unread,
+                asking,
+                starting,
+                running,
+                waiting,
+                failed,
+                read,
+                total,
+            )
 
         def update_countdown(self, _countdown: int, _interval: int) -> None:
             return
@@ -254,5 +267,5 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
 
     bare._update_agents_info_panel()
 
-    assert info_panel.position == (0, 6)
-    assert info_panel.counts == (1, 1, 1, 1, 2, 0, 6)
+    assert info_panel.position == (0, 7)
+    assert info_panel.counts == (1, 1, 1, 1, 1, 2, 0, 7)

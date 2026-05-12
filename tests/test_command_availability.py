@@ -244,8 +244,10 @@ def test_run_workflow_resume_requires_response_path() -> None:
 def test_accept_proposal_on_agents_only_for_active_statuses() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.accept_proposal"]
+    starting = _make_agent(status="STARTING")
     waiting = _make_agent(status="WAITING INPUT")
     done = _make_agent(status="DONE")
+    assert is_command_available(spec, CommandContext(tab="agents", agent=starting))
     assert is_command_available(spec, CommandContext(tab="agents", agent=waiting))
     assert not is_command_available(spec, CommandContext(tab="agents", agent=done))
 

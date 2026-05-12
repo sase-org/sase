@@ -69,10 +69,33 @@ def test_agent_count_strip_renders_total_before_agents_label() -> None:
     assert "Agents: 2/12" not in plain
 
 
+def test_agent_count_strip_reports_starting_separately() -> None:
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.update_agent_counts(
+            unread=1,
+            asking=2,
+            running=3,
+            waiting=4,
+            failed=5,
+            read=6,
+            total=12,
+            starting=7,
+        )
+
+    plain = _collect_text(panel)
+
+    assert plain.startswith(
+        "12 Agents [2 stopped · 7 starting · 3 running · "
+        "4 waiting · 5 failed · 1 unread · 6 done]"
+    )
+
+
 def test_agent_count_numbers_have_rich_styles() -> None:
     panel = AgentInfoPanel()
     panel._visible_agent_count = 20
     panel._asking_count = 31
+    panel._starting_count = 37
     panel._running_count = 42
     panel._waiting_count = 53
     panel._unread_count = 64
@@ -84,6 +107,7 @@ def test_agent_count_numbers_have_rich_styles() -> None:
     count_styles = {
         "total": _style_for_plain_segment(text, "20"),
         "asking": _style_for_plain_segment(text, "31"),
+        "starting": _style_for_plain_segment(text, "37"),
         "running": _style_for_plain_segment(text, "42"),
         "waiting": _style_for_plain_segment(text, "53"),
         "failed": _style_for_plain_segment(text, "86"),
@@ -93,6 +117,7 @@ def test_agent_count_numbers_have_rich_styles() -> None:
     assert count_styles == {
         "total": "#AFAFAF",
         "asking": "bold #FFAF00",
+        "starting": "bold #87D7FF",
         "running": "bold #00D7AF",
         "waiting": "bold #AF87FF",
         "failed": "bold #FF5F5F",
@@ -102,6 +127,7 @@ def test_agent_count_numbers_have_rich_styles() -> None:
 
     label_styles = {
         " stopped": _style_for_plain_segment(text, " stopped"),
+        " starting": _style_for_plain_segment(text, " starting"),
         " running": _style_for_plain_segment(text, " running"),
         " waiting": _style_for_plain_segment(text, " waiting"),
         " failed": _style_for_plain_segment(text, " failed"),
@@ -110,6 +136,7 @@ def test_agent_count_numbers_have_rich_styles() -> None:
     }
     assert label_styles == {
         " stopped": "dim",
+        " starting": "dim",
         " running": "dim",
         " waiting": "dim",
         " failed": "dim",

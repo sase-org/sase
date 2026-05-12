@@ -35,6 +35,7 @@ _PANEL_UNTAGGED_STYLE = "dim #AFAFAF"
 _PANEL_COUNT_STYLE = "#AFAFAF"
 _PANEL_METRIC_STYLES: dict[str, str] = {
     "asking": "bold #FFAF00",
+    "starting": "bold #87D7FF",
     "running": "bold #00D7AF",
     "waiting": "bold #AF87FF",
     "failed": "bold #FF5F5F",
@@ -43,6 +44,7 @@ _PANEL_METRIC_STYLES: dict[str, str] = {
 }
 _PANEL_METRIC_LABELS: tuple[tuple[str, str], ...] = (
     ("asking", "S"),
+    ("starting", "T"),
     ("running", "R"),
     ("waiting", "W"),
     ("failed", "F"),
@@ -56,6 +58,7 @@ class _AgentPanelCounts:
     """Compact top-level agent counts scoped to one rendered panel."""
 
     asking: int = 0
+    starting: int = 0
     running: int = 0
     waiting: int = 0
     failed: int = 0
@@ -80,10 +83,12 @@ def _agent_panel_counts(
     ]
     buckets = [(agent, status_bucket_for(agent)) for agent in visible_top_level_agents]
     asking = sum(1 for agent, _bucket in buckets if agent_is_asking(agent.status))
+    starting = sum(1 for _agent, bucket in buckets if bucket == "Starting")
     running = sum(
         1
         for agent, bucket in buckets
         if agent.status not in DISMISSABLE_STATUSES
+        and bucket != "Starting"
         and bucket != "Waiting"
         and bucket != "Failed"
         and not agent_is_asking(agent.status)
@@ -100,6 +105,7 @@ def _agent_panel_counts(
     )
     return _AgentPanelCounts(
         asking=asking,
+        starting=starting,
         running=running,
         waiting=waiting,
         failed=failed,

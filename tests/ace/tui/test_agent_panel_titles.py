@@ -221,13 +221,14 @@ def test_panel_title_counts_are_scoped_to_each_panel() -> None:
     agents = [
         _agent(name="wait", suffix="u1", status="WAITING"),
         _agent(name="ask", tag="apple", suffix="a1", status="QUESTION"),
+        _agent(name="starting", tag="apple", suffix="a3", status="STARTING"),
         _agent(name="run", tag="apple", suffix="a2", status="RUNNING"),
         _agent(name="fail", tag="banana", suffix="b1", status="FAILED"),
         _agent(name="unread", tag="banana", suffix="b2", status="DONE"),
         _agent(name="read", tag="banana", suffix="b3", status="DONE"),
     ]
     app = _FakeApp(agents)
-    app._unread_completed_agent_ids.add(agents[4].identity)
+    app._unread_completed_agent_ids.add(agents[5].identity)
 
     app._refresh_panel_widgets(jump_hints=None)
 
@@ -235,7 +236,7 @@ def test_panel_title_counts_are_scoped_to_each_panel() -> None:
         "(untagged) · 1 [W1]"
     )
     assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == (
-        "#apple · 2 [S1 R1]"
+        "#apple · 3 [S1 T1 R1]"
     )
     assert _title_text(app._panel_widgets["agent-list-panel-2"]).plain == (
         "#banana · 3 [F1 U1 D1]"
@@ -244,8 +245,8 @@ def test_panel_title_counts_are_scoped_to_each_panel() -> None:
     banana_title = _title_text(app._panel_widgets["agent-list-panel-2"])
     _assert_title_metric_styles(
         apple_title,
-        neutral_ranges=[(10, 13), (14, 16), (17, 18)],
-        metric_digits=[(13, "asking"), (16, "running")],
+        neutral_ranges=[(10, 13), (14, 16), (17, 19), (20, 21)],
+        metric_digits=[(13, "asking"), (16, "starting"), (19, "running")],
     )
     _assert_title_metric_styles(
         banana_title,

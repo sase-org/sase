@@ -36,6 +36,10 @@ def test_agent_status_bucket_running() -> None:
     assert agent_status_bucket(_agent("a", "RUNNING")) == "Running"
 
 
+def test_agent_status_bucket_starting() -> None:
+    assert agent_status_bucket(_agent("a", "STARTING")) == "Starting"
+
+
 def test_agent_status_bucket_waiting() -> None:
     assert agent_status_bucket(_agent("a", "WAITING")) == "Waiting"
 
@@ -64,6 +68,7 @@ def test_group_agent_statuses_omits_empty_buckets_and_preserves_order() -> None:
         [
             _agent("run-1", "RUNNING"),
             _agent("done-1", "DONE"),
+            _agent("starting-1", "STARTING"),
             _agent("run-2", "RUNNING"),
             _agent("question-1", "QUESTION"),
             _agent("failed-1", "FAILED"),
@@ -73,12 +78,14 @@ def test_group_agent_statuses_omits_empty_buckets_and_preserves_order() -> None:
     assert [group.bucket for group in groups] == [
         "Stopped",
         "Failed",
+        "Starting",
         "Running",
         "Done",
     ]
     assert [[agent.name for agent in group.agents] for group in groups] == [
         ["question-1"],
         ["failed-1"],
+        ["starting-1"],
         ["run-1", "run-2"],
         ["done-1"],
     ]

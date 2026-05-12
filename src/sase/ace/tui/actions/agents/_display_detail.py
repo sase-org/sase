@@ -168,6 +168,9 @@ class DetailMixin:
         waiting_count = sum(
             1 for _agent, bucket in visible_agent_buckets if bucket == "Waiting"
         )
+        starting_count = sum(
+            1 for _agent, bucket in visible_agent_buckets if bucket == "Starting"
+        )
         failed_count = sum(
             1 for _agent, bucket in visible_agent_buckets if bucket == "Failed"
         )
@@ -180,6 +183,7 @@ class DetailMixin:
             1
             for agent, bucket in visible_agent_buckets
             if agent.status not in DISMISSABLE_STATUSES
+            and bucket != "Starting"
             and bucket != "Waiting"
             and bucket != "Failed"
             and not agent_is_asking(agent.status)
@@ -198,6 +202,7 @@ class DetailMixin:
             failed_count,
             read_count,
             total,
+            starting=starting_count,
         )
         agent_info_panel.update_countdown(
             self._countdown_remaining, self.refresh_interval

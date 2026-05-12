@@ -346,6 +346,7 @@ class ProposalRebaseMixin:
                     self._answer_workflow_hitl(agent)  # type: ignore[attr-defined]
                     return
                 _APPROVE_ELIGIBLE = {
+                    "STARTING",
                     "RUNNING",
                     "PLAN",
                     "PLAN APPROVED",

@@ -89,6 +89,23 @@ class TestAwareWaitUntilRendering:
         assert " left)" in header.plain
 
 
+class TestStartingStatusRendering:
+    def test_agent_row_renders_starting_status_with_distinct_style(self) -> None:
+        agent = make_agent(status="STARTING")
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "(STARTING)" in left.plain
+        status_start = left.plain.index("STARTING")
+        status_end = status_start + len("STARTING")
+        assert any(
+            span.start <= status_start
+            and span.end >= status_end
+            and str(span.style) == "bold #87D7FF"
+            for span in left.spans
+        )
+
+
 # -- provider emoji badges ----------------------------------------------------
 
 

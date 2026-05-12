@@ -146,11 +146,12 @@ class KeybindingBindingsMixin:
                     bindings.append((x, "dismiss"))
                 else:
                     bindings.append((x, "kill"))
-            if agent.status in ("WAITING", "RUNNING"):
+            if agent.status in ("STARTING", "WAITING", "RUNNING"):
                 bindings.append((self._kd("reword"), "edit wait"))
             if agent.agent_name:
                 bindings.append((self._kd("add_tag"), "new w/ wait"))
             _APPROVE_ELIGIBLE = {
+                "STARTING",
                 "RUNNING",
                 "PLAN",
                 "PLAN APPROVED",

@@ -51,6 +51,17 @@ def test_keybinding_footer_agent_bindings_running_agent() -> None:
     assert "r" not in binding_keys  # No revive chat
 
 
+def test_keybinding_footer_agent_bindings_starting_agent() -> None:
+    """STARTING agents are killable and can be restarted with a wait target."""
+    footer = KeybindingFooter()
+    agent = _make_agent(status="STARTING")
+
+    bindings = footer._compute_agent_bindings(agent)
+
+    assert ("x", "dismiss") in bindings
+    assert ("w", "edit wait") in bindings
+
+
 def test_keybinding_footer_agent_bindings_completed_agent_with_chat() -> None:
     """Test agent bindings for completed agent with chat file."""
     footer = KeybindingFooter()

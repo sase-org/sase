@@ -114,6 +114,7 @@ def test_by_status_mode_renders_actionable_and_failed_buckets_adjacent() -> None
         [
             make_agent(cl_name="done", status="DONE"),
             make_agent(cl_name="waiting", status="WAITING"),
+            make_agent(cl_name="starting", status="STARTING"),
             make_agent(cl_name="running", status="RUNNING"),
             make_agent(cl_name="failed", status="FAILED"),
             make_agent(cl_name="question", status="QUESTION"),
@@ -125,6 +126,7 @@ def test_by_status_mode_renders_actionable_and_failed_buckets_adjacent() -> None
     assert _status_bucket_banner_labels(widget) == [
         "Stopped",
         "Failed",
+        "Starting",
         "Running",
         "Waiting",
         "Done",

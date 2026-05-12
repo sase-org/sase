@@ -5,6 +5,7 @@ from __future__ import annotations
 AGENT_STATUS_BUCKETS: tuple[str, ...] = (
     "Stopped",
     "Failed",
+    "Starting",
     "Running",
     "Waiting",
     "Done",
@@ -12,6 +13,7 @@ AGENT_STATUS_BUCKETS: tuple[str, ...] = (
 
 AGENT_STATUS_BUCKET_GLYPHS: dict[str, str] = {
     "Stopped": "▲",
+    "Starting": "◐",
     "Running": "▶",
     "Waiting": "⏳",
     "Failed": "✗",
@@ -77,6 +79,8 @@ def status_bucket_for_values(
         return "Done"
     if status_text in _STOPPED_STATUSES:
         return "Stopped"
+    if status_text == "STARTING":
+        return "Starting"
     if status_text in {"PLAN APPROVED", "TALE APPROVED"}:
         return "Running"
     if status_text == "WAITING":
