@@ -2,6 +2,8 @@
 create_time: 2026-05-12 12:00:27
 status: wip
 prompt: sdd/prompts/202605/remove_local_xprompt_workflows.md
+bead_id: sase-34
+tier: epic
 ---
 # Remove config-local xprompt workflow support
 
