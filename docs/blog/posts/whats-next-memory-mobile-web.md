@@ -101,8 +101,7 @@ are how that durable object stays reachable.
   contract snapshot.
 - [Shared memory research](https://github.com/sase-org/sase/blob/master/sdd/research/202605/zettel_sase_shared_memory.md)
   — the full proposal, including external research notes, design decisions, and open questions.
-- [Agentic Software Engineering series hub](../../series/agentic-software-engineering.md) — all eight posts in one
-  place.
+- [Agentic Software Engineering series hub](../../series/agentic-software-engineering.md) — all nine posts in one place.
 
 ## Series Navigation
 

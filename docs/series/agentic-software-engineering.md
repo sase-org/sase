@@ -4,17 +4,18 @@ SASE, short for **Structured Agentic Software Engineering**, uses **agentic soft
 where AI agents operate inside durable engineering systems: plans, work queues, review records, tests, commits,
 dependencies, and handoffs. The series explains why that coordination layer matters and how SASE implements it.
 
-The canonical essays live on the [SASE Blog](../blog/index.md). This page is the series hub: it lists the eight posts
+The canonical essays live on the [SASE Blog](../blog/index.md). This page is the series hub: it lists the nine posts
 that make up the series and points readers at the current product guides for further reading.
 
 ## The Series
 
-The series has eight posts. Posts 1 and 2 set up the _why_ and the _how_; Posts 3–7 each go deep on one subsystem; Post
-8 looks forward. Read in numbered order for the full arc, or jump straight to the subsystem post you care about — each
-is self-contained.
+The series has nine posts. Post 0 is the origin story; Posts 1 and 2 set up the _why_ and the _how_; Posts 3–7 each go
+deep on one subsystem; Post 8 looks forward. Read in numbered order for the full arc, or jump straight to the subsystem
+post you care about — each is self-contained.
 
 | Post                                                                                                                         | Status               |
 | ---------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| [Post 0: Origin Story — Where SASE Came From](../blog/posts/origin-story.md)                                                 | Published 2026-05-06 |
 | [Post 1: Why Coding Agents Need Orchestration](../blog/posts/why-coding-agents-need-orchestration.md)                        | Published 2026-05-08 |
 | [Post 2: Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents](../blog/posts/hello-sase-your-first-15-minutes.md) | Published 2026-05-10 |
 | [Post 3: XPrompts in Depth — From One File to Full Workflows](../blog/posts/xprompts-in-depth.md)                            | Published 2026-05-12 |

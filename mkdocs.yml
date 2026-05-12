@@ -14,6 +14,7 @@ nav:
   - Blog:
       - Blog Home: blog/index.md
       - Agentic Software Engineering Series: series/agentic-software-engineering.md
+      - "Post 0: Origin Story — Where SASE Came From": blog/posts/origin-story.md
       - "Post 1: Why Coding Agents Need Orchestration": blog/posts/why-coding-agents-need-orchestration.md
       - "Post 2: Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents": blog/posts/hello-sase-your-first-15-minutes.md
       - "Post 3: XPrompts in Depth": blog/posts/xprompts-in-depth.md

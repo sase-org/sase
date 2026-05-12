@@ -130,7 +130,7 @@ has to make the work durable, reviewable, resumable, and transferable.
 
 This is Post 1 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
 
-- Previous: none.
+- Previous: [Post 0: Origin Story — Where SASE Came From](origin-story.md).
 - Next: [Post 2: Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents](hello-sase-your-first-15-minutes.md).
 - Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [ACE guide](../../ace.md).
