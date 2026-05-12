@@ -16,7 +16,6 @@ from ._bundle_io import (
     file_signature,
     index_path_for_root,
     iter_bundle_paths,
-    positive_int_or_default,
     read_bundle,
     required_str,
     shard_for_raw_suffix,
@@ -199,38 +198,34 @@ def rebuild_index(root: Path) -> DismissedBundleIndexRebuildResult:
 
 
 def next_archive_revision(root: Path, bundle: dict[str, Any]) -> int:
-    """Return the next immutable archive revision for *bundle*."""
+    """Return the next immutable archive revision for *bundle*.
 
+    Trusts the SQLite summary index as the source of truth for the max
+    revision already written for this agent_id. The caller's collision
+    retry handles edge cases where the index is missing or stale.
+    """
+
+    if not index_path_for_root(root).is_file():
+        return DEFAULT_ARCHIVE_REVISION
     agent_id = agent_id_for_bundle(bundle)
-    max_revision = 0
-    if index_path_for_root(root).is_file():
-        try:
-            with connection(root) as conn:
-                row = conn.execute(
-                    "SELECT MAX(archive_revision) AS max_revision "
-                    "FROM dismissed_bundle_summaries WHERE agent_id = ?",
-                    (agent_id,),
-                ).fetchone()
-            if row is not None and row["max_revision"] is not None:
-                max_revision = max(max_revision, int(row["max_revision"]))
-        except (sqlite3.Error, TypeError, ValueError):
-            pass
-
-    for path in iter_bundle_paths(root):
-        try:
-            existing = read_bundle(path)
-            if agent_id_for_bundle(existing) != agent_id:
-                continue
-            max_revision = max(
-                max_revision,
-                positive_int_or_default(
-                    existing.get("archive_revision"),
-                    DEFAULT_ARCHIVE_REVISION,
-                ),
-            )
-        except (OSError, json.JSONDecodeError, ValueError, TypeError):
-            continue
-    return max_revision + 1 if max_revision else DEFAULT_ARCHIVE_REVISION
+    try:
+        with connection(root) as conn:
+            row = conn.execute(
+                "SELECT MAX(archive_revision) AS max_revision "
+                "FROM dismissed_bundle_summaries WHERE agent_id = ?",
+                (agent_id,),
+            ).fetchone()
+    except (sqlite3.Error, TypeError, ValueError):
+        return DEFAULT_ARCHIVE_REVISION
+    if row is None or row["max_revision"] is None:
+        return DEFAULT_ARCHIVE_REVISION
+    try:
+        max_revision = int(row["max_revision"])
+    except (TypeError, ValueError):
+        return DEFAULT_ARCHIVE_REVISION
+    if max_revision <= 0:
+        return DEFAULT_ARCHIVE_REVISION
+    return max_revision + 1
 
 
 def archive_bundle_path(root: Path, bundle: dict[str, Any], revision: int) -> Path:

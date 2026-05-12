@@ -186,19 +186,18 @@ def save_dismissed_bundle(agent: Agent) -> bool:
     if agent.raw_suffix is None:
         return False
     bundle = agent.to_bundle_dict()
+
+    try:
+        from .dismissed_bundle_index import next_archive_revision
+
+        revision = next_archive_revision(_DISMISSED_BUNDLES_DIR, bundle)
+    except (OSError, ValueError, sqlite3.Error):
+        existing = bundle.get("archive_revision")
+        revision = existing if isinstance(existing, int) else 1
+
     saved_path: Path | None = None
     for _ in range(8):
-        try:
-            from .dismissed_bundle_index import next_archive_revision
-
-            bundle["archive_revision"] = next_archive_revision(
-                _DISMISSED_BUNDLES_DIR,
-                bundle,
-            )
-        except (OSError, ValueError, sqlite3.Error):
-            revision = bundle.get("archive_revision")
-            bundle["archive_revision"] = revision if isinstance(revision, int) else 1
-
+        bundle["archive_revision"] = revision
         try:
             from sase.core.agent_cleanup_execution import try_save_dismissed_bundle
 
@@ -208,6 +207,7 @@ def save_dismissed_bundle(agent: Agent) -> bool:
                 break
         except (FileExistsError, ValueError) as exc:
             if "already exists" in str(exc):
+                revision += 1
                 continue
             return False
         except OSError:
@@ -217,6 +217,7 @@ def save_dismissed_bundle(agent: Agent) -> bool:
             saved_path = _save_dismissed_bundle_python(_DISMISSED_BUNDLES_DIR, bundle)
             break
         except FileExistsError:
+            revision += 1
             continue
         except OSError:
             return False

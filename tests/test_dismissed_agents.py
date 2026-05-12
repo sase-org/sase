@@ -434,6 +434,64 @@ def test_re_dismiss_writes_new_revision_without_overwriting(
         assert loaded[0].status == "DONE"
 
 
+def test_next_archive_revision_does_not_scan_bundle_files(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """The hot dismiss path trusts the SQLite index instead of scanning files."""
+    from sase.ace.dismissed_bundle_index import next_archive_revision
+
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        agent = _make_agent(cl_name="indexed_cl", raw_suffix="20250615100000")
+        assert save_dismissed_bundle(agent)
+        assert save_dismissed_bundle(agent)
+
+        def fail_read(*args, **kwargs):
+            raise AssertionError("next_archive_revision should not read bundle files")
+
+        def fail_iter(*args, **kwargs):
+            raise AssertionError(
+                "next_archive_revision should not iterate bundle paths"
+            )
+
+        monkeypatch.setattr(
+            "sase.ace.dismissed_bundle_index._api.read_bundle", fail_read
+        )
+        monkeypatch.setattr(
+            "sase.ace.dismissed_bundle_index._api.iter_bundle_paths", fail_iter
+        )
+
+        bundle = agent.to_bundle_dict()
+        assert next_archive_revision(bundles_dir, bundle) == 3
+
+
+def test_save_dismissed_bundle_is_fast_with_many_existing_bundles(
+    tmp_path: Path,
+) -> None:
+    """Saving a new bundle must not scale with the size of the archive."""
+    import time
+
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        for i in range(1000):
+            agent = _make_agent(cl_name=f"cl_{i}", raw_suffix=f"{i:014d}")
+            assert save_dismissed_bundle(agent)
+
+        target = _make_agent(cl_name="hotpath", raw_suffix="99999999999999")
+        start = time.perf_counter()
+        assert save_dismissed_bundle(target)
+        elapsed = time.perf_counter() - start
+
+    assert elapsed < 1.0, f"save_dismissed_bundle took {elapsed:.3f}s with 1k bundles"
+
+
 def test_dismissed_bundle_python_fallback_uses_atomic_revision_directory(
     tmp_path: Path,
 ) -> None:
