@@ -147,6 +147,32 @@ def test_render_key_changes_when_unread_flips() -> None:
     assert k1 != k2
 
 
+def test_render_key_changes_when_llm_provider_changes() -> None:
+    a = _agent()
+    k1 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+    a.llm_provider = "codex"
+    k2 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+    assert k1 != k2
+
+
 def test_render_key_changes_when_bead_agent_name_changes() -> None:
     a = _agent(agent_name="sase-x.3")
     k1 = agent_render_key(

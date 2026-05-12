@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 10:27:28
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_provider_emoji_rows.md
 ---
 # Plan: Provider Emoji Badges in Agent Rows

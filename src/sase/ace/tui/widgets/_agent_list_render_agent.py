@@ -9,6 +9,7 @@ from rich.text import Text
 
 from sase.xprompt.workflow_output import get_substep_suffix
 
+from ..provider_styles import provider_emoji_badge
 from ..models.agent import Agent, AgentType, format_compact_duration
 from ..models.agent_bead import derive_agent_bead_id
 from ._agent_list_helpers import short_model_name, step_role_suffix
@@ -134,6 +135,9 @@ def format_agent_option(
             text.append(f"{type_glyph} ", style=f"bold {color}")
         else:
             text.append(f"[{dt}] ", style=f"bold {color}")
+
+    if emoji_badge := provider_emoji_badge(agent.llm_provider):
+        text.append(f"{emoji_badge} ")
 
     # Agent display name (workflow name for top-level workflows, CL name otherwise)
     name_style = "bold #00D7AF" if is_selected else "#00D7AF"

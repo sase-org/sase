@@ -79,6 +79,14 @@ _PROVIDER_FALLBACK_STYLES: dict[str, _ProviderStyle] = {
     ),
 }
 
+_PROVIDER_EMOJI_BADGES: dict[str, str] = {
+    "claude": "🎭",
+    "gemini": "♊",
+    "codex": "🤖",
+    "qwen": "🐼",
+    "opencode": "🐙",
+}
+
 
 def _normalize_provider(provider: str | None) -> str | None:
     if provider is None:
@@ -114,6 +122,14 @@ def provider_style_for(provider: str | None) -> _ProviderStyle:
     if primary:
         return _with_primary(fallback, primary)
     return fallback
+
+
+def provider_emoji_badge(provider: str | None) -> str | None:
+    """Return the compact row emoji for known LLM providers."""
+    normalized = _normalize_provider(provider)
+    if normalized is None:
+        return None
+    return _PROVIDER_EMOJI_BADGES.get(normalized)
 
 
 def _resolve_provider_and_model(

@@ -89,6 +89,54 @@ class TestAwareWaitUntilRendering:
         assert " left)" in header.plain
 
 
+# -- provider emoji badges ----------------------------------------------------
+
+
+class TestAgentListProviderEmojiBadges:
+    def test_root_row_renders_opencode_provider_emoji_before_name(self) -> None:
+        agent = make_agent(cl_name="root-agent", llm_provider="opencode")
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "🐙 root-agent (RUNNING)" in left.plain
+
+    def test_root_row_renders_qwen_provider_emoji_after_prefix_controls(self) -> None:
+        agent = make_agent(cl_name="qwen-agent", llm_provider="qwen")
+
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            is_marked=True,
+            hint_char="a",
+        )
+
+        assert left.plain.startswith("[a] [✓] [agent] 🐼 qwen-agent")
+
+    def test_workflow_child_row_renders_codex_provider_emoji_before_name(self) -> None:
+        agent = make_agent(
+            cl_name="child-agent",
+            parent_workflow="wf",
+            step_name="agent",
+            step_type="agent",
+            step_index=0,
+            total_steps=2,
+            llm_provider="codex",
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "1/2 🤖 child-agent (RUNNING)" in left.plain
+
+    def test_row_without_provider_omits_provider_emoji(self) -> None:
+        agent = make_agent(cl_name="plain-agent", llm_provider=None)
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert left.plain == "[agent] plain-agent (RUNNING)"
+        assert not any(emoji in left.plain for emoji in ("🎭", "♊", "🤖", "🐼", "🐙"))
+
+
 # -- _render_phase_divider ----------------------------------------------------
 
 

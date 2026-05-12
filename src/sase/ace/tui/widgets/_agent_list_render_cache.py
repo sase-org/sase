@@ -130,6 +130,7 @@ def agent_render_key(
         agent.tag,
         agent.agent_name,
         derive_agent_bead_id(agent),
+        agent.llm_provider,
         agent.hidden,
         agent.retry_attempt,
         agent.is_workflow_child,
