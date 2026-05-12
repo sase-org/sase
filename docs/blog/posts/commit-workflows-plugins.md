@@ -9,7 +9,7 @@ categories:
   - Workflows
 slug: commit-workflows-plugins
 links:
-  - Agentic Software Engineering Series: series/agentic-software-engineering.md
+  - SASE Blog Series: series/agentic-software-engineering.md
   - Commit Workflows: commit_workflows.md
   - Plugins: plugins.md
   - VCS Providers: vcs.md
@@ -155,9 +155,9 @@ those are about which configuration and prompt files contribute to the resolver,
 
 ## Series Navigation
 
-This is Post 6 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
+This is Post 6 of the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
 - Previous: [Post 5: Beads and SDD — Planning Multi-Agent Work That Actually Lands](beads-and-sdd.md).
 - Next: [Post 7: ChangeSpecs in Practice — Review State Outside the Chat](changespecs-in-practice.md).
-- Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
+- Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [commit workflows guide](../../commit_workflows.md).

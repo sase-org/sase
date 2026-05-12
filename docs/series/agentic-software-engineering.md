@@ -1,17 +1,18 @@
-# Agentic Software Engineering Series
+# SASE Blog Series
 
 SASE, short for **Structured Agentic Software Engineering**, uses **agentic software engineering** to mean software work
 where AI agents operate inside durable engineering systems: plans, work queues, review records, tests, commits,
-dependencies, and handoffs. The series explains why that coordination layer matters and how SASE implements it.
+dependencies, and handoffs. The SASE Blog Series explains why that coordination layer matters and how SASE implements
+it.
 
 The canonical essays live on the [SASE Blog](../blog/index.md). This page is the series hub: it lists the eleven posts
 that make up the series and points readers at the current product guides for further reading.
 
 ## The Series
 
-The series has eleven posts. Post 0 is the origin story; Posts 1 and 2 set up the _why_ and the _how_; Posts 3–9 each go
-deep on one subsystem; Post 10 looks forward. Read in numbered order for the full arc, or jump straight to the subsystem
-post you care about — each is self-contained.
+The SASE Blog Series has eleven posts. Post 0 is the origin story; Posts 1 and 2 set up the _why_ and the _how_; Posts
+3–9 each go deep on one subsystem; Post 10 looks forward. Read in numbered order for the full arc, or jump straight to
+the subsystem post you care about — each is self-contained.
 
 | Post                                                                                                                         | Status               |
 | ---------------------------------------------------------------------------------------------------------------------------- | -------------------- |
@@ -29,7 +30,7 @@ post you care about — each is self-contained.
 
 ## Reader Paths
 
-After the two posts, the current product guides make each concept concrete:
+Alongside the series, the current product guides make each concept concrete:
 
 - [ACE TUI](../ace.md) for the interactive control surface.
 - [Spec-Driven Development](../sdd.md) for plans, epics, legends, and executable phase work.

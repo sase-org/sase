@@ -5,7 +5,7 @@ units, orchestration, provider-independent workflows, review state, and the coor
 
 ## Start Here
 
-The [Agentic Software Engineering series](../series/agentic-software-engineering.md) has eleven posts:
+The [SASE Blog Series](../series/agentic-software-engineering.md) has eleven posts:
 
 1. [Post 0: Origin Story — Where SASE Came From](posts/origin-story.md) — the prequel: large-codebase rigor, a lagging
    day-job model, and the realization that workflows should be cheap enough to spin up _and_ wind down.

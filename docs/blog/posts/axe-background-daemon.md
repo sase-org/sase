@@ -9,7 +9,7 @@ categories:
   - Automation
 slug: axe-background-daemon
 links:
-  - Agentic Software Engineering Series: series/agentic-software-engineering.md
+  - SASE Blog Series: series/agentic-software-engineering.md
   - AXE Automation: axe.md
   - Notifications: notifications.md
   - "Post 3: XPrompts in Depth — From One File to Full Workflows": blog/posts/xprompts-in-depth.md
@@ -124,9 +124,9 @@ launch and supervise, not compute.
 
 ## Series Navigation
 
-This is Post 4 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
+This is Post 4 of the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
 - Previous: [Post 3: XPrompts in Depth — From One File to Full Workflows](xprompts-in-depth.md).
 - Next: [Post 5: Beads and SDD — Planning Multi-Agent Work That Actually Lands](beads-and-sdd.md).
-- Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
+- Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [AXE guide](../../axe.md).

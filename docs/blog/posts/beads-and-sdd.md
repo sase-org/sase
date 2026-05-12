@@ -9,7 +9,7 @@ categories:
   - Planning
 slug: beads-and-sdd
 links:
-  - Agentic Software Engineering Series: series/agentic-software-engineering.md
+  - SASE Blog Series: series/agentic-software-engineering.md
   - Spec-Driven Development: sdd.md
   - Beads: beads.md
   - "Post 4: AXE — The Background Daemon That Keeps Agent Work Moving": blog/posts/axe-background-daemon.md
@@ -135,9 +135,9 @@ discovered workspace variants before assigning the next ID, so two sibling works
 
 ## Series Navigation
 
-This is Post 5 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
+This is Post 5 of the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
 - Previous: [Post 4: AXE — The Background Daemon That Keeps Agent Work Moving](axe-background-daemon.md).
 - Next: [Post 6: Commit Workflows — The Pluggable Path From Diff to PR](commit-workflows-plugins.md).
-- Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
+- Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [SDD guide](../../sdd.md).

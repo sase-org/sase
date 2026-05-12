@@ -9,7 +9,7 @@ categories:
   - XPrompts
 slug: xprompts-in-depth
 links:
-  - Agentic Software Engineering Series: series/agentic-software-engineering.md
+  - SASE Blog Series: series/agentic-software-engineering.md
   - XPrompts: xprompt.md
   - Workflow Specification: workflow_spec.md
   - "Post 2: Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents": blog/posts/hello-sase-your-first-15-minutes.md
@@ -183,10 +183,10 @@ source file, its arguments. When something resolves to the wrong copy, that is t
 
 ## Series Navigation
 
-This is Post 3 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
+This is Post 3 of the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
 - Previous:
   [Post 2: Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents](hello-sase-your-first-15-minutes.md).
 - Next: [Post 4: AXE — The Background Daemon That Keeps Agent Work Moving](axe-background-daemon.md).
-- Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
+- Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [XPrompts guide](../../xprompt.md).

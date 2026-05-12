@@ -8,7 +8,7 @@ categories:
   - Agentic Software Engineering
 slug: origin-story
 links:
-  - Agentic Software Engineering Series: series/agentic-software-engineering.md
+  - SASE Blog Series: series/agentic-software-engineering.md
   - "Post 1: Why Coding Agents Need Orchestration": blog/posts/why-coding-agents-need-orchestration.md
   - Start with ACE: ace.md
   - View on GitHub: https://github.com/sase-org/sase
@@ -24,11 +24,10 @@ context, and handoffs that someone else can pick up cold.
 
 <!-- more -->
 
-This post is the prequel to the rest of the
-[Agentic Software Engineering series](../../series/agentic-software-engineering.md). It explains the lived constraint
-that pushed SASE's design toward a particular shape: a coordination layer above coding agents that treats workflows as
-cheap and models as mortal. If you would rather skip the backstory and start from the technical argument, jump to
-[Post 1: Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md).
+This post is the prequel to the rest of the [SASE Blog Series](../../series/agentic-software-engineering.md). It
+explains the lived constraint that pushed SASE's design toward a particular shape: a coordination layer above coding
+agents that treats workflows as cheap and models as mortal. If you would rather skip the backstory and start from the
+technical argument, jump to [Post 1: Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md).
 
 ## Large-Codebase Rigor Is Different
 
@@ -142,9 +141,9 @@ day-job model and the state-of-the-art model I built things with at night.
 
 ## Series Navigation
 
-This is Post 0 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
+This is Post 0 of the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
 - Previous: none.
 - Next: [Post 1: Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md).
-- Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
+- Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [ACE guide](../../ace.md).

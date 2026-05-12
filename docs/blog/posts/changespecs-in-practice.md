@@ -9,7 +9,7 @@ categories:
   - Review
 slug: changespecs-in-practice
 links:
-  - Agentic Software Engineering Series: series/agentic-software-engineering.md
+  - SASE Blog Series: series/agentic-software-engineering.md
   - ChangeSpecs: change_spec.md
   - Mentors: mentors.md
   - ACE TUI: ace.md
@@ -188,9 +188,9 @@ by SASE and is not normally edited by hand.
 
 ## Series Navigation
 
-This is Post 7 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
+This is Post 7 of the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
 - Previous: [Post 6: Commit Workflows — The Pluggable Path From Diff to PR](commit-workflows-plugins.md).
 - Next: [Post 8: Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md).
-- Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
+- Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [ChangeSpec guide](../../change_spec.md).

@@ -7,7 +7,7 @@ categories:
   - Agentic Software Engineering
 slug: why-coding-agents-need-orchestration
 links:
-  - Agentic Software Engineering Series: series/agentic-software-engineering.md
+  - SASE Blog Series: series/agentic-software-engineering.md
   - Start with ACE: ace.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
@@ -129,9 +129,9 @@ has to make the work durable, reviewable, resumable, and transferable.
 
 ## Series Navigation
 
-This is Post 1 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
+This is Post 1 of the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
 - Previous: [Post 0: Origin Story — Where SASE Came From](origin-story.md).
 - Next: [Post 2: Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents](hello-sase-your-first-15-minutes.md).
-- Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
+- Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [ACE guide](../../ace.md).

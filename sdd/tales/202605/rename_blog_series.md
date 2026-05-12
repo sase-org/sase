@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 10:10:15
-status: wip
+status: done
 prompt: sdd/prompts/202605/rename_blog_series.md
 ---
 # Plan: Rename the sase.sh blog series hub

@@ -9,7 +9,7 @@ categories:
   - Plugins
 slug: prompt-widget-and-nvim
 links:
-  - Agentic Software Engineering Series: series/agentic-software-engineering.md
+  - SASE Blog Series: series/agentic-software-engineering.md
   - ACE TUI: ace.md
   - XPrompts: xprompt.md
   - Plugins: plugins.md
@@ -155,9 +155,9 @@ front doors.
 
 ## Series Navigation
 
-This is Post 9 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
+This is Post 9 of the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
 - Previous: [Post 8: Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md).
 - Next: [Post 10: What's Next — Shared Memory, Mobile, and the Web Surface](whats-next-memory-mobile-web.md).
-- Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or the
+- Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or the
   [XPrompts reference](../../xprompt.md).
