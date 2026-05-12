@@ -28,7 +28,8 @@ def test_timestamps_display_with_plan_and_code() -> None:
     lines = display.split("\n")
     # Strip indent from continuation lines
     tags = [line.strip().split(" | ")[0].strip() for line in lines]
-    assert tags == ["START", "RUN", "PLAN", "CODE", "END"]
+    assert tags == ["START", "RUN", "PLAN", "CODE", "DONE"]
+    assert "DONE  | 2025-06-15 10:20:00" in display
 
 
 def test_timestamps_display_with_epic_in_chronological_order() -> None:
@@ -47,7 +48,7 @@ def test_timestamps_display_with_epic_in_chronological_order() -> None:
     display = agent.timestamps_display
     lines = display.split("\n")
     tags = [line.strip().split(" | ")[0].strip() for line in lines]
-    assert tags == ["START", "PLAN", "EPIC", "CODE", "END"]
+    assert tags == ["START", "PLAN", "EPIC", "CODE", "DONE"]
 
 
 def test_timestamps_display_full_with_feedback_and_questions() -> None:
@@ -68,7 +69,7 @@ def test_timestamps_display_full_with_feedback_and_questions() -> None:
     display = agent.timestamps_display
     lines = display.split("\n")
     tags = [line.strip().split(" | ")[0].strip() for line in lines]
-    assert tags == ["START", "RUN", "PLAN", "FBACK", "QUEST", "CODE", "END"]
+    assert tags == ["START", "RUN", "PLAN", "FBACK", "QUEST", "CODE", "DONE"]
 
 
 def test_timestamps_display_feedback_only() -> None:
@@ -86,7 +87,7 @@ def test_timestamps_display_feedback_only() -> None:
     display = agent.timestamps_display
     lines = display.split("\n")
     tags = [line.strip().split(" | ")[0].strip() for line in lines]
-    assert tags == ["START", "PLAN", "FBACK", "END"]
+    assert tags == ["START", "PLAN", "FBACK", "DONE"]
 
 
 def test_timestamps_display_feedback_includes_rejected_plan_path() -> None:
@@ -169,7 +170,7 @@ def test_timestamps_display_questions_only() -> None:
     display = agent.timestamps_display
     lines = display.split("\n")
     tags = [line.strip().split(" | ")[0].strip() for line in lines]
-    assert tags == ["START", "QUEST", "END"]
+    assert tags == ["START", "QUEST", "DONE"]
 
 
 def test_timestamps_display_plan_only() -> None:
@@ -186,7 +187,7 @@ def test_timestamps_display_plan_only() -> None:
     display = agent.timestamps_display
     lines = display.split("\n")
     tags = [line.strip().split(" | ")[0].strip() for line in lines]
-    assert tags == ["START", "PLAN", "END"]
+    assert tags == ["START", "PLAN", "DONE"]
 
 
 def test_timestamps_display_multiple_plans() -> None:
@@ -209,7 +210,7 @@ def test_timestamps_display_multiple_plans() -> None:
     lines = display.split("\n")
     tags = [line.strip().split(" | ")[0].strip() for line in lines]
     # Chronological: PLAN(10:05) → FBACK(10:06) → PLAN(10:08) → CODE(10:10)
-    assert tags == ["START", "PLAN", "FBACK", "PLAN", "CODE", "END"]
+    assert tags == ["START", "PLAN", "FBACK", "PLAN", "CODE", "DONE"]
 
 
 def test_timestamps_display_no_plan_or_code() -> None:
@@ -225,7 +226,7 @@ def test_timestamps_display_no_plan_or_code() -> None:
     display = agent.timestamps_display
     lines = display.split("\n")
     tags = [line.strip().split(" | ")[0].strip() for line in lines]
-    assert tags == ["START", "END"]
+    assert tags == ["START", "DONE"]
 
 
 def test_timestamps_display_wait_tag_for_waiting_status() -> None:

@@ -346,7 +346,7 @@ class Agent:
         - START is the launch/artifact timestamp
         - WAIT is shown for agents currently waiting before execution
         - RUN is the actual execution timestamp when known
-        - END shown for DONE/FAILED agents
+        - DONE shown for completed agents
         """
         parts: list[str] = []
         fmt = "%Y-%m-%d %H:%M:%S"
@@ -392,7 +392,7 @@ class Agent:
             parts.append(_fmt(tag, ts.strftime(fmt), extra))
 
         if self.stop_time is not None:
-            parts.append(_fmt("END", self.stop_time.strftime(fmt)))
+            parts.append(_fmt("DONE", self.stop_time.strftime(fmt)))
 
         # Indent subsequent lines by width of "Timestamps: " (12 chars)
         indent = " " * 12

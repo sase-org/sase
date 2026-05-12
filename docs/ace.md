@@ -1132,7 +1132,7 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   - `RETRY` — each time the agent entered retry state (retryable error)
   - `CODE` — when the agent began writing code
   - `EPIC` — when an epic follow-up agent was launched after plan approval
-  - `END` — when execution completed
+  - `DONE` — when execution completed
 - **AGENT REPLY**: The agent's live or completed reply content, streamed from `live_reply.md` during execution and read
   from the artifacts directory after completion. When per-turn reply timestamps are available (recorded in
   `live_reply_timestamps.jsonl`), the reply is displayed with timestamp dividers between each agent turn. For agents
