@@ -22,7 +22,7 @@ The [SASE Blog Series](../series/agentic-software-engineering.md) has eleven pos
    legends, the bead data model, and how `sase bead work` turns a plan into a fleet.
 7. [Post 6: Commit Workflows — The Pluggable Path From Diff to PR](posts/commit-workflows-plugins.md) — `#commit`,
    `#propose`, `#pr`, the stop-hook contract, runtime-uniform skills, and the VCS provider boundary.
-8. [Post 7: ChangeSpecs in Practice — Review State Outside the Chat](posts/changespecs-in-practice.md) — the `.gp`
+8. [Post 7: ChangeSpecs in Practice — Review State Outside the Chat](posts/changespecs-in-practice.md) — the `.sase`
    record end to end, commits drawers, mentor execution, HOOKS prefixes, and the ACE keystrokes that drive review.
 9. [Post 8: Driving SASE From Your Phone — Telegram as the Mobile Control Surface](posts/telegram-mobile-agents.md) —
    the sase-telegram chop: activity-aware notifications, plan approvals from inline keyboards, launching agents and
@@ -42,4 +42,4 @@ read independently; Post 10 looks forward.
   work.
 - [Open the repository](https://github.com/sase-org/sase) for source, issues, and implementation details.
 
-The generated archive below lists the currently published blog entries.
+The generated archive below lists the blog entries included in this site.

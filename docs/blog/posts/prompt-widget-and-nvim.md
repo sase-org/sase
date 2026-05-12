@@ -107,7 +107,7 @@ TUI deliberately doesn't try to be.
 The [`sase-nvim`](https://github.com/sase-org/sase-nvim) plugin gives the same prompt language a proper editor surface.
 It ships three things:
 
-1. **Filetype detection and syntax highlighting** for `~/.sase/projects/<project>/<project>.gp` ChangeSpec files, with
+1. **Filetype detection and syntax highlighting** for `~/.sase/projects/<project>/<project>.sase` ChangeSpec files, with
    colors that match the `sase ace` rendering — field labels (`NAME:`, `STATUS:`, `HOOKS:`, `WORKSPACE_DIR:`), status
    values colored by lifecycle stage (WIP → Draft → Ready → Mailed → Submitted), inline process states
    (RUNNING/PASSED/FAILED/DEAD/KILLED), timestamps, URLs, file paths, and the suffix badges ACE uses for errors and

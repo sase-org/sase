@@ -33,6 +33,7 @@ agents from the TUI.
 | Command                                      | Purpose                                                                | Details                                         |
 | -------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------- |
 | `sase changespec current`                    | Render the ChangeSpec associated with the current workspace.           | [ChangeSpecs](change_spec.md)                   |
+| `sase changespec migrate-extension`          | Rename legacy `.gp` project files to the canonical `.sase` extension.  | [ProjectSpec](project_spec.md)                  |
 | `sase changespec search`                     | Search and filter ChangeSpecs with the query language.                 | [Query language](query_language.md)             |
 | `sase changespec sync-deltas`                | Recompute the `DELTAS` field for a ChangeSpec from VCS state.          | [ChangeSpecs](change_spec.md)                   |
 | `sase sdd init`                              | Create or refresh SDD README files and directory map assets.           | [SDD](sdd.md)                                   |

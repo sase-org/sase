@@ -872,6 +872,16 @@ full flow, payload, checkpoint, and resume semantics.
 | `query`        | string                      | (required) | Query string for filtering ChangeSpecs.               |
 | `-f, --format` | `plain`, `rich`, `markdown` | `rich`     | Output format (`markdown` for agent-friendly output). |
 
+### `sase changespec migrate-extension`
+
+Renames legacy project files under `~/.sase/projects` from `.gp` to `.sase`, including archive siblings. Identical
+legacy duplicates are removed; conflicting canonical siblings are reported and preserved unless `--force` is set.
+
+| Flag             | Values | Default             | Description                                                                |
+| ---------------- | ------ | ------------------- | -------------------------------------------------------------------------- |
+| `--force`        | flag   | -                   | Replace an existing `.sase` sibling when it differs from the legacy `.gp`. |
+| `--projects-dir` | path   | `~/.sase/projects/` | Override the project root scanned for legacy `.gp` files.                  |
+
 ### `sase revert`
 
 | Flag   | Values | Default    | Description                       |

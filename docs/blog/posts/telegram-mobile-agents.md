@@ -25,7 +25,7 @@ becomes a two-way control surface for agents, plans, ChangeSpecs, and generated 
 
 <!-- more -->
 
-[Post 7](changespecs-in-practice.md) showed how review state lives in a `.gp` ChangeSpec on disk. This post is about
+[Post 7](changespecs-in-practice.md) showed how review state lives in a `.sase` ChangeSpec on disk. This post is about
 moving the operator off the keyboard entirely: replying to plan approvals, launching new runs, and reviewing rendered
 plans or generated images from the same chat you already use for everything else.
 

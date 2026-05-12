@@ -570,7 +570,9 @@ cached by raw query string so re-renders skip the parse.
 | ---------- | --------------------------------------------------------------------------------------------- |
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                       |
 | `,I`       | Toggle manual idle (shows IDLE indicator; any keypress re-activates)                          |
+| `,g`       | Toggle between tag side panels and one grouped agent list                                     |
 | `,j`       | Jump to the newest unread completed agent; repeats move through older unread completions      |
+| `,J`       | Mark all unread completed agents as read                                                      |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                         |
 | `,P`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
 | `,r`       | Edit prompt and relaunch agent (retry without killing)                                        |

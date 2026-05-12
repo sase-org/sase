@@ -84,6 +84,10 @@ The full documentation lives at **[sase.sh](https://sase.sh/)**. Start with:
 - [Plugins](https://sase.sh/plugins/) ([local](docs/plugins.md))
 - [LLM Providers](https://sase.sh/llms/) ([local](docs/llms.md))
 - [Rust Backend](https://sase.sh/rust_backend/) ([local](docs/rust_backend.md))
+- [CLI Reference](https://sase.sh/cli/) ([local](docs/cli.md))
+- [Configuration](https://sase.sh/configuration/) ([local](docs/configuration.md))
+- [Architecture](https://sase.sh/architecture/) ([local](docs/architecture.md))
+- [Development](https://sase.sh/development/) ([local](docs/development.md))
 
 The `docs/` directory is a MkDocs Material site configured by [mkdocs.yml](mkdocs.yml). Run `just docs-check` for the
 strict docs build and `just docs-pdf-check` for the handbook PDF validation.
