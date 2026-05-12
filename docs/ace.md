@@ -566,13 +566,16 @@ cached by raw query string so re-renders skip the parse.
 
 ### Leader Mode (`,` prefix)
 
+On the Agents tab, leader mode exposes layout, notification, and relaunch shortcuts for the currently loaded agent list.
+Unread-completed actions operate on terminal rows that are loaded in the tab; `,j` only targets visible rows.
+
 | Key        | Action                                                                                        |
 | ---------- | --------------------------------------------------------------------------------------------- |
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                       |
 | `,I`       | Toggle manual idle (shows IDLE indicator; any keypress re-activates)                          |
-| `,g`       | Toggle between tag side panels and one grouped agent list                                     |
-| `,j`       | Jump to the newest unread completed agent; repeats move through older unread completions      |
-| `,J`       | Mark all unread completed agents as read                                                      |
+| `,g`       | Toggle between tag-split panels and one merged agent panel                                    |
+| `,j`       | Jump to the next visible unread completed agent, newest first, and mark it read               |
+| `,J`       | Mark all loaded unread completed agents as read                                               |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                         |
 | `,P`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
 | `,r`       | Edit prompt and relaunch agent (retry without killing)                                        |

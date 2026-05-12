@@ -28,12 +28,13 @@ ChangeSpecs are the durable, reviewable shape of one CL/PR of agent work. They s
 disk. The thing that marker writes into is a ChangeSpec. This post walks through what's actually in one, how mentors
 attach to it, and what the ACE TUI does with it once it exists.
 
-## The `.sase` Record, End to End
+## The ProjectSpec `.sase` Record, End to End
 
-A ChangeSpec is a structured block inside a project `.sase` file at `~/.sase/projects/<project>/`. Active specs live in
-`<project>.sase`; terminal ones (Submitted, Reverted, Archived) move to `<project>-archive.sase`. Legacy `.gp` files
-from older installs are still readable as a fallback and can be renamed with `sase changespec migrate-extension`. The
-canonical section order is:
+A ChangeSpec is a structured block inside a ProjectSpec file at `~/.sase/projects/<project>/`. Active specs live in
+`<project>.sase`; terminal ones (Submitted, Reverted, Archived) move to `<project>-archive.sase`. Legacy `.gp`
+ProjectSpec files from older installs are still readable as a fallback and can be renamed with
+`sase changespec migrate-extension`; that command changes filenames only, not the ChangeSpec contents. The canonical
+section order is:
 
 ```
 NAME: <NAME>

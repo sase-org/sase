@@ -6,6 +6,7 @@ and may also store project metadata used by workspace and agent coordination.
 ProjectSpec files live under `~/.sase/projects/<project>/<project>.sase`. Terminal ChangeSpecs are moved to the adjacent
 archive file, `~/.sase/projects/<project>/<project>-archive.sase`. Legacy `.gp` files from earlier releases remain
 readable as a fallback; the `sase changespec migrate-extension` command renames them to the canonical `.sase` extension.
+That migration changes only the ProjectSpec filenames; it does not rewrite ChangeSpec blocks or alter review state.
 
 ## Format
 

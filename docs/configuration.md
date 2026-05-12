@@ -874,13 +874,17 @@ full flow, payload, checkpoint, and resume semantics.
 
 ### `sase changespec migrate-extension`
 
-Renames legacy project files under `~/.sase/projects` from `.gp` to `.sase`, including archive siblings. Identical
-legacy duplicates are removed; conflicting canonical siblings are reported and preserved unless `--force` is set.
+One-time cleanup for older installs: renames legacy ProjectSpec files under `~/.sase/projects` from `.gp` to `.sase`,
+including archive siblings. Current readers still accept `.gp` as a fallback, so migration is not required before using
+SASE; it just normalizes on-disk filenames to the canonical extension.
 
-| Flag             | Values | Default             | Description                                                                |
-| ---------------- | ------ | ------------------- | -------------------------------------------------------------------------- |
-| `--force`        | flag   | -                   | Replace an existing `.sase` sibling when it differs from the legacy `.gp`. |
-| `--projects-dir` | path   | `~/.sase/projects/` | Override the project root scanned for legacy `.gp` files.                  |
+If a `.sase` sibling already exists with identical contents, the redundant `.gp` copy is removed. If the sibling
+differs, the command reports a conflict and preserves both files unless `--force` is set.
+
+| Flag             | Values | Default             | Description                                                               |
+| ---------------- | ------ | ------------------- | ------------------------------------------------------------------------- |
+| `--force`        | flag   | -                   | Replace an existing differing `.sase` sibling with the legacy `.gp` file. |
+| `--projects-dir` | path   | `~/.sase/projects/` | Override the project root scanned for legacy `.gp` files.                 |
 
 ### `sase revert`
 

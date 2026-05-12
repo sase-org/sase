@@ -58,7 +58,7 @@ Requirements:
 uv venv .venv
 source .venv/bin/activate
 just install
-sase
+sase ace
 ```
 
 Useful first commands:
