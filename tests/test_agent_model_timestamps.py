@@ -28,7 +28,7 @@ def test_timestamps_display_with_plan_and_code() -> None:
     lines = display.split("\n")
     # Strip indent from continuation lines
     tags = [line.strip().split(" | ")[0].strip() for line in lines]
-    assert tags == ["WAIT", "BEGIN", "PLAN", "CODE", "END"]
+    assert tags == ["START", "RUN", "PLAN", "CODE", "END"]
 
 
 def test_timestamps_display_with_epic_in_chronological_order() -> None:
@@ -47,7 +47,7 @@ def test_timestamps_display_with_epic_in_chronological_order() -> None:
     display = agent.timestamps_display
     lines = display.split("\n")
     tags = [line.strip().split(" | ")[0].strip() for line in lines]
-    assert tags == ["BEGIN", "PLAN", "EPIC", "CODE", "END"]
+    assert tags == ["START", "PLAN", "EPIC", "CODE", "END"]
 
 
 def test_timestamps_display_full_with_feedback_and_questions() -> None:
@@ -68,7 +68,7 @@ def test_timestamps_display_full_with_feedback_and_questions() -> None:
     display = agent.timestamps_display
     lines = display.split("\n")
     tags = [line.strip().split(" | ")[0].strip() for line in lines]
-    assert tags == ["WAIT", "BEGIN", "PLAN", "FBACK", "QUEST", "CODE", "END"]
+    assert tags == ["START", "RUN", "PLAN", "FBACK", "QUEST", "CODE", "END"]
 
 
 def test_timestamps_display_feedback_only() -> None:
@@ -86,7 +86,7 @@ def test_timestamps_display_feedback_only() -> None:
     display = agent.timestamps_display
     lines = display.split("\n")
     tags = [line.strip().split(" | ")[0].strip() for line in lines]
-    assert tags == ["BEGIN", "PLAN", "FBACK", "END"]
+    assert tags == ["START", "PLAN", "FBACK", "END"]
 
 
 def test_timestamps_display_feedback_includes_rejected_plan_path() -> None:
@@ -169,7 +169,7 @@ def test_timestamps_display_questions_only() -> None:
     display = agent.timestamps_display
     lines = display.split("\n")
     tags = [line.strip().split(" | ")[0].strip() for line in lines]
-    assert tags == ["BEGIN", "QUEST", "END"]
+    assert tags == ["START", "QUEST", "END"]
 
 
 def test_timestamps_display_plan_only() -> None:
@@ -186,7 +186,7 @@ def test_timestamps_display_plan_only() -> None:
     display = agent.timestamps_display
     lines = display.split("\n")
     tags = [line.strip().split(" | ")[0].strip() for line in lines]
-    assert tags == ["BEGIN", "PLAN", "END"]
+    assert tags == ["START", "PLAN", "END"]
 
 
 def test_timestamps_display_multiple_plans() -> None:
@@ -209,7 +209,7 @@ def test_timestamps_display_multiple_plans() -> None:
     lines = display.split("\n")
     tags = [line.strip().split(" | ")[0].strip() for line in lines]
     # Chronological: PLAN(10:05) → FBACK(10:06) → PLAN(10:08) → CODE(10:10)
-    assert tags == ["BEGIN", "PLAN", "FBACK", "PLAN", "CODE", "END"]
+    assert tags == ["START", "PLAN", "FBACK", "PLAN", "CODE", "END"]
 
 
 def test_timestamps_display_no_plan_or_code() -> None:
@@ -225,11 +225,11 @@ def test_timestamps_display_no_plan_or_code() -> None:
     display = agent.timestamps_display
     lines = display.split("\n")
     tags = [line.strip().split(" | ")[0].strip() for line in lines]
-    assert tags == ["BEGIN", "END"]
+    assert tags == ["START", "END"]
 
 
 def test_timestamps_display_wait_tag_for_waiting_status() -> None:
-    """WAITING agents show WAIT timestamp, not BEGIN."""
+    """WAITING agents show START plus WAIT metadata, not RUN."""
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="test",
@@ -239,8 +239,11 @@ def test_timestamps_display_wait_tag_for_waiting_status() -> None:
         wait_duration=600.0,
     )
     display = agent.timestamps_display
+    lines = display.split("\n")
+    tags = [line.strip().split(" | ")[0].strip() for line in lines]
+    assert tags == ["START", "WAIT"]
     assert "WAIT" in display
-    assert "BEGIN" not in display
+    assert "RUN" not in display
 
 
 def test_snapshot_agent_timestamps_display_includes_scalar_plan(
@@ -273,4 +276,4 @@ def test_snapshot_agent_timestamps_display_includes_scalar_plan(
         line.strip().split(" | ")[0].strip()
         for line in agents[0].timestamps_display.split("\n")
     ]
-    assert tags == ["BEGIN", "PLAN"]
+    assert tags == ["START", "PLAN"]

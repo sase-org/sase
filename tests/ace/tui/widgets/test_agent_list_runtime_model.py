@@ -57,6 +57,29 @@ def test_compute_row_runtime_uses_run_start_when_present() -> None:
     assert elapsed == "5m"
 
 
+def test_compute_row_runtime_running_without_run_start_returns_nones() -> None:
+    start = datetime(2026, 4, 25, 13, 0, 0)
+    now = datetime(2026, 4, 25, 14, 5, 0)
+    ts, elapsed = compute_row_runtime(agent(start=start, run_start=None), now=now)
+    assert ts is None
+    assert elapsed is None
+    assert runtime_suffix_ticks(agent(start=start, run_start=None)) is False
+
+
+def test_compute_row_runtime_starting_returns_nones() -> None:
+    start = datetime(2026, 4, 25, 13, 0, 0)
+    now = datetime(2026, 4, 25, 14, 5, 0)
+    ts, elapsed = compute_row_runtime(
+        agent(status="STARTING", start=start, run_start=None), now=now
+    )
+    assert ts is None
+    assert elapsed is None
+    assert (
+        runtime_suffix_ticks(agent(status="STARTING", start=start, run_start=None))
+        is False
+    )
+
+
 def test_compute_row_runtime_finished_today() -> None:
     start = datetime(2026, 4, 25, 14, 0, 0)
     stop = datetime(2026, 4, 25, 20, 17, 3)
@@ -66,6 +89,17 @@ def test_compute_row_runtime_finished_today() -> None:
     )
     assert ts == ("", "20:17:03")
     # >= 1h: hours and minutes
+    assert elapsed == "6h17m"
+
+
+def test_compute_row_runtime_terminal_without_run_start_falls_back_to_start() -> None:
+    start = datetime(2026, 4, 25, 14, 0, 0)
+    stop = datetime(2026, 4, 25, 20, 17, 3)
+    now = datetime(2026, 4, 25, 21, 0, 0)
+    ts, elapsed = compute_row_runtime(
+        agent(status="DONE", start=start, run_start=None, stop=stop), now=now
+    )
+    assert ts == ("", "20:17:03")
     assert elapsed == "6h17m"
 
 

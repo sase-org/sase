@@ -343,13 +343,14 @@ class Agent:
         Each timestamp on its own line, with subsequent lines indented
         to align with the first (matching the width of ``Timestamps: ``).
 
-        - WAIT shown only when agent waited before starting (run_start_time exists)
-        - BEGIN always shown
+        - START is the launch/artifact timestamp
+        - WAIT is shown for agents currently waiting before execution
+        - RUN is the actual execution timestamp when known
         - END shown for DONE/FAILED agents
         """
         parts: list[str] = []
         fmt = "%Y-%m-%d %H:%M:%S"
-        # Pad tag to 5 chars so timestamps align (longest tag is 5: BEGIN)
+        # Pad tag to 5 chars so timestamps align.
         tag_width = 5
 
         def _fmt(tag: str, ts: str, extra: str | None = None) -> str:
@@ -358,16 +359,14 @@ class Agent:
                 line += f" | {extra}"
             return line
 
-        # If the agent waited, show WAIT (original start_time) then BEGIN (run_start_time)
-        if self.run_start_time is not None and self.start_time is not None:
-            parts.append(_fmt("WAIT", self.start_time.strftime(fmt)))
-            parts.append(_fmt("BEGIN", self.run_start_time.strftime(fmt)))
-        elif self.start_time is not None:
-            # WAITING agents haven't started yet — start_time is their spawn time
-            tag = "WAIT" if self.status == "WAITING" else "BEGIN"
-            parts.append(_fmt(tag, self.start_time.strftime(fmt)))
+        if self.start_time is not None:
+            parts.append(_fmt("START", self.start_time.strftime(fmt)))
+            if self.status == "WAITING" and self.run_start_time is None:
+                parts.append(_fmt("WAIT", self.start_time.strftime(fmt)))
+            if self.run_start_time is not None:
+                parts.append(_fmt("RUN", self.run_start_time.strftime(fmt)))
         else:
-            parts.append(_fmt("BEGIN", "Unknown"))
+            parts.append(_fmt("START", "Unknown"))
 
         # Collect remaining timestamps and sort chronologically
         middle: list[tuple[datetime, str]] = []

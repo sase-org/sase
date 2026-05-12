@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from textual.app import App
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.agent_list import AgentList
+
+_DEFAULT_RUN_START: Any = object()
 
 
 def agent(
@@ -15,7 +18,7 @@ def agent(
     agent_type: AgentType = AgentType.RUNNING,
     status: str = "RUNNING",
     start: datetime | None = datetime(2026, 4, 25, 14, 30, 0),
-    run_start: datetime | None = None,
+    run_start: datetime | None | Any = _DEFAULT_RUN_START,
     stop: datetime | None = None,
     plan_times: list[datetime] | None = None,
     code_time: datetime | None = None,
@@ -23,13 +26,16 @@ def agent(
     raw_suffix: str = "20260425143000",
     cl_name: str = "demo",
 ) -> Agent:
+    resolved_run_start: datetime | None = (
+        start if run_start is _DEFAULT_RUN_START else run_start
+    )
     result = Agent(
         agent_type=agent_type,
         cl_name=cl_name,
         project_file="/tmp/p.sase",
         status=status,
         start_time=start,
-        run_start_time=run_start,
+        run_start_time=resolved_run_start,
         stop_time=stop,
         raw_suffix=raw_suffix,
     )
@@ -45,7 +51,7 @@ def workflow_child(
     step_type: str,
     status: str = "RUNNING",
     start: datetime | None = datetime(2026, 4, 25, 14, 30, 0),
-    run_start: datetime | None = None,
+    run_start: datetime | None | Any = _DEFAULT_RUN_START,
     stop: datetime | None = None,
     plan_times: list[datetime] | None = None,
     code_time: datetime | None = None,
