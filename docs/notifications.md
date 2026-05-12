@@ -119,12 +119,11 @@ been marked unread, or when the user jumps to it with the unread-agent shortcut,
 dismisses the matching completion notification. Plan approvals and user questions remain explicit response workflows and
 are not auto-read merely by selection.
 
-Switching to the Agents tab additionally bulk-dismisses every outstanding agent-completion notification, and ordinary
-activity on that tab (`j`/`k`, marks, folds, and similar) keeps dismissing any new completion notifications that arrive
-while the tab is focused. The flow only runs when there is something to dismiss, multiple navigation events do not pile
-up overlapping dismiss workers, and the top-bar bell only refreshes when the store actually changed — so navigating
-through agents does not produce stray toasts or noisy redraws. Plan approvals and user questions are excluded from this
-auto-dismiss and still require an explicit `y` / `n` response.
+Unread state on the Agents tab is projected from the active user-agent completion notifications in the store rather than
+written as separate per-row state — when the underlying notification is dismissed (per-row selection, response modal, or
+any other path) the row's unread marker clears on the next refresh. Manually toggling a row unread with `U` overrides
+this projection locally so a deliberately re-flagged row is not immediately re-cleared. Plan approvals and user
+questions still require an explicit `y` / `n` response and are never auto-dismissed by row navigation.
 
 See [`agent_images.md`](agent_images.md) for the full attachment contract and ACE image preview notes.
 

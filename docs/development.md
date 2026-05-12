@@ -76,6 +76,12 @@ just test-visual -- --sase-update-visual-snapshots tests/ace/tui/visual/test_ace
 Review changed PNG files as normal test data. Do not pass `--sase-update-visual-snapshots` to `just check`, `just fmt`,
 or broad CI-style commands.
 
+PNG comparison tolerance is environment-gated. Local runs require exact pixel equality against the committed golden —
+any drift is a real regression that needs investigation, not relaxation. Runs in GitHub Actions allow a small ratio-only
+renderer-drift tolerance so font/rasterizer jitter from the CI image does not break otherwise-clean builds. Treat a
+local failure as a true regression even if the same test passes in CI, and accept new goldens only with
+`--sase-update-visual-snapshots` after inspecting the diff PNG locally.
+
 ### Visual Failure Report
 
 `tools/render_visual_snapshot_failure_report` consumes the `failure.json` sidecars and writes
