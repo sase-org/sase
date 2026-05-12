@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 15:46:31
-status: wip
+status: done
 prompt: sdd/prompts/202605/audit_workflow_validation.md
 ---
 # Fix audit workflow validation failures

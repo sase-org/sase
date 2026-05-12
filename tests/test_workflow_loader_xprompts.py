@@ -49,3 +49,14 @@ steps:
         ):
             # Should succeed because local xprompt (no args) overrides global
             validate_workflow(workflow)
+
+
+def test_bundled_audit_workflows_validate() -> None:
+    """Regression: checked-in audit workflows satisfy validator rules."""
+    xprompts_dir = Path(__file__).resolve().parents[1] / "xprompts"
+
+    for name in ("audit_recent_bugs", "audit_recent_improvements"):
+        workflow = _load_workflow_from_file(xprompts_dir / f"{name}.yml")
+        assert workflow is not None
+
+        validate_workflow(workflow)
