@@ -137,6 +137,47 @@ class TestResolveGitRef:
     @patch(f"{_REF_MOD}.get_default_branch", return_value="origin/main")
     @patch(f"{_REF_MOD}.find_all_changespecs", return_value=[])
     @patch(f"{_INIT_MOD}.init_bare_git_project")
+    def test_home_project_without_bare_repo_auto_initializes(
+        self,
+        mock_init: MagicMock,
+        mock_find: MagicMock,
+        mock_branch: MagicMock,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            home = Path(d)
+            project_file = home / ".sase" / "projects" / "home" / "home.sase"
+            bare_dir = home / ".sase" / "repos" / "home.git"
+            workspace_dir = str(home / "projects" / "git" / "home") + "/"
+            project_file.parent.mkdir(parents=True)
+            project_file.write_text("NAME: home\n", encoding="utf-8")
+
+            def init_project(project_name: str) -> str:
+                assert project_name == "home"
+                project_file.write_text(
+                    f"BARE_REPO_DIR: {bare_dir}\nWORKSPACE_DIR: {workspace_dir}\n",
+                    encoding="utf-8",
+                )
+                return str(project_file)
+
+            mock_init.side_effect = init_project
+
+            with patch(f"{_REF_MOD}.Path.home", return_value=home):
+                result = resolve_git_ref("home")
+
+            assert result == ResolvedGitRef(
+                project_file=str(project_file),
+                project_name="home",
+                primary_workspace_dir=workspace_dir,
+                bare_repo_dir=str(bare_dir),
+                checkout_target="origin/main",
+            )
+            mock_find.assert_called_once()
+            mock_init.assert_called_once_with("home")
+            mock_branch.assert_called_once_with(workspace_dir)
+
+    @patch(f"{_REF_MOD}.get_default_branch", return_value="origin/main")
+    @patch(f"{_REF_MOD}.find_all_changespecs", return_value=[])
+    @patch(f"{_INIT_MOD}.init_bare_git_project")
     def test_missing_project_name_auto_initializes(
         self,
         mock_init: MagicMock,
@@ -174,27 +215,76 @@ class TestResolveGitRef:
             mock_init.assert_called_once_with("newproj")
             mock_branch.assert_called_once_with(workspace_dir)
 
+    @patch(f"{_REF_MOD}.get_default_branch", return_value="origin/main")
     @patch(f"{_REF_MOD}.find_all_changespecs", return_value=[])
     @patch(f"{_INIT_MOD}.init_bare_git_project")
-    def test_existing_project_without_bare_repo_is_not_initialized(
+    def test_existing_project_without_bare_repo_auto_initializes(
+        self,
+        mock_init: MagicMock,
+        mock_find: MagicMock,
+        mock_branch: MagicMock,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            home = Path(d)
+            project_dir = home / ".sase" / "projects" / "plainproj"
+            project_file = project_dir / "plainproj.sase"
+            bare_dir = home / ".sase" / "repos" / "plainproj.git"
+            workspace_dir = str(home / "projects" / "git" / "plainproj") + "/"
+            project_dir.mkdir(parents=True)
+            project_file.write_text(
+                "WORKSPACE_DIR: /work/plainproj/\nNAME: cl\n",
+                encoding="utf-8",
+            )
+
+            def init_project(project_name: str) -> str:
+                assert project_name == "plainproj"
+                project_file.write_text(
+                    f"BARE_REPO_DIR: {bare_dir}\nWORKSPACE_DIR: {workspace_dir}\n",
+                    encoding="utf-8",
+                )
+                return str(project_file)
+
+            mock_init.side_effect = init_project
+
+            with patch(f"{_REF_MOD}.Path.home", return_value=home):
+                result = resolve_git_ref("plainproj")
+
+            assert result == ResolvedGitRef(
+                project_file=str(project_file),
+                project_name="plainproj",
+                primary_workspace_dir=workspace_dir,
+                bare_repo_dir=str(bare_dir),
+                checkout_target="origin/main",
+            )
+
+            mock_find.assert_called_once()
+            mock_init.assert_called_once_with("plainproj")
+            mock_branch.assert_called_once_with(workspace_dir)
+
+    @patch(f"{_REF_MOD}.find_all_changespecs", return_value=[])
+    @patch(f"{_INIT_MOD}.init_bare_git_project")
+    def test_project_with_bare_repo_without_workspace_is_not_initialized(
         self,
         mock_init: MagicMock,
         mock_find: MagicMock,
     ) -> None:
         with tempfile.TemporaryDirectory() as d:
             home = Path(d)
-            project_dir = home / ".sase" / "projects" / "plainproj"
+            project_dir = home / ".sase" / "projects" / "home"
             project_dir.mkdir(parents=True)
-            (project_dir / "plainproj.sase").write_text(
-                "WORKSPACE_DIR: /work/plainproj/\nNAME: cl\n",
+            (project_dir / "home.sase").write_text(
+                "BARE_REPO_DIR: /repos/home.git\nNAME: home\n",
                 encoding="utf-8",
             )
 
             with patch(f"{_REF_MOD}.Path.home", return_value=home):
-                with pytest.raises(ValueError, match="Cannot resolve"):
-                    resolve_git_ref("plainproj")
+                with pytest.raises(
+                    ValueError,
+                    match="Project 'home' has BARE_REPO_DIR but WORKSPACE_DIR is not set",
+                ):
+                    resolve_git_ref("home")
 
-            mock_find.assert_called_once()
+            mock_find.assert_not_called()
             mock_init.assert_not_called()
 
     @patch(f"{_REF_MOD}.get_default_branch", return_value="origin/main")

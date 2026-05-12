@@ -280,9 +280,10 @@ bare-git `home` project by default and gets normal numbered workspace, checkout,
 `#cd:~`, `#cd:/abs/path`, `#cd:relative/path`, `#cd:../sibling`, or `#cd(.)` to choose a directory explicitly and skip
 VCS workspace management.
 
-Before relying on bare prompts, make sure the `home` bare-git project points at the intended repository, for example
-with `sase init-git home --existing <bare-repo> --clone-dir <checkout-dir>`. If `home` is missing or lacks
-`BARE_REPO_DIR` / `WORKSPACE_DIR`, SASE reports a setup error instead of creating an unrelated empty home project.
+By default, a missing or uninitialized `home` ProjectSpec is bootstrapped as a managed empty bare-git project at the
+default `home` paths. To make bare prompts use an existing home/dotfiles bare repository, configure it first with
+`sase init-git home --existing <bare-repo> --clone-dir <checkout-dir>`. Use `#cd:~` when you want a direct
+home-directory run without VCS workspace management.
 
 Provider-prefixed refs that point at a known project name are preserved as workspace launches even if the matching
 workspace plugin is not loaded in the current process. Known projects come from `~/.sase/projects/*/*.sase` (with legacy

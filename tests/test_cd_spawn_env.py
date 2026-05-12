@@ -133,16 +133,47 @@ def test_spawn_git_home_sets_preallocated_workspace_env(
     transfer.assert_not_called()
 
 
-def test_default_git_home_reports_incomplete_home_project(
+def test_default_git_home_auto_initializes_incomplete_home_project(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     project_dir = tmp_path / ".sase" / "projects" / "home"
+    project_file = project_dir / "home.sase"
+    bare_dir = tmp_path / ".sase" / "repos" / "home.git"
+    workspace_dir = str(tmp_path / "projects" / "git" / "home") + "/"
     project_dir.mkdir(parents=True)
-    (project_dir / "home.sase").write_text("NAME: home\n")
+    project_file.write_text("NAME: home\n")
 
     from sase.workspace_provider.plugins.bare_git_ref import resolve_git_ref
 
-    with pytest.raises(ValueError, match="Default bare-git project 'home'"):
-        resolve_git_ref("home")
+    def init_project(project_name: str) -> str:
+        assert project_name == "home"
+        project_file.write_text(
+            f"BARE_REPO_DIR: {bare_dir}\nWORKSPACE_DIR: {workspace_dir}\n",
+            encoding="utf-8",
+        )
+        return str(project_file)
+
+    with (
+        patch(
+            "sase.workspace_provider.plugins.bare_git_ref.find_all_changespecs",
+            return_value=[],
+        ) as find_all,
+        patch(
+            "sase.workspace_provider.plugins.bare_git_init.init_bare_git_project",
+            side_effect=init_project,
+        ) as init,
+        patch(
+            "sase.workspace_provider.plugins.bare_git_ref.get_default_branch",
+            return_value="origin/main",
+        ),
+    ):
+        result = resolve_git_ref("home")
+
+    assert result.project_name == "home"
+    assert result.primary_workspace_dir == workspace_dir
+    assert result.bare_repo_dir == str(bare_dir)
+    assert result.checkout_target == "origin/main"
+    find_all.assert_called_once()
+    init.assert_called_once_with("home")

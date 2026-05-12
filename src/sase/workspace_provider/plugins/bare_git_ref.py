@@ -121,15 +121,6 @@ def _init_missing_project_ref(project_name: str) -> ResolvedGitRef:
     )
 
 
-def _home_project_setup_error(detail: str) -> ValueError:
-    return ValueError(
-        f"Default bare-git project 'home' is not ready: {detail}. "
-        "Run `sase init-git home --existing <bare-repo> --clone-dir <checkout-dir>` "
-        "so #git:home points at the intended home/dotfiles repository, or use "
-        "`#cd:~` for a direct home-directory run with no VCS workspace."
-    )
-
-
 def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
     """Resolve a ``#git`` reference to workspace and branch information.
 
@@ -137,7 +128,7 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
 
     1. **Project shorthand** (no ``/``, matching project dir): look up
        ``BARE_REPO_DIR`` and ``WORKSPACE_DIR`` from
-       ``~/.sase/projects/<name>/<name>.gp``.
+       ``~/.sase/projects/<name>/<name>.sase``.
     2. **ChangeSpec name**: search all changespecs for a matching name,
        verify project has ``BARE_REPO_DIR``.
     3. **Missing project shorthand**: initialize a new bare-git project using
@@ -160,14 +151,11 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
     if "/" not in git_ref:
         project_dir = projects_base / git_ref
         project_file_path = Path(preferred_project_spec_path(str(project_dir), git_ref))
-        project_file_exists = project_file_path.exists()
         if project_dir.is_dir() and project_file_path.exists():
             bare_repo_dir = parse_bare_repo_dir(str(project_file_path))
             if bare_repo_dir:
                 workspace_dir = parse_workspace_dir(str(project_file_path))
                 if not workspace_dir:
-                    if git_ref == "home":
-                        raise _home_project_setup_error("WORKSPACE_DIR is not set")
                     raise ValueError(
                         f"Project '{git_ref}' has BARE_REPO_DIR but "
                         "WORKSPACE_DIR is not set"
@@ -180,8 +168,6 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
                     bare_repo_dir=bare_repo_dir,
                     checkout_target=checkout_target,
                 )
-            if git_ref == "home":
-                raise _home_project_setup_error("BARE_REPO_DIR is not set")
 
         # --- Mode 2: ChangeSpec name ---
         for cs in find_all_changespecs():
@@ -206,15 +192,7 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
                     checkout_target=f"origin/{git_ref}",
                 )
 
-        if not project_file_exists:
-            if git_ref == "home":
-                raise _home_project_setup_error("project file does not exist")
-            return _init_missing_project_ref(git_ref)
-
-        if git_ref == "home":
-            raise _home_project_setup_error("project file exists but is incomplete")
-
-        raise ValueError(f"Cannot resolve git_ref '{git_ref}'")
+        return _init_missing_project_ref(git_ref)
 
     # --- Mode 4: bare repo path (contains /) ---
     bare_path = os.path.expanduser(git_ref)
