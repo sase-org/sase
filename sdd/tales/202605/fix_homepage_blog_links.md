@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 11:30:48
-status: wip
+status: done
 prompt: sdd/prompts/202605/fix_homepage_blog_links.md
 ---
 # Fix sase.sh Homepage Blog Links

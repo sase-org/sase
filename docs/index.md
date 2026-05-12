@@ -175,7 +175,7 @@ title: Structured Agentic Software Engineering
 
   <p>Why coding agents need orchestration above individual provider CLIs.</p>
 
-<a href="blog/why-coding-agents-need-orchestration/">Read the essay</a>
+<a href="blog/posts/why-coding-agents-need-orchestration/">Read the essay</a>
 
   </article>
 

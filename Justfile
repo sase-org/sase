@@ -220,14 +220,30 @@ docs-check: _venv
 # the `docs-pdf` optional dependency group in pyproject.toml.
 docs-pdf-check: _venv
     uv pip install --python {{ venv_bin }}/python --no-sources "mkdocs-material>=9.7,<10" "mkdocs-rss-plugin>=1.18,<2" "mkdocs-exporter>=6.2,<7" "pypdf>=5,<7"
-    @if [ "$${CI:-}" = "true" ]; then \
+    @if [ "${CI:-}" = "true" ]; then \
         {{ venv_bin }}/python -m playwright install --with-deps chromium; \
     else \
         {{ venv_bin }}/python -m playwright install chromium; \
     fi
-    SASE_PDF_BUILD_DATE="$(date -u +%Y-%m-%d)" {{ venv_bin }}/mkdocs build --strict -f mkdocs-pdf.yml
-    {{ venv_bin }}/python tools/postprocess_docs_pdf
-    {{ venv_bin }}/python tools/validate_docs_pdf
+    @set -e; \
+    pdf_site_dir="$(mktemp -d)"; \
+    trap 'rm -rf "$pdf_site_dir"' EXIT; \
+    SASE_PDF_BUILD_DATE="$(date -u +%Y-%m-%d)" {{ venv_bin }}/mkdocs build --strict -f mkdocs-pdf.yml --site-dir "$pdf_site_dir"; \
+    {{ venv_bin }}/python tools/postprocess_docs_pdf --site-dir "$pdf_site_dir"; \
+    {{ venv_bin }}/python tools/validate_docs_pdf --site-dir "$pdf_site_dir"; \
+    mkdir -p site/downloads; \
+    cp "$pdf_site_dir/downloads/sase-handbook.pdf" site/downloads/sase-handbook.pdf
+
+# Verify the generated docs deploy artifact contains the normal site plus PDF.
+docs-deploy-artifact-check:
+    test -f site/index.html
+    test -f site/_headers
+    test -f site/downloads/sase-handbook.pdf
+    test "$(head -c 4 site/downloads/sase-handbook.pdf)" = "%PDF"
+    test -f site/blog/index.html
+    test -f site/blog/posts/why-coding-agents-need-orchestration/index.html
+    test -f site/series/agentic-software-engineering/index.html
+    ! grep -Fq 'href="blog/why-coding-agents-need-orchestration/"' site/index.html
 
 # Validate SDD prompt/plan frontmatter links.
 sdd-validate: _setup

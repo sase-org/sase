@@ -38,12 +38,7 @@ jobs:
         run: just docs-pdf-check
 
       - name: Verify deploy artifact
-        run: |
-          set -euo pipefail
-          test -f site/index.html
-          test -f site/_headers
-          test -f site/downloads/sase-handbook.pdf
-          test "$(head -c 4 site/downloads/sase-handbook.pdf)" = "%PDF"
+        run: just docs-deploy-artifact-check
 
       - name: Deploy to Cloudflare Worker
         id: deploy

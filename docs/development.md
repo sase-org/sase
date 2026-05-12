@@ -182,8 +182,8 @@ just docs-pdf-check
 ```
 
 `just docs-check` installs only MkDocs tooling, then runs `mkdocs build --strict`. `just docs-pdf-check` installs the
-PDF tooling, installs Chromium for Playwright, builds with `mkdocs-pdf.yml`, post-processes the handbook, and validates
-`site/downloads/sase-handbook.pdf`.
+PDF tooling, installs Chromium for Playwright, builds `mkdocs-pdf.yml` in an isolated temporary site directory,
+post-processes and validates the handbook there, and copies only `downloads/sase-handbook.pdf` back into `site/`.
 
 ## Docs Deployment
 
@@ -193,7 +193,7 @@ workflow:
 1. Checks out the repo and installs `uv`, `just`, and Python 3.12.
 2. Runs `just docs-check`.
 3. Runs `just docs-pdf-check`.
-4. Verifies `site/index.html`, `site/_headers`, and `site/downloads/sase-handbook.pdf`.
+4. Verifies `site/index.html`, `site/_headers`, the blog and series pages, and `site/downloads/sase-handbook.pdf`.
 5. Deploys the prebuilt `site/` directory through `wrangler.jsonc`.
 6. Smoke-tests the deployed handbook PDF from the deployment URL and `https://sase.sh/`.
 

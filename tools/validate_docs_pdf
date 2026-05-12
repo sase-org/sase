@@ -5,12 +5,13 @@ from __future__ import annotations
 
 import re
 import sys
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
 
 from pypdf import PdfReader
 
 
-PDF_PATH = Path("site/downloads/sase-handbook.pdf")
+DEFAULT_SITE_DIR = Path("site")
 MAX_SIZE_BYTES = 22 * 1024 * 1024
 MIN_PAGE_COUNT = 8
 
@@ -89,14 +90,28 @@ def _outline_titles(outline: list[object]) -> list[str]:
     return titles
 
 
+def _parse_args() -> Namespace:
+    parser = ArgumentParser(description="Validate the generated SASE handbook PDF.")
+    parser.add_argument(
+        "--site-dir",
+        type=Path,
+        default=DEFAULT_SITE_DIR,
+        help="MkDocs output directory containing downloads/sase-handbook.pdf.",
+    )
+    return parser.parse_args()
+
+
 def main() -> int:
-    if not PDF_PATH.exists():
-        _error(f"missing PDF: {PDF_PATH}")
+    args = _parse_args()
+    pdf_path = args.site_dir / "downloads" / "sase-handbook.pdf"
+
+    if not pdf_path.exists():
+        _error(f"missing PDF: {pdf_path}")
         return 1
 
-    size = PDF_PATH.stat().st_size
+    size = pdf_path.stat().st_size
     if size <= 0:
-        _error(f"empty PDF: {PDF_PATH}")
+        _error(f"empty PDF: {pdf_path}")
         return 1
 
     if size > MAX_SIZE_BYTES:
@@ -106,7 +121,7 @@ def main() -> int:
         )
         return 1
 
-    reader = PdfReader(str(PDF_PATH))
+    reader = PdfReader(str(pdf_path))
     page_count = len(reader.pages)
     if page_count < MIN_PAGE_COUNT:
         _error(
@@ -178,7 +193,7 @@ def main() -> int:
         return 1
 
     print(
-        f"[validate_docs_pdf] ok: {PDF_PATH} "
+        f"[validate_docs_pdf] ok: {pdf_path} "
         f"({page_count} pages, {size / 1024 / 1024:.1f} MiB)"
     )
     return 0

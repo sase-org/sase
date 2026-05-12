@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 import sys
+from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
@@ -14,8 +15,7 @@ import yaml
 from pypdf import PdfReader, PdfWriter
 
 
-PDF_PATH = Path("site/downloads/sase-handbook.pdf")
-SITE_DIR = Path("site")
+DEFAULT_SITE_DIR = Path("site")
 MKDOCS_CONFIG = Path("mkdocs.yml")
 
 METADATA = {
@@ -113,13 +113,13 @@ def _flatten_nav(items: list[Any]) -> list[tuple[str, str]]:
     return pages
 
 
-def _site_path_for(source_path: str, suffix: str) -> Path:
+def _site_path_for(site_dir: Path, source_path: str, suffix: str) -> Path:
     source = Path(source_path)
     if source.name == "index.md":
         relative = source.parent / f"index{suffix}"
     else:
         relative = source.with_suffix("") / f"index{suffix}"
-    return SITE_DIR / relative
+    return site_dir / relative
 
 
 def _headings_from_html(path: Path) -> tuple[Heading, ...]:
@@ -128,14 +128,14 @@ def _headings_from_html(path: Path) -> tuple[Heading, ...]:
     return tuple(parser.headings)
 
 
-def _load_chapters() -> list[Chapter]:
+def _load_chapters(site_dir: Path) -> list[Chapter]:
     config = yaml.safe_load(MKDOCS_CONFIG.read_text(encoding="utf-8"))
     nav_pages = _flatten_nav(config["nav"])
     chapters: list[Chapter] = []
 
     for index, (nav_title, source_path) in enumerate(nav_pages, start=1):
-        html_path = _site_path_for(source_path, ".html")
-        pdf_path = _site_path_for(source_path, ".pdf")
+        html_path = _site_path_for(site_dir, source_path, ".html")
+        pdf_path = _site_path_for(site_dir, source_path, ".pdf")
         if not html_path.exists():
             raise FileNotFoundError(f"missing generated HTML: {html_path}")
         if not pdf_path.exists():
@@ -248,14 +248,31 @@ def _add_outlines(
                 writer.add_outline_item(numbered, target, parent=parent)
 
 
+def _parse_args() -> Namespace:
+    parser = ArgumentParser(
+        description="Add metadata and outlines to the generated SASE handbook PDF."
+    )
+    parser.add_argument(
+        "--site-dir",
+        type=Path,
+        default=DEFAULT_SITE_DIR,
+        help="MkDocs output directory containing downloads/sase-handbook.pdf.",
+    )
+    return parser.parse_args()
+
+
 def main() -> int:
-    if not PDF_PATH.exists():
-        _error(f"missing PDF: {PDF_PATH}")
+    args = _parse_args()
+    site_dir = args.site_dir
+    pdf_path = site_dir / "downloads" / "sase-handbook.pdf"
+
+    if not pdf_path.exists():
+        _error(f"missing PDF: {pdf_path}")
         return 1
 
     try:
-        chapters = _load_chapters()
-        reader = PdfReader(str(PDF_PATH))
+        chapters = _load_chapters(site_dir)
+        reader = PdfReader(str(pdf_path))
         page_text = _extract_page_text(reader)
         chapter_pages = _chapter_pages(chapters, page_text)
 
@@ -269,16 +286,16 @@ def main() -> int:
             remove_duplicates=True, remove_unreferenced=True
         )
 
-        temp_path = PDF_PATH.with_suffix(".postprocess.tmp.pdf")
+        temp_path = pdf_path.with_suffix(".postprocess.tmp.pdf")
         with temp_path.open("wb") as handle:
             writer.write(handle)
-        temp_path.replace(PDF_PATH)
+        temp_path.replace(pdf_path)
     except Exception as exc:
         _error(str(exc))
         return 1
 
     print(
-        f"[postprocess_docs_pdf] ok: {PDF_PATH} "
+        f"[postprocess_docs_pdf] ok: {pdf_path} "
         f"({len(chapters)} chapter outlines)"
     )
     return 0

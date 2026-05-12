@@ -99,6 +99,7 @@ jobs:
         run: |
           just docs-check
           just docs-pdf-check
+          just docs-deploy-artifact-check
 
   # Test matrix runs every shipped operation through the Rust binding.
   # Coverage is collected from the 3.12 leg.
