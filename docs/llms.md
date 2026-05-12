@@ -262,7 +262,7 @@ text from `assistant` events and falls back to the final `result` text when no a
 
 | Tier    | Qwen Model          |
 | ------- | ------------------- |
-| `large` | `qwen3-coder-plus`  |
+| `large` | `qwen3.6-plus`      |
 | `small` | `qwen3-coder-flash` |
 
 ### Authentication
@@ -425,7 +425,7 @@ Use `provider/model` to specify both explicitly:
 %model:codex/o3
 %model:claude/opus
 %model:gemini/gemini-2.5-pro
-%model:qwen/qwen3-coder-plus
+%model:qwen/qwen3.6-plus
 %model:opencode/anthropic/claude-sonnet-4-5
 ```
 
@@ -438,7 +438,7 @@ Known model names are automatically mapped to their provider:
 | `opus`, `sonnet`, `haiku`                                                                                                                                 | claude   |
 | `gpt-5.5`, `gpt-5.3-codex`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini`                           | codex    |
 | `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro`, `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.0-flash`                            | gemini   |
-| `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                                             | qwen     |
+| `qwen3.6-plus`, `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                             | qwen     |
 | `anthropic/claude-sonnet-4-5`, `anthropic/claude-opus-4-5`, `openai/gpt-5`, `openai/gpt-5-mini`, `google/gemini-3-flash-preview`, `qwen/qwen3-coder-plus` | opencode |
 
 Each installed plugin contributes its own model names via the `llm_known_model_names()` hook.

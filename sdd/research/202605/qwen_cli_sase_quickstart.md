@@ -18,7 +18,7 @@ Two prefixes are doing work here:
   normalized to `#git:home`, and `home` must already be initialized (`sase init-git home --existing ... --clone-dir
   ...`) or the launch fails with a setup error.
 - `%model:qwen/qwen3-coder-flash` forces SASE to route this prompt through the Qwen provider. Swap in
-  `qwen/qwen3-coder-plus` for SASE's larger Qwen tier. The bare form `%model:qwen3-coder-flash` also works because Qwen
+  `qwen/qwen3.6-plus` for SASE's larger Qwen tier. The bare form `%model:qwen3-coder-flash` also works because Qwen
   registers that model name (see [Routing options](#routing-options) for why you usually want this directive on the
   first run anyway).
 
@@ -92,7 +92,7 @@ so SASE picks one of them unless you override. Two ways to make Qwen the persist
   llm_provider:
     provider: qwen
     model_tier_map:
-      large: qwen3-coder-plus
+      large: qwen3.6-plus
       small: qwen3-coder-flash
   ```
 
@@ -118,7 +118,7 @@ Default SASE Qwen model mapping:
 
 | SASE tier | Qwen model |
 | --- | --- |
-| `large` | `qwen3-coder-plus` |
+| `large` | `qwen3.6-plus` |
 | `small` | `qwen3-coder-flash` |
 
 Qwen Code itself reads config from `~/.qwen/settings.json` and an optional project-local `.qwen/settings.json`. SASE

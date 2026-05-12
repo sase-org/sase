@@ -22,8 +22,8 @@ def test_qwen_provider_is_llm_provider() -> None:
 
 def test_qwen_provider_resolve_model_name() -> None:
     provider = QwenProvider()
-    assert provider.resolve_model_name() == "qwen3-coder-plus"
-    assert provider.resolve_model_name("large") == "qwen3-coder-plus"
+    assert provider.resolve_model_name() == "qwen3.6-plus"
+    assert provider.resolve_model_name("large") == "qwen3.6-plus"
     assert provider.resolve_model_name("small") == "qwen3-coder-flash"
 
 
@@ -50,7 +50,7 @@ def test_qwen_provider_command_construction(
     assert "stream-json" in cmd
     assert "--yolo" in cmd
     assert "--model" in cmd
-    assert "qwen3-coder-plus" in cmd
+    assert "qwen3.6-plus" in cmd
     assert mock_popen.call_args.kwargs["text"] is True
     mock_process.stdin.write.assert_called_once_with("test prompt")
     mock_process.stdin.close.assert_called_once()
@@ -75,7 +75,7 @@ def test_qwen_provider_model_override(
 
     cmd = mock_popen.call_args.args[0]
     assert "custom" in cmd
-    assert "qwen3-coder-plus" not in cmd
+    assert "qwen3.6-plus" not in cmd
 
 
 @patch.dict(os.environ, {"SASE_QWEN_PATH": "/opt/qwen/bin/qwen"})
@@ -247,6 +247,14 @@ def test_qwen_parser_ignores_malformed_and_unknown_events() -> None:
 
 
 def test_qwen_model_resolution() -> None:
+    assert resolve_model_provider("qwen/qwen3.6-plus") == (
+        "qwen",
+        "qwen3.6-plus",
+    )
+    assert resolve_model_provider("qwen3.6-plus") == (
+        "qwen",
+        "qwen3.6-plus",
+    )
     assert resolve_model_provider("qwen/qwen3-coder-plus") == (
         "qwen",
         "qwen3-coder-plus",

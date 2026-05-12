@@ -32,10 +32,12 @@ def test_provider_metadata_aggregation_includes_qwen_and_opencode() -> None:
     provider_shorts = provider_short_name_map()
     model_aliases = model_short_alias_map()
 
+    assert models["qwen3.6-plus"] == "qwen"
     assert models["qwen3-coder-plus"] == "qwen"
     assert models["anthropic/claude-sonnet-4-5"] == "opencode"
     assert provider_shorts["qwen"] == "qwn"
     assert provider_shorts["opencode"] == "opc"
+    assert model_aliases["qwen3.6-plus"] == "qwen36p"
     assert model_aliases["qwen3-coder-plus"] == "qwen3cp"
     assert model_aliases["anthropic/claude-sonnet-4-5"] == "sonnet45"
     assert provider_cli_status_color_map()["qwen"] == "#7CFF6B"
@@ -52,6 +54,7 @@ def test_nested_opencode_model_resolution_preserves_provider_local_model() -> No
 def test_model_picker_includes_qwen_and_opencode_models() -> None:
     option_ids = {option.id for option in _build_model_options() if option is not None}
 
+    assert "qwen3.6-plus" in option_ids
     assert "qwen3-coder-plus" in option_ids
     assert "anthropic/claude-sonnet-4-5" in option_ids
 

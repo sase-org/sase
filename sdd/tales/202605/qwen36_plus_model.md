@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 15:06:53
-status: wip
+status: done
 prompt: sdd/prompts/202605/qwen36_plus_model.md
 ---
 # Plan: Add `qwen3.6-plus` Qwen Model Routing

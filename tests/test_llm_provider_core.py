@@ -154,6 +154,7 @@ def test_resolve_model_provider_implicit_mapping() -> None:
     assert resolve_model_provider("gpt-5.5") == ("codex", "gpt-5.5")
     assert resolve_model_provider("gpt-5.3-codex") == ("codex", "gpt-5.3-codex")
     assert resolve_model_provider("gemini-2.5-pro") == ("gemini", "gemini-2.5-pro")
+    assert resolve_model_provider("qwen3.6-plus") == ("qwen", "qwen3.6-plus")
 
 
 def test_resolve_model_provider_unknown_model() -> None:

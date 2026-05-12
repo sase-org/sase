@@ -15,7 +15,7 @@ from .base import LLMProvider
 from .types import InvokeResult, ModelTier
 
 _TIER_TO_MODEL: dict[ModelTier, str] = {
-    "large": "qwen3-coder-plus",
+    "large": "qwen3.6-plus",
     "small": "qwen3-coder-flash",
 }
 _QWEN_PATH_ENV = "SASE_QWEN_PATH"
@@ -78,6 +78,7 @@ class QwenProvider(LLMProvider):
     @hookimpl
     def llm_known_model_names(self) -> list[str]:
         return [
+            "qwen3.6-plus",
             "qwen3-coder-plus",
             "qwen3-coder-flash",
             "qwen3-max",
@@ -88,6 +89,7 @@ class QwenProvider(LLMProvider):
     @hookimpl
     def llm_model_short_aliases(self) -> dict[str, str]:
         return {
+            "qwen3.6-plus": "qwen36p",
             "qwen3-coder-plus": "qwen3cp",
             "qwen3-coder-flash": "qwen3cf",
         }
