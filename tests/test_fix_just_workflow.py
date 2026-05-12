@@ -17,7 +17,19 @@ def test_fix_just_decide_fixers_renders_bool_step_inputs(
     workflow = _load_workflow_from_file(workflow_path)
     assert workflow is not None
 
+    executed_bash_steps: list[str] = []
     launched_agents: list[str] = []
+
+    def fake_execute_bash_step(
+        self: WorkflowExecutor,
+        step: WorkflowStep,
+        step_state: StepState,
+    ) -> bool:
+        executed_bash_steps.append(step.name)
+        step_state.output = {}
+        self.context[step.name] = {}
+        self.state.context = dict(self.context)
+        return True
 
     def fake_execute_prompt_step(
         self: WorkflowExecutor,
@@ -30,6 +42,11 @@ def test_fix_just_decide_fixers_renders_bool_step_inputs(
         self.state.context = dict(self.context)
         return True
 
+    monkeypatch.setattr(
+        WorkflowExecutor,
+        "_execute_bash_step",
+        fake_execute_bash_step,
+    )
     monkeypatch.setattr(
         WorkflowExecutor,
         "_execute_prompt_step",
@@ -55,9 +72,11 @@ def test_fix_just_decide_fixers_renders_bool_step_inputs(
     assert decide_output["launch_fmt"] is False
     assert decide_output["launch_linters"] is True
     assert decide_output["launch_tests"] is False
+    assert executed_bash_steps == ["_just_install"]
     assert launched_agents == ["fix_linters"]
 
     step_statuses = {step.name: step.status for step in executor.state.steps}
+    assert step_statuses["_just_install"] is StepStatus.COMPLETED
     assert step_statuses["_just_fmt_check"] is StepStatus.SKIPPED
     assert step_statuses["_just_lint"] is StepStatus.SKIPPED
     assert step_statuses["_just_test"] is StepStatus.SKIPPED

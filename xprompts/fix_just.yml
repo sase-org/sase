@@ -1,4 +1,9 @@
 steps:
+  - name: _just_install
+    hidden: true
+    bash: |
+      just install
+
   - name: _just_fmt_check
     hidden: true
     bash: |

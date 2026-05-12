@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 17:53:32
-status: wip
+status: done
 prompt: sdd/prompts/202605/fix_just_install_bootstrap.md
 ---
 # Plan: Bootstrap `fix_just` with `just install`
