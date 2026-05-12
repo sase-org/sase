@@ -965,9 +965,14 @@ def test_parse_annotations_uses_check_run_identity(
     assert out[0].path == "src/x.py"
 
 
-def test_diagnostics_annotations_preferred_over_logs(
+def test_diagnostics_collects_annotations_and_logs_together(
     script: types.ModuleType,
 ) -> None:
+    """Generic annotations must not suppress the log tail.
+
+    Real CI annotations often only say ``Process completed with exit code 1``;
+    callers need the failed-log tail too, so the diagnostic carries both.
+    """
     failed_run = _make_run(
         script,
         workflow="CI",
@@ -994,7 +999,13 @@ def test_diagnostics_annotations_preferred_over_logs(
     failing_check_run = _make_check_run(
         script, name="build", check_run_id=555, conclusion="failure"
     )
-    annotation = _make_annotation(script, check_run=failing_check_run)
+    annotation = _make_annotation(
+        script,
+        check_run=failing_check_run,
+        path=".github",
+        title="failure",
+        message="Process completed with exit code 1.",
+    )
     stub = _StubClient(
         jobs_by_run={
             100: [
@@ -1003,18 +1014,97 @@ def test_diagnostics_annotations_preferred_over_logs(
         },
         check_runs_by_sha={"abc": [failing_check_run]},
         annotations_by_check_run={555: [annotation]},
-        logs_by_run={100: "should not be read"},
+        logs_by_run={100: "line A\nROOT CAUSE: explosion\n"},
     )
 
     diagnostics = script.gather_failure_diagnostics(stub, run_set, tail=10)
 
     assert len(diagnostics) == 1
     diag = diagnostics[0]
+    assert diag.source == script.DIAG_SOURCE_ANNOTATIONS_AND_LOGS
+    assert diag.annotations == (annotation,)
+    assert diag.log_tail == ("line A", "ROOT CAUSE: explosion")
+    # Both endpoints must be hit so generic annotations cannot hide the log.
+    assert stub.fetch_failed_log_calls == [100]
+
+
+def test_diagnostics_annotations_alone_when_log_empty(
+    script: types.ModuleType,
+) -> None:
+    """When the log endpoint returns nothing, annotations stand on their own."""
+    failed_run = _make_run(
+        script,
+        workflow="CI",
+        sha="abc",
+        conclusion="failure",
+        database_id=100,
+    )
+    run_set = script.RunSet(
+        head_sha="abc",
+        head_branch="master",
+        display_title="",
+        created_at="2026-05-11T00:00:00Z",
+        runs=(failed_run,),
+    )
+    cr = _make_check_run(script, name="build", check_run_id=42, conclusion="failure")
+    annotation = _make_annotation(script, check_run=cr)
+    stub = _StubClient(
+        jobs_by_run={100: [_make_job(script, name="build", conclusion="failure")]},
+        check_runs_by_sha={"abc": [cr]},
+        annotations_by_check_run={42: [annotation]},
+        logs_by_run={100: ""},
+    )
+
+    diagnostics = script.gather_failure_diagnostics(stub, run_set, tail=10)
+
+    diag = diagnostics[0]
     assert diag.source == script.DIAG_SOURCE_ANNOTATIONS
     assert diag.annotations == (annotation,)
     assert diag.log_tail == ()
-    # Annotations were found, so the log endpoint must not have been hit.
-    assert stub.fetch_failed_log_calls == []
+    # Even with annotations present, the log endpoint is attempted exactly once.
+    assert stub.fetch_failed_log_calls == [100]
+
+
+def test_diagnostics_log_fetch_error_degrades_cleanly_with_annotations(
+    script: types.ModuleType,
+) -> None:
+    """If annotations succeed but the log fetch raises, the failure is recorded."""
+    failed_run = _make_run(
+        script,
+        workflow="CI",
+        sha="abc",
+        conclusion="failure",
+        database_id=100,
+    )
+    run_set = script.RunSet(
+        head_sha="abc",
+        head_branch="master",
+        display_title="",
+        created_at="2026-05-11T00:00:00Z",
+        runs=(failed_run,),
+    )
+    cr = _make_check_run(script, name="build", check_run_id=99, conclusion="failure")
+    annotation = _make_annotation(script, check_run=cr)
+    log_error = script.GhCommandError(
+        ["gh", "run", "view", "100", "--log-failed"],
+        1,
+        "log archive expired",
+    )
+    stub = _StubClient(
+        jobs_by_run={100: [_make_job(script, name="build", conclusion="failure")]},
+        check_runs_by_sha={"abc": [cr]},
+        annotations_by_check_run={99: [annotation]},
+        logs_by_run={100: log_error},
+    )
+
+    diagnostics = script.gather_failure_diagnostics(stub, run_set, tail=10)
+
+    diag = diagnostics[0]
+    assert diag.source == script.DIAG_SOURCE_ANNOTATIONS
+    assert diag.annotations == (annotation,)
+    assert diag.log_tail == ()
+    assert "log archive expired" in diag.log_error
+    assert stub.fetch_failed_log_calls == [100]
 
 
 def test_diagnostics_logs_tailed_to_requested_lines(
@@ -1194,8 +1284,9 @@ def test_diagnostics_multiple_failed_workflows_reported_independently(
     assert diag_a.annotations == (annotation_a,)
     assert diag_b.source == script.DIAG_SOURCE_LOGS
     assert diag_b.log_tail == ("tail line 1", "tail line 2")
-    # Only run_b should have used the log endpoint.
-    assert stub.fetch_failed_log_calls == [200]
+    # Both runs now hit the log endpoint so generic annotations on run_a
+    # could not hide a real failure tail there either.
+    assert stub.fetch_failed_log_calls == [100, 200]
 
 
 def test_main_failing_set_includes_diagnostics(
@@ -1253,6 +1344,86 @@ def test_main_failing_set_includes_diagnostics(
     assert diags[0]["annotations"][0]["path"] == "src/x.py"
     # Only the failed run should have been queried for jobs.
     assert stub.list_jobs_calls == [100]
+
+
+def test_main_human_output_renders_annotations_and_logs_together(
+    script: types.ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Both annotation and log sections must appear when both are present."""
+    runs = [
+        _make_run(
+            script,
+            workflow="CI",
+            sha="abc",
+            conclusion="failure",
+            database_id=100,
+        ),
+    ]
+    failing_job = _make_job(script, name="build", conclusion="failure")
+    cr = _make_check_run(script, name="build", check_run_id=7, conclusion="failure")
+    annotation = _make_annotation(
+        script,
+        check_run=cr,
+        path=".github/workflows/ci.yml",
+        title="failure",
+        message="Process completed with exit code 1.",
+    )
+    stub = _StubClient(
+        runs=runs,
+        jobs_by_run={100: [failing_job]},
+        check_runs_by_sha={"abc": [cr]},
+        annotations_by_check_run={7: [annotation]},
+        logs_by_run={100: "noise\nROOT CAUSE: blew up\n"},
+    )
+    _install_stub(script, monkeypatch, stub)
+
+    code = script.main(["--tail", "5"])
+    assert code == script.EXIT_FAIL
+    out = capsys.readouterr().out
+    assert "annotations for failed check-runs" in out
+    assert ".github/workflows/ci.yml" in out
+    assert "Process completed with exit code 1." in out
+    assert "log tail (last" in out
+    assert "ROOT CAUSE: blew up" in out
+
+
+def test_main_json_diagnostics_includes_annotations_and_log_tail(
+    script: types.ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """JSON output must carry both annotations and the log tail."""
+    runs = [
+        _make_run(
+            script,
+            workflow="CI",
+            sha="abc",
+            conclusion="failure",
+            database_id=100,
+        ),
+    ]
+    failing_job = _make_job(script, name="build", conclusion="failure")
+    cr = _make_check_run(script, name="build", check_run_id=33, conclusion="failure")
+    annotation = _make_annotation(script, check_run=cr, path="src/x.py", title="oops")
+    stub = _StubClient(
+        runs=runs,
+        jobs_by_run={100: [failing_job]},
+        check_runs_by_sha={"abc": [cr]},
+        annotations_by_check_run={33: [annotation]},
+        logs_by_run={100: "first\nsecond\nthird\n"},
+    )
+    _install_stub(script, monkeypatch, stub)
+
+    code = script.main(["--json", "--tail", "2"])
+    assert code == script.EXIT_FAIL
+    payload = json.loads(capsys.readouterr().out)
+    diags = payload["diagnostics"]
+    assert len(diags) == 1
+    assert diags[0]["source"] == script.DIAG_SOURCE_ANNOTATIONS_AND_LOGS
+    assert diags[0]["annotations"][0]["path"] == "src/x.py"
+    assert diags[0]["log_tail"] == ["second", "third"]
 
 
 def test_main_human_output_renders_diagnostic_block(

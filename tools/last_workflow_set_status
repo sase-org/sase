@@ -402,9 +402,12 @@ class Annotation:
     message: str
 
 
-# Sentinel values for :class:`RunDiagnostics.source`.
+# Sentinel values for :class:`RunDiagnostics.source`. Annotations and logs
+# can both be populated for the same run; the source reports whichever
+# combination was found so consumers can branch on it if needed.
 DIAG_SOURCE_ANNOTATIONS = "annotations"
 DIAG_SOURCE_LOGS = "logs"
+DIAG_SOURCE_ANNOTATIONS_AND_LOGS = "annotations_and_logs"
 DIAG_SOURCE_JOBS_ONLY = "jobs_only"
 DIAG_SOURCE_NONE = "none"
 
@@ -665,11 +668,10 @@ def _diagnose_run(
 ) -> RunDiagnostics:
     """Collect diagnostics for one failed workflow run.
 
-    Order of preference for surface text:
-
-    1. Annotations on failed check-runs whose name matches a failed job.
-    2. The last ``tail`` lines of ``gh run view --log-failed``.
-    3. The job/step summary alone, when neither of the above produces output.
+    Annotations and the failed-log tail are both gathered when available.
+    Annotations on real GitHub Actions runs are frequently generic (e.g.
+    ``Process completed with exit code 1``); keeping the log tail alongside
+    them ensures the actual root-cause output is still surfaced.
     """
     try:
         jobs = client.list_jobs(run.database_id)
@@ -689,14 +691,6 @@ def _diagnose_run(
         except GhError:
             continue
 
-    if annotations:
-        return RunDiagnostics(
-            run=run,
-            failed_jobs=failed_jobs,
-            annotations=tuple(annotations),
-            source=DIAG_SOURCE_ANNOTATIONS,
-        )
-
     log_text = ""
     log_error = ""
     # The log endpoint is unavailable for some terminal states (notably
@@ -713,7 +707,11 @@ def _diagnose_run(
             lines = lines[-tail:]
         log_tail = tuple(lines)
 
-    if log_tail:
+    if annotations and log_tail:
+        source = DIAG_SOURCE_ANNOTATIONS_AND_LOGS
+    elif annotations:
+        source = DIAG_SOURCE_ANNOTATIONS
+    elif log_tail:
         source = DIAG_SOURCE_LOGS
     elif failed_jobs:
         source = DIAG_SOURCE_JOBS_ONLY
@@ -723,7 +721,7 @@ def _diagnose_run(
     return RunDiagnostics(
         run=run,
         failed_jobs=failed_jobs,
-        annotations=(),
+        annotations=tuple(annotations),
         log_tail=log_tail,
         log_error=log_error,
         source=source,
@@ -884,7 +882,7 @@ def _format_diagnostic_block(diag: RunDiagnostics) -> list[str]:
             lines.append(
                 f"    step {step.number}: {step.name} ({step_conclusion})"
             )
-    if diag.source == DIAG_SOURCE_ANNOTATIONS and diag.annotations:
+    if diag.annotations:
         lines.append(
             "  annotations for failed check-runs on this SHA:"
         )
@@ -899,23 +897,20 @@ def _format_diagnostic_block(diag: RunDiagnostics) -> list[str]:
             if ann.message:
                 for ml in ann.message.splitlines():
                     lines.append(f"      {ml}")
-    elif diag.source == DIAG_SOURCE_LOGS and diag.log_tail:
+    if diag.log_tail:
         lines.append(
             f"  log tail (last {len(diag.log_tail)} line(s)):"
         )
         for log_line in diag.log_tail:
             lines.append(f"    {log_line}")
-    elif diag.source == DIAG_SOURCE_JOBS_ONLY:
-        if diag.log_error:
-            lines.append(f"  log unavailable: {diag.log_error}")
-        else:
+    elif diag.log_error:
+        lines.append(f"  log unavailable: {diag.log_error}")
+    if not diag.annotations and not diag.log_tail and not diag.log_error:
+        if diag.failed_jobs:
             lines.append(
                 "  (no annotations or log output; jobs above are the only"
                 " diagnostic available)"
             )
-    elif diag.source == DIAG_SOURCE_NONE:
-        if diag.log_error:
-            lines.append(f"  log unavailable: {diag.log_error}")
         else:
             lines.append("  (no diagnostic detail available)")
     return lines
