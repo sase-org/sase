@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 11:31:07
-status: wip
+status: done
 prompt: sdd/prompts/202605/minimize_live_artifact_guidance.md
 ---
 # Minimize Live Artifact Guidance Changes

@@ -23,8 +23,6 @@ from tests.main.init_skills_handler_helpers import make_args
                 "sase agents status -j",
                 "artifacts_dir",
                 "cite the artifact paths",
-                "review, comparison, or selection questions",
-                "absence of a completed transcript",
             ),
         ),
         (
@@ -32,11 +30,8 @@ from tests.main.init_skills_handler_helpers import make_args
             (
                 "sase chats list -j",
                 "sase chats show",
-                "walk this fallback chain",
-                "sase agents status -a -j",
                 "/sase_agents_status",
                 "draft/live",
-                "stable/completed",
             ),
         ),
         ("sase_notify", ("sase notify list -j", "sase notify show --id")),
