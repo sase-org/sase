@@ -109,7 +109,101 @@ _lint-pyscripts: _setup
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260509 src/sase
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 src/sase \
+        --epic-symbol 'sase-3a(AcePage)' \
+        --epic-symbol 'sase-3a(ChatInstallConfig)' \
+        --epic-symbol 'sase-3a(CrossEpicBlockerError)' \
+        --epic-symbol 'sase-3a(CycleError)' \
+        --epic-symbol 'sase-3a(LegendEpicAssignment)' \
+        --epic-symbol 'sase-3a(MultiAgentXPromptDepthError)' \
+        --epic-symbol 'sase-3a(MultiAgentXPromptUsageError)' \
+        --epic-symbol 'sase-3a(NotificationCountsWire)' \
+        --epic-symbol 'sase-3a(NotificationStoreStatsWire)' \
+        --epic-symbol 'sase-3a(PanelSlice)' \
+        --epic-symbol 'sase-3a(ParseErrorWire)' \
+        --epic-symbol 'sase-3a(PhaseAssignment)' \
+        --epic-symbol 'sase-3a(PromptPage)' \
+        --epic-symbol 'sase-3a(QueryErrorWire)' \
+        --epic-symbol 'sase-3a(RawChangeSpecWire)' \
+        --epic-symbol 'sase-3a(SectionWire)' \
+        --epic-symbol 'sase-3a(StatusFieldReadWire)' \
+        --epic-symbol 'sase-3a(StatusFieldUpdateWire)' \
+        --epic-symbol 'sase-3a(StreamedScriptResult)' \
+        --epic-symbol 'sase-3a(agent_status_bucket)' \
+        --epic-symbol 'sase-3a(allocate_launch_timestamp_batch)' \
+        --epic-symbol 'sase-3a(apply_status_update_python)' \
+        --epic-symbol 'sase-3a(blocked_issues)' \
+        --epic-symbol 'sase-3a(build_epic_work_plan)' \
+        --epic-symbol 'sase-3a(build_legend_work_plan)' \
+        --epic-symbol 'sase-3a(build_query_program_wire)' \
+        --epic-symbol 'sase-3a(build_wait_chained_multi_prompt)' \
+        --epic-symbol 'sase-3a(cleanup_stale)' \
+        --epic-symbol 'sase-3a(clear_config_cache)' \
+        --epic-symbol 'sase-3a(clear_mentor_profiles_cache)' \
+        --epic-symbol 'sase-3a(close_issue)' \
+        --epic-symbol 'sase-3a(commit_entry_to_wire)' \
+        --epic-symbol 'sase-3a(create_memory_db)' \
+        --epic-symbol 'sase-3a(delete_issue)' \
+        --epic-symbol 'sase-3a(delta_entry_to_wire)' \
+        --epic-symbol 'sase-3a(delta_glyph_to_change_type)' \
+        --epic-symbol 'sase-3a(derive_git_workspace_name_python)' \
+        --epic-symbol 'sase-3a(enter_maintenance)' \
+        --epic-symbol 'sase-3a(extract_top_level_xprompt_reference)' \
+        --epic-symbol 'sase-3a(fake_output_path)' \
+        --epic-symbol 'sase-3a(fake_prompt_path)' \
+        --epic-symbol 'sase-3a(format_qa_for_prompt)' \
+        --epic-symbol 'sase-3a(from_base36)' \
+        --epic-symbol 'sase-3a(get_dependencies)' \
+        --epic-symbol 'sase-3a(get_model_aliases)' \
+        --epic-symbol 'sase-3a(get_tui_last_activity)' \
+        --epic-symbol 'sase-3a(git_query_wire_to_json_dict)' \
+        --epic-symbol 'sase-3a(group_agent_statuses)' \
+        --epic-symbol 'sase-3a(has_dismissed_bundle)' \
+        --epic-symbol 'sase-3a(has_wait_directive)' \
+        --epic-symbol 'sase-3a(hook_status_line_to_wire)' \
+        --epic-symbol 'sase-3a(is_idle)' \
+        --epic-symbol 'sase-3a(load_agents_from_disk)' \
+        --epic-symbol 'sase-3a(load_chat_install_config)' \
+        --epic-symbol 'sase-3a(load_store)' \
+        --epic-symbol 'sase-3a(load_vcs_xprompt_mru)' \
+        --epic-symbol 'sase-3a(make_changespec)' \
+        --epic-symbol 'sase-3a(mark_issue_ready_to_work)' \
+        --epic-symbol 'sase-3a(mentor_status_line_to_wire)' \
+        --epic-symbol 'sase-3a(notification_from_dict)' \
+        --epic-symbol 'sase-3a(open_issue)' \
+        --epic-symbol 'sase-3a(parse_git_branch_name_python)' \
+        --epic-symbol 'sase-3a(parse_git_conflicted_files_python)' \
+        --epic-symbol 'sase-3a(parse_git_local_changes_python)' \
+        --epic-symbol 'sase-3a(parse_git_name_status_z_python)' \
+        --epic-symbol 'sase-3a(parse_git_numstat_z_python)' \
+        --epic-symbol 'sase-3a(parse_project_bytes)' \
+        --epic-symbol 'sase-3a(persist_approve_field)' \
+        --epic-symbol 'sase-3a(persist_bulk_dismiss_transaction)' \
+        --epic-symbol 'sase-3a(persist_plan_auto_approval)' \
+        --epic-symbol 'sase-3a(plan_agent_cleanup_python)' \
+        --epic-symbol 'sase-3a(plan_approval_result_for_choice)' \
+        --epic-symbol 'sase-3a(plan_chain_suffix_from_meta)' \
+        --epic-symbol 'sase-3a(plan_status_transition_python)' \
+        --epic-symbol 'sase-3a(provider_style_for)' \
+        --epic-symbol 'sase-3a(query_expr_to_wire)' \
+        --epic-symbol 'sase-3a(query_wire_to_json_dict)' \
+        --epic-symbol 'sase-3a(read_status_from_lines_python)' \
+        --epic-symbol 'sase-3a(ready_issues)' \
+        --epic-symbol 'sase-3a(resolve_agent_chat_path)' \
+        --epic-symbol 'sase-3a(resolve_primary_workspace_for_chat_install)' \
+        --epic-symbol 'sase-3a(resolve_sdd_asset_path)' \
+        --epic-symbol 'sase-3a(resolve_sdd_readme_path)' \
+        --epic-symbol 'sase-3a(run_worker)' \
+        --epic-symbol 'sase-3a(status_request_from_dict)' \
+        --epic-symbol 'sase-3a(sync_status)' \
+        --epic-symbol 'sase-3a(timestamp_entry_to_wire)' \
+        --epic-symbol 'sase-3a(to_active_project_spec_path)' \
+        --epic-symbol 'sase-3a(to_archive_project_spec_path)' \
+        --epic-symbol 'sase-3a(to_base36)' \
+        --epic-symbol 'sase-3a(token_from_wire)' \
+        --epic-symbol 'sase-3a(token_to_wire)' \
+        --epic-symbol 'sase-3a(with_options)' \
+        --epic-symbol 'sase-3a(workspace_claim_request_from_dict)'
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted
@@ -259,7 +353,7 @@ all: fix lint pylimit test
 
 # Find unused Python function/class definitions
 pyvision *args: _setup (_header "pyvision")
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260509 src/sase \
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 src/sase \
         {{ args }}
 
 # Check Python file line counts

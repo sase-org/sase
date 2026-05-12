@@ -17,7 +17,7 @@ non-test reason, not be the only justification for a symbol's existence.
 ## Current Behavior
 
 Pyvision scans tracked Python files outside `src/` (which includes the `tests/` tree) as legitimate **usage** sources.
-Today's flow in `tools/executable_pyvision-260509`:
+Today's flow in `tools/executable_pyvision-260512`:
 
 - `_find_python_files(args.directory)` — collects **definition** files inside the analyzed tree, with `tests/` excluded
   (line 760).
@@ -83,7 +83,7 @@ it in the plan but don't expand scope.
   should NOT be reported as "stale pragma" — the pragma is still load-bearing. New test coverage.
 - **Vendored script policy**: Per `tools/AGENTS.md`, the canonical source is
   `~/.local/share/chezmoi/home/bin/executable_pyvision`. We must edit there, commit there (using the sase commit skill),
-  then re-vendor via `pyvendor`. We do **not** edit the `tools/executable_pyvision-260509` copy directly.
+  then re-vendor via `pyvendor`. We do **not** edit the `tools/executable_pyvision-260512` copy directly.
 
 ## Implementation Steps
 
@@ -129,9 +129,9 @@ Use the `sase_git_commit` skill (per the user's "ONLY way you should ever commit
 
 ### 4. Re-vendor into sase_104
 
-Run `pyvendor` to refresh `tools/executable_pyvision-260509`. (If the date suffix rolls forward to today's date, update
+Run `pyvendor` to refresh `tools/executable_pyvision-260512`. (If the date suffix rolls forward to today's date, update
 `Justfile` references and any documentation/agent-memory references to the old filename. Grep for
-`executable_pyvision-260509` first to enumerate the touch points — at minimum: `Justfile` lines 112 and 262.)
+`executable_pyvision-260512` first to enumerate the touch points — at minimum: `Justfile` lines 112 and 262.)
 
 ### 5. Audit sase_104 for newly-unused public symbols
 
@@ -145,7 +145,7 @@ the audit list is unexpectedly large, pause and surface it to the user before ma
 
 ### 6. Update documentation
 
-- `tools/AGENTS.md` `executable_pyvision-260509` section currently says: _"It scans tracked Python usage outside `src/`,
+- `tools/AGENTS.md` `executable_pyvision-260512` section currently says: _"It scans tracked Python usage outside `src/`,
   including tests, so Python test references do not need pragmas."_ Rewrite to state the new contract: tests are scanned
   only for the private-symbol guard; public symbols require at least one non-test consumer.
 - Update the "How do I whitelist a symbol" bullet that mentions _"Pragmas must not point at test files; Python test

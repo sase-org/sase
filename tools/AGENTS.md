@@ -1,18 +1,21 @@
 # SASE Tools (executable scripts)
 
-Any script in this directory that has a suffix of the form `-YYmmdd` (ex: `executable_pyvision-260509`) was vendored
+Any script in this directory that has a suffix of the form `-YYmmdd` (ex: `executable_pyvision-260512`) was vendored
 into this repo from my chezmoi dotfile repo (the ../lib/bugyi-260221.sh file was also vendored using `pyvendor`). If you
 are asked to modify any of these files, you should NOT. Instead make the change in the original source file in my
 dotfiles repo, use your commit skill (NOT `git commit`) to commit the change in that repo, and then re-vendor it here
 using `pyvendor`.
 
-## `executable_pyvision-260509`
+## `executable_pyvision-260512`
 
 This linter will fail if any public symbol is unused by other files, if any private symbol is used by other files, or if
-any private symbol is NOT used in the file it is defined in. It scans tracked Python usage outside `src/`, including
-tests, so Python test references do not need pragmas.
+any private symbol is NOT used in the file it is defined in. It scans tracked Python usage outside `src/`, but
+references from test files (paths under `test`/`tests` components or `test_*.py`) are **not** sufficient to keep a
+public symbol "used" — test files only count toward the private-symbol "imported from non-test" guard. A public symbol
+must have at least one non-test consumer (another non-test Python file, a doc/code pragma target, or an external-repo
+URI pragma).
 
-### How do I whitelist a symbol for `executable_pyvision-260509`? When am I allowed to do so?
+### How do I whitelist a symbol for `executable_pyvision-260512`? When am I allowed to do so?
 
 This linter should normally be obeyed since it does a good job of preventing unused code from accumulating. With that
 said, there are a few exceptions:
@@ -25,8 +28,9 @@ said, there are a few exceptions:
   adding the `# pyvision: <path_with_reference>` pragma comment on the line above the symbol definition. The
   `<path_with_reference>` should be the path to the file that references the symbol, relative to the root of the
   repository. For example, if a symbol is used by `xprompts/foo.yaml`, the pragma comment would be
-  `# pyvision: xprompts/foo.yaml`. Pragmas must not point at test files; Python test references are detected
-  automatically.
+  `# pyvision: xprompts/foo.yaml`. Pragmas must not point at test files: references from test files are not sufficient
+  to keep a public symbol "used." If a symbol is only exercised by tests, delete it, make it private and call it from a
+  non-test path, or add a non-test pragma target instead.
 - When a symbol is consumed by another repository, use a repository URI pragma such as
   `# pyvision: https://github.com/sase-org/sase-telegram.git`. Pyvision resolves URI pragmas by first matching local
   checkout origins from explicit `--external-repo-path` / `PYVISION_EXTERNAL_REPO_PATHS` values and sibling directories,

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 18:29:39
-status: wip
+status: done
 prompt: sdd/prompts/202605/pyvision_test_references_1.md
 ---
 # Pyvision: Exclude Test Files From Public Symbol Reference Detection
@@ -96,7 +96,7 @@ The chezmoi-side work is **already complete** and committed as `26cd5d7d`:
   `test_from_import_alias_usage_from_tracked_tests` to assert failure, an updated rejection message check, and new
   positive coverage for the mixed-references and "pragma not stale on test-only import" cases.
 
-The vendored copy in this repo (`tools/executable_pyvision-260509`) still has the **old** behavior. The remaining work
+The vendored copy in this repo (`tools/executable_pyvision-260512`) still has the **old** behavior. The remaining work
 is everything in `sase_104`: re-vendor, doc updates, audit capture, and keeping `just check` green.
 
 ## Implementation Steps
