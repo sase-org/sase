@@ -1,4 +1,5 @@
 ---
+title: "Post 5: Beads and SDD — Planning Multi-Agent Work That Actually Lands"
 date: 2026-05-16
 description: >-
   Orchestration only matters if you can split work into pieces with a real ordering. Beads and Spec-Driven Development

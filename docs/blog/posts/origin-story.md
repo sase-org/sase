@@ -1,4 +1,5 @@
 ---
+title: "Post 0: Origin Story — Where SASE Came From"
 date: 2026-05-06
 description: >-
   The day-job constraint that made the case for SASE: large-codebase rigor, a lagging in-house model, and the

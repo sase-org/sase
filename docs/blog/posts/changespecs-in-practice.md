@@ -1,4 +1,5 @@
 ---
+title: "Post 7: ChangeSpecs in Practice — Review State Outside the Chat"
 date: 2026-05-20
 description: >-
   ChangeSpecs are the durable, reviewable shape of one CL/PR of agent work. They survive the chat. Post 2 named them;
@@ -12,7 +13,7 @@ links:
   - ChangeSpecs: change_spec.md
   - Mentors: mentors.md
   - ACE TUI: ace.md
-  - "Post 6: Commit Workflows": blog/posts/commit-workflows-plugins.md
+  - "Post 6: Commit Workflows — The Pluggable Path From Diff to PR": blog/posts/commit-workflows-plugins.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 

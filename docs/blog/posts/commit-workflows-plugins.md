@@ -1,4 +1,5 @@
 ---
+title: "Post 6: Commit Workflows — The Pluggable Path From Diff to PR"
 date: 2026-05-18
 description: >-
   Every agent eventually has to land code somewhere. SASE's commit workflows are the small, runtime-uniform layer that
@@ -12,7 +13,7 @@ links:
   - Commit Workflows: commit_workflows.md
   - Plugins: plugins.md
   - VCS Providers: vcs.md
-  - "Post 5: Beads and SDD": blog/posts/beads-and-sdd.md
+  - "Post 5: Beads and SDD — Planning Multi-Agent Work That Actually Lands": blog/posts/beads-and-sdd.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 

@@ -1,4 +1,5 @@
 ---
+title: "Post 2: Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents"
 date: 2026-05-10
 description: >-
   A hands-on tour: install SASE, launch your first agent run, find the resulting ChangeSpec in ACE, and pick up the

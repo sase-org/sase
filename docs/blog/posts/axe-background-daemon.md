@@ -1,4 +1,5 @@
 ---
+title: "Post 4: AXE — The Background Daemon That Keeps Agent Work Moving"
 date: 2026-05-14
 description: >-
   Agents shouldn't poll. AXE is the background daemon that does the polling for them so the engineering workflow keeps
@@ -11,7 +12,7 @@ links:
   - Agentic Software Engineering Series: series/agentic-software-engineering.md
   - AXE Automation: axe.md
   - Notifications: notifications.md
-  - "Post 3: XPrompts in Depth": blog/posts/xprompts-in-depth.md
+  - "Post 3: XPrompts in Depth — From One File to Full Workflows": blog/posts/xprompts-in-depth.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
@@ -125,7 +126,7 @@ launch and supervise, not compute.
 
 This is Post 4 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
 
-- Previous: [Post 3: XPrompts in Depth](xprompts-in-depth.md).
+- Previous: [Post 3: XPrompts in Depth — From One File to Full Workflows](xprompts-in-depth.md).
 - Next: [Post 5: Beads and SDD — Planning Multi-Agent Work That Actually Lands](beads-and-sdd.md).
 - Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [AXE guide](../../axe.md).

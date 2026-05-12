@@ -1,4 +1,5 @@
 ---
+title: "Post 8: Driving SASE From Your Phone — Telegram as the Mobile Control Surface"
 date: 2026-05-21
 description: >-
   The sase-telegram plugin turns an existing Telegram chat into a mobile control surface for SASE — launch agents,
@@ -12,7 +13,7 @@ links:
   - Plugins: plugins.md
   - Notifications: notifications.md
   - Mobile Gateway: mobile_gateway.md
-  - "Post 7: ChangeSpecs in Practice": blog/posts/changespecs-in-practice.md
+  - "Post 7: ChangeSpecs in Practice — Review State Outside the Chat": blog/posts/changespecs-in-practice.md
   - View on GitHub: https://github.com/sase-org/sase-telegram
 ---
 

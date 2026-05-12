@@ -1,4 +1,5 @@
 ---
+title: "Post 10: What's Next — Shared Memory, Mobile, and the Web Surface"
 date: 2026-05-23
 description: >-
   SASE today is the orchestration layer. The next horizon is shared memory across agents, a mobile control surface, and
@@ -10,7 +11,7 @@ slug: whats-next-memory-mobile-web
 links:
   - Agentic Software Engineering Series: series/agentic-software-engineering.md
   - Mobile Gateway: mobile_gateway.md
-  - "Post 9: The Prompt Input Widget and sase-nvim": blog/posts/prompt-widget-and-nvim.md
+  - "Post 9: Where You Type — The Prompt Input Widget and sase-nvim": blog/posts/prompt-widget-and-nvim.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
@@ -21,7 +22,7 @@ durable shared memory across agents, a phone you can drive from, and a browser t
 
 <!-- more -->
 
-The previous nine posts walked through what exists: XPrompts, AXE, SDD and beads, commit workflows, ChangeSpecs, the
+The previous ten posts walked through what exists: XPrompts, AXE, SDD and beads, commit workflows, ChangeSpecs, the
 Telegram mobile control surface, and the prompt input widget with its Neovim plugin. This one is shorter and more
 speculative. It names three threads that are in motion but not yet shipped, and points at the artifacts where the design
 work is happening.

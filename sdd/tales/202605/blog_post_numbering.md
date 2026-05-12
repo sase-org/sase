@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 01:21:47
-status: wip
+status: done
 prompt: sdd/prompts/202605/blog_post_numbering.md
 ---
 # Blog Post Numbering Plan

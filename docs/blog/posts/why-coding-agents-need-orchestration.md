@@ -1,4 +1,5 @@
 ---
+title: "Post 1: Why Coding Agents Need Orchestration"
 date: 2026-05-08
 description:
   Why coding-agent work needs durable orchestration around planning, state, review, dependencies, retries, and handoff.

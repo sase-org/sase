@@ -1,4 +1,5 @@
 ---
+title: "Post 3: XPrompts in Depth — From One File to Full Workflows"
 date: 2026-05-12
 description: >-
   XPrompts up close: when a single Markdown file is the right shape, when typed inputs and directives are enough, and

@@ -1,4 +1,5 @@
 ---
+title: "Post 9: Where You Type — The Prompt Input Widget and sase-nvim"
 pdf: false
 date: 2026-05-22
 description: >-
@@ -13,7 +14,7 @@ links:
   - ACE TUI: ace.md
   - XPrompts: xprompt.md
   - Plugins: plugins.md
-  - "Post 8: Telegram as the Mobile Control Surface": blog/posts/telegram-mobile-agents.md
+  - "Post 8: Driving SASE From Your Phone — Telegram as the Mobile Control Surface": blog/posts/telegram-mobile-agents.md
   - View on GitHub: https://github.com/sase-org/sase-nvim
 ---
 
