@@ -1,16 +1,44 @@
-"""Shared helpers for sase.axe.lumberjack tests.
-
-Not a conftest so files opt in by importing the helpers directly. Each test
-file defines its own pytest fixtures (matching the rest of the axe test suite,
-which redefines ``temp_state_dir`` per-file) and imports these helpers.
-"""
+"""Shared helpers for sase.axe.lumberjack tests."""
 
 import subprocess
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
+import pytest
+
+from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 from sase.axe.chop_script_runner import StreamedScriptResult
+from sase.axe.state import read_chop_run_index
+
+
+@pytest.fixture
+def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
+    """Patch AXE_STATE_DIR and JACK_STATE_DIR to use a temp directory."""
+    state_dir = tmp_path / ".sase" / "axe"
+    lumberjack_dir = state_dir / "lumberjacks"
+    with (
+        patch("sase.axe.state.AXE_STATE_DIR", state_dir),
+        patch("sase.axe.state.JACK_STATE_DIR", lumberjack_dir),
+    ):
+        yield state_dir
+
+
+@pytest.fixture
+def lumberjack_config() -> LumberjackConfig:
+    return LumberjackConfig(
+        name="test_lumberjack",
+        interval=10,
+        chops=[ChopConfig(name="hook_checks", description="")],
+    )
+
+
+@pytest.fixture
+def axe_config() -> AxeConfig:
+    return AxeConfig(
+        max_hook_runners=3, max_agent_runners=3, zombie_timeout_seconds=3600, query=""
+    )
 
 
 def ok_result() -> subprocess.CompletedProcess[str]:
@@ -117,3 +145,10 @@ def streamed_seq(effects: Iterable[Any]) -> Callable[..., StreamedScriptResult]:
         return effect
 
     return call
+
+
+def single_chop_run_id(lumberjack_name: str, chop_name: str) -> str:
+    """Return the single run id recorded for ``chop_name`` under ``lumberjack``."""
+    index = read_chop_run_index(lumberjack_name, chop_name)
+    assert len(index) == 1, index
+    return index[0]
