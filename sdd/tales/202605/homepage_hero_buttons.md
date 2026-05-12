@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 11:20:26
-status: wip
+status: done
 prompt: sdd/prompts/202605/homepage_hero_buttons.md
 ---
 # Plan: Reduce Homepage Hero Buttons
