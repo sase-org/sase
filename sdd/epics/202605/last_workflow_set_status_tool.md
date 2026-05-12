@@ -2,6 +2,8 @@
 create_time: 2026-05-11 20:59:30
 status: wip
 prompt: sdd/prompts/202605/last_workflow_set_status_tool.md
+bead_id: sase-2z
+tier: epic
 ---
 # Plan: Last GitHub Workflow Set Status Tool
 
