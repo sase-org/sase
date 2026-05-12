@@ -103,7 +103,7 @@ def test_format_agent_option_finished_suffix_has_timestamp_and_elapsed() -> None
         now=now,
     )
     assert suffix.plain == "20:17:03 · 6h17m"
-    assert "📬" not in suffix.plain
+    assert "U " not in suffix.plain
 
 
 def test_format_agent_option_unread_finished_suffix_has_completed_marker() -> None:
@@ -118,7 +118,12 @@ def test_format_agent_option_unread_finished_suffix_has_completed_marker() -> No
         now=now,
     )
     assert "✦" not in left.plain
-    assert suffix.plain == "20:17:03 · 📬 6h17m"
+    assert suffix.plain == "20:17:03 · U 6h17m"
+    assert any(
+        suffix.plain[span.start : span.end] == "U "
+        and str(span.style) == "bold #1a1a1a on #FFD700"
+        for span in suffix.spans
+    )
 
 
 def test_format_agent_option_planning_suffix_has_user_paused_marker() -> None:
@@ -140,7 +145,7 @@ def test_format_agent_option_planning_suffix_has_user_paused_marker() -> None:
 
     assert suffix.plain == "13:14:53 · ✋ 5m53s"
     assert "🏃‍♂️" not in suffix.plain
-    assert "📬" not in suffix.plain
+    assert "U " not in suffix.plain
 
 
 def test_format_agent_option_question_without_time_has_user_paused_marker() -> None:
@@ -200,7 +205,12 @@ def test_format_agent_option_unread_terminal_suffix_uses_completed_marker() -> N
         is_unread=True,
     )
 
-    assert suffix.plain == "📬"
+    assert suffix.plain == "U"
+    assert any(
+        suffix.plain[span.start : span.end] == "U"
+        and str(span.style) == "bold #1a1a1a on #FFD700"
+        for span in suffix.spans
+    )
     assert "✋" not in suffix.plain
 
 
@@ -352,7 +362,7 @@ def test_format_agent_option_renders_unread_marker_in_suffix_not_before_mark() -
 
     assert "[✓]" in left.plain
     assert "✦" not in left.plain
-    assert suffix.plain.endswith("📬 15m")
+    assert suffix.plain.endswith("U 15m")
 
 
 def test_format_agent_option_omits_unread_marker_by_default() -> None:
@@ -361,7 +371,7 @@ def test_format_agent_option_omits_unread_marker_by_default() -> None:
     left, suffix, _ = format_agent_option(row_agent, 0, is_selected=False)
 
     assert "✦" not in left.plain
-    assert "📬" not in suffix.plain
+    assert "U " not in suffix.plain
 
 
 def test_format_agent_option_unread_without_runtime_uses_marker_only_suffix() -> None:
@@ -373,7 +383,7 @@ def test_format_agent_option_unread_without_runtime_uses_marker_only_suffix() ->
     )
 
     assert "✦" not in left.plain
-    assert suffix.plain == "📬"
+    assert suffix.plain == "U"
 
 
 def test_format_agent_option_keeps_tag_badge_and_agent_name_prefixes_distinct() -> None:
