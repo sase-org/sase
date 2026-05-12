@@ -1,6 +1,8 @@
 ---
 create_time: 2026-05-12 12:17:34
 status: wip
+bead_id: sase-35
+tier: epic
 prompt: sdd/prompts/202605/phase7_notification_perf.md
 ---
 # Phase 7 Notification Store Performance Floor Plan
