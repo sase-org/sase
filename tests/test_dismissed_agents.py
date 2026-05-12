@@ -3,6 +3,7 @@
 import json
 import sqlite3
 from datetime import datetime
+from hashlib import sha256
 from pathlib import Path
 from unittest.mock import patch
 
@@ -283,6 +284,135 @@ def test_dismissed_bundle_index_rebuild_and_query(tmp_path: Path) -> None:
         }
         assert any(summary.is_workflow_child for summary in summaries)
         assert load_dismissed_bundle_summaries(project_name="bundles") == []
+
+
+def test_dismissed_bundle_index_v2_summary_fields(tmp_path: Path) -> None:
+    """V2 rows expose stable archive metadata and query-facing fields."""
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        agent = _make_agent(
+            cl_name="indexed_cl",
+            raw_suffix="20250615100000",
+            status="FAILED",
+        )
+        agent.agent_name = "indexed_agent"
+        agent.model = "gpt-test"
+        agent.llm_provider = "codex"
+        agent.error_message = "x" * 600
+        bundle = agent.to_bundle_dict()
+        bundle.update(
+            {
+                "archive_revision": 3,
+                "bundle_schema_version": 2,
+                "dismissed_at": "2026-05-12T16:00:00",
+                "revived_at": "2026-05-12T16:30:00",
+                "times_revived": 2,
+                "cost_usd_micros": 12345,
+                "usage": {"input_tokens": 101, "output_tokens": 202},
+            }
+        )
+        shard = bundles_dir / "202506"
+        shard.mkdir(parents=True)
+        (shard / "20250615100000.json").write_text(json.dumps(bundle))
+
+        assert rebuild_dismissed_bundle_index() == (1, 0)
+        [summary] = load_dismissed_bundle_summaries(cl_name="indexed_cl")
+
+    expected_agent_id = sha256(
+        "\0".join(
+            (
+                "/tmp/test.sase",
+                "20250615100000",
+                AgentType.RUNNING.value,
+                "",
+            )
+        ).encode("utf-8")
+    ).hexdigest()
+    assert summary.agent_id == expected_agent_id
+    assert summary.archive_revision == 3
+    assert summary.bundle_schema_version == 2
+    assert summary.dismissed_at == "2026-05-12T16:00:00"
+    assert summary.revived_at == "2026-05-12T16:30:00"
+    assert summary.times_revived == 2
+    assert summary.project_name == "tmp"
+    assert summary.runtime == "codex"
+    assert summary.cost_usd_micros == 12345
+    assert summary.input_tokens == 101
+    assert summary.output_tokens == 202
+    assert summary.error_message_excerpt == "x" * 500
+
+
+def test_dismissed_bundle_index_v2_defaults_legacy_bundles(
+    tmp_path: Path,
+) -> None:
+    """Bundles missing new archive fields remain indexable."""
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        agent = _make_agent(cl_name="legacy_cl", raw_suffix="20250615100000")
+        assert save_dismissed_bundle(agent)
+        [summary] = load_dismissed_bundle_summaries(cl_name="legacy_cl")
+
+    assert summary.archive_revision == 1
+    assert summary.bundle_schema_version == 0
+    assert summary.dismissed_at is not None
+    assert summary.revived_at is None
+    assert summary.times_revived == 0
+    assert summary.cost_usd_micros is None
+    assert summary.input_tokens is None
+    assert summary.output_tokens is None
+
+
+def test_dismissed_bundle_index_v1_migration_rebuilds_from_bundles(
+    tmp_path: Path,
+) -> None:
+    """Opening a v1 index rebuilds v2 summaries from bundle files."""
+    bundles_dir = tmp_path / "bundles"
+    shard = bundles_dir / "202506"
+    shard.mkdir(parents=True)
+    agent = _make_agent(cl_name="indexed_cl", raw_suffix="20250615100000")
+    (shard / "20250615100000.json").write_text(json.dumps(agent.to_bundle_dict()))
+    index_path = bundles_dir / "index.sqlite"
+    with sqlite3.connect(index_path) as conn:
+        conn.execute(
+            "CREATE TABLE dismissed_bundle_index_meta "
+            "(key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+        )
+        conn.execute(
+            "INSERT INTO dismissed_bundle_index_meta(key, value) "
+            "VALUES ('schema_version', '1')"
+        )
+        conn.execute(
+            "CREATE TABLE dismissed_bundle_summaries "
+            "(bundle_path TEXT PRIMARY KEY, raw_suffix TEXT NOT NULL)"
+        )
+        conn.execute(
+            "INSERT INTO dismissed_bundle_summaries(bundle_path, raw_suffix) "
+            "VALUES ('/stale/path.json', 'stale')"
+        )
+
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        summaries = load_dismissed_bundle_summaries(cl_name="indexed_cl")
+
+    assert [summary.raw_suffix for summary in summaries] == ["20250615100000"]
+    with sqlite3.connect(index_path) as conn:
+        version = conn.execute(
+            "SELECT value FROM dismissed_bundle_index_meta WHERE key = 'schema_version'"
+        ).fetchone()[0]
+        columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(dismissed_bundle_summaries)")
+        }
+    assert version == "2"
+    assert {"agent_id", "dismissed_at", "runtime", "input_tokens"}.issubset(columns)
 
 
 def test_rebuild_shards_legacy_root_bundle_files(tmp_path: Path) -> None:
