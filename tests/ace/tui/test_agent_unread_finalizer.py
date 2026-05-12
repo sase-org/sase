@@ -81,9 +81,10 @@ def test_finalizer_clears_unread_for_saved_selection_on_agents_tab() -> None:
     assert app._unread_completed_agent_ids == set()
 
 
-def test_finalizer_clears_saved_selection_unread_without_dismissing(
+def test_finalizer_dismisses_notification_for_saved_selection_on_agents_tab(
     notification_dismiss: Mock,
 ) -> None:
+    notification_dismiss.return_value = 1
     agent = make_agent(status="DONE")
     app = _UnreadFinalizeApp([agent])
     app._unread_completed_agent_ids.add(agent.identity)
@@ -92,8 +93,10 @@ def test_finalizer_clears_saved_selection_unread_without_dismissing(
     _sync_unread_completed_agents(app, on_agents_tab=True)  # type: ignore[arg-type]
 
     assert app._unread_completed_agent_ids == set()
-    notification_dismiss.assert_not_called()
-    assert app.notification_count_refresh_calls == 0
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
+    )
+    assert app.notification_count_refresh_calls == 1
 
 
 def test_finalizer_preserves_selected_manually_unread_agent() -> None:

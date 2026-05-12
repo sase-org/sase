@@ -443,7 +443,7 @@ class AgentsMixinCore(
             old_idx == target_idx and old_group_key is not None
         )
         if needs_full_refresh:
-            self._clear_agent_unread(target_agent)
+            self._clear_agent_unread_and_dismiss_notification(target_agent)
             self._refresh_agents_display(  # type: ignore[attr-defined]
                 list_changed=True, defer_detail=True
             )
@@ -471,10 +471,14 @@ class AgentsMixinCore(
             return
         self._manual_unread_ids().discard(agent.identity)
 
-    def _clear_agent_unread(self, agent: Agent) -> bool:
-        """Clear local unread state for *agent* unless it is manually guarded.
+    def _clear_agent_unread_and_dismiss_notification(self, agent: Agent) -> bool:
+        """Clear unread state for *agent* and dismiss its matching notification.
 
-        Returns True only when the agent moved from unread to read.
+        Returns True only when the agent moved from unread to read. When the
+        agent is in a terminal status, any active completion notification
+        targeting the same ``(cl_name, raw_suffix)`` is dismissed and the
+        notification indicator is refreshed so the one-to-one row/notification
+        contract holds.
         """
         if agent.identity in self._manual_unread_ids():
             return False
@@ -484,6 +488,19 @@ class AgentsMixinCore(
             return False
 
         unread_ids.discard(agent.identity)
+
+        if not is_unread_completed_status(agent.status):
+            return True
+
+        from sase.notifications import dismiss_notifications_matching_agents
+
+        dismissed_count = dismiss_notifications_matching_agents(
+            [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
+        )
+        if dismissed_count:
+            refresh_count = getattr(self, "_refresh_notification_count", None)
+            if callable(refresh_count):
+                refresh_count()
         return True
 
     def _acknowledge_agent_unread(self, agent: Agent) -> bool:
@@ -491,7 +508,7 @@ class AgentsMixinCore(
 
         Returns True when the visible row was patched or refreshed.
         """
-        if not self._clear_agent_unread(agent):
+        if not self._clear_agent_unread_and_dismiss_notification(agent):
             return False
 
         if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
@@ -518,7 +535,7 @@ class AgentsMixinCore(
 
         if identity in manual_ids:
             manual_ids.discard(identity)
-            self._clear_agent_unread(agent)
+            self._clear_agent_unread_and_dismiss_notification(agent)
         else:
             manual_ids.add(identity)
             unread_ids.add(identity)
