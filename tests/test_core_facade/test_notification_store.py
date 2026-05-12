@@ -239,6 +239,102 @@ def test_real_extension_round_trips_store_operations(tmp_path: Path) -> None:
     assert [n.id for n in rewrite.notifications] == ["n2"]
 
 
+def test_append_counts_uses_metadata_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    def fake_append_counts(path: str, notification: dict[str, Any]) -> dict:
+        calls.append((path, notification))
+        return {
+            "schema_version": NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
+            "matched_count": 0,
+            "changed_count": 0,
+            "appended_count": 1,
+            "rewritten": False,
+            "notifications": [],
+            "counts": {},
+            "expired_ids": [],
+            "stats": {},
+        }
+
+    _fake_module(monkeypatch, append_notification_counts=fake_append_counts)
+
+    outcome = facade.append_notification_counts(
+        "/tmp/notifications.jsonl", _notification("n1", sender="axe")
+    )
+
+    assert len(calls) == 1
+    assert calls[0][0] == "/tmp/notifications.jsonl"
+    assert calls[0][1]["id"] == "n1"
+    assert outcome.appended_count == 1
+    assert outcome.notifications == []
+
+
+def test_rewrite_counts_uses_metadata_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, list[dict[str, Any]]]] = []
+
+    def fake_rewrite_counts(path: str, notifications: list[dict[str, Any]]) -> dict:
+        calls.append((path, notifications))
+        return {
+            "schema_version": NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
+            "matched_count": 2,
+            "changed_count": 2,
+            "appended_count": 0,
+            "rewritten": True,
+            "notifications": [],
+            "counts": {},
+            "expired_ids": [],
+            "stats": {},
+        }
+
+    _fake_module(monkeypatch, rewrite_notifications_counts=fake_rewrite_counts)
+
+    outcome = facade.rewrite_notifications_counts(
+        "/tmp/notifications.jsonl",
+        [_notification("n1"), _notification("n2")],
+    )
+
+    assert len(calls) == 1
+    assert calls[0][0] == "/tmp/notifications.jsonl"
+    assert [n["id"] for n in calls[0][1]] == ["n1", "n2"]
+    assert outcome.rewritten is True
+    assert outcome.matched_count == 2
+    assert outcome.notifications == []
+
+
+def test_real_extension_append_counts_omits_notifications(tmp_path: Path) -> None:
+    _skip_without_notification_bindings("append_notification_counts")
+    path = tmp_path / "notifications.jsonl"
+
+    outcome = facade.append_notification_counts(path, _notification("n1", sender="axe"))
+
+    assert outcome.appended_count == 1
+    assert outcome.notifications == []
+    assert outcome.stats.loaded_rows == 0
+    snapshot = facade.read_notifications_snapshot(path)
+    assert [n.id for n in snapshot.notifications] == ["n1"]
+
+
+def test_real_extension_rewrite_counts_omits_notifications(tmp_path: Path) -> None:
+    _skip_without_notification_bindings("rewrite_notifications_counts")
+    path = tmp_path / "notifications.jsonl"
+    facade.append_notification(path, _notification("n1"))
+
+    outcome = facade.rewrite_notifications_counts(
+        path, [_notification("n1", read=True), _notification("n2")]
+    )
+
+    assert outcome.rewritten is True
+    assert outcome.matched_count == 2
+    assert outcome.changed_count == 2
+    assert outcome.notifications == []
+    snapshot = facade.read_notifications_snapshot(path)
+    assert {n.id for n in snapshot.notifications} == {"n1", "n2"}
+
+
 def test_real_extension_counts_update_omits_notifications(tmp_path: Path) -> None:
     _skip_without_notification_bindings("apply_notification_state_update_counts")
     path = tmp_path / "notifications.jsonl"

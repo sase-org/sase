@@ -43,7 +43,7 @@ def _clone_notifications(notifications: list[Notification]) -> list[Notification
 def _rust_append_notification(path: Path, notification: Notification) -> Any:
     from sase.core import notification_store_facade
 
-    return notification_store_facade.append_notification(path, notification)
+    return notification_store_facade.append_notification_counts(path, notification)
 
 
 def _rust_apply_notification_state_update(
@@ -71,9 +71,9 @@ def _rust_read_notifications_snapshot(
 
 
 def _rust_rewrite_notifications(path: Path, notifications: list[Notification]) -> Any:
-    from sase.core.notification_store_facade import rewrite_notifications
+    from sase.core.notification_store_facade import rewrite_notifications_counts
 
-    return rewrite_notifications(path, notifications)
+    return rewrite_notifications_counts(path, notifications)
 
 
 def _state_update(**kwargs: Any) -> Any:

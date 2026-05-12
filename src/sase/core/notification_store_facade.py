@@ -64,6 +64,18 @@ def append_notification(
     return notification_update_outcome_from_dict(payload)
 
 
+def append_notification_counts(
+    path: Path | str,
+    notification: Notification | dict[str, Any],
+) -> NotificationUpdateOutcomeWire:
+    """Append one notification through Rust and return mutation metadata only."""
+    binding = require_rust_binding("append_notification_counts")
+    payload: dict[str, Any] = binding(
+        str(path), notification_store_wire_to_json_dict(notification)
+    )
+    return notification_update_outcome_from_dict(payload)
+
+
 def rewrite_notifications(
     path: Path | str,
     notifications: list[Notification] | tuple[Notification, ...] | list[dict[str, Any]],
@@ -76,13 +88,27 @@ def rewrite_notifications(
     return notification_update_outcome_from_dict(payload)
 
 
+def rewrite_notifications_counts(
+    path: Path | str,
+    notifications: list[Notification] | tuple[Notification, ...] | list[dict[str, Any]],
+) -> NotificationUpdateOutcomeWire:
+    """Rewrite the store through Rust and return mutation metadata only."""
+    binding = require_rust_binding("rewrite_notifications_counts")
+    payload: dict[str, Any] = binding(
+        str(path), notification_store_wire_to_json_dict(notifications)
+    )
+    return notification_update_outcome_from_dict(payload)
+
+
 __all__ = [
     "NotificationStateUpdateWire",
     "NotificationStoreSnapshotWire",
     "NotificationUpdateOutcomeWire",
     "append_notification",
+    "append_notification_counts",
     "apply_notification_state_update",
     "apply_notification_state_update_counts",
     "read_notifications_snapshot",
     "rewrite_notifications",
+    "rewrite_notifications_counts",
 ]

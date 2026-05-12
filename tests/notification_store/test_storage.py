@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from sase.core.notification_store_wire import (
@@ -50,6 +51,32 @@ class TestAppendNotification:
 
         mock_append.assert_called_once()
 
+    def test_routes_through_counts_only_binding(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        from sase.core import notification_store_facade
+
+        captured: list[Any] = []
+        real_counts = notification_store_facade.append_notification_counts
+
+        def spy(path: Any, notification: Any) -> Any:
+            outcome = real_counts(path, notification)
+            captured.append(outcome)
+            return outcome
+
+        n = make_notification()
+        with patch.object(
+            notification_store_facade,
+            "append_notification_counts",
+            side_effect=spy,
+        ) as mock_counts:
+            append_notification(n)
+
+        mock_counts.assert_called_once()
+        assert len(captured) == 1
+        assert captured[0].appended_count == 1
+        assert captured[0].notifications == []
+
 
 class TestLoadNotifications:
     """Tests for load_notifications()."""
@@ -96,6 +123,36 @@ class TestRewriteNotifications:
 
         mock_rewrite.assert_called_once()
         assert load_notifications()[0].id == n.id
+
+    def test_routes_through_counts_only_binding(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        from sase.core import notification_store_facade
+
+        existing = make_notification(id="existing")
+        append_notification(existing)
+
+        captured: list[Any] = []
+        real_counts = notification_store_facade.rewrite_notifications_counts
+
+        def spy(path: Any, notifications: Any) -> Any:
+            outcome = real_counts(path, notifications)
+            captured.append(outcome)
+            return outcome
+
+        with patch.object(
+            notification_store_facade,
+            "rewrite_notifications_counts",
+            side_effect=spy,
+        ) as mock_counts:
+            rewrite_notifications([make_notification(id="replacement")])
+
+        mock_counts.assert_called_once()
+        assert len(captured) == 1
+        assert captured[0].rewritten is True
+        assert captured[0].matched_count == 1
+        assert captured[0].notifications == []
+        assert load_notifications()[0].id == "replacement"
 
 
 class TestRustBackedCache:
