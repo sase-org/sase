@@ -1,9 +1,9 @@
 ---
-title: "Post 7: ChangeSpecs in Practice — Review State Outside the Chat"
+title: "[07] ChangeSpecs in Practice — Review State Outside the Chat"
 date: 2026-05-20
 description: >-
-  ChangeSpecs are the durable, reviewable shape of one CL/PR of agent work. They survive the chat. Post 2 named them;
-  this post lives inside them.
+  ChangeSpecs are the durable, reviewable shape of one CL/PR of agent work. They survive the chat. [02] named them; this
+  post lives inside them.
 categories:
   - Agentic Software Engineering
   - Review
@@ -13,18 +13,18 @@ links:
   - ChangeSpecs: change_spec.md
   - Mentors: mentors.md
   - ACE TUI: ace.md
-  - "Post 6: Commit Workflows — The Pluggable Path From Diff to PR": blog/posts/commit-workflows-plugins.md
+  - "[06] Commit Workflows — The Pluggable Path From Diff to PR": blog/posts/commit-workflows-plugins.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
-# Post 7: ChangeSpecs in Practice — Review State Outside the Chat
+# [07] ChangeSpecs in Practice — Review State Outside the Chat
 
 ChangeSpecs are the durable, reviewable shape of one CL/PR of agent work. They survive the chat.
-[Post 2](hello-sase-your-first-15-minutes.md) named them; this post lives inside them.
+[\[02\]](hello-sase-your-first-15-minutes.md) named them; this post lives inside them.
 
 <!-- more -->
 
-[Post 6](commit-workflows-plugins.md) ended with `commit_result.json` — the marker every successful commit/PR drops on
+[\[06\]](commit-workflows-plugins.md) ended with `commit_result.json` — the marker every successful commit/PR drops on
 disk. The thing that marker writes into is a ChangeSpec. This post walks through what's actually in one, how mentors
 attach to it, and what the ACE TUI does with it once it exists.
 
@@ -185,14 +185,14 @@ by SASE and is not normally edited by hand.
 - [Mentors](../../mentors.md) — profile matching criteria, execution lifecycle, ACE review modal, apply modes,
   file-snapshot semantics.
 - [ACE TUI](../../ace.md) — the full keybinding reference for the CLs, Agents, and Axe tabs.
-- [Post 8: Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md) — turn an
+- [\[08\] Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md) — turn an
   existing Telegram chat into a two-way control surface for plans, agents, and generated artifacts.
 
 ## Series Navigation
 
-This is Post 7 of the [SASE Blog Series](../../series/agentic-software-engineering.md).
+This is [07] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
-- Previous: [Post 6: Commit Workflows — The Pluggable Path From Diff to PR](commit-workflows-plugins.md).
-- Next: [Post 8: Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md).
+- Previous: [\[06\] Commit Workflows — The Pluggable Path From Diff to PR](commit-workflows-plugins.md).
+- Next: [\[08\] Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md).
 - Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [ChangeSpec guide](../../change_spec.md).

@@ -1,5 +1,5 @@
 ---
-title: "Post 9: Where You Type — The Prompt Input Widget and sase-nvim"
+title: "[09] Where You Type — The Prompt Input Widget and sase-nvim"
 date: 2026-05-22
 description: >-
   Where the operator actually types: a multiline Textual TextArea with completion, history, snippets, and a Vim mode in
@@ -13,19 +13,19 @@ links:
   - ACE TUI: ace.md
   - XPrompts: xprompt.md
   - Plugins: plugins.md
-  - "Post 8: Driving SASE From Your Phone — Telegram as the Mobile Control Surface": blog/posts/telegram-mobile-agents.md
+  - "[08] Driving SASE From Your Phone — Telegram as the Mobile Control Surface": blog/posts/telegram-mobile-agents.md
   - View on GitHub: https://github.com/sase-org/sase-nvim
 ---
 
-# Post 9: Where You Type — The Prompt Input Widget and sase-nvim
+# [09] Where You Type — The Prompt Input Widget and sase-nvim
 
-Every agent run starts as a few characters typed into a box. [Post 3](xprompts-in-depth.md) covered the prompt
+Every agent run starts as a few characters typed into a box. [\[03\]](xprompts-in-depth.md) covered the prompt
 _language_; this post covers the surface you type that language into: the ACE prompt input widget, and the **sase-nvim**
 plugin that lets the same language live inside Neovim with syntax highlighting, completion, and go-to-definition.
 
 <!-- more -->
 
-[Post 8](telegram-mobile-agents.md) moved the operator off the keyboard and into a chat window. This post moves in the
+[\[08\]](telegram-mobile-agents.md) moved the operator off the keyboard and into a chat window. This post moves in the
 other direction — into the editor itself. Most agent launches still happen at the keyboard, and most of the affordances
 that make those launches fast (xprompt expansion, snippets, vim motions, an `EDITOR` handoff) live in the prompt input
 widget.
@@ -155,9 +155,9 @@ front doors.
 
 ## Series Navigation
 
-This is Post 9 of the [SASE Blog Series](../../series/agentic-software-engineering.md).
+This is [09] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
-- Previous: [Post 8: Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md).
-- Next: [Post 10: What's Next — Shared Memory, Mobile, and the Web Surface](whats-next-memory-mobile-web.md).
+- Previous: [\[08\] Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md).
+- Next: [\[10\] What's Next — Shared Memory, Mobile, and the Web Surface](whats-next-memory-mobile-web.md).
 - Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or the
   [XPrompts reference](../../xprompt.md).

@@ -48,17 +48,17 @@ nav:
   - Blog:
       - Blog Home: blog/index.md
       - SASE Blog Series: series/agentic-software-engineering.md
-      - "Post 0: Origin Story — Where SASE Came From": blog/posts/origin-story.md
-      - "Post 1: Why Coding Agents Need Orchestration": blog/posts/why-coding-agents-need-orchestration.md
-      - "Post 2: Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents": blog/posts/hello-sase-your-first-15-minutes.md
-      - "Post 3: XPrompts in Depth — From One File to Full Workflows": blog/posts/xprompts-in-depth.md
-      - "Post 4: AXE — The Background Daemon That Keeps Agent Work Moving": blog/posts/axe-background-daemon.md
-      - "Post 5: Beads and SDD — Planning Multi-Agent Work That Actually Lands": blog/posts/beads-and-sdd.md
-      - "Post 6: Commit Workflows — The Pluggable Path From Diff to PR": blog/posts/commit-workflows-plugins.md
-      - "Post 7: ChangeSpecs in Practice — Review State Outside the Chat": blog/posts/changespecs-in-practice.md
-      - "Post 8: Driving SASE From Your Phone — Telegram as the Mobile Control Surface": blog/posts/telegram-mobile-agents.md
-      - "Post 9: Where You Type — The Prompt Input Widget and sase-nvim": blog/posts/prompt-widget-and-nvim.md
-      - "Post 10: What's Next — Shared Memory, Mobile, and the Web Surface": blog/posts/whats-next-memory-mobile-web.md
+      - "[00] Origin Story — Where SASE Came From": blog/posts/origin-story.md
+      - "[01] Why Coding Agents Need Orchestration": blog/posts/why-coding-agents-need-orchestration.md
+      - "[02] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents": blog/posts/hello-sase-your-first-15-minutes.md
+      - "[03] XPrompts in Depth — From One File to Full Workflows": blog/posts/xprompts-in-depth.md
+      - "[04] AXE — The Background Daemon That Keeps Agent Work Moving": blog/posts/axe-background-daemon.md
+      - "[05] Beads and SDD — Planning Multi-Agent Work That Actually Lands": blog/posts/beads-and-sdd.md
+      - "[06] Commit Workflows — The Pluggable Path From Diff to PR": blog/posts/commit-workflows-plugins.md
+      - "[07] ChangeSpecs in Practice — Review State Outside the Chat": blog/posts/changespecs-in-practice.md
+      - "[08] Driving SASE From Your Phone — Telegram as the Mobile Control Surface": blog/posts/telegram-mobile-agents.md
+      - "[09] Where You Type — The Prompt Input Widget and sase-nvim": blog/posts/prompt-widget-and-nvim.md
+      - "[10] What's Next — Shared Memory, Mobile, and the Web Surface": blog/posts/whats-next-memory-mobile-web.md
 
 theme:
   name: material

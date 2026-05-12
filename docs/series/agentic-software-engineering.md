@@ -10,23 +10,23 @@ that make up the series and points readers at the current product guides for fur
 
 ## The Series
 
-The SASE Blog Series has eleven posts. Post 0 is the origin story; Posts 1 and 2 set up the _why_ and the _how_; Posts
-3–9 each go deep on one subsystem; Post 10 looks forward. Read in numbered order for the full arc, or jump straight to
-the subsystem post you care about — each is self-contained.
+The SASE Blog Series has eleven posts. [00] is the origin story; [01] and [02] set up the _why_ and the _how_; [03]-[09]
+each go deep on one subsystem; [10] looks forward. Read in numbered order for the full arc, or jump straight to the
+subsystem post you care about — each is self-contained.
 
-| Post                                                                                                                         | Status               |
-| ---------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| [Post 0: Origin Story — Where SASE Came From](../blog/posts/origin-story.md)                                                 | Published 2026-05-06 |
-| [Post 1: Why Coding Agents Need Orchestration](../blog/posts/why-coding-agents-need-orchestration.md)                        | Published 2026-05-08 |
-| [Post 2: Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents](../blog/posts/hello-sase-your-first-15-minutes.md) | Published 2026-05-10 |
-| [Post 3: XPrompts in Depth — From One File to Full Workflows](../blog/posts/xprompts-in-depth.md)                            | Published 2026-05-12 |
-| [Post 4: AXE — The Background Daemon That Keeps Agent Work Moving](../blog/posts/axe-background-daemon.md)                   | Scheduled 2026-05-14 |
-| [Post 5: Beads and SDD — Planning Multi-Agent Work That Actually Lands](../blog/posts/beads-and-sdd.md)                      | Scheduled 2026-05-16 |
-| [Post 6: Commit Workflows — The Pluggable Path From Diff to PR](../blog/posts/commit-workflows-plugins.md)                   | Scheduled 2026-05-18 |
-| [Post 7: ChangeSpecs in Practice — Review State Outside the Chat](../blog/posts/changespecs-in-practice.md)                  | Scheduled 2026-05-20 |
-| [Post 8: Driving SASE From Your Phone — Telegram as the Mobile Control Surface](../blog/posts/telegram-mobile-agents.md)     | Scheduled 2026-05-21 |
-| [Post 9: Where You Type — The Prompt Input Widget and sase-nvim](../blog/posts/prompt-widget-and-nvim.md)                    | Scheduled 2026-05-22 |
-| [Post 10: What's Next — Shared Memory, Mobile, and the Web Surface](../blog/posts/whats-next-memory-mobile-web.md)           | Scheduled 2026-05-23 |
+| Post                                                                                                                        | Status               |
+| --------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| [\[00\] Origin Story — Where SASE Came From](../blog/posts/origin-story.md)                                                 | Published 2026-05-06 |
+| [\[01\] Why Coding Agents Need Orchestration](../blog/posts/why-coding-agents-need-orchestration.md)                        | Published 2026-05-08 |
+| [\[02\] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents](../blog/posts/hello-sase-your-first-15-minutes.md) | Published 2026-05-10 |
+| [\[03\] XPrompts in Depth — From One File to Full Workflows](../blog/posts/xprompts-in-depth.md)                            | Published 2026-05-12 |
+| [\[04\] AXE — The Background Daemon That Keeps Agent Work Moving](../blog/posts/axe-background-daemon.md)                   | Scheduled 2026-05-14 |
+| [\[05\] Beads and SDD — Planning Multi-Agent Work That Actually Lands](../blog/posts/beads-and-sdd.md)                      | Scheduled 2026-05-16 |
+| [\[06\] Commit Workflows — The Pluggable Path From Diff to PR](../blog/posts/commit-workflows-plugins.md)                   | Scheduled 2026-05-18 |
+| [\[07\] ChangeSpecs in Practice — Review State Outside the Chat](../blog/posts/changespecs-in-practice.md)                  | Scheduled 2026-05-20 |
+| [\[08\] Driving SASE From Your Phone — Telegram as the Mobile Control Surface](../blog/posts/telegram-mobile-agents.md)     | Scheduled 2026-05-21 |
+| [\[09\] Where You Type — The Prompt Input Widget and sase-nvim](../blog/posts/prompt-widget-and-nvim.md)                    | Scheduled 2026-05-22 |
+| [\[10\] What's Next — Shared Memory, Mobile, and the Web Surface](../blog/posts/whats-next-memory-mobile-web.md)            | Scheduled 2026-05-23 |
 
 ## Reader Paths
 

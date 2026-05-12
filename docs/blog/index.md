@@ -7,33 +7,33 @@ units, orchestration, provider-independent workflows, review state, and the coor
 
 The [SASE Blog Series](../series/agentic-software-engineering.md) has eleven posts:
 
-1. [Post 0: Origin Story — Where SASE Came From](posts/origin-story.md) — the prequel: large-codebase rigor, a lagging
+1. [\[00\] Origin Story — Where SASE Came From](posts/origin-story.md) — the prequel: large-codebase rigor, a lagging
    day-job model, and the realization that workflows should be cheap enough to spin up _and_ wind down.
-2. [Post 1: Why Coding Agents Need Orchestration](posts/why-coding-agents-need-orchestration.md) — the launch essay on
+2. [\[01\] Why Coding Agents Need Orchestration](posts/why-coding-agents-need-orchestration.md) — the launch essay on
    _why_ coding-agent work needs durable orchestration around plans, state, review, dependencies, retries, and handoff.
-3. [Post 2: Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents](posts/hello-sase-your-first-15-minutes.md)
-   — the hands-on follow-up: install, launch an agent, find the result in ACE, and learn the names of every major
+3. [\[02\] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents](posts/hello-sase-your-first-15-minutes.md) —
+   the hands-on follow-up: install, launch an agent, find the result in ACE, and learn the names of every major
    component.
-4. [Post 3: XPrompts in Depth — From One File to Full Workflows](posts/xprompts-in-depth.md) — when a single Markdown
+4. [\[03\] XPrompts in Depth — From One File to Full Workflows](posts/xprompts-in-depth.md) — when a single Markdown
    file is the right shape, when typed inputs and directives are enough, and when YAML workflows earn their existence.
-5. [Post 4: AXE — The Background Daemon That Keeps Agent Work Moving](posts/axe-background-daemon.md) — the
+5. [\[04\] AXE — The Background Daemon That Keeps Agent Work Moving](posts/axe-background-daemon.md) — the
    orchestrator/lumberjack/chop architecture, default cadences, `%wait` resolution, and maintenance mode.
-6. [Post 5: Beads and SDD — Planning Multi-Agent Work That Actually Lands](posts/beads-and-sdd.md) — tales, epics,
+6. [\[05\] Beads and SDD — Planning Multi-Agent Work That Actually Lands](posts/beads-and-sdd.md) — tales, epics,
    legends, the bead data model, and how `sase bead work` turns a plan into a fleet.
-7. [Post 6: Commit Workflows — The Pluggable Path From Diff to PR](posts/commit-workflows-plugins.md) — `#commit`,
+7. [\[06\] Commit Workflows — The Pluggable Path From Diff to PR](posts/commit-workflows-plugins.md) — `#commit`,
    `#propose`, `#pr`, the stop-hook contract, runtime-uniform skills, and the VCS provider boundary.
-8. [Post 7: ChangeSpecs in Practice — Review State Outside the Chat](posts/changespecs-in-practice.md) — the `.sase`
+8. [\[07\] ChangeSpecs in Practice — Review State Outside the Chat](posts/changespecs-in-practice.md) — the `.sase`
    record end to end, commits drawers, mentor execution, HOOKS prefixes, and the ACE keystrokes that drive review.
-9. [Post 8: Driving SASE From Your Phone — Telegram as the Mobile Control Surface](posts/telegram-mobile-agents.md) —
-   the sase-telegram chop: activity-aware notifications, plan approvals from inline keyboards, launching agents and
+9. [\[08\] Driving SASE From Your Phone — Telegram as the Mobile Control Surface](posts/telegram-mobile-agents.md) — the
+   sase-telegram chop: activity-aware notifications, plan approvals from inline keyboards, launching agents and
    reviewing generated images from the chat.
-10. [Post 9: Where You Type — The Prompt Input Widget and sase-nvim](posts/prompt-widget-and-nvim.md) — the multiline
+10. [\[09\] Where You Type — The Prompt Input Widget and sase-nvim](posts/prompt-widget-and-nvim.md) — the multiline
     Textual widget that drives most launches, and the Neovim plugin that gives the same prompt language a richer editor.
-11. [Post 10: What's Next — Shared Memory, Mobile, and the Web Surface](posts/whats-next-memory-mobile-web.md) — the
-    three horizons SASE is reaching for next, and why each one isn't shipping yet.
+11. [\[10\] What's Next — Shared Memory, Mobile, and the Web Surface](posts/whats-next-memory-mobile-web.md) — the three
+    horizons SASE is reaching for next, and why each one isn't shipping yet.
 
-Post 0 is optional backstory; Posts 1 and 2 work in either order; Posts 3–9 deepen one subsystem at a time and can be
-read independently; Post 10 looks forward.
+[00] is optional backstory; [01] and [02] work in either order; [03]-[09] deepen one subsystem at a time and can be read
+independently; [10] looks forward.
 
 ## From Reading To Practice
 

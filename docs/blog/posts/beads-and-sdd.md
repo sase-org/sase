@@ -1,5 +1,5 @@
 ---
-title: "Post 5: Beads and SDD — Planning Multi-Agent Work That Actually Lands"
+title: "[05] Beads and SDD — Planning Multi-Agent Work That Actually Lands"
 date: 2026-05-16
 description: >-
   Orchestration only matters if you can split work into pieces with a real ordering. Beads and Spec-Driven Development
@@ -12,18 +12,18 @@ links:
   - SASE Blog Series: series/agentic-software-engineering.md
   - Spec-Driven Development: sdd.md
   - Beads: beads.md
-  - "Post 4: AXE — The Background Daemon That Keeps Agent Work Moving": blog/posts/axe-background-daemon.md
+  - "[04] AXE — The Background Daemon That Keeps Agent Work Moving": blog/posts/axe-background-daemon.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
-# Post 5: Beads and SDD — Planning Multi-Agent Work That Actually Lands
+# [05] Beads and SDD — Planning Multi-Agent Work That Actually Lands
 
 Orchestration only matters if you can split work into pieces with a real ordering. Beads and Spec-Driven Development
 (SDD) are the two pieces of SASE that file plans on disk and turn them into work that an agent fleet can execute.
 
 <!-- more -->
 
-[Post 4](axe-background-daemon.md) explained how AXE keeps individual agents moving in the background. This post is
+[\[04\]](axe-background-daemon.md) explained how AXE keeps individual agents moving in the background. This post is
 about what feeds it: how plans become durable artifacts, how those plans turn into ordered work units, and how a single
 command turns an epic into a multi-agent run with real dependency ordering.
 
@@ -130,14 +130,14 @@ discovered workspace variants before assigning the next ID, so two sibling works
   bead integration.
 - [Beads](../../beads.md) — every `sase bead` subcommand, the data model, the Rust-backed merged read view,
   multi-workspace specifics.
-- [Post 6: Commit Workflows — The Pluggable Path From Diff to PR](commit-workflows-plugins.md) — how the work that
+- [\[06\] Commit Workflows — The Pluggable Path From Diff to PR](commit-workflows-plugins.md) — how the work that
   `sase bead work` schedules eventually lands as commits, proposals, or PRs.
 
 ## Series Navigation
 
-This is Post 5 of the [SASE Blog Series](../../series/agentic-software-engineering.md).
+This is [05] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
-- Previous: [Post 4: AXE — The Background Daemon That Keeps Agent Work Moving](axe-background-daemon.md).
-- Next: [Post 6: Commit Workflows — The Pluggable Path From Diff to PR](commit-workflows-plugins.md).
+- Previous: [\[04\] AXE — The Background Daemon That Keeps Agent Work Moving](axe-background-daemon.md).
+- Next: [\[06\] Commit Workflows — The Pluggable Path From Diff to PR](commit-workflows-plugins.md).
 - Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [SDD guide](../../sdd.md).

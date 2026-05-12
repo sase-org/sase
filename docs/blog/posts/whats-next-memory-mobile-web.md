@@ -1,5 +1,5 @@
 ---
-title: "Post 10: What's Next — Shared Memory, Mobile, and the Web Surface"
+title: "[10] What's Next — Shared Memory, Mobile, and the Web Surface"
 date: 2026-05-23
 description: >-
   SASE today is the orchestration layer. The next horizon is shared memory across agents, a mobile control surface, and
@@ -11,11 +11,11 @@ slug: whats-next-memory-mobile-web
 links:
   - SASE Blog Series: series/agentic-software-engineering.md
   - Mobile Gateway: mobile_gateway.md
-  - "Post 9: Where You Type — The Prompt Input Widget and sase-nvim": blog/posts/prompt-widget-and-nvim.md
+  - "[09] Where You Type — The Prompt Input Widget and sase-nvim": blog/posts/prompt-widget-and-nvim.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
-# Post 10: What's Next — Shared Memory, Mobile, and the Web Surface
+# [10] What's Next — Shared Memory, Mobile, and the Web Surface
 
 SASE today is the orchestration layer. The next horizon is the things that horizon-line doesn't quite reach yet —
 durable shared memory across agents, a phone you can drive from, and a browser the team can open without learning a TUI.
@@ -66,7 +66,7 @@ not have to land at once.
 
 ## Mobile
 
-[Post 8](telegram-mobile-agents.md) covered the Telegram chop that ships today and gives you a working mobile control
+[\[08\]](telegram-mobile-agents.md) covered the Telegram chop that ships today and gives you a working mobile control
 surface right now. The native mobile path is the longer-term answer.
 
 The mobile gateway already exists. `sase mobile gateway start` runs a Rust gateway in the foreground on
@@ -110,9 +110,9 @@ memory, mobile, and web are how that durable object stays reachable.
 
 ## Series Navigation
 
-This is Post 10 of the [SASE Blog Series](../../series/agentic-software-engineering.md).
+This is [10] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
-- Previous: [Post 9: Where You Type — The Prompt Input Widget and sase-nvim](prompt-widget-and-nvim.md).
+- Previous: [\[09\] Where You Type — The Prompt Input Widget and sase-nvim](prompt-widget-and-nvim.md).
 - Next: none (latest post).
 - Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [mobile gateway guide](../../mobile_gateway.md).

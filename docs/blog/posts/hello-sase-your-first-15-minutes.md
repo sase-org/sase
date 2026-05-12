@@ -1,5 +1,5 @@
 ---
-title: "Post 2: Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents"
+title: "[02] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents"
 date: 2026-05-10
 description: >-
   A hands-on tour: install SASE, launch your first agent run, find the resulting ChangeSpec in ACE, and pick up the
@@ -10,13 +10,13 @@ categories:
 slug: hello-sase-your-first-15-minutes
 links:
   - SASE Blog Series: series/agentic-software-engineering.md
-  - "Post 1: Why Coding Agents Need Orchestration": blog/posts/why-coding-agents-need-orchestration.md
+  - "[01] Why Coding Agents Need Orchestration": blog/posts/why-coding-agents-need-orchestration.md
   - ACE TUI: ace.md
   - Spec-Driven Development: sdd.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
-# Post 2: Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents
+# [02] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents
 
 SASE (pronounced "sassy" — yes, really) is a coordination layer that sits above coding-agent CLIs like Claude Code,
 Codex, or Gemini. This post is the practical on-ramp: by the end you'll have installed `sase`, launched an agent, found
@@ -25,8 +25,8 @@ roughly fifteen minutes at a terminal, plus however long your favorite model tak
 
 <!-- more -->
 
-This is Post 2 in the SASE Blog Series. If you'd rather read about _why_ a system like this exists before touching it,
-[Post 1: Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md) makes that argument. The two
+This is [02] in the SASE Blog Series. If you'd rather read about _why_ a system like this exists before touching it,
+[\[01\] Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md) makes that argument. The two
 posts can be read in either order; this one runs first and names the parts afterward.
 
 ## Step 1 — Install (≈90 seconds)
@@ -161,7 +161,7 @@ The names you'll keep bumping into, in one place:
 
 ## What to read next
 
-- [Post 1: Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md) — the conceptual half of the
+- [\[01\] Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md) — the conceptual half of the
   series, for when you want the _why_ to match the _how_.
 - [SASE Blog Series](../../series/agentic-software-engineering.md) — all eleven posts in one place.
 - [CLI reference](../../cli.md) — every `sase` subcommand on one page.
@@ -170,9 +170,9 @@ The names you'll keep bumping into, in one place:
 
 ## Series Navigation
 
-This is Post 2 of the [SASE Blog Series](../../series/agentic-software-engineering.md).
+This is [02] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
-- Previous: [Post 1: Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md).
-- Next: [Post 3: XPrompts in Depth — From One File to Full Workflows](xprompts-in-depth.md).
+- Previous: [\[01\] Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md).
+- Next: [\[03\] XPrompts in Depth — From One File to Full Workflows](xprompts-in-depth.md).
 - Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [ACE guide](../../ace.md).

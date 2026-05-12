@@ -1,5 +1,5 @@
 ---
-title: "Post 0: Origin Story — Where SASE Came From"
+title: "[00] Origin Story — Where SASE Came From"
 date: 2026-05-06
 description: >-
   The day-job constraint that made the case for SASE: large-codebase rigor, a lagging in-house model, and the
@@ -9,12 +9,12 @@ categories:
 slug: origin-story
 links:
   - SASE Blog Series: series/agentic-software-engineering.md
-  - "Post 1: Why Coding Agents Need Orchestration": blog/posts/why-coding-agents-need-orchestration.md
+  - "[01] Why Coding Agents Need Orchestration": blog/posts/why-coding-agents-need-orchestration.md
   - Start with ACE: ace.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
-# Post 0: Origin Story — Where SASE Came From
+# [00] Origin Story — Where SASE Came From
 
 SASE started as a coping mechanism. I was a software engineer at Google, working in codebases and on teams large enough
 that the everyday open-source playbook — read a file, change a file, send a PR — stops being a complete description of
@@ -27,7 +27,7 @@ context, and handoffs that someone else can pick up cold.
 This post is the prequel to the rest of the [SASE Blog Series](../../series/agentic-software-engineering.md). It
 explains the lived constraint that pushed SASE's design toward a particular shape: a coordination layer above coding
 agents that treats workflows as cheap and models as mortal. If you would rather skip the backstory and start from the
-technical argument, jump to [Post 1: Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md).
+technical argument, jump to [\[01\] Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md).
 
 ## Large-Codebase Rigor Is Different
 
@@ -141,9 +141,9 @@ day-job model and the state-of-the-art model I built things with at night.
 
 ## Series Navigation
 
-This is Post 0 of the [SASE Blog Series](../../series/agentic-software-engineering.md).
+This is [00] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
 - Previous: none.
-- Next: [Post 1: Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md).
+- Next: [\[01\] Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md).
 - Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [ACE guide](../../ace.md).

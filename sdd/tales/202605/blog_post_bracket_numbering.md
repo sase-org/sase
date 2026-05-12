@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 13:55:12
-status: wip
+status: done
 prompt: sdd/prompts/202605/blog_post_bracket_numbering.md
 ---
 # Implement Blog Post Bracket Numbering
