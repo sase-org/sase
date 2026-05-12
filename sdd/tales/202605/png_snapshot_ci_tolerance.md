@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 00:36:14
-status: wip
+status: done
 prompt: sdd/prompts/202605/png_snapshot_ci_tolerance.md
 ---
 # Allow Small PNG Snapshot Diffs In GitHub Actions

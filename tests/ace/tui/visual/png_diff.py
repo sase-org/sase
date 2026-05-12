@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Protocol
 
 from PIL import Image
+
+GITHUB_ACTIONS_MAX_DIFF_RATIO = 0.01
 
 
 class SvgExporter(Protocol):
@@ -37,13 +40,40 @@ class PngDiffSummary:
     def is_within(
         self,
         *,
-        max_diff_pixels: int,
-        max_diff_ratio: float,
+        max_diff_pixels: int | None,
+        max_diff_ratio: float | None,
     ) -> bool:
-        return (
-            self.changed_pixels <= max_diff_pixels
-            and self.changed_ratio <= max_diff_ratio
+        if max_diff_pixels is not None and self.changed_pixels > max_diff_pixels:
+            return False
+        if max_diff_ratio is not None and self.changed_ratio > max_diff_ratio:
+            return False
+        return True
+
+
+@dataclass(frozen=True)
+class _PngDiffTolerance:
+    max_diff_pixels: int | None
+    max_diff_ratio: float | None
+    source: str
+
+    def is_within(self, summary: PngDiffSummary) -> bool:
+        return summary.is_within(
+            max_diff_pixels=self.max_diff_pixels,
+            max_diff_ratio=self.max_diff_ratio,
         )
+
+    def describe(self) -> str:
+        pixels = (
+            "no pixel cap"
+            if self.max_diff_pixels is None
+            else f"{self.max_diff_pixels} pixels"
+        )
+        ratio = (
+            "no ratio cap"
+            if self.max_diff_ratio is None
+            else f"{self.max_diff_ratio:.6%}"
+        )
+        return f"{pixels} and {ratio} ({self.source})"
 
 
 @dataclass(frozen=True)
@@ -65,16 +95,15 @@ class AcePngSnapshotFixture:
         *,
         title: str | None = None,
         simplify: bool = True,
-        max_diff_pixels: int = 50000,
-        max_diff_ratio: float = 0.04,
+        max_diff_pixels: int | None = None,
+        max_diff_ratio: float | None = None,
     ) -> None:
         """Capture *page* as PNG and assert that it matches the golden.
 
-        The default tolerance absorbs sub-pixel rasterization drift (FreeType
-        hinting / cairo LCD filter) that varies between hosts even when the
-        bundled font is pinned. Callers should tighten ``max_diff_pixels`` and
-        ``max_diff_ratio`` via kwargs for snapshots where pixel-exactness
-        matters.
+        Local runs default to exact pixel equality. GitHub Actions workflow
+        runs default to a small ratio-only tolerance to absorb renderer drift.
+        Explicit ``max_diff_pixels`` or ``max_diff_ratio`` kwargs take
+        precedence over those environment-derived defaults.
         """
         svg = page.export_svg(title=title, simplify=simplify)
         png_bytes = render_svg_to_png(svg)
@@ -92,8 +121,8 @@ class AcePngSnapshotFixture:
         png_bytes: bytes,
         *,
         source_svg: str | None = None,
-        max_diff_pixels: int = 50000,
-        max_diff_ratio: float = 0.04,
+        max_diff_pixels: int | None = None,
+        max_diff_ratio: float | None = None,
     ) -> None:
         """Assert that *png_bytes* matches the named golden."""
         assert_png_matches(
@@ -135,8 +164,8 @@ def assert_png_matches(
     update: bool,
     node_id: str,
     source_svg: str | None = None,
-    max_diff_pixels: int = 50000,
-    max_diff_ratio: float = 0.04,
+    max_diff_pixels: int | None = None,
+    max_diff_ratio: float | None = None,
     test_file: str | None = None,
     test_line: int | None = None,
     repo_root: Path | None = None,
@@ -174,10 +203,11 @@ def assert_png_matches(
 
     expected = expected_path.read_bytes()
     summary, diff_png = diff_pngs(expected, png_bytes)
-    if summary.is_within(
+    tolerance = _resolve_png_diff_tolerance(
         max_diff_pixels=max_diff_pixels,
         max_diff_ratio=max_diff_ratio,
-    ):
+    )
+    if tolerance.is_within(summary):
         return
 
     artifacts = _write_failure_artifacts(
@@ -200,7 +230,7 @@ def assert_png_matches(
         f"{expected_path}\n"
         f"Changed pixels: {summary.changed_pixels}/{summary.total_pixels} "
         f"({summary.changed_ratio:.6%}); "
-        f"allowed <= {max_diff_pixels} pixels and <= {max_diff_ratio:.6%}\n"
+        f"allowed: {tolerance.describe()}\n"
         f"Expected PNG written to: {artifacts.expected_path}\n"
         f"Actual PNG written to: {artifacts.actual_path}\n"
         f"Diff PNG written to: {artifacts.diff_path}\n"
@@ -208,6 +238,37 @@ def assert_png_matches(
         "Inspect the artifacts, then re-run with "
         "--sase-update-visual-snapshots only for intentional changes."
     )
+
+
+def _resolve_png_diff_tolerance(
+    *,
+    max_diff_pixels: int | None,
+    max_diff_ratio: float | None,
+) -> _PngDiffTolerance:
+    if max_diff_pixels is not None or max_diff_ratio is not None:
+        return _PngDiffTolerance(
+            max_diff_pixels=max_diff_pixels,
+            max_diff_ratio=max_diff_ratio,
+            source="explicit",
+        )
+    if _running_in_github_actions_workflow():
+        return _PngDiffTolerance(
+            max_diff_pixels=None,
+            max_diff_ratio=GITHUB_ACTIONS_MAX_DIFF_RATIO,
+            source="GitHub Actions default",
+        )
+    return _PngDiffTolerance(
+        max_diff_pixels=0,
+        max_diff_ratio=0.0,
+        source="local default",
+    )
+
+
+def _running_in_github_actions_workflow() -> bool:
+    """Return true for GitHub Actions workflow execution, not generic CI."""
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return False
+    return bool(os.environ.get("GITHUB_WORKFLOW") or os.environ.get("GITHUB_RUN_ID"))
 
 
 def snapshot_path(snapshot_root: Path, name: str) -> Path:
