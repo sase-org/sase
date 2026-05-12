@@ -9,7 +9,11 @@ from sase.ace.tui.models._loaders._meta_enrichment import (
     enrich_agent_from_meta_wire,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.core.agent_scan_wire import AgentMetaWire, PendingQuestionMarkerWire
+from sase.core.agent_scan_wire import (
+    AgentMetaWire,
+    PendingQuestionMarkerWire,
+    WaitingMarkerWire,
+)
 from sase.core.time import get_timezone
 
 
@@ -35,6 +39,37 @@ def test_wait_duration_from_waiting_json(tmp_path: Path) -> None:
 
     assert agent.status == "WAITING"
     assert agent.wait_duration == 600.0
+
+
+def test_waiting_json_flips_starting_to_waiting(tmp_path: Path) -> None:
+    """waiting.json marker overrides a pre-run STARTING row."""
+    (tmp_path / "agent_meta.json").write_text(json.dumps({"pid": 1234}))
+    (tmp_path / "waiting.json").write_text(json.dumps({"waiting_for": ["dep_agent"]}))
+
+    agent = _make_agent(status="STARTING")
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "WAITING"
+    assert agent.waiting_for == ["dep_agent"]
+
+
+def test_run_started_at_promotes_starting_to_running(tmp_path: Path) -> None:
+    """run_started_at is the display-status promotion point."""
+    timestamp = "2026-04-27T15:05:00Z"
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"pid": 1234, "run_started_at": timestamp})
+    )
+
+    agent = _make_agent(status="STARTING")
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    expected = (
+        datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        .astimezone(get_timezone())
+        .replace(tzinfo=None)
+    )
+    assert agent.status == "RUNNING"
+    assert agent.run_start_time == expected
 
 
 def test_wait_duration_from_agent_meta_fallback(tmp_path: Path) -> None:
@@ -253,6 +288,22 @@ def test_manual_plan_after_submission_becomes_plan(tmp_path: Path) -> None:
     assert len(agent.plan_times) == 1
 
 
+def test_manual_plan_after_submission_overrides_starting(tmp_path: Path) -> None:
+    """Plan review markers override pre-run STARTING rows."""
+    meta = {
+        "pid": 1234,
+        "plan": True,
+        "plan_submitted_at": "2026-04-27T15:05:00Z",
+    }
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+
+    agent = _make_agent(status="STARTING")
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "PLAN"
+    assert len(agent.plan_times) == 1
+
+
 def test_feedback_plan_path_from_agent_meta(tmp_path: Path) -> None:
     """feedback_submitted_at plus plan_path records rejected plan paths."""
     timestamp = "2026-04-27T15:05:00Z"
@@ -383,6 +434,23 @@ def test_wire_manual_plan_after_submission_becomes_plan() -> None:
     assert len(agent.plan_times) == 1
 
 
+def test_wire_manual_plan_after_submission_overrides_starting() -> None:
+    """Snapshot plan review markers override pre-run STARTING rows."""
+    agent = _make_agent(status="STARTING")
+
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(
+            plan=True,
+            plan_submitted_at=["2026-04-27T15:05:00Z"],
+        ),
+        None,
+    )
+
+    assert agent.status == "PLAN"
+    assert len(agent.plan_times) == 1
+
+
 def test_wire_auto_epic_plan_after_submission_stays_running() -> None:
     """Snapshot auto-epic plans do not become manual review items."""
     agent = _make_agent()
@@ -499,6 +567,19 @@ def test_pending_question_marker_flips_running_to_question(tmp_path: Path) -> No
     assert agent.status == "QUESTION"
 
 
+def test_pending_question_marker_flips_starting_to_question(tmp_path: Path) -> None:
+    """pending_question.json marker overrides a pre-run STARTING row."""
+    (tmp_path / "agent_meta.json").write_text(json.dumps({"pid": 1234}))
+    (tmp_path / "pending_question.json").write_text(
+        json.dumps({"session_id": "abc", "request_path": "/x", "submitted_at": "t"})
+    )
+
+    agent = _make_agent(status="STARTING")
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "QUESTION"
+
+
 def test_pending_question_marker_no_op_when_absent(tmp_path: Path) -> None:
     """Without the marker, status stays RUNNING."""
     (tmp_path / "agent_meta.json").write_text(json.dumps({"pid": 1234}))
@@ -523,7 +604,7 @@ def test_pending_question_marker_does_not_override_done(tmp_path: Path) -> None:
 
 
 def test_pending_question_marker_does_not_override_waiting(tmp_path: Path) -> None:
-    """The WAITING override runs first; the QUESTION check only fires for RUNNING."""
+    """The WAITING override runs first; QUESTION only fires for active rows."""
     (tmp_path / "agent_meta.json").write_text(json.dumps({"pid": 1234}))
     (tmp_path / "waiting.json").write_text(
         json.dumps({"waiting_for": ["dep"], "wait_duration": 300.0})
@@ -541,6 +622,44 @@ def test_pending_question_marker_does_not_override_waiting(tmp_path: Path) -> No
 def test_pending_question_marker_wire_flips_running_to_question() -> None:
     """Snapshot enrichment mirrors filesystem pending_question handling."""
     agent = _make_agent(status="RUNNING")
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(),
+        None,
+        PendingQuestionMarkerWire(session_id="abc"),
+    )
+    assert agent.status == "QUESTION"
+
+
+def test_waiting_marker_wire_flips_starting_to_waiting() -> None:
+    """Snapshot enrichment mirrors STARTING -> WAITING marker handling."""
+    agent = _make_agent(status="STARTING")
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(),
+        WaitingMarkerWire(waiting_for=["dep_agent"]),
+        None,
+    )
+    assert agent.status == "WAITING"
+    assert agent.waiting_for == ["dep_agent"]
+
+
+def test_run_started_at_wire_promotes_starting_to_running() -> None:
+    """Snapshot metadata promotes STARTING rows when run_started_at exists."""
+    agent = _make_agent(status="STARTING")
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(run_started_at="2026-04-27T15:05:00Z"),
+        None,
+        None,
+    )
+    assert agent.status == "RUNNING"
+    assert agent.run_start_time is not None
+
+
+def test_pending_question_marker_wire_flips_starting_to_question() -> None:
+    """Snapshot pending-question markers override STARTING rows."""
+    agent = _make_agent(status="STARTING")
     enrich_agent_from_meta_wire(
         agent,
         AgentMetaWire(),

@@ -27,6 +27,9 @@ from ._json_cache import load_json_cached
 from ..agent import Agent
 
 
+_ACTIVE_ENRICHMENT_STATUSES = {"STARTING", "RUNNING"}
+
+
 @lru_cache(maxsize=1)
 def _cached_timezone() -> ZoneInfo:
     return get_timezone()
@@ -209,6 +212,8 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
     if isinstance(run_started_at, str):
         try:
             agent.run_start_time = _parse_utc_to_eastern(run_started_at)
+            if agent.status == "STARTING":
+                agent.status = "RUNNING"
         except ValueError:
             pass
 
@@ -223,7 +228,7 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
     # Check for waiting.json to set WAITING status (takes precedence over PLAN
     # since the agent can't plan until its dependencies are resolved)
     waiting_path = Path(artifacts_dir) / "waiting.json"
-    if waiting_path.exists() and agent.status == "RUNNING":
+    if waiting_path.exists() and agent.status in _ACTIVE_ENRICHMENT_STATUSES:
         agent.status = "WAITING"
         # waiting.json may contain an updated waiting_for list (e.g. from the TUI
         # "w" keymap), which takes precedence over agent_meta.json's wait_for.
@@ -268,14 +273,14 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
     # signal that the agent is currently blocked on user input — independent
     # of the notification's dismissed/read state.
     pending_question_path = Path(artifacts_dir) / "pending_question.json"
-    if pending_question_path.exists() and agent.status == "RUNNING":
+    if pending_question_path.exists() and agent.status in _ACTIVE_ENRICHMENT_STATUSES:
         agent.status = "QUESTION"
 
     # Set plan review / approval statuses for agents launched with %plan
     # directives. PLAN means a submitted plan is waiting on manual review;
-    # agents still drafting a plan, or using an auto-approval path, remain
-    # RUNNING until later markers take over.
-    if data.get("plan") and agent.status == "RUNNING":
+    # agents still drafting a plan, or using an auto-approval path, keep their
+    # current active display state until later markers take over.
+    if data.get("plan") and agent.status in _ACTIVE_ENRICHMENT_STATUSES:
         plan_status = _plan_enrichment_status(
             plan_approved=bool(data.get("plan_approved")),
             plan_action=data.get("plan_action"),
@@ -405,6 +410,8 @@ def enrich_agent_from_meta_wire(
     if meta.run_started_at:
         try:
             agent.run_start_time = _parse_utc_to_eastern(meta.run_started_at)
+            if agent.status == "STARTING":
+                agent.status = "RUNNING"
         except ValueError:
             pass
     if meta.stopped_at:
@@ -413,11 +420,11 @@ def enrich_agent_from_meta_wire(
         except ValueError:
             pass
 
-    # waiting.json overrides RUNNING → WAITING and updates wait fields.
+    # waiting.json overrides active display states and updates wait fields.
     # The filesystem helper only consults waiting.json when agent_meta
     # was successfully read; mirror that gate by handling it after the
     # meta-driven assignments.
-    if waiting is not None and agent.status == "RUNNING":
+    if waiting is not None and agent.status in _ACTIVE_ENRICHMENT_STATUSES:
         agent.status = "WAITING"
         if waiting.waiting_for:
             agent.waiting_for = list(waiting.waiting_for)
@@ -431,11 +438,11 @@ def enrich_agent_from_meta_wire(
     if agent.wait_until is None and meta.wait_until:
         agent.wait_until = meta.wait_until
 
-    # pending_question.json: marker presence flips RUNNING → QUESTION.
-    if pending_question is not None and agent.status == "RUNNING":
+    # pending_question.json: marker presence flips active rows to QUESTION.
+    if pending_question is not None and agent.status in _ACTIVE_ENRICHMENT_STATUSES:
         agent.status = "QUESTION"
 
-    if meta.plan and agent.status == "RUNNING":
+    if meta.plan and agent.status in _ACTIVE_ENRICHMENT_STATUSES:
         plan_status = _plan_enrichment_status(
             plan_approved=meta.plan_approved,
             plan_action=meta.plan_action,

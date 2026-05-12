@@ -1,9 +1,14 @@
-"""Loaders for running agents (RUNNING field claims and home-mode ``running.json``).
+"""Loaders for active agents (RUNNING field claims and home ``running.json``).
 
 Discovers project spec files (canonical ``.sase`` with legacy ``.gp``
 fallback), builds Agent records from active workspace claims, and
 surfaces home-mode ace agents from filesystem markers or
 :class:`AgentArtifactScanWire` snapshots.
+
+The ProjectSpec ``RUNNING`` field and home ``running.json`` marker are
+liveness claims, not display-status claims. Rows start as ``STARTING`` and
+metadata enrichment promotes them to ``RUNNING`` once ``run_started_at`` is
+recorded.
 """
 
 from pathlib import Path
@@ -126,7 +131,7 @@ def load_agents_from_running_field(
                 agent_type=agent_type,
                 cl_name=cl_name,
                 project_file=project_file,
-                status="RUNNING",
+                status="STARTING",
                 start_time=start_time,
                 workspace_num=claim.workspace_num,
                 workflow=workflow_name,
@@ -184,7 +189,7 @@ def load_running_home_agents_from_snapshot(
             agent_type=AgentType.RUNNING,
             cl_name=cl_name,
             project_file=home_project_file,
-            status="RUNNING",
+            status="STARTING",
             start_time=start_time,
             workflow="ace(run)",
             pid=pid,
@@ -256,7 +261,7 @@ def load_running_home_agents() -> list[Agent]:
                 agent_type=AgentType.RUNNING,
                 cl_name=cl_name,
                 project_file=home_project_file,
-                status="RUNNING",
+                status="STARTING",
                 start_time=start_time,
                 workflow="ace(run)",
                 pid=pid,

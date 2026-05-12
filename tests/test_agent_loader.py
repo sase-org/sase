@@ -1,11 +1,80 @@
 """Tests for load_all_agents agents derived from RUNNING claim entries."""
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from sase.ace.agent_tags import REVIEW_AGENT_TAG
+from sase.ace.tui.models._loaders._running_loaders import (
+    load_agents_from_running_field,
+    load_running_home_agents_from_snapshot,
+)
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
+from sase.core.agent_scan_wire import (
+    AGENT_SCAN_WIRE_SCHEMA_VERSION,
+    AgentArtifactRecordWire,
+    AgentArtifactScanOptionsWire,
+    AgentArtifactScanStatsWire,
+    AgentArtifactScanWire,
+    AgentMetaWire,
+    RunningMarkerWire,
+)
 from tests._agent_loader_helpers import _empty_artifact_snapshot
+
+
+def test_load_agents_from_running_field_starts_without_run_timestamp() -> None:
+    """RUNNING-field claims are liveness claims and load as STARTING."""
+    claim = SimpleNamespace(
+        workspace_num=1,
+        workflow="crs",
+        cl_name="my_feature",
+        pid=None,
+        artifacts_timestamp="20260512123456",
+    )
+
+    with patch(
+        "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
+        return_value=[claim],
+    ):
+        agents = load_agents_from_running_field(
+            ["/tmp/.sase/projects/myproj/myproj.sase"],
+            bug_by_cl_name={},
+            cl_by_cl_name={},
+        )
+
+    assert len(agents) == 1
+    assert agents[0].status == "STARTING"
+
+
+def test_load_running_home_snapshot_starts_without_run_timestamp() -> None:
+    """Home running.json snapshot rows also load as STARTING until RUN is recorded."""
+    snapshot = AgentArtifactScanWire(
+        schema_version=AGENT_SCAN_WIRE_SCHEMA_VERSION,
+        projects_root="/tmp/.sase/projects",
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=[
+            AgentArtifactRecordWire(
+                project_name="home",
+                project_dir="/tmp/.sase/projects/home",
+                project_file="/tmp/.sase/projects/home/home.sase",
+                workflow_dir_name="ace-run",
+                artifact_dir="/tmp/.sase/projects/home/artifacts/ace-run/20260512123456",
+                timestamp="20260512123456",
+                agent_meta=AgentMetaWire(name="home_runner"),
+                running=RunningMarkerWire(pid=1234, cl_name="~"),
+            )
+        ],
+    )
+
+    with patch(
+        "sase.ace.tui.models._loaders._running_loaders.is_process_running",
+        return_value=True,
+    ):
+        agents = load_running_home_agents_from_snapshot(snapshot)
+
+    assert len(agents) == 1
+    assert agents[0].status == "STARTING"
 
 
 def test_load_all_agents_with_running_claims() -> None:
@@ -49,6 +118,7 @@ def test_load_all_agents_with_running_claims() -> None:
         agents = load_all_agents()
         assert len(agents) == 1
         assert agents[0].agent_type == AgentType.RUNNING
+        assert agents[0].status == "STARTING"
         assert agents[0].cl_name == "my_feature"
         assert agents[0].workspace_num == 1
         assert agents[0].workflow == "crs"
