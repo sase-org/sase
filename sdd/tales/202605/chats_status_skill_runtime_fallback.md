@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 11:13:29
-status: wip
+status: done
 prompt: sdd/prompts/202605/chats_status_skill_runtime_fallback.md
 ---
 # Plan: Teach `sase_chats` / `sase_agents_status` skills to fall through to live agents and mid-run artifacts
