@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_bead import derive_agent_bead_id
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_header_text,
@@ -55,6 +56,48 @@ class TestGetPhaseLabel:
 
 
 # -- derive_agent_bead_id / header metadata ----------------------------------
+
+
+class TestAgentModelMetadata:
+    def test_non_agent_workflow_child_omits_model(self) -> None:
+        agent = make_agent(
+            agent_type=AgentType.WORKFLOW,
+            parent_workflow="wf",
+            step_name="diff",
+            step_type="bash",
+            step_index=0,
+            total_steps=2,
+            model="opus",
+            llm_provider="claude",
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "Step: diff\n" in header.plain
+        assert "Model:" not in header.plain
+
+    def test_agent_workflow_child_renders_model(self) -> None:
+        agent = make_agent(
+            agent_type=AgentType.WORKFLOW,
+            parent_workflow="wf",
+            step_name="write",
+            step_type="agent",
+            step_index=1,
+            total_steps=2,
+            model="opus",
+            llm_provider="claude",
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "Model: CLAUDE(opus)\n" in header.plain
+
+    def test_top_level_agent_renders_model(self) -> None:
+        agent = make_agent(model="opus", llm_provider="claude")
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "Model: CLAUDE(opus)\n" in header.plain
 
 
 class TestAgentBeadMetadata:

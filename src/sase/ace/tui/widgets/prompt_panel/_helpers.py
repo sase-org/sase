@@ -201,6 +201,11 @@ def append_model_field(
         )
 
 
+def should_render_agent_detail_model(agent: Agent) -> bool:
+    """Return whether the agent detail header should show model metadata."""
+    return not (agent.is_workflow_child and not agent.is_agent_entry)
+
+
 def load_embedded_workflows(agent: Agent) -> list[dict[str, Any]] | None:
     """Load embedded workflow metadata from embedded_workflows.json.
 

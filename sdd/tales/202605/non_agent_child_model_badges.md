@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 10:42:41
-status: wip
+status: done
 prompt: sdd/prompts/202605/non_agent_child_model_badges.md
 ---
 # Plan: Hide Model Metadata And Provider Badges For Non-Agent Workflow Children

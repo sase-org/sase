@@ -16,6 +16,7 @@ from ._helpers import (
     extract_meta_fields,
     format_embedded_workflows,
     load_embedded_workflows,
+    should_render_agent_detail_model,
 )
 from ._file_path_hints import append_text_with_file_hints
 
@@ -264,7 +265,8 @@ def build_header_text(
             header_text.append(f"{format_embedded_workflows(embedded_workflows)}\n")
 
     # Model (with provider-themed styling)
-    append_model_field(header_text, agent.model, agent.llm_provider)
+    if should_render_agent_detail_model(agent):
+        append_model_field(header_text, agent.model, agent.llm_provider)
 
     # VCS provider
     if agent.vcs_provider:

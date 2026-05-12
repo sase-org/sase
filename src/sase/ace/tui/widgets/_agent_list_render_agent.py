@@ -33,6 +33,10 @@ from ._agent_list_styling import (
 )
 
 
+def _should_render_provider_badge(agent: Agent) -> bool:
+    return not (agent.is_workflow_child and not agent.is_agent_entry)
+
+
 def format_agent_option(
     agent: Agent,
     index: int,
@@ -136,7 +140,9 @@ def format_agent_option(
         else:
             text.append(f"[{dt}] ", style=f"bold {color}")
 
-    if emoji_badge := provider_emoji_badge(agent.llm_provider):
+    if _should_render_provider_badge(agent) and (
+        emoji_badge := provider_emoji_badge(agent.llm_provider)
+    ):
         text.append(f"{emoji_badge} ")
 
     # Agent display name (workflow name for top-level workflows, CL name otherwise)

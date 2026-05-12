@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from datetime import UTC, datetime, timedelta
 
-from sase.ace.tui.models.agent import Agent
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_header_text,
@@ -116,6 +116,7 @@ class TestAgentListProviderEmojiBadges:
     def test_workflow_child_row_renders_codex_provider_emoji_before_name(self) -> None:
         agent = make_agent(
             cl_name="child-agent",
+            agent_type=AgentType.WORKFLOW,
             parent_workflow="wf",
             step_name="agent",
             step_type="agent",
@@ -127,6 +128,23 @@ class TestAgentListProviderEmojiBadges:
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
         assert "1/2 🤖 child-agent (RUNNING)" in left.plain
+
+    def test_non_agent_workflow_child_row_omits_provider_emoji(self) -> None:
+        agent = make_agent(
+            cl_name="diff",
+            agent_type=AgentType.WORKFLOW,
+            parent_workflow="wf",
+            step_name="diff",
+            step_type="bash",
+            step_index=0,
+            total_steps=2,
+            llm_provider="claude",
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "1/2 🐚 diff (RUNNING)" in left.plain
+        assert "🎭" not in left.plain
 
     def test_row_without_provider_omits_provider_emoji(self) -> None:
         agent = make_agent(cl_name="plain-agent", llm_provider=None)
