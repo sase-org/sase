@@ -440,6 +440,14 @@ def test_run_configured_chop_once_launches_agent_with_chop_env(
     assert entry.source == "manual"
     assert entry.started_by == "ace"
 
+    tail = read_chop_run_log_tail("agentj", "my_agent", outcome.run_id)
+    assert "Launched agent chop 'my_agent' (PID 4242)" in tail
+    assert "chop=my_agent lumberjack=agentj source=manual started_by=ace" in tail
+    assert f"prompt_hash={extra_env['SASE_CHOP_PROMPT_HASH']}" in tail
+    assert "agent_pid=4242 workspace=7 workspace_dir=/tmp/ws7 output=/tmp/out" in tail
+    assert "project=proj workflow=ace(run)-260101_120000 cl=proj" in tail
+    assert "prompt_preview='some prompt'" in tail
+
 
 def test_run_configured_chop_once_dedupes_live_agent(
     temp_state_dir: Path,

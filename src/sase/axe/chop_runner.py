@@ -59,6 +59,7 @@ TRACEBACK_UNAVAILABLE = "<traceback unavailable>"
 # chop is not configured under any real lumberjack. Matches the legacy CLI
 # fallback so unconfigured scripts continue to work.
 ONESHOT_LUMBERJACK_NAME = "_oneshot"
+PROMPT_PREVIEW_CHARS = 160
 
 
 def _capture_traceback() -> str:
@@ -67,6 +68,56 @@ def _capture_traceback() -> str:
     if formatted == "NoneType: None" or not formatted:
         return TRACEBACK_UNAVAILABLE
     return formatted
+
+
+def _compact_preview(value: str, *, limit: int = PROMPT_PREVIEW_CHARS) -> str:
+    """Return a bounded single-line preview for chop run logs."""
+    preview = " ".join(value.split())
+    if len(preview) <= limit:
+        return preview
+    return preview[: limit - 3].rstrip() + "..."
+
+
+def _agent_launch_output(
+    *,
+    lumberjack_name: str,
+    chop: ChopConfig,
+    result: object,
+    extra_env: dict[str, str],
+    source: ChopRunSource,
+    started_by: str | None,
+) -> str:
+    """Build the persisted log for a successful agent-chop launch."""
+    pid = getattr(result, "pid", "")
+    workspace_num = getattr(result, "workspace_num", "")
+    workspace_dir = getattr(result, "workspace_dir", "")
+    output_path = getattr(result, "output_path", "")
+    project_name = getattr(result, "project_name", "")
+    workflow_name = getattr(result, "workflow_name", "")
+    cl_name = getattr(result, "cl_name", "")
+    timestamp = getattr(result, "timestamp", "")
+    prompt_hash_value = extra_env.get("SASE_CHOP_PROMPT_HASH", "-")
+    prompt_preview = _compact_preview(chop.agent or "")
+
+    lines = [
+        f"Launched agent chop '{chop.name}' (PID {pid})",
+        (
+            f"chop={chop.name} lumberjack={lumberjack_name} source={source} "
+            f"started_by={started_by or '-'} prompt_hash={prompt_hash_value}"
+        ),
+        (
+            f"agent_pid={pid} workspace={workspace_num or '-'} "
+            f"workspace_dir={workspace_dir or '-'} output={output_path or '-'}"
+        ),
+    ]
+    if project_name or workflow_name or cl_name or timestamp:
+        lines.append(
+            f"project={project_name or '-'} workflow={workflow_name or '-'} "
+            f"cl={cl_name or '-'} timestamp={timestamp or '-'}"
+        )
+    if prompt_preview:
+        lines.append(f"prompt_preview={prompt_preview!r}")
+    return "\n".join(lines) + "\n"
 
 
 ChopRunOutcomeStatus = Literal[
@@ -341,7 +392,14 @@ def _run_agent_chop_once(
 
     finished_at = datetime.now(get_timezone())
     duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
-    launch_line = f"Launched agent chop '{chop.name}' (PID {result.pid})\n"
+    launch_output = _agent_launch_output(
+        lumberjack_name=lumberjack_name,
+        chop=chop,
+        result=result,
+        extra_env=extra_env,
+        source=source,
+        started_by=started_by,
+    )
     try:
         write_chop_run(
             ChopRunEntry(
@@ -356,7 +414,7 @@ def _run_agent_chop_once(
                 source=source,
                 started_by=started_by,
             ),
-            output=launch_line,
+            output=launch_output,
         )
     except OSError:
         pass

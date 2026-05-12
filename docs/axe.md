@@ -219,6 +219,12 @@ Script chop stdout and stderr are streamed to the chop's per-run log file while 
 [Chop Run History](#chop-run-history) below). The Axe-tab dashboard tails that file so a long-running chop's output
 becomes visible immediately rather than only after process exit.
 
+Chop output is part of the operator contract. Every actual chop run should write a compact, human-readable summary for
+both no-op and action paths. At minimum, include the chop identity or run scope, counts of inspected/skipped/updated or
+launched items, an explicit no-op reason, and bounded identifiers for any affected items. Agent chops should record the
+launched PID, prompt hash, prompt or workflow label, and enough workspace metadata to find the visible agent run. Avoid
+tokens, full notification bodies, full prompts, and unbounded command output in ordinary AXE logs.
+
 ### Manual Chop Runs
 
 Scheduled lumberjack ticks are not the only way a chop runs. Operators can launch any configured chop on demand from
