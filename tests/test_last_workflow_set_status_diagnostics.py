@@ -85,6 +85,37 @@ def test_parse_check_runs_skips_invalid(script: types.ModuleType) -> None:
     assert out[0].is_terminal
 
 
+def test_parse_paginated_check_runs_flattens_pages(
+    script: types.ModuleType,
+) -> None:
+    payload = [
+        {
+            "check_runs": [
+                {
+                    "id": 11,
+                    "name": "lint",
+                    "status": "completed",
+                    "conclusion": "success",
+                }
+            ]
+        },
+        {
+            "check_runs": [
+                {
+                    "id": 22,
+                    "name": "test",
+                    "status": "completed",
+                    "conclusion": "failure",
+                }
+            ]
+        },
+    ]
+
+    out = script.parse_paginated_check_runs(payload)
+
+    assert [run.check_run_id for run in out] == [11, 22]
+
+
 def test_parse_annotations_uses_check_run_identity(
     script: types.ModuleType,
 ) -> None:
@@ -104,6 +135,39 @@ def test_parse_annotations_uses_check_run_identity(
     assert out[0].check_run_id == 42
     assert out[0].check_run_name == "build"
     assert out[0].path == "src/x.py"
+
+
+def test_parse_paginated_annotations_flattens_pages(
+    script: types.ModuleType,
+) -> None:
+    check_run = make_check_run(script, name="build", check_run_id=42)
+    payload = [
+        [
+            {
+                "path": "src/a.py",
+                "start_line": 1,
+                "end_line": 1,
+                "annotation_level": "failure",
+                "title": "A",
+                "message": "first page",
+            }
+        ],
+        [
+            {
+                "path": "src/b.py",
+                "start_line": 2,
+                "end_line": 2,
+                "annotation_level": "failure",
+                "title": "B",
+                "message": "second page",
+            }
+        ],
+    ]
+
+    out = script.parse_paginated_annotations(payload, check_run=check_run)
+
+    assert [ann.path for ann in out] == ["src/a.py", "src/b.py"]
+    assert {ann.check_run_id for ann in out} == {42}
 
 
 def test_diagnostics_collects_annotations_and_logs_together(

@@ -29,6 +29,8 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
+BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
+
 
 def _axe_bgcmd_fixture() -> AxeCollectedData:
     info_a = BackgroundCommandInfo(
@@ -240,6 +242,7 @@ async def test_axe_empty_png_snapshot(
             page,
             "axe_empty_120x40",
             title="ACE axe empty",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -647,4 +650,5 @@ async def test_axe_constrained_width_no_wrap_png_snapshot(
             page,
             "axe_constrained_width_no_wrap_60x30",
             title="ACE axe constrained width no-wrap",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

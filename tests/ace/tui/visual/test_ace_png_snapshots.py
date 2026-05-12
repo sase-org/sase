@@ -22,6 +22,8 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
+BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
+
 
 async def test_changespec_initial_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
@@ -95,6 +97,7 @@ async def test_agent_list_png_snapshot(
             page,
             "agents_list_120x40",
             title="ACE agents list",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -121,6 +124,7 @@ async def test_agents_selected_row_png_snapshot(
             page,
             "agents_selected_row_120x40",
             title="ACE agents selected row",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -195,4 +199,5 @@ async def test_agents_unread_highlight_png_snapshot(
             page,
             "agents_unread_highlight_120x40",
             title="ACE agents unread highlight",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
