@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 15:12:30
-status: wip
+status: done
 prompt: sdd/prompts/202605/codex_fallback_workspace_env.md
 ---
 # Codex fallback: add workspace-env precedence and richer skip diagnostics

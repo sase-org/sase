@@ -116,11 +116,27 @@ def _fallback_marker_path(session_id: str) -> Path:
     )
 
 
+_WORKSPACE_ENV_VARS: tuple[str, ...] = (
+    "SASE_GIT_WORKSPACE_DIR",
+    "SASE_CD_WORKSPACE_DIR",
+)
+
+
+def _workspace_env_value() -> str | None:
+    """Return the first non-empty SASE workspace env var value, if any."""
+    for name in _WORKSPACE_ENV_VARS:
+        value = os.environ.get(name)
+        if value:
+            return value
+    return None
+
+
 def _resolve_codex_project_dir() -> str:
     """Resolve the project directory Codex hooks and fallbacks should inspect."""
     return (
         os.environ.get("CODEX_PROJECT_DIR")
         or os.environ.get(SASE_ACTIVE_PROJECT_DIR_ENV)
+        or _workspace_env_value()
         or os.getcwd()
     )
 
@@ -402,13 +418,17 @@ class CodexProvider(LLMProvider):
         project_dir = _resolve_codex_project_dir()
         has_changes, changed_files, _, details = build_commit_details(project_dir)
         if not has_changes:
-            jlog(
-                "codex_fallback_skip",
-                reason="no_changes",
-                session_id=session_id,
-                native_marker_present=native_marker.exists(),
-                project_dir=project_dir,
-            )
+            skip_kwargs: dict[str, object] = {
+                "reason": "no_changes",
+                "session_id": session_id,
+                "native_marker_present": native_marker.exists(),
+                "project_dir": project_dir,
+                "cwd": os.getcwd(),
+            }
+            workspace_env = _workspace_env_value()
+            if workspace_env is not None:
+                skip_kwargs["workspace_env"] = workspace_env
+            jlog("codex_fallback_skip", **skip_kwargs)
             return None
 
         native_marker_present = native_marker.exists()
