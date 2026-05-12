@@ -10,6 +10,8 @@ import pytest
 from sase.scripts.sase_commit_stop_hook import (
     _build_commit_instruction_message,
     _emit_block,
+    build_commit_details,
+    native_marker_path,
 )
 
 
@@ -147,6 +149,52 @@ def test_gemini_emit_block_includes_details_in_json(capsys: object) -> None:
     payload = json.loads(captured.out.strip())
     assert payload["decision"] == "deny"
     assert payload["reason"] == "detailed instructions here"
+
+
+def test_native_marker_path_uses_sase_tmpdir(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """native_marker_path honors SASE_TMPDIR for the dedup marker location."""
+    monkeypatch.setenv("SASE_TMPDIR", str(tmp_path))
+    marker = native_marker_path("260511_120000")
+    assert marker == tmp_path / "sase_commit_hook_done_260511_120000"
+
+
+def test_build_commit_details_clean_returns_empty(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """When _get_changed_files reports clean, details are empty."""
+    monkeypatch.setattr(
+        "sase.scripts.sase_commit_stop_hook._get_changed_files",
+        lambda _: (False, []),
+    )
+    has, files, instr, details = build_commit_details("/some/dir")
+    assert has is False
+    assert files == []
+    assert instr == ""
+    assert details == ""
+
+
+def test_build_commit_details_matches_hook_message(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Public helper emits the exact instruction the hook would produce."""
+    monkeypatch.setattr(
+        "sase.scripts.sase_commit_stop_hook._get_changed_files",
+        lambda _: (True, ["src/x.py", "src/y.py"]),
+    )
+    monkeypatch.setattr(
+        "sase.scripts.sase_commit_stop_hook._resolve_commit_skill",
+        lambda _: "/sase_git_commit",
+    )
+    monkeypatch.setenv("SASE_COMMIT_METHOD", "create_commit")
+    monkeypatch.delenv("SASE_BEAD_ID", raising=False)
+    monkeypatch.delenv("SASE_PR_NAME", raising=False)
+
+    has, files, instr, details = build_commit_details("/some/dir")
+    expected_instr = _build_commit_instruction_message(
+        "/sase_git_commit", "create_commit", None
+    )
+    assert has is True
+    assert files == ["src/x.py", "src/y.py"]
+    assert instr == expected_instr
+    assert details == (
+        "Uncommitted changes detected:\nsrc/x.py\nsrc/y.py\n\n" + expected_instr
+    )
 
 
 def test_claude_emit_block_returns_nonzero_with_details(capsys: object) -> None:

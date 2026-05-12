@@ -35,6 +35,55 @@ def _jlog(event: str, **kwargs: Any) -> None:
         pass
 
 
+def jlog(event: str, **kwargs: Any) -> None:
+    """Public wrapper around the structured JSONL log helper."""
+    _jlog(event, **kwargs)
+
+
+def native_marker_path(session_id: str) -> Path:
+    """Return the native commit-hook dedup marker path for *session_id*."""
+    return (
+        Path(os.environ.get("SASE_TMPDIR", "/tmp"))
+        / f"sase_commit_hook_done_{session_id}"
+    )
+
+
+def build_commit_details(
+    project_dir: str,
+    *,
+    commit_method: str | None = None,
+    bead_id: str | None = None,
+) -> tuple[bool, list[str], str, str]:
+    """Return (has_changes, changed_files, commit_instruction, details).
+
+    ``commit_instruction`` is the trailing instruction sentence(s) and
+    ``details`` is the full block (file list + instruction) that the native
+    hook would emit. When the worktree is clean, both strings are empty.
+    """
+    has_changes, changed_files = _get_changed_files(project_dir)
+    if not has_changes:
+        return (False, [], "", "")
+
+    skill = _resolve_commit_skill(project_dir)
+    method = (
+        commit_method
+        if commit_method is not None
+        else os.environ.get("SASE_COMMIT_METHOD", "")
+    )
+    resolved_bead = bead_id if bead_id is not None else os.environ.get("SASE_BEAD_ID")
+    commit_instruction = _build_commit_instruction_message(skill, method, resolved_bead)
+    name_instruction = _build_name_instruction()
+    if name_instruction:
+        commit_instruction += " " + name_instruction
+
+    details = (
+        "Uncommitted changes detected:\n"
+        + "\n".join(changed_files)
+        + f"\n\n{commit_instruction}"
+    )
+    return (True, changed_files, commit_instruction, details)
+
+
 def _resolve_project_dir() -> str:
     for key in ("CLAUDE_PROJECT_DIR", "GEMINI_PROJECT_DIR", "CODEX_PROJECT_DIR"):
         candidate = os.environ.get(key)
@@ -316,10 +365,7 @@ def main() -> int:
 
     hook_input = _read_hook_stdin()
     session_id = _resolve_session_id(hook_input)
-    marker_file = (
-        Path(os.environ.get("SASE_TMPDIR", "/tmp"))
-        / f"sase_commit_hook_done_{session_id}"
-    )
+    marker_file = native_marker_path(session_id)
 
     _jlog(
         "script_start",
@@ -341,7 +387,9 @@ def main() -> int:
         _jlog("gemini_dedup_skip")
         return _exit(0, reason="gemini_dedup")
 
-    has_changes, changed_files = _get_changed_files(project_dir)
+    has_changes, changed_files, commit_instruction, details = build_commit_details(
+        project_dir, commit_method=commit_method
+    )
     _jlog(
         "changes_check",
         has_changes=has_changes,
@@ -352,20 +400,6 @@ def main() -> int:
     if not has_changes:
         return _exit(0, reason="no_changes")
 
-    skill = _resolve_commit_skill(project_dir)
-    bead_id = os.environ.get("SASE_BEAD_ID")
-    commit_instruction = _build_commit_instruction_message(
-        skill, commit_method, bead_id
-    )
-    name_instruction = _build_name_instruction()
-    if name_instruction:
-        commit_instruction += " " + name_instruction
-
-    details = (
-        "Uncommitted changes detected:\n"
-        + "\n".join(changed_files)
-        + f"\n\n{commit_instruction}"
-    )
     marker_file.touch()
     rc = _emit_block(
         "Stop hook blocked: uncommitted changes remain.",

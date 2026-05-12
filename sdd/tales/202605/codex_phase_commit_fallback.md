@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 22:46:45
-status: wip
+status: done
 prompt: sdd/prompts/202605/codex_phase_commit_fallback.md
 ---
 # Codex Phase-Agent Commit Stop-Hook Fallback
@@ -158,6 +158,21 @@ existing hook writes to, so the user has one place to look.
 - Manual: revive one of the stale phase workspaces (e.g. `../sase_106` for `sase-31.2`) and re-run that phase agent
   under codex; confirm a new entry appears in `~/.sase_commit_stop_hook.jsonl` tagged
   `event="codex_fallback_block_emitted"`, and the agent produces a commit before exiting.
+
+## Implementation Correction
+
+Implemented per `codex_commit_stop_guard.md`. Two corrections to the design in this tale:
+
+- Native hook marker presence (`/tmp/sase_commit_hook_done_<session>`) is diagnostic
+  data, NOT a final-clean guarantee. Some Codex runs emit `block_emitted` yet still
+  leave dirty worktrees. The shipped fallback therefore does not skip on the native
+  marker; it logs whether one was present and runs another commit turn whenever the
+  worktree is dirty at provider return.
+- One-shot behavior is enforced via a separate per-session fallback marker
+  (`sase_codex_commit_fallback_done_<session>`) so the SASE-managed retry never runs
+  twice in the same provider invocation. The native marker is touched before the
+  follow-up subprocess only when it was absent, to suppress a redundant external
+  hook prompt.
 
 ## Recovery For The Stale Phase Workspaces
 

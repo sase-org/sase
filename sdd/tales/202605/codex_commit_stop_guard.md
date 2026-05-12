@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-11 22:57:22
-status: wip
+status: done
 prompt: sdd/prompts/202605/codex_commit_stop_guard.md
 ---
 # Codex Commit Stop Guard Plan
