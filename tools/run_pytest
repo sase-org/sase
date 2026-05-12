@@ -8,7 +8,6 @@ import os
 import sys
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 NON_PATH_VALUE_OPTIONS = frozenset(
     {
@@ -91,7 +90,7 @@ def _worker_count() -> str:
     configured = os.environ.get("SASE_PYTEST_WORKERS")
     if configured:
         return configured
-    return str(min(os.cpu_count() or 1, 16))
+    return str(min(os.cpu_count() or 1, 32))
 
 
 def _pytest_command(mode: str, args: list[str]) -> list[str]:
