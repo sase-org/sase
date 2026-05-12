@@ -110,7 +110,6 @@ _lint-pyscripts: _setup
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 src/sase \
-        --epic-symbol 'sase-3a(AcePage)' \
         --epic-symbol 'sase-3a(ChatInstallConfig)' \
         --epic-symbol 'sase-3a(CrossEpicBlockerError)' \
         --epic-symbol 'sase-3a(CycleError)' \
@@ -122,7 +121,6 @@ _lint-pyvision: _setup
         --epic-symbol 'sase-3a(PanelSlice)' \
         --epic-symbol 'sase-3a(ParseErrorWire)' \
         --epic-symbol 'sase-3a(PhaseAssignment)' \
-        --epic-symbol 'sase-3a(PromptPage)' \
         --epic-symbol 'sase-3a(QueryErrorWire)' \
         --epic-symbol 'sase-3a(RawChangeSpecWire)' \
         --epic-symbol 'sase-3a(SectionWire)' \
@@ -166,7 +164,6 @@ _lint-pyvision: _setup
         --epic-symbol 'sase-3a(load_chat_install_config)' \
         --epic-symbol 'sase-3a(load_store)' \
         --epic-symbol 'sase-3a(load_vcs_xprompt_mru)' \
-        --epic-symbol 'sase-3a(make_changespec)' \
         --epic-symbol 'sase-3a(mark_issue_ready_to_work)' \
         --epic-symbol 'sase-3a(mentor_status_line_to_wire)' \
         --epic-symbol 'sase-3a(notification_from_dict)' \

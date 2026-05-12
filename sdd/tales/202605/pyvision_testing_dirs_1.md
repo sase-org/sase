@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 18:53:23
-status: wip
+status: done
 prompt: sdd/prompts/202605/pyvision_testing_dirs_1.md
 ---
 # Plan: Ignore Testing Utility Directories in Pyvision
