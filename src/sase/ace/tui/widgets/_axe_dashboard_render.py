@@ -135,6 +135,23 @@ def format_relative_time(iso_timestamp: str) -> str:
         return "unknown"
 
 
+def format_time_with_relative(iso_timestamp: str) -> str:
+    """Format an ISO timestamp as local clock time plus current relative age."""
+    relative = format_relative_time(iso_timestamp)
+    if relative == "unknown":
+        return "unknown"
+
+    try:
+        ts = datetime.fromisoformat(iso_timestamp)
+    except (ValueError, TypeError):
+        return "unknown"
+
+    if ts.tzinfo is None:
+        return "unknown"
+
+    return f"{ts.astimezone(get_timezone()).strftime('%H:%M:%S')} ({relative})"
+
+
 def section_width(section: Static) -> int | None:
     """Return the rendered width of ``section`` if known.
 

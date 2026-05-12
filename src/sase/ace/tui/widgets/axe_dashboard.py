@@ -26,6 +26,7 @@ from ._axe_dashboard_render import (
     format_elapsed as _format_elapsed,
     format_relative_time as _format_relative_time,
     format_runtime as _format_runtime,
+    format_time_with_relative as _format_time_with_relative,
     format_uptime as _format_uptime,
     render_compact_chop_list as _render_compact_chop_list,
     render_compact_summary_row as _render_compact_summary_row,
@@ -333,7 +334,7 @@ class _AxeStatusSection(Static):
             # Started-at (relative)
             text.append("  │  ", style="dim")
             text.append("When: ", style="bold #87D7FF")
-            text.append(_format_relative_time(entry.started_at), style="#87D7FF")
+            text.append(_format_time_with_relative(entry.started_at), style="#87D7FF")
 
             # Duration — label changes for active runs to convey "still running".
             text.append("  │  ", style="dim")

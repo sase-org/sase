@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 from rich.text import Text
@@ -23,6 +24,7 @@ def _entry(
     status: str = "success",
     duration_ms: int = 250,
     output_log: str = "run.log",
+    started_at: str = "2026-05-11T12:34:56",
     finished_at: str | None = "2026-05-11T12:34:57",
     exit_code: int | None = None,
     pid: int | None = None,
@@ -32,7 +34,7 @@ def _entry(
         run_id=run_id,
         lumberjack_name="hooks",
         chop_name="fast",
-        started_at="2026-05-11T12:34:56",
+        started_at=started_at,
         finished_at=finished_at,
         duration_ms=duration_ms,
         status=status,  # type: ignore[arg-type]
@@ -553,6 +555,62 @@ def test_render_chop_display_scheduled_run_hides_source_marker() -> None:
 
     plain = rendered["content"].plain  # type: ignore[union-attr]
     assert "Source:" not in plain
+
+
+def test_render_chop_display_when_shows_local_time_with_relative_age() -> None:
+    """The selected-run header shows wall-clock time and existing relative age."""
+    from sase.core.time import get_timezone
+
+    local_tz = get_timezone()
+    started_at = datetime(2026, 5, 11, 18, 5, 9, tzinfo=UTC)
+    now = datetime(2026, 5, 11, 15, 10, 9, tzinfo=local_tz)
+    run = ChopRunSnapshot(
+        entry=_entry("a", started_at=started_at.isoformat()),
+        output_tail="",
+    )
+
+    rendered: dict[str, object] = {}
+    section = axe_dashboard._AxeStatusSection.__new__(axe_dashboard._AxeStatusSection)
+    section.__init__()  # type: ignore[misc]
+    section.update = lambda content: rendered.__setitem__("content", content)  # type: ignore[assignment]
+
+    with patch("sase.ace.tui.widgets._axe_dashboard_render.datetime") as mock_dt:
+        mock_dt.now.return_value = now
+        mock_dt.fromisoformat = datetime.fromisoformat
+        section.update_chop_display(
+            lumberjack_name="hooks",
+            chop_name="fast",
+            run=run,
+            run_idx=0,
+            run_total=1,
+        )
+
+    plain = rendered["content"].plain  # type: ignore[union-attr]
+    assert "When: 14:05:09 (1h ago)" in plain
+
+
+def test_render_chop_display_when_invalid_timestamp_stays_unknown() -> None:
+    """Invalid timestamp input preserves the existing unknown fallback."""
+    run = ChopRunSnapshot(
+        entry=_entry("a", started_at="not-a-date"),
+        output_tail="",
+    )
+
+    rendered: dict[str, object] = {}
+    section = axe_dashboard._AxeStatusSection.__new__(axe_dashboard._AxeStatusSection)
+    section.__init__()  # type: ignore[misc]
+    section.update = lambda content: rendered.__setitem__("content", content)  # type: ignore[assignment]
+
+    section.update_chop_display(
+        lumberjack_name="hooks",
+        chop_name="fast",
+        run=run,
+        run_idx=0,
+        run_total=1,
+    )
+
+    plain = rendered["content"].plain  # type: ignore[union-attr]
+    assert "When: unknown" in plain
 
 
 def test_render_chop_display_running_with_no_output_shows_waiting() -> None:

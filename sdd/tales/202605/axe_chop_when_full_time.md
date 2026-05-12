@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 11:52:40
-status: wip
+status: done
 prompt: sdd/prompts/202605/axe_chop_when_full_time.md
 ---
 # Plan: Show Full Time In AXE Chop Header
