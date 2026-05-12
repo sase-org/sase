@@ -3,6 +3,7 @@ diagram: rust-backend-boundary-infographic.png
 embedding_doc: docs/rust_backend.md
 prompt_sidecar: docs/images/rust-backend-boundary-infographic.prompt.md
 critique_date: 2026-05-10
+pdf: false
 ---
 
 # Critique: `rust-backend-boundary-infographic.png`

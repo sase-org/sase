@@ -2,6 +2,7 @@
 diagram: docs/images/xprompt-resolution-infographic.png
 embedded_in: docs/xprompt.md
 phase: critique
+pdf: false
 ---
 
 # Critique: `xprompt-resolution-infographic.png`

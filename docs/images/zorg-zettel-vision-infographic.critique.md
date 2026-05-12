@@ -7,6 +7,7 @@ embedding_docs:
 critique_phase_bead: sase-2s.10
 regen_phase_bead: sase-2s.20
 critique_date: 2026-05-10
+pdf: false
 ---
 
 # Critique: `zorg-zettel-vision-infographic.png`

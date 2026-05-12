@@ -1,3 +1,7 @@
+---
+pdf: false
+---
+
 # Critique: `bead-epic-work-infographic.png`
 
 This is a clarity-and-accuracy review of `docs/images/bead-epic-work-infographic.png`, the diagram embedded near the top

@@ -1,4 +1,5 @@
 ---
+pdf: false
 date: 2026-05-22
 description: >-
   Where the operator actually types: a multiline Textual TextArea with completion, history, snippets, and a Vim mode in

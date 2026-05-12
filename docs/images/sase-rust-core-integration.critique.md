@@ -1,3 +1,7 @@
+---
+pdf: false
+---
+
 # Critique: `docs/images/sase-rust-core-integration.png`
 
 Reviewed against `docs/architecture.md` (Rust Core Boundary section), `docs/rust_backend.md`, `src/sase/core/`, the

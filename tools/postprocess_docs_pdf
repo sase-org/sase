@@ -265,6 +265,9 @@ def main() -> int:
 
         _add_metadata(reader, writer)
         _add_outlines(writer, chapters, chapter_pages, page_text)
+        writer.compress_identical_objects(
+            remove_duplicates=True, remove_unreferenced=True
+        )
 
         temp_path = PDF_PATH.with_suffix(".postprocess.tmp.pdf")
         with temp_path.open("wb") as handle:

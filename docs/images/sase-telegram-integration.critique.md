@@ -2,6 +2,7 @@
 diagram: docs/images/sase-telegram-integration.png
 phase: critique
 bead: sase-2s.6
+pdf: false
 ---
 
 # Critique: `sase-telegram-integration.png`

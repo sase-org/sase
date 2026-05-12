@@ -5,6 +5,7 @@ embedding_docs:
   - docs/index.md
 critique_phase_bead: sase-2s.4
 regen_phase_bead: sase-2s.14
+pdf: false
 ---
 
 # Critique: `sase-component-communication.png`

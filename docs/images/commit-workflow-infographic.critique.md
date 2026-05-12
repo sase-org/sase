@@ -2,6 +2,7 @@
 diagram: docs/images/commit-workflow-infographic.png
 embedded_in: docs/commit_workflows.md
 phase: critique
+pdf: false
 ---
 
 # Critique: `commit-workflow-infographic.png`

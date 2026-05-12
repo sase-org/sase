@@ -1,3 +1,7 @@
+---
+pdf: false
+---
+
 # Critique: `sase_tui_tabs_infographic.png`
 
 This is a clarity-and-accuracy review of `docs/images/sase_tui_tabs_infographic.png`, the diagram embedded in the "How

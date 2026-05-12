@@ -3,6 +3,7 @@ diagram: workflow-execution-infographic.png
 embedding_doc: docs/workflow_spec.md
 prompt_sidecar: docs/images/workflow-execution-infographic.prompt.md
 critique_date: 2026-05-10
+pdf: false
 ---
 
 # Critique: `workflow-execution-infographic.png`
