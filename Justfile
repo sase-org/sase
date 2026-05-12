@@ -156,7 +156,6 @@ _lint-pyvision: _setup
         --epic-symbol 'sase-3a(get_tui_last_activity)' \
         --epic-symbol 'sase-3a(git_query_wire_to_json_dict)' \
         --epic-symbol 'sase-3a(group_agent_statuses)' \
-        --epic-symbol 'sase-3a(has_dismissed_bundle)' \
         --epic-symbol 'sase-3a(has_wait_directive)' \
         --epic-symbol 'sase-3a(hook_status_line_to_wire)' \
         --epic-symbol 'sase-3a(is_idle)' \
