@@ -109,19 +109,93 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Limit output to a single agent",
     )
 
-    # sase agents archive {rebuild-index,verify}
+    # sase agents archive {rebuild-index,revive,search,show,stats,verify}
     archive_parser = agents_sub.add_parser(
         "archive",
-        help="Maintain dismissed-agent archive indexes",
+        help="Search, inspect, and maintain dismissed-agent archives",
     )
     archive_sub = archive_parser.add_subparsers(
         dest="archive_subcommand",
-        help="Archive maintenance subcommands",
+        help="Archive subcommands",
     )
 
     archive_sub.add_parser(
         "rebuild-index",
         help="Rebuild the dismissed bundle summary index",
+    )
+    archive_revive_parser = archive_sub.add_parser(
+        "revive",
+        help="Restore archived agent artifacts selected by a query",
+    )
+    archive_revive_parser.add_argument(
+        "--query",
+        required=True,
+        help="Archive query selecting the agent(s) to revive",
+    )
+    archive_revive_parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Revive every matching row instead of requiring one result",
+    )
+    archive_revive_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON object",
+    )
+    archive_search_parser = archive_sub.add_parser(
+        "search",
+        help="Search dismissed-agent archive summaries",
+    )
+    archive_search_parser.add_argument(
+        "query",
+        help="Archive query string",
+    )
+    archive_search_parser.add_argument(
+        "--limit",
+        type=int,
+        default=50,
+        help="Maximum rows to return",
+    )
+    archive_search_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON object",
+    )
+    archive_show_parser = archive_sub.add_parser(
+        "show",
+        help="Show one archived agent bundle",
+    )
+    archive_show_group = archive_show_parser.add_mutually_exclusive_group(required=True)
+    archive_show_group.add_argument("--id", dest="agent_id", help="Archive agent_id")
+    archive_show_group.add_argument("--name", help="Exact agent or CL name")
+    archive_show_group.add_argument("--suffix", help="Raw timestamp suffix")
+    archive_show_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON object",
+    )
+    archive_stats_parser = archive_sub.add_parser(
+        "stats",
+        help="Count archive rows grouped by summary fields",
+    )
+    archive_stats_parser.add_argument(
+        "--query",
+        default="",
+        help="Archive query to count",
+    )
+    archive_stats_parser.add_argument(
+        "--by",
+        default="status,model,project,runtime",
+        help="Comma-separated facets: status, model, project, runtime",
+    )
+    archive_stats_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON object",
     )
     archive_sub.add_parser(
         "verify",

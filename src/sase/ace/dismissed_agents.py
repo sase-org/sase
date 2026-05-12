@@ -273,6 +273,68 @@ def load_dismissed_bundle_summaries(
         return []
 
 
+def mark_bundles_revived_by_suffixes(
+    suffixes: set[str],
+    *,
+    revived_at: str | None = None,
+) -> int:
+    """Mark preserved dismissed bundles as revived without deleting them."""
+
+    if not suffixes:
+        return 0
+    timestamp = revived_at or datetime.now().isoformat()
+    paths = _bundle_paths_for_suffixes(suffixes)
+    changed = 0
+    for path in paths:
+        try:
+            bundle = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(bundle, dict):
+                continue
+            bundle["revived_at"] = timestamp
+            times_revived = bundle.get("times_revived", 0)
+            if not isinstance(times_revived, int):
+                try:
+                    times_revived = int(times_revived)
+                except (TypeError, ValueError):
+                    times_revived = 0
+            bundle["times_revived"] = max(0, times_revived) + 1
+            path.write_text(json.dumps(bundle, indent=2), encoding="utf-8")
+            try:
+                from .dismissed_bundle_index import upsert_bundle_summary
+
+                upsert_bundle_summary(_DISMISSED_BUNDLES_DIR, path, bundle)
+            except (OSError, ValueError, sqlite3.Error):
+                pass
+            changed += 1
+        except (OSError, json.JSONDecodeError):
+            continue
+    return changed
+
+
+def _bundle_paths_for_suffixes(suffixes: set[str]) -> list[Path]:
+    """Return parent and child bundle paths matching raw suffixes."""
+
+    try:
+        from .dismissed_bundle_index import query_bundle_paths_by_suffixes
+
+        indexed_paths = query_bundle_paths_by_suffixes(_DISMISSED_BUNDLES_DIR, suffixes)
+    except (OSError, ValueError, sqlite3.Error):
+        indexed_paths = None
+    if indexed_paths:
+        return [path for path in indexed_paths if path.is_file()]
+
+    paths: list[Path] = []
+    for suffix in suffixes:
+        parent = _find_bundle(f"{suffix}.json")
+        if parent is not None:
+            paths.append(parent)
+        try:
+            paths.extend(_iter_bundle_paths(pattern=f"{suffix}__c*.json"))
+        except OSError:
+            continue
+    return paths
+
+
 def _bundle_filename(agent: Agent) -> str:
     """Return the bundle filename for *agent*.
 

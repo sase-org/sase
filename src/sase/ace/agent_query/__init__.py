@@ -17,6 +17,7 @@ from .archive_planner import (
     ArchiveQueryResult,
     archive_facet_counts,
     search_archive,
+    select_archive_results,
 )
 from .highlighting import (
     AGENT_QUERY_TOKEN_STYLES,
@@ -53,6 +54,7 @@ __all__ = [
     "evaluate_agent_query",
     "parse_agent_query",
     "search_archive",
+    "select_archive_results",
     "to_canonical_string",
     "tokenize_agent_query_for_display",
 ]

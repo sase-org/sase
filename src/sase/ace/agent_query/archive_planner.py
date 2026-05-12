@@ -101,6 +101,55 @@ def search_archive(
     )
 
 
+def select_archive_results(
+    root: Path,
+    *,
+    agent_id: str | None = None,
+    name: str | None = None,
+    suffix: str | None = None,
+    limit: int = 50,
+) -> list[ArchiveQueryResult]:
+    """Select archive summary rows by exact stable identifiers."""
+
+    selectors = {
+        "agent_id": agent_id,
+        "name": name,
+        "suffix": suffix,
+    }
+    active = [(key, value) for key, value in selectors.items() if value]
+    if len(active) != 1:
+        raise ArchiveQueryError("Expected exactly one archive result selector")
+
+    key, value = active[0]
+    if key == "agent_id":
+        clause = "s.agent_id = ?"
+        params = [value]
+    elif key == "name":
+        clause = "(s.agent_name = ? OR s.cl_name = ?)"
+        params = [value, value]
+    else:
+        clause = "s.raw_suffix = ?"
+        params = [value]
+
+    sql = (
+        "SELECT s.* FROM dismissed_bundle_summaries s "
+        f"WHERE {clause} "
+        "ORDER BY COALESCE(s.dismissed_at, s.start_time, s.raw_suffix) DESC, "
+        "s.filename ASC LIMIT ?"
+    )
+    from ..dismissed_bundle_index import archive_index_connection, archive_index_exists
+
+    if not archive_index_exists(root):
+        return []
+
+    try:
+        with archive_index_connection(root) as conn:
+            rows = conn.execute(sql, [*params, max(0, limit)]).fetchall()
+    except sqlite3.Error as e:
+        raise ArchiveQueryError(str(e)) from e
+    return [_result_from_row(row) for row in rows]
+
+
 def archive_facet_counts(
     root: Path,
     query: str,
