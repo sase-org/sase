@@ -2,6 +2,8 @@
 create_time: 2026-05-12 13:49:40
 status: wip
 prompt: sdd/prompts/202605/chop_output_coverage.md
+bead_id: sase-36
+tier: epic
 ---
 # Plan: Make every Athena AXE chop produce useful output
 
