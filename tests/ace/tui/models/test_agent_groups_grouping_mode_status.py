@@ -15,9 +15,9 @@ def test_status_bucket_running() -> None:
     assert _status_bucket_for(_agent(status="RUNNING")) == "Running"
 
 
-def test_status_bucket_planning_is_stopped() -> None:
-    """``PLANNING`` is a submitted plan waiting on user review."""
-    assert _status_bucket_for(_agent(status="PLANNING")) == "Stopped"
+def test_status_bucket_plan_is_stopped() -> None:
+    """``PLAN`` is a submitted plan waiting on user review."""
+    assert _status_bucket_for(_agent(status="PLAN")) == "Stopped"
 
 
 def test_status_bucket_question_is_stopped() -> None:

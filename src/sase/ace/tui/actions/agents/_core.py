@@ -102,7 +102,7 @@ class AgentsMixinCore(
     _dismissed_agent_objects: list[Agent]
     _marked_agents: set[tuple[AgentType, str, str | None]]
 
-    # Agent status override system (for PLANNING/PLAN APPROVED/QUESTION statuses)
+    # Agent status override system (for PLAN/PLAN APPROVED/QUESTION statuses)
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
     _dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]]

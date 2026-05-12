@@ -483,7 +483,7 @@ To keep rows compact, agent statuses and types are rendered as one- or two-chara
 | `✓P`  | PLAN DONE                                            |
 | `▶P`  | PLAN APPROVED                                        |
 | `★E`  | EPIC CREATED                                         |
-| `✎`   | PLANNING                                             |
+| `✎`   | PLAN                                                 |
 | `✗`   | FAILED                                               |
 | `⏳`  | WAITING                                              |
 | `?`   | QUESTION                                             |
@@ -522,9 +522,9 @@ default.
 
 The right-hand edge of each row carries a runtime suffix (`<start-timestamp> · <elapsed>`) right-aligned within the
 panel. Active rows that have actually started include a `🏃‍♂️` marker before the ticking elapsed duration; unread
-completed rows use a `📬` marker in the same suffix slot; and user-paused rows (`PLANNING`, `QUESTION`, `WAITING INPUT`)
-use a `✋` marker while waiting for a human response. Pre-run `WAITING` rows with no `BEGIN` time hide the suffix so
-queued waits do not look like live runtime. For finished agents, the start-timestamp half is rendered as a humanized
+completed rows use a `📬` marker in the same suffix slot; and user-paused rows (`PLAN`, `QUESTION`, `WAITING INPUT`) use
+a `✋` marker while waiting for a human response. Pre-run `WAITING` rows with no `BEGIN` time hide the suffix so queued
+waits do not look like live runtime. For finished agents, the start-timestamp half is rendered as a humanized
 `(date_prefix, time)` pair sized to fit the existing 15-cell slot:
 
 - **Same day**: `HH:MM:SS`
@@ -1032,7 +1032,7 @@ active (the agent is still running or awaiting input) and completed (the agent h
 | **RUNNING**        | Gold         | Agent subprocess is executing                                      |
 | **WAITING**        | Light blue   | Agent is queued, waiting for another agent to succeed (`%wait`)    |
 | **WAITING INPUT**  | Amber/orange | Workflow is paused at a human-in-the-loop (HITL) step              |
-| **PLANNING**       | Pink/magenta | Agent has produced a plan and is waiting for user approval         |
+| **PLAN**           | Pink/magenta | Agent has produced a plan and is waiting for user approval         |
 | **PLAN APPROVED**  | Cyan         | Plan was approved; follow-up agent has been spawned                |
 | **EPIC APPROVED**  | Cyan         | Plan was approved as an epic; `.epic` follow-up is running         |
 | **PLAN COMMITTED** | Cyan         | Plan was approved with auto-commit; `.commit` follow-up is running |
@@ -1145,8 +1145,7 @@ When the file or thinking panel is empty, the `g`/`G` keys automatically fall ba
 
 When a workflow uses the `%plan` directive, the agent enters a planning phase before executing:
 
-- **PLANNING** — The agent has produced a plan and is waiting for user approval. Shown in pink/magenta in the prompt
-  panel.
+- **PLAN** — The agent has produced a plan and is waiting for user approval. Shown in pink/magenta in the prompt panel.
 - **PLAN APPROVED** — The plan has been approved and the follow-up agent has been spawned. Shown in cyan/turquoise.
 - **PLAN REJECTED** — The user rejected the plan via the `r` keybinding. Treated as a terminal decision (not a failed
   agent run): the rejected agent remains on the Agents tab as a completed row with this status, and the redundant
@@ -1157,12 +1156,12 @@ notifications include the LLM provider and model name, so users can see which mo
 the TUI notification modal and Telegram delivery).
 
 When `sase plan` writes the plan, it also touches `~/.sase/.ace_refresh_pulse` to wake any running TUI immediately —
-PLANNING status appears without waiting for the next auto-refresh tick. The pulse file is consumed by the inotify
-artifact watcher (see [Auto-Refresh](#auto-refresh)) and is harmless if no TUI is open.
+PLAN status appears without waiting for the next auto-refresh tick. The pulse file is consumed by the inotify artifact
+watcher (see [Auto-Refresh](#auto-refresh)) and is harmless if no TUI is open.
 
-Root plan workflows also surface PLANNING when a re-proposed plan is still awaiting review. Plan and feedback timestamps
+Root plan workflows also surface PLAN when a re-proposed plan is still awaiting review. Plan and feedback timestamps
 from feedback-round children (`.2`, `.3`, …) propagate onto the root entry, and whenever the root's latest plan
-timestamp is newer than its latest feedback timestamp the override engine restores `PLANNING` over a `RUNNING` or `DONE`
+timestamp is newer than its latest feedback timestamp the override engine restores `PLAN` over a `RUNNING` or `DONE`
 label. This applies only to root plan workflows that have not yet spawned a follow-up (`.code`, `.epic`, …); once a
 follow-up is launched, the parent moves on to `PLAN APPROVED` (or the matching follow-up status) instead.
 

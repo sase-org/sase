@@ -59,7 +59,7 @@ def apply_status_overrides(agents: list[Agent]) -> None:
     - DONE -> PLAN DONE: plan workflow where all follow-ups completed
     - DONE -> TALE DONE: tale plan workflow where all follow-ups completed
     - DONE -> EPIC CREATED: plan workflow whose latest completed follow-up is `.epic`
-    - DONE -> PLANNING: plan workflow with no follow-up spawned yet
+    - DONE -> PLAN: plan workflow with no follow-up spawned yet
     - DONE -> QUESTION: agent submitted a question that was never answered
     """
     completed_statuses = {"DONE", "FAILED"}
@@ -106,7 +106,7 @@ def apply_status_overrides(agents: list[Agent]) -> None:
                 # Active feedback round -> parent is processing feedback, not
                 # waiting for plan review.
                 if agent.status not in completed_statuses:
-                    if parent.status == "PLANNING":
+                    if parent.status == "PLAN":
                         parent.status = "RUNNING"
 
     parents_awaiting_plan_review: set[str] = set()
@@ -123,7 +123,7 @@ def apply_status_overrides(agents: list[Agent]) -> None:
         if agent.parent_workflow and agent.parent_timestamp:
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent and agent.status not in completed_statuses:
-                if parent.status == "PLANNING":
+                if parent.status == "PLAN":
                     parent.status = "RUNNING"
 
     # Pre-compute which parents have follow-up children so the loop below can
@@ -252,12 +252,12 @@ def apply_status_overrides(agents: list[Agent]) -> None:
             else:
                 agent.status = "PLAN DONE"
 
-    # Override DONE -> PLANNING for plan-only workflows (no follow-up spawned yet).
+    # Override DONE -> PLAN for plan-only workflows (no follow-up spawned yet).
     # A workflow with role_suffix ".plan" that's still DONE means the plan was
     # submitted but no coder follow-up exists yet (awaiting user approval).
     # If a follow-up exists (even if completed), the plan was already approved.
     # If an active feedback round exists, the agent is actively processing
-    # feedback, so use RUNNING instead of PLANNING.
+    # feedback, so use RUNNING instead of PLAN.
     for agent in agents:
         if (
             is_root_plan_workflow(agent)
@@ -270,7 +270,7 @@ def apply_status_overrides(agents: list[Agent]) -> None:
                 agent.status == "DONE"
                 or agent.raw_suffix in parents_awaiting_plan_review
             ):
-                agent.status = "PLANNING"
+                agent.status = "PLAN"
 
     # Override DONE -> QUESTION for agents whose last question was never answered.
     # The .q follow-up is created only AFTER a response is received, so its

@@ -171,7 +171,7 @@ def test_non_child_position_is_o1_lookup() -> None:
 
 def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
     visible_unread = _agent(suffix="done-unread", status="DONE")
-    visible_asking = _agent(suffix="asking", status="PLANNING")
+    visible_asking = _agent(suffix="asking", status="PLAN")
     visible_running = _agent(suffix="running", status="RUNNING")
     visible_waiting = _agent(suffix="waiting", status="WAITING")
     visible_failed = _agent(suffix="failed", status="FAILED")

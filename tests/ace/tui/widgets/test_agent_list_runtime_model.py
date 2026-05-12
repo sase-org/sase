@@ -311,7 +311,7 @@ def test_plan_approved_plan_suffix_runtime_is_segmented() -> None:
 def test_compute_row_runtime_planning_parent_with_completed_child_is_stable() -> None:
     parent = agent(
         agent_type=AgentType.WORKFLOW,
-        status="PLANNING",
+        status="PLAN",
         start=datetime(2026, 5, 6, 13, 9, 0),
     )
     planner = workflow_child(
@@ -362,7 +362,7 @@ def test_compute_row_runtime_waiting_input_parent_without_child_does_not_tick() 
 def test_compute_row_runtime_prerun_waiting_child_contributes_zero() -> None:
     parent = agent(
         agent_type=AgentType.WORKFLOW,
-        status="PLANNING",
+        status="PLAN",
         start=datetime(2026, 5, 6, 13, 9, 0),
     )
     planner = workflow_child(
@@ -417,7 +417,7 @@ def test_runtime_suffix_ticks_plan_approved_with_segmented_parent_times() -> Non
 
 
 def test_runtime_suffix_ticks_parent_with_active_runtime_child() -> None:
-    parent = agent(status="PLANNING")
+    parent = agent(status="PLAN")
     child = agent(status="RUNNING", raw_suffix="20260425143100", cl_name="child")
     parent.runtime_children.append(child)
 

@@ -338,7 +338,7 @@ class StateInitMixin:
         self._revived_agent_raw_suffixes: set[str] = set()
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
 
-        # Agent status override system (for PLANNING/PLAN APPROVED/QUESTION statuses)
+        # Agent status override system (for PLAN/PLAN APPROVED/QUESTION statuses)
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
         self._agent_pre_question_status: dict[
             tuple[AgentType, str, str | None], str | None

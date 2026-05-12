@@ -108,7 +108,7 @@ def _row_runtime_terminal_time(agent: "Agent") -> datetime | None:
         return agent.stop_time
     if agent.status in _PLAN_RUNTIME_TERMINAL_STATUSES and agent.plan_times:
         return max(agent.plan_times)
-    if agent.status == "PLANNING" and agent.plan_times:
+    if agent.status == "PLAN" and agent.plan_times:
         return max(agent.plan_times)
     if agent.status == "QUESTION" and agent.questions_times:
         return max(agent.questions_times)

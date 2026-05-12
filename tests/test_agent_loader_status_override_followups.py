@@ -70,7 +70,7 @@ def test_apply_status_overrides_done_with_active_code_followup_becomes_plan_appr
 
 
 def test_apply_status_overrides_completed_followup_plan_child_stays_done() -> None:
-    """A completed follow-up planner child is not relabeled as PLANNING."""
+    """A completed follow-up planner child is not relabeled as PLAN."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",

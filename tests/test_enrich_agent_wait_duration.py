@@ -237,8 +237,8 @@ def test_manual_plan_before_submission_stays_running(tmp_path: Path) -> None:
     assert agent.status == "RUNNING"
 
 
-def test_manual_plan_after_submission_becomes_planning(tmp_path: Path) -> None:
-    """PLANNING means a submitted plan is waiting on manual review."""
+def test_manual_plan_after_submission_becomes_plan(tmp_path: Path) -> None:
+    """PLAN means a submitted plan is waiting on manual review."""
     meta = {
         "pid": 1234,
         "plan": True,
@@ -249,7 +249,7 @@ def test_manual_plan_after_submission_becomes_planning(tmp_path: Path) -> None:
     agent = _make_agent()
     enrich_agent_from_meta(agent, str(tmp_path))
 
-    assert agent.status == "PLANNING"
+    assert agent.status == "PLAN"
     assert len(agent.plan_times) == 1
 
 
@@ -366,7 +366,7 @@ def test_wire_auto_epic_plan_before_submission_stays_running() -> None:
     assert agent.approve is True
 
 
-def test_wire_manual_plan_after_submission_becomes_planning() -> None:
+def test_wire_manual_plan_after_submission_becomes_plan() -> None:
     """Snapshot enrichment mirrors manual plan review state."""
     agent = _make_agent()
 
@@ -379,7 +379,7 @@ def test_wire_manual_plan_after_submission_becomes_planning() -> None:
         None,
     )
 
-    assert agent.status == "PLANNING"
+    assert agent.status == "PLAN"
     assert len(agent.plan_times) == 1
 
 

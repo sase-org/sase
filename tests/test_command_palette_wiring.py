@@ -189,7 +189,7 @@ def test_completed_agent_count_includes_done_and_failed() -> None:
         SimpleNamespace(status="FAILED"),
         SimpleNamespace(status="PLAN DONE"),
         SimpleNamespace(status="RUNNING"),
-        SimpleNamespace(status="PLANNING"),
+        SimpleNamespace(status="PLAN"),
         SimpleNamespace(status="WAITING INPUT"),
     ]
     app = SimpleNamespace(_agents=agents)

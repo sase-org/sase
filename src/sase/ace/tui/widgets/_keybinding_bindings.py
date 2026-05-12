@@ -152,7 +152,7 @@ class KeybindingBindingsMixin:
                 bindings.append((self._kd("add_tag"), "new w/ wait"))
             _APPROVE_ELIGIBLE = {
                 "RUNNING",
-                "PLANNING",
+                "PLAN",
                 "PLAN APPROVED",
                 "TALE APPROVED",
                 "WAITING",

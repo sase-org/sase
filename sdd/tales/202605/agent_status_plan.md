@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 17:17:57
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_status_plan.md
 ---
 # Plan: Rename Agents-tab PLANNING status to PLAN

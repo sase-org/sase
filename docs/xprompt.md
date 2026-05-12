@@ -997,8 +997,8 @@ further editing. The agent is not launched until you press Enter in the prompt b
 ### Plan Directive
 
 The `%plan` directive enables plan mode for the agent. The agent first creates a plan and pauses for user approval
-before proceeding with execution. In the TUI, the agent shows a PLANNING status while creating the plan, then PLAN
-APPROVED once the user approves it:
+before proceeding with execution. In the TUI, the agent shows a PLAN status after submitting the plan for review, then
+PLAN APPROVED once the user approves it:
 
 ```
 %plan

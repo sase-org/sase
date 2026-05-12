@@ -65,7 +65,7 @@ def _plan_enrichment_status(
         return "PLAN APPROVED"
 
     if plan_submitted and not auto_approved:
-        return "PLANNING"
+        return "PLAN"
 
     return None
 
@@ -220,7 +220,7 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         except ValueError:
             pass
 
-    # Check for waiting.json to set WAITING status (takes precedence over PLANNING
+    # Check for waiting.json to set WAITING status (takes precedence over PLAN
     # since the agent can't plan until its dependencies are resolved)
     waiting_path = Path(artifacts_dir) / "waiting.json"
     if waiting_path.exists() and agent.status == "RUNNING":
@@ -272,7 +272,7 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         agent.status = "QUESTION"
 
     # Set plan review / approval statuses for agents launched with %plan
-    # directives. PLANNING means a submitted plan is waiting on manual review;
+    # directives. PLAN means a submitted plan is waiting on manual review;
     # agents still drafting a plan, or using an auto-approval path, remain
     # RUNNING until later markers take over.
     if data.get("plan") and agent.status == "RUNNING":

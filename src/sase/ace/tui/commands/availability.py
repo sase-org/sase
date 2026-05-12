@@ -215,7 +215,7 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return agent.status in {
             "WAITING INPUT",
             "RUNNING",
-            "PLANNING",
+            "PLAN",
             "PLAN APPROVED",
             "TALE APPROVED",
             "WAITING",

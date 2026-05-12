@@ -245,7 +245,7 @@ class LeaderModeMixin:
         if current_tab == "agents":
             agent = self._get_selected_agent()  # type: ignore[attr-defined]
             if agent is not None:
-                has_notification = agent.status in ("PLANNING", "QUESTION")
+                has_notification = agent.status in ("PLAN", "QUESTION")
             has_unread_completed_agent = self._has_unread_completed_agent()  # type: ignore[attr-defined]
 
         try:

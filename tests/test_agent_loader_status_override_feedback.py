@@ -32,8 +32,8 @@ def test_apply_status_overrides_done_with_active_feedback_becomes_running() -> N
     assert parent.status == "RUNNING"
 
 
-def test_apply_status_overrides_done_with_completed_feedback_becomes_planning() -> None:
-    """A DONE .plan parent with only completed feedback falls through to PLANNING."""
+def test_apply_status_overrides_done_with_completed_feedback_becomes_plan() -> None:
+    """A DONE .plan parent with only completed feedback falls through to PLAN."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
@@ -55,13 +55,13 @@ def test_apply_status_overrides_done_with_completed_feedback_becomes_planning() 
     agents = [parent, feedback_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLANNING"
+    assert parent.status == "PLAN"
 
 
-def test_apply_status_overrides_running_with_unanswered_followup_plan_becomes_planning() -> (
+def test_apply_status_overrides_running_with_unanswered_followup_plan_becomes_plan() -> (
     None
 ):
-    """A RUNNING .plan parent awaiting follow-up review is marked PLANNING."""
+    """A RUNNING .plan parent awaiting follow-up review is marked PLAN."""
     feedback_time = datetime(2026, 5, 12, 9, 30, 0)
     followup_plan_time = datetime(2026, 5, 12, 9, 43, 33)
     parent = Agent(
@@ -87,7 +87,7 @@ def test_apply_status_overrides_running_with_unanswered_followup_plan_becomes_pl
 
     _apply_status_overrides([parent, feedback_child])
 
-    assert parent.status == "PLANNING"
+    assert parent.status == "PLAN"
 
 
 def test_apply_status_overrides_running_with_active_feedback_stays_running() -> None:

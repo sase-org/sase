@@ -21,9 +21,7 @@ AGENT_STATUS_BUCKET_GLYPHS: dict[str, str] = {
 #: Statuses where an agent is paused for explicit human input.  This is
 #: intentionally narrower than ``needs:input`` query matching, which also
 #: includes execution states such as ``PLAN APPROVED``.
-AGENT_ASKING_STATUSES: frozenset[str] = frozenset(
-    {"PLANNING", "QUESTION", "WAITING INPUT"}
-)
+AGENT_ASKING_STATUSES: frozenset[str] = frozenset({"PLAN", "QUESTION", "WAITING INPUT"})
 
 # Status mapping for status bucketing.  The semantic line is:
 # **Stopped** = the agent has stopped and is waiting for you to act;
@@ -31,8 +29,7 @@ AGENT_ASKING_STATUSES: frozenset[str] = frozenset(
 # moving through on its own.
 #
 # Members of Stopped:
-#   * ``PLANNING`` — a plan is being drafted and the user is expected to
-#     review/answer questions as they arise
+#   * ``PLAN`` — a submitted plan is waiting for user review
 #   * ``QUESTION`` — the agent has explicitly paused for an answer
 #
 # ``FAILED`` statuses are terminal failure states and always land in
@@ -42,7 +39,7 @@ AGENT_ASKING_STATUSES: frozenset[str] = frozenset(
 # post-plan handoff states: the planning work is finished and any code work
 # has been spun off, so they read as **Done**.  ``PLAN APPROVED`` is an
 # actively executing state and reads as **Running**.
-_STOPPED_STATUSES: frozenset[str] = frozenset({"PLANNING", "QUESTION"})
+_STOPPED_STATUSES: frozenset[str] = frozenset({"PLAN", "QUESTION"})
 
 #: Terminal statuses — agents that have finished and have a meaningful
 #: ``stop_time``.  Shared by TUI date bucketing (which sorts these by

@@ -170,7 +170,7 @@ def format_agent_option(
         text.append("FAILED ", style="dim #FF5F5F")
         text.append("↻", style="bold #FFAF00")
         text.append(" (RETRIED)", style="dim #FF5F5F")
-    elif agent.status == "PLANNING":
+    elif agent.status == "PLAN":
         text.append(agent.status, style="bold #FF87AF")  # Pink
     elif agent.status == "PLAN APPROVED":
         text.append(agent.status, style="bold #00D7AF")  # Green-blue (teal)

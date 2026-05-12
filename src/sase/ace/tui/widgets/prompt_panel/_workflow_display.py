@@ -101,7 +101,7 @@ class WorkflowDisplayMixin:
             "WAITING INPUT": "#FFAF5F",
             "DONE": "#5FD75F",
             "FAILED": "#FF5F5F",
-            "PLANNING": "#FF87AF",
+            "PLAN": "#FF87AF",
             "PLAN APPROVED": "#00D7AF",
             "TALE APPROVED": "#00D7AF",
             "PLAN REJECTED": "#D7AF5F",

@@ -199,7 +199,7 @@ def finalize_agent_list(
         # memory stays bounded across many refresh cycles.
         content_cache.prune(app._agents)
 
-    # Apply status overrides (PLANNING/PLAN APPROVED/QUESTION)
+    # Apply status overrides (PLAN/PLAN APPROVED/QUESTION)
     loaded_identities = {a.identity for a in app._agents}
     for agent in app._agents:
         if agent.status in DISMISSABLE_STATUSES:

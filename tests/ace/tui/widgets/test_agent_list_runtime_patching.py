@@ -213,7 +213,7 @@ def test_patch_active_runtime_rows_skips_waiting_without_run_start() -> None:
     assert calls == []
 
 
-@pytest.mark.parametrize("status", ["PLANNING", "QUESTION", "WAITING INPUT"])
+@pytest.mark.parametrize("status", ["PLAN", "QUESTION", "WAITING INPUT"])
 def test_patch_active_runtime_rows_skips_paused_parent_status(status: str) -> None:
     widget = AgentList()
     paused_parent = agent(

@@ -129,7 +129,7 @@ def test_format_agent_option_planning_suffix_has_user_paused_marker() -> None:
     _, suffix, _ = format_agent_option(
         agent(
             agent_type=AgentType.WORKFLOW,
-            status="PLANNING",
+            status="PLAN",
             start=start,
             plan_times=[plan],
         ),

@@ -73,7 +73,7 @@ def handle_plan_command(plan_file: str) -> NoReturn:
     # ``ArtifactWatcher`` is non-recursive and only watches direct children of
     # ``<project>/artifacts/``; the marker write three levels deeper never
     # wakes it, so the Agents tab waits up to ``FULL_SANITY_REFRESH_SECONDS``
-    # to reflect ``PLANNING``.  Touching this pulse fires ``IN_MODIFY`` /
+    # to reflect ``PLAN``.  Touching this pulse fires ``IN_MODIFY`` /
     # ``IN_CREATE`` and triggers an async refresh within the coalesce window.
     pulse_path = Path(artifacts_dir).parents[1] / ".ace_refresh_pulse"
     try:

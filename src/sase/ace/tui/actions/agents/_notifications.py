@@ -162,10 +162,10 @@ class AgentNotificationMixin:
         )
 
     def _apply_notification_status_overrides(self, unread: list[Notification]) -> None:
-        """Scan unread notifications and set PLANNING/QUESTION status overrides.
+        """Scan unread notifications and set PLAN/QUESTION status overrides.
 
         For PlanApproval notifications, sets the matching agent's override to
-        PLANNING. For UserQuestion notifications, sets the override to QUESTION
+        PLAN. For UserQuestion notifications, sets the override to QUESTION
         and conditionally saves the pre-question status (only if not already
         saved, to preserve the original status across multiple questions).
 
@@ -204,7 +204,7 @@ class AgentNotificationMixin:
                     break
 
                 if notification.action == "PlanApproval":
-                    self._agent_status_overrides[agent.identity] = "PLANNING"
+                    self._agent_status_overrides[agent.identity] = "PLAN"
                 elif notification.action == "UserQuestion":
                     # Save pre-question status only if not already saved
                     if agent.identity not in self._agent_pre_question_status:
@@ -452,7 +452,7 @@ class AgentNotificationMixin:
         agent: Agent | None = None
         candidate = self._get_selected_agent()  # type: ignore[attr-defined]
         if candidate is not None:
-            if candidate.status in ("PLANNING", "QUESTION"):
+            if candidate.status in ("PLAN", "QUESTION"):
                 agent = candidate
 
         # If current agent doesn't have a notification, auto-unhide hidden agents
@@ -461,7 +461,7 @@ class AgentNotificationMixin:
             self.hide_non_run_agents = False
             self._load_agents()  # type: ignore[attr-defined]
             for i, a in enumerate(self._agents):
-                if a.status in ("PLANNING", "QUESTION"):
+                if a.status in ("PLAN", "QUESTION"):
                     self.current_idx = i  # type: ignore[assignment]
                     agent = a
                     break

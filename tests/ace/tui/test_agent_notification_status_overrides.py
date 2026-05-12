@@ -71,7 +71,7 @@ def test_plan_approval_root_timestamp_sets_parent_planning_override() -> None:
 
     app._apply_notification_status_overrides([_notification()])
 
-    assert app._agent_status_overrides[parent.identity] == "PLANNING"
+    assert app._agent_status_overrides[parent.identity] == "PLAN"
     assert workflow_step.identity not in app._agent_status_overrides
 
 
@@ -80,7 +80,7 @@ def test_find_agent_for_notification_matches_root_timestamp() -> None:
         agent_type=AgentType.WORKFLOW,
         cl_name="oo",
         project_file="/tmp/test.sase",
-        status="PLANNING",
+        status="PLAN",
         start_time=datetime(2026, 5, 12, 9, 0, 0),
         raw_suffix="20260512090000",
         role_suffix=".plan",

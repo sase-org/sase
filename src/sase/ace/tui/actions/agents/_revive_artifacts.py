@@ -153,7 +153,7 @@ class ArtifactRestorationMixin:
             return "waiting_hitl"
         if status in {
             "RUNNING",
-            "PLANNING",
+            "PLAN",
             "PLAN APPROVED",
             "TALE APPROVED",
             "QUESTION",
@@ -182,7 +182,7 @@ class ArtifactRestorationMixin:
             return "waiting_hitl"
         if status in {
             "RUNNING",
-            "PLANNING",
+            "PLAN",
             "PLAN APPROVED",
             "TALE APPROVED",
             "QUESTION",
@@ -394,7 +394,7 @@ class ArtifactRestorationMixin:
             data["retry_started_at"] = [ts.isoformat() for ts in agent.retry_times]
 
         is_plan_like_status = agent.status in {
-            "PLANNING",
+            "PLAN",
             "PLAN APPROVED",
             "TALE APPROVED",
             "PLAN COMMITTED",

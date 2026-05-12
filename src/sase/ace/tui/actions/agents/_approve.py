@@ -89,7 +89,7 @@ class AgentApproveMixin:
 
         _APPROVE_ELIGIBLE = {
             "RUNNING",
-            "PLANNING",
+            "PLAN",
             "PLAN APPROVED",
             "TALE APPROVED",
             "WAITING",

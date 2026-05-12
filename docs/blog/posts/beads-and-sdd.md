@@ -108,9 +108,9 @@ of the canonical planning artifact. The agent's chat is episodic evidence. The p
 something a reviewer can trust six months later without needing to re-read the conversation that produced it.
 
 In practice, SDD enforces this shape by writing the plan only when it is submitted via `sase plan` (which touches
-`~/.sase/.ace_refresh_pulse` so any running ACE TUI flips the agent into the `PLANNING` status immediately) and by
-appending Q&A exchanges, when present, as a single merged `### Questions and Answers` section with monotonic numbering
-across rounds. The promoted plan is what links to the bead; the chat stays as a `CHAT:` drawer on the eventual commit.
+`~/.sase/.ace_refresh_pulse` so any running ACE TUI flips the agent into the `PLAN` status immediately) and by appending
+Q&A exchanges, when present, as a single merged `### Questions and Answers` section with monotonic numbering across
+rounds. The promoted plan is what links to the bead; the chat stays as a `CHAT:` drawer on the eventual commit.
 
 ## Multi-Workspace Behavior
 

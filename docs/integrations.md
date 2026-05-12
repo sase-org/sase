@@ -64,7 +64,7 @@ Each returned `AgentStatusGroup` contains the bucket label and the running-agent
 
 | Bucket    | Meaning                                                               |
 | --------- | --------------------------------------------------------------------- |
-| `Stopped` | User-facing blockers such as `PLANNING` and `QUESTION`.               |
+| `Stopped` | User-facing blockers such as `PLAN` and `QUESTION`.                   |
 | `Failed`  | Terminal failure statuses (`FAILED...`).                              |
 | `Running` | Active execution, including `PLAN APPROVED` and unrecognized actives. |
 | `Waiting` | `WAITING` agents with timer/dependency progress.                      |
