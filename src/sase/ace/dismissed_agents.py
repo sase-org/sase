@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
 import sqlite3
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -40,7 +43,11 @@ def _iter_bundle_paths(pattern: str = "*.json") -> list[Path]:
     results: list[Path] = []
     for entry in _DISMISSED_BUNDLES_DIR.iterdir():
         if entry.is_dir() and _SHARD_DIR_RE.match(entry.name):
-            results.extend(entry.glob(pattern))
+            results.extend(path for path in entry.glob(pattern) if path.is_file())
+            if pattern == "*.json":
+                results.extend(
+                    path for path in entry.glob("*/bundle.json") if path.is_file()
+                )
     # Legacy (pre-migration) files directly in the root.
     for p in _DISMISSED_BUNDLES_DIR.glob(pattern):
         if p.is_file():
@@ -74,6 +81,8 @@ def has_dismissed_bundle(raw_suffix: str) -> bool:
     (``{suffix}__c*.json``) across the current sharded layout and legacy
     top-level layout.
     """
+    if any(path.is_file() for path in _bundle_paths_for_suffixes({raw_suffix})):
+        return True
     if _find_bundle(f"{raw_suffix}.json") is not None:
         return True
     try:
@@ -175,36 +184,50 @@ def save_dismissed_bundle(agent: Agent) -> bool:
     if agent.raw_suffix is None:
         return False
     bundle = agent.to_bundle_dict()
-    saved = False
-    try:
-        from sase.core.agent_cleanup_execution import try_save_dismissed_bundle
-
-        saved = try_save_dismissed_bundle(_DISMISSED_BUNDLES_DIR, bundle)
-    except (OSError, ValueError):
-        return False
-
-    if not saved:
+    saved_path: Path | None = None
+    for _ in range(8):
         try:
-            filename = _bundle_filename(agent)
-            shard_dir = _bundle_shard_dir(filename)
-            shard_dir.mkdir(parents=True, exist_ok=True)
-            filepath = shard_dir / filename
-            with open(filepath, "w") as f:
-                json.dump(bundle, f, indent=2)
-            saved = True
+            from .dismissed_bundle_index import next_archive_revision
+
+            bundle["archive_revision"] = next_archive_revision(
+                _DISMISSED_BUNDLES_DIR,
+                bundle,
+            )
+        except (OSError, ValueError, sqlite3.Error):
+            revision = bundle.get("archive_revision")
+            bundle["archive_revision"] = revision if isinstance(revision, int) else 1
+
+        try:
+            from sase.core.agent_cleanup_execution import try_save_dismissed_bundle
+
+            result = try_save_dismissed_bundle(_DISMISSED_BUNDLES_DIR, bundle)
+            if result is not None:
+                saved_path = Path(str(result["path"]))
+                break
+        except (FileExistsError, ValueError) as exc:
+            if "already exists" in str(exc):
+                continue
+            return False
         except OSError:
             return False
+
+        try:
+            saved_path = _save_dismissed_bundle_python(_DISMISSED_BUNDLES_DIR, bundle)
+            break
+        except FileExistsError:
+            continue
+        except OSError:
+            return False
+    if saved_path is None:
+        return False
 
     try:
         from .dismissed_bundle_index import upsert_bundle_summary
 
-        filename = _bundle_filename(agent)
-        saved_path = _find_bundle(filename)
-        if saved_path is not None:
-            upsert_bundle_summary(_DISMISSED_BUNDLES_DIR, saved_path, bundle)
+        upsert_bundle_summary(_DISMISSED_BUNDLES_DIR, saved_path, bundle)
     except (OSError, ValueError):
         pass
-    return saved
+    return True
 
 
 def rebuild_dismissed_bundle_index() -> tuple[int, int]:
@@ -213,9 +236,9 @@ def rebuild_dismissed_bundle_index() -> tuple[int, int]:
     Returns:
         ``(indexed_rows, skipped_corrupt)``.
     """
-    _run_dismissed_archive_maintenance()
     from .dismissed_bundle_index import rebuild_index
 
+    _run_dismissed_archive_maintenance()
     result = rebuild_index(_DISMISSED_BUNDLES_DIR)
     return result.indexed_rows, result.skipped_corrupt
 
@@ -315,7 +338,7 @@ def mark_bundles_revived_by_suffixes(
                 except (TypeError, ValueError):
                     times_revived = 0
             bundle["times_revived"] = max(0, times_revived) + 1
-            path.write_text(json.dumps(bundle, indent=2), encoding="utf-8")
+            _write_json_file_atomic(path, bundle)
             try:
                 from .dismissed_bundle_index import upsert_bundle_summary
 
@@ -349,7 +372,68 @@ def _bundle_paths_for_suffixes(suffixes: set[str]) -> list[Path]:
             paths.extend(_iter_bundle_paths(pattern=f"{suffix}__c*.json"))
         except OSError:
             continue
+    matched = {path.resolve(strict=False) for path in paths}
+    try:
+        for path in _iter_bundle_paths():
+            if path.resolve(strict=False) in matched:
+                continue
+            if path.name != "bundle.json":
+                continue
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if isinstance(data, dict) and data.get("raw_suffix") in suffixes:
+                paths.append(path)
+                matched.add(path.resolve(strict=False))
+    except OSError:
+        pass
     return paths
+
+
+def _save_dismissed_bundle_python(root: Path, bundle: dict[str, Any]) -> Path:
+    from .dismissed_bundle_index import archive_bundle_path
+
+    revision = bundle.get("archive_revision")
+    if not isinstance(revision, int):
+        revision = 1
+    target = archive_bundle_path(root, bundle, revision)
+    final_dir = target.parent
+    shard_dir = final_dir.parent
+    shard_dir.mkdir(parents=True, exist_ok=True)
+    tmp_dir = shard_dir / f".{final_dir.name}.tmp.{os.getpid()}.{time.time_ns()}"
+    tmp_dir.mkdir(mode=0o700)
+    try:
+        _write_json_file_atomic(tmp_dir / "bundle.json", bundle)
+        os.replace(tmp_dir, final_dir)
+        _fsync_dir(shard_dir)
+    except Exception:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise
+    return target
+
+
+def _write_json_file_atomic(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f".{path.name}.tmp.{os.getpid()}.{time.time_ns()}")
+    with open(tmp_path, "w", encoding="utf-8") as handle:
+        json.dump(data, handle, indent=2)
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(tmp_path, path)
+    _fsync_dir(path.parent)
+
+
+def _fsync_dir(path: Path) -> None:
+    try:
+        fd = os.open(path, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 def _bundle_filename(agent: Agent) -> str:
@@ -393,6 +477,7 @@ def load_dismissed_bundles(suffixes: set[str] | None = None) -> list[Agent]:
             indexed_paths = query_bundle_paths_by_suffixes(
                 _DISMISSED_BUNDLES_DIR,
                 suffixes,
+                latest_only=True,
             )
         except (OSError, ValueError):
             indexed_paths = None
@@ -400,28 +485,7 @@ def load_dismissed_bundles(suffixes: set[str] | None = None) -> list[Agent]:
         if indexed_paths:
             bundle_paths.extend(path for path in indexed_paths if path.is_file())
         else:
-            # Scan across shards (and legacy top-level) → map raw_suffix → list
-            # of child filenames.  Raw suffixes are 14-digit timestamps that
-            # never contain ``__c``; child filenames always have the form
-            # ``{suffix}__c{index}.json``.
-            child_files_by_suffix: dict[str, list[Path]] = {}
-            try:
-                for path in _iter_bundle_paths():
-                    name = path.name
-                    stem = name[: -len(".json")]
-                    marker = stem.find("__c")
-                    if marker == -1:
-                        continue
-                    raw_suffix = stem[:marker]
-                    child_files_by_suffix.setdefault(raw_suffix, []).append(path)
-            except OSError:
-                return []
-
-            for suffix in suffixes:
-                parent_path = _find_bundle(f"{suffix}.json")
-                if parent_path is not None:
-                    bundle_paths.append(parent_path)
-                bundle_paths.extend(child_files_by_suffix.get(suffix, []))
+            bundle_paths.extend(_bundle_paths_for_suffixes(suffixes))
     else:
         bundle_paths.extend(_iter_bundle_paths())
 
@@ -473,18 +537,18 @@ def remove_bundle_by_identity(
     def _unlink(path: Path) -> bool:
         try:
             path.unlink()
+            if path.name == "bundle.json" and path.parent.name.count(".") >= 1:
+                try:
+                    path.parent.rmdir()
+                except OSError:
+                    pass
             return True
         except OSError:
             return False
 
     def _remove_for_suffix(suffix: str) -> bool:
         changed = False
-        parent = _find_bundle(f"{suffix}.json")
-        if parent is not None and _unlink(parent):
-            changed = True
-        # Child bundles live under the same shard as the parent; scan all
-        # shards in case of legacy layout mismatches.
-        for path in _iter_bundle_paths(pattern=f"{suffix}__c*.json"):
+        for path in _bundle_paths_for_suffixes({suffix}):
             if _unlink(path):
                 changed = True
         return changed
@@ -600,7 +664,7 @@ def _maybe_fix_child_collisions() -> None:
     try:
         for filepath in list(_iter_bundle_paths()):
             # Skip files already using the child naming convention
-            if "__c" in filepath.stem:
+            if filepath.name == "bundle.json" or "__c" in filepath.stem:
                 continue
             agent = _load_bundle_file(filepath)
             if agent is None:

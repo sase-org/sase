@@ -112,7 +112,7 @@ def upsert_bundle_summary(root: Path, path: Path, bundle: dict[str, Any]) -> boo
 
     try:
         summary = _summary_from_bundle(root, path, bundle)
-        with _connection(root) as conn:
+        with _write_connection(root) as conn:
             _upsert_summary(conn, summary, _file_signature(path))
             _upsert_search_text(conn, summary.bundle_path, bundle)
         return True
@@ -126,7 +126,7 @@ def delete_bundle_summaries_for_suffixes(root: Path, suffixes: set[str]) -> bool
     if not suffixes:
         return True
     try:
-        with _connection(root) as conn:
+        with _write_connection(root) as conn:
             conn.executemany(
                 """
                 DELETE FROM dismissed_bundle_search_fts
@@ -194,12 +194,24 @@ def query_summaries(
         return None
 
 
-def query_bundle_paths_by_suffixes(root: Path, suffixes: set[str]) -> list[Path] | None:
+def query_bundle_paths_by_suffixes(
+    root: Path,
+    suffixes: set[str],
+    *,
+    latest_only: bool = False,
+) -> list[Path] | None:
     """Return indexed parent and child bundle paths for *suffixes*."""
 
     summaries = query_summaries(root, suffixes=suffixes)
     if summaries is None:
         return None
+    if latest_only:
+        latest_by_agent_id: dict[str, _DismissedBundleSummary] = {}
+        for summary in summaries:
+            current = latest_by_agent_id.get(summary.agent_id)
+            if current is None or summary.archive_revision > current.archive_revision:
+                latest_by_agent_id[summary.agent_id] = summary
+        summaries = list(latest_by_agent_id.values())
     return [Path(summary.bundle_path) for summary in summaries]
 
 
@@ -209,16 +221,79 @@ def rebuild_index(root: Path) -> _DismissedBundleIndexRebuildResult:
     indexed = 0
     skipped = 0
     root.mkdir(parents=True, exist_ok=True)
-    with _connection(root) as conn:
-        conn.execute("DELETE FROM dismissed_bundle_summaries")
-        conn.execute("DELETE FROM dismissed_bundle_search_fts")
-        indexed = _rebuild_rows_from_bundles(conn, root)
-        bundle_count = len(_iter_bundle_paths(root))
-        skipped = max(0, bundle_count - indexed)
+    with _archive_maintenance_lock(root):
+        with _write_connection(root) as conn:
+            conn.execute("DELETE FROM dismissed_bundle_summaries")
+            conn.execute("DELETE FROM dismissed_bundle_search_fts")
+            indexed = _rebuild_rows_from_bundles(conn, root)
+            bundle_count = len(_iter_bundle_paths(root))
+            skipped = max(0, bundle_count - indexed)
     return _DismissedBundleIndexRebuildResult(
         indexed_rows=indexed,
         skipped_corrupt=skipped,
     )
+
+
+def next_archive_revision(root: Path, bundle: dict[str, Any]) -> int:
+    """Return the next immutable archive revision for *bundle*."""
+
+    agent_id = _agent_id_for_bundle(bundle)
+    max_revision = 0
+    if _index_path_for_root(root).is_file():
+        try:
+            with _connection(root) as conn:
+                row = conn.execute(
+                    "SELECT MAX(archive_revision) AS max_revision "
+                    "FROM dismissed_bundle_summaries WHERE agent_id = ?",
+                    (agent_id,),
+                ).fetchone()
+            if row is not None and row["max_revision"] is not None:
+                max_revision = max(max_revision, int(row["max_revision"]))
+        except (sqlite3.Error, TypeError, ValueError):
+            pass
+
+    for path in _iter_bundle_paths(root):
+        try:
+            existing = _read_bundle(path)
+            if _agent_id_for_bundle(existing) != agent_id:
+                continue
+            max_revision = max(
+                max_revision,
+                _positive_int_or_default(
+                    existing.get("archive_revision"),
+                    DEFAULT_ARCHIVE_REVISION,
+                ),
+            )
+        except (OSError, json.JSONDecodeError, ValueError, TypeError):
+            continue
+    return max_revision + 1 if max_revision else DEFAULT_ARCHIVE_REVISION
+
+
+def archive_bundle_path(root: Path, bundle: dict[str, Any], revision: int) -> Path:
+    """Return the immutable payload path for one archive revision."""
+
+    raw_suffix = _required_str(bundle, "raw_suffix")
+    shard = _shard_for_raw_suffix(raw_suffix)
+    return root / shard / f"{_agent_id_for_bundle(bundle)}.{revision}" / "bundle.json"
+
+
+@contextmanager
+def _archive_maintenance_lock(root: Path) -> Iterator[None]:
+    """Serialize long-running archive maintenance against other maintainers."""
+
+    root.mkdir(parents=True, exist_ok=True)
+    lock_path = root / ".archive.lock"
+    with open(lock_path, "a+b") as lock_file:
+        try:
+            import fcntl
+        except ImportError:  # pragma: no cover - Windows fallback
+            yield
+            return
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def verify_index(root: Path) -> _DismissedBundleIndexVerifyResult:
@@ -276,7 +351,7 @@ def _summary_from_bundle(
     """Build a summary row from a bundle JSON object."""
 
     raw_suffix = _required_str(bundle, "raw_suffix")
-    filename = path.name
+    filename = _display_filename(root, path)
     shard = _path_shard(root, path)
     project_file = _optional_str(bundle.get("project_file"))
     llm_provider = _optional_str(bundle.get("llm_provider"))
@@ -347,6 +422,20 @@ def _connection(root: Path, *, create: bool = True) -> Iterator[sqlite3.Connecti
     with closing(_connect(root, create=create)) as conn:
         with conn:
             yield conn
+
+
+@contextmanager
+def _write_connection(root: Path) -> Iterator[sqlite3.Connection]:
+    """Open an index connection and run the caller inside BEGIN IMMEDIATE."""
+
+    with closing(_connect(root)) as conn:
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
 
 def _ensure_schema(conn: sqlite3.Connection, root: Path) -> None:
@@ -704,7 +793,10 @@ def _iter_bundle_paths(root: Path) -> list[Path]:
     results: list[Path] = []
     for entry in root.iterdir():
         if entry.is_dir() and _SHARD_DIR_RE.match(entry.name):
-            results.extend(entry.glob("*.json"))
+            results.extend(path for path in entry.glob("*.json") if path.is_file())
+            results.extend(
+                path for path in entry.glob("*/bundle.json") if path.is_file()
+            )
     for path in root.glob("*.json"):
         if path.is_file():
             results.append(path)
@@ -733,6 +825,15 @@ def _agent_id_for_bundle(bundle: dict[str, Any]) -> str:
     return sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _shard_for_raw_suffix(raw_suffix: str) -> str:
+    ts = parse_filename_timestamp(raw_suffix)
+    if ts is not None:
+        return ts.strftime("%Y%m")
+    if len(raw_suffix) >= 6 and raw_suffix[:6].isdigit():
+        return raw_suffix[:6]
+    return "000101"
+
+
 def _path_shard(root: Path, path: Path) -> str:
     try:
         parent = path.parent.relative_to(root)
@@ -744,6 +845,16 @@ def _path_shard(root: Path, path: Path) -> str:
     if ts is not None:
         return ts.strftime("%Y%m")
     return ""
+
+
+def _display_filename(root: Path, path: Path) -> str:
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        return path.name
+    if path.name == "bundle.json" and len(relative.parts) >= 3:
+        return "/".join(relative.parts[-2:])
+    return path.name
 
 
 def _required_str(bundle: dict[str, Any], key: str) -> str:

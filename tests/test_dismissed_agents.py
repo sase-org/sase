@@ -127,6 +127,10 @@ def _make_agent(
     )
 
 
+def _saved_revision_bundles(bundles_dir: Path) -> list[Path]:
+    return sorted(bundles_dir.glob("*/**/bundle.json"))
+
+
 def test_bundle_save_load_round_trip(tmp_path: Path) -> None:
     """Test save/load round-trip for dismissed bundles."""
     bundles_dir = tmp_path / "bundles"
@@ -279,10 +283,8 @@ def test_dismissed_bundle_index_rebuild_and_query(tmp_path: Path) -> None:
         assert (indexed, skipped) == (3, 0)
 
         summaries = load_dismissed_bundle_summaries(cl_name="indexed_cl")
-        assert {summary.filename for summary in summaries} == {
-            "20250615100000.json",
-            "20250615100000__c0.json",
-        }
+        assert len(summaries) == 2
+        assert all(summary.filename.endswith("/bundle.json") for summary in summaries)
         assert any(summary.is_workflow_child for summary in summaries)
         assert load_dismissed_bundle_summaries(project_name="bundles") == []
 
@@ -389,7 +391,7 @@ def test_save_dismissed_bundle_persists_search_projection(tmp_path: Path) -> Non
         agent = _make_agent(cl_name="indexed_cl", raw_suffix="20250615100000")
         agent.artifacts_dir = str(artifacts_dir)
         assert save_dismissed_bundle(agent)
-        bundle_path = bundles_dir / "202506" / "20250615100000.json"
+        [bundle_path] = _saved_revision_bundles(bundles_dir)
         bundle = json.loads(bundle_path.read_text())
         assert bundle["bundle_schema_version"] == ARCHIVE_BUNDLE_SCHEMA_VERSION
         assert "findable prompt" in bundle["archive_search_text"]
@@ -400,6 +402,56 @@ def test_save_dismissed_bundle_persists_search_projection(tmp_path: Path) -> Non
 
         loaded_bundle = json.loads(bundle_path.read_text())
         assert "findable prompt" in loaded_bundle["archive_search_text"]
+
+
+def test_re_dismiss_writes_new_revision_without_overwriting(
+    tmp_path: Path,
+) -> None:
+    """Repeated dismissals preserve older archive revisions."""
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        agent = _make_agent(cl_name="indexed_cl", raw_suffix="20250615100000")
+        agent.status = "FAILED"
+        assert save_dismissed_bundle(agent)
+        first_path = _saved_revision_bundles(bundles_dir)[0]
+        first_payload = json.loads(first_path.read_text())
+
+        agent.status = "DONE"
+        assert save_dismissed_bundle(agent)
+        paths = _saved_revision_bundles(bundles_dir)
+        assert len(paths) == 2
+        payloads = [json.loads(path.read_text()) for path in paths]
+        assert sorted(payload["archive_revision"] for payload in payloads) == [1, 2]
+        assert json.loads(first_path.read_text()) == first_payload
+
+        summaries = load_dismissed_bundle_summaries(suffixes={"20250615100000"})
+        assert sorted(summary.archive_revision for summary in summaries) == [1, 2]
+        loaded = load_dismissed_bundles({"20250615100000"})
+        assert len(loaded) == 1
+        assert loaded[0].status == "DONE"
+
+
+def test_dismissed_bundle_python_fallback_uses_atomic_revision_directory(
+    tmp_path: Path,
+) -> None:
+    """Fallback writes never expose the legacy overwrite path."""
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+        patch("sase.core.agent_cleanup_execution.require_rust_binding") as binding,
+    ):
+        binding.side_effect = ImportError
+        agent = _make_agent(cl_name="indexed_cl", raw_suffix="20250615100000")
+        assert save_dismissed_bundle(agent)
+
+    [bundle_path] = _saved_revision_bundles(bundles_dir)
+    assert bundle_path.name == "bundle.json"
+    assert not (bundles_dir / "202506" / "20250615100000.json").exists()
+    assert not list((bundles_dir / "202506").glob("*.tmp.*"))
 
 
 def test_rebuild_index_backfills_legacy_bundle_search_projection(
@@ -788,8 +840,7 @@ def test_migration_from_monolithic_file(tmp_path: Path) -> None:
         # Old file should be deleted after migration
         assert not old_file.exists()
         # Individual files should exist (under YYYYMM shard).
-        assert (bundles_dir / "202506" / "20250615100000.json").exists()
-        assert (bundles_dir / "202506" / "20250615110000.json").exists()
+        assert len(_saved_revision_bundles(bundles_dir)) == 2
 
 
 def test_migration_skips_when_no_old_file(tmp_path: Path) -> None:

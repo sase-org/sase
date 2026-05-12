@@ -85,8 +85,12 @@ def test_dismissed_index_and_bundle_layout_use_rust_helpers(
         ["run", "demo", "20260430010203"],
         ["workflow", "flow", None],
     ]
-    assert (bundles_dir / "202604" / "20260430010203.json").is_file()
-    assert (bundles_dir / "202604" / "20260430010203__c2.json").is_file()
+    bundle_paths = sorted(bundles_dir.glob("202604/*/bundle.json"))
+    assert len(bundle_paths) == 2
+    assert {json.loads(path.read_text())["step_index"] for path in bundle_paths} == {
+        None,
+        2,
+    }
 
 
 def test_release_workspace_content_helper_matches_running_field_semantics() -> None:
