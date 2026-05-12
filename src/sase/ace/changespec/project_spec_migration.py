@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from contextlib import ExitStack
 from pathlib import Path
 
 from .locking import changespec_lock
@@ -61,44 +62,48 @@ def _migrate_one(
 ) -> None:
     """Atomically migrate a single legacy file to the canonical path.
 
-    The legacy and canonical files share a project directory, so both
-    ``changespec_lock`` calls below acquire the same lock file inside that
-    directory — no risk of deadlock with concurrent readers/writers.
+    Hold both path-derived ChangeSpec locks while comparing/removing/replacing
+    files so legacy ``.gp`` writers and canonical ``.sase`` writers cannot race
+    the migration.
     """
     if not legacy_path.exists():
         report.missing_legacy.append(str(legacy_path))
         return
 
-    if canonical_path.exists():
-        try:
-            legacy_bytes = legacy_path.read_bytes()
-            canonical_bytes = canonical_path.read_bytes()
-        except OSError as exc:
-            report.conflicts.append((str(legacy_path), f"read failed: {exc}"))
+    with ExitStack() as stack:
+        stack.enter_context(changespec_lock(str(legacy_path)))
+        stack.enter_context(changespec_lock(str(canonical_path)))
+
+        if not legacy_path.exists():
+            report.missing_legacy.append(str(legacy_path))
             return
 
-        if legacy_bytes == canonical_bytes:
-            # Hold the lock for both files (same lock file) while removing
-            # the redundant legacy copy so a writer cannot recreate it
-            # mid-migration.
-            with changespec_lock(str(canonical_path)):
+        if canonical_path.exists():
+            try:
+                legacy_bytes = legacy_path.read_bytes()
+                canonical_bytes = canonical_path.read_bytes()
+            except OSError as exc:
+                report.conflicts.append((str(legacy_path), f"read failed: {exc}"))
+                return
+
+            if legacy_bytes == canonical_bytes:
                 try:
                     legacy_path.unlink()
                 except FileNotFoundError:
                     pass
-            report.skipped_identical.append(str(legacy_path))
-            return
+                report.skipped_identical.append(str(legacy_path))
+                return
 
-        if not force:
-            report.conflicts.append(
-                (
-                    str(legacy_path),
-                    f"canonical sibling already exists and differs: {canonical_path}",
+            if not force:
+                report.conflicts.append(
+                    (
+                        str(legacy_path),
+                        "canonical sibling already exists and differs: "
+                        f"{canonical_path}",
+                    )
                 )
-            )
-            return
+                return
 
-    with changespec_lock(str(canonical_path)):
         os.replace(legacy_path, canonical_path)
     report.migrated.append((str(legacy_path), str(canonical_path)))
 
