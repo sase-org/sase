@@ -11,7 +11,7 @@ from pypdf import PdfReader
 
 
 PDF_PATH = Path("site/downloads/sase-handbook.pdf")
-MAX_SIZE_BYTES = 22 * 1024 * 1024
+MAX_SIZE_BYTES = 20 * 1024 * 1024
 MIN_PAGE_COUNT = 8
 
 REQUIRED_SENTINELS = (
@@ -20,12 +20,13 @@ REQUIRED_SENTINELS = (
     "AXE Automation",
     "Spec-Driven Development",
     "ChangeSpecs",
-    "Why Coding Agents Need Orchestration",
 )
 
-BLOG_SENTINELS = (
+FORBIDDEN_BLOG_SENTINELS = (
     "Coding agents are strongest when they operate inside a workflow",
+    "The Single-Agent Happy Path Is Too Small",
     "Published posts appear below",
+    "Posts so far",
 )
 
 FORBIDDEN_FRONT_MATTER_TOKENS = (
@@ -137,15 +138,22 @@ def main() -> int:
             _error(f"  - {sentinel}")
         return 1
 
-    if not any(_normalize(sentinel) in text for sentinel in BLOG_SENTINELS):
-        _error("missing blog-post sentinel text")
+    leaked_blog = [
+        sentinel
+        for sentinel in FORBIDDEN_BLOG_SENTINELS
+        if _normalize(sentinel) in text
+    ]
+    if leaked_blog:
+        _error("blog content leaked into docs-only PDF:")
+        for sentinel in leaked_blog:
+            _error(f"  - {sentinel}")
         return 1
 
     if "1structuredagenticsoftwareengineering" not in _compact(text):
         _error("missing numbered handbook title")
         return 1
 
-    if _normalize("4.1 Overview") not in text:
+    if _normalize("2.1 Overview") not in text:
         _error("missing representative nested heading number")
         return 1
 

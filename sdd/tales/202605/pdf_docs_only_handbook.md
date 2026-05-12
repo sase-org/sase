@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 11:10:06
-status: wip
+status: done
 prompt: sdd/prompts/202605/pdf_docs_only_handbook.md
 ---
 # Plan: Fix "Failed to load PDF document" and Shrink Handbook PDF to docs/ Only
