@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 09:34:13
-status: wip
+status: done
 prompt: sdd/prompts/202605/docs_sidebar_reorder.md
 ---
 # Plan: Reorder and Rename SASE Docs Sidebar Sections
