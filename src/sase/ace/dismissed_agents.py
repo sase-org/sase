@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -268,7 +269,7 @@ def load_dismissed_bundle_summaries(
             )
             or []
         )
-    except (OSError, ValueError):
+    except (OSError, ValueError, sqlite3.Error):
         return []
 
 

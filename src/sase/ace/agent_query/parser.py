@@ -32,6 +32,8 @@ from .types import (
     DurationCompare,
     DurationOp,
     NotExpr,
+    NumericCompare,
+    CompareOp,
     OrExpr,
     PropertyMatch,
     QueryExpr,
@@ -109,6 +111,7 @@ class _Parser:
             TokenType.STRING,
             TokenType.PROPERTY,
             TokenType.DURATION,
+            TokenType.NUMERIC,
             TokenType.NOT,
             TokenType.LPAREN,
         )
@@ -160,6 +163,18 @@ class _Parser:
                 key=token.property_key,
                 op=op,
                 seconds=token.duration_seconds,
+            )
+
+        if token.type == TokenType.NUMERIC:
+            self._advance()
+            assert token.property_key is not None
+            assert token.numeric_op is not None
+            assert token.numeric_value is not None
+            numeric_op: CompareOp = token.numeric_op  # type: ignore[assignment]
+            return NumericCompare(
+                key=token.property_key,
+                op=numeric_op,
+                value=token.numeric_value,
             )
 
         if token.type == TokenType.LPAREN:

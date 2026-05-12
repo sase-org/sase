@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 DurationOp = Literal["<", "<=", ">", ">=", "="]
+CompareOp = Literal["<", "<=", ">", ">=", "="]
 
 
 @dataclass
@@ -49,6 +50,15 @@ class DurationCompare:
 
 
 @dataclass
+class NumericCompare:
+    """A numeric comparison such as ``step_index:2`` or ``tokens>=1000``."""
+
+    key: str
+    op: CompareOp
+    value: int
+
+
+@dataclass
 class NotExpr:
     """Negation expression."""
 
@@ -69,7 +79,15 @@ class OrExpr:
     operands: list[QueryExpr]
 
 
-QueryExpr = StringMatch | PropertyMatch | DurationCompare | NotExpr | AndExpr | OrExpr
+QueryExpr = (
+    StringMatch
+    | PropertyMatch
+    | DurationCompare
+    | NumericCompare
+    | NotExpr
+    | AndExpr
+    | OrExpr
+)
 
 
 def _escape_string_value(value: str) -> str:
@@ -116,6 +134,9 @@ def to_canonical_string(expr: QueryExpr) -> str:
 
     if isinstance(expr, DurationCompare):
         return f"{expr.key}{expr.op}{_format_duration(expr.seconds)}"
+
+    if isinstance(expr, NumericCompare):
+        return f"{expr.key}{expr.op}{expr.value}"
 
     if isinstance(expr, NotExpr):
         inner = to_canonical_string(expr.operand)

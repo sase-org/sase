@@ -20,6 +20,7 @@ from .types import (
     AndExpr,
     DurationCompare,
     NotExpr,
+    NumericCompare,
     OrExpr,
     PropertyMatch,
     QueryExpr,
@@ -108,6 +109,8 @@ def _match_substring_property(prop: PropertyMatch, agent: Agent) -> bool:
         return needle in (agent.model or "").lower()
     if prop.key == "provider":
         return needle in (agent.llm_provider or "").lower()
+    if prop.key == "runtime":
+        return needle in (agent.llm_provider or "").lower()
     return False  # pragma: no cover — keys policed by tokenizer
 
 
@@ -178,7 +181,7 @@ def _match_property(
 ) -> bool:
     """Dispatch a ``key:value`` match to the per-key helper."""
     key = prop.key
-    if key in ("status", "cl", "project", "name", "model", "provider"):
+    if key in ("status", "cl", "project", "name", "model", "provider", "runtime"):
         return _match_substring_property(prop, agent)
     if key == "tag":
         return _match_tag(prop, agent)
@@ -192,6 +195,14 @@ def _match_property(
         return _match_needs(prop, agent)
     if key == "text":
         return _match_text(prop, haystack)
+    if key == "step_type":
+        return prop.value.lower() in (agent.step_type or "").lower()
+    if key == "retry_of":
+        return prop.value.lower() in (agent.retry_of_timestamp or "").lower()
+    if key == "parent":
+        return prop.value.lower() in (agent.parent_timestamp or "").lower()
+    if key == "error":
+        return prop.value.lower() in (agent.error_message or "").lower()
     return False  # pragma: no cover — tokenizer policed
 
 
@@ -221,6 +232,30 @@ def _match_duration(expr: DurationCompare, agent: Agent, now: datetime) -> bool:
     return False  # pragma: no cover
 
 
+def _match_numeric(expr: NumericCompare, agent: Agent) -> bool:
+    """Compare numeric agent metadata for keys shared with archive queries."""
+    value: int | None
+    if expr.key == "step_index":
+        value = agent.step_index
+    elif expr.key == "retry_attempt":
+        value = agent.retry_attempt
+    else:
+        value = None
+    if value is None:
+        return False
+    if expr.op == "<":
+        return value < expr.value
+    if expr.op == "<=":
+        return value <= expr.value
+    if expr.op == ">":
+        return value > expr.value
+    if expr.op == ">=":
+        return value >= expr.value
+    if expr.op == "=":
+        return value == expr.value
+    return False  # pragma: no cover
+
+
 def _evaluate(
     expr: QueryExpr,
     agent: Agent,
@@ -234,6 +269,8 @@ def _evaluate(
         return _match_property(expr, agent, haystack)
     if isinstance(expr, DurationCompare):
         return _match_duration(expr, agent, now)
+    if isinstance(expr, NumericCompare):
+        return _match_numeric(expr, agent)
     if isinstance(expr, NotExpr):
         return not _evaluate(expr.operand, agent, haystack, now)
     if isinstance(expr, AndExpr):

@@ -21,6 +21,7 @@ class TokenType(Enum):
     STRING = auto()  # Quoted, c-quoted, or bare-word string
     PROPERTY = auto()  # key:value (substring/enum/bool)
     DURATION = auto()  # age comparison: key + op + seconds
+    NUMERIC = auto()  # numeric comparison: key + op + integer
     AND = auto()
     OR = auto()
     NOT = auto()
@@ -39,8 +40,15 @@ SUBSTRING_PROPERTY_KEYS = frozenset(
         "name",
         "model",
         "provider",
+        "runtime",
         "tag",
         "text",
+        "archived_before",
+        "archived_after",
+        "step_type",
+        "retry_of",
+        "parent",
+        "error",
     }
 )
 ENUM_PROPERTY_KEYS: dict[str, frozenset[str]] = {
@@ -48,16 +56,28 @@ ENUM_PROPERTY_KEYS: dict[str, frozenset[str]] = {
     "source": frozenset({"axe", "manual"}),
     "needs": frozenset({"input"}),
 }
-BOOL_PROPERTY_KEYS = frozenset({"pinned", "hidden", "attention"})
+BOOL_PROPERTY_KEYS = frozenset({"pinned", "hidden", "attention", "revived"})
 
 # Keys that participate in age-style duration comparisons.
 DURATION_PROPERTY_KEYS = frozenset({"age"})
+NUMERIC_PROPERTY_KEYS = frozenset(
+    {
+        "step_index",
+        "retry_attempt",
+        "cost",
+        "cost_usd_micros",
+        "input_tokens",
+        "output_tokens",
+        "tokens",
+    }
+)
 
 VALID_PROPERTY_KEYS: frozenset[str] = (
     SUBSTRING_PROPERTY_KEYS
     | frozenset(ENUM_PROPERTY_KEYS)
     | BOOL_PROPERTY_KEYS
     | DURATION_PROPERTY_KEYS
+    | NUMERIC_PROPERTY_KEYS
 )
 
 _DURATION_UNITS: dict[str, int] = {"s": 1, "m": 60, "h": 3600, "d": 86400}
@@ -74,6 +94,8 @@ class Token:
     property_key: str | None = None
     duration_op: str | None = None  # one of <, <=, >, >=, = (DURATION only)
     duration_seconds: int | None = None  # DURATION only
+    numeric_op: str | None = None  # one of <, <=, >, >=, = (NUMERIC only)
+    numeric_value: int | None = None  # NUMERIC only
 
 
 class TokenizerError(Exception):
@@ -190,7 +212,7 @@ def _validate_enum_value(key: str, value: str, position: int) -> str:
     return lowered
 
 
-def _maybe_consume_age_comparator(query: str, pos: int) -> tuple[str, int] | None:
+def _maybe_consume_comparator(query: str, pos: int) -> tuple[str, int] | None:
     """If ``query[pos:]`` starts with ``<=``/``>=``/``<``/``>``/``=``/``:``, return op and new pos.
 
     The colon is treated as the alias ``>=`` at parse time, but we keep it
@@ -205,6 +227,16 @@ def _maybe_consume_age_comparator(query: str, pos: int) -> tuple[str, int] | Non
     if one in ("<", ">", "=", ":"):
         return one, pos + 1
     return None
+
+
+def _parse_integer_literal(query: str, pos: int) -> tuple[int, int]:
+    """Parse a non-negative integer literal."""
+    start = pos
+    while pos < len(query) and query[pos].isdigit():
+        pos += 1
+    if pos == start:
+        raise TokenizerError("Expected integer value", start)
+    return int(query[start:pos]), pos
 
 
 def tokenize(query: str) -> Iterator[Token]:
@@ -278,7 +310,7 @@ def tokenize(query: str) -> Iterator[Token]:
 
             # Age duration comparison: <key><op><duration>
             if word_lower in DURATION_PROPERTY_KEYS:
-                op_info = _maybe_consume_age_comparator(query, pos)
+                op_info = _maybe_consume_comparator(query, pos)
                 if op_info is None:
                     raise TokenizerError(
                         f"{word_lower}: expected comparator (one of <, <=, >, >=, =, :)",
@@ -297,6 +329,24 @@ def tokenize(query: str) -> Iterator[Token]:
                     duration_seconds=seconds,
                 )
                 continue
+
+            # Numeric comparison: <key><op><integer>. For numeric fields,
+            # ":" means equality.
+            if word_lower in NUMERIC_PROPERTY_KEYS:
+                op_info = _maybe_consume_comparator(query, pos)
+                if op_info is not None:
+                    numeric_op, pos = op_info
+                    effective_numeric_op = "=" if numeric_op == ":" else numeric_op
+                    numeric_value, pos = _parse_integer_literal(query, pos)
+                    yield Token(
+                        type=TokenType.NUMERIC,
+                        value=word_lower,
+                        position=start,
+                        property_key=word_lower,
+                        numeric_op=effective_numeric_op,
+                        numeric_value=numeric_value,
+                    )
+                    continue
 
             # property: "key:value"
             if pos < length and query[pos] == ":":
@@ -345,7 +395,7 @@ def tokenize(query: str) -> Iterator[Token]:
         if char in "<>=":
             raise TokenizerError(
                 f"Unexpected '{char}' (comparison operators are only valid "
-                "after 'age')",
+                "after a comparable query key)",
                 pos,
             )
 

@@ -36,6 +36,9 @@ CORPUS = [
     "hidden:false",
     "attention:true",
     "text:foo",
+    "runtime:codex",
+    "revived:false",
+    "step_type:bash",
     # Age comparisons
     "age>2h",
     "age<30m",
@@ -43,6 +46,10 @@ CORPUS = [
     "age<=15s",
     "age=1h",
     "age:2h",  # alias for age>=2h
+    # Numeric comparisons
+    "step_index:2",
+    "retry_attempt>=1",
+    "tokens>1000",
     # Boolean composition
     "a AND b",
     "a OR b",
