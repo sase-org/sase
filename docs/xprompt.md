@@ -780,8 +780,8 @@ The repo-level `xprompts/` directory also ships standalone YAML workflows that a
 | `#!sase/fix_just`                  | none                             | Repair or validate `just` workflow issues      |
 | `#!sase/pylimit_split`             | `limits`                         | Assist with Python file-size splitting         |
 | `#!sase/refresh_docs`              | `project`, `gh_ref`, `threshold` | Scheduled documentation refresh                |
-| `#!sase/audit_recent_bugs`         | none                             | Scheduled audit of recently filed bugs         |
-| `#!sase/audit_recent_improvements` | none                             | Scheduled audit of recently filed improvements |
+| `#!sase/audit_recent_bugs`         | `project`, `gh_ref`, `threshold` | Scheduled audit of recently filed bugs         |
+| `#!sase/audit_recent_improvements` | `project`, `gh_ref`, `threshold` | Scheduled audit of recently filed improvements |
 
 The scheduled documentation refresh workflow lives in this repo as `xprompts/refresh_docs.yml` and is invoked as
 `#!sase/refresh_docs`. It accepts `project`, `gh_ref`, and `threshold`, defaulting to the main `sase` repo behavior

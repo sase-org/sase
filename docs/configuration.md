@@ -15,7 +15,6 @@ and CLI flags.
   - [mentor_profiles](#mentor_profiles)
   - [metahooks](#metahooks)
   - [xprompts](#xprompts)
-  - [workflows](#workflows)
   - [xprompt_aliases](#xprompt_aliases)
   - [use_chezmoi](#use_chezmoi)
   - [precommit_command](#precommit_command)
