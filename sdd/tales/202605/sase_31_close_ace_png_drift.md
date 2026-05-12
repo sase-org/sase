@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 00:22:52
-status: wip
+status: done
 prompt: sdd/prompts/202605/sase_31_close_ace_png_drift.md
 ---
 # sase-31 Closure: Resolve ACE PNG Snapshot CI-vs-Local Render Drift
