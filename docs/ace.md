@@ -582,6 +582,42 @@ cached by raw query string so re-renders skip the parse.
 
 ## Keybindings: Axe Tab
 
+### Sidebar Row Taxonomy
+
+The Axe sidebar renders three row types so the operational tree reads at a glance:
+
+- **Lumberjack** rows are top-level sections with a solid left accent bar (`▌`) in the lumberjack hue, a `[*]` / `[!]` /
+  `[·]` running/error/idle marker, the lumberjack name, and an optional compact `Nc / Ne` cycles/errors chip at the end.
+- **Chop** rows are child rows indented under their parent with a `  └─` tree connector, a per-run status icon (`✓`
+  success, `!` failure/timeout, `?` missing script, `●` running, `*` agent-launched, `·` no runs), and the chop name in
+  a dim-gold child hue.
+- **Background command** rows (run via `!!`) live below the lumberjack tree, separated by a dim divider line when both
+  groups are present, and use a distinct command/slot badge so they cannot be mistaken for scheduled AXE work.
+
+### Dynamic Sidebar Width and No-Wrap Rows
+
+Every sidebar row is rendered as single-line Rich `Text` with `no_wrap=True` and `overflow="ellipsis"`. After each
+refresh the widget computes the widest formatted row and emits a `WidthChanged` message; the AXE container resizes
+between a 35-cell minimum and an 80-cell maximum, clamped further so the right-hand dashboard always keeps at least 40
+cells. On terminals too narrow to fit a label even at the clamped width, the row ellipsizes rather than wrapping onto a
+second line.
+
+### Controlled-Output Highlighting and ANSI Fallback
+
+Output in the dashboard right panel uses a semantic highlighter for sources whose shape is controlled by sase, and falls
+back to ANSI rendering for everything else:
+
+- **Lumberjack aggregate logs** (`[YYYY-MM-DD HH:MM:SS] [lumberjack] message`) get timestamp, lumberjack name, status
+  words (`success`, `failure`, `timeout`, `running`, `error`, …), PIDs, durations, exit codes, and counts colored by
+  severity and consistent with the sidebar taxonomy.
+- **Controlled chop output** — the agent-launch line `Launched agent chop '<name>' (PID <pid>)` emitted for
+  `agent_launched` runs — is highlighted with the chop name and PID coherent with sidebar colors.
+- **External chop scripts** and **background command output** are arbitrary text and stay on the ANSI fallback
+  (`Text.from_ansi`) with the existing capping and tail-biased caching behavior.
+
+Render cache slots are keyed on `(source_id, source_type)` so the semantic and ANSI paths cannot collide for the same
+numerical identity.
+
 ### Navigation
 
 | Key                 | Action                                                                        |
