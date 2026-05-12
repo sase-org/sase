@@ -107,3 +107,30 @@ def test_semantic_and_ansi_paths_cache_independently() -> None:
         axe_log_renderer.render_axe_output("lumberjack:hooks", payload, "lumberjack")
         is semantic_text
     )
+
+
+def test_chop_run_ansi_cache_keyed_by_run_id() -> None:
+    """Two different runs of the same chop don't collide in the render cache."""
+    _reset_cache()
+
+    payload = "shared\n"
+
+    call_count = 0
+    real_from_ansi = Text.from_ansi
+
+    def _counting(text: str) -> Text:
+        nonlocal call_count
+        call_count += 1
+        return real_from_ansi(text)
+
+    with patch.object(Text, "from_ansi", staticmethod(_counting)):
+        axe_log_renderer.render_axe_output("chop:hooks:fast:r1", payload, "ansi")
+        axe_log_renderer.render_axe_output("chop:hooks:fast:r2", payload, "ansi")
+        axe_log_renderer.render_axe_output(
+            "chop:hooks:fast:r1", payload, "ansi"
+        )  # cached
+        axe_log_renderer.render_axe_output(
+            "chop:hooks:fast:r2", payload, "ansi"
+        )  # cached
+
+    assert call_count == 2
