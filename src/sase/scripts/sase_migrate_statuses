@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Migrate legacy status names in .gp project files.
+"""Migrate legacy status names in project spec files.
 
 Performs the following replacements:
   - STATUS: WIP       -> STATUS: Draft   (with optional workspace suffix)
@@ -7,7 +7,7 @@ Performs the following replacements:
   - #WIP               -> #Draft          (mentor markers in MENTORS entries)
 
 Uses atomic writes (write to temp file, then rename) so that partial
-failures never leave a corrupt .gp file on disk.  The script is
+failures never leave a corrupt project spec file on disk.  The script is
 idempotent: running it multiple times produces the same result.
 """
 
@@ -54,9 +54,10 @@ _RULES: list[tuple[re.Pattern[str], str]] = [
 # ---------------------------------------------------------------------------
 
 
-def _collect_gp_files(root: Path) -> list[Path]:
-    """Recursively find all *.gp files under *root*."""
-    return sorted(root.rglob("*.gp"))
+def _collect_project_spec_files(root: Path) -> list[Path]:
+    """Recursively find canonical and legacy project spec files under *root*."""
+    candidates = [*root.rglob("*.sase"), *root.rglob("*.gp")]
+    return sorted(candidates)
 
 
 def _apply_rules(content: str) -> tuple[str, list[str]]:
@@ -104,7 +105,9 @@ def _atomic_write(path: Path, content: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Migrate legacy status names in ~/.sase/projects/**/*.gp files.",
+        description=(
+            "Migrate legacy status names in ~/.sase/projects project spec files."
+        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -126,20 +129,20 @@ def main() -> None:
         print(f"Root directory does not exist: {root}", file=sys.stderr)
         sys.exit(1)
 
-    gp_files = _collect_gp_files(root)
-    if not gp_files:
-        print(f"No .gp files found under {root}")
+    project_spec_files = _collect_project_spec_files(root)
+    if not project_spec_files:
+        print(f"No project spec files found under {root}")
         return
 
     files_modified = 0
     files_scanned = 0
 
-    for gp_path in gp_files:
+    for project_spec_path in project_spec_files:
         files_scanned += 1
         try:
-            original = gp_path.read_text(encoding="utf-8")
+            original = project_spec_path.read_text(encoding="utf-8")
         except OSError as exc:
-            print(f"WARNING: could not read {gp_path}: {exc}", file=sys.stderr)
+            print(f"WARNING: could not read {project_spec_path}: {exc}", file=sys.stderr)
             continue
 
         # Normalise Windows line-endings so regexes work uniformly,
@@ -155,18 +158,20 @@ def main() -> None:
             updated = updated.replace("\n", "\r\n")
 
         files_modified += 1
-        print(f"{'[DRY RUN] ' if dry_run else ''}Modified: {gp_path}")
+        print(f"{'[DRY RUN] ' if dry_run else ''}Modified: {project_spec_path}")
         for desc in descriptions:
             print(desc)
 
         if not dry_run:
-            _atomic_write(gp_path, updated)
+            _atomic_write(project_spec_path, updated)
 
     # Summary
     print()
     prefix = "[DRY RUN] " if dry_run else ""
-    print(f"{prefix}Scanned {files_scanned} .gp file(s), "
-          f"modified {files_modified} file(s).")
+    print(
+        f"{prefix}Scanned {files_scanned} project spec file(s), "
+        f"modified {files_modified} file(s)."
+    )
 
 
 if __name__ == "__main__":
