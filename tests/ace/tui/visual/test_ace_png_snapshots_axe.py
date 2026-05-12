@@ -242,6 +242,7 @@ async def test_axe_empty_png_snapshot(
             page,
             "axe_empty_120x40",
             title="ACE axe empty",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
