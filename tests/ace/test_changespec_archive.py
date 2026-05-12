@@ -16,7 +16,21 @@ from sase.ace.changespec.parser import parse_project_file
 
 
 def test_get_archive_file_path() -> None:
-    """Test conversion from main to archive path."""
+    """Canonical inputs produce canonical archive paths."""
+    assert (
+        get_archive_file_path("/home/user/.sase/projects/sase/sase.sase")
+        == "/home/user/.sase/projects/sase/sase-archive.sase"
+    )
+    assert get_archive_file_path("/tmp/myproject.sase") == "/tmp/myproject-archive.sase"
+
+
+def test_get_archive_file_path_preserves_legacy_input() -> None:
+    """Legacy compatibility: ``.gp`` input keeps ``.gp`` output.
+
+    The compatibility wrappers preserve the input extension so existing
+    runtime call sites operating on legacy ``.gp`` files keep working
+    until Phase 2 migrates them to the canonical helpers.
+    """
     assert (
         get_archive_file_path("/home/user/.sase/projects/sase/sase.gp")
         == "/home/user/.sase/projects/sase/sase-archive.gp"
@@ -25,7 +39,16 @@ def test_get_archive_file_path() -> None:
 
 
 def test_get_main_file_path() -> None:
-    """Test conversion from archive to main path."""
+    """Canonical archive input produces canonical main path."""
+    assert (
+        get_main_file_path("/home/user/.sase/projects/sase/sase-archive.sase")
+        == "/home/user/.sase/projects/sase/sase.sase"
+    )
+    assert get_main_file_path("/tmp/myproject-archive.sase") == "/tmp/myproject.sase"
+
+
+def test_get_main_file_path_preserves_legacy_input() -> None:
+    """Legacy ``.gp`` archive input keeps ``.gp`` main output."""
     assert (
         get_main_file_path("/home/user/.sase/projects/sase/sase-archive.gp")
         == "/home/user/.sase/projects/sase/sase.gp"
@@ -34,9 +57,12 @@ def test_get_main_file_path() -> None:
 
 
 def test_is_archive_file() -> None:
-    """Test archive file detection."""
+    """Test archive file detection for canonical and legacy extensions."""
+    assert is_archive_file("/tmp/sase-archive.sase") is True
     assert is_archive_file("/tmp/sase-archive.gp") is True
+    assert is_archive_file("/tmp/sase.sase") is False
     assert is_archive_file("/tmp/sase.gp") is False
+    assert is_archive_file("/tmp/archive.sase") is False
     assert is_archive_file("/tmp/archive.gp") is False
 
 

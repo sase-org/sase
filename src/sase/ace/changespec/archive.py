@@ -9,41 +9,72 @@ import logging
 import os
 
 from .locking import changespec_lock, write_changespec_atomic
+from .project_spec_path import (
+    LEGACY_PROJECT_SPEC_EXTENSION,
+    PROJECT_SPEC_ARCHIVE_SUFFIX,
+    PROJECT_SPEC_EXTENSION,
+    is_archive_project_spec,
+    project_spec_basename,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _input_extension(path: str) -> str:
+    """Return the matching project-spec extension on ``path``, or canonical."""
+    if path.endswith(PROJECT_SPEC_EXTENSION):
+        return PROJECT_SPEC_EXTENSION
+    if path.endswith(LEGACY_PROJECT_SPEC_EXTENSION):
+        return LEGACY_PROJECT_SPEC_EXTENSION
+    return PROJECT_SPEC_EXTENSION
 
 
 def get_archive_file_path(project_file: str) -> str:
     """Get the archive file path for a given project file.
 
+    Compatibility wrapper that preserves the input extension so existing
+    ``.gp`` runtime call sites keep working until Phase 2 migrates them to
+    :func:`project_spec_path.to_archive_project_spec_path`.
+
     Args:
-        project_file: Path like ``~/.sase/projects/sase/sase.gp``
+        project_file: Path like ``~/.sase/projects/sase/sase.sase`` or the
+            legacy ``~/.sase/projects/sase/sase.gp``.
 
     Returns:
-        Path like ``~/.sase/projects/sase/sase-archive.gp``
+        Path like ``~/.sase/projects/sase/sase-archive.sase`` (or
+        ``…-archive.gp`` if the input used the legacy extension).
     """
-    if project_file.endswith(".gp"):
-        return project_file[:-3] + "-archive.gp"
-    return project_file + "-archive"
+    ext = _input_extension(project_file)
+    if project_file.endswith(ext):
+        directory = os.path.dirname(project_file)
+        basename = project_spec_basename(project_file)
+        archive_name = f"{basename}{PROJECT_SPEC_ARCHIVE_SUFFIX}{ext}"
+        return os.path.join(directory, archive_name) if directory else archive_name
+    return project_file + PROJECT_SPEC_ARCHIVE_SUFFIX
 
 
 def get_main_file_path(archive_file: str) -> str:
     """Get the main project file path from an archive file path.
 
-    Args:
-        archive_file: Path like ``~/.sase/projects/sase/sase-archive.gp``
-
-    Returns:
-        Path like ``~/.sase/projects/sase/sase.gp``
+    Compatibility wrapper that preserves the input extension so existing
+    ``.gp`` runtime call sites keep working until Phase 2 migrates them to
+    :func:`project_spec_path.to_active_project_spec_path`.
     """
-    if archive_file.endswith("-archive.gp"):
-        return archive_file[:-11] + ".gp"
+    ext = _input_extension(archive_file)
+    if archive_file.endswith(f"{PROJECT_SPEC_ARCHIVE_SUFFIX}{ext}"):
+        directory = os.path.dirname(archive_file)
+        basename = project_spec_basename(archive_file)
+        active_name = f"{basename}{ext}"
+        return os.path.join(directory, active_name) if directory else active_name
     return archive_file
 
 
 def is_archive_file(file_path: str) -> bool:
-    """Check whether a file path is an archive file."""
-    return file_path.endswith("-archive.gp")
+    """Check whether a file path is an archive file.
+
+    Accepts both canonical ``.sase`` and legacy ``.gp`` extensions.
+    """
+    return is_archive_project_spec(file_path)
 
 
 def _extract_changespec_block(
