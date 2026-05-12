@@ -247,6 +247,15 @@ def rebuild_dismissed_bundle_index() -> tuple[int, int]:
 
 def verify_dismissed_bundle_index() -> dict[str, int | bool]:
     """Return diagnostics for the persistent dismissed bundle summary index."""
+    try:
+        from sase.core.agent_archive_facade import try_verify_agent_archive_index
+
+        rust_result = try_verify_agent_archive_index(_DISMISSED_BUNDLES_DIR)
+        if rust_result is not None:
+            return rust_result
+    except (OSError, ValueError):
+        pass
+
     from .dismissed_bundle_index import verify_index
 
     result = verify_index(_DISMISSED_BUNDLES_DIR)
@@ -656,6 +665,24 @@ def mark_bundles_revived_by_suffixes(
         return 0
     timestamp = revived_at or datetime.now().isoformat()
     paths = _bundle_paths_for_suffixes(suffixes)
+    try:
+        from sase.core.agent_archive_facade import (
+            try_mark_agent_archive_bundles_revived,
+        )
+        from sase.core.agent_archive_wire import AgentArchiveReviveMarkRequestWire
+
+        report = try_mark_agent_archive_bundles_revived(
+            _DISMISSED_BUNDLES_DIR,
+            AgentArchiveReviveMarkRequestWire(
+                bundle_paths=[str(path) for path in paths],
+                revived_at=timestamp,
+            ),
+        )
+        if report is not None:
+            return int(report.get("changed", 0))
+    except (OSError, ValueError):
+        pass
+
     changed = 0
     for path in paths:
         try:

@@ -87,6 +87,24 @@ def search_archive(
     if not archive_index_exists(root):
         return ArchiveQueryPage(results=[], next_cursor=None)
 
+    from sase.core.agent_archive_facade import try_query_agent_archive
+    from sase.core.agent_archive_wire import AgentArchiveQueryRequestWire
+
+    rust_page = try_query_agent_archive(
+        root,
+        AgentArchiveQueryRequestWire(
+            where_sql=where_sql,
+            params=list(params),
+            limit=page_size,
+            cursor=offset,
+        ),
+    )
+    if rust_page is not None:
+        return ArchiveQueryPage(
+            results=[_result_from_wire(row) for row in rust_page.results],
+            next_cursor=rust_page.next_cursor,
+        )
+
     try:
         with archive_index_connection(root) as conn:
             rows = conn.execute(sql, [*params, page_size + 1, offset]).fetchall()
@@ -177,6 +195,21 @@ def archive_facet_counts(
 
     if not archive_index_exists(root):
         return {}
+
+    from sase.core.agent_archive_facade import try_agent_archive_facet_counts
+    from sase.core.agent_archive_wire import AgentArchiveFacetRequestWire
+
+    rust_counts = try_agent_archive_facet_counts(
+        root,
+        AgentArchiveFacetRequestWire(
+            where_sql=where_sql,
+            params=list(params),
+            facet=facet,
+            limit=max(0, limit),
+        ),
+    )
+    if rust_counts is not None:
+        return rust_counts
 
     try:
         with archive_index_connection(root) as conn:
@@ -369,6 +402,29 @@ def _result_from_row(row: sqlite3.Row) -> ArchiveQueryResult:
         step_type=_optional_str(row["step_type"]),
         retry_attempt=int(row["retry_attempt"]),
         is_workflow_child=bool(row["is_workflow_child"]),
+    )
+
+
+def _result_from_wire(row: Any) -> ArchiveQueryResult:
+    return ArchiveQueryResult(
+        agent_id=str(row.agent_id),
+        raw_suffix=str(row.raw_suffix),
+        bundle_path=str(row.bundle_path),
+        cl_name=str(row.cl_name),
+        agent_name=_optional_str(row.agent_name),
+        status=str(row.status),
+        start_time=_optional_str(row.start_time),
+        dismissed_at=_optional_str(row.dismissed_at),
+        revived_at=_optional_str(row.revived_at),
+        project_name=_optional_str(row.project_name),
+        model=_optional_str(row.model),
+        runtime=_optional_str(row.runtime),
+        llm_provider=_optional_str(row.llm_provider),
+        step_index=_optional_int(row.step_index),
+        step_name=_optional_str(row.step_name),
+        step_type=_optional_str(row.step_type),
+        retry_attempt=int(row.retry_attempt),
+        is_workflow_child=bool(row.is_workflow_child),
     )
 
 
