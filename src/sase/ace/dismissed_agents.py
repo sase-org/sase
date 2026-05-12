@@ -273,6 +273,23 @@ def load_dismissed_bundle_summaries(
         return []
 
 
+def search_dismissed_archive(
+    query: str,
+    *,
+    limit: int = 50,
+    cursor: int | None = None,
+) -> Any:
+    """Search dismissed bundle summaries via the archive query planner."""
+
+    _run_dismissed_archive_maintenance()
+    from .agent_query.archive_planner import search_archive
+    from .dismissed_bundle_index import archive_index_exists, rebuild_index
+
+    if not archive_index_exists(_DISMISSED_BUNDLES_DIR):
+        rebuild_index(_DISMISSED_BUNDLES_DIR)
+    return search_archive(_DISMISSED_BUNDLES_DIR, query, limit=limit, cursor=cursor)
+
+
 def mark_bundles_revived_by_suffixes(
     suffixes: set[str],
     *,

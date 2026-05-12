@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Protocol
+
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -12,6 +15,9 @@ from textual.widgets.option_list import Option
 
 from ..models.agent import Agent, AgentType
 from .base import OptionListNavigationMixin
+
+if TYPE_CHECKING:
+    from ...agent_query.archive_planner import ArchiveQueryPage, ArchiveQueryResult
 
 # Reuse the same type→color mapping from the agent list widget
 _TYPE_COLORS: dict[AgentType, str] = {
@@ -32,6 +38,32 @@ _STATUS_COLORS: dict[str, str] = {
     "FAILED": "#FF5F5F",
     "WAITING INPUT": "#FF87D7",
 }
+
+
+class _ArchiveQueryProvider(Protocol):
+    """Archive-backed query and hydration hooks used by the revive modal."""
+
+    def search(
+        self,
+        query: str,
+        *,
+        limit: int,
+        cursor: int | None = None,
+    ) -> ArchiveQueryPage:
+        """Return a page of archive summary rows."""
+        ...
+
+    def hydrate(self, result: ArchiveQueryResult) -> list[Agent]:
+        """Hydrate the selected archive result and related rows."""
+        ...
+
+
+@dataclass
+class _DismissedEntry:
+    """One selectable revive row, either hydrated or archive-summary backed."""
+
+    agent: Agent | None = None
+    archive_result: ArchiveQueryResult | None = None
 
 
 class _ReviveFilterInput(Input):
@@ -72,6 +104,7 @@ class DismissedAgentSelectModal(
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         Binding("tab", "toggle_mark", "Mark", priority=True),
         Binding("ctrl+a", "toggle_all", "Mark All", priority=True),
+        Binding("ctrl+n", "load_more", "More", priority=True),
     ]
 
     def __init__(
@@ -80,6 +113,8 @@ class DismissedAgentSelectModal(
         *,
         all_dismissed: list[Agent] | None = None,
         loading_archive: bool = False,
+        archive_query_provider: _ArchiveQueryProvider | None = None,
+        page_size: int = 50,
     ) -> None:
         """Initialize the modal.
 
@@ -91,12 +126,23 @@ class DismissedAgentSelectModal(
         """
         super().__init__()
         self.agents = agents
+        self._same_session_agents = list(agents)
         self._all_dismissed = all_dismissed or agents
         self._chat_contents: dict[int, str] = {}
-        self._filtered: list[tuple[int, Agent]] = list(enumerate(agents))
+        self._entries: list[_DismissedEntry] = [
+            _DismissedEntry(agent=agent) for agent in agents
+        ]
+        self._filtered: list[tuple[int, _DismissedEntry]] = list(
+            enumerate(self._entries)
+        )
         self._step_counts: dict[str, int] = self._compute_step_counts()
         self._marked: set[int] = set()
         self._loading_archive = loading_archive
+        self._archive_query_provider = archive_query_provider
+        self._page_size = max(1, page_size)
+        self._archive_cursor: int | None = None
+        self._archive_query = ""
+        self._query_error: str | None = None
 
     def _compute_step_counts(self) -> dict[str, int]:
         """Count child steps per parent (keyed by raw_suffix)."""
@@ -130,14 +176,14 @@ class DismissedAgentSelectModal(
         filter_input = self.query_one("#dismissed-filter", _ReviveFilterInput)
         filter_input.focus()
         if self._filtered:
-            self._update_preview(self._filtered[0][1])
+            self._update_preview_for_entry(self._filtered[0][1])
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         with Container(id="dismissed-agent-modal-container"):
             yield Label("Revive Agents", id="modal-title")
             yield _ReviveFilterInput(
-                placeholder="Type to filter...", id="dismissed-filter"
+                placeholder="Archive query...", id="dismissed-filter"
             )
             with Horizontal(id="dismissed-agent-panels"):
                 with Vertical(id="dismissed-agent-list-panel"):
@@ -163,10 +209,13 @@ class DismissedAgentSelectModal(
     ) -> None:
         """Replace modal contents after an on-demand archive load."""
         self.agents = agents
+        self._same_session_agents = list(agents)
         self._all_dismissed = all_dismissed or agents
+        self._entries = [_DismissedEntry(agent=agent) for agent in agents]
         self._step_counts = self._compute_step_counts()
-        self._marked = {idx for idx in self._marked if idx < len(self.agents)}
+        self._marked = {idx for idx in self._marked if idx < len(self._entries)}
         self._loading_archive = loading_archive
+        self._query_error = None
 
         self._chat_contents.clear()
         for i, agent in enumerate(self.agents):
@@ -176,13 +225,13 @@ class DismissedAgentSelectModal(
 
         try:
             filter_input = self.query_one("#dismissed-filter", _ReviveFilterInput)
-            self._filtered = self._get_filtered_agents(filter_input.value)
+            self._filtered = self._get_filtered_entries(filter_input.value)
         except Exception:
-            self._filtered = list(enumerate(self.agents))
+            self._filtered = list(enumerate(self._entries))
 
         self._rebuild_options()
         if self._filtered:
-            self._update_preview(self._filtered[0][1])
+            self._update_preview_for_entry(self._filtered[0][1])
         else:
             self._clear_preview()
         self._update_hints()
@@ -250,17 +299,57 @@ class DismissedAgentSelectModal(
 
         return text
 
-    def _create_options(self, agents: list[Agent]) -> list[Option]:
-        """Create options from agents."""
+    def _format_archive_label(
+        self, result: ArchiveQueryResult, orig_idx: int = -1
+    ) -> Text:
+        """Create styled text for an archive summary row."""
+        text = Text()
+        text.append(
+            " \u25cf " if orig_idx in self._marked else "   ", style="bold #00D7D7"
+        )
+        if result.status == "DONE":
+            text.append("\u2714 ", style="bold #5FD75F")
+        elif result.status == "FAILED":
+            text.append("\u2718 ", style="bold #FF5F5F")
+        else:
+            text.append("\u25cb ", style="dim")
+        display_type = "workflow" if result.step_type else "agent"
+        text.append(f"[{display_type}]", style="bold #87AFFF")
+        text.append(" ")
+        text.append(result.cl_name, style="bold")
+        if result.agent_name:
+            text.append("  ")
+            text.append(f"@{result.agent_name}", style="#87D7FF")
+        if result.start_time:
+            text.append("  ")
+            text.append(result.start_time[:16].replace("T", " "), style="dim")
+        if result.model:
+            text.append("  ")
+            text.append(result.model, style="dim italic")
+        if result.project_name:
+            text.append("  ")
+            text.append(result.project_name, style="dim")
+        return text
+
+    def _format_entry_label(self, entry: _DismissedEntry, orig_idx: int = -1) -> Text:
+        """Create styled text for either a hydrated agent or summary row."""
+        if entry.agent is not None:
+            return self._format_agent_label(entry.agent, orig_idx)
+        if entry.archive_result is not None:
+            return self._format_archive_label(entry.archive_result, orig_idx)
+        return Text("(invalid archive row)", style="dim")
+
+    def _create_options(self, entries: list[_DismissedEntry]) -> list[Option]:
+        """Create options from modal entries."""
         return [
-            Option(self._format_agent_label(agent, i), id=str(i))
-            for i, agent in enumerate(agents)
+            Option(self._format_entry_label(entry, i), id=str(i))
+            for i, entry in enumerate(entries)
         ]
 
     def _create_options_or_placeholder(self) -> list[Option]:
         """Create agent options or a disabled loading/empty placeholder."""
-        if self.agents:
-            return self._create_options(self.agents)
+        if self._entries:
+            return self._create_options(self._entries)
         if self._loading_archive:
             return [
                 Option(Text("Loading dismissed archive...", style="dim"), disabled=True)
@@ -271,21 +360,26 @@ class DismissedAgentSelectModal(
             )
         ]
 
-    def _get_filtered_agents(self, filter_text: str) -> list[tuple[int, Agent]]:
-        """Get agents matching the filter text."""
+    def _get_filtered_entries(
+        self, filter_text: str
+    ) -> list[tuple[int, _DismissedEntry]]:
+        """Get in-memory entries matching the legacy substring filter."""
         if not filter_text:
-            return list(enumerate(self.agents))
+            return list(enumerate(self._entries))
         filter_lower = filter_text.lower()
-        results: list[tuple[int, Agent]] = []
-        for i, agent in enumerate(self.agents):
+        results: list[tuple[int, _DismissedEntry]] = []
+        for i, entry in enumerate(self._entries):
+            agent = entry.agent
+            if agent is None:
+                continue
             label = f"[{agent.display_type}] {agent.display_name}"
             if agent.agent_name:
                 label += f" @{agent.agent_name}"
             if filter_lower in label.lower():
-                results.append((i, agent))
+                results.append((i, entry))
                 continue
             if i in self._chat_contents and filter_lower in self._chat_contents[i]:
-                results.append((i, agent))
+                results.append((i, entry))
         return results
 
     # --- Mark / bulk selection ---
@@ -318,15 +412,91 @@ class DismissedAgentSelectModal(
         self._rebuild_options()
         self._update_hints()
 
+    def action_load_more(self) -> None:
+        """Load the next page of archive-backed results."""
+        if self._archive_query_provider is None or self._archive_cursor is None:
+            return
+        self.refresh_archive_query(self._archive_query, append=True)
+
+    def refresh_archive_query(self, query: str, *, append: bool = False) -> bool:
+        """Refresh entries from the archive provider.
+
+        Invalid archive input leaves the previous valid result set intact.
+        """
+        provider = self._archive_query_provider
+        if provider is None:
+            return False
+
+        cursor = self._archive_cursor if append else None
+        try:
+            page = provider.search(query, limit=self._page_size, cursor=cursor)
+        except Exception as exc:
+            self._query_error = str(exc)
+            self._loading_archive = False
+            self._update_hints_if_mounted()
+            return False
+
+        archive_entries = [
+            _DismissedEntry(archive_result=result) for result in page.results
+        ]
+        if append:
+            self._entries.extend(archive_entries)
+        else:
+            same_session_entries = [
+                _DismissedEntry(agent=agent)
+                for agent in self._same_session_agents
+                if not query.strip()
+            ]
+            seen = {
+                (entry.agent.cl_name, entry.agent.raw_suffix)
+                for entry in same_session_entries
+                if entry.agent is not None
+            }
+            deduped_archive_entries = []
+            for entry in archive_entries:
+                result = entry.archive_result
+                if result is None:
+                    continue
+                key = (result.cl_name, result.raw_suffix)
+                if key in seen:
+                    continue
+                seen.add(key)
+                deduped_archive_entries.append(entry)
+            self._entries = [*same_session_entries, *deduped_archive_entries]
+            self._marked.clear()
+
+        self._archive_query = query
+        self._archive_cursor = page.next_cursor
+        self._query_error = None
+        self._loading_archive = False
+        self._filtered = list(enumerate(self._entries))
+
+        try:
+            self._rebuild_options()
+            if self._filtered:
+                self._update_preview_for_entry(self._filtered[0][1])
+            else:
+                self._clear_preview()
+            self._update_hints()
+        except Exception:
+            pass
+        return True
+
+    def _update_hints_if_mounted(self) -> None:
+        try:
+            self._update_hints()
+        except Exception:
+            pass
+
     def _rebuild_options(self) -> None:
         """Rebuild the option list to reflect mark state changes."""
         option_list = self.query_one("#dismissed-agent-list", OptionList)
         old_highlighted = option_list.highlighted
         option_list.clear_options()
         if self._filtered:
-            for orig_idx, agent in self._filtered:
+            for orig_idx, entry in self._filtered:
                 option_list.add_option(
-                    Option(self._format_agent_label(agent, orig_idx), id=str(orig_idx))
+                    Option(self._format_entry_label(entry, orig_idx), id=str(orig_idx))
                 )
         elif self._loading_archive:
             option_list.add_option(
@@ -345,14 +515,16 @@ class DismissedAgentSelectModal(
     def _hints_text(self) -> str:
         count = len(self._marked)
         loading = " | archive loading" if self._loading_archive else ""
+        error = f" | {self._query_error}" if self._query_error else ""
+        more = " | ^n: more" if self._archive_cursor is not None else ""
         if count:
             return (
                 "j/k: navigate | tab: mark | ^a: all | ^d/^u: scroll"
-                f" | Enter: revive ({count}) | Esc/q: cancel{loading}"
+                f"{more} | Enter: revive ({count}) | Esc/q: cancel{loading}{error}"
             )
         return (
             "j/k: navigate | tab: mark | ^a: all | ^d/^u: scroll"
-            f" | Enter: revive | Esc/q: cancel{loading}"
+            f"{more} | Enter: revive | Esc/q: cancel{loading}{error}"
         )
 
     def _update_hints(self) -> None:
@@ -362,19 +534,30 @@ class DismissedAgentSelectModal(
 
     def _get_marked_agents(self) -> list[Agent]:
         """Get all marked agents in original order."""
-        return [self.agents[i] for i in sorted(self._marked) if i < len(self.agents)]
+        agents: list[Agent] = []
+        for i in sorted(self._marked):
+            if i >= len(self._entries):
+                continue
+            agent = self._hydrate_entry(self._entries[i])
+            if agent is not None:
+                agents.append(agent)
+        return agents
 
     # --- Event handlers ---
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle filter input change."""
-        self._filtered = self._get_filtered_agents(event.value)
+        if self._archive_query_provider is not None:
+            self.refresh_archive_query(event.value)
+            return
+
+        self._filtered = self._get_filtered_entries(event.value)
         option_list = self.query_one("#dismissed-agent-list", OptionList)
         option_list.clear_options()
         if self._filtered:
-            for orig_idx, agent in self._filtered:
+            for orig_idx, entry in self._filtered:
                 option_list.add_option(
-                    Option(self._format_agent_label(agent, orig_idx), id=str(orig_idx))
+                    Option(self._format_entry_label(entry, orig_idx), id=str(orig_idx))
                 )
         elif self._loading_archive:
             option_list.add_option(
@@ -388,7 +571,7 @@ class DismissedAgentSelectModal(
                 )
             )
         if self._filtered:
-            self._update_preview(self._filtered[0][1])
+            self._update_preview_for_entry(self._filtered[0][1])
         else:
             self._clear_preview()
         self._update_hints()
@@ -400,16 +583,19 @@ class DismissedAgentSelectModal(
             self.dismiss(self._get_marked_agents())
             return
         # Otherwise, single selection from filtered list
-        filtered = self._get_filtered_agents(event.value.strip())
+        filtered = self._filtered
         if not filtered:
             self.dismiss(None)
             return
         option_list = self.query_one("#dismissed-agent-list", OptionList)
         highlighted = option_list.highlighted
+        selected_entry: _DismissedEntry
         if highlighted is not None and 0 <= highlighted < len(filtered):
-            self.dismiss([filtered[highlighted][1]])
+            selected_entry = filtered[highlighted][1]
         else:
-            self.dismiss([filtered[0][1]])
+            selected_entry = filtered[0][1]
+        agent = self._hydrate_entry(selected_entry)
+        self.dismiss([agent] if agent is not None else None)
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
@@ -417,8 +603,8 @@ class DismissedAgentSelectModal(
         """Update preview when highlighting changes."""
         if event.option and event.option.id is not None:
             idx = int(event.option.id)
-            if 0 <= idx < len(self.agents):
-                self._update_preview(self.agents[idx])
+            if 0 <= idx < len(self._entries):
+                self._update_preview_for_entry(self._entries[idx])
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle option selection."""
@@ -429,10 +615,97 @@ class DismissedAgentSelectModal(
         # Otherwise, single selection
         if event.option and event.option.id is not None:
             idx = int(event.option.id)
-            if 0 <= idx < len(self.agents):
-                self.dismiss([self.agents[idx]])
+            if 0 <= idx < len(self._entries):
+                agent = self._hydrate_entry(self._entries[idx])
+                self.dismiss([agent] if agent is not None else None)
 
     # --- Preview ---
+
+    def _hydrate_entry(self, entry: _DismissedEntry) -> Agent | None:
+        """Hydrate an archive-backed entry on demand."""
+        if entry.agent is not None:
+            return entry.agent
+        if entry.archive_result is None or self._archive_query_provider is None:
+            return None
+
+        try:
+            agents = self._archive_query_provider.hydrate(entry.archive_result)
+        except Exception:
+            return None
+        if not agents:
+            return None
+
+        self._merge_hydrated_agents(agents)
+        selected = self._select_agent_from_hydrated_group(agents, entry.archive_result)
+        entry.agent = selected
+        return selected
+
+    def _merge_hydrated_agents(self, agents: list[Agent]) -> None:
+        """Add lazily hydrated archive rows to the modal's child lookup set."""
+        seen = {agent.identity for agent in self._all_dismissed}
+        for agent in agents:
+            if agent.identity in seen:
+                continue
+            self._all_dismissed.append(agent)
+            seen.add(agent.identity)
+        self._step_counts = self._compute_step_counts()
+
+    def _select_agent_from_hydrated_group(
+        self,
+        agents: list[Agent],
+        result: ArchiveQueryResult,
+    ) -> Agent | None:
+        for agent in agents:
+            if (
+                agent.raw_suffix == result.raw_suffix
+                and agent.step_index == result.step_index
+                and agent.is_workflow_child == result.is_workflow_child
+            ):
+                return agent
+        for agent in agents:
+            if agent.raw_suffix == result.raw_suffix and not agent.is_workflow_child:
+                return agent
+        return agents[0]
+
+    def _update_preview_for_entry(self, entry: _DismissedEntry) -> None:
+        """Update preview, hydrating archive rows only when highlighted."""
+        agent = self._hydrate_entry(entry)
+        if agent is None and entry.archive_result is not None:
+            self._update_archive_summary_preview(entry.archive_result)
+            return
+        if agent is not None:
+            self._update_preview(agent)
+        else:
+            self._clear_preview()
+
+    def _update_archive_summary_preview(self, result: ArchiveQueryResult) -> None:
+        """Show compact metadata when a bundle cannot be hydrated."""
+        try:
+            metadata_widget = self.query_one("#dismissed-preview-metadata", Static)
+            content_widget = self.query_one("#dismissed-preview-content", Static)
+            meta = Text()
+            meta.append("Archive result\n\n", style="bold")
+            meta.append(f"  {'Status':<12}", style="bold")
+            meta.append(
+                f"{result.status}\n", style=self._get_status_style(result.status)
+            )
+            meta.append(f"  {'CL':<12}", style="bold")
+            meta.append(f"{result.cl_name}\n", style="dim")
+            if result.agent_name:
+                meta.append(f"  {'Agent':<12}", style="bold")
+                meta.append(f"@{result.agent_name}\n", style="#87D7FF")
+            if result.project_name:
+                meta.append(f"  {'Project':<12}", style="bold")
+                meta.append(f"{result.project_name}\n", style="dim")
+            if result.model:
+                meta.append(f"  {'Model':<12}", style="bold")
+                meta.append(f"{result.model}\n", style="dim italic")
+            metadata_widget.update(meta)
+            content_widget.update(
+                Text("(bundle preview unavailable)", style="dim italic")
+            )
+        except Exception:
+            pass
 
     def scroll_preview_down(self) -> None:
         """Scroll preview panel down (half page)."""
