@@ -133,8 +133,8 @@ def _done_agents() -> list[Agent]:
 
     Used by the unread-highlight snapshot — all three rows are then
     marked unread post-startup so the Agents-tab info-panel header
-    renders a non-zero ``N unread`` count that exercises the yellow
-    background style.
+    and completed-row unread badges both exercise the yellow background
+    style.
     """
     return [
         Agent(
@@ -189,7 +189,7 @@ async def test_agents_unread_highlight_png_snapshot(
         await page.press("tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
-        page.app._update_agents_info_panel()
+        page.app._refresh_agents_display(list_changed=True)
         from sase.ace.tui.widgets import AgentInfoPanel
 
         panel = page.app.query_one("#agent-info-panel", AgentInfoPanel)
