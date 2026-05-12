@@ -20,6 +20,10 @@ def handle_config_command(args: argparse.Namespace) -> None:
             print(f"  list_strategy: {layer.list_strategy}")
             if layer.exists and layer.keys:
                 print(f"  keys: {', '.join(layer.keys)}")
+            if layer.unsupported_keys:
+                print(
+                    f"  unsupported keys (ignored): {', '.join(layer.unsupported_keys)}"
+                )
             print()
         sys.exit(0)
 

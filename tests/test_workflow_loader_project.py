@@ -7,7 +7,6 @@ from unittest.mock import patch
 from sase.xprompt.workflow_loader import (
     _discover_workflow_files,
     _load_workflow_from_file,
-    _load_workflows_from_config,
     get_all_workflows,
 )
 from sase.xprompt.workflow_models import Workflow
@@ -98,10 +97,6 @@ def test_get_all_workflows_without_project_excludes_project_workflows() -> None:
             return_value={},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_config",
-            return_value={},
-        ),
-        patch(
             "sase.xprompt.workflow_loader._load_workflows_from_project"
         ) as mock_load_project,
         patch(
@@ -141,10 +136,6 @@ def test_get_all_workflows_file_overrides_project() -> None:
             return_value={},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_config",
-            return_value={},
-        ),
-        patch(
             "sase.xprompt.workflow_loader._load_workflows_from_project",
             return_value={"test": project_workflow},
         ),
@@ -179,60 +170,13 @@ def test_yml_files_discovered_as_workflow_files() -> None:
         assert "real_workflow.yml" in filenames
 
 
-def test_load_workflows_from_config_global_overlay_not_namespaced() -> None:
-    """User/overlay config workflows remain global even when a project is detected."""
-    workflow_data = {
-        "refresh_docs": {
-            "input": {"threshold": {"type": "int", "default": 50}},
-            "steps": [{"name": "count", "bash": "echo {{ threshold }}"}],
-        }
-    }
-
-    with patch(
-        "sase.xprompt.workflow_loader.load_workflows_by_source",
-        return_value=[("config_overlay:sase_athena.yml", workflow_data)],
-    ):
-        workflows = _load_workflows_from_config(project="sase")
-
-    assert "refresh_docs" in workflows
-    assert "sase/refresh_docs" not in workflows
-    assert workflows["refresh_docs"].source_path == "config_overlay:sase_athena.yml"
-    assert workflows["refresh_docs"].inputs[0].name == "threshold"
-
-
-def test_load_workflows_from_config_local_config_is_namespaced() -> None:
-    """CWD-local sase.yml workflows are namespaced to the detected project."""
-    workflow_data = {
-        "local_task": {
-            "steps": [{"name": "run", "bash": "echo local"}],
-        }
-    }
-
-    with patch(
-        "sase.xprompt.workflow_loader.load_workflows_by_source",
-        return_value=[("local_config", workflow_data)],
-    ):
-        workflows = _load_workflows_from_config(project="sase")
-
-    assert "sase/local_task" in workflows
-    workflow = workflows["sase/local_task"]
-    assert workflow.name == "sase/local_task"
-    assert workflow.source_path == "local_config"
-
-
-def test_get_all_workflows_config_overrides_plugin_and_file_overrides_config() -> None:
-    """Config workflows sit above plugins/internal and below file workflows."""
+def test_get_all_workflows_file_overrides_plugin() -> None:
+    """File-backed workflows override plugin workflows with the same name."""
     plugin_workflow = Workflow(
         name="refresh_docs",
         inputs=[],
         steps=[],
         source_path="plugin:sase/foo.yml",
-    )
-    config_workflow = Workflow(
-        name="refresh_docs",
-        inputs=[],
-        steps=[],
-        source_path="config_overlay:sase_athena.yml",
     )
     file_workflow = Workflow(
         name="refresh_docs",
@@ -249,10 +193,6 @@ def test_get_all_workflows_config_overrides_plugin_and_file_overrides_config() -
         patch(
             "sase.xprompt.workflow_loader._load_workflows_from_plugins",
             return_value={"refresh_docs": plugin_workflow},
-        ),
-        patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_config",
-            return_value={"refresh_docs": config_workflow},
         ),
         patch(
             "sase.xprompt.workflow_loader._load_workflows_from_project",
@@ -272,16 +212,28 @@ def test_get_all_workflows_config_overrides_plugin_and_file_overrides_config() -
     assert workflows["refresh_docs"].source_path == "/repo/xprompts/refresh_docs.yml"
 
 
-def test_get_all_workflows_config_visible_as_refresh_docs() -> None:
-    """A config workflow resolves by its global name."""
-    config_workflow = Workflow(
-        name="refresh_docs",
-        inputs=[],
-        steps=[],
-        source_path="config_overlay:sase_athena.yml",
+def test_get_all_workflows_ignores_config_workflows_block(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    """A top-level ``workflows:`` block in a config file does not resolve as a workflow."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "sase_athena.yml").write_text(
+        "workflows:\n"
+        "  refresh_docs:\n"
+        "    steps:\n"
+        "      - name: run\n"
+        "        bash: echo legacy\n",
+        encoding="utf-8",
     )
 
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+
     with (
+        patch("sase.config.core.CONFIG_DIR", config_dir),
         patch(
             "sase.xprompt.workflow_loader._load_workflows_from_internal",
             return_value={},
@@ -289,10 +241,6 @@ def test_get_all_workflows_config_visible_as_refresh_docs() -> None:
         patch(
             "sase.xprompt.workflow_loader._load_workflows_from_plugins",
             return_value={},
-        ),
-        patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_config",
-            return_value={"refresh_docs": config_workflow},
         ),
         patch(
             "sase.xprompt.workflow_loader._load_workflows_from_project",
@@ -307,9 +255,9 @@ def test_get_all_workflows_config_visible_as_refresh_docs() -> None:
             return_value={},
         ),
     ):
-        workflows = get_all_workflows(project="sase")
+        workflows = get_all_workflows()
 
-    assert workflows["refresh_docs"].source_path == "config_overlay:sase_athena.yml"
+    assert workflows == {}
 
 
 def test_get_all_workflows_loads_known_project_workspace_from_other_cwd(
@@ -339,10 +287,6 @@ def test_get_all_workflows_loads_known_project_workspace_from_other_cwd(
         ),
         patch(
             "sase.xprompt.workflow_loader._load_workflows_from_plugins",
-            return_value={},
-        ),
-        patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_config",
             return_value={},
         ),
         patch(
@@ -390,10 +334,6 @@ def test_get_all_workflows_loads_athena_workflows_for_normalized_gh_ref(
         ),
         patch(
             "sase.xprompt.workflow_loader._load_workflows_from_plugins",
-            return_value={},
-        ),
-        patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_config",
             return_value={},
         ),
         patch(

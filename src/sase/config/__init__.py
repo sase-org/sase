@@ -9,7 +9,6 @@ from sase.config.core import (
     CONFIG_DIR,
     get_use_chezmoi,
     load_merged_config,
-    load_workflows_by_source,
     load_xprompts_by_source,
 )
 
@@ -18,6 +17,5 @@ __all__ = [
     "CONFIG_DIR",
     "get_use_chezmoi",
     "load_merged_config",
-    "load_workflows_by_source",
     "load_xprompts_by_source",
 ]

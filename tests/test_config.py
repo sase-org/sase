@@ -11,7 +11,6 @@ from sase.config.core import (
     _get_local_config_path,
     load_config_layers,
     load_merged_config,
-    load_workflows_by_source,
     load_xprompts_by_source,
     set_include_local_config,
 )
@@ -187,29 +186,6 @@ def test_load_xprompts_by_source_includes_local_config(tmp_path: Path) -> None:
     assert local_sources[0][1]["my_prompt"] == "local prompt content"
 
 
-def test_load_workflows_by_source_includes_overlay_source(tmp_path: Path) -> None:
-    """Overlay sase_*.yml workflows appear with overlay source attribution."""
-    (tmp_path / "sase.yml").write_text(yaml.dump({"workflows": {"base": {}}}))
-    (tmp_path / "sase_athena.yml").write_text(
-        yaml.dump({"workflows": {"refresh_docs": {"steps": [{"bash": "echo hi"}]}}})
-    )
-
-    with (
-        patch("sase.config.core.CONFIG_DIR", tmp_path),
-        patch("sase.config.core.Path.cwd", return_value=tmp_path / "none"),
-    ):
-        results = load_workflows_by_source()
-
-    assert ("config", {"base": {}}) in results
-    overlay_sources = [
-        (label, data)
-        for label, data in results
-        if label == "config_overlay:sase_athena.yml"
-    ]
-    assert len(overlay_sources) == 1
-    assert "refresh_docs" in overlay_sources[0][1]
-
-
 # --- load_config_layers tests ---
 
 
@@ -282,3 +258,26 @@ def test_load_config_layers_missing_local_marked_not_found(tmp_path: Path) -> No
     local_layer = next(ly for ly in layers if ly.name == "local")
     assert local_layer.exists is False
     assert local_layer.keys == []
+
+
+def test_load_config_layers_flags_unsupported_workflows_key(tmp_path: Path) -> None:
+    """A top-level ``workflows:`` block is reported as unsupported, not merged in."""
+    (tmp_path / "sase.yml").write_text(yaml.dump({"base": True}))
+    (tmp_path / "sase_athena.yml").write_text(
+        yaml.dump(
+            {
+                "workflows": {
+                    "refresh_docs": {"steps": [{"bash": "echo hi"}]},
+                }
+            }
+        )
+    )
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", tmp_path),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "none"),
+    ):
+        layers = load_config_layers()
+
+    overlay_layer = next(ly for ly in layers if ly.name == "overlay:sase_athena.yml")
+    assert overlay_layer.unsupported_keys == ["workflows"]
