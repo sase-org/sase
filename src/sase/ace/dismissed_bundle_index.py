@@ -77,6 +77,11 @@ class _DismissedBundleIndexVerifyResult:
     corrupt_bundles: int
     stale_rows: int
     missing_rows: int
+    fts_missing_rows: int = 0
+    fts_orphan_rows: int = 0
+    payload_hash_mismatches: int = 0
+    orphan_visibility_rows: int = 0
+    orphan_revision_rows: int = 0
 
 
 @dataclass(frozen=True)
@@ -140,6 +145,26 @@ def delete_bundle_summaries_for_suffixes(root: Path, suffixes: set[str]) -> bool
             conn.executemany(
                 "DELETE FROM dismissed_bundle_summaries WHERE raw_suffix = ?",
                 [(suffix,) for suffix in suffixes],
+            )
+        return True
+    except sqlite3.Error:
+        return False
+
+
+def delete_bundle_summaries_for_paths(root: Path, bundle_paths: set[str]) -> bool:
+    """Delete index rows for exact bundle paths."""
+
+    if not bundle_paths:
+        return True
+    try:
+        with _write_connection(root) as conn:
+            conn.executemany(
+                "DELETE FROM dismissed_bundle_search_fts WHERE bundle_path = ?",
+                [(path,) for path in sorted(bundle_paths)],
+            )
+            conn.executemany(
+                "DELETE FROM dismissed_bundle_summaries WHERE bundle_path = ?",
+                [(path,) for path in sorted(bundle_paths)],
             )
         return True
     except sqlite3.Error:
@@ -296,11 +321,20 @@ def _archive_maintenance_lock(root: Path) -> Iterator[None]:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
+@contextmanager
+def archive_maintenance_lock(root: Path) -> Iterator[None]:
+    """Serialize archive lifecycle maintenance against other maintainers."""
+
+    with _archive_maintenance_lock(root):
+        yield
+
+
 def verify_index(root: Path) -> _DismissedBundleIndexVerifyResult:
     """Compare the index to source bundle files without mutating rows."""
 
     indexed_paths: set[str] = set()
     stale_rows = 0
+    payload_hash_mismatches = 0
     if _index_path_for_root(root).is_file():
         try:
             with _connection(root, create=False) as conn:
@@ -319,20 +353,50 @@ def verify_index(root: Path) -> _DismissedBundleIndexVerifyResult:
                     continue
                 if mtime_ns != row["mtime_ns"] or size_bytes != row["size_bytes"]:
                     stale_rows += 1
+                try:
+                    bundle = _read_bundle(path)
+                except (OSError, json.JSONDecodeError, ValueError):
+                    continue
+                expected_hash = bundle.get("archive_payload_sha256")
+                if isinstance(expected_hash, str) and expected_hash:
+                    if expected_hash != archive_payload_hash(bundle):
+                        payload_hash_mismatches += 1
         except sqlite3.Error:
             stale_rows = 1
 
     valid_paths: set[str] = set()
+    valid_search_paths: set[str] = set()
     corrupt = 0
     for path in _iter_bundle_paths(root):
         try:
-            _read_bundle(path)
+            bundle = _read_bundle(path)
             valid_paths.add(str(path))
+            text = bundle.get("archive_search_text")
+            if isinstance(text, str) and text:
+                valid_search_paths.add(str(path))
         except (OSError, json.JSONDecodeError):
             corrupt += 1
 
+    fts_paths: set[str] = set()
+    if _index_path_for_root(root).is_file():
+        try:
+            with _connection(root, create=False) as conn:
+                fts_paths = {
+                    str(row["bundle_path"])
+                    for row in conn.execute(
+                        "SELECT bundle_path FROM dismissed_bundle_search_fts"
+                    )
+                }
+        except sqlite3.Error:
+            fts_paths = set()
+            stale_rows += 1
+
     missing = len(valid_paths - indexed_paths)
-    ok = stale_rows == 0 and missing == 0
+    fts_missing = len((valid_search_paths & indexed_paths) - fts_paths)
+    fts_orphan = len(fts_paths - indexed_paths)
+    ok = not (
+        stale_rows or missing or fts_missing or fts_orphan or payload_hash_mismatches
+    )
     return _DismissedBundleIndexVerifyResult(
         ok=ok,
         indexed_rows=len(indexed_paths),
@@ -340,6 +404,11 @@ def verify_index(root: Path) -> _DismissedBundleIndexVerifyResult:
         corrupt_bundles=corrupt,
         stale_rows=stale_rows,
         missing_rows=missing,
+        fts_missing_rows=fts_missing,
+        fts_orphan_rows=fts_orphan,
+        payload_hash_mismatches=payload_hash_mismatches,
+        orphan_visibility_rows=0,
+        orphan_revision_rows=0,
     )
 
 
@@ -808,6 +877,15 @@ def _read_bundle(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("bundle JSON must be an object")
     return data
+
+
+def archive_payload_hash(bundle: dict[str, Any]) -> str:
+    """Return a stable hash for a bundle payload excluding its hash field."""
+
+    payload = dict(bundle)
+    payload.pop("archive_payload_sha256", None)
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return sha256(encoded).hexdigest()
 
 
 def _file_signature(path: Path) -> tuple[int, int]:

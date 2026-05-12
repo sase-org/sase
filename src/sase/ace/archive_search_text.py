@@ -100,6 +100,12 @@ def _scrub_archive_search_text(text: str) -> str:
     return scrubbed[:MAX_ARCHIVE_SEARCH_TEXT_CHARS]
 
 
+def scrub_archive_text(text: str) -> str:
+    """Return *text* with archive secret patterns redacted."""
+
+    return _scrub_archive_search_text(text)
+
+
 def _paths_for_agent(agent: Agent) -> list[Path]:
     paths: list[Path] = []
     artifacts_dir = agent.get_artifacts_dir()

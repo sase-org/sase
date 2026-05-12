@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import tarfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -202,3 +203,133 @@ def test_archive_revive_preserves_bundle_marks_revived_and_restores_artifacts(
     )
     assert done_json.exists()
     assert json.loads(dismissed_file.read_text(encoding="utf-8")) == []
+
+
+def test_archive_purge_dry_run_reports_without_deleting(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    path = _write_bundle(tmp_path, dismissed_at="2026-05-01T00:00:00")
+    _write_bundle(
+        tmp_path,
+        raw_suffix="20260512130000",
+        dismissed_at="2026-05-12T00:00:00",
+    )
+    rebuild_index(tmp_path)
+
+    args = _archive_args(
+        archive_subcommand="purge",
+        before="2026-05-10",
+        agent_id=None,
+        query=None,
+        dry_run=True,
+    )
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", tmp_path),
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_agents_archive(args)
+
+    assert excinfo.value.code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["dry_run"] is True
+    assert data["matched"] == 1
+    assert data["purged"] == 0
+    assert path.exists()
+
+
+def test_archive_purge_removes_payload_and_index_rows(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    path = _write_bundle(tmp_path, cl_name="purge_cl")
+    rebuild_index(tmp_path)
+
+    args = _archive_args(
+        archive_subcommand="purge",
+        before=None,
+        agent_id=None,
+        query="cl:purge_cl",
+        dry_run=False,
+    )
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", tmp_path),
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_agents_archive(args)
+
+    assert excinfo.value.code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["purged"] == 1
+    assert not path.exists()
+    assert rebuild_index(tmp_path).indexed_rows == 0
+
+
+def test_archive_scrub_is_idempotent_and_records_version(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    path = _write_bundle(tmp_path, archive_search_scrubber_version=1)
+    rebuild_index(tmp_path)
+    bundle = json.loads(path.read_text(encoding="utf-8"))
+    bundle["archive_search_text"] = "api_key=sk-1234567890abcdefghijkl"
+    bundle["archive_search_scrubber_version"] = 0
+    path.write_text(json.dumps(bundle), encoding="utf-8")
+
+    args = _archive_args(
+        archive_subcommand="scrub",
+        before=None,
+        query=None,
+        since_scrubber_version=1,
+    )
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", tmp_path),
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_agents_archive(args)
+
+    assert excinfo.value.code == 0
+    first = json.loads(capsys.readouterr().out)
+    assert first["scrubbed"] == 1
+    scrubbed_bundle = json.loads(path.read_text(encoding="utf-8"))
+    assert scrubbed_bundle["archive_search_scrubber_version"] == 1
+    assert "sk-1234567890abcdefghijkl" not in scrubbed_bundle["archive_search_text"]
+
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", tmp_path),
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_agents_archive(args)
+
+    assert excinfo.value.code == 0
+    second = json.loads(capsys.readouterr().out)
+    assert second["scrubbed"] == 0
+
+
+def test_archive_export_writes_restorable_tar_artifact(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    out = tmp_path / "archive-export.tar.gz"
+    _write_bundle(tmp_path, cl_name="export_cl")
+    rebuild_index(tmp_path)
+
+    args = _archive_args(
+        archive_subcommand="export",
+        query="cl:export_cl",
+        out=str(out),
+    )
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", tmp_path),
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_agents_archive(args)
+
+    assert excinfo.value.code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["exported"] == 1
+    assert out.exists()
+    with tarfile.open(out, "r:gz") as archive:
+        names = archive.getnames()
+        assert "manifest.json" in names
+        assert any(name.startswith("bundles/") for name in names)

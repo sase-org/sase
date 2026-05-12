@@ -57,7 +57,22 @@ def handle_agents_archive(args: argparse.Namespace) -> None:
         _handle_revive(args)
         sys.exit(0)
 
-    print("Usage: sase agents archive {rebuild-index,revive,search,show,stats,verify}")
+    if sub == "purge":
+        _handle_purge(args)
+        sys.exit(0)
+
+    if sub == "scrub":
+        _handle_scrub(args)
+        sys.exit(0)
+
+    if sub == "export":
+        _handle_export(args)
+        sys.exit(0)
+
+    print(
+        "Usage: sase agents archive "
+        "{export,purge,rebuild-index,revive,scrub,search,show,stats,verify}"
+    )
     sys.exit(1)
 
 
@@ -204,6 +219,72 @@ def _handle_revive(args: argparse.Namespace) -> None:
         f"Revived {restored_count} archived agent"
         f"{'s' if restored_count != 1 else ''}; marked {marked_count} bundle"
         f"{'s' if marked_count != 1 else ''}."
+    )
+
+
+def _handle_purge(args: argparse.Namespace) -> None:
+    from sase.ace.agent_query.archive_planner import ArchiveQueryError
+    from sase.ace.dismissed_agents import purge_dismissed_archive
+
+    try:
+        report = purge_dismissed_archive(
+            before=args.before,
+            agent_id=args.agent_id,
+            query=args.query,
+            dry_run=args.dry_run,
+        )
+    except ArchiveQueryError as exc:
+        print(f"Archive purge query error: {exc}", file=sys.stderr)
+        sys.exit(2)
+    _emit_lifecycle_report(args, report)
+    if not report["ok"]:
+        sys.exit(1)
+
+
+def _handle_scrub(args: argparse.Namespace) -> None:
+    from sase.ace.agent_query.archive_planner import ArchiveQueryError
+    from sase.ace.dismissed_agents import scrub_dismissed_archive
+
+    try:
+        report = scrub_dismissed_archive(
+            before=args.before,
+            query=args.query,
+            since_scrubber_version=args.since_scrubber_version,
+        )
+    except ArchiveQueryError as exc:
+        print(f"Archive scrub query error: {exc}", file=sys.stderr)
+        sys.exit(2)
+    _emit_lifecycle_report(args, report)
+    if not report["ok"]:
+        sys.exit(1)
+
+
+def _handle_export(args: argparse.Namespace) -> None:
+    from sase.ace.agent_query.archive_planner import ArchiveQueryError
+    from sase.ace.dismissed_agents import export_dismissed_archive
+
+    try:
+        report = export_dismissed_archive(query=args.query, out=Path(args.out))
+    except ArchiveQueryError as exc:
+        print(f"Archive export query error: {exc}", file=sys.stderr)
+        sys.exit(2)
+    _emit_lifecycle_report(args, report)
+    if not report["ok"]:
+        sys.exit(1)
+
+
+def _emit_lifecycle_report(args: argparse.Namespace, report: dict[str, Any]) -> None:
+    if getattr(args, "json", False):
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return
+    operation = str(report["operation"])
+    if report.get("dry_run"):
+        print(f"{operation}: matched {report['matched']} archived bundle(s).")
+        return
+    changed = report.get("purged", report.get("scrubbed", report.get("exported", 0)))
+    print(
+        f"{operation}: matched {report['matched']} archived bundle(s); "
+        f"changed {changed}."
     )
 
 

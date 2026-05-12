@@ -625,6 +625,29 @@ def test_dismissed_bundle_index_remove_and_verify(tmp_path: Path) -> None:
         assert verify_dismissed_bundle_index()["ok"] is True
 
 
+def test_dismissed_bundle_verify_reports_fts_orphans(tmp_path: Path) -> None:
+    """Verify+ catches FTS rows that no longer have summary rows."""
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        agent = _make_agent(cl_name="indexed_cl", raw_suffix="20250615100000")
+        save_dismissed_bundle(agent)
+        rebuild_dismissed_bundle_index()
+        with sqlite3.connect(bundles_dir / "index.sqlite") as conn:
+            conn.execute(
+                "INSERT INTO dismissed_bundle_search_fts"
+                "(bundle_path, archive_search_text) VALUES (?, ?)",
+                ("/tmp/orphan-bundle.json", "orphan"),
+            )
+
+        result = verify_dismissed_bundle_index()
+
+    assert result["ok"] is False
+    assert result["fts_orphan_rows"] == 1
+
+
 def test_bundle_load_by_suffixes_child_only(tmp_path: Path) -> None:
     """Child-only suffix (no parent .json) still returns children."""
     bundles_dir = tmp_path / "bundles"
