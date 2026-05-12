@@ -249,7 +249,7 @@ def _load_agents_from_all_sources(
     project_files = get_all_project_files()
 
     # Load all ChangeSpecs early to build bug lookup. Caller-supplied
-    # snapshots avoid re-globbing every ``.gp`` file when the TUI already
+    # snapshots avoid re-globbing every project spec file when the TUI already
     # has a fresh cached snapshot in hand.
     all_changespecs = (
         changespec_snapshot
@@ -267,7 +267,7 @@ def _load_agents_from_all_sources(
         if cs.cl:
             cl_by_cl_name[cs.name] = cs.cl
 
-    # 1. Load from RUNNING field (snapshot-independent; reads project .gp files).
+    # 1. Load from RUNNING field (snapshot-independent; reads project spec files).
     agents.extend(
         load_agents_from_running_field(project_files, bug_by_cl_name, cl_by_cl_name)
     )

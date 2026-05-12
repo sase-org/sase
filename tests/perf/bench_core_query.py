@@ -128,7 +128,7 @@ def _load_synthetic_specs(num_specs: int) -> list[ChangeSpec]:
     evaluation is identical to what production code sees.
     """
     data = _build_synthetic_bytes(num_specs)
-    with tempfile.NamedTemporaryFile("wb", suffix=".gp", delete=False) as tmp:
+    with tempfile.NamedTemporaryFile("wb", suffix=".sase", delete=False) as tmp:
         tmp.write(data)
         tmp_path = tmp.name
     try:
@@ -146,9 +146,9 @@ def _load_home_tree_specs() -> tuple[list[ChangeSpec], list[str]]:
     if not projects_root.exists():
         return [], [f"{projects_root} does not exist"]
 
-    gp_files = sorted(projects_root.glob("*/*.gp"))
+    gp_files = sorted(projects_root.glob("*/*.sase"))
     if not gp_files:
-        return [], [f"{projects_root} contains no project .gp files"]
+        return [], [f"{projects_root} contains no project spec files"]
 
     specs: list[ChangeSpec] = []
     notes: list[str] = []
@@ -158,7 +158,7 @@ def _load_home_tree_specs() -> tuple[list[ChangeSpec], list[str]]:
         except Exception as exc:  # pragma: no cover - local fixture dependent
             notes.append(f"skipped {path.name}: {exc}")
     if not specs:
-        notes.append("no ChangeSpecs parsed from home-tree .gp files")
+        notes.append("no ChangeSpecs parsed from home-tree project spec files")
     return specs, notes
 
 

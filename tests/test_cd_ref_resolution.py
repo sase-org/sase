@@ -62,6 +62,6 @@ def test_resolve_agent_workspace_dir_prefers_explicit_directory(
 
     assert resolve_agent_workspace_dir(
         0,
-        str(tmp_path / "home.gp"),
+        str(tmp_path / "home.sase"),
         str(target),
     ) == str(target)

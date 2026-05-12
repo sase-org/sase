@@ -131,7 +131,7 @@ def _make_context_and_changespec(
     cs.cl = cl
     cs.name = "cl/test"
     cs.project_basename = "project"
-    cs.file_path = "/path/to/project.gp"
+    cs.file_path = "/path/to/project.sase"
 
     return ctx, cs
 
@@ -229,7 +229,7 @@ def test_reword_execute_task_full_flow(
     mock_get_provider.return_value = mock_provider
 
     success, message = reword_execute_task(
-        "cl/test", "/path/to/project.gp", "project", "New description\n"
+        "cl/test", "/path/to/project.sase", "project", "New description\n"
     )
 
     assert success is True
@@ -239,7 +239,7 @@ def test_reword_execute_task_full_flow(
         "New description\n"
     )
     mock_provider.reword.assert_called_once_with("New description\n", "/ws")
-    mock_sync.assert_called_once_with("/ws", "/path/to/project.gp", "cl/test")
+    mock_sync.assert_called_once_with("/ws", "/path/to/project.sase", "cl/test")
     mock_release.assert_called_once()
 
 
@@ -266,7 +266,7 @@ def test_reword_execute_task_checkout_fails(
     mock_get_provider.return_value = mock_provider
 
     success, message = reword_execute_task(
-        "cl/test", "/path/to/project.gp", "project", "New description\n"
+        "cl/test", "/path/to/project.sase", "project", "New description\n"
     )
 
     assert success is False
@@ -290,7 +290,7 @@ def test_reword_execute_task_workspace_claim_fails(
 ) -> None:
     """Test execute task returns failure when workspace claim fails."""
     success, message = reword_execute_task(
-        "cl/test", "/path/to/project.gp", "project", "New description\n"
+        "cl/test", "/path/to/project.sase", "project", "New description\n"
     )
 
     assert success is False

@@ -61,7 +61,7 @@ def _cs(
         cl=cl,
         status=status,
         test_targets=None,
-        file_path=f"/home/user/.sase/projects/{project}/{project}.gp",
+        file_path=f"/home/user/.sase/projects/{project}/{project}.sase",
         line_number=7,
     )
 

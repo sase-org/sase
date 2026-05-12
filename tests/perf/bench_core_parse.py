@@ -14,7 +14,7 @@ production callers might touch:
 
 Workloads:
 
-- `golden`: the committed `tests/core_golden/myproj.gp` (small).
+- `golden`: the committed `tests/core_golden/myproj.sase` (small).
 - `synthetic`: a generated multi-spec file with `--num-specs` repetitions
   to stretch the parsers past the noise floor.
 
@@ -61,7 +61,7 @@ pytestmark = pytest.mark.slow
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GOLDEN_DIR = REPO_ROOT / "tests" / "core_golden"
-GOLDEN_PRIMARY = GOLDEN_DIR / "myproj.gp"
+GOLDEN_PRIMARY = GOLDEN_DIR / "myproj.sase"
 
 _SYNTHETIC_SPEC_TEMPLATE = """\
 ## ChangeSpec
@@ -220,7 +220,7 @@ def run_bench(
 
     if not skip_synthetic:
         synthetic = _build_synthetic_bytes(num_specs)
-        with tempfile.NamedTemporaryFile("wb", suffix=".gp", delete=False) as tmp:
+        with tempfile.NamedTemporaryFile("wb", suffix=".sase", delete=False) as tmp:
             tmp.write(synthetic)
             tmp_path = tmp.name
         try:

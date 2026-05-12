@@ -520,6 +520,6 @@ def test_run_worker_marks_restart_failure_as_failed_completion(
 def _write_project_file(home: Path, project_name: str, workspace: Path) -> Path:
     project_dir = home / ".sase" / "projects" / project_name
     project_dir.mkdir(parents=True)
-    project_file = project_dir / f"{project_name}.gp"
+    project_file = project_dir / f"{project_name}.sase"
     project_file.write_text(f"WORKSPACE_DIR: {workspace}\nNAME: example\n")
     return project_file

@@ -106,7 +106,7 @@ def test_extract_diff_path_from_non_last_step(tmp_path: Path) -> None:
                 "output": {
                     "success": True,
                     "cl_name": "my_cl",
-                    "project_file": "/home/user/.sase/projects/sase/sase.gp",
+                    "project_file": "/home/user/.sase/projects/sase/sase.sase",
                 },
                 "output_types": {
                     "success": "bool",

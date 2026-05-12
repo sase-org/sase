@@ -23,7 +23,7 @@ def _make_ctx(tmp_path: Path) -> AgentExecContext:
     artifacts.mkdir()
     return AgentExecContext(
         cl_name="branch-x",
-        project_file=str(tmp_path / "project.gp"),
+        project_file=str(tmp_path / "project.sase"),
         workspace_dir=str(tmp_path),
         output_path=str(tmp_path / "output.log"),
         workspace_num=7,
@@ -109,7 +109,7 @@ class TestRetryHandoffRoundTrip:
             workspace_dir=str(tmp_path),
             vcs_ref=None,
             cl_name="branch-x",
-            project_file=str(tmp_path / "project.gp"),
+            project_file=str(tmp_path / "project.sase"),
             project_name="sase",
             update_target="trunk",
             is_home_mode=False,
@@ -167,7 +167,7 @@ class TestRetryHandoffRoundTrip:
             workspace_dir=str(tmp_path),
             vcs_ref=None,
             cl_name="x",
-            project_file=str(tmp_path / "p.gp"),
+            project_file=str(tmp_path / "p.sase"),
             project_name="sase",
             update_target="trunk",
             is_home_mode=False,
@@ -204,7 +204,7 @@ class TestRetryHandoffRoundTrip:
             "workspace_dir": str(tmp_path),
             "vcs_ref": None,
             "cl_name": "x",
-            "project_file": str(tmp_path / "p.gp"),
+            "project_file": str(tmp_path / "p.sase"),
             "project_name": "sase",
             "update_target": "trunk",
             "is_home_mode": False,
@@ -440,7 +440,7 @@ class TestTransferWorkspaceClaim:
             transfer_workspace_claim,
         )
 
-        project_file = str(tmp_path / "project.gp")
+        project_file = str(tmp_path / "project.sase")
         Path(project_file).write_text("")
 
         assert claim_workspace(
@@ -478,7 +478,7 @@ class TestTransferWorkspaceClaim:
             transfer_workspace_claim,
         )
 
-        project_file = str(tmp_path / "project.gp")
+        project_file = str(tmp_path / "project.sase")
         Path(project_file).write_text("")
         assert claim_workspace(
             project_file,
@@ -515,7 +515,7 @@ class TestAgentLoaderRetryChain:
         parent = Agent(
             agent_type=AgentType.RUNNING,
             cl_name="branch-x",
-            project_file="/tmp/p.gp",
+            project_file="/tmp/p.sase",
             status="FAILED (RETRIED)",
             start_time=None,
             raw_suffix="20260424120000",
@@ -524,7 +524,7 @@ class TestAgentLoaderRetryChain:
         child1 = Agent(
             agent_type=AgentType.RUNNING,
             cl_name="branch-x",
-            project_file="/tmp/p.gp",
+            project_file="/tmp/p.sase",
             status="FAILED (RETRIED)",
             start_time=None,
             raw_suffix="20260424130000",
@@ -536,7 +536,7 @@ class TestAgentLoaderRetryChain:
         child2 = Agent(
             agent_type=AgentType.RUNNING,
             cl_name="branch-x",
-            project_file="/tmp/p.gp",
+            project_file="/tmp/p.sase",
             status="RUNNING",
             start_time=None,
             raw_suffix="20260424140000",
@@ -560,7 +560,7 @@ class TestAgentLoaderRetryChain:
         a = Agent(
             agent_type=AgentType.RUNNING,
             cl_name="x",
-            project_file="/p.gp",
+            project_file="/p.sase",
             status="RUNNING",
             start_time=None,
             retry_attempt=2,
@@ -571,7 +571,7 @@ class TestAgentLoaderRetryChain:
         b = Agent(
             agent_type=AgentType.RUNNING,
             cl_name="x",
-            project_file="/p.gp",
+            project_file="/p.sase",
             status="FAILED (RETRIED)",
             start_time=None,
             retried_as_timestamp="20260424140000",
@@ -598,7 +598,7 @@ class TestDoneJsonRetriedStatus:
         artifact_dir.mkdir()
         done = {
             "cl_name": "branch-x",
-            "project_file": str(tmp_path / "project.gp"),
+            "project_file": str(tmp_path / "project.sase"),
             "outcome": "failed",
             "workspace_num": 7,
             "output_path": str(tmp_path / "out.log"),
@@ -626,7 +626,7 @@ class TestDoneJsonRetriedStatus:
         artifact_dir.mkdir()
         done = {
             "cl_name": "branch-x",
-            "project_file": str(tmp_path / "project.gp"),
+            "project_file": str(tmp_path / "project.sase"),
             "outcome": "failed",
             "workspace_num": 7,
             "output_path": str(tmp_path / "out.log"),
@@ -648,7 +648,7 @@ class TestDoneJsonRetriedStatus:
         artifact_dir.mkdir()
         done = {
             "cl_name": "branch-x",
-            "project_file": str(tmp_path / "project.gp"),
+            "project_file": str(tmp_path / "project.sase"),
             "outcome": "plan_rejected",
             "workspace_num": 7,
             "output_path": str(tmp_path / "out.log"),

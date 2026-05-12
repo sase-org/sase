@@ -24,8 +24,8 @@ def test_all_collapsed_renders_only_project_banners() -> None:
     widget = AgentList()
     widget.update_list(
         [
-            make_agent(cl_name="a", project_file="/r/projA/proj.gp"),
-            make_agent(cl_name="b", project_file="/r/projB/proj.gp"),
+            make_agent(cl_name="a", project_file="/r/projA/proj.sase"),
+            make_agent(cl_name="b", project_file="/r/projB/proj.sase"),
         ],
         current_idx=0,
         fold_registry=registry,
@@ -56,8 +56,8 @@ def test_expanded_banner_stays_disabled_when_sibling_is_collapsed() -> None:
     widget = AgentList()
     widget.update_list(
         [
-            make_agent(cl_name="a", project_file="/r/projA/proj.gp"),
-            make_agent(cl_name="b", project_file="/r/projB/proj.gp"),
+            make_agent(cl_name="a", project_file="/r/projA/proj.sase"),
+            make_agent(cl_name="b", project_file="/r/projB/proj.sase"),
         ],
         current_idx=1,
         fold_registry=registry,
@@ -76,8 +76,8 @@ def test_resolve_row_returns_group_key_for_selectable_banner() -> None:
     widget = AgentList()
     widget.update_list(
         [
-            make_agent(cl_name="a", project_file="/r/projA/proj.gp"),
-            make_agent(cl_name="b", project_file="/r/projA/proj.gp"),
+            make_agent(cl_name="a", project_file="/r/projA/proj.sase"),
+            make_agent(cl_name="b", project_file="/r/projA/proj.sase"),
         ],
         current_idx=0,
         fold_registry=registry,
@@ -96,8 +96,8 @@ def test_current_group_key_drives_banner_highlight() -> None:
     widget = AgentList()
     widget.update_list(
         [
-            make_agent(cl_name="a", project_file="/r/projA/proj.gp"),
-            make_agent(cl_name="b", project_file="/r/projB/proj.gp"),
+            make_agent(cl_name="a", project_file="/r/projA/proj.sase"),
+            make_agent(cl_name="b", project_file="/r/projB/proj.sase"),
         ],
         current_idx=1,
         fold_registry=registry,
@@ -111,7 +111,7 @@ def test_changespec_banner_uses_distinct_accent_style() -> None:
     """The ChangeSpec banner gets its own bar+rule accent."""
     widget = AgentList()
     widget.update_list(
-        [make_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.gp")],
+        [make_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.sase")],
         current_idx=0,
     )
     options = list(widget._options)
@@ -189,8 +189,8 @@ def test_update_highlight_with_group_key_targets_banner_row() -> None:
     widget = AgentList()
     widget.update_list(
         [
-            make_agent(cl_name="a", project_file="/r/projA/proj.gp"),
-            make_agent(cl_name="b", project_file="/r/projB/proj.gp"),
+            make_agent(cl_name="a", project_file="/r/projA/proj.sase"),
+            make_agent(cl_name="b", project_file="/r/projB/proj.sase"),
         ],
         current_idx=0,
         fold_registry=registry,
@@ -207,8 +207,8 @@ def test_update_highlight_falls_back_to_agent_search_when_group_key_unmatched() 
     widget = AgentList()
     widget.update_list(
         [
-            make_agent(cl_name="a", project_file="/r/projA/proj.gp"),
-            make_agent(cl_name="b", project_file="/r/projB/proj.gp"),
+            make_agent(cl_name="a", project_file="/r/projA/proj.sase"),
+            make_agent(cl_name="b", project_file="/r/projB/proj.sase"),
         ],
         current_idx=0,
     )
@@ -225,8 +225,8 @@ def test_banner_summary_chips_render_in_text() -> None:
     widget = AgentList()
     widget.update_list(
         [
-            make_agent(cl_name="shared", project_file="/r/projA/proj.gp"),
-            make_agent(cl_name="shared", project_file="/r/projA/proj.gp"),
+            make_agent(cl_name="shared", project_file="/r/projA/proj.sase"),
+            make_agent(cl_name="shared", project_file="/r/projA/proj.sase"),
         ],
         current_idx=0,
         fold_registry=registry,

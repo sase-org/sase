@@ -139,7 +139,7 @@ class ClipboardChangeSpecMixin(ClipboardBase):
         return None
 
     def _get_project_spec_content(self, changespec: ChangeSpec) -> str | None:
-        """Read the entire project spec (.gp) file content.
+        """Read the entire project spec file content.
 
         Args:
             changespec: The ChangeSpec (to get file_path).

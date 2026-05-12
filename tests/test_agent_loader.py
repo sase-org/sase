@@ -18,7 +18,7 @@ def test_load_all_agents_with_running_claims() -> None:
     with (
         patch(
             "sase.ace.tui.models.agent_loader.get_all_project_files",
-            return_value=["/tmp/test.gp"],
+            return_value=["/tmp/test.sase"],
         ),
         patch(
             "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
@@ -67,7 +67,7 @@ def test_load_all_agents_filters_hook_processes() -> None:
     with (
         patch(
             "sase.ace.tui.models.agent_loader.get_all_project_files",
-            return_value=["/tmp/test.gp"],
+            return_value=["/tmp/test.sase"],
         ),
         patch(
             "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
@@ -113,7 +113,7 @@ def test_load_all_agents_includes_axe_fix_hook() -> None:
     with (
         patch(
             "sase.ace.tui.models.agent_loader.get_all_project_files",
-            return_value=["/tmp/test.gp"],
+            return_value=["/tmp/test.sase"],
         ),
         patch(
             "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
@@ -162,7 +162,7 @@ def test_load_all_agents_tags_axe_summarize_hook_as_review() -> None:
     with (
         patch(
             "sase.ace.tui.models.agent_loader.get_all_project_files",
-            return_value=["/tmp/test.gp"],
+            return_value=["/tmp/test.sase"],
         ),
         patch(
             "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",

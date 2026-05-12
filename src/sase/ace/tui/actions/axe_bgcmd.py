@@ -210,7 +210,11 @@ class AxeBgCmdMixin:
             self.notify(f"Failed to get workspace: {e}", severity="error")  # type: ignore[attr-defined]
             return
 
-        project_file = os.path.expanduser(f"~/.sase/projects/{project}/{project}.gp")
+        from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
+        project_file = preferred_project_spec_path(
+            os.path.expanduser(f"~/.sase/projects/{project}"), project
+        )
 
         # Synthetic dedup key for the no-CL path, scoped per slot so two
         # concurrent !!-launches against different slots don't collide.

@@ -29,7 +29,7 @@ def test_load_all_agents_with_summarize_agents() -> None:
         cl="12345",
         status="Ready",
         test_targets=None,
-        file_path="/tmp/test.gp",
+        file_path="/tmp/test.sase",
         line_number=1,
         hooks=[mock_hook],
     )
@@ -97,7 +97,7 @@ def test_load_all_agents_with_fix_hook_review_agent() -> None:
         cl="12345",
         status="Ready",
         test_targets=None,
-        file_path="/tmp/test.gp",
+        file_path="/tmp/test.sase",
         line_number=1,
         hooks=[mock_hook],
     )
@@ -168,7 +168,7 @@ def test_load_all_agents_with_mentor_agents() -> None:
         cl="12345",
         status="Ready",
         test_targets=None,
-        file_path="/tmp/test.gp",
+        file_path="/tmp/test.sase",
         line_number=1,
         mentors=[mock_mentor],
     )
@@ -235,7 +235,7 @@ def test_load_all_agents_with_crs_agents() -> None:
         cl="12345",
         status="Ready",
         test_targets=None,
-        file_path="/tmp/test.gp",
+        file_path="/tmp/test.sase",
         line_number=1,
         comments=[mock_comment],
     )

@@ -243,7 +243,7 @@ def extract_known_project_vcs_ref(prompt: str) -> tuple[str, str] | None:
 
     This recognizes project refs such as ``#gh:sase`` even when the ``gh``
     workspace provider is not registered in the current process.  The project
-    must be known via ``~/.sase/projects/*/*.gp`` to avoid treating ordinary
+    must be known via ``~/.sase/projects/*/*.sase`` (or legacy ``.gp``) to avoid treating ordinary
     xprompt references as workspace selectors.
     """
     if "#" not in prompt:

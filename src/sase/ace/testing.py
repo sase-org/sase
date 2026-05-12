@@ -24,7 +24,7 @@ def make_changespec(
     status: str = "Ready",
     cl: str | None = None,
     parent: str | None = None,
-    file_path: str = "/tmp/test.gp",
+    file_path: str = "/tmp/test.sase",
     commits: list[CommitEntry] | None = None,
     hooks: list[HookEntry] | None = None,
     comments: list[CommentEntry] | None = None,

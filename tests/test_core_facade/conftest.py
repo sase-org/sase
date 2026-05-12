@@ -20,13 +20,13 @@ from tests.test_core_facade._helpers import (
 
 @pytest.fixture
 def sample_project(tmp_path: Path) -> Path:
-    target = tmp_path / "myproj.gp"
+    target = tmp_path / "myproj.sase"
     target.write_text(SAMPLE_PROJECT_TEXT)
     return target
 
 
 @pytest.fixture
 def ancestry_project(tmp_path: Path) -> Path:
-    target = tmp_path / "ancestry.gp"
+    target = tmp_path / "ancestry.sase"
     target.write_text(ANCESTRY_PROJECT_TEXT)
     return target

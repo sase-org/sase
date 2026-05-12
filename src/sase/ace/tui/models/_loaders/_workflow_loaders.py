@@ -137,8 +137,12 @@ def load_workflow_states(
                 )
 
             # Build project file path
+            from sase.ace.changespec.project_spec_path import (
+                preferred_project_spec_path,
+            )
+
             project_name = project_dir.name
-            project_file = str(project_dir / f"{project_name}.gp")
+            project_file = preferred_project_spec_path(str(project_dir), project_name)
 
             # Extract PID if available
             pid = data.get("pid")

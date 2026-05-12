@@ -42,7 +42,7 @@ class TestGetDefaultBranch:
 
 class TestParseWorkspaceDir:
     def test_empty_value(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
             f.write("WORKSPACE_DIR:\nNAME: my-cl\n")
             f.flush()
             assert parse_workspace_dir(f.name) is None
@@ -54,10 +54,10 @@ class TestParseWorkspaceDir:
 
 class TestParseBareRepoDir:
     def test_missing_file(self) -> None:
-        assert parse_bare_repo_dir("/nonexistent/path/file.gp") is None
+        assert parse_bare_repo_dir("/nonexistent/path/file.sase") is None
 
     def test_empty_value(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
             f.write("BARE_REPO_DIR:\nNAME: my-cl\n")
             f.flush()
             assert parse_bare_repo_dir(f.name) is None
@@ -70,7 +70,7 @@ class TestParseBareRepoDir:
 class TestSetWorkspaceDir:
     def test_creates_directory(self) -> None:
         with tempfile.TemporaryDirectory() as d:
-            gp = os.path.join(d, "subdir", "proj.gp")
+            gp = os.path.join(d, "subdir", "proj.sase")
             assert set_workspace_dir(gp, "/repo/")
             assert os.path.exists(gp)
 
@@ -81,7 +81,7 @@ class TestSetWorkspaceDir:
     ) -> None:
         mock_lock.return_value.__enter__ = MagicMock()
         mock_lock.return_value.__exit__ = MagicMock(return_value=False)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
             f.write("WORKSPACE_DIR: /old/\nNAME: cl\n")
             f.flush()
             assert set_workspace_dir(f.name, "/new/")
@@ -98,7 +98,7 @@ class TestSetWorkspaceDir:
     ) -> None:
         mock_lock.return_value.__enter__ = MagicMock()
         mock_lock.return_value.__exit__ = MagicMock(return_value=False)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
             f.write("RUNNING:\n  #hg 1 1234\nNAME: cl\n")
             f.flush()
             assert set_workspace_dir(f.name, "/repo/")

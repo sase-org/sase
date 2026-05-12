@@ -69,6 +69,6 @@ def _known_project(tmp_path: Path, name: str = "sase") -> Path:
     workspace.mkdir(parents=True)
     project_dir = tmp_path / "projects" / name
     project_dir.mkdir(parents=True)
-    project_file = project_dir / f"{name}.gp"
+    project_file = project_dir / f"{name}.sase"
     project_file.write_text(f"WORKSPACE_DIR: {workspace}\n", encoding="utf-8")
     return workspace

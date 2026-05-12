@@ -126,11 +126,11 @@ def _build_synthetic_root(
         else:
             project_name = f"proj{p:03d}"
         project_dir = root / project_name
-        # Project file (.gp) used by RUNNING-field code paths in real life.
+        # Project spec file used by RUNNING-field code paths in real life.
         # Empty file is fine for these benchmarks; we don't exercise
         # changespec parsing.
         project_dir.mkdir(parents=True, exist_ok=True)
-        (project_dir / f"{project_name}.gp").write_text("", encoding="utf-8")
+        (project_dir / f"{project_name}.sase").write_text("", encoding="utf-8")
 
         ace_run_dir = project_dir / "artifacts" / "ace-run"
         ace_run_dir.mkdir(parents=True, exist_ok=True)

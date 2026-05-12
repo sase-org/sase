@@ -56,7 +56,7 @@ class TestGetKnownProjectWorkspaces:
     def test_reads_workspace_dir_from_gp_files(self, tmp_path: Path) -> None:
         proj_dir = tmp_path / "myproj"
         proj_dir.mkdir()
-        gp = proj_dir / "myproj.gp"
+        gp = proj_dir / "myproj.sase"
         ws = tmp_path / "workspace"
         ws.mkdir()
         gp.write_text(f"WORKSPACE_DIR: {ws}\n")
@@ -67,7 +67,7 @@ class TestGetKnownProjectWorkspaces:
             sase_dir.mkdir(parents=True)
             real_proj_dir = sase_dir / "myproj"
             real_proj_dir.mkdir()
-            real_gp = real_proj_dir / "myproj.gp"
+            real_gp = real_proj_dir / "myproj.sase"
             real_gp.write_text(f"WORKSPACE_DIR: {ws}\n")
 
             result = get_known_project_workspaces()
@@ -77,7 +77,7 @@ class TestGetKnownProjectWorkspaces:
     def test_skips_missing_workspace_dir(self, tmp_path: Path) -> None:
         sase_dir = tmp_path / ".sase" / "projects" / "bad"
         sase_dir.mkdir(parents=True)
-        gp = sase_dir / "bad.gp"
+        gp = sase_dir / "bad.sase"
         gp.write_text("WORKSPACE_DIR: /nonexistent/path\n")
 
         with patch.object(Path, "home", return_value=tmp_path):

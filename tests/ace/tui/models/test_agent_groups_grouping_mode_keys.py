@@ -59,7 +59,7 @@ def test_panel_uses_changespec_level_skipped_in_non_standard_modes() -> None:
 def test_panel_uses_changespec_level_ignores_project_scoped_agents() -> None:
     from sase.ace.tui.models.agent_groups import _panel_uses_changespec_level
 
-    agents = [_agent(cl_name="sase", project_file="/r/sase/sase.gp")]
+    agents = [_agent(cl_name="sase", project_file="/r/sase/sase.sase")]
     assert _panel_uses_changespec_level(agents, GroupingMode.STANDARD) is False
 
 

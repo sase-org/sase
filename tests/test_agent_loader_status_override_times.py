@@ -11,7 +11,7 @@ def test_apply_status_overrides_propagates_code_time_from_coder_child() -> None:
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         raw_suffix="20250615100000",
@@ -20,7 +20,7 @@ def test_apply_status_overrides_propagates_code_time_from_coder_child() -> None:
     child = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 10, 0),
         run_start_time=datetime(2025, 6, 15, 10, 10, 5),
@@ -38,7 +38,7 @@ def test_apply_status_overrides_code_time_falls_back_to_start_time() -> None:
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         raw_suffix="20250615100000",
@@ -47,7 +47,7 @@ def test_apply_status_overrides_code_time_falls_back_to_start_time() -> None:
     child = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 10, 0),
         parent_timestamp="20250615100000",
@@ -64,7 +64,7 @@ def test_apply_status_overrides_propagates_epic_time() -> None:
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         raw_suffix="20250615100000",
@@ -73,7 +73,7 @@ def test_apply_status_overrides_propagates_epic_time() -> None:
     child = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=datetime(2025, 6, 15, 10, 10, 0),
         run_start_time=datetime(2025, 6, 15, 10, 10, 5),
@@ -92,7 +92,7 @@ def test_apply_status_overrides_epic_time_falls_back_to_run_start_time() -> None
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         raw_suffix="20250615100000",
@@ -101,7 +101,7 @@ def test_apply_status_overrides_epic_time_falls_back_to_run_start_time() -> None
     child = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=datetime(2025, 6, 15, 10, 10, 0),
         run_start_time=datetime(2025, 6, 15, 10, 10, 5),

@@ -24,8 +24,8 @@ def test_collapsed_l0_hides_descendants_but_emits_banner() -> None:
     registry.collapse(("projA",))
     entries = build_agent_tree(
         [
-            _agent(cl_name="a", project_file="/r/projA/proj.gp"),
-            _agent(cl_name="b", project_file="/r/projB/proj.gp"),
+            _agent(cl_name="a", project_file="/r/projA/proj.sase"),
+            _agent(cl_name="b", project_file="/r/projB/proj.sase"),
         ],
         fold_registry=registry,
     )
@@ -50,8 +50,8 @@ def test_collapsed_changespec_hides_only_its_agents() -> None:
     registry.collapse(("proj", "fix-a"))
     entries = build_agent_tree(
         [
-            _agent(cl_name="fix-a", project_file="/r/proj/proj.gp", agent_name="x"),
-            _agent(cl_name="fix-b", project_file="/r/proj/proj.gp", agent_name="y"),
+            _agent(cl_name="fix-a", project_file="/r/proj/proj.sase", agent_name="x"),
+            _agent(cl_name="fix-b", project_file="/r/proj/proj.sase", agent_name="y"),
         ],
         fold_registry=registry,
     )
@@ -67,20 +67,22 @@ def test_collapsed_name_root_at_level_two_hides_only_its_agents() -> None:
         [
             _agent(
                 cl_name="demo",
-                project_file="/r/proj/proj.gp",
+                project_file="/r/proj/proj.sase",
                 agent_name="coder.claude",
             ),
             _agent(
-                cl_name="demo", project_file="/r/proj/proj.gp", agent_name="coder.codex"
+                cl_name="demo",
+                project_file="/r/proj/proj.sase",
+                agent_name="coder.codex",
             ),
             _agent(
                 cl_name="demo",
-                project_file="/r/proj/proj.gp",
+                project_file="/r/proj/proj.sase",
                 agent_name="planner.claude",
             ),
             _agent(
                 cl_name="demo",
-                project_file="/r/proj/proj.gp",
+                project_file="/r/proj/proj.sase",
                 agent_name="planner.codex",
             ),
         ],
@@ -102,27 +104,27 @@ def test_collapsed_name_prefix_hides_only_its_agents() -> None:
         [
             _agent(
                 cl_name="demo",
-                project_file="/r/proj/proj.gp",
+                project_file="/r/proj/proj.sase",
                 agent_name="sase-42.2",
             ),
             _agent(
                 cl_name="demo",
-                project_file="/r/proj/proj.gp",
+                project_file="/r/proj/proj.sase",
                 agent_name="sase-42.1.1",
             ),
             _agent(
                 cl_name="demo",
-                project_file="/r/proj/proj.gp",
+                project_file="/r/proj/proj.sase",
                 agent_name="sase-42.1.2",
             ),
             _agent(
                 cl_name="demo",
-                project_file="/r/proj/proj.gp",
+                project_file="/r/proj/proj.sase",
                 agent_name="sase-42.2.1",
             ),
             _agent(
                 cl_name="demo",
-                project_file="/r/proj/proj.gp",
+                project_file="/r/proj/proj.sase",
                 agent_name="sase-42.2.2",
             ),
         ],
@@ -146,7 +148,9 @@ def test_singleton_name_root_still_suppresses_banner_in_three_level_mode() -> No
     entries = build_agent_tree(
         [
             _agent(
-                cl_name="demo", project_file="/r/proj/proj.gp", agent_name="solo.claude"
+                cl_name="demo",
+                project_file="/r/proj/proj.sase",
+                agent_name="solo.claude",
             )
         ],
         fold_registry=registry,
@@ -171,20 +175,20 @@ def test_enumerate_group_keys_three_level_mode() -> None:
     """Lists every L0/L1/L2 key once; singleton roots are omitted."""
     keys = enumerate_group_keys(
         [
-            _agent(cl_name="a", project_file="/r/projA/proj.gp"),
+            _agent(cl_name="a", project_file="/r/projA/proj.sase"),
             _agent(
                 cl_name="demo",
-                project_file="/r/projB/proj.gp",
+                project_file="/r/projB/proj.sase",
                 agent_name="coder.claude",
             ),
             _agent(
                 cl_name="demo",
-                project_file="/r/projB/proj.gp",
+                project_file="/r/projB/proj.sase",
                 agent_name="coder.codex",
             ),
             _agent(
                 cl_name="demo",
-                project_file="/r/projB/proj.gp",
+                project_file="/r/projB/proj.sase",
                 agent_name="solo.claude",
             ),
         ]
@@ -202,10 +206,10 @@ def test_enumerate_group_keys_two_level_mode() -> None:
     keys = enumerate_group_keys(
         [
             _agent(
-                cl_name="", project_file="/r/proj/proj.gp", agent_name="coder.claude"
+                cl_name="", project_file="/r/proj/proj.sase", agent_name="coder.claude"
             ),
             _agent(
-                cl_name="", project_file="/r/proj/proj.gp", agent_name="coder.codex"
+                cl_name="", project_file="/r/proj/proj.sase", agent_name="coder.codex"
             ),
         ]
     )
@@ -242,9 +246,9 @@ def test_enumerate_group_keys_per_panel_mode() -> None:
     keys = enumerate_group_keys(
         [
             # Panel A (tag=tag1) has a ChangeSpec → 3-level mode.
-            _agent(cl_name="cs", project_file="/r/proj/proj.gp", tag="tag1"),
+            _agent(cl_name="cs", project_file="/r/proj/proj.sase", tag="tag1"),
             # Panel B (tag=tag2) has no ChangeSpec → 2-level mode.
-            _agent(cl_name="", project_file="/r/proj/proj.gp", tag="tag2"),
+            _agent(cl_name="", project_file="/r/proj/proj.sase", tag="tag2"),
         ]
     )
     # Panel A emits a ChangeSpec key.

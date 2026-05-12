@@ -51,7 +51,7 @@ def test_plan_approval_root_timestamp_sets_parent_planning_override() -> None:
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="oo",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=datetime(2026, 5, 12, 9, 0, 0),
         raw_suffix="20260512090000",
@@ -60,7 +60,7 @@ def test_plan_approval_root_timestamp_sets_parent_planning_override() -> None:
     workflow_step = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="sase",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 5, 12, 9, 43, 33),
         raw_suffix="20260512094333",
@@ -79,7 +79,7 @@ def test_find_agent_for_notification_matches_root_timestamp() -> None:
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="oo",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="PLANNING",
         start_time=datetime(2026, 5, 12, 9, 0, 0),
         raw_suffix="20260512090000",
@@ -94,7 +94,7 @@ def test_user_question_root_timestamp_sets_parent_question_override() -> None:
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="oo",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=datetime(2026, 5, 12, 9, 0, 0),
         raw_suffix="20260512090000",

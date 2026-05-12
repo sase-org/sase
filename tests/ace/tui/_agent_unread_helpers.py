@@ -20,7 +20,7 @@ def make_agent(
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=name,
-        project_file="/tmp/projects/demo/demo.gp",
+        project_file="/tmp/projects/demo/demo.sase",
         status=status,
         start_time=start_time,
         stop_time=stop_time,

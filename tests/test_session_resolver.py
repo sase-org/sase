@@ -17,7 +17,7 @@ from sase.ace.tui.thinking.session_resolver import (
 
 
 def _make_agent(
-    project_file: str = "/home/user/.sase/projects/myproject/myproject.gp",
+    project_file: str = "/home/user/.sase/projects/myproject/myproject.sase",
     workspace_num: int | None = 1,
 ) -> Agent:
     return Agent(

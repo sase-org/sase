@@ -62,7 +62,7 @@ def _setup_nonhome_agent(home: Path) -> tuple[Path, Path]:
     project_dir = home / ".sase" / "projects" / "myproj"
     artifacts_dir = project_dir / "artifacts" / "ace-run" / "20260510130000"
     artifacts_dir.mkdir(parents=True)
-    project_file = project_dir / "myproj.gp"
+    project_file = project_dir / "myproj.sase"
     project_file.write_text(
         "# Test Project\n\n"
         "RUNNING:\n"
@@ -226,7 +226,7 @@ def test_kill_named_agent_does_not_write_dismissal_when_pid_missing(
     project_dir = tmp_path / ".sase" / "projects" / "myproj"
     artifacts_dir = project_dir / "artifacts" / "ace-run" / "20260510140000"
     artifacts_dir.mkdir(parents=True)
-    project_file = project_dir / "myproj.gp"
+    project_file = project_dir / "myproj.sase"
     project_file.write_text("# Test Project\n\nNAME: feature_x\nSTATUS: Wip\n")
 
     found = NamedAgent(

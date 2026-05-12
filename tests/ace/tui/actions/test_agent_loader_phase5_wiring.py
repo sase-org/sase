@@ -29,7 +29,7 @@ def _make_snapshot() -> list[ChangeSpec]:
             cl=None,
             status="WIP",
             test_targets=None,
-            file_path="/tmp/proj.gp",
+            file_path="/tmp/proj.sase",
             line_number=1,
         )
     ]
@@ -48,7 +48,7 @@ def _make_agent(tag: str | None) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="legend-cl",
-        project_file="/tmp/myproj/myproj.gp",
+        project_file="/tmp/myproj/myproj.sase",
         status="RUNNING",
         start_time=datetime(2026, 5, 6, 12, 0, 0),
         tag=tag,

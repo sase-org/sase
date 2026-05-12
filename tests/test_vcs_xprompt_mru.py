@@ -20,7 +20,7 @@ def _write_project(
 ) -> None:
     project_dir = projects_dir / project_name
     project_dir.mkdir(parents=True)
-    project_file = project_dir / f"{project_name}.gp"
+    project_file = project_dir / f"{project_name}.sase"
     if workspace_dir is None:
         project_file.write_text("", encoding="utf-8")
         return

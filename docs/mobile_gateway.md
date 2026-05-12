@@ -483,7 +483,8 @@ curl -sS -X POST "$BASE_URL/api/v1/agents/launch" \
 ```
 
 Launch in a known SASE project context by passing the project name, not a path. The bridge resolves only
-`<sase_home>/projects/<project>/<project>.gp` and uses that file's `WORKSPACE_DIR` when it needs a project cwd:
+`<sase_home>/projects/<project>/<project>.sase` (falling back to legacy `.gp`) and uses that file's `WORKSPACE_DIR` when
+it needs a project cwd:
 
 ```bash
 curl -sS -X POST "$BASE_URL/api/v1/agents/launch" \

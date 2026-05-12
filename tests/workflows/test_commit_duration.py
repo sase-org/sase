@@ -47,7 +47,7 @@ def test_add_commit_entry_with_chat_duration() -> None:
     past_timestamp = past_time.strftime("%y%m%d_%H%M%S")
     chat_path = f"~/.sase/chats/test-run-{past_timestamp}.md"
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         temp_path = f.name
@@ -89,7 +89,7 @@ def test_format_chat_line_with_end_timestamp_exact() -> None:
 # Tests for reject_all_new_proposals
 def test_reject_all_new_proposals_success() -> None:
     """Test rejecting all new proposals changes suffix from (!:) to (~!:)."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
@@ -113,7 +113,7 @@ def test_reject_all_new_proposals_success() -> None:
 
 def test_reject_all_new_proposals_wrong_cl_name() -> None:
     """Test that returning 0 when CL name doesn't match."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")

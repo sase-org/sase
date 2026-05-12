@@ -31,7 +31,7 @@ def _make_hook(
 def _make_changespec(
     name: str = "test_cs",
     status: str = "Ready",
-    file_path: str = "/path/to/project.gp",
+    file_path: str = "/path/to/project.sase",
     hooks: list[HookEntry] | None = None,
     comments: list[CommentEntry] | None = None,
 ) -> ChangeSpec:

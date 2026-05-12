@@ -135,7 +135,7 @@ def _build_ace_run_done(root: Path) -> None:
             "outcome": "completed",
             "finished_at": 1745758800.0,
             "cl_name": "feature_alpha",
-            "project_file": "/home/u/.sase/projects/myproj/myproj.gp",
+            "project_file": "/home/u/.sase/projects/myproj/myproj.sase",
             "workspace_num": 3,
             "workspace_dir": "/tmp/workspaces/alpha_3",
             "model": "claude-haiku-4-5-20251001",

@@ -11,7 +11,7 @@ from sase.workflows.commit_utils import (
 
 def _create_test_project_file(content: str) -> Path:
     """Create a temporary project file with the given content."""
-    fd, path = tempfile.mkstemp(suffix=".gp")
+    fd, path = tempfile.mkstemp(suffix=".sase")
     with open(path, "w") as f:
         f.write(content)
     return Path(path)

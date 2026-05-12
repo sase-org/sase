@@ -104,7 +104,7 @@ def testfind_proposal_entry_none_history() -> None:
 # Tests for get_changespec_from_file
 def test_get_changespec_from_file_multiple_specs() -> None:
     """Test getting changespec from file with multiple specs."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("NAME: first_cl\n")
         f.write("STATUS: Ready\n")
         f.write("\n")

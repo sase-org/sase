@@ -48,7 +48,7 @@ def _agent(
     cl_name: str = "demo",
     raw_suffix: str = "20260425143000",
     status: str = "RUNNING",
-    project_file: str = "/repo/proj.gp",
+    project_file: str = "/repo/proj.sase",
     pid: int | None = 1234,
     workflow: str | None = None,
 ) -> Agent:
@@ -351,7 +351,7 @@ def test_dismiss_workflow_parent_with_children_falls_back(
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="wf_parent",
-        project_file="/repo/proj.gp",
+        project_file="/repo/proj.sase",
         status="DONE",
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         workflow="wf",

@@ -49,7 +49,7 @@ class TestChangeSpecSerialization:
             cl=None,
             status="WIP",
             test_targets=None,
-            file_path="/tmp/test.gp",
+            file_path="/tmp/test.sase",
             line_number=1,
         )
 
@@ -71,7 +71,7 @@ class TestChangeSpecSerialization:
             cl="12345",
             status="Ready",
             test_targets=["//test:foo"],
-            file_path="/tmp/full.gp",
+            file_path="/tmp/full.sase",
             line_number=10,
             bug="b/999",
             commits=[

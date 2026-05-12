@@ -33,7 +33,7 @@ from sase.core.query_wire import query_wire_to_json_dict
 from sase.core.query_wire_conversion import token_to_wire
 
 _CORPUS_DIR = Path(__file__).parent / "core_golden"
-PROJECT_GP = _CORPUS_DIR / "myproj.gp"
+PROJECT_GP = _CORPUS_DIR / "myproj.sase"
 
 
 # Subsets are used by per-category snapshot tests; the concatenated

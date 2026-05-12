@@ -59,7 +59,7 @@ def minimal_record(root: Path, timestamp: str, name: str) -> dict[str, Any]:
     return {
         "project_name": "myproj",
         "project_dir": str(root / "myproj"),
-        "project_file": str(root / "myproj" / "myproj.gp"),
+        "project_file": str(root / "myproj" / "myproj.sase"),
         "workflow_dir_name": "ace-run",
         "artifact_dir": str(artifact_dir),
         "timestamp": timestamp,

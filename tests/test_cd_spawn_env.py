@@ -53,7 +53,7 @@ def test_spawn_cd_sets_resolved_directory_env_without_claim(
     ):
         spawn_agent_subprocess(
             cl_name=str(target),
-            project_file=str(tmp_path / "home.gp"),
+            project_file=str(tmp_path / "home.sase"),
             workspace_dir=str(target),
             workspace_num=0,
             workflow_name="ace(run)-ts",
@@ -115,7 +115,7 @@ def test_spawn_git_home_sets_preallocated_workspace_env(
     ):
         spawn_agent_subprocess(
             cl_name="home",
-            project_file=str(tmp_path / "home.gp"),
+            project_file=str(tmp_path / "home.sase"),
             workspace_dir=str(workspace),
             workspace_num=101,
             workflow_name="ace(run)-ts",
@@ -140,7 +140,7 @@ def test_default_git_home_reports_incomplete_home_project(
     monkeypatch.setenv("HOME", str(tmp_path))
     project_dir = tmp_path / ".sase" / "projects" / "home"
     project_dir.mkdir(parents=True)
-    (project_dir / "home.gp").write_text("NAME: home\n")
+    (project_dir / "home.sase").write_text("NAME: home\n")
 
     from sase.workspace_provider.plugins.bare_git_ref import resolve_git_ref
 

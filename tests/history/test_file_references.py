@@ -70,8 +70,8 @@ class TestExtractRecordableFileRefs:
         assert extract_recordable_file_refs(text) == []
 
     def test_keeps_global_sase_tilde_paths(self) -> None:
-        text = "open @~/.sase/projects/foo.gp please"
-        assert extract_recordable_file_refs(text) == ["~/.sase/projects/foo.gp"]
+        text = "open @~/.sase/projects/foo.sase please"
+        assert extract_recordable_file_refs(text) == ["~/.sase/projects/foo.sase"]
 
     def test_keeps_at_prefixed_tilde_baseline(self) -> None:
         assert extract_recordable_file_refs("@~/notes.md") == ["~/notes.md"]

@@ -173,7 +173,7 @@ def _find_changespec_by_name(cl_name: str) -> tuple[str | None, str | None]:
     for cs in all_changespecs:
         if cs.name == cl_name:
             # Extract project name from file path
-            # Path format: ~/.sase/projects/<project>/<project>.gp
+            # Path format: ~/.sase/projects/<project>/<project>.sase (or legacy .gp)
             project_name = os.path.basename(os.path.dirname(cs.file_path))
             return cs.file_path, project_name
     return None, None

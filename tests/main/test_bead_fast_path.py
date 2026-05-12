@@ -64,7 +64,7 @@ def test_fast_path_keeps_write_commands_disabled_for_non_vc_store(
 def _write_project_file(home: Path, project_name: str, primary: Path) -> None:
     project_dir = home / ".sase" / "projects" / project_name
     project_dir.mkdir(parents=True)
-    (project_dir / f"{project_name}.gp").write_text(
+    (project_dir / f"{project_name}.sase").write_text(
         f"WORKSPACE_DIR: {primary}\n",
         encoding="utf-8",
     )

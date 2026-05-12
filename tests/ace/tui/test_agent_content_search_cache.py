@@ -16,7 +16,7 @@ def _make_agent(artifacts_dir: Path, **overrides: object) -> Agent:
     defaults: dict[str, object] = {
         "agent_type": AgentType.RUNNING,
         "cl_name": "cl_zero",
-        "project_file": "/tmp/projects/proj/proj.gp",
+        "project_file": "/tmp/projects/proj/proj.sase",
         "status": "RUNNING",
         "start_time": datetime(2024, 1, 1, 12, 0, 0),
         "raw_suffix": "20240101120000",

@@ -24,7 +24,7 @@ def get_artifacts_dir(agent: Agent) -> str | None:
         return agent.artifacts_dir
 
     # Extract project name from project_file
-    # Format: ~/.sase/projects/<project>/<project>.gp
+    # Format: ~/.sase/projects/<project>/<project>.sase (or legacy .gp)
     project_path = Path(agent.project_file)
     project_name = project_path.parent.name
 

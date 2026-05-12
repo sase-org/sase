@@ -188,9 +188,9 @@ class StatusActionsMixin:
 
             vcs_type = detect_workflow_type(project_file)
             if vcs_type in ("git", "gh"):
-                import os
+                from sase.ace.changespec.project_spec_path import project_spec_basename
 
-                project_basename = os.path.basename(project_file).replace(".gp", "")
+                project_basename = project_spec_basename(project_file)
 
                 def task_callable() -> tuple[bool, str]:
                     return _submit_task(project_file, cl_name, project_basename)

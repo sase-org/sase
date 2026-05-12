@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
+from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
 from ._types import PromptContext
 
 if TYPE_CHECKING:
@@ -145,7 +147,7 @@ class MentorReviewMixin:
         Args:
             accepted_comments: The accepted mentor comment dicts.
             cl_name: The CL name.
-            project_file: Path to the project ``.gp`` file.
+            project_file: Path to the project spec file.
             mode: ``"commit"`` or ``"propose"`` — determines which
                 post-apply xprompt to append.
         """
@@ -206,7 +208,9 @@ class MentorReviewMixin:
         self._prompt_context = PromptContext(
             project_name="home",
             cl_name=None,
-            project_file=os.path.expanduser("~/.sase/projects/home/home.gp"),
+            project_file=preferred_project_spec_path(
+                os.path.expanduser("~/.sase/projects/home"), "home"
+            ),
             workspace_dir=str(Path.home()),
             workspace_num=0,
             workflow_name=workflow_name,
@@ -319,7 +323,7 @@ class MentorReviewMixin:
 
         Args:
             kill_result: A ``MentorKillResult`` with identifying fields.
-            project_file: Path to the project ``.gp`` file.
+            project_file: Path to the project spec file.
         """
         import os
         import signal

@@ -12,7 +12,7 @@ def _make_agent(
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="test_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status=status,
         start_time=None,
         response_path=response_path,

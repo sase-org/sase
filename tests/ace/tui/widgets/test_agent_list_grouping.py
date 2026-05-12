@@ -19,8 +19,8 @@ def test_two_agents_with_distinct_projects_get_two_project_banners() -> None:
     widget = AgentList()
     widget.update_list(
         [
-            make_agent(cl_name="demo-a", project_file="/r/projA/proj.gp"),
-            make_agent(cl_name="demo-b", project_file="/r/projB/proj.gp"),
+            make_agent(cl_name="demo-a", project_file="/r/projA/proj.sase"),
+            make_agent(cl_name="demo-b", project_file="/r/projB/proj.sase"),
         ],
         current_idx=0,
     )
@@ -75,7 +75,7 @@ def test_banner_options_are_disabled() -> None:
 def test_banner_label_renders_separately_for_project_and_changespec() -> None:
     widget = AgentList()
     widget.update_list(
-        [make_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.gp")],
+        [make_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.sase")],
         current_idx=0,
     )
     options = list(widget._options)
@@ -104,8 +104,8 @@ def test_highlighted_row_skips_banner_offset() -> None:
     widget = AgentList()
     widget.update_list(
         [
-            make_agent(cl_name="a", project_file="/r/projA/proj.gp"),
-            make_agent(cl_name="b", project_file="/r/projB/proj.gp"),
+            make_agent(cl_name="a", project_file="/r/projA/proj.sase"),
+            make_agent(cl_name="b", project_file="/r/projB/proj.sase"),
         ],
         current_idx=1,
     )
@@ -129,7 +129,7 @@ def test_no_changespec_panel_label_omits_changespec_suffix() -> None:
     """The level-0 banner label is the project name only — no ``/`` separator."""
     widget = AgentList()
     widget.update_list(
-        [make_agent(cl_name="", project_file="/repo/sase_100/proj.gp")],
+        [make_agent(cl_name="", project_file="/repo/sase_100/proj.sase")],
         current_idx=0,
     )
     options = list(widget._options)
@@ -142,7 +142,7 @@ def test_project_scoped_agent_renders_single_project_banner() -> None:
     """A project-scoped agent's cl_name must not become a duplicate L1 banner."""
     widget = AgentList()
     widget.update_list(
-        [make_agent(cl_name="home", project_file="/repo/home/home.gp")],
+        [make_agent(cl_name="home", project_file="/repo/home/home.sase")],
         current_idx=0,
     )
     assert widget._row_entries == [BR, (0, None)]
@@ -156,8 +156,8 @@ def test_mixed_project_scoped_agent_uses_no_changespec_bucket() -> None:
     widget = AgentList()
     widget.update_list(
         [
-            make_agent(cl_name="fix-bug-id", project_file="/repo/home/home.gp"),
-            make_agent(cl_name="home", project_file="/repo/home/home.gp"),
+            make_agent(cl_name="fix-bug-id", project_file="/repo/home/home.sase"),
+            make_agent(cl_name="home", project_file="/repo/home/home.sase"),
         ],
         current_idx=0,
     )

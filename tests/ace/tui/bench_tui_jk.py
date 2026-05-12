@@ -102,7 +102,7 @@ def _print_table(title: str, summary: dict[str, dict[str, float]]) -> None:
 
 async def test_bench_changespecs_jk(_perf_jsonl: Path, tmp_path: Path) -> None:
     """Measure j/k latency on the ChangeSpecs tab with 50 synthetic CLs."""
-    gp_file = tmp_path / "bench" / "bench.gp"
+    gp_file = tmp_path / "bench" / "bench.sase"
     gp_file.parent.mkdir(parents=True)
     gp_file.write_text("")
     cs_list = [_make_changespec(f"cs_{i:03d}", gp_file) for i in range(50)]

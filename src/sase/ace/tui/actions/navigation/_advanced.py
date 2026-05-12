@@ -553,7 +553,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
 
         Args:
             name: The ChangeSpec name.
-            file_path: The path to the .gp file.
+            file_path: The path to the project spec file.
 
         Returns:
             The index in self.changespecs, or None if not found.

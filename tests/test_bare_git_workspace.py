@@ -24,7 +24,7 @@ _INIT_MOD = "sase.workspace_provider.plugins.bare_git_init"
 class TestSetBareRepoDir:
     def test_creates_directory(self) -> None:
         with tempfile.TemporaryDirectory() as d:
-            gp = os.path.join(d, "subdir", "proj.gp")
+            gp = os.path.join(d, "subdir", "proj.sase")
             assert set_bare_repo_dir(gp, "/repos/proj.git")
             assert os.path.exists(gp)
 
@@ -35,7 +35,7 @@ class TestSetBareRepoDir:
     ) -> None:
         mock_lock.return_value.__enter__ = MagicMock()
         mock_lock.return_value.__exit__ = MagicMock(return_value=False)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
             f.write("BARE_REPO_DIR: /old/repo.git\nNAME: cl\n")
             f.flush()
             assert set_bare_repo_dir(f.name, "/new/repo.git")
@@ -52,7 +52,7 @@ class TestSetBareRepoDir:
     ) -> None:
         mock_lock.return_value.__enter__ = MagicMock()
         mock_lock.return_value.__exit__ = MagicMock(return_value=False)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
             f.write("RUNNING:\n  #hg 1 1234\nNAME: cl\n")
             f.flush()
             assert set_bare_repo_dir(f.name, "/repos/proj.git")
@@ -76,7 +76,7 @@ class TestResolveGitRef:
             with patch(f"{_REF_MOD}.Path.home", return_value=Path(d)):
                 proj_dir = os.path.join(d, ".sase", "projects", "myproj")
                 os.makedirs(proj_dir)
-                gp = os.path.join(proj_dir, "myproj.gp")
+                gp = os.path.join(proj_dir, "myproj.sase")
                 with open(gp, "w") as f:
                     f.write(
                         "WORKSPACE_DIR: /work/myproj/\n"
@@ -101,7 +101,7 @@ class TestResolveGitRef:
         mock_branch: MagicMock,
     ) -> None:
         with tempfile.TemporaryDirectory() as d:
-            gp = os.path.join(d, "proj.gp")
+            gp = os.path.join(d, "proj.sase")
             with open(gp, "w") as f:
                 f.write(
                     "WORKSPACE_DIR: /work/proj/\n"
@@ -145,7 +145,7 @@ class TestResolveGitRef:
     ) -> None:
         with tempfile.TemporaryDirectory() as d:
             home = Path(d)
-            project_file = home / ".sase" / "projects" / "newproj" / "newproj.gp"
+            project_file = home / ".sase" / "projects" / "newproj" / "newproj.sase"
             bare_dir = home / ".sase" / "repos" / "newproj.git"
             workspace_dir = str(home / "projects" / "git" / "newproj") + "/"
 
@@ -185,7 +185,7 @@ class TestResolveGitRef:
             home = Path(d)
             project_dir = home / ".sase" / "projects" / "plainproj"
             project_dir.mkdir(parents=True)
-            (project_dir / "plainproj.gp").write_text(
+            (project_dir / "plainproj.sase").write_text(
                 "WORKSPACE_DIR: /work/plainproj/\nNAME: cl\n",
                 encoding="utf-8",
             )

@@ -2,7 +2,7 @@
 
 These snapshots capture the wire shape, query canonical form, query evaluation
 results, graph index summary, and pure status helpers over a sanitized in-tree
-``.gp`` corpus. A future Rust backend must reproduce these snapshots byte for
+``.sase`` corpus. A future Rust backend must reproduce these snapshots byte for
 byte; until then the snapshots also pin the Python implementation's behavior
 so Phase 0B routing changes can't drift silently.
 
@@ -30,8 +30,8 @@ from sase.core.wire import to_json_dict
 from sase.core.wire_conversion import changespec_to_wire
 
 _CORPUS_DIR = Path(__file__).parent / "core_golden"
-_PROJECT_GP = _CORPUS_DIR / "myproj.gp"
-_ARCHIVE_GP = _CORPUS_DIR / "myproj-archive.gp"
+_PROJECT_GP = _CORPUS_DIR / "myproj.sase"
+_ARCHIVE_GP = _CORPUS_DIR / "myproj-archive.sase"
 
 
 def _load(path: Path) -> list[ChangeSpec]:
@@ -77,9 +77,9 @@ def test_changespec_wire_json_snapshot() -> None:
                 "schema_version": 1,
                 "name": "alpha",
                 "project_basename": "myproj",
-                "file_path": "myproj.gp",
+                "file_path": "myproj.sase",
                 "source_span": {
-                    "file_path": "myproj.gp",
+                    "file_path": "myproj.sase",
                     "start_line": 2,
                     "end_line": 2,
                 },
@@ -160,9 +160,9 @@ def test_changespec_wire_json_snapshot() -> None:
                 "schema_version": 1,
                 "name": "beta",
                 "project_basename": "myproj",
-                "file_path": "myproj.gp",
+                "file_path": "myproj.sase",
                 "source_span": {
-                    "file_path": "myproj.gp",
+                    "file_path": "myproj.sase",
                     "start_line": 30,
                     "end_line": 30,
                 },
@@ -183,9 +183,9 @@ def test_changespec_wire_json_snapshot() -> None:
                 "schema_version": 1,
                 "name": "beta__260102_010101",
                 "project_basename": "myproj",
-                "file_path": "myproj.gp",
+                "file_path": "myproj.sase",
                 "source_span": {
-                    "file_path": "myproj.gp",
+                    "file_path": "myproj.sase",
                     "start_line": 37,
                     "end_line": 37,
                 },
@@ -206,9 +206,9 @@ def test_changespec_wire_json_snapshot() -> None:
                 "schema_version": 1,
                 "name": "gamma",
                 "project_basename": "myproj",
-                "file_path": "myproj.gp",
+                "file_path": "myproj.sase",
                 "source_span": {
-                    "file_path": "myproj.gp",
+                    "file_path": "myproj.sase",
                     "start_line": 44,
                     "end_line": 44,
                 },
@@ -254,9 +254,9 @@ def test_archive_corpus_wire_json_snapshot() -> None:
                 "schema_version": 1,
                 "name": "archived_one",
                 "project_basename": "myproj",
-                "file_path": "myproj-archive.gp",
+                "file_path": "myproj-archive.sase",
                 "source_span": {
-                    "file_path": "myproj-archive.gp",
+                    "file_path": "myproj-archive.sase",
                     "start_line": 1,
                     "end_line": 1,
                 },
@@ -289,9 +289,9 @@ def test_archive_corpus_wire_json_snapshot() -> None:
                 "schema_version": 1,
                 "name": "reverted_two",
                 "project_basename": "myproj",
-                "file_path": "myproj-archive.gp",
+                "file_path": "myproj-archive.sase",
                 "source_span": {
-                    "file_path": "myproj-archive.gp",
+                    "file_path": "myproj-archive.sase",
                     "start_line": 11,
                     "end_line": 11,
                 },

@@ -170,7 +170,7 @@ def _run_main(
     argv = [
         "runner",
         "test-cl",
-        str(tmp_path / "project.gp"),
+        str(tmp_path / "project.sase"),
         str(workspace_dir or tmp_path),
         str(output_file),
         workspace_num,
@@ -468,7 +468,7 @@ class TestDeferredWorkspacePreparation:
             ws_dir.return_value = (str(workspace_dir), None)
 
             workspace_num, actual_workspace_dir = claim_deferred_workspace(
-                str(tmp_path / "project.gp"),
+                str(tmp_path / "project.sase"),
                 "test-project",
                 "test-workflow",
                 "test-cl",
@@ -478,7 +478,7 @@ class TestDeferredWorkspacePreparation:
         assert workspace_num == 7
         assert actual_workspace_dir == str(workspace_dir)
         release_mock.assert_called_once_with(
-            str(tmp_path / "project.gp"), 0, "test-workflow", "test-cl"
+            str(tmp_path / "project.sase"), 0, "test-workflow", "test-cl"
         )
         claim_mock.assert_called_once()
         chdir_mock.assert_called_once_with(str(workspace_dir))
@@ -514,7 +514,7 @@ class TestDeferredWorkspacePreparation:
             patch("sase.axe.run_agent_phases.os.chdir") as chdir_mock,
         ):
             workspace_num, actual_workspace_dir = claim_deferred_workspace(
-                str(tmp_path / "project.gp"),
+                str(tmp_path / "project.sase"),
                 "test-project",
                 "test-workflow",
                 "test-cl",
@@ -558,7 +558,7 @@ class TestDeferredWorkspacePreparation:
         ):
             with pytest.raises(SystemExit) as exc_info:
                 claim_deferred_workspace(
-                    str(tmp_path / "project.gp"),
+                    str(tmp_path / "project.sase"),
                     "test-project",
                     "test-workflow",
                     "test-cl",

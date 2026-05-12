@@ -28,7 +28,7 @@ def create_changespec(
         cl=None,
         status=status,
         test_targets=None,
-        file_path=f"/home/user/.sase/projects/{project}/{project}{suffix}.gp",
+        file_path=f"/home/user/.sase/projects/{project}/{project}{suffix}.sase",
         line_number=1,
     )
 
@@ -83,7 +83,7 @@ def seed_known_projects(tmp_path: Path, project_dirs: dict[str, Path]) -> None:
         project_dir = projects_root / project_name
         project_dir.mkdir(parents=True, exist_ok=True)
         workspace = beads_dir.parents[1]
-        (project_dir / f"{project_name}.gp").write_text(
+        (project_dir / f"{project_name}.sase").write_text(
             f"WORKSPACE_DIR: {workspace}\n",
             encoding="utf-8",
         )

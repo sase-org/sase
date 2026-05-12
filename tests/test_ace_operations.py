@@ -22,7 +22,7 @@ def test_get_workspace_directory_main_workspace(
     mock_get_dir.return_value = ("/path/to/main", None)
 
     mock_changespec = MagicMock()
-    mock_changespec.file_path = "/project.gp"
+    mock_changespec.file_path = "/project.sase"
     mock_changespec.project_basename = "project"
 
     result = get_workspace_directory(mock_changespec)

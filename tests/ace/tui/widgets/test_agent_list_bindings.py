@@ -18,7 +18,7 @@ def _make_plain_agent(
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl_name,
-        project_file="/tmp/p.gp",
+        project_file="/tmp/p.sase",
         status="RUNNING",
         start_time=datetime(2024, 1, 1, 12, 0, 0),
         raw_suffix=raw_suffix,
@@ -76,7 +76,7 @@ def _make_agent() -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="pat_ui_integration",
-        project_file="/tmp/pat/pat.gp",
+        project_file="/tmp/pat/pat.sase",
         status="RUNNING",
         start_time=datetime(2026, 4, 3, 14, 5, 18),
     )

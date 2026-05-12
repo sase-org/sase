@@ -40,7 +40,7 @@ def _agent(**kwargs: Any) -> Agent:
     defaults: dict[str, Any] = {
         "agent_type": AgentType.RUNNING,
         "cl_name": "demo",
-        "project_file": "/tmp/project.gp",
+        "project_file": "/tmp/project.sase",
         "status": "DONE",
         "start_time": datetime(2026, 4, 30, 1, 2, 3),
         "stop_time": datetime(2026, 4, 30, 1, 3, 3),

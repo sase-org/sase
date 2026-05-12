@@ -57,7 +57,7 @@ def _agent(
     return Agent(
         agent_type=agent_type,
         cl_name=cl_name,
-        project_file="/tmp/project.gp",
+        project_file="/tmp/project.sase",
         status=status,
         start_time=start_time,
         stop_time=stop_time,

@@ -292,7 +292,7 @@ def testget_matching_profiles_for_entry_falls_back_to_vcs_diff(
     )
 
     cs = build_changespec(
-        file_path="/home/user/.sase/projects/sase/sase.gp",
+        file_path="/home/user/.sase/projects/sase/sase.sase",
         commits=[
             CommitEntry(
                 number=1,
@@ -335,7 +335,7 @@ def test_profile_fallback_applies_only_to_latest_commit(monkeypatch: Any) -> Non
     )
 
     cs = build_changespec(
-        file_path="/home/user/.sase/projects/sase/sase.gp",
+        file_path="/home/user/.sase/projects/sase/sase.sase",
     )
     commits = [
         CommitEntry(number=1, note="old", diff="~/.sase/diffs/missing-old.diff"),
@@ -413,7 +413,7 @@ def test_get_matching_profiles_skips_wrong_project(monkeypatch: Any) -> None:
 
     # ChangeSpec from the "bug" project
     cs = build_changespec(
-        file_path="/home/user/.sase/projects/bug/bug.gp",
+        file_path="/home/user/.sase/projects/bug/bug.sase",
         commits=[CommitEntry(number=1, note="Fix something")],
     )
 
@@ -439,7 +439,7 @@ def test_get_matching_profiles_matches_correct_project(monkeypatch: Any) -> None
 
     # ChangeSpec from the "sase" project
     cs = build_changespec(
-        file_path="/home/user/.sase/projects/sase/sase.gp",
+        file_path="/home/user/.sase/projects/sase/sase.sase",
         commits=[CommitEntry(number=1, note="Add feature")],
     )
 
@@ -465,7 +465,7 @@ def test_get_matching_profiles_none_projects_matches_any(monkeypatch: Any) -> No
     )
 
     cs = build_changespec(
-        file_path="/home/user/.sase/projects/bug/bug.gp",
+        file_path="/home/user/.sase/projects/bug/bug.sase",
         commits=[CommitEntry(number=1, note="Fix bug")],
     )
 

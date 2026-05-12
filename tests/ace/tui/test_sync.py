@@ -83,7 +83,7 @@ class TestSyncTaskSuccess:
     ) -> None:
         result = _make_workflow_result("success", "all good")
         with patch(_PATCH_WORKFLOW, return_value=result):
-            success, message = _sync_task("CL-1", "/proj.gp", "proj")
+            success, message = _sync_task("CL-1", "/proj.sase", "proj")
 
         assert success is True
         assert "Synced CL-1" in message
@@ -97,11 +97,11 @@ class TestSyncTaskSuccess:
             patch(_PATCH_WORKFLOW, return_value=result),
             patch("sase.notifications.senders.notify_sync_result") as m_notify,
         ):
-            success, message = _sync_task("CL-1", "/proj.gp", "proj")
+            success, message = _sync_task("CL-1", "/proj.sase", "proj")
 
         assert success is True
         assert "Synced CL-1" in message
-        m_notify.assert_called_once_with("resolved", "CL-1", "/ws/100", "/proj.gp")
+        m_notify.assert_called_once_with("resolved", "CL-1", "/ws/100", "/proj.sase")
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +112,7 @@ class TestSyncTaskSuccess:
 class TestSyncTaskFailure:
     def test_returns_failure_on_workspace_dir_error(self, _patch_running_field) -> None:
         _patch_running_field["get_dir"].side_effect = RuntimeError("no dir")
-        success, message = _sync_task("CL-1", "/proj.gp", "proj")
+        success, message = _sync_task("CL-1", "/proj.sase", "proj")
 
         assert success is False
         assert "Failed to get workspace directory" in message
@@ -123,7 +123,7 @@ class TestSyncTaskFailure:
         _patch_running_field["claim"].return_value = ClaimResult(
             success=False, error="claim rejected"
         )
-        success, message = _sync_task("CL-1", "/proj.gp", "proj")
+        success, message = _sync_task("CL-1", "/proj.sase", "proj")
 
         assert success is False
         assert "Failed to claim workspace" in message
@@ -132,7 +132,7 @@ class TestSyncTaskFailure:
         self, _patch_running_field, _patch_vcs, _patch_clean
     ) -> None:
         _patch_vcs["provider"].checkout.return_value = (False, "bad branch")
-        success, message = _sync_task("CL-1", "/proj.gp", "proj")
+        success, message = _sync_task("CL-1", "/proj.sase", "proj")
 
         assert success is False
         assert "checkout failed" in message
@@ -145,7 +145,7 @@ class TestSyncTaskFailure:
             patch(_PATCH_WORKFLOW, return_value=result),
             patch("sase.notifications.senders.notify_sync_result"),
         ):
-            success, message = _sync_task("CL-1", "/proj.gp", "proj")
+            success, message = _sync_task("CL-1", "/proj.sase", "proj")
 
         assert success is False
         assert "sync failed" in message
@@ -158,7 +158,7 @@ class TestSyncTaskFailure:
         with patch(
             _PATCH_WORKFLOW, side_effect=WorkflowExecutionError("workflow broke")
         ):
-            success, message = _sync_task("CL-1", "/proj.gp", "proj")
+            success, message = _sync_task("CL-1", "/proj.sase", "proj")
 
         assert success is False
         assert "sync workflow failed" in message
@@ -172,7 +172,7 @@ class TestSyncTaskFailure:
             patch(_PATCH_WORKFLOW, return_value=result),
             patch("sase.notifications.senders.notify_sync_result"),
         ):
-            success, message = _sync_task("CL-1", "/proj.gp", "proj")
+            success, message = _sync_task("CL-1", "/proj.sase", "proj")
 
         assert success is False
         assert "Failed to parse workflow output" in message
@@ -189,17 +189,17 @@ class TestSyncTaskWorkspaceLifecycle:
     ) -> None:
         result = _make_workflow_result("success", "ok")
         with patch(_PATCH_WORKFLOW, return_value=result):
-            _sync_task("CL-1", "/proj.gp", "proj")
+            _sync_task("CL-1", "/proj.sase", "proj")
 
         _patch_running_field["release"].assert_called_once_with(
-            "/proj.gp", 100, "sync-CL-1", "CL-1"
+            "/proj.sase", 100, "sync-CL-1", "CL-1"
         )
 
     def test_workspace_released_on_checkout_failure(
         self, _patch_running_field, _patch_vcs, _patch_clean
     ) -> None:
         _patch_vcs["provider"].checkout.return_value = (False, "bad")
-        _sync_task("CL-1", "/proj.gp", "proj")
+        _sync_task("CL-1", "/proj.sase", "proj")
 
         _patch_running_field["release"].assert_called_once()
 
@@ -207,7 +207,7 @@ class TestSyncTaskWorkspaceLifecycle:
         self, _patch_running_field, _patch_vcs, _patch_clean
     ) -> None:
         with patch(_PATCH_WORKFLOW, side_effect=Exception("boom")):
-            _sync_task("CL-1", "/proj.gp", "proj")
+            _sync_task("CL-1", "/proj.sase", "proj")
 
         _patch_running_field["release"].assert_called_once()
 
@@ -215,7 +215,7 @@ class TestSyncTaskWorkspaceLifecycle:
         """Workspace is not claimed if get_workspace_directory_for_num fails,
         so release should not be called."""
         _patch_running_field["get_dir"].side_effect = RuntimeError("no dir")
-        _sync_task("CL-1", "/proj.gp", "proj")
+        _sync_task("CL-1", "/proj.sase", "proj")
 
         _patch_running_field["release"].assert_not_called()
 
@@ -227,7 +227,7 @@ class TestSyncTaskWorkspaceLifecycle:
         _patch_running_field["claim"].return_value = ClaimResult(
             success=False, error="claim rejected"
         )
-        _sync_task("CL-1", "/proj.gp", "proj")
+        _sync_task("CL-1", "/proj.sase", "proj")
 
         _patch_running_field["release"].assert_not_called()
 
@@ -244,7 +244,7 @@ class TestSyncTaskEnvVar:
         os.environ.pop("SASE_SYNC_CWD", None)
         result = _make_workflow_result("success", "ok")
         with patch(_PATCH_WORKFLOW, return_value=result):
-            _sync_task("CL-1", "/proj.gp", "proj")
+            _sync_task("CL-1", "/proj.sase", "proj")
 
         assert "SASE_SYNC_CWD" not in os.environ
 
@@ -253,7 +253,7 @@ class TestSyncTaskEnvVar:
     ) -> None:
         os.environ.pop("SASE_SYNC_CWD", None)
         with patch(_PATCH_WORKFLOW, side_effect=Exception("boom")):
-            _sync_task("CL-1", "/proj.gp", "proj")
+            _sync_task("CL-1", "/proj.sase", "proj")
 
         assert "SASE_SYNC_CWD" not in os.environ
 
@@ -264,7 +264,7 @@ class TestSyncTaskEnvVar:
         result = _make_workflow_result("success", "ok")
         try:
             with patch(_PATCH_WORKFLOW, return_value=result):
-                _sync_task("CL-1", "/proj.gp", "proj")
+                _sync_task("CL-1", "/proj.sase", "proj")
             assert os.environ["SASE_SYNC_CWD"] == "/original"
         finally:
             os.environ.pop("SASE_SYNC_CWD", None)

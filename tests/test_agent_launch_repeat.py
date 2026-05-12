@@ -94,7 +94,7 @@ def _fake_context() -> PromptContext:
     return PromptContext(
         project_name="test",
         cl_name="test",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         workspace_dir="/tmp/ws",
         workspace_num=1,
         workflow_name="ace(run)-ts",

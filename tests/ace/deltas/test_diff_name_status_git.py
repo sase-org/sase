@@ -187,7 +187,7 @@ def test_compute_deltas_reports_cumulative_pr_state(repo: str, tmp_path: Path) -
     _git(["add", "b.py"], repo)
     _git(["commit", "-m", "add b"], repo)
 
-    project_file = tmp_path / "myproject.gp"
+    project_file = tmp_path / "myproject.sase"
     changespec = ChangeSpec(
         name="feature",
         description="x",

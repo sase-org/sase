@@ -49,7 +49,7 @@ def _full_changespec() -> ChangeSpec:
         cl="PR/42",
         status="WIP",
         test_targets=["tests/test_x.py"],
-        file_path="/proj/myproj.gp",
+        file_path="/proj/myproj.sase",
         line_number=10,
         bug="BUG-1",
         commits=[
@@ -154,7 +154,7 @@ def test_changespec_to_wire_full_round_trip() -> None:
     assert wire.name == "my_feature"
     assert wire.project_basename == "myproj"
     assert wire.source_span == SourceSpanWire(
-        file_path="/proj/myproj.gp", start_line=10, end_line=42
+        file_path="/proj/myproj.sase", start_line=10, end_line=42
     )
     assert wire.cl_or_pr == "PR/42"
     assert wire.bug == "BUG-1"
@@ -172,7 +172,7 @@ def test_changespec_to_wire_full_round_trip() -> None:
 
 
 def test_running_mentor_without_timestamp_serializes_as_null(tmp_path) -> None:
-    project = tmp_path / "myproj.gp"
+    project = tmp_path / "myproj.sase"
     project.write_text(
         """\
 NAME: missing_mentor_timestamp
@@ -206,7 +206,7 @@ def test_changespec_to_wire_default_end_line_equals_start() -> None:
         cl=None,
         status="WIP",
         test_targets=None,
-        file_path="/p/proj.gp",
+        file_path="/p/proj.sase",
         line_number=7,
     )
     wire = changespec_to_wire(cs)
@@ -257,7 +257,7 @@ def test_section_wire_defaults() -> None:
 
 def test_raw_changespec_wire_round_trips_through_json() -> None:
     raw = RawChangeSpecWire(
-        source_span=SourceSpanWire(file_path="/p/proj.gp", start_line=1, end_line=2),
+        source_span=SourceSpanWire(file_path="/p/proj.sase", start_line=1, end_line=2),
         raw_text="NAME: x\nSTATUS: WIP\n",
     )
     payload = to_json_dict(raw)
@@ -269,7 +269,7 @@ def test_parse_error_wire_optional_position() -> None:
     err = ParseErrorWire(
         kind="invalid-status",
         message="STATUS field missing",
-        file_path="/p/proj.gp",
+        file_path="/p/proj.sase",
     )
     payload = to_json_dict(err)
     assert payload["line"] is None
@@ -297,8 +297,8 @@ def test_changespec_wire_from_dict_rejects_unknown_schema_version() -> None:
         "schema_version": CHANGESPEC_WIRE_SCHEMA_VERSION + 1,
         "name": "x",
         "project_basename": "p",
-        "file_path": "p.gp",
-        "source_span": {"file_path": "p.gp", "start_line": 1, "end_line": 1},
+        "file_path": "p.sase",
+        "source_span": {"file_path": "p.sase", "start_line": 1, "end_line": 1},
         "status": "WIP",
         "parent": None,
         "cl_or_pr": None,
@@ -319,8 +319,8 @@ def test_changespec_wire_from_dict_treats_missing_lists_as_empty() -> None:
         "schema_version": CHANGESPEC_WIRE_SCHEMA_VERSION,
         "name": "x",
         "project_basename": "p",
-        "file_path": "p.gp",
-        "source_span": {"file_path": "p.gp", "start_line": 1, "end_line": 1},
+        "file_path": "p.sase",
+        "source_span": {"file_path": "p.sase", "start_line": 1, "end_line": 1},
         "status": "WIP",
         "parent": None,
         "cl_or_pr": None,
@@ -341,7 +341,7 @@ def test_empty_changespec_collections_become_empty_lists() -> None:
         cl=None,
         status="WIP",
         test_targets=None,
-        file_path="/p/proj.gp",
+        file_path="/p/proj.sase",
         line_number=1,
     )
     wire = changespec_to_wire(cs)

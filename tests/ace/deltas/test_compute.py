@@ -21,9 +21,9 @@ def _make_changespec(
     tmp_path: Path | None = None,
 ) -> ChangeSpec:
     file_path = (
-        str(tmp_path / project / f"{project}.gp")
+        str(tmp_path / project / f"{project}.sase")
         if tmp_path
-        else f"/tmp/{project}/{project}.gp"
+        else f"/tmp/{project}/{project}.sase"
     )
     return ChangeSpec(
         name=name,

@@ -51,7 +51,7 @@ inspected by users, agents, and automation:
 
 | State            | Location / Owner                                                   | Use                                                                                         |
 | ---------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| ChangeSpecs      | Project `.gp` files under `~/.sase/projects/`                      | Review lifecycle, commits, hooks, comments, mentors, dependencies, and timestamps.          |
+| ChangeSpecs      | Project `.sase` files under `~/.sase/projects/`                    | Review lifecycle, commits, hooks, comments, mentors, dependencies, and timestamps.          |
 | Agent metadata   | Agent artifact directories under `~/.sase/`                        | Running/completed status, prompt snapshots, output, diffs, workflow state, and attachments. |
 | SDD artifacts    | `sdd/` or `.sase/sdd/`                                             | Prompt snapshots, plans, executable epics, legends, myths, and research notes.              |
 | Beads            | `sdd/beads/` or `.sase/sdd/beads/`                                 | Issue graph, JSONL export, SQLite query cache, epic/legend execution metadata.              |

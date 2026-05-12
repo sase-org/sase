@@ -26,7 +26,7 @@ def _create_project_file_with_running(
     running_claims: list[WorkspaceClaim] | None = None,
 ) -> str:
     """Create a temporary project file with optional RUNNING field."""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".gp") as f:
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".sase") as f:
         f.write("# Test Project\n\n")
         if running_claims:
             f.write("RUNNING:\n")
@@ -193,7 +193,7 @@ def test_running_field_get_workspace_directory_falls_back_to_workspace_dir(
     workspace_dir = tmp_path / "checkout"
     workspace_dir.mkdir()
 
-    project_file = tmp_path / "myproject.gp"
+    project_file = tmp_path / "myproject.sase"
     project_file.write_text(
         f"WORKSPACE_DIR: {workspace_dir}\nNAME: my\n", encoding="utf-8"
     )
@@ -221,7 +221,7 @@ def test_running_field_get_workspace_directory_fallback_uses_git_clone(
     workspace_dir.mkdir()
     (workspace_dir / ".git").mkdir()
 
-    project_file = tmp_path / "myproject.gp"
+    project_file = tmp_path / "myproject.sase"
     project_file.write_text(
         f"WORKSPACE_DIR: {workspace_dir}\nNAME: my\n", encoding="utf-8"
     )
@@ -253,7 +253,7 @@ def test_running_field_get_workspace_directory_fallback_skips_non_git_share(
     workspace_dir = tmp_path / "checkout"
     workspace_dir.mkdir()  # no .git inside
 
-    project_file = tmp_path / "myproject.gp"
+    project_file = tmp_path / "myproject.sase"
     project_file.write_text(
         f"WORKSPACE_DIR: {workspace_dir}\nNAME: my\n", encoding="utf-8"
     )
@@ -369,7 +369,7 @@ def test_claim_next_axe_workspace_empty_running_field() -> None:
 
 def test_claim_next_axe_workspace_empty_running_header() -> None:
     """Test atomic claim on a file with an empty RUNNING field."""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".gp") as f:
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".sase") as f:
         f.write("RUNNING:\nNAME: Test Feature\nSTATUS: Ready\n")
         project_file = f.name
     try:
@@ -421,7 +421,7 @@ def test_transfer_workspace_claim_by_pid() -> None:
 
 def test_running_field_malformed_claim_rows_are_ignored_for_allocation() -> None:
     """Malformed RUNNING rows do not block Rust-backed allocation."""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".gp") as f:
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".sase") as f:
         f.write(
             "RUNNING:\n"
             "  #100 | not-a-pid | hg-bad | bad\n"

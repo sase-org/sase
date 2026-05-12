@@ -154,7 +154,7 @@ def _make_agent(
     return Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="test_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         artifacts_dir=artifacts_dir,
@@ -372,7 +372,7 @@ async def test_update_display_expands_prompt_for_done_workflow_without_diff() ->
         agent = Agent(
             agent_type=AgentType.WORKFLOW,
             cl_name="test_cl",
-            project_file="/tmp/test.gp",
+            project_file="/tmp/test.sase",
             status="DONE",
             start_time=None,
             workflow="my_workflow",

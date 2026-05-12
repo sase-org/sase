@@ -32,7 +32,7 @@ def changespecs() -> list[Any]:
             status="Ready",
             cl=None,
             parent="root_plan",
-            file_path="/tmp/visual_project.gp",
+            file_path="/tmp/visual_project.sase",
         ),
         make_changespec(
             name="visual_billing",
@@ -40,7 +40,7 @@ def changespecs() -> list[Any]:
             status="Draft",
             cl=None,
             parent="visual_auth",
-            file_path="/tmp/visual_project.gp",
+            file_path="/tmp/visual_project.sase",
         ),
         make_changespec(
             name="visual_cli",
@@ -48,7 +48,7 @@ def changespecs() -> list[Any]:
             status="WIP",
             cl=None,
             parent=None,
-            file_path="/tmp/visual_project.gp",
+            file_path="/tmp/visual_project.sase",
         ),
     ]
 
@@ -60,7 +60,7 @@ def agents() -> list[Agent]:
         Agent(
             agent_type=AgentType.RUNNING,
             cl_name="visual-plan",
-            project_file="/workspace/sase/visual_project.gp",
+            project_file="/workspace/sase/visual_project.sase",
             status="DONE",
             start_time=started,
             stop_time=stopped,
@@ -73,7 +73,7 @@ def agents() -> list[Agent]:
         Agent(
             agent_type=AgentType.RUNNING,
             cl_name="visual-code",
-            project_file="/workspace/sase/visual_project.gp",
+            project_file="/workspace/sase/visual_project.sase",
             status="FAILED",
             start_time=datetime(2026, 5, 9, 10, 8, 0),
             stop_time=datetime(2026, 5, 9, 10, 9, 5),
@@ -84,7 +84,7 @@ def agents() -> list[Agent]:
         Agent(
             agent_type=AgentType.RUNNING,
             cl_name="visual-review",
-            project_file="/workspace/sase/visual_project.gp",
+            project_file="/workspace/sase/visual_project.sase",
             status="PLAN DONE",
             start_time=datetime(2026, 5, 9, 10, 10, 0),
             stop_time=datetime(2026, 5, 9, 10, 12, 0),

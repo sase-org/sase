@@ -40,7 +40,7 @@ def resolve_agent_workspace_dir(
 
     Args:
         workspace_num: Agent's workspace number (None or 0 = no workspace).
-        project_file: Path to the .gp project file.
+        project_file: Path to the project spec file.
 
     Returns:
         Workspace directory path, or None if unavailable.

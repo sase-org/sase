@@ -285,9 +285,10 @@ with `sase init-git home --existing <bare-repo> --clone-dir <checkout-dir>`. If 
 `BARE_REPO_DIR` / `WORKSPACE_DIR`, SASE reports a setup error instead of creating an unrelated empty home project.
 
 Provider-prefixed refs that point at a known project name are preserved as workspace launches even if the matching
-workspace plugin is not loaded in the current process. Known projects come from `~/.sase/projects/*/*.gp`. A launch such
-as `#gh:sase #!fix_just` therefore targets the registered `sase` project, allocates a numbered workspace for non-wait
-runs, and lets dispatch surfaces strip the wrapper ref when identifying an embedded workflow body.
+workspace plugin is not loaded in the current process. Known projects come from `~/.sase/projects/*/*.sase` (with legacy
+`~/.sase/projects/*/*.gp` accepted as a fallback). A launch such as `#gh:sase #!fix_just` therefore targets the
+registered `sase` project, allocates a numbered workspace for non-wait runs, and lets dispatch surfaces strip the
+wrapper ref when identifying an embedded workflow body.
 
 The raw colon form stops at whitespace, so paths with spaces should use the parenthesized form when possible:
 `#cd(/tmp/my project)`. Backtick quoting is supported for ordinary xprompt arguments, but workspace-reference path

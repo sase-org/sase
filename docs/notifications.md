@@ -145,9 +145,9 @@ Selecting the notification jumps to the CLs tab, focuses the target ChangeSpec, 
 at least one mentor produced reviewable output.
 
 Idempotency is enforced via `~/.sase/notifications/mentors_complete.json`, keyed on
-`(project_file, changespec_name, entry_id)` — so the notification survives process restarts and `.gp` archival without
-re-firing. The sender suppresses the notification on the same axe cycle that just wrote the `MENTORS` field for the
-latest entry, preventing premature firing on `Draft → Ready` transitions.
+`(project_file, changespec_name, entry_id)` — so the notification survives process restarts and project-spec archival
+without re-firing. The sender suppresses the notification on the same axe cycle that just wrote the `MENTORS` field for
+the latest entry, preventing premature firing on `Draft → Ready` transitions.
 
 ## Notification Fields
 

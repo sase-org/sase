@@ -14,7 +14,7 @@ def test_changespec_exists_exception(
     mock_open: MagicMock, mock_get_path: MagicMock
 ) -> None:
     """Test changespec_exists returns False on exception."""
-    mock_get_path.return_value = "/some/path.gp"
+    mock_get_path.return_value = "/some/path.sase"
     mock_open.side_effect = PermissionError("Access denied")
 
     with patch("os.path.isfile", return_value=True):

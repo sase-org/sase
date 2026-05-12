@@ -41,7 +41,7 @@ def test_execute_workflow_flatten_preserves_caller_named_args(
         positional_args=[],
         named_args={
             "cl_name": "my_feature",
-            "project_file": "/tmp/myproj.gp",
+            "project_file": "/tmp/myproj.sase",
             "workspace_num": 101,
         },
         workflow_obj=anon_wf,
@@ -50,7 +50,7 @@ def test_execute_workflow_flatten_preserves_caller_named_args(
 
     called_args = mock_workflow_executor.call_args.kwargs["args"]
     assert called_args["cl_name"] == "my_feature"
-    assert called_args["project_file"] == "/tmp/myproj.gp"
+    assert called_args["project_file"] == "/tmp/myproj.sase"
     assert called_args["workspace_num"] == 101
 
 

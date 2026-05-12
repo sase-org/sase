@@ -26,7 +26,7 @@ def test_parse_deltas_all_three_change_types() -> None:
         "  - src/sase/legacy/old_deltas.py\n",
         "\n",
     ]
-    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.gp")
+    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
     assert changespec is not None
     assert changespec.deltas is not None
     assert len(changespec.deltas) == 5
@@ -50,7 +50,7 @@ def test_parse_no_deltas_section_yields_none() -> None:
         "  (1) Manual commit\n",
         "\n",
     ]
-    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.gp")
+    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
     assert changespec is not None
     assert changespec.deltas is None
 
@@ -63,7 +63,7 @@ def test_parse_deltas_path_with_spaces() -> None:
         "  ~ another path/with spaces.txt\n",
         "\n",
     ]
-    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.gp")
+    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
     assert changespec is not None
     assert changespec.deltas is not None
     assert changespec.deltas[0].path == "path/with spaces/file name.py"
@@ -104,7 +104,7 @@ def test_parse_deltas_line_stats_drawers() -> None:
         "      | LINES: binary\n",
         "\n",
     ]
-    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.gp")
+    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
     assert changespec is not None
     assert changespec.deltas == [
         DeltaEntry(
@@ -162,7 +162,7 @@ def test_deltas_round_trip_parse_then_format() -> None:
         "  + tests/test_deltas_parsing.py\n",
     ]
     full = _base_lines() + deltas_lines + ["\n"]
-    changespec, _ = _parse_changespec_from_lines(full, 0, "/test/file.gp")
+    changespec, _ = _parse_changespec_from_lines(full, 0, "/test/file.sase")
     assert changespec is not None
     assert changespec.deltas is not None
     formatted = format_deltas_field(changespec.deltas)
@@ -180,7 +180,7 @@ def test_deltas_round_trip_with_line_stats() -> None:
         "      | LINES: binary\n",
     ]
     full = _base_lines() + deltas_lines + ["\n"]
-    changespec, _ = _parse_changespec_from_lines(full, 0, "/test/file.gp")
+    changespec, _ = _parse_changespec_from_lines(full, 0, "/test/file.sase")
     assert changespec is not None
     assert changespec.deltas is not None
     assert format_deltas_field(changespec.deltas) == deltas_lines

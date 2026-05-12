@@ -199,7 +199,7 @@ def test_standard_mode_banner_unchanged_after_phase_2() -> None:
     """Regression guard: STANDARD mode behavior is byte-identical to Phase 1."""
     widget = AgentList()
     widget.update_list(
-        [make_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.gp")],
+        [make_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.sase")],
         current_idx=0,
         grouping_mode=GroupingMode.STANDARD,
     )

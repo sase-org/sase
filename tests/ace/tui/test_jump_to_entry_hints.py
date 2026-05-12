@@ -37,7 +37,7 @@ def _make_changespec(name: str = "test_feature") -> ChangeSpec:
         cl=None,
         status="Ready",
         test_targets=None,
-        file_path="/tmp/test.gp",
+        file_path="/tmp/test.sase",
         line_number=1,
     )
 
@@ -46,7 +46,7 @@ def _make_agent(cl_name: str = "test_feature") -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl_name,
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         raw_suffix="260101_120000",

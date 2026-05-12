@@ -27,7 +27,7 @@ def _make_agent(
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl_name,
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=datetime(2024, 1, 1, 12, 0, 0),
         raw_suffix=raw_suffix,

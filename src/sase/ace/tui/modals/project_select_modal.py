@@ -15,6 +15,10 @@ from textual.widgets import Input, Label, OptionList
 from textual.widgets.option_list import Option
 
 from ...changespec import find_all_changespecs, parse_project_file
+from ...changespec.project_spec_path import (
+    archive_project_spec_filename,
+    preferred_project_spec_path,
+)
 from .base import FilterInput, OptionListNavigationMixin
 from .confirm_delete_modal import ConfirmDeleteModal
 from .project_discovery import list_launchable_projects
@@ -254,15 +258,20 @@ class ProjectSelectModal(
             return
 
         # Check if project file or archive file contains any ChangeSpecs
-        gp_path = (
-            Path.home()
-            / ".sase"
-            / "projects"
-            / item.project_name
-            / f"{item.project_name}.gp"
+        project_dir = Path.home() / ".sase" / "projects" / item.project_name
+        active_path = Path(
+            preferred_project_spec_path(str(project_dir), item.project_name)
         )
-        archive_path = gp_path.parent / f"{item.project_name}-archive.gp"
-        changespecs = parse_project_file(str(gp_path))
+        archive_path = Path(
+            preferred_project_spec_path(
+                str(project_dir), item.project_name, archive=True
+            )
+        )
+        if not archive_path.exists():
+            archive_path = project_dir / archive_project_spec_filename(
+                item.project_name
+            )
+        changespecs = parse_project_file(str(active_path))
         if archive_path.exists():
             changespecs.extend(parse_project_file(str(archive_path)))
         if changespecs:
@@ -275,13 +284,13 @@ class ProjectSelectModal(
         def _on_confirm(confirmed: bool | None) -> None:
             if not confirmed:
                 return
-            # Delete the .gp file and archive file
-            os.unlink(gp_path)
+            # Delete the project spec file and archive file
+            os.unlink(active_path)
             if archive_path.exists():
                 os.unlink(archive_path)
             # Remove parent directory if empty
             try:
-                os.rmdir(gp_path.parent)
+                os.rmdir(active_path.parent)
             except OSError:
                 pass  # Directory not empty, that's fine
             # Remove from all_items and refresh display

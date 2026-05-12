@@ -111,7 +111,7 @@ def test_add_mentor_entry_last_changespec_with_trailing_blanks() -> None:
     from sase.ace.changespec.parser import parse_project_file
 
     content = "NAME: test-cl\nSTATUS: Ready\nDESCRIPTION:\n  Test description\n\n\n"
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         file_path = f.name
 
@@ -255,7 +255,7 @@ MENTORS:
   (1) code[1/1]
       | [260321_120000] code:quality - COMMENTED - (3m15s)
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         file_path = f.name
 

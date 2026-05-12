@@ -18,7 +18,7 @@ def _make_agent(**overrides: object) -> Agent:
     defaults: dict[str, object] = {
         "agent_type": AgentType.RUNNING,
         "cl_name": "test_cl",
-        "project_file": "/tmp/projects/myproj/myproj.gp",
+        "project_file": "/tmp/projects/myproj/myproj.sase",
         "status": "RUNNING",
         "start_time": datetime(2024, 1, 1, 12, 0, 0),
         "raw_suffix": "20240101120000",
@@ -151,9 +151,9 @@ def test_toggle_mark_wraps_around() -> None:
 
 def test_toggle_mark_advances_in_rendered_agent_order() -> None:
     agents = [
-        _make_agent(project_file="/tmp/projects/zeta/zeta.gp", cl_name="z1"),
-        _make_agent(project_file="/tmp/projects/alpha/alpha.gp", cl_name="a1"),
-        _make_agent(project_file="/tmp/projects/beta/beta.gp", cl_name="b1"),
+        _make_agent(project_file="/tmp/projects/zeta/zeta.sase", cl_name="z1"),
+        _make_agent(project_file="/tmp/projects/alpha/alpha.sase", cl_name="a1"),
+        _make_agent(project_file="/tmp/projects/beta/beta.sase", cl_name="b1"),
     ]
     app = _FakeMarkApp(agents)
     app.current_idx = 1  # alpha, visually first
@@ -166,9 +166,9 @@ def test_toggle_mark_advances_in_rendered_agent_order() -> None:
 
 def test_toggle_mark_wraps_in_rendered_agent_order() -> None:
     agents = [
-        _make_agent(project_file="/tmp/projects/zeta/zeta.gp", cl_name="z1"),
-        _make_agent(project_file="/tmp/projects/alpha/alpha.gp", cl_name="a1"),
-        _make_agent(project_file="/tmp/projects/beta/beta.gp", cl_name="b1"),
+        _make_agent(project_file="/tmp/projects/zeta/zeta.sase", cl_name="z1"),
+        _make_agent(project_file="/tmp/projects/alpha/alpha.sase", cl_name="a1"),
+        _make_agent(project_file="/tmp/projects/beta/beta.sase", cl_name="b1"),
     ]
     app = _FakeMarkApp(agents)
     app.current_idx = 0  # zeta, visually last
@@ -181,8 +181,8 @@ def test_toggle_mark_wraps_in_rendered_agent_order() -> None:
 
 def test_toggle_mark_skips_collapsed_banner_rows() -> None:
     agents = [
-        _make_agent(project_file="/tmp/projects/alpha/alpha.gp", cl_name="a1"),
-        _make_agent(project_file="/tmp/projects/beta/beta.gp", cl_name="b1"),
+        _make_agent(project_file="/tmp/projects/alpha/alpha.sase", cl_name="a1"),
+        _make_agent(project_file="/tmp/projects/beta/beta.sase", cl_name="b1"),
     ]
     app = _FakeMarkApp(agents)
     app._group_fold_registry.collapse(("alpha",))

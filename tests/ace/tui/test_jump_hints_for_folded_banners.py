@@ -75,7 +75,7 @@ def _agent(*, project: str, cl: str, name: str, tag: str | None = None) -> Agent
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl,
-        project_file=f"/r/{project}/proj.gp",
+        project_file=f"/r/{project}/proj.sase",
         status="RUNNING",
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name=name,

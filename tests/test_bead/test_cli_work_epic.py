@@ -238,7 +238,7 @@ def test_work_dry_run_regular_epic_renders_vcs_launch_wrappers(
     fake_home = tmp_path / "home"
     project_root = fake_home / ".sase" / "projects" / "sase"
     project_root.mkdir(parents=True)
-    (project_root / "sase.gp").write_text(
+    (project_root / "sase.sase").write_text(
         "WORKSPACE_DIR: /tmp/sase\n",
         encoding="utf-8",
     )
@@ -289,7 +289,7 @@ def test_work_dry_run_renders_changespec_launch_wrappers(
     fake_home = tmp_path / "home"
     project_root = fake_home / ".sase" / "projects" / "sase"
     project_root.mkdir(parents=True)
-    (project_root / "sase.gp").write_text(
+    (project_root / "sase.sase").write_text(
         "WORKSPACE_DIR: /tmp/sase\n",
         encoding="utf-8",
     )

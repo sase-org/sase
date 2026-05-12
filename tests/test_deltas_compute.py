@@ -16,7 +16,7 @@ from sase.ace.deltas import refresh_deltas_for_changespec
 def _write_project(tmp_path: Path, body: str) -> Path:
     project_dir = tmp_path / "myproj"
     project_dir.mkdir(parents=True, exist_ok=True)
-    project_file = project_dir / "myproj.gp"
+    project_file = project_dir / "myproj.sase"
     project_file.write_text(body)
     return project_file
 
@@ -137,7 +137,7 @@ def test_sync_deltas_cli_help_includes_short_options() -> None:
 
 def test_sync_deltas_cli_reports_missing_project_file(tmp_path: Path) -> None:
     """When -p points at nonexistent file, the CLI exits non-zero with a message."""
-    bogus = tmp_path / "nope.gp"
+    bogus = tmp_path / "nope.sase"
     out = subprocess.run(
         [
             sys.executable,

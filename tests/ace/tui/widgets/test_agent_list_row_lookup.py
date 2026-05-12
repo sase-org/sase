@@ -14,7 +14,7 @@ from sase.ace.tui.widgets.agent_list import AgentList
 def _agent(
     *,
     cl_name: str = "demo",
-    project_file: str = "/repo/proj.gp",
+    project_file: str = "/repo/proj.sase",
     agent_name: str | None = None,
     raw_suffix: str = "20260425143000",
 ) -> Agent:
@@ -101,8 +101,8 @@ def test_banner_row_by_key_locates_collapsed_banner(monkeypatch: Any) -> None:
     widget = _wire(monkeypatch)
     fold_registry = AgentGroupFoldRegistry()
     agents = [
-        _agent(cl_name="demo-a", project_file="/r/projA/proj.gp", raw_suffix="a"),
-        _agent(cl_name="demo-b", project_file="/r/projB/proj.gp", raw_suffix="b"),
+        _agent(cl_name="demo-a", project_file="/r/projA/proj.sase", raw_suffix="a"),
+        _agent(cl_name="demo-b", project_file="/r/projB/proj.sase", raw_suffix="b"),
     ]
     _collapse_first_group(fold_registry, agents)
     widget.update_list(agents, current_idx=0, fold_registry=fold_registry)

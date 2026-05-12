@@ -26,7 +26,7 @@ def agent(
     result = Agent(
         agent_type=agent_type,
         cl_name=cl_name,
-        project_file="/tmp/p.gp",
+        project_file="/tmp/p.sase",
         status=status,
         start_time=start,
         run_start_time=run_start,

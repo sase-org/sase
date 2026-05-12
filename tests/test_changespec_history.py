@@ -12,7 +12,7 @@ from sase.ace.tui.changespec_history import (
 
 
 def _make_entry(
-    name: str, file_path: str = "/test/project.gp", query: str = "*"
+    name: str, file_path: str = "/test/project.sase", query: str = "*"
 ) -> ChangeSpecHistoryEntry:
     """Helper to create a test entry."""
     return ChangeSpecHistoryEntry(name=name, file_path=file_path, query=query)
@@ -22,11 +22,11 @@ def test_changespec_history_entry_dataclass() -> None:
     """Test that ChangeSpecHistoryEntry stores all fields."""
     entry = ChangeSpecHistoryEntry(
         name="my-cl",
-        file_path="/home/.sase/projects/test/test.gp",
+        file_path="/home/.sase/projects/test/test.sase",
         query="status:WIP",
     )
     assert entry.name == "my-cl"
-    assert entry.file_path == "/home/.sase/projects/test/test.gp"
+    assert entry.file_path == "/home/.sase/projects/test/test.sase"
     assert entry.query == "status:WIP"
 
 

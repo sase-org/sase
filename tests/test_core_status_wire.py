@@ -94,7 +94,7 @@ def test_status_field_update_wire_constructs() -> None:
 
 def test_build_status_transition_request_reads_parent_status(tmp_path) -> None:
     """The converter resolves the parent's STATUS from the same project file."""
-    project = tmp_path / "proj.gp"
+    project = tmp_path / "proj.sase"
     project.write_text(
         "NAME: proj_parent\n"
         "DESCRIPTION:\n"

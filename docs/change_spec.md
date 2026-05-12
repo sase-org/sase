@@ -1,6 +1,6 @@
 # ChangeSpec Format Documentation
 
-A **ChangeSpec** is a structured record for one change list (CL) or pull request (PR). It lives inside a project `.gp`
+A **ChangeSpec** is a structured record for one change list (CL) or pull request (PR). It lives inside a project `.sase`
 file and records the change's description, dependency metadata, review URL, lifecycle status, commits, hooks, comments,
 mentor runs, timestamps, and computed file deltas.
 

@@ -268,7 +268,7 @@ def test_start_bgcmd_submits_task_and_returns_without_running_vcs() -> None:
     call = app.submit_calls[0]
     assert call["task_type"] == "bgcmd-launch"
     assert call["cl_name"] == "CL-1"
-    assert call["project_file"].endswith("/projects/proj/proj.gp")
+    assert call["project_file"].endswith("/projects/proj/proj.sase")
     assert callable(call["task_callable"])
     assert callable(call["on_success"])
 

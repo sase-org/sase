@@ -34,7 +34,7 @@ def fixture_rows() -> list[dict[str, Any] | str]:
             "action": "JumpToChangeSpec",
             "action_data": {
                 "changespec_name": "valid-full",
-                "project_file": "/tmp/project.gp",
+                "project_file": "/tmp/project.sase",
             },
             "read": True,
             "dismissed": False,
@@ -210,7 +210,7 @@ def synthetic_rows(count: int) -> Iterable[dict[str, Any]]:
         elif action == "JumpToChangeSpec":
             row["action_data"] = {
                 "changespec_name": f"sase-{idx % 31}",
-                "project_file": "/tmp/sase/project.gp",
+                "project_file": "/tmp/sase/project.sase",
             }
         yield row
 

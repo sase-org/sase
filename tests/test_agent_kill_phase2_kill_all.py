@@ -21,7 +21,7 @@ def _running_agent(*, cl_name: str, pid: int) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl_name,
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="fix-hook",
@@ -34,7 +34,7 @@ def _done_agent(*, cl_name: str, suffix: str) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl_name,
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=None,
         agent_name=cl_name,

@@ -87,7 +87,7 @@ def _agent(**overrides: object) -> Agent:
     defaults: dict[str, object] = {
         "agent_type": AgentType.RUNNING,
         "cl_name": "cl",
-        "project_file": "/tmp/project/project.gp",
+        "project_file": "/tmp/project/project.sase",
         "status": "RUNNING",
         "start_time": None,
         "raw_suffix": "ts",

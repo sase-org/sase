@@ -52,7 +52,7 @@ def _make_changespec(
         hooks=None,
         comments=None,
         mentors=None,
-        file_path="/tmp/test.gp",
+        file_path="/tmp/test.sase",
         line_number=1,
     )
 
@@ -61,7 +61,7 @@ def _make_agent(*, status: str = "RUNNING", **kwargs: Any) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=kwargs.get("cl_name", "my_feature"),
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status=status,
         start_time=None,
         workspace_num=kwargs.get("workspace_num"),

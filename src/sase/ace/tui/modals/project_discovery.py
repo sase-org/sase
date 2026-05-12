@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 from sase.workspace_provider import detect_workflow_type
 from sase.workspace_provider.utils import parse_workspace_dir
 
@@ -25,7 +26,7 @@ def list_launchable_projects(
         if project_name == "home":
             continue
 
-        project_file = project_dir / f"{project_name}.gp"
+        project_file = Path(preferred_project_spec_path(str(project_dir), project_name))
         if not project_file.is_file():
             continue
 
@@ -44,7 +45,9 @@ def is_launchable_project(
         return False
 
     projects_base = projects_dir or Path.home() / ".sase" / "projects"
-    project_file = projects_base / project_name / f"{project_name}.gp"
+    project_file = Path(
+        preferred_project_spec_path(str(projects_base / project_name), project_name)
+    )
     if not project_file.is_file():
         return False
 

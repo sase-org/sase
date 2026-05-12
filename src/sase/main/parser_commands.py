@@ -30,7 +30,7 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
         "--project-file",
         dest="project_file",
         default=None,
-        help="Path to the project .gp file (default: inferred from current workspace)",
+        help="Path to the project .sase file (default: inferred from current workspace)",
     )
 
     # sase changespec search <query> [-f FORMAT]
@@ -69,7 +69,7 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
         "--project-file",
         dest="project_file",
         default=None,
-        help="Path to the project .gp file (default: inferred from current workspace)",
+        help="Path to the project .sase file (default: inferred from current workspace)",
     )
     sync_deltas_parser.add_argument(
         "-w",

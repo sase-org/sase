@@ -36,7 +36,7 @@ def get_searchable_text(changespec: ChangeSpec) -> str:
         changespec.status,
     ]
 
-    # Add project basename (e.g., "myproject" from "~/.sase/projects/myproject/myproject.gp")
+    # Add project basename (e.g., "myproject" from "~/.sase/projects/myproject/myproject.sase")
     parts.append(changespec.project_name)
 
     if changespec.parent:

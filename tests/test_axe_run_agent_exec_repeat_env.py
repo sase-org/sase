@@ -44,7 +44,7 @@ class TestRepeatIterationEnv:
         ctx.agent_hidden = False
         ctx.timestamp = "2025-01-01"
         ctx.artifacts_timestamp = "20250101"
-        ctx.project_file = "/tmp/test.gp"
+        ctx.project_file = "/tmp/test.sase"
         ctx.output_path = str(tmp_path / "output")
         ctx.wait_chats = []
 
@@ -90,7 +90,7 @@ class TestRepeatIterationEnv:
         ctx.agent_hidden = False
         ctx.timestamp = "2025-01-01"
         ctx.artifacts_timestamp = "20250101"
-        ctx.project_file = "/tmp/test.gp"
+        ctx.project_file = "/tmp/test.sase"
         ctx.output_path = str(tmp_path / "output")
         ctx.wait_chats = []
 
@@ -139,7 +139,7 @@ class TestWaitChatsInjection:
         ctx.agent_hidden = False
         ctx.timestamp = "2025-01-01"
         ctx.artifacts_timestamp = "20250101"
-        ctx.project_file = "/tmp/test.gp"
+        ctx.project_file = "/tmp/test.sase"
         ctx.output_path = str(tmp_path / "output")
         ctx.wait_chats = ["~/.sase/chats/a.md", "~/.sase/chats/b.md"]
 
@@ -183,7 +183,7 @@ class TestWaitChatsInjection:
         ctx.agent_hidden = False
         ctx.timestamp = "2025-01-01"
         ctx.artifacts_timestamp = "20250101"
-        ctx.project_file = "/tmp/test.gp"
+        ctx.project_file = "/tmp/test.sase"
         ctx.output_path = str(tmp_path / "output")
         ctx.wait_chats = []
 
@@ -228,7 +228,7 @@ class TestInheritedVcsInjection:
         ctx.agent_hidden = False
         ctx.timestamp = "2025-01-01"
         ctx.artifacts_timestamp = "20250101"
-        ctx.project_file = "/tmp/test.gp"
+        ctx.project_file = "/tmp/test.sase"
         ctx.output_path = str(tmp_path / "output")
         ctx.wait_chats = []
         ctx.vcs_tag = "#gh:sase "

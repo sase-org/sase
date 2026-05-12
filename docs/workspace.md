@@ -143,7 +143,7 @@ process's current directory. Prefer the parenthesized form for paths with spaces
 
 The bundled bare-git provider resolves `#git:<ref>` in four modes:
 
-1. A registered project shorthand, using `~/.sase/projects/<name>/<name>.gp` when it contains `BARE_REPO_DIR` and
+1. A registered project shorthand, using `~/.sase/projects/<name>/<name>.sase` when it contains `BARE_REPO_DIR` and
    `WORKSPACE_DIR`.
 2. A ChangeSpec name found across registered projects.
 3. A missing project shorthand with no slash, which initializes a new bare-git project with the same defaults as
@@ -164,10 +164,10 @@ The `sase init-git` command also supports `--bare-dir` and `--clone-dir` for new
 ## Known-Project VCS Fallback
 
 SASE also recognizes provider-prefixed VCS refs that target registered project names even when the corresponding
-workspace plugin is not available in the current process. Known projects are discovered from `~/.sase/projects/*/*.gp`
-by reading each `WORKSPACE_DIR:` entry. For example, if the `sase` project is registered, `#gh:sase #!some/workflow` and
-the underscore shorthand `#gh_sase #!some/workflow` are treated as VCS workspace launches rather than ordinary xprompt
-references.
+workspace plugin is not available in the current process. Known projects are discovered from `~/.sase/projects/*/*.sase`
+(with legacy `~/.sase/projects/*/*.gp` accepted as a fallback) by reading each `WORKSPACE_DIR:` entry. For example, if
+the `sase` project is registered, `#gh:sase #!some/workflow` and the underscore shorthand `#gh_sase #!some/workflow` are
+treated as VCS workspace launches rather than ordinary xprompt references.
 
 Non-wait launches allocate the next available numbered workspace for the project and set the VCS update target to the
 provider default revision. When registered workspace metadata provides an env prefix, SASE passes the matching

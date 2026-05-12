@@ -27,7 +27,7 @@ from sase.ace.scheduler.workflows_runner.starter import (
 
 def _make_changespec(
     name: str = "test_cl",
-    file_path: str = "/path/to/test.gp",
+    file_path: str = "/path/to/test.sase",
     hooks: list[HookEntry] | None = None,
     comments: list[CommentEntry] | None = None,
     commits: list[CommitEntry] | None = None,
@@ -238,7 +238,7 @@ def testget_running_fix_hook_workflows_no_status_line() -> None:
 
 def testget_project_basename_complex_path() -> None:
     """Test extracting project basename from complex path."""
-    cs = _make_changespec(file_path="/home/user/.sase/projects/my-project.gp")
+    cs = _make_changespec(file_path="/home/user/.sase/projects/my-project.sase")
     assert get_project_basename(cs) == "my-project"
 
 

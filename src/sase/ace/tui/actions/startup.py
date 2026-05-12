@@ -290,7 +290,7 @@ class StartupMixin(StateInitMixin):
             artifacts_dir = project_dir / "artifacts"
             if artifacts_dir.is_dir():
                 watch_paths.append(artifacts_dir)
-            # Project files (.gp) live directly in ``project_dir``;
+            # Project spec files live directly in ``project_dir``;
             # watching the dir picks up RUNNING-field updates.
             watch_paths.append(project_dir)
         beads_dir = Path.cwd() / "sdd" / "beads"

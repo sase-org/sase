@@ -32,7 +32,7 @@ def test_launch_multi_prompt_rewrites_bare_wait_to_explicit_previous_name(
         segments=["%name:builder\nBuild", "%wait\nReview"],
         local_xprompts={},
         cl_name="test",
-        project_file="/test.gp",
+        project_file="/test.sase",
         project_name="test",
         is_home_mode=False,
         vcs_ref=None,
@@ -71,7 +71,7 @@ def test_launch_multi_prompt_plans_auto_name_for_bare_wait_predecessor(
         segments=["Build", "%wait\nReview"],
         local_xprompts={},
         cl_name="test",
-        project_file="/test.gp",
+        project_file="/test.sase",
         project_name="test",
         is_home_mode=False,
         vcs_ref=None,
@@ -104,7 +104,7 @@ def test_launch_multi_prompt_derives_vcs_metadata_per_segment(
     def _resolve_ref(ref: str, workflow_type: str) -> ResolvedRef:
         assert workflow_type == "git"
         return ResolvedRef(
-            project_file="/projects/sase/sase.gp",
+            project_file="/projects/sase/sase.sase",
             project_name="sase",
             primary_workspace_dir="/work/sase",
             checkout_target=ref,
@@ -144,7 +144,7 @@ def test_launch_multi_prompt_derives_vcs_metadata_per_segment(
             ],
             local_xprompts={},
             cl_name="sase",
-            project_file="/projects/sase/sase.gp",
+            project_file="/projects/sase/sase.sase",
             project_name="sase",
             is_home_mode=False,
             vcs_ref=("git", "sase"),
@@ -174,8 +174,8 @@ def test_launch_multi_prompt_derives_vcs_metadata_per_segment(
     ]
     assert [c.kwargs["deferred_workspace"] for c in calls] == [False, False, True]
 
-    assert mock_first_ws.call_args_list[0].args == ("/projects/sase/sase.gp",)
-    assert mock_first_ws.call_args_list[1].args == ("/projects/sase/sase.gp",)
+    assert mock_first_ws.call_args_list[0].args == ("/projects/sase/sase.sase",)
+    assert mock_first_ws.call_args_list[1].args == ("/projects/sase/sase.sase",)
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -199,7 +199,7 @@ def test_launch_multi_prompt_naming_wait_uses_previous_segment_project(
     def _resolve_ref(ref: str, workflow_type: str) -> ResolvedRef:
         assert workflow_type == "git"
         return ResolvedRef(
-            project_file=f"/projects/{ref}/{ref}.gp",
+            project_file=f"/projects/{ref}/{ref}.sase",
             project_name=ref,
             primary_workspace_dir=f"/work/{ref}",
             checkout_target=ref,
@@ -238,7 +238,7 @@ def test_launch_multi_prompt_naming_wait_uses_previous_segment_project(
             ],
             local_xprompts={},
             cl_name="base",
-            project_file="/projects/base/base.gp",
+            project_file="/projects/base/base.sase",
             project_name="base",
             is_home_mode=False,
             vcs_ref=None,

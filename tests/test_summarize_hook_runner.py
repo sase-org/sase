@@ -16,7 +16,7 @@ def _run_summarize_hook_runner(
     *,
     metahook: bool,
 ) -> tuple[int, MagicMock, MagicMock]:
-    project_file = tmp_path / "projects" / "test" / "test.gp"
+    project_file = tmp_path / "projects" / "test" / "test.sase"
     project_file.parent.mkdir(parents=True)
     project_file.write_text("NAME: my_feature\n", encoding="utf-8")
     hook_output = tmp_path / "hook.out"

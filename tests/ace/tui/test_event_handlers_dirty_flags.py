@@ -191,7 +191,7 @@ def test_artifact_change_preserves_deferred_paths_during_prompt_input(
 ) -> None:
     app = _FakeApp(watcher_active=True)
     app._plan_feedback_context = object()
-    changed = (tmp_path / "proj.gp",)
+    changed = (tmp_path / "proj.sase",)
 
     app._on_artifact_change(changed)
 

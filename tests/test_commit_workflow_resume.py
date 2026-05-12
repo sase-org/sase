@@ -257,7 +257,7 @@ def test_append_commits_entry_idempotent_on_resume(
     """When the COMMITS drawer already has the expected entry, resume is a no-op."""
     from sase.workflows.commit.commit_tracking import append_commits_entry
 
-    project_file = tmp_path / "proj.gp"
+    project_file = tmp_path / "proj.sase"
     initial = (
         "NAME: test-cl\n"
         "DESCRIPTION:\n  desc\n"
@@ -287,7 +287,7 @@ def test_resume_detects_existing_changespec_in_project_file(
     provider = _make_provider(head_subject="feat: x")
     mock_get.return_value = provider
 
-    project_file = tmp_path / "proj.gp"
+    project_file = tmp_path / "proj.sase"
     project_file.write_text("NAME: proj_feat_1\nDESCRIPTION:\n  desc\nSTATUS: Draft\n")
 
     cp = checkpoint.CommitCheckpoint(

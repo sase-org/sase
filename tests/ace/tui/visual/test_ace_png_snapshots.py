@@ -140,7 +140,7 @@ def _done_agents() -> list[Agent]:
         Agent(
             agent_type=AgentType.RUNNING,
             cl_name="visual-plan",
-            project_file="/workspace/sase/visual_project.gp",
+            project_file="/workspace/sase/visual_project.sase",
             status="DONE",
             start_time=datetime(2026, 5, 9, 10, 0, 0),
             stop_time=datetime(2026, 5, 9, 10, 7, 30),
@@ -153,7 +153,7 @@ def _done_agents() -> list[Agent]:
         Agent(
             agent_type=AgentType.RUNNING,
             cl_name="visual-code",
-            project_file="/workspace/sase/visual_project.gp",
+            project_file="/workspace/sase/visual_project.sase",
             status="DONE",
             start_time=datetime(2026, 5, 9, 10, 8, 0),
             stop_time=datetime(2026, 5, 9, 10, 9, 5),
@@ -163,7 +163,7 @@ def _done_agents() -> list[Agent]:
         Agent(
             agent_type=AgentType.RUNNING,
             cl_name="visual-review",
-            project_file="/workspace/sase/visual_project.gp",
+            project_file="/workspace/sase/visual_project.sase",
             status="PLAN DONE",
             start_time=datetime(2026, 5, 9, 10, 10, 0),
             stop_time=datetime(2026, 5, 9, 10, 12, 0),

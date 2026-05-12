@@ -90,7 +90,7 @@ def test_beads_list_bridge_uses_remembered_device_project_context(
                     "context_id": "project:alpha",
                     "mode": "project",
                     "project": "alpha",
-                    "project_file": str(tmp_path / ".sase/projects/alpha/alpha.gp"),
+                    "project_file": str(tmp_path / ".sase/projects/alpha/alpha.sase"),
                 },
             }
         ),

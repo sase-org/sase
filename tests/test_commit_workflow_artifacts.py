@@ -184,7 +184,7 @@ class TestAppendCommitsEntry:
     )
 
     def test_returns_entry_id_on_success(self, tmp_path: Path) -> None:
-        project_file = tmp_path / "proj.gp"
+        project_file = tmp_path / "proj.sase"
         project_file.write_text("NAME: branch\nCOMMITS:\nSTATUS: Pending\n")
         with patch(
             self._COMMIT_ENTRY_TARGET,
@@ -203,7 +203,7 @@ class TestAppendCommitsEntry:
         )
 
     def test_uses_proposal_mode_for_create_proposal(self, tmp_path: Path) -> None:
-        project_file = tmp_path / "proj.gp"
+        project_file = tmp_path / "proj.sase"
         project_file.write_text("NAME: branch\nCOMMITS:\nSTATUS: Pending\n")
         with patch(
             self._PROPOSAL_ENTRY_TARGET,

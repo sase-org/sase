@@ -26,7 +26,7 @@ def test_done_loader_adds_image_paths_to_extra_files(tmp_path: Path) -> None:
     duplicate = tmp_path / "duplicate.png"
     done = {
         "cl_name": "feature",
-        "project_file": "/tmp/project.gp",
+        "project_file": "/tmp/project.sase",
         "outcome": "completed",
         "plan_path": str(plan),
         "markdown_pdf_paths": [str(pdf), str(plan)],
@@ -48,14 +48,14 @@ def test_snapshot_done_loader_adds_image_paths_to_extra_files(tmp_path: Path) ->
     record = AgentArtifactRecordWire(
         project_name="myproj",
         project_dir=str(tmp_path / "myproj"),
-        project_file=str(tmp_path / "myproj" / "myproj.gp"),
+        project_file=str(tmp_path / "myproj" / "myproj.sase"),
         workflow_dir_name="ace-run",
         artifact_dir=str(tmp_path / "artifacts" / "ace-run" / "20260430120000"),
         timestamp="20260430120000",
         done=DoneMarkerWire(
             outcome="completed",
             cl_name="feature",
-            project_file="/tmp/project.gp",
+            project_file="/tmp/project.sase",
             plan_path=str(plan),
             markdown_pdf_paths=[str(pdf), str(plan)],
             image_paths=[str(image), str(plan), str(duplicate)],

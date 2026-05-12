@@ -29,7 +29,7 @@ def test_changespec_exists_no_project_file() -> None:
 
 def test_changespec_exists_multiple_changespecs() -> None:
     """Test changespec_exists finds NAME among multiple ChangeSpecs."""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".gp") as f:
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".sase") as f:
         f.write("")
         f.write("NAME: feature_a\n")
         f.write("DESCRIPTION:\n  Feature A\n")
@@ -218,7 +218,7 @@ def test_detect_parent_returns_branch_cl_when_changespec_exists() -> None:
         ),
         patch(
             "sase.workflows.utils.get_project_file_path",
-            return_value="/fake/proj.gp",
+            return_value="/fake/proj.sase",
         ),
         patch(
             "sase.workflows.utils.get_changespec_from_file",
@@ -253,7 +253,7 @@ def test_detect_parent_returns_none_when_no_changespec() -> None:
         ),
         patch(
             "sase.workflows.utils.get_project_file_path",
-            return_value="/fake/proj.gp",
+            return_value="/fake/proj.sase",
         ),
         patch(
             "sase.workflows.utils.get_changespec_from_file",
@@ -411,7 +411,7 @@ def test_resolvable_explicit_parent_is_kept() -> None:
 
 def test_append_commits_entry_uses_message_first_line(tmp_path: Path) -> None:
     """First line of commit message is used as the COMMITS entry text."""
-    project_file = tmp_path / "proj.gp"
+    project_file = tmp_path / "proj.sase"
     project_file.write_text(
         "NAME: my_branch\nDESCRIPTION:\n  desc\nCOMMITS:\nSTATUS: Pending\n"
     )
@@ -442,7 +442,7 @@ def test_append_commits_entry_returns_none_without_project_file() -> None:
 
 def test_append_commits_entry_returns_none_without_cl_name(tmp_path: Path) -> None:
     """Returns None when CL name cannot be resolved."""
-    project_file = tmp_path / "proj.gp"
+    project_file = tmp_path / "proj.sase"
     project_file.write_text("NAME: x\nSTATUS: Pending\n")
 
     assert (
@@ -455,7 +455,7 @@ def test_append_commits_entry_returns_none_without_cl_name(tmp_path: Path) -> No
 
 def test_append_commits_entry_includes_diff_path(tmp_path: Path) -> None:
     """Diff path captured pre-commit is included in the COMMITS entry."""
-    project_file = tmp_path / "proj.gp"
+    project_file = tmp_path / "proj.sase"
     project_file.write_text(
         "NAME: my_branch\nDESCRIPTION:\n  desc\nCOMMITS:\nSTATUS: Pending\n"
     )

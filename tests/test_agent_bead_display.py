@@ -130,7 +130,7 @@ def _write_project(tmp_path: Path, project_name: str) -> Path:
     project_dir.mkdir(parents=True)
     primary = tmp_path / "workspaces" / project_name
     (primary / "sdd/beads").mkdir(parents=True)
-    (project_dir / f"{project_name}.gp").write_text(f"WORKSPACE_DIR: {primary}\n")
+    (project_dir / f"{project_name}.sase").write_text(f"WORKSPACE_DIR: {primary}\n")
     return primary
 
 

@@ -1,4 +1,4 @@
-{"action": "JumpToChangeSpec", "action_data": {"changespec_name": "valid-full", "project_file": "/tmp/project.gp"}, "dismissed": false, "files": ["/tmp/full.py"], "id": "valid-full", "muted": true, "notes": ["full row", "all fields populated"], "read": true, "sender": "crs", "silent": true, "snooze_until": "2026-04-30T13:00:00+00:00", "timestamp": "2026-04-30T12:00:00+00:00"}
+{"action": "JumpToChangeSpec", "action_data": {"changespec_name": "valid-full", "project_file": "/tmp/project.sase"}, "dismissed": false, "files": ["/tmp/full.py"], "id": "valid-full", "muted": true, "notes": ["full row", "all fields populated"], "read": true, "sender": "crs", "silent": true, "snooze_until": "2026-04-30T13:00:00+00:00", "timestamp": "2026-04-30T12:00:00+00:00"}
 {"id": "legacy-minimal", "sender": "legacy", "timestamp": "2026-04-30T12:00:00+00:00"}
 {this is not valid json
 {"id": "missing-required", "timestamp": "2026-04-30T12:00:00+00:00"}

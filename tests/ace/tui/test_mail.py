@@ -18,7 +18,7 @@ def _make_changespec(**overrides: object) -> MagicMock:
     """Create a mock ChangeSpec with sensible defaults."""
     cs = MagicMock()
     cs.name = overrides.get("name", "CL-1")
-    cs.file_path = overrides.get("file_path", "/proj.gp")
+    cs.file_path = overrides.get("file_path", "/proj.sase")
     cs.project_basename = overrides.get("project_basename", "proj")
     cs.cl = overrides.get("cl", None)
     cs.parent = overrides.get("parent", None)
@@ -100,7 +100,7 @@ class TestMailExecuteTaskSuccess:
         mail_execute_task(cs, "/ws/100", 100)
 
         _patch_transition.assert_called_once_with(
-            "/proj.gp", "CL-1", "Mailed", validate=True
+            "/proj.sase", "CL-1", "Mailed", validate=True
         )
 
 
@@ -141,14 +141,14 @@ class TestMailExecuteTaskWorkspaceLifecycle:
         cs = _make_changespec()
         mail_execute_task(cs, "/ws/100", 100)
 
-        _patch_release.assert_called_once_with("/proj.gp", 100, "mail", "CL-1")
+        _patch_release.assert_called_once_with("/proj.sase", 100, "mail", "CL-1")
 
     def test_workspace_released_on_execute_mail_failure(self, _patch_release) -> None:
         with patch(_PATCH_EXECUTE_MAIL, return_value=False):
             cs = _make_changespec()
             mail_execute_task(cs, "/ws/100", 100)
 
-        _patch_release.assert_called_once_with("/proj.gp", 100, "mail", "CL-1")
+        _patch_release.assert_called_once_with("/proj.sase", 100, "mail", "CL-1")
 
     def test_workspace_released_on_exception(self, _patch_release) -> None:
         with patch(_PATCH_EXECUTE_MAIL, side_effect=Exception("boom")):
@@ -156,4 +156,4 @@ class TestMailExecuteTaskWorkspaceLifecycle:
             with pytest.raises(Exception, match="boom"):
                 mail_execute_task(cs, "/ws/100", 100)
 
-        _patch_release.assert_called_once_with("/proj.gp", 100, "mail", "CL-1")
+        _patch_release.assert_called_once_with("/proj.sase", 100, "mail", "CL-1")

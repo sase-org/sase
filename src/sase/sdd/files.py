@@ -256,10 +256,11 @@ def _resolve_primary_from_project(workspace_dir: str) -> str | None:
         if not project_name:
             return None
 
-        project_file = (
-            Path.home() / ".sase" / "projects" / project_name / f"{project_name}.gp"
-        )
-        primary = parse_workspace_dir(str(project_file))
+        from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
+        project_dir = Path.home() / ".sase" / "projects" / project_name
+        project_file = preferred_project_spec_path(str(project_dir), project_name)
+        primary = parse_workspace_dir(project_file)
         if not primary:
             return None
         return primary.rstrip("/")

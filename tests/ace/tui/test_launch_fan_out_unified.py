@@ -37,7 +37,7 @@ def _ctx() -> PromptContext:
     return PromptContext(
         project_name="proj",
         cl_name="cl",
-        project_file="/tmp/proj.gp",
+        project_file="/tmp/proj.sase",
         workspace_dir="/tmp/ws",
         workspace_num=1,
         workflow_name="ace(run)-ts",
@@ -370,7 +370,7 @@ def test_multi_model_launch_uses_canonical_multi_prompt_launcher() -> None:
     assert kwargs["segments"] == ["%model:a p", "%model:b p"]
     assert kwargs["local_xprompts"] == local_xprompts
     assert kwargs["cl_name"] == "cl"
-    assert kwargs["project_file"] == "/tmp/proj.gp"
+    assert kwargs["project_file"] == "/tmp/proj.sase"
     assert kwargs["project_name"] == "proj"
     assert kwargs["is_home_mode"] is False
     assert kwargs["vcs_ref"] == ("git", "proj")

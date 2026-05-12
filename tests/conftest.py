@@ -142,7 +142,7 @@ class _ChangeSpecFactory:
         status: str = "Ready",
         cl: str | None = None,
         parent: str | None = None,
-        file_path: str = "/home/user/.sase/projects/myproject/myproject.gp",
+        file_path: str = "/home/user/.sase/projects/myproject/myproject.sase",
         commits: list[CommitEntry] | None = None,
         hooks: list[HookEntry] | None = None,
         comments: list[CommentEntry] | None = None,
@@ -169,12 +169,12 @@ class _ChangeSpecFactory:
         status: str = "Mailed",
         parent: str | None = None,
     ) -> ChangeSpec:
-        """Create a ChangeSpec backed by a temporary .gp file on disk.
+        """Create a ChangeSpec backed by a temporary project spec file on disk.
 
         The caller is responsible for cleaning up the temp file via
         ``Path(cs.file_path).unlink()``.
         """
-        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".gp") as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".sase") as f:
             parent_val = parent if parent else "None"
             cl_val = cl if cl else "None"
             f.write(f"""# Test Project

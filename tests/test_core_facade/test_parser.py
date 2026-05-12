@@ -114,7 +114,7 @@ def test_parse_project_bytes_rust_error_surfaces(
     """A Rust-side ``ValueError`` propagates instead of silently falling back."""
 
     def boom(_path: str, _data: bytes) -> list[dict]:
-        raise ValueError("encoding: invalid UTF-8 (bad.gp)")
+        raise ValueError("encoding: invalid UTF-8 (bad.sase)")
 
     install_fake_rust_module(monkeypatch, boom)
 

@@ -47,7 +47,7 @@ def _make_mixin() -> RenameMixin:
 
 def _make_changespec(
     name: str = "old_cl",
-    file_path: str = "/tmp/proj.gp",
+    file_path: str = "/tmp/proj.sase",
     status: str = "WIP",
 ) -> MagicMock:
     cs = MagicMock()

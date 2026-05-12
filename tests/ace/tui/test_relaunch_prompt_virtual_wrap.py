@@ -31,7 +31,7 @@ def test_edit_and_relaunch_agent_preserves_raw_prompt_without_prettier(
 
     app._edit_and_relaunch_agent(
         raw_prompt,
-        "/tmp/project/project.gp",
+        "/tmp/project/project.sase",
         "branch",
         False,
     )

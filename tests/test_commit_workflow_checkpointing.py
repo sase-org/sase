@@ -311,7 +311,7 @@ def test_append_commits_entry_idempotent_with_expected_entry_id(
     """When the COMMITS drawer already has the entry, no new line is appended."""
     from sase.workflows.commit.commit_tracking import append_commits_entry
 
-    project_file = tmp_path / "proj.gp"
+    project_file = tmp_path / "proj.sase"
     initial = (
         "NAME: test-cl\n"
         "DESCRIPTION:\n  desc\n"
@@ -342,7 +342,7 @@ def test_append_commits_entry_appends_when_expected_entry_id_missing(
     """When the expected ID is not present, the entry is appended normally."""
     from sase.workflows.commit.commit_tracking import append_commits_entry
 
-    project_file = tmp_path / "proj.gp"
+    project_file = tmp_path / "proj.sase"
     project_file.write_text(
         "NAME: test-cl\nDESCRIPTION:\n  desc\nCOMMITS:\nSTATUS: Pending\n"
     )

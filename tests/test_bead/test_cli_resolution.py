@@ -47,7 +47,7 @@ def test_find_beads_location_non_vc_variant_workspace_maps_to_primary(
 
     primary = tmp_path / "workspaces" / "yserve_yp_last_conv" / "google3"
     primary.mkdir(parents=True)
-    (project_dir / f"{project_name}.gp").write_text(f"WORKSPACE_DIR: {primary}\n")
+    (project_dir / f"{project_name}.sase").write_text(f"WORKSPACE_DIR: {primary}\n")
     (primary / ".sase" / "sdd" / "beads").mkdir(parents=True)
 
     variant = tmp_path / "workspaces" / "yserve_101" / "google3"

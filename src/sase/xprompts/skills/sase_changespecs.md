@@ -2,7 +2,7 @@
 name: sase_changespecs
 description:
   Analyze and work with SASE ChangeSpecs. Use when inspecting CL/PR status, dependencies, commits, hooks, comments,
-  mentors, or `.gp` project files.
+  mentors, or `.sase` project files.
 skill: true
 ---
 
@@ -128,7 +128,8 @@ sase config mentor-match <name>
 ## Lifecycle
 
 `WIP -> Draft -> Ready -> Mailed -> Submitted`. `Submitted`, `Archived`, and `Reverted` are terminal — terminal specs
-live in `<project>-archive.gp`; active specs live in `<project>.gp` under `~/.sase/projects/<project>/`.
+live in `<project>-archive.sase`; active specs live in `<project>.sase` under `~/.sase/projects/<project>/`. Legacy
+`.gp` files from earlier releases remain readable until migrated via `sase changespec migrate-extension`.
 
 ## Safe modification rules
 
@@ -136,9 +137,9 @@ live in `<project>-archive.gp`; active specs live in `<project>.gp` under `~/.sa
   operations.
 - **Do not** set `PARENT` to a VCS ref like `origin/main`, `origin/master`, or `p4head`. `PARENT` must be another
   ChangeSpec name, or omitted.
-- Prefer `sase commit`, `sase revert <name>`, and `sase restore <name>` over direct `.gp` surgery for tracked workflow
+- Prefer `sase commit`, `sase revert <name>`, and `sase restore <name>` over direct `.sase` surgery for tracked workflow
   changes.
-- If you must edit a `.gp` file directly, preserve two blank lines between ChangeSpecs and 2-space indentation for
+- If you must edit a `.sase` file directly, preserve two blank lines between ChangeSpecs and 2-space indentation for
   multiline fields.
 
 ## Other useful forms
@@ -151,5 +152,5 @@ live in `<project>-archive.gp`; active specs live in `<project>.gp` under `~/.sa
 ## Implementation notes
 
 ChangeSpec sections: `NAME`, `DESCRIPTION`, `PARENT`, `CL` / `PR`, `BUG`, `TEST TARGETS`, `STATUS`, `COMMITS`,
-`TIMESTAMPS`, `HOOKS`, `COMMENTS`, `MENTORS`. Search reads both `<project>.gp` and `<project>-archive.gp`, so submitted
-and archived specs are reachable via the same queries.
+`TIMESTAMPS`, `HOOKS`, `COMMENTS`, `MENTORS`. Search reads both `<project>.sase` and `<project>-archive.sase` (and their
+legacy `.gp` siblings during the migration window), so submitted and archived specs are reachable via the same queries.

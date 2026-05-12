@@ -24,7 +24,7 @@ TEST TARGETS: None
 """
 
 
-def _create_test_project_file(status: str = "Ready", suffix: str = ".gp") -> str:
+def _create_test_project_file(status: str = "Ready", suffix: str = ".sase") -> str:
     """Create a temporary project file with a test ChangeSpec."""
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=suffix) as f:
         f.write(_CHANGESPEC_TEMPLATE.format(status=status))
@@ -124,8 +124,8 @@ def test_mailed_to_submitted_records_status_timestamp_in_archive() -> None:
 def test_submitted_to_wip_records_status_timestamp_in_main_file() -> None:
     """Submitted→WIP records STATUS timestamp after restoring from archive."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        main_file = os.path.join(tmpdir, "test.gp")
-        archive_file = os.path.join(tmpdir, "test-archive.gp")
+        main_file = os.path.join(tmpdir, "test.sase")
+        archive_file = os.path.join(tmpdir, "test-archive.sase")
 
         with open(main_file, "w") as f:
             f.write("# Test Project\n")
@@ -156,8 +156,8 @@ def test_submitted_to_wip_records_status_timestamp_in_main_file() -> None:
 def test_transition_from_archive_to_main() -> None:
     """Test moving a ChangeSpec from archive back to main file (validate=False)."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        main_file = os.path.join(tmpdir, "test.gp")
-        archive_file = os.path.join(tmpdir, "test-archive.gp")
+        main_file = os.path.join(tmpdir, "test.sase")
+        archive_file = os.path.join(tmpdir, "test-archive.sase")
 
         # Set up: main file is empty, ChangeSpec is in the archive with Submitted status
         with open(main_file, "w") as f:
@@ -212,7 +212,7 @@ def _create_project_file_with_multiple_changespecs(
     Returns:
         Path to the created project file.
     """
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".gp") as f:
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".sase") as f:
         f.write("# Test Project\n\n")
         for name, status, parent in changespecs:
             parent_val = parent if parent else "None"

@@ -114,7 +114,7 @@ def _make_agent(
     return Agent(
         agent_type=agent_type,
         cl_name=cl_name,
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status=status,
         start_time=datetime(2025, 6, 15, 10, 30, 0),
         raw_suffix=raw_suffix,

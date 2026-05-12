@@ -35,7 +35,7 @@ def _make_agent(**overrides: Any) -> Agent:
     defaults: dict[str, Any] = {
         "agent_type": AgentType.RUNNING,
         "cl_name": "my_cl",
-        "project_file": "/tmp/projects/myproj/myproj.gp",
+        "project_file": "/tmp/projects/myproj/myproj.sase",
         "status": "RUNNING",
         "start_time": _NOW - timedelta(hours=1),
     }
@@ -98,7 +98,7 @@ def test_cl_substring() -> None:
 
 
 def test_project_uses_basename_not_full_path() -> None:
-    agent = _make_agent(project_file="/tmp/projects/foo/foo.gp")
+    agent = _make_agent(project_file="/tmp/projects/foo/foo.sase")
     assert _eval("project:foo", agent)
     # The leading "tmp" is in the path but not in the basename, so no match.
     assert not _eval("project:tmp", agent)
@@ -292,7 +292,7 @@ def test_age_missing_start_time_always_false() -> None:
 
 
 def test_and_composition() -> None:
-    agent = _make_agent(status="FAILED", project_file="/tmp/x/foo/foo.gp")
+    agent = _make_agent(status="FAILED", project_file="/tmp/x/foo/foo.sase")
     assert _eval("status:failed AND project:foo", agent)
     assert not _eval("status:failed AND project:bar", agent)
 
@@ -303,9 +303,9 @@ def test_or_composition() -> None:
 
 
 def test_not_composition() -> None:
-    agent = _make_agent(project_file="/tmp/x/foo/foo.gp", cl_name="cl_zzz")
+    agent = _make_agent(project_file="/tmp/x/foo/foo.sase", cl_name="cl_zzz")
     assert _eval("NOT (project:foo OR cl:bar)", agent) is False
-    agent2 = _make_agent(project_file="/tmp/x/baz/baz.gp", cl_name="cl_zzz")
+    agent2 = _make_agent(project_file="/tmp/x/baz/baz.sase", cl_name="cl_zzz")
     assert _eval("NOT (project:foo OR cl:bar)", agent2) is True
 
 
@@ -387,7 +387,7 @@ def test_direct_ast_string_match() -> None:
 
 
 def test_direct_ast_and_or_not() -> None:
-    agent = _make_agent(status="FAILED", project_file="/x/foo/foo.gp")
+    agent = _make_agent(status="FAILED", project_file="/x/foo/foo.sase")
     expr = AndExpr(
         operands=[
             PropertyMatch(key="status", value="failed"),

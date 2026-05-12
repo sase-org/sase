@@ -45,7 +45,7 @@ class Agent:
 
     agent_type: AgentType
     cl_name: str  # ChangeSpec name
-    project_file: str  # Path to .gp file
+    project_file: str  # Path to project spec file
     status: str  # "RUNNING", etc.
     start_time: datetime | None  # Parsed from timestamp suffix
     run_start_time: datetime | None = (

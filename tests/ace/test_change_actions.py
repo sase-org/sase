@@ -8,7 +8,7 @@ from sase.ace.change_actions import delete_proposal_entry
 
 def testdelete_proposal_entry_file_not_found() -> None:
     """Test deleting from a non-existent file."""
-    result = delete_proposal_entry("/nonexistent/path/file.gp", "my_feature", 1, "a")
+    result = delete_proposal_entry("/nonexistent/path/file.sase", "my_feature", 1, "a")
     assert result is False
 
 
@@ -24,7 +24,7 @@ COMMITS:
   (1a) [fix]
       | DIFF: ~/.sase/diffs/b.diff
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(project_content)
         project_file = f.name
 

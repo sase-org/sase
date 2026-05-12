@@ -99,13 +99,13 @@ def test_build_agent_tree_by_date_drops_changespec_and_project_levels() -> None:
     """Two agents in the same date bucket from different projects share an L0."""
     a = _agent(
         cl_name="cl-a",
-        project_file="/r/projA/proj.gp",
+        project_file="/r/projA/proj.sase",
         agent_name="solo",
         start_time=datetime(2026, 4, 26, 9, 0, 0),
     )
     b = _agent(
         cl_name="cl-b",
-        project_file="/r/projB/proj.gp",
+        project_file="/r/projB/proj.sase",
         agent_name="solo",
         start_time=datetime(2026, 4, 26, 13, 0, 0),
     )

@@ -41,7 +41,7 @@ def test_agent_launch_schema_version_pinned() -> None:
 
 def test_workspace_claim_request_round_trips_json_shape() -> None:
     request = WorkspaceClaimRequestWire(
-        project_file="/tmp/project.gp",
+        project_file="/tmp/project.sase",
         workspace_num=2,
         workflow_name="ace(run)-260501_120000",
         pid=123,
@@ -52,7 +52,7 @@ def test_workspace_claim_request_round_trips_json_shape() -> None:
 
     payload = agent_launch_wire_to_json_dict(request)
     assert json.loads(json.dumps(payload)) == {
-        "project_file": "/tmp/project.gp",
+        "project_file": "/tmp/project.sase",
         "workspace_num": 2,
         "workflow_name": "ace(run)-260501_120000",
         "pid": 123,
@@ -71,7 +71,7 @@ def test_prepare_agent_launch_rust_writes_prompt_and_returns_process_shape(
     request = AgentLaunchRequestWire(
         schema_version=AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
         cl_name="feature/test",
-        project_file="/tmp/project.gp",
+        project_file="/tmp/project.sase",
         workspace_dir="/tmp/ws",
         workspace_num=4,
         workflow_name="ace(run)-260501_120000",
@@ -112,7 +112,7 @@ def test_prepare_agent_launch_rust_writes_prompt_and_returns_process_shape(
         "/venv/bin/python",
         "/repo/run_agent_runner.py",
         "feature/test",
-        "/tmp/project.gp",
+        "/tmp/project.sase",
         "/tmp/ws",
         prepared.output_path,
         "4",
@@ -141,7 +141,7 @@ def test_prepare_agent_launch_rust_deferred_vcs_env_and_home_claim(
     base = AgentLaunchRequestWire(
         schema_version=AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
         cl_name="home",
-        project_file="/tmp/home.gp",
+        project_file="/tmp/home.sase",
         workspace_dir="/home/me",
         workspace_num=9,
         workflow_name="ace(run)-260501_120000",

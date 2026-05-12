@@ -21,7 +21,7 @@ def _make_agent(**overrides: object) -> Agent:
     defaults: dict[str, object] = {
         "agent_type": AgentType.RUNNING,
         "cl_name": "test_cl",
-        "project_file": "/tmp/projects/myproj/myproj.gp",
+        "project_file": "/tmp/projects/myproj/myproj.sase",
         "status": "RUNNING",
         "start_time": datetime(2024, 1, 1, 14, 23, 45),
     }
@@ -124,7 +124,7 @@ class TestWorkflowChildResolution:
             raw_suffix="20240101142345",
             parent_workflow="deploy",
             parent_timestamp="20240101142345",
-            project_file=str(tmp_path / "projects" / "myproj" / "myproj.gp"),
+            project_file=str(tmp_path / "projects" / "myproj" / "myproj.sase"),
             step_name="make_changes",
         )
 
@@ -180,7 +180,7 @@ class TestProjectAgentNoMeta:
         """Project agent with no step_output returns None."""
         agent = _make_agent(
             cl_name="myproj",
-            project_file="/tmp/projects/myproj/myproj.gp",
+            project_file="/tmp/projects/myproj/myproj.sase",
         )
         app = FakeApp()
         assert app._resolve_agent_cl_name(agent) is None
@@ -189,7 +189,7 @@ class TestProjectAgentNoMeta:
         """Project agent with meta_changespec returns the ChangeSpec name."""
         agent = _make_agent(
             cl_name="myproj",
-            project_file="/tmp/projects/myproj/myproj.gp",
+            project_file="/tmp/projects/myproj/myproj.sase",
             step_output={"meta_changespec": "new_feature"},
         )
         app = FakeApp()
@@ -199,7 +199,7 @@ class TestProjectAgentNoMeta:
         """action_jump_to_agent_changespec shows notification for project agent."""
         agent = _make_agent(
             cl_name="myproj",
-            project_file="/tmp/projects/myproj/myproj.gp",
+            project_file="/tmp/projects/myproj/myproj.sase",
         )
         app = FakeApp(agents=[agent])
         app.action_jump_to_agent_changespec()
@@ -252,7 +252,7 @@ class TestFooterVisibility:
     def test_can_jump_false_for_project_agent_no_meta(self) -> None:
         agent = _make_agent(
             cl_name="myproj",
-            project_file="/tmp/projects/myproj/myproj.gp",
+            project_file="/tmp/projects/myproj/myproj.sase",
         )
         app = FakeApp()
         assert app._resolve_agent_cl_name(agent) is None
@@ -301,7 +301,9 @@ class TestNavigateToChangespecExactFirst:
             ]
         )
 
-        assert navigate_to_changespec_tab(app, "feature", "/tmp/projects/proj/proj.gp")
+        assert navigate_to_changespec_tab(
+            app, "feature", "/tmp/projects/proj/proj.sase"
+        )
         assert app.current_tab == "changespecs"
         assert app.current_idx == 1
         assert app.load_count == 0
@@ -309,7 +311,9 @@ class TestNavigateToChangespecExactFirst:
     def test_suffix_fallback_still_matches_when_exact_is_absent(self) -> None:
         app = FakeNavigationApp([build_changespec(name="feature_1")])
 
-        assert navigate_to_changespec_tab(app, "feature", "/tmp/projects/proj/proj.gp")
+        assert navigate_to_changespec_tab(
+            app, "feature", "/tmp/projects/proj/proj.sase"
+        )
         assert app.current_idx == 0
         assert app.load_count == 0
 
@@ -324,7 +328,7 @@ class TestNavigateToChangespecExactFirst:
 
         with patch("sase.ace.query_history.save_query_history", return_value=True):
             assert navigate_to_changespec_tab(
-                app, "feature", "/tmp/projects/myproj/myproj.gp"
+                app, "feature", "/tmp/projects/myproj/myproj.sase"
             )
 
         assert app.current_idx == 1

@@ -84,7 +84,7 @@ def test_action_kill_single_running_uses_cleanup_planner_before_confirm() -> Non
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow=None,
@@ -116,7 +116,7 @@ def test_action_kill_single_done_uses_planner_backed_dismiss() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="done_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=None,
         workflow=None,
@@ -140,7 +140,7 @@ def test_action_kill_single_pidless_running_is_planned_as_dismissable() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="pidless_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow=None,
@@ -205,7 +205,7 @@ def test_do_kill_agent_removes_in_memory_before_background_persistence() -> None
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="fix-hook",
@@ -272,7 +272,7 @@ def test_do_kill_agent_hook_persistence_runs_async() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="fix-hook",
@@ -323,7 +323,7 @@ def test_run_kill_persistence_does_not_refresh_on_success() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="fix-hook",
@@ -378,7 +378,7 @@ def test_run_kill_persistence_refreshes_on_failure() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="fix-hook",

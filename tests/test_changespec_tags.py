@@ -23,7 +23,7 @@ def _cs(
         cl=None,
         status=status,
         test_targets=None,
-        file_path=f"/home/user/.sase/projects/{project}/{project}{suffix}.gp",
+        file_path=f"/home/user/.sase/projects/{project}/{project}{suffix}.sase",
         line_number=1,
     )
 
@@ -123,7 +123,7 @@ def test_filters_by_exact_project_before_workflow_detection(
     listing = list_changespec_xprompt_tags("target")
 
     assert [entry.name for entry in listing.entries] == ["keep"]
-    assert seen_files == ["/home/user/.sase/projects/target/target.gp"]
+    assert seen_files == ["/home/user/.sase/projects/target/target.sase"]
 
 
 def test_detects_workflow_using_main_file_for_archive_changespec(
@@ -144,7 +144,7 @@ def test_detects_workflow_using_main_file_for_archive_changespec(
     listing = list_changespec_xprompt_tags()
 
     assert [entry.tag for entry in listing.entries] == ["#git:active-in-archive"]
-    assert seen_files == ["/home/user/.sase/projects/proj/proj.gp"]
+    assert seen_files == ["/home/user/.sase/projects/proj/proj.sase"]
 
 
 def test_records_workflow_detection_failure_and_keeps_other_entries(

@@ -15,7 +15,7 @@ def _make_changespec(**kwargs: object) -> ChangeSpec:
         "cl": None,
         "status": "Ready",
         "test_targets": None,
-        "file_path": "/path/to/project.gp",
+        "file_path": "/path/to/project.sase",
         "line_number": 1,
     }
     defaults.update(kwargs)

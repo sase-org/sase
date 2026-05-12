@@ -10,7 +10,7 @@ def _make_agent(**overrides) -> Agent:  # type: ignore[no-untyped-def]
     defaults = {
         "agent_type": AgentType.RUNNING,
         "cl_name": "proj_feat_1",
-        "project_file": "/fake/proj.gp",
+        "project_file": "/fake/proj.sase",
         "status": "DONE",
         "start_time": datetime(2026, 1, 1, 12, 0, 0),
     }

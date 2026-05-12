@@ -38,7 +38,7 @@ def test_execute_single_launch_plan_uses_preallocated_context_and_timestamp() ->
         plan_fake_fanout("single", ["do work"]),
         LaunchExecutionContext(
             cl_name="change",
-            project_file="/project.gp",
+            project_file="/project.sase",
             project_name="project",
             update_target="p4head",
             history_sort_key="change",
@@ -54,7 +54,7 @@ def test_execute_single_launch_plan_uses_preallocated_context_and_timestamp() ->
     assert execution.results[0].timestamp == "ts"
     assert requests[0].as_spawn_kwargs() == {
         "cl_name": "change",
-        "project_file": "/project.gp",
+        "project_file": "/project.sase",
         "workspace_dir": "/workspace/7",
         "workspace_num": 7,
         "workflow_name": "ace(run)-ts",
@@ -98,7 +98,7 @@ def test_execute_fanout_plan_allocates_workspace_per_slot_and_merges_env() -> No
             plan,
             LaunchExecutionContext(
                 cl_name="change",
-                project_file="/project.gp",
+                project_file="/project.sase",
                 project_name="project",
                 vcs_ref=("git", "change"),
             ),
@@ -165,7 +165,7 @@ def test_workspace_claim_failure_retries_with_new_allocation(
             plan,
             LaunchExecutionContext(
                 cl_name="change",
-                project_file="/project.gp",
+                project_file="/project.sase",
                 project_name="project",
             ),
             spawn=_spawn,
@@ -211,7 +211,7 @@ def test_workspace_claim_retry_exhaustion_raises_clear_error(
                 plan_fake_fanout("single", ["do work"]),
                 LaunchExecutionContext(
                     cl_name="change",
-                    project_file="/project.gp",
+                    project_file="/project.sase",
                     project_name="project",
                 ),
                 spawn=lambda _request: (_ for _ in ()).throw(
@@ -230,7 +230,7 @@ def test_workspace_claim_retry_exhaustion_raises_clear_error(
         (
             LaunchExecutionContext(
                 cl_name="change",
-                project_file="/project.gp",
+                project_file="/project.sase",
                 project_name="project",
                 workspace_num=7,
                 workspace_dir="/workspace/7",
@@ -242,7 +242,7 @@ def test_workspace_claim_retry_exhaustion_raises_clear_error(
         (
             LaunchExecutionContext(
                 cl_name="home",
-                project_file="/home.gp",
+                project_file="/home.sase",
                 project_name="home",
                 is_home_mode=True,
                 workspace_num=0,
@@ -254,7 +254,7 @@ def test_workspace_claim_retry_exhaustion_raises_clear_error(
         (
             LaunchExecutionContext(
                 cl_name="change",
-                project_file="/project.gp",
+                project_file="/project.sase",
                 project_name="project",
                 deferred_workspace=True,
             ),

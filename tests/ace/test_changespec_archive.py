@@ -149,8 +149,8 @@ DESCRIPTION:
 STATUS: Submitted
 """
     with tempfile.TemporaryDirectory() as tmpdir:
-        main_file = os.path.join(tmpdir, "test.gp")
-        archive_file = os.path.join(tmpdir, "test-archive.gp")
+        main_file = os.path.join(tmpdir, "test.sase")
+        archive_file = os.path.join(tmpdir, "test-archive.sase")
 
         with open(main_file, "w") as f:
             f.write(main_content)
@@ -185,8 +185,8 @@ DESCRIPTION:
 STATUS: Draft
 """
     with tempfile.TemporaryDirectory() as tmpdir:
-        main_file = os.path.join(tmpdir, "test.gp")
-        archive_file = os.path.join(tmpdir, "test-archive.gp")
+        main_file = os.path.join(tmpdir, "test.sase")
+        archive_file = os.path.join(tmpdir, "test-archive.sase")
 
         with open(main_file, "w") as f:
             f.write(main_content)
@@ -216,8 +216,8 @@ DESCRIPTION:
 STATUS: Submitted
 """
     with tempfile.TemporaryDirectory() as tmpdir:
-        main_file = os.path.join(tmpdir, "test.gp")
-        archive_file = os.path.join(tmpdir, "test-archive.gp")
+        main_file = os.path.join(tmpdir, "test.sase")
+        archive_file = os.path.join(tmpdir, "test-archive.sase")
 
         with open(main_file, "w") as f:
             f.write(main_content)
@@ -236,8 +236,8 @@ STATUS: Submitted
 def test_move_changespec_not_found() -> None:
     """Test move returns False when ChangeSpec is not in source."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        main_file = os.path.join(tmpdir, "test.gp")
-        archive_file = os.path.join(tmpdir, "test-archive.gp")
+        main_file = os.path.join(tmpdir, "test.sase")
+        archive_file = os.path.join(tmpdir, "test-archive.sase")
 
         with open(main_file, "w") as f:
             f.write("NAME: other\nDESCRIPTION:\n  x\nSTATUS: WIP\n")
@@ -263,16 +263,16 @@ STATUS: Submitted
         project_dir = os.path.join(tmpdir, "myproj")
         os.makedirs(project_dir)
 
-        with open(os.path.join(project_dir, "myproj.gp"), "w") as f:
+        with open(os.path.join(project_dir, "myproj.sase"), "w") as f:
             f.write(main_content)
-        with open(os.path.join(project_dir, "myproj-archive.gp"), "w") as f:
+        with open(os.path.join(project_dir, "myproj-archive.sase"), "w") as f:
             f.write(archive_content)
 
         # The function looks for ~/.sase/projects, so create the structure
         sase_projects_dir = Path(tmpdir) / ".sase" / "projects" / "myproj"
         sase_projects_dir.mkdir(parents=True)
-        (sase_projects_dir / "myproj.gp").write_text(main_content)
-        (sase_projects_dir / "myproj-archive.gp").write_text(archive_content)
+        (sase_projects_dir / "myproj.sase").write_text(main_content)
+        (sase_projects_dir / "myproj-archive.sase").write_text(archive_content)
 
         with patch("pathlib.Path.home", return_value=Path(tmpdir)):
             from sase.ace.changespec import find_all_changespecs
@@ -287,7 +287,7 @@ STATUS: Submitted
 def test_project_basename_for_archive_file() -> None:
     """Test that project_basename strips -archive from the file path."""
     with tempfile.NamedTemporaryFile(
-        mode="w", suffix="-archive.gp", delete=False, prefix="myproj"
+        mode="w", suffix="-archive.sase", delete=False, prefix="myproj"
     ) as f:
         f.write("NAME: test_cl\nDESCRIPTION:\n  Test\nSTATUS: Submitted\n")
         archive_file = f.name

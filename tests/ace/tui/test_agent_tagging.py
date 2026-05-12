@@ -18,7 +18,7 @@ def _make_agent(suffix: str = "20240101120000", **overrides: object) -> Agent:
     defaults: dict[str, object] = {
         "agent_type": AgentType.RUNNING,
         "cl_name": "fix-bug",
-        "project_file": "/tmp/projects/myproj/myproj.gp",
+        "project_file": "/tmp/projects/myproj/myproj.sase",
         "status": "RUNNING",
         "start_time": datetime(2024, 1, 1, 12, 0, 0),
         "raw_suffix": suffix,

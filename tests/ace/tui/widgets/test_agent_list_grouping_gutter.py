@@ -19,7 +19,7 @@ def test_l0_banner_carries_no_tier_gutter() -> None:
     """Project banner is the top tier and renders flush at column 0."""
     widget = AgentList()
     widget.update_list(
-        [make_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.gp")],
+        [make_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.sase")],
         current_idx=0,
     )
     options = list(widget._options)
@@ -32,7 +32,7 @@ def test_changespec_banner_carries_one_project_gutter_segment() -> None:
     """L1 ChangeSpec banner threads a single project-blue gutter segment."""
     widget = AgentList()
     widget.update_list(
-        [make_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.gp")],
+        [make_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.sase")],
         current_idx=0,
     )
     options = list(widget._options)
@@ -48,7 +48,7 @@ def test_changespec_banner_uses_light_rule() -> None:
     """L1 ChangeSpec rule is the light ``─`` so weight matches L2 name-roots."""
     widget = AgentList()
     widget.update_list(
-        [make_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.gp")],
+        [make_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.sase")],
         current_idx=0,
     )
     options = list(widget._options)

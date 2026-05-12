@@ -18,7 +18,7 @@ def test_pid_dedup_safety_net() -> None:
     workflow_agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="some-workflow",
@@ -30,7 +30,7 @@ def test_pid_dedup_safety_net() -> None:
     running_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="some-other-workflow",
@@ -96,7 +96,7 @@ def test_pid_dedup_safety_net_works_on_review_agents() -> None:
     fix_hook_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="fix-hook",
@@ -110,7 +110,7 @@ def test_pid_dedup_safety_net_works_on_review_agents() -> None:
     vcs_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="hg-my_feature",
@@ -181,7 +181,7 @@ def test_pid_dedup_preserves_followup_workflow_agents() -> None:
     plan_agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="sase",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 3, 15, 21, 32, 15),
         workflow="sase",
@@ -194,7 +194,7 @@ def test_pid_dedup_preserves_followup_workflow_agents() -> None:
     code_agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="sase",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 3, 15, 21, 45, 30),
         workflow="sase",
@@ -259,7 +259,7 @@ def test_pid_reuse_keeps_both_running_agents_with_different_suffix() -> None:
     agent_a = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="fix_just",
@@ -270,7 +270,7 @@ def test_pid_reuse_keeps_both_running_agents_with_different_suffix() -> None:
     agent_b = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="user-run",
@@ -329,7 +329,7 @@ def test_pid_reuse_merges_running_agents_with_same_suffix() -> None:
     agent_a = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="fix_just",
@@ -340,7 +340,7 @@ def test_pid_reuse_merges_running_agents_with_same_suffix() -> None:
     agent_b = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="fix_just",
@@ -399,7 +399,7 @@ def test_pid_reuse_merges_running_agents_with_missing_suffix() -> None:
     agent_a = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="fix_just",
@@ -410,7 +410,7 @@ def test_pid_reuse_merges_running_agents_with_missing_suffix() -> None:
     agent_b = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="fix_just",

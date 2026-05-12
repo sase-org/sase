@@ -194,7 +194,7 @@ def test_kill_and_persist_with_running_hooks(
     log_messages: list[str] = []
     kill_and_persist_all_running_processes(
         changespec,
-        "/fake/project.gp",
+        "/fake/project.sase",
         "test_cl",
         "Killed for test",
         log_fn=log_messages.append,
@@ -204,7 +204,7 @@ def test_kill_and_persist_with_running_hooks(
         [hook], [(hook, status_line, 12345)], "Killed for test"
     )
     mock_update_hooks.assert_called_once_with(
-        "/fake/project.gp", "test_cl", updated_hooks
+        "/fake/project.sase", "test_cl", updated_hooks
     )
     assert any("hook process" in msg for msg in log_messages)
 
@@ -249,7 +249,7 @@ def test_kill_and_persist_with_running_agents(
     changespec.mentors = None
 
     kill_and_persist_all_running_processes(
-        changespec, "/fake/project.gp", "test_cl", "Killed for test"
+        changespec, "/fake/project.sase", "test_cl", "Killed for test"
     )
 
     mock_mark_hook_agents.assert_called_once()

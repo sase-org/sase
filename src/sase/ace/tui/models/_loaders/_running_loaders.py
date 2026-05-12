@@ -1,7 +1,8 @@
 """Loaders for running agents (RUNNING field claims and home-mode ``running.json``).
 
-Discovers project ``.gp`` files, builds Agent records from active workspace
-claims, and surfaces home-mode ace agents from filesystem markers or
+Discovers project spec files (canonical ``.sase`` with legacy ``.gp``
+fallback), builds Agent records from active workspace claims, and
+surfaces home-mode ace agents from filesystem markers or
 :class:`AgentArtifactScanWire` snapshots.
 """
 

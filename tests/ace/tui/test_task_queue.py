@@ -17,18 +17,18 @@ from sase.ace.tui.task_queue import TaskInfo, TaskQueue, capture_output
 class TestTaskQueueSubmit:
     def test_submit_creates_running_task(self) -> None:
         q = TaskQueue()
-        info = q.submit("sync", "CL-1", "/proj.gp")
+        info = q.submit("sync", "CL-1", "/proj.sase")
 
         assert info.status == "running"
         assert info.task_type == "sync"
         assert info.cl_name == "CL-1"
-        assert info.project_file == "/proj.gp"
+        assert info.project_file == "/proj.sase"
         assert info.finished_at is None
 
     def test_submit_generates_unique_ids(self) -> None:
         q = TaskQueue()
-        a = q.submit("sync", "CL-1", "/proj.gp")
-        b = q.submit("mail", "CL-2", "/proj.gp")
+        a = q.submit("sync", "CL-1", "/proj.sase")
+        b = q.submit("mail", "CL-2", "/proj.sase")
         assert a.task_id != b.task_id
 
 
@@ -40,7 +40,7 @@ class TestTaskQueueSubmit:
 class TestTaskQueueComplete:
     def test_complete_success(self) -> None:
         q = TaskQueue()
-        info = q.submit("sync", "CL-1", "/proj.gp")
+        info = q.submit("sync", "CL-1", "/proj.sase")
         q.complete(info.task_id, success=True, message="ok", output="log")
 
         assert info.status == "success"
@@ -51,7 +51,7 @@ class TestTaskQueueComplete:
 
     def test_complete_error(self) -> None:
         q = TaskQueue()
-        info = q.submit("sync", "CL-1", "/proj.gp")
+        info = q.submit("sync", "CL-1", "/proj.sase")
         q.complete(
             info.task_id,
             success=False,
@@ -77,18 +77,18 @@ class TestTaskQueueComplete:
 class TestTaskQueueDedup:
     def test_returns_running_task(self) -> None:
         q = TaskQueue()
-        info = q.submit("sync", "CL-1", "/proj.gp")
+        info = q.submit("sync", "CL-1", "/proj.sase")
         assert q.get_running_for_cl("CL-1") is info
 
     def test_returns_none_after_completion(self) -> None:
         q = TaskQueue()
-        info = q.submit("sync", "CL-1", "/proj.gp")
+        info = q.submit("sync", "CL-1", "/proj.sase")
         q.complete(info.task_id, success=True, message="ok", output="")
         assert q.get_running_for_cl("CL-1") is None
 
     def test_returns_none_for_different_cl(self) -> None:
         q = TaskQueue()
-        q.submit("sync", "CL-1", "/proj.gp")
+        q.submit("sync", "CL-1", "/proj.sase")
         assert q.get_running_for_cl("CL-2") is None
 
 
@@ -100,15 +100,15 @@ class TestTaskQueueDedup:
 class TestTaskQueueGetAllRemove:
     def test_get_all_returns_newest_first(self) -> None:
         q = TaskQueue()
-        a = q.submit("sync", "CL-1", "/proj.gp")
-        b = q.submit("mail", "CL-2", "/proj.gp")
+        a = q.submit("sync", "CL-1", "/proj.sase")
+        b = q.submit("mail", "CL-2", "/proj.sase")
         result = q.get_all()
         assert result[0].task_id == b.task_id
         assert result[1].task_id == a.task_id
 
     def test_remove(self) -> None:
         q = TaskQueue()
-        info = q.submit("sync", "CL-1", "/proj.gp")
+        info = q.submit("sync", "CL-1", "/proj.sase")
         q.remove(info.task_id)
         assert q.get_all() == []
 
@@ -129,7 +129,7 @@ class TestTaskQueueThreadSafety:
         lock = threading.Lock()
 
         def worker(i: int) -> None:
-            info = q.submit("sync", f"CL-{i}", "/proj.gp")
+            info = q.submit("sync", f"CL-{i}", "/proj.sase")
             with lock:
                 results.append(info)
 

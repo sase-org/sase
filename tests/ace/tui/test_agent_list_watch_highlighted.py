@@ -96,8 +96,8 @@ def test_update_highlight_scrolls_to_agent_row() -> None:
     widget = AgentList()
     widget.update_list(
         [
-            make_agent(cl_name="a", project_file="/r/projA/proj.gp"),
-            make_agent(cl_name="b", project_file="/r/projB/proj.gp"),
+            make_agent(cl_name="a", project_file="/r/projA/proj.sase"),
+            make_agent(cl_name="b", project_file="/r/projB/proj.sase"),
         ],
         current_idx=0,
     )
@@ -122,8 +122,8 @@ def test_update_highlight_scrolls_to_collapsed_banner_row() -> None:
     widget = AgentList()
     widget.update_list(
         [
-            make_agent(cl_name="a", project_file="/r/projA/proj.gp"),
-            make_agent(cl_name="b", project_file="/r/projB/proj.gp"),
+            make_agent(cl_name="a", project_file="/r/projA/proj.sase"),
+            make_agent(cl_name="b", project_file="/r/projB/proj.sase"),
         ],
         current_idx=0,
         fold_registry=registry,
@@ -154,8 +154,8 @@ def test_update_list_scrolls_to_restored_highlight() -> None:
 
     widget.update_list(
         [
-            make_agent(cl_name="a", project_file="/r/projA/proj.gp"),
-            make_agent(cl_name="b", project_file="/r/projB/proj.gp"),
+            make_agent(cl_name="a", project_file="/r/projA/proj.sase"),
+            make_agent(cl_name="b", project_file="/r/projB/proj.sase"),
         ],
         current_idx=1,
     )
@@ -174,8 +174,8 @@ def test_programmatic_highlight_updates_do_not_post_option_highlighted() -> None
     widget.post_message = _post_message  # type: ignore[method-assign]
     widget.update_list(
         [
-            make_agent(cl_name="a", project_file="/r/projA/proj.gp"),
-            make_agent(cl_name="b", project_file="/r/projB/proj.gp"),
+            make_agent(cl_name="a", project_file="/r/projA/proj.sase"),
+            make_agent(cl_name="b", project_file="/r/projB/proj.sase"),
         ],
         current_idx=0,
     )

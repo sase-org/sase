@@ -37,7 +37,7 @@ def _make_agent(
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="demo",
-        project_file="/tmp/p.gp",
+        project_file="/tmp/p.sase",
         status="RUNNING",
         start_time=datetime(2026, 4, 23, 14, 0, 0),
         raw_suffix=raw_suffix,
@@ -166,7 +166,7 @@ def test_update_list_skips_attempt_rows_for_workflow_children() -> None:
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="pat_fix_far_past_1",
-        project_file="/tmp/p.gp",
+        project_file="/tmp/p.sase",
         status="RUNNING",
         start_time=datetime(2026, 4, 23, 14, 28, 6),
         raw_suffix=raw_suffix,
@@ -176,7 +176,7 @@ def test_update_list_skips_attempt_rows_for_workflow_children() -> None:
     child = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="main",
-        project_file="/tmp/p.gp",
+        project_file="/tmp/p.sase",
         status="RUNNING",
         start_time=datetime(2026, 4, 23, 14, 28, 6),
         raw_suffix=raw_suffix,

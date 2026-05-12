@@ -34,7 +34,7 @@ class FakeApp:
 def _notification(
     *,
     changespec_name: str = "cl-1",
-    project_file: str = "/proj.gp",
+    project_file: str = "/proj.sase",
     entry_id: str = "1",
 ) -> Notification:
     return Notification(
@@ -90,7 +90,7 @@ def _no_status_entry(entry_id: str = "1") -> MentorEntry:
 
 def test_opens_mentor_review_when_comments_exist() -> None:
     cs = build_changespec(
-        file_path="/proj.gp", name="cl-1", mentors=[_commented_entry("1")]
+        file_path="/proj.sase", name="cl-1", mentors=[_commented_entry("1")]
     )
     app = FakeApp(changespecs=[cs])
     with patch(
@@ -107,7 +107,7 @@ def test_opens_mentor_review_when_comments_exist() -> None:
 
 def test_does_not_open_modal_when_passed_only() -> None:
     cs = build_changespec(
-        file_path="/proj.gp", name="cl-1", mentors=[_passed_entry("1")]
+        file_path="/proj.sase", name="cl-1", mentors=[_passed_entry("1")]
     )
     app = FakeApp(changespecs=[cs])
     with patch(
@@ -124,7 +124,7 @@ def test_does_not_open_modal_when_passed_only() -> None:
 
 def test_does_not_open_modal_when_no_status_lines() -> None:
     cs = build_changespec(
-        file_path="/proj.gp", name="cl-1", mentors=[_no_status_entry("1")]
+        file_path="/proj.sase", name="cl-1", mentors=[_no_status_entry("1")]
     )
     app = FakeApp(changespecs=[cs])
     with patch(
@@ -138,7 +138,7 @@ def test_does_not_open_modal_when_no_status_lines() -> None:
 
 def test_does_not_open_modal_when_navigation_fails() -> None:
     cs = build_changespec(
-        file_path="/proj.gp", name="cl-1", mentors=[_commented_entry("1")]
+        file_path="/proj.sase", name="cl-1", mentors=[_commented_entry("1")]
     )
     app = FakeApp(changespecs=[cs])
     with patch(
@@ -152,7 +152,7 @@ def test_does_not_open_modal_when_navigation_fails() -> None:
 
 def test_does_not_open_modal_when_entry_id_not_found() -> None:
     cs = build_changespec(
-        file_path="/proj.gp", name="cl-1", mentors=[_commented_entry("2")]
+        file_path="/proj.sase", name="cl-1", mentors=[_commented_entry("2")]
     )
     app = FakeApp(changespecs=[cs])
     with patch(
@@ -171,7 +171,7 @@ def test_returns_false_when_changespec_name_missing() -> None:
         timestamp="2025-01-01T00:00:00",
         sender="mentors",
         action="JumpToMentorReview",
-        action_data={"project_file": "/proj.gp", "entry_id": "1"},
+        action_data={"project_file": "/proj.sase", "entry_id": "1"},
     )
     ok = handle_jump_to_mentor_review(app, notification)
     assert ok is False

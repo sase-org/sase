@@ -51,7 +51,7 @@ def make_agent(
     return Agent(
         agent_type=agent_type,
         cl_name=cl_name,
-        project_file="/tmp/projects/startup/startup.gp",
+        project_file="/tmp/projects/startup/startup.sase",
         status=status,
         start_time=start_time,
         raw_suffix=raw_suffix,

@@ -14,7 +14,7 @@ from sase.ace.deltas import (
 
 def _write_tmp(contents: str) -> str:
     with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".gp", delete=False, encoding="utf-8"
+        mode="w", suffix=".sase", delete=False, encoding="utf-8"
     ) as f:
         f.write(contents)
         f.flush()

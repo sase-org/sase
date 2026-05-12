@@ -177,7 +177,7 @@ def navigate_to_changespec_tab(
     Args:
         app: The AceApp instance.
         changespec_name: The name of the ChangeSpec to navigate to.
-        project_file: Path to the .gp project file (used to derive project name).
+        project_file: Path to the project spec file (used to derive project name).
 
     Returns:
         True if the changespec was found and selected.

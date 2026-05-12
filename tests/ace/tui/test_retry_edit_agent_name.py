@@ -15,7 +15,7 @@ from sase.ace.tui.actions.agent_workflow._entry_points import (
 class _Agent:
     raw_prompt: str | None
     agent_name: str | None = "foo"
-    project_file: str = "/tmp/proj/proj.gp"
+    project_file: str = "/tmp/proj/proj.sase"
     cl_name: str = "branch"
     is_project_agent: bool = False
 
@@ -83,7 +83,7 @@ def test_retry_edit_agent_prepends_allocated_retry_name(
 
     assert app.launched == (
         "%name:foo.1\nDo work",
-        "/tmp/proj/proj.gp",
+        "/tmp/proj/proj.sase",
         "branch",
         False,
     )
@@ -98,6 +98,6 @@ def test_retry_edit_agent_preserves_unnamed_agent_prompt(
 
     app._retry_edit_agent()
 
-    assert app.launched == ("Do work", "/tmp/proj/proj.gp", "branch", False)
+    assert app.launched == ("Do work", "/tmp/proj/proj.sase", "branch", False)
     assert app.notifications == []
     assert not mock_allocate.called

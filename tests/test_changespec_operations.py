@@ -25,7 +25,7 @@ HOOKS:
   sase_hg_lint
   bb_rabbit_test //foo:parent_test
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(parent_content)
         project_file = f.name
 
@@ -81,7 +81,7 @@ BUG: http://b/12345678
 CL: http://cl/11111
 STATUS: Draft
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(parent_content)
         project_file = f.name
 
@@ -115,7 +115,7 @@ def test_compute_suffixed_cl_name_basic() -> None:
     """Test compute_suffixed_cl_name returns suffixed name."""
     # Project file with one existing ChangeSpec (already prefixed)
     content = "NAME: test_project_eval_foobar_1\nSTATUS: Draft\n"
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         project_file = f.name
 
@@ -135,7 +135,7 @@ def test_compute_suffixed_cl_name_basic() -> None:
 
 def test_compute_suffixed_cl_name_no_existing() -> None:
     """Test compute_suffixed_cl_name starts at _1 when no existing names."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("")
         project_file = f.name
 
@@ -155,7 +155,7 @@ def test_compute_suffixed_cl_name_no_project_file() -> None:
     with (
         patch(
             "sase.workflows.commit.changespec_operations.get_project_file_path",
-            return_value="/nonexistent/path.gp",
+            return_value="/nonexistent/path.sase",
         ),
         patch(
             "sase.workflows.commit.changespec_operations.os.path.isfile",
@@ -172,7 +172,7 @@ def test_compute_suffixed_cl_name_no_project_file() -> None:
 
 def test_add_changespec_initial_commit_plan_drawer() -> None:
     """Plan path in position 5 of initial_commits tuple emits PLAN drawer."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("")
         project_file = f.name
 
@@ -212,7 +212,7 @@ def test_add_changespec_initial_commit_plan_drawer() -> None:
 
 def test_add_changespec_initial_commit_no_plan_drawer() -> None:
     """4-element tuple (no plan_path) does not emit PLAN drawer."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("")
         project_file = f.name
 
@@ -245,7 +245,7 @@ def test_add_changespec_initial_commit_no_plan_drawer() -> None:
 
 def test_add_changespec_initial_commits_creates_timestamps() -> None:
     """ChangeSpec with initial_commits includes a TIMESTAMPS section with COMMIT entries."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("")
         project_file = f.name
 
@@ -279,7 +279,7 @@ def test_add_changespec_initial_commits_creates_timestamps() -> None:
 
 def test_add_changespec_initial_commits_multiple_timestamps() -> None:
     """Multiple initial commits produce multiple COMMIT timestamp lines in order."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("")
         project_file = f.name
 
@@ -326,7 +326,7 @@ def test_add_changespec_initial_commits_multiple_timestamps() -> None:
 
 def test_add_changespec_no_commits_no_timestamps() -> None:
     """ChangeSpec without initial_commits has no TIMESTAMPS section."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("")
         project_file = f.name
 
@@ -354,7 +354,7 @@ def test_add_changespec_no_commits_no_timestamps() -> None:
 
 def test_add_changespec_no_parent_bug_inherited_when_no_parent() -> None:
     """Test that no BUG is inherited when there's no parent."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("")
         project_file = f.name
 
@@ -385,7 +385,7 @@ def test_add_changespec_no_parent_bug_inherited_when_no_parent() -> None:
 
 def test_reservation_replaced_by_add_changespec() -> None:
     """Reservation created by compute_suffixed_cl_name is replaced by add_changespec."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("")
         project_file = f.name
 
@@ -434,7 +434,7 @@ def test_reservation_replaced_by_add_changespec() -> None:
 
 def test_remove_reservation_cleans_up_stub() -> None:
     """remove_reservation correctly removes a Reserved stub from the project file."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("")
         project_file = f.name
 
@@ -468,7 +468,7 @@ def test_remove_reservation_cleans_up_stub() -> None:
 
 def test_suffix_slot_reused_after_reservation_cleanup() -> None:
     """After removing a reservation, compute_suffixed_cl_name reuses the same suffix."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("")
         project_file = f.name
 
@@ -497,7 +497,7 @@ def test_suffix_slot_reused_after_reservation_cleanup() -> None:
 
 def test_compute_suffixed_cl_name_adds_project_prefix() -> None:
     """compute_suffixed_cl_name prepends project prefix when missing."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("")
         project_file = f.name
 
@@ -514,7 +514,7 @@ def test_compute_suffixed_cl_name_adds_project_prefix() -> None:
 
 def test_compute_suffixed_cl_name_no_double_prefix() -> None:
     """compute_suffixed_cl_name does not double-prefix when already present."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("")
         project_file = f.name
 
@@ -536,7 +536,7 @@ def test_add_changespec_drops_parent_when_not_found_anywhere() -> None:
     string) would be written verbatim into the generated ChangeSpec. Now the
     PARENT line is omitted entirely when the parent does not resolve.
     """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("")
         project_file = f.name
 
@@ -572,10 +572,10 @@ def test_add_changespec_drops_parent_when_not_found_anywhere() -> None:
 
 def test_add_changespec_keeps_parent_when_in_archive() -> None:
     """Parent in the archive (terminal CS) is valid — PARENT line is kept."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("")
         project_file = f.name
-    archive_file = project_file[:-3] + "-archive.gp"
+    archive_file = project_file[:-5] + "-archive.sase"
     with open(archive_file, "w", encoding="utf-8") as f:
         f.write(
             "NAME: submitted_parent\n"
@@ -615,7 +615,7 @@ def test_add_changespec_keeps_real_active_parent() -> None:
         "CL: http://cl/11111\n"
         "STATUS: Draft\n"
     )
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(parent_content)
         project_file = f.name
 

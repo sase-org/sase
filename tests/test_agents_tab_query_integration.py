@@ -27,7 +27,7 @@ def _make_agent(**overrides: Any) -> Agent:
     defaults: dict[str, Any] = {
         "agent_type": AgentType.RUNNING,
         "cl_name": "my_cl",
-        "project_file": "/tmp/projects/myproj/myproj.gp",
+        "project_file": "/tmp/projects/myproj/myproj.sase",
         "status": "RUNNING",
         "start_time": _NOW,
     }

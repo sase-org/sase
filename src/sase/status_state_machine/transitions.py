@@ -171,7 +171,7 @@ def transition_changespec_status_python(
     elif plan.suffix_action != SUFFIX_ACTION_NONE:
         raise ValueError(f"unexpected suffix_action: {plan.suffix_action!r}")
 
-    # 4b: archive move (between main and archive .gp files).
+    # 4b: archive move (between main and archive project spec files).
     if plan.archive_action != ARCHIVE_ACTION_NONE:
         from sase.ace.changespec.archive import (
             get_archive_file_path,

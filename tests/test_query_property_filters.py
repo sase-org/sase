@@ -56,7 +56,7 @@ def test_evaluate_project_match(
     """Test project filter matches project basename."""
     query = parse_query("+myproject")
     cs = make_changespec.create(
-        file_path="/home/user/.sase/projects/myproject/myproject.gp"
+        file_path="/home/user/.sase/projects/myproject/myproject.sase"
     )
     assert evaluate_query(query, cs) is True
 

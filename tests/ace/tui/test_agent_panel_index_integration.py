@@ -17,7 +17,7 @@ def _agent(*, suffix: str, tag: str | None = None, status: str = "RUNNING") -> A
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="cl",
-        project_file="/r/p/p.gp",
+        project_file="/r/p/p.sase",
         status=status,
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name="alpha",
@@ -152,7 +152,7 @@ def test_non_child_position_is_o1_lookup() -> None:
         Agent(
             agent_type=AgentType.RUNNING,
             cl_name="cl",
-            project_file="/r/p/p.gp",
+            project_file="/r/p/p.sase",
             status="RUNNING",
             start_time=datetime(2026, 4, 25, 12, 0, 0),
             agent_name="child",
@@ -179,7 +179,7 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
     child_unread = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="cl",
-        project_file="/r/p/p.gp",
+        project_file="/r/p/p.sase",
         status="RUNNING",
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name="child",
@@ -189,7 +189,7 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
     child_asking = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="cl",
-        project_file="/r/p/p.gp",
+        project_file="/r/p/p.sase",
         status="QUESTION",
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name="child-asking",

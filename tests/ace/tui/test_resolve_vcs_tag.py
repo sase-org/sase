@@ -19,7 +19,7 @@ def _make_agent(
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl_name,
-        project_file=f"/tmp/{project_dir}/.gp",
+        project_file=f"/tmp/{project_dir}/.sase",
         status="DONE",
         start_time=None,
     )

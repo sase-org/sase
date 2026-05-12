@@ -88,7 +88,7 @@ def test_run_agent_launch_body_no_ref_defaults_home_mode_to_git_home(
     app._prompt_context = _fake_context()
     primary_workspace = tmp_path / "home"
     allocated_workspace = tmp_path / "home_101"
-    project_file = str(tmp_path / "home.gp")
+    project_file = str(tmp_path / "home.sase")
 
     from sase.ace.tui.actions.agent_workflow._ref_resolution import (
         resolve_ref_from_prompt,
@@ -179,16 +179,18 @@ def test_run_agent_launch_body_no_ref_defaults_home_mode_to_git_home(
 
 def test_run_agent_launch_body_known_project_ref_without_provider_targets_project(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sase.vcs_provider import VCS_DEFAULT_REVISION
 
+    monkeypatch.setenv("HOME", str(tmp_path))
     app = _LaunchBodyApp()
     app._prompt_context = _fake_context()
     workspace = tmp_path / "sase"
     workspace.mkdir()
     allocated_workspace = tmp_path / "sase_101"
     allocated_workspace.mkdir()
-    project_file = str(Path.home() / ".sase" / "projects" / "sase" / "sase.gp")
+    project_file = str(tmp_path / ".sase" / "projects" / "sase" / "sase.sase")
 
     with ExitStack() as stack:
         stack.enter_context(
@@ -258,7 +260,7 @@ def test_run_agent_launch_body_does_not_save_non_launchable_resolved_vcs_ref() -
     app._last_custom_agent_selection = previous_selection  # type: ignore[assignment]
     app._resolve_vcs_from_prompt = (  # type: ignore[method-assign]
         lambda prompt, wf_name, skip_workspace=False: (
-            "/tmp/project/project.gp",
+            "/tmp/project/project.sase",
             "project",
             "/tmp/project_1",
             1,
@@ -320,7 +322,7 @@ def test_run_agent_launch_body_saves_launchable_resolved_vcs_ref() -> None:
     app._prompt_context = _fake_context()
     app._resolve_vcs_from_prompt = (  # type: ignore[method-assign]
         lambda prompt, wf_name, skip_workspace=False: (
-            "/tmp/sase/sase.gp",
+            "/tmp/sase/sase.sase",
             "sase",
             "/tmp/sase_1",
             1,

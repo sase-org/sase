@@ -25,7 +25,7 @@ def _make_changespec(
         cl=None,
         status="WIP",
         test_targets=None,
-        file_path="proj.gp",
+        file_path="proj.sase",
         line_number=1,
         deltas=deltas,
     )
@@ -414,7 +414,7 @@ class TestChangeSpecDetailFileHints:
     ) -> None:
         workspace_dir = tmp_path / "workspace"
         workspace_dir.mkdir()
-        project_file = tmp_path / "proj.gp"
+        project_file = tmp_path / "proj.sase"
         cs = _make_changespec(deltas=[DeltaEntry(path="src/foo.py", change_type="M")])
         cs.file_path = str(project_file)
 

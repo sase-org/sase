@@ -104,7 +104,7 @@ def test_restore_agent_meta_preserves_bundle_unprefixed_name(tmp_path: Path) -> 
         {
             "agent_type": AgentType.RUNNING.value,
             "cl_name": "feature_by",
-            "project_file": "/tmp/projects/proj/proj.gp",
+            "project_file": "/tmp/projects/proj/proj.sase",
             "status": "PLAN DONE",
             "start_time": datetime(2026, 5, 9, 12, 41, 56).isoformat(),
             "stop_time": datetime(2026, 5, 9, 13, 6, 29).isoformat(),
@@ -124,7 +124,7 @@ def test_restore_agent_meta_preserves_bundle_unprefixed_name(tmp_path: Path) -> 
 def test_revive_existing_meta_without_name_preserves_stored_lookup(
     tmp_path: Path,
 ) -> None:
-    project_file = tmp_path / ".sase" / "projects" / "proj" / "proj.gp"
+    project_file = tmp_path / ".sase" / "projects" / "proj" / "proj.sase"
     project_file.parent.mkdir(parents=True)
     project_file.write_text("")
     artifact_dir = (

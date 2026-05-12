@@ -87,7 +87,7 @@ def _agent(
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl_name,
-        project_file=f"/r/{project}/proj.gp",
+        project_file=f"/r/{project}/proj.sase",
         status=status,
         start_time=start_time,
         wait_until=wait_until,

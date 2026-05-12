@@ -25,7 +25,7 @@ def _agent(
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl_name,
-        project_file="/tmp/long-project-name/project.gp",
+        project_file="/tmp/long-project-name/project.sase",
         status="DONE",
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         stop_time=datetime(2026, 4, 25, 14, 3, 4),

@@ -35,7 +35,7 @@ def _agent(
         if parent_workflow
         else AgentType.RUNNING,
         cl_name="cl",
-        project_file="/r/p/p.gp",
+        project_file="/r/p/p.sase",
         status=status,
         start_time=None,
         agent_name=name,

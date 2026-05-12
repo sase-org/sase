@@ -31,7 +31,7 @@ def _make_ctx(
     artifacts.mkdir()
     return AgentExecContext(
         cl_name="test-cl",
-        project_file=str(tmp_path / "project.gp"),
+        project_file=str(tmp_path / "project.sase"),
         workspace_dir=str(tmp_path),
         output_path=str(tmp_path / "output.log"),
         workspace_num=1,
@@ -164,7 +164,7 @@ def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(
 
     ctx = AgentExecContext(
         cl_name="test-cl",
-        project_file=str(tmp_path / "project.gp"),
+        project_file=str(tmp_path / "project.sase"),
         workspace_dir=str(workspace),
         output_path=str(tmp_path / "output.log"),
         workspace_num=1,
@@ -526,7 +526,7 @@ def test_run_execution_loop_publishes_phase_timestamp(
     artifacts.mkdir()
     ctx = AgentExecContext(
         cl_name="test-cl",
-        project_file=str(tmp_path / "project.gp"),
+        project_file=str(tmp_path / "project.sase"),
         workspace_dir=str(tmp_path),
         output_path=str(tmp_path / "output.log"),
         workspace_num=1,

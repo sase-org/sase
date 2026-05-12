@@ -40,7 +40,7 @@ def _write(p: Path, content: str) -> None:
 
 
 def test_cached_get_file_specs_returns_same_specs(tmp_path: Path) -> None:
-    f = tmp_path / "p.gp"
+    f = tmp_path / "p.sase"
     _write(f, _GP_HEADER)
 
     cache = ChangeSpecSnapshotCache()
@@ -53,7 +53,7 @@ def test_cached_get_file_specs_returns_same_specs(tmp_path: Path) -> None:
 
 
 def test_warm_cache_makes_zero_parse_calls(tmp_path: Path) -> None:
-    f = tmp_path / "p.gp"
+    f = tmp_path / "p.sase"
     _write(f, _GP_TWO_SPECS)
 
     cache = ChangeSpecSnapshotCache()
@@ -68,8 +68,8 @@ def test_warm_cache_makes_zero_parse_calls(tmp_path: Path) -> None:
 
 
 def test_editing_one_file_reparses_only_that_file(tmp_path: Path) -> None:
-    a = tmp_path / "a.gp"
-    b = tmp_path / "b.gp"
+    a = tmp_path / "a.sase"
+    b = tmp_path / "b.sase"
     _write(a, _GP_HEADER)
     _write(b, _GP_HEADER.replace("alpha", "beta"))
 
@@ -99,7 +99,7 @@ def test_find_all_changespecs_cached_uses_projects_dir(
     monkeypatch.setattr(Path, "home", lambda: home)
 
     proj = home / ".sase" / "projects" / "demo"
-    _write(proj / "demo.gp", _GP_TWO_SPECS)
+    _write(proj / "demo.sase", _GP_TWO_SPECS)
 
     cache = ChangeSpecSnapshotCache()
     first = cache.find_all_changespecs_cached()

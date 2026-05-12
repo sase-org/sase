@@ -86,7 +86,9 @@ def archive_changespec(
         )
 
     # Get project basename for workspace operations
-    project_basename = os.path.basename(changespec.file_path).replace(".gp", "")
+    from sase.ace.changespec.project_spec_path import project_spec_basename
+
+    project_basename = project_spec_basename(changespec.file_path)
 
     # Claim a workspace >= 100 for the archive operation
     workspace_num = get_first_available_axe_workspace(changespec.file_path)

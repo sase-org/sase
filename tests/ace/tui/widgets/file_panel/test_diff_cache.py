@@ -14,7 +14,7 @@ def _make_running_agent(workspace_num: int = 1) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my-feature",
-        project_file="/tmp/projects/myproj/myproj.gp",
+        project_file="/tmp/projects/myproj/myproj.sase",
         status="RUNNING",
         start_time=None,
         workspace_num=workspace_num,

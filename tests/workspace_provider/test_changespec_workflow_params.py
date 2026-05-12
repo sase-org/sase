@@ -41,7 +41,7 @@ def test_create_changespec_for_workflow_passes_parent() -> None:
     ):
         result = create_changespec_for_workflow(
             project_name="proj",
-            project_file="/fake/proj.gp",
+            project_file="/fake/proj.sase",
             checkout_target="HEAD~1",
             branch_name="foobar",
             prompt="",
@@ -91,7 +91,7 @@ def test_create_changespec_uses_agent_chat_path_env(
     ):
         result = create_changespec_for_workflow(
             project_name="proj",
-            project_file="/fake/proj.gp",
+            project_file="/fake/proj.sase",
             checkout_target="origin/main",
             branch_name="agent_1",
             prompt="",
@@ -141,7 +141,7 @@ def test_create_changespec_falls_back_without_agent_chat_path(
     ):
         result = create_changespec_for_workflow(
             project_name="proj",
-            project_file="/fake/proj.gp",
+            project_file="/fake/proj.sase",
             checkout_target="origin/main",
             branch_name="agent_1",
             prompt="do stuff",
@@ -191,7 +191,7 @@ def test_create_changespec_for_workflow_passes_bug(
     ):
         result = create_changespec_for_workflow(
             project_name="proj",
-            project_file="/fake/proj.gp",
+            project_file="/fake/proj.sase",
             checkout_target="HEAD~1",
             branch_name="foobar",
             prompt="",
@@ -245,7 +245,7 @@ def test_create_changespec_for_workflow_success(
     ):
         result = create_changespec_for_workflow(
             project_name="proj",
-            project_file="/fake/proj.gp",
+            project_file="/fake/proj.sase",
             checkout_target="origin/main",
             branch_name="swift-falcon",
             prompt="do stuff",
@@ -311,7 +311,7 @@ def test_create_changespec_for_workflow_passes_plan(
     ):
         result = create_changespec_for_workflow(
             project_name="proj",
-            project_file="/fake/proj.gp",
+            project_file="/fake/proj.sase",
             checkout_target="origin/main",
             branch_name="swift-falcon",
             prompt="do stuff",
@@ -371,7 +371,7 @@ def test_create_changespec_for_workflow_plan_outside_home(
     ):
         result = create_changespec_for_workflow(
             project_name="proj",
-            project_file="/fake/proj.gp",
+            project_file="/fake/proj.sase",
             checkout_target="origin/main",
             branch_name="swift-falcon",
             prompt="do stuff",
@@ -429,7 +429,7 @@ def test_create_changespec_for_workflow_no_plan_when_env_unset(
     ):
         create_changespec_for_workflow(
             project_name="proj",
-            project_file="/fake/proj.gp",
+            project_file="/fake/proj.sase",
             checkout_target="origin/main",
             branch_name="swift-falcon",
             prompt="do stuff",

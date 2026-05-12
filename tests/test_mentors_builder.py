@@ -22,7 +22,7 @@ def _make_changespec(
         cl=None,
         status="Ready",
         test_targets=None,
-        file_path="/tmp/test.gp",
+        file_path="/tmp/test.sase",
         line_number=1,
         commits=commits,
         mentors=mentors,

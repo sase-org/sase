@@ -10,9 +10,9 @@ from ._agent_groups_helpers import _agent, _group_keys, _kinds
 
 def test_full_tree_does_not_split_same_project_group() -> None:
     """Members of the same project interleaved with another project render once each."""
-    a = _agent(cl_name="cl-a", project_file="/r/projA/proj.gp")
-    b = _agent(cl_name="cl-b", project_file="/r/projB/proj.gp")
-    c = _agent(cl_name="cl-a", project_file="/r/projA/proj.gp")
+    a = _agent(cl_name="cl-a", project_file="/r/projA/proj.sase")
+    b = _agent(cl_name="cl-b", project_file="/r/projB/proj.sase")
+    c = _agent(cl_name="cl-a", project_file="/r/projA/proj.sase")
     entries = build_agent_tree([a, b, c])
     proj_keys = _group_keys(entries, level=0)
     assert len(proj_keys) == 2
@@ -20,8 +20,8 @@ def test_full_tree_does_not_split_same_project_group() -> None:
 
 def test_full_tree_sort_is_deterministic() -> None:
     """Same agents in different orders produce identical tree shapes."""
-    a = _agent(cl_name="a", project_file="/r/projA/proj.gp")
-    b = _agent(cl_name="b", project_file="/r/projB/proj.gp")
+    a = _agent(cl_name="a", project_file="/r/projA/proj.sase")
+    b = _agent(cl_name="b", project_file="/r/projB/proj.sase")
     c = _agent(cl_name="c", project_file="")
 
     order1 = build_agent_tree([a, b, c])
@@ -44,9 +44,9 @@ def test_full_tree_sort_is_deterministic() -> None:
 def test_full_tree_named_projects_sort_before_unprojected() -> None:
     entries = build_agent_tree(
         [
-            _agent(cl_name="a", project_file="/r/beta/proj.gp"),
+            _agent(cl_name="a", project_file="/r/beta/proj.sase"),
             _agent(cl_name="b", project_file=""),
-            _agent(cl_name="c", project_file="/r/alpha/proj.gp"),
+            _agent(cl_name="c", project_file="/r/alpha/proj.sase"),
         ]
     )
     proj_keys = _group_keys(entries, level=0)
@@ -195,8 +195,8 @@ def test_ungrouped_bucket_preserves_input_order() -> None:
 
 
 def test_collapsed_tree_order_is_deterministic() -> None:
-    a = _agent(cl_name="a", project_file="/r/projA/proj.gp")
-    b = _agent(cl_name="b", project_file="/r/projB/proj.gp")
+    a = _agent(cl_name="a", project_file="/r/projA/proj.sase")
+    b = _agent(cl_name="b", project_file="/r/projB/proj.sase")
     c = _agent(cl_name="c", project_file="")
     registry = AgentGroupFoldRegistry()
     registry.collapse_keys([("projA",), ("projB",), ("",)])

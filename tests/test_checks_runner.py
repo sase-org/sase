@@ -125,7 +125,7 @@ def test__check_pending_checks_processes_completed(
     """Test that completed checks are processed and cleaned up."""
     mock_changespec = MagicMock()
     mock_changespec.name = "my_feature"
-    mock_changespec.file_path = "/path/to/project.gp"
+    mock_changespec.file_path = "/path/to/project.sase"
     mock_changespec.cl = "http://cl/123456"
     mock_changespec.status = "Mailed"
     mock_changespec.comments = None

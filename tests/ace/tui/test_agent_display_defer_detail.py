@@ -79,7 +79,7 @@ class _FakeApp(AgentDisplayMixin):
         agent = Agent(
             agent_type=AgentType.RUNNING,
             cl_name="test",
-            project_file="/tmp/test.gp",
+            project_file="/tmp/test.sase",
             status="RUNNING",
             start_time=None,
             workflow="crs",

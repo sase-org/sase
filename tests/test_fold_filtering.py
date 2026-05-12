@@ -11,7 +11,7 @@ def _make_parent(raw_suffix: str, cl_name: str = "test_cl") -> Agent:
     return Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name=cl_name,
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         raw_suffix=raw_suffix,
@@ -27,7 +27,7 @@ def _make_child(
     return Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name=step_name,
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=None,
         parent_workflow="test-workflow",
@@ -43,7 +43,7 @@ def _make_appears_as_agent(raw_suffix: str) -> Agent:
     return Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="agent_workflow",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         raw_suffix=raw_suffix,
@@ -138,7 +138,7 @@ def _make_anonymous_parent(raw_suffix: str) -> Agent:
     return Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="test_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         raw_suffix=raw_suffix,

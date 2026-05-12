@@ -70,7 +70,7 @@ class _FakeLaunchHost:
     def project_file(self, project_name: str) -> str:
         project_dir = self.root / "projects" / project_name
         project_dir.mkdir(parents=True, exist_ok=True)
-        path = project_dir / f"{project_name}.gp"
+        path = project_dir / f"{project_name}.sase"
         if not path.exists():
             path.write_text("NAME: benchmark\n\nRUNNING:\n", encoding="utf-8")
         return str(path)

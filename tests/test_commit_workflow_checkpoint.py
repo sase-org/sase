@@ -20,7 +20,7 @@ def _make_cp(**overrides: object) -> CommitCheckpoint:
         "payload": {"message": "fix: bug", "files": ["a.py"]},
         "cwd": "/tmp/work",
         "cl_name": "my-cl",
-        "project_file": "/tmp/work/proj.gp",
+        "project_file": "/tmp/work/proj.sase",
         "diff_path": "/tmp/work/.sase/commit_diff.diff",
         "base_cl_name": "my-cl",
         "reserved_name": "my-cl_1",

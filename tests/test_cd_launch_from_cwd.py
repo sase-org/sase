@@ -62,14 +62,14 @@ def test_launch_agent_from_cwd_no_ref_defaults_to_git_home(
 
     primary_workspace = tmp_path / "home"
     allocated_workspace = tmp_path / "home_101"
-    project_file = str(tmp_path / "home.gp")
+    project_file = str(tmp_path / "home.sase")
     spawn_result = MagicMock(
         pid=123, workspace_dir=str(allocated_workspace), workspace_num=101
     )
     with (
         patch(
             "sase.main.utils.ensure_project_file_and_get_workspace_num",
-            return_value=("/projects/repo/repo.gp", 3, "repo"),
+            return_value=("/projects/repo/repo.sase", 3, "repo"),
         ),
         patch("sase.history.prompt.add_or_update_prompt"),
         patch(
@@ -250,11 +250,12 @@ def test_launch_agent_from_cwd_known_project_ref_without_provider_is_not_home_wr
     from sase.agent.launcher import launch_agent_from_cwd
     from sase.vcs_provider import VCS_DEFAULT_REVISION
 
+    monkeypatch.setenv("HOME", str(tmp_path))
     workspace = tmp_path / "sase"
     workspace.mkdir()
     allocated_workspace = tmp_path / "sase_101"
     allocated_workspace.mkdir()
-    project_file = str(Path.home() / ".sase" / "projects" / "sase" / "sase.gp")
+    project_file = str(tmp_path / ".sase" / "projects" / "sase" / "sase.sase")
     spawn_result = MagicMock(
         pid=123, workspace_dir=str(allocated_workspace), workspace_num=101
     )

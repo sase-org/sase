@@ -129,7 +129,7 @@ def test_quick_current_changespec_reports_vcs_detection_error_without_saving(
     app.changespecs = [
         SimpleNamespace(
             name="fix_bug",
-            file_path="/tmp/proj/proj.gp",
+            file_path="/tmp/proj/proj.sase",
             project_basename="proj",
         )
     ]
@@ -270,7 +270,7 @@ def test_quick_changespec_skips_save_for_non_launchable_project(
     app.changespecs = [
         SimpleNamespace(
             name="branch",
-            file_path="/tmp/project/project.gp",
+            file_path="/tmp/project/project.sase",
             project_basename="project",
         )
     ]
@@ -298,7 +298,7 @@ def test_quick_agent_skips_save_for_non_launchable_project(
     saved = _patch_save_recorder(monkeypatch)
 
     agent = SimpleNamespace(
-        project_file="/tmp/project/project.gp",
+        project_file="/tmp/project/project.sase",
         cl_name="branch",
         is_project_agent=False,
     )
@@ -341,7 +341,7 @@ def test_edit_and_relaunch_skips_save_for_non_launchable_project(
 
     app._edit_and_relaunch_agent(
         raw_prompt="Do work",
-        project_file="/tmp/project/project.gp",
+        project_file="/tmp/project/project.sase",
         cl_name="branch",
         is_project_agent=False,
     )

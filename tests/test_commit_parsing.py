@@ -19,7 +19,7 @@ def test_parse_changespec_history_without_optional_fields() -> None:
         "      | DIFF: ~/.sase/diffs/test.diff\n",
         "\n",
     ]
-    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.gp")
+    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
     assert changespec is not None
     assert changespec.commits is not None
     assert len(changespec.commits) == 1
@@ -67,7 +67,7 @@ def test_parse_changespec_plan_drawer() -> None:
         "      | PLAN: ~/.sase/plans/plan_foo.md\n",
         "\n",
     ]
-    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.gp")
+    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
     assert changespec is not None
     assert changespec.commits is not None
     assert len(changespec.commits) == 1
@@ -88,7 +88,7 @@ def test_parse_changespec_plan_drawer_absent() -> None:
         "      | DIFF: ~/.sase/diffs/test.diff\n",
         "\n",
     ]
-    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.gp")
+    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
     assert changespec is not None
     assert changespec.commits is not None
     assert changespec.commits[0].plan is None

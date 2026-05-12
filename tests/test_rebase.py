@@ -20,7 +20,7 @@ def _create_test_project_file_with_parent(
 ) -> str:
     """Create a temporary project file with a test ChangeSpec."""
     parent_line = f"PARENT: {parent}\n" if parent else ""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".gp") as f:
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".sase") as f:
         f.write(f"""# Test Project
 
 ## ChangeSpec
@@ -39,7 +39,7 @@ TEST TARGETS: None
 
 def _create_multi_changespec_file() -> str:
     """Create a project file with multiple ChangeSpecs for testing eligible parents."""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".gp") as f:
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".sase") as f:
         f.write("""# Test Project
 
 NAME: Feature A
@@ -150,7 +150,7 @@ def test_rebase_task_records_parent_and_rebase_timestamp(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Successful rebase updates PARENT and records the parent transition."""
-    project_file = tmp_path / "proj.gp"
+    project_file = tmp_path / "proj.sase"
     project_file.write_text(
         """\
 NAME: Test Feature

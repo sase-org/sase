@@ -7,6 +7,7 @@ import os
 import threading
 from typing import TYPE_CHECKING
 
+from sase.ace.changespec.project_spec_path import project_spec_basename
 from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.vcs_provider import get_vcs_provider
 
@@ -203,7 +204,7 @@ class SyncMixin:
             )
             return
 
-        project_basename = os.path.basename(changespec.file_path).replace(".gp", "")
+        project_basename = project_spec_basename(changespec.file_path)
         cl_name = changespec.name
         project_file = changespec.file_path
 

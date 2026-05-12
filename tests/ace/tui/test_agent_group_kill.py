@@ -17,7 +17,7 @@ def _make_agent(**overrides: object) -> Agent:
     defaults: dict[str, object] = {
         "agent_type": AgentType.RUNNING,
         "cl_name": "fix-bug",
-        "project_file": "/tmp/projects/proj_a/proj_a.gp",
+        "project_file": "/tmp/projects/proj_a/proj_a.sase",
         "status": "RUNNING",
         "start_time": datetime(2024, 1, 1, 12, 0, 0),
         "raw_suffix": "20240101120000",
@@ -110,17 +110,17 @@ def test_action_kill_routes_to_group_when_banner_focused() -> None:
     """With no marks but a banner focused, x bulk-kills every agent in the group."""
     a1 = _make_agent(
         cl_name="release-fix",
-        project_file="/tmp/projects/proj_a/proj_a.gp",
+        project_file="/tmp/projects/proj_a/proj_a.sase",
         raw_suffix="20240101120000",
     )
     a2 = _make_agent(
         cl_name="release-fix",
-        project_file="/tmp/projects/proj_a/proj_a.gp",
+        project_file="/tmp/projects/proj_a/proj_a.sase",
         raw_suffix="20240101130000",
     )
     a3 = _make_agent(
         cl_name="other-cl",
-        project_file="/tmp/projects/proj_a/proj_a.gp",
+        project_file="/tmp/projects/proj_a/proj_a.sase",
         raw_suffix="20240101140000",
     )
     app = _FakeGroupKillApp([a1, a2, a3])
@@ -148,12 +148,12 @@ def test_group_kill_modal_header_includes_group_label_and_count() -> None:
     """The pushed modal description includes the group banner label."""
     a1 = _make_agent(
         cl_name="release-fix",
-        project_file="/tmp/projects/proj_a/proj_a.gp",
+        project_file="/tmp/projects/proj_a/proj_a.sase",
         raw_suffix="20240101120000",
     )
     a2 = _make_agent(
         cl_name="release-fix",
-        project_file="/tmp/projects/proj_a/proj_a.gp",
+        project_file="/tmp/projects/proj_a/proj_a.sase",
         raw_suffix="20240101130000",
     )
     app = _FakeGroupKillApp([a1, a2])
@@ -171,14 +171,14 @@ def test_group_kill_partitions_killable_and_dismissable() -> None:
     """A group containing both running and done agents partitions correctly."""
     running = _make_agent(
         cl_name="release-fix",
-        project_file="/tmp/projects/proj_a/proj_a.gp",
+        project_file="/tmp/projects/proj_a/proj_a.sase",
         raw_suffix="20240101120000",
         status="RUNNING",
         pid=111,
     )
     done = _make_agent(
         cl_name="release-fix",
-        project_file="/tmp/projects/proj_a/proj_a.gp",
+        project_file="/tmp/projects/proj_a/proj_a.sase",
         raw_suffix="20240101130000",
         status="DONE",
         pid=None,
@@ -211,12 +211,12 @@ def test_marks_take_priority_over_focused_group() -> None:
     """When marks exist, x ignores the focused group and bulk-kills marks."""
     marked = _make_agent(
         cl_name="fix-bug",
-        project_file="/tmp/projects/proj_a/proj_a.gp",
+        project_file="/tmp/projects/proj_a/proj_a.sase",
         raw_suffix="20240101110000",
     )
     in_group = _make_agent(
         cl_name="fix-bug",
-        project_file="/tmp/projects/proj_a/proj_a.gp",
+        project_file="/tmp/projects/proj_a/proj_a.sase",
         raw_suffix="20240101120000",
     )
     app = _FakeGroupKillApp([marked, in_group])
@@ -237,13 +237,13 @@ def test_group_kill_skips_workflow_children() -> None:
     """Workflow children are excluded; killing the parent cascades elsewhere."""
     parent = _make_agent(
         cl_name="parent",
-        project_file="/tmp/projects/proj_a/proj_a.gp",
+        project_file="/tmp/projects/proj_a/proj_a.sase",
         raw_suffix="20240101120000",
         agent_type=AgentType.WORKFLOW,
     )
     child = _make_agent(
         cl_name="parent",
-        project_file="/tmp/projects/proj_a/proj_a.gp",
+        project_file="/tmp/projects/proj_a/proj_a.sase",
         raw_suffix="20240101120100",
         parent_timestamp="20240101120000",
     )

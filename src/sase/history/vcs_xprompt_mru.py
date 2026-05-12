@@ -83,8 +83,12 @@ def _is_stale_known_project_prefix(
     if project_name is None:
         return False
 
+    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
     projects_base = projects_dir or Path("~/.sase/projects").expanduser()
-    project_file = projects_base / project_name / f"{project_name}.gp"
+    project_file = Path(
+        preferred_project_spec_path(str(projects_base / project_name), project_name)
+    )
     if not project_file.is_file():
         return False
 

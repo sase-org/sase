@@ -19,7 +19,7 @@ def _write_project(
 ) -> Path:
     project_dir = projects_dir / project_name
     project_dir.mkdir(parents=True)
-    project_file = project_dir / f"{project_name}.gp"
+    project_file = project_dir / f"{project_name}.sase"
     if workspace_dir is None:
         project_file.write_text("", encoding="utf-8")
     else:
@@ -38,7 +38,7 @@ def _changespec(name: str, status: str, project_name: str = "valid") -> ChangeSp
         cl=None,
         status=status,
         test_targets=None,
-        file_path=f"/tmp/.sase/projects/{project_name}/{project_name}.gp",
+        file_path=f"/tmp/.sase/projects/{project_name}/{project_name}.sase",
         line_number=1,
     )
 

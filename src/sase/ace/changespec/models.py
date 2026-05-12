@@ -486,8 +486,8 @@ class ChangeSpec:
         """Extract project basename from file_path.
 
         Returns:
-            Project name without extension (e.g., "myproject" from "myproject.gp"
-            or "myproject-archive.gp").
+            Project name without extension (e.g., "myproject" from "myproject.sase"
+            or "myproject-archive.sase").
         """
         basename = os.path.splitext(os.path.basename(self.file_path))[0]
         if basename.endswith("-archive"):
@@ -497,7 +497,7 @@ class ChangeSpec:
     @cached_property
     def project_name(self) -> str:
         """Parent directory name of ``file_path`` (e.g. ``"myproject"`` from
-        ``"~/.sase/projects/myproject/myproject.gp"``).
+        ``"~/.sase/projects/myproject/myproject.sase"``).
 
         Cached because ``Path(...).parent.name`` is surprisingly expensive
         (pathlib churn) and this is read in hot filter paths for every

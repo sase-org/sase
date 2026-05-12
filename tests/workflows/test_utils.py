@@ -114,12 +114,12 @@ def test_add_test_hooks_if_available_adds_hooks() -> None:
         ) as mock_add_hooks,
         patch("sase.output.print_status"),
     ):
-        result = add_test_hooks_if_available("/fake/project.gp", "cl_name")
+        result = add_test_hooks_if_available("/fake/project.sase", "cl_name")
 
     assert result is True
     # No existing_hooks passed - function reads fresh state inside lock
     mock_add_hooks.assert_called_once_with(
-        "/fake/project.gp",
+        "/fake/project.sase",
         "cl_name",
         ["//foo:test1", "//bar:test2"],
     )
@@ -136,7 +136,7 @@ def test_add_test_hooks_if_available_changes_directory() -> None:
         patch("sase.workflows.utils._get_changed_test_targets", return_value=None),
     ):
         result = add_test_hooks_if_available(
-            "/fake/project.gp", "cl_name", workspace_dir=workspace_dir
+            "/fake/project.sase", "cl_name", workspace_dir=workspace_dir
         )
 
     assert result is True
@@ -161,7 +161,7 @@ def test_add_test_hooks_if_available_restores_directory_on_error() -> None:
     ):
         try:
             add_test_hooks_if_available(
-                "/fake/project.gp", "cl_name", workspace_dir=workspace_dir
+                "/fake/project.sase", "cl_name", workspace_dir=workspace_dir
             )
         except Exception:
             pass
@@ -180,7 +180,7 @@ def test_add_test_hooks_if_available_returns_false_on_failure() -> None:
         patch("sase.ace.hooks.add_test_target_hooks_to_changespec", return_value=False),
         patch("sase.output.print_status"),
     ):
-        result = add_test_hooks_if_available("/fake/project.gp", "cl_name")
+        result = add_test_hooks_if_available("/fake/project.sase", "cl_name")
 
     assert result is False
 
@@ -289,7 +289,7 @@ def test_get_changespec_from_file_not_found() -> None:
 DESCRIPTION: Test description
 STATUS: Ready
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         temp_path = f.name
 

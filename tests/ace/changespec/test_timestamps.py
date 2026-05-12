@@ -18,7 +18,7 @@ from sase.ace.timestamps.recording import (
 
 
 def test_parse_timestamps_section() -> None:
-    """Round-trip: parse a TIMESTAMPS section from a .gp file."""
+    """Round-trip: parse a TIMESTAMPS section from a project spec file."""
     content = """\
 NAME: my-cl
 DESCRIPTION:
@@ -37,7 +37,7 @@ TIMESTAMPS:
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -94,7 +94,7 @@ TIMESTAMPS:
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -129,7 +129,7 @@ TIMESTAMPS:
   [260330_102100] COMMIT  (1)
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -162,7 +162,7 @@ STATUS: WIP
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -181,7 +181,7 @@ STATUS: WIP
 
 
 def test_format_timestamps_field() -> None:
-    """Serialize TimestampEntry list to .gp format."""
+    """Serialize TimestampEntry list to project spec format."""
     entries = [
         TimestampEntry("260329_143022", "COMMIT", "(1)"),
         TimestampEntry("260329_143510", "STATUS", "WIP -> Draft"),
@@ -281,7 +281,7 @@ STATUS: WIP
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -312,7 +312,7 @@ TIMESTAMPS:
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -346,7 +346,7 @@ TIMESTAMPS:
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -380,7 +380,7 @@ TIMESTAMPS:
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -412,7 +412,7 @@ TIMESTAMPS:
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -447,7 +447,7 @@ TIMESTAMPS:
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -476,7 +476,7 @@ STATUS: WIP
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         f.flush()
         path = f.name

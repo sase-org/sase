@@ -272,7 +272,7 @@ def _trace_env(
     """Wire all three required env vars to ``tmp_path`` for isolation."""
     trace_path = tmp_path / "tui_trace.jsonl"
     perf_path = tmp_path / "tui_jk.jsonl"
-    gp_file = tmp_path / "bench" / "bench.gp"
+    gp_file = tmp_path / "bench" / "bench.sase"
     gp_file.parent.mkdir(parents=True)
     gp_file.write_text("")
     monkeypatch.setenv("SASE_TUI_TRACE", "1")
@@ -361,7 +361,7 @@ def main(argv: list[str] | None = None) -> int:
     import tempfile
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        gp_file = Path(tmpdir) / "bench.gp"
+        gp_file = Path(tmpdir) / "bench.sase"
         gp_file.write_text("")
         baseline = asyncio.run(
             _run_full_baseline(

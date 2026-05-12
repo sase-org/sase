@@ -53,8 +53,12 @@ def _load_workflow_agent_steps_for_dir(
             start_time = parse_timestamp_14_digit(timestamp_dir.name)
 
             # Build project file path
+            from sase.ace.changespec.project_spec_path import (
+                preferred_project_spec_path,
+            )
+
             project_name = project_dir.name
-            project_file = str(project_dir / f"{project_name}.gp")
+            project_file = preferred_project_spec_path(str(project_dir), project_name)
 
             # Map status to display string
             status = data.get("status", "completed")

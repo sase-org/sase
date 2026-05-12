@@ -13,7 +13,7 @@ BR = (_BANNER_ROW, None)
 def make_agent(
     *,
     cl_name: str = "demo",
-    project_file: str = "/repo/proj.gp",
+    project_file: str = "/repo/proj.sase",
     tag: str | None = None,
     agent_name: str | None = None,
     status: str = "RUNNING",

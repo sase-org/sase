@@ -23,7 +23,7 @@ def test_workflow_waiting_hitl_dead_pid_marked_as_failed() -> None:
             sase_projects / "artifacts" / "workflow-deploy" / "20260101120000"
         )
         workflow_artifacts.mkdir(parents=True)
-        (sase_projects / "myproject.gp").touch()
+        (sase_projects / "myproject.sase").touch()
 
         state = {
             "workflow_name": "deploy",
@@ -59,7 +59,7 @@ def test_load_workflow_states_preserves_pdf_activity_metadata() -> None:
             sase_projects / "artifacts" / "workflow-deploy" / "20260101120000"
         )
         workflow_artifacts.mkdir(parents=True)
-        (sase_projects / "myproject.gp").touch()
+        (sase_projects / "myproject.sase").touch()
 
         pdf_status = {
             "stage": "engine_started",
@@ -118,7 +118,7 @@ def test_load_workflow_states_from_snapshot_preserves_pdf_activity_metadata() ->
             AgentArtifactRecordWire(
                 project_name="myproject",
                 project_dir="/tmp/.sase/projects/myproject",
-                project_file="/tmp/.sase/projects/myproject/myproject.gp",
+                project_file="/tmp/.sase/projects/myproject/myproject.sase",
                 workflow_dir_name="workflow-deploy",
                 artifact_dir="/tmp/.sase/projects/myproject/artifacts/workflow-deploy/20260101120000",
                 timestamp="20260101120000",

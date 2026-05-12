@@ -121,7 +121,7 @@ async def _bench_ace_cold_open_async(
 
     samples: list[float] = []
     with tempfile.TemporaryDirectory() as tmpdir:
-        gp_file = Path(tmpdir) / "bench.gp"
+        gp_file = Path(tmpdir) / "bench.sase"
         gp_file.write_text("")
         # Pilot/TUI tracing env — bench_tui_trace expects these set.
         trace_path = Path(tmpdir) / "tui_trace.jsonl"
@@ -200,7 +200,7 @@ def _build_synthetic_home(home: Path, *, projects: int, per_project: int) -> Non
     for p in range(projects):
         proj_root = home / ".sase" / "projects" / f"proj{p:03d}"
         proj_root.mkdir(parents=True, exist_ok=True)
-        (proj_root / f"proj{p:03d}.gp").write_text("")
+        (proj_root / f"proj{p:03d}.sase").write_text("")
         ace_root = proj_root / "artifacts" / "ace-run"
         ace_root.mkdir(parents=True, exist_ok=True)
         for i in range(per_project):

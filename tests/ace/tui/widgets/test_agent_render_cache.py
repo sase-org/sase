@@ -30,7 +30,7 @@ def _agent(
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl_name,
-        project_file="/tmp/p.gp",
+        project_file="/tmp/p.sase",
         status=status,
         start_time=datetime(2026, 4, 25, 14, 30, 0),
         approve=approve,

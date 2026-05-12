@@ -124,7 +124,7 @@ def test_launch_mobile_text_agents_persists_known_project_context(
     assert rows[-1]["project"] == "sase"
     assert rows[-1]["project_context"]["context_id"] == "project:sase"
     assert rows[-1]["project_context"]["project_file"].endswith(
-        "/projects/sase/sase.gp"
+        "/projects/sase/sase.sase"
     )
     device_context = json.loads(
         (

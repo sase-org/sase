@@ -17,7 +17,7 @@ def test_agent_display_type_running() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workspace_num=1,
@@ -31,7 +31,7 @@ def test_agent_display_label() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="fix-hook",
@@ -45,7 +45,7 @@ def test_agent_start_time_short_with_time() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=start,
     )
@@ -57,7 +57,7 @@ def test_agent_start_time_short_without_time() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
     )
@@ -69,7 +69,7 @@ def test_agent_duration_display_without_time() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
     )
@@ -82,7 +82,7 @@ def test_agent_duration_display_seconds() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=start,
     )
@@ -97,7 +97,7 @@ def test_agent_duration_display_minutes() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=start,
     )
@@ -112,7 +112,7 @@ def test_agent_duration_display_hours() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=start,
     )
@@ -135,7 +135,7 @@ def test_agent_optional_fields() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=start,
         workspace_num=5,
@@ -167,7 +167,7 @@ def test_agent_is_hidden_step_default() -> None:
     agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
     )
@@ -179,7 +179,7 @@ def test_agent_is_hidden_step_true() -> None:
     agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=None,
         is_hidden_step=True,
@@ -192,7 +192,7 @@ def test_agent_appears_as_agent_default() -> None:
     agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
     )
@@ -204,7 +204,7 @@ def test_agent_appears_as_agent_true() -> None:
     agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         appears_as_agent=True,
@@ -220,7 +220,7 @@ def test_agent_get_display_type_named_workflow_collapsed_shows_agent() -> None:
     agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="gh",
@@ -271,7 +271,7 @@ def test_wait_duration_bundle_roundtrip() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="test",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="WAITING",
         start_time=datetime.now(),
         wait_duration=300.0,
@@ -287,7 +287,7 @@ def test_wait_duration_none_by_default() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="test",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
     )
@@ -298,7 +298,7 @@ def test_wait_until_bundle_roundtrip() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="test",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="WAITING",
         start_time=datetime.now(),
         wait_until="2026-04-11T14:30:00",
@@ -314,7 +314,7 @@ def test_wait_until_none_by_default() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="test",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
     )

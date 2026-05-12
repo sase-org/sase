@@ -100,7 +100,7 @@ class AcceptWorkflow(BaseWorkflow):
         project: str | None
         if self._project_file:
             project_file = os.path.expanduser(self._project_file)
-            # Extract project name from path (e.g., ~/.sase/projects/foo/foo.gp -> foo)
+            # Extract project name from path (e.g., ~/.sase/projects/foo/foo.sase -> foo)
             project = os.path.basename(os.path.dirname(project_file))
         else:
             project = get_project_from_workspace()

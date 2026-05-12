@@ -9,9 +9,9 @@ go/no-go decision is grounded in numbers.
 Workloads
 ---------
 
-- ``golden`` — the committed ``tests/core_golden/myproj.gp`` corpus
+- ``golden`` — the committed ``tests/core_golden/myproj.sase`` corpus
   (4 ChangeSpecs, ~50 lines).
-- ``synthetic_<N>`` — a generated ``.gp`` with ``--num-specs`` ChangeSpecs
+- ``synthetic_<N>`` — a generated ``.sase`` with ``--num-specs`` ChangeSpecs
   templated after the golden file. Stretches the line-walking cost in
   ``read_status_from_lines`` / ``apply_status_update`` past the noise
   floor and captures the worst case for changespecs that live at the end
@@ -81,7 +81,7 @@ from sase.status_state_machine.constants import (
 pytestmark = pytest.mark.slow
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-GOLDEN_PRIMARY = REPO_ROOT / "tests" / "core_golden" / "myproj.gp"
+GOLDEN_PRIMARY = REPO_ROOT / "tests" / "core_golden" / "myproj.sase"
 
 _SYNTHETIC_SPEC_TEMPLATE = """\
 NAME: spec-{idx}
@@ -220,7 +220,7 @@ def _measure_transition(
 ) -> dict[str, Any]:
     """Time the orchestrator on a temp project file (full disk I/O)."""
     with tempfile.TemporaryDirectory() as tmp:
-        proj = Path(tmp) / "myproj.gp"
+        proj = Path(tmp) / "myproj.sase"
 
         def _reset() -> None:
             proj.write_text(text, encoding="utf-8")

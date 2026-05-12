@@ -12,7 +12,7 @@ def _make_changespec(
     status: str = "Ready",
     cl: str | None = None,
     parent: str | None = None,
-    file_path: str = "/tmp/test.gp",
+    file_path: str = "/tmp/test.sase",
     comments: list[CommentEntry] | None = None,
 ) -> ChangeSpec:
     """Create a mock ChangeSpec for testing."""

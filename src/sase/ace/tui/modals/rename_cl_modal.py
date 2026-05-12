@@ -1,7 +1,6 @@
 """Rename CL modal for the ace TUI."""
 
-import os
-
+from sase.ace.changespec.project_spec_path import project_spec_basename
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
@@ -44,7 +43,7 @@ class RenameCLModal(ModalScreen[str | None]):
         self._current_name = current_name
         self._project_file_path = project_file_path
         self._status = status
-        self._project_name = os.path.basename(project_file_path).replace(".gp", "")
+        self._project_name = project_spec_basename(project_file_path)
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""

@@ -63,7 +63,7 @@ def test_render_attempt_pinned_emits_error_and_prompt_and_reply() -> None:
         agent = Agent(
             agent_type=AgentType.RUNNING,
             cl_name="demo",
-            project_file="/tmp/p.gp",
+            project_file="/tmp/p.sase",
             status="FAILED",
             start_time=datetime(2026, 4, 23, 14, 0, 0),
             attempt_history=[record],
@@ -87,7 +87,7 @@ def test_render_attempt_pinned_missing_attempt_shows_error() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="demo",
-        project_file="/tmp/p.gp",
+        project_file="/tmp/p.sase",
         status="FAILED",
         start_time=datetime(2026, 4, 23, 14, 0, 0),
         attempt_history=[],
@@ -106,7 +106,7 @@ def test_render_attempt_pinned_handles_missing_reply_file() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="demo",
-        project_file="/tmp/p.gp",
+        project_file="/tmp/p.sase",
         status="FAILED",
         start_time=datetime(2026, 4, 23, 14, 0, 0),
         attempt_history=[record],

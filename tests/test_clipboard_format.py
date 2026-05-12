@@ -34,7 +34,7 @@ def _make_basic_changespec(
         hooks=kwargs.get("hooks"),
         comments=kwargs.get("comments"),
         mentors=kwargs.get("mentors"),
-        file_path="/tmp/test.gp",
+        file_path="/tmp/test.sase",
         line_number=1,
     )
 

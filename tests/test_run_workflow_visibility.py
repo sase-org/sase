@@ -97,7 +97,7 @@ def test_dedup_running_vs_workflow_merges_plain_run() -> None:
     running_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="run",
@@ -109,7 +109,7 @@ def test_dedup_running_vs_workflow_merges_plain_run() -> None:
     workflow_agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="unknown",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="run",
@@ -137,7 +137,7 @@ def test_dedup_running_vs_workflow_no_match_without_suffix() -> None:
     running_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="run",
@@ -147,7 +147,7 @@ def test_dedup_running_vs_workflow_no_match_without_suffix() -> None:
     workflow_agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="other_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=None,
         workflow="run",
@@ -189,7 +189,7 @@ def test_run_query_writes_initial_workflow_state(tmp_path: Path) -> None:
         ),
         patch(
             "sase.main.query_handler._query.ensure_project_file_and_get_workspace_num",
-            return_value=("/tmp/test.gp", 1, "testproj"),
+            return_value=("/tmp/test.sase", 1, "testproj"),
         ),
         patch(
             "sase.main.query_handler._query.create_artifacts_directory",

@@ -131,7 +131,7 @@ class AgentDismissMemoryMixin:
         """Save a serialized bundle of agent data before artifact deletion."""
         from ....dismissed_agents import save_dismissed_bundle
 
-        # Skip ChangeSpec-loaded agents; they persist via .gp file fields.
+        # Skip ChangeSpec-loaded agents; they persist via project spec file fields.
         if agent._from_changespec:
             return
 

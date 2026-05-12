@@ -508,9 +508,9 @@ class ProposalRebaseMixin:
             changespec: The ChangeSpec being rebased
             new_parent_name: Name of the new parent ChangeSpec
         """
-        import os
+        from sase.ace.changespec.project_spec_path import project_spec_basename
 
-        project_basename = os.path.basename(changespec.file_path).replace(".gp", "")
+        project_basename = project_spec_basename(changespec.file_path)
         cl_name = changespec.name
         project_file = changespec.file_path
         old_parent_name = changespec.parent

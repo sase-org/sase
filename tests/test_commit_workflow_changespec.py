@@ -42,7 +42,7 @@ class TestCommitWorkflowChangeSpec:
 
     @patch(_SUFFIXED_CL_TARGET, return_value="feat-x_1")
     @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
-    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
+    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     @patch(_PROVIDER_TARGET)
     def test_creates_changespec_on_pr_success(
@@ -65,7 +65,7 @@ class TestCommitWorkflowChangeSpec:
         assert wf.run() == RunResult.OK
         mock_cs.assert_called_once_with(
             project_name="proj",
-            project_file="/fake/proj.gp",
+            project_file="/fake/proj.sase",
             checkout_target="HEAD~1",
             branch_name="feat-x_1",
             prompt="",
@@ -81,7 +81,7 @@ class TestCommitWorkflowChangeSpec:
         )
 
     @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
-    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
+    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     @patch(_PROVIDER_TARGET)
     def test_uses_checkout_target_from_payload(
@@ -145,7 +145,7 @@ class TestCommitWorkflowBugId:
 
     @patch(_SUFFIXED_CL_TARGET, return_value="feat-x_1")
     @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
-    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
+    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     @patch(_PROVIDER_TARGET)
     def test_bug_id_propagated_to_changespec(
@@ -174,7 +174,7 @@ class TestCommitWorkflowBugId:
 
     @patch(_SUFFIXED_CL_TARGET, return_value="feat-x_1")
     @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
-    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
+    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     @patch(_PROVIDER_TARGET)
     def test_bug_id_from_payload(
@@ -208,7 +208,7 @@ class TestCommitWorkflowBugId:
 
     @patch(_SUFFIXED_CL_TARGET, return_value="feat-x_1")
     @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
-    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
+    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     @patch(_PROVIDER_TARGET)
     def test_bug_id_payload_overrides_env(
@@ -242,7 +242,7 @@ class TestCommitWorkflowBugId:
 
     @patch(_SUFFIXED_CL_TARGET, return_value="feat-x_1")
     @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
-    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
+    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     @patch(_PROVIDER_TARGET)
     def test_bug_id_not_set_passes_none(
@@ -271,7 +271,7 @@ class TestCommitWorkflowBugId:
 
     @patch(_SUFFIXED_CL_TARGET, return_value="feat-x_1")
     @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
-    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
+    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     @patch(_PROVIDER_TARGET)
     def test_bug_id_zero_passes_none(
@@ -357,7 +357,7 @@ class TestCreateChangespecReturn:
     """Verify create_changespec returns cs_name."""
 
     @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
-    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
+    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     def test_returns_cs_name_on_success(
         self,
@@ -372,7 +372,7 @@ class TestCreateChangespecReturn:
         assert result == "proj_feat_1"
 
     @patch(_CHANGESPEC_TARGET, return_value=None)
-    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
+    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     def test_returns_none_when_no_commits(
         self,

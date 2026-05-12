@@ -41,7 +41,7 @@ def test_launch_multi_prompt_agents_resolves_cd_per_segment(
             segments=[f"#cd:{dir_a} first", f"#cd:{dir_b} second"],
             local_xprompts={},
             cl_name="base",
-            project_file="/projects/base/base.gp",
+            project_file="/projects/base/base.sase",
             project_name="base",
             is_home_mode=False,
             vcs_ref=None,
@@ -75,13 +75,13 @@ def test_launch_multi_prompt_agents_defaults_bare_segment_to_git_home(
     dir_a.mkdir()
     primary_workspace = tmp_path / "home"
     allocated_workspace = tmp_path / "home_101"
-    project_file = str(tmp_path / "home.gp")
+    project_file = str(tmp_path / "home.sase")
 
     def resolve_ref(ref: str, workflow_type: str) -> ResolvedRef:
         if workflow_type == "cd":
             return ResolvedRef(
                 project_file=str(
-                    Path.home() / ".sase" / "projects" / "home" / "home.gp"
+                    Path.home() / ".sase" / "projects" / "home" / "home.sase"
                 ),
                 project_name=Path(ref).name,
                 primary_workspace_dir=str(Path(ref).expanduser().resolve()),
@@ -120,7 +120,7 @@ def test_launch_multi_prompt_agents_defaults_bare_segment_to_git_home(
             segments=[f"#cd:{dir_a} first", "second"],
             local_xprompts={},
             cl_name="base",
-            project_file="/projects/base/base.gp",
+            project_file="/projects/base/base.sase",
             project_name="base",
             is_home_mode=False,
             vcs_ref=None,
@@ -163,7 +163,7 @@ def test_launch_multi_prompt_bare_git_home_wait_uses_home_artifacts(
 
     primary_workspace = tmp_path / "home"
     allocated_workspace = tmp_path / "home_101"
-    project_file = str(tmp_path / "home.gp")
+    project_file = str(tmp_path / "home.sase")
 
     with (
         patch("sase.agent.launcher.spawn_agent_subprocess") as spawn,
@@ -197,7 +197,7 @@ def test_launch_multi_prompt_bare_git_home_wait_uses_home_artifacts(
             segments=["first", "%wait\nsecond"],
             local_xprompts={},
             cl_name="base",
-            project_file="/projects/base/base.gp",
+            project_file="/projects/base/base.sase",
             project_name="base",
             is_home_mode=False,
             vcs_ref=None,

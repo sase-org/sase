@@ -129,7 +129,7 @@ COMMENTS:
   [reviewer] ~/.sase/comments/test_feature-reviewer-241226_120000.json - (2a)
 """
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(project_content)
         project_file = f.name
 

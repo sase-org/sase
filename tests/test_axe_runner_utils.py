@@ -110,7 +110,7 @@ def test_write_done_marker_can_write_visible_review_agent() -> None:
         write_done_marker(
             tmpdir,
             cl_name="my_cl",
-            project_file="/tmp/project.gp",
+            project_file="/tmp/project.sase",
             timestamp="260506_120000",
             exit_code=0,
             hidden=False,
@@ -148,7 +148,7 @@ def test_detect_write_and_persist_review_agent_meta(tmp_path: Path) -> None:
     ):
         detect_write_and_persist_review_agent_meta(
             str(artifacts_dir),
-            "/tmp/project.gp",
+            "/tmp/project.sase",
             "my_cl",
         )
 
@@ -184,7 +184,7 @@ def test_finalize_axe_runner_success() -> None:
         return_value=[mock_cs],
     ):
         finalize_axe_runner(
-            project_file="/path/project.gp",
+            project_file="/path/project.sase",
             changespec_name="test_cl",
             proposal_id="abc123",
             exit_code=0,
@@ -193,7 +193,7 @@ def test_finalize_axe_runner_success() -> None:
 
         # Check update_suffix was called
         assert len(update_suffix_calls) == 1
-        assert update_suffix_calls[0] == (mock_cs, "/path/project.gp", "abc123", 0)
+        assert update_suffix_calls[0] == (mock_cs, "/path/project.sase", "abc123", 0)
 
 
 def test_finalize_axe_runner_no_matching_changespec() -> None:
@@ -211,7 +211,7 @@ def test_finalize_axe_runner_no_matching_changespec() -> None:
         return_value=[mock_cs],
     ):
         finalize_axe_runner(
-            project_file="/path/project.gp",
+            project_file="/path/project.sase",
             changespec_name="test_cl",
             proposal_id="abc123",
             exit_code=0,
@@ -230,7 +230,7 @@ def test_finalize_axe_runner_handles_errors() -> None:
     ):
         # Should not raise - errors are caught and printed
         finalize_axe_runner(
-            project_file="/path/project.gp",
+            project_file="/path/project.sase",
             changespec_name="test_cl",
             proposal_id=None,
             exit_code=1,

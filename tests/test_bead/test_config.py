@@ -66,7 +66,7 @@ def test_detect_prefix_with_trailing_vcs_component(tmp_path, monkeypatch):
     project_dir = tmp_path / ".sase" / "projects" / "yserve"
     project_dir.mkdir(parents=True)
     primary = tmp_path / "workspaces" / "yserve" / "google3"
-    (project_dir / "yserve.gp").write_text(f"WORKSPACE_DIR: {primary}\n")
+    (project_dir / "yserve.sase").write_text(f"WORKSPACE_DIR: {primary}\n")
 
     # CWD is under a variant (primary need not exist on disk)
     variant = tmp_path / "workspaces" / "yserve_101" / "google3"

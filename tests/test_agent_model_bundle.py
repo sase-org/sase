@@ -10,7 +10,7 @@ def test_bundle_round_trip_basic() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 30, 0),
         workspace_num=3,
@@ -21,7 +21,7 @@ def test_bundle_round_trip_basic() -> None:
 
     assert restored.agent_type == AgentType.RUNNING
     assert restored.cl_name == "my_feature"
-    assert restored.project_file == "/tmp/test.gp"
+    assert restored.project_file == "/tmp/test.sase"
     assert restored.status == "DONE"
     assert restored.start_time == datetime(2025, 6, 15, 10, 30, 0)
     assert restored.workspace_num == 3
@@ -35,7 +35,7 @@ def test_bundle_round_trip_datetime_serialization() -> None:
     agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="test_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=start,
         workflow="gh",
@@ -55,7 +55,7 @@ def test_bundle_round_trip_none_start_time() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="test",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=None,
     )
@@ -69,7 +69,7 @@ def test_bundle_round_trip_workflow_child() -> None:
     agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=None,
         parent_workflow="gh",
@@ -96,7 +96,7 @@ def test_bundle_round_trip_agent_type_serialized_as_string() -> None:
     agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="test",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=None,
     )
@@ -112,7 +112,7 @@ def test_bundle_round_trip_plan_and_code_time() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="test",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         plan_times=[datetime(2025, 6, 15, 10, 5, 0)],
@@ -135,7 +135,7 @@ def test_bundle_backward_compat_plan_time_to_plan_times() -> None:
     bundle = {
         "agent_type": "run",
         "cl_name": "test",
-        "project_file": "/tmp/test.gp",
+        "project_file": "/tmp/test.sase",
         "status": "DONE",
         "start_time": "2025-06-15T10:00:00",
         "plan_time": "2025-06-15T10:05:00",
@@ -149,7 +149,7 @@ def test_bundle_round_trip_feedback_and_questions_times() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="test",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         feedback_times=[datetime(2025, 6, 15, 10, 6, 0)],
@@ -170,7 +170,7 @@ def test_bundle_round_trip_feedback_plan_paths() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="test",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         feedback_times=[feedback_time],
@@ -191,7 +191,7 @@ def test_bundle_backward_compat_missing_feedback_plan_paths() -> None:
     bundle = {
         "agent_type": "run",
         "cl_name": "test",
-        "project_file": "/tmp/test.gp",
+        "project_file": "/tmp/test.sase",
         "status": "DONE",
         "start_time": "2025-06-15T10:00:00",
         "feedback_times": ["2025-06-15T10:06:00"],
@@ -208,7 +208,7 @@ def test_bundle_backward_compat_feedback_time_to_feedback_times() -> None:
     bundle = {
         "agent_type": "run",
         "cl_name": "test",
-        "project_file": "/tmp/test.gp",
+        "project_file": "/tmp/test.sase",
         "status": "DONE",
         "start_time": "2025-06-15T10:00:00",
         "feedback_time": "2025-06-15T10:06:00",
@@ -224,7 +224,7 @@ def test_bundle_round_trip_list_fields() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="test",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=None,
         extra_files=["/tmp/plan.md", "/tmp/diff.txt"],
@@ -245,7 +245,7 @@ def test_old_bundle_synthesizes_prefixed_agent_name_from_stop_time() -> None:
     bundle = {
         "agent_type": AgentType.RUNNING.value,
         "cl_name": "feature_x",
-        "project_file": "/tmp/test.gp",
+        "project_file": "/tmp/test.sase",
         "status": "DONE",
         "start_time": datetime(2026, 4, 28, 9, 0, 0).isoformat(),
         "stop_time": datetime(2026, 4, 28, 10, 30, 0).isoformat(),
@@ -260,7 +260,7 @@ def test_old_bundle_synthesis_falls_back_to_raw_suffix_date() -> None:
     bundle = {
         "agent_type": AgentType.RUNNING.value,
         "cl_name": "unknown",
-        "project_file": "/tmp/test.gp",
+        "project_file": "/tmp/test.sase",
         "status": "DONE",
         "start_time": None,
         "raw_suffix": "20260501123045",
@@ -274,7 +274,7 @@ def test_old_bundle_synthesis_skips_already_prefixed_name() -> None:
     bundle = {
         "agent_type": AgentType.RUNNING.value,
         "cl_name": "foo",
-        "project_file": "/tmp/test.gp",
+        "project_file": "/tmp/test.sase",
         "status": "DONE",
         "start_time": datetime(2026, 4, 28, 9, 0, 0).isoformat(),
         "raw_suffix": "20260428090000",
@@ -289,7 +289,7 @@ def test_bundle_preserves_stored_unprefixed_name() -> None:
     bundle = {
         "agent_type": AgentType.RUNNING.value,
         "cl_name": "x",
-        "project_file": "/tmp/test.gp",
+        "project_file": "/tmp/test.sase",
         "status": "DONE",
         "start_time": datetime(2026, 4, 28, 9, 0, 0).isoformat(),
         "raw_suffix": "20260428090000",
@@ -304,7 +304,7 @@ def test_bundle_preserves_plan_chain_stored_name() -> None:
     bundle = {
         "agent_type": AgentType.RUNNING.value,
         "cl_name": "feature_by",
-        "project_file": "/tmp/test.gp",
+        "project_file": "/tmp/test.sase",
         "status": "PLAN DONE",
         "start_time": datetime(2026, 5, 9, 12, 41, 56).isoformat(),
         "stop_time": datetime(2026, 5, 9, 13, 6, 29).isoformat(),
@@ -321,7 +321,7 @@ def test_bundle_round_trips_tale_done_status() -> None:
     bundle = {
         "agent_type": AgentType.RUNNING.value,
         "cl_name": "feature_by",
-        "project_file": "/tmp/test.gp",
+        "project_file": "/tmp/test.sase",
         "status": "TALE DONE",
         "start_time": datetime(2026, 5, 11, 12, 0, 0).isoformat(),
         "stop_time": datetime(2026, 5, 11, 13, 0, 0).isoformat(),
@@ -341,7 +341,7 @@ def test_old_bundle_synthesis_skips_workflow_children() -> None:
     bundle = {
         "agent_type": AgentType.WORKFLOW.value,
         "cl_name": "feature",
-        "project_file": "/tmp/test.gp",
+        "project_file": "/tmp/test.sase",
         "status": "DONE",
         "start_time": datetime(2026, 4, 28, 9, 0, 0).isoformat(),
         "parent_timestamp": "20260428090000",

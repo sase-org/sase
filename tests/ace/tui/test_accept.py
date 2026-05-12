@@ -36,7 +36,7 @@ class TestAcceptTaskSuccess:
         wf = _make_mock_workflow(success=True)
         with patch(_PATCH_WORKFLOW, return_value=wf):
             success, message = _accept_task(
-                [("2a", None)], "CL-1", "/proj.gp", False, False
+                [("2a", None)], "CL-1", "/proj.sase", False, False
             )
 
         assert success is True
@@ -46,7 +46,7 @@ class TestAcceptTaskSuccess:
         wf = _make_mock_workflow(success=True)
         with patch(_PATCH_WORKFLOW, return_value=wf):
             success, message = _accept_task(
-                [("2a", None), ("2b", None)], "CL-1", "/proj.gp", False, False
+                [("2a", None), ("2b", None)], "CL-1", "/proj.sase", False, False
             )
 
         assert success is True
@@ -56,7 +56,7 @@ class TestAcceptTaskSuccess:
         wf = _make_mock_workflow(success=True)
         with patch(_PATCH_WORKFLOW, return_value=wf):
             success, message = _accept_task(
-                [("2a", None)], "CL-1", "/proj.gp", False, True
+                [("2a", None)], "CL-1", "/proj.sase", False, True
             )
 
         assert success is True
@@ -65,12 +65,12 @@ class TestAcceptTaskSuccess:
     def test_passes_correct_args_to_workflow(self) -> None:
         wf = _make_mock_workflow(success=True)
         with patch(_PATCH_WORKFLOW, return_value=wf) as mock_cls:
-            _accept_task([("2a", "msg")], "CL-1", "/proj.gp", True, True)
+            _accept_task([("2a", "msg")], "CL-1", "/proj.sase", True, True)
 
         mock_cls.assert_called_once_with(
             proposals=[("2a", "msg")],
             cl_name="CL-1",
-            project_file="/proj.gp",
+            project_file="/proj.sase",
             mark_ready_to_mail=True,
             skip_amend=True,
         )
@@ -87,7 +87,7 @@ class TestAcceptTaskFailure:
         wf = _make_mock_workflow(success=False, conflict_result=None)
         with patch(_PATCH_WORKFLOW, return_value=wf):
             success, message = _accept_task(
-                [("2a", None)], "CL-1", "/proj.gp", False, False
+                [("2a", None)], "CL-1", "/proj.sase", False, False
             )
 
         assert success is False
@@ -105,7 +105,7 @@ class TestAcceptTaskFailure:
             ) as mock_fmt,
         ):
             success, message = _accept_task(
-                [("2a", None), ("2b", None)], "CL-1", "/proj.gp", False, False
+                [("2a", None), ("2b", None)], "CL-1", "/proj.sase", False, False
             )
 
         assert success is False
@@ -120,7 +120,7 @@ class TestAcceptTaskFailure:
         wf = _make_mock_workflow(success=False, conflict_result=conflict)
         with patch(_PATCH_WORKFLOW, return_value=wf):
             success, message = _accept_task(
-                [("2a", None)], "CL-1", "/proj.gp", False, False
+                [("2a", None)], "CL-1", "/proj.sase", False, False
             )
 
         assert success is False

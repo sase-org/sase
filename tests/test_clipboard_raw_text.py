@@ -19,7 +19,7 @@ NAME: second_cl
 DESCRIPTION: Second CL
 STATUS: Draft
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         f.flush()
 
@@ -53,7 +53,7 @@ NAME: second_cl
 DESCRIPTION: Second CL
 STATUS: Draft
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         f.flush()
 
@@ -85,7 +85,7 @@ NAME: second_cl
 DESCRIPTION: Second CL
 STATUS: Draft
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         f.flush()
 
@@ -113,7 +113,7 @@ def test_get_raw_changespec_text_eof() -> None:
 NAME: last_cl
 DESCRIPTION: Last CL
 STATUS: Ready"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         f.flush()
 
@@ -145,7 +145,7 @@ def test_get_raw_changespec_text_file_not_found() -> None:
         parent=None,
         cl=None,
         test_targets=None,
-        file_path="/nonexistent/path/file.gp",
+        file_path="/nonexistent/path/file.sase",
         line_number=1,
     )
     result = get_raw_changespec_text(cs)
@@ -155,7 +155,7 @@ def test_get_raw_changespec_text_file_not_found() -> None:
 def test_get_raw_changespec_text_invalid_line_number() -> None:
     """Test returns None when line number is out of range."""
     content = "NAME: test_cl\n"
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write(content)
         f.flush()
 

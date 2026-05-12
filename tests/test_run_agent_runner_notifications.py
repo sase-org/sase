@@ -228,7 +228,7 @@ def test_completion_notification_dedupes_image_paths(base_kwargs, tmp_path):
 def test_completed_done_marker_includes_markdown_pdf_paths(tmp_path):
     marker = build_done_marker(
         "test-cl",
-        "/tmp/project.gp",
+        "/tmp/project.sase",
         "20260430120000",
         "20260430120000",
         1,
@@ -245,7 +245,7 @@ def test_completed_done_marker_includes_markdown_pdf_paths(tmp_path):
 def test_completed_done_marker_defaults_empty_markdown_pdf_paths():
     marker = build_done_marker(
         "test-cl",
-        "/tmp/project.gp",
+        "/tmp/project.sase",
         "20260430120000",
         "20260430120000",
         1,

@@ -105,7 +105,7 @@ def test_trace_profile_matching_projects_mismatch() -> None:
         projects=["sase"],
     )
     cs = build_changespec(
-        file_path="/home/user/.sase/projects/bug/bug.gp",
+        file_path="/home/user/.sase/projects/bug/bug.sase",
         commits=[CommitEntry(number=1, note="commit")],
     )
     with patch(
@@ -133,7 +133,7 @@ def test_trace_profile_matching_projects_match() -> None:
         projects=["sase"],
     )
     cs = build_changespec(
-        file_path="/home/user/.sase/projects/sase/sase.gp",
+        file_path="/home/user/.sase/projects/sase/sase.sase",
         commits=[CommitEntry(number=1, note="commit")],
     )
     with patch(

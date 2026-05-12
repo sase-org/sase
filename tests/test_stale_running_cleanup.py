@@ -33,7 +33,7 @@ def test_cleanup_keeps_running_process_entries() -> None:
         ) as mock_release,
     ):
         mock_get_files.return_value = [
-            "/home/user/.sase/projects/myproject/myproject.gp"
+            "/home/user/.sase/projects/myproject/myproject.sase"
         ]
         mock_get_claims.return_value = claims
         # Both PIDs running
@@ -65,7 +65,7 @@ def test_cleanup_logs_entry_without_cl_name() -> None:
         ) as mock_is_running,
         patch("sase.ace.scheduler.stale_running_cleanup.release_workspace"),
     ):
-        mock_get_files.return_value = ["/home/user/.sase/projects/proj/proj.gp"]
+        mock_get_files.return_value = ["/home/user/.sase/projects/proj/proj.sase"]
         mock_get_claims.return_value = claims
         mock_is_running.return_value = False
 
@@ -91,19 +91,19 @@ def test_get_all_project_files_nonexistent_dir() -> None:
             assert result == []
 
 
-def test_get_all_project_files_finds_gp_files() -> None:
-    """Test _get_all_project_files finds .gp files in project dirs."""
+def test_get_all_project_files_finds_project_spec_files() -> None:
+    """Test _get_all_project_files finds project spec files in project dirs."""
     with tempfile.TemporaryDirectory() as tmpdir:
         fake_home = Path(tmpdir)
         projects_dir = fake_home / ".sase" / "projects"
         projects_dir.mkdir(parents=True)
 
-        # Create proj1 with .gp file
+        # Create proj1 with project spec file
         proj1_dir = projects_dir / "proj1"
         proj1_dir.mkdir()
-        (proj1_dir / "proj1.gp").write_text("# test")
+        (proj1_dir / "proj1.sase").write_text("# test")
 
-        # Create proj2 without .gp file
+        # Create proj2 without project spec file
         proj2_dir = projects_dir / "proj2"
         proj2_dir.mkdir()
 
@@ -115,9 +115,9 @@ def test_get_all_project_files_finds_gp_files() -> None:
 
             result = _get_all_project_files()
 
-            # Should only find proj1.gp
+            # Should only find proj1.sase
             assert len(result) == 1
-            assert "proj1.gp" in result[0]
+            assert "proj1.sase" in result[0]
 
 
 def test_cleanup_skips_pinned_entries() -> None:
@@ -154,7 +154,7 @@ def test_cleanup_skips_pinned_entries() -> None:
         ) as mock_release,
     ):
         mock_get_files.return_value = [
-            "/home/user/.sase/projects/myproject/myproject.gp"
+            "/home/user/.sase/projects/myproject/myproject.sase"
         ]
         mock_get_claims.return_value = claims
         # Both PIDs are dead
@@ -165,7 +165,7 @@ def test_cleanup_skips_pinned_entries() -> None:
         # Only the unpinned entry should be released
         assert released == 1
         mock_release.assert_called_once_with(
-            "/home/user/.sase/projects/myproject/myproject.gp",
+            "/home/user/.sase/projects/myproject/myproject.sase",
             2,
             "run",
             "unpinned_feature",

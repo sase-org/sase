@@ -176,7 +176,7 @@ class TestAgentBeadMetadata:
     ) -> None:
         agent = make_agent(
             agent_name="zorg-4.3.6",
-            project_file="/home/me/.sase/projects/zorg/zorg.gp",
+            project_file="/home/me/.sase/projects/zorg/zorg.sase",
         )
         seen_project_names: list[str | None] = []
 

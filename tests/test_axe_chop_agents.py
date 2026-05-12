@@ -42,7 +42,7 @@ def _spawn_agent_for_env_test(
 
     spawn_agent_subprocess(
         cl_name="proj",
-        project_file="/tmp/projects/proj/proj.gp",
+        project_file="/tmp/projects/proj/proj.sase",
         workspace_dir=str(workspace_dir),
         workspace_num=3,
         workflow_name="ace(run)-260101_120000",
@@ -196,7 +196,7 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
 
     result = spawn_agent_subprocess(
         cl_name="proj",
-        project_file="/tmp/projects/proj/proj.gp",
+        project_file="/tmp/projects/proj/proj.sase",
         workspace_dir=str(workspace_dir),
         workspace_num=3,
         workflow_name="ace(run)-260101_120000",
@@ -209,7 +209,7 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     prepared = mock_spawn.call_args.args[0]
     assert prepared.argv[2:9] == [
         "proj",
-        "/tmp/projects/proj/proj.gp",
+        "/tmp/projects/proj/proj.sase",
         str(workspace_dir),
         str(output_path),
         "3",
@@ -238,7 +238,7 @@ def test_live_records_prune_when_done_marker_exists(
         lumberjack_name="hooks",
         chop_name="split",
         pid=os.getpid(),
-        project_file="/tmp/projects/proj/proj.gp",
+        project_file="/tmp/projects/proj/proj.sase",
         project_name="proj",
         workspace_num=1,
         workflow_name="ace(run)-260101_120000",
@@ -286,7 +286,7 @@ def test_spawn_agent_subprocess_prepares_vcs_and_local_xprompt_env(
 
     spawn_agent_subprocess(
         cl_name="feature/test",
-        project_file="/tmp/projects/proj/proj.gp",
+        project_file="/tmp/projects/proj/proj.sase",
         workspace_dir=str(workspace_dir),
         workspace_num=8,
         workflow_name="ace(run)-260101_120000",
@@ -332,7 +332,7 @@ def test_spawn_agent_subprocess_does_not_record_without_chop_env(
 
     spawn_agent_subprocess(
         cl_name="proj",
-        project_file="/tmp/projects/proj/proj.gp",
+        project_file="/tmp/projects/proj/proj.sase",
         workspace_dir=str(workspace_dir),
         workspace_num=3,
         workflow_name="ace(run)-260101_120000",

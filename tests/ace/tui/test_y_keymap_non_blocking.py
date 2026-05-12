@@ -2,7 +2,7 @@
 
 The regression guarded here is the `y` keymap (and the timer-driven
 auto-refresh) calling the synchronous `_reload_and_reposition()` on the
-event-loop thread. With many `.gp` files on disk, `find_all_changespecs()`
+event-loop thread. With many project spec files on disk, `find_all_changespecs()`
 is several seconds of I/O — during that time Textual cannot dispatch any
 keypresses (j/k/tab-switch), so the TUI appears frozen.
 

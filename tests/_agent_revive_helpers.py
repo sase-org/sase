@@ -16,7 +16,7 @@ def make_agent(**overrides: object) -> Agent:
     defaults: dict[str, object] = {
         "agent_type": AgentType.WORKFLOW,
         "cl_name": "test_cl",
-        "project_file": "/tmp/projects/myproj/myproj.gp",
+        "project_file": "/tmp/projects/myproj/myproj.sase",
         "status": "DONE",
         "start_time": datetime(2024, 1, 1, 12, 0, 0),
         "workflow": "wf",

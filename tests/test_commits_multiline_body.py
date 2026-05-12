@@ -102,7 +102,7 @@ class TestParseCommitsLineBody:
             "      | CHAT: /tmp/chat.md\n",
             "\n",
         ]
-        cs, _ = _parse_changespec_from_lines(lines, 0, "/test/file.gp")
+        cs, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
         assert cs is not None
         assert cs.commits is not None
         assert len(cs.commits) == 1
@@ -124,7 +124,7 @@ class TestParseCommitsLineBody:
             "      Para two.\n",
             "\n",
         ]
-        cs, _ = _parse_changespec_from_lines(lines, 0, "/test/file.gp")
+        cs, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
         assert cs is not None
         commits = cs.commits
         assert commits is not None
@@ -141,7 +141,7 @@ class TestParseCommitsLineBody:
             "  (1) Single line note\n",
             "\n",
         ]
-        cs, _ = _parse_changespec_from_lines(lines, 0, "/test/file.gp")
+        cs, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
         assert cs is not None
         commits = cs.commits
         assert commits is not None
@@ -162,7 +162,7 @@ class TestParseCommitsLineBody:
             "      | DIFF: /tmp/d.diff\n",
             "\n",
         ]
-        cs, _ = _parse_changespec_from_lines(lines, 0, "/test/file.gp")
+        cs, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
         assert cs is not None
         commits = cs.commits
         assert commits is not None
@@ -185,7 +185,7 @@ class TestParseCommitsLineBody:
             "      Second body.\n",
             "\n",
         ]
-        cs, _ = _parse_changespec_from_lines(lines, 0, "/test/file.gp")
+        cs, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
         assert cs is not None
         commits = cs.commits
         assert commits is not None
@@ -400,7 +400,7 @@ def _make_changespec(
         cl=None,
         status="Ready",
         test_targets=None,
-        file_path="/tmp/test.gp",
+        file_path="/tmp/test.sase",
         line_number=1,
         commits=commits,
     )

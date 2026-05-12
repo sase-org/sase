@@ -78,9 +78,12 @@ class BulkLaunchMixin:
                 project_name = cs.project_basename
                 cl_name = cs.name
 
-                project_file = os.path.expanduser(
-                    f"~/.sase/projects/{project_name}/{project_name}.gp"
+                from sase.ace.changespec.project_spec_path import (
+                    preferred_project_spec_path,
                 )
+
+                project_dir = os.path.expanduser(f"~/.sase/projects/{project_name}")
+                project_file = preferred_project_spec_path(project_dir, project_name)
 
                 if not os.path.isfile(project_file):
                     log.warning("No project file for %s", cl_name)

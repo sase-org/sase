@@ -14,7 +14,7 @@ from sase.ace.tui.widgets.agent_list import AgentList
 def _agent(
     *,
     cl_name: str = "demo",
-    project_file: str = "/repo/proj.gp",
+    project_file: str = "/repo/proj.sase",
     agent_name: str | None = None,
     raw_suffix: str = "20260425143000",
     status: str = "RUNNING",
@@ -93,7 +93,7 @@ def test_try_remove_rows_bails_for_workflow_parent_with_children(
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="wf_parent",
-        project_file="/repo/proj.gp",
+        project_file="/repo/proj.sase",
         status="RUNNING",
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         workflow="wf",

@@ -21,7 +21,7 @@ def make_agent(**overrides: object) -> Agent:
     defaults: dict[str, object] = {
         "agent_type": AgentType.RUNNING,
         "cl_name": "test_cl",
-        "project_file": "/tmp/test.gp",
+        "project_file": "/tmp/test.sase",
         "status": "RUNNING",
         "start_time": datetime(2024, 1, 1, 14, 23, 45),
     }

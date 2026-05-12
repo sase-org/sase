@@ -1,10 +1,11 @@
 # ProjectSpec Format
 
-A ProjectSpec is SASE's project-level `.gp` file. It groups the active [ChangeSpecs](change_spec.md) for one project and
-may also store project metadata used by workspace and agent coordination.
+A ProjectSpec is SASE's project-level `.sase` file. It groups the active [ChangeSpecs](change_spec.md) for one project
+and may also store project metadata used by workspace and agent coordination.
 
-ProjectSpec files live under `~/.sase/projects/<project>/<project>.gp`. Terminal ChangeSpecs are moved to the adjacent
-archive file, `~/.sase/projects/<project>/<project>-archive.gp`.
+ProjectSpec files live under `~/.sase/projects/<project>/<project>.sase`. Terminal ChangeSpecs are moved to the adjacent
+archive file, `~/.sase/projects/<project>/<project>-archive.sase`. Legacy `.gp` files from earlier releases remain
+readable as a fallback; the `sase changespec migrate-extension` command renames them to the canonical `.sase` extension.
 
 ## Format
 
@@ -138,8 +139,8 @@ STATUS: WIP
 
 ## Important Notes
 
-- **Project file path**: Use `~/.sase/projects/<project>/<project>.gp` for active ChangeSpecs and
-  `~/.sase/projects/<project>/<project>-archive.gp` for terminal history.
+- **Project file path**: Use `~/.sase/projects/<project>/<project>.sase` for active ChangeSpecs and
+  `~/.sase/projects/<project>/<project>-archive.sase` for terminal history.
 - **Project metadata**: Keep `BARE_REPO_DIR`, `WORKSPACE_DIR`, and `RUNNING` before the first `NAME:` line.
 - **Blank lines between ChangeSpecs**: Separate ChangeSpecs with exactly two blank lines.
 - **NAME field**: Prefer SASE-generated names, which use the project prefix and a numeric suffix.

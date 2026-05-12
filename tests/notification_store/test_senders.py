@@ -47,7 +47,7 @@ class TestNotifyMentorsComplete:
 
         notify_mentors_complete(
             cl_name="cl-1",
-            project_file="/proj.gp",
+            project_file="/proj.sase",
             entry_id="2",
             mentor_summary="3/3 mentors finished (1 commented)",
             has_comments=True,
@@ -58,11 +58,11 @@ class TestNotifyMentorsComplete:
         assert n.action == "JumpToMentorReview"
         assert n.action_data == {
             "changespec_name": "cl-1",
-            "project_file": "/proj.gp",
+            "project_file": "/proj.sase",
             "entry_id": "2",
         }
         assert n.sender == "mentors"
-        assert n.files == ["/proj.gp"]
+        assert n.files == ["/proj.sase"]
         assert any("cl-1" in note and "entry 2" in note for note in n.notes)
         assert "3/3 mentors finished (1 commented)" in n.notes
 
@@ -71,7 +71,7 @@ class TestNotifyMentorsComplete:
 
         notify_mentors_complete(
             cl_name="cl-1",
-            project_file="/proj.gp",
+            project_file="/proj.sase",
             entry_id="1",
             mentor_summary="no mentor profiles matched",
             has_comments=False,

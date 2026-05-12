@@ -11,7 +11,7 @@ def test_apply_status_overrides_done_with_active_feedback_becomes_running() -> N
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 4, 17, 16, 33, 26),
         raw_suffix="20260417163326",
@@ -20,7 +20,7 @@ def test_apply_status_overrides_done_with_active_feedback_becomes_running() -> N
     feedback_child = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=datetime(2026, 4, 17, 16, 45, 16),
         parent_timestamp="20260417163326",
@@ -37,7 +37,7 @@ def test_apply_status_overrides_done_with_completed_feedback_becomes_planning() 
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 4, 17, 16, 33, 26),
         raw_suffix="20260417163326",
@@ -46,7 +46,7 @@ def test_apply_status_overrides_done_with_completed_feedback_becomes_planning() 
     feedback_child = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 4, 17, 16, 45, 16),
         parent_timestamp="20260417163326",
@@ -67,7 +67,7 @@ def test_apply_status_overrides_running_with_unanswered_followup_plan_becomes_pl
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=datetime(2026, 5, 12, 9, 0, 0),
         raw_suffix="20260512090000",
@@ -76,7 +76,7 @@ def test_apply_status_overrides_running_with_unanswered_followup_plan_becomes_pl
     feedback_child = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 5, 12, 9, 35, 0),
         parent_timestamp="20260512090000",
@@ -95,7 +95,7 @@ def test_apply_status_overrides_running_with_active_feedback_stays_running() -> 
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=datetime(2026, 5, 12, 9, 0, 0),
         raw_suffix="20260512090000",
@@ -105,7 +105,7 @@ def test_apply_status_overrides_running_with_active_feedback_stays_running() -> 
     feedback_child = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=datetime(2026, 5, 12, 9, 35, 0),
         parent_timestamp="20260512090000",
@@ -123,7 +123,7 @@ def test_apply_status_overrides_deduplicates_feedback_child_feedback_time() -> N
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 5, 6, 0, 12, 45),
         raw_suffix="20260506001245",
@@ -133,7 +133,7 @@ def test_apply_status_overrides_deduplicates_feedback_child_feedback_time() -> N
     feedback_child = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 5, 6, 0, 16, 35),
         parent_timestamp="20260506001245",
@@ -154,7 +154,7 @@ def test_apply_status_overrides_propagates_feedback_plan_path() -> None:
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 5, 6, 0, 12, 45),
         raw_suffix="20260506001245",
@@ -163,7 +163,7 @@ def test_apply_status_overrides_propagates_feedback_plan_path() -> None:
     feedback_child = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 5, 6, 0, 16, 35),
         parent_timestamp="20260506001245",
@@ -184,7 +184,7 @@ def test_apply_status_overrides_feedback_plan_path_is_idempotent() -> None:
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 5, 6, 0, 12, 45),
         raw_suffix="20260506001245",
@@ -193,7 +193,7 @@ def test_apply_status_overrides_feedback_plan_path_is_idempotent() -> None:
     feedback_child = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 5, 6, 0, 16, 35),
         parent_timestamp="20260506001245",
@@ -216,7 +216,7 @@ def test_apply_status_overrides_keeps_parent_feedback_plan_path() -> None:
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 5, 6, 0, 12, 45),
         raw_suffix="20260506001245",
@@ -227,7 +227,7 @@ def test_apply_status_overrides_keeps_parent_feedback_plan_path() -> None:
     feedback_child = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 5, 6, 0, 16, 35),
         parent_timestamp="20260506001245",
@@ -247,7 +247,7 @@ def test_apply_status_overrides_propagates_new_feedback_child_plan_time() -> Non
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 5, 6, 0, 12, 45),
         raw_suffix="20260506001245",
@@ -257,7 +257,7 @@ def test_apply_status_overrides_propagates_new_feedback_child_plan_time() -> Non
     feedback_child = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 5, 6, 0, 16, 35),
         parent_timestamp="20260506001245",
@@ -278,7 +278,7 @@ def test_apply_status_overrides_timestamp_propagation_is_idempotent() -> None:
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 5, 6, 0, 12, 45),
         raw_suffix="20260506001245",
@@ -287,7 +287,7 @@ def test_apply_status_overrides_timestamp_propagation_is_idempotent() -> None:
     feedback_child = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 5, 6, 0, 16, 35),
         parent_timestamp="20260506001245",

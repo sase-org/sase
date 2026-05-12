@@ -53,7 +53,7 @@ def test_do_bulk_kill_agents_refreshes_and_schedules_once() -> None:
     a1 = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="feature_one",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="fix-hook",
@@ -63,7 +63,7 @@ def test_do_bulk_kill_agents_refreshes_and_schedules_once() -> None:
     a2 = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="feature_two",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="mentor",
@@ -134,7 +134,7 @@ def test_do_bulk_kill_agents_removes_workflow_children_immediately() -> None:
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="wf",
@@ -144,7 +144,7 @@ def test_do_bulk_kill_agents_removes_workflow_children_immediately() -> None:
     child = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="step",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="step",
@@ -207,7 +207,7 @@ def test_do_bulk_kill_agents_failed_pid_stays_visible() -> None:
     failed = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="failed",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="fix-hook",
@@ -217,7 +217,7 @@ def test_do_bulk_kill_agents_failed_pid_stays_visible() -> None:
     killed = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="killed",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="mentor",
@@ -267,7 +267,7 @@ def test_run_bulk_kill_persistence_does_not_refresh_on_success() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="feature_one",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="fix-hook",
@@ -317,7 +317,7 @@ def test_run_bulk_kill_persistence_refreshes_on_failure() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="feature_one",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="fix-hook",
@@ -352,7 +352,7 @@ def test_persist_bulk_kill_side_effects_uses_one_notification_update() -> None:
     running = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="feature_one",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="fix-hook",
@@ -362,7 +362,7 @@ def test_persist_bulk_kill_side_effects_uses_one_notification_update() -> None:
     done = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="feature_two",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=None,
         workflow="mentor",

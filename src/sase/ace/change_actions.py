@@ -5,6 +5,10 @@ import subprocess
 import tempfile
 from typing import Literal
 
+from sase.ace.changespec.project_spec_path import (
+    PROJECT_SPEC_EXTENSION,
+    preferred_project_spec_path,
+)
 from sase.ace.comments.operations import (
     mark_comment_agents_as_killed,
     update_changespec_comments_field,
@@ -89,7 +93,9 @@ def delete_proposal_entry(
 
     # Write back atomically
     project_dir = os.path.dirname(project_file)
-    fd, temp_path = tempfile.mkstemp(dir=project_dir, prefix=".tmp_", suffix=".gp")
+    fd, temp_path = tempfile.mkstemp(
+        dir=project_dir, prefix=".tmp_", suffix=PROJECT_SPEC_EXTENSION
+    )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.writelines(new_lines)
@@ -191,8 +197,8 @@ def prompt_for_change_action(
             ws_ok, ws_name = provider.get_workspace_name(target_dir)
             project = ws_name if ws_ok and ws_name else None
             if project:
-                resolved_project_file = os.path.expanduser(
-                    f"~/.sase/projects/{project}/{project}.gp"
+                resolved_project_file = preferred_project_spec_path(
+                    os.path.expanduser(f"~/.sase/projects/{project}"), project
                 )
 
         if resolved_project_file and os.path.isfile(resolved_project_file):
@@ -404,8 +410,8 @@ def execute_change_action(
             if not project:
                 console.print("[red]Failed to get project name[/red]")
                 return False
-            resolved_project_file = os.path.expanduser(
-                f"~/.sase/projects/{project}/{project}.gp"
+            resolved_project_file = preferred_project_spec_path(
+                os.path.expanduser(f"~/.sase/projects/{project}"), project
             )
 
         branch_ok, branch_result_val = provider.get_branch_name(target_dir)
@@ -551,8 +557,8 @@ def execute_change_action(
             if not project:
                 console.print("[red]Failed to get project name[/red]")
                 return False
-            resolved_project_file = os.path.expanduser(
-                f"~/.sase/projects/{project}/{project}.gp"
+            resolved_project_file = preferred_project_spec_path(
+                os.path.expanduser(f"~/.sase/projects/{project}"), project
             )
 
         # Transition status from Draft to Ready
@@ -610,8 +616,8 @@ def execute_change_action(
             if not project:
                 console.print("[red]Failed to get project name[/red]")
                 return False
-            resolved_project_file = os.path.expanduser(
-                f"~/.sase/projects/{project}/{project}.gp"
+            resolved_project_file = preferred_project_spec_path(
+                os.path.expanduser(f"~/.sase/projects/{project}"), project
             )
 
         branch_ok, branch_result_val = provider.get_branch_name(target_dir)

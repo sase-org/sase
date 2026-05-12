@@ -41,7 +41,7 @@ def test_load_all_agents_dedup_preserves_workspace_num() -> None:
         cl="12345",
         status="Ready",
         test_targets=None,
-        file_path="/tmp/test.gp",
+        file_path="/tmp/test.sase",
         line_number=1,
         hooks=[mock_hook],
     )
@@ -49,7 +49,7 @@ def test_load_all_agents_dedup_preserves_workspace_num() -> None:
     with (
         patch(
             "sase.ace.tui.models.agent_loader.get_all_project_files",
-            return_value=["/tmp/test.gp"],
+            return_value=["/tmp/test.sase"],
         ),
         patch(
             "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
@@ -99,7 +99,7 @@ def test_workflow_dedup_propagates_failed_status() -> None:
     running_field_agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="test_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="deploy",
@@ -111,7 +111,7 @@ def test_workflow_dedup_propagates_failed_status() -> None:
     workflow_state_agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="test_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="FAILED",
         start_time=None,
         workflow="deploy",
@@ -177,7 +177,7 @@ def test_running_workflow_dedup_ace_run() -> None:
     running_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=None,
         workflow="ace(run)",
@@ -193,7 +193,7 @@ def test_running_workflow_dedup_ace_run() -> None:
     workflow_agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="unknown",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=None,
         workflow="tmp_ace_run_1234",
@@ -267,7 +267,7 @@ def test_done_json_dedup_with_changespec() -> None:
     done_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=None,
         workflow="crs",
@@ -290,7 +290,7 @@ def test_done_json_dedup_with_changespec() -> None:
         cl="12345",
         status="Ready",
         test_targets=None,
-        file_path="/tmp/test.gp",
+        file_path="/tmp/test.sase",
         line_number=1,
         comments=[mock_comment],
     )
@@ -357,7 +357,7 @@ def test_mentor_workflow_dedup_with_changespec() -> None:
     mentor_running = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="mentor(code_quality)",
@@ -390,7 +390,7 @@ def test_mentor_workflow_dedup_with_changespec() -> None:
         cl="12345",
         status="Ready",
         test_targets=None,
-        file_path="/tmp/test.gp",
+        file_path="/tmp/test.sase",
         line_number=1,
         mentors=[mock_mentor_entry],
     )

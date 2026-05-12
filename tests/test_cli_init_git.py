@@ -26,7 +26,7 @@ class TestInitGitHandler:
     ) -> None:
         from unittest.mock import MagicMock
 
-        mock_init = MagicMock(return_value="/tmp/proj.gp")
+        mock_init = MagicMock(return_value="/tmp/proj.sase")
 
         with (
             patch(

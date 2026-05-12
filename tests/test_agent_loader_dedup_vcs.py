@@ -19,7 +19,7 @@ def test_embedded_vcs_removed_by_axe_pid() -> None:
     axe_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="axe(crs)-critique-260310_140240",
@@ -32,7 +32,7 @@ def test_embedded_vcs_removed_by_axe_pid() -> None:
     hg_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="hg-my_feature",
@@ -99,7 +99,7 @@ def test_embedded_vcs_fields_merged_into_axe_agent() -> None:
     axe_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="axe(crs)-critique-260310_140240",
@@ -112,7 +112,7 @@ def test_embedded_vcs_fields_merged_into_axe_agent() -> None:
     hg_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="hg-my_feature",
@@ -182,7 +182,7 @@ def test_embedded_vcs_removed_by_workflow_axe_pid() -> None:
     axe_agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="axe(crs)-critique-260310_140240",
@@ -195,7 +195,7 @@ def test_embedded_vcs_removed_by_workflow_axe_pid() -> None:
     hg_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="hg-my_feature",
@@ -260,7 +260,7 @@ def test_embedded_vcs_removed_by_plain_workflow_name() -> None:
     fix_hook_agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="fix-hook",
@@ -273,7 +273,7 @@ def test_embedded_vcs_removed_by_plain_workflow_name() -> None:
     hg_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="hg-my_feature",
@@ -358,7 +358,7 @@ def test_embedded_vcs_removed_when_changespec_fix_hook_review_tagged() -> None:
         cl="881522624",
         status="Mailed",
         test_targets=None,
-        file_path="/tmp/test.gp",
+        file_path="/tmp/test.sase",
         line_number=1,
         hooks=[mock_hook],
     )
@@ -367,7 +367,7 @@ def test_embedded_vcs_removed_when_changespec_fix_hook_review_tagged() -> None:
     hg_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="yserve_15_yp_fields",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
         workflow="hg-yserve_15_yp_fields",
@@ -379,7 +379,7 @@ def test_embedded_vcs_removed_when_changespec_fix_hook_review_tagged() -> None:
     with (
         patch(
             "sase.ace.tui.models.agent_loader.get_all_project_files",
-            return_value=["/tmp/test.gp"],
+            return_value=["/tmp/test.sase"],
         ),
         patch(
             "sase.ace.tui.models.agent_loader.find_all_changespecs",

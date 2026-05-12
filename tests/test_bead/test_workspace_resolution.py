@@ -80,7 +80,7 @@ def test_get_project_beads_dirs_for_project_uses_explicit_project(
     sibling = tmp_path / "workspaces" / f"{project_name}_2"
     (primary / "sdd/beads").mkdir(parents=True)
     (sibling / ".sase_beads").mkdir(parents=True)
-    (project_dir / f"{project_name}.gp").write_text(f"WORKSPACE_DIR: {primary}\n")
+    (project_dir / f"{project_name}.sase").write_text(f"WORKSPACE_DIR: {primary}\n")
 
     result = get_project_beads_dirs_for_project(project_name)
 
@@ -103,7 +103,7 @@ def test_get_all_project_beads_dirs_dedupes_known_project_dirs(
     }.items():
         project_dir = tmp_path / ".sase" / "projects" / project_name
         project_dir.mkdir(parents=True)
-        (project_dir / f"{project_name}.gp").write_text(f"WORKSPACE_DIR: {primary}\n")
+        (project_dir / f"{project_name}.sase").write_text(f"WORKSPACE_DIR: {primary}\n")
 
     result = get_all_project_beads_dirs()
 
@@ -165,7 +165,7 @@ def test_scanning_projects_direct_match(tmp_path: Path, monkeypatch) -> None:
     projects_dir.mkdir(parents=True)
     primary = tmp_path / "workspaces" / "myproj"
     primary.mkdir(parents=True)
-    (projects_dir / "myproj.gp").write_text(f"WORKSPACE_DIR: {primary}\n")
+    (projects_dir / "myproj.sase").write_text(f"WORKSPACE_DIR: {primary}\n")
 
     result = _resolve_by_scanning_projects(str(primary / "subdir"))
     assert result == primary
@@ -178,7 +178,7 @@ def test_scanning_projects_numbered_variant(tmp_path: Path, monkeypatch) -> None
     projects_dir.mkdir(parents=True)
     primary = tmp_path / "workspaces" / "myproj" / "src"
     primary.mkdir(parents=True)
-    (projects_dir / "myproj.gp").write_text(f"WORKSPACE_DIR: {primary}\n")
+    (projects_dir / "myproj.sase").write_text(f"WORKSPACE_DIR: {primary}\n")
 
     # Simulate numbered workspace: myproj_42/src
     numbered = tmp_path / "workspaces" / "myproj_42" / "src"
@@ -195,7 +195,7 @@ def test_scanning_projects_variant_to_variant(tmp_path: Path, monkeypatch) -> No
     projects_dir.mkdir(parents=True)
     primary = tmp_path / "workspaces" / "yserve_yp_last_conv" / "google3"
     primary.mkdir(parents=True)
-    (projects_dir / "yserve.gp").write_text(f"WORKSPACE_DIR: {primary}\n")
+    (projects_dir / "yserve.sase").write_text(f"WORKSPACE_DIR: {primary}\n")
 
     cwd_variant = tmp_path / "workspaces" / "yserve_101" / "google3"
     cwd_variant.mkdir(parents=True)
@@ -209,9 +209,9 @@ def test_scanning_projects_primary_not_on_disk(tmp_path: Path, monkeypatch) -> N
     monkeypatch.setenv("HOME", str(tmp_path))
     projects_dir = tmp_path / ".sase" / "projects" / "yserve"
     projects_dir.mkdir(parents=True)
-    # Primary workspace path in .gp file — does NOT exist on disk.
+    # Primary workspace path in project spec file — does NOT exist on disk.
     primary = tmp_path / "workspaces" / "yserve" / "google3"
-    (projects_dir / "yserve.gp").write_text(f"WORKSPACE_DIR: {primary}\n")
+    (projects_dir / "yserve.sase").write_text(f"WORKSPACE_DIR: {primary}\n")
 
     # CWD is under a variant workspace that DOES exist.
     variant = tmp_path / "workspaces" / "yserve_101" / "google3"
@@ -236,7 +236,7 @@ def test_scanning_projects_no_match(tmp_path: Path, monkeypatch) -> None:
     projects_dir.mkdir(parents=True)
     primary = tmp_path / "workspaces" / "myproj"
     primary.mkdir(parents=True)
-    (projects_dir / "myproj.gp").write_text(f"WORKSPACE_DIR: {primary}\n")
+    (projects_dir / "myproj.sase").write_text(f"WORKSPACE_DIR: {primary}\n")
 
     result = _resolve_by_scanning_projects("/some/other/path")
     assert result is None
@@ -245,12 +245,12 @@ def test_scanning_projects_no_match(tmp_path: Path, monkeypatch) -> None:
 def test_resolve_primary_workspace_via_provider_when_workspace_dir_missing(
     tmp_path: Path, monkeypatch
 ) -> None:
-    """Falls back to workspace provider when .gp lacks WORKSPACE_DIR."""
+    """Falls back to workspace provider when project spec lacks WORKSPACE_DIR."""
     monkeypatch.setenv("HOME", str(tmp_path))
     project_name = "yserve"
     project_dir = tmp_path / ".sase" / "projects" / project_name
     project_dir.mkdir(parents=True)
-    (project_dir / f"{project_name}.gp").write_text("RUNNING:\nNAME: x\n")
+    (project_dir / f"{project_name}.sase").write_text("RUNNING:\nNAME: x\n")
 
     primary = tmp_path / "workspaces" / project_name / "google3"
     primary.mkdir(parents=True)
@@ -269,5 +269,5 @@ def test_resolve_primary_workspace_via_provider_when_workspace_dir_missing(
         result = resolve_primary_workspace()
 
     assert result == primary
-    mock_detect.assert_called_once_with(str(project_dir / f"{project_name}.gp"))
+    mock_detect.assert_called_once_with(str(project_dir / f"{project_name}.sase"))
     mock_get_dir.assert_called_once_with("hg", 1, project_name, "")

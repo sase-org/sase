@@ -16,7 +16,7 @@ from ._agent_groups_helpers import _agent, _group_keys, _kinds
 
 
 def test_single_agent_emits_project_and_changespec_banner() -> None:
-    a = _agent(cl_name="demo", project_file="/repo/proj.gp")
+    a = _agent(cl_name="demo", project_file="/repo/proj.sase")
     entries = build_agent_tree([a])
     assert _kinds(entries) == [("group", 0), ("group", 1), ("agent", 0)]
 
@@ -67,8 +67,8 @@ def test_two_agents_sharing_name_root_emit_three_banners() -> None:
 
 
 def test_distinct_projects_emit_separate_project_banners() -> None:
-    a = _agent(cl_name="demo-a", project_file="/repo/proja/proj.gp")
-    b = _agent(cl_name="demo-b", project_file="/repo/projb/proj.gp")
+    a = _agent(cl_name="demo-a", project_file="/repo/proja/proj.sase")
+    b = _agent(cl_name="demo-b", project_file="/repo/projb/proj.sase")
     entries = build_agent_tree([a, b])
     levels = [e.group.level for e in entries if e.kind == "group"]  # type: ignore[union-attr]
     assert levels == [0, 1, 0, 1]
@@ -145,15 +145,15 @@ def test_name_root_label_at_level_two() -> None:
 
 def test_no_changespec_panel_drops_to_two_level_layout() -> None:
     """When no agent has a ChangeSpec the renderer matches the pre-split shape."""
-    a = _agent(cl_name="", project_file="/r/projA/proj.gp")
+    a = _agent(cl_name="", project_file="/r/projA/proj.sase")
     entries = build_agent_tree([a])
     # Just project banner + agent — no ChangeSpec banner inserted.
     assert _kinds(entries) == [("group", 0), ("agent", 0)]
 
 
 def test_two_level_panel_keeps_name_root_at_level_one() -> None:
-    a = _agent(cl_name="", project_file="/r/proj/proj.gp", agent_name="coder.claude")
-    b = _agent(cl_name="", project_file="/r/proj/proj.gp", agent_name="coder.codex")
+    a = _agent(cl_name="", project_file="/r/proj/proj.sase", agent_name="coder.claude")
+    b = _agent(cl_name="", project_file="/r/proj/proj.sase", agent_name="coder.codex")
     entries = build_agent_tree([a, b])
     # project banner + name-root banner + agents — same shape as today.
     assert _kinds(entries) == [
@@ -165,7 +165,7 @@ def test_two_level_panel_keeps_name_root_at_level_one() -> None:
 
 
 def test_two_level_project_label_renders_just_project_name() -> None:
-    a = _agent(cl_name="", project_file="/r/sase_100/proj.gp")
+    a = _agent(cl_name="", project_file="/r/sase_100/proj.sase")
     entries = build_agent_tree([a])
     project_banner = next(
         e
@@ -177,7 +177,7 @@ def test_two_level_project_label_renders_just_project_name() -> None:
 
 def test_project_scoped_agent_does_not_emit_duplicate_changespec_banner() -> None:
     """Project agents have a display cl_name but no real ChangeSpec bucket."""
-    a = _agent(cl_name="home", project_file="/r/home/home.gp")
+    a = _agent(cl_name="home", project_file="/r/home/home.sase")
     entries = build_agent_tree([a])
     assert _kinds(entries) == [("group", 0), ("agent", 0)]
     assert _group_keys(entries, level=0) == [("home",)]
@@ -186,9 +186,11 @@ def test_project_scoped_agent_does_not_emit_duplicate_changespec_banner() -> Non
 
 def test_project_scoped_panel_keeps_name_root_at_level_one() -> None:
     a = _agent(
-        cl_name="home", project_file="/r/home/home.gp", agent_name="coder.claude"
+        cl_name="home", project_file="/r/home/home.sase", agent_name="coder.claude"
     )
-    b = _agent(cl_name="home", project_file="/r/home/home.gp", agent_name="coder.codex")
+    b = _agent(
+        cl_name="home", project_file="/r/home/home.sase", agent_name="coder.codex"
+    )
     entries = build_agent_tree([a, b])
     assert _kinds(entries) == [
         ("group", 0),
@@ -202,13 +204,13 @@ def test_project_scoped_panel_keeps_name_root_at_level_one() -> None:
 def test_project_scoped_workflow_child_does_not_force_changespec_level() -> None:
     parent = _agent(
         cl_name="home",
-        project_file="/r/home/home.gp",
+        project_file="/r/home/home.sase",
         agent_name="coder.claude",
         raw_suffix="ts1",
     )
     child = _agent(
         cl_name="step",
-        project_file="/r/home/home.gp",
+        project_file="/r/home/home.sase",
         agent_name="step.bash",
         parent_workflow="coder",
         parent_timestamp="ts1",
@@ -229,8 +231,8 @@ def test_project_scoped_workflow_child_does_not_force_changespec_level() -> None
 
 def test_mixed_panel_synthesizes_no_changespec_bucket() -> None:
     """Agents without a ChangeSpec collect under a synthetic bucket."""
-    a = _agent(cl_name="fix-a", project_file="/r/proj/proj.gp")
-    b = _agent(cl_name="", project_file="/r/proj/proj.gp")
+    a = _agent(cl_name="fix-a", project_file="/r/proj/proj.sase")
+    b = _agent(cl_name="", project_file="/r/proj/proj.sase")
     entries = build_agent_tree([a, b])
     # Two ChangeSpec banners under the same project.
     cs_banners = [
@@ -247,8 +249,8 @@ def test_mixed_panel_synthesizes_no_changespec_bucket() -> None:
 
 
 def test_mixed_panel_puts_project_scoped_agent_in_synthetic_bucket() -> None:
-    a = _agent(cl_name="fix-a", project_file="/r/home/home.gp")
-    b = _agent(cl_name="home", project_file="/r/home/home.gp")
+    a = _agent(cl_name="fix-a", project_file="/r/home/home.sase")
+    b = _agent(cl_name="home", project_file="/r/home/home.sase")
     entries = build_agent_tree([a, b])
     assert _group_keys(entries, level=1) == [("home", "fix-a"), ("home", "")]
     assert ("home", "home") not in _group_keys(entries, level=1)
@@ -258,8 +260,8 @@ def test_mixed_panel_synthetic_bucket_is_independently_collapsible() -> None:
     """The synthetic bucket is keyed by ``(project, "")`` and folds normally."""
     registry = AgentGroupFoldRegistry()
     registry.collapse(("proj", ""))
-    a = _agent(cl_name="fix-a", project_file="/r/proj/proj.gp")
-    b = _agent(cl_name="", project_file="/r/proj/proj.gp")
+    a = _agent(cl_name="fix-a", project_file="/r/proj/proj.sase")
+    b = _agent(cl_name="", project_file="/r/proj/proj.sase")
     entries = build_agent_tree([a, b], fold_registry=registry)
     # The synthetic banner is collapsed (no agent under it); the named
     # ChangeSpec banner is still expanded.

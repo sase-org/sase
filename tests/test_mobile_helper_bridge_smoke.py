@@ -29,7 +29,7 @@ def test_mobile_helper_bridge_smoke_all_helpers_with_temp_project_and_update(
     alpha_dir, alpha_epic, _, _ = seed_bead_project(tmp_path / "alpha")
     seed_known_projects(tmp_path, {"alpha": alpha_dir})
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    project_file = tmp_path / ".sase/projects/alpha/alpha.gp"
+    project_file = tmp_path / ".sase/projects/alpha/alpha.sase"
     stub_changespecs(
         monkeypatch,
         [

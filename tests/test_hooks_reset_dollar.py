@@ -30,7 +30,7 @@ def _make_changespec(
         cl=None,
         status="Draft",
         test_targets=None,
-        file_path="/tmp/test.gp",
+        file_path="/tmp/test.sase",
         line_number=1,
         hooks=hooks,
         commits=commits,
@@ -71,7 +71,7 @@ def test_no_dollar_hooks_is_noop() -> None:
     hooks = [_make_hook("flake8 src", "1", "PASSED")]
     cs = _make_changespec(hooks=hooks, commits=[_make_commit(1)])
     with patch(_PATCH_PARSE, return_value=[cs]):
-        assert reset_dollar_hooks("/tmp/test.gp", "test_feature") is True
+        assert reset_dollar_hooks("/tmp/test.sase", "test_feature") is True
 
 
 def test_no_commits_history_is_noop() -> None:
@@ -79,7 +79,7 @@ def test_no_commits_history_is_noop() -> None:
     hooks = [_make_hook("$bb_presubmit", "1", "PASSED")]
     cs = _make_changespec(hooks=hooks, commits=None)
     with patch(_PATCH_PARSE, return_value=[cs]):
-        assert reset_dollar_hooks("/tmp/test.gp", "test_feature") is True
+        assert reset_dollar_hooks("/tmp/test.sase", "test_feature") is True
 
 
 def test_log_fn_receives_messages() -> None:
@@ -96,7 +96,7 @@ def test_log_fn_receives_messages() -> None:
         patch(_PATCH_KILL, return_value=3),
         patch(_PATCH_RERUN, return_value=True),
     ):
-        reset_dollar_hooks("/tmp/test.gp", "test_feature", log_fn=logged.append)
+        reset_dollar_hooks("/tmp/test.sase", "test_feature", log_fn=logged.append)
 
     assert len(logged) == 2
     assert "2 $-prefixed hook(s)" in logged[0]
@@ -118,7 +118,7 @@ def test_mix_dollar_and_non_dollar_hooks() -> None:
         patch(_PATCH_KILL, return_value=0) as mock_kill,
         patch(_PATCH_RERUN, return_value=True) as mock_rerun,
     ):
-        reset_dollar_hooks("/tmp/test.gp", "test_feature")
+        reset_dollar_hooks("/tmp/test.sase", "test_feature")
 
     # Only indices 1 and 3 are $ hooks
     mock_kill.assert_called_once_with(hooks, {1, 3})
@@ -138,4 +138,4 @@ def test_changespec_not_found_returns_true() -> None:
         commits=[_make_commit(1)],
     )
     with patch(_PATCH_PARSE, return_value=[cs]):
-        assert reset_dollar_hooks("/tmp/test.gp", "test_feature") is True
+        assert reset_dollar_hooks("/tmp/test.sase", "test_feature") is True

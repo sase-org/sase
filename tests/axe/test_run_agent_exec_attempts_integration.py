@@ -16,7 +16,7 @@ def _make_ctx(tmp_path: Path) -> AgentExecContext:
     artifacts.mkdir()
     return AgentExecContext(
         cl_name="test-cl",
-        project_file=str(tmp_path / "project.gp"),
+        project_file=str(tmp_path / "project.sase"),
         workspace_dir=str(tmp_path),
         output_path=str(tmp_path / "output.log"),
         workspace_num=1,

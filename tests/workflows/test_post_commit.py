@@ -28,10 +28,10 @@ def test_append_missing_commit_result(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))  # type: ignore[union-attr]
-    monkeypatch.setenv("SASE_AGENT_PROJECT_FILE", str(tmp_path / "proj.gp"))  # type: ignore[union-attr]
+    monkeypatch.setenv("SASE_AGENT_PROJECT_FILE", str(tmp_path / "proj.sase"))  # type: ignore[union-attr]
     monkeypatch.setenv("SASE_AGENT_CL_NAME", "my_cl")  # type: ignore[union-attr]
     # project file exists but no commit_result.json
-    (tmp_path / "proj.gp").write_text("NAME: my_cl\nSTATUS: Draft\n")
+    (tmp_path / "proj.sase").write_text("NAME: my_cl\nSTATUS: Draft\n")
     r = append_post_commit_entry(mode="commit")
     assert r.success is False
 
@@ -40,7 +40,7 @@ def test_append_commit_result_null_result_succeeds(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A commit_result.json with result=null (Mercurial amend) should still succeed."""
-    proj = tmp_path / "proj.gp"
+    proj = tmp_path / "proj.sase"
     proj.write_text("NAME: my_cl\nSTATUS: Draft\n")
     (tmp_path / "commit_result.json").write_text(
         json.dumps({"result": None, "message": "Agent changes"})
@@ -59,7 +59,7 @@ def test_append_commit_result_null_result_succeeds(
 
 
 def test_append_commit_mode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    proj = tmp_path / "proj.gp"
+    proj = tmp_path / "proj.sase"
     proj.write_text("NAME: my_cl\nDESCRIPTION:\n  Desc\nSTATUS: Draft\n")
 
     (tmp_path / "commit_result.json").write_text(
@@ -93,7 +93,7 @@ def test_append_commit_mode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_append_proposal_mode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    proj = tmp_path / "proj.gp"
+    proj = tmp_path / "proj.sase"
     proj.write_text(
         "NAME: my_cl\nDESCRIPTION:\n  Desc\nSTATUS: Draft\n"
         "COMMITS:\n  (1) First commit\n"
@@ -124,7 +124,7 @@ def test_append_proposal_mode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
 def test_append_proposal_mode_no_existing_commits(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    proj = tmp_path / "proj.gp"
+    proj = tmp_path / "proj.sase"
     proj.write_text("NAME: my_cl\nDESCRIPTION:\n  Desc\nSTATUS: Draft\n")
 
     (tmp_path / "commit_result.json").write_text(
@@ -152,7 +152,7 @@ def test_append_proposal_mode_no_existing_commits(
 def test_append_proposal_with_diff_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    proj = tmp_path / "proj.gp"
+    proj = tmp_path / "proj.sase"
     proj.write_text(
         "NAME: my_cl\nDESCRIPTION:\n  Desc\nSTATUS: Draft\n"
         "COMMITS:\n  (1) First commit\n"
@@ -185,7 +185,7 @@ def test_append_proposal_with_diff_path(
 def test_append_uses_first_line_of_multiline_message(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    proj = tmp_path / "proj.gp"
+    proj = tmp_path / "proj.sase"
     proj.write_text("NAME: my_cl\nDESCRIPTION:\n  Desc\nSTATUS: Draft\n")
 
     (tmp_path / "commit_result.json").write_text(

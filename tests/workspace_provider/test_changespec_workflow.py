@@ -20,7 +20,7 @@ def test_create_changespec_for_workflow_no_commits() -> None:
     ):
         result = create_changespec_for_workflow(
             project_name="proj",
-            project_file="/fake/proj.gp",
+            project_file="/fake/proj.sase",
             checkout_target="origin/main",
             branch_name="swift-falcon",
             prompt="do stuff",
@@ -68,7 +68,7 @@ def test_create_changespec_for_workflow_refreshes_deltas_after_creation() -> Non
     ):
         result = create_changespec_for_workflow(
             project_name="proj",
-            project_file="/fake/proj.gp",
+            project_file="/fake/proj.sase",
             checkout_target="origin/main",
             branch_name="swift-falcon",
             prompt="do stuff",
@@ -78,7 +78,7 @@ def test_create_changespec_for_workflow_refreshes_deltas_after_creation() -> Non
 
         assert result == "proj_add_thing_1"
         mock_refresh.assert_called_once_with(
-            "/fake/proj.gp",
+            "/fake/proj.sase",
             "proj_add_thing_1",
             workspace_dir="/workspace",
         )
@@ -115,7 +115,7 @@ def test_create_changespec_for_workflow_no_commits_with_fallback() -> None:
     ):
         result = create_changespec_for_workflow(
             project_name="proj",
-            project_file="/fake/proj.gp",
+            project_file="/fake/proj.sase",
             checkout_target="HEAD~1",
             branch_name="foobar",
             prompt="",
@@ -141,7 +141,7 @@ def test_create_changespec_for_workflow_no_commits_no_fallback() -> None:
     ):
         result = create_changespec_for_workflow(
             project_name="proj",
-            project_file="/fake/proj.gp",
+            project_file="/fake/proj.sase",
             checkout_target="HEAD~1",
             branch_name="foobar",
             prompt="",
@@ -187,7 +187,7 @@ def test_create_changespec_uses_full_commit_description() -> None:
     ):
         result = create_changespec_for_workflow(
             project_name="proj",
-            project_file="/fake/proj.gp",
+            project_file="/fake/proj.sase",
             checkout_target="origin/main",
             branch_name="swift-falcon",
             prompt="do stuff",
@@ -234,7 +234,7 @@ def test_create_changespec_adds_project_prefix_to_cl_name() -> None:
     ):
         create_changespec_for_workflow(
             project_name="sase",
-            project_file="/fake/sase.gp",
+            project_file="/fake/sase.sase",
             checkout_target="origin/main",
             branch_name="fix-split",
             prompt="",
@@ -282,7 +282,7 @@ def test_create_changespec_strips_pr_tags_from_commit_description() -> None:
     ):
         create_changespec_for_workflow(
             project_name="proj",
-            project_file="/fake/proj.gp",
+            project_file="/fake/proj.sase",
             checkout_target="origin/main",
             branch_name="swift-falcon",
             prompt="",

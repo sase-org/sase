@@ -16,7 +16,7 @@ def test_timestamps_display_with_plan_and_code() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         run_start_time=datetime(2025, 6, 15, 10, 0, 5),
@@ -36,7 +36,7 @@ def test_timestamps_display_with_epic_in_chronological_order() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         plan_times=[datetime(2025, 6, 15, 10, 5, 0)],
@@ -55,7 +55,7 @@ def test_timestamps_display_full_with_feedback_and_questions() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         run_start_time=datetime(2025, 6, 15, 10, 0, 5),
@@ -76,7 +76,7 @@ def test_timestamps_display_feedback_only() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         plan_times=[datetime(2025, 6, 15, 10, 5, 0)],
@@ -95,7 +95,7 @@ def test_timestamps_display_feedback_includes_rejected_plan_path() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         feedback_times=[feedback_time],
@@ -114,7 +114,7 @@ def test_timestamps_display_feedback_without_plan_path_stays_bare() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         feedback_times=[datetime(2025, 6, 15, 10, 6, 0)],
@@ -135,7 +135,7 @@ def test_timestamps_display_multiple_feedback_paths_match_by_timestamp() -> None
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         plan_times=[datetime(2025, 6, 15, 10, 5, 0)],
@@ -160,7 +160,7 @@ def test_timestamps_display_questions_only() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         questions_times=[datetime(2025, 6, 15, 10, 7, 0)],
@@ -177,7 +177,7 @@ def test_timestamps_display_plan_only() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         plan_times=[datetime(2025, 6, 15, 10, 5, 0)],
@@ -194,7 +194,7 @@ def test_timestamps_display_multiple_plans() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         plan_times=[
@@ -217,7 +217,7 @@ def test_timestamps_display_no_plan_or_code() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         stop_time=datetime(2025, 6, 15, 10, 20, 0),
@@ -233,7 +233,7 @@ def test_timestamps_display_wait_tag_for_waiting_status() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="test",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="WAITING",
         start_time=datetime(2026, 4, 10, 22, 0, 0),
         wait_duration=600.0,
@@ -259,7 +259,7 @@ def test_snapshot_agent_timestamps_display_includes_scalar_plan(
             {
                 "outcome": "completed",
                 "cl_name": "feature_plan",
-                "project_file": "/tmp/myproj.gp",
+                "project_file": "/tmp/myproj.sase",
             }
         ),
         encoding="utf-8",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
+from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 from sase.ace.tui.modals.project_discovery import is_launchable_project
 
 from ._types import PromptContext, TabName
@@ -19,7 +20,7 @@ def _vcs_prompt_prefix(project_file: str, name: str) -> str:
     """Build a VCS prompt prefix like ``#gh:name `` or ``#hg:name ``.
 
     Args:
-        project_file: Path to the project ``.gp`` file.
+        project_file: Path to the project spec file.
         name: Project or CL name to embed in the prefix.
 
     Returns:
@@ -130,9 +131,8 @@ class EntryPointsMixin:
 
         # Resolve VCS prefix
         project_name: str = last.project_name
-        project_file = os.path.expanduser(
-            f"~/.sase/projects/{project_name}/{project_name}.gp"
-        )
+        project_dir = os.path.expanduser(f"~/.sase/projects/{project_name}")
+        project_file = preferred_project_spec_path(project_dir, project_name)
         name = last.cl_name if last.item_type == "cl" and last.cl_name else project_name
         prefix = self._vcs_prompt_prefix_or_notify(project_file, name)
         if prefix is None:
@@ -145,7 +145,9 @@ class EntryPointsMixin:
         self._prompt_context = PromptContext(
             project_name="home",
             cl_name=None,
-            project_file=os.path.expanduser("~/.sase/projects/home/home.gp"),
+            project_file=preferred_project_spec_path(
+                os.path.expanduser("~/.sase/projects/home"), "home"
+            ),
             workspace_dir=str(Path.home()),
             workspace_num=0,
             workflow_name=workflow_name,
@@ -379,9 +381,8 @@ class EntryPointsMixin:
             self._clear_stale_last_custom_agent_selection(project_name)
             return
 
-        project_file = os.path.expanduser(
-            f"~/.sase/projects/{project_name}/{project_name}.gp"
-        )
+        project_dir = os.path.expanduser(f"~/.sase/projects/{project_name}")
+        project_file = preferred_project_spec_path(project_dir, project_name)
 
         if selection.item_type == "cl" and selection.cl_name:
             prefix = self._vcs_prompt_prefix_or_notify(project_file, selection.cl_name)
@@ -557,7 +558,9 @@ class EntryPointsMixin:
         self._prompt_context = PromptContext(
             project_name="home",
             cl_name=None,
-            project_file=os.path.expanduser("~/.sase/projects/home/home.gp"),
+            project_file=preferred_project_spec_path(
+                os.path.expanduser("~/.sase/projects/home"), "home"
+            ),
             workspace_dir=str(Path.home()),
             workspace_num=0,
             workflow_name=workflow_name,

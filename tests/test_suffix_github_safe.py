@@ -63,7 +63,7 @@ def test_suffix_strip_writes_alias_for_immutable_branch(
     provider.can_rename_branch.return_value = False
     mock_provider_fn.return_value = provider
 
-    handle_suffix_strip("/tmp/proj.gp", "proj_feat_bar_1", "proj_feat_bar")
+    handle_suffix_strip("/tmp/proj.sase", "proj_feat_bar_1", "proj_feat_bar")
 
     # Should NOT rename or push
     provider.rename_branch.assert_not_called()
@@ -101,7 +101,7 @@ def test_suffix_strip_renames_for_mutable_branch(
     provider.rename_branch.return_value = (True, None)
     mock_provider_fn.return_value = provider
 
-    handle_suffix_strip("/tmp/proj.gp", "proj_feat_bar_1", "proj_feat_bar")
+    handle_suffix_strip("/tmp/proj.sase", "proj_feat_bar_1", "proj_feat_bar")
 
     provider.rename_branch.assert_called_once_with("proj_feat_bar", "/ws")
     mock_push.assert_called_once_with("/ws", "proj_feat_bar", "origin/proj_feat_bar_1")
@@ -140,7 +140,7 @@ def test_suffix_append_rekeys_alias_for_immutable_branch(
     provider.can_rename_branch.return_value = False
     mock_provider_fn.return_value = provider
 
-    handle_suffix_append("/tmp/proj.gp", "proj_feat_bar", "proj_feat_bar_2")
+    handle_suffix_append("/tmp/proj.sase", "proj_feat_bar", "proj_feat_bar_2")
 
     # Should NOT rename or push
     provider.rename_branch.assert_not_called()
@@ -177,7 +177,7 @@ def test_suffix_append_renames_for_mutable_branch(
     provider.rename_branch.return_value = (True, None)
     mock_provider_fn.return_value = provider
 
-    handle_suffix_append("/tmp/proj.gp", "proj_feat_bar", "proj_feat_bar_1")
+    handle_suffix_append("/tmp/proj.sase", "proj_feat_bar", "proj_feat_bar_1")
 
     provider.rename_branch.assert_called_once_with("proj_feat_bar_1", "/ws")
     mock_push.assert_called_once_with("/ws", "proj_feat_bar_1", "origin/proj_feat_bar")

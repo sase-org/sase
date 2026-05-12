@@ -53,8 +53,14 @@ def _get_all_project_files() -> list[str]:
     """Get all project file paths from ~/.sase/projects/.
 
     Returns:
-        List of paths to .gp files for all projects.
+        List of paths to project spec files for all projects. Prefers the
+        canonical ``.sase`` extension and falls back to legacy ``.gp``.
     """
+    from sase.ace.changespec.project_spec_path import (
+        active_project_spec_filename,
+        legacy_active_project_spec_filename,
+    )
+
     projects_dir = Path.home() / ".sase" / "projects"
     if not projects_dir.exists():
         return []
@@ -63,8 +69,12 @@ def _get_all_project_files() -> list[str]:
     for project_dir in projects_dir.iterdir():
         if not project_dir.is_dir():
             continue
-        gp_file = project_dir / f"{project_dir.name}.gp"
-        if gp_file.exists():
-            project_files.append(str(gp_file))
+        canonical = project_dir / active_project_spec_filename(project_dir.name)
+        if canonical.exists():
+            project_files.append(str(canonical))
+            continue
+        legacy = project_dir / legacy_active_project_spec_filename(project_dir.name)
+        if legacy.exists():
+            project_files.append(str(legacy))
 
     return project_files

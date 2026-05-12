@@ -18,7 +18,7 @@ class ChangeSpecHistoryEntry:
     """
 
     name: str  # ChangeSpec name
-    file_path: str  # Path to .gp file
+    file_path: str  # Path to project spec file
     query: str  # Query string active at selection time
 
 

@@ -21,7 +21,7 @@ def _cs(
 
     ``project`` controls both the ``file_path`` parent dir (used by the
     cached ``project_name`` property) and the file basename, mirroring
-    on-disk shape ``~/.sase/projects/<project>/<project>.gp``.
+    on-disk shape ``~/.sase/projects/<project>/<project>.sase``.
     """
     return ChangeSpec(
         name=name,
@@ -30,7 +30,7 @@ def _cs(
         cl=None,
         status=status,
         test_targets=None,
-        file_path=f"/sase/projects/{project}/{project}.gp",
+        file_path=f"/sase/projects/{project}/{project}.sase",
         line_number=1,
         timestamps=timestamps,
     )

@@ -88,7 +88,9 @@ def main() -> None:
     artifacts_dir = sys.argv[7]
     update_target = sys.argv[8]
     is_home_mode_arg = sys.argv[9]
-    project_basename = os.path.basename(project_file).replace(".gp", "")
+    from sase.ace.changespec.project_spec_path import project_spec_basename
+
+    project_basename = project_spec_basename(project_file)
 
     # Parse JSON args
     positional_args: list[str] = json.loads(positional_args_json)

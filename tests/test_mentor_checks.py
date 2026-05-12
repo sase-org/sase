@@ -249,7 +249,7 @@ def test_completion_notify_all_terminal_fires_once(
     del isolated_notifications_store
     """All mentor status_lines terminal -> one notification, no re-fire."""
     cs = build_changespec(
-        file_path="/proj.gp",
+        file_path="/proj.sase",
         name="cl-1",
         commits=[_commit(1)],
         hooks=[_hook_passed("1")],
@@ -272,7 +272,7 @@ def test_completion_notify_all_terminal_fires_once(
     assert notes[0].action == "JumpToMentorReview"
     assert notes[0].action_data["entry_id"] == "1"
     assert notes[0].action_data["changespec_name"] == "cl-1"
-    assert is_notified("/proj.gp", "cl-1", "1") is True
+    assert is_notified("/proj.sase", "cl-1", "1") is True
 
     # Re-running should not fire another notification.
     updates2 = _check_mentor_completion_notifications(cs, _noop_log)
@@ -286,7 +286,7 @@ def test_completion_notify_no_profiles_matched_fires_once(
     del isolated_notifications_store
     """Hooks ready and no MentorEntry exists -> no-match notification."""
     cs = build_changespec(
-        file_path="/proj.gp",
+        file_path="/proj.sase",
         name="cl-1",
         commits=[_commit(1)],
         hooks=[_hook_passed("1")],
@@ -298,7 +298,7 @@ def test_completion_notify_no_profiles_matched_fires_once(
     notes = load_notifications()
     assert len(notes) == 1
     assert any("no mentor profiles matched" in note for note in notes[0].notes)
-    assert is_notified("/proj.gp", "cl-1", "1") is True
+    assert is_notified("/proj.sase", "cl-1", "1") is True
 
     # Idempotent: second call must not re-fire.
     updates2 = _check_mentor_completion_notifications(cs, _noop_log)
@@ -312,7 +312,7 @@ def test_completion_notify_no_match_skipped_when_hooks_not_ready(
     del isolated_notifications_store
     """No MentorEntry but hooks not ready -> no notification yet."""
     cs = build_changespec(
-        file_path="/proj.gp",
+        file_path="/proj.sase",
         name="cl-1",
         commits=[_commit(1)],
         hooks=[
@@ -333,7 +333,7 @@ def test_completion_notify_no_match_skipped_when_hooks_not_ready(
     updates = _check_mentor_completion_notifications(cs, _noop_log)
     assert updates == []
     assert load_notifications() == []
-    assert is_notified("/proj.gp", "cl-1", "1") is False
+    assert is_notified("/proj.sase", "cl-1", "1") is False
 
 
 def test_completion_notify_skipped_while_mentors_running(
@@ -342,7 +342,7 @@ def test_completion_notify_skipped_while_mentors_running(
     del isolated_notifications_store
     """Some mentors still RUNNING -> no notification."""
     cs = build_changespec(
-        file_path="/proj.gp",
+        file_path="/proj.sase",
         name="cl-1",
         commits=[_commit(1)],
         hooks=[_hook_passed("1")],
@@ -366,7 +366,7 @@ def test_completion_notify_skipped_while_mentors_running(
     updates = _check_mentor_completion_notifications(cs, _noop_log)
     assert updates == []
     assert load_notifications() == []
-    assert is_notified("/proj.gp", "cl-1", "1") is False
+    assert is_notified("/proj.sase", "cl-1", "1") is False
 
 
 def test_completion_notify_skipped_when_profiles_registered_but_not_started(
@@ -375,7 +375,7 @@ def test_completion_notify_skipped_when_profiles_registered_but_not_started(
     del isolated_notifications_store
     """MentorEntry exists with profiles but no status_lines -> wait."""
     cs = build_changespec(
-        file_path="/proj.gp",
+        file_path="/proj.sase",
         name="cl-1",
         commits=[_commit(1)],
         hooks=[_hook_passed("1")],
@@ -399,7 +399,7 @@ def test_completion_notify_summary_includes_commented_count(
     del isolated_notifications_store
     """COMMENTED count surfaces in the notification summary line."""
     cs = build_changespec(
-        file_path="/proj.gp",
+        file_path="/proj.sase",
         name="cl-1",
         commits=[_commit(1)],
         hooks=[_hook_passed("1")],
@@ -432,7 +432,7 @@ def test_completion_notify_skipped_when_just_matched_for_latest(
     del isolated_notifications_store
     """just_matched_for_latest=True suppresses the no-match notification."""
     cs = build_changespec(
-        file_path="/proj.gp",
+        file_path="/proj.sase",
         name="cl-1",
         commits=[_commit(1)],
         hooks=[_hook_passed("1")],
@@ -444,7 +444,7 @@ def test_completion_notify_skipped_when_just_matched_for_latest(
     )
     assert updates == []
     assert load_notifications() == []
-    assert is_notified("/proj.gp", "cl-1", "1") is False
+    assert is_notified("/proj.sase", "cl-1", "1") is False
 
 
 # Cause B: profile matching transiently returned empty (e.g. diff unavailable),
@@ -454,7 +454,7 @@ def test_completion_notify_deferred_when_rematch_finds_profiles(
 ) -> None:
     del isolated_notifications_store
     cs = build_changespec(
-        file_path="/proj.gp",
+        file_path="/proj.sase",
         name="cl-1",
         commits=[_commit(1)],
         hooks=[_hook_passed("1")],
@@ -470,7 +470,7 @@ def test_completion_notify_deferred_when_rematch_finds_profiles(
 
     assert updates == []
     assert load_notifications() == []
-    assert is_notified("/proj.gp", "cl-1", "1") is False
+    assert is_notified("/proj.sase", "cl-1", "1") is False
 
 
 def test_completion_notify_fires_when_rematch_confirms_no_match(
@@ -479,7 +479,7 @@ def test_completion_notify_fires_when_rematch_confirms_no_match(
     """Re-evaluation also returns empty -> the no-match notification fires."""
     del isolated_notifications_store
     cs = build_changespec(
-        file_path="/proj.gp",
+        file_path="/proj.sase",
         name="cl-1",
         commits=[_commit(1)],
         hooks=[_hook_passed("1")],
@@ -493,4 +493,4 @@ def test_completion_notify_fires_when_rematch_confirms_no_match(
         updates = _check_mentor_completion_notifications(cs, _noop_log)
 
     assert len(updates) == 1
-    assert is_notified("/proj.gp", "cl-1", "1") is True
+    assert is_notified("/proj.sase", "cl-1", "1") is True

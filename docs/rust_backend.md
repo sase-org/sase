@@ -59,8 +59,8 @@ The intentionally Python-owned facade surfaces (host logic, not backend fallback
 ## Why a Rust Backend?
 
 The `sase.core` package is a stable Python facade carved out specifically so individual operations can be re-served by
-faster Rust implementations one at a time. Parsing project `.gp` files dominates many cold-path workloads (TUI startup,
-large search results, axe lumberjack scans), so it was the first operation routed through this seam.
+faster Rust implementations one at a time. Parsing project `.sase` files dominates many cold-path workloads (TUI
+startup, large search results, axe lumberjack scans), so it was the first operation routed through this seam.
 
 ## Architecture
 
@@ -472,7 +472,7 @@ across parser, query, agent scan, status, and Git query helpers:
 | Beads                        | `tests/test_bead/`, `tests/test_core_facade/test_bead_*.py`, `../sase-core/crates/sase_core/tests/bead_*`                   |
 | Strict-loader contract       | `tests/test_core_rust.py`, `tests/test_core_health.py`                                                                      |
 
-The `tests/core_golden/` corpus (`myproj.gp`, `myproj-archive.gp`) plus the `inline_snapshot` JSON expectations in
+The `tests/core_golden/` corpus (`myproj.sase`, `myproj-archive.sase`) plus the `inline_snapshot` JSON expectations in
 `test_core_golden.py` are the cross-language reference: any change to the Rust output that breaks a snapshot must be
 matched by an equivalent change in the corresponding `sase-core` Rust parity test (`../sase-core/.../tests/`) before
 either side ships.

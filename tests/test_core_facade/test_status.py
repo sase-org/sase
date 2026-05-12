@@ -254,7 +254,7 @@ def test_transition_changespec_status_uses_planner_facade(
     )
     from sase.status_state_machine import transition_changespec_status
 
-    project = tmp_path / "myproj.gp"
+    project = tmp_path / "myproj.sase"
     project.write_text(SAMPLE_PROJECT_TEXT)
 
     captured_requests: list = []
@@ -310,7 +310,7 @@ def test_transition_changespec_status_planner_failure_skips_side_effects(
     )
     from sase.status_state_machine import transition_changespec_status
 
-    project = tmp_path / "myproj.gp"
+    project = tmp_path / "myproj.sase"
     original_text = SAMPLE_PROJECT_TEXT
     project.write_text(original_text)
 

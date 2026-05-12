@@ -85,7 +85,7 @@ def _terminal_env(home: Path) -> dict[str, str]:
 def _write_project(home: Path, *, name: str) -> None:
     project_dir = home / ".sase" / "projects" / "terminal"
     project_dir.mkdir(parents=True)
-    (project_dir / "terminal.gp").write_text(
+    (project_dir / "terminal.sase").write_text(
         f"""# Terminal Smoke Project
 
 ## ChangeSpec

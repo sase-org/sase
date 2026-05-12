@@ -469,7 +469,7 @@ def test_user_question_response_dismisses_notification_and_restores_status(
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_cl",
-        project_file="/tmp/test.gp",
+        project_file="/tmp/test.sase",
         status="QUESTION",
         start_time=None,
         raw_suffix="20260425120000",

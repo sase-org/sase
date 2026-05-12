@@ -12,7 +12,7 @@ def test_step_output_none_when_no_steps() -> None:
     entry = WorkflowEntry(
         workflow_name="test-workflow",
         cl_name="test_cl",
-        project_file="/fake/path.gp",
+        project_file="/fake/path.sase",
         status="DONE",
         current_step=0,
         total_steps=0,

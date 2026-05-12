@@ -45,7 +45,7 @@ def test_parse_changespec_hooks_with_dead_status() -> None:
         "      | (1) [240601_123456] DEAD (24h0m)\n",
         "\n",
     ]
-    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.gp")
+    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
     assert changespec is not None
     assert changespec.hooks is not None
     assert len(changespec.hooks) == 1
@@ -76,7 +76,7 @@ def test_parse_changespec_hooks_suffix_with_closing_paren() -> None:
         " | deal_check_line_chart_test failed remotely (Exit 3).)\n",
         "\n",
     ]
-    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.gp")
+    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
     assert changespec is not None
     assert changespec.hooks is not None
     assert len(changespec.hooks) == 1
