@@ -5,19 +5,19 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.xprompt.loader import (
-    _load_xprompt_from_file,
-    _load_xprompts_from_default_files,
-    _load_xprompts_from_internal,
+    load_xprompt_from_file,
+    load_xprompts_from_default_files,
+    load_xprompts_from_internal,
     get_all_prompts,
     get_all_xprompts,
 )
 from sase.xprompt.loader_parsing import parse_yaml_front_matter
 from sase.xprompt.models import InputType, XPrompt
 
-# Tests for _load_xprompt_from_file
+# Tests for load_xprompt_from_file
 
 
-def test_load_xprompt_from_file_without_front_matter() -> None:
+def testload_xprompt_from_file_without_front_matter() -> None:
     """Test loading xprompt file without front matter."""
     content = "Just some content without front matter"
 
@@ -28,7 +28,7 @@ def test_load_xprompt_from_file_without_front_matter() -> None:
         temp_path = Path(f.name)
 
     try:
-        xprompt = _load_xprompt_from_file(temp_path)
+        xprompt = load_xprompt_from_file(temp_path)
 
         assert xprompt is not None
         # Name should be filename stem
@@ -39,13 +39,13 @@ def test_load_xprompt_from_file_without_front_matter() -> None:
         temp_path.unlink()
 
 
-def test_load_xprompt_from_file_nonexistent() -> None:
+def testload_xprompt_from_file_nonexistent() -> None:
     """Test loading nonexistent file returns None."""
-    xprompt = _load_xprompt_from_file(Path("/nonexistent/path.md"))
+    xprompt = load_xprompt_from_file(Path("/nonexistent/path.md"))
     assert xprompt is None
 
 
-def test_load_xprompt_from_file_with_skill_and_description() -> None:
+def testload_xprompt_from_file_with_skill_and_description() -> None:
     """Test loading xprompt file with skill and description front matter."""
     content = """---
 name: my_skill
@@ -61,7 +61,7 @@ Skill body content"""
         temp_path = Path(f.name)
 
     try:
-        xprompt = _load_xprompt_from_file(temp_path)
+        xprompt = load_xprompt_from_file(temp_path)
 
         assert xprompt is not None
         assert xprompt.name == "my_skill"
@@ -72,7 +72,7 @@ Skill body content"""
         temp_path.unlink()
 
 
-def test_load_xprompt_from_file_with_skill_provider_list() -> None:
+def testload_xprompt_from_file_with_skill_provider_list() -> None:
     """Test loading xprompt file with skill as provider list."""
     content = """---
 name: hg_commit
@@ -87,7 +87,7 @@ Commit with hg"""
         temp_path = Path(f.name)
 
     try:
-        xprompt = _load_xprompt_from_file(temp_path)
+        xprompt = load_xprompt_from_file(temp_path)
 
         assert xprompt is not None
         assert xprompt.skill == ["gemini"]
@@ -125,12 +125,12 @@ def test_higher_priority_dir_md_overrides_lower_dir_md() -> None:
         (low_dir / "shared.md").write_text("From low dir")
 
         with patch(
-            "sase.xprompt.loader.get_xprompt_search_paths",
+            "sase.xprompt.loader_sources.get_xprompt_search_paths",
             return_value=[high_dir, low_dir],
         ):
-            from sase.xprompt.loader import _load_xprompts_from_files
+            from sase.xprompt.loader import load_xprompts_from_files
 
-            result = _load_xprompts_from_files()
+            result = load_xprompts_from_files()
 
         assert result["shared"].content == "From high dir"
 
@@ -147,11 +147,13 @@ def test_get_all_xprompts_includes_md_files() -> None:
 
         with (
             patch(
-                "sase.xprompt.loader.get_xprompt_search_paths",
+                "sase.xprompt.loader_sources.get_xprompt_search_paths",
                 return_value=[search_dir],
             ),
-            patch("sase.xprompt.loader.load_xprompts_by_source", return_value=[]),
-            patch("sase.xprompt.loader._load_xprompts_from_internal", return_value={}),
+            patch(
+                "sase.xprompt.loader_sources.load_xprompts_by_source", return_value=[]
+            ),
+            patch("sase.xprompt.loader.load_xprompts_from_internal", return_value={}),
         ):
             result = get_all_xprompts()
 
@@ -159,9 +161,9 @@ def test_get_all_xprompts_includes_md_files() -> None:
         assert result["hello"].content == "Hello from md"
 
 
-def test_load_xprompts_from_default_files_includes_research_swarm() -> None:
+def testload_xprompts_from_default_files_includes_research_swarm() -> None:
     """Package default_xprompts markdown files are built-in xprompts."""
-    result = _load_xprompts_from_default_files()
+    result = load_xprompts_from_default_files()
 
     assert "research_swarm" in result
     xprompt = result["research_swarm"]
@@ -170,9 +172,9 @@ def test_load_xprompts_from_default_files_includes_research_swarm() -> None:
     assert "{{ prompt }} #research" in xprompt.content
 
 
-def test_load_xprompts_from_internal_includes_packaged_skills() -> None:
+def testload_xprompts_from_internal_includes_packaged_skills() -> None:
     """Package xprompts include shipped skill markdown under skills/."""
-    result = _load_xprompts_from_internal()
+    result = load_xprompts_from_internal()
 
     assert "sase_plan" in result
     assert "sase_questions" in result
@@ -191,13 +193,13 @@ def test_default_file_xprompt_not_project_namespaced(
     monkeypatch.chdir(tmp_path)
 
     with (
-        patch("sase.xprompt.loader.load_xprompts_by_source", return_value=[]),
-        patch("sase.xprompt.loader._load_xprompts_from_internal", return_value={}),
-        patch("sase.xprompt.loader._load_xprompts_from_plugins", return_value={}),
-        patch("sase.xprompt.loader._load_memory_long_xprompts", return_value={}),
-        patch("sase.xprompt.loader._load_xprompts_from_project", return_value={}),
+        patch("sase.xprompt.loader_sources.load_xprompts_by_source", return_value=[]),
+        patch("sase.xprompt.loader.load_xprompts_from_internal", return_value={}),
+        patch("sase.xprompt.loader.load_xprompts_from_plugins", return_value={}),
+        patch("sase.xprompt.loader.load_memory_long_xprompts", return_value={}),
+        patch("sase.xprompt.loader.load_xprompts_from_project", return_value={}),
         patch(
-            "sase.xprompt.loader.get_xprompt_search_paths",
+            "sase.xprompt.loader_sources.get_xprompt_search_paths",
             return_value=[tmp_path / ".xprompts", tmp_path / "xprompts"],
         ),
     ):
@@ -215,14 +217,14 @@ def test_config_xprompt_overrides_default_file_xprompt(tmp_path: Path) -> None:
         patch("sase.config.core.CONFIG_DIR", tmp_path),
         patch("sase.config.core._get_local_config_path", return_value=None),
         patch(
-            "sase.xprompt.loader.load_xprompts_by_source",
+            "sase.xprompt.loader_sources.load_xprompts_by_source",
             return_value=[("config", {"research_swarm": "From config"})],
         ),
-        patch("sase.xprompt.loader._load_xprompts_from_internal", return_value={}),
-        patch("sase.xprompt.loader._load_xprompts_from_plugins", return_value={}),
-        patch("sase.xprompt.loader._load_memory_long_xprompts", return_value={}),
+        patch("sase.xprompt.loader.load_xprompts_from_internal", return_value={}),
+        patch("sase.xprompt.loader.load_xprompts_from_plugins", return_value={}),
+        patch("sase.xprompt.loader.load_memory_long_xprompts", return_value={}),
         patch("sase.xprompt.loader.detect_project", return_value=None),
-        patch("sase.xprompt.loader.get_xprompt_search_paths", return_value=[]),
+        patch("sase.xprompt.loader_sources.get_xprompt_search_paths", return_value=[]),
     ):
         result = get_all_xprompts(project=None)
 
@@ -237,10 +239,10 @@ def test_research_xprompts_load_from_default_config(tmp_path: Path) -> None:
         patch("sase.config.core._get_local_config_path", return_value=None),
         patch("sase.main.plugin_discovery.is_plugin_disabled", return_value=True),
         patch("sase.xprompt.loader.detect_project", return_value=None),
-        patch("sase.xprompt.loader.get_xprompt_search_paths", return_value=[]),
-        patch("sase.xprompt.loader._load_xprompts_from_internal", return_value={}),
-        patch("sase.xprompt.loader._load_xprompts_from_plugins", return_value={}),
-        patch("sase.xprompt.loader._load_memory_long_xprompts", return_value={}),
+        patch("sase.xprompt.loader_sources.get_xprompt_search_paths", return_value=[]),
+        patch("sase.xprompt.loader.load_xprompts_from_internal", return_value={}),
+        patch("sase.xprompt.loader.load_xprompts_from_plugins", return_value={}),
+        patch("sase.xprompt.loader.load_memory_long_xprompts", return_value={}),
         patch("sase.xprompt.workflow_loader.get_all_workflows", return_value={}),
     ):
         prompts = get_all_prompts(project=None)
@@ -267,15 +269,15 @@ def test_research_xprompts_load_from_default_config(tmp_path: Path) -> None:
     assert "#sase/research" not in body
 
 
-# Tests for _load_xprompts_from_project
+# Tests for load_xprompts_from_project
 
 
-def _load_xprompts_from_project_with_base(
+def load_xprompts_from_project_with_base(
     project: str, base_config_dir: Path
 ) -> dict[str, XPrompt]:
     """Helper to test project loading with a custom base directory.
 
-    This replicates the logic of _load_xprompts_from_project but allows
+    This replicates the logic of load_xprompts_from_project but allows
     specifying a custom base directory for testing.
     """
     project_dir = base_config_dir / ".config" / "sase" / "xprompts" / project
@@ -285,7 +287,7 @@ def _load_xprompts_from_project_with_base(
     xprompts: dict[str, XPrompt] = {}
     for md_file in project_dir.glob("*.md"):
         if md_file.is_file():
-            xprompt = _load_xprompt_from_file(md_file)
+            xprompt = load_xprompt_from_file(md_file)
             if xprompt:
                 namespaced_name = f"{project}/{xprompt.name}"
                 xprompts[namespaced_name] = XPrompt(
@@ -297,10 +299,10 @@ def _load_xprompts_from_project_with_base(
     return xprompts
 
 
-def test_load_xprompts_from_project_nonexistent_dir() -> None:
+def testload_xprompts_from_project_nonexistent_dir() -> None:
     """Test that nonexistent project directory returns empty dict."""
     with tempfile.TemporaryDirectory() as tmp_dir:
-        xprompts = _load_xprompts_from_project_with_base(
+        xprompts = load_xprompts_from_project_with_base(
             "nonexistent_project", Path(tmp_dir)
         )
         assert xprompts == {}
@@ -312,14 +314,14 @@ def test_get_all_xprompts_file_overrides_project() -> None:
     file_xprompt = XPrompt(name="test", content="From file")
 
     with (
-        patch("sase.xprompt.loader.load_xprompts_by_source", return_value=[]),
+        patch("sase.xprompt.loader_sources.load_xprompts_by_source", return_value=[]),
         patch(
-            "sase.xprompt.loader._load_xprompts_from_files",
+            "sase.xprompt.loader.load_xprompts_from_files",
             return_value={"test": file_xprompt},
         ),
-        patch("sase.xprompt.loader._load_xprompts_from_internal", return_value={}),
+        patch("sase.xprompt.loader.load_xprompts_from_internal", return_value={}),
         patch(
-            "sase.xprompt.loader._load_xprompts_from_project",
+            "sase.xprompt.loader.load_xprompts_from_project",
             return_value={"test": project_xprompt},
         ),
     ):

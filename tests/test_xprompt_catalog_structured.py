@@ -10,7 +10,7 @@ from sase.xprompt.catalog import (
     MAX_MOBILE_CONTENT_PREVIEW_CHARS,
     build_structured_xprompts_catalog,
 )
-from sase.xprompt.loader import _load_xprompts_from_internal
+from sase.xprompt.loader import load_xprompts_from_internal
 from sase.xprompt.models import UNSET, InputArg, InputType, OutputSpec
 from sase.xprompt.tags import XPromptTag
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
@@ -126,7 +126,7 @@ def test_structured_catalog_source_filter_keeps_global_entries(
 
 
 def test_structured_catalog_marks_packaged_skill_xprompts() -> None:
-    internal_xprompts = _load_xprompts_from_internal()
+    internal_xprompts = load_xprompts_from_internal()
 
     with (
         patch(

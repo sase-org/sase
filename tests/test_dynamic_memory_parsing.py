@@ -69,13 +69,13 @@ def test_parse_xprompt_entries_simple_string_has_no_keywords() -> None:
 
 
 def test_keywords_from_frontmatter(tmp_path: Path) -> None:
-    from sase.xprompt.loader import _load_xprompt_from_file
+    from sase.xprompt.loader import load_xprompt_from_file
 
     md = tmp_path / "test.md"
     md.write_text(
         "---\ntags: memory\nkeywords: [chezmoi, plugin]\n---\n@memory/long/foo.md\n"
     )
-    xp = _load_xprompt_from_file(md)
+    xp = load_xprompt_from_file(md)
     assert xp is not None
     assert xp.keywords == ["chezmoi", "plugin"]
     assert xp.has_tag(XPromptTag.memory)
@@ -95,12 +95,12 @@ def test_xprompt_to_workflow_copies_keywords() -> None:
     assert wf.keywords == ["chezmoi", "plugin"]
 
 
-# ── _load_memory_long_xprompts ────────────────────────────────────────────
+# ── load_memory_long_xprompts ────────────────────────────────────────────
 
 
 def test_load_memory_long_discovers_frontmatter(tmp_path: Path) -> None:
     """Files with keywords frontmatter are discovered as memory xprompts."""
-    from sase.xprompt.loader import _load_memory_long_xprompts
+    from sase.xprompt.loader import load_memory_long_xprompts
 
     mem_dir = tmp_path / "memory" / "long"
     mem_dir.mkdir(parents=True)
@@ -110,12 +110,12 @@ def test_load_memory_long_discovers_frontmatter(tmp_path: Path) -> None:
 
     with (
         patch(
-            "sase.xprompt.loader._get_memory_long_search_dirs",
+            "sase.xprompt.loader_memory._get_memory_long_search_dirs",
             return_value=[(mem_dir, True)],
         ),
-        patch("sase.xprompt.loader.Path.cwd", return_value=tmp_path),
+        patch("sase.xprompt.loader_memory.Path.cwd", return_value=tmp_path),
     ):
-        result = _load_memory_long_xprompts()
+        result = load_memory_long_xprompts()
 
     assert "memory/long/foo" in result
     xp = result["memory/long/foo"]
@@ -126,24 +126,24 @@ def test_load_memory_long_discovers_frontmatter(tmp_path: Path) -> None:
 
 def test_load_memory_long_skips_no_keywords(tmp_path: Path) -> None:
     """Files without keywords frontmatter are ignored."""
-    from sase.xprompt.loader import _load_memory_long_xprompts
+    from sase.xprompt.loader import load_memory_long_xprompts
 
     mem_dir = tmp_path / "memory" / "long"
     mem_dir.mkdir(parents=True)
     (mem_dir / "no_keywords.md").write_text("# Just a file\nNo frontmatter.\n")
 
     with patch(
-        "sase.xprompt.loader._get_memory_long_search_dirs",
+        "sase.xprompt.loader_memory._get_memory_long_search_dirs",
         return_value=[(mem_dir, True)],
     ):
-        result = _load_memory_long_xprompts()
+        result = load_memory_long_xprompts()
 
     assert result == {}
 
 
 def test_load_memory_long_uses_absolute_path_for_home(tmp_path: Path) -> None:
     """Home-based files use absolute paths in $(cat ...)."""
-    from sase.xprompt.loader import _load_memory_long_xprompts
+    from sase.xprompt.loader import load_memory_long_xprompts
 
     mem_dir = tmp_path / ".claude" / "memory" / "long"
     mem_dir.mkdir(parents=True)
@@ -151,10 +151,10 @@ def test_load_memory_long_uses_absolute_path_for_home(tmp_path: Path) -> None:
     md_file.write_text("---\nkeywords: [gamma]\n---\n# Bar\n")
 
     with patch(
-        "sase.xprompt.loader._get_memory_long_search_dirs",
+        "sase.xprompt.loader_memory._get_memory_long_search_dirs",
         return_value=[(mem_dir, False)],
     ):
-        result = _load_memory_long_xprompts()
+        result = load_memory_long_xprompts()
 
     assert "memory/long/bar" in result
     assert result["memory/long/bar"].content == f"$(cat {md_file})"
@@ -162,7 +162,7 @@ def test_load_memory_long_uses_absolute_path_for_home(tmp_path: Path) -> None:
 
 def test_load_memory_long_first_dir_wins(tmp_path: Path) -> None:
     """Higher-priority directory wins on name collision."""
-    from sase.xprompt.loader import _load_memory_long_xprompts
+    from sase.xprompt.loader import load_memory_long_xprompts
 
     dir_a = tmp_path / "a"
     dir_b = tmp_path / "b"
@@ -172,11 +172,11 @@ def test_load_memory_long_first_dir_wins(tmp_path: Path) -> None:
 
     with (
         patch(
-            "sase.xprompt.loader._get_memory_long_search_dirs",
+            "sase.xprompt.loader_memory._get_memory_long_search_dirs",
             return_value=[(dir_a, True), (dir_b, True)],
         ),
-        patch("sase.xprompt.loader.Path.cwd", return_value=tmp_path),
+        patch("sase.xprompt.loader_memory.Path.cwd", return_value=tmp_path),
     ):
-        result = _load_memory_long_xprompts()
+        result = load_memory_long_xprompts()
 
     assert result["memory/long/dup"].keywords == ["from_a"]

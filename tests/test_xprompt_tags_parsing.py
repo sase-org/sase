@@ -114,11 +114,11 @@ def test_xprompt_to_workflow_copies_tags() -> None:
 
 def test_tags_from_frontmatter(tmp_path: Path) -> None:
     """Tags are parsed from .md file frontmatter."""
-    from sase.xprompt.loader import _load_xprompt_from_file
+    from sase.xprompt.loader import load_xprompt_from_file
 
     md = tmp_path / "test.md"
     md.write_text("---\ntags: crs\n---\nBody content\n")
-    xp = _load_xprompt_from_file(md)
+    xp = load_xprompt_from_file(md)
     assert xp is not None
     assert xp.has_tag(XPromptTag.crs)
 
@@ -183,11 +183,11 @@ def test_vcs_tag_sets_wraps_all(tmp_path: Path) -> None:
 # ── Tags preserved through namespace ────────────────────────────────────
 
 
-def test_namespace_xprompt_preserves_tags() -> None:
-    from sase.xprompt.loader import _namespace_xprompt
+def testnamespace_xprompt_preserves_tags() -> None:
+    from sase.xprompt.loader import namespace_xprompt
 
     xp = XPrompt(name="hook", content="body", tags=frozenset({XPromptTag.fix_hook}))
-    ns = _namespace_xprompt("proj", xp)
+    ns = namespace_xprompt("proj", xp)
     assert ns.name == "proj/hook"
     assert ns.tags == frozenset({XPromptTag.fix_hook})
 

@@ -44,7 +44,7 @@ def test_discover_plugin_resources_skips_failures() -> None:
 
 def test_xprompt_plugin_discovery_loads_md_files(tmp_path: Path) -> None:
     """Plugin xprompts are loaded from entry point modules with xprompts/ dir."""
-    from sase.xprompt.loader import _load_xprompts_from_plugins
+    from sase.xprompt.loader_sources import load_xprompts_from_plugins
 
     # Create a fake module with an xprompts/ resource directory
     xprompts_dir = tmp_path / "xprompts"
@@ -60,19 +60,19 @@ def test_xprompt_plugin_discovery_loads_md_files(tmp_path: Path) -> None:
 
     with (
         patch(
-            "sase.xprompt.loader.discover_plugin_resources",
+            "sase.xprompt.loader_sources.discover_plugin_resources",
             return_value=[fake_module],
         ),
         patch(
-            "sase.xprompt.loader.importlib.resources.files",
+            "sase.xprompt.loader_sources.importlib.resources.files",
             return_value=mock_files,
         ),
         patch(
-            "sase.xprompt.loader.is_plugin_disabled",
+            "sase.xprompt.loader_sources.is_plugin_disabled",
             return_value=False,
         ),
     ):
-        result = _load_xprompts_from_plugins()
+        result = load_xprompts_from_plugins()
 
     assert "greet" in result
     assert result["greet"].content == "Hello from plugin!"
@@ -81,10 +81,10 @@ def test_xprompt_plugin_discovery_loads_md_files(tmp_path: Path) -> None:
 
 def test_xprompt_plugin_disabled_returns_empty() -> None:
     """Disabled plugin group returns empty dict."""
-    from sase.xprompt.loader import _load_xprompts_from_plugins
+    from sase.xprompt.loader_sources import load_xprompts_from_plugins
 
-    with patch("sase.xprompt.loader.is_plugin_disabled", return_value=True):
-        result = _load_xprompts_from_plugins()
+    with patch("sase.xprompt.loader_sources.is_plugin_disabled", return_value=True):
+        result = load_xprompts_from_plugins()
 
     assert result == {}
 

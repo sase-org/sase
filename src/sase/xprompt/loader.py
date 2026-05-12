@@ -1,28 +1,61 @@
-"""XPrompt discovery and loading from files and configuration."""
+"""XPrompt discovery and loading from files and configuration.
+
+This module is the public facade for xprompt discovery: it aggregates
+xprompts from every source (filesystem, config, plugins, project workspaces,
+``memory/long/``) and exposes the public ``get_all_*`` API.  Per-source
+loaders live in :mod:`.loader_sources` and :mod:`.loader_memory`.
+"""
 
 import functools
-import importlib.resources
 import logging
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-import yaml  # type: ignore[import-untyped]
-
-from sase.config import load_xprompts_by_source
-from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
-
-from .loader_parsing import (
-    parse_inputs_from_front_matter,
-    parse_xprompt_entries,
-    parse_yaml_front_matter,
+from .loader_memory import load_memory_long_xprompts
+from .loader_sources import (
+    load_xprompt_from_file,
+    load_xprompts_from_config,
+    load_xprompts_from_default_files,
+    load_xprompts_from_files,
+    load_xprompts_from_internal,
+    load_xprompts_from_plugins,
+    load_xprompts_from_project,
+    namespace_xprompt,
+    get_known_project_workspaces,
+    get_sase_package_default_xprompts_dir,
+    get_sase_package_xprompts_dir,
+    get_xprompt_search_paths,
+    load_project_local_xprompts,
 )
-from .models import InputArg, XPrompt
-from .tags import parse_tags
+from .models import XPrompt
 
 log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from sase.xprompt.workflow_models import Workflow
+
+
+__all__ = [
+    "detect_project",
+    "get_all_project_local_prompts",
+    "get_all_prompts",
+    "get_all_workflows",
+    "get_all_xprompts",
+    "get_known_project_workspaces",
+    "get_sase_package_default_xprompts_dir",
+    "get_sase_package_xprompts_dir",
+    "get_xprompt_or_workflow",
+    "get_xprompt_search_paths",
+    "load_memory_long_xprompts",
+    "load_project_local_xprompts",
+    "load_xprompt_from_file",
+    "load_xprompts_from_config",
+    "load_xprompts_from_default_files",
+    "load_xprompts_from_files",
+    "load_xprompts_from_internal",
+    "load_xprompts_from_plugins",
+    "load_xprompts_from_project",
+    "namespace_xprompt",
+]
 
 
 @functools.cache
@@ -42,433 +75,6 @@ def detect_project() -> str | None:
         return None
 
 
-def _namespace_xprompt(project: str, xp: XPrompt) -> XPrompt:
-    """Return a copy of *xp* with its name prefixed by ``{project}/``."""
-    namespaced_name = f"{project}/{xp.name}"
-    return XPrompt(
-        name=namespaced_name,
-        content=xp.content,
-        inputs=xp.inputs,
-        source_path=xp.source_path,
-        tags=xp.tags,
-        snippet=xp.snippet,
-        description=xp.description,
-        skill=xp.skill,
-        keywords=xp.keywords,
-    )
-
-
-def get_sase_package_xprompts_dir() -> Path:
-    """Get the path to the internal sase xprompts directory.
-
-    The built-in xprompts live at ``src/sase/xprompts/`` inside the package,
-    so ``importlib.resources`` resolves them for both wheel and editable
-    installs.
-    """
-    import importlib.resources
-
-    candidate = Path(str(importlib.resources.files("sase").joinpath("xprompts")))
-    if candidate.is_dir():
-        return candidate
-
-    log.warning(
-        "Internal xprompts directory not found via importlib.resources('sase/xprompts')",
-    )
-    return candidate
-
-
-def get_sase_package_default_xprompts_dir() -> Path:
-    """Get the path to the internal sase default markdown xprompts directory.
-
-    Default file-backed xprompts live at ``src/sase/default_xprompts/`` inside
-    the package, so ``importlib.resources`` resolves them for both wheel and
-    editable installs.
-    """
-    candidate = Path(
-        str(importlib.resources.files("sase").joinpath("default_xprompts"))
-    )
-    if candidate.is_dir():
-        return candidate
-
-    log.warning(
-        "Default xprompts directory not found via "
-        "importlib.resources('sase/default_xprompts')",
-    )
-    return candidate
-
-
-def _load_xprompt_from_file(file_path: Path) -> XPrompt | None:
-    """Load a single xprompt from a markdown file.
-
-    Args:
-        file_path: Path to the .md file.
-
-    Returns:
-        XPrompt object if successfully loaded, None otherwise.
-    """
-    try:
-        content = file_path.read_text(encoding="utf-8")
-    except OSError:
-        return None
-
-    front_matter, body = parse_yaml_front_matter(content)
-
-    # Get name from front matter or fallback to filename
-    if front_matter and "name" in front_matter:
-        name = str(front_matter["name"])
-    else:
-        name = file_path.stem  # Filename without extension
-
-    # Parse inputs if present
-    inputs: list[InputArg] = []
-    if front_matter and "input" in front_matter:
-        inputs = parse_inputs_from_front_matter(front_matter["input"])
-
-    # Parse tags if present
-    tags = parse_tags(front_matter.get("tags")) if front_matter else frozenset()
-
-    # Parse snippet field if present
-    snippet = front_matter.get("snippet") if front_matter else None
-
-    # Parse description and skill fields if present
-    description = front_matter.get("description") if front_matter else None
-    skill = front_matter.get("skill") if front_matter else None
-
-    # Parse keywords if present
-    keywords = front_matter.get("keywords", []) if front_matter else []
-
-    return XPrompt(
-        name=name,
-        content=body,
-        inputs=inputs,
-        source_path=str(file_path),
-        tags=tags,
-        snippet=snippet,
-        description=description,
-        skill=skill,
-        keywords=keywords,
-    )
-
-
-def get_xprompt_search_paths() -> list[Path]:
-    """Get the ordered list of directories to search for xprompt files.
-
-    Priority order (first wins on name conflict):
-    1. .xprompts/*.md (CWD, hidden)
-    2. xprompts/*.md (CWD, non-hidden)
-    3. ~/.xprompts/*.md (home, hidden)
-    4. ~/xprompts/*.md (home, non-hidden)
-    5. (config is handled separately)
-    6. <sase_package>/default_xprompts/*.md (default built-ins, separate)
-    7. <sase_package>/xprompts/*.md (internal, separate)
-
-    Returns:
-        List of directory paths to search, in priority order.
-    """
-    cwd = Path.cwd()
-    home = Path.home()
-
-    paths = [
-        cwd / ".xprompts",
-        cwd / "xprompts",
-        home / ".xprompts",
-        home / "xprompts",
-    ]
-
-    return paths
-
-
-def _load_xprompts_from_files(project: str | None = None) -> dict[str, XPrompt]:
-    """Load xprompts from file system locations.
-
-    Scans each search directory for ``.md`` files. Earlier directories in the
-    search path take precedence over later ones.
-
-    When *project* is given, xprompts from CWD directories (``.xprompts/``,
-    ``xprompts/``) are namespaced with ``{project}/``.
-
-    Returns:
-        Dictionary mapping xprompt name to XPrompt object.
-        Earlier priority sources override later ones.
-    """
-    cwd = Path.cwd()
-    cwd_dirs = {cwd / ".xprompts", cwd / "xprompts"}
-    search_paths = get_xprompt_search_paths()
-    xprompts: dict[str, XPrompt] = {}
-
-    # Process directories in reverse priority order (lowest first),
-    # so higher-priority directories overwrite.
-    for search_dir in reversed(search_paths):
-        if not search_dir.is_dir():
-            continue
-
-        is_local = search_dir in cwd_dirs
-        for md_file in search_dir.glob("*.md"):
-            if md_file.is_file():
-                xprompt = _load_xprompt_from_file(md_file)
-                if xprompt:
-                    if project and is_local:
-                        xprompt = _namespace_xprompt(project, xprompt)
-                    xprompts[xprompt.name] = xprompt
-
-    return xprompts
-
-
-def _load_xprompts_from_config(project: str | None = None) -> dict[str, XPrompt]:
-    """Load xprompts from config sources with proper source attribution.
-
-    Loads xprompts from each config source separately (built-in defaults,
-    plugin default configs, user sase.yml, overlay files) so that each
-    xprompt gets the correct source attribution instead of all being
-    tagged as ``"config"``.
-
-    When *project* is given, xprompts from the local ``sase.yml``
-    (``local_config`` source) are namespaced with ``{project}/``.
-
-    Priority order (within config sources, later overrides earlier):
-    1. Built-in ``default_config.yml``
-    2. Plugin ``default_config.yml`` files
-    3. User ``sase.yml``
-    4. Overlay ``sase_*.yml`` files
-    5. Local ``./sase.yml``
-
-    Returns:
-        Dictionary mapping xprompt name to XPrompt object.
-    """
-    all_xprompts: dict[str, XPrompt] = {}
-
-    for source_label, xprompts_data in load_xprompts_by_source():
-        parsed = parse_xprompt_entries(xprompts_data, source_label)
-        if project and source_label == "local_config":
-            parsed = {
-                f"{project}/{name}": _namespace_xprompt(project, xp)
-                for name, xp in parsed.items()
-            }
-        all_xprompts.update(parsed)
-
-    return all_xprompts
-
-
-def _load_xprompts_from_internal() -> dict[str, XPrompt]:
-    """Load xprompts from the internal sase package xprompts directory.
-
-    Returns:
-        Dictionary mapping xprompt name to XPrompt object.
-    """
-    internal_dir = get_sase_package_xprompts_dir()
-
-    if not internal_dir.is_dir():
-        return {}
-
-    skill_dir = internal_dir / "skills"
-    md_files = [*sorted(internal_dir.glob("*.md"))]
-    if skill_dir.is_dir():
-        md_files.extend(sorted(skill_dir.glob("*.md")))
-
-    xprompts: dict[str, XPrompt] = {}
-    for md_file in md_files:
-        if md_file.is_file():
-            xprompt = _load_xprompt_from_file(md_file)
-            if xprompt and xprompt.name not in xprompts:
-                xprompts[xprompt.name] = xprompt
-
-    return xprompts
-
-
-def _load_xprompts_from_default_files() -> dict[str, XPrompt]:
-    """Load xprompts from the internal sase package default_xprompts directory.
-
-    Returns:
-        Dictionary mapping xprompt name to XPrompt object.
-    """
-    default_dir = get_sase_package_default_xprompts_dir()
-
-    if not default_dir.is_dir():
-        return {}
-
-    xprompts: dict[str, XPrompt] = {}
-    for md_file in default_dir.glob("*.md"):
-        if md_file.is_file():
-            xprompt = _load_xprompt_from_file(md_file)
-            if xprompt:
-                xprompts[xprompt.name] = xprompt
-
-    return xprompts
-
-
-def _load_xprompts_from_plugins() -> dict[str, XPrompt]:
-    """Load xprompts from plugin packages via ``sase_xprompts`` entry points.
-
-    Each entry point should reference a module whose package contains an
-    ``xprompts/`` resource directory with ``.md`` files.
-
-    Returns:
-        Dictionary mapping xprompt name to XPrompt object.
-    """
-    if is_plugin_disabled("XPROMPTS"):
-        return {}
-
-    xprompts: dict[str, XPrompt] = {}
-    for module in discover_plugin_resources("sase_xprompts"):
-        try:
-            xprompts_dir = importlib.resources.files(module).joinpath("xprompts")
-        except (TypeError, AttributeError):
-            continue
-
-        try:
-            entries = list(xprompts_dir.iterdir())  # type: ignore[union-attr]
-        except (FileNotFoundError, OSError, TypeError):
-            continue
-
-        for entry in entries:
-            if not entry.name.endswith(".md"):  # type: ignore[union-attr]
-                continue
-            try:
-                text = entry.read_text(encoding="utf-8")  # type: ignore[union-attr]
-            except (OSError, UnicodeDecodeError):
-                continue
-
-            front_matter, body = parse_yaml_front_matter(text)
-            name = entry.name.removesuffix(".md")  # type: ignore[union-attr]
-            if front_matter and "name" in front_matter:
-                name = str(front_matter["name"])
-
-            inputs: list[InputArg] = []
-            if front_matter and "input" in front_matter:
-                inputs = parse_inputs_from_front_matter(front_matter["input"])
-
-            tags = parse_tags(front_matter.get("tags")) if front_matter else frozenset()
-
-            snippet = front_matter.get("snippet") if front_matter else None
-            description = front_matter.get("description") if front_matter else None
-            skill = front_matter.get("skill") if front_matter else None
-            keywords = front_matter.get("keywords", []) if front_matter else []
-            source = f"plugin:{module.__name__}/{entry.name}"  # type: ignore[union-attr]
-            xprompts[name] = XPrompt(
-                name=name,
-                content=body,
-                inputs=inputs,
-                source_path=source,
-                tags=tags,
-                snippet=snippet,
-                description=description,
-                skill=skill,
-                keywords=keywords,
-            )
-
-    return xprompts
-
-
-def _load_xprompts_from_project(project: str) -> dict[str, XPrompt]:
-    """Load xprompts from a project-specific directory.
-
-    Loads xprompts from ~/.config/sase/xprompts/{project}/*.md and namespaces
-    them with the project name (e.g., bar.md → foo/bar for project 'foo').
-
-    Args:
-        project: The project name to load xprompts for.
-
-    Returns:
-        Dictionary mapping namespaced xprompt name to XPrompt object.
-        Returns empty dict if directory doesn't exist.
-    """
-    project_dir = Path.home() / ".config" / "sase" / "xprompts" / project
-    if not project_dir.is_dir():
-        return {}
-
-    xprompts: dict[str, XPrompt] = {}
-
-    for md_file in project_dir.glob("*.md"):
-        if md_file.is_file():
-            xprompt = _load_xprompt_from_file(md_file)
-            if xprompt:
-                ns = _namespace_xprompt(project, xprompt)
-                xprompts[ns.name] = ns
-
-    return xprompts
-
-
-def get_known_project_workspaces() -> dict[str, Path]:
-    """Enumerate all known projects and their primary workspace directories.
-
-    Parses project spec files at ``~/.sase/projects/<name>/<name>.sase``
-    (preferring the canonical ``.sase`` extension; falling back to legacy
-    ``.gp``) for ``WORKSPACE_DIR:`` lines.
-
-    Returns:
-        Mapping of project name to workspace directory path.
-    """
-    from sase.ace.changespec.project_spec_path import (
-        project_spec_basename,
-        PROJECT_SPEC_EXTENSIONS,
-    )
-
-    projects_dir = Path.home() / ".sase" / "projects"
-    if not projects_dir.is_dir():
-        return {}
-
-    result: dict[str, Path] = {}
-    # Prefer canonical .sase entries; only fall back to legacy .gp where the
-    # canonical sibling is absent so a single project does not get listed twice.
-    seen_projects: set[str] = set()
-    for ext in PROJECT_SPEC_EXTENSIONS:
-        for spec_file in sorted(projects_dir.glob(f"*/*{ext}")):
-            if spec_file.name.endswith(f"-archive{ext}"):
-                continue
-            project_name = project_spec_basename(str(spec_file))
-            if project_name in seen_projects:
-                continue
-            try:
-                text = spec_file.read_text(encoding="utf-8")
-            except OSError:
-                continue
-            for line in text.splitlines():
-                if line.startswith("WORKSPACE_DIR:"):
-                    ws_dir = line.removeprefix("WORKSPACE_DIR:").strip()
-                    ws_path = Path(ws_dir)
-                    if ws_path.is_dir():
-                        result[project_name] = ws_path
-                        seen_projects.add(project_name)
-                    break
-
-    return result
-
-
-def load_project_local_xprompts(
-    workspace_dir: Path, project: str
-) -> dict[str, XPrompt]:
-    """Load xprompts from a project's ``sase.yml`` file.
-
-    Reads ``<workspace_dir>/sase.yml`` directly, bypassing the
-    ``_include_local_config`` flag.  Returns xprompts namespaced with
-    ``{project}/``.
-    """
-    sase_yml = workspace_dir / "sase.yml"
-    if not sase_yml.is_file():
-        return {}
-
-    try:
-        with open(sase_yml, encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-    except Exception:
-        log.debug("Failed to load project sase.yml: %s", sase_yml, exc_info=True)
-        return {}
-
-    if not isinstance(data, dict):
-        return {}
-
-    xprompts_data: dict[str, Any] = data.get("xprompts", {})
-    if not isinstance(xprompts_data, dict) or not xprompts_data:
-        return {}
-
-    source_label = f"project_local_config:{project}"
-    parsed = parse_xprompt_entries(xprompts_data, source_label)
-    return {
-        f"{project}/{name}": _namespace_xprompt(project, xp)
-        for name, xp in parsed.items()
-    }
-
-
 def get_all_project_local_prompts() -> dict[str, "Workflow"]:
     """Load xprompts from ALL known projects' ``sase.yml`` files.
 
@@ -485,89 +91,6 @@ def get_all_project_local_prompts() -> dict[str, "Workflow"]:
         for name, xp in xprompts.items():
             all_workflows[name] = xprompt_to_workflow(xp)
     return all_workflows
-
-
-def _get_memory_long_search_dirs() -> list[tuple[Path, bool]]:
-    """Return directories to scan for ``memory/long/*.md`` files.
-
-    Each entry is ``(directory, is_cwd_relative)`` where *is_cwd_relative*
-    controls whether ``$(cat ...)`` uses a CWD-relative or absolute path.
-
-    Priority order (first wins on name collision):
-    1. ``<cwd>/memory/long/``
-    2. ``<cwd>/.claude/memory/long/``
-    3. ``<cwd>/.gemini/memory/long/``
-    4. ``<cwd>/.codex/memory/long/``
-    5. ``~/.claude/memory/long/``
-    6. ``~/.gemini/memory/long/``
-    7. ``~/.codex/memory/long/``
-    """
-    cwd = Path.cwd()
-    home = Path.home()
-    return [
-        (cwd / "memory" / "long", True),
-        (cwd / ".claude" / "memory" / "long", True),
-        (cwd / ".gemini" / "memory" / "long", True),
-        (cwd / ".codex" / "memory" / "long", True),
-        (home / ".claude" / "memory" / "long", False),
-        (home / ".gemini" / "memory" / "long", False),
-        (home / ".codex" / "memory" / "long", False),
-    ]
-
-
-def _load_memory_long_xprompts() -> dict[str, XPrompt]:
-    """Auto-discover ``memory/long/*.md`` files with ``keywords`` frontmatter.
-
-    Files with a ``keywords`` field in their YAML frontmatter are treated as
-    memory xprompts.  The generated xprompt uses ``$(cat <path>)`` for shell
-    substitution — relative paths for CWD-based files, absolute for home-based.
-
-    Returns:
-        Dictionary mapping ``memory/long/<stem>`` to XPrompt objects.
-    """
-    from .tags import XPromptTag
-
-    cwd = Path.cwd()
-    xprompts: dict[str, XPrompt] = {}
-
-    # Process in reverse priority order so higher-priority dirs overwrite.
-    for search_dir, is_cwd_relative in reversed(_get_memory_long_search_dirs()):
-        if not search_dir.is_dir():
-            continue
-
-        for md_file in sorted(search_dir.glob("*.md")):
-            if not md_file.is_file():
-                continue
-
-            try:
-                content = md_file.read_text(encoding="utf-8")
-            except OSError:
-                continue
-
-            front_matter, _ = parse_yaml_front_matter(content)
-            if not front_matter or "keywords" not in front_matter:
-                continue
-
-            keywords = front_matter["keywords"]
-            if not isinstance(keywords, list):
-                continue
-
-            name = f"memory/long/{md_file.stem}"
-
-            if is_cwd_relative:
-                cat_path = str(md_file.relative_to(cwd))
-            else:
-                cat_path = str(md_file)
-
-            xprompts[name] = XPrompt(
-                name=name,
-                content=f"$(cat {cat_path})",
-                tags=frozenset({XPromptTag.memory}),
-                keywords=keywords,
-                source_path=str(md_file),
-            )
-
-    return xprompts
 
 
 def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
@@ -602,28 +125,28 @@ def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     all_xprompts: dict[str, XPrompt] = {}
 
     # 10. Internal xprompts (lowest priority)
-    all_xprompts.update(_load_xprompts_from_internal())
+    all_xprompts.update(load_xprompts_from_internal())
 
     # 9. Default markdown xprompts
-    all_xprompts.update(_load_xprompts_from_default_files())
+    all_xprompts.update(load_xprompts_from_default_files())
 
     # 8. Plugin xprompts
-    all_xprompts.update(_load_xprompts_from_plugins())
+    all_xprompts.update(load_xprompts_from_plugins())
 
     # 7. Config-based xprompts
-    config_xprompts = _load_xprompts_from_config(project=effective_project)
+    config_xprompts = load_xprompts_from_config(project=effective_project)
     all_xprompts.update(config_xprompts)
 
     # 6. memory/long/ auto-discovered xprompts
-    all_xprompts.update(_load_memory_long_xprompts())
+    all_xprompts.update(load_memory_long_xprompts())
 
     # 5. Project-specific xprompts (if project provided)
     if effective_project:
-        project_xprompts = _load_xprompts_from_project(effective_project)
+        project_xprompts = load_xprompts_from_project(effective_project)
         all_xprompts.update(project_xprompts)
 
     # 1-4. File-based xprompts (highest priority) - already sorted
-    file_xprompts = _load_xprompts_from_files(project=effective_project)
+    file_xprompts = load_xprompts_from_files(project=effective_project)
     all_xprompts.update(file_xprompts)
 
     return all_xprompts

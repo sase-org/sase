@@ -158,13 +158,13 @@ def test_negative_keyword_word_boundary(
 
 def test_negative_keyword_frontmatter_roundtrip(tmp_path: Path) -> None:
     """Quoted '!foo' in YAML frontmatter is preserved through the model."""
-    from sase.xprompt.loader import _load_xprompt_from_file
+    from sase.xprompt.loader import load_xprompt_from_file
 
     md = tmp_path / "test.md"
     md.write_text(
         '---\ntags: memory\nkeywords: [skill, "!banana"]\n---\n@memory/long/foo.md\n'
     )
-    xp = _load_xprompt_from_file(md)
+    xp = load_xprompt_from_file(md)
     assert xp is not None
     assert xp.keywords == ["skill", "!banana"]
 
@@ -184,7 +184,7 @@ def test_negative_keyword_config_entry_roundtrip() -> None:
 
 def test_negative_keyword_memory_long_frontmatter(tmp_path: Path) -> None:
     """Auto-discovered memory/long/*.md files preserve '!'-prefixed keywords."""
-    from sase.xprompt.loader import _load_memory_long_xprompts
+    from sase.xprompt.loader import load_memory_long_xprompts
 
     mem_dir = tmp_path / "memory" / "long"
     mem_dir.mkdir(parents=True)
@@ -194,12 +194,12 @@ def test_negative_keyword_memory_long_frontmatter(tmp_path: Path) -> None:
 
     with (
         patch(
-            "sase.xprompt.loader._get_memory_long_search_dirs",
+            "sase.xprompt.loader_memory._get_memory_long_search_dirs",
             return_value=[(mem_dir, True)],
         ),
-        patch("sase.xprompt.loader.Path.cwd", return_value=tmp_path),
+        patch("sase.xprompt.loader_memory.Path.cwd", return_value=tmp_path),
     ):
-        result = _load_memory_long_xprompts()
+        result = load_memory_long_xprompts()
 
     assert "memory/long/foo" in result
     assert result["memory/long/foo"].keywords == ["skill", "!banana"]
