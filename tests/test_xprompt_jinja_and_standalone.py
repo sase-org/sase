@@ -283,13 +283,17 @@ def test_render_template_none_produces_null_string() -> None:
     assert result == "null"
 
 
-def test_chdir_handling_in_standalone_steps(tmp_path: Path) -> None:
-    """Test that _chdir special output changes the working directory."""
+def test_chdir_handling_in_standalone_steps(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that _chdir changes cwd and records the active project dir."""
     from sase.main.query_handler._standalone_steps import execute_standalone_steps
     from sase.xprompt.workflow_models import WorkflowStep
 
     target_dir = str(tmp_path)
     original_dir = os.getcwd()
+    monkeypatch.delenv("SASE_ACTIVE_PROJECT_DIR", raising=False)
     try:
         steps = [
             WorkflowStep(
@@ -300,6 +304,7 @@ def test_chdir_handling_in_standalone_steps(tmp_path: Path) -> None:
         context: dict[str, object] = {}
         result = execute_standalone_steps(steps, context, "test_workflow")
         assert os.getcwd() == target_dir
+        assert os.environ["SASE_ACTIVE_PROJECT_DIR"] == target_dir
         # _chdir should be popped from output
         assert "_chdir" not in result["change_dir"]
     finally:

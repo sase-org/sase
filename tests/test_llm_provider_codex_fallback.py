@@ -50,6 +50,90 @@ def test_codex_fallback_skips_when_worktree_clean(
     assert mock_popen.call_count == 1
 
 
+def test_codex_fallback_uses_active_project_dir_when_parent_project_unset(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fallback inspects the workflow-assigned project dir when cwd differs."""
+    _isolate_fallback_markers(monkeypatch, tmp_path)
+    _set_sase_session(monkeypatch, "260511_120100")
+    cwd = tmp_path / "cwd"
+    active_project = tmp_path / "active-project"
+    cwd.mkdir()
+    active_project.mkdir()
+    monkeypatch.chdir(cwd)
+    monkeypatch.delenv("CODEX_PROJECT_DIR", raising=False)
+    monkeypatch.setenv("SASE_ACTIVE_PROJECT_DIR", str(active_project))
+
+    captured: dict[str, str] = {}
+    logs: list[tuple[str, dict[str, object]]] = []
+
+    def fake_build(project_dir: str) -> tuple[bool, list[str], str, str]:
+        captured["project_dir"] = project_dir
+        return (False, [], "", "")
+
+    monkeypatch.setattr("sase.llm_provider.codex.build_commit_details", fake_build)
+    monkeypatch.setattr(
+        "sase.llm_provider.codex.jlog",
+        lambda event, **kwargs: logs.append((event, kwargs)),
+    )
+
+    provider = CodexProvider()
+    assert (
+        provider._maybe_run_commit_fallback_turn(
+            base_args=["codex"],
+            original_prompt="prompt",
+            accumulated_response="response",
+            suppress_output=True,
+        )
+        is None
+    )
+
+    assert captured["project_dir"] == str(active_project)
+    assert logs[-1][0] == "codex_fallback_skip"
+    assert logs[-1][1]["reason"] == "no_changes"
+    assert logs[-1][1]["project_dir"] == str(active_project)
+
+
+def test_codex_fallback_parent_project_dir_overrides_active_project_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit CODEX_PROJECT_DIR remains authoritative."""
+    _isolate_fallback_markers(monkeypatch, tmp_path)
+    _set_sase_session(monkeypatch, "260511_120200")
+    cwd = tmp_path / "cwd"
+    active_project = tmp_path / "active-project"
+    parent_project = tmp_path / "parent-project"
+    cwd.mkdir()
+    active_project.mkdir()
+    parent_project.mkdir()
+    monkeypatch.chdir(cwd)
+    monkeypatch.setenv("CODEX_PROJECT_DIR", str(parent_project))
+    monkeypatch.setenv("SASE_ACTIVE_PROJECT_DIR", str(active_project))
+
+    captured: dict[str, str] = {}
+
+    def fake_build(project_dir: str) -> tuple[bool, list[str], str, str]:
+        captured["project_dir"] = project_dir
+        return (False, [], "", "")
+
+    monkeypatch.setattr("sase.llm_provider.codex.build_commit_details", fake_build)
+
+    provider = CodexProvider()
+    assert (
+        provider._maybe_run_commit_fallback_turn(
+            base_args=["codex"],
+            original_prompt="prompt",
+            accumulated_response="response",
+            suppress_output=True,
+        )
+        is None
+    )
+
+    assert captured["project_dir"] == str(parent_project)
+
+
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
 @patch("sase.llm_provider.codex.gemini_timer")

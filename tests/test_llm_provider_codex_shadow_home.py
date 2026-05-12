@@ -81,6 +81,8 @@ def test_codex_provider_sets_project_dir_with_shadow_home(
     project_dir.mkdir()
     monkeypatch.setenv("CODEX_HOME", str(real_home))
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("CODEX_PROJECT_DIR", raising=False)
+    monkeypatch.delenv("SASE_ACTIVE_PROJECT_DIR", raising=False)
     monkeypatch.chdir(project_dir)
 
     mock_process = MagicMock()
@@ -95,6 +97,40 @@ def test_codex_provider_sets_project_dir_with_shadow_home(
         tmp_path / ".cache" / "sase" / "codex_home"
     )
     assert env["CODEX_PROJECT_DIR"] == str(project_dir)
+
+
+@patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
+@patch("sase.llm_provider.codex.subprocess.Popen")
+@patch("sase.llm_provider.codex.gemini_timer")
+def test_codex_provider_sets_project_dir_from_active_project_dir(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Codex subprocesses inherit the workflow-assigned project dir."""
+    real_home = tmp_path / "real-codex"
+    real_home.mkdir()
+    cwd = tmp_path / "cwd"
+    active_project = tmp_path / "active-project"
+    cwd.mkdir()
+    active_project.mkdir()
+    monkeypatch.setenv("CODEX_HOME", str(real_home))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("CODEX_PROJECT_DIR", raising=False)
+    monkeypatch.setenv("SASE_ACTIVE_PROJECT_DIR", str(active_project))
+    monkeypatch.chdir(cwd)
+
+    mock_process = MagicMock()
+    mock_popen.return_value = mock_process
+    mock_stream.return_value = ("response", "", 0)
+
+    provider = CodexProvider()
+    provider.invoke("test", model_tier="large", suppress_output=True)
+
+    env = mock_popen.call_args.kwargs["env"]
+    assert env["CODEX_PROJECT_DIR"] == str(active_project)
 
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
@@ -229,8 +265,11 @@ def test_codex_provider_shadow_home_opt_out_preserves_inherited_env(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
     mock_stream: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test that SASE_CODEX_DISABLE_SHADOW_HOME=1 keeps Popen env inherited."""
+    """Opt-out skips shadow home while still passing Codex a project dir."""
+    monkeypatch.delenv("CODEX_PROJECT_DIR", raising=False)
+    monkeypatch.delenv("SASE_ACTIVE_PROJECT_DIR", raising=False)
     mock_process = MagicMock()
     mock_popen.return_value = mock_process
     mock_stream.return_value = ("response", "", 0)
@@ -238,4 +277,9 @@ def test_codex_provider_shadow_home_opt_out_preserves_inherited_env(
     provider = CodexProvider()
     provider.invoke("test", model_tier="large", suppress_output=True)
 
-    assert "env" not in mock_popen.call_args.kwargs
+    env = mock_popen.call_args.kwargs["env"]
+    if "CODEX_HOME" in os.environ:
+        assert env["CODEX_HOME"] == os.environ["CODEX_HOME"]
+    else:
+        assert "CODEX_HOME" not in env
+    assert env["CODEX_PROJECT_DIR"] == os.getcwd()

@@ -1,10 +1,13 @@
 """Utility functions for workflow execution."""
 
 import json
+import os
 import re
 from typing import Any
 
 from jinja2 import Environment, StrictUndefined
+
+from sase.env_contracts import SASE_ACTIVE_PROJECT_DIR_ENV
 
 
 def _finalize_value(value: Any) -> Any:
@@ -134,3 +137,16 @@ def coerce_output_types(
             except ValueError:
                 pass
     return output
+
+
+def apply_chdir_output(output: dict[str, Any]) -> str | None:
+    """Apply and remove a workflow ``_chdir`` output value if present."""
+    if "_chdir" not in output:
+        return None
+
+    chdir_path = str(output.pop("_chdir"))
+    if not os.path.isabs(chdir_path):
+        chdir_path = os.path.abspath(chdir_path)
+    os.chdir(chdir_path)
+    os.environ[SASE_ACTIVE_PROJECT_DIR_ENV] = chdir_path
+    return chdir_path

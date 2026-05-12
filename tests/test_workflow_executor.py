@@ -1,7 +1,9 @@
 """Tests for the WorkflowExecutor class."""
 
+import os
 import re
 import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -349,6 +351,40 @@ class TestPythonStepExecution:
             result = executor.execute()
 
             assert result is False
+
+
+class TestScriptStepChdir:
+    """Tests for script-step _chdir handling."""
+
+    def test_bash_chdir_sets_active_project_dir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """WorkflowExecutor records the assigned project dir when changing cwd."""
+        original_dir = os.getcwd()
+        target_dir = tmp_path / "project"
+        target_dir.mkdir()
+        monkeypatch.delenv("SASE_ACTIVE_PROJECT_DIR", raising=False)
+        step = WorkflowStep(
+            name="change_dir",
+            bash=f"echo '_chdir={target_dir}'",
+        )
+        workflow = _create_test_workflow(steps=[step])
+
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                executor = WorkflowExecutor(
+                    workflow=workflow,
+                    args={},
+                    artifacts_dir=tmpdir,
+                )
+
+                assert executor.execute() is True
+
+            assert os.getcwd() == str(target_dir)
+            assert os.environ["SASE_ACTIVE_PROJECT_DIR"] == str(target_dir)
+            assert "_chdir" not in executor.context["change_dir"]
+        finally:
+            os.chdir(original_dir)
 
 
 class TestParseBashOutput:

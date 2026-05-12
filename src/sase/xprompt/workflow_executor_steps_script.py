@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from sase.xprompt.workflow_executor_types import HITLHandler, output_types_from_step
 from sase.xprompt.workflow_executor_utils import (
+    apply_chdir_output,
     coerce_output_types,
     parse_bash_output,
     render_template,
@@ -142,11 +143,7 @@ class ScriptStepMixin:
         # Handle _chdir special output: change executor's working directory
         # Must happen before path resolution so relative paths resolve against
         # the post-chdir CWD.
-        if "_chdir" in output:
-            chdir_path = str(output.pop("_chdir"))
-            if not os.path.isabs(chdir_path):
-                chdir_path = os.path.abspath(chdir_path)
-            os.chdir(chdir_path)
+        apply_chdir_output(output)
 
         # Validate output against schema if specified
         if step.output and step.output.schema:
@@ -318,11 +315,7 @@ class ScriptStepMixin:
         # Handle _chdir special output: change executor's working directory
         # Must happen before path resolution so relative paths resolve against
         # the post-chdir CWD.
-        if "_chdir" in output:
-            chdir_path = str(output.pop("_chdir"))
-            if not os.path.isabs(chdir_path):
-                chdir_path = os.path.abspath(chdir_path)
-            os.chdir(chdir_path)
+        apply_chdir_output(output)
 
         # Validate output against schema if specified
         if step.output and step.output.schema:

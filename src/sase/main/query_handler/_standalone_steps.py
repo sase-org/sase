@@ -62,6 +62,7 @@ def execute_standalone_steps(
 
     from sase.xprompt.workflow_executor_types import output_types_from_step
     from sase.xprompt.workflow_executor_utils import (
+        apply_chdir_output,
         coerce_output_types,
         parse_bash_output,
         render_template,
@@ -113,11 +114,7 @@ def execute_standalone_steps(
             if step_output_types:
                 coerce_output_types(output, step_output_types)
             # Handle _chdir special output: change executor's working directory
-            if "_chdir" in output:
-                chdir_path = str(output.pop("_chdir"))
-                if not os.path.isabs(chdir_path):
-                    chdir_path = os.path.abspath(chdir_path)
-                os.chdir(chdir_path)
+            apply_chdir_output(output)
             if artifact_path is not None:
                 output["_artifact"] = artifact_path
             context[step.name] = output
@@ -158,11 +155,7 @@ def execute_standalone_steps(
             if step_output_types:
                 coerce_output_types(output, step_output_types)
             # Handle _chdir special output: change executor's working directory
-            if "_chdir" in output:
-                chdir_path = str(output.pop("_chdir"))
-                if not os.path.isabs(chdir_path):
-                    chdir_path = os.path.abspath(chdir_path)
-                os.chdir(chdir_path)
+            apply_chdir_output(output)
             if artifact_path_py is not None:
                 output["_artifact"] = artifact_path_py
             context[step.name] = output

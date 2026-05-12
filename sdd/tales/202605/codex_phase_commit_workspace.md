@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 14:54:42
-status: wip
+status: done
 prompt: sdd/prompts/202605/codex_phase_commit_workspace.md
 ---
 # Codex phase-agent commit fallback workspace plan

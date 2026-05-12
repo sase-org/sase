@@ -9,6 +9,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+from sase.env_contracts import SASE_ACTIVE_PROJECT_DIR_ENV
 from sase.output import gemini_timer
 from sase.scripts.sase_commit_stop_hook import (
     build_commit_details,
@@ -115,6 +116,15 @@ def _fallback_marker_path(session_id: str) -> Path:
     )
 
 
+def _resolve_codex_project_dir() -> str:
+    """Resolve the project directory Codex hooks and fallbacks should inspect."""
+    return (
+        os.environ.get("CODEX_PROJECT_DIR")
+        or os.environ.get(SASE_ACTIVE_PROJECT_DIR_ENV)
+        or os.getcwd()
+    )
+
+
 def _real_codex_home() -> Path:
     """Return the user's real Codex home."""
     codex_home = os.environ.get("CODEX_HOME")
@@ -146,16 +156,18 @@ def _create_shadow_codex_home(real_home: Path) -> Path:
 
 
 @contextmanager
-def _codex_subprocess_env() -> Iterator[dict[str, str] | None]:
+def _codex_subprocess_env() -> Iterator[dict[str, str]]:
     """Yield an env for Codex, isolating config writes unless disabled."""
     if os.environ.get(_DISABLE_SHADOW_HOME_ENV) == "1":
-        yield None
+        env = os.environ.copy()
+        env["CODEX_PROJECT_DIR"] = _resolve_codex_project_dir()
+        yield env
         return
 
     shadow_home = _create_shadow_codex_home(_real_codex_home())
     env = os.environ.copy()
     env["CODEX_HOME"] = str(shadow_home)
-    env["CODEX_PROJECT_DIR"] = os.getcwd()
+    env["CODEX_PROJECT_DIR"] = _resolve_codex_project_dir()
     try:
         yield env
     finally:
@@ -387,7 +399,7 @@ class CodexProvider(LLMProvider):
             )
             return None
 
-        project_dir = os.environ.get("CODEX_PROJECT_DIR") or os.getcwd()
+        project_dir = _resolve_codex_project_dir()
         has_changes, changed_files, _, details = build_commit_details(project_dir)
         if not has_changes:
             jlog(
@@ -395,6 +407,7 @@ class CodexProvider(LLMProvider):
                 reason="no_changes",
                 session_id=session_id,
                 native_marker_present=native_marker.exists(),
+                project_dir=project_dir,
             )
             return None
 
@@ -457,23 +470,14 @@ class CodexProvider(LLMProvider):
         """
         with _codex_subprocess_env() as env:
             try:
-                if env is None:
-                    process = subprocess.Popen(
-                        args,
-                        stdin=subprocess.PIPE,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                    )
-                else:
-                    process = subprocess.Popen(
-                        args,
-                        stdin=subprocess.PIPE,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                        env=env,
-                    )
+                process = subprocess.Popen(
+                    args,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    env=env,
+                )
             except FileNotFoundError as exc:
                 raise _codex_executable_not_found_error(args[0]) from exc
 
