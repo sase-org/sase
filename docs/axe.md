@@ -45,18 +45,19 @@ operators can also manage it directly with `sase axe start` and `sase axe stop`.
 
 ## CLI Commands
 
-| Command                          | Description                                     |
-| -------------------------------- | ----------------------------------------------- |
-| `sase axe start`                 | Start the orchestrator (spawns all lumberjacks) |
-| `sase axe stop`                  | Stop the orchestrator gracefully                |
-| `sase axe chop list`             | List configured chops                           |
-| `sase axe chop run <name>`       | Run a single chop in the foreground             |
-| `sase axe lumberjack list`       | List configured lumberjacks and their chops     |
-| `sase axe lumberjack run <name>` | Run a single lumberjack in the foreground       |
-| `sase axe lumberjack status`     | Show status of all lumberjacks                  |
-| `sase axe maintenance enter`     | Pause lumberjack ticks until maintenance exits  |
-| `sase axe maintenance exit`      | Clear the maintenance marker                    |
-| `sase axe maintenance status`    | Show whether maintenance mode is active         |
+| Command                                    | Description                                           |
+| ------------------------------------------ | ----------------------------------------------------- |
+| `sase axe start`                           | Start the orchestrator (spawns all lumberjacks)       |
+| `sase axe stop`                            | Stop the orchestrator gracefully                      |
+| `sase axe chop list`                       | List configured chops                                 |
+| `sase axe chop run <name>`                 | Run a single chop in the foreground                   |
+| `sase axe chop run <name> -L <lumberjack>` | Run a single chop attributed to a specific lumberjack |
+| `sase axe lumberjack list`                 | List configured lumberjacks and their chops           |
+| `sase axe lumberjack run <name>`           | Run a single lumberjack in the foreground             |
+| `sase axe lumberjack status`               | Show status of all lumberjacks                        |
+| `sase axe maintenance enter`               | Pause lumberjack ticks until maintenance exits        |
+| `sase axe maintenance exit`                | Clear the maintenance marker                          |
+| `sase axe maintenance status`              | Show whether maintenance mode is active               |
 
 ### Examples
 
@@ -77,6 +78,9 @@ sase axe lumberjack run hooks
 
 # Run a single chop once
 sase axe chop run hook_checks
+
+# Disambiguate when the same chop name appears in multiple lumberjacks
+sase axe chop run hook_checks --lumberjack hooks   # -L is the short form
 
 # Pause/resume scheduled lumberjack work
 sase axe maintenance enter --reason "install plugin update"
@@ -214,6 +218,39 @@ ticks indefinitely.
 Script chop stdout and stderr are streamed to the chop's per-run log file while the subprocess is still alive (see
 [Chop Run History](#chop-run-history) below). The Axe-tab dashboard tails that file so a long-running chop's output
 becomes visible immediately rather than only after process exit.
+
+### Manual Chop Runs
+
+Scheduled lumberjack ticks are not the only way a chop runs. Operators can launch any configured chop on demand from
+both the CLI and the ACE TUI; manual runs share the same execution path, run history, and live-output streaming as
+scheduled runs.
+
+**From the CLI:**
+
+```bash
+sase axe chop run <chop>                       # name must be unique across lumberjacks
+sase axe chop run <chop> --lumberjack <lj>     # explicit lumberjack (short form: -L <lj>)
+```
+
+When the same chop name appears under multiple lumberjacks, `sase axe chop run <chop>` fails with an unambiguous error
+listing the candidate lumberjacks. Pass `-L/--lumberjack` to pick one. The manual run is recorded under
+`~/.sase/axe/lumberjacks/<lumberjack>/chops/<chop>/` exactly like a scheduled run, except its metadata is tagged with
+`source = "manual"` (vs `"scheduled"`).
+
+**From the ACE TUI:**
+
+On the Axe tab, press `r` while a chop row is selected to launch that exact `(lumberjack, chop)` manually. The run uses
+the chop's configured environment, timeout, and (for agent chops) prompt — but bypasses any `run_every` cadence because
+the user explicitly asked for it. The TUI does not block while the launch happens; once the subprocess (or agent) has
+started, the new run becomes the newest entry in the chop's run history and the detail panel switches to it.
+
+If the selected chop already has a live script run in flight for the same `(lumberjack, chop)`, `r` notifies and skips
+the launch rather than starting an overlapping duplicate. Agent chops keep the existing live-agent dedupe semantics
+(prompt-hash based). On non-chop rows — lumberjack rows and running bgcmd rows — `r` is a no-op; on a completed bgcmd
+row, `r` continues to re-run the bgcmd.
+
+Manual runs participate in `Ctrl+N` / `Ctrl+P` history navigation just like scheduled runs. The chop-detail header marks
+them with a `Source: manual` chip so it is easy to tell at a glance why a run started.
 
 ### Agent Chops and Visibility
 

@@ -745,3 +745,90 @@ async def test_axe_lumberjack_error_png_snapshot(
             "axe_lumberjack_error_120x40",
             title="ACE axe lumberjack error",
         )
+
+
+def _axe_running_chop_fixture() -> AxeCollectedData:
+    """Fixture with an in-flight manual chop run streaming its output."""
+    # Naive ISO timestamps make _format_relative_time / _format_runtime
+    # return the deterministic "unknown" fallback (they require tz-aware
+    # input), so the rendered "Elapsed"/"When" cells stay stable across runs.
+    live_entry = ChopRunEntry(
+        run_id="20260509T100200_000000",
+        lumberjack_name="hooks",
+        chop_name="slow_typecheck",
+        started_at="2026-05-09T10:02:00",
+        finished_at=None,
+        duration_ms=0,
+        status="running",  # type: ignore[arg-type]
+        exit_code=None,
+        pid=98765,
+        output_bytes=42,
+        output_log="20260509T100200_000000.log",
+        source="manual",  # type: ignore[arg-type]
+    )
+    live_run = ChopRunSnapshot(
+        entry=live_entry,
+        output_tail="checking module foo...\nchecking module bar...\n",
+    )
+    hooks_slow = ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name="slow_typecheck",
+        description="slow typecheck",
+        runs=[live_run],
+    )
+    chop_snapshots = {("hooks", "slow_typecheck"): hooks_slow}
+    hooks_status = _make_lumberjack_status("hooks", chops=["slow_typecheck"])
+    metrics = LumberjackMetrics(
+        cycles_run=12, chops_executed=24, total_updates=12, errors_encountered=0
+    )
+    lumberjack_snapshots = {
+        "hooks": LumberjackSnapshot(
+            name="hooks",
+            status=hooks_status,
+            metrics=metrics,
+            log_tail="",
+            chops=[hooks_slow],
+        ),
+    }
+    return _axe_collected_data(
+        lumberjack_names=["hooks"],
+        lumberjack_statuses={"hooks": hooks_status},
+        lumberjack_metrics={"hooks": metrics},
+        lumberjack_log_tails={"hooks": ""},
+        lumberjack_chop_names={"hooks": ["slow_typecheck"]},
+        chop_snapshots=chop_snapshots,
+        lumberjack_snapshots=lumberjack_snapshots,
+    )
+
+
+async def test_axe_chop_run_info_panel_running_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Chop detail view for an in-flight manual run: ● running + Source: manual."""
+    from sase.ace.tui.widgets.bgcmd_list import ChopItem
+
+    _patch_startup_loaders(monkeypatch, axe_data=_axe_running_chop_fixture())
+
+    async with AcePage(query='"visual"', changespecs=_changespecs()) as page:
+        await _wait_for_startup(page)
+        await page.press("tab")
+        await page.press("tab")
+        await page.expect_state("tab", "axe")
+        # Items: [hooks LJ, hooks/slow_typecheck chop]. j lands on the chop.
+        await page.press("j")
+        assert page.app.current_idx == 1, (
+            f"expected idx 1 (hooks/slow_typecheck), got {page.app.current_idx}"
+        )
+        selected = page.app._axe_items[page.app.current_idx]
+        assert isinstance(selected, ChopItem), (
+            f"expected ChopItem at idx 1, got {type(selected).__name__}"
+        )
+        # Force the chop-run-detail view to render past the debouncer.
+        page.app._refresh_axe_display()
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_chop_run_info_panel_running_120x40",
+            title="ACE axe chop run info panel (running)",
+        )

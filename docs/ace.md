@@ -593,12 +593,12 @@ cached by raw query string so re-renders skip the parse.
 
 ### Commands
 
-| Key | Action                                                                             |
-| --- | ---------------------------------------------------------------------------------- |
-| `@` | Run agent                                                                          |
-| `r` | Re-run the selected background command (only when a completed `!!` row is focused) |
-| `x` | Start / stop axe (or kill the focused background command)                          |
-| `X` | Clear output                                                                       |
+| Key | Action                                                                                    |
+| --- | ----------------------------------------------------------------------------------------- |
+| `@` | Run agent                                                                                 |
+| `r` | Run selected chop manually, or re-run the focused completed background command (`!!`) row |
+| `x` | Start / stop axe (or kill the focused background command)                                 |
+| `X` | Clear output                                                                              |
 
 ### Leader Mode (`,` prefix)
 
