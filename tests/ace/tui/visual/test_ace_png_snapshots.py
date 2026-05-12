@@ -201,6 +201,11 @@ def _patch_startup_loaders(
         _fake_notification_snapshot,
     )
     monkeypatch.setattr(
+        notifications,
+        "dismiss_agent_completion_notifications",
+        lambda: 0,
+    )
+    monkeypatch.setattr(
         grouping_strategy,
         "load_agent_grouping_mode",
         _fake_load_agent_grouping_mode,
@@ -831,4 +836,209 @@ async def test_axe_chop_run_info_panel_running_png_snapshot(
             page,
             "axe_chop_run_info_panel_running_120x40",
             title="ACE axe chop run info panel (running)",
+        )
+
+
+def _axe_long_label_fixture() -> AxeCollectedData:
+    """Fixture with extra-long lumberjack/chop names to widen the sidebar.
+
+    Phase 5 of the AXE visual redesign promises the sidebar grows to fit the
+    widest formatted row. This fixture provides labels long enough to push the
+    natural sidebar width well past the 35-cell minimum so the snapshot proves
+    dynamic widening rather than wrapping.
+    """
+    chop_name = "review_pipeline_blocking_typecheck_long"
+    lumberjack_name = "review_pipeline_blocking_long_name"
+    chop = ChopSnapshot(
+        lumberjack_name=lumberjack_name,
+        chop_name=chop_name,
+        description="long-named typecheck chop",
+        runs=[
+            _make_chop_run(
+                lumberjack_name,
+                chop_name,
+                run_id="20260509T100100_000000",
+                status="success",
+            ),
+        ],
+    )
+    status = _make_lumberjack_status(lumberjack_name, chops=[chop_name])
+    metrics = LumberjackMetrics(
+        cycles_run=12, chops_executed=24, total_updates=12, errors_encountered=0
+    )
+    bgcmd_info = BackgroundCommandInfo(
+        command="just test --visual --snapshot --update --strict --verbose",
+        project="visual_project",
+        workspace_num=1,
+        workspace_dir="/workspace/sase_1",
+        started_at="2026-05-09T10:05:00",
+        pid=12345,
+    )
+    return _axe_collected_data(
+        lumberjack_names=[lumberjack_name],
+        lumberjack_statuses={lumberjack_name: status},
+        lumberjack_metrics={lumberjack_name: metrics},
+        lumberjack_log_tails={lumberjack_name: ""},
+        lumberjack_chop_names={lumberjack_name: [chop_name]},
+        chop_snapshots={(lumberjack_name, chop_name): chop},
+        lumberjack_snapshots={
+            lumberjack_name: LumberjackSnapshot(
+                name=lumberjack_name,
+                status=status,
+                metrics=metrics,
+                log_tail="",
+                chops=[chop],
+            ),
+        },
+        bgcmd_slots=[(1, bgcmd_info)],
+        bgcmd_details={
+            1: BgCmdSnapshot(
+                info=bgcmd_info, running=True, output_tail="running tests..."
+            )
+        },
+    )
+
+
+async def test_axe_long_label_widening_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Long lumberjack/chop labels widen the sidebar without wrapping."""
+    from sase.ace.tui.app import _MIN_BGCMD_LIST_WIDTH
+
+    _patch_startup_loaders(monkeypatch, axe_data=_axe_long_label_fixture())
+
+    async with AcePage(query='"visual"', changespecs=_changespecs()) as page:
+        await _wait_for_startup(page)
+        await page.press("tab")
+        await page.press("tab")
+        await page.expect_state("tab", "axe")
+
+        sidebar = page.app.query_one("#bgcmd-list-container")
+        width = sidebar.styles.width
+        assert width is not None, "expected sidebar to have a width set"
+        sidebar_width = int(width.value)
+        assert sidebar_width > _MIN_BGCMD_LIST_WIDTH, (
+            f"expected sidebar to widen past {_MIN_BGCMD_LIST_WIDTH}, "
+            f"got {sidebar_width}"
+        )
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_long_label_widened_120x40",
+            title="ACE axe long-label widened sidebar",
+        )
+
+
+def _axe_controlled_chop_fixture() -> AxeCollectedData:
+    """Fixture with an agent-launched chop run whose output is a controlled line.
+
+    The semantic highlighter recognizes ``Launched agent chop '<name>' (PID …)``
+    and colors the chop name, brackets, and PID per the AXE taxonomy palette.
+    Routing this through the ``chop_controlled`` source type proves the
+    highlighting reaches the dashboard right panel.
+    """
+    launched_entry = ChopRunEntry(
+        run_id="20260509T100300_000000",
+        lumberjack_name="hooks",
+        chop_name="agent_review",
+        started_at="2026-05-09T10:03:00",
+        finished_at="2026-05-09T10:03:00",
+        duration_ms=0,
+        status="agent_launched",  # type: ignore[arg-type]
+        exit_code=0,
+        pid=98765,
+        output_bytes=64,
+        output_log="20260509T100300_000000.log",
+        source="manual",  # type: ignore[arg-type]
+    )
+    launched_run = ChopRunSnapshot(
+        entry=launched_entry,
+        output_tail="Launched agent chop 'agent_review' (PID 98765)\n",
+    )
+    agent_chop = ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name="agent_review",
+        description="agent review chop",
+        runs=[launched_run],
+    )
+    chop_snapshots = {("hooks", "agent_review"): agent_chop}
+    hooks_status = _make_lumberjack_status("hooks", chops=["agent_review"])
+    metrics = LumberjackMetrics(
+        cycles_run=12, chops_executed=24, total_updates=12, errors_encountered=0
+    )
+    lumberjack_snapshots = {
+        "hooks": LumberjackSnapshot(
+            name="hooks",
+            status=hooks_status,
+            metrics=metrics,
+            log_tail="",
+            chops=[agent_chop],
+        ),
+    }
+    return _axe_collected_data(
+        lumberjack_names=["hooks"],
+        lumberjack_statuses={"hooks": hooks_status},
+        lumberjack_metrics={"hooks": metrics},
+        lumberjack_log_tails={"hooks": ""},
+        lumberjack_chop_names={"hooks": ["agent_review"]},
+        chop_snapshots=chop_snapshots,
+        lumberjack_snapshots=lumberjack_snapshots,
+    )
+
+
+async def test_axe_controlled_chop_output_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Selected chop with controlled agent-launch output exercises the semantic highlighter."""
+    from sase.ace.tui.widgets.bgcmd_list import ChopItem
+
+    _patch_startup_loaders(monkeypatch, axe_data=_axe_controlled_chop_fixture())
+
+    async with AcePage(query='"visual"', changespecs=_changespecs()) as page:
+        await _wait_for_startup(page)
+        await page.press("tab")
+        await page.press("tab")
+        await page.expect_state("tab", "axe")
+        # Items: [hooks LJ, hooks/agent_review chop]. One j press lands on the chop.
+        await page.press("j")
+        assert page.app.current_idx == 1, (
+            f"expected idx 1 (hooks/agent_review), got {page.app.current_idx}"
+        )
+        selected = page.app._axe_items[page.app.current_idx]
+        assert isinstance(selected, ChopItem), (
+            f"expected ChopItem at idx 1, got {type(selected).__name__}"
+        )
+        page.app._refresh_axe_display()
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_chop_controlled_output_120x40",
+            title="ACE axe chop controlled output",
+        )
+
+
+async def test_axe_constrained_width_no_wrap_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Narrow terminal with long labels proves no-wrap + ellipsis behavior."""
+    _patch_startup_loaders(monkeypatch, axe_data=_axe_long_label_fixture())
+
+    # 60x30 is small enough that the sidebar gets clamped to its minimum and
+    # the long lumberjack/chop labels can't fit — they must ellipsize on a
+    # single line rather than wrap.
+    async with AcePage(
+        query='"visual"', changespecs=_changespecs(), size=(60, 30)
+    ) as page:
+        await _wait_for_startup(page)
+        await page.press("tab")
+        await page.press("tab")
+        await page.expect_state("tab", "axe")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_constrained_width_no_wrap_60x30",
+            title="ACE axe constrained width no-wrap",
         )
