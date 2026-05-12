@@ -84,6 +84,8 @@ def main() -> int:
     exit_code = 1
     error_summary: str | None = None
     error_traceback_str: str | None = None
+    submitted_xprompt: str | None = None
+    workflow: CrsWorkflow | None = None
     start_time = time.time()
 
     # Detect VCS type for the project
@@ -131,6 +133,7 @@ def main() -> int:
             vcs_type=vcs_type,
         )
         workflow_succeeded = workflow.run()
+        submitted_xprompt = workflow.submitted_xprompt
 
         if not workflow_succeeded:
             print("CRS workflow failed")
@@ -147,6 +150,8 @@ def main() -> int:
         exit_code = 1
         error_summary = f"{type(e).__qualname__}: {e}"
         error_traceback_str = tb_mod.format_exc()
+        if workflow is not None and submitted_xprompt is None:
+            submitted_xprompt = workflow.submitted_xprompt
 
     finally:
         elapsed = time.time() - start_time
@@ -188,6 +193,8 @@ def main() -> int:
                 duration=duration,
                 error_summary=error_summary,
                 error_traceback=error_traceback_str,
+                submitted_xprompt=submitted_xprompt,
+                output_path=output_log_path,
             )
 
         # Finalize: update suffix, write completion marker

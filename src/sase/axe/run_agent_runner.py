@@ -39,6 +39,7 @@ from sase.axe.run_agent_runner_setup import (
     prepare_workspace_if_needed,
     preprocess_prompt_xprompts,
     setup_artifacts_directory,
+    write_submitted_xprompt_artifact,
     write_home_running_marker,
 )
 from sase.axe.runner_utils import (
@@ -89,6 +90,7 @@ def main() -> None:
     try:
         with open(prompt_file, encoding="utf-8") as f:
             prompt = f.read()
+        submitted_xprompt = prompt
     except Exception as e:
         print(f"Error reading prompt file: {e}", file=sys.stderr)
         sys.exit(1)
@@ -137,6 +139,10 @@ def main() -> None:
         cl_name=cl_name,
         is_home_mode=is_home_mode,
     )
+    try:
+        write_submitted_xprompt_artifact(artifacts_dir, submitted_xprompt)
+    except OSError as e:
+        print(f"Warning: Failed to write submitted_xprompt.md: {e}", file=sys.stderr)
 
     prompt, vcs_tag, raw_resolved_prompt = preprocess_prompt_xprompts(
         prompt, artifacts_dir
@@ -426,6 +432,10 @@ def main() -> None:
                 duration=duration,
                 error_summary=error_summary,
                 error_traceback=error_traceback_str,
+                submitted_xprompt=submitted_xprompt,
+                workspace_dir=workspace_dir,
+                output_path=output_path,
+                agent_name=agent_name,
             )
 
         # Skip notification if the agent was killed by the user (SIGTERM).

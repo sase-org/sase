@@ -125,14 +125,23 @@ def test_failure_error_report_notification_adds_bead_display(
     )
     error_report = tmp_path / "error.md"
     error_report.write_text("boom\n")
+    chat = tmp_path / "chat.md"
+    diff = tmp_path / "diff.diff"
     base_kwargs["success"] = False
     base_kwargs["agent_name"] = "sase-x.3"
     base_kwargs["error_report_path"] = str(error_report)
+    base_kwargs["saved_path"] = str(chat)
+    base_kwargs["diff_path"] = str(diff)
 
     with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
         send_completion_notification(**base_kwargs)
 
     assert mock_notify.call_args.kwargs["action"] == "ViewErrorReport"
+    assert mock_notify.call_args.kwargs["extra_files"][:3] == [
+        str(error_report),
+        str(chat),
+        str(diff),
+    ]
     action_data = mock_notify.call_args.kwargs["action_data"]
     assert action_data["bead_display"] == "sase-x.3"
 

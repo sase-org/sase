@@ -22,6 +22,7 @@ import pytest
 from sase.ace.tui.actions.agent_workflow._launch_bulk import BulkLaunchMixin
 from sase.ace.tui.actions.agent_workflow._launch_multi_model import (
     MultiModelLaunchMixin,
+    _write_fanout_failure_report,
 )
 from sase.ace.tui.actions.agent_workflow._launch_multi_prompt import (
     MultiPromptLaunchMixin,
@@ -478,6 +479,28 @@ def test_multi_model_failure_records_toast_and_persistent_notification() -> None
         "Prompt fan-out launch failed (see log)",
         "error",
     ) in app.notifications
+
+
+def test_fanout_failure_report_includes_submitted_xprompt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    submitted = "#swarm\n```text\nkeep fence safe\n```"
+
+    report_path = _write_fanout_failure_report(
+        "RuntimeError: workspace claim failed",
+        ctx=_ctx(),
+        vcs_ref=("git", "proj"),
+        has_wait=True,
+        fanout_kind="alternatives",
+        slot_count=2,
+        submitted_xprompt=submitted,
+    )
+
+    text = report_path.read_text(encoding="utf-8")
+    assert "## Submitted XPrompt" in text
+    assert "````markdown" in text
+    assert submitted in text
 
 
 def test_repeat_launch_runs_off_main_thread_and_unifies_refresh() -> None:

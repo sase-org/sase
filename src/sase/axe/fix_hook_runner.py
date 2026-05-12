@@ -127,6 +127,7 @@ def main() -> int:
     exit_code = 1
     error_summary: str | None = None
     error_traceback_str: str | None = None
+    submitted_xprompt: str | None = None
     start_time = time.time()
 
     # Get the command to run (strip "!" prefix)
@@ -169,6 +170,7 @@ def main() -> int:
             f'output_file="{escaped_output}", '
             f'cl_name="{escaped_cl}", vcs_type="{vcs_type}")'
         )
+        submitted_xprompt = prompt_ref
         prompt = process_xprompt_references(prompt_ref)
 
         # Expand embedded workflows (#propose from fix_hook.md)
@@ -328,6 +330,8 @@ def main() -> int:
                 duration=duration,
                 error_summary=error_summary,
                 error_traceback=error_traceback_str,
+                submitted_xprompt=submitted_xprompt,
+                output_path=output_log_path,
             )
 
         # Finalize: update suffix, release workspace, write completion marker

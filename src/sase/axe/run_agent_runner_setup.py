@@ -134,6 +134,14 @@ def preprocess_prompt_xprompts(
     return prompt, vcs_tag, raw_resolved_prompt
 
 
+def write_submitted_xprompt_artifact(artifacts_dir: str, submitted_xprompt: str) -> str:
+    """Persist the launch-boundary prompt without alias or xprompt expansion."""
+    path = os.path.join(artifacts_dir, "submitted_xprompt.md")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(submitted_xprompt)
+    return path
+
+
 def load_retry_handoff_from_env() -> RetryHandoff | None:
     """Load retry-spawn handoff (if any) and print a summary."""
     retry_handoff_path = os.environ.get(ENV_RETRY_HANDOFF)

@@ -324,6 +324,51 @@ def read_agent_meta(artifacts_dir: str) -> dict[str, str | None]:
     return result
 
 
+def format_markdown_fenced_block(content: str, info: str = "") -> str:
+    """Return a Markdown fenced block that cannot be closed by ``content``."""
+    longest_backtick_run = 0
+    current_run = 0
+    for char in content:
+        if char == "`":
+            current_run += 1
+            longest_backtick_run = max(longest_backtick_run, current_run)
+        else:
+            current_run = 0
+    fence = "`" * max(3, longest_backtick_run + 1)
+    info_suffix = info if info else ""
+    if content.endswith("\n"):
+        return f"{fence}{info_suffix}\n{content}{fence}"
+    return f"{fence}{info_suffix}\n{content}\n{fence}"
+
+
+def _read_submitted_xprompt_fallback(
+    artifacts_dir: str,
+    submitted_xprompt_path: str | None,
+) -> str | None:
+    paths = []
+    if submitted_xprompt_path:
+        paths.append(submitted_xprompt_path)
+    paths.extend(
+        [
+            os.path.join(artifacts_dir, "submitted_xprompt.md"),
+            os.path.join(artifacts_dir, "raw_xprompt.md"),
+        ]
+    )
+    for path in paths:
+        try:
+            with open(path, encoding="utf-8") as f:
+                return f.read()
+        except OSError:
+            continue
+    return None
+
+
+def _table_value(value: str | None) -> str | None:
+    if value is None or value == "":
+        return None
+    return value.replace("|", "\\|").replace("\n", "<br>")
+
+
 def write_error_report(
     artifacts_dir: str,
     *,
@@ -334,6 +379,11 @@ def write_error_report(
     duration: str,
     error_summary: str,
     error_traceback: str | None,
+    submitted_xprompt: str | None = None,
+    submitted_xprompt_path: str | None = None,
+    workspace_dir: str | None = None,
+    output_path: str | None = None,
+    agent_name: str | None = None,
 ) -> str | None:
     """Write a formatted error report to the artifacts directory.
 
@@ -345,6 +395,16 @@ def write_error_report(
         report_path = os.path.join(artifacts_dir, "error_report.md")
         label = format_provider_model_label(agent_llm_provider, agent_model)
 
+        summary_rows = [
+            ("Model", label),
+            ("Workflow", workflow_name),
+            ("CL", cl_name),
+            ("Duration", duration),
+            ("Agent name", agent_name),
+            ("Artifact directory", artifacts_dir),
+            ("Workspace directory", workspace_dir),
+            ("Output log path", output_path),
+        ]
         lines = [
             "# Agent Error Report",
             "",
@@ -352,17 +412,35 @@ def write_error_report(
             "",
             "| Field | Value |",
             "|-------|-------|",
-            f"| Model | {label} |",
-            f"| Workflow | {workflow_name} |",
-            f"| CL | {cl_name} |",
-            f"| Duration | {duration} |",
-            "",
-            "## Error",
-            "",
-            "```",
-            error_summary,
-            "```",
         ]
+        for field, value in summary_rows:
+            table_value = _table_value(value)
+            if table_value is not None:
+                lines.append(f"| {field} | {table_value} |")
+
+        if submitted_xprompt is None:
+            submitted_xprompt = _read_submitted_xprompt_fallback(
+                artifacts_dir, submitted_xprompt_path
+            )
+
+        if submitted_xprompt is not None:
+            lines.extend(
+                [
+                    "",
+                    "## Submitted XPrompt",
+                    "",
+                    format_markdown_fenced_block(submitted_xprompt, "markdown"),
+                ]
+            )
+
+        lines.extend(
+            [
+                "",
+                "## Error",
+                "",
+                format_markdown_fenced_block(error_summary),
+            ]
+        )
 
         if error_traceback:
             lines.extend(
@@ -370,9 +448,7 @@ def write_error_report(
                     "",
                     "## Traceback",
                     "",
-                    "```",
-                    error_traceback.rstrip(),
-                    "```",
+                    format_markdown_fenced_block(error_traceback.rstrip()),
                 ]
             )
 

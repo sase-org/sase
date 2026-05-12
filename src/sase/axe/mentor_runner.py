@@ -57,6 +57,8 @@ def main() -> None:
     response_path: str | None = None
     error_summary: str | None = None
     error_traceback_str: str | None = None
+    submitted_xprompt: str | None = None
+    workflow: MentorWorkflow | None = None
 
     # Create artifacts directory early so done.json can be written even on error
     # Note: MentorWorkflow also creates this same directory internally
@@ -85,6 +87,7 @@ def main() -> None:
                 timestamp=timestamp,
             )
             success = workflow.run()
+            submitted_xprompt = workflow.submitted_xprompt
             response_path = workflow.response_path
             comment_count = workflow.comment_count
         except BaseException as e:
@@ -94,6 +97,8 @@ def main() -> None:
                 print(f"Error running mentor workflow: {e}", file=sys.stderr)
                 error_summary = f"{type(e).__qualname__}: {e}"
                 error_traceback_str = tb_mod.format_exc()
+            if workflow is not None and submitted_xprompt is None:
+                submitted_xprompt = workflow.submitted_xprompt
             success = False
             comment_count = 0
 
@@ -183,6 +188,8 @@ def main() -> None:
                 duration=duration,
                 error_summary=error_summary,
                 error_traceback=error_traceback_str,
+                submitted_xprompt=submitted_xprompt,
+                output_path=output_log_path,
             )
 
         # Write completion marker

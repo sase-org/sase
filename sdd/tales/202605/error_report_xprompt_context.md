@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 18:08:23
-status: wip
+status: done
 prompt: sdd/prompts/202605/error_report_xprompt_context.md
 ---
 # Plan: Add Submitted XPrompt Context to Agent Error Reports

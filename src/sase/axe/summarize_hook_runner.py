@@ -34,6 +34,7 @@ from sase.telemetry import init_telemetry, register_push_on_exit
 from sase.telemetry.metrics import WORKFLOW_DURATION, WORKFLOW_EXECUTIONS
 from sase.artifacts import create_artifacts_directory
 from sase.ace.hooks.summarize_utils import get_file_summary
+from sase.xprompt import escape_for_xprompt
 
 # Workflow completion marker (same pattern as other axe runners)
 WORKFLOW_COMPLETE_MARKER = "===WORKFLOW_COMPLETE=== PROPOSAL_ID: "
@@ -63,6 +64,11 @@ def main() -> int:
     exit_code = 1
     error_summary: str | None = None
     error_traceback_str: str | None = None
+    summary_usage = "a hook failure suffix on a status line"
+    submitted_xprompt = (
+        f'#summarize(target_file="{escape_for_xprompt(hook_output_path)}", '
+        f'usage="{escape_for_xprompt(summary_usage)}")'
+    )
     start_time = time.time()
 
     # Create artifacts directory early so done.json can be written even on error
@@ -168,7 +174,7 @@ def main() -> int:
         # Get summary of the hook failure
         summary = get_file_summary(
             target_file=hook_output_path,
-            usage="a hook failure suffix on a status line",
+            usage=summary_usage,
             fallback="Hook Command Failed",
             artifacts_dir=artifacts_dir,
         )
@@ -240,6 +246,8 @@ def main() -> int:
             duration=duration,
             error_summary=error_summary,
             error_traceback=error_traceback_str,
+            submitted_xprompt=submitted_xprompt,
+            output_path=output_log_path,
         )
 
     # Send notification for summarize-hook completion

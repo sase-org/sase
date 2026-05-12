@@ -57,6 +57,7 @@ class AgentLaunchBodyMixin:
             # Context was cleared between the submit and the worker tick
             # (e.g. another launch path ran); nothing to do.
             return
+        submitted_xprompt = prompt
         ctx = self._prompt_context
         from sase.agent.names import ensure_historical_auto_name_migration
         from sase.agent.launch_timing import LaunchTimingRecorder
@@ -394,6 +395,7 @@ class AgentLaunchBodyMixin:
                 has_wait,
                 fanout_plan.launch_kind,
                 local_xprompts,
+                submitted_xprompt,
             )
             return
 

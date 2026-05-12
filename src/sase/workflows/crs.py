@@ -76,6 +76,17 @@ def _build_crs_prompt(
     Returns:
         The formatted prompt string
     """
+    return process_xprompt_references(
+        _build_crs_prompt_invocation(critique_comments_path, cl_name, vcs_type)
+    )
+
+
+def _build_crs_prompt_invocation(
+    critique_comments_path: str,
+    cl_name: str | None = None,
+    vcs_type: str = "hg",
+) -> str:
+    """Build the generated top-level CRS xprompt invocation."""
     from sase.xprompt.tags import XPromptTag, get_by_tag
 
     crs_wf = get_by_tag(XPromptTag.crs)
@@ -83,13 +94,12 @@ def _build_crs_prompt(
 
     escaped_path = escape_for_xprompt(critique_comments_path)
     if cl_name:
-        prompt_text = (
+        escaped_cl = escape_for_xprompt(cl_name)
+        return (
             f'#{crs_name}(critique_comments_path="{escaped_path}", '
-            f'cl_name="{cl_name}", vcs_type="{vcs_type}")'
+            f'cl_name="{escaped_cl}", vcs_type="{vcs_type}")'
         )
-    else:
-        prompt_text = f'#{crs_name}(critique_comments_path="{escaped_path}")'
-    return process_xprompt_references(prompt_text)
+    return f'#{crs_name}(critique_comments_path="{escaped_path}")'
 
 
 class CrsWorkflow(BaseWorkflow):
@@ -124,6 +134,7 @@ class CrsWorkflow(BaseWorkflow):
         self.vcs_type = vcs_type
         self.response_path: str | None = None
         self.last_prompt: str | None = None
+        self.submitted_xprompt: str | None = None
         self.proposal_id: str | None = None
 
     @property
@@ -161,6 +172,11 @@ class CrsWorkflow(BaseWorkflow):
 
         # Build the prompt
         print_status("Building change request prompt...", "progress")
+        self.submitted_xprompt = _build_crs_prompt_invocation(
+            critique_artifact,
+            cl_name=self.cl_name,
+            vcs_type=self.vcs_type or "hg",
+        )
         prompt = _build_crs_prompt(
             critique_artifact,
             cl_name=self.cl_name,

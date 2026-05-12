@@ -41,6 +41,7 @@ from sase.artifacts import (
 from sase.content import ensure_str_content
 from sase.workflows.base import BaseWorkflow
 from sase.workflows.utils import get_cl_name_from_branch
+from sase.xprompt import escape_for_xprompt
 from sase.xprompt.output_validation import extract_structured_content
 from sase.xprompt.tags import XPromptTag, get_by_tag, get_by_tag_strict
 from sase.xprompt.workflow_executor_utils import render_template
@@ -108,6 +109,27 @@ def _build_mentor_prompt(
             "Check src/sase/xprompts/mentor.yml."
         )
     return render_template(prompt_part_content, context)
+
+
+def _build_mentor_prompt_invocation(
+    mentor: MentorConfig,
+    cl_name: str,
+    vcs_type: str = "hg",
+) -> str:
+    """Build the generated top-level mentor xprompt invocation for reports."""
+    mentor_wf = get_by_tag(XPromptTag.mentor)
+    mentor_name = mentor_wf.name if mentor_wf else "mentor"
+    focus_areas_json = json.dumps(
+        [asdict(fa) for fa in mentor.focus_areas], ensure_ascii=False
+    )
+    schema = json.dumps(MENTOR_OUTPUT_JSON_SCHEMA, ensure_ascii=False)
+    return (
+        f'#{mentor_name}(role="{escape_for_xprompt(mentor.role)}", '
+        f'focus_areas_json="{escape_for_xprompt(focus_areas_json)}", '
+        f'cl_name="{escape_for_xprompt(cl_name)}", '
+        f'vcs_type="{escape_for_xprompt(vcs_type)}", '
+        f'schema="{escape_for_xprompt(schema)}")'
+    )
 
 
 def _parse_mentor_json(
@@ -205,6 +227,7 @@ class MentorWorkflow(BaseWorkflow):
         self._timestamp = timestamp
         self._who = who
         self.response_path: str | None = None
+        self.submitted_xprompt: str | None = None
         self.comment_count: int = 0
         self._mentor: MentorConfig | None = None
         self._console = Console()
@@ -291,6 +314,9 @@ class MentorWorkflow(BaseWorkflow):
 
             # Build prompt via #mentor xprompt workflow
             print_status("Building mentor prompt...", "progress")
+            self.submitted_xprompt = _build_mentor_prompt_invocation(
+                self._mentor, resolved_cl_name, vcs_type
+            )
             prompt = _build_mentor_prompt(
                 self._mentor, resolved_cl_name, vcs_type, project=project
             )
