@@ -170,8 +170,39 @@ jobs:
         run: just install-visual
       - name: Run visual tests
         run: just test-visual
+      - name: Build visual failure report
+        if: failure()
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          tools/render_visual_snapshot_failure_report \
+            --repo "$GITHUB_REPOSITORY" \
+            --sha "$GITHUB_SHA"
+      - name: Upload visual failure report
+        id: visual_failure_report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ace-visual-failure-report
+          path: .pytest_cache/sase-visual-report/visual-failure-report.html
+          archive: false
+          if-no-files-found: ignore
+      - name: Publish visual failure report
+        if: failure()
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          VISUAL_REPORT_URL: ${{ steps.visual_failure_report.outputs.artifact-url }}
+        run: |
+          tools/render_visual_snapshot_failure_report \
+            --repo "$GITHUB_REPOSITORY" \
+            --sha "$GITHUB_SHA" \
+            --report-url "$VISUAL_REPORT_URL"
+          cat .pytest_cache/sase-visual-report/summary.md >> "$GITHUB_STEP_SUMMARY"
+          bash .pytest_cache/sase-visual-report/annotations.sh
       - name: Upload visual failure artifacts
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: ace-visual-artifacts
