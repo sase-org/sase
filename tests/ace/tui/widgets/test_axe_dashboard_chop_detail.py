@@ -274,8 +274,11 @@ def test_update_lumberjack_overview_renders_chop_table() -> None:
     captured: dict[str, object] = {}
 
     class _OutputSection:
-        def update_lumberjack_overview(self, snapshot: LumberjackSnapshot) -> None:
+        def update_lumberjack_overview(
+            self, snapshot: LumberjackSnapshot, width: int | None = None
+        ) -> None:
             captured["snapshot"] = snapshot
+            captured["width"] = width
 
         def update(self, content: object) -> None:
             captured["update"] = content
@@ -637,3 +640,276 @@ def test_lumberjack_overview_renders_running_chop_with_elapsed() -> None:
     # Running rows do not display the static "0ms" final duration; the
     # column shows the elapsed runtime label instead.
     assert "0ms" not in plain
+
+
+# --- Phase 4: dashboard polish under narrow widths and log-tail integration ---
+
+
+def _overview_snapshot(
+    *,
+    log_tail: str = "",
+    chops: list[ChopSnapshot] | None = None,
+    interval: int = 60,
+) -> LumberjackSnapshot:
+    return LumberjackSnapshot(
+        name="hooks",
+        status=LumberjackStatus(
+            name="hooks",
+            pid=1,
+            started_at="2026-05-11T00:00:00",
+            status="running",
+            interval=interval,
+            cycles_run=3,
+            errors_encountered=0,
+        ),
+        metrics=LumberjackMetrics(chops_executed=2),
+        log_tail=log_tail,
+        chops=chops or [],
+    )
+
+
+def _capture_overview(snap: LumberjackSnapshot, *, width: int | None) -> Text:
+    """Render via the real ``_AxeOutputSection`` and capture the Rich Text."""
+    rendered: dict[str, object] = {}
+    section = axe_dashboard._AxeOutputSection.__new__(axe_dashboard._AxeOutputSection)
+    section.update = lambda content: rendered.__setitem__("content", content)  # type: ignore[assignment]
+    section.update_lumberjack_overview(snap, width=width)
+    out = rendered["content"]
+    assert isinstance(out, Text)
+    return out
+
+
+def test_lumberjack_overview_wide_layout_renders_table_header() -> None:
+    """At default width the chop table renders with its column header row."""
+    snap = _overview_snapshot(
+        chops=[
+            ChopSnapshot(
+                lumberjack_name="hooks",
+                chop_name="fast",
+                description="",
+                runs=[
+                    ChopRunSnapshot(
+                        entry=_entry("a", status="success", duration_ms=420),
+                        output_tail="",
+                    )
+                ],
+            )
+        ],
+    )
+
+    plain = _capture_overview(snap, width=120).plain
+    # Header row tokens only appear in the wide table layout.
+    assert "NAME" in plain
+    assert "LAST RUN" in plain
+    assert "DURATION" in plain
+    # Status line uses four-space separators, not stacking newlines.
+    assert "Status: ● running    Interval:" in plain
+
+
+def test_lumberjack_overview_narrow_layout_stacks_fields_and_chops() -> None:
+    """Below the narrow threshold the overview stacks header fields and chops."""
+    snap = _overview_snapshot(
+        chops=[
+            ChopSnapshot(
+                lumberjack_name="hooks",
+                chop_name="fast",
+                description="",
+                runs=[
+                    ChopRunSnapshot(
+                        entry=_entry("a", status="success", duration_ms=420),
+                        output_tail="",
+                    )
+                ],
+            ),
+            ChopSnapshot(
+                lumberjack_name="hooks",
+                chop_name="never_run",
+                description="",
+                runs=[],
+            ),
+        ],
+    )
+
+    plain = _capture_overview(snap, width=40).plain
+    # The wide table's column header must not appear in compact mode.
+    assert "LAST RUN" not in plain
+    assert "DURATION" not in plain
+    # Each chop name appears on its own line, followed by an indented
+    # metadata line ("· success ·" or "never run").
+    assert "  fast\n" in plain
+    assert "success" in plain
+    assert "never run" in plain
+    # Header fields are stacked, not joined with four-space gaps.
+    assert "Status: ● running    Interval:" not in plain
+    assert "Interval: 60s" in plain
+
+
+def test_lumberjack_overview_log_tail_uses_semantic_highlighter() -> None:
+    """A non-empty log_tail surfaces a RECENT LOG section rendered semantically."""
+    axe_log_renderer._render_cache.clear()
+    log_tail = "\n".join(
+        [
+            "[2026-05-11 12:34:50] [hooks] success",
+            "[2026-05-11 12:34:55] [hooks] running 3 chops",
+            "[2026-05-11 12:35:00] [hooks] failure exit code 1",
+            "",
+        ]
+    )
+    snap = _overview_snapshot(log_tail=log_tail, chops=[])
+
+    text = _capture_overview(snap, width=120)
+    plain = text.plain
+    assert "RECENT LOG" in plain
+    # The semantic highlighter classified the tail through the
+    # ``lumberjack:<name>:overview-tail`` cache slot so it does not collide
+    # with ``update_lumberjack_display``'s full-log render.
+    cache = axe_log_renderer._render_cache
+    assert ("lumberjack:hooks:overview-tail", "lumberjack") in cache
+    # The full-log slot must not be populated as a side effect.
+    assert ("lumberjack:hooks", "lumberjack") not in cache
+
+
+def test_lumberjack_overview_empty_log_tail_omits_recent_section() -> None:
+    """When the cache has no log tail the RECENT LOG block is hidden entirely."""
+    snap = _overview_snapshot(log_tail="", chops=[])
+    text = _capture_overview(snap, width=120)
+    assert "RECENT LOG" not in text.plain
+
+
+def test_lumberjack_overview_no_traceback_on_huge_output() -> None:
+    """A pathological log tail must still render — the tail is line-capped."""
+    big = "[2026-05-11 12:34:56] [hooks] success\n" * 10_000
+    snap = _overview_snapshot(log_tail=big, chops=[])
+    text = _capture_overview(snap, width=120)
+    plain = text.plain
+    # Only the configured tail-window is included so the overview never
+    # crowds the chop table even with a 10k-line log.
+    assert plain.count("[hooks] success") <= 10
+
+
+def test_lumberjack_summary_narrow_layout_stacks_rows() -> None:
+    """The activity summary degrades to a stacked layout on narrow widths."""
+    summaries: list[axe_dashboard.LumberjackSummary] = [
+        (
+            "hooks",
+            LumberjackStatus(
+                name="hooks",
+                pid=1,
+                started_at="2026-05-11T00:00:00",
+                status="running",
+                interval=60,
+                cycles_run=5,
+                errors_encountered=0,
+            ),
+            2,
+        ),
+    ]
+
+    rendered: dict[str, object] = {}
+    section = axe_dashboard._AxeOutputSection.__new__(axe_dashboard._AxeOutputSection)
+    section.update = lambda content: rendered.__setitem__("content", content)  # type: ignore[assignment]
+    section.update_lumberjack_summary(summaries, width=40)
+
+    plain = rendered["content"].plain  # type: ignore[union-attr]
+    # The full-width column header should be suppressed below the
+    # narrow threshold.
+    assert "LAST CYCLE" not in plain
+    # Each row stacks: name on its own line, metadata indented below.
+    assert "  hooks\n" in plain
+    assert "5c" in plain
+    assert "running" in plain.lower()
+
+
+def test_status_section_renders_no_wrap_text() -> None:
+    """All status renderers construct ``Text`` with ``no_wrap`` so the 1-cell
+    status bar truncates cleanly rather than wrapping into the output panel."""
+    section = axe_dashboard._AxeStatusSection.__new__(axe_dashboard._AxeStatusSection)
+    section.__init__()  # type: ignore[misc]
+
+    captured: list[Text] = []
+    section.update = lambda content: captured.append(content)  # type: ignore[assignment,arg-type]
+
+    section.update_lumberjack_display(
+        status=LumberjackStatus(
+            name="hooks",
+            pid=1,
+            started_at="2026-05-11T00:00:00",
+            status="running",
+            interval=60,
+            cycles_run=2,
+            errors_encountered=0,
+        ),
+        name="hooks",
+        idx=0,
+        total=1,
+    )
+    section.update_chop_display(
+        lumberjack_name="hooks",
+        chop_name="fast",
+        run=None,
+        run_idx=0,
+        run_total=0,
+    )
+    section.update_display(status=None, is_running=True, full_cycles=0)
+    section.update_bgcmd_display(info=None, is_running=False)
+
+    assert captured, "status section never emitted a Text"
+    for text in captured:
+        assert text.no_wrap is True
+        assert text.overflow == "ellipsis"
+
+
+def test_chop_status_header_colors_names_with_sidebar_taxonomy() -> None:
+    """The chop status header colors the lumberjack and chop names with the
+    sidebar gold/copper hues so the header echoes the sidebar tree."""
+    run = ChopRunSnapshot(
+        entry=_entry("a", status="success"),
+        output_tail="",
+    )
+    snap = _snapshot_with_runs(run)
+
+    rendered: dict[str, object] = {}
+    section = axe_dashboard._AxeStatusSection.__new__(axe_dashboard._AxeStatusSection)
+    section.__init__()  # type: ignore[misc]
+    section.update = lambda content: rendered.__setitem__("content", content)  # type: ignore[assignment]
+
+    class _OutputSection:
+        def update_display(self, *_a: object, **_kw: object) -> None:
+            pass
+
+        def update(self, *_a: object, **_kw: object) -> None:
+            pass
+
+    dashboard = AxeDashboard.__new__(AxeDashboard)
+    dashboard.query_one = lambda sel, _cls: (  # type: ignore[assignment]
+        section if "status" in sel else _OutputSection()
+    )
+    dashboard.update_chop_run_display(snapshot=snap, run_idx=0, countdown=0)
+
+    text = rendered["content"]
+    assert isinstance(text, Text)
+    spans = {(s.style, text.plain[s.start : s.end]) for s in text.spans}
+    # Lumberjack name colored in the sidebar's gold accent.
+    assert any(
+        "FFD700" in str(style) and "hooks" in fragment for style, fragment in spans
+    )
+    # Chop name colored in the sidebar's copper child hue.
+    assert any(
+        "D7AF87" in str(style) and "fast" in fragment for style, fragment in spans
+    )
+
+
+def test_lumberjack_overview_renders_when_snapshot_has_no_metrics() -> None:
+    """Edge case: a snapshot without metrics (cold-miss) still renders cleanly."""
+    snap = LumberjackSnapshot(
+        name="hooks",
+        status=None,
+        metrics=None,
+        log_tail="",
+        chops=[],
+    )
+    plain = _capture_overview(snap, width=120).plain
+    # Header still names the status, even if it falls back to "unknown".
+    assert "Status:" in plain
+    # No chops means the placeholder message; no traceback.
+    assert "No chops configured" in plain

@@ -24,6 +24,23 @@ from ..util.trace import tui_trace
 # Type alias for lumberjack summary tuple: (name, status, chops_executed)
 LumberjackSummary = tuple[str, LumberjackStatus | None, int]
 
+# Sidebar-coherent palette echoed in the dashboard. Lumberjack names use the
+# top-level gold accent, chop names use the dim-copper child hue, and bgcmd
+# detail kept the teal/cyan tone from the sidebar. Generic field labels stay
+# on the existing blue so the right panel does not turn into one dominant hue.
+_LJ_NAME_STYLE = "bold #FFD700"
+_CHOP_NAME_STYLE = "#D7AF87"
+
+# Width thresholds where the per-chop and per-lumberjack tables degrade to a
+# compact stacked layout instead of overflowing the right panel. Picked from
+# the natural column widths used in the wide renderers below.
+_NARROW_OVERVIEW_WIDTH = 60
+_NARROW_SUMMARY_WIDTH = 70
+
+# Lumberjack log-tail footer in the overview view — capped so the chop table
+# is never crowded out. Counted in lines from the tail.
+_OVERVIEW_LOG_TAIL_LINES = 6
+
 
 def _chop_status_label(status: str) -> tuple[str, str]:
     """Return (label, rich style) for a chop run status."""
@@ -209,7 +226,7 @@ class _AxeStatusSection(Static):
 
     def _render_axe_display(self) -> None:
         """Render the axe daemon status display."""
-        text = Text()
+        text = Text(no_wrap=True, overflow="ellipsis")
 
         if self._is_running:
             # Runtime (always show when running)
@@ -258,7 +275,7 @@ class _AxeStatusSection(Static):
 
     def _render_bgcmd_display(self) -> None:
         """Render the background command status display."""
-        text = Text()
+        text = Text(no_wrap=True, overflow="ellipsis")
         info = self._bgcmd_info
 
         if info:
@@ -311,13 +328,15 @@ class _AxeStatusSection(Static):
 
     def _render_chop_display(self) -> None:
         """Render the chop-detail status header."""
-        text = Text()
+        text = Text(no_wrap=True, overflow="ellipsis")
 
-        # Chop name + parent lumberjack
-        text.append(
-            f"[{self._chop_lumberjack_name} / {self._chop_name}]",
-            style="bold #FFD700",
-        )
+        # Chop name + parent lumberjack — color each name in its sidebar hue
+        # so the header echoes the row taxonomy of the sidebar tree.
+        text.append("[", style="dim")
+        text.append(self._chop_lumberjack_name, style=_LJ_NAME_STYLE)
+        text.append(" / ", style="dim")
+        text.append(self._chop_name, style=_CHOP_NAME_STYLE)
+        text.append("]", style="dim")
 
         run = self._chop_run
         if run is not None:
@@ -383,11 +402,11 @@ class _AxeStatusSection(Static):
 
     def _render_lumberjack_display(self) -> None:
         """Render the lumberjack-specific status display."""
-        text = Text()
+        text = Text(no_wrap=True, overflow="ellipsis")
         status = self._lumberjack_status
 
         # Lumberjack name with index
-        text.append(f"[{self._lumberjack_name}]", style="bold #FFD700")
+        text.append(f"[{self._lumberjack_name}]", style=_LJ_NAME_STYLE)
         text.append(
             f" ({self._lumberjack_idx + 1}/{self._lumberjack_total})",
             style="dim",
@@ -469,17 +488,29 @@ class _AxeOutputSection(Static):
         text = render_axe_output(source_id, output, source_type)
         self.update(text)
 
-    def update_lumberjack_overview(self, snapshot: "LumberjackSnapshot") -> None:
+    def update_lumberjack_overview(
+        self,
+        snapshot: "LumberjackSnapshot",
+        width: int | None = None,
+    ) -> None:
         """Render a single lumberjack's overview: status + per-chop table.
 
         Args:
             snapshot: Cached lumberjack snapshot.
+            width: Available cell width for the right panel. When tight
+                (``< _NARROW_OVERVIEW_WIDTH``) the chop table degrades to a
+                compact stacked layout so the panel never overflows. ``None``
+                or non-positive values render the full-width layout.
         """
         text = Text()
         status = snapshot.status
         metrics = snapshot.metrics
+        is_narrow = width is not None and 0 < width < _NARROW_OVERVIEW_WIDTH
 
-        # Status / interval / cycles / errors line
+        # Status / interval / cycles / errors line. The full-width layout
+        # joins fields with four-space gaps; the narrow layout stacks them
+        # one field per line so a narrow panel never truncates mid-value.
+        sep = "\n  " if is_narrow else "    "
         text.append("  ")
         text.append("Status: ", style="bold #87D7FF")
         if status is None:
@@ -492,76 +523,61 @@ class _AxeOutputSection(Static):
             text.append("○ stopped", style="#FFD700")
 
         if status is not None:
-            text.append("    ")
+            text.append(sep)
             text.append("Interval: ", style="bold #87D7FF")
             text.append(f"{status.interval}s", style="#00D7AF")
-            text.append("    ")
+            text.append(sep)
             text.append("Cycles: ", style="bold #87D7FF")
             text.append(f"{status.cycles_run}", style="#00D7AF")
-            text.append("    ")
+            text.append(sep)
             text.append("Errors: ", style="bold #87D7FF")
             err_style = "bold red" if status.errors_encountered else "dim"
             text.append(f"{status.errors_encountered}", style=err_style)
 
         if metrics is not None:
-            text.append("    ")
+            text.append(sep)
             text.append("Chops run: ", style="bold #87D7FF")
             text.append(f"{metrics.chops_executed}", style="#00D7AF")
 
         text.append("\n\n")
 
-        # Chops table
+        # Chops table — choose the wide table or the compact stack based on
+        # the available width.
         chops = snapshot.chops
-        text.append("  CHOPS\n", style="bold #FFD700")
-        text.append("  " + "─" * 68 + "\n", style="dim")
-        text.append("  ")
-        text.append(f"{'NAME':<20}", style="bold #87D7FF")
-        text.append(f"{'LAST RUN':<14}", style="bold #87D7FF")
-        text.append(f"{'WHEN':<14}", style="bold #87D7FF")
-        text.append(f"{'DURATION':>10}", style="bold #87D7FF")
-        text.append("\n")
-        text.append("  " + "─" * 68 + "\n", style="dim")
-
-        if not chops:
-            text.append(
-                "  No chops configured for this lumberjack.\n", style="dim italic"
-            )
+        text.append("  CHOPS\n", style=_LJ_NAME_STYLE)
+        if is_narrow:
+            _render_compact_chop_list(text, chops)
         else:
-            for chop in chops:
-                text.append("  ")
-                name = chop.chop_name
-                if len(name) > 18:
-                    name = name[:15] + "..."
-                text.append(f"{name:<20}", style="#FFFFFF")
-                if chop.runs:
-                    latest = chop.runs[0].entry
-                    status_label, status_style = _chop_status_label(latest.status)
-                    text.append(f"{status_label:<14}", style=status_style)
-                    text.append(
-                        f"{_format_relative_time(latest.started_at):<14}",
-                        style="#87D7FF",
-                    )
-                    if latest.status == "running":
-                        # Show elapsed runtime so the row reflects an
-                        # active subprocess instead of a stale 0ms.
-                        text.append(
-                            f"{_format_runtime(latest.started_at):>10}",
-                            style="#00D7AF",
-                        )
-                    else:
-                        text.append(
-                            f"{_format_duration_ms(latest.duration_ms):>10}",
-                            style="#00D7AF",
-                        )
-                else:
-                    text.append(f"{'—':<14}", style="dim")
-                    text.append(f"{'never':<14}", style="dim")
-                    text.append(f"{'—':>10}", style="dim")
-                text.append("\n")
+            _render_wide_chop_table(text, chops)
+
+        # Optional log-tail footer. Only added when the cache has a tail so
+        # quiet lumberjacks don't get a stray empty section. The semantic
+        # highlighter is reused from the dashboard's log path so colors are
+        # consistent across views; a distinct cache slot prevents collisions
+        # with ``update_lumberjack_display``'s full-log render.
+        if snapshot.log_tail:
+            tail = _tail_lines(snapshot.log_tail, _OVERVIEW_LOG_TAIL_LINES)
+            if tail:
+                text.append("\n  RECENT LOG\n", style=_LJ_NAME_STYLE)
+                text.append("  " + "─" * 68 + "\n", style="dim")
+                highlighted = render_axe_output(
+                    f"lumberjack:{snapshot.name}:overview-tail",
+                    tail,
+                    "lumberjack",
+                )
+                lines = highlighted.split(allow_blank=False)
+                for line in lines:
+                    text.append("  ")
+                    text.append_text(line)
+                    text.append("\n")
 
         self.update(text)
 
-    def update_lumberjack_summary(self, summaries: list[LumberjackSummary]) -> None:
+    def update_lumberjack_summary(
+        self,
+        summaries: list[LumberjackSummary],
+        width: int | None = None,
+    ) -> None:
         """Render a summary of all lumberjack activity.
 
         Args:
@@ -573,64 +589,72 @@ class _AxeOutputSection(Static):
             return
 
         text = Text()
+        is_narrow = width is not None and 0 < width < _NARROW_SUMMARY_WIDTH
 
         # Header
-        text.append("  JACK ACTIVITY\n", style="bold #FFD700")
+        text.append("  JACK ACTIVITY\n", style=_LJ_NAME_STYLE)
         text.append("  " + "─" * 68 + "\n", style="dim")
 
-        # Column header
-        text.append("  ")
-        text.append(f"{'NAME':<16}", style="bold #87D7FF")
-        text.append(f"{'STATUS':<12}", style="bold #87D7FF")
-        text.append(f"{'CYCLES':>8}", style="bold #87D7FF")
-        text.append(f"{'CHOPS':>8}", style="bold #87D7FF")
-        text.append(f"{'ERRORS':>8}", style="bold #87D7FF")
-        text.append("  ")
-        text.append(f"{'LAST CYCLE':<18}", style="bold #87D7FF")
-        text.append("\n")
-        text.append("  " + "─" * 68 + "\n", style="dim")
-
-        for name, status, chops_executed in summaries:
+        if is_narrow:
+            for name, status, chops_executed in summaries:
+                _render_compact_summary_row(text, name, status, chops_executed)
+        else:
+            # Column header
             text.append("  ")
-
-            # Name
-            text.append(f"{name:<16}", style="bold #FFFFFF")
-
-            # Status indicator
-            if status:
-                if status.status == "running":
-                    text.append(f"{'● running':<12}", style="bold green")
-                elif status.status == "error":
-                    text.append(f"{'● error':<12}", style="bold red")
-                else:
-                    text.append(f"{'○ stopped':<12}", style="#FFD700")
-            else:
-                text.append(f"{'○ unknown':<12}", style="dim")
-
-            # Cycles
-            cycles = status.cycles_run if status else 0
-            text.append(f"{cycles:>8}", style="#00D7AF")
-
-            # Chops executed (from metrics)
-            text.append(f"{chops_executed:>8}", style="#00D7AF")
-
-            # Errors
-            errors = status.errors_encountered if status else 0
-            if errors > 0:
-                text.append(f"{errors:>8}", style="bold red")
-            else:
-                text.append(f"{errors:>8}", style="dim")
-
-            # Last cycle (relative time)
+            text.append(f"{'NAME':<16}", style="bold #87D7FF")
+            text.append(f"{'STATUS':<12}", style="bold #87D7FF")
+            text.append(f"{'CYCLES':>8}", style="bold #87D7FF")
+            text.append(f"{'CHOPS':>8}", style="bold #87D7FF")
+            text.append(f"{'ERRORS':>8}", style="bold #87D7FF")
             text.append("  ")
-            if status and status.last_cycle:
-                text.append(_format_relative_time(status.last_cycle), style="#87D7FF")
-            else:
-                text.append("never", style="dim")
-
+            text.append(f"{'LAST CYCLE':<18}", style="bold #87D7FF")
             text.append("\n")
+            text.append("  " + "─" * 68 + "\n", style="dim")
 
-        text.append("  " + "─" * 68 + "\n", style="dim")
+            for name, status, chops_executed in summaries:
+                text.append("  ")
+
+                # Lumberjack name in the sidebar's gold accent.
+                text.append(f"{name:<16}", style=_LJ_NAME_STYLE)
+
+                # Status indicator
+                if status:
+                    if status.status == "running":
+                        text.append(f"{'● running':<12}", style="bold green")
+                    elif status.status == "error":
+                        text.append(f"{'● error':<12}", style="bold red")
+                    else:
+                        text.append(f"{'○ stopped':<12}", style="#FFD700")
+                else:
+                    text.append(f"{'○ unknown':<12}", style="dim")
+
+                # Cycles
+                cycles = status.cycles_run if status else 0
+                text.append(f"{cycles:>8}", style="#00D7AF")
+
+                # Chops executed (from metrics)
+                text.append(f"{chops_executed:>8}", style="#00D7AF")
+
+                # Errors
+                errors = status.errors_encountered if status else 0
+                if errors > 0:
+                    text.append(f"{errors:>8}", style="bold red")
+                else:
+                    text.append(f"{errors:>8}", style="dim")
+
+                # Last cycle (relative time)
+                text.append("  ")
+                if status and status.last_cycle:
+                    text.append(
+                        _format_relative_time(status.last_cycle),
+                        style="#87D7FF",
+                    )
+                else:
+                    text.append("never", style="dim")
+
+                text.append("\n")
+
+            text.append("  " + "─" * 68 + "\n", style="dim")
 
         # Summary footer
         total_cycles = sum(s.cycles_run for _, s, _ in summaries if s is not None)
@@ -707,7 +731,9 @@ class AxeDashboard(Static):
             status_section.update_display(status, is_running, full_cycles, countdown)
 
             if lumberjack_summaries:
-                output_section.update_lumberjack_summary(lumberjack_summaries)
+                output_section.update_lumberjack_summary(
+                    lumberjack_summaries, width=_section_width(output_section)
+                )
             else:
                 output_section.update_display(output)
 
@@ -815,7 +841,9 @@ class AxeDashboard(Static):
             status_section.update_lumberjack_display(
                 snapshot.status, snapshot.name, idx, total, countdown
             )
-            output_section.update_lumberjack_overview(snapshot)
+            output_section.update_lumberjack_overview(
+                snapshot, width=_section_width(output_section)
+            )
 
     def update_chop_run_display(
         self,
@@ -1003,3 +1031,145 @@ def _format_relative_time(iso_timestamp: str) -> str:
         return f"{elapsed // 3600}h ago"
     except (ValueError, TypeError):
         return "unknown"
+
+
+def _section_width(section: Static) -> int | None:
+    """Return the rendered width of ``section`` if known.
+
+    The dashboard threads the output section's actual width into the chop
+    table / activity summary renderers so they can degrade to a compact
+    layout on narrow terminals. Returns ``None`` when the widget has not
+    been laid out yet (``size`` is ``(0, 0)`` pre-mount) so the renderers
+    fall back to their wide-default layout.
+    """
+    try:
+        width = int(section.size.width)
+    except (AttributeError, TypeError, ValueError):
+        return None
+    return width if width > 0 else None
+
+
+def _tail_lines(text: str, max_lines: int) -> str:
+    """Return the last ``max_lines`` lines of ``text`` (with their newlines)."""
+    if not text or max_lines <= 0:
+        return ""
+    lines = text.splitlines(keepends=True)
+    if len(lines) <= max_lines:
+        return text
+    return "".join(lines[-max_lines:])
+
+
+def _render_wide_chop_table(text: Text, chops: list["ChopSnapshot"]) -> None:
+    """Append the standard four-column chop table to ``text``."""
+    text.append("  " + "─" * 68 + "\n", style="dim")
+    text.append("  ")
+    text.append(f"{'NAME':<20}", style="bold #87D7FF")
+    text.append(f"{'LAST RUN':<14}", style="bold #87D7FF")
+    text.append(f"{'WHEN':<14}", style="bold #87D7FF")
+    text.append(f"{'DURATION':>10}", style="bold #87D7FF")
+    text.append("\n")
+    text.append("  " + "─" * 68 + "\n", style="dim")
+
+    if not chops:
+        text.append("  No chops configured for this lumberjack.\n", style="dim italic")
+        return
+
+    for chop in chops:
+        text.append("  ")
+        name = chop.chop_name
+        if len(name) > 18:
+            name = name[:15] + "..."
+        text.append(f"{name:<20}", style=_CHOP_NAME_STYLE)
+        if chop.runs:
+            latest = chop.runs[0].entry
+            status_label, status_style = _chop_status_label(latest.status)
+            text.append(f"{status_label:<14}", style=status_style)
+            text.append(
+                f"{_format_relative_time(latest.started_at):<14}",
+                style="#87D7FF",
+            )
+            if latest.status == "running":
+                # Show elapsed runtime so the row reflects an
+                # active subprocess instead of a stale 0ms.
+                text.append(
+                    f"{_format_runtime(latest.started_at):>10}",
+                    style="#00D7AF",
+                )
+            else:
+                text.append(
+                    f"{_format_duration_ms(latest.duration_ms):>10}",
+                    style="#00D7AF",
+                )
+        else:
+            text.append(f"{'—':<14}", style="dim")
+            text.append(f"{'never':<14}", style="dim")
+            text.append(f"{'—':>10}", style="dim")
+        text.append("\n")
+
+
+def _render_compact_chop_list(text: Text, chops: list["ChopSnapshot"]) -> None:
+    """Append the narrow stacked chop list to ``text``.
+
+    Each chop renders as a short header line plus a metadata line so a
+    narrow right panel never truncates names or status mid-cell.
+    """
+    if not chops:
+        text.append("  No chops configured for this lumberjack.\n", style="dim italic")
+        return
+
+    for chop in chops:
+        text.append("  ")
+        text.append(chop.chop_name, style=_CHOP_NAME_STYLE)
+        text.append("\n")
+        text.append("    ")
+        if chop.runs:
+            latest = chop.runs[0].entry
+            status_label, status_style = _chop_status_label(latest.status)
+            text.append(status_label, style=status_style)
+            text.append(" · ", style="dim")
+            text.append(
+                _format_relative_time(latest.started_at),
+                style="#87D7FF",
+            )
+            text.append(" · ", style="dim")
+            if latest.status == "running":
+                text.append(_format_runtime(latest.started_at), style="#00D7AF")
+            else:
+                text.append(_format_duration_ms(latest.duration_ms), style="#00D7AF")
+        else:
+            text.append("never run", style="dim")
+        text.append("\n")
+
+
+def _render_compact_summary_row(
+    text: Text,
+    name: str,
+    status: LumberjackStatus | None,
+    chops_executed: int,
+) -> None:
+    """Render one lumberjack summary entry as a compact stacked row."""
+    text.append("  ")
+    text.append(name, style=_LJ_NAME_STYLE)
+    text.append("\n    ")
+    if status:
+        if status.status == "running":
+            text.append("● running", style="bold green")
+        elif status.status == "error":
+            text.append("● error", style="bold red")
+        else:
+            text.append("○ stopped", style="#FFD700")
+    else:
+        text.append("○ unknown", style="dim")
+    cycles = status.cycles_run if status else 0
+    errors = status.errors_encountered if status else 0
+    text.append(" · ", style="dim")
+    text.append(f"{cycles}c", style="#00D7AF")
+    text.append(" · ", style="dim")
+    text.append(f"{chops_executed} chops", style="#00D7AF")
+    if errors:
+        text.append(" · ", style="dim")
+        text.append(f"{errors}e", style="bold red")
+    if status and status.last_cycle:
+        text.append(" · ", style="dim")
+        text.append(_format_relative_time(status.last_cycle), style="#87D7FF")
+    text.append("\n")
