@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 01:02:29
-status: wip
+status: done
 prompt: sdd/prompts/202605/png_snapshot_idle_state.md
 ---
 # Plan: Fix PNG Snapshot Idle-State Drift

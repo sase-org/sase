@@ -641,6 +641,7 @@ async def test_axe_constrained_width_no_wrap_png_snapshot(
         await page.press("tab")
         await page.press("tab")
         await page.expect_state("tab", "axe")
+        await page.expect_screen_not_contains("IDLE")
 
         ace_png_visual.assert_page_png(
             page,
