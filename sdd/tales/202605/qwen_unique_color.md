@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 18:23:59
-status: wip
+status: done
 prompt: sdd/prompts/202605/qwen_unique_color.md
 ---
 # Plan: Give QWEN a Unique, Brand-Aligned Color

@@ -108,7 +108,7 @@ class QwenProvider(LLMProvider):
 
     @hookimpl
     def llm_cli_status_color(self) -> str:
-        return "#7CFF6B"
+        return "#D75FFF"
 
     @hookimpl
     def llm_autodetect_priority(self) -> int:

@@ -40,7 +40,7 @@ def test_provider_metadata_aggregation_includes_qwen_and_opencode() -> None:
     assert model_aliases["qwen3.6-plus"] == "qwen36p"
     assert model_aliases["qwen3-coder-plus"] == "qwen3cp"
     assert model_aliases["anthropic/claude-sonnet-4-5"] == "sonnet45"
-    assert provider_cli_status_color_map()["qwen"] == "#7CFF6B"
+    assert provider_cli_status_color_map()["qwen"] == "#D75FFF"
     assert provider_cli_status_color_map()["opencode"] == "#FFB454"
 
 
@@ -80,7 +80,7 @@ def test_plan_approval_badge_renders_new_provider_colors() -> None:
     opencode = _provider_badge_markup("opencode", "anthropic/claude-sonnet-4-5")
 
     assert "QWEN" in qwen
-    assert "#7CFF6B" in qwen
+    assert "#D75FFF" in qwen
     assert "OPENCODE" in opencode
     assert "#FFB454" in opencode
 
