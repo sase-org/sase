@@ -1,5 +1,5 @@
 ---
-date: 2026-05-22
+date: 2026-05-23
 description: >-
   SASE today is the orchestration layer. The next horizon is shared memory across agents, a mobile control surface, and
   a web frontend that doesn't require a terminal.
@@ -10,20 +10,21 @@ slug: whats-next-memory-mobile-web
 links:
   - Agentic Software Engineering Series: series/agentic-software-engineering.md
   - Mobile Gateway: mobile_gateway.md
-  - "Post 8: Telegram as the Mobile Control Surface": blog/posts/telegram-mobile-agents.md
+  - "Post 9: The Prompt Input Widget and sase-nvim": blog/posts/prompt-widget-and-nvim.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
-# Post 9: What's Next — Shared Memory, Mobile, and the Web Surface
+# Post 10: What's Next — Shared Memory, Mobile, and the Web Surface
 
 SASE today is the orchestration layer. The next horizon is the things that horizon-line doesn't quite reach yet —
 durable shared memory across agents, a phone you can drive from, and a browser the team can open without learning a TUI.
 
 <!-- more -->
 
-The previous eight posts walked through what exists: XPrompts, AXE, SDD and beads, commit workflows, ChangeSpecs, and
-the Telegram mobile control surface. This one is shorter and more speculative. It names three threads that are in motion
-but not yet shipped, and points at the artifacts where the design work is happening.
+The previous nine posts walked through what exists: XPrompts, AXE, SDD and beads, commit workflows, ChangeSpecs, the
+Telegram mobile control surface, and the prompt input widget with its Neovim plugin. This one is shorter and more
+speculative. It names three threads that are in motion but not yet shipped, and points at the artifacts where the design
+work is happening.
 
 ## Shared Memory Across Agents
 
@@ -104,13 +105,14 @@ memory, mobile, and web are how that durable object stays reachable.
   contract snapshot.
 - [Shared memory research](https://github.com/sase-org/sase/blob/master/sdd/research/202605/zettel_sase_shared_memory.md)
   — the full proposal, including external research notes, design decisions, and open questions.
-- [Agentic Software Engineering series hub](../../series/agentic-software-engineering.md) — all ten posts in one place.
+- [Agentic Software Engineering series hub](../../series/agentic-software-engineering.md) — all eleven posts in one
+  place.
 
 ## Series Navigation
 
-This is Post 9 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
+This is Post 10 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
 
-- Previous: [Post 8: Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md).
+- Previous: [Post 9: Where You Type — The Prompt Input Widget and sase-nvim](prompt-widget-and-nvim.md).
 - Next: none (latest post).
 - Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [mobile gateway guide](../../mobile_gateway.md).

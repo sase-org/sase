@@ -140,7 +140,7 @@ in effect, a remote control for keeping the local install fresh.
 
 ## What This Replaces (And What It Doesn't)
 
-The mobile gateway from [Post 9](whats-next-memory-mobile-web.md) is the long-term answer — a Rust HTTP gateway, a
+The mobile gateway from [Post 10](whats-next-memory-mobile-web.md) is the long-term answer — a Rust HTTP gateway, a
 native mobile client, FCM push hints, Tailscale Serve for non-loopback deployments. None of that exists for end users
 today. sase-telegram exists today, and it covers the high-value subset of the mobile workflow with infrastructure that
 is already on every developer's phone:
@@ -172,6 +172,6 @@ the launch path is independent.
 This is Post 8 of the [Agentic Software Engineering series](../../series/agentic-software-engineering.md).
 
 - Previous: [Post 7: ChangeSpecs in Practice — Review State Outside the Chat](changespecs-in-practice.md).
-- Next: [Post 9: What's Next — Shared Memory, Mobile, and the Web Surface](whats-next-memory-mobile-web.md).
+- Next: [Post 9: Where You Type — The Prompt Input Widget and sase-nvim](prompt-widget-and-nvim.md).
 - Continue reading: [series hub](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [plugins overview](../../plugins.md).

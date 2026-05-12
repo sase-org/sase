@@ -5,7 +5,7 @@ units, orchestration, provider-independent workflows, review state, and the coor
 
 ## Start Here
 
-The [Agentic Software Engineering series](../series/agentic-software-engineering.md) has ten posts:
+The [Agentic Software Engineering series](../series/agentic-software-engineering.md) has eleven posts:
 
 1. [Post 0: Origin Story — Where SASE Came From](posts/origin-story.md) — the prequel: large-codebase rigor, a lagging
    day-job model, and the realization that workflows should be cheap enough to spin up _and_ wind down.
@@ -27,11 +27,13 @@ The [Agentic Software Engineering series](../series/agentic-software-engineering
 9. [Post 8: Driving SASE From Your Phone — Telegram as the Mobile Control Surface](posts/telegram-mobile-agents.md) —
    the sase-telegram chop: activity-aware notifications, plan approvals from inline keyboards, launching agents and
    reviewing generated images from the chat.
-10. [Post 9: What's Next — Shared Memory, Mobile, and the Web Surface](posts/whats-next-memory-mobile-web.md) — the
+10. [Post 9: Where You Type — The Prompt Input Widget and sase-nvim](posts/prompt-widget-and-nvim.md) — the multiline
+    Textual widget that drives most launches, and the Neovim plugin that gives the same prompt language a richer editor.
+11. [Post 10: What's Next — Shared Memory, Mobile, and the Web Surface](posts/whats-next-memory-mobile-web.md) — the
     three horizons SASE is reaching for next, and why each one isn't shipping yet.
 
-Post 0 is optional backstory; Posts 1 and 2 work in either order; Posts 3–8 deepen one subsystem at a time and can be
-read independently; Post 9 looks forward.
+Post 0 is optional backstory; Posts 1 and 2 work in either order; Posts 3–9 deepen one subsystem at a time and can be
+read independently; Post 10 looks forward.
 
 ## From Reading To Practice
 
