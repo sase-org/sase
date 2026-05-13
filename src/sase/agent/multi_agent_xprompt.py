@@ -539,7 +539,6 @@ def expand_multi_agent_xprompts(
 
 
 __all__ = [
-    "MultiAgentXPromptDepthError",
     "expand_multi_agent_xprompts",
     "extract_top_level_xprompt_reference",
     "xprompt_has_segment_separators",
