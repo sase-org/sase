@@ -198,6 +198,46 @@ def test_do_revive_agents_batch_removes_suffix_aliases() -> None:
     assert len(app.restored) == 4
 
 
+def test_do_revive_agent_forces_full_history_reload() -> None:
+    """Revive must request a Tier 2 source scan, not the default Tier 1.
+
+    A stale or empty artifact index returns zero rows for completed
+    history without raising, so the reload after revive must bypass the
+    index and hit source-of-truth artifacts.
+    """
+    app = FakeReviveApp()
+    dismissed = make_agent(cl_name="revived", raw_suffix="revived_suffix")
+    app._dismissed_agent_objects = [dismissed]
+    app._dismissed_agents = {dismissed.identity}
+
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
+    ):
+        app._do_revive_agent(dismissed)
+
+    assert app.load_count == 1
+    assert app.last_load_full_history is True
+
+
+def test_do_revive_agents_batch_forces_full_history_reload() -> None:
+    """Batch revive must also force a Tier 2 source scan."""
+    app = FakeReviveApp()
+    one = make_agent(cl_name="rev1", raw_suffix="suffix1")
+    two = make_agent(cl_name="rev2", raw_suffix="suffix2")
+    app._dismissed_agent_objects = [one, two]
+    app._dismissed_agents = {one.identity, two.identity}
+
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
+    ):
+        app._do_revive_agents([one, two])
+
+    assert app.load_count == 1
+    assert app.last_load_full_history is True
+
+
 def test_do_revive_agents_batch_selects_first_selected_parent() -> None:
     """Batch revive selects the first selected parent, not an implicit child."""
     app = FakeReviveApp()

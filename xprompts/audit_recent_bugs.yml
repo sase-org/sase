@@ -1,7 +1,7 @@
 input:
   project: { type: line, default: "sase" }
   gh_ref: { type: line, default: "sase" }
-  threshold: { type: int, default: 100 }
+  threshold: { type: int, default: 200 }
 
 steps:
   - name: count_recent_bug_audit_commits

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.core.agent_scan_facade import scan_agent_artifacts, with_options
+from sase.core.agent_scan_facade import scan_agent_artifacts
 from sase.core.agent_scan_wire import (
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
     AgentArtifactScanOptionsWire,
@@ -36,8 +36,7 @@ def test_only_workflow_dirs_filters_records(fixture_root: Path) -> None:
 
 
 def test_disable_prompt_step_markers(fixture_root: Path) -> None:
-    base = AgentArtifactScanOptionsWire()
-    options = with_options(base, include_prompt_step_markers=False)
+    options = AgentArtifactScanOptionsWire(include_prompt_step_markers=False)
     snapshot = scan_agent_artifacts(fixture_root, options=options)
     rec = record_by_timestamp(snapshot, TS_WORKFLOW_ROOT)
     assert rec.prompt_steps == []

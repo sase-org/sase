@@ -1,7 +1,7 @@
 input:
   project: { type: line, default: "sase" }
   gh_ref: { type: line, default: "sase" }
-  threshold: { type: int, default: 100 }
+  threshold: { type: int, default: 200 }
 
 steps:
   - name: count_recent_improvement_audit_commits
@@ -125,7 +125,8 @@ steps:
       launched: int
 
   - name: update_recent_improvement_audit_marker
-    if: "{{ count_recent_improvement_audit_commits.count >= threshold and launch_improvement_audit_agent.launched > 0 }}"
+    if:
+      "{{ count_recent_improvement_audit_commits.count >= threshold and launch_improvement_audit_agent.launched > 0 }}"
     python: |
       import subprocess
       from pathlib import Path

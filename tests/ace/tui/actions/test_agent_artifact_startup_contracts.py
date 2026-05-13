@@ -41,7 +41,8 @@ class FakeReviveApp(AgentRevivalMixin):
         del severity
         self.notifications.append(message)
 
-    def _load_agents(self) -> None:
+    def _load_agents(self, *, full_history: bool = False) -> None:
+        del full_history
         self.load_count += 1
 
     def _refresh_agents_display(self, *, list_changed: bool) -> None:

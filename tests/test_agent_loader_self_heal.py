@@ -241,6 +241,40 @@ def test_incomplete_load_preserves_visible_revived_agent() -> None:
     assert app._revived_agent_raw_suffixes == {"20240102120000"}
 
 
+def test_incomplete_load_preserves_revived_agent_from_dismissed_objects() -> None:
+    """Revived agents missing from _agents_with_children fall back to the
+    dismissed-bundle cache so first paint still surfaces them after revive."""
+    app = FakeLoadingApp()
+    revived = _make_agent(cl_name="old", raw_suffix="20240102120000")
+    current = _make_agent(cl_name="new", raw_suffix="20260202120000")
+    # ``_agents_with_children`` is empty because the revived agent was
+    # long-dismissed and never appeared in a prior in-memory snapshot.
+    app._agents_with_children = []
+    app._agents = []
+    app._dismissed_agent_objects = [revived]
+    app._revived_agent_raw_suffixes = {"20240102120000"}
+    incomplete_state = AgentLoadState(
+        tier="tier1",
+        complete_history=False,
+        artifact_source="artifact_index",
+        used_artifact_index=True,
+    )
+
+    app._apply_loaded_agents(
+        [current],
+        [],
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=incomplete_state,
+    )
+
+    assert [a.raw_suffix for a in app._agents] == [
+        "20260202120000",
+        "20240102120000",
+    ]
+    assert app._revived_agent_raw_suffixes == {"20240102120000"}
+
+
 def test_complete_load_clears_revived_agent_preservation() -> None:
     """Once Tier 2 sees the revived row, future loads no longer pin it."""
     app = FakeLoadingApp()

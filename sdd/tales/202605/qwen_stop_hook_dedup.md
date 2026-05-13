@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 20:41:14
-status: wip
+status: done
 prompt: sdd/prompts/202605/qwen_stop_hook_dedup.md
 ---
 # Plan: Fix Qwen commit stop-hook deduplication

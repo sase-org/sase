@@ -470,7 +470,7 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
 
         stage = "reload"
         try:
-            self._load_agents()  # type: ignore[attr-defined]
+            self._load_agents(full_history=True)  # type: ignore[attr-defined]
 
             if self.current_tab == "agents":
                 stage = "refresh_display"
@@ -616,7 +616,7 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         # Phase 4: Single notification and refresh
         count = len(valid_agents)
         self.notify(f"Revived {count} agent{'s' if count != 1 else ''}")  # type: ignore[attr-defined]
-        self._load_agents()  # type: ignore[attr-defined]
+        self._load_agents(full_history=True)  # type: ignore[attr-defined]
         if self.current_tab == "agents":
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
             revive_candidates = [

@@ -237,18 +237,6 @@ def verify_agent_artifact_index(
     )
 
 
-def with_options(
-    base: AgentArtifactScanOptionsWire,
-    **overrides: Any,
-) -> AgentArtifactScanOptionsWire:
-    """Return a copy of *base* with *overrides* applied.
-
-    Convenience for callers that want to derive a tweaked options record
-    without juggling :func:`dataclasses.replace` imports.
-    """
-    return replace(base, **overrides)
-
-
 __all__ = [
     "AgentArtifactRecordWire",
     "AgentArtifactIndexQueryWire",
@@ -273,5 +261,4 @@ __all__ = [
     "scan_agent_artifacts",
     "upsert_agent_artifact_index_row",
     "verify_agent_artifact_index",
-    "with_options",
 ]

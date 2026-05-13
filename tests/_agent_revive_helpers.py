@@ -50,8 +50,9 @@ class FakeReviveApp(AgentRevivalMixin):
     def notify(self, message: str, *, severity: str = "information") -> None:
         self.notifications.append((message, severity))
 
-    def _load_agents(self) -> None:
+    def _load_agents(self, *, full_history: bool = False) -> None:
         self.load_count += 1
+        self.last_load_full_history = full_history
         if self.loaded_agents is not None:
             self._agents = self.loaded_agents
 

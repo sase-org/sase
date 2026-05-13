@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import json
+import sys
+from io import StringIO
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
+import sase.scripts.sase_commit_stop_hook as commit_hook
 from sase.scripts.sase_commit_stop_hook import (
     _build_commit_instruction_message,
     _emit_block,
@@ -262,3 +266,63 @@ def test_resolve_project_dir_prefers_qwen_project_dir(monkeypatch, tmp_path) -> 
     monkeypatch.delenv("CODEX_PROJECT_DIR", raising=False)
     monkeypatch.setenv("QWEN_PROJECT_DIR", str(tmp_path))
     assert _resolve_project_dir() == str(tmp_path)
+
+
+def test_qwen_stop_hook_active_checks_changes_then_marker_dedups(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Qwen must not treat stop_hook_active as an early dedup signal."""
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    sase_tmp = tmp_path / "sase_tmp"
+    sase_tmp.mkdir()
+    log_file = tmp_path / "hook.jsonl"
+    changed_file_calls: list[str] = []
+
+    def fake_get_changed_files(project: str) -> tuple[bool, list[str]]:
+        changed_file_calls.append(project)
+        return (True, ["src/qwen_change.py"])
+
+    def run_once() -> int:
+        hook_input = {"session_id": "qwen-session", "stop_hook_active": True}
+        monkeypatch.setattr(sys, "stdin", StringIO(json.dumps(hook_input)))
+        return commit_hook.main()
+
+    monkeypatch.setattr(commit_hook, "LOG_FILE", str(log_file))
+    monkeypatch.setattr(commit_hook, "_get_changed_files", fake_get_changed_files)
+    monkeypatch.setattr(
+        commit_hook, "_resolve_commit_skill", lambda _: "/sase_git_commit"
+    )
+    monkeypatch.setenv("QWEN_PROJECT_DIR", str(project_dir))
+    monkeypatch.setenv("GEMINI_PROJECT_DIR", str(project_dir))
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "260512_203518")
+    monkeypatch.setenv("SASE_TMPDIR", str(sase_tmp))
+    monkeypatch.setenv("SASE_COMMIT_METHOD", "create_commit")
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+    monkeypatch.delenv("CODEX_CI", raising=False)
+
+    first_rc = run_once()
+    first = capsys.readouterr()
+    first_payload = json.loads(first.out)
+
+    assert first_rc == 0
+    assert first_payload["decision"] == "deny"
+    assert "Uncommitted changes detected" in first_payload["reason"]
+    assert changed_file_calls == [str(project_dir)]
+    assert native_marker_path("260512_203518").exists()
+
+    second_rc = run_once()
+    second = capsys.readouterr()
+
+    assert second_rc == 0
+    assert second.out == ""
+    assert second.err == ""
+    assert changed_file_calls == [str(project_dir)]
+
+    events = [json.loads(line)["event"] for line in log_file.read_text().splitlines()]
+    assert "changes_check" in events
+    assert "block_emitted" in events
+    assert "session_dedup_skip" in events
+    assert "qwen_dedup_skip" not in events
