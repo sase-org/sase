@@ -42,7 +42,14 @@ def has_alt_directive(prompt: str) -> bool:
     """
     if "%" not in prompt:
         return False
-    return bool(re.search(r"(?:^|\s)%(?:alt)?\(", prompt, re.MULTILINE))
+
+    fenced_blocks: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced_blocks)
+
+    disabled_regions: list[str] = []
+    protected = protect_disabled_regions(protected, disabled_regions)
+
+    return bool(re.search(r"(?:^|\s)%(?:alt)?\(", protected, re.MULTILINE))
 
 
 def split_prompt_for_alternatives(prompt: str) -> list[str] | None:

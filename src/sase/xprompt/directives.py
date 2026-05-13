@@ -75,9 +75,10 @@ def has_wait_directive(prompt: str) -> bool:
     This avoids the overhead of full xprompt expansion and is suitable for
     early detection in the agent launcher.
     """
-    if "%" not in prompt:
-        return False
-    return bool(re.search(r"(?:^|\s)%(?:wait|w)(?:[:+(]|\s|$)", prompt, re.MULTILINE))
+    return _has_protected_directive_match(
+        prompt,
+        r"(?:^|\s)%(?:wait|w)(?:[:+(]|\s|$)",
+    )
 
 
 def has_deferred_start_directive(prompt: str) -> bool:
@@ -87,10 +88,9 @@ def has_deferred_start_directive(prompt: str) -> bool:
     start (waiting on a dependency or a wall-clock time) does not claim a
     workspace until it is actually ready to run.
     """
-    if "%" not in prompt:
-        return False
-    return bool(
-        re.search(r"(?:^|\s)%(?:wait|w|time|t)(?:[:+(]|\s|$)", prompt, re.MULTILINE)
+    return _has_protected_directive_match(
+        prompt,
+        r"(?:^|\s)%(?:wait|w|time|t)(?:[:+(]|\s|$)",
     )
 
 
@@ -100,9 +100,24 @@ def has_model_directive(prompt: str) -> bool:
     This avoids the overhead of full directive extraction and is suitable for
     checking whether a user's custom prompt already specifies a model.
     """
+    return _has_protected_directive_match(
+        prompt,
+        r"(?:^|\s)%(?:model|m)(?:[:+(]|\s|$)",
+    )
+
+
+def _has_protected_directive_match(prompt: str, pattern: str) -> bool:
+    """Run a cheap directive predicate after extractor-equivalent protection."""
     if "%" not in prompt:
         return False
-    return bool(re.search(r"(?:^|\s)%(?:model|m)(?:[:+(]|\s|$)", prompt, re.MULTILINE))
+
+    fenced_blocks: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced_blocks)
+
+    disabled_regions: list[str] = []
+    protected = protect_disabled_regions(protected, disabled_regions)
+
+    return bool(re.search(pattern, protected, re.MULTILINE))
 
 
 def extract_prompt_directives(

@@ -280,3 +280,37 @@ class TestDeferredWorkspacePreparation:
         )
 
         assert events == ["wait", ("run", 0, str(cd_workspace))]
+
+    def test_deferred_workspace_without_extracted_wait_fails_before_run_loop(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = str(tmp_path / "artifacts")
+        placeholder_ws = tmp_path / "placeholder"
+        placeholder_ws.mkdir()
+        run_loop = MagicMock(return_value=exec_result(artifacts_dir))
+        write_error = MagicMock()
+
+        patches = base_patches(artifacts_dir)
+        patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+            return_value=AGENT_INFO._replace(
+                wait_names=[],
+                wait_duration=None,
+                wait_until=None,
+            )
+        )
+        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{RUNNER}.write_error_done_marker"] = write_error
+
+        run_main(
+            patches,
+            tmp_path,
+            update_target="main",
+            workspace_dir=placeholder_ws,
+            workspace_num="0",
+            env={"SASE_AGENT_DEFERRED_WORKSPACE": "1"},
+        )
+
+        run_loop.assert_not_called()
+        assert (
+            "SASE_AGENT_DEFERRED_WORKSPACE=1" in write_error.call_args.kwargs["error"]
+        )

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 11:10:15
-status: wip
+status: done
 prompt: sdd/prompts/202605/directive_presence_alignment.md
 ---
 # Align Directive Presence Checks With Full Directive Parsing

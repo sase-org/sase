@@ -247,6 +247,11 @@ def main() -> None:
                 or info.wait_duration is not None
                 or info.wait_until is not None
             )
+            if deferred_workspace and not is_home_mode and not has_wait:
+                raise RuntimeError(
+                    "SASE_AGENT_DEFERRED_WORKSPACE=1 but extracted wait metadata "
+                    "is empty; refusing to continue in the placeholder workspace"
+                )
             wait_chats: list[str] = []
             if has_wait:
                 wait_for_dependencies(

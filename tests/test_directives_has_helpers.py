@@ -1,5 +1,9 @@
 """Tests for directive presence helpers (has_wait, has_model, has_alt)."""
 
+from collections.abc import Callable
+
+import pytest
+
 from sase.xprompt.directives import (
     has_alt_directive,
     has_deferred_start_directive,
@@ -60,6 +64,19 @@ def test_has_wait_directive_does_not_match_time() -> None:
     assert has_wait_directive("%t:5m\nDo something") is False
 
 
+@pytest.mark.parametrize("directive", ["%wait:old_agent", "%w:old_agent"])
+def test_has_wait_directive_ignores_fenced_blocks(directive: str) -> None:
+    """Directive-looking text inside fences is not a live wait directive."""
+    assert has_wait_directive(f"snapshot\n```text\n{directive}\n```\nDo work") is False
+
+
+@pytest.mark.parametrize("directive", ["%wait:old_agent", "%w:old_agent"])
+def test_has_wait_directive_ignores_disabled_regions(directive: str) -> None:
+    """Directive-looking text inside disabled regions is not live."""
+    prompt = f"%xprompts_enabled:false\n{directive}\n%xprompts_enabled:true\nDo work"
+    assert has_wait_directive(prompt) is False
+
+
 # --- has_deferred_start_directive tests ---
 
 
@@ -85,6 +102,28 @@ def test_has_deferred_start_directive_absent() -> None:
 def test_has_deferred_start_directive_no_percent() -> None:
     """Returns False quickly when no % in prompt."""
     assert has_deferred_start_directive("Just a plain prompt") is False
+
+
+@pytest.mark.parametrize(
+    "directive",
+    ["%wait:old_agent", "%w:old_agent", "%time:5m", "%t:5m"],
+)
+def test_has_deferred_start_directive_ignores_fenced_blocks(directive: str) -> None:
+    """Deferred-start syntax inside fences does not defer launch."""
+    prompt = f"snapshot\n```text\n{directive}\n```\nDo work"
+    assert has_deferred_start_directive(prompt) is False
+
+
+@pytest.mark.parametrize(
+    "directive",
+    ["%wait:old_agent", "%w:old_agent", "%time:5m", "%t:5m"],
+)
+def test_has_deferred_start_directive_ignores_disabled_regions(
+    directive: str,
+) -> None:
+    """Deferred-start syntax inside disabled regions does not defer launch."""
+    prompt = f"%xprompts_enabled:false\n{directive}\n%xprompts_enabled:true\nDo work"
+    assert has_deferred_start_directive(prompt) is False
 
 
 # --- has_model_directive tests ---
@@ -113,6 +152,19 @@ def test_has_model_directive_absent() -> None:
 def test_has_model_directive_no_percent() -> None:
     """Returns False quickly when no % in prompt."""
     assert has_model_directive("Just a plain prompt") is False
+
+
+@pytest.mark.parametrize("directive", ["%model:opus", "%m:opus"])
+def test_has_model_directive_ignores_fenced_blocks(directive: str) -> None:
+    """Directive-looking text inside fences is not a live model directive."""
+    assert has_model_directive(f"snapshot\n```text\n{directive}\n```\nDo work") is False
+
+
+@pytest.mark.parametrize("directive", ["%model:opus", "%m:opus"])
+def test_has_model_directive_ignores_disabled_regions(directive: str) -> None:
+    """Directive-looking text inside disabled regions is not live."""
+    prompt = f"%xprompts_enabled:false\n{directive}\n%xprompts_enabled:true\nDo work"
+    assert has_model_directive(prompt) is False
 
 
 # --- has_alt_directive tests ---
@@ -158,3 +210,37 @@ def test_has_alt_directive_bare_percent_no_paren() -> None:
     """Returns False for % without ( (no regression)."""
     assert has_alt_directive("50% done") is False
     assert has_alt_directive("Use 100% of CPU") is False
+
+
+@pytest.mark.parametrize("directive", ["%alt(a,b)", "%(a,b)"])
+def test_has_alt_directive_ignores_fenced_blocks(directive: str) -> None:
+    """Alt syntax inside fences is not a live alt directive."""
+    assert has_alt_directive(f"snapshot\n```text\n{directive}\n```\nDo work") is False
+
+
+@pytest.mark.parametrize("directive", ["%alt(a,b)", "%(a,b)"])
+def test_has_alt_directive_ignores_disabled_regions(directive: str) -> None:
+    """Alt syntax inside disabled regions is not live."""
+    prompt = f"%xprompts_enabled:false\n{directive}\n%xprompts_enabled:true\nDo work"
+    assert has_alt_directive(prompt) is False
+
+
+@pytest.mark.parametrize(
+    ("predicate", "directive"),
+    [
+        (has_wait_directive, "%wait:old_agent"),
+        (has_wait_directive, "%w:old_agent"),
+        (has_deferred_start_directive, "%time:5m"),
+        (has_deferred_start_directive, "%t:5m"),
+        (has_model_directive, "%model:opus"),
+        (has_model_directive, "%m:opus"),
+        (has_alt_directive, "%alt(a,b)"),
+        (has_alt_directive, "%(a,b)"),
+    ],
+)
+def test_has_directive_helpers_still_detect_top_level_directives(
+    predicate: Callable[[str], bool],
+    directive: str,
+) -> None:
+    """The protected scan keeps normal top-level directive behavior."""
+    assert predicate(f"{directive}\nDo work") is True
