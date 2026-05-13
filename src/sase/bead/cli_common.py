@@ -17,7 +17,7 @@ def find_beads_location() -> tuple[Path, str]:
 
     Uses the primary workspace and ``sdd.version_controlled`` config to choose:
       - Non-VC (default): ``primary/.sase/sdd/beads/``
-      - VC: ``sdd/beads/`` in CWD (or primary workspace)
+      - VC: nearest ancestor containing ``sdd/beads/`` (or primary workspace)
 
     Falls back to legacy walk-up-from-cwd when no primary workspace is found.
 
@@ -33,9 +33,10 @@ def find_beads_location() -> tuple[Path, str]:
         from sase.sdd.beads import get_sdd_config
 
         if get_sdd_config():
-            # VC mode: sdd/beads/ — prefer CWD copy, then primary.
-            if (cwd / BEADS_DIRNAME).is_dir():
-                return cwd, BEADS_DIRNAME
+            # VC mode: sdd/beads/ — prefer the current checkout, then primary.
+            for parent in [cwd, *cwd.parents]:
+                if (parent / BEADS_DIRNAME).is_dir():
+                    return parent, BEADS_DIRNAME
             return primary, BEADS_DIRNAME
         else:
             # Non-VC mode: always primary/.sase/sdd/beads/

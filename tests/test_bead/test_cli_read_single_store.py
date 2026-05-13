@@ -234,3 +234,34 @@ def test_read_commands_use_sibling_store_from_sibling_workspace(
     assert code == 0
     assert err == ""
     assert "  Total:       3\n" in out
+
+
+def test_read_commands_use_sibling_store_from_sibling_subdirectory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    primary, sibling = _write_sibling_stores(tmp_path)
+    subdir = sibling / "src" / "pkg"
+    subdir.mkdir(parents=True)
+
+    code, out, err = _run_bead(
+        ["list"], cwd=subdir, primary=primary, monkeypatch=monkeypatch, capsys=capsys
+    )
+    assert code == 0
+    assert err == ""
+    assert "Sibling Newer" in out
+    assert "Sibling Extra" in out
+    assert "Primary Local" not in out
+
+    code, out, err = _run_bead(
+        ["show", "beads-1"],
+        cwd=subdir,
+        primary=primary,
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+    assert code == 0
+    assert err == ""
+    assert "Sibling Newer" in out
+    assert "Primary Local" not in out
