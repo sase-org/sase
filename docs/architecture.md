@@ -90,7 +90,7 @@ wire contract or from being reused by non-Python frontends. Current Rust-backed 
 - Agent artifact scanning and persistent indexing.
 - Agent launch preparation, timestamp allocation, fan-out planning, low-level detached spawn, and workspace-claim
   planning.
-- Bead read, mutation, JSONL, SQLite, merged-workspace, and deterministic work-plan operations.
+- Bead read, mutation, JSONL, SQLite, single-store ID allocation, and deterministic work-plan operations.
 
 The Python host still owns side effects that require app context: plugin dispatch, VCS/workspace calls, process
 signalling, file locks, TUI rendering, user confirmation, xprompt lookup, and workflow orchestration. See

@@ -41,6 +41,10 @@ def handle_bead_doctor(args: argparse.Namespace) -> None:
 def handle_bead_onboard(args: argparse.Namespace) -> None:
     print("""sase bead — Lightweight git-native issue tracking
 
+Source of truth:
+  Version-controlled projects use this checkout's sdd/beads/issues.jsonl.
+  Normal reads do not merge numbered sibling workspaces or legacy stores.
+
 Quick Start:
   sase bead init                                 Create sdd/beads/ in current directory
   sase bead create -t "Fix bug" --type phase(<plan-id>)

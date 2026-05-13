@@ -74,7 +74,7 @@ Current sidecar prompt files and target doc embeds match the insertion points ab
   another.
 - Show SQLite as the local query/mutation cache and JSONL as the git-portable export, both owned by Rust-backed bead
   operations.
-- Show multi-workspace merged reads separately from primary-workspace writes.
+- Show the current checkout's `sdd/beads/issues.jsonl` as the version-controlled source of truth.
 - For epic work, show Kahn waves, pre-claimed phase beads, one agent per phase, waits from dependency edges, and a final
   land agent waiting on every phase agent.
 - Do not reproduce the full command table inside the image.

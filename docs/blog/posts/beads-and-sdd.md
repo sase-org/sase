@@ -112,24 +112,22 @@ In practice, SDD enforces this shape by writing the plan only when it is submitt
 Q&A exchanges, when present, as a single merged `### Questions and Answers` section with monotonic numbering across
 rounds. The promoted plan is what links to the bead; the chat stays as a `CHAT:` drawer on the eventual commit.
 
-## Multi-Workspace Behavior
+## Workspace Behavior
 
-SDD always writes to the **primary workspace** (workspace 1). An agent running in `sase_3` resolves the primary by
-stripping the `_3` suffix and writes there. Beads are the same: writes go to the primary workspace, reads aggregate
-across every `myproject`, `myproject_2`, `myproject_3` clone via the Rust merged workspace view. For duplicate IDs
-across workspaces, the version with the most recent `updated_at` wins.
+SDD plan artifacts are shared through the normal project workflow, while version-controlled bead state is deliberately
+checkout-local: `sase bead` reads and mutates the `sdd/beads/issues.jsonl` store in the checkout where the command runs.
+An agent running in `myproject_3` sees `myproject_3/sdd/beads/`, not a merged view of `myproject/`, `myproject_2/`, and
+`myproject_3/`.
 
-That is what lets several agents work in sibling workspaces without stepping on each other's bead writes. A phase agent
-in `myproject_4` closes its own phase bead in the primary store; the next phase agent's `%wait` sees that close through
-the merged view; the land agent in `myproject_1` sees every closed phase. ID allocation also scans JSONL stores from all
-discovered workspace variants before assigning the next ID, so two sibling workspaces never collide.
+That keeps the source of truth inspectable and unsurprising. When several agents coordinate on the same epic, bead state
+moves between checkouts through the same VCS sync path as code and SDD files, and ID allocation uses the active
+checkout's local `config.json` and `issues.jsonl`.
 
 ## What To Read Next
 
 - [Spec-Driven Development](../../sdd.md) — full reference for tales, epics, legends, myths, research, storage modes,
   bead integration.
-- [Beads](../../beads.md) — every `sase bead` subcommand, the data model, the Rust-backed merged read view,
-  multi-workspace specifics.
+- [Beads](../../beads.md) — every `sase bead` subcommand, the data model, and the current-checkout source-of-truth rule.
 - [\[06\] Commit Workflows — The Pluggable Path From Diff to PR](commit-workflows-plugins.md) — how the work that
   `sase bead work` schedules eventually lands as commits, proposals, or PRs.
 

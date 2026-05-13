@@ -20,7 +20,7 @@ beads can represent ordinary plans, executable epics, or legend-level roadmaps t
   - [Sync Mechanism](#sync-mechanism)
 - [CLI Commands](#cli-commands)
 - [Rust Backend](#rust-backend)
-- [Multi-Workspace Support](#multi-workspace-support)
+- [Current Checkout Source Of Truth](#current-checkout-source-of-truth)
 - [ACE TUI Integration](#ace-tui-integration)
 
 ## Quick Start
@@ -108,8 +108,9 @@ sdd/beads/
 
 In non-version-controlled mode, the directory is `.sase/sdd/beads/` with the same structure.
 
-Read paths also recognize the older workspace-local `.sase_beads/` directory while legacy projects are being migrated.
-New bead stores should use `sdd/beads/` in version-controlled mode or `.sase/sdd/beads/` in local mode.
+Normal bead commands read and write one store for the active checkout. In version-controlled mode, that source of truth
+is the current checkout's `sdd/beads/issues.jsonl` plus `sdd/beads/config.json`. Legacy stores are migration-only
+concerns; they are not merged into normal `sase bead` reads.
 
 ### SQLite + JSONL Dual Storage
 
@@ -322,9 +323,9 @@ repair the bead state explicitly. Dry runs and stores outside git do not create 
 
 ## Rust Backend
 
-The bead data model, JSONL/config codecs, SQLite rebuild/query layer, mutation transactions, ID allocation, workspace
-merge, deterministic work-plan DAG, and common CLI output planning are implemented in `sase-core` and exposed through
-`sase_core_rs`. Python keeps the host logic that belongs in the application layer: locating the active bead stores,
+The bead data model, JSONL/config codecs, SQLite rebuild/query layer, mutation transactions, ID allocation,
+deterministic work-plan DAG, and common CLI output planning are implemented in `sase-core` and exposed through
+`sase_core_rs`. Python keeps the host logic that belongs in the application layer: locating the active bead store,
 relativizing plan paths, resolving VCS context and xprompts for `sase bead work`, prompting the user, launching agents,
 rolling back failed launches, and incrementing telemetry counters.
 
@@ -340,26 +341,19 @@ just rust-check
 just bead-perf-smoke
 ```
 
-## Multi-Workspace Support
+## Current Checkout Source Of Truth
 
-When running in version-controlled mode with multiple workspace variants (e.g., `myproject/`, `myproject_2/`,
-`myproject_3/`), bead provides a merged read view across all workspaces:
+In version-controlled mode, every `sase bead` read and mutation command uses the current checkout's
+`sdd/beads/issues.jsonl` and `sdd/beads/config.json`. Running the command in `myproject/` reads that checkout's bead
+state; running it in `myproject_2/` reads `myproject_2/sdd/beads/`. The CLI does not merge sibling workspace stores, and
+duplicate IDs in another checkout do not override the active checkout's records.
 
-- **Reads** (list, show, ready, blocked, stats) aggregate issues from all workspace variants using the Rust merged
-  workspace view. For duplicate IDs across workspaces, the version with the most recent `updated_at` wins. The merged
-  view includes canonical `sdd/beads/` stores and legacy `.sase_beads/` stores.
-- **Writes** (create, update, close, rm, dep add) always go to the primary workspace only.
-- **ID allocation** scans JSONL stores from all discovered workspace variants before assigning the next top-level or
-  child ID, preventing agents in sibling workspaces from reusing IDs that have not yet been merged into the primary
-  SQLite database.
+ID allocation also uses only the active store's `config.json` and `issues.jsonl`. If a sibling checkout has not pulled
+or merged the latest bead state, it may allocate IDs based on its local state; sync bead changes through the normal VCS
+workflow when several agents are coordinating on the same project.
 
-This enables multiple agents working in different workspace clones to track their own issues while still providing a
-unified view of all work.
-
-Agent-facing metadata lookups use the same workspace-aware read path. When an agent belongs to another known SASE
-project, bead display resolution checks that project first, then the current directory's project, then all known project
-bead stores. This is what lets ACE and completion notifications show phase/land bead titles even when the TUI is opened
-from a different project.
+Cross-project helper surfaces, such as mobile/editor bead pickers, may inspect one canonical store per known project,
+but they still do not merge numbered sibling workspaces or legacy bead stores for the same project.
 
 ## ACE TUI Integration
 
@@ -369,9 +363,8 @@ When creating a plan bead with `--type plan(PATH)`, the file path is stored in t
 navigate from a bead to its linked SDD file.
 
 For SDD-generated epics, `PATH` should be the shared plan reference emitted by the plan approval flow:
-`sdd/epics/YYYYMM/*.md` when `sdd.version_controlled: true`, or `.sase/sdd/epics/YYYYMM/*.md` in local SDD mode. Both
-references are relative to the primary workspace so phase agents launched from sibling workspaces can still locate the
-plan.
+`sdd/epics/YYYYMM/*.md` when `sdd.version_controlled: true`, or `.sase/sdd/epics/YYYYMM/*.md` in local SDD mode. These
+relative references stay portable across checkouts while each checkout reads its own bead store.
 
 ### Plan Approval Flow
 

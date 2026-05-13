@@ -257,6 +257,6 @@ See [`configuration.md`](configuration.md) for the full configuration reference.
 
 ## Multi-Workspace Behavior
 
-SDD always writes to the **primary workspace** (workspace 1). When running in workspace `sase_3`, SDD resolves the
-primary workspace directory by stripping the `_3` suffix. This ensures all workspaces share a single set of prompts,
-plans, and beads.
+SDD artifact placement follows the configured SDD mode and project workflow. In version-controlled mode, bead commands
+read and write the current checkout's `sdd/beads/` store; they do not merge bead records from numbered sibling
+workspaces. Coordinate bead state between checkouts through the normal VCS sync path.

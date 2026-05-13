@@ -53,7 +53,8 @@ The intentionally Python-owned facade surfaces (host logic, not backend fallback
 - Bead host responsibilities stay in Python where they touch the surrounding application: storage-location discovery,
   SASE workspace/project lookup, VCS prompt context for `sase bead work`, xprompt resolution, user confirmation, agent
   launch, rollback of already-spawned children, and telemetry increments. Rust owns the bead data model, storage/query
-  engine, JSONL codecs, mutation transactions, workspace merge, deterministic work-plan DAG, and CLI output planning.
+  engine, JSONL codecs, mutation transactions, single-store ID allocation, deterministic work-plan DAG, and CLI output
+  planning.
 - Explicit agent artifact storage remains Python-owned because it copies or moves user files into `~/.sase/artifacts/`
   and updates the local JSONL association index under a file lock. Rust owns the separate agent-run artifact scanner and
   its persistent query index.
@@ -113,7 +114,7 @@ The facade lives at `src/sase/core/`:
 | `agent_launch_wire.py`         | Stable launch, workspace-claim, and fan-out wire records                                                           |
 | `agent_launch_facade.py`       | Rust-backed launch preparation, spawn, timestamp allocation, and fan-out planning                                  |
 | `agent_launch_claims.py`       | Rust-backed RUNNING-field claim planning/mutation helpers                                                          |
-| `bead_read_facade.py`          | Rust-backed bead read and merged-workspace read facade                                                             |
+| `bead_read_facade.py`          | Rust-backed bead read facade for one active bead store                                                             |
 | `bead_mutation_facade.py`      | Rust-backed bead mutation facade                                                                                   |
 | `bead_wire.py`                 | Stable bead issue/dependency conversion helpers across the Rust boundary                                           |
 | `status_wire.py`               | Stable wire records for the status state machine                                                                   |
@@ -137,10 +138,10 @@ notes, and the contract snapshot path used by future Android work.
 ## Bead Backend
 
 The `sase bead` migration is tracked by `sdd/epics/202605/bead_rust_backend_migration.md`. The shipped path is now
-Rust-owned for data operations: JSONL/config parsing, SQLite rebuild/query, mutations, workspace merge, deterministic
-epic work planning, and common CLI output planning all live in `sase-core` and are exposed through `sase_core_rs`.
-Python remains the host layer for path discovery, VCS context, xprompt lookup, confirmation prompts, launch/rollback,
-and telemetry side effects.
+Rust-owned for data operations: JSONL/config parsing, SQLite rebuild/query, mutations, single-store ID allocation,
+deterministic epic work planning, and common CLI output planning all live in `sase-core` and are exposed through
+`sase_core_rs`. Python remains the host layer for path discovery, VCS context, xprompt lookup, confirmation prompts,
+launch/rollback, and telemetry side effects.
 
 Golden contract fixtures live under `tests/test_bead/golden/`:
 
@@ -168,7 +169,6 @@ installed console script. The harness reports JSON summaries for:
 
 - shell command latency for `sase bead list`, `ready`, and `show`;
 - direct Python `BeadProject` reads;
-- merged workspace reads across three bead stores;
 - synthetic stores sized by `--issues` and `--dependencies`.
 
 The Phase A local baseline on the then-active 399-line store was approximately:
@@ -186,8 +186,8 @@ Post-migration targets for bead checks and future regression floors:
 
 - `sase bead list`, `ready`, and `show` on the current-size store: p50 under 120ms from shell command start.
 - Direct Rust read bindings after Python startup: p50 under 10ms.
-- Large synthetic store, 10k issues / 20k dependencies: direct Rust read queries under 50ms p50, merged workspace reads
-  under 100ms p50 for three stores, and write plus JSONL export under 150ms p50.
+- Large synthetic store, 10k issues / 20k dependencies: direct Rust read queries under 50ms p50, and write plus JSONL
+  export under 150ms p50.
 - No drift in the Phase A golden CLI output unless the migration plan records an intentional compatibility change.
 
 ## Installing the Rust Backend
