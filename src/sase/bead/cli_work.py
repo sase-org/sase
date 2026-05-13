@@ -200,6 +200,12 @@ def _handle_epic_bead_work(
         f"✓ Launched {agent_count} agents for epic {epic_id} — {issue.title} "
         f"(workspace {result.workspace_num})"
     )
+    _commit_successful_work_launch(
+        proj.beads_dir,
+        epic_id,
+        issue.title,
+        kind="epic",
+    )
 
 
 def _handle_legend_bead_work(
@@ -315,6 +321,12 @@ def _handle_legend_bead_work(
         f"✓ Launched {agent_count} agents for legend {legend_id} — "
         f"{issue.title} ({epic_agent_count} epic-planning, 1 land; "
         f"workspace {result.workspace_num})"
+    )
+    _commit_successful_work_launch(
+        proj.beads_dir,
+        legend_id,
+        issue.title,
+        kind="legend",
     )
 
 
@@ -457,6 +469,29 @@ def _print_legend_work_plan_summary(
 def confirm_launch() -> bool:
     answer = input("Launch these agents? [y/N] ").strip().lower()
     return answer in ("y", "yes")
+
+
+def _commit_successful_work_launch(
+    beads_dir: Path,
+    bead_id: str,
+    title: str,
+    *,
+    kind: str,
+) -> None:
+    from sase.bead.sync import BeadWorkLaunchCommitError, commit_bead_work_launch
+
+    try:
+        committed = commit_bead_work_launch(beads_dir, bead_id, title, kind=kind)
+    except BeadWorkLaunchCommitError as exc:
+        print(
+            f"Error: agents launched for {kind} {bead_id}, but committing "
+            f"sdd/beads/issues.jsonl failed: {exc}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if committed:
+        print(f"Committed sdd/beads/issues.jsonl for {kind} {bead_id}.")
 
 
 def rollback_work_launch(

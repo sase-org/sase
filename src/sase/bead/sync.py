@@ -6,6 +6,10 @@ import subprocess
 from pathlib import Path
 
 
+class BeadWorkLaunchCommitError(RuntimeError):
+    """Raised when the post-launch bead metadata commit fails."""
+
+
 def git_sync(beads_dir: Path) -> None:
     """Export JSONL and stage in git (does not commit)."""
     jsonl_path = beads_dir / "issues.jsonl"
@@ -21,6 +25,57 @@ def git_sync(beads_dir: Path) -> None:
         capture_output=True,
         check=False,
     )
+
+
+def commit_bead_work_launch(
+    beads_dir: Path,
+    bead_id: str,
+    title: str,
+    *,
+    kind: str,
+) -> bool:
+    """Commit the JSONL bead-state mutation produced by ``sase bead work``.
+
+    Returns False for benign no-op cases: no git repo, no JSONL file, or no
+    staged JSONL change after adding the file.
+    """
+    del title
+    jsonl_path = beads_dir / "issues.jsonl"
+    if not jsonl_path.exists():
+        return False
+    repo_root = _find_git_root(beads_dir)
+    if repo_root is None:
+        return False
+
+    rel_jsonl = _relative_pathspec(jsonl_path, repo_root)
+    _run_git_or_raise(
+        ["git", "add", "--", rel_jsonl],
+        cwd=repo_root,
+        action=f"stage {rel_jsonl}",
+    )
+
+    diff_result = subprocess.run(
+        ["git", "diff", "--cached", "--quiet", "--", rel_jsonl],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if diff_result.returncode == 0:
+        return False
+    if diff_result.returncode != 1:
+        raise BeadWorkLaunchCommitError(
+            _format_git_failure(f"inspect staged changes for {rel_jsonl}", diff_result)
+        )
+
+    subject_kind = "legend" if kind == "legend" else "bead"
+    message = f"chore: mark {subject_kind} work launched for {bead_id}"
+    _run_git_or_raise(
+        ["git", "commit", "-m", message, "--", rel_jsonl],
+        cwd=repo_root,
+        action=f"commit {rel_jsonl}",
+    )
+    return True
 
 
 def sync_status(beads_dir: Path) -> bool:
@@ -85,3 +140,29 @@ def _find_git_root(path: Path) -> Path | None:
     if result.returncode == 0:
         return Path(result.stdout.strip())
     return None
+
+
+def _relative_pathspec(path: Path, repo_root: Path) -> str:
+    return path.resolve().relative_to(repo_root.resolve()).as_posix()
+
+
+def _run_git_or_raise(command: list[str], *, cwd: Path, action: str) -> None:
+    result = subprocess.run(
+        command,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise BeadWorkLaunchCommitError(_format_git_failure(action, result))
+
+
+def _format_git_failure(
+    action: str,
+    result: subprocess.CompletedProcess[str],
+) -> str:
+    detail = (result.stderr or result.stdout or "").strip()
+    if detail:
+        return f"git {action} failed: {detail}"
+    return f"git {action} failed with exit code {result.returncode}"

@@ -32,6 +32,7 @@ def test_work_launches_and_passes_rendered_multi_prompt(
 ) -> None:
     epic_id, phase_ids = seed_diamond(project_dir)
     captured: dict[str, Any] = {}
+    commit_calls: list[tuple[Path, str, str, str]] = []
 
     def fake_launch(
         query: str,
@@ -43,7 +44,18 @@ def test_work_launches_and_passes_rendered_multi_prompt(
         captured["segment_extra_env"] = segment_extra_env
         return FakeLaunchResult()
 
+    def fake_commit(
+        beads_dir: Path,
+        bead_id: str,
+        title: str,
+        *,
+        kind: str,
+    ) -> bool:
+        commit_calls.append((beads_dir, bead_id, title, kind))
+        return True
+
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
+    monkeypatch.setattr("sase.bead.sync.commit_bead_work_launch", fake_commit)
 
     bead_cli.handle_bead_work(make_args(epic_id, yes=True))
 
@@ -58,6 +70,9 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     assert captured["segment_extra_env"] == tuple(
         {"SASE_BEAD_ID": bead_id} for bead_id in [*phase_ids, epic_id]
     )
+    assert commit_calls == [
+        (project_dir / "sdd/beads", epic_id, "Diamond epic", "epic")
+    ]
 
     # Each phase was pre-claimed.
     with BeadProject(project_dir) as proj:
@@ -178,6 +193,10 @@ def test_work_dry_run_never_mutates_or_launches(
         return FakeLaunchResult()
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_bead_work_launch",
+        lambda *args, **kwargs: pytest.fail("dry run must not commit"),
+    )
 
     bead_cli.handle_bead_work(make_args(epic_id, dry_run=True, yes=True))
 
@@ -371,6 +390,10 @@ def test_work_rolls_back_on_launch_failure(
         raise RuntimeError("workspace claim failed")
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", boom)
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_bead_work_launch",
+        lambda *args, **kwargs: pytest.fail("failed launch must not commit"),
+    )
 
     with pytest.raises(SystemExit) as excinfo:
         bead_cli.handle_bead_work(make_args(epic_id, yes=True))
@@ -387,6 +410,44 @@ def test_work_rolls_back_on_launch_failure(
     err = capsys.readouterr().err
     assert "launch failed" in err
     assert "Rolling back" in err
+
+
+def test_work_commit_failure_reports_after_successful_launch(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.bead.sync import BeadWorkLaunchCommitError
+
+    epic_id, phase_ids = seed_diamond(project_dir)
+
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None, segment_extra_env=None: FakeLaunchResult(),
+    )
+
+    def boom(*args: Any, **kwargs: Any) -> bool:
+        raise BeadWorkLaunchCommitError("git commit failed")
+
+    monkeypatch.setattr("sase.bead.sync.commit_bead_work_launch", boom)
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+    assert excinfo.value.code == 1
+
+    with BeadProject(project_dir) as proj:
+        assert proj.show(epic_id).is_ready_to_work is True
+        for pid in phase_ids:
+            phase = proj.show(pid)
+            assert phase.status == Status.IN_PROGRESS
+            assert phase.assignee == pid
+
+    captured = capsys.readouterr()
+    assert "Launched" in captured.out
+    assert (
+        f"agents launched for epic {epic_id}, but committing "
+        "sdd/beads/issues.jsonl failed: git commit failed"
+    ) in captured.err
 
 
 def test_work_allows_already_ready_epic_and_launches_remaining_phases(

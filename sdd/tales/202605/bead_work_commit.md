@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 21:58:39
-status: wip
+status: done
 prompt: sdd/prompts/202605/bead_work_commit.md
 ---
 # Plan: Commit bead launch state after `sase bead work`
