@@ -2,6 +2,8 @@
 create_time: 2026-05-12 21:46:46
 status: wip
 prompt: sdd/prompts/202605/revert_sase_37_archive.md
+bead_id: sase-3b
+tier: epic
 ---
 # Revert `sase-37` Archive and Query Work
 
