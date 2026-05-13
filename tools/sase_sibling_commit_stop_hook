@@ -165,6 +165,10 @@ function check_sibling_repos() {
         exit 0
     fi
 
+    if [ "$GEMINI_STOP_HOOK_ACTIVE" = "true" ] && { is_gemini_runtime || is_qwen_runtime; }; then
+        exit 0
+    fi
+
     local sibling_repos_with_changes=()
     local repo_dir
 

@@ -32,7 +32,12 @@ def _run_handler(
     args = _parse_commit_args(argv)
     mock_workflow = MagicMock()
     mock_workflow.run.return_value = RunResult.OK
-    test_env = {"SASE_BEAD_ID": "", **(env or {})}
+    test_env = {
+        "SASE_BEAD_ID": "",
+        "SASE_COMMIT_METHOD": "",
+        "SASE_COMMIT_METHOD_ALLOW_OVERRIDE": "",
+        **(env or {}),
+    }
 
     with (
         patch("sase.main.cl_handler.CommitWorkflow", return_value=mock_workflow) as cls,
@@ -229,7 +234,10 @@ class TestCommitCLI:
             patch("sase.main.cl_handler.CommitWorkflow") as cls,
             patch.dict(
                 "os.environ",
-                {"SASE_COMMIT_METHOD": "create_pull_request"},
+                {
+                    "SASE_COMMIT_METHOD": "create_pull_request",
+                    "SASE_COMMIT_METHOD_ALLOW_OVERRIDE": "",
+                },
                 clear=False,
             ),
             pytest.raises(SystemExit) as exc_info,

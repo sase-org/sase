@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.scripts.sase_commit_stop_hook import (
+    _build_name_instruction,
     _build_commit_instruction_message,
     _emit_block,
     build_commit_details,
@@ -91,6 +92,20 @@ def test_commit_instruction_omits_bead_close_when_bead_id_is_unset() -> None:
     )
     assert "sase bead close" not in message
     assert "bead `" not in message
+
+
+def test_pr_name_instruction_is_well_formed_for_missing_name(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("SASE_COMMIT_METHOD", "create_pull_request")
+    monkeypatch.delenv("SASE_PR_NAME", raising=False)
+    monkeypatch.setenv("SASE_AGENT_PROJECT_FILE", "/tmp/projects/sase.sase")
+
+    message = _build_name_instruction()
+
+    assert message is not None
+    assert 'MUST include `"name": "<name>"`' in message
+    assert "consist of lowercase letters and underscores" in message
+    assert 'MUST start with "sase_"' in message
+    assert 'consist" of' not in message
 
 
 def test_codex_emit_block_includes_details_in_json(capsys: object) -> None:

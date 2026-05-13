@@ -181,7 +181,7 @@ def _normalize_provider(provider: str | None) -> str:
 
 
 def _build_name_instruction() -> str | None:
-    # Only PRs are named, since we need a branch name to associated with them.
+    # Only PRs are named, since we need a branch name to associate with them.
     if os.environ.get("SASE_COMMIT_METHOD") != "create_pull_request":
         return None
 
@@ -201,7 +201,7 @@ def _build_name_instruction() -> str | None:
     if not sase_pr_name_is_set:
         parts.append(
             f"You should decide on what name to use for `{sase_name}` but it should be"
-            ' short, descriptive, and consist" of lowercase letters and underscores.'
+            " short, descriptive, and consist of lowercase letters and underscores."
         )
         if project:
             parts.append(

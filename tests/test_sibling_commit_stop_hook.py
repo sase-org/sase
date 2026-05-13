@@ -21,6 +21,7 @@ def _run_hook(
     timestamp: str = "260425_120000",
     codex: bool = False,
     qwen: bool = False,
+    hook_input: dict[str, object] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     env = {
         "HOME": str(tmp_path / "home"),
@@ -44,6 +45,7 @@ def _run_hook(
         [str(HOOK)],
         cwd=project_dir,
         env=env,
+        input=json.dumps(hook_input) if hook_input is not None else None,
         text=True,
         capture_output=True,
         check=False,
@@ -192,6 +194,22 @@ def test_qwen_json_reason_uses_deny_decision(tmp_path: Path) -> None:
         in payload["reason"]
     )
     assert "/sase_git_commit" not in payload["reason"]
+
+
+def test_qwen_stop_hook_active_skips_sibling_check(tmp_path: Path) -> None:
+    project_dir = _make_project(tmp_path)
+    _make_dirty_repo(tmp_path / "sase-telegram")
+
+    result = _run_hook(
+        project_dir,
+        tmp_path,
+        qwen=True,
+        hook_input={"session_id": "nested", "stop_hook_active": True},
+    )
+
+    assert result.returncode == 0
+    assert result.stdout == ""
+    assert result.stderr == ""
 
 
 def test_multiple_dirty_sibling_repos_lists_all_and_repeats_workflow(

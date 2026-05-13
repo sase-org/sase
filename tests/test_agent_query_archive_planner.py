@@ -155,6 +155,9 @@ def test_archive_pagination_and_facets(tmp_path: Path) -> None:
     second_page = search_archive(tmp_path, "", limit=1, cursor=first_page.next_cursor)
     assert len(second_page.results) == 1
     assert second_page.next_cursor is None
+    empty_page = search_archive(tmp_path, "", limit=0)
+    assert empty_page.results == []
+    assert empty_page.next_cursor is None
 
     assert archive_facet_counts(tmp_path, "", facet="runtime") == {"codex": 2}
     assert archive_facet_counts(tmp_path, "", facet="status") == {
