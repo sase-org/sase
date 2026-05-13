@@ -56,7 +56,7 @@ def _agent_type(value: Any, *, field_name: str) -> AgentTypeValue:
     raise ValueError(f"{field_name} must be 'run' or 'workflow'")
 
 
-def identity_from_json(value: Any, *, field_name: str = "identity") -> AgentIdentity:
+def _identity_from_json(value: Any, *, field_name: str = "identity") -> AgentIdentity:
     """Parse a JSON identity tuple.
 
     The JSON form is ``[agent_type, cl_name, raw_suffix]`` so bundles stay
@@ -81,7 +81,7 @@ def identity_to_json(identity: AgentIdentity) -> list[str | None]:
 
 def _identities_from_json(value: Any, *, field_name: str) -> list[AgentIdentity]:
     return [
-        identity_from_json(item, field_name=f"{field_name}[{index}]")
+        _identity_from_json(item, field_name=f"{field_name}[{index}]")
         for index, item in enumerate(_expect_list(value, field_name=field_name))
     ]
 
@@ -272,12 +272,12 @@ class ReproSelectionFallback:
             from_identity=(
                 None
                 if raw_from is None
-                else identity_from_json(raw_from, field_name="from_identity")
+                else _identity_from_json(raw_from, field_name="from_identity")
             ),
             to_identity=(
                 None
                 if raw_to is None
-                else identity_from_json(raw_to, field_name="to_identity")
+                else _identity_from_json(raw_to, field_name="to_identity")
             ),
             reason=str(data.get("reason", "")),
         )
@@ -319,7 +319,7 @@ class ReproAppState:
             selected_identity=(
                 None
                 if raw_selected is None
-                else identity_from_json(raw_selected, field_name="selected_identity")
+                else _identity_from_json(raw_selected, field_name="selected_identity")
             ),
             dismissed_identities=_identities_from_json(
                 data.get("dismissed_identities", []),
@@ -396,6 +396,7 @@ class ReproLoadStep:
     agent_rows: list[ReproAgentRow]
     app_state: ReproAppState
     screen: ReproScreen = field(default_factory=ReproScreen)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ReproLoadStep:
@@ -419,6 +420,9 @@ class ReproLoadStep:
             screen=ReproScreen.from_dict(
                 _expect_mapping(data.get("screen", {}), field_name="screen")
             ),
+            metadata=dict(
+                _expect_mapping(data.get("metadata", {}), field_name="metadata")
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -429,6 +433,7 @@ class ReproLoadStep:
             "agent_rows": [row.to_dict() for row in self.agent_rows],
             "app_state": self.app_state.to_dict(),
             "screen": self.screen.to_dict(),
+            "metadata": dict(self.metadata),
         }
 
 

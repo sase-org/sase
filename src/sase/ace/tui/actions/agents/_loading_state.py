@@ -98,6 +98,7 @@ class AgentLoadingStateMixin:
     _nav_gate: NavigationGate
     _agent_load_state: AgentLoadState | None
     _agents_seen_complete_history: bool
+    _agents_repro_capture: object | None
 
     def _apply_loaded_agents_prepared(
         self,

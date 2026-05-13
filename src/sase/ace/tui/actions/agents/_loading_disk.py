@@ -92,6 +92,17 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             changespec_snapshot=changespec_snapshot,
             full_history=full_history or bool(getattr(self, "_agent_search_query", "")),
         )
+        from ...repro.capture import record_agents_tab_loader_result
+
+        record_agents_tab_loader_result(
+            self,
+            load_state=load_result.load_state,
+            agents=load_result.all_agents,
+            dismissed_from_loader=load_result.dismissed_from_loader,
+            on_agents_tab=on_agents_tab,
+            selected_identity=selected_identity,
+            source="sync_load",
+        )
         self._apply_loaded_agents(
             load_result.all_agents,
             load_result.dismissed_from_loader,
@@ -160,6 +171,18 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             selected_identity = self._agents[self.current_idx].identity
         elif not on_agents_tab:
             selected_identity = getattr(self, "_agents_last_identity", None)
+
+        from ...repro.capture import record_agents_tab_loader_result
+
+        record_agents_tab_loader_result(
+            self,
+            load_state=load_result.load_state,
+            agents=all_agents,
+            dismissed_from_loader=dismissed_from_loader,
+            on_agents_tab=on_agents_tab,
+            selected_identity=selected_identity,
+            source="async_load",
+        )
 
         prep_start = time.perf_counter()
         # Bind the worker function to a local so ``to_thread`` doesn't see

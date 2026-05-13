@@ -377,3 +377,10 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         self._finalize_agent_list(
             on_agents_tab, selected_identity, save_unfiltered=True
         )
+        from ...repro.capture import record_agents_tab_app_projection
+
+        record_agents_tab_app_projection(
+            self,
+            load_state=load_state,
+            source="apply",
+        )

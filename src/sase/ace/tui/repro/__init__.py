@@ -5,6 +5,16 @@ from .invariants import (
     ReproInvariantReport,
     check_bundle_invariants,
 )
+from .capture import (
+    AgentsTabReproCaptureRing,
+    capture_agents_tab_repro_bundle,
+    disable_agents_tab_repro_capture,
+    enable_agents_tab_repro_capture,
+    get_agents_tab_repro_capture,
+    record_agents_tab_app_projection,
+    record_agents_tab_loader_result,
+)
+from .redact import RedactionContext, redact_bundle
 from .schema import (
     AgentIdentity,
     ReproAgentRow,
@@ -22,6 +32,7 @@ from .serialize import serialize_agent_row, serialize_agent_rows
 
 __all__ = [
     "AgentIdentity",
+    "AgentsTabReproCaptureRing",
     "ReproAgentRow",
     "ReproAppState",
     "ReproAssertions",
@@ -33,8 +44,16 @@ __all__ = [
     "ReproManifest",
     "ReproScreen",
     "ReproSelectionFallback",
+    "RedactionContext",
+    "capture_agents_tab_repro_bundle",
     "check_bundle_invariants",
+    "disable_agents_tab_repro_capture",
+    "enable_agents_tab_repro_capture",
+    "get_agents_tab_repro_capture",
     "load_bundle",
+    "record_agents_tab_app_projection",
+    "record_agents_tab_loader_result",
+    "redact_bundle",
     "serialize_agent_row",
     "serialize_agent_rows",
 ]
