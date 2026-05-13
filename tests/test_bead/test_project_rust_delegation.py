@@ -5,9 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from sase.bead.model import Issue, IssueType, Status
+from sase.bead.model import Issue, IssueType
 from sase.bead.project import BeadProject
-from sase.bead.workspace import MergedBeadView
 from sase.core import bead_mutation_facade, bead_read_facade
 
 
@@ -72,21 +71,3 @@ def test_bead_project_show_returns_issue_with_model(
         assert result is not None
         assert result.model == "codex/gpt-5.5"
         assert calls == [(project.beads_dir, "delegated-1")]
-
-
-def test_merged_bead_view_delegates_to_rust_merged_read(
-    tmp_path: Path, monkeypatch
-) -> None:
-    beads_dirs = [tmp_path / "one" / "sdd/beads", tmp_path / "two" / "sdd/beads"]
-    expected = [Issue(id="ready-1", title="Ready", status=Status.OPEN)]
-    calls: list[list[Path]] = []
-
-    def fake_merged_ready(paths: list[Path]) -> list[Issue]:
-        calls.append(paths)
-        return expected
-
-    monkeypatch.setattr(bead_read_facade, "merged_ready", fake_merged_ready)
-
-    with MergedBeadView(beads_dirs) as view:
-        assert view.ready() == expected
-    assert calls == [beads_dirs]

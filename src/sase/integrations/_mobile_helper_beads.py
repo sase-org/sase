@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from sase.bead.model import BeadTier, Issue, IssueType, Status
+from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC, BeadProject
 from sase.bead.workspace import (
-    MergedBeadView,
     get_all_project_beads_dirs,
     get_project_beads_dirs_for_project,
 )
@@ -59,8 +59,7 @@ def beads_list_response(request: dict[str, Any]) -> dict[str, Any]:
     skipped = list(scope.skipped)
     for project, beads_dirs in scope.groups:
         try:
-            with MergedBeadView(list(beads_dirs)) as view:
-                all_issues = view.list_issues()
+            all_issues = _read_group_issues(beads_dirs)
         except Exception as exc:
             skipped.append(skip_record(project or _paths_label(beads_dirs), str(exc)))
             continue
@@ -106,22 +105,21 @@ def beads_show_response(request: dict[str, Any]) -> dict[str, Any]:
     skipped = list(scope.skipped)
     for project, beads_dirs in scope.groups:
         try:
-            with MergedBeadView(list(beads_dirs)) as view:
-                issue = view.show(bead_id)
-                all_issues = view.list_issues()
+            issue, all_issues, representative_dir = _show_group_issue(
+                beads_dirs, bead_id
+            )
         except KeyError:
             continue
         except Exception as exc:
             skipped.append(skip_record(project or _paths_label(beads_dirs), str(exc)))
             continue
-        representative_dir = beads_dirs[0] if beads_dirs else None
         if best is None or _issue_sort_key(issue) > _issue_sort_key(best[1]):
             best = (project, issue, all_issues, representative_dir)
 
     if best is None:
         raise MobileHelperNotFoundError(bead_id)
 
-    project, issue, all_issues, representative_dir = best
+    project, issue, all_issues, detail_representative_dir = best
     return {
         "schema_version": GATEWAY_WIRE_SCHEMA_VERSION,
         "result": _bead_helper_result(
@@ -129,7 +127,9 @@ def beads_show_response(request: dict[str, Any]) -> dict[str, Any]:
             skipped=skipped,
         ),
         "context": {"project": scope.project, "scope": scope.scope},
-        "bead": _bead_detail_wire(issue, project, all_issues, representative_dir),
+        "bead": _bead_detail_wire(
+            issue, project, all_issues, detail_representative_dir
+        ),
     }
 
 
@@ -251,6 +251,36 @@ def _remembered_device_project(device_id: str | None) -> str | None:
         return optional_project(project)
     except MobileHelperBridgeError:
         return None
+
+
+def _read_group_issues(beads_dirs: Iterable[Path]) -> list[Issue]:
+    issues: list[Issue] = []
+    for beads_dir in beads_dirs:
+        with _open_project_for_beads_dir(beads_dir) as project:
+            issues.extend(project.list_issues())
+    return issues
+
+
+def _show_group_issue(
+    beads_dirs: Iterable[Path], bead_id: str
+) -> tuple[Issue, list[Issue], Path]:
+    all_issues = _read_group_issues(beads_dirs)
+    for beads_dir in beads_dirs:
+        try:
+            with _open_project_for_beads_dir(beads_dir) as project:
+                return project.show(bead_id), all_issues, beads_dir
+        except KeyError:
+            continue
+    raise KeyError(bead_id)
+
+
+def _open_project_for_beads_dir(beads_dir: Path) -> BeadProject:
+    parts = beads_dir.parts
+    if len(parts) >= 2 and parts[-2:] == ("sdd", "beads"):
+        return BeadProject(beads_dir.parents[1], beads_dirname=BEADS_DIRNAME)
+    if len(parts) >= 3 and parts[-3:] == (".sase", "sdd", "beads"):
+        return BeadProject(beads_dir.parent, beads_dirname=BEADS_DIRNAME_NON_VC)
+    return BeadProject(beads_dir.parent, beads_dirname=beads_dir.name)
 
 
 def _bead_summary_wire(

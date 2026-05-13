@@ -97,10 +97,9 @@ def _resolve_lightweight_beads_context(
         if non_vc.is_dir():
             return [non_vc], non_vc, _BEADS_DIRNAME_NON_VC
 
-        read_dirs = _enumerate_workspace_beads_dirs(primary)
         write_dir, beads_dirname = _select_write_beads_dir(cwd, primary)
         if write_dir is not None:
-            return read_dirs or [write_dir], write_dir, beads_dirname
+            return [write_dir], write_dir, beads_dirname
 
     for parent in [cwd, *cwd.parents]:
         vc = parent / _BEADS_DIRNAME
@@ -172,54 +171,20 @@ def _is_workspace_variant(component: str, project_name: str) -> bool:
     return component == project_name or component.startswith(f"{project_name}_")
 
 
-def _enumerate_workspace_beads_dirs(primary: Path) -> list[Path]:
-    workspaces = _enumerate_project_workspace_dirs(primary)
-    current_dirs = [workspace / _BEADS_DIRNAME for workspace in workspaces]
-    legacy_dirs = [workspace / _LEGACY_BEADS_DIRNAME for workspace in workspaces]
-    return _dedupe_existing_dirs([*current_dirs, *legacy_dirs])
-
-
-def _enumerate_project_workspace_dirs(primary: Path) -> list[Path]:
-    workspaces = [primary]
-    parent = primary.parent
-    prefix = f"{primary.name}_"
-    if parent.is_dir():
-        for entry in sorted(parent.iterdir()):
-            if not entry.is_dir() or not entry.name.startswith(prefix):
-                continue
-            suffix = entry.name.removeprefix(prefix)
-            if not suffix.isdigit():
-                continue
-            workspaces.append(entry)
-    return workspaces
-
-
-def _dedupe_existing_dirs(paths: list[Path]) -> list[Path]:
-    seen: set[Path] = set()
-    result: list[Path] = []
-    for path in paths:
-        if not path.is_dir():
-            continue
-        key = path.resolve()
-        if key in seen:
-            continue
-        seen.add(key)
-        result.append(path)
-    return result
-
-
 def _select_write_beads_dir(cwd: Path, primary: Path) -> tuple[Path | None, str]:
-    local_current = cwd / _BEADS_DIRNAME
-    if local_current.is_dir():
-        return local_current, _BEADS_DIRNAME
+    for parent in [cwd, *cwd.parents]:
+        local_current = parent / _BEADS_DIRNAME
+        if local_current.is_dir():
+            return local_current, _BEADS_DIRNAME
 
     primary_current = primary / _BEADS_DIRNAME
     if primary_current.is_dir():
         return primary_current, _BEADS_DIRNAME
 
-    local_legacy = cwd / _LEGACY_BEADS_DIRNAME
-    if local_legacy.is_dir():
-        return local_legacy, _LEGACY_BEADS_DIRNAME
+    for parent in [cwd, *cwd.parents]:
+        local_legacy = parent / _LEGACY_BEADS_DIRNAME
+        if local_legacy.is_dir():
+            return local_legacy, _LEGACY_BEADS_DIRNAME
 
     primary_legacy = primary / _LEGACY_BEADS_DIRNAME
     if primary_legacy.is_dir():

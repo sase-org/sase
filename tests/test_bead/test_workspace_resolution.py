@@ -5,37 +5,40 @@ from unittest.mock import patch
 
 from sase.bead.project_name import _cwd_matches_project_workspace
 from sase.bead.workspace import (
+    _canonical_project_beads_dir,
+    _current_or_primary_beads_dir,
     get_all_project_beads_dirs,
     get_project_beads_dirs_for_project,
-    _enumerate_workspace_beads_dirs,
     _resolve_by_scanning_projects,
     resolve_primary_workspace,
 )
 
 
-def test_enumerate_workspace_beads_dirs_non_vc_primary_only(tmp_path: Path) -> None:
+def test_canonical_project_beads_dir_non_vc_primary_only(tmp_path: Path) -> None:
     primary = tmp_path / "project"
     workspace_2 = tmp_path / "project_2"
     (primary / ".sase" / "sdd" / "beads").mkdir(parents=True)
     (workspace_2 / ".sase" / "sdd" / "beads").mkdir(parents=True)
 
-    result = _enumerate_workspace_beads_dirs(primary)
+    result = _canonical_project_beads_dir(primary)
 
-    assert result == [primary / ".sase" / "sdd" / "beads"]
+    assert result == primary / ".sase" / "sdd" / "beads"
 
 
-def test_enumerate_workspace_beads_dirs_vc_includes_workspaces(tmp_path: Path) -> None:
+def test_current_or_primary_beads_dir_prefers_current_checkout(
+    tmp_path: Path,
+) -> None:
     primary = tmp_path / "project"
     workspace_2 = tmp_path / "project_2"
     (primary / "sdd/beads").mkdir(parents=True)
     (workspace_2 / "sdd/beads").mkdir(parents=True)
 
-    result = _enumerate_workspace_beads_dirs(primary)
+    result = _current_or_primary_beads_dir(workspace_2, primary)
 
-    assert result == [primary / "sdd/beads", workspace_2 / "sdd/beads"]
+    assert result == workspace_2 / "sdd/beads"
 
 
-def test_enumerate_workspace_beads_dirs_vc_includes_legacy_stores(
+def test_canonical_project_beads_dir_vc_ignores_siblings_and_legacy(
     tmp_path: Path,
 ) -> None:
     primary = tmp_path / "project"
@@ -46,17 +49,12 @@ def test_enumerate_workspace_beads_dirs_vc_includes_legacy_stores(
     (workspace_3 / "sdd/beads").mkdir(parents=True)
     (workspace_3 / ".sase_beads").mkdir(parents=True)
 
-    result = _enumerate_workspace_beads_dirs(primary)
+    result = _canonical_project_beads_dir(primary)
 
-    assert result == [
-        primary / "sdd/beads",
-        workspace_3 / "sdd/beads",
-        workspace_2 / ".sase_beads",
-        workspace_3 / ".sase_beads",
-    ]
+    assert result == primary / "sdd/beads"
 
 
-def test_enumerate_workspace_beads_dirs_non_vc_ignores_legacy_siblings(
+def test_canonical_project_beads_dir_non_vc_ignores_legacy_siblings(
     tmp_path: Path,
 ) -> None:
     primary = tmp_path / "project"
@@ -64,9 +62,9 @@ def test_enumerate_workspace_beads_dirs_non_vc_ignores_legacy_siblings(
     (primary / ".sase" / "sdd" / "beads").mkdir(parents=True)
     (workspace_2 / ".sase_beads").mkdir(parents=True)
 
-    result = _enumerate_workspace_beads_dirs(primary)
+    result = _canonical_project_beads_dir(primary)
 
-    assert result == [primary / ".sase" / "sdd" / "beads"]
+    assert result == primary / ".sase" / "sdd" / "beads"
 
 
 def test_get_project_beads_dirs_for_project_uses_explicit_project(
@@ -84,7 +82,7 @@ def test_get_project_beads_dirs_for_project_uses_explicit_project(
 
     result = get_project_beads_dirs_for_project(project_name)
 
-    assert result == [primary / "sdd/beads", sibling / ".sase_beads"]
+    assert result == [primary / "sdd/beads"]
 
 
 def test_get_all_project_beads_dirs_dedupes_known_project_dirs(

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.bead.model import BeadTier, IssueType
@@ -67,15 +69,12 @@ def _lookup_bead_issue(
     """Return the persisted issue for *bead_id*, if available."""
     if project_name:
         try:
-            from sase.bead.workspace import (
-                MergedBeadView,
-                get_project_beads_dirs_for_project,
-            )
+            from sase.bead.workspace import get_project_beads_dirs_for_project
 
             beads_dirs = get_project_beads_dirs_for_project(project_name)
-            if beads_dirs:
-                with MergedBeadView(beads_dirs) as view:
-                    return view.show(bead_id)
+            issue = _lookup_bead_issue_in_dirs(bead_id, beads_dirs or [])
+            if issue is not None:
+                return issue
         except Exception:
             pass
 
@@ -88,25 +87,50 @@ def _lookup_bead_issue(
         pass
 
     try:
-        from sase.bead.workspace import MergedBeadView, get_project_beads_dirs
+        from sase.bead.workspace import get_project_beads_dirs
 
         beads_dirs = get_project_beads_dirs()
-        if beads_dirs:
-            with MergedBeadView(beads_dirs) as view:
-                return view.show(bead_id)
+        issue = _lookup_bead_issue_in_dirs(bead_id, beads_dirs or [])
+        if issue is not None:
+            return issue
     except Exception:
         pass
 
     try:
-        from sase.bead.workspace import MergedBeadView, get_all_project_beads_dirs
+        from sase.bead.workspace import get_all_project_beads_dirs
 
         beads_dirs = get_all_project_beads_dirs()
-        if beads_dirs:
-            with MergedBeadView(beads_dirs) as view:
-                return view.show(bead_id)
+        issue = _lookup_bead_issue_in_dirs(bead_id, beads_dirs)
+        if issue is not None:
+            return issue
     except Exception:
         pass
 
+    return None
+
+
+def _lookup_bead_issue_in_dirs(
+    bead_id: str, beads_dirs: Iterable[Path]
+) -> Issue | None:
+    """Return the first matching issue from single-store bead paths."""
+    from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC, BeadProject
+
+    for beads_dir in beads_dirs:
+        parts = beads_dir.parts
+        if len(parts) >= 2 and parts[-2:] == ("sdd", "beads"):
+            root = beads_dir.parents[1]
+            beads_dirname = BEADS_DIRNAME
+        elif len(parts) >= 3 and parts[-3:] == (".sase", "sdd", "beads"):
+            root = beads_dir.parent
+            beads_dirname = BEADS_DIRNAME_NON_VC
+        else:
+            root = beads_dir.parent
+            beads_dirname = beads_dir.name
+        try:
+            with BeadProject(root, beads_dirname=beads_dirname) as project:
+                return project.show(bead_id)
+        except KeyError:
+            continue
     return None
 
 

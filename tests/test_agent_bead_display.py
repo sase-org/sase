@@ -33,7 +33,7 @@ def test_non_bead_agent_name_does_not_touch_bead_storage(
     assert format_agent_bead_display_for_name("aij.2") is None
 
 
-def test_agent_bead_display_finds_description_in_legacy_sibling_store(
+def test_agent_bead_display_ignores_legacy_sibling_store(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     primary = tmp_path / "sase"
@@ -58,10 +58,7 @@ def test_agent_bead_display_finds_description_in_legacy_sibling_store(
         lambda: primary,
     )
 
-    assert (
-        format_agent_bead_display_for_name("sase-99")
-        == "sase-99 - Only present in the migrated legacy store"
-    )
+    assert format_agent_bead_display_for_name("sase-99") == "sase-99"
 
 
 def test_agent_bead_display_finds_bead_in_another_known_project(

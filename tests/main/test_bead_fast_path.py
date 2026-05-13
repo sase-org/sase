@@ -11,13 +11,13 @@ from sase.main.bead_fast_path import (
 )
 
 
-def test_lightweight_context_reads_current_and_legacy_workspace_stores(
+def test_lightweight_context_reads_current_checkout_store(
     tmp_path: Path, monkeypatch
 ) -> None:
     primary = tmp_path / "workspaces" / "sase"
     sibling = tmp_path / "workspaces" / "sase_106"
     (primary / "sdd/beads").mkdir(parents=True)
-    (sibling / ".sase_beads").mkdir(parents=True)
+    (sibling / "sdd/beads").mkdir(parents=True)
     _write_project_file(tmp_path, "sase", primary)
     monkeypatch.setenv("HOME", str(tmp_path))
 
@@ -25,8 +25,8 @@ def test_lightweight_context_reads_current_and_legacy_workspace_stores(
 
     assert result is not None
     read_dirs, write_dir, beads_dirname = result
-    assert read_dirs == [primary / "sdd/beads", sibling / ".sase_beads"]
-    assert write_dir == primary / "sdd/beads"
+    assert read_dirs == [sibling / "sdd/beads"]
+    assert write_dir == sibling / "sdd/beads"
     assert beads_dirname == _BEADS_DIRNAME
 
 

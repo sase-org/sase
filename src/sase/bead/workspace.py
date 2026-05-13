@@ -1,51 +1,46 @@
-"""Workspace-aware bead resolution.
-
-Discovers all workspace directories for the current project and provides
-a merged read-only view of beads across all of them.
-"""
+"""Workspace-aware bead store resolution."""
 
 from __future__ import annotations
 
 import os
-import re
 from pathlib import Path
 
 from sase.ace.changespec.project_spec_path import preferred_project_spec_path
-from sase.bead.model import BeadTier, Issue, IssueType, Status
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC
 from sase.bead.project_name import infer_project_name_from_cwd, scan_projects_for_cwd
 
-LEGACY_BEADS_DIRNAME = ".sase_beads"
-
 
 def get_project_beads_dirs() -> list[Path] | None:
-    """Find all bead store directories across all workspaces of the current project.
+    """Find the current project's single readable bead store.
 
     Returns None if not in a recognized sase project (caller should fall back
-    to the old walk-up-from-cwd behavior).
+    to the walk-up-from-cwd behavior).
     """
     primary = resolve_primary_workspace()
     if primary is None:
         return None
-    return _enumerate_workspace_beads_dirs(primary)
+    beads_dir = _current_or_primary_beads_dir(Path.cwd(), primary)
+    return [beads_dir] if beads_dir is not None else None
 
 
 def get_project_beads_dirs_for_project(project_name: str) -> list[Path] | None:
-    """Find all bead store directories for an explicit project name.
+    """Find the canonical bead store for an explicit project name.
 
     This bypasses CWD-based project inference so cross-project callers can read
-    beads for the project that owns an agent.
+    beads for the project that owns an agent without scanning sibling
+    workspaces.
     """
     primary = _resolve_from_project_file(project_name)
     if primary is None:
         primary = _resolve_from_workspace_provider(project_name)
     if primary is None:
         return None
-    return _enumerate_workspace_beads_dirs(primary)
+    beads_dir = _canonical_project_beads_dir(primary)
+    return [beads_dir] if beads_dir is not None else None
 
 
 def get_all_project_beads_dirs() -> list[Path]:
-    """Find bead store directories for every known project under ``~/.sase``."""
+    """Find one canonical bead store for every known project under ``~/.sase``."""
     projects_dir = _sase_projects_dir()
     if not projects_dir.is_dir():
         return []
@@ -154,40 +149,27 @@ def _resolve_by_scanning_projects(cwd: str) -> Path | None:
     return primary
 
 
-def _enumerate_workspace_beads_dirs(primary_workspace: Path) -> list[Path]:
-    """Enumerate beads directories across all workspaces.
+def _current_or_primary_beads_dir(cwd: Path, primary_workspace: Path) -> Path | None:
+    """Resolve the readable bead store for the current checkout."""
+    current = cwd.resolve()
+    for parent in [current, *current.parents]:
+        current_vc = parent / BEADS_DIRNAME
+        if current_vc.is_dir():
+            return current_vc
+    return _canonical_project_beads_dir(primary_workspace)
 
-    Non-VC mode is primary-only: if ``primary/.sase/sdd/beads`` exists,
-    return only that directory.
 
-    VC/read mode checks ``sdd/beads/`` and legacy ``.sase_beads/`` in the
-    primary workspace and sibling workspace directories matching
-    ``<primary_basename>_<N>``.
-    """
+def _canonical_project_beads_dir(primary_workspace: Path) -> Path | None:
+    """Resolve a project's canonical bead store without sibling enumeration."""
     primary_non_vc = primary_workspace / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
     if primary_non_vc.is_dir():
-        return [primary_non_vc]
+        return primary_non_vc
 
-    workspace_dirs = _enumerate_project_workspace_dirs(primary_workspace)
-    current_dirs = [workspace / BEADS_DIRNAME for workspace in workspace_dirs]
-    legacy_dirs = [workspace / LEGACY_BEADS_DIRNAME for workspace in workspace_dirs]
+    primary_vc = primary_workspace / BEADS_DIRNAME
+    if primary_vc.is_dir():
+        return primary_vc
 
-    return _dedupe_existing_dirs([*current_dirs, *legacy_dirs])
-
-
-def _enumerate_project_workspace_dirs(primary_workspace: Path) -> list[Path]:
-    """Enumerate the primary workspace and numbered sibling workspaces."""
-    parent = primary_workspace.parent
-    basename = primary_workspace.name
-    pattern = re.compile(rf"^{re.escape(basename)}_\d+$")
-
-    workspaces = [primary_workspace]
-    if parent.is_dir():
-        for entry in sorted(parent.iterdir()):
-            if entry.is_dir() and pattern.match(entry.name):
-                workspaces.append(entry)
-
-    return workspaces
+    return None
 
 
 def _dedupe_existing_dirs(paths: list[Path]) -> list[Path]:
@@ -210,66 +192,3 @@ def _sase_projects_dir() -> Path:
     if root:
         return Path(root).expanduser() / "projects"
     return Path.home() / ".sase" / "projects"
-
-
-class MergedBeadView:
-    """Read-only view of beads merged across multiple workspaces.
-
-    For each issue ID, takes the version with the most recent ``updated_at``
-    timestamp. Dependencies are carried with their owning issue.
-    """
-
-    def __init__(self, beads_dirs: list[Path]) -> None:
-        self._beads_dirs = beads_dirs
-
-    def __enter__(self) -> MergedBeadView:
-        return self
-
-    def __exit__(self, *_: object) -> None:
-        return None
-
-    def show(self, issue_id: str) -> Issue:
-        """Get a single issue by ID. Raises KeyError if not found."""
-        from sase.core import bead_read_facade as rust_beads
-
-        return rust_beads.merged_show(self._beads_dirs, issue_id)
-
-    def list_issues(
-        self,
-        statuses: list[Status] | None = None,
-        issue_types: list[IssueType] | None = None,
-        tiers: list[BeadTier] | None = None,
-    ) -> list[Issue]:
-        """List issues with optional filters."""
-        from sase.core import bead_read_facade as rust_beads
-
-        return rust_beads.merged_list_issues(
-            self._beads_dirs,
-            statuses=statuses,
-            issue_types=issue_types,
-            tiers=tiers,
-        )
-
-    def ready(self) -> list[Issue]:
-        """Return open issues with no active blockers."""
-        from sase.core import bead_read_facade as rust_beads
-
-        return rust_beads.merged_ready(self._beads_dirs)
-
-    def blocked(self) -> list[Issue]:
-        """Return issues with at least one active blocker."""
-        from sase.core import bead_read_facade as rust_beads
-
-        return rust_beads.merged_blocked(self._beads_dirs)
-
-    def stats(self) -> dict[str, int]:
-        """Return counts by status and type."""
-        from sase.core import bead_read_facade as rust_beads
-
-        return rust_beads.merged_stats(self._beads_dirs)
-
-    def get_epic_children(self, epic_id: str) -> list[Issue]:
-        """Get all child issues of an epic."""
-        from sase.core import bead_read_facade as rust_beads
-
-        return rust_beads.merged_get_epic_children(self._beads_dirs, epic_id)

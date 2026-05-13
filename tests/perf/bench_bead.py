@@ -2,7 +2,7 @@
 
 The bead migration uses this harness for both historical baselines and the
 post-migration smoke/regression floor. It measures shell commands, Python
-facade calls, merged workspace reads, and epic work-plan construction.
+facade calls, single-store reads, and epic work-plan construction.
 
 Run directly:
 
@@ -17,7 +17,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import statistics
 import subprocess
 import sys
@@ -34,7 +33,6 @@ from sase.bead.config import save_config
 from sase.bead.model import Issue, IssueType, Status
 from sase.bead.project import BeadProject
 from sase.bead.work import build_epic_work_plan_from_beads_dir
-from sase.bead.workspace import MergedBeadView
 
 pytestmark = pytest.mark.slow
 
@@ -223,23 +221,6 @@ def _with_project(root: Path, fn: Callable[[BeadProject], object]) -> object:
         return fn(project)
 
 
-def _bench_merged(primary: Path, *, runs: int) -> dict[str, dict[str, float]]:
-    beads_dirs = sorted(primary.parent.glob("workspace*/sdd/beads"))
-    scenarios: dict[str, Callable[[MergedBeadView], object]] = {
-        "list_issues": lambda view: view.list_issues(),
-        "ready": lambda view: view.ready(),
-        "show": lambda view: view.show("bench-1"),
-    }
-    results: dict[str, dict[str, float]] = {}
-    for name, fn in scenarios.items():
-        timings = [
-            _time_call(lambda fn=fn: _with_merged_view(beads_dirs, fn))
-            for _ in range(runs)
-        ]
-        results[name] = _summarize(timings)
-    return results
-
-
 def _bench_work_plan(root: Path, *, runs: int) -> dict[str, dict[str, float]]:
     timings = [
         _time_call(
@@ -313,14 +294,6 @@ def _preclaim_legacy(root: Path) -> None:
                 )
 
 
-def _with_merged_view(
-    beads_dirs: list[Path],
-    fn: Callable[[MergedBeadView], object],
-) -> object:
-    with MergedBeadView(beads_dirs) as view:
-        return fn(view)
-
-
 def run_benchmark(
     *,
     runs: int,
@@ -339,19 +312,12 @@ def run_benchmark(
             phase_count=max(1, min(issue_count, 2_000)),
         )
 
-        merged_root = Path(td) / "merged"
-        merged_root.mkdir()
-        for idx in range(3):
-            workspace = merged_root / f"workspace{idx + 1}"
-            shutil.copytree(root, workspace)
-
         return {
             "runs": runs,
             "issue_count": issue_count,
             "dependency_count": dependency_count,
             "shell": _bench_shell(root, runs=runs, sase_bin=sase_bin),
             "project": _bench_project(root, runs=runs),
-            "merged_workspace": _bench_merged(merged_root / "workspace1", runs=runs),
             "work_plan": _bench_work_plan(work_root, runs=runs),
             "preclaim_epic_work": _bench_preclaim_epic_work(runs=runs),
         }
