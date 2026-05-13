@@ -14,8 +14,6 @@ from sase.ace.changespec.project_spec_path import (
     legacy_archive_project_spec_filename,
     preferred_project_spec_path,
     project_spec_basename,
-    to_active_project_spec_path,
-    to_archive_project_spec_path,
 )
 
 
@@ -55,30 +53,6 @@ def test_is_archive_project_spec() -> None:
     assert is_archive_project_spec("/tmp/proj.gp") is False
     assert is_archive_project_spec("/tmp/proj-archive.txt") is False
     assert is_archive_project_spec("/tmp/archive.sase") is False
-
-
-def test_to_archive_project_spec_path_emits_canonical() -> None:
-    assert to_archive_project_spec_path("/tmp/proj.sase") == "/tmp/proj-archive.sase"
-    assert to_archive_project_spec_path("/tmp/proj.gp") == "/tmp/proj-archive.sase"
-    assert (
-        to_archive_project_spec_path("/tmp/proj-archive.sase")
-        == "/tmp/proj-archive.sase"
-    )
-    assert (
-        to_archive_project_spec_path("/tmp/proj-archive.gp") == "/tmp/proj-archive.sase"
-    )
-
-
-def test_to_active_project_spec_path_emits_canonical() -> None:
-    assert to_active_project_spec_path("/tmp/proj-archive.sase") == "/tmp/proj.sase"
-    assert to_active_project_spec_path("/tmp/proj-archive.gp") == "/tmp/proj.sase"
-    assert to_active_project_spec_path("/tmp/proj.sase") == "/tmp/proj.sase"
-    assert to_active_project_spec_path("/tmp/proj.gp") == "/tmp/proj.sase"
-
-
-def test_to_archive_handles_relative_path() -> None:
-    assert to_archive_project_spec_path("proj.sase") == "proj-archive.sase"
-    assert to_active_project_spec_path("proj-archive.sase") == "proj.sase"
 
 
 def test_preferred_project_spec_path_prefers_canonical_when_present() -> None:

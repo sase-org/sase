@@ -29,11 +29,10 @@ from sase.core.wire_conversion import (
     changespec_wire_from_dict,
     comment_entry_to_wire,
     _commit_entry_to_wire,
+    _mentor_status_line_to_wire,
     hook_entry_to_wire,
     _hook_status_line_to_wire,
     mentor_entry_to_wire,
-    _mentor_status_line_to_wire,
-    timestamp_entry_to_wire,
 )
 
 
@@ -232,7 +231,6 @@ def test_individual_to_wire_helpers() -> None:
         == "profileA"
     )
     assert mentor_entry_to_wire(cs.mentors[0]).entry_id == "1"
-    assert timestamp_entry_to_wire(cs.timestamps[0]).event_type == "STATUS"
 
 
 def test_parse_error_wire_optional_position() -> None:

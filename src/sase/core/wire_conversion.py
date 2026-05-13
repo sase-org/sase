@@ -109,7 +109,7 @@ def mentor_entry_to_wire(entry: MentorEntry) -> MentorWire:
     )
 
 
-def timestamp_entry_to_wire(entry: TimestampEntry) -> TimestampWire:
+def _timestamp_entry_to_wire(entry: TimestampEntry) -> TimestampWire:
     return TimestampWire(
         timestamp=entry.timestamp,
         event_type=entry.event_type,
@@ -298,6 +298,6 @@ def changespec_to_wire(
         hooks=[hook_entry_to_wire(h) for h in (cs.hooks or [])],
         comments=[comment_entry_to_wire(c) for c in (cs.comments or [])],
         mentors=[mentor_entry_to_wire(m) for m in (cs.mentors or [])],
-        timestamps=[timestamp_entry_to_wire(t) for t in (cs.timestamps or [])],
+        timestamps=[_timestamp_entry_to_wire(t) for t in (cs.timestamps or [])],
         deltas=[_delta_entry_to_wire(d) for d in (cs.deltas or [])],
     )

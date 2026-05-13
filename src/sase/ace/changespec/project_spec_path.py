@@ -69,31 +69,6 @@ def is_archive_project_spec(file_path: str) -> bool:
     return stem.endswith(PROJECT_SPEC_ARCHIVE_SUFFIX)
 
 
-def to_archive_project_spec_path(project_file: str) -> str:
-    """Return the canonical archive path for ``project_file``.
-
-    Accepts an active or archive path with either the canonical or legacy
-    extension. The result always uses the canonical ``.sase`` extension
-    and ``-archive`` suffix.
-    """
-    directory = os.path.dirname(project_file)
-    basename = project_spec_basename(project_file)
-    archive_name = archive_project_spec_filename(basename)
-    return os.path.join(directory, archive_name) if directory else archive_name
-
-
-def to_active_project_spec_path(project_file: str) -> str:
-    """Return the canonical active path for ``project_file``.
-
-    Accepts an active or archive path with either the canonical or legacy
-    extension. The result always uses the canonical ``.sase`` extension.
-    """
-    directory = os.path.dirname(project_file)
-    basename = project_spec_basename(project_file)
-    active_name = active_project_spec_filename(basename)
-    return os.path.join(directory, active_name) if directory else active_name
-
-
 def preferred_project_spec_path(
     project_dir: str, project_name: str, *, archive: bool = False
 ) -> str:
