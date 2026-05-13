@@ -13,8 +13,8 @@ from sase.sdd.files import (
     get_primary_workspace_dir,
     get_sdd_dir,
     get_yyyymm,
-    resolve_sdd_asset_path,
-    resolve_sdd_readme_path,
+    _resolve_sdd_asset_path,
+    _resolve_sdd_readme_path,
 )
 
 
@@ -108,12 +108,12 @@ def test_get_sdd_dir_not_version_controlled_suffix_in_parent() -> None:
 
 
 def test_resolve_sdd_readme_path_default_uses_cwd_sdd(tmp_path: Path) -> None:
-    assert resolve_sdd_readme_path(cwd=tmp_path) == tmp_path / "sdd" / "README.md"
+    assert _resolve_sdd_readme_path(cwd=tmp_path) == tmp_path / "sdd" / "README.md"
 
 
 def test_resolve_sdd_readme_path_project_root(tmp_path: Path) -> None:
     assert (
-        resolve_sdd_readme_path(str(tmp_path), cwd=Path("/tmp"))
+        _resolve_sdd_readme_path(str(tmp_path), cwd=Path("/tmp"))
         == tmp_path / "sdd" / "README.md"
     )
 
@@ -121,7 +121,7 @@ def test_resolve_sdd_readme_path_project_root(tmp_path: Path) -> None:
 def test_resolve_sdd_readme_path_sdd_root(tmp_path: Path) -> None:
     sdd_root = tmp_path / "sdd"
     assert (
-        resolve_sdd_readme_path(str(sdd_root), cwd=Path("/tmp"))
+        _resolve_sdd_readme_path(str(sdd_root), cwd=Path("/tmp"))
         == sdd_root / "README.md"
     )
 
@@ -133,7 +133,7 @@ def test_resolve_sdd_readme_path_detects_myths_only_sdd_root(
     (sdd_root / "myths").mkdir(parents=True)
 
     assert (
-        resolve_sdd_readme_path(str(sdd_root), cwd=Path("/tmp"))
+        _resolve_sdd_readme_path(str(sdd_root), cwd=Path("/tmp"))
         == sdd_root / "README.md"
     )
 
@@ -145,14 +145,14 @@ def test_resolve_sdd_readme_path_detects_research_only_sdd_root(
     (sdd_root / "research").mkdir(parents=True)
 
     assert (
-        resolve_sdd_readme_path(str(sdd_root), cwd=Path("/tmp"))
+        _resolve_sdd_readme_path(str(sdd_root), cwd=Path("/tmp"))
         == sdd_root / "README.md"
     )
 
 
 def test_resolve_sdd_asset_path_follows_readme_root(tmp_path: Path) -> None:
     assert (
-        resolve_sdd_asset_path(str(tmp_path), cwd=Path("/tmp"))
+        _resolve_sdd_asset_path(str(tmp_path), cwd=Path("/tmp"))
         == tmp_path / "sdd" / "assets" / SDD_DIRECTORY_MAP_FILENAME
     )
 

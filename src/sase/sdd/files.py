@@ -141,7 +141,7 @@ def find_sdd_file(base_dir: Path, kind: str, name: str) -> Path | None:
     return None
 
 
-def resolve_sdd_readme_path(
+def _resolve_sdd_readme_path(
     path: str | None = None, *, cwd: Path | None = None
 ) -> Path:
     """Resolve the generated SDD README target.
@@ -163,20 +163,22 @@ def resolve_sdd_readme_path(
     return (target / "sdd" / "README.md").resolve()
 
 
-def resolve_sdd_asset_path(path: str | None = None, *, cwd: Path | None = None) -> Path:
+def _resolve_sdd_asset_path(
+    path: str | None = None, *, cwd: Path | None = None
+) -> Path:
     """Resolve the generated SDD directory map target."""
     return (
-        resolve_sdd_readme_path(path, cwd=cwd).parent / SDD_DIRECTORY_MAP_RELATIVE_PATH
+        _resolve_sdd_readme_path(path, cwd=cwd).parent / SDD_DIRECTORY_MAP_RELATIVE_PATH
     )
 
 
 def write_sdd_readme(path: str | None = None, *, cwd: Path | None = None) -> Path:
     """Create or refresh the canonical SDD README and return its path."""
-    readme_path = resolve_sdd_readme_path(path, cwd=cwd)
+    readme_path = _resolve_sdd_readme_path(path, cwd=cwd)
     readme_path.parent.mkdir(parents=True, exist_ok=True)
     readme_path.write_text(SDD_README_CONTENT, encoding="utf-8")
     _write_sdd_directory_readmes(readme_path.parent)
-    _copy_sdd_directory_map(resolve_sdd_asset_path(path, cwd=cwd))
+    _copy_sdd_directory_map(_resolve_sdd_asset_path(path, cwd=cwd))
     return readme_path
 
 

@@ -112,9 +112,6 @@ _lint-pyvision: _setup
         BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 src/sase \
         --epic-symbol 'sase-3a(MultiAgentXPromptDepthError)' \
         --epic-symbol 'sase-3a(QueryErrorWire)' \
-        --epic-symbol 'sase-3a(resolve_primary_workspace_for_chat_install)' \
-        --epic-symbol 'sase-3a(resolve_sdd_asset_path)' \
-        --epic-symbol 'sase-3a(resolve_sdd_readme_path)' \
         --epic-symbol 'sase-3a(run_worker)' \
         --epic-symbol 'sase-3a(status_request_from_dict)' \
         --epic-symbol 'sase-3a(sync_status)' \

@@ -14,7 +14,7 @@ from sase.integrations.chat_install import (
     _ChatInstallConfig,
     load_chat_install_config,
     read_chat_install_status,
-    resolve_primary_workspace_for_chat_install,
+    _resolve_primary_workspace_for_chat_install,
     run_worker,
     start_chat_install_worker,
 )
@@ -72,7 +72,7 @@ def test_start_worker_reports_workspace_resolution_failed(tmp_path: Path) -> Non
             return_value=_ChatInstallConfig(command="true"),
         ),
         patch(
-            "sase.integrations.chat_install.resolve_primary_workspace_for_chat_install",
+            "sase.integrations.chat_install._resolve_primary_workspace_for_chat_install",
             return_value=None,
         ),
     ):
@@ -99,7 +99,7 @@ def test_resolves_registered_sase_workspace_outside_workspace(
         patch("sase.integrations.chat_install.Path.home", return_value=tmp_path),
         patch("sase.bead.workspace.resolve_primary_workspace") as fallback,
     ):
-        result = resolve_primary_workspace_for_chat_install()
+        result = _resolve_primary_workspace_for_chat_install()
 
     assert result == workspace
     fallback.assert_not_called()
@@ -122,7 +122,7 @@ def test_resolves_registered_sase_workspace_over_cwd_project(
             return_value=plugin_workspace,
         ) as fallback,
     ):
-        result = resolve_primary_workspace_for_chat_install()
+        result = _resolve_primary_workspace_for_chat_install()
 
     assert result == sase_workspace
     fallback.assert_not_called()
@@ -142,7 +142,7 @@ def test_resolves_registered_sase_workspace_falls_back_when_unavailable(
             return_value=fallback_workspace,
         ) as fallback,
     ):
-        result = resolve_primary_workspace_for_chat_install()
+        result = _resolve_primary_workspace_for_chat_install()
 
     assert result == fallback_workspace
     fallback.assert_called_once_with()
@@ -193,7 +193,7 @@ def test_start_worker_launches_detached_process(tmp_path: Path) -> None:
             return_value=_ChatInstallConfig(command="true"),
         ),
         patch(
-            "sase.integrations.chat_install.resolve_primary_workspace_for_chat_install",
+            "sase.integrations.chat_install._resolve_primary_workspace_for_chat_install",
             return_value=workspace,
         ),
         patch(

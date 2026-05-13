@@ -88,7 +88,7 @@ def load_chat_install_config() -> _ChatInstallConfig:
     )
 
 
-def resolve_primary_workspace_for_chat_install() -> Path | None:
+def _resolve_primary_workspace_for_chat_install() -> Path | None:
     """Resolve the registered SASE project workspace used as install/sync cwd."""
     registered_workspace = _resolve_registered_sase_workspace()
     if registered_workspace is not None:
@@ -135,7 +135,7 @@ def start_chat_install_worker() -> ChatInstallLaunchResult:
         )
 
     try:
-        workspace = resolve_primary_workspace_for_chat_install()
+        workspace = _resolve_primary_workspace_for_chat_install()
         if workspace is None:
             return ChatInstallLaunchResult(
                 status="workspace_resolution_failed",
