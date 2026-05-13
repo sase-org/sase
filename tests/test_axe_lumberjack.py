@@ -60,3 +60,23 @@ def test_handle_shutdown_sets_running_false(
     assert lumberjack._running is True
     lumberjack._handle_shutdown(15, None)
     assert lumberjack._running is False
+
+
+def test_log_flush_respects_axe_log_cap(
+    temp_state_dir: Path,
+    lumberjack_config: LumberjackConfig,
+    axe_config: AxeConfig,
+) -> None:
+    """Repeated aggregate logs cannot grow beyond configured cap."""
+    axe_config.lumberjack_log_max_bytes = 256
+    lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
+
+    for i in range(30):
+        lumberjack._log(f"line {i} " + ("x" * 40))
+
+    log_path = (
+        temp_state_dir / "lumberjacks" / "test_lumberjack" / "logs" / "output.log"
+    )
+    data = log_path.read_text()
+    assert log_path.stat().st_size <= 256
+    assert "29" in data

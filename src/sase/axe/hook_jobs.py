@@ -70,6 +70,7 @@ class HookJobRunner:
         max_hook_runners: int,
         max_agent_runners: int,
         log_callback: LogCallback,
+        verbose_diagnostics: bool = False,
     ) -> None:
         """Initialize the hook job runner.
 
@@ -85,6 +86,7 @@ class HookJobRunner:
         self.max_hook_runners = max_hook_runners
         self.max_agent_runners = max_agent_runners
         self._log = log_callback
+        self.verbose_diagnostics = verbose_diagnostics
         self._hooks_started_this_tick = 0
         self._agents_started_this_tick = 0
 
@@ -152,6 +154,7 @@ class HookJobRunner:
                 self.max_agent_runners,
                 self._agents_started_this_tick,
                 mentor_profiles=all_profiles,
+                verbose_diagnostics=self.verbose_diagnostics,
             )
 
             self._agents_started_this_tick += mentors_started

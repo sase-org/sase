@@ -17,6 +17,7 @@ from sase.ace.scheduler.mentor_checks import (
     _all_non_skip_hooks_ready,
     _check_mentor_completion_notifications,
     _get_started_mentors_for_entry,
+    check_mentors,
 )
 from sase.notifications import load_notifications
 from sase.notifications.mentor_completion_marker import is_notified
@@ -367,6 +368,31 @@ def test_completion_notify_skipped_while_mentors_running(
     assert updates == []
     assert load_notifications() == []
     assert is_notified("/proj.sase", "cl-1", "1") is False
+
+
+def test_noop_mentor_checks_do_not_log_per_changespec_zero_matches(
+    isolated_notifications_store: None,
+) -> None:
+    """Default mentor diagnostics avoid per-ChangeSpec no-op chatter."""
+    logs: list[str] = []
+
+    for i in range(5):
+        cs = build_changespec(
+            name=f"test-cl-{i}",
+            commits=[_commit(1)],
+            hooks=[_hook_passed("1")],
+            mentors=None,
+        )
+        check_mentors(
+            cs,
+            lambda msg, _style=None: logs.append(msg),
+            zombie_timeout_seconds=3600,
+            max_runners=3,
+            mentor_profiles=[],
+        )
+
+    assert not any("0 new profiles matched" in msg for msg in logs)
+    assert not any("Phase 2:" in msg for msg in logs)
 
 
 def test_completion_notify_skipped_when_profiles_registered_but_not_started(

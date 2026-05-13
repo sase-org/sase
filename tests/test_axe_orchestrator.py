@@ -1,6 +1,8 @@
 """Tests for the Orchestrator class."""
 
+import io
 import signal
+import subprocess
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -60,6 +62,7 @@ def test_spawn_lumberjack_calls_popen(
     """Test that _spawn_lumberjack calls subprocess.Popen with correct args."""
     mock_proc = MagicMock()
     mock_proc.pid = 12345
+    mock_proc.stdout = None
     mock_popen.return_value = mock_proc
 
     orch = Orchestrator(axe_config)
@@ -71,6 +74,25 @@ def test_spawn_lumberjack_calls_popen(
     cmd = call_args[0][0]
     assert "sase" in cmd[0]
     assert cmd[1:5] == ["axe", "lumberjack", "run", "hooks"]
+    assert call_args.kwargs["stdout"] == subprocess.PIPE
+    assert call_args.kwargs["stderr"] == subprocess.STDOUT
+
+
+def test_stream_child_output_caps_legacy_log(
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Orchestrator child stdout logs are bounded."""
+    axe_config.lumberjack_log_max_bytes = 128
+    orch = Orchestrator(axe_config)
+    stream = io.BytesIO(b"old\n" * 100 + b"newest\n")
+
+    orch._stream_child_output("hooks", stream)
+
+    log_file = temp_state_dir / "logs" / "lumberjack-hooks.log"
+    data = log_file.read_bytes()
+    assert len(data) <= 128
+    assert b"newest\n" in data
 
 
 # --- PID File Tests ---

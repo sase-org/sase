@@ -45,10 +45,10 @@ from .state import (
     AxeMetrics,
     LumberjackMetrics,
     LumberjackStatus,
+    append_lumberjack_log,
     append_error,
     ensure_lumberjack_dirs,
     get_timestamp,
-    lumberjack_log_path,
     read_chop_run_log_tail,
     read_chop_timestamps,
     remove_lumberjack_pid,
@@ -109,7 +109,6 @@ class Lumberjack:
         self.scheduler = schedule.Scheduler()
 
         self._state_dir = ensure_lumberjack_dirs(name)
-        self._log_file_path = lumberjack_log_path(name)
         self._start_time = datetime.now(get_timezone())
         self._running = True
         self._metrics = LumberjackMetrics()
@@ -135,9 +134,11 @@ class Lumberjack:
         text = self.console.export_text(styles=True, clear=True)
         if not text.strip():
             return
-        self._log_file_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self._log_file_path, "a") as f:
-            f.write(text)
+        append_lumberjack_log(
+            self.name,
+            text,
+            max_bytes=self.axe_config.lumberjack_log_max_bytes,
+        )
 
     def _run_tick(self) -> None:
         """Execute one tick: refresh changespecs, serialize context, invoke chop scripts."""
@@ -187,6 +188,9 @@ class Lumberjack:
             state_dir=str(self._state_dir),
             all_changespecs_file=all_cs_file,
             filtered_changespecs_file=filtered_cs_file,
+            verbose_lumberjack_diagnostics=(
+                self.axe_config.verbose_lumberjack_diagnostics
+            ),
         )
         write_chop_context(ctx, context_file)
 

@@ -42,6 +42,8 @@ def test_axe_config_defaults() -> None:
     assert cfg.max_hook_runners == 3
     assert cfg.max_agent_runners == 3
     assert cfg.zombie_timeout_seconds == 7200
+    assert cfg.lumberjack_log_max_bytes == 50 * 1024 * 1024
+    assert cfg.verbose_lumberjack_diagnostics is False
     assert cfg.query == ""
     assert cfg.lumberjacks == {}
 
@@ -193,3 +195,28 @@ axe:
     assert config.max_hook_runners == 7
     assert config.zombie_timeout_seconds == 7200
     assert config.query == ""
+
+
+def test_load_axe_config_lumberjack_log_knobs() -> None:
+    """Test lumberjack log cap and diagnostic verbosity config parsing."""
+    data = yaml.safe_load("""
+axe:
+  lumberjack_log_max_bytes: 12345
+  verbose_lumberjack_diagnostics: true
+""")
+    with patch("sase.axe.config.load_merged_config", return_value=data):
+        config = load_axe_config()
+
+    assert config.lumberjack_log_max_bytes == 12345
+    assert config.verbose_lumberjack_diagnostics is True
+
+
+def test_load_axe_config_invalid_lumberjack_log_cap_uses_default() -> None:
+    data = yaml.safe_load("""
+axe:
+  lumberjack_log_max_bytes: -1
+""")
+    with patch("sase.axe.config.load_merged_config", return_value=data):
+        config = load_axe_config()
+
+    assert config.lumberjack_log_max_bytes == 50 * 1024 * 1024

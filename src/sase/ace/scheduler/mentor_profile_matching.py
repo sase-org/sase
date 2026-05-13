@@ -293,6 +293,7 @@ def add_matching_profiles_upfront(
     changespec: ChangeSpec,
     log: LogCallback,
     mentor_profiles: list[MentorProfileConfig] | None = None,
+    verbose_diagnostics: bool = False,
 ) -> _UpfrontMatchResult:
     """Add matching profiles to MENTORS entry before mentors are ready to run.
 
@@ -323,28 +324,31 @@ def add_matching_profiles_upfront(
     all_profiles = (
         mentor_profiles if mentor_profiles is not None else get_all_mentor_profiles()
     )
-    log(
-        f"Mentor matching: {len(all_profiles)} profile(s) loaded for"
-        f" '{changespec.name}'",
-        "dim",
-    )
+    if verbose_diagnostics:
+        log(
+            f"Mentor matching: {len(all_profiles)} profile(s) loaded for"
+            f" '{changespec.name}'",
+            "dim",
+        )
 
     matching_profiles = get_matching_profiles_for_entry(
         changespec,
         mentor_profiles=all_profiles,
     )
     if not matching_profiles:
-        log(
-            f"Mentor matching: 0 new profiles matched for '{changespec.name}'",
-            "dim",
-        )
+        if verbose_diagnostics:
+            log(
+                f"Mentor matching: 0 new profiles matched for '{changespec.name}'",
+                "dim",
+            )
         return _UpfrontMatchResult(updates=updates, newly_matched=newly_matched)
 
-    log(
-        f"Mentor matching: {len(matching_profiles)} new profile(s) matched for"
-        f" '{changespec.name}'",
-        "dim",
-    )
+    if verbose_diagnostics:
+        log(
+            f"Mentor matching: {len(matching_profiles)} new profile(s) matched for"
+            f" '{changespec.name}'",
+            "dim",
+        )
 
     # Import here to avoid circular imports
     from ..mentors import add_mentor_entry

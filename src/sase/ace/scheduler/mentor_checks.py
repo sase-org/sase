@@ -518,6 +518,7 @@ def check_mentors(
     max_runners: int,
     runners_started_this_cycle: int = 0,
     mentor_profiles: list[MentorProfileConfig] | None = None,
+    verbose_diagnostics: bool = False,
 ) -> tuple[list[str], int]:
     """Check and run mentors for a ChangeSpec.
 
@@ -566,14 +567,16 @@ def check_mentors(
     all_profiles = (
         mentor_profiles if mentor_profiles is not None else get_all_mentor_profiles()
     )
-    log(
-        f"Phase 2: {len(all_profiles)} mentor profile(s) loaded from config",
-        "dim",
-    )
+    if verbose_diagnostics:
+        log(
+            f"Phase 2: {len(all_profiles)} mentor profile(s) loaded from config",
+            "dim",
+        )
     upfront_result = add_matching_profiles_upfront(
         changespec,
         log,
         mentor_profiles=all_profiles,
+        verbose_diagnostics=verbose_diagnostics,
     )
     updates.extend(upfront_result.updates)
 

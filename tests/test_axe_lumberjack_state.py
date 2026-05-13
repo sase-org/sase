@@ -7,10 +7,12 @@ from unittest.mock import patch
 import pytest
 
 from sase.axe.state import (
+    DEFAULT_LUMBERJACK_LOG_MAX_BYTES,
     MAX_CHOP_RUN_HISTORY,
     ChopRunEntry,
     LumberjackMetrics,
     LumberjackStatus,
+    append_lumberjack_log,
     append_chop_run_output,
     chop_index_path,
     chop_run_log_path,
@@ -138,6 +140,26 @@ def test_read_lumberjack_log_tail_returns_empty_when_missing(
 ) -> None:
     """Test that read_lumberjack_log_tail returns empty for missing log."""
     assert read_lumberjack_log_tail("hooks") == ""
+
+
+def test_append_lumberjack_log_caps_existing_large_file(
+    temp_state_dir: Path,
+) -> None:
+    """Bounded appends keep only recent bytes from oversized aggregate logs."""
+    ensure_lumberjack_dirs("hooks")
+    log_path = lumberjack_log_path("hooks")
+    log_path.write_bytes(b"old\n" * 100)
+
+    append_lumberjack_log("hooks", "newest\n", max_bytes=96)
+
+    data = log_path.read_bytes()
+    assert len(data) <= 96
+    assert b"newest\n" in data
+    assert b"truncated" in data
+
+
+def test_default_lumberjack_log_cap_is_50_mib() -> None:
+    assert DEFAULT_LUMBERJACK_LOG_MAX_BYTES == 50 * 1024 * 1024
 
 
 # --- Listing ---

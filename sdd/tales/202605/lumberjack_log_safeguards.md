@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 10:08:47
-status: wip
+status: done
 prompt: sdd/prompts/202605/lumberjack_log_safeguards.md
 ---
 # Plan: Remove Runaway Logs and Cap Lumberjack Logging

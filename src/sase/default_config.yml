@@ -201,6 +201,8 @@ axe:
   max_hook_runners: 3
   max_agent_runners: 3
   zombie_timeout_seconds: 7200
+  lumberjack_log_max_bytes: 52428800
+  verbose_lumberjack_diagnostics: false
   query: ""
   chop_script_dirs: []
   lumberjacks:

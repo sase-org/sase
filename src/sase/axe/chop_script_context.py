@@ -33,6 +33,7 @@ class ChopScriptContext:
     state_dir: str
     all_changespecs_file: str
     filtered_changespecs_file: str
+    verbose_lumberjack_diagnostics: bool = False
 
 
 def _atomic_json_write(data: object, path: str) -> None:

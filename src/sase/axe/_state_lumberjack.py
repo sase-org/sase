@@ -8,11 +8,16 @@ time so test patches like ``patch("sase.axe.state.JACK_STATE_DIR", ...)``
 propagate to every reader.
 """
 
-import sase.axe.state as _state  # noqa: I001
 import os
+import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Literal
+
+import sase.axe.state as _state
+
+DEFAULT_LUMBERJACK_LOG_MAX_BYTES = 50 * 1024 * 1024
+_TRUNCATION_MARKER = b"[sase] lumberjack log truncated to most recent output\n"
 
 
 @dataclass
@@ -209,6 +214,90 @@ def lumberjack_log_path(name: str) -> Path:
         Path to ``~/.sase/axe/lumberjacks/{name}/logs/output.log``.
     """
     return lumberjack_state_dir(name) / "logs" / "output.log"
+
+
+def append_bounded_log(
+    path: Path,
+    text: str | bytes,
+    *,
+    max_bytes: int = DEFAULT_LUMBERJACK_LOG_MAX_BYTES,
+) -> None:
+    """Append to a log file while keeping it below ``max_bytes``.
+
+    The common path is a normal append.  When the write would cross the cap,
+    only the bounded tail of the existing file is read and an atomic replace
+    installs the truncated file.
+    """
+    data = text.encode("utf-8", errors="replace") if isinstance(text, str) else text
+    if not data:
+        return
+
+    cap = max(1, int(max_bytes))
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        current_size = path.stat().st_size
+    except FileNotFoundError:
+        current_size = 0
+    except OSError:
+        return
+
+    if current_size + len(data) <= cap:
+        try:
+            with open(path, "ab") as f:
+                f.write(data)
+        except OSError:
+            pass
+        return
+
+    tail_budget = max(0, cap - len(_TRUNCATION_MARKER) - len(data))
+    tail = _read_tail_bytes(path, tail_budget)
+    payload = (_TRUNCATION_MARKER + tail + data)[-cap:]
+    _atomic_replace_bytes(path, payload)
+
+
+def append_lumberjack_log(
+    name: str,
+    text: str | bytes,
+    *,
+    max_bytes: int = DEFAULT_LUMBERJACK_LOG_MAX_BYTES,
+) -> None:
+    """Append to a lumberjack's aggregate output log with a byte cap."""
+    append_bounded_log(lumberjack_log_path(name), text, max_bytes=max_bytes)
+
+
+def _read_tail_bytes(path: Path, max_bytes: int) -> bytes:
+    if max_bytes <= 0:
+        return b""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            size = f.tell()
+            f.seek(max(0, size - max_bytes))
+            return f.read(max_bytes)
+    except OSError:
+        return b""
+
+
+def _atomic_replace_bytes(path: Path, data: bytes) -> None:
+    temp_name: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "wb",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as f:
+            temp_name = f.name
+            f.write(data)
+        os.replace(temp_name, path)
+    except OSError:
+        if temp_name is not None:
+            try:
+                Path(temp_name).unlink()
+            except OSError:
+                pass
 
 
 def read_lumberjack_log_tail(name: str, lines: int = 1000) -> str:

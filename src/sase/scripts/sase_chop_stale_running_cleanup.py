@@ -24,6 +24,7 @@ def main() -> None:
         ctx.max_hook_runners,
         ctx.max_agent_runners,
         log,
+        verbose_diagnostics=ctx.verbose_lumberjack_diagnostics,
     )
     runner.run_stale_running_cleanup()
 

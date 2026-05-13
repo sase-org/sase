@@ -11,8 +11,10 @@ import signal
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
+from typing import BinaryIO
 
 from sase.telemetry import init_telemetry
 from sase.telemetry.metrics import (
@@ -23,7 +25,7 @@ from sase.telemetry.metrics import (
 
 from .config import AxeConfig
 from .lock import acquire_axe_lifetime_lock
-from .state import AXE_STATE_DIR
+from .state import AXE_STATE_DIR, append_bounded_log
 
 # Orchestrator PID file (separate from per-lumberjack PIDs)
 ORCHESTRATOR_PID_FILE = AXE_STATE_DIR / "orchestrator.pid"
@@ -35,6 +37,7 @@ class Orchestrator:
     def __init__(self, config: AxeConfig) -> None:
         self.config = config
         self._children: dict[str, subprocess.Popen[bytes]] = {}
+        self._log_threads: dict[str, threading.Thread] = {}
         self._running = True
 
     def _find_sase_executable(self) -> str:
@@ -72,12 +75,40 @@ class Orchestrator:
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / f"lumberjack-{name}.log"
 
-        with open(log_file, "a") as log:
-            return subprocess.Popen(
-                cmd,
-                stdout=log,
-                stderr=subprocess.STDOUT,
+        append_bounded_log(
+            log_file,
+            f"[sase] orchestrator starting lumberjack '{name}'\n",
+            max_bytes=self.config.lumberjack_log_max_bytes,
+        )
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        if proc.stdout is not None:
+            thread = threading.Thread(
+                target=self._stream_child_output,
+                args=(name, proc.stdout),
+                daemon=True,
             )
+            thread.start()
+            self._log_threads[name] = thread
+        return proc
+
+    def _stream_child_output(self, name: str, stream: BinaryIO) -> None:
+        log_file = AXE_STATE_DIR / "logs" / f"lumberjack-{name}.log"
+        try:
+            while True:
+                chunk = stream.read(64 * 1024)
+                if not chunk:
+                    break
+                append_bounded_log(
+                    log_file,
+                    chunk,
+                    max_bytes=self.config.lumberjack_log_max_bytes,
+                )
+        finally:
+            stream.close()
 
     def _write_pid(self) -> None:
         AXE_STATE_DIR.mkdir(parents=True, exist_ok=True)

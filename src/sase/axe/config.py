@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 
 from sase.config import load_merged_config
 
+DEFAULT_LUMBERJACK_LOG_MAX_BYTES = 50 * 1024 * 1024
 _DURATION_RE = re.compile(r"^(\d+)(s|m|h)$")
 _UNIT_MULTIPLIERS = {"s": 1, "m": 60, "h": 3600}
 
@@ -62,9 +63,23 @@ class AxeConfig:
     max_hook_runners: int = 3
     max_agent_runners: int = 3
     zombie_timeout_seconds: int = 7200
+    lumberjack_log_max_bytes: int = DEFAULT_LUMBERJACK_LOG_MAX_BYTES
+    verbose_lumberjack_diagnostics: bool = False
     query: str = ""
     chop_script_dirs: list[str] = field(default_factory=list)
     lumberjacks: dict[str, LumberjackConfig] = field(default_factory=dict)
+
+
+def _positive_int(value: object, default: int) -> int:
+    if isinstance(value, bool):
+        return default
+    if not isinstance(value, int | str):
+        return default
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
 
 
 def _parse_lumberjacks(raw: dict) -> dict[str, LumberjackConfig]:
@@ -133,6 +148,13 @@ def load_axe_config() -> AxeConfig:
     max_hook_runners = axe_data.get("max_hook_runners", 3)
     max_agent_runners = axe_data.get("max_agent_runners", 3)
     zombie_timeout = axe_data.get("zombie_timeout_seconds", 7200)
+    lumberjack_log_max_bytes = _positive_int(
+        axe_data.get("lumberjack_log_max_bytes"),
+        DEFAULT_LUMBERJACK_LOG_MAX_BYTES,
+    )
+    verbose_lumberjack_diagnostics = bool(
+        axe_data.get("verbose_lumberjack_diagnostics", False)
+    )
     query = axe_data.get("query", "")
     chop_script_dirs = axe_data.get("chop_script_dirs", [])
 
@@ -146,6 +168,8 @@ def load_axe_config() -> AxeConfig:
         max_hook_runners=max_hook_runners,
         max_agent_runners=max_agent_runners,
         zombie_timeout_seconds=zombie_timeout,
+        lumberjack_log_max_bytes=lumberjack_log_max_bytes,
+        verbose_lumberjack_diagnostics=verbose_lumberjack_diagnostics,
         query=query,
         chop_script_dirs=chop_script_dirs,
         lumberjacks=lumberjacks,
