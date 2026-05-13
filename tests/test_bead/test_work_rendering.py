@@ -7,7 +7,7 @@ import sqlite3
 from sase.bead.work import (
     ChangeSpecLaunchContext,
     EpicWorkPlan,
-    PhaseAssignment,
+    _PhaseAssignment as PhaseAssignment,
     SASE_BEAD_ID_ENV,
     VCSLaunchContext,
     build_epic_work_plan,

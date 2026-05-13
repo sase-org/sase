@@ -24,7 +24,7 @@ SASE_BEAD_ID_ENV = "SASE_BEAD_ID"
 
 
 @dataclass(frozen=True)
-class PhaseAssignment:
+class _PhaseAssignment:
     """One phase bead's assignment to an agent in a wave."""
 
     bead_id: str
@@ -40,7 +40,7 @@ class EpicWorkPlan:
 
     epic_id: str
     launch_tag_id: str
-    waves: tuple[tuple[PhaseAssignment, ...], ...]
+    waves: tuple[tuple[_PhaseAssignment, ...], ...]
     land_agent_name: str
     land_waits_on: tuple[str, ...]
     land_model: str = ""
@@ -197,7 +197,7 @@ def _plan_from_payload(payload: dict[str, Any]) -> EpicWorkPlan:
         launch_tag_id=str(payload.get("launch_tag_id", epic_id)),
         waves=tuple(
             tuple(
-                PhaseAssignment(
+                _PhaseAssignment(
                     bead_id=str(assignment["bead_id"]),
                     agent_name=str(assignment["agent_name"]),
                     waits_on=tuple(str(v) for v in assignment.get("waits_on", [])),

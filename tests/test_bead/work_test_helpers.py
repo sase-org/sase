@@ -6,7 +6,7 @@ import sqlite3
 
 from sase.bead import db
 from sase.bead.model import BeadTier, Issue, IssueType, Status
-from sase.bead.work import EpicWorkPlan, PhaseAssignment
+from sase.bead.work import EpicWorkPlan, _PhaseAssignment as PhaseAssignment
 
 NOW = "2026-04-25T00:00:00Z"
 
