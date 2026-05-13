@@ -461,17 +461,12 @@ def test_jump_to_next_stopped_agent_uses_stopped_recency_and_wraps(
         visible=[2, 0, 3, 4, 1],
         current_idx=2,
     )
-    app._unread_completed_agent_ids.update(
-        {older_plan.identity, newest_question.identity, fallback_plan.identity}
-    )
+    app._unread_completed_agent_ids.add(done.identity)
+    unread_before = set(app._unread_completed_agent_ids)
 
     assert app._jump_to_next_stopped_agent()
     assert app.current_idx == 1
-    assert app._unread_completed_agent_ids == {
-        older_plan.identity,
-        newest_question.identity,
-        fallback_plan.identity,
-    }
+    assert app._unread_completed_agent_ids == unread_before
 
     assert app._jump_to_next_stopped_agent()
     assert app.current_idx == 4

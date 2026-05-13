@@ -6,23 +6,14 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sase.agent.status_buckets import status_bucket_for_values
-
-from ._loading_helpers import DISMISSABLE_STATUSES
+from ...models.agent_status import (
+    is_stopped_agent_status,
+    is_unread_completed_status,
+)
 
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
-
-
-def is_unread_completed_status(status: str) -> bool:
-    """Return True for terminal statuses that can be surfaced as unread."""
-    return status in DISMISSABLE_STATUSES
-
-
-def is_stopped_agent_status(status: str) -> bool:
-    """Return True for statuses displayed in the Stopped agent bucket."""
-    return status_bucket_for_values(status) == "Stopped"
 
 
 def _stopped_agent_jump_time(agent: Agent) -> datetime | None:
@@ -120,7 +111,7 @@ class AgentUnreadMixin:
             else:
                 self._acknowledge_agent_unread(agent)
 
-        return self._jump_to_next_completed_agent(
+        return self._jump_to_next_matching_agent_by_time(
             predicate=lambda agent: (
                 agent.identity in unread_ids
                 and is_unread_completed_status(agent.status)
@@ -130,20 +121,20 @@ class AgentUnreadMixin:
 
     def _jump_to_next_stopped_agent(self) -> bool:
         """Move focus to the next visible stopped agent without acknowledging it."""
-        return self._jump_to_next_completed_agent(
+        return self._jump_to_next_matching_agent_by_time(
             predicate=lambda agent: is_stopped_agent_status(agent.status),
             after_select=None,
             time_for_agent=_stopped_agent_jump_time,
         )
 
-    def _jump_to_next_completed_agent(
+    def _jump_to_next_matching_agent_by_time(
         self,
         *,
         predicate: Callable[[Agent], bool],
         after_select: Callable[[Agent, bool], None] | None,
         time_for_agent: Callable[[Agent], datetime | None] | None = None,
     ) -> bool:
-        """Move focus to the next visible completed agent matching *predicate*."""
+        """Move focus to the next visible agent matching *predicate* by recency."""
         if not self._agents:
             return False
 
@@ -171,14 +162,12 @@ class AgentUnreadMixin:
 
         target_pos = 0
         if getattr(self, "_current_group_key", None) is None:
-            for candidate_pos, (idx, _panel_idx, _completion_time) in enumerate(
-                candidates
-            ):
+            for candidate_pos, (idx, _panel_idx, _jump_time) in enumerate(candidates):
                 if idx == self.current_idx:
                     target_pos = (candidate_pos + 1) % len(candidates)
                     break
 
-        target_idx, target_panel_idx, _completion_time = candidates[target_pos]
+        target_idx, target_panel_idx, _jump_time = candidates[target_pos]
         old_idx = self.current_idx
         old_panel_idx = getattr(
             getattr(self, "_panel_group", None), "focused_idx", None

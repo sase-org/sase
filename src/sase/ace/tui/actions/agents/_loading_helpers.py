@@ -12,20 +12,10 @@ if TYPE_CHECKING:
     from ...models.agent_loader import AgentLoadState
 
 from ...util.trace import tui_trace
+from ...models.agent_status import DISMISSABLE_STATUSES
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
-
-# Statuses that indicate an agent is dismissable (shows "x dismiss" in footer)
-DISMISSABLE_STATUSES = {
-    "DONE",
-    "FAILED",
-    "PLAN COMMITTED",
-    "PLAN DONE",
-    "TALE DONE",
-    "PLAN REJECTED",
-    "EPIC CREATED",
-}
 
 
 @dataclass(frozen=True)

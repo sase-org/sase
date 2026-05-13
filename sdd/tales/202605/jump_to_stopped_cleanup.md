@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 15:35:54
-status: wip
+status: done
 prompt: sdd/prompts/202605/jump_to_stopped_cleanup.md
 ---
 # Plan: Clean Up Stopped-Agent Jump Implementation

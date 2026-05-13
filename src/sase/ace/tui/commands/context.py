@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from sase.ace.tui.actions.agents._core import (
+from sase.ace.tui.models.agent_status import (
     is_stopped_agent_status,
     is_unread_completed_status,
 )

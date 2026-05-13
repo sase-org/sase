@@ -20,13 +20,13 @@ from ._panels import AgentPanelsMixin
 from ._revive import AgentRevivalMixin
 from ._selection import AgentSelectionMixin
 from ._tagging import AgentTaggingMixin
-from ._unread import (
-    AgentUnreadMixin,
+from ._unread import AgentUnreadMixin
+from ._wait_resume import AgentWaitResumeMixin
+from ._workflow_hitl import AgentWorkflowHITLMixin
+from ...models.agent_status import (
     is_stopped_agent_status,
     is_unread_completed_status,
 )
-from ._wait_resume import AgentWaitResumeMixin
-from ._workflow_hitl import AgentWorkflowHITLMixin
 
 if TYPE_CHECKING:
     from ...models import Agent
