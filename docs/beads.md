@@ -313,6 +313,12 @@ If launching the multi-prompt fails partway through, the launcher SIGTERMs any a
 back the pre-claims and the `is_ready_to_work` flag when this run set it (best-effort), so the epic can be retried
 without leaving zombie agents behind.
 
+After a successful launch, `sase bead work` commits the resulting `sdd/beads/issues.jsonl` mutation when the beads
+directory belongs to a git repository and the JSONL file changed. Epic launches use the subject
+`chore: mark bead work launched for <id>`; legend launches use `chore: mark legend work launched for <id>`. If the git
+commit fails, the command reports that agents were already launched and exits non-zero so the operator can commit or
+repair the bead state explicitly. Dry runs and stores outside git do not create a commit.
+
 ## Rust Backend
 
 The bead data model, JSONL/config codecs, SQLite rebuild/query layer, mutation transactions, ID allocation, workspace

@@ -1,7 +1,7 @@
 # Agent Revival Audit Log
 
 The TUI's revive flow (R on the Agents tab) writes a JSONL audit log to `~/.sase/logs/events.jsonl` so post-mortem
-questions like "what was the last agent I tried to revive?" can be answered without grepping through deleted bundle
+questions like "what was the last agent I tried to revive?" can be answered without grepping through dismissed-bundle
 directories.
 
 Three event kinds are emitted:
@@ -27,13 +27,13 @@ Per-agent fields on `agent_revived` / `agent_revive_failed`:
 
 - `agent_identity` — `[agent_type, cl_name, raw_suffix]`.
 - `agent_type`, `cl_name`, `raw_suffix`, `project_file`.
-- `bundle_path` — the path under `~/.sase/dismissed_bundles/YYYYMM/` that was removed. Populated from the file the
-  dismissed bundle was loaded from.
+- `bundle_path` — the path under `~/.sase/dismissed_bundles/YYYYMM/` that the revive flow loaded. Revive preserves the
+  bundle as historical recovery data.
 - `child_suffixes` — workflow steps / follow-up agents revived alongside the parent (sorted).
 
 Failure-only fields:
 
-- `stage` — one of `dismissed_set_update`, `artifact_restore`, `bundle_removal`, `reload`, `refresh_display`,
+- `stage` — one of `dismissed_set_update`, `artifact_restore`, `bundle_marking`, `reload`, `refresh_display`,
   `no_dismissed_agents`.
 - `error_type` / `error_message` — exception class and `str(exc)` truncated to 500 characters.
 - `reason` — set for non-exceptional failures (currently only `no_dismissed_agents`).
@@ -52,5 +52,5 @@ sase revive-log --json       # one JSON object per line for agent consumption
 
 ## Backfill
 
-There is no recoverable history before this feature shipped — the deleted bundle files leave no forwarding address. The
-first revival after the feature lands is the earliest entry.
+There is no recoverable audit history before this feature shipped. Existing dismissed bundles remain usable, but the
+first revival after the feature lands is the earliest structured event.

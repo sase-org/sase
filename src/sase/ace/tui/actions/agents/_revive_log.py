@@ -114,7 +114,7 @@ def log_revive_failure(
     """Emit ``agent_revive_failed`` for a failed (or skipped) revival.
 
     ``stage`` is one of ``dismissed_set_update``, ``artifact_restore``,
-    ``bundle_removal``, ``reload``, ``refresh_display``, or
+    ``bundle_marking``, ``reload``, ``refresh_display``, or
     ``no_dismissed_agents``. ``reason`` is used when there is no
     exception to attach (for example, the "no dismissed agents" early
     out).

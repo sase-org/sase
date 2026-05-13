@@ -52,8 +52,8 @@ uncommitted state and blocks them with a structured instruction to invoke the ma
 `/sase_git_commit` for git-based projects, `/sase_hg_commit` for Mercurial). The skill calls `sase commit` with flags —
 usually `-M commit_message.md -f <files> -t <method>`.
 
-That stop hook is runtime-uniform. Codex receives a structured JSON response with `decision=block`, Gemini receives a
-structured JSON response with `decision=deny`, and Claude-compatible hooks receive stderr plus a blocking exit code. The
+That stop hook is runtime-uniform. Codex receives a structured JSON response with `decision=block`, Gemini and Qwen
+receive structured JSON with `decision=deny`, and Claude-compatible hooks receive stderr plus a blocking exit code. The
 control flow is the same regardless of which runtime is on the other end: changes exist → block with skill name → skill
 calls `sase commit`. No runtime-specific branching in the agent prompt, no "if Codex then X" anywhere in the workflow.
 

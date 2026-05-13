@@ -347,7 +347,7 @@ instructions automatically, so agents know to hand control back to the user rath
 
 The `sase_commit_stop_hook` (`src/sase/scripts/sase_commit_stop_hook.py`) is the bridge between the agent and the commit
 workflow. It runs as a post-completion hook in supported agent runtimes and adapts its blocking response to the runtime:
-Codex receives structured JSON with `decision=block`, Gemini receives structured JSON with `decision=deny`, and
+Codex receives structured JSON with `decision=block`; Gemini and Qwen receive structured JSON with `decision=deny`; and
 Claude-compatible hooks receive stderr plus a blocking exit code.
 
 **Flow:**
@@ -364,7 +364,9 @@ Claude-compatible hooks receive stderr plus a blocking exit code.
    project prefix if available
 
 The hook writes structured diagnostics to `~/.sase_commit_stop_hook.jsonl`, deduplicates repeated blocks within the same
-agent session, and supports `SASE_DISABLE_COMMIT_STOP_HOOK=1` for an explicit bypass.
+agent session, and supports `SASE_DISABLE_COMMIT_STOP_HOOK=1` for an explicit bypass. Gemini's `stop_hook_active`
+payload is treated as a re-entry signal; Qwen also sets Gemini-family fields but fires a Claude-style `Stop` event, so
+Qwen deduplicates only through the per-session marker file to avoid skipping the first real stop payload.
 
 ## Diff Storage
 

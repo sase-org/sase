@@ -299,7 +299,9 @@ Qwen Code fires the Claude-style `Stop` event after each agent turn (not Gemini'
 
 Qwen Code exports both `QWEN_PROJECT_DIR` and `GEMINI_PROJECT_DIR` (it is a Gemini fork). `sase_commit_stop_hook`
 detects Qwen first and labels the run `runtime: "qwen"` in `~/.sase_commit_stop_hook.jsonl`. The block payload uses the
-Gemini-family `{"decision": "deny", "reason": …}` shape, which Qwen Code honors per its hook contract.
+Gemini-family `{"decision": "deny", "reason": …}` shape, which Qwen Code honors per its hook contract. Qwen may also set
+the Gemini `stop_hook_active` field on the first stop payload, so SASE does not use that field for Qwen deduplication;
+Qwen repeated-block suppression relies on the same per-session marker file used by native stop hooks.
 
 ### Timer Display
 
@@ -807,6 +809,14 @@ child reads it before launch.
 the legacy in-process retry runs as a fallback so the user is never worse off.
 
 Source: `src/sase/axe/run_agent_retry_spawn.py`, `src/sase/llm_provider/retry_config.py`
+
+## Thinking Panel Metadata
+
+ACE can surface provider thinking/reasoning artifacts in the Agents tab thinking panel when the provider persists them.
+For Claude extended-thinking events whose `thinking` text is empty but whose payload contains an opaque `signature`, ACE
+displays an encrypted-thinking placeholder instead of hiding the block. When Claude also reports
+`message.usage.output_tokens`, the placeholder includes an approximate output-token count so the operator can tell that
+reasoning occurred even though the raw thought text is not available.
 
 ## Token Usage Tracking
 
