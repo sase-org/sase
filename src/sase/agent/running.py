@@ -128,7 +128,7 @@ def _active_status_for_record(record: AgentArtifactRecordWire) -> str:
     if record.waiting is not None:
         return "WAITING"
     meta = record.agent_meta
-    if meta is not None and meta.run_started_at:
+    if meta is not None and (meta.run_started_at or meta.wait_completed_at):
         return "RUNNING"
     return "STARTING"
 

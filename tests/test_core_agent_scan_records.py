@@ -90,6 +90,26 @@ def test_running_record_carries_agent_meta(fixture_root: Path) -> None:
     assert rec.agent_meta.workspace_dir == "/tmp/workspaces/alpha"
 
 
+def test_running_record_carries_wait_completed_at(fixture_root: Path) -> None:
+    meta_path = (
+        fixture_root
+        / "myproj"
+        / "artifacts"
+        / "ace-run"
+        / TS_ACE_RUN_RUNNING
+        / "agent_meta.json"
+    )
+    data = json.loads(meta_path.read_text(encoding="utf-8"))
+    data["wait_completed_at"] = "2026-05-13T16:00:00Z"
+    meta_path.write_text(json.dumps(data), encoding="utf-8")
+
+    snapshot = scan_agent_artifacts(fixture_root)
+    rec = record_by_timestamp(snapshot, TS_ACE_RUN_RUNNING)
+
+    assert rec.agent_meta is not None
+    assert rec.agent_meta.wait_completed_at == "2026-05-13T16:00:00Z"
+
+
 def test_artifact_index_summarizes_starting_records(
     fixture_root: Path,
     tmp_path: Path,
@@ -107,6 +127,37 @@ def test_artifact_index_summarizes_starting_records(
         ).fetchone()
 
     assert row == ("starting", None)
+
+
+def test_artifact_index_summarizes_wait_completed_records_as_running(
+    fixture_root: Path,
+    tmp_path: Path,
+) -> None:
+    meta_path = (
+        fixture_root
+        / "myproj"
+        / "artifacts"
+        / "ace-run"
+        / TS_ACE_RUN_RUNNING
+        / "agent_meta.json"
+    )
+    data = json.loads(meta_path.read_text(encoding="utf-8"))
+    data["wait_completed_at"] = "2026-05-13T16:00:00Z"
+    meta_path.write_text(json.dumps(data), encoding="utf-8")
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    rebuild_agent_artifact_index(index_path, fixture_root)
+
+    artifact_dir = str(
+        fixture_root / "myproj" / "artifacts" / "ace-run" / TS_ACE_RUN_RUNNING
+    )
+    with sqlite3.connect(index_path) as conn:
+        row = conn.execute(
+            "SELECT status, started_at FROM agent_artifacts WHERE artifact_dir = ?",
+            (artifact_dir,),
+        ).fetchone()
+
+    assert row == ("running", None)
 
 
 def test_running_record_carries_auto_approve_plan_action(

@@ -72,6 +72,19 @@ def test_run_started_at_promotes_starting_to_running(tmp_path: Path) -> None:
     assert agent.run_start_time == expected
 
 
+def test_wait_completed_at_promotes_starting_to_running(tmp_path: Path) -> None:
+    """Completed waits are displayed as RUNNING before run_started_at is written."""
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"pid": 1234, "wait_completed_at": "2026-04-27T15:04:59Z"})
+    )
+
+    agent = _make_agent(status="STARTING")
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "RUNNING"
+    assert agent.run_start_time is None
+
+
 def test_wait_duration_from_agent_meta_fallback(tmp_path: Path) -> None:
     """wait_duration falls back to agent_meta.json when waiting.json absent."""
     meta = {"pid": 1234, "wait_duration": 300.0}
@@ -655,6 +668,19 @@ def test_run_started_at_wire_promotes_starting_to_running() -> None:
     )
     assert agent.status == "RUNNING"
     assert agent.run_start_time is not None
+
+
+def test_wait_completed_at_wire_promotes_starting_to_running() -> None:
+    """Snapshot metadata mirrors completed-wait status promotion."""
+    agent = _make_agent(status="STARTING")
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(wait_completed_at="2026-04-27T15:04:59Z"),
+        None,
+        None,
+    )
+    assert agent.status == "RUNNING"
+    assert agent.run_start_time is None
 
 
 def test_pending_question_marker_wire_flips_starting_to_question() -> None:

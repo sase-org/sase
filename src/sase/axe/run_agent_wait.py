@@ -4,8 +4,10 @@ import json
 import os
 import sys
 import time
+from datetime import UTC, datetime
 from typing import Any
 
+from sase.axe.run_agent_markers import write_agent_meta
 from sase.axe.runner_utils import was_killed
 
 
@@ -15,6 +17,33 @@ def remaining_until(wait_until: str) -> float:
 
     target = dt_cls.fromisoformat(wait_until)
     return max(0.0, (target - dt_cls.now()).total_seconds())
+
+
+def _record_wait_completed_at(
+    artifacts_dir: str,
+    agent_meta: dict[str, Any],
+) -> str:
+    """Persist the wait-barrier completion timestamp."""
+    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+    disk_meta: dict[str, Any] = {}
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            loaded = json.load(f)
+        if isinstance(loaded, dict):
+            disk_meta = loaded
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+
+    disk_wait_completed_at = disk_meta.get("wait_completed_at")
+    if isinstance(disk_wait_completed_at, str) and disk_wait_completed_at:
+        agent_meta["wait_completed_at"] = disk_wait_completed_at
+        return disk_wait_completed_at
+
+    wait_completed_at = datetime.now(UTC).isoformat()
+    merged_meta = {**disk_meta, **agent_meta, "wait_completed_at": wait_completed_at}
+    agent_meta.update(merged_meta)
+    write_agent_meta(artifacts_dir, merged_meta)
+    return wait_completed_at
 
 
 def wait_for_dependencies(
@@ -98,6 +127,9 @@ def wait_for_dependencies(
                     time.sleep(sleep_time)
                     remaining = remaining_until(wait_until)
 
+        if not was_killed():
+            _record_wait_completed_at(artifacts_dir, agent_meta)
+
         # Clean up wait markers.
         for path in (waiting_path, ready_path):
             try:
@@ -122,6 +154,9 @@ def wait_for_dependencies(
             sleep_time = min(_WAIT_POLL_INTERVAL, remaining)
             time.sleep(sleep_time)
             remaining = remaining_until(wait_until)
+
+        if not was_killed():
+            _record_wait_completed_at(artifacts_dir, agent_meta)
 
         # Clean up waiting.json.
         try:
@@ -149,6 +184,9 @@ def wait_for_dependencies(
             sleep_time = min(_WAIT_POLL_INTERVAL, remaining)
             time.sleep(sleep_time)
             remaining -= sleep_time
+
+        if not was_killed():
+            _record_wait_completed_at(artifacts_dir, agent_meta)
 
         # Clean up waiting.json.
         try:

@@ -129,6 +129,7 @@ class AgentMetaWire:
     wait_for: list[str] = field(default_factory=list)
     wait_duration: float | None = None
     wait_until: str | None = None
+    wait_completed_at: str | None = None
     plan_submitted_at: list[str] = field(default_factory=list)
     epic_started_at: str | None = None
     feedback_submitted_at: list[str] = field(default_factory=list)

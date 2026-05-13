@@ -216,6 +216,8 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
                 agent.status = "RUNNING"
         except ValueError:
             pass
+    elif isinstance(data.get("wait_completed_at"), str) and agent.status == "STARTING":
+        agent.status = "RUNNING"
 
     # Parse stopped_at (completion time for DONE/FAILED agents)
     stopped_at = data.get("stopped_at")
@@ -414,6 +416,8 @@ def enrich_agent_from_meta_wire(
                 agent.status = "RUNNING"
         except ValueError:
             pass
+    elif meta.wait_completed_at and agent.status == "STARTING":
+        agent.status = "RUNNING"
     if meta.stopped_at:
         try:
             agent.stop_time = _parse_utc_to_eastern(meta.stopped_at)

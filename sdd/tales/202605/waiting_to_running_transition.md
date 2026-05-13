@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 12:51:48
-status: wip
+status: done
 prompt: sdd/prompts/202605/waiting_to_running_transition.md
 ---
 # Fix WAITING -> STARTING Agent State Regression
