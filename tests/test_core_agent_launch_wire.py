@@ -12,7 +12,7 @@ import pytest
 
 from sase.core.agent_launch_facade import (
     LaunchTimestampBatchAllocator,
-    allocate_launch_timestamp_batch,
+    _allocate_launch_timestamp_batch,
     fake_output_path,
     fake_prompt_path,
     plan_agent_launch_fanout,
@@ -443,7 +443,7 @@ def test_plan_agent_launch_fanout_rust_repeat() -> None:
 def test_allocate_launch_timestamp_batch_uses_rust_unique_seconds() -> None:
     pytest.importorskip("sase_core_rs")
 
-    assert allocate_launch_timestamp_batch(
+    assert _allocate_launch_timestamp_batch(
         3,
         base_timestamp="260501_120000",
     ) == ["260501_120000", "260501_120001", "260501_120002"]

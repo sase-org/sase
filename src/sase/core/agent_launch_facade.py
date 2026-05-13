@@ -67,7 +67,7 @@ def spawn_prepared_agent_process(
     )
 
 
-def allocate_launch_timestamp_batch(
+def _allocate_launch_timestamp_batch(
     count: int,
     *,
     base_timestamp: str | None = None,
@@ -123,7 +123,7 @@ def reserve_launch_timestamp_batch(
                 else None
             )
             reserved_after = _latest_timestamp(after_timestamp, persisted_timestamp)
-            timestamps = allocate_launch_timestamp_batch(
+            timestamps = _allocate_launch_timestamp_batch(
                 count,
                 base_timestamp=base_timestamp,
                 after_timestamp=reserved_after,
@@ -204,7 +204,7 @@ def fake_prompt_path(root: Path, timestamp: str) -> str:
 
 __all__ = [
     "LaunchTimestampBatchAllocator",
-    "allocate_launch_timestamp_batch",
+    "_allocate_launch_timestamp_batch",
     "fake_output_path",
     "fake_prompt_path",
     "plan_fake_fanout",
