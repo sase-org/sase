@@ -40,6 +40,35 @@ The existing repo already points in this direction:
   coarse and amortized, but fine-grained PyO3 calls and repeated Python wire conversion can lose to optimized Python.
 - `docs/perf_runbook.md` defines ACE responsiveness targets: j/k p95 under 16 ms, key-to-paint p95 under 33 ms, warm
   ChangeSpec reload under 100 ms at 1k specs, and no-change auto-refresh near 0 ms.
+- `sdd/research/202604/sase_perf_v2_research.md` documents async/launch fan-out and bulk kill/dismiss bottlenecks that
+  the daemon's task queue is meant to absorb. The rebuild inherits the requirement to keep kill, dismiss, and bulk
+  operations non-blocking on UI threads.
+- `sdd/research/202604/rust_core_next_candidates.md` enumerates the next deterministic operations queued for Rust:
+  notification store, query batch evaluation, archive search expansion, agent index maintenance. These map directly to
+  daemon-owned components below and should not be deferred behind another Python facade.
+- `sdd/research/202605/rust_tui_plugin_migration.md` surveys WASM (Extism/Wasmtime) and async-in-trait constraints for a
+  Rust plugin host; it is the canonical reference for the plugin-sandbox decision in §8.
+- `sdd/research/202605/multi_machine_sync.md` shows runtime logs can dwarf state (one machine had ~64 GiB of `axe/logs/`)
+  and that users do mirror `~/.sase/` across hosts. That has direct implications for daemon locking and projection
+  storage (§Multi-Machine Sync Interaction below).
+
+The sibling Rust workspace at `../sase-core/` already commits to a stack that the rebuild can reuse rather than choose
+again:
+
+- `sase_core` (Cargo.toml:22) depends on `rusqlite` with the bundled SQLite, so SQLite-as-projection is already a settled
+  dependency choice, not a new one. The existing usage is read-mostly over archive JSONL — the rebuild's lift is schema
+  + write-path, not introducing the dependency.
+- The workspace declares `tokio` (multi-thread, signal, time, net), `axum` 0.7, `tracing` + `tracing-subscriber`, and
+  `serde`/`serde_json` at the root (Cargo.toml:25-36). The daemon should adopt this stack rather than picking a parallel
+  one.
+- `crates/sase_gateway/` is **already a long-lived local HTTP server** (axum + tokio) used for mobile auth, SSE push,
+  state mutation, and agent launch. The from-scratch "daemon" should not be a greenfield component — it should be
+  `sase_gateway` extended with file-watching, scheduling, and an internal Unix-socket transport for local clients, with
+  the existing HTTPS surface retained for mobile/web.
+- `crates/sase_xprompt_lsp/` already runs a tokio+tracing LSP for xprompts, demonstrating the "long-lived local Rust
+  service" shape works in this project.
+- `src/sase/main/query_handler/_daemon.py` exists today but is a thin Python "daemon-mode" agent spawner, not a
+  persistent process. It is replaced, not extended.
 
 External references support the storage/event design:
 
@@ -53,6 +82,12 @@ External references support the storage/event design:
   Textual shell: https://ratatui.rs/installation/
 - Textual's Worker API is the right model if keeping Textual: blocking work should run in managed workers, and thread
   workers must route UI updates safely: https://textual.textualize.io/guide/workers/
+- `tracing` + `tracing-subscriber` are the de facto Rust async-aware structured-log/span stack and already present in
+  the workspace: https://docs.rs/tracing/ — use `tokio-console` for live task inspection during daemon work:
+  https://github.com/tokio-rs/console
+- FoundationDB's deterministic simulation testing is the canonical model for proving an event-sourced + concurrent
+  system stays correct under crash/partition: https://apple.github.io/foundationdb/testing.html — directly applicable to
+  the daemon's recovery story.
 
 ## Functional Surface to Preserve
 
@@ -116,6 +151,21 @@ CLI commands become thin clients:
 Expected gain: eliminate repeated package import, parser construction, Rust extension load, config load, and full store
 scan costs from common commands.
 
+**Reuse the existing gateway, don't build a second daemon.** `crates/sase_gateway/` already runs axum+tokio with a
+serde-JSON wire contract for mobile/web. The rebuild should extend it with: an internal Unix-socket transport (lower
+latency than localhost loopback for local clients), file-watch ownership, scheduler ownership, and a delta-stream
+subscription API. The external HTTPS surface stays for mobile. Two daemons would duplicate file-watching, lock
+contention, and config loading; one process with two listeners avoids that.
+
+**Wire format.** Use the existing `serde` types from `sase_core::wire` over the loopback HTTP + SSE path (already used
+by mobile) and over a Unix-socket framed-JSON path for CLI/TUI. The earlier draft left this open as "Unix
+socket/named pipe/localhost loopback"; pick one stack: HTTP/1.1 + SSE for streaming, framed JSON over Unix socket for
+request/response, and shared serde structs so client and server cannot drift. gRPC/Cap'n Proto/msgpack would buy little
+once the API is coarse-grained (§5) and would duplicate the gateway's existing wire schema.
+
+**Single-machine ownership.** The daemon must hold a PID/lock file under `~/.sase/run/` and refuse to start if another
+PID owns it. This is the precondition for the WAL/checkpoint policy below to be safe.
+
 ### 3. Use Append-Only Events Plus Materialized SQLite Projections
 
 The current filesystem layout is inspectable and robust, but performance suffers when every view reconstructs state from
@@ -143,6 +193,23 @@ Core tables worth designing up front:
 
 This preserves inspectability by making every projection disposable: if the database is corrupt or stale, rebuild it
 from the event log plus source files.
+
+**Concrete policies the original draft skipped.**
+
+- *WAL checkpointing.* Run in `journal_mode=WAL`, `synchronous=NORMAL`, and schedule explicit
+  `wal_checkpoint(TRUNCATE)` calls — opportunistically when the daemon is idle, and unconditionally on a 1 GiB or
+  10-minute soft cap. Long-lived TUI/mobile readers otherwise prevent automatic checkpointing and WAL files grow
+  without bound. SQLite docs: https://www.sqlite.org/wal.html#avoiding_excessively_large_wal_files.
+- *Event log compaction.* Append-only is unsustainable without rotation. Define event classes: state-mutating
+  ("ChangeSpec.status_changed", "agent.completed") are kept indefinitely; high-volume ephemeral events
+  ("agent.log_line", "axe.tick") rotate per day and compact on a retention window (default 30 days, configurable).
+  Compaction writes a snapshot row to the projection and drops the source segments. This is what prevents the 64 GiB
+  log scale seen in `multi_machine_sync.md`.
+- *Crash recovery.* Each write is `BEGIN IMMEDIATE` → projection update → event append → `COMMIT`. On restart, the
+  daemon verifies the latest event's projection effect is applied (compare event seq vs `projection_meta.last_seq`); if
+  a gap exists, reapply from the event log. A `--rebuild` flag drops projections entirely and replays from events +
+  source files.
+- *Backups.* `VACUUM INTO` snapshots to `~/.sase/backup/` on a daily cadence; cheap because projections are bounded.
 
 ### 4. Make File Watching First-Class, Not a Refresh Hint
 
@@ -173,6 +240,17 @@ From scratch, hot APIs should be shaped like:
 
 Avoid APIs that return the entire world as nested Python dictionaries. Prefer owned Rust structs inside the daemon and
 small wire payloads at client boundaries.
+
+**Async runtime choice.** `sase_core` is sync today (rusqlite is blocking); `sase_gateway` is tokio. The rebuild should
+standardize on tokio for the daemon and wrap blocking SQLite/parse operations with `tokio::task::spawn_blocking`, with
+a bounded blocking pool sized to the CPU count. Mixing sync and async ad hoc is a known footgun and was flagged in
+`rust_tui_plugin_migration.md`.
+
+**Agent launch fan-out.** Today the Python side spawns one thread per agent (`launch_bulk.py`-style fan-out), and
+`sase_perf_v2_research.md` shows this is a UI-blocking hotspot. The daemon should expose a single batch-launch RPC that
+accepts N specs, enqueues N tokio tasks behind a semaphore (default concurrency = CPU count, configurable), streams
+per-agent status events, and returns a batch handle. Backpressure: when the queue exceeds a configurable depth, new
+launch RPCs return a typed "queued at position K" response so the UI can render a queued state instead of blocking.
 
 ### 6. Separate Command Parsing From Business Imports
 
@@ -225,6 +303,17 @@ Recommended model:
 This keeps the existing extensibility story while preventing one Python package import graph from slowing every CLI or
 TUI operation.
 
+**Sandbox specifics the original draft skipped.** Plugin subprocesses should run with: per-call wall-clock timeout
+(default 30s, override per provider), RSS soft cap via `prlimit` (default 512 MiB), CPU-quota via cgroup v2 where
+available, no network capability unless the plugin manifest declares it, and structured-log capture on stdout/stderr.
+On Linux, a seccomp profile that blocks `ptrace`, `mount`, and raw socket families is appropriate; on macOS, rely on
+sandbox-exec profiles. These limits keep a misbehaving provider from starving the daemon's tokio runtime.
+
+**WASM is the v2 plugin path, not the v1.** `rust_tui_plugin_migration.md` already evaluated Extism/Wasmtime and that
+remains the right long-term sandbox for native plugins. The v1 rebuild should not couple the daemon to a WASM runtime —
+ship with subprocess-isolated Python plugins, design the IPC so a WASM host can be swapped in later behind the same
+contract.
+
 ### 9. Make Workflow Execution Durable and Resumable by Construction
 
 Current workflows persist step state, but a rebuild should make the event log the scheduler's truth:
@@ -255,6 +344,66 @@ The existing `docs/perf_runbook.md` targets are good starting gates. A rebuild s
 before feature parity is complete, because late instrumentation usually just proves the architecture is already too
 expensive.
 
+**Concrete observability stack** (the original draft only said "instrument everything"):
+
+- `tracing` spans on every RPC handler, every file-watch event, every SQLite query, every plugin call. Use
+  `tracing-subscriber` with env-filter so users can raise verbosity without redeploying.
+- `tokio-console` enabled in dev builds for live task/blocking-pool inspection. This catches "one slow blocking task
+  starves the runtime" classes of bugs that are invisible in span logs.
+- Prometheus exporter on the daemon's loopback port. Minimum metric set: daemon RSS, tokio task count, blocking-pool
+  saturation, SQLite query latency histograms keyed by surface, file-watch event lag, event-log append rate,
+  projection-rebuild duration, agent-launch queue depth, plugin call durations.
+- Histograms over counters wherever the user-visible metric is "p95 < X" — counters tell you it's slow but not how slow.
+
+## Multi-Machine Sync Interaction
+
+`multi_machine_sync.md` shows users do mirror `~/.sase/` across hosts (Syncthing/rclone), and that runtime logs can
+dwarf state. This breaks the "single daemon owns SQLite" assumption:
+
+- Two daemons writing to the same SQLite WAL across a synced filesystem will corrupt it. The PID/lock file in §2 must be
+  on the local filesystem and must include a host identifier; a sync conflict on the lock file means the daemon refuses
+  to start and instructs the user to run a recovery command.
+- Projections (`.sqlite`/`-wal`/`-shm` files) and the event log should live in a host-local directory (e.g.
+  `~/.sase/run/<hostname>/`) and be excluded from sync. Source files (`.gp`, artifacts, notifications) remain in the
+  synced tree so users can keep their cross-machine workflow.
+- High-volume rotating logs go under the host-local directory by default. Users who want them synced can opt in.
+- Cross-host event replay (later) can subscribe to the synced source files and rebuild local projections, which gives
+  the "see the same state from any machine" property without sharing a database.
+
+## Migration Path for Existing State
+
+Users have months-to-years of `~/.sase/` data — `.gp` files, archives, notifications, artifacts, beads, agent
+directories. The rebuild must not require a flag day.
+
+- *Phase 0 — shadow mode.* Daemon runs alongside the current Python CLI, watches the existing files, builds
+  projections, but is not authoritative. Existing commands keep working unchanged. The daemon's read APIs can be
+  diff-tested against the Python implementations.
+- *Phase 1 — read traffic.* Latency-sensitive read paths (CLI status, ACE first paint, editor helpers) call the daemon.
+  Writes still go through Python.
+- *Phase 2 — write traffic.* State-mutating operations move to the daemon, which writes the source file AND appends the
+  event. Source files remain the human-inspectable record.
+- *Phase 3 — daemon-authoritative.* Daemon owns scheduling; Python becomes plugin/workflow host only. Source files are
+  re-derivable from events for export/backup.
+
+Each phase ships with `sase doctor` checks that compare projection state against the source files and a `sase rebuild`
+that drops projections and replays.
+
+## Test Strategy
+
+Performance architectures fail at scale and under concurrency, not at unit-test scale. The rebuild needs:
+
+- *Property tests* on the event-log/projection mapping: for any sequence of valid events, projections after replay must
+  equal projections after live application.
+- *Deterministic simulation tests* for the daemon (FoundationDB-style): inject crashes, slow I/O, file-watch event
+  reordering, and concurrent client RPCs against a virtual clock; assert no projection corruption, no event loss, and
+  bounded recovery time.
+- *Soak tests* with synthetic event volume (e.g. 1M events, 100k agents, 5k ChangeSpecs) to catch projection-rebuild
+  time, WAL bloat, and FTS query degradation that don't show up at small scale.
+- *End-to-end perf gates* mapped to `docs/perf_runbook.md` targets, run in CI on a known machine class. Regressions
+  block merge; the existing PNG-snapshot model is a useful precedent for "perf snapshots."
+- *Sync chaos* tests for the multi-machine path: corrupt the lock file, race two daemons on a tmpfs-shared directory,
+  verify both refuse to clobber data.
+
 ## What I Would Not Do
 
 - Do not keep Markdown/JSON files as the only runtime database and try to recover performance with larger caches. Cold
@@ -277,18 +426,21 @@ These are directional targets, not measured promises:
 | Full agent history startup | ~3.0s on a large personal history | no full hydration; paged/indexed |
 | No-change auto-refresh | polling fallback can still do broad work | no UI reload; reconciliation only |
 | Agent/archive search | SQLite index exists for archive; live still hydrates rows | unified indexed live/archive query |
+| Daemon resident memory | n/a (Python TUI ~150-300 MiB after warmup) | <80 MiB resident at idle, <250 MiB under load |
+| SQLite projection size | n/a | <500 MiB for 5 years of history at p95 user |
+| Agent launch fan-out (50) | thread-per-agent, UI-blocking pulses | tokio semaphore, <50 ms enqueue, streaming events |
 
 ## Migration Implications
 
 If this became a real roadmap, the best sequence would be:
 
-1. Define the canonical event model and SQLite projections in `sase-core`.
-2. Build a daemon that indexes current files without changing user workflows.
-3. Move read-heavy CLI commands to daemon/index-backed paths.
-4. Move ACE Agents/Notifications/ChangeSpecs to delta subscriptions and paged queries.
-5. Move launch/workflow state transitions into event transactions.
-6. Replace or thin the TUI shell only after the backend contract is fast and stable.
-7. Keep file export/import/rebuild commands so users can recover without trusting the daemon.
+1. Define the canonical event model and SQLite projections in `sase-core` (rusqlite is already a workspace dep).
+2. Extend `sase_gateway` with file-watching, scheduler ownership, and a Unix-socket transport — not a new daemon binary.
+3. Run in shadow mode: daemon builds projections from existing `.gp`/JSONL/artifact files; Python remains authoritative.
+4. Move read-heavy CLI commands and ACE Agents/Notifications/ChangeSpecs to daemon-backed paged queries + delta streams.
+5. Move launch/workflow state transitions into event transactions; daemon becomes write-authoritative for state.
+6. Replace or thin the TUI shell only after the backend contract is fast and stable. Ratatui is optional, not required.
+7. Keep file export/import/rebuild commands and `sase doctor` so users can recover without trusting the daemon.
 
 The biggest architectural bet is the daemon plus indexed projections. The biggest compatibility risk is maintaining
 human-inspectable artifacts and plugin behavior while changing the runtime source of truth. The safest rule is:
