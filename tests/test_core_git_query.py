@@ -32,11 +32,11 @@ from sase.core.git_query_facade import (
     parse_git_branch_name,
     _parse_git_branch_name_python,
     parse_git_conflicted_files,
-    parse_git_conflicted_files_python,
+    _parse_git_conflicted_files_python,
     parse_git_local_changes,
-    parse_git_local_changes_python,
+    _parse_git_local_changes_python,
     parse_git_name_status_z,
-    parse_git_name_status_z_python,
+    _parse_git_name_status_z_python,
     parse_git_numstat_z,
     parse_git_numstat_z_python,
 )
@@ -469,7 +469,7 @@ def test_rust_extension_parity_for_all_helpers() -> None:
             (entry.status, entry.path)
             for entry in (git_name_status_entry_from_dict(d) for d in rust_dicts)
         ]
-        assert rust_flat == parse_git_name_status_z_python(stdout)
+        assert rust_flat == _parse_git_name_status_z_python(stdout)
 
     for stdout in ["feature-x\n", "HEAD\n", "", "   \n", "  feat/x  \n"]:
         assert rust_module.parse_git_branch_name(
@@ -493,9 +493,9 @@ def test_rust_extension_parity_for_all_helpers() -> None:
     for stdout in ["", "src/a.py\n\nsrc/b.py\n", "z.py\na.py\nm.py\n", "\n\n   \n"]:
         assert rust_module.parse_git_conflicted_files(
             stdout
-        ) == parse_git_conflicted_files_python(stdout)
+        ) == _parse_git_conflicted_files_python(stdout)
 
     for stdout in ["", "   \n", "M src/a.py\n?? new.py\n"]:
         assert rust_module.parse_git_local_changes(
             stdout
-        ) == parse_git_local_changes_python(stdout)
+        ) == _parse_git_local_changes_python(stdout)

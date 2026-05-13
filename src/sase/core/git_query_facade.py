@@ -38,7 +38,7 @@ from sase.core.git_query_wire import (
 from sase.core.rust import require_rust_binding
 
 
-def _parse_git_name_status_z_python(stdout: str) -> list[GitNameStatusEntryWire]:
+def _parse_git_name_status_z_records(stdout: str) -> list[GitNameStatusEntryWire]:
     """Pure-Python implementation of :func:`parse_git_name_status_z`.
 
     The output of ``git diff --name-status -z`` is a stream of
@@ -78,7 +78,7 @@ def _parse_git_name_status_z_python(stdout: str) -> list[GitNameStatusEntryWire]
     return result
 
 
-def parse_git_name_status_z_python(stdout: str) -> list[tuple[str, str]]:
+def _parse_git_name_status_z_python(stdout: str) -> list[tuple[str, str]]:
     """Public Python golden-contract implementation of :func:`parse_git_name_status_z`.
 
     Flattens the wire records produced by
@@ -87,7 +87,7 @@ def parse_git_name_status_z_python(stdout: str) -> list[tuple[str, str]]:
     consumes. Retained as a host-logic golden reference so parity tests
     against the Rust binding remain meaningful.
     """
-    entries = _parse_git_name_status_z_python(stdout)
+    entries = _parse_git_name_status_z_records(stdout)
     return [(entry.status, entry.path) for entry in entries]
 
 
@@ -218,7 +218,7 @@ def derive_git_workspace_name(
     return binding(remote_url, root_path)  # type: ignore[no-any-return]
 
 
-def parse_git_conflicted_files_python(stdout: str) -> list[str]:
+def _parse_git_conflicted_files_python(stdout: str) -> list[str]:
     """Pure-Python golden-contract implementation of :func:`parse_git_conflicted_files`."""
     return [line for line in stdout.split("\n") if line.strip()]
 
@@ -236,7 +236,7 @@ def parse_git_conflicted_files(stdout: str) -> list[str]:
     return binding(stdout)  # type: ignore[no-any-return]
 
 
-def parse_git_local_changes_python(stdout: str) -> str | None:
+def _parse_git_local_changes_python(stdout: str) -> str | None:
     """Pure-Python golden-contract implementation of :func:`parse_git_local_changes`."""
     text = stdout.strip()
     return text if text else None
@@ -259,11 +259,8 @@ __all__ = [
     "derive_git_workspace_name",
     "parse_git_branch_name",
     "parse_git_conflicted_files",
-    "parse_git_conflicted_files_python",
     "parse_git_local_changes",
-    "parse_git_local_changes_python",
     "parse_git_name_status_z",
-    "parse_git_name_status_z_python",
     "parse_git_numstat_z",
     "parse_git_numstat_z_python",
 ]
