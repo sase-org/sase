@@ -278,7 +278,7 @@ def read_chat_install_status(job_id: str) -> ChatInstallStatusResult:
     )
 
 
-def run_worker(
+def _run_worker(
     workspace: Path,
     *,
     job_id: str | None = None,
@@ -384,7 +384,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--log-path", default=None, help="Worker log path")
     args = parser.parse_args(argv)
-    return run_worker(
+    return _run_worker(
         Path(args.workspace).expanduser().resolve(),
         job_id=args.job_id,
         status_path=Path(args.status_path).expanduser() if args.status_path else None,

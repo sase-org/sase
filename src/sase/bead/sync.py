@@ -78,27 +78,6 @@ def commit_bead_work_launch(
     return True
 
 
-def sync_status(beads_dir: Path) -> bool:
-    """Check if JSONL has unstaged changes. Returns True if clean.
-
-    Only checks for unstaged (working-tree) changes, since staged changes
-    are expected — they will be included in the next commit.
-    """
-    jsonl_path = beads_dir / "issues.jsonl"
-    if not jsonl_path.exists():
-        return True
-    repo_root = _find_git_root(beads_dir)
-    if repo_root is None:
-        return True
-    result = subprocess.run(
-        ["git", "diff", "--quiet", str(jsonl_path)],
-        cwd=repo_root,
-        capture_output=True,
-        check=False,
-    )
-    return result.returncode == 0
-
-
 def rebuild_from_jsonl(beads_dir: Path) -> bool:
     """Rebuild SQLite from JSONL if JSONL is newer than db.
 

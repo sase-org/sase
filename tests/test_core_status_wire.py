@@ -33,13 +33,61 @@ from sase.core.status_wire import (
     StatusTransitionPlanWire,
     StatusTransitionRequestWire,
     status_plan_from_dict,
-    status_request_from_dict,
     status_wire_to_json_dict,
 )
 from sase.core.status_wire_conversion import (
     build_status_transition_request,
     _plan_status_transition_python,
 )
+
+
+def _status_request_from_dict(data: dict[str, object]) -> StatusTransitionRequestWire:
+    schema = int(data["schema_version"])
+    if schema != STATUS_WIRE_SCHEMA_VERSION:
+        raise ValueError(
+            f"status wire schema mismatch: got {schema}, expected "
+            f"{STATUS_WIRE_SCHEMA_VERSION}"
+        )
+    blocking_raw = data.get("blocking_children")
+    blocking_children: tuple[ChangespecChildWire, ...]
+    if not blocking_raw:
+        blocking_children = ()
+    elif isinstance(blocking_raw, list | tuple):
+        parsed_children: list[ChangespecChildWire] = []
+        for item in blocking_raw:
+            if isinstance(item, ChangespecChildWire):
+                parsed_children.append(item)
+            elif isinstance(item, dict):
+                parsed_children.append(
+                    ChangespecChildWire(
+                        name=str(item["name"]),
+                        status=str(item["status"]),
+                    )
+                )
+            else:
+                raise TypeError(
+                    f"Cannot decode ChangespecChildWire from {type(item)!r}"
+                )
+        blocking_children = tuple(parsed_children)
+    else:
+        raise TypeError(
+            f"Cannot decode ChangespecChildWire from {type(blocking_raw)!r}"
+        )
+    return StatusTransitionRequestWire(
+        schema_version=schema,
+        changespec_name=str(data["changespec_name"]),
+        old_status=str(data["old_status"]),
+        new_status=str(data["new_status"]),
+        validate=bool(data["validate"]),
+        parent_status=None
+        if data.get("parent_status") is None
+        else str(data["parent_status"]),
+        blocking_children=blocking_children,
+        siblings_with_unreverted_children=tuple(
+            str(name) for name in data.get("siblings_with_unreverted_children") or ()
+        ),
+        existing_names=tuple(str(name) for name in data.get("existing_names") or ()),
+    )
 
 
 def _request(
@@ -134,7 +182,7 @@ def test_request_round_trips_through_json() -> None:
     )
     payload = status_wire_to_json_dict(req)
     decoded = json.loads(json.dumps(payload))
-    rebuilt = status_request_from_dict(decoded)
+    rebuilt = _status_request_from_dict(decoded)
     assert rebuilt == req
 
 
@@ -160,7 +208,7 @@ def test_plan_round_trips_through_json() -> None:
 
 def test_schema_version_mismatch_raises() -> None:
     with pytest.raises(ValueError, match="schema mismatch"):
-        status_request_from_dict(
+        _status_request_from_dict(
             {
                 "schema_version": STATUS_WIRE_SCHEMA_VERSION + 99,
                 "changespec_name": "x",

@@ -3,13 +3,37 @@
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 
 from sase.bead.sync import (
     commit_bead_work_launch,
     git_sync,
     rebuild_from_jsonl,
-    sync_status,
 )
+
+
+def _sync_status(beads_dir: Path) -> bool:
+    jsonl_path = beads_dir / "issues.jsonl"
+    if not jsonl_path.exists():
+        return True
+
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=beads_dir,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return True
+    repo_root = Path(result.stdout.strip())
+    diff = subprocess.run(
+        ["git", "diff", "--quiet", str(jsonl_path)],
+        cwd=repo_root,
+        capture_output=True,
+        check=False,
+    )
+    return diff.returncode == 0
 
 
 def _init_git_repo(path):
@@ -39,7 +63,7 @@ def _init_git_repo(path):
 def test_sync_status_clean_when_no_jsonl(tmp_path):
     beads_dir = tmp_path / "sdd/beads"
     beads_dir.mkdir(parents=True)
-    assert sync_status(beads_dir) is True
+    assert _sync_status(beads_dir) is True
 
 
 def test_sync_status_clean_when_committed(tmp_path):
@@ -52,7 +76,7 @@ def test_sync_status_clean_when_committed(tmp_path):
     subprocess.run(
         ["git", "commit", "-m", "add jsonl"], cwd=tmp_path, capture_output=True
     )
-    assert sync_status(beads_dir) is True
+    assert _sync_status(beads_dir) is True
 
 
 def test_sync_status_dirty_when_modified(tmp_path):
@@ -66,7 +90,7 @@ def test_sync_status_dirty_when_modified(tmp_path):
         ["git", "commit", "-m", "add jsonl"], cwd=tmp_path, capture_output=True
     )
     jsonl.write_text('{"id":"test"}\n')
-    assert sync_status(beads_dir) is False
+    assert _sync_status(beads_dir) is False
 
 
 def test_git_sync_stages_jsonl(tmp_path):

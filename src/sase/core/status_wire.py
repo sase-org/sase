@@ -278,55 +278,6 @@ def status_wire_to_json_dict(record: Any) -> Any:
     return record
 
 
-def _children_from_seq(data: Any) -> tuple[ChangespecChildWire, ...]:
-    if not data:
-        return ()
-    out: list[ChangespecChildWire] = []
-    for item in data:
-        if isinstance(item, ChangespecChildWire):
-            out.append(item)
-        elif isinstance(item, dict):
-            out.append(
-                ChangespecChildWire(
-                    name=str(item["name"]),
-                    status=str(item["status"]),
-                )
-            )
-        else:
-            raise TypeError(f"Cannot decode ChangespecChildWire from {type(item)!r}")
-    return tuple(out)
-
-
-def status_request_from_dict(data: dict[str, Any]) -> StatusTransitionRequestWire:
-    """Rehydrate a :class:`StatusTransitionRequestWire` from a dict.
-
-    Inverse of :func:`status_wire_to_json_dict` for request records.
-    Used by the future PyO3 binding adapter and by tests that round-trip
-    a request through JSON. Unknown top-level keys raise ``TypeError``.
-    """
-    schema = int(data["schema_version"])
-    if schema != STATUS_WIRE_SCHEMA_VERSION:
-        raise ValueError(
-            f"status wire schema mismatch: got {schema}, "
-            f"expected {STATUS_WIRE_SCHEMA_VERSION}"
-        )
-    return StatusTransitionRequestWire(
-        schema_version=schema,
-        changespec_name=str(data["changespec_name"]),
-        old_status=str(data["old_status"]),
-        new_status=str(data["new_status"]),
-        validate=bool(data["validate"]),
-        parent_status=(
-            None if data.get("parent_status") is None else str(data["parent_status"])
-        ),
-        blocking_children=_children_from_seq(data.get("blocking_children")),
-        siblings_with_unreverted_children=tuple(
-            str(name) for name in data.get("siblings_with_unreverted_children") or ()
-        ),
-        existing_names=tuple(str(name) for name in data.get("existing_names") or ()),
-    )
-
-
 def status_plan_from_dict(data: dict[str, Any]) -> StatusTransitionPlanWire:
     """Rehydrate a :class:`StatusTransitionPlanWire` from a dict.
 
@@ -389,6 +340,5 @@ __all__ = [
     "StatusTransitionPlanWire",
     "StatusTransitionRequestWire",
     "status_plan_from_dict",
-    "status_request_from_dict",
     "status_wire_to_json_dict",
 ]

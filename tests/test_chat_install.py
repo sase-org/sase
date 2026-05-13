@@ -15,7 +15,7 @@ from sase.integrations.chat_install import (
     load_chat_install_config,
     read_chat_install_status,
     _resolve_primary_workspace_for_chat_install,
-    run_worker,
+    _run_worker,
     start_chat_install_worker,
 )
 
@@ -356,7 +356,7 @@ def test_run_worker_skips_install_when_sync_fails(tmp_path: Path) -> None:
         patch("sase.integrations.chat_install.start_axe_daemon", return_value=999),
         patch("sase.integrations.chat_install.is_axe_running", return_value=True),
     ):
-        assert run_worker(tmp_path) == 4
+        assert _run_worker(tmp_path) == 4
 
     run.assert_not_called()
 
@@ -385,7 +385,7 @@ def test_run_worker_ignores_unrelated_inherited_lock_fd(
             patch("sase.integrations.chat_install.start_axe_daemon", return_value=999),
             patch("sase.integrations.chat_install.is_axe_running", return_value=True),
         ):
-            assert run_worker(tmp_path) == 4
+            assert _run_worker(tmp_path) == 4
 
         os.fstat(unrelated_fd)
         assert chat_install._LOCK_FD_ENV not in os.environ
@@ -416,7 +416,7 @@ def test_run_worker_restarts_axe_when_command_fails(tmp_path: Path) -> None:
         patch("sase.integrations.chat_install.is_axe_running", return_value=True),
         patch("sase.integrations.chat_install.time.sleep"),
     ):
-        assert run_worker(tmp_path) == 17
+        assert _run_worker(tmp_path) == 17
 
     assert start.call_count == 2
 
@@ -441,7 +441,7 @@ def test_run_worker_writes_success_completion_record(tmp_path: Path) -> None:
         patch("sase.integrations.chat_install.is_axe_running", return_value=True),
     ):
         assert (
-            run_worker(
+            _run_worker(
                 tmp_path,
                 job_id="job-1",
                 status_path=status_path,
@@ -476,7 +476,7 @@ def test_run_worker_writes_failure_completion_record(tmp_path: Path) -> None:
         patch("sase.integrations.chat_install.start_axe_daemon", return_value=999),
         patch("sase.integrations.chat_install.is_axe_running", return_value=True),
     ):
-        assert run_worker(tmp_path, job_id="job-2", status_path=status_path) == 4
+        assert _run_worker(tmp_path, job_id="job-2", status_path=status_path) == 4
 
     run.assert_not_called()
     record = json.loads(status_path.read_text())
@@ -508,7 +508,7 @@ def test_run_worker_marks_restart_failure_as_failed_completion(
         patch("sase.integrations.chat_install.is_axe_running", return_value=False),
         patch("sase.integrations.chat_install.time.sleep"),
     ):
-        assert run_worker(tmp_path, job_id="job-3", status_path=status_path) == 5
+        assert _run_worker(tmp_path, job_id="job-3", status_path=status_path) == 5
 
     record = json.loads(status_path.read_text())
     assert record["status"] == "failed"
