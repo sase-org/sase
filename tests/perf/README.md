@@ -1,5 +1,50 @@
 # Performance Recipes
 
+## Rust Daemon Epic 1 Baselines
+
+Use this recipe when changing cold CLI startup, local daemon client framing, ACE hot paths, agent launch preparation, or
+notification-action latency for the Rust daemon/indexed-projection rebuild.
+
+The Epic 1 command-level and mocked warm-daemon harness is hermetic by default: it creates a temporary
+`HOME`/`SASE_HOME`, copies the `tests/fixtures/rust_daemon_epic1/` ChangeSpec, notification, history, and bead fixtures
+into that home/workspace, and never starts or routes through a real daemon.
+
+Regenerate the advisory baseline JSON:
+
+```bash
+just install
+.venv/bin/python -m tests.perf.bench_rust_daemon_epic1 \
+  --runs 5 \
+  --output tests/perf/baselines/rust_daemon_epic1_current.json
+```
+
+The JSON includes `p50_ms` and `p95_ms` summaries for:
+
+- cold subprocess startup: plain Python, importing `sase.main.entry`, and `sase --help`;
+- command-level direct reads: `changespec search`, `notify list/show`, `bead list/show/ready`, and editor xprompt
+  catalog helper;
+- mocked warm-daemon request framing: local JSON serialization, health, paged-list, and delta/event payload round trips.
+
+To intentionally benchmark real local state instead of the fixture corpus, add `--real-home`. Do not use that flag for
+committed baselines.
+
+Related harnesses for Epic 1 traceability:
+
+```bash
+.venv/bin/python -m tests.perf.bench_tui_trace \
+  --output tests/perf/baselines/rust_daemon_epic1_ace.json
+.venv/bin/python tests/perf/bench_agent_launch.py \
+  --runs 5 \
+  --output tests/perf/baselines/rust_daemon_epic1_agent_launch.json
+.venv/bin/python tests/perf/bench_notification_store.py \
+  --runs 5 \
+  --output tests/perf/baselines/rust_daemon_epic1_notifications.json
+```
+
+Epic 1 thresholds are advisory only. The daemon targets recorded in the JSON are the aspirational later-epic targets
+from the plan: warm daemon-backed CLI/editor reads at roughly 5-30 ms, ACE shell first useful paint under 100 ms, active
+indexed data under 250 ms on large local histories, and no-change refresh near 0 ms once event-driven paths exist.
+
 ## Agent Artifact Startup
 
 Use this recipe when changing `sase ace` startup loading, dismissed archive queries, revive, run-log loading, or

@@ -139,6 +139,34 @@ Scenarios per fixture size:
 The per-scenario summary records wall-clock times, then aggregates p50 / p95 / max for every trace span and key-to-paint
 action observed during that scenario.
 
+## Rust daemon Epic 1 baseline harness
+
+The daemon-readiness baseline harness lives at `tests/perf/bench_rust_daemon_epic1.py`. It does not start a daemon and
+does not route production commands through a daemon. It captures current direct CLI subprocess costs and mocked
+warm-daemon JSON framing costs against the Phase 1B fixture corpus.
+
+Regenerate the committed advisory baseline:
+
+```bash
+just install
+.venv/bin/python -m tests.perf.bench_rust_daemon_epic1 \
+  --runs 5 \
+  --output tests/perf/baselines/rust_daemon_epic1_current.json
+```
+
+The harness writes p50/p95 JSON for cold Python/import/parser startup, representative
+ChangeSpec/notification/bead/editor helper reads, and mocked health/page/delta daemon payload round trips. It is
+hermetic by default; `--real-home` is available only for local investigation against real `~/.sase` data.
+
+Epic 1 daemon targets are advisory until later epics add production daemon paths and stable regression floors:
+
+```text
+warm daemon-backed CLI/editor common reads  5-30 ms
+ACE shell first useful paint                < 100 ms
+active indexed data on large histories      < 250 ms
+event-driven no-change refresh              ~0 ms
+```
+
 ## Targets per phase gate
 
 The targets below come from `sdd/research/202604/sase_perf_research.md` and are restated here so each phase agent has a
