@@ -395,10 +395,12 @@ def main() -> int:
         _jlog("session_dedup_skip", marker=str(marker_file))
         return _exit(0, reason="session_dedup")
 
-    # Deduplication: Gemini and Qwen use stop_hook_active from stdin
-    if runtime in ("gemini", "qwen") and hook_input.get("stop_hook_active"):
-        _jlog(f"{runtime}_dedup_skip")
-        return _exit(0, reason=f"{runtime}_dedup")
+    # Gemini's AfterAgent hook may re-enter with stop_hook_active set. Qwen
+    # fires the Claude-style Stop event and may set the same field on the first
+    # stop payload, so Qwen dedups only through the marker file above.
+    if runtime == "gemini" and hook_input.get("stop_hook_active"):
+        _jlog("gemini_dedup_skip")
+        return _exit(0, reason="gemini_dedup")
 
     has_changes, changed_files, commit_instruction, details = build_commit_details(
         project_dir, commit_method=commit_method
