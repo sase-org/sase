@@ -4,14 +4,83 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ...models._dedup import dedup_by_pid, dedup_running_vs_workflow
+from ...models.agent import AgentType
 from ._loading_compute import PreparedApplyData
 from ._loading_helpers import is_always_visible
 from ._loading_state import AgentLoadingStateMixin
 
 if TYPE_CHECKING:
     from ...models import Agent
-    from ...models.agent import AgentType
     from ...models.agent_loader import AgentLoadState
+
+
+def _reattach_children_after_parent_dedup(
+    agents_before_dedup: list[Agent],
+    agents_after_dedup: list[Agent],
+) -> list[Agent]:
+    """Move children from removed same-PID parents to surviving parents."""
+    after_ids = {id(agent) for agent in agents_after_dedup}
+    surviving_parent_by_pid: dict[int, Agent] = {}
+    for agent in agents_after_dedup:
+        if agent.pid is None or agent.raw_suffix is None or agent.is_workflow_child:
+            continue
+        surviving_parent_by_pid.setdefault(agent.pid, agent)
+
+    replacement_suffix_by_removed_suffix: dict[str, str] = {}
+    for agent in agents_before_dedup:
+        if (
+            id(agent) in after_ids
+            or agent.pid is None
+            or agent.raw_suffix is None
+            or agent.is_workflow_child
+        ):
+            continue
+        survivor = surviving_parent_by_pid.get(agent.pid)
+        if (
+            survivor is None
+            or survivor.raw_suffix is None
+            or survivor.raw_suffix == agent.raw_suffix
+        ):
+            continue
+        replacement_suffix_by_removed_suffix[agent.raw_suffix] = survivor.raw_suffix
+
+    if not replacement_suffix_by_removed_suffix:
+        return agents_after_dedup
+
+    reattached_ids: set[int] = set()
+    for agent in agents_after_dedup:
+        if not agent.is_workflow_child or agent.parent_timestamp is None:
+            continue
+        replacement_suffix = replacement_suffix_by_removed_suffix.get(
+            agent.parent_timestamp
+        )
+        if replacement_suffix is None:
+            continue
+        agent.parent_timestamp = replacement_suffix
+        reattached_ids.add(id(agent))
+
+    if not reattached_ids:
+        return agents_after_dedup
+
+    children_by_parent: dict[str, list[Agent]] = {}
+    roots_and_unchanged_children: list[Agent] = []
+    for agent in agents_after_dedup:
+        if id(agent) in reattached_ids and agent.parent_timestamp is not None:
+            children_by_parent.setdefault(agent.parent_timestamp, []).append(agent)
+        else:
+            roots_and_unchanged_children.append(agent)
+
+    regrouped: list[Agent] = []
+    for agent in roots_and_unchanged_children:
+        regrouped.append(agent)
+        if agent.raw_suffix is None:
+            continue
+        regrouped.extend(children_by_parent.pop(agent.raw_suffix, []))
+
+    for remaining_children in children_by_parent.values():
+        regrouped.extend(remaining_children)
+    return regrouped
 
 
 class AgentLoadingApplyMixin(AgentLoadingStateMixin):
@@ -139,11 +208,12 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         merged: list[Agent] = []
         seen: set[tuple[AgentType, str, str | None]] = set()
         cached_identities = {agent.identity for agent in cached_agents}
-        cached_parent_suffixes = {
-            agent.raw_suffix
+        cached_parent_by_suffix = {
+            agent.raw_suffix: agent
             for agent in cached_agents
             if agent.raw_suffix is not None and not agent.is_workflow_child
         }
+        cached_parent_suffixes = set(cached_parent_by_suffix)
         incoming_parent_suffixes = {
             agent.raw_suffix
             for agent in prep.filtered_agents
@@ -152,6 +222,25 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         known_parent_suffixes = cached_parent_suffixes | incoming_parent_suffixes
         new_roots: list[Agent] = []
         new_children_by_parent: dict[str, list[Agent]] = {}
+
+        def can_canonical_dedup_running_shadow(agent: Agent) -> bool:
+            """Whether loader-level RUNNING↔WORKFLOW dedup can handle this row."""
+            cached_parent = (
+                cached_parent_by_suffix.get(agent.raw_suffix)
+                if agent.raw_suffix is not None
+                else None
+            )
+            return (
+                agent.agent_type == AgentType.RUNNING
+                and cached_parent is not None
+                and cached_parent.agent_type == AgentType.WORKFLOW
+                and agent.workflow is not None
+                and (
+                    agent.workflow.startswith("ace(run)")
+                    or agent.workflow == "ace-run"
+                    or agent.workflow == "run"
+                )
+            )
 
         # Newly discovered Tier 1 rows are usually the newest rows. Keep their
         # relative Tier 1 order while preserving cached parent/child groups.
@@ -170,6 +259,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 agent.raw_suffix is not None
                 and not agent.is_workflow_child
                 and agent.raw_suffix in cached_parent_suffixes
+                and not can_canonical_dedup_running_shadow(agent)
             ):
                 continue
             new_roots.append(agent)
@@ -198,6 +288,11 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                         continue
                     merged.append(child)
                     seen.add(child.identity)
+
+        before_dedup = list(merged)
+        merged = dedup_running_vs_workflow(merged)
+        merged = dedup_by_pid(merged)
+        merged = _reattach_children_after_parent_dedup(before_dedup, merged)
 
         always_visible = [agent for agent in merged if is_always_visible(agent)]
         hideable = [agent for agent in merged if not is_always_visible(agent)]
