@@ -23,6 +23,8 @@ For exhaustive flag tables, see the [configuration reference](configuration.md#c
 | `sase notify` / `sase notify create` | Create a notification from JSON input.                                                                               | [Notifications](notifications.md)                     |
 | `sase notify list`                   | List recent notifications, optionally filtered by sender, unread state, or query.                                    | [Notifications](notifications.md)                     |
 | `sase notify show`                   | Show one notification as Markdown or JSON.                                                                           | [Notifications](notifications.md)                     |
+| `sase repro replay`                  | Replay an Agents-tab reproduction bundle through the headless TUI harness and emit a verdict.                        | [ACE TUI](ace.md#agents-tab-reproduction-bundles)     |
+| `sase repro capture agents-tab`      | Capture a commit-safe out-of-band Agents-tab bundle from current filesystem state.                                   | [ACE TUI](ace.md#agents-tab-reproduction-bundles)     |
 
 `sase run` can run in the foreground, launch detached background agents with `--daemon`, resume previous conversations,
 or expand multi-prompt input into sequential background launches. ACE uses the same launch machinery when users start

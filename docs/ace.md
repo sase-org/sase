@@ -580,11 +580,57 @@ Unread-completed actions operate on terminal rows that are loaded in the tab; `,
 | `,J`       | Mark all loaded unread completed agents as read                                               |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                         |
 | `,P`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
+| `,R`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication      |
 | `,r`       | Edit prompt and relaunch agent (retry without killing)                                        |
+| `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation             |
 | `,x`       | Kill agent & edit prompt                                                                      |
 | `,<space>` | Run agent from current agent's CL (skips selection)                                           |
 | `,.`       | Open prompt history modal for the last CL                                                     |
 | `,>`       | Open prompt history modal with cancelled prompts visible                                      |
+
+### Agents Tab Reproduction Bundles
+
+Agents-tab reproduction bundles capture the loader/apply sequence that determines which rows are visible. Use them when
+the Agents tab briefly drops historical rows, re-adds them, or shows duplicate workflow parents.
+
+When Bryan sees the bug in a live ACE session, switch to the Agents tab and press `,R`. ACE writes a commit-safe bundle
+to `~/.sase/repros/<timestamp>-manual-.../agents_tab_repro.json` and shows a toast with the path. The bundle includes
+structured row identities, loader state, app projection state, screen text, and an SVG screenshot. It deliberately omits
+prompt, response, chat, and diff bodies.
+
+Agents can replay a bundle from a prepared checkout:
+
+```bash
+sase repro replay tests/ace/tui/repro/fixtures/agents_tab_disappear_reappear_v1.json --assert-stable --json
+```
+
+The current expected verdict for the checked-in fixture is:
+
+```json
+{
+  "result": "passed",
+  "failed_invariants": [],
+  "verdict": "current code fixed for the captured Agents-tab bug class"
+}
+```
+
+Add `--write-artifacts /tmp/sase-agents-tab-repro-artifacts` to write one `.txt` screen dump and one `.svg` screenshot
+per replay step. The replay JSON lists those paths in `screen_paths` and `screenshot_paths`.
+
+Use out-of-band capture only when you need a filesystem baseline and did not have the live TUI capture running:
+
+```bash
+sase repro capture agents-tab --output /tmp/sase-agents-tab-capture --commit-safe --json
+```
+
+Out-of-band capture is labeled `capture_mode=out_of_band` because it loads the current filesystem state and cannot
+reconstruct transient refreshes that already passed through the running TUI. The replay harness is scoped to the known
+Agents-tab disappearance/reappearance and duplicate-parent bug class; it is not a general proof for arbitrary rendering
+races.
+
+For continuous diagnosis, press `,T` on the Agents tab to enable invariant checks after each load/apply cycle. On the
+first violation in a burst, ACE auto-captures one bundle under `~/.sase/repros/<timestamp>-auto-.../` and shows a
+warning toast. It does not write a new bundle every refresh while the same violation remains active.
 
 ### Bang Mode (`!` prefix)
 
