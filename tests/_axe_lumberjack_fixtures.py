@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
-from sase.axe.chop_script_runner import StreamedScriptResult
+from sase.axe.chop_script_runner import _StreamedScriptResult
 from sase.axe.state import read_chop_run_index
 
 
@@ -60,7 +60,7 @@ def streamed_ok(output: str = "", pid: int = 1234) -> "_StreamedSideEffect":
 
     Writes ``output`` to ``log_path`` (the kwarg ``stream_chop_script``
     receives), invokes ``on_pid`` if provided, and returns a ``returncode=0``
-    :class:`StreamedScriptResult`.
+    :class:`_StreamedScriptResult`.
     """
     return _StreamedSideEffect(returncode=0, output=output, pid=pid)
 
@@ -83,7 +83,7 @@ class _StreamedSideEffect:
     Mimics the real streaming runner: writes ``output`` bytes into the
     ``log_path`` Path argument (so collector/log-tail readers see them),
     invokes ``on_pid`` with ``pid`` to exercise PID-recording paths, and
-    returns a :class:`StreamedScriptResult` describing the outcome.
+    returns a :class:`_StreamedScriptResult` describing the outcome.
     """
 
     def __init__(
@@ -99,7 +99,7 @@ class _StreamedSideEffect:
         self.pid = pid
         self.timed_out = timed_out
 
-    def __call__(self, *args: object, **kwargs: object) -> StreamedScriptResult:
+    def __call__(self, *args: object, **kwargs: object) -> _StreamedScriptResult:
         log_path = kwargs.get("log_path")
         bytes_written = 0
         if isinstance(log_path, Path) and self.output:
@@ -110,7 +110,7 @@ class _StreamedSideEffect:
         on_pid = kwargs.get("on_pid")
         if callable(on_pid):
             on_pid(self.pid)
-        return StreamedScriptResult(
+        return _StreamedScriptResult(
             returncode=self.returncode,
             pid=self.pid,
             output_bytes=bytes_written,
@@ -118,7 +118,7 @@ class _StreamedSideEffect:
         )
 
 
-def streamed_seq(effects: Iterable[Any]) -> Callable[..., StreamedScriptResult]:
+def streamed_seq(effects: Iterable[Any]) -> Callable[..., _StreamedScriptResult]:
     """Build a mock ``side_effect`` callable that dispatches over a sequence.
 
     Each element of ``effects`` is consumed once per call, in order:
@@ -135,13 +135,13 @@ def streamed_seq(effects: Iterable[Any]) -> Callable[..., StreamedScriptResult]:
     """
     iterator = iter(effects)
 
-    def call(*args: object, **kwargs: object) -> StreamedScriptResult:
+    def call(*args: object, **kwargs: object) -> _StreamedScriptResult:
         effect = next(iterator)
         if isinstance(effect, BaseException):
             raise effect
         if callable(effect):
             return effect(*args, **kwargs)
-        assert isinstance(effect, StreamedScriptResult)
+        assert isinstance(effect, _StreamedScriptResult)
         return effect
 
     return call

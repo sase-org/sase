@@ -90,7 +90,7 @@ def run_chop_script(
 
 
 @dataclass
-class StreamedScriptResult:
+class _StreamedScriptResult:
     """Outcome of a streamed chop script execution.
 
     ``returncode`` is the subprocess exit code, or ``None`` if the process was
@@ -114,7 +114,7 @@ def stream_chop_script(
     env: dict[str, str] | None = None,
     cwd: str | None = None,
     on_pid: Callable[[int], None] | None = None,
-) -> StreamedScriptResult:
+) -> _StreamedScriptResult:
     """Execute a chop script, streaming combined stdout+stderr to ``log_path``.
 
     The script's stdout and stderr are merged (``stderr=STDOUT``) and pumped
@@ -219,7 +219,7 @@ def stream_chop_script(
     with bytes_lock:
         final_bytes = bytes_written
 
-    return StreamedScriptResult(
+    return _StreamedScriptResult(
         returncode=proc.returncode,
         pid=proc.pid,
         output_bytes=final_bytes,

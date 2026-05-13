@@ -296,9 +296,9 @@ def test_run_configured_chop_once_uses_per_chop_timeout(
         patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
         patch("sase.axe.chop_runner.stream_chop_script") as mock_stream,
     ):
-        from sase.axe.chop_script_runner import StreamedScriptResult
+        from sase.axe.chop_script_runner import _StreamedScriptResult
 
-        mock_stream.return_value = StreamedScriptResult(
+        mock_stream.return_value = _StreamedScriptResult(
             returncode=0, pid=1234, output_bytes=0, timed_out=False
         )
         run_configured_chop_once(
@@ -330,9 +330,9 @@ def test_run_configured_chop_once_falls_back_to_default_timeout(
         patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
         patch("sase.axe.chop_runner.stream_chop_script") as mock_stream,
     ):
-        from sase.axe.chop_script_runner import StreamedScriptResult
+        from sase.axe.chop_script_runner import _StreamedScriptResult
 
-        mock_stream.return_value = StreamedScriptResult(
+        mock_stream.return_value = _StreamedScriptResult(
             returncode=0, pid=1234, output_bytes=0, timed_out=False
         )
         run_configured_chop_once(
@@ -364,9 +364,9 @@ def test_run_configured_chop_once_propagates_chop_env(
         patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
         patch("sase.axe.chop_runner.stream_chop_script") as mock_stream,
     ):
-        from sase.axe.chop_script_runner import StreamedScriptResult
+        from sase.axe.chop_script_runner import _StreamedScriptResult
 
-        mock_stream.return_value = StreamedScriptResult(
+        mock_stream.return_value = _StreamedScriptResult(
             returncode=0, pid=1234, output_bytes=0, timed_out=False
         )
         run_configured_chop_once(
@@ -447,9 +447,9 @@ def test_run_configured_chop_once_records_failure_with_exit_code(
         ),
         patch("sase.axe.chop_runner.stream_chop_script") as mock_stream,
     ):
-        from sase.axe.chop_script_runner import StreamedScriptResult
+        from sase.axe.chop_script_runner import _StreamedScriptResult
 
-        mock_stream.return_value = StreamedScriptResult(
+        mock_stream.return_value = _StreamedScriptResult(
             returncode=2, pid=1234, output_bytes=4, timed_out=False
         )
         outcome = run_configured_chop_once(
@@ -600,9 +600,9 @@ def test_run_configured_chop_once_reuses_passed_context_file(
         ),
         patch("sase.axe.chop_runner.stream_chop_script") as mock_stream,
     ):
-        from sase.axe.chop_script_runner import StreamedScriptResult
+        from sase.axe.chop_script_runner import _StreamedScriptResult
 
-        mock_stream.return_value = StreamedScriptResult(
+        mock_stream.return_value = _StreamedScriptResult(
             returncode=0, pid=1234, output_bytes=0, timed_out=False
         )
         run_configured_chop_once(
@@ -630,9 +630,9 @@ def test_run_configured_chop_once_indexes_history_newest_first(
         ),
         patch("sase.axe.chop_runner.stream_chop_script") as mock_stream,
     ):
-        from sase.axe.chop_script_runner import StreamedScriptResult
+        from sase.axe.chop_script_runner import _StreamedScriptResult
 
-        mock_stream.return_value = StreamedScriptResult(
+        mock_stream.return_value = _StreamedScriptResult(
             returncode=0, pid=1234, output_bytes=0, timed_out=False
         )
         outcome = run_configured_chop_once(
