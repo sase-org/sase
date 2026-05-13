@@ -87,6 +87,17 @@ def _normalize_args(args: list[str], invocation_dir: Path) -> list[str]:
     return normalized
 
 
+def _resolve_mode_and_args(mode: str, args: list[str]) -> tuple[str, list[str]]:
+    resolved_args: list[str] = []
+    for arg in args:
+        if arg == "--visual":
+            mode = "visual"
+            continue
+        resolved_args.append(arg)
+
+    return mode, resolved_args
+
+
 def _worker_count() -> str:
     configured = os.environ.get("SASE_PYTEST_WORKERS")
     if configured:
@@ -136,8 +147,9 @@ def main(argv: list[str] | None = None) -> int:
     invocation_dir = Path(
         os.environ.get("SASE_JUST_INVOCATION_DIR", str(REPO_ROOT))
     ).resolve()
-    pytest_args = _normalize_args(namespace.pytest_args, invocation_dir)
-    command = _pytest_command(namespace.mode, pytest_args)
+    mode, pytest_args = _resolve_mode_and_args(namespace.mode, namespace.pytest_args)
+    pytest_args = _normalize_args(pytest_args, invocation_dir)
+    command = _pytest_command(mode, pytest_args)
 
     os.chdir(REPO_ROOT)
     os.execv(sys.executable, command)

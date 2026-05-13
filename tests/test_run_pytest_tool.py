@@ -74,3 +74,14 @@ def test_visual_mode_selects_visual_marker() -> None:
 
     assert result[0:3] == [runner.sys.executable, "-m", "pytest"]
     assert result[-3:] == ["-m", "visual", "tests/ace/tui/visual"]
+
+
+def test_visual_flag_selects_visual_mode() -> None:
+    runner = _load_run_pytest()
+
+    mode, args = runner._resolve_mode_and_args(
+        "fast", ["--visual", "-k", "axe", "tests/ace/tui/visual"]
+    )
+
+    assert mode == "visual"
+    assert args == ["-k", "axe", "tests/ace/tui/visual"]
