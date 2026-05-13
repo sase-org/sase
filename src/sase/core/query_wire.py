@@ -137,6 +137,7 @@ class QueryProgramWire:
     ast: QueryExprWire
 
 
+# pyvision: https://github.com/sase-org/sase-core.git
 @dataclass(frozen=True)
 class QueryErrorWire:
     """Structured error a Rust query implementation may emit.
