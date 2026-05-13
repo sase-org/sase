@@ -58,7 +58,7 @@ jobs:
       - name: Lint
         run: just lint
       - name: Pyvision (unused symbol check)
-        run: just pyvision
+        run: just _lint-pyvision
       - name: Pylimit (file line count check)
         run: just pylimit
 
