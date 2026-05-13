@@ -216,6 +216,10 @@ class StateInitMixin:
         self._agent_load_state: AgentLoadState | None = None
         self._agents_seen_complete_history: bool = False
         self._agents_repro_capture: Any = None
+        self._agents_repro_auto_check_enabled: bool = False
+        self._agents_repro_auto_capture_burst_active: bool = False
+        self._agents_repro_last_invariant_failures: list[Any] = []
+        self._agents_repro_output_dir: str = ""
         self._artifact_tmux_pane_id: str | None = None
         self._artifact_tmux_decoration_state: Any = None
         self._artifact_viewer_previous_sigusr1_handler: (
@@ -462,6 +466,11 @@ class StateInitMixin:
         ace_cfg = merged.get("ace", {}) if isinstance(merged, dict) else {}
         self._inactive_seconds: int = int(
             ace_cfg.get("inactive_seconds", 600) if isinstance(ace_cfg, dict) else 600
+        )
+        self._agents_repro_output_dir = (
+            str(ace_cfg.get("repro_output_dir", ""))
+            if isinstance(ace_cfg, dict)
+            else ""
         )
         user_snippets: dict[str, str] = (
             ace_cfg.get("snippets", {}) if isinstance(ace_cfg, dict) else {}

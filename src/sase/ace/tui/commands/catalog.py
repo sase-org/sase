@@ -358,6 +358,8 @@ _LEADER_LABELS: dict[str, str] = {
     "agent_run_log": "Agent run log",
     "jump_to_notification": "Jump to notification",
     "temporary_llm_override": "Temporary model override",
+    "capture_agents_repro": "Capture Agents-tab repro bundle",
+    "toggle_agents_repro_checks": "Toggle Agents-tab repro checks",
 }
 
 _BANG_LABELS: dict[str, str] = {
@@ -379,6 +381,8 @@ _LEADER_TABS: dict[str, tuple[CommandTab, ...]] = {
     "clear_comments": _CL_ONLY,
     "jump_to_notification": _AGENTS_ONLY,
     "agent_from_cl": _CL_AGENTS,
+    "capture_agents_repro": _AGENTS_ONLY,
+    "toggle_agents_repro_checks": _AGENTS_ONLY,
 }
 
 

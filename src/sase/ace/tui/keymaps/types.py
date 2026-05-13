@@ -405,6 +405,8 @@ class LeaderModeKeymaps(ModeKeymaps):
             "prompt_history_cancelled": "greater_than_sign",
             "agent_run_log": "A",
             "temporary_llm_override": "P",
+            "capture_agents_repro": "R",
+            "toggle_agents_repro_checks": "T",
             "jump_to_notification": "n",
         }
     )

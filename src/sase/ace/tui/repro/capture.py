@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -13,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from .redact import redact_bundle
+from .invariants import check_bundle_invariants
 from .schema import (
     AgentIdentity,
     ReproAppState,
@@ -248,8 +250,55 @@ def record_agents_tab_app_projection(
         return
     try:
         ring.record_app_projection(app, load_state=load_state, source=source)
+        maybe_auto_capture_agents_tab_violation(app, ring=ring)
     except Exception:
         log.debug("agents repro projection capture failed", exc_info=True)
+
+
+def set_agents_tab_repro_auto_check(app: Any, *, enabled: bool) -> None:
+    """Enable or disable continuous invariant checks for one app instance."""
+
+    app._agents_repro_auto_check_enabled = enabled
+    app._agents_repro_auto_capture_burst_active = False
+    app._agents_repro_last_invariant_failures = []
+    if enabled and get_agents_tab_repro_capture(app) is None:
+        enable_agents_tab_repro_capture(app)
+
+
+def maybe_auto_capture_agents_tab_violation(
+    app: Any,
+    *,
+    ring: AgentsTabReproCaptureRing,
+) -> Path | None:
+    """Auto-flush one bundle at the start of each invariant violation burst."""
+
+    if not bool(getattr(app, "_agents_repro_auto_check_enabled", False)):
+        return None
+
+    report = check_bundle_invariants(ring.to_bundle(commit_safe=True))
+    latest_step_id = ring.steps[-1].step_id if ring.steps else None
+    current_failures = [
+        failure for failure in report.failures if failure.step_id == latest_step_id
+    ]
+    if not current_failures:
+        app._agents_repro_auto_capture_burst_active = False
+        app._agents_repro_last_invariant_failures = []
+        return None
+
+    app._agents_repro_last_invariant_failures = current_failures
+    if bool(getattr(app, "_agents_repro_auto_capture_burst_active", False)):
+        return None
+
+    bundle_path = capture_agents_tab_repro_bundle_to_default_dir(
+        app,
+        reason="auto",
+        commit_safe=True,
+    )
+    app._agents_repro_auto_capture_burst_active = True
+    notify = getattr(app, "_notify_agents_repro_auto_capture", None)
+    if callable(notify):
+        notify(bundle_path)
+    return bundle_path
 
 
 def capture_agents_tab_repro_bundle(
@@ -284,6 +333,44 @@ def capture_agents_tab_repro_bundle(
         {"path": str(bundle_path), "steps": len(bundle.load_steps)},
     )
     return bundle_path
+
+
+def capture_agents_tab_repro_bundle_to_default_dir(
+    app: Any,
+    *,
+    reason: str,
+    commit_safe: bool = True,
+) -> Path:
+    """Capture into the configured repro base dir using a unique bundle id."""
+
+    ring = get_agents_tab_repro_capture(app)
+    repro_id = getattr(ring, "repro_id", uuid4().hex[:12])
+    capture_id = uuid4().hex[:6]
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    output_dir = (
+        _resolve_agents_repro_base_dir(app)
+        / f"{timestamp}-{_safe_reason(reason)}-{repro_id}-{capture_id}"
+    )
+    return capture_agents_tab_repro_bundle(
+        app,
+        output_dir,
+        commit_safe=commit_safe,
+    )
+
+
+def _resolve_agents_repro_base_dir(app: Any) -> Path:
+    configured = str(getattr(app, "_agents_repro_output_dir", "") or "").strip()
+    if configured:
+        return Path(configured).expanduser()
+    env_base = os.environ.get("SASE_HOME")
+    if env_base:
+        return Path(env_base).expanduser() / "repros"
+    return Path.home() / ".sase" / "repros"
+
+
+def _safe_reason(reason: str) -> str:
+    cleaned = "".join(ch if ch.isalnum() or ch in ("-", "_") else "-" for ch in reason)
+    return cleaned.strip("-") or "capture"
 
 
 def _serialize_load_state(load_state: AgentLoadState | None) -> ReproLoadState:

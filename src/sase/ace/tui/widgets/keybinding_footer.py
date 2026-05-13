@@ -485,6 +485,8 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         if current_tab == "agents":
             bindings.append((k("kill_and_edit"), "kill & edit"))
             bindings.append((k("retry_edit"), "retry (edit)"))
+            bindings.append((k("capture_agents_repro"), "capture repro"))
+            bindings.append((k("toggle_agents_repro_checks"), "repro checks"))
             if has_notification:
                 bindings.append((k("jump_to_notification"), "notification"))
         bindings.append((k("task_queue"), "task queue"))

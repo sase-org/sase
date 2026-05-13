@@ -8,11 +8,14 @@ from .invariants import (
 from .capture import (
     AgentsTabReproCaptureRing,
     capture_agents_tab_repro_bundle,
+    capture_agents_tab_repro_bundle_to_default_dir,
     disable_agents_tab_repro_capture,
     enable_agents_tab_repro_capture,
     get_agents_tab_repro_capture,
+    maybe_auto_capture_agents_tab_violation,
     record_agents_tab_app_projection,
     record_agents_tab_loader_result,
+    set_agents_tab_repro_auto_check,
 )
 from .redact import RedactionContext, redact_bundle
 from .replay import (
@@ -53,13 +56,16 @@ __all__ = [
     "ReproSelectionFallback",
     "RedactionContext",
     "capture_agents_tab_repro_bundle",
+    "capture_agents_tab_repro_bundle_to_default_dir",
     "check_bundle_invariants",
     "disable_agents_tab_repro_capture",
     "enable_agents_tab_repro_capture",
     "get_agents_tab_repro_capture",
+    "maybe_auto_capture_agents_tab_violation",
     "load_bundle",
     "record_agents_tab_app_projection",
     "record_agents_tab_loader_result",
+    "set_agents_tab_repro_auto_check",
     "redact_bundle",
     "replay_agents_tab_bundle",
     "serialize_agent_row",

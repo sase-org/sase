@@ -25,6 +25,7 @@ mobile_gateway:
 
 ace:
   inactive_seconds: 600
+  repro_output_dir: ""
   snippets: {}
   keymaps:
     app:
@@ -191,6 +192,8 @@ ace:
           prompt_history_cancelled: "greater_than_sign"
           agent_run_log: "A"
           temporary_llm_override: "P"
+          capture_agents_repro: "R"
+          toggle_agents_repro_checks: "T"
       bang_mode:
         prefix: "exclamation_mark"
         keys:

@@ -418,6 +418,14 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     "Jump to agent notification",
                 ),
                 (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'capture_agents_repro'))}",
+                    "Capture repro bundle",
+                ),
+                (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'toggle_agents_repro_checks'))}",
+                    "Toggle repro auto-checks",
+                ),
+                (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'activity_info'))}",
                     "Activity dashboard",
                 ),

@@ -157,6 +157,18 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["capture_agents_repro"]:
+            if self.current_tab == "agents":
+                self.action_capture_agents_repro()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
+        if key == leader_keys["toggle_agents_repro_checks"]:
+            if self.current_tab == "agents":
+                self.action_toggle_agents_repro_checks()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["prompt_history"]:
             self._start_prompt_history_from_last_selection()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
