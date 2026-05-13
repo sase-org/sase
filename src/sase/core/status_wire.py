@@ -235,6 +235,7 @@ class StatusTransitionPlanWire:
     revert_siblings: bool = False
 
 
+# pyvision: https://github.com/sase-org/sase-core.git
 @dataclass(frozen=True)
 class StatusFieldReadWire:
     """Inputs for :func:`read_status_from_lines`.
