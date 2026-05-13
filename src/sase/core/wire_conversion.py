@@ -117,14 +117,14 @@ def timestamp_entry_to_wire(entry: TimestampEntry) -> TimestampWire:
     )
 
 
-def delta_entry_to_wire(entry: DeltaEntry) -> DeltaWire:
+def _delta_entry_to_wire(entry: DeltaEntry) -> DeltaWire:
     # ``DeltaEntry.change_type`` is already the long form ("A"/"M"/"D"); the
     # mapping is here so callers reading raw on-disk glyphs can still produce
-    # a wire record via :func:`delta_glyph_to_change_type`.
+    # a wire record via :func:`_delta_glyph_to_change_type`.
     return DeltaWire(path=entry.path, change_type=entry.change_type)
 
 
-def delta_glyph_to_change_type(glyph: str) -> str:
+def _delta_glyph_to_change_type(glyph: str) -> str:
     """Translate an on-disk DELTAS glyph (``+``/``~``/``-``) to its long form."""
     try:
         return _DELTA_GLYPH_TO_CODE[glyph]
@@ -299,5 +299,5 @@ def changespec_to_wire(
         comments=[comment_entry_to_wire(c) for c in (cs.comments or [])],
         mentors=[mentor_entry_to_wire(m) for m in (cs.mentors or [])],
         timestamps=[timestamp_entry_to_wire(t) for t in (cs.timestamps or [])],
-        deltas=[delta_entry_to_wire(d) for d in (cs.deltas or [])],
+        deltas=[_delta_entry_to_wire(d) for d in (cs.deltas or [])],
     )

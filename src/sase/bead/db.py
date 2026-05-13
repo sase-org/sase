@@ -414,17 +414,6 @@ def ready_issues(conn: sqlite3.Connection) -> list[Issue]:
     return issues
 
 
-def delete_issue(conn: sqlite3.Connection, issue_id: str) -> bool:
-    """Delete an issue by ID.
-
-    Returns True if the issue existed and was deleted.
-    Child issues and dependencies are cascade-deleted by the database.
-    """
-    cursor = conn.execute("DELETE FROM issues WHERE id = ?", (issue_id,))
-    conn.commit()
-    return cursor.rowcount > 0
-
-
 def add_dependency(
     conn: sqlite3.Connection,
     issue_id: str,

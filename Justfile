@@ -112,9 +112,6 @@ _lint-pyvision: _setup
         BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 src/sase \
         --epic-symbol 'sase-3a(MultiAgentXPromptDepthError)' \
         --epic-symbol 'sase-3a(QueryErrorWire)' \
-        --epic-symbol 'sase-3a(delete_issue)' \
-        --epic-symbol 'sase-3a(delta_entry_to_wire)' \
-        --epic-symbol 'sase-3a(delta_glyph_to_change_type)' \
         --epic-symbol 'sase-3a(derive_git_workspace_name_python)' \
         --epic-symbol 'sase-3a(enter_maintenance)' \
         --epic-symbol 'sase-3a(extract_top_level_xprompt_reference)' \

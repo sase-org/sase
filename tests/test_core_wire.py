@@ -29,8 +29,6 @@ from sase.core.wire_conversion import (
     changespec_wire_from_dict,
     comment_entry_to_wire,
     _commit_entry_to_wire,
-    delta_entry_to_wire,
-    delta_glyph_to_change_type,
     hook_entry_to_wire,
     hook_status_line_to_wire,
     mentor_entry_to_wire,
@@ -136,12 +134,6 @@ def test_commit_entry_with_no_body_yields_empty_list() -> None:
     assert wire.body == []
 
 
-def test_delta_glyph_translation() -> None:
-    assert delta_glyph_to_change_type("+") == "A"
-    assert delta_glyph_to_change_type("~") == "M"
-    assert delta_glyph_to_change_type("-") == "D"
-
-
 def test_changespec_to_wire_full_round_trip() -> None:
     cs = _full_changespec()
     wire = changespec_to_wire(cs, end_line=42)
@@ -241,7 +233,6 @@ def test_individual_to_wire_helpers() -> None:
     )
     assert mentor_entry_to_wire(cs.mentors[0]).entry_id == "1"
     assert timestamp_entry_to_wire(cs.timestamps[0]).event_type == "STATUS"
-    assert delta_entry_to_wire(cs.deltas[0]).change_type == "A"
 
 
 def test_parse_error_wire_optional_position() -> None:

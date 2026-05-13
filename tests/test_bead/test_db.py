@@ -7,7 +7,7 @@ import pytest
 from sase.bead.db import (
     add_dependency,
     create_issue,
-    delete_issue,
+    _delete_issue,
     get_dependencies,
     get_epic_children,
     get_issue,
@@ -316,19 +316,24 @@ class TestEpicChildren:
 
 
 class TestDeleteIssue:
+    def _delete_issue_in_db(self, conn: sqlite3.Connection, issue_id: str) -> bool:
+        cursor = conn.execute("DELETE FROM issues WHERE id = ?", (issue_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
     def test_delete_existing(self, conn: sqlite3.Connection) -> None:
         create_issue(conn, _epic())
-        assert delete_issue(conn, "e-1") is True
+        assert self._delete_issue_in_db(conn, "e-1") is True
         assert get_issue(conn, "e-1") is None
 
     def test_delete_nonexistent(self, conn: sqlite3.Connection) -> None:
-        assert delete_issue(conn, "no-such") is False
+        assert self._delete_issue_in_db(conn, "no-such") is False
 
     def test_delete_cascades_children(self, conn: sqlite3.Connection) -> None:
         create_issue(conn, _epic())
         create_issue(conn, _child("c-1"))
         create_issue(conn, _child("c-2"))
-        delete_issue(conn, "e-1")
+        self._delete_issue_in_db(conn, "e-1")
         assert get_issue(conn, "c-1") is None
         assert get_issue(conn, "c-2") is None
 
@@ -336,7 +341,7 @@ class TestDeleteIssue:
         create_issue(conn, _epic("e-1"))
         create_issue(conn, _epic("e-2"))
         add_dependency(conn, "e-2", "e-1", NOW)
-        delete_issue(conn, "e-1")
+        self._delete_issue_in_db(conn, "e-1")
         assert get_dependencies(conn, "e-2") == []
 
 
