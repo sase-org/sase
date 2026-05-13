@@ -11,7 +11,7 @@ import pytest
 
 from sase.ace.tui.actions.agents._approve import (
     AgentApproveMixin,
-    persist_plan_auto_approval,
+    _persist_plan_auto_approval,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 
@@ -66,14 +66,14 @@ class FakeApproveApp(AgentApproveMixin):
 
 def testpersist_approve_field_writes_new_file(tmp_path: Any) -> None:
     meta_path = tmp_path / "agent_meta.json"
-    persist_plan_auto_approval(meta_path, True, None)
+    _persist_plan_auto_approval(meta_path, True, None)
     assert json.loads(meta_path.read_text()) == {"approve": True}
 
 
 def testpersist_approve_field_preserves_other_keys(tmp_path: Any) -> None:
     meta_path = tmp_path / "agent_meta.json"
     meta_path.write_text(json.dumps({"approve": False, "other": "keep"}))
-    persist_plan_auto_approval(meta_path, True, None)
+    _persist_plan_auto_approval(meta_path, True, None)
     data = json.loads(meta_path.read_text())
     assert data["approve"] is True
     assert data["other"] == "keep"
@@ -85,7 +85,7 @@ def test_persist_plan_auto_approval_epic_clears_legacy_approve(
     meta_path = tmp_path / "agent_meta.json"
     meta_path.write_text(json.dumps({"approve": True, "other": "keep"}))
 
-    persist_plan_auto_approval(meta_path, False, "epic")
+    _persist_plan_auto_approval(meta_path, False, "epic")
 
     data = json.loads(meta_path.read_text())
     assert data["auto_approve_plan_action"] == "epic"
@@ -191,7 +191,7 @@ def test_action_toggle_approve_rolls_back_on_persist_failure(
         raise OSError("disk full")
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.agents._approve.persist_plan_auto_approval", _boom
+        "sase.ace.tui.actions.agents._approve._persist_plan_auto_approval", _boom
     )
     app.action_toggle_approve()
     assert agent.approve is True  # optimistic

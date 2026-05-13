@@ -10,7 +10,7 @@ from sase.plan_chain import (
     is_plan_chain_artifact_meta,
     plan_chain_agent_name,
     plan_chain_feedback_suffix,
-    plan_chain_suffix_from_meta,
+    _plan_chain_suffix_from_meta,
 )
 
 
@@ -24,7 +24,7 @@ def test_plan_chain_agent_names_use_canonical_suffixes() -> None:
 def test_coder_suffix_classifies_as_code() -> None:
     assert canonical_plan_chain_suffix(PLAN_CHAIN_CODER_SUFFIX) == ".code"
     assert (
-        plan_chain_suffix_from_meta(
+        _plan_chain_suffix_from_meta(
             {
                 "name": "agent.code",
                 "workflow_name": "agent",
@@ -38,7 +38,7 @@ def test_coder_suffix_classifies_as_code() -> None:
 def test_coder_suffix_is_not_a_supported_alias() -> None:
     assert canonical_plan_chain_suffix(".coder") is None
     assert (
-        plan_chain_suffix_from_meta(
+        _plan_chain_suffix_from_meta(
             {
                 "name": "agent.coder",
                 "workflow_name": "agent",
@@ -59,7 +59,7 @@ def test_plan_chain_feedback_suffix_is_one_based() -> None:
 
 def test_plan_chain_suffix_from_meta_prefers_role_suffix() -> None:
     assert (
-        plan_chain_suffix_from_meta(
+        _plan_chain_suffix_from_meta(
             {
                 "role_suffix": ".code",
                 "name": "agent.code",

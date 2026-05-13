@@ -50,7 +50,7 @@ def plan_chain_agent_name(base_name: str, suffix: str) -> str:
     return f"{base_name}{canonical}"
 
 
-def plan_chain_suffix_from_meta(meta: Mapping[str, object]) -> str | None:
+def _plan_chain_suffix_from_meta(meta: Mapping[str, object]) -> str | None:
     """Infer a canonical plan-chain suffix from artifact metadata.
 
     ``role_suffix`` is authoritative for new artifacts. Name suffix inference
@@ -86,4 +86,4 @@ def plan_chain_suffix_from_meta(meta: Mapping[str, object]) -> str | None:
 
 def is_plan_chain_artifact_meta(meta: Mapping[str, object]) -> bool:
     """Return whether artifact metadata describes a plan-chain phase."""
-    return plan_chain_suffix_from_meta(meta) is not None
+    return _plan_chain_suffix_from_meta(meta) is not None

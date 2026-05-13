@@ -57,7 +57,7 @@ def approval_protocol_for_choice(
     return _PLAN_APPROVAL_CHOICE_PROTOCOL[choice]
 
 
-def plan_approval_result_for_choice(
+def _plan_approval_result_for_choice(
     choice: PlanApprovalChoice,
     *,
     feedback: str | None = None,
@@ -251,11 +251,11 @@ class PlanApprovalModal(
 
     def action_approve(self) -> None:
         """Approve the plan without an SDD commit."""
-        self.dismiss(plan_approval_result_for_choice("approve"))
+        self.dismiss(_plan_approval_result_for_choice("approve"))
 
     def action_tale(self) -> None:
         """Approve the plan as an SDD tale."""
-        self.dismiss(plan_approval_result_for_choice("tale"))
+        self.dismiss(_plan_approval_result_for_choice("tale"))
 
     def _push_approve_options(
         self,
@@ -290,7 +290,7 @@ class PlanApprovalModal(
                 )
                 return
             self.dismiss(
-                plan_approval_result_for_choice(
+                _plan_approval_result_for_choice(
                     result.choice,
                     coder_prompt=result.coder_prompt,
                     coder_model=result.coder_model,
@@ -326,11 +326,11 @@ class PlanApprovalModal(
 
     def action_epic(self) -> None:
         """Create an epic from the plan."""
-        self.dismiss(plan_approval_result_for_choice("epic"))
+        self.dismiss(_plan_approval_result_for_choice("epic"))
 
     def action_legend(self) -> None:
         """Create a legend from the plan."""
-        self.dismiss(plan_approval_result_for_choice("legend"))
+        self.dismiss(_plan_approval_result_for_choice("legend"))
 
     def action_copy_plan(self) -> None:
         """Copy the plan file contents to clipboard."""

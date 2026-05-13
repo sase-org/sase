@@ -266,7 +266,9 @@ def test_do_dismiss_all_batch_does_not_full_reload() -> None:
 
 def test_bulk_dismiss_transaction_uses_one_notification_update() -> None:
     """Bulk dismiss cleanup batches notification dismissal into one Rust update."""
-    from sase.ace.tui.actions.agents._dismissing import persist_bulk_dismiss_transaction
+    from sase.ace.tui.actions.agents._dismissing import (
+        _persist_bulk_dismiss_transaction,
+    )
 
     a1 = make_agent(cl_name="feature_one", raw_suffix="20260501010101")
     a2 = make_agent(cl_name="feature_two", raw_suffix="20260501020202")
@@ -285,7 +287,7 @@ def test_bulk_dismiss_transaction_uses_one_notification_update() -> None:
             return_value=outcome,
         ) as mock_update,
     ):
-        persist_bulk_dismiss_transaction(
+        _persist_bulk_dismiss_transaction(
             [a1, a2],
             {a1.identity, a2.identity},
             [a1, a2],

@@ -14,7 +14,7 @@ Two responsibilities live here:
   :class:`~sase.core.status_wire.StatusTransitionRequestWire`. This
   helper performs Python-only filesystem I/O via
   :mod:`sase.ace.changespec` and :mod:`sase.ace.revert`.
-- :func:`plan_status_transition_python` — pure decision engine. Given a
+- :func:`_plan_status_transition_python` — pure decision engine. Given a
   request wire, returns a :class:`~sase.core.status_wire.StatusTransitionPlanWire`
   describing the side effects the host should perform. This is the
   Python implementation that the Rust planner will mirror.
@@ -95,7 +95,7 @@ def _failure_plan(
     )
 
 
-def plan_status_transition_python(
+def _plan_status_transition_python(
     request: StatusTransitionRequestWire,
 ) -> StatusTransitionPlanWire:
     """Pure Python implementation of the status transition planner.
@@ -425,7 +425,4 @@ def build_status_transition_request(
     )
 
 
-__all__ = [
-    "build_status_transition_request",
-    "plan_status_transition_python",
-]
+__all__ = ["build_status_transition_request"]

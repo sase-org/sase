@@ -127,13 +127,13 @@ def test_status_facade_line_helpers_real_extension_parity(
 
 
 def test_plan_status_transition_against_python_golden() -> None:
-    """The facade output matches :func:`plan_status_transition_python` byte-for-byte."""
+    """The facade output matches :func:`_plan_status_transition_python` byte-for-byte."""
     pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
-    from sase.core.status_wire_conversion import plan_status_transition_python
+    from sase.core.status_wire_conversion import _plan_status_transition_python
 
     request = basic_plan_request()
     via_facade = status_facade.plan_status_transition(request)
-    direct = plan_status_transition_python(request)
+    direct = _plan_status_transition_python(request)
     assert via_facade == direct
     assert via_facade.success is True
     assert via_facade.status_update_target == "Draft"
@@ -226,7 +226,7 @@ def test_plan_status_transition_real_extension_parity() -> None:
     if not hasattr(rust_module, "plan_status_transition"):
         pytest.skip("sase_core_rs is too old (no plan_status_transition).")
 
-    from sase.core.status_wire_conversion import plan_status_transition_python
+    from sase.core.status_wire_conversion import _plan_status_transition_python
 
     request = basic_plan_request(
         changespec_name="example",
@@ -234,7 +234,7 @@ def test_plan_status_transition_real_extension_parity() -> None:
         new_status="Draft",
     )
     via_facade = status_facade.plan_status_transition(request)
-    direct = plan_status_transition_python(request)
+    direct = _plan_status_transition_python(request)
     assert via_facade == direct
 
 

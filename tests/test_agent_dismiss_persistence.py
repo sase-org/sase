@@ -157,7 +157,7 @@ def test_do_dismiss_all_persistence_failure_notifies_and_refreshes() -> None:
     app._do_dismiss_all([a1])
 
     with patch(
-        "sase.ace.tui.actions.agents._dismissing.persist_bulk_dismiss_transaction",
+        "sase.ace.tui.actions.agents._dismissing._persist_bulk_dismiss_transaction",
         side_effect=RuntimeError("boom"),
     ):
         callback, args = app._scheduled[0]

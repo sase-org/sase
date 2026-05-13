@@ -366,7 +366,7 @@ def _build_cleanup_side_effects(
     )
 
 
-def plan_agent_cleanup_python(
+def _plan_agent_cleanup_python(
     targets: Sequence[AgentCleanupTargetWire | dict[str, Any]],
     request: AgentCleanupRequestWire | dict[str, Any],
 ) -> AgentCleanupPlanWire:
@@ -564,7 +564,7 @@ def plan_agent_cleanup(
     try:
         binding = require_rust_binding("plan_agent_cleanup")
     except (ImportError, AttributeError):
-        return plan_agent_cleanup_python(wire_targets, wire_request)
+        return _plan_agent_cleanup_python(wire_targets, wire_request)
 
     payload: dict[str, Any] = binding(
         agent_cleanup_wire_to_json_dict(wire_targets),
@@ -581,7 +581,7 @@ def plan_agent_cleanup(
             "notification_dismiss_candidates",
         )
     ):
-        return plan_agent_cleanup_python(wire_targets, wire_request)
+        return _plan_agent_cleanup_python(wire_targets, wire_request)
     return plan
 
 
@@ -589,5 +589,4 @@ __all__ = [
     "agent_to_cleanup_target",
     "agents_to_cleanup_targets",
     "plan_agent_cleanup",
-    "plan_agent_cleanup_python",
 ]

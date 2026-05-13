@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 TabName = Literal["changespecs", "agents", "axe"]
 
 
-def persist_plan_auto_approval(
+def _persist_plan_auto_approval(
     meta_path: Path,
     approve: bool,
     auto_approve_plan_action: str | None,
@@ -118,7 +118,7 @@ class AgentApproveMixin:
 
         schedule_persist(
             self,  # type: ignore[arg-type]
-            persist_plan_auto_approval,
+            _persist_plan_auto_approval,
             meta_path,
             new_approve and new_auto_action is None,
             new_auto_action,

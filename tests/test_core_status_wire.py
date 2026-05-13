@@ -3,7 +3,7 @@
 These tests pin down the shape of
 :class:`sase.core.status_wire.StatusTransitionRequestWire` /
 :class:`StatusTransitionPlanWire` and the decision behaviour of
-:func:`sase.core.status_wire_conversion.plan_status_transition_python`.
+:func:`sase.core.status_wire_conversion._plan_status_transition_python`.
 
 The Rust planner added in Phase 4C must reproduce the plans exercised
 here, so any edit to a golden plan should be a deliberate parity-breaking
@@ -38,7 +38,7 @@ from sase.core.status_wire import (
 )
 from sase.core.status_wire_conversion import (
     build_status_transition_request,
-    plan_status_transition_python,
+    _plan_status_transition_python,
 )
 
 
@@ -185,7 +185,7 @@ def test_schema_version_mismatch_raises() -> None:
 
 
 def test_invalid_transition_validate_true_rejects() -> None:
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(old_status="Ready", new_status="Submitted")
     )
     assert plan.success is False
@@ -198,7 +198,7 @@ def test_invalid_transition_validate_true_rejects() -> None:
 
 def test_invalid_transition_validate_false_allows() -> None:
     """validate=False mirrors the archive-restore escape hatch."""
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(old_status="Ready", new_status="Submitted", validate=False)
     )
     assert plan.success is True
@@ -206,7 +206,7 @@ def test_invalid_transition_validate_false_allows() -> None:
 
 
 def test_unknown_status_rejected_under_validation() -> None:
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(old_status="Bogus", new_status="Mailed")
     )
     assert plan.success is False
@@ -217,7 +217,7 @@ def test_unknown_status_rejected_under_validation() -> None:
 
 def test_workspace_suffix_does_not_block_validation() -> None:
     """``Ready (proj_2)`` should normalise to ``Ready`` before validating."""
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(
             changespec_name="proj_thing",
             old_status="Ready (proj_2)",
@@ -233,7 +233,7 @@ def test_workspace_suffix_does_not_block_validation() -> None:
 
 
 def test_legacy_ready_to_mail_suffix_stripped() -> None:
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(
             changespec_name="proj_thing",
             old_status="Ready - (!: READY TO MAIL)",
@@ -248,7 +248,7 @@ def test_legacy_ready_to_mail_suffix_stripped() -> None:
 
 
 def test_wip_to_draft_no_suffix_no_mentor() -> None:
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(
             changespec_name="proj_feature",
             old_status="WIP",
@@ -268,7 +268,7 @@ def test_wip_to_draft_no_suffix_no_mentor() -> None:
 
 
 def test_ready_to_draft_appends_suffix_and_sets_mentor_draft() -> None:
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(
             changespec_name="proj_feature",
             old_status="Ready",
@@ -287,7 +287,7 @@ def test_ready_to_draft_appends_suffix_and_sets_mentor_draft() -> None:
 
 
 def test_ready_to_draft_picks_lowest_free_suffix() -> None:
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(
             changespec_name="proj_feature",
             old_status="Ready",
@@ -305,7 +305,7 @@ def test_ready_to_draft_picks_lowest_free_suffix() -> None:
 
 
 def test_ready_to_draft_blocked_by_invalid_children() -> None:
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(
             changespec_name="proj_feature",
             old_status="Ready",
@@ -327,7 +327,7 @@ def test_ready_to_draft_blocked_by_invalid_children() -> None:
 
 
 def test_wip_to_ready_with_suffix_strips_and_reverts_siblings() -> None:
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(
             changespec_name="proj_feature_2",
             old_status="WIP",
@@ -345,7 +345,7 @@ def test_wip_to_ready_with_suffix_strips_and_reverts_siblings() -> None:
 
 
 def test_draft_to_ready_with_suffix_strips_and_clears_mentors() -> None:
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(
             changespec_name="proj_feature_3",
             old_status="Draft",
@@ -360,7 +360,7 @@ def test_draft_to_ready_with_suffix_strips_and_clears_mentors() -> None:
 
 
 def test_draft_to_ready_no_suffix_no_strip_clears_mentors() -> None:
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(
             changespec_name="proj_feature",
             old_status="Draft",
@@ -374,7 +374,7 @@ def test_draft_to_ready_no_suffix_no_strip_clears_mentors() -> None:
 
 
 def test_wip_to_ready_blocked_by_sibling_unreverted_children() -> None:
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(
             changespec_name="proj_feature_2",
             old_status="WIP",
@@ -392,7 +392,7 @@ def test_wip_to_ready_blocked_by_sibling_unreverted_children() -> None:
 
 
 def test_parent_wip_blocks_child_to_mailed() -> None:
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(
             changespec_name="proj_child",
             old_status="Ready",
@@ -412,7 +412,7 @@ def test_parent_constraint_skipped_for_reverted_branch() -> None:
     The parent constraint only fires in the generic "ready"-style branch, so
     a Reverted target is only blocked by the transition validator itself.
     """
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(
             changespec_name="proj_child",
             old_status="Ready",
@@ -426,7 +426,7 @@ def test_parent_constraint_skipped_for_reverted_branch() -> None:
 
 
 def test_parent_ready_does_not_block_mailed() -> None:
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(
             changespec_name="proj_child",
             old_status="Ready",
@@ -441,7 +441,7 @@ def test_parent_ready_does_not_block_mailed() -> None:
 
 
 def test_reverted_terminal_no_further_transitions() -> None:
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(old_status="Reverted", new_status="WIP")
     )
     assert plan.success is False
@@ -450,14 +450,14 @@ def test_reverted_terminal_no_further_transitions() -> None:
 
 
 def test_archived_terminal_no_further_transitions() -> None:
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(old_status="Archived", new_status="WIP")
     )
     assert plan.success is False
 
 
 def test_submitted_terminal_no_further_transitions() -> None:
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(old_status="Submitted", new_status="Mailed")
     )
     assert plan.success is False
@@ -467,7 +467,7 @@ def test_submitted_terminal_no_further_transitions() -> None:
 
 
 def test_archive_action_to_archive_on_submitted() -> None:
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(old_status="Mailed", new_status="Submitted")
     )
     assert plan.success is True
@@ -475,7 +475,7 @@ def test_archive_action_to_archive_on_submitted() -> None:
 
 
 def test_archive_action_from_archive_under_no_validate() -> None:
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(old_status="Submitted", new_status="Ready", validate=False)
     )
     assert plan.success is True
@@ -484,14 +484,16 @@ def test_archive_action_from_archive_under_no_validate() -> None:
 
 def test_archive_action_none_within_main_class() -> None:
     """WIP and Draft both live in the main file — no movement required."""
-    plan = plan_status_transition_python(_request(old_status="WIP", new_status="Draft"))
+    plan = _plan_status_transition_python(
+        _request(old_status="WIP", new_status="Draft")
+    )
     assert plan.success is True
     assert plan.archive_action == ARCHIVE_ACTION_NONE
 
 
 def test_archive_action_none_within_archive_class() -> None:
     """Submitted -> Archived stays in the archive file (validate skipped)."""
-    plan = plan_status_transition_python(
+    plan = _plan_status_transition_python(
         _request(old_status="Submitted", new_status="Archived", validate=False)
     )
     assert plan.success is True

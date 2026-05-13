@@ -14,7 +14,7 @@ from sase.core.agent_cleanup_facade import (
     agent_to_cleanup_target,
     agents_to_cleanup_targets,
     plan_agent_cleanup,
-    plan_agent_cleanup_python,
+    _plan_agent_cleanup_python,
 )
 from sase.core.agent_cleanup_wire import (
     AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
@@ -332,7 +332,7 @@ def test_agent_to_cleanup_target_converts_current_agent_shape() -> None:
 @pytest.mark.parametrize("scenario", _SCENARIOS)
 def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None:
     agents, request = scenario()
-    plan = plan_agent_cleanup_python(agents_to_cleanup_targets(agents), request)
+    plan = _plan_agent_cleanup_python(agents_to_cleanup_targets(agents), request)
 
     if scenario is _scenario_focused_panel_dismiss:
         assert [item.identity.cl_name for item in plan.dismiss_items] == ["done"]
@@ -396,7 +396,7 @@ def test_python_cleanup_planner_side_effect_intents_for_workflow_dismissal() -> 
         identities=(_id(parent),),
     )
 
-    plan = plan_agent_cleanup_python(
+    plan = _plan_agent_cleanup_python(
         agents_to_cleanup_targets([parent, child]), request
     )
 
@@ -435,7 +435,7 @@ def test_python_cleanup_planner_side_effect_intents_for_bulk_kill() -> None:
         include_pidless_as_dismissable=False,
     )
 
-    plan = plan_agent_cleanup_python(
+    plan = _plan_agent_cleanup_python(
         agents_to_cleanup_targets([running, done]), request
     )
 
@@ -460,7 +460,7 @@ def test_plan_agent_cleanup_uses_rust_binding_when_available(
         target_payload: list[dict[str, Any]], request_payload: dict[str, Any]
     ) -> dict[str, Any]:
         captured.append((target_payload, request_payload))
-        plan = plan_agent_cleanup_python(target_payload, request_payload)
+        plan = _plan_agent_cleanup_python(target_payload, request_payload)
         payload = agent_cleanup_wire_to_json_dict(plan)
         payload["kill_items"][0]["kind"] = KILL_KIND_RUNNING
         return payload
@@ -504,7 +504,7 @@ def test_rust_cleanup_planner_matches_python_reference(scenario: Any) -> None:
     agents, request = scenario()
     targets = agents_to_cleanup_targets(agents)
 
-    assert plan_agent_cleanup(targets, request) == plan_agent_cleanup_python(
+    assert plan_agent_cleanup(targets, request) == _plan_agent_cleanup_python(
         targets,
         request,
     )
