@@ -248,6 +248,12 @@ def main() -> NoReturn:
 
         handle_questions_command(args.questions_json)
 
+    # --- repro ---
+    if args.command == "repro":
+        from .repro_handler import handle_repro_command
+
+        handle_repro_command(args)
+
     # --- restore ---
     if args.command == "restore":
         from .cl_handler import handle_restore_command

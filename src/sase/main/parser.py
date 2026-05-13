@@ -34,6 +34,7 @@ from sase.main.parser_init import (
     register_init_skills_parser,
 )
 from sase.main.parser_mobile import register_mobile_parser
+from sase.main.parser_repro import register_repro_parser
 from sase.main.parser_sdd import register_sdd_parser
 from sase.main.parser_telemetry import register_telemetry_parser
 from sase.main.parser_xprompt import register_xprompt_parser
@@ -96,6 +97,7 @@ def create_parser() -> argparse.ArgumentParser:
     register_path_parser(top_level_subparsers)
     register_plan_parser(top_level_subparsers)
     register_questions_parser(top_level_subparsers)
+    register_repro_parser(top_level_subparsers)
     register_restore_parser(top_level_subparsers)
     register_revert_parser(top_level_subparsers)
     register_revive_log_parser(top_level_subparsers)
