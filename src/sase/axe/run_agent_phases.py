@@ -182,20 +182,21 @@ def extract_directives_and_write_meta(
             agent_meta["changespec_name"] = cl_name
             agent_meta.setdefault("cl_name", cl_name)
 
-        # Write agent_meta.json
+        if agent_name:
+            from sase.agent.names import claim_agent_name
+
+            claim_agent_name(
+                agent_name,
+                artifacts_dir,
+                explicit=directives.name_explicit,
+                force_reuse=directives.name_force_reuse,
+            )
+            os.environ["SASE_AGENT_NAME"] = agent_name
+
+        # Write agent_meta.json after the name reservation succeeds so
+        # concurrent explicit claims cannot both publish the same name.
         if agent_meta:
             _write_agent_meta(artifacts_dir, agent_meta)
-
-            if agent_name:
-                from sase.agent.names import claim_agent_name
-
-                claim_agent_name(
-                    agent_name,
-                    artifacts_dir,
-                    explicit=directives.name_explicit,
-                    force_reuse=directives.name_force_reuse,
-                )
-                os.environ["SASE_AGENT_NAME"] = agent_name
 
     # Persist the %group directive into ~/.sase/agent_tags.json so the Agents
     # tab picks it up at load time.  The agent's identity is

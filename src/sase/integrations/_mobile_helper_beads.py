@@ -51,7 +51,7 @@ def beads_list_response(request: dict[str, Any]) -> dict[str, Any]:
     )
     limit = optional_limit(request.get("limit"))
 
-    projected: dict[str, tuple[str, Issue, list[Issue], Path | None]] = {}
+    projected: dict[tuple[str, str], tuple[str, Issue, list[Issue], Path | None]] = {}
     skipped = list(scope.skipped)
     for project, beads_dir in scope.groups:
         try:
@@ -66,15 +66,17 @@ def beads_list_response(request: dict[str, Any]) -> dict[str, Any]:
             tiers=tiers,
         )
         for issue in filtered:
-            current = projected.get(issue.id)
+            key = (project, issue.id)
+            current = projected.get(key)
             if current is None or _issue_sort_key(issue) > _issue_sort_key(current[1]):
-                projected[issue.id] = (project, issue, all_issues, beads_dir)
+                projected[key] = (project, issue, all_issues, beads_dir)
 
+    projected_values = list(projected.values())
+    projected_values.sort(key=lambda row: _issue_sort_key(row[1]), reverse=True)
+    projected_values.sort(key=lambda row: row[0])
     summaries = [
         _bead_summary_wire(issue, project, all_issues)
-        for project, issue, all_issues, _ in sorted(
-            projected.values(), key=lambda row: _issue_sort_key(row[1]), reverse=True
-        )
+        for project, issue, all_issues, _ in projected_values
     ]
     total_count = len(summaries)
     if limit is not None:
