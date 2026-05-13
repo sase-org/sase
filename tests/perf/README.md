@@ -45,6 +45,9 @@ Epic 1 thresholds are advisory only. The daemon targets recorded in the JSON are
 from the plan: warm daemon-backed CLI/editor reads at roughly 5-30 ms, ACE shell first useful paint under 100 ms, active
 indexed data under 250 ms on large local histories, and no-change refresh near 0 ms once event-driven paths exist.
 
+The Phase 1E readiness review at `sdd/research/202605/rust_daemon_epic1_readiness.md` maps these baselines to fixture
+families, normalized snapshots, local daemon contract surfaces, and later daemon epics.
+
 ## Agent Artifact Startup
 
 Use this recipe when changing `sase ace` startup loading, dismissed archive queries, revive, run-log loading, or

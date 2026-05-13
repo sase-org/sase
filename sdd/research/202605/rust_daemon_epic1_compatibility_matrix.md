@@ -129,6 +129,10 @@ paths, normalized expected snapshots, and matrix rows. The highest-priority miss
 
 ## Later Epic Readiness
 
+Phase 1E closed the traceability/readiness pass in
+`sdd/research/202605/rust_daemon_epic1_readiness.md`, which maps these rows to fixture paths, normalized snapshots,
+performance baselines, local daemon contract surfaces, and later epic owners.
+
 Later epics can use this matrix as follows:
 
 - Epic 2 should use source-family rows as the event/projection boundary and keep source-store replay deterministic.
