@@ -160,8 +160,16 @@ class AgentLoadingMixin:
         if new_external:
             self._dismissed_agents.update(new_external)
 
-    def _load_agents(self) -> None:
-        """Load agents from all sources."""
+    def _load_agents(self, *, full_history: bool = False) -> None:
+        """Load agents from all sources.
+
+        Args:
+            full_history: When True, force a Tier 2 (full-history) source
+                scan rather than letting the artifact index gate visibility.
+                Used by deliberate user actions (e.g. revive) that need to
+                surface artifacts the persistent index may not yet know
+                about.
+        """
         from ....changespec import find_all_changespecs_cached
 
         on_agents_tab = self.current_tab == "agents"
@@ -181,7 +189,7 @@ class AgentLoadingMixin:
         load_result = load_agents_from_disk_with_state(
             dismissed_snapshot,
             changespec_snapshot=changespec_snapshot,
-            full_history=bool(getattr(self, "_agent_search_query", "")),
+            full_history=full_history or bool(getattr(self, "_agent_search_query", "")),
         )
         self._apply_loaded_agents(
             load_result.all_agents,
@@ -366,6 +374,7 @@ class AgentLoadingMixin:
 
         existing_identities = {agent.identity for agent in prep.filtered_agents}
         preserved: list[Agent] = []
+        preserved_suffixes: set[str] = set()
         for agent in self._agents_with_children:
             if agent.raw_suffix not in missing_suffixes:
                 continue
@@ -375,6 +384,25 @@ class AgentLoadingMixin:
                 continue
             preserved.append(agent)
             existing_identities.add(agent.identity)
+            if agent.raw_suffix is not None:
+                preserved_suffixes.add(agent.raw_suffix)
+
+        # Fall back to the dismissed-bundle cache for revived suffixes that
+        # never landed in ``_agents_with_children`` (e.g. long-dismissed
+        # bundles revived from the archive). The revive flow hydrates those
+        # bundle agents into ``_dismissed_agent_objects`` before calling the
+        # loader, so the data is on hand for first-paint visibility.
+        remaining_suffixes = missing_suffixes - preserved_suffixes
+        if remaining_suffixes:
+            for agent in self._dismissed_agent_objects:
+                if agent.raw_suffix not in remaining_suffixes:
+                    continue
+                if agent.identity in existing_identities:
+                    continue
+                if agent.identity in self._dismissed_agents:
+                    continue
+                preserved.append(agent)
+                existing_identities.add(agent.identity)
 
         if not preserved:
             return

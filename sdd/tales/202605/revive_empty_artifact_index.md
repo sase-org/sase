@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 21:11:46
-status: wip
+status: done
 prompt: sdd/prompts/202605/revive_empty_artifact_index.md
 ---
 # Plan: Fix Revive Visibility When the Artifact Index Is Empty/Stale
