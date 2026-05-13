@@ -2,6 +2,7 @@
 bead_id: sase-3e.1
 tier: epic
 legend_bead_id: sase-3e
+status: done
 ---
 # Plan: Rust Daemon Epic 1 Baseline, Contracts, and Compatibility Inventory
 
