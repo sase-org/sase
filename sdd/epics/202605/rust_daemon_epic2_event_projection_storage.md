@@ -2,6 +2,9 @@
 create_time: 2026-05-13 17:11:16
 status: wip
 prompt: sdd/prompts/202605/rust_daemon_epic2_event_projection_storage.md
+bead_id: sase-3e.2
+tier: epic
+legend_bead_id: sase-3e
 ---
 # Epic 2 Plan - Event Model and Projection Storage Core
 
