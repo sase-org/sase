@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 12:19:46
-status: wip
+status: done
 prompt: sdd/prompts/202605/ace_agent_navigation_perf.md
 ---
 # Plan - Make ACE Agents-Tab `j`/`k`/`J`/`K` Navigation Much Faster

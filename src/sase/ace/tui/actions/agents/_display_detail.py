@@ -9,7 +9,7 @@ the bottom-bar info panel update.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sase.agent.status_buckets import agent_is_asking
 
@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from ...widgets import AgentDetail, KeybindingFooter
 
 from ...models.agent_groups import GroupingMode, status_bucket_for
+from ...util.trace import tui_trace
 from ._display_helpers import TabName
 from ._loading_helpers import DISMISSABLE_STATUSES
 
@@ -43,6 +44,7 @@ class DetailMixin:
     _grouping_mode: GroupingMode
     _current_group_key: tuple[str, ...] | None
     _countdown_remaining: int
+    _agent_info_metrics_cache: tuple[Any, ...] | None
 
     def _apply_agent_detail_immediate(self) -> None:
         """Update the agent detail prompt header without spawning workers."""
@@ -145,23 +147,20 @@ class DetailMixin:
 
     def _update_agents_info_panel(self) -> None:
         """Update the agents info panel with current position and countdown."""
-        from textual.css.query import NoMatches
+        with tui_trace("agents.update_info_panel", agents=len(self._agents)):
+            self._update_agents_info_panel_impl()
 
-        from ...widgets import AgentDetail, AgentInfoPanel
-
-        try:
-            agent_info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)  # type: ignore[attr-defined]
-        except NoMatches:
-            log.debug("agents info panel update skipped: widget tree unavailable")
-            return
+    def _agent_info_metrics(self) -> tuple[int, int, int, int, int, int, int, int]:
+        """Return cached visible top-level status counts for the info panel."""
         panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
-        total = panel_index.non_child_total
-        position = (
-            panel_index.non_child_position(self.current_idx) if self._agents else 0
-        )
         unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
             self, "_unread_completed_agent_ids", set()
         )
+        cache_key = (id(self._agents), frozenset(unread_ids))
+        cached = getattr(self, "_agent_info_metrics_cache", None)
+        if cached is not None and cached[0] == cache_key:
+            return cached[1]  # type: ignore[return-value]
+
         visible_top_level_agents = [
             self._agents[i] for i in panel_index.non_child_indices
         ]
@@ -199,6 +198,80 @@ class DetailMixin:
             for agent, bucket in visible_agent_buckets
             if bucket == "Done" and agent.identity not in unread_ids
         )
+        metrics = (
+            unread_count,
+            asking_count,
+            running_count,
+            waiting_count,
+            failed_count,
+            read_count,
+            panel_index.non_child_total,
+            starting_count,
+        )
+        self._agent_info_metrics_cache = (cache_key, metrics)
+        return metrics
+
+    def _update_agents_info_panel_impl(self) -> None:
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentDetail, AgentInfoPanel
+
+        try:
+            agent_info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)  # type: ignore[attr-defined]
+        except NoMatches:
+            log.debug("agents info panel update skipped: widget tree unavailable")
+            return
+        panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
+        total = panel_index.non_child_total
+        position = (
+            panel_index.non_child_position(self.current_idx) if self._agents else 0
+        )
+        (
+            unread_count,
+            asking_count,
+            running_count,
+            waiting_count,
+            failed_count,
+            read_count,
+            visible_agent_count,
+            starting_count,
+        ) = self._agent_info_metrics()
+        view_mode = ""
+        if self._get_selected_agent() is not None:  # type: ignore[attr-defined]
+            try:
+                agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            except NoMatches:
+                log.debug(
+                    "agents info panel view mode skipped: widget tree unavailable"
+                )
+            else:
+                view_mode = agent_detail.panel_mode_label
+        from ._grouping import _MODE_LABELS
+
+        grouping_mode = _MODE_LABELS.get(
+            self._grouping_mode.name, self._grouping_mode.name
+        )
+        update_state = getattr(agent_info_panel, "update_state", None)
+        if callable(update_state):
+            update_state(
+                position=position,
+                total=total,
+                unread=unread_count,
+                asking=asking_count,
+                running=running_count,
+                waiting=waiting_count,
+                failed=failed_count,
+                read=read_count,
+                visible_agent_count=visible_agent_count,
+                starting=starting_count,
+                countdown=self._countdown_remaining,
+                interval=self.refresh_interval,
+                search_query=self._agent_search_query,
+                grouping_mode=grouping_mode,
+                view_mode=view_mode,
+            )
+            return
+
         agent_info_panel.update_position(position, total)
         agent_info_panel.update_agent_counts(
             unread_count,
@@ -214,20 +287,5 @@ class DetailMixin:
             self._countdown_remaining, self.refresh_interval
         )
         agent_info_panel.update_search_query(self._agent_search_query)
-        from ._grouping import _MODE_LABELS
-
-        agent_info_panel.update_grouping_mode(
-            _MODE_LABELS.get(self._grouping_mode.name, self._grouping_mode.name)
-        )
-        # Show current panel view mode when an agent is selected
-        if self._get_selected_agent() is not None:  # type: ignore[attr-defined]
-            try:
-                agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-            except NoMatches:
-                log.debug(
-                    "agents info panel view mode skipped: widget tree unavailable"
-                )
-                return
-            agent_info_panel.update_view_mode(agent_detail.panel_mode_label)
-        else:
-            agent_info_panel.update_view_mode("")
+        agent_info_panel.update_grouping_mode(grouping_mode)
+        agent_info_panel.update_view_mode(view_mode)

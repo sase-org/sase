@@ -54,6 +54,21 @@ class AgentNavigationOrderMixin:
             if entry.kind == "agent" and entry.agent_idx is not None
         ]
 
+    @staticmethod
+    def _navigation_stop_maps(
+        stops: list[tuple[str, int | tuple[str, ...]]],
+    ) -> tuple[dict[int, int], dict[tuple[str, ...], int]]:
+        agent_positions: dict[int, int] = {}
+        banner_positions: dict[tuple[str, ...], int] = {}
+        for pos, (kind, payload) in enumerate(stops):
+            if kind == "agent":
+                assert isinstance(payload, int)
+                agent_positions[payload] = pos
+            else:
+                assert isinstance(payload, tuple)
+                banner_positions[payload] = pos
+        return agent_positions, banner_positions
+
     def _panel_navigation_stops(
         self,
     ) -> list[tuple[str, int | tuple[str, ...]]]:
@@ -119,6 +134,9 @@ class AgentNavigationOrderMixin:
                 elif entry.kind == "agent" and entry.agent_idx is not None:
                     stops.append(("agent", global_indices[entry.agent_idx]))
 
+        agent_positions, banner_positions = (
+            AgentNavigationOrderMixin._navigation_stop_maps(stops)
+        )
         self._nav_stops_cache = (
             self._agents,
             panel_group,
@@ -127,8 +145,20 @@ class AgentNavigationOrderMixin:
             mode,
             merge_tag_panels,
             stops,
+            agent_positions,
+            banner_positions,
         )
         return stops
+
+    def _panel_navigation_stop_maps(
+        self,
+    ) -> tuple[dict[int, int], dict[tuple[str, ...], int]]:
+        """Return reverse maps for the focused panel's selectable stops."""
+        stops = self._panel_navigation_stops()
+        cached = getattr(self, "_nav_stops_cache", None)
+        if cached is not None and len(cached) >= 9 and cached[6] is stops:
+            return cached[7], cached[8]
+        return AgentNavigationOrderMixin._navigation_stop_maps(stops)
 
     def _capture_focused_visible_pos(self) -> int | None:
         """Return the rendered selectable-row position of the current focus.
@@ -143,21 +173,35 @@ class AgentNavigationOrderMixin:
         if not agents:
             return None
 
+        stops: list[tuple[str, int | tuple[str, ...]]] = []
         try:
             stops = self._panel_navigation_stops()
         except Exception:
-            stops = []
+            pass
+
+        stop_maps = getattr(self, "_panel_navigation_stop_maps", None)
+        if callable(stop_maps):
+            try:
+                agent_positions, banner_positions = stop_maps()
+            except Exception:
+                agent_positions, banner_positions = {}, {}
+        elif stops:
+            agent_positions, banner_positions = (
+                AgentNavigationOrderMixin._navigation_stop_maps(stops)
+            )
+        else:
+            agent_positions, banner_positions = {}, {}
 
         current_group_key = getattr(self, "_current_group_key", None)
         if current_group_key is not None:
-            for pos, (kind, payload) in enumerate(stops):
-                if kind == "banner" and payload == current_group_key:
-                    return pos
+            pos = banner_positions.get(current_group_key)
+            if pos is not None:
+                return pos
 
         if 0 <= self.current_idx < len(agents):
-            for pos, (kind, payload) in enumerate(stops):
-                if kind == "agent" and payload == self.current_idx:
-                    return pos
+            pos = agent_positions.get(self.current_idx)
+            if pos is not None:
+                return pos
         return None
 
     def _restore_focus_after_removal(self, prior_visible_pos: int | None) -> None:

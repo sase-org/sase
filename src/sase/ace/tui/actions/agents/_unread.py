@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ._loading_helpers import DISMISSABLE_STATUSES
 
@@ -26,6 +26,7 @@ class AgentUnreadMixin:
     _current_group_key: tuple[str, ...] | None
     _unread_completed_agent_ids: set[tuple[AgentType, str, str | None]]
     _manual_unread_agent_ids: set[tuple[AgentType, str, str | None]]
+    _agent_info_metrics_cache: tuple[Any, ...] | None
 
     def _has_unread_completed_agent(self) -> bool:
         """Return True when a visible terminal row is still unread."""
@@ -56,6 +57,8 @@ class AgentUnreadMixin:
         target_identities = {agent.identity for agent in target_agents}
         unread_ids.difference_update(target_identities)
         self._manual_unread_ids().difference_update(target_identities)
+        if hasattr(self, "_agent_info_metrics_cache"):
+            self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
 
         agent_keys = [
             {"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}
@@ -191,6 +194,8 @@ class AgentUnreadMixin:
             return False
 
         unread_ids.discard(agent.identity)
+        if hasattr(self, "_agent_info_metrics_cache"):
+            self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
 
         if not is_unread_completed_status(agent.status):
             return True
@@ -242,6 +247,8 @@ class AgentUnreadMixin:
         else:
             manual_ids.add(identity)
             unread_ids.add(identity)
+            if hasattr(self, "_agent_info_metrics_cache"):
+                self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
 
         if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
             self._refresh_agents_display(  # type: ignore[attr-defined]

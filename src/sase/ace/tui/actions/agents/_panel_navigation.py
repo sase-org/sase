@@ -81,6 +81,7 @@ class AgentPanelNavigationMixin:
             return
         if self._guard_agent_navigation_for_artifact_viewer():  # type: ignore[attr-defined]
             return
+        old_focused_idx = self._panel_group.focused_idx
         if forward:
             changed = self._panel_group.focus_next()
         else:
@@ -99,15 +100,48 @@ class AgentPanelNavigationMixin:
                 keys_per_agent,
                 self._panel_group.focused_key,
             )
-        self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+        refresh_focused_panel = getattr(self, "_refresh_focused_agent_panel", None)
+        if callable(refresh_focused_panel):
+            refresh_focused_panel(old_focused_idx=old_focused_idx)
+        else:
+            self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]
+
+        update_info = getattr(self, "_update_agents_info_panel", None)
+        if callable(update_info):
+            update_info()
+        apply_immediate = getattr(self, "_apply_agent_detail_immediate", None)
+        if callable(apply_immediate):
+            apply_immediate()
+        debouncer = getattr(self, "_agent_detail_debouncer", None)
+        fire_detail = getattr(self, "_fire_debounced_detail_update", None)
+        if debouncer is not None and callable(fire_detail):
+            debouncer.schedule(fire_detail)
 
     def action_focus_next_agent_panel(self) -> None:
         """Move focus to the next tag-driven side panel (with wrap)."""
+        perf_begin = getattr(self, "_jk_perf_begin", None)
+        if callable(perf_begin):
+            perf_begin("next_agent_panel")
+        record_navigation = getattr(self, "_record_jk_navigation", None)
+        if callable(record_navigation):
+            record_navigation()
         self._change_focused_agent_panel(forward=True)
+        jk_perf = getattr(self, "_jk_perf", None)
+        if jk_perf is not None:
+            self.call_after_refresh(jk_perf.mark_painted)  # type: ignore[attr-defined]
 
     def action_focus_prev_agent_panel(self) -> None:
         """Move focus to the previous tag-driven side panel (with wrap)."""
+        perf_begin = getattr(self, "_jk_perf_begin", None)
+        if callable(perf_begin):
+            perf_begin("prev_agent_panel")
+        record_navigation = getattr(self, "_record_jk_navigation", None)
+        if callable(record_navigation):
+            record_navigation()
         self._change_focused_agent_panel(forward=False)
+        jk_perf = getattr(self, "_jk_perf", None)
+        if jk_perf is not None:
+            self.call_after_refresh(jk_perf.mark_painted)  # type: ignore[attr-defined]
 
     def action_toggle_agent_panel_grouping(self) -> None:
         """Toggle Agents tab panels between tag-split and merged layouts."""

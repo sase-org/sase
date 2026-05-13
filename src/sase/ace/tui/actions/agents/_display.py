@@ -87,6 +87,8 @@ class AgentDisplayMixin(PanelsMixin, DetailMixin):
         """Clear panel-derived caches after in-place agent mutations."""
         if hasattr(self, "_agent_panel_index_cache"):
             self._agent_panel_index_cache = None
+        if hasattr(self, "_agent_info_metrics_cache"):
+            self._agent_info_metrics_cache = None
         if hasattr(self, "_panel_keys_cache"):
             self._panel_keys_cache = None
         if hasattr(self, "_nav_stops_cache"):

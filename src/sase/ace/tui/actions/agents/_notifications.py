@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
@@ -87,6 +87,72 @@ class AgentNotificationMixin:
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
     _plan_feedback_context: PlanFeedbackContext | None
+    _agent_info_metrics_cache: tuple[Any, ...] | None
+
+    def _set_notification_snapshot_cache(self, snapshot: object) -> None:
+        """Store the latest notification snapshot for hot-path readers."""
+        self._notification_snapshot_cache = snapshot  # type: ignore[attr-defined]
+        self._notification_snapshot_version = (  # type: ignore[attr-defined]
+            getattr(self, "_notification_snapshot_version", 0) + 1
+        )
+
+    def _schedule_notification_snapshot_refresh(self) -> None:
+        """Refresh the notification cache off the current finalization frame."""
+        if getattr(self, "_notification_snapshot_refresh_pending", False):
+            return
+        self._notification_snapshot_refresh_pending = True  # type: ignore[attr-defined]
+        call_later = getattr(self, "call_later", None)
+        if callable(call_later):
+            call_later(self._refresh_notification_count_async)
+            return
+        self._notification_snapshot_refresh_pending = False  # type: ignore[attr-defined]
+
+    def _selected_agent_identity_for_notification_reconcile(
+        self,
+    ) -> tuple[AgentType, str, str | None] | None:
+        agents = getattr(self, "_agents", None) or []
+        if (
+            getattr(self, "current_tab", None) == "agents"
+            and getattr(self, "_current_group_key", None) is None
+            and 0 <= getattr(self, "current_idx", -1) < len(agents)
+        ):
+            return agents[self.current_idx].identity
+        return None
+
+    def _patch_unread_completed_agent_changes(
+        self,
+        before: set[tuple[AgentType, str, str | None]],
+    ) -> None:
+        """Patch row styling after notification-cache reconciliation."""
+        after: set[tuple[AgentType, str, str | None]] = getattr(
+            self, "_unread_completed_agent_ids", set()
+        )
+        changed = before ^ after
+        if not changed or getattr(self, "current_tab", None) != "agents":
+            return
+        needs_rebuild = False
+        try_patch = getattr(self, "_try_patch_agent_row", None)
+        for agent in self._agents:
+            if agent.identity not in changed:
+                continue
+            if not callable(try_patch) or not try_patch(agent):
+                needs_rebuild = True
+        if needs_rebuild:
+            refresh = getattr(self, "_refresh_agents_display", None)
+            if callable(refresh):
+                refresh(list_changed=True, defer_detail=True)
+
+    def _reconcile_unread_from_cached_notifications(self) -> None:
+        """Apply cached completion notifications to visible agent unread state."""
+        snapshot = getattr(self, "_notification_snapshot_cache", None)
+        if snapshot is None:
+            return
+        before = set(getattr(self, "_unread_completed_agent_ids", set()))
+        self._reconcile_unread_from_completion_notifications(
+            snapshot.notifications,
+            exclude_identity=self._selected_agent_identity_for_notification_reconcile(),
+        )
+        self._patch_unread_completed_agent_changes(before)
 
     async def _poll_agent_completions(self) -> None:
         """Poll notification store for new unread notifications.
@@ -107,6 +173,7 @@ class AgentNotificationMixin:
             False,
             True,
         )
+        self._set_notification_snapshot_cache(snapshot)
         notifications = snapshot.notifications
         expired_snoozes = snapshot.expired_ids
         unread_priority, unread_errors, unread_rest, unread_muted = (
@@ -149,14 +216,7 @@ class AgentNotificationMixin:
 
         # Project active completion notifications onto Agents-tab unread rows
         # so dismissed status drives the row marker (one-to-one contract).
-        selected_identity = None
-        agents = getattr(self, "_agents", None) or []
-        if (
-            getattr(self, "current_tab", None) == "agents"
-            and getattr(self, "_current_group_key", None) is None
-            and 0 <= getattr(self, "current_idx", -1) < len(agents)
-        ):
-            selected_identity = agents[self.current_idx].identity
+        selected_identity = self._selected_agent_identity_for_notification_reconcile()
         self._reconcile_unread_from_completion_notifications(
             notifications, exclude_identity=selected_identity
         )
@@ -247,6 +307,7 @@ class AgentNotificationMixin:
         manual_ids: set[tuple[AgentType, str, str | None]] = getattr(
             self, "_manual_unread_agent_ids", set()
         )
+        before = set(unread_ids)
 
         for agent in self._agents:
             if not is_unread_completed_status(agent.status):
@@ -265,6 +326,8 @@ class AgentNotificationMixin:
                 # Manual unread guards a row even without a notification.
                 if agent.identity not in manual_ids:
                     unread_ids.discard(agent.identity)
+        if unread_ids != before and hasattr(self, "_agent_info_metrics_cache"):
+            self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
 
     def _auto_dismiss_external_plan_response(self, notification: Notification) -> bool:
         """Auto-dismiss a PlanApproval notification responded to externally.
@@ -375,6 +438,7 @@ class AgentNotificationMixin:
         from ...widgets import NotificationIndicator
 
         snapshot = read_notification_snapshot()
+        self._set_notification_snapshot_cache(snapshot)
         unread_priority, unread_errors, unread_rest, _ = _unread_notification_buckets(
             snapshot.notifications
         )
@@ -388,6 +452,7 @@ class AgentNotificationMixin:
             "#notification-indicator", NotificationIndicator
         )
         indicator.set_counts(counts.priority + counts.errors, counts.rest, counts.muted)
+        self._reconcile_unread_from_cached_notifications()
 
     async def _refresh_notification_count_async(self) -> None:
         """Async variant that reads the notifications file off the main thread.
@@ -400,7 +465,13 @@ class AgentNotificationMixin:
 
         from ...widgets import NotificationIndicator
 
-        snapshot = await asyncio.to_thread(read_notification_snapshot)
+        try:
+            snapshot = await asyncio.to_thread(read_notification_snapshot)
+        except Exception:
+            self._notification_snapshot_refresh_pending = False  # type: ignore[attr-defined]
+            raise
+        self._notification_snapshot_refresh_pending = False  # type: ignore[attr-defined]
+        self._set_notification_snapshot_cache(snapshot)
         unread_priority, unread_errors, unread_rest, _ = _unread_notification_buckets(
             snapshot.notifications
         )
@@ -414,6 +485,7 @@ class AgentNotificationMixin:
             "#notification-indicator", NotificationIndicator
         )
         indicator.set_counts(counts.priority + counts.errors, counts.rest, counts.muted)
+        self._reconcile_unread_from_cached_notifications()
 
     def _ring_tmux_bell(self) -> None:
         """Ring tmux bell to notify user of agent completion."""

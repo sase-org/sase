@@ -266,6 +266,57 @@ class PanelRefreshMixin:
         with tui_trace("agents.refresh_panel_highlights", agents=len(self._agents)):
             self._refresh_panel_highlights_impl()
 
+    def _refresh_focused_agent_panel(self, *, old_focused_idx: int | None) -> None:
+        """Refresh only the widgets affected by a focused-panel switch."""
+        with tui_trace(
+            "agents.refresh_focused_panel",
+            agents=len(self._agents),
+            old_focused_idx=old_focused_idx,
+            focused_idx=self._panel_group.focused_idx,
+        ):
+            self._refresh_focused_agent_panel_impl(old_focused_idx=old_focused_idx)
+
+    def _refresh_focused_agent_panel_impl(self, *, old_focused_idx: int | None) -> None:
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentList
+
+        focused_idx = self._panel_group.focused_idx
+        panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
+        focused_key = self._panel_group.focused_key
+        target_indices = {focused_idx}
+        if old_focused_idx is not None:
+            target_indices.add(old_focused_idx)
+
+        focused_widget: AgentList | None = None
+        for idx in target_indices:
+            if idx < 0 or idx >= len(self._panel_group.panel_keys):
+                continue
+            wid = panel_widget_id(idx)
+            try:
+                widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
+            except NoMatches:
+                continue
+            if idx == focused_idx:
+                local_idx = -1
+                if 0 <= self.current_idx < len(self._agents):
+                    local_idx = panel_index.local_idx_for(focused_key, self.current_idx)
+                widget.update_highlight(
+                    local_idx,
+                    self.current_attempt_number,
+                    group_key=self._current_group_key,
+                )
+                widget.add_class("-focused-panel")
+                focused_widget = widget
+            else:
+                widget.remove_class("-focused-panel")
+
+        if focused_widget is not None:
+            try:
+                focused_widget.focus()
+            except Exception:
+                pass
+
     def _refresh_panel_highlights_impl(self) -> None:
         from textual.css.query import NoMatches
 

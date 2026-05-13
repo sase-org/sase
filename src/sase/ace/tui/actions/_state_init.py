@@ -329,11 +329,15 @@ class StateInitMixin:
         self._nav_stops_cache: tuple[Any, ...] | None = None
         self._panel_keys_cache: tuple[Any, ...] | None = None
         self._agent_panel_index_cache: tuple[Any, bool, Any] | None = None
+        self._agent_info_metrics_cache: tuple[Any, ...] | None = None
 
         # Agent completion tracking for notifications
         from ...dismissed_agents import load_dismissed_agents
 
         self._last_unread_ids: set[str] = set()
+        self._notification_snapshot_cache: Any | None = None
+        self._notification_snapshot_version: int = 0
+        self._notification_snapshot_refresh_pending: bool = False
         self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._agent_display_status_by_identity: dict[

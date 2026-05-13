@@ -34,6 +34,7 @@ from sase.notifications import (
     append_notification,
     load_notifications,
     mark_dismissed,
+    read_notification_snapshot,
 )
 
 from ._agent_unread_helpers import make_agent
@@ -106,6 +107,12 @@ def _active_completion_ids() -> set[str]:
     }
 
 
+def _sync_from_store(app: _E2EApp, *, on_agents_tab: bool) -> None:
+    """Refresh the notification cache and run the hot-path finalizer sync."""
+    app._notification_snapshot_cache = read_notification_snapshot()
+    _sync_unread_completed_agents(app, on_agents_tab=on_agents_tab)  # type: ignore[arg-type]
+
+
 def test_two_completed_agents_with_two_notifications_start_unread(
     temp_notifications_dir: Path,
 ) -> None:
@@ -120,7 +127,7 @@ def test_two_completed_agents_with_two_notifications_start_unread(
     )
 
     # Off-tab finalize so neither row is auto-cleared by being the selection.
-    _sync_unread_completed_agents(app, on_agents_tab=False)  # type: ignore[arg-type]
+    _sync_from_store(app, on_agents_tab=False)
 
     assert app._unread_completed_agent_ids == {first.identity, second.identity}
 
@@ -135,7 +142,7 @@ def test_reading_one_agent_dismisses_only_its_notification(
     app = _E2EApp([first, second])
     append_notification(_completion_notification(first, n_id="n-alpha"))
     append_notification(_completion_notification(second, n_id="n-beta"))
-    _sync_unread_completed_agents(app, on_agents_tab=False)  # type: ignore[arg-type]
+    _sync_from_store(app, on_agents_tab=False)
     assert app._unread_completed_agent_ids == {first.identity, second.identity}
 
     assert app._clear_agent_unread_and_dismiss_notification(first)
@@ -155,14 +162,14 @@ def test_dismissing_notification_clears_other_row_on_refresh(
     app = _E2EApp([first, second])
     append_notification(_completion_notification(first, n_id="n-alpha"))
     append_notification(_completion_notification(second, n_id="n-beta"))
-    _sync_unread_completed_agents(app, on_agents_tab=False)  # type: ignore[arg-type]
+    _sync_from_store(app, on_agents_tab=False)
     assert app._unread_completed_agent_ids == {first.identity, second.identity}
 
     # Dismiss the beta notification directly via the notification API
     # (mirrors the user dismissing it from the notification modal).
     assert mark_dismissed("n-beta")
 
-    _sync_unread_completed_agents(app, on_agents_tab=False)  # type: ignore[arg-type]
+    _sync_from_store(app, on_agents_tab=False)
 
     assert app._unread_completed_agent_ids == {first.identity}
     assert _active_completion_ids() == {"n-alpha"}
@@ -199,7 +206,7 @@ def test_entering_agents_tab_only_dismisses_selected_row(
         third.identity,
     }
 
-    _sync_unread_completed_agents(app, on_agents_tab=True)  # type: ignore[arg-type]
+    _sync_from_store(app, on_agents_tab=True)
 
     assert app._unread_completed_agent_ids == {second.identity, third.identity}
     assert _active_completion_ids() == {"n-beta", "n-gamma"}
@@ -221,7 +228,7 @@ def test_navigating_within_agents_tab_does_not_bulk_dismiss(
     # Multiple finalize ticks (e.g. j/k navigation auto-refresh) must not
     # ever dismiss a notification whose row is not focused.
     for _ in range(3):
-        _sync_unread_completed_agents(app, on_agents_tab=True)  # type: ignore[arg-type]
+        _sync_from_store(app, on_agents_tab=True)
 
     assert app._unread_completed_agent_ids == {first.identity, second.identity}
     assert _active_completion_ids() == {"n-alpha", "n-beta"}
@@ -277,7 +284,7 @@ def test_unrelated_notifications_survive_agents_tab_activity(
     )
     app._unread_completed_agent_ids = {agent.identity}
 
-    _sync_unread_completed_agents(app, on_agents_tab=True)  # type: ignore[arg-type]
+    _sync_from_store(app, on_agents_tab=True)
 
     # The agent's own completion notification is dismissed (focused row).
     # All other notifications must remain in the store.
@@ -295,7 +302,7 @@ def test_raw_suffix_disambiguates_same_cl_name(
     app = _E2EApp([first_run, second_run])
     append_notification(_completion_notification(first_run, n_id="n-first"))
     append_notification(_completion_notification(second_run, n_id="n-second"))
-    _sync_unread_completed_agents(app, on_agents_tab=False)  # type: ignore[arg-type]
+    _sync_from_store(app, on_agents_tab=False)
     assert app._unread_completed_agent_ids == {first_run.identity, second_run.identity}
 
     assert app._clear_agent_unread_and_dismiss_notification(second_run)

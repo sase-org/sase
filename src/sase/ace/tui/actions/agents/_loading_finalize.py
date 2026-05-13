@@ -69,12 +69,17 @@ def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -
             else:
                 unread_ids.discard(selected_identity)
 
-    from sase.notifications import read_notification_snapshot
-
-    snapshot = read_notification_snapshot()
-    reconcile = getattr(app, "_reconcile_unread_from_completion_notifications", None)
-    if callable(reconcile):
-        reconcile(snapshot.notifications, exclude_identity=selected_identity)
+    snapshot = getattr(app, "_notification_snapshot_cache", None)
+    if snapshot is None:
+        schedule_refresh = getattr(app, "_schedule_notification_snapshot_refresh", None)
+        if callable(schedule_refresh):
+            schedule_refresh()
+    else:
+        reconcile = getattr(
+            app, "_reconcile_unread_from_completion_notifications", None
+        )
+        if callable(reconcile):
+            reconcile(snapshot.notifications, exclude_identity=selected_identity)
 
     app._agent_display_status_by_identity = {  # type: ignore[attr-defined]
         agent.identity: agent.status for agent in app._agents
@@ -298,21 +303,3 @@ def finalize_agent_list(
             list_changed=True,
             defer_detail=True,
         )
-        # Refresh the file panel for the now-selected agent. Silently
-        # skip when nothing is selected or the agent is dismissable so
-        # auto-refresh doesn't spam notifications.
-        selected_agent = app._get_selected_agent()  # type: ignore[attr-defined]
-        if (
-            selected_agent is not None
-            and selected_agent.status not in DISMISSABLE_STATUSES
-        ):
-            from ...widgets import AgentDetail
-
-            try:
-                agent_detail = app.query_one(  # type: ignore[attr-defined]
-                    "#agent-detail-panel", AgentDetail
-                )
-            except Exception:
-                agent_detail = None
-            if agent_detail is not None:
-                agent_detail.refresh_current_file(selected_agent)

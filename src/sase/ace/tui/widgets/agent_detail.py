@@ -262,8 +262,11 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         Args:
             agent: The Agent to refresh file for.
         """
-        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-        file_panel.refresh_file(agent)
+        from ..util.trace import tui_trace
+
+        with tui_trace("agent_detail.refresh_current_file"):
+            file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+            file_panel.refresh_file(agent)
 
     def cycle_next_file(self) -> None:
         """Cycle to the next file in the file panel."""

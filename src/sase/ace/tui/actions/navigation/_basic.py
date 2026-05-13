@@ -89,18 +89,17 @@ class BasicNavigationMixin(NavigationMixinBase):
         old_key = self._current_group_key
         old_idx = self.current_idx
         pos: int | None = None
+        stop_maps = getattr(self, "_panel_navigation_stop_maps", None)
+        agent_positions: dict[int, int] = {}
+        banner_positions: dict[tuple[str, ...], int] = {}
+        if callable(stop_maps):
+            agent_positions, banner_positions = stop_maps()
         # Prefer a banner match when the user is explicitly focused on
         # one; otherwise fall through to an agent match by current_idx.
         if old_key is not None:
-            for i, (kind, payload) in enumerate(stops):
-                if kind == "banner" and payload == old_key:
-                    pos = i
-                    break
+            pos = banner_positions.get(old_key)
         if pos is None:
-            for i, (kind, payload) in enumerate(stops):
-                if kind == "agent" and payload == old_idx:
-                    pos = i
-                    break
+            pos = agent_positions.get(old_idx)
         if pos is None:
             pos = _nearest_stop_anchor(stops, old_idx, old_key)
         new_pos = (pos + direction) % len(stops)

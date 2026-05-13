@@ -137,6 +137,81 @@ class AgentInfoPanel(Static):
         self._search_query = query
         self._update_display()
 
+    def update_state(
+        self,
+        *,
+        position: int,
+        total: int,
+        unread: int,
+        asking: int,
+        running: int,
+        waiting: int,
+        failed: int,
+        read: int,
+        visible_agent_count: int,
+        starting: int,
+        countdown: int,
+        interval: int,
+        view_mode: str,
+        grouping_mode: str,
+        search_query: str,
+    ) -> None:
+        """Batch all logical info-panel state into one render."""
+        new_state = (
+            position,
+            total,
+            unread,
+            asking,
+            starting,
+            running,
+            waiting,
+            failed,
+            read,
+            visible_agent_count,
+            countdown,
+            interval,
+            view_mode,
+            grouping_mode,
+            search_query,
+        )
+        old_state = (
+            self._position,
+            self._total,
+            self._unread_count,
+            self._asking_count,
+            self._starting_count,
+            self._running_count,
+            self._waiting_count,
+            self._failed_count,
+            self._read_count,
+            self._visible_agent_count,
+            self._countdown,
+            self._interval,
+            self._view_mode,
+            self._grouping_mode,
+            self._search_query,
+        )
+        if new_state == old_state:
+            return
+        (
+            self._position,
+            self._total,
+            self._unread_count,
+            self._asking_count,
+            self._starting_count,
+            self._running_count,
+            self._waiting_count,
+            self._failed_count,
+            self._read_count,
+            self._visible_agent_count,
+            self._countdown,
+            self._interval,
+            self._view_mode,
+            self._grouping_mode,
+            self._search_query,
+        ) = new_state
+        self._update_display()
+
     _VIEW_MODE_STYLES: dict[str, str] = {
         "file": "bold green",
         "thinking": "bold #af87d7",

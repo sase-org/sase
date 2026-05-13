@@ -228,3 +228,32 @@ def test_empty_query_means_no_filter() -> None:
     assert app._agents == [a, b]
     assert app._agent_query_cache is None
     assert app._agent_query_parse_error is None
+
+
+def test_on_tab_finalizer_defers_selected_agent_file_refresh() -> None:
+    """Agent-list finalization must not start file/diff work inline."""
+    agent = _make_agent(status="RUNNING", cl_name="active")
+    app = FakeAgentApp(query="")
+    app.current_tab = "agents"
+    app._agents = [agent]
+    refresh_calls: list[dict[str, object]] = []
+    refresh_file_calls = 0
+
+    class _Detail:
+        def refresh_current_file(self, _agent: Agent) -> None:
+            nonlocal refresh_file_calls
+            refresh_file_calls += 1
+
+    def _refresh_agents_display(**kwargs: object) -> None:
+        refresh_calls.append(kwargs)
+
+    app._refresh_agents_display = _refresh_agents_display  # type: ignore[method-assign]
+    app._get_selected_agent = lambda: agent  # type: ignore[method-assign]
+    app.query_one = lambda *_args, **_kwargs: _Detail()  # type: ignore[method-assign]
+
+    app._finalize_agent_list(
+        on_agents_tab=True, selected_identity=agent.identity, save_unfiltered=True
+    )
+
+    assert refresh_calls == [{"list_changed": True, "defer_detail": True}]
+    assert refresh_file_calls == 0

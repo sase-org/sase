@@ -88,7 +88,7 @@ def test_focus_next_agent_panel_selects_first_rendered_agent_not_first_raw() -> 
     assert app._agents[app.current_idx].agent_name == "render-first"
     assert app._current_group_key is None
     assert app.current_attempt_number is None
-    assert app.refresh_calls == [True]
+    assert app.refresh_calls == [False]
 
 
 def test_focus_next_agent_panel_guard_keeps_panel_and_selection() -> None:

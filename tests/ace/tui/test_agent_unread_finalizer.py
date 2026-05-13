@@ -15,6 +15,8 @@ from sase.ace.tui.models.agent import Agent, AgentType
 
 from ._agent_unread_helpers import make_agent
 
+_SNAPSHOT_NOTIFICATIONS: list[object] = []
+
 
 def _completion_notification(
     agent: Agent, *, dismissed: bool = False
@@ -41,6 +43,8 @@ def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
 def snapshot_notifications(monkeypatch: pytest.MonkeyPatch) -> list[object]:
     """Stub ``read_notification_snapshot`` and let tests append notifications."""
     notifications: list[object] = []
+    global _SNAPSHOT_NOTIFICATIONS
+    _SNAPSHOT_NOTIFICATIONS = notifications
 
     def _stub(*_args: object, **_kwargs: object) -> SimpleNamespace:
         return SimpleNamespace(notifications=list(notifications), expired_ids=[])
@@ -60,6 +64,9 @@ class _UnreadFinalizeApp(AgentsMixinCore):
         self._agent_display_status_by_identity: dict[
             tuple[AgentType, str, str | None], str
         ] = {}
+        self._notification_snapshot_cache = SimpleNamespace(
+            notifications=_SNAPSHOT_NOTIFICATIONS
+        )
         self.notification_count_refresh_calls = 0
 
     def _refresh_notification_count(self) -> None:
@@ -68,14 +75,18 @@ class _UnreadFinalizeApp(AgentsMixinCore):
 
 def test_finalizer_marks_terminal_agent_unread_when_notification_active(
     snapshot_notifications: list[object],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     agent = make_agent(status="DONE")
     app = _UnreadFinalizeApp([agent])
     snapshot_notifications.append(_completion_notification(agent))
+    read_snapshot = Mock(side_effect=AssertionError("finalizer must use cache"))
+    monkeypatch.setattr("sase.notifications.read_notification_snapshot", read_snapshot)
 
     _sync_unread_completed_agents(app, on_agents_tab=False)  # type: ignore[arg-type]
 
     assert app._unread_completed_agent_ids == {agent.identity}
+    read_snapshot.assert_not_called()
 
 
 def test_finalizer_marks_plan_done_agent_unread_when_notification_active(

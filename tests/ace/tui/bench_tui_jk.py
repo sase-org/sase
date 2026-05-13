@@ -31,6 +31,9 @@ import pytest
 
 from sase.ace.changespec import ChangeSpec
 from sase.ace.tui.app import AceApp
+from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
+from sase.ace.tui.models.agent_panels import AgentPanelGroup
 
 pytestmark = pytest.mark.slow
 
@@ -47,6 +50,39 @@ def _make_changespec(name: str, file_path: Path) -> ChangeSpec:
         file_path=str(file_path),
         line_number=1,
     )
+
+
+def _make_agent(i: int) -> Agent:
+    tags = [None, "alpha", "beta", "gamma"]
+    statuses = ["RUNNING", "WAITING", "STARTING", "PLAN", "DONE", "FAILED"]
+    project = f"proj{i % 18:02d}"
+    tag = tags[i % len(tags)]
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name=f"cl_{i % 40:03d}",
+        project_file=f"/tmp/bench/{project}/project.sase",
+        status=statuses[i % len(statuses)],
+        start_time=None,
+        agent_name=f"agent_{i:04d}",
+        raw_suffix=f"20260513{i:06d}",
+        tag=tag,
+    )
+
+
+def _install_agents_fixture(app: AceApp, count: int = 240) -> None:
+    agents = [_make_agent(i) for i in range(count)]
+    registry = AgentGroupFoldRegistry()
+    for project_idx in range(0, 18, 5):
+        registry.collapse((f"proj{project_idx:02d}",))
+    app._agents = agents
+    app._agents_with_children = list(agents)
+    app._fold_counts = {}
+    app._group_fold_registry = registry
+    app._panel_group = AgentPanelGroup.from_agents(agents)
+    app._agent_panels_grouped = False
+    app._current_group_key = None
+    app.current_idx = 0
+    app._invalidate_agent_panel_cache()
 
 
 @pytest.fixture
@@ -151,6 +187,36 @@ async def test_bench_axe_jk(_perf_jsonl: Path) -> None:
             "  (no samples — axe list empty; current_idx never mutated)",
             file=sys.stderr,
         )
+
+
+async def test_bench_agents_jk_and_panel_navigation(_perf_jsonl: Path) -> None:
+    """Measure Agents-tab row and tag-panel navigation on a large synthetic list."""
+    app = AceApp(query="!!!", auto_start_axe=False)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("ctrl+l")
+        await pilot.pause()
+        _install_agents_fixture(app)
+        app._refresh_agents_display(list_changed=True, defer_detail=True)
+        await pilot.pause()
+
+        for _ in range(_KEYS_PER_SCENARIO):
+            await pilot.press("j")
+            await pilot.pause(0.01)
+        for _ in range(_KEYS_PER_SCENARIO):
+            await pilot.press("k")
+            await pilot.pause(0.01)
+        for _ in range(_KEYS_PER_SCENARIO):
+            await pilot.press("J")
+            await pilot.pause(0.01)
+        for _ in range(_KEYS_PER_SCENARIO):
+            await pilot.press("K")
+            await pilot.pause(0.01)
+
+    samples = _read_samples(_perf_jsonl)
+    summary = _summarize(samples)
+    _print_table("Agents tab j/k/J/K synthetic large-list baseline:", summary)
+    assert any(s.get("tab") == "agents" for s in samples)
 
 
 def main() -> int:
