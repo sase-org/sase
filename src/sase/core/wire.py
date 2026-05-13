@@ -152,7 +152,7 @@ class ChangeSpecWire:
     deltas: list[DeltaWire] = field(default_factory=list)
 
 
-# pyvision: ../sase-core/crates/sase_core/src/wire.rs
+# pyvision: https://github.com/sase-org/sase-core.git
 @dataclass
 class ParseErrorWire:
     """Structured error a Rust parser may emit instead of a ChangeSpecWire."""
