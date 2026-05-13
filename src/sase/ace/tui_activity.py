@@ -163,7 +163,7 @@ def _is_tui_running() -> bool:
     return True
 
 
-def is_idle() -> bool:
+def _is_idle() -> bool:
     """Return True if the user is idle.
 
     Reads the authoritative idle state written by the TUI process.

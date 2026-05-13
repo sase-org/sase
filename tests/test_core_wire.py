@@ -30,7 +30,7 @@ from sase.core.wire_conversion import (
     comment_entry_to_wire,
     _commit_entry_to_wire,
     hook_entry_to_wire,
-    hook_status_line_to_wire,
+    _hook_status_line_to_wire,
     mentor_entry_to_wire,
     mentor_status_line_to_wire,
     timestamp_entry_to_wire,
@@ -224,7 +224,7 @@ def test_to_json_dict_handles_lists_and_primitives() -> None:
 
 def test_individual_to_wire_helpers() -> None:
     cs = _full_changespec()
-    assert hook_status_line_to_wire(cs.hooks[0].status_lines[0]).status == "PASSED"
+    assert _hook_status_line_to_wire(cs.hooks[0].status_lines[0]).status == "PASSED"
     assert hook_entry_to_wire(cs.hooks[0]).command == "!sase_lint"
     assert comment_entry_to_wire(cs.comments[0]).reviewer == "critique"
     assert (

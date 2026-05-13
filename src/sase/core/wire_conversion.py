@@ -58,7 +58,7 @@ def _commit_entry_to_wire(entry: CommitEntry) -> CommitWire:
     )
 
 
-def hook_status_line_to_wire(line: HookStatusLine) -> HookStatusLineWire:
+def _hook_status_line_to_wire(line: HookStatusLine) -> HookStatusLineWire:
     return HookStatusLineWire(
         commit_entry_num=line.commit_entry_num,
         timestamp=line.timestamp,
@@ -74,7 +74,7 @@ def hook_entry_to_wire(entry: HookEntry) -> HookWire:
     status_lines = entry.status_lines or []
     return HookWire(
         command=entry.command,
-        status_lines=[hook_status_line_to_wire(sl) for sl in status_lines],
+        status_lines=[_hook_status_line_to_wire(sl) for sl in status_lines],
     )
 
 

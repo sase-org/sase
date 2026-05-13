@@ -233,12 +233,12 @@ def test_full_flow_frontmatter_only_single_agent() -> None:
 
 def test_has_wait_directive_per_segment() -> None:
     """has_wait_directive correctly detects %wait in individual segments."""
-    from sase.xprompt.directives import has_wait_directive
+    from sase.xprompt.directives import _has_wait_directive
 
     prompt = "Fix the bug\n---\n%wait\nAdd tests\n---\nDeploy"
     multi = parse_multi_prompt(prompt)
 
     assert len(multi.segments) == 3
-    assert not has_wait_directive(multi.segments[0])
-    assert has_wait_directive(multi.segments[1])
-    assert not has_wait_directive(multi.segments[2])
+    assert not _has_wait_directive(multi.segments[0])
+    assert _has_wait_directive(multi.segments[1])
+    assert not _has_wait_directive(multi.segments[2])

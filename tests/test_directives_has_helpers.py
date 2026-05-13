@@ -8,7 +8,7 @@ from sase.xprompt.directives import (
     has_alt_directive,
     has_deferred_start_directive,
     has_model_directive,
-    has_wait_directive,
+    _has_wait_directive,
 )
 
 
@@ -17,64 +17,64 @@ from sase.xprompt.directives import (
 
 def test_has_wait_directive_colon() -> None:
     """Detects %wait:name syntax."""
-    assert has_wait_directive("Do something %wait:faster") is True
+    assert _has_wait_directive("Do something %wait:faster") is True
 
 
 def test_has_wait_directive_alias() -> None:
     """Detects %w:name shorthand."""
-    assert has_wait_directive("Do something %w:faster") is True
+    assert _has_wait_directive("Do something %w:faster") is True
 
 
 def test_has_wait_directive_paren() -> None:
     """Detects %wait(name) syntax."""
-    assert has_wait_directive("Do something %wait(faster)") is True
+    assert _has_wait_directive("Do something %wait(faster)") is True
 
 
 def test_has_wait_directive_plus() -> None:
     """Detects %wait+ and %w+ syntax."""
-    assert has_wait_directive("Do something %wait+") is True
-    assert has_wait_directive("Do something %w+") is True
+    assert _has_wait_directive("Do something %wait+") is True
+    assert _has_wait_directive("Do something %w+") is True
 
 
 def test_has_wait_directive_start_of_line() -> None:
     """Detects %wait at start of line."""
-    assert has_wait_directive("%wait:faster\nDo something") is True
+    assert _has_wait_directive("%wait:faster\nDo something") is True
 
 
 def test_has_wait_directive_absent() -> None:
     """Returns False when no %wait directive present."""
-    assert has_wait_directive("Do something %model:opus") is False
+    assert _has_wait_directive("Do something %model:opus") is False
 
 
 def test_has_wait_directive_bare() -> None:
     """Detects bare %wait (no argument)."""
-    assert has_wait_directive("%wait\nDo something") is True
-    assert has_wait_directive("Do something %wait") is True
-    assert has_wait_directive("Do something %w\nmore") is True
+    assert _has_wait_directive("%wait\nDo something") is True
+    assert _has_wait_directive("Do something %wait") is True
+    assert _has_wait_directive("Do something %w\nmore") is True
 
 
 def test_has_wait_directive_no_percent() -> None:
     """Returns False quickly when no % in prompt."""
-    assert has_wait_directive("Just a plain prompt") is False
+    assert _has_wait_directive("Just a plain prompt") is False
 
 
 def test_has_wait_directive_does_not_match_time() -> None:
     """has_wait_directive must not match %time/%t (scoped to %wait/%w only)."""
-    assert has_wait_directive("%time:5m\nDo something") is False
-    assert has_wait_directive("%t:5m\nDo something") is False
+    assert _has_wait_directive("%time:5m\nDo something") is False
+    assert _has_wait_directive("%t:5m\nDo something") is False
 
 
 @pytest.mark.parametrize("directive", ["%wait:old_agent", "%w:old_agent"])
 def test_has_wait_directive_ignores_fenced_blocks(directive: str) -> None:
     """Directive-looking text inside fences is not a live wait directive."""
-    assert has_wait_directive(f"snapshot\n```text\n{directive}\n```\nDo work") is False
+    assert _has_wait_directive(f"snapshot\n```text\n{directive}\n```\nDo work") is False
 
 
 @pytest.mark.parametrize("directive", ["%wait:old_agent", "%w:old_agent"])
 def test_has_wait_directive_ignores_disabled_regions(directive: str) -> None:
     """Directive-looking text inside disabled regions is not live."""
     prompt = f"%xprompts_enabled:false\n{directive}\n%xprompts_enabled:true\nDo work"
-    assert has_wait_directive(prompt) is False
+    assert _has_wait_directive(prompt) is False
 
 
 # --- has_deferred_start_directive tests ---
@@ -228,8 +228,8 @@ def test_has_alt_directive_ignores_disabled_regions(directive: str) -> None:
 @pytest.mark.parametrize(
     ("predicate", "directive"),
     [
-        (has_wait_directive, "%wait:old_agent"),
-        (has_wait_directive, "%w:old_agent"),
+        (_has_wait_directive, "%wait:old_agent"),
+        (_has_wait_directive, "%w:old_agent"),
         (has_deferred_start_directive, "%time:5m"),
         (has_deferred_start_directive, "%t:5m"),
         (has_model_directive, "%model:opus"),

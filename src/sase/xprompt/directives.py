@@ -60,7 +60,6 @@ __all__ = [
     "has_alt_directive",
     "has_deferred_start_directive",
     "has_model_directive",
-    "has_wait_directive",
     "parse_absolute_time",
     "parse_duration",
     "plan_prompt_fanout_variants",
@@ -69,7 +68,7 @@ __all__ = [
 ]
 
 
-def has_wait_directive(prompt: str) -> bool:
+def _has_wait_directive(prompt: str) -> bool:
     """Quick check whether a prompt contains ``%wait`` or ``%w`` directives.
 
     This avoids the overhead of full xprompt expansion and is suitable for
