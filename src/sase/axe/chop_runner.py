@@ -19,6 +19,7 @@ from datetime import datetime
 from typing import Literal
 
 from sase.ace.changespec import find_all_changespecs
+from sase.ace.hooks.processes import is_process_running
 from sase.core.query_facade import evaluate_query_many
 from sase.core.time import get_timezone
 
@@ -222,8 +223,10 @@ def _active_script_chop_run(
 
     Only the head of the index is inspected: pruning keeps active runs at the
     front, and a finalized newest entry means there is no live run to dedupe
-    against. Stale ``running`` rows from a crashed prior process are still
-    treated as live for safety — the user can intervene before relaunching.
+    against. A ``running`` row with a stored PID is trusted only while that
+    process is still alive; dead-PID rows are finalized so the next scheduled
+    run can recover. PID-less rows remain conservative because there is no
+    process identity to prove stale.
     """
     index = read_chop_run_index(lumberjack_name, chop_name)
     if not index:
@@ -232,9 +235,42 @@ def _active_script_chop_run(
     head = read_chop_run(lumberjack_name, chop_name, head_id)
     if head is None:
         return None
-    if head.status == "running":
-        return head
-    return None
+    if head.status != "running":
+        return None
+
+    if head.pid is not None and head.pid > 0 and not is_process_running(head.pid):
+        _finalize_stale_script_chop_run(head)
+        return None
+
+    return head
+
+
+def _finalize_stale_script_chop_run(entry: ChopRunEntry) -> None:
+    """Mark a running script-chop entry stale after its PID has exited."""
+    finished_at = datetime.now(get_timezone())
+    try:
+        started_at = datetime.fromisoformat(entry.started_at)
+    except ValueError:
+        duration_ms = 0
+    else:
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=finished_at.tzinfo)
+        duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
+
+    try:
+        finish_chop_run(
+            entry.lumberjack_name,
+            entry.chop_name,
+            entry.run_id,
+            status="failure",
+            finished_at=finished_at.isoformat(),
+            duration_ms=duration_ms,
+            exit_code=None,
+            error=f"stale running chop process exited: pid {entry.pid}",
+            traceback=NO_PYTHON_TRACEBACK,
+        )
+    except OSError:
+        pass
 
 
 def _build_oneshot_context(lumberjack_name: str, axe_config: AxeConfig) -> str:

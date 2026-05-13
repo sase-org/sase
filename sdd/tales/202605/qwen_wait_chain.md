@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 01:05:02
-status: wip
+status: done
 prompt: sdd/prompts/202605/qwen_wait_chain.md
 ---
 # Plan: Fix stalled Qwen wait chain
