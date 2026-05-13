@@ -283,6 +283,24 @@ def test_wait_duration_bundle_roundtrip() -> None:
     assert restored.wait_duration == 300.0
 
 
+def test_wait_start_time_bundle_roundtrip() -> None:
+    wait_start_time = datetime.now()
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="test",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=wait_start_time,
+        wait_start_time=wait_start_time,
+    )
+    bundle = agent.to_bundle_dict()
+    assert bundle["wait_start_time"] == wait_start_time.isoformat()
+
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.wait_start_time == wait_start_time
+    assert restored.timestamps_display.split(" | ")[0] == "WAIT "
+
+
 def test_wait_duration_none_by_default() -> None:
     agent = Agent(
         agent_type=AgentType.RUNNING,

@@ -82,6 +82,20 @@ def _valid_meta_tag(raw_value: object) -> str | None:
         return None
 
 
+def _meta_has_wait_directive(data: dict[str, object]) -> bool:
+    return (
+        bool(data.get("wait_for"))
+        or data.get("wait_duration") is not None
+        or bool(data.get("wait_until"))
+    )
+
+
+def _wire_meta_has_wait_directive(meta: AgentMetaWire) -> bool:
+    return (
+        bool(meta.wait_for) or meta.wait_duration is not None or bool(meta.wait_until)
+    )
+
+
 def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
     """Read agent_meta.json and populate model/vcs_provider fields.
 
@@ -209,6 +223,7 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
 
     # Parse run_started_at (actual start time after waiting period)
     run_started_at = data.get("run_started_at")
+    wait_completed_at = data.get("wait_completed_at")
     if isinstance(run_started_at, str):
         try:
             agent.run_start_time = _parse_utc_to_eastern(run_started_at)
@@ -216,7 +231,7 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
                 agent.status = "RUNNING"
         except ValueError:
             pass
-    elif isinstance(data.get("wait_completed_at"), str) and agent.status == "STARTING":
+    elif isinstance(wait_completed_at, str) and agent.status == "STARTING":
         agent.status = "RUNNING"
 
     # Parse stopped_at (completion time for DONE/FAILED agents)
@@ -227,11 +242,22 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         except ValueError:
             pass
 
+    if isinstance(wait_completed_at, str) or (
+        _meta_has_wait_directive(data)
+        and (
+            agent.run_start_time is not None
+            or agent.stop_time is not None
+            or agent.status not in _ACTIVE_ENRICHMENT_STATUSES
+        )
+    ):
+        agent.wait_start_time = agent.start_time
+
     # Check for waiting.json to set WAITING status (takes precedence over PLAN
     # since the agent can't plan until its dependencies are resolved)
     waiting_path = Path(artifacts_dir) / "waiting.json"
     if waiting_path.exists() and agent.status in _ACTIVE_ENRICHMENT_STATUSES:
         agent.status = "WAITING"
+        agent.wait_start_time = agent.start_time
         # waiting.json may contain an updated waiting_for list (e.g. from the TUI
         # "w" keymap), which takes precedence over agent_meta.json's wait_for.
         try:
@@ -424,12 +450,23 @@ def enrich_agent_from_meta_wire(
         except ValueError:
             pass
 
+    if meta.wait_completed_at or (
+        _wire_meta_has_wait_directive(meta)
+        and (
+            agent.run_start_time is not None
+            or agent.stop_time is not None
+            or agent.status not in _ACTIVE_ENRICHMENT_STATUSES
+        )
+    ):
+        agent.wait_start_time = agent.start_time
+
     # waiting.json overrides active display states and updates wait fields.
     # The filesystem helper only consults waiting.json when agent_meta
     # was successfully read; mirror that gate by handling it after the
     # meta-driven assignments.
     if waiting is not None and agent.status in _ACTIVE_ENRICHMENT_STATUSES:
         agent.status = "WAITING"
+        agent.wait_start_time = agent.start_time
         if waiting.waiting_for:
             agent.waiting_for = list(waiting.waiting_for)
         if waiting.wait_duration is not None:

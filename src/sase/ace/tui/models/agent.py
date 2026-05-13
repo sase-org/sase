@@ -51,6 +51,7 @@ class Agent:
     run_start_time: datetime | None = (
         None  # When agent actually started running (after waiting)
     )
+    wait_start_time: datetime | None = None  # Launch timestamp for waited agents
     stop_time: datetime | None = None  # When agent completed (DONE/FAILED)
 
     # Type-specific fields
@@ -343,8 +344,8 @@ class Agent:
         Each timestamp on its own line, with subsequent lines indented
         to align with the first (matching the width of ``Timestamps: ``).
 
-        - START is the launch/artifact timestamp
-        - WAIT is shown for agents currently waiting before execution
+        - START is the launch/artifact timestamp for agents that did not wait
+        - WAIT replaces START once an agent enters a pre-run wait phase
         - RUN is the actual execution timestamp when known
         - DONE shown for completed agents
         """
@@ -359,14 +360,17 @@ class Agent:
                 line += f" | {extra}"
             return line
 
-        if self.start_time is not None:
-            parts.append(_fmt("START", self.start_time.strftime(fmt)))
-            if self.status == "WAITING" and self.run_start_time is None:
-                parts.append(_fmt("WAIT", self.start_time.strftime(fmt)))
-            if self.run_start_time is not None:
-                parts.append(_fmt("RUN", self.run_start_time.strftime(fmt)))
-        else:
-            parts.append(_fmt("START", "Unknown"))
+        first_tag = (
+            "WAIT"
+            if self.wait_start_time is not None or self.status == "WAITING"
+            else "START"
+        )
+        first_time = self.wait_start_time or self.start_time
+        parts.append(
+            _fmt(first_tag, first_time.strftime(fmt) if first_time else "Unknown")
+        )
+        if self.run_start_time is not None:
+            parts.append(_fmt("RUN", self.run_start_time.strftime(fmt)))
 
         # Collect remaining timestamps and sort chronologically
         middle: list[tuple[datetime, str]] = []

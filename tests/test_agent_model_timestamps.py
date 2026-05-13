@@ -230,7 +230,7 @@ def test_timestamps_display_no_plan_or_code() -> None:
 
 
 def test_timestamps_display_wait_tag_for_waiting_status() -> None:
-    """WAITING agents show START plus WAIT metadata, not RUN."""
+    """WAITING agents show WAIT metadata, not START or RUN."""
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="test",
@@ -242,9 +242,64 @@ def test_timestamps_display_wait_tag_for_waiting_status() -> None:
     display = agent.timestamps_display
     lines = display.split("\n")
     tags = [line.strip().split(" | ")[0].strip() for line in lines]
-    assert tags == ["START", "WAIT"]
+    assert tags == ["WAIT"]
     assert "WAIT" in display
+    assert "START" not in display
     assert "RUN" not in display
+
+
+def test_timestamps_display_post_wait_pre_run_uses_wait_label() -> None:
+    """Waited agents keep WAIT after the live waiting marker clears."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="test",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 10, 22, 0, 0),
+        wait_start_time=datetime(2026, 4, 10, 22, 0, 0),
+    )
+    tags = [
+        line.strip().split(" | ")[0].strip()
+        for line in agent.timestamps_display.split("\n")
+    ]
+    assert tags == ["WAIT"]
+
+
+def test_timestamps_display_post_wait_running_includes_run() -> None:
+    """Waited running agents show WAIT followed by RUN when known."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="test",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 10, 22, 0, 0),
+        wait_start_time=datetime(2026, 4, 10, 22, 0, 0),
+        run_start_time=datetime(2026, 4, 10, 22, 5, 0),
+    )
+    tags = [
+        line.strip().split(" | ")[0].strip()
+        for line in agent.timestamps_display.split("\n")
+    ]
+    assert tags == ["WAIT", "RUN"]
+
+
+def test_timestamps_display_terminal_waited_agent_preserves_wait_label() -> None:
+    """Waited terminal agents keep WAIT through DONE."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="test",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 4, 10, 22, 0, 0),
+        wait_start_time=datetime(2026, 4, 10, 22, 0, 0),
+        run_start_time=datetime(2026, 4, 10, 22, 5, 0),
+        stop_time=datetime(2026, 4, 10, 22, 30, 0),
+    )
+    tags = [
+        line.strip().split(" | ")[0].strip()
+        for line in agent.timestamps_display.split("\n")
+    ]
+    assert tags == ["WAIT", "RUN", "DONE"]
 
 
 def test_snapshot_agent_timestamps_display_includes_scalar_plan(

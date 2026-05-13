@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 19:44:49
-status: wip
+status: done
 prompt: sdd/prompts/202605/wait_timestamp_display.md
 ---
 # WAIT Timestamp Display Plan

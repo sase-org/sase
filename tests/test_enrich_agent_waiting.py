@@ -35,6 +35,7 @@ def test_waiting_json_flips_starting_to_waiting(tmp_path: Path) -> None:
 
     assert agent.status == "WAITING"
     assert agent.waiting_for == ["dep_agent"]
+    assert agent.wait_start_time == agent.start_time
 
 
 def test_run_started_at_promotes_starting_to_running(tmp_path: Path) -> None:
@@ -62,6 +63,34 @@ def test_wait_completed_at_promotes_starting_to_running(tmp_path: Path) -> None:
 
     assert agent.status == "RUNNING"
     assert agent.run_start_time is None
+    assert agent.wait_start_time == agent.start_time
+
+
+def test_wait_metadata_sets_wait_start_time(tmp_path: Path) -> None:
+    """Persisted wait directive fields mark historical agents as waited."""
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"pid": 1234, "wait_duration": 300.0})
+    )
+
+    agent = make_agent(status="DONE")
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.wait_start_time == agent.start_time
+
+
+def test_wait_metadata_without_marker_keeps_starting_start_label(
+    tmp_path: Path,
+) -> None:
+    """A not-yet-waiting STARTING agent with wait metadata is not marked waited."""
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"pid": 1234, "wait_duration": 300.0})
+    )
+
+    agent = make_agent(status="STARTING")
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "STARTING"
+    assert agent.wait_start_time is None
 
 
 def test_wait_duration_from_agent_meta_fallback(tmp_path: Path) -> None:
@@ -204,6 +233,7 @@ def test_waiting_marker_wire_flips_starting_to_waiting() -> None:
     )
     assert agent.status == "WAITING"
     assert agent.waiting_for == ["dep_agent"]
+    assert agent.wait_start_time == agent.start_time
 
 
 def test_run_started_at_wire_promotes_starting_to_running() -> None:
@@ -230,3 +260,29 @@ def test_wait_completed_at_wire_promotes_starting_to_running() -> None:
     )
     assert agent.status == "RUNNING"
     assert agent.run_start_time is None
+    assert agent.wait_start_time == agent.start_time
+
+
+def test_wait_metadata_wire_sets_wait_start_time() -> None:
+    """Wire wait directive metadata marks historical agents as waited."""
+    agent = make_agent(status="DONE")
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(wait_duration=300.0),
+        None,
+        None,
+    )
+    assert agent.wait_start_time == agent.start_time
+
+
+def test_wait_metadata_wire_without_marker_keeps_starting_start_label() -> None:
+    """Wire STARTING agents with wait metadata are not marked waited yet."""
+    agent = make_agent(status="STARTING")
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(wait_duration=300.0),
+        None,
+        None,
+    )
+    assert agent.status == "STARTING"
+    assert agent.wait_start_time is None

@@ -79,6 +79,7 @@ def from_bundle_dict(data: dict[str, Any]) -> Agent:
     # Populate all optional fields from the bundle
     _DATETIME_FIELDS = {
         "run_start_time",
+        "wait_start_time",
         "stop_time",
         "code_time",
         "epic_time",
