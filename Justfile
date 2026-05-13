@@ -114,7 +114,6 @@ _lint-pyvision: _setup
         --epic-symbol 'sase-3a(MultiAgentXPromptDepthError)' \
         --epic-symbol 'sase-3a(MultiAgentXPromptUsageError)' \
         --epic-symbol 'sase-3a(NotificationCountsWire)' \
-        --epic-symbol 'sase-3a(NotificationStoreStatsWire)' \
         --epic-symbol 'sase-3a(PanelSlice)' \
         --epic-symbol 'sase-3a(ParseErrorWire)' \
         --epic-symbol 'sase-3a(PhaseAssignment)' \

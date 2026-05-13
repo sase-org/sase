@@ -19,7 +19,7 @@ class NotificationCountsWire:
 
 
 @dataclass(frozen=True)
-class NotificationStoreStatsWire:
+class _NotificationStoreStatsWire:
     total_lines: int = 0
     blank_lines: int = 0
     invalid_json_lines: int = 0
@@ -34,8 +34,8 @@ class NotificationStoreSnapshotWire:
     notifications: list[Notification] = field(default_factory=list)
     counts: NotificationCountsWire = field(default_factory=NotificationCountsWire)
     expired_ids: list[str] = field(default_factory=list)
-    stats: NotificationStoreStatsWire = field(
-        default_factory=NotificationStoreStatsWire
+    stats: _NotificationStoreStatsWire = field(
+        default_factory=_NotificationStoreStatsWire
     )
 
 
@@ -49,8 +49,8 @@ class NotificationUpdateOutcomeWire:
     notifications: list[Notification] = field(default_factory=list)
     counts: NotificationCountsWire = field(default_factory=NotificationCountsWire)
     expired_ids: list[str] = field(default_factory=list)
-    stats: NotificationStoreStatsWire = field(
-        default_factory=NotificationStoreStatsWire
+    stats: _NotificationStoreStatsWire = field(
+        default_factory=_NotificationStoreStatsWire
     )
 
 
@@ -132,7 +132,7 @@ def notification_snapshot_from_dict(
         ],
         counts=NotificationCountsWire(**(data.get("counts") or {})),
         expired_ids=[str(item) for item in data.get("expired_ids") or []],
-        stats=NotificationStoreStatsWire(**(data.get("stats") or {})),
+        stats=_NotificationStoreStatsWire(**(data.get("stats") or {})),
     )
 
 
@@ -156,7 +156,7 @@ def notification_update_outcome_from_dict(
         ],
         counts=NotificationCountsWire(**(data.get("counts") or {})),
         expired_ids=[str(item) for item in data.get("expired_ids") or []],
-        stats=NotificationStoreStatsWire(**(data.get("stats") or {})),
+        stats=_NotificationStoreStatsWire(**(data.get("stats") or {})),
     )
 
 
@@ -166,7 +166,7 @@ __all__ = [
     "NotificationCountsWire",
     "NotificationStateUpdateWire",
     "NotificationStoreSnapshotWire",
-    "NotificationStoreStatsWire",
+    "_NotificationStoreStatsWire",
     "NotificationUpdateOutcomeWire",
     "notification_from_dict",
     "notification_snapshot_from_dict",

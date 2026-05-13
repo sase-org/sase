@@ -17,7 +17,7 @@ from sase.core.notification_store_wire import (
     NotificationAgentKeyWire,
     NotificationCountsWire,
     NotificationStateUpdateWire,
-    NotificationStoreStatsWire,
+    _NotificationStoreStatsWire,
     notification_from_dict,
     notification_store_wire_to_json_dict,
 )
@@ -175,7 +175,7 @@ def test_wire_helpers_rehydrate_and_serialize_agent_keys() -> None:
 
     assert n.id == "n1"
     assert NotificationCountsWire(priority=1).priority == 1
-    assert NotificationStoreStatsWire(total_lines=3).total_lines == 3
+    assert _NotificationStoreStatsWire(total_lines=3).total_lines == 3
     assert notification_store_wire_to_json_dict(update) == {
         "kind": "dismiss_matching_agents",
         "agents": [{"cl_name": "cl", "raw_suffix": "20260430120000"}],
