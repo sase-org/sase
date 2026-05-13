@@ -28,6 +28,7 @@ from sase.main.parser_commit import (
     register_revert_parser,
 )
 from sase.main.parser_core import register_core_parser
+from sase.main.parser_daemon import register_daemon_parser
 from sase.main.parser_editor import register_editor_parser
 from sase.main.parser_init import (
     register_init_git_parser,
@@ -85,6 +86,7 @@ def create_parser() -> argparse.ArgumentParser:
     register_commit_parser(top_level_subparsers)
     register_config_parser(top_level_subparsers)
     register_core_parser(top_level_subparsers)
+    register_daemon_parser(top_level_subparsers)
     register_editor_parser(top_level_subparsers)
     register_file_parser(top_level_subparsers)
     register_file_history_parser(top_level_subparsers)
