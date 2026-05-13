@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 10:30:47
-status: wip
+status: done
 prompt: sdd/prompts/202605/bead_fast_path_config_gate.md
 ---
 # Plan: Align bead fast-path store resolution with SDD VC mode

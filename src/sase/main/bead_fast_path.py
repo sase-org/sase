@@ -92,17 +92,22 @@ def _resolve_lightweight_beads_context(
 ) -> tuple[list[Path], Path, str] | None:
     primary = _resolve_primary_workspace_by_project_scan(cwd)
     if primary is not None:
-        local_current = _select_current_checkout_beads_dir(cwd)
-        if local_current is not None:
-            return [local_current], local_current, _BEADS_DIRNAME
+        from sase.sdd.beads import get_sdd_config
+
+        if get_sdd_config():
+            local_current = _select_current_checkout_beads_dir(cwd)
+            if local_current is not None:
+                return [local_current], local_current, _BEADS_DIRNAME
+
+            primary_current = primary / _BEADS_DIRNAME
+            if primary_current.is_dir():
+                return [primary_current], primary_current, _BEADS_DIRNAME
+            return None
 
         non_vc = primary / ".sase" / "sdd" / _BEADS_DIRNAME_NON_VC
         if non_vc.is_dir():
             return [non_vc], non_vc, _BEADS_DIRNAME_NON_VC
-
-        write_dir, beads_dirname = _select_primary_beads_dir(primary)
-        if write_dir is not None:
-            return [write_dir], write_dir, beads_dirname
+        return None
 
     for parent in [cwd, *cwd.parents]:
         vc = parent / _BEADS_DIRNAME
@@ -176,14 +181,6 @@ def _select_current_checkout_beads_dir(cwd: Path) -> Path | None:
         if local_current.is_dir():
             return local_current
     return None
-
-
-def _select_primary_beads_dir(primary: Path) -> tuple[Path | None, str]:
-    primary_current = primary / _BEADS_DIRNAME
-    if primary_current.is_dir():
-        return primary_current, _BEADS_DIRNAME
-
-    return None, _BEADS_DIRNAME
 
 
 def _apply_mutation_side_effects(
