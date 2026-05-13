@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 13:27:27
-status: wip
+status: done
 prompt: sdd/prompts/202605/unread_smiley_marker.md
 ---
 # Plan: Replace the unread-agent mailbox marker with a yellow smiley face
