@@ -9,7 +9,7 @@ import pytest
 from sase.bead.model import BeadTier, Status
 from sase.bead.work import (
     CrossEpicBlockerError,
-    CycleError,
+    _CycleError,
     EpicPlanError,
     build_epic_work_plan,
     render_multi_prompt,
@@ -346,7 +346,7 @@ class TestCycleDetection:
         depends(conn, "p1", "p2")
         depends(conn, "p2", "p1")
 
-        with pytest.raises(CycleError):
+        with pytest.raises(_CycleError):
             build_epic_work_plan(conn, "e1")
 
 

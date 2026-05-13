@@ -91,7 +91,7 @@ class LegendPlanError(ValueError):
     """Base error for legend-work-plan construction failures."""
 
 
-class CycleError(EpicPlanError):
+class _CycleError(EpicPlanError):
     """Raised when the open phase children form a dependency cycle."""
 
 
@@ -115,7 +115,7 @@ def build_epic_work_plan(
             or has no non-closed phase children.
         CrossEpicBlockerError: If a phase depends on an out-of-epic blocker
             that is not closed.
-        CycleError: If the open phases form a dependency cycle.
+        _CycleError: If the open phases form a dependency cycle.
     """
     if isinstance(source, sqlite3.Connection):
         return _build_epic_work_plan_from_issues(db.list_issues(source), epic_id)
@@ -276,7 +276,7 @@ def _dependency_to_wire_dict(dep: Dependency) -> dict[str, str]:
 def _raise_epic_plan_error(exc: ValueError) -> None:
     kind, message = _split_rust_error(str(exc))
     if kind == "cycle":
-        raise CycleError(message) from exc
+        raise _CycleError(message) from exc
     if kind == "cross_epic_blocker":
         raise CrossEpicBlockerError(message) from exc
     raise EpicPlanError(message) from exc
