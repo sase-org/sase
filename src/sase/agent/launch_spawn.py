@@ -27,6 +27,12 @@ def _remove_inherited_workspace_preallocation_env(env: dict[str, str]) -> None:
             env.pop(key, None)
 
 
+def _remove_inherited_deferred_workspace_env(env: dict[str, str]) -> None:
+    """Drop stale deferred-workspace launch-control env from parent agents."""
+    env.pop("SASE_AGENT_DEFERRED_WORKSPACE", None)
+    env.pop("SASE_AGENT_VCS_WORKFLOW_TYPE", None)
+
+
 def _overwrite_project_dir_env(env: dict[str, str], workspace_dir: str) -> None:
     """Bind project-dir env vars to the spawned child's actual workspace.
 
@@ -185,6 +191,7 @@ def spawn_agent_subprocess(
         subprocess_env = dict(os.environ)
         _remove_inherited_sase_codex_home(subprocess_env)
         _remove_inherited_workspace_preallocation_env(subprocess_env)
+        _remove_inherited_deferred_workspace_env(subprocess_env)
         subprocess_env.update(prepared.env_delta)
         _overwrite_project_dir_env(subprocess_env, workspace_dir)
 

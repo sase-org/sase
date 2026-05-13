@@ -137,6 +137,8 @@ def _spawn_with_captured_env(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     workspace: Path,
+    *,
+    deferred_workspace: bool = False,
 ) -> dict[str, str]:
     """Drive ``spawn_agent_subprocess`` and return the env passed to the child."""
     patch_cd_git_metadata(monkeypatch)
@@ -183,6 +185,7 @@ def _spawn_with_captured_env(
             project_name="home",
             is_home_mode=False,
             vcs_ref=("git", "home"),
+            deferred_workspace=deferred_workspace,
         )
     return captured_env
 
@@ -217,6 +220,43 @@ def test_spawn_agent_subprocess_strips_stale_codex_project_dir(
     captured_env = _spawn_with_captured_env(monkeypatch, tmp_path, workspace)
 
     assert "CODEX_PROJECT_DIR" not in captured_env
+
+
+def test_spawn_agent_subprocess_strips_stale_deferred_workspace_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Normal child launches must not inherit deferred-workspace control env."""
+    workspace = tmp_path / "child-workspace"
+    workspace.mkdir()
+    monkeypatch.setenv("SASE_AGENT_DEFERRED_WORKSPACE", "1")
+    monkeypatch.setenv("SASE_AGENT_VCS_WORKFLOW_TYPE", "gh")
+
+    captured_env = _spawn_with_captured_env(monkeypatch, tmp_path, workspace)
+
+    assert "SASE_AGENT_DEFERRED_WORKSPACE" not in captured_env
+    assert "SASE_AGENT_VCS_WORKFLOW_TYPE" not in captured_env
+
+
+def test_spawn_agent_subprocess_readds_prepared_deferred_workspace_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Real deferred launches get fresh launch-control env after scrubbing."""
+    workspace = tmp_path / "child-workspace"
+    workspace.mkdir()
+    monkeypatch.setenv("SASE_AGENT_DEFERRED_WORKSPACE", "1")
+    monkeypatch.setenv("SASE_AGENT_VCS_WORKFLOW_TYPE", "gh")
+
+    captured_env = _spawn_with_captured_env(
+        monkeypatch,
+        tmp_path,
+        workspace,
+        deferred_workspace=True,
+    )
+
+    assert captured_env["SASE_AGENT_DEFERRED_WORKSPACE"] == "1"
+    assert captured_env["SASE_AGENT_VCS_WORKFLOW_TYPE"] == "git"
 
 
 def test_default_git_home_auto_initializes_incomplete_home_project(

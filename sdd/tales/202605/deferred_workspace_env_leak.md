@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 19:10:37
-status: wip
+status: done
 prompt: sdd/prompts/202605/deferred_workspace_env_leak.md
 ---
 # Fix Deferred Workspace Env Leak
