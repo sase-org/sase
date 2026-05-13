@@ -30,9 +30,7 @@ def test_lightweight_context_reads_current_checkout_store(
     assert beads_dirname == _BEADS_DIRNAME
 
 
-def test_fast_path_allows_existing_legacy_store_as_write_fallback(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_fast_path_ignores_legacy_store_by_default(tmp_path: Path, monkeypatch) -> None:
     primary = tmp_path / "workspaces" / "sase"
     (primary / ".sase_beads").mkdir(parents=True)
     _write_project_file(tmp_path, "sase", primary)
@@ -41,10 +39,7 @@ def test_fast_path_allows_existing_legacy_store_as_write_fallback(
 
     context = _resolve_fast_path_context(["update", "sase-1", "--status", "closed"])
 
-    assert context is not None
-    assert context.read_beads_dirs == [primary / ".sase_beads"]
-    assert context.write_beads_dir == primary / ".sase_beads"
-    assert context.relativize_design_paths is False
+    assert context is None
 
 
 def test_fast_path_keeps_write_commands_disabled_for_non_vc_store(

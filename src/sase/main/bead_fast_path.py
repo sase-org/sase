@@ -9,7 +9,6 @@ from typing import Any
 
 _BEADS_DIRNAME = "sdd/beads"
 _BEADS_DIRNAME_NON_VC = "beads"
-_LEGACY_BEADS_DIRNAME = ".sase_beads"
 _FAST_WRITE_COMMANDS = {"open", "update", "close", "dep"}
 
 
@@ -108,10 +107,6 @@ def _resolve_lightweight_beads_context(
         non_vc = parent / ".sase" / "sdd" / _BEADS_DIRNAME_NON_VC
         if non_vc.is_dir():
             return [non_vc], non_vc, _BEADS_DIRNAME_NON_VC
-        legacy = parent / _LEGACY_BEADS_DIRNAME
-        if legacy.is_dir():
-            return [legacy], legacy, _LEGACY_BEADS_DIRNAME
-
     return None
 
 
@@ -180,15 +175,6 @@ def _select_write_beads_dir(cwd: Path, primary: Path) -> tuple[Path | None, str]
     primary_current = primary / _BEADS_DIRNAME
     if primary_current.is_dir():
         return primary_current, _BEADS_DIRNAME
-
-    for parent in [cwd, *cwd.parents]:
-        local_legacy = parent / _LEGACY_BEADS_DIRNAME
-        if local_legacy.is_dir():
-            return local_legacy, _LEGACY_BEADS_DIRNAME
-
-    primary_legacy = primary / _LEGACY_BEADS_DIRNAME
-    if primary_legacy.is_dir():
-        return primary_legacy, _LEGACY_BEADS_DIRNAME
 
     return None, _BEADS_DIRNAME
 

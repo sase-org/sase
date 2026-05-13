@@ -280,6 +280,8 @@ def _terminate_live_artifacts(plan: _WipePlan, errors: list[str]) -> int:
 
 
 def _terminate_artifact_process(path: Path, errors: list[str]) -> bool:
+    if (path / "done.json").exists():
+        return False
     meta = _read_json_object(path / "agent_meta.json") or {}
     if not is_process_alive(meta, path):
         return False
