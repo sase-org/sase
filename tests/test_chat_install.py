@@ -11,7 +11,7 @@ from pytest import MonkeyPatch
 
 from sase.integrations import chat_install
 from sase.integrations.chat_install import (
-    ChatInstallConfig,
+    _ChatInstallConfig,
     load_chat_install_config,
     read_chat_install_status,
     resolve_primary_workspace_for_chat_install,
@@ -22,7 +22,7 @@ from sase.integrations.chat_install import (
 
 def test_load_chat_install_config_defaults() -> None:
     with patch("sase.integrations.chat_install.load_merged_config", return_value={}):
-        assert load_chat_install_config() == ChatInstallConfig(command="")
+        assert load_chat_install_config() == _ChatInstallConfig(command="")
 
 
 def test_load_chat_install_config_normalizes_values() -> None:
@@ -37,7 +37,7 @@ def test_load_chat_install_config_normalizes_values() -> None:
             }
         },
     ):
-        assert load_chat_install_config() == ChatInstallConfig(
+        assert load_chat_install_config() == _ChatInstallConfig(
             command="install_sase_github",
             sync_workspace=False,
             timeout_seconds=12,
@@ -49,7 +49,7 @@ def test_start_worker_rejects_missing_command() -> None:
     with (
         patch(
             "sase.integrations.chat_install.load_chat_install_config",
-            return_value=ChatInstallConfig(command=""),
+            return_value=_ChatInstallConfig(command=""),
         ),
         patch("sase.integrations.chat_install.subprocess.Popen") as popen,
     ):
@@ -69,7 +69,7 @@ def test_start_worker_reports_workspace_resolution_failed(tmp_path: Path) -> Non
         patch.object(chat_install, "_LOCK_PATH", state_dir / "install.lock"),
         patch(
             "sase.integrations.chat_install.load_chat_install_config",
-            return_value=ChatInstallConfig(command="true"),
+            return_value=_ChatInstallConfig(command="true"),
         ),
         patch(
             "sase.integrations.chat_install.resolve_primary_workspace_for_chat_install",
@@ -161,7 +161,7 @@ def test_start_worker_reports_existing_lock(tmp_path: Path) -> None:
             patch.object(chat_install, "_LOCK_PATH", lock_path),
             patch(
                 "sase.integrations.chat_install.load_chat_install_config",
-                return_value=ChatInstallConfig(command="true"),
+                return_value=_ChatInstallConfig(command="true"),
             ),
         ):
             result = start_chat_install_worker()
@@ -190,7 +190,7 @@ def test_start_worker_launches_detached_process(tmp_path: Path) -> None:
         patch.object(chat_install, "_JOBS_DIR", jobs_dir),
         patch(
             "sase.integrations.chat_install.load_chat_install_config",
-            return_value=ChatInstallConfig(command="true"),
+            return_value=_ChatInstallConfig(command="true"),
         ),
         patch(
             "sase.integrations.chat_install.resolve_primary_workspace_for_chat_install",
@@ -348,7 +348,7 @@ def test_run_worker_skips_install_when_sync_fails(tmp_path: Path) -> None:
     with (
         patch(
             "sase.integrations.chat_install.load_chat_install_config",
-            return_value=ChatInstallConfig(command="install", restart_attempts=1),
+            return_value=_ChatInstallConfig(command="install", restart_attempts=1),
         ),
         patch("sase.integrations.chat_install.stop_axe_daemon", return_value=True),
         patch("sase.integrations.chat_install.get_vcs_provider", return_value=provider),
@@ -375,7 +375,7 @@ def test_run_worker_ignores_unrelated_inherited_lock_fd(
             patch.object(chat_install, "_LOCK_PATH", lock_path),
             patch(
                 "sase.integrations.chat_install.load_chat_install_config",
-                return_value=ChatInstallConfig(command="install", restart_attempts=1),
+                return_value=_ChatInstallConfig(command="install", restart_attempts=1),
             ),
             patch("sase.integrations.chat_install.stop_axe_daemon", return_value=True),
             patch(
@@ -401,7 +401,7 @@ def test_run_worker_restarts_axe_when_command_fails(tmp_path: Path) -> None:
     with (
         patch(
             "sase.integrations.chat_install.load_chat_install_config",
-            return_value=ChatInstallConfig(command="install", restart_attempts=2),
+            return_value=_ChatInstallConfig(command="install", restart_attempts=2),
         ),
         patch("sase.integrations.chat_install.stop_axe_daemon", return_value=False),
         patch("sase.integrations.chat_install.get_vcs_provider", return_value=provider),
@@ -428,7 +428,7 @@ def test_run_worker_writes_success_completion_record(tmp_path: Path) -> None:
     with (
         patch(
             "sase.integrations.chat_install.load_chat_install_config",
-            return_value=ChatInstallConfig(
+            return_value=_ChatInstallConfig(
                 command="install", sync_workspace=False, restart_attempts=1
             ),
         ),
@@ -468,7 +468,7 @@ def test_run_worker_writes_failure_completion_record(tmp_path: Path) -> None:
     with (
         patch(
             "sase.integrations.chat_install.load_chat_install_config",
-            return_value=ChatInstallConfig(command="install", restart_attempts=1),
+            return_value=_ChatInstallConfig(command="install", restart_attempts=1),
         ),
         patch("sase.integrations.chat_install.stop_axe_daemon", return_value=True),
         patch("sase.integrations.chat_install.get_vcs_provider", return_value=provider),
@@ -495,7 +495,7 @@ def test_run_worker_marks_restart_failure_as_failed_completion(
     with (
         patch(
             "sase.integrations.chat_install.load_chat_install_config",
-            return_value=ChatInstallConfig(
+            return_value=_ChatInstallConfig(
                 command="install", sync_workspace=False, restart_attempts=2
             ),
         ),

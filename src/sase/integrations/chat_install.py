@@ -37,7 +37,7 @@ JobStatus = Literal["running", "succeeded", "failed", "not_found"]
 
 
 @dataclass(frozen=True)
-class ChatInstallConfig:
+class _ChatInstallConfig:
     command: str
     sync_workspace: bool = True
     timeout_seconds: int = 900
@@ -69,7 +69,7 @@ class ChatInstallStatusResult:
     restart_succeeded: bool | None = None
 
 
-def load_chat_install_config() -> ChatInstallConfig:
+def load_chat_install_config() -> _ChatInstallConfig:
     """Read and normalize the ``chat_install`` merged-config section."""
     raw = load_merged_config().get("chat_install", {})
     if not isinstance(raw, dict):
@@ -80,7 +80,7 @@ def load_chat_install_config() -> ChatInstallConfig:
     timeout_seconds = raw.get("timeout_seconds", 900)
     restart_attempts = raw.get("restart_attempts", 3)
 
-    return ChatInstallConfig(
+    return _ChatInstallConfig(
         command=command.strip() if isinstance(command, str) else "",
         sync_workspace=bool(sync_workspace),
         timeout_seconds=_positive_int(timeout_seconds, 900),
@@ -595,7 +595,7 @@ def _optional_int(value: object) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
-def _run_install_command(config: ChatInstallConfig, workspace: Path) -> int:
+def _run_install_command(config: _ChatInstallConfig, workspace: Path) -> int:
     _log(f"running install command: {config.command}")
     try:
         completed = subprocess.run(
