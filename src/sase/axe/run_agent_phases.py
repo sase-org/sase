@@ -8,21 +8,21 @@ import os
 import sys
 
 from sase.axe.run_agent_directives import (
-    _AgentInfo,
+    AgentInfo,
     extract_directives_and_write_meta,
 )
 from sase.axe.run_agent_markers import (
-    _write_agent_meta,
     build_done_marker,
     record_run_started_at,
     record_stop_time,
+    write_agent_meta,
 )
 from sase.axe.run_agent_refs import (
     resolve_agent_refs_in_prompt,
     resolve_wait_chat_paths,
 )
 from sase.axe.run_agent_wait import (
-    _remaining_until,
+    remaining_until,
     wait_for_dependencies,
 )
 
@@ -126,15 +126,15 @@ def claim_deferred_workspace(
 
 
 __all__ = [
-    "_AgentInfo",
-    "_remaining_until",
-    "_write_agent_meta",
+    "AgentInfo",
     "build_done_marker",
     "claim_deferred_workspace",
     "extract_directives_and_write_meta",
+    "remaining_until",
     "record_run_started_at",
     "record_stop_time",
     "resolve_agent_refs_in_prompt",
     "resolve_wait_chat_paths",
     "wait_for_dependencies",
+    "write_agent_meta",
 ]

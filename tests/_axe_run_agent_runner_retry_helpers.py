@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.axe.run_agent_phases import _AgentInfo
+from sase.axe.run_agent_phases import AgentInfo
 from sase.llm_provider.retry_config import ProviderRetryConfig
 
 
@@ -26,7 +26,7 @@ def make_retry_config(
     )
 
 
-AGENT_INFO = _AgentInfo(
+AGENT_INFO = AgentInfo(
     name="test-agent",
     wait_names=[],
     wait_duration=None,

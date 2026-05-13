@@ -33,7 +33,7 @@ def record_run_started_at(artifacts_dir: str, agent_meta: dict[str, Any]) -> str
 
     merged_meta = {**disk_meta, **agent_meta, "run_started_at": run_started_at}
     agent_meta.update(merged_meta)
-    _write_agent_meta(artifacts_dir, merged_meta)
+    write_agent_meta(artifacts_dir, merged_meta)
     return run_started_at
 
 
@@ -129,12 +129,12 @@ def record_stop_time(*artifacts_dirs: str | None) -> None:
             with open(meta_p, encoding="utf-8") as f:
                 meta_data = json.load(f)
             meta_data["stopped_at"] = stopped_at
-            _write_agent_meta(ad, meta_data)
+            write_agent_meta(ad, meta_data)
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             pass
 
 
-def _write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:
+def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(agent_meta, f, indent=2)

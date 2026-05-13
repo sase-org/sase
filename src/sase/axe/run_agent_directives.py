@@ -5,10 +5,10 @@ import os
 from typing import Any, NamedTuple
 
 from sase.axe.chop_agents import agent_meta_from_chop_env
-from sase.axe.run_agent_markers import _write_agent_meta
+from sase.axe.run_agent_markers import write_agent_meta
 
 
-class _AgentInfo(NamedTuple):
+class AgentInfo(NamedTuple):
     """Result of directive extraction and metadata writing."""
 
     name: str | None
@@ -33,13 +33,13 @@ def extract_directives_and_write_meta(
     cl_name: str | None = None,
     *,
     raw_resolved_prompt: str | None = None,
-) -> _AgentInfo:
+) -> AgentInfo:
     """Extract prompt directives and write agent_meta.json.
 
     Expands xprompt references, extracts directives (model, name, etc.),
     resolves LLM/VCS providers, writes metadata, and claims agent name.
 
-    Returns _AgentInfo with all extracted info.
+    Returns AgentInfo with all extracted info.
     """
     from sase.llm_provider.registry import (
         get_default_provider_name,
@@ -190,7 +190,7 @@ def extract_directives_and_write_meta(
         # Write agent_meta.json after the name reservation succeeds so
         # concurrent explicit claims cannot both publish the same name.
         if agent_meta:
-            _write_agent_meta(artifacts_dir, agent_meta)
+            write_agent_meta(artifacts_dir, agent_meta)
 
     # Persist the %group directive into ~/.sase/agent_tags.json so the Agents
     # tab picks it up at load time.  The agent's identity is
@@ -204,7 +204,7 @@ def extract_directives_and_write_meta(
         identity = (AgentType.WORKFLOW, cl_name, raw_suffix)
         update_agent_tag(identity, directives.tag)
 
-    return _AgentInfo(
+    return AgentInfo(
         name=agent_name,
         wait_names=directives.wait,
         wait_duration=directives.wait_duration,

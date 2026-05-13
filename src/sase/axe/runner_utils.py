@@ -134,7 +134,7 @@ def all_steps_hidden(artifacts_dir: str) -> bool:
     return result
 
 
-def _write_agent_meta(
+def write_agent_meta(
     artifacts_dir: str,
     *,
     model: str | None = None,
@@ -206,7 +206,7 @@ def _detect_and_write_agent_meta(
     except (ValueError, Exception):
         vcs_provider = None
 
-    _write_agent_meta(
+    write_agent_meta(
         artifacts_dir,
         model=model,
         llm_provider=llm_provider,

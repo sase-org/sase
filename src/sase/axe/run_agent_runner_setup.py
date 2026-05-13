@@ -218,7 +218,7 @@ def apply_retry_chain_to_meta(
         agent_meta["retry_attempt"] = retry_handoff.retry_attempt
         agent_meta["retry_chain_root_timestamp"] = retry_handoff.chain_root_timestamp
         agent_meta["retry_error_category"] = retry_handoff.error_category
-        _write_agent_meta(artifacts_dir, agent_meta)
+        write_agent_meta(artifacts_dir, agent_meta)
         return agent_meta
 
     env_retry_attempt = os.environ.get(ENV_RETRY_ATTEMPT)
@@ -231,13 +231,13 @@ def apply_retry_chain_to_meta(
         agent_meta["retry_of_timestamp"] = env_retry_of
         if env_retry_root:
             agent_meta["retry_chain_root_timestamp"] = env_retry_root
-        _write_agent_meta(artifacts_dir, agent_meta)
+        write_agent_meta(artifacts_dir, agent_meta)
         return agent_meta
     except ValueError:
         return agent_meta
 
 
-def _write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:
+def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(agent_meta, f, indent=2)

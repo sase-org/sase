@@ -9,7 +9,7 @@ from typing import Any
 from sase.axe.runner_utils import was_killed
 
 
-def _remaining_until(wait_until: str) -> float:
+def remaining_until(wait_until: str) -> float:
     """Seconds remaining until the ISO 8601 target time."""
     from datetime import datetime as dt_cls
 
@@ -90,13 +90,13 @@ def wait_for_dependencies(
 
         # If an absolute-time floor is set, sleep until the target.
         if wait_until is not None and not was_killed():
-            remaining = _remaining_until(wait_until)
+            remaining = remaining_until(wait_until)
             if remaining > 0:
                 print(f"Dependencies satisfied, waiting until {wait_until}")
                 while remaining > 0 and not was_killed():
                     sleep_time = min(_WAIT_POLL_INTERVAL, remaining)
                     time.sleep(sleep_time)
-                    remaining = _remaining_until(wait_until)
+                    remaining = remaining_until(wait_until)
 
         # Clean up wait markers.
         for path in (waiting_path, ready_path):
@@ -117,11 +117,11 @@ def wait_for_dependencies(
             json.dump(until_waiting_data, f, indent=2)
 
         print(f"Waiting until: {wait_until}")
-        remaining = _remaining_until(wait_until)
+        remaining = remaining_until(wait_until)
         while remaining > 0 and not was_killed():
             sleep_time = min(_WAIT_POLL_INTERVAL, remaining)
             time.sleep(sleep_time)
-            remaining = _remaining_until(wait_until)
+            remaining = remaining_until(wait_until)
 
         # Clean up waiting.json.
         try:
