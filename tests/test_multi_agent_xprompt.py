@@ -564,7 +564,7 @@ def test_expand_depth_cap() -> None:
     """A self-referential multi-agent xprompt blows the depth cap."""
     catalog = {"loopy": _xp("loopy", "step\n---\n#!loopy")}
     with _patch_catalog(catalog):
-        with pytest.raises(_MultiAgentXPromptDepthError):
+        with pytest.raises(MultiAgentXPromptDepthError):
             expand_multi_agent_xprompts(["#!loopy"], max_depth=3)
 
 
