@@ -18,7 +18,6 @@ from sase.ace.query.types import (
     PropertyMatch,
     QueryExpr,
     StringMatch,
-    to_canonical_string,
 )
 from sase.core.query_wire import (
     EXPR_KIND_AND,
@@ -26,9 +25,7 @@ from sase.core.query_wire import (
     EXPR_KIND_OR,
     EXPR_KIND_PROPERTY,
     EXPR_KIND_STRING,
-    QUERY_WIRE_SCHEMA_VERSION,
     QueryExprWire,
-    QueryProgramWire,
     QueryTokenWire,
     TOKEN_KIND_AND,
     TOKEN_KIND_ANY_SPECIAL,
@@ -192,14 +189,4 @@ def query_expr_wire_from_dict(record: dict[str, Any]) -> QueryExprWire:
         is_running_process=bool(record.get("is_running_process", False)),
         property_key=record.get("property_key"),
         operands=operands,
-    )
-
-
-def build_query_program_wire(source: str, expr: QueryExpr) -> QueryProgramWire:
-    """Bundle a parsed expression into a :class:`QueryProgramWire`."""
-    return QueryProgramWire(
-        schema_version=QUERY_WIRE_SCHEMA_VERSION,
-        source=source,
-        canonical=to_canonical_string(expr),
-        ast=query_expr_to_wire(expr),
     )

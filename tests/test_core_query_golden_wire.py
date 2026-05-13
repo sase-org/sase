@@ -7,9 +7,13 @@ from inline_snapshot import snapshot
 from sase.ace.query.parser import _parse_query_python
 from sase.ace.query.tokenizer import tokenize
 from sase.ace.query.types import to_canonical_string
-from sase.core.query_wire import QUERY_WIRE_SCHEMA_VERSION, query_wire_to_json_dict
+from sase.core.query_wire import (
+    QueryExprWire,
+    QueryProgramWire,
+    QUERY_WIRE_SCHEMA_VERSION,
+    query_wire_to_json_dict,
+)
 from sase.core.query_wire_conversion import (
-    build_query_program_wire,
     query_expr_from_wire,
     query_expr_to_wire,
     token_from_wire,
@@ -48,7 +52,13 @@ def test_query_program_wire_snapshot() -> None:
     snapshot file.
     """
     q = '("alpha" OR "beta") AND NOT status:Submitted'
-    program = build_query_program_wire(q, _parse_query_python(q))
+    expr = _parse_query_python(q)
+    program = QueryProgramWire(
+        schema_version=QUERY_WIRE_SCHEMA_VERSION,
+        source=q,
+        canonical=to_canonical_string(expr),
+        ast=query_expr_to_wire(expr),
+    )
     assert query_wire_to_json_dict(program) == snapshot(
         {
             "schema_version": QUERY_WIRE_SCHEMA_VERSION,

@@ -11,7 +11,7 @@ from sase.bead.work import (
     _CrossEpicBlockerError,
     _CycleError,
     EpicPlanError,
-    build_epic_work_plan,
+    _build_epic_work_plan,
     render_multi_prompt,
 )
 from sase.xprompt.workflow_models import Workflow
@@ -33,7 +33,7 @@ class TestLinearChain:
         depends(conn, "p2", "p1")
         depends(conn, "p3", "p2")
 
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         assert len(plan.waves) == 3
         assert wave_bead_ids(plan, 0) == ["p1"]
@@ -59,7 +59,7 @@ class TestLinearChain:
             ],
         )
 
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         assert plan.epic_id == "e1"
         assert plan.launch_tag_id == "l1"
@@ -78,7 +78,7 @@ class TestLinearChain:
             ],
         )
 
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         assert plan.launch_tag_id == "e1"
 
@@ -102,7 +102,7 @@ class TestDiamond:
 
     def test_three_waves_land_on_all_phases(self, conn: sqlite3.Connection) -> None:
         self._seed_diamond(conn)
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         assert len(plan.waves) == 3
         assert wave_bead_ids(plan, 0) == ["p1"]
@@ -115,7 +115,7 @@ class TestDiamond:
 
     def test_diamond_render_snapshot(self, conn: sqlite3.Connection) -> None:
         self._seed_diamond(conn)
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -176,7 +176,7 @@ class TestMixedDAG:
         depends(conn, "p2", "p1")
         depends(conn, "p3", "p2")
 
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         assert [wave_bead_ids(plan, i) for i in range(len(plan.waves))] == [
             ["p1", "p4"],
@@ -199,7 +199,7 @@ class TestIndependentFanOut:
                 phase("p3"),
             ],
         )
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         assert len(plan.waves) == 1
         assert wave_bead_ids(plan, 0) == ["p1", "p2", "p3"]
@@ -217,7 +217,7 @@ class TestClosedBlockers:
             ],
         )
 
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         assert len(plan.waves) == 1
         assert wave_bead_ids(plan, 0) == ["p1"]
@@ -236,7 +236,7 @@ class TestClosedBlockers:
         )
         depends(conn, "p2", "p1")
 
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         assert len(plan.waves) == 1
         assert wave_bead_ids(plan, 0) == ["p2"]
@@ -256,7 +256,7 @@ class TestClosedBlockers:
         )
         depends(conn, "p2", "p1")
 
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
         rendered = render_multi_prompt(
             plan,
             work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
@@ -282,7 +282,7 @@ class TestClosedBlockers:
         depends(conn, "p2", "p1")
         depends(conn, "p3", "p2")
 
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
         rendered = render_multi_prompt(
             plan,
             work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
@@ -309,7 +309,7 @@ class TestClosedBlockers:
         )
         depends(conn, "p1", "ext")
 
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         assert len(plan.waves) == 1
         assert wave_bead_ids(plan, 0) == ["p1"]
@@ -330,7 +330,7 @@ class TestCrossEpicBlockerRejected:
         depends(conn, "p1", "ext")
 
         with pytest.raises(_CrossEpicBlockerError):
-            build_epic_work_plan(conn, "e1")
+            _build_epic_work_plan(conn, "e1")
 
 
 class TestCycleDetection:
@@ -347,7 +347,7 @@ class TestCycleDetection:
         depends(conn, "p2", "p1")
 
         with pytest.raises(_CycleError):
-            build_epic_work_plan(conn, "e1")
+            _build_epic_work_plan(conn, "e1")
 
 
 class TestModelPropagationFromPayload:
@@ -360,7 +360,7 @@ class TestModelPropagationFromPayload:
                 phase("p2"),
             ],
         )
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         assignments = {a.bead_id: a for wave in plan.waves for a in wave}
         assert assignments["p1"].model == "claude/opus"
@@ -375,7 +375,7 @@ class TestModelPropagationFromPayload:
                 phase("p1"),
             ],
         )
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         assert plan.land_model == "codex/gpt-5.5"
         assignments = [a for wave in plan.waves for a in wave]
@@ -385,12 +385,12 @@ class TestModelPropagationFromPayload:
 class TestEpicValidation:
     def test_missing_epic_raises(self, conn: sqlite3.Connection) -> None:
         with pytest.raises(EpicPlanError):
-            build_epic_work_plan(conn, "missing")
+            _build_epic_work_plan(conn, "missing")
 
     def test_phase_target_raises(self, conn: sqlite3.Connection) -> None:
         seed(conn, [epic("e1"), phase("p1")])
         with pytest.raises(EpicPlanError):
-            build_epic_work_plan(conn, "p1")
+            _build_epic_work_plan(conn, "p1")
 
     def test_no_open_phases_raises(self, conn: sqlite3.Connection) -> None:
         seed(
@@ -401,4 +401,4 @@ class TestEpicValidation:
             ],
         )
         with pytest.raises(EpicPlanError, match="no non-closed phase children"):
-            build_epic_work_plan(conn, "e1")
+            _build_epic_work_plan(conn, "e1")

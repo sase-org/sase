@@ -8,11 +8,17 @@ steps:
       from pathlib import Path
 
       from sase.agent.launcher import launch_agent_from_cwd
-      from sase.agent.multi_prompt import build_wait_chained_multi_prompt
       from sase.agent.names import is_name_reserved
 
       limits = "{{ limits }}".split()
       print(f"limits={' '.join(limits)}")
+
+      def _build_wait_chained_multi_prompt(prompts: list[str]) -> str:
+          cleaned = [p.strip() for p in prompts if p and p.strip()]
+          if not cleaned:
+              return ""
+          segments = [cleaned[0]] + [f"%wait\n{p}" for p in cleaned[1:]]
+          return "\n---\n".join(segments)
 
       files: list[str] = []
       for tree in ("src", "tests"):
@@ -48,7 +54,7 @@ steps:
               per_file_prompts.append(
                   f"%name:{candidate}\n#gh:sase %group:chop %approve #sase/pysplit:{path}"
               )
-          multi_prompt = build_wait_chained_multi_prompt(per_file_prompts)
+          multi_prompt = _build_wait_chained_multi_prompt(per_file_prompts)
           launch_agent_from_cwd(multi_prompt)
           print(f"launched={len(unique_files)}")
           print(f"launched_names={', '.join(launched_names[:8])}")

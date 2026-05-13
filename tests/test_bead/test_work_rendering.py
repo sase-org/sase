@@ -10,7 +10,7 @@ from sase.bead.work import (
     _PhaseAssignment as PhaseAssignment,
     SASE_BEAD_ID_ENV,
     VCSLaunchContext,
-    build_epic_work_plan,
+    _build_epic_work_plan,
     epic_work_segment_env,
     legend_work_segment_env,
     render_multi_prompt,
@@ -26,7 +26,7 @@ class TestRenderEdgeCases:
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1"), phase("p1"), phase("p2")])
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -46,7 +46,7 @@ class TestRenderEdgeCases:
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1"), phase("p1")])
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -65,7 +65,7 @@ class TestRenderEdgeCases:
                 phase("sase-r.1", parent_id="sase-r"),
             ],
         )
-        plan = build_epic_work_plan(conn, "sase-r")
+        plan = _build_epic_work_plan(conn, "sase-r")
         assert plan.waves[0][0].agent_name == "sase-r.1"
         assert plan.land_agent_name == "sase-r"
 
@@ -80,7 +80,7 @@ class TestRenderEdgeCases:
                 phase("p1", parent_id="e1"),
             ],
         )
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -134,7 +134,7 @@ class TestRenderEdgeCases:
         conn: sqlite3.Connection,
     ) -> None:
         seed(conn, [epic("e1"), phase("p1"), phase("p2")])
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         assert epic_work_segment_env(plan) == (
             {SASE_BEAD_ID_ENV: "p1"},
@@ -154,7 +154,7 @@ class TestRenderEdgeCases:
                 phase("p1", parent_id="e1"),
             ],
         )
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         assert plan.launch_tag_id == "l1"
         assert epic_work_segment_env(plan) == (
@@ -190,7 +190,7 @@ class TestRenderEdgeCases:
 class TestChangeSpecRendering:
     def test_single_phase_wraps_phase_and_land(self, conn: sqlite3.Connection) -> None:
         seed(conn, [epic("e1"), phase("p1")])
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -228,7 +228,7 @@ class TestChangeSpecRendering:
         seed(conn, [epic("e1"), phase("p1"), phase("p2"), phase("p3")])
         depends(conn, "p2", "p1")
         depends(conn, "p3", "p2")
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -277,7 +277,7 @@ class TestChangeSpecRendering:
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1"), phase("p1"), phase("p2")])
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -297,7 +297,7 @@ class TestChangeSpecRendering:
 
     def test_bug_id_uses_keyword_pr_syntax(self, conn: sqlite3.Connection) -> None:
         seed(conn, [epic("e1"), phase("p1")])
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -320,7 +320,7 @@ class TestModelDirective:
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1"), phase("p1", model="claude/opus")])
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -338,7 +338,7 @@ class TestModelDirective:
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1"), phase("p1")])
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -360,7 +360,7 @@ class TestModelDirective:
                 phase("p3", model="#pro"),
             ],
         )
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -382,7 +382,7 @@ class TestModelDirective:
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1", model="claude/opus"), phase("p1")])
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -401,7 +401,7 @@ class TestModelDirective:
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1"), phase("p1"), phase("p2")])
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,
@@ -435,7 +435,7 @@ class TestModelDirective:
         # forwards them through. This test confirms the renderer doesn't
         # double-handle escaping (a literal value renders as one directive).
         seed(conn, [epic("e1"), phase("p1", model="provider/some-model")])
-        plan = build_epic_work_plan(conn, "e1")
+        plan = _build_epic_work_plan(conn, "e1")
 
         rendered = render_multi_prompt(
             plan,

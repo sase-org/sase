@@ -38,7 +38,6 @@ def test_workflow_has_single_hidden_python_step(pylimit_workflow_path: Path) -> 
 
     # Sanity check the body actually drives the documented launch path.
     assert "launch_agent_from_cwd" in step.python
-    assert "build_wait_chained_multi_prompt" in step.python
 
 
 def test_workflow_passes_compile_time_validation(pylimit_workflow_path: Path) -> None:

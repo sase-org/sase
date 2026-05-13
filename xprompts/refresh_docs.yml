@@ -76,7 +76,6 @@ steps:
       import textwrap
 
       from sase.agent.launcher import launch_agent_from_cwd
-      from sase.agent.multi_prompt import build_wait_chained_multi_prompt
 
       project = "{{ project }}"
       gh_ref = "{{ gh_ref }}"
@@ -100,7 +99,7 @@ steps:
       If you change files, run the appropriate documentation checks for this repository.
       """).strip()
 
-      multi_prompt = build_wait_chained_multi_prompt([docs_prompt, polish_prompt])
+      multi_prompt = f"{docs_prompt}\n---\n%wait\n{polish_prompt}"
       launch_agent_from_cwd(multi_prompt)
       print("launched=2")
       print(f"launched_agent_names={name_prefix}.update, {name_prefix}.polish")
