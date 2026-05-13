@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 19:35:50
-status: wip
+status: done
 prompt: sdd/prompts/202605/minimal_retry_skill.md
 ---
 # Minimal Retry Skill Wording Plan
