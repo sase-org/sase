@@ -94,3 +94,31 @@ class TestRunStartedAtRecording:
         assert json.loads(meta_path.read_text())["run_started_at"] == (
             "2026-05-12T12:00:00+00:00"
         )
+
+    def test_runner_passes_recorded_run_started_at_to_runtime_formatter(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = str(tmp_path / "artifacts")
+        patches = base_patches(artifacts_dir)
+        record_run_started_at = MagicMock(return_value="2026-05-12T12:00:00+00:00")
+        format_runtime = MagicMock(return_value="4m32s")
+        notify = MagicMock()
+        patches[f"{RUNNER}.record_run_started_at"] = record_run_started_at
+        patches[f"{RUNNER}.format_agent_run_runtime"] = format_runtime
+        patches[f"{RUNNER}.run_execution_loop"] = MagicMock(
+            return_value=exec_result(artifacts_dir)
+        )
+        patches[f"{RUNNER}.send_completion_notification"] = notify
+        patches[f"{RUNNER}.all_steps_hidden"] = MagicMock(return_value=False)
+
+        run_main(patches, tmp_path)
+
+        format_runtime.assert_called_once()
+        assert format_runtime.call_args.kwargs["launch_timestamp_suffix"] == (
+            "20260316_120000"
+        )
+        assert format_runtime.call_args.kwargs["run_started_at"] == (
+            "2026-05-12T12:00:00+00:00"
+        )
+        notify.assert_called_once()
+        assert notify.call_args.kwargs["runtime"] == "4m32s"

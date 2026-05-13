@@ -7,6 +7,7 @@ metrics + structured run log, and the user-completion notification.
 
 import json
 import os
+from datetime import datetime
 from typing import Any
 
 from sase.axe.image_attachments import append_unique_paths
@@ -88,6 +89,7 @@ def record_completion_metrics(
     artifacts_dir: str,
     current_artifacts_dir: str,
     prompt: str,
+    completion_time: datetime | None = None,
 ) -> None:
     """Record Prometheus run metrics, stop time, and structured run log."""
     provider = agent_llm_provider or ""
@@ -101,7 +103,7 @@ def record_completion_metrics(
     )
     AGENT_ACTIVE.labels(llm_provider=provider, project=project_name).dec()
 
-    record_stop_time(artifacts_dir, current_artifacts_dir)
+    record_stop_time(artifacts_dir, current_artifacts_dir, stopped_at=completion_time)
 
     try:
         from sase.logs.run_log import log_agent_run
@@ -143,6 +145,7 @@ def send_completion_notification(
     step_output: dict[str, Any] | None,
     prompt: str,
     outcome: str | None = None,
+    runtime: str | None = None,
 ) -> None:
     from sase.attachments.markdown_pdf import MAX_MARKDOWN_PDF_ATTACHMENTS
     from sase.agent.bead_display import format_agent_bead_display_for_name
@@ -188,6 +191,7 @@ def send_completion_notification(
     bead_display = format_agent_bead_display_for_name(
         agent_name, include_description=True
     )
+    runtime_data = {"runtime": runtime} if runtime else {}
 
     action: str
     action_data: dict[str, str]
@@ -201,6 +205,7 @@ def send_completion_notification(
             **({"bead_display": bead_display} if bead_display else {}),
             **({"commit_message": commit_message} if commit_message else {}),
             **({"pr_url": pr_url} if pr_url else {}),
+            **runtime_data,
         }
     else:
         action = "JumpToAgent"
@@ -214,6 +219,7 @@ def send_completion_notification(
             "prompt": prompt,
             **({"commit_message": commit_message} if commit_message else {}),
             **({"pr_url": pr_url} if pr_url else {}),
+            **runtime_data,
         }
 
     notify_workflow_complete(

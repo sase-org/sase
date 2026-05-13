@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 16:20:53
-status: wip
+status: done
 prompt: sdd/prompts/202605/telegram_agent_runtime.md
 ---
 # Plan: Show Agent Runtime in Telegram Completion Messages

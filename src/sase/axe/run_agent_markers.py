@@ -2,6 +2,7 @@
 
 import json
 import os
+from datetime import datetime
 from typing import Any
 
 
@@ -116,11 +117,18 @@ def build_done_marker(
     return marker
 
 
-def record_stop_time(*artifacts_dirs: str | None) -> None:
+def record_stop_time(
+    *artifacts_dirs: str | None,
+    stopped_at: datetime | str | None = None,
+) -> None:
     """Record stopped_at timestamp in agent_meta.json for each artifacts dir."""
     from datetime import UTC, datetime as dt_cls
 
-    stopped_at = dt_cls.now(UTC).isoformat()
+    stopped_at_value = (
+        stopped_at.isoformat()
+        if isinstance(stopped_at, datetime)
+        else stopped_at or dt_cls.now(UTC).isoformat()
+    )
     for ad in set(artifacts_dirs):
         if ad is None:
             continue
@@ -128,7 +136,7 @@ def record_stop_time(*artifacts_dirs: str | None) -> None:
         try:
             with open(meta_p, encoding="utf-8") as f:
                 meta_data = json.load(f)
-            meta_data["stopped_at"] = stopped_at
+            meta_data["stopped_at"] = stopped_at_value
             write_agent_meta(ad, meta_data)
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             pass

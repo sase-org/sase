@@ -13,6 +13,7 @@ The core execution loop (retry, plan approval, question handling) lives in
 import os
 import sys
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 from sase.ace.hooks import format_duration
@@ -25,6 +26,7 @@ from sase.axe.run_agent_phases import (
     resolve_wait_chat_paths,
     wait_for_dependencies,
 )
+from sase.axe.run_agent_runtime import format_agent_run_runtime
 from sase.axe.run_agent_runner_finalize import (
     classify_exec_success,
     record_completion_metrics,
@@ -119,6 +121,7 @@ def main() -> None:
     exec_outcome = ""
     error_summary: str | None = None
     error_traceback_str: str | None = None
+    run_started_at: str | None = None
 
     print("Starting agent run")
     print(f"CL: {cl_name}")
@@ -315,7 +318,7 @@ def main() -> None:
                 wait_chats=wait_chats,
             )
 
-            record_run_started_at(artifacts_dir, agent_meta)
+            run_started_at = record_run_started_at(artifacts_dir, agent_meta)
             exec_result = run_execution_loop(ctx, prompt)
             exec_outcome = exec_result.outcome
             success = classify_exec_success(
@@ -357,7 +360,8 @@ def main() -> None:
                 traceback_str=error_traceback_str,
             )
 
-        end_time = time.time()
+        completion_time = datetime.now(UTC)
+        end_time = completion_time.timestamp()
         elapsed_seconds = int(end_time - start_time)
         duration = format_duration(elapsed_seconds)
 
@@ -373,6 +377,12 @@ def main() -> None:
             artifacts_dir=artifacts_dir,
             current_artifacts_dir=current_artifacts_dir,
             prompt=prompt,
+            completion_time=completion_time,
+        )
+        runtime = format_agent_run_runtime(
+            launch_timestamp_suffix=artifacts_timestamp,
+            run_started_at=run_started_at,
+            completion_time=completion_time,
         )
 
         print()
@@ -469,6 +479,7 @@ def main() -> None:
                 step_output=step_output,
                 prompt=prompt,
                 outcome=exec_outcome,
+                runtime=runtime,
             )
 
     sys.exit(0 if success else 1)

@@ -62,6 +62,16 @@ def test_visible_agent_forwards_silent_false(base_kwargs):
     assert mock_notify.call_args.kwargs["silent"] is False
 
 
+def test_success_completion_notification_includes_runtime(base_kwargs):
+    base_kwargs["runtime"] = "4m32s"
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    action_data = mock_notify.call_args.kwargs["action_data"]
+    assert action_data["runtime"] == "4m32s"
+
+
 def test_hidden_agent_failure_still_silent(base_kwargs):
     """Hidden runs are silent for failures too — matches sibling runners."""
     base_kwargs["agent_hidden"] = True
@@ -144,6 +154,21 @@ def test_failure_error_report_notification_adds_bead_display(
     ]
     action_data = mock_notify.call_args.kwargs["action_data"]
     assert action_data["bead_display"] == "sase-x.3"
+
+
+def test_failure_error_report_notification_includes_runtime(base_kwargs, tmp_path):
+    error_report = tmp_path / "error.md"
+    error_report.write_text("boom\n")
+    base_kwargs["success"] = False
+    base_kwargs["error_report_path"] = str(error_report)
+    base_kwargs["runtime"] = "1m05s"
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["action"] == "ViewErrorReport"
+    action_data = mock_notify.call_args.kwargs["action_data"]
+    assert action_data["runtime"] == "1m05s"
 
 
 def test_completion_notification_appends_image_paths_after_standard_files(
