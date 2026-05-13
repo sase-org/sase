@@ -6,7 +6,6 @@ import pytest
 
 from sase.bead.db import (
     add_dependency,
-    blocked_issues,
     close_issue,
     create_issue,
     delete_issue,
@@ -254,9 +253,6 @@ class TestReadyAndBlocked:
         ready = ready_issues(conn)
         assert len(ready) == 1
         assert ready[0].id == "e-1"
-        blocked = blocked_issues(conn)
-        assert len(blocked) == 1
-        assert blocked[0].id == "e-2"
 
     def test_unblocked_after_close(self, conn: sqlite3.Connection) -> None:
         create_issue(conn, _epic("e-1", "Epic 1"))
@@ -265,7 +261,6 @@ class TestReadyAndBlocked:
         close_issue(conn, "e-1", closed_at=NOW)
         ready = ready_issues(conn)
         assert any(i.id == "e-2" for i in ready)
-        assert blocked_issues(conn) == []
 
     def test_in_progress_not_ready(self, conn: sqlite3.Connection) -> None:
         """in_progress issues should NOT appear in ready list."""

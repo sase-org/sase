@@ -114,7 +114,6 @@ _lint-pyvision: _setup
         --epic-symbol 'sase-3a(MultiAgentXPromptDepthError)' \
         --epic-symbol 'sase-3a(QueryErrorWire)' \
         --epic-symbol 'sase-3a(allocate_launch_timestamp_batch)' \
-        --epic-symbol 'sase-3a(blocked_issues)' \
         --epic-symbol 'sase-3a(build_epic_work_plan)' \
         --epic-symbol 'sase-3a(build_legend_work_plan)' \
         --epic-symbol 'sase-3a(build_query_program_wire)' \

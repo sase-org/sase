@@ -439,23 +439,6 @@ def ready_issues(conn: sqlite3.Connection) -> list[Issue]:
     return issues
 
 
-def blocked_issues(conn: sqlite3.Connection) -> list[Issue]:
-    """Return issues that have at least one active (non-closed) blocker."""
-    rows = conn.execute(
-        "SELECT DISTINCT i.* FROM issues i "
-        "JOIN dependencies d ON i.id = d.issue_id "
-        "JOIN issues blocker ON d.depends_on_id = blocker.id "
-        "WHERE blocker.status IN ('open', 'in_progress') "
-        "ORDER BY i.created_at ASC"
-    ).fetchall()
-    issues = []
-    for row in rows:
-        issue = _row_to_issue(row)
-        issue.dependencies = _load_dependencies(conn, issue.id)
-        issues.append(issue)
-    return issues
-
-
 def delete_issue(conn: sqlite3.Connection, issue_id: str) -> bool:
     """Delete an issue by ID.
 
