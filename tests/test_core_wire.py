@@ -28,7 +28,7 @@ from sase.core.wire_conversion import (
     changespec_to_wire,
     changespec_wire_from_dict,
     comment_entry_to_wire,
-    commit_entry_to_wire,
+    _commit_entry_to_wire,
     delta_entry_to_wire,
     delta_glyph_to_change_type,
     hook_entry_to_wire,
@@ -124,7 +124,7 @@ def _full_changespec() -> ChangeSpec:
 
 def test_commit_entry_to_wire_preserves_fields() -> None:
     entry = CommitEntry(number=3, note="n", body=["a", "b"])
-    wire = commit_entry_to_wire(entry)
+    wire = _commit_entry_to_wire(entry)
     assert isinstance(wire, CommitWire)
     assert wire.number == 3
     assert wire.body == ["a", "b"]
@@ -132,7 +132,7 @@ def test_commit_entry_to_wire_preserves_fields() -> None:
 
 def test_commit_entry_with_no_body_yields_empty_list() -> None:
     entry = CommitEntry(number=1, note="x", body=None)
-    wire = commit_entry_to_wire(entry)
+    wire = _commit_entry_to_wire(entry)
     assert wire.body == []
 
 

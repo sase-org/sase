@@ -112,9 +112,6 @@ _lint-pyvision: _setup
         BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 src/sase \
         --epic-symbol 'sase-3a(MultiAgentXPromptDepthError)' \
         --epic-symbol 'sase-3a(QueryErrorWire)' \
-        --epic-symbol 'sase-3a(close_issue)' \
-        --epic-symbol 'sase-3a(commit_entry_to_wire)' \
-        --epic-symbol 'sase-3a(create_memory_db)' \
         --epic-symbol 'sase-3a(delete_issue)' \
         --epic-symbol 'sase-3a(delta_entry_to_wire)' \
         --epic-symbol 'sase-3a(delta_glyph_to_change_type)' \

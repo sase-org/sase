@@ -44,7 +44,7 @@ _DELTA_GLYPH_TO_CODE = {
 }
 
 
-def commit_entry_to_wire(entry: CommitEntry) -> CommitWire:
+def _commit_entry_to_wire(entry: CommitEntry) -> CommitWire:
     return CommitWire(
         number=entry.number,
         note=entry.note,
@@ -294,7 +294,7 @@ def changespec_to_wire(
         cl_or_pr=cs.cl,
         bug=cs.bug,
         description=cs.description,
-        commits=[commit_entry_to_wire(c) for c in (cs.commits or [])],
+        commits=[_commit_entry_to_wire(c) for c in (cs.commits or [])],
         hooks=[hook_entry_to_wire(h) for h in (cs.hooks or [])],
         comments=[comment_entry_to_wire(c) for c in (cs.comments or [])],
         mentors=[mentor_entry_to_wire(m) for m in (cs.mentors or [])],

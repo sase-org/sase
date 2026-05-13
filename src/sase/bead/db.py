@@ -218,15 +218,6 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
-def create_memory_db() -> sqlite3.Connection:
-    """Create an in-memory database with the beads schema."""
-    conn = sqlite3.connect(":memory:")
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.row_factory = sqlite3.Row
-    conn.executescript(_SCHEMA)
-    return conn
-
-
 def _row_to_issue(row: sqlite3.Row) -> Issue:
     return Issue(
         id=row["id"],
@@ -397,22 +388,6 @@ def mark_issue_ready_to_work(
         "UPDATE issues SET is_ready_to_work = 1, updated_at = ? "
         "WHERE id = ? AND issue_type = 'plan' AND tier = 'epic'",
         (updated_at, issue_id),
-    )
-    conn.commit()
-    return get_issue(conn, issue_id)
-
-
-def close_issue(
-    conn: sqlite3.Connection,
-    issue_id: str,
-    closed_at: str,
-    reason: str | None = None,
-) -> Issue | None:
-    """Close an issue by setting its status to closed."""
-    conn.execute(
-        "UPDATE issues SET status = ?, closed_at = ?, close_reason = ?, "
-        "updated_at = ? WHERE id = ?",
-        ("closed", closed_at, reason, closed_at, issue_id),
     )
     conn.commit()
     return get_issue(conn, issue_id)

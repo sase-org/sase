@@ -14,8 +14,12 @@ from sase.xprompt.workflow_models import Workflow
 
 
 @pytest.fixture
-def conn() -> sqlite3.Connection:
-    return db.create_memory_db()
+def conn(tmp_path: Path) -> Iterator[sqlite3.Connection]:
+    connection = db.init_db(tmp_path / "test.db")
+    try:
+        yield connection
+    finally:
+        connection.close()
 
 
 @pytest.fixture
