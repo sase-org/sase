@@ -109,160 +109,19 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Limit output to a single agent",
     )
 
-    # sase agents archive {export,purge,rebuild-index,revive,scrub,search,show,stats,verify}
+    # sase agents archive {rebuild-index,verify}
     archive_parser = agents_sub.add_parser(
         "archive",
-        help="Search, inspect, and maintain dismissed-agent archives",
+        help="Maintain dismissed-agent archive indexes",
     )
     archive_sub = archive_parser.add_subparsers(
         dest="archive_subcommand",
-        help="Archive subcommands",
+        help="Archive maintenance subcommands",
     )
 
     archive_sub.add_parser(
         "rebuild-index",
         help="Rebuild the dismissed bundle summary index",
-    )
-    archive_revive_parser = archive_sub.add_parser(
-        "revive",
-        help="Restore archived agent artifacts selected by a query",
-    )
-    archive_revive_parser.add_argument(
-        "--query",
-        required=True,
-        help="Archive query selecting the agent(s) to revive",
-    )
-    archive_revive_parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Revive every matching row instead of requiring one result",
-    )
-    archive_revive_parser.add_argument(
-        "-j",
-        "--json",
-        action="store_true",
-        help="Emit a machine-readable JSON object",
-    )
-    archive_search_parser = archive_sub.add_parser(
-        "search",
-        help="Search dismissed-agent archive summaries",
-    )
-    archive_search_parser.add_argument(
-        "query",
-        help="Archive query string",
-    )
-    archive_search_parser.add_argument(
-        "--limit",
-        type=int,
-        default=50,
-        help="Maximum rows to return",
-    )
-    archive_search_parser.add_argument(
-        "-j",
-        "--json",
-        action="store_true",
-        help="Emit a machine-readable JSON object",
-    )
-    archive_show_parser = archive_sub.add_parser(
-        "show",
-        help="Show one archived agent bundle",
-    )
-    archive_show_group = archive_show_parser.add_mutually_exclusive_group(required=True)
-    archive_show_group.add_argument("--id", dest="agent_id", help="Archive agent_id")
-    archive_show_group.add_argument("--name", help="Exact agent or CL name")
-    archive_show_group.add_argument("--suffix", help="Raw timestamp suffix")
-    archive_show_parser.add_argument(
-        "-j",
-        "--json",
-        action="store_true",
-        help="Emit a machine-readable JSON object",
-    )
-    archive_stats_parser = archive_sub.add_parser(
-        "stats",
-        help="Count archive rows grouped by summary fields",
-    )
-    archive_stats_parser.add_argument(
-        "--query",
-        default="",
-        help="Archive query to count",
-    )
-    archive_stats_parser.add_argument(
-        "--by",
-        default="status,model,project,runtime",
-        help="Comma-separated facets: status, model, project, runtime",
-    )
-    archive_stats_parser.add_argument(
-        "-j",
-        "--json",
-        action="store_true",
-        help="Emit a machine-readable JSON object",
-    )
-    archive_purge_parser = archive_sub.add_parser(
-        "purge",
-        help="Delete dismissed-agent archive records selected by a query",
-    )
-    archive_purge_group = archive_purge_parser.add_mutually_exclusive_group(
-        required=True
-    )
-    archive_purge_group.add_argument(
-        "--before",
-        help="Purge bundles dismissed before this date or timestamp",
-    )
-    archive_purge_group.add_argument("--id", dest="agent_id", help="Archive agent_id")
-    archive_purge_group.add_argument("--query", help="Archive query selecting rows")
-    archive_purge_parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Report matching rows without deleting payloads or index rows",
-    )
-    archive_purge_parser.add_argument(
-        "-j",
-        "--json",
-        action="store_true",
-        help="Emit a machine-readable JSON object",
-    )
-    archive_scrub_parser = archive_sub.add_parser(
-        "scrub",
-        help="Redact archive search projections selected by a query",
-    )
-    archive_scrub_group = archive_scrub_parser.add_mutually_exclusive_group(
-        required=True
-    )
-    archive_scrub_group.add_argument(
-        "--before",
-        help="Scrub bundles dismissed before this date or timestamp",
-    )
-    archive_scrub_group.add_argument("--query", help="Archive query selecting rows")
-    archive_scrub_group.add_argument(
-        "--since-scrubber-version",
-        type=int,
-        help="Scrub bundles with an older archive_search_scrubber_version",
-    )
-    archive_scrub_parser.add_argument(
-        "-j",
-        "--json",
-        action="store_true",
-        help="Emit a machine-readable JSON object",
-    )
-    archive_export_parser = archive_sub.add_parser(
-        "export",
-        help="Export matching archive bundles to a restorable tar.gz artifact",
-    )
-    archive_export_parser.add_argument(
-        "--query",
-        required=True,
-        help="Archive query selecting rows to export",
-    )
-    archive_export_parser.add_argument(
-        "--out",
-        required=True,
-        help="Output tar.gz path",
-    )
-    archive_export_parser.add_argument(
-        "-j",
-        "--json",
-        action="store_true",
-        help="Emit a machine-readable JSON object",
     )
     archive_sub.add_parser(
         "verify",
