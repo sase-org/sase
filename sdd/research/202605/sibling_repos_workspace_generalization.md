@@ -22,8 +22,10 @@ sibling repos, the sibling workspace path should be derived from the sibling's p
 workspace number, e.g. main `sase_102` edits `sase-core_102`, not `sase-core`.
 
 This should be a SASE core capability, not a `sase` repo special case. The actual path resolution can begin in Python
-because workspace providers and config live there today, but the resolved wire shape should be added to the Rust launch
-boundary so future CLI/TUI/mobile callers get identical behavior.
+because workspace providers and config live there today. The launch wire is currently Python-only
+(`src/sase/core/agent_launch_wire.py`, `AGENT_LAUNCH_WIRE_SCHEMA_VERSION = 1`) with Rust-backed phases planned but not
+yet shipped, so the resolved sibling-repo shape should be added there first and inherit the same forward-compatibility
+discipline (new fields appended with defaults) when the Rust port lands.
 
 ## Current Behavior
 
@@ -64,6 +66,28 @@ Relevant code:
 
 The runner changes into the main workspace before dynamic memory, xprompt expansion, file-reference validation, and LLM
 invocation. It also sets `SASE_ACTIVE_PROJECT_DIR` to the child workspace.
+
+### Project config plumbing already exists, but is strict
+
+- Config is merged from bundled defaults → plugin defaults → `~/.config/sase/sase.yml` → `~/.config/sase/sase_*.yml`
+  overlays → project-local `sase.yml`, via `src/sase/config/core.py`.
+- `config/sase.schema.json` enforces `"additionalProperties": false` at the top level. Adding any new top-level key such
+  as `sibling_repos` requires updating the schema in lockstep with the loader, or validation rejects the project's
+  config outright. This is the right place to land the new feature — it gives users project-local opt-in via `sase.yml`
+  without touching global config.
+- `default_config.yml` is where conservative defaults belong (empty list, in this case).
+
+### Other hardcoded sibling-repo references
+
+The stop hook is not the only place that assumes the SASE sibling layout. `src/sase/integrations/mobile_gateway.py`
+computes `sibling_core = repo_root.parent / "sase-core"` directly. Any first-class sibling-repo model must be reused by
+this integration (and any future ones) — otherwise the generalization stops at the hook and the rest of the codebase
+quietly keeps the old assumption. Inventory step: grep for `sase-core`, `sase-github`, `sase-telegram`, `sase-nvim`,
+`chezmoi` across `src/` before landing Phase 2 and route every hit through the new resolver.
+
+The dynamic memory file at `memory/long/external_repos.md` documents the same set of repos as prose. Once the resolver
+exists, that memory file can be regenerated from the resolved sibling map (or trimmed to only cover narrative content
+the config cannot express), which keeps docs and behavior from drifting.
 
 ### Current sibling-repo detection is hardcoded
 
@@ -108,6 +132,18 @@ Relevant code and prior plans:
 
 6. **Stop hooks cannot distinguish user-owned sibling edits from arbitrary nearby dirty repos.** A glob scanner will
    always be too broad or too narrow. First-class config lets hooks check exactly the repos the project opted into.
+
+7. **No onboarding command for new projects.** Each repo today must hand-write `.claude/settings.json`,
+   `.gemini/settings.json`, and `.qwen/settings.json` pointing at the sibling stop hook. There is no `sase init` or
+   `sase sibling add` subcommand that creates these files or appends a sibling entry to `sase.yml`. This is the biggest
+   "easy for new users" gap, separate from the runtime resolution problem.
+
+8. **Multi-agent fanout slots share one workspace.** `LaunchFanoutSlotWire` (in `src/sase/core/agent_launch_wire.py`)
+   does not carry a per-slot `workspace_num`; the slot only carries `prompt`, `launch_kind`, `slot_index`, `alt_id`,
+   `model`, `repeat_name`, and `wait_for_previous`. Today all slots in a fanout effectively run in the parent
+   workspace's number. Any sibling-repo design that assumes "every fanout slot gets its own sibling clone" must either
+   first add per-slot workspace claims or accept that sibling workspaces are shared across the fanout for now. The
+   honest near-term answer is the latter.
 
 ## Recommended Model
 
@@ -166,6 +202,11 @@ At agent launch, resolve sibling repos from the merged config in the main projec
 4. Ensure clone-backed sibling workspaces exist before exposing them to the agent. For Git repos, reuse the same
    `ensure_git_clone(primary, workspace_num)` helper used by primary workspaces.
 5. Export both machine-readable JSON and convenient per-sibling env vars.
+6. On every spawn, scrub stale `SASE_SIBLING_REPO_*` and `SASE_SIBLING_REPOS_JSON` from the inherited env before
+   writing the new values. This mirrors `_remove_inherited_workspace_preallocation_env()` and
+   `_overwrite_project_dir_env()` in `src/sase/agent/launch_spawn.py`, which already do the analogous scrub for
+   `SASE_*_PRE_ALLOCATED` and `SASE_ACTIVE_PROJECT_DIR`. Without this, a parent agent's sibling mapping can shadow a
+   child agent's correct mapping after `apply_chdir_output()`-style workflow mutations.
 
 Suggested env:
 
@@ -197,6 +238,11 @@ When editing a sibling repo, use its workspace-matched directory, not the primar
 This is better than relying only on environment variables because agents often inspect prompt text before env. Keep it
 short to avoid turning every launch into a large instruction payload.
 
+In parallel, expose siblings as xprompt substitutions so prompts can address them by alias. `process_xprompt_references()`
+(in `src/sase/xprompt/__init__.py`) already handles `#name` and related forms; a small extension that resolves
+`{sibling.core}` to the resolved workspace path lets users write prompts like `cd {sibling.core} && cargo test` without
+hardcoding paths. The same template variable powers prompt notes, agent metadata, and hook messages from one source.
+
 ## Stop-Hook Behavior
 
 Replace hardcoded scanning in `tools/sase_sibling_commit_stop_hook` with:
@@ -208,25 +254,74 @@ Replace hardcoded scanning in `tools/sase_sibling_commit_stop_hook` with:
 
 This makes the hook portable while preserving the SASE repo's current behavior during rollout.
 
+Per-runtime hook wiring is already symmetric: the SASE repo points at the script from `.claude/settings.json`,
+`.gemini/settings.json`, and `.qwen/settings.json`, and Codex picks it up via the corresponding global config under
+`~/.local/share/chezmoi/home/dot_*`. The Qwen integration tale
+(`sdd/tales/202605/qwen_global_commit_stop_hook.md`) is the recent precedent for adding a new runtime end-to-end. New
+projects should be able to opt in by adding the same three files plus a `sibling_repos:` block to `sase.yml`, which is
+exactly what the onboarding command in the next section should automate.
+
+## Onboarding UX
+
+A new user adopting sibling repos on a fresh project today has to:
+
+1. Hand-write or copy `.claude/settings.json`, `.gemini/settings.json`, and `.qwen/settings.json` with a Stop hook
+   pointing at the sibling commit hook.
+2. Write `tools/sase_sibling_commit_stop_hook` or symlink it from somewhere on PATH.
+3. Edit `sase.yml` to add the sibling list once the config key exists.
+
+That is too much manual setup for the "easy for new users" requirement. The lightest version that closes the gap is a
+`sase sibling` subcommand:
+
+```text
+sase sibling add core ../sase-core
+sase sibling add docs ~/projects/company/product-docs
+sase sibling list
+sase sibling remove core
+sase sibling install-hooks    # writes .claude/, .gemini/, .qwen/ settings if missing
+```
+
+Implementation can be small: append to `sase.yml`, validate against the schema, optionally `git clone` if the primary
+path is missing and a remote URL is provided, and idempotently merge into existing per-runtime settings JSON files
+without clobbering unrelated keys. Reusing existing settings-merge helpers (see how the Qwen tale wired Qwen settings)
+keeps the surface area minimal.
+
+This is also where a future `sase init` could land. Until that broader command exists, `sase sibling install-hooks` is
+the right minimum unit because it is scoped to a single feature and idempotent.
+
 ## Where The Logic Should Live
 
 Recommended first landing:
 
 - Python config parsing/resolution in a new module such as `src/sase/sibling_repos.py`.
 - Launch integration in `src/sase/agent/launch_spawn.py` / `src/sase/agent/launch_executor.py`, where
-  `workspace_num` and `workspace_dir` are already finalized.
-- Deferred `%wait` recomputation in `claim_deferred_workspace()` after the real workspace is claimed.
+  `workspace_num` and `workspace_dir` are already finalized. Specifically, extend the env-delta block that
+  `spawn_agent_subprocess()` already builds and reuse the inheritance-scrub helpers in that file.
+- Deferred `%wait` recomputation in `claim_deferred_workspace()` (in `src/sase/axe/run_agent_phases.py`) after the real
+  workspace is claimed.
 - Hook consumption in `tools/sase_sibling_commit_stop_hook`.
+- xprompt resolution hook in `src/sase/xprompt/__init__.py` so prompts can reference `{sibling.<name>}`.
+- A `sase sibling` CLI subcommand for the onboarding flow described above.
 
 Recommended durable shape:
 
-- Add sibling-repo wire records to the Rust launch boundary in `../sase-core/crates/sase_core/src/agent_launch/mod.rs`.
-- Add matching Python dataclasses in `src/sase/core/agent_launch_wire.py`.
+- Add sibling-repo records to the existing Python launch wire dataclasses in `src/sase/core/agent_launch_wire.py`
+  (this is where `AgentLaunchRequestWire`, `LaunchFanoutSlotWire`, and `AGENT_LAUNCH_WIRE_SCHEMA_VERSION = 1` live
+  today). New fields should default to empty lists/dicts so older callers still construct valid records — the existing
+  wire dataclasses already follow this pattern (e.g., `extra_env: dict[str, str] = field(default_factory=dict)`).
+- When the Rust port catches up, mirror the same shape in `../sase-core/crates/sase_core/src/agent_launch/mod.rs` and
+  keep `AGENT_LAUNCH_WIRE_SCHEMA_VERSION` bumped only if the change is breaking. The module docstring on
+  `agent_launch_wire.py` explicitly notes "later Rust-backed launch phases will implement" — so the migration path is
+  prepared, but Phase 1 must not pretend the Rust wire exists today.
 - Keep filesystem cloning/ensuring in Python initially, because `ensure_git_clone()` and workspace providers currently
   live there.
 
 This respects the Rust core boundary: the portable contract and launch metadata belong in core; host-specific checkout
-and config plumbing can remain Python until there is a broader workspace-provider migration.
+and config plumbing can remain Python until there is a broader workspace-provider migration. The
+[`memory/short/rust_core_backend_boundary.md`](../../../memory/short/rust_core_backend_boundary.md) litmus test —
+"would a web app or CLI need this to match the TUI?" — applies cleanly: the resolved sibling map should match across
+frontends, so it belongs in core; the on-disk clone management does not, so it can stay in Python until the broader
+migration.
 
 ## Open Design Questions
 
@@ -247,18 +342,35 @@ and config plumbing can remain Python until there is a broader workspace-provide
    Clone-backed git is the practical first target.
 
 5. **Should sibling repos get RUNNING claims?**
-   Not initially. The main project RUNNING claim owns the agent slot. Sibling repo workspaces should be recorded in
-   agent metadata and hook logs. A later cross-project claim model may be useful, but it is a larger coordination
-   feature.
+   Not initially. The main project RUNNING claim owns the agent slot, and the on-disk claim line today is flat —
+   `#N | PID | WORKFLOW | CL_NAME | TIMESTAMP | PINNED` per `src/sase/running_field/_model.py`. Adding sibling claims
+   would require either changing that line format or maintaining a parallel claim file per sibling. Sibling repo
+   workspaces should instead be recorded in `agent_meta.json` and hook logs. A later cross-project claim model may be
+   useful, but it is a larger coordination feature.
+
+6. **How should the resolver handle absolute paths outside the project tree?**
+   The chezmoi repo is the realistic test case: it lives at `~/.local/share/chezmoi`, far from any `sase_<N>` parent.
+   The resolver must accept absolute paths, expand `~`, and not invent a workspace-numbered clone for paths the user
+   has marked `strategy: none`. Phase 1 should default `strategy: none` for any path outside the main project's
+   primary-checkout parent directory, and use the suffix strategy only when the sibling visibly sits alongside the
+   primary.
+
+7. **Should sibling entries persist into ChangeSpec `.gp` files?**
+   `parse_workspace_dir()` already supports a `WORKSPACE_DIR:` field per project file. Sibling repos are project-level,
+   not per-ChangeSpec, so they should stay in `sase.yml`. If a specific ChangeSpec ever needs to pin a sibling to a
+   particular ref, that is a follow-up design — do not couple it to Phase 1.
 
 ## Proposed Implementation Phases
 
 ### Phase 1: Config and resolver
 
-- Add `sibling_repos` to `config/sase.schema.json` and `docs/configuration.md`.
+- Add `sibling_repos` to `config/sase.schema.json`. The top-level schema enforces `"additionalProperties": false`, so
+  the schema update is required for the loader to accept the new key at all.
+- Add an empty default in `src/sase/default_config.yml` and `docs/configuration.md` content describing the new section.
 - Add a resolver module that returns `SiblingRepoResolution` records.
-- Unit test path expansion, relative path anchoring, alias sanitization, workspace-number suffixing, missing paths, and
-  JSON serialization.
+- Unit test path expansion, relative path anchoring (`../core` resolves from the primary checkout, not from
+  `primary_<N>`), alias sanitization, workspace-number suffixing, missing paths, absolute-path siblings such as
+  chezmoi, and JSON serialization.
 
 ### Phase 2: Launch integration
 
@@ -282,23 +394,47 @@ and config plumbing can remain Python until there is a broader workspace-provide
 - Update tests so dirty sibling workspace dirs block, dirty primary sibling dirs do not block when the session has a
   numbered sibling workspace, and block messages point at the numbered workspace.
 
-### Phase 5: Rust wire contract
+### Phase 5: Wire contract extension
 
-- Add a sibling-repo resolved record to `AgentLaunchRequestWire` / `AgentLaunchPreparedWire`.
-- Expose it through the Python facade.
-- Keep backward compatibility by treating missing fields as empty lists.
+- Add a sibling-repo resolved record to `AgentLaunchRequestWire` / `AgentLaunchPreparedWire` in
+  `src/sase/core/agent_launch_wire.py`, defaulting to an empty list to preserve forward compatibility for callers that
+  do not set it.
+- Decide whether the change warrants bumping `AGENT_LAUNCH_WIRE_SCHEMA_VERSION` (probably no, since the addition is
+  backward compatible).
+- Update `agent_launch_prepared_from_dict()` / `launch_fanout_plan_from_dict()` to round-trip the new field.
+
+### Phase 6: Rust port and consumer migration
+
+- Mirror the new field in `../sase-core/crates/sase_core/src/agent_launch/mod.rs` when the Rust-backed launch lands.
+- Migrate `src/sase/integrations/mobile_gateway.py` and any other discovered hardcoded sibling-path consumers
+  (`grep -rn 'sase-core\|sase-github\|sase-telegram\|sase-nvim\|chezmoi' src/`) to call the resolver.
+- Add a `sase sibling` CLI subcommand (`add`, `remove`, `list`, `install-hooks`) so new projects can opt in without
+  hand-editing settings JSON files.
+- Regenerate or trim `memory/long/external_repos.md` to track the resolver output rather than restating it.
 
 ## Test Matrix
 
 Minimum regression coverage:
 
-- Config schema accepts the basic list form and rejects malformed entries.
+- Config schema accepts the basic list form and rejects malformed entries (including extra keys, since the top-level
+  schema is `additionalProperties: false`).
 - Resolver maps `../core` from primary `/repo/main` plus workspace `102` to `/repo/core_102`.
 - Resolver does not accidentally anchor relative paths to `/repo/main_102`.
-- Launch env includes `SASE_SIBLING_REPOS_JSON` with workspace-matched dirs.
-- The hook scans configured `workspace_dir` and ignores `primary_dir` for numbered sessions.
-- Deferred `%wait` agents recompute sibling dirs after real workspace claim.
-- Multi-prompt and multi-model fanout give every slot its own sibling mapping using that slot's workspace number.
+- Resolver accepts absolute paths (chezmoi at `~/.local/share/chezmoi`) and applies `strategy: none` so it never tries
+  to build a numbered clone outside the primary parent directory.
+- Launch env includes `SASE_SIBLING_REPOS_JSON` with workspace-matched dirs, and `spawn_agent_subprocess()` scrubs
+  stale `SASE_SIBLING_REPO_*` env on inheritance.
+- The hook scans configured `workspace_dir` and ignores `primary_dir` for numbered sessions, while still falling back
+  to legacy `../sase-*` scanning when no resolved map is present.
+- Deferred `%wait` agents recompute sibling dirs after real workspace claim, and the recomputed values overwrite the
+  workspace-`0` placeholder env in the same step.
+- Multi-prompt and multi-model fanout slots receive the parent workspace's sibling mapping today, since
+  `LaunchFanoutSlotWire` has no per-slot `workspace_num`. The test should pin this current behavior so a later per-slot
+  workspace feature does not silently regress sibling resolution.
+- The `sase sibling install-hooks` subcommand is idempotent: it merges into existing `.claude/`, `.gemini/`, and
+  `.qwen/` settings JSON without clobbering unrelated keys.
+- `mobile_gateway.py` (and any other migrated hardcoded consumer) returns the same path it did before the migration
+  for the SASE repo, ensuring no regression for the project that motivated this work.
 
 ## Recommendation
 
