@@ -19,19 +19,8 @@ from .dismissed_agents_bundles import (
     rebuild_dismissed_bundle_index as _rebuild_dismissed_bundle_index_impl,
     save_dismissed_bundle as _save_dismissed_bundle_impl,
     save_dismissed_bundle_python as _save_dismissed_bundle_python_impl,
-    search_dismissed_archive as _search_dismissed_archive_impl,
     verify_dismissed_bundle_index as _verify_dismissed_bundle_index_impl,
     write_json_file_atomic as _write_json_file_atomic_impl,
-)
-from .dismissed_agents_lifecycle import (
-    append_archive_audit_event as _append_archive_audit_event_impl,
-    archive_row_ref as _archive_row_ref_impl,
-    export_dismissed_archive as _export_dismissed_archive_impl,
-    nonnegative_int as _nonnegative_int_impl,
-    purge_dismissed_archive as _purge_dismissed_archive_impl,
-    redact_audit_value as _redact_audit_value_impl,
-    scrub_dismissed_archive as _scrub_dismissed_archive_impl,
-    select_archive_lifecycle_rows as _select_archive_lifecycle_rows_impl,
 )
 from .dismissed_agents_migrations import (
     _CHILD_COLLISION_MARKER_NAME,
@@ -101,70 +90,6 @@ def verify_dismissed_bundle_index() -> dict[str, int | bool]:
     return _verify_dismissed_bundle_index_impl(_ctx())
 
 
-def purge_dismissed_archive(
-    *,
-    before: str | None = None,
-    agent_id: str | None = None,
-    query: str | None = None,
-    dry_run: bool = False,
-) -> dict[str, Any]:
-    return _purge_dismissed_archive_impl(
-        _ctx(),
-        before=before,
-        agent_id=agent_id,
-        query=query,
-        dry_run=dry_run,
-    )
-
-
-def scrub_dismissed_archive(
-    *,
-    before: str | None = None,
-    query: str | None = None,
-    since_scrubber_version: int | None = None,
-) -> dict[str, Any]:
-    return _scrub_dismissed_archive_impl(
-        _ctx(),
-        before=before,
-        query=query,
-        since_scrubber_version=since_scrubber_version,
-    )
-
-
-def export_dismissed_archive(*, query: str, out: Path) -> dict[str, Any]:
-    return _export_dismissed_archive_impl(_ctx(), query=query, out=out)
-
-
-def _select_archive_lifecycle_rows(
-    *,
-    before: str | None = None,
-    agent_id: str | None = None,
-    query: str | None = None,
-) -> list[Any]:
-    return _select_archive_lifecycle_rows_impl(
-        _ctx(),
-        before=before,
-        agent_id=agent_id,
-        query=query,
-    )
-
-
-def _archive_row_ref(row: Any) -> dict[str, Any]:
-    return _archive_row_ref_impl(row)
-
-
-def _append_archive_audit_event(report: dict[str, Any]) -> None:
-    return _append_archive_audit_event_impl(_ctx(), report)
-
-
-def _redact_audit_value(value: Any) -> Any:
-    return _redact_audit_value_impl(value)
-
-
-def _nonnegative_int(value: object) -> int:
-    return _nonnegative_int_impl(value)
-
-
 def load_dismissed_bundle_summaries(
     *,
     suffixes: set[str] | None = None,
@@ -185,15 +110,6 @@ def load_dismissed_bundle_summaries(
 
 def ensure_dismissed_archive_ready() -> None:
     return _ensure_dismissed_archive_ready_impl(_ctx())
-
-
-def search_dismissed_archive(
-    query: str,
-    *,
-    limit: int = 50,
-    cursor: int | None = None,
-) -> Any:
-    return _search_dismissed_archive_impl(_ctx(), query, limit=limit, cursor=cursor)
 
 
 def mark_bundles_revived_by_suffixes(
@@ -251,8 +167,6 @@ def _maybe_fix_child_collisions() -> None:
 
 
 _PRIVATE_COMPAT_EXPORTS = (
-    _append_archive_audit_event,
-    _archive_row_ref,
     _bundle_filename,
     _bundle_paths_for_suffixes,
     _bundle_shard_dir,
@@ -263,10 +177,7 @@ _PRIVATE_COMPAT_EXPORTS = (
     _maybe_fix_child_collisions,
     _maybe_migrate_bundles,
     _maybe_shard_root_bundles,
-    _nonnegative_int,
-    _redact_audit_value,
     _run_dismissed_archive_maintenance,
     _save_dismissed_bundle_python,
-    _select_archive_lifecycle_rows,
     _write_json_file_atomic,
 )

@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from ._revive_artifacts import ArtifactRestorationMixin
 
 if TYPE_CHECKING:
-    from ....agent_query.archive_planner import ArchiveQueryResult
     from ...models import Agent
     from ...models.agent import AgentType
 
@@ -49,74 +49,6 @@ def _merge_dismissed_agents(
         merged.append(agent)
         seen.add(agent.identity)
     return merged
-
-
-class _ScopedArchiveQueryProvider:
-    """Archive query provider constrained to the selected revive scope."""
-
-    def __init__(self, selection: object) -> None:
-        self._selection = selection
-
-    def search(
-        self,
-        query: str,
-        *,
-        limit: int,
-        cursor: int | None = None,
-    ) -> Any:
-        from ....agent_query.archive_planner import ArchiveQueryPage
-        from ....dismissed_agents import search_dismissed_archive
-
-        collected: list[ArchiveQueryResult] = []
-        next_cursor = cursor
-        page_size = max(1, limit)
-        while len(collected) < page_size:
-            page = search_dismissed_archive(
-                query,
-                limit=page_size,
-                cursor=next_cursor,
-            )
-            for result in page.results:
-                if result.is_workflow_child:
-                    continue
-                if not self._result_matches_scope(result):
-                    continue
-                collected.append(result)
-                if len(collected) >= page_size:
-                    break
-            next_cursor = page.next_cursor
-            if next_cursor is None:
-                break
-        return ArchiveQueryPage(results=collected, next_cursor=next_cursor)
-
-    def hydrate(self, result: object) -> list[Agent]:
-        from ....agent_query.archive_planner import ArchiveQueryResult
-        from ....dismissed_agents import load_dismissed_bundles
-
-        if not isinstance(result, ArchiveQueryResult):
-            return []
-        agents = load_dismissed_bundles({result.raw_suffix})
-        for agent in agents:
-            agent._loaded_from_dismissed_bundle = True
-        return agents
-
-    def _result_matches_scope(self, result: object) -> bool:
-        from ...modals import SelectionItem
-
-        if not isinstance(self._selection, SelectionItem):
-            return False
-        selection = self._selection
-        cl_name = getattr(result, "cl_name", None)
-        project_name = getattr(result, "project_name", None)
-        if selection.item_type == "all":
-            return True
-        if selection.item_type == "home":
-            return cl_name == "~"
-        if selection.item_type == "project":
-            return project_name == selection.project_name
-        if selection.item_type == "cl":
-            return cl_name == selection.cl_name
-        return False
 
 
 class AgentRevivalMixin(ArtifactRestorationMixin):
@@ -221,7 +153,6 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
 
     def _revive_agent(self) -> None:
         """Show project selection modal, then dismissed agent selection."""
-        from ....dismissed_agents import ensure_dismissed_archive_ready
         from ...modals import ProjectSelectModal, ProjectSelectResult, SelectionItem
         from ._revive_log import log_revive_failure
 
@@ -231,16 +162,6 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             )
             self.notify("No dismissed agents to revive")  # type: ignore[attr-defined]
             return
-
-        try:
-            self.run_worker(  # type: ignore[attr-defined]
-                ensure_dismissed_archive_ready,
-                thread=True,
-                exclusive=True,
-                group="dismissed-archive-prewarm",
-            )
-        except Exception:
-            pass
 
         def _on_project_selected(result: ProjectSelectResult | None) -> None:
             if result is None:
@@ -273,7 +194,6 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
                 return
             if not isinstance(agents, list) or not agents:
                 return
-            self._ensure_dismissed_archive_groups_loaded(agents)
             if len(agents) == 1:
                 self._do_revive_agent(agents[0], selection_scope=selection)
             else:
@@ -285,39 +205,34 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             filtered,
             all_dismissed=all_in_scope,
             loading_archive=True,
-            archive_query_provider=_ScopedArchiveQueryProvider(selection),
         )
         self.app.push_screen(modal, _on_agents_selected)  # type: ignore[attr-defined]
 
+        async def _load_archive_for_modal() -> None:
+            archive_agents = await asyncio.to_thread(self._load_dismissed_archive)
+            merged = _merge_dismissed_agents(
+                self._dismissed_agent_objects, archive_agents
+            )
+            next_filtered, next_all_in_scope = _filter_for_scope(merged)
+            self._dismissed_agent_objects = merged
+            try:
+                modal.set_agents(
+                    next_filtered,
+                    all_dismissed=next_all_in_scope,
+                    loading_archive=False,
+                )
+            except Exception:
+                pass
+
         try:
-            modal._schedule_archive_query("")
+            self.run_worker(  # type: ignore[attr-defined]
+                cast(Any, _load_archive_for_modal),
+                thread=False,
+                exclusive=False,
+                group="dismissed-archive",
+            )
         except Exception:
             self.notify("Failed to load dismissed archive", severity="error")  # type: ignore[attr-defined]
-
-    def _ensure_dismissed_archive_groups_loaded(self, agents: list[object]) -> None:
-        """Hydrate selected archive groups so revive can restore children."""
-        from ....dismissed_agents import load_dismissed_bundles, save_dismissed_agents
-        from ...models import Agent
-
-        suffixes = {
-            agent.raw_suffix
-            for agent in agents
-            if isinstance(agent, Agent) and agent.raw_suffix is not None
-        }
-        if not suffixes:
-            return
-        archive_agents = load_dismissed_bundles(suffixes)
-        if not archive_agents:
-            return
-        for archive_agent in archive_agents:
-            archive_agent._loaded_from_dismissed_bundle = True
-        merged = _merge_dismissed_agents(self._dismissed_agent_objects, archive_agents)
-        self._dismissed_agent_objects = merged
-        next_dismissed = set(self._dismissed_agents)
-        next_dismissed.update(agent.identity for agent in archive_agents)
-        if next_dismissed != self._dismissed_agents:
-            self._dismissed_agents = next_dismissed
-            save_dismissed_agents(self._dismissed_agents)
 
     def _filter_dismissed_agents_for_scope(
         self,

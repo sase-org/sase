@@ -128,20 +128,6 @@ def ensure_dismissed_archive_ready(ctx: Any) -> None:
         rebuild_index(ctx._DISMISSED_BUNDLES_DIR)
 
 
-def search_dismissed_archive(
-    ctx: Any,
-    query: str,
-    *,
-    limit: int = 50,
-    cursor: int | None = None,
-) -> Any:
-    """Search dismissed bundle summaries via the archive query planner."""
-    from .agent_query.archive_planner import search_archive
-
-    ctx.ensure_dismissed_archive_ready()
-    return search_archive(ctx._DISMISSED_BUNDLES_DIR, query, limit=limit, cursor=cursor)
-
-
 def mark_bundles_revived_by_suffixes(
     ctx: Any,
     suffixes: set[str],
