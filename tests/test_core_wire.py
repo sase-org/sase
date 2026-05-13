@@ -32,7 +32,7 @@ from sase.core.wire_conversion import (
     hook_entry_to_wire,
     _hook_status_line_to_wire,
     mentor_entry_to_wire,
-    mentor_status_line_to_wire,
+    _mentor_status_line_to_wire,
     timestamp_entry_to_wire,
 )
 
@@ -228,7 +228,7 @@ def test_individual_to_wire_helpers() -> None:
     assert hook_entry_to_wire(cs.hooks[0]).command == "!sase_lint"
     assert comment_entry_to_wire(cs.comments[0]).reviewer == "critique"
     assert (
-        mentor_status_line_to_wire(cs.mentors[0].status_lines[0]).profile_name
+        _mentor_status_line_to_wire(cs.mentors[0].status_lines[0]).profile_name
         == "profileA"
     )
     assert mentor_entry_to_wire(cs.mentors[0]).entry_id == "1"

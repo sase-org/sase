@@ -11,7 +11,7 @@ def _mru_file() -> Path:
     return Path(_MRU_FILE).expanduser()
 
 
-def load_vcs_xprompt_mru() -> list[str]:
+def _load_vcs_xprompt_mru() -> list[str]:
     """Load the MRU list from disk.
 
     Returns:
@@ -35,7 +35,7 @@ def load_launchable_vcs_xprompt_mru(
     prune: bool = True,
 ) -> list[str]:
     """Load MRU prefixes, dropping stale entries for known non-launchable projects."""
-    entries = load_vcs_xprompt_mru()
+    entries = _load_vcs_xprompt_mru()
     filtered = [
         entry
         for entry in entries
@@ -52,7 +52,7 @@ def record_vcs_xprompt_usage(prefix: str) -> None:
     Args:
         prefix: VCS workflow prefix string (e.g. ``"#gh:sase"``).
     """
-    entries = load_vcs_xprompt_mru()
+    entries = _load_vcs_xprompt_mru()
     if _is_stale_known_project_prefix(prefix):
         filtered = [e for e in entries if e != prefix]
         if filtered != entries:

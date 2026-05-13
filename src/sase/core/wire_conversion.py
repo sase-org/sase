@@ -87,7 +87,7 @@ def comment_entry_to_wire(entry: CommentEntry) -> CommentWire:
     )
 
 
-def mentor_status_line_to_wire(line: MentorStatusLine) -> MentorStatusLineWire:
+def _mentor_status_line_to_wire(line: MentorStatusLine) -> MentorStatusLineWire:
     return MentorStatusLineWire(
         profile_name=line.profile_name,
         mentor_name=line.mentor_name,
@@ -104,7 +104,7 @@ def mentor_entry_to_wire(entry: MentorEntry) -> MentorWire:
     return MentorWire(
         entry_id=entry.entry_id,
         profiles=list(entry.profiles),
-        status_lines=[mentor_status_line_to_wire(sl) for sl in status_lines],
+        status_lines=[_mentor_status_line_to_wire(sl) for sl in status_lines],
         is_draft=entry.is_draft,
     )
 

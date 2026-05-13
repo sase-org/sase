@@ -13,7 +13,6 @@ from sase.bead.db import (
     get_issue,
     init_db,
     list_issues,
-    mark_issue_ready_to_work,
     ready_issues,
     stats,
     update_issue,
@@ -354,22 +353,15 @@ class TestIsReadyToWork:
 
     def test_mark_ready_to_work(self, conn: sqlite3.Connection) -> None:
         create_issue(conn, _epic())
-        result = mark_issue_ready_to_work(conn, "e-1", NOW)
+        result = update_issue(conn, "e-1", is_ready_to_work=1, updated_at=NOW)
         assert result is not None
         assert result.is_ready_to_work is True
-
-    def test_mark_ready_to_work_skips_phase(self, conn: sqlite3.Connection) -> None:
-        create_issue(conn, _epic())
-        create_issue(conn, _child("c-1"))
-        result = mark_issue_ready_to_work(conn, "c-1", NOW)
-        assert result is not None
-        assert result.is_ready_to_work is False
 
     def test_jsonl_roundtrip(self, conn: sqlite3.Connection, tmp_path) -> None:
         from sase.bead.jsonl import export_to_jsonl, import_from_jsonl
 
         create_issue(conn, _epic())
-        mark_issue_ready_to_work(conn, "e-1", NOW)
+        update_issue(conn, "e-1", is_ready_to_work=1, updated_at=NOW)
         path = tmp_path / "issues.jsonl"
         export_to_jsonl(conn, path)
         # Re-import into a fresh DB.

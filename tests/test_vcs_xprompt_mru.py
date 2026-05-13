@@ -9,7 +9,7 @@ import pytest
 from sase.history.vcs_xprompt_mru import (
     _MAX_ENTRIES,
     load_launchable_vcs_xprompt_mru,
-    load_vcs_xprompt_mru,
+    _load_vcs_xprompt_mru,
     record_vcs_xprompt_usage,
 )
 from tests.conftest import redirect_sase_home
@@ -38,7 +38,7 @@ def test_load_empty_when_file_missing(tmp_path: Path) -> None:
         "_MRU_FILE",
         fake,
     ):
-        assert load_vcs_xprompt_mru() == []
+        assert _load_vcs_xprompt_mru() == []
 
 
 def test_load_returns_entries(tmp_path: Path) -> None:
@@ -50,7 +50,7 @@ def test_load_returns_entries(tmp_path: Path) -> None:
         "_MRU_FILE",
         fake,
     ):
-        assert load_vcs_xprompt_mru() == ["#gh:sase", "#gh:other"]
+        assert _load_vcs_xprompt_mru() == ["#gh:sase", "#gh:other"]
 
 
 def test_load_filters_non_strings(tmp_path: Path) -> None:
@@ -62,7 +62,7 @@ def test_load_filters_non_strings(tmp_path: Path) -> None:
         "_MRU_FILE",
         fake,
     ):
-        assert load_vcs_xprompt_mru() == ["#gh:sase", "#gh:b"]
+        assert _load_vcs_xprompt_mru() == ["#gh:sase", "#gh:b"]
 
 
 def test_load_caps_at_max(tmp_path: Path) -> None:
@@ -75,7 +75,7 @@ def test_load_caps_at_max(tmp_path: Path) -> None:
         "_MRU_FILE",
         fake,
     ):
-        result = load_vcs_xprompt_mru()
+        result = _load_vcs_xprompt_mru()
         assert len(result) == _MAX_ENTRIES
 
 
@@ -88,7 +88,7 @@ def test_load_handles_corrupt_json(tmp_path: Path) -> None:
         "_MRU_FILE",
         fake,
     ):
-        assert load_vcs_xprompt_mru() == []
+        assert _load_vcs_xprompt_mru() == []
 
 
 def test_record_adds_new_prefix(tmp_path: Path) -> None:
@@ -101,7 +101,7 @@ def test_record_adds_new_prefix(tmp_path: Path) -> None:
         fake,
     ):
         record_vcs_xprompt_usage("#gh:new")
-        result = load_vcs_xprompt_mru()
+        result = _load_vcs_xprompt_mru()
         assert result == ["#gh:new", "#gh:old"]
 
 
@@ -115,7 +115,7 @@ def test_record_moves_existing_to_front(tmp_path: Path) -> None:
         fake,
     ):
         record_vcs_xprompt_usage("#gh:c")
-        result = load_vcs_xprompt_mru()
+        result = _load_vcs_xprompt_mru()
         assert result == ["#gh:c", "#gh:a", "#gh:b"]
 
 
@@ -130,7 +130,7 @@ def test_record_caps_at_max(tmp_path: Path) -> None:
         fake,
     ):
         record_vcs_xprompt_usage("#gh:brand_new")
-        result = load_vcs_xprompt_mru()
+        result = _load_vcs_xprompt_mru()
         assert len(result) == _MAX_ENTRIES
         assert result[0] == "#gh:brand_new"
         # Last entry was evicted
@@ -147,7 +147,7 @@ def test_record_creates_file_if_missing(tmp_path: Path) -> None:
     ):
         record_vcs_xprompt_usage("#gh:first")
         assert fake.exists()
-        result = load_vcs_xprompt_mru()
+        result = _load_vcs_xprompt_mru()
         assert result == ["#gh:first"]
 
 
@@ -162,7 +162,7 @@ def test_record_uses_redirected_sase_home_without_mru_file_patch(
     record_vcs_xprompt_usage(f"#cd:{tmp_path}")
 
     assert isolated_mru.exists()
-    assert load_vcs_xprompt_mru() == [f"#cd:{tmp_path}"]
+    assert _load_vcs_xprompt_mru() == [f"#cd:{tmp_path}"]
     assert isolated_mru != real_home_mru
 
 
@@ -218,7 +218,7 @@ def test_record_prunes_known_stale_project_prefix(
         ),
     ):
         record_vcs_xprompt_usage("#gh:project")
-        result = load_vcs_xprompt_mru()
+        result = _load_vcs_xprompt_mru()
 
     assert result == ["#gh:valid"]
     assert json.loads(fake.read_text()) == {"entries": ["#gh:valid"]}

@@ -380,19 +380,6 @@ def update_issue(
     return get_issue(conn, issue_id)
 
 
-def mark_issue_ready_to_work(
-    conn: sqlite3.Connection, issue_id: str, updated_at: str
-) -> Issue | None:
-    """Set is_ready_to_work=1 on a plan issue."""
-    conn.execute(
-        "UPDATE issues SET is_ready_to_work = 1, updated_at = ? "
-        "WHERE id = ? AND issue_type = 'plan' AND tier = 'epic'",
-        (updated_at, issue_id),
-    )
-    conn.commit()
-    return get_issue(conn, issue_id)
-
-
 def ready_issues(conn: sqlite3.Connection) -> list[Issue]:
     """Return open issues with no active (non-closed) blockers."""
     rows = conn.execute(
