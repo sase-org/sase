@@ -32,7 +32,7 @@ here so a Rust implementation can share the same Python-side schema:
 
 - :class:`StatusFieldReadWire` — request to read a STATUS field given a
   list of project-file lines and a ChangeSpec name.
-- :class:`StatusFieldUpdateWire` — request to apply a STATUS update over
+- :class:`_StatusFieldUpdateWire` — request to apply a STATUS update over
   a list of lines.
 
 Wire records intentionally hold only primitive types (``str``, ``int``,
@@ -251,7 +251,7 @@ class StatusFieldReadWire:
 
 
 @dataclass(frozen=True)
-class StatusFieldUpdateWire:
+class _StatusFieldUpdateWire:
     """Inputs for :func:`apply_status_update`.
 
     See :class:`StatusFieldReadWire` for the rationale.
@@ -385,7 +385,7 @@ __all__ = [
     "SUFFIX_ACTION_STRIP",
     "ChangespecChildWire",
     "StatusFieldReadWire",
-    "StatusFieldUpdateWire",
+    "_StatusFieldUpdateWire",
     "StatusTransitionPlanWire",
     "StatusTransitionRequestWire",
     "status_plan_from_dict",

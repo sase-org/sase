@@ -29,7 +29,7 @@ from sase.core.status_wire import (
     SUFFIX_ACTION_STRIP,
     ChangespecChildWire,
     StatusFieldReadWire,
-    StatusFieldUpdateWire,
+    _StatusFieldUpdateWire,
     StatusTransitionPlanWire,
     StatusTransitionRequestWire,
     status_plan_from_dict,
@@ -81,7 +81,7 @@ def test_status_field_read_wire_constructs() -> None:
 
 def test_status_field_update_wire_constructs() -> None:
     """``apply_status_update`` request shape pinned for the binding."""
-    rec = StatusFieldUpdateWire(
+    rec = _StatusFieldUpdateWire(
         lines=("NAME: foo\n", "STATUS: Ready\n"),
         changespec_name="foo",
         new_status="Mailed",
