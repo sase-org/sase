@@ -340,6 +340,53 @@ def test_incomplete_load_after_complete_history_patches_cached_rows() -> None:
     assert app._agents[1] is active_updated
 
 
+def test_incomplete_load_after_complete_history_drops_running_duplicate_root() -> None:
+    """A Tier 1 RUNNING row must not duplicate a cached WORKFLOW parent."""
+    app = FakeLoadingApp()
+    raw_suffix = "20260202120000"
+    workflow_parent = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="active",
+        status="RUNNING",
+        raw_suffix=raw_suffix,
+        workflow="ace-run",
+        appears_as_agent=True,
+    )
+    workflow_child = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="active.step",
+        status="RUNNING",
+        raw_suffix="20260202120001",
+        parent_workflow="ace-run",
+        parent_timestamp=raw_suffix,
+        step_name="prompt",
+        step_type="agent",
+        step_index=0,
+        total_steps=1,
+    )
+    incoming_running = _make_agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="active",
+        status="RUNNING",
+        raw_suffix=raw_suffix,
+        workflow="run",
+    )
+
+    app._agent_load_state = _SOURCE_SCAN_STATE
+    app._agents_with_children = [workflow_parent, workflow_child]
+    app._agents = list(app._agents_with_children)
+
+    app._apply_loaded_agents(
+        [incoming_running],
+        [],
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=_INCOMPLETE_INDEX_STATE,
+    )
+
+    assert app._agents == [workflow_parent, workflow_child]
+
+
 def test_incomplete_load_before_complete_history_still_replaces_list() -> None:
     """First-paint Tier 1 behavior stays capped until Tier 2 reconciles."""
     app = FakeLoadingApp()

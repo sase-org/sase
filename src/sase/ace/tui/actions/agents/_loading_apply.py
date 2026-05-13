@@ -166,6 +166,12 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                     agent
                 )
                 continue
+            if (
+                agent.raw_suffix is not None
+                and not agent.is_workflow_child
+                and agent.raw_suffix in cached_parent_suffixes
+            ):
+                continue
             new_roots.append(agent)
 
         for agent in new_roots:
