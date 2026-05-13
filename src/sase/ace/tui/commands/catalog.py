@@ -337,6 +337,7 @@ _COPY_LABELS: dict[str, dict[str, str]] = {
 }
 
 _LEADER_LABELS: dict[str, str] = {
+    "repeat_last": "Repeat last leader command",
     "run_cmd": "Run background command",
     "runners": "Show runners",
     "kill_mentors": "Kill mentor workflows",

@@ -205,6 +205,17 @@ def test_jump_to_next_unread_done_agent_leader_command_is_agents_only() -> None:
     assert spec.executor.subkey == "j"
 
 
+def test_repeat_last_leader_command_is_global() -> None:
+    catalog = build_command_catalog(_registry())
+    spec = next(c for c in catalog if c.id == "leader.repeat_last")
+
+    assert spec.label == "Repeat last leader command"
+    assert spec.key_display == ",,"
+    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.executor.kind == "leader_mode_key"
+    assert spec.executor.subkey == "comma"
+
+
 def test_jump_to_next_stopped_agent_leader_command_is_agents_only() -> None:
     catalog = build_command_catalog(_registry())
     spec = next(c for c in catalog if c.id == "leader.jump_to_next_stopped_agent")

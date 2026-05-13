@@ -53,6 +53,18 @@ def test_leader_repeat_last_default_binding() -> None:
     assert reg.leader_mode.keys["repeat_last"] == "comma"
 
 
+def test_leader_repeat_last_override_updates_help_display() -> None:
+    """User overrides for repeat_last flow through help-display surfaces."""
+    reg = load_keymap_registry(
+        {"keymaps": {"modes": {"leader_mode": {"keys": {"repeat_last": "R"}}}}}
+    )
+    for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
+        pairs = {
+            (key, label) for _section, bindings in sections for key, label in bindings
+        }
+        assert (",R", "Repeat last leader command") in pairs
+
+
 def test_edit_hooks_default_binding() -> None:
     """Guard: ``f`` is bound to ``edit_hooks`` (restored after d7b96606)."""
     reg = load_keymap_registry({})

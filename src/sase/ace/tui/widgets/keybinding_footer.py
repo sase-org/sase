@@ -459,6 +459,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             return d(v)
 
         bindings: list[tuple[str, str]] = []
+        bindings.append((k("repeat_last"), "repeat"))
         if current_tab == "changespecs":
             if has_comments:
                 bindings.append((k("clear_comments"), "clear comments"))

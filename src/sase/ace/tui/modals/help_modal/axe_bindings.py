@@ -45,6 +45,10 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
         (
             f"Leader Mode ({d(lm.prefix)})",
             [
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'repeat_last'))}",
+                    "Repeat last leader command",
+                ),
                 (f"{d(lm.prefix)}{d(sk(lm.keys, 'agent_home'))}", "Run agent (home)"),
                 (f"{d(lm.prefix)}{d(sk(lm.keys, 'runners'))}", "Show runners info"),
                 (

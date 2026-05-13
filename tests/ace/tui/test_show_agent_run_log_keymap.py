@@ -367,6 +367,20 @@ def test_footer_surfaces_panel_grouping_only_on_agents_tab() -> None:
     assert "group panels" not in str(captured[-1])
 
 
+def test_footer_surfaces_repeat_last_on_all_tabs() -> None:
+    footer = KeybindingFooter()
+    captured: list[object] = []
+    footer._update_display = MagicMock(  # type: ignore[method-assign]
+        side_effect=lambda text: captured.append(text)
+    )
+
+    for tab in ("changespecs", "agents", "axe"):
+        footer.update_leader_bindings(current_tab=tab)
+        rendered = str(captured[-1])
+        assert "," in rendered
+        assert "repeat" in rendered
+
+
 def test_footer_surfaces_unread_done_jump_only_when_available() -> None:
     footer = KeybindingFooter()
     captured: list[object] = []
