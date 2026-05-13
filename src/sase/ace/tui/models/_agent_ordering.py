@@ -137,9 +137,6 @@ def sort_and_reorder(
             elif suffix in followups_by_parent:
                 # Non-workflow parent with follow-ups
                 result.extend(followups_by_parent.pop(suffix))
-        # Append any orphaned follow-ups (parent not found)
-        for remaining in followups_by_parent.values():
-            result.extend(remaining)
         return result
 
     return sorted_agents

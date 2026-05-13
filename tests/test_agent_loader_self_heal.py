@@ -27,6 +27,12 @@ _SOURCE_SCAN_STATE = AgentLoadState(
     artifact_source="source_scan",
     used_artifact_index=False,
 )
+_INCOMPLETE_INDEX_STATE = AgentLoadState(
+    tier="tier1",
+    complete_history=False,
+    artifact_source="artifact_index",
+    used_artifact_index=True,
+)
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -65,6 +71,7 @@ class FakeLoadingApp(AgentLoadingMixin):
         ] = {}
         self._agent_search_query = ""
         self._agents_loading = False
+        self._agent_load_state: AgentLoadState | None = None
         # Pretend the first async load already happened so _apply_loaded_agents
         # doesn't try to query widgets that aren't mounted in this fake.
         self._agents_first_load_done = True
@@ -293,6 +300,63 @@ def test_complete_load_clears_revived_agent_preservation() -> None:
 
     assert app._agents == [revived]
     assert app._revived_agent_raw_suffixes == set()
+
+
+def test_incomplete_load_after_complete_history_patches_cached_rows() -> None:
+    """Tier 1 refreshes after Tier 2 should not shrink the row universe."""
+    app = FakeLoadingApp()
+    active_cached = _make_agent(
+        cl_name="active",
+        status="RUNNING",
+        raw_suffix="20260202120000",
+    )
+    active_updated = _make_agent(
+        cl_name="active",
+        status="DONE",
+        raw_suffix="20260202120000",
+    )
+    historical = _make_agent(cl_name="historical", raw_suffix="20240102120000")
+    dismissed = _make_agent(cl_name="dismissed", raw_suffix="20240103120000")
+    new_agent = _make_agent(cl_name="new", raw_suffix="20260303120000")
+
+    app._agent_load_state = _SOURCE_SCAN_STATE
+    app._agents_with_children = [active_cached, historical, dismissed]
+    app._agents = list(app._agents_with_children)
+    app._dismissed_agents = {dismissed.identity}
+
+    app._apply_loaded_agents(
+        [new_agent, active_updated],
+        [],
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=_INCOMPLETE_INDEX_STATE,
+    )
+
+    assert [a.raw_suffix for a in app._agents] == [
+        "20260303120000",
+        "20260202120000",
+        "20240102120000",
+    ]
+    assert app._agents[1] is active_updated
+
+
+def test_incomplete_load_before_complete_history_still_replaces_list() -> None:
+    """First-paint Tier 1 behavior stays capped until Tier 2 reconciles."""
+    app = FakeLoadingApp()
+    historical = _make_agent(cl_name="historical", raw_suffix="20240102120000")
+    current = _make_agent(cl_name="current", raw_suffix="20260303120000")
+    app._agents_with_children = [historical]
+    app._agents = [historical]
+
+    app._apply_loaded_agents(
+        [current],
+        [],
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=_INCOMPLETE_INDEX_STATE,
+    )
+
+    assert app._agents == [current]
 
 
 if __name__ == "__main__":

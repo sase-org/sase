@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 23:21:02
-status: wip
+status: done
 prompt: sdd/prompts/202605/tui_agent_list_stability_fix.md
 ---
 # TUI Agent List Stability Fix

@@ -415,6 +415,116 @@ class AgentLoadingMixin:
             agent for agent in prep.filtered_agents if not is_always_visible(agent)
         ]
 
+    def _merge_incomplete_load_after_complete_history(
+        self,
+        prep: _PreparedApplyData,
+        load_state: AgentLoadState | None,
+    ) -> None:
+        """Treat post-reconcile Tier 1 loads as patches over full history."""
+        previous_state = getattr(self, "_agent_load_state", None)
+        if (
+            previous_state is None
+            or not previous_state.complete_history
+            or load_state is None
+            or load_state.complete_history
+        ):
+            return
+
+        cached_agents = list(getattr(self, "_agents_with_children", []))
+        if not cached_agents:
+            return
+
+        incoming_by_identity = {agent.identity: agent for agent in prep.filtered_agents}
+        dismissed = set(getattr(self, "_dismissed_agents", set()))
+        dismissed_suffixes = {
+            raw_suffix for _, _, raw_suffix in dismissed if raw_suffix is not None
+        }
+        dismissed_cl_suffixes = {
+            (cl_name, raw_suffix)
+            for _, cl_name, raw_suffix in dismissed
+            if raw_suffix is not None
+        }
+
+        def is_dismissed(agent: Agent) -> bool:
+            if agent.identity in dismissed:
+                return True
+            if agent.raw_suffix is None:
+                return False
+            if agent.status == "RUNNING":
+                return (agent.cl_name, agent.raw_suffix) in dismissed_cl_suffixes or (
+                    agent.cl_name == "unknown"
+                    and agent.raw_suffix in dismissed_suffixes
+                )
+            return agent.raw_suffix in dismissed_suffixes
+
+        merged: list[Agent] = []
+        seen: set[tuple[AgentType, str, str | None]] = set()
+        cached_identities = {agent.identity for agent in cached_agents}
+        cached_parent_suffixes = {
+            agent.raw_suffix
+            for agent in cached_agents
+            if agent.raw_suffix is not None and not agent.is_workflow_child
+        }
+        incoming_parent_suffixes = {
+            agent.raw_suffix
+            for agent in prep.filtered_agents
+            if agent.raw_suffix is not None and not agent.is_workflow_child
+        }
+        known_parent_suffixes = cached_parent_suffixes | incoming_parent_suffixes
+        new_roots: list[Agent] = []
+        new_children_by_parent: dict[str, list[Agent]] = {}
+
+        # Newly discovered Tier 1 rows are usually the newest rows. Keep their
+        # relative Tier 1 order while preserving cached parent/child groups.
+        for agent in prep.filtered_agents:
+            if agent.identity in cached_identities or is_dismissed(agent):
+                continue
+            if (
+                agent.parent_timestamp
+                and agent.parent_timestamp in known_parent_suffixes
+            ):
+                new_children_by_parent.setdefault(agent.parent_timestamp, []).append(
+                    agent
+                )
+                continue
+            new_roots.append(agent)
+
+        for agent in new_roots:
+            if agent.identity in seen:
+                continue
+            merged.append(agent)
+            seen.add(agent.identity)
+            if agent.raw_suffix:
+                for child in new_children_by_parent.pop(agent.raw_suffix, []):
+                    if child.identity in seen:
+                        continue
+                    merged.append(child)
+                    seen.add(child.identity)
+
+        for cached in cached_agents:
+            replacement = incoming_by_identity.get(cached.identity, cached)
+            if replacement.identity in seen or is_dismissed(replacement):
+                continue
+            merged.append(replacement)
+            seen.add(replacement.identity)
+            if replacement.raw_suffix:
+                for child in new_children_by_parent.pop(replacement.raw_suffix, []):
+                    if child.identity in seen:
+                        continue
+                    merged.append(child)
+                    seen.add(child.identity)
+
+        always_visible = [agent for agent in merged if is_always_visible(agent)]
+        hideable = [agent for agent in merged if not is_always_visible(agent)]
+        if always_visible and bool(self.hide_non_run_agents) and hideable:
+            prep.filtered_agents = always_visible
+            prep.hidden_count = len(hideable)
+        else:
+            prep.filtered_agents = merged
+            prep.hidden_count = 0
+        prep.has_always_visible = bool(always_visible)
+        prep.hideable_agents = hideable
+
     def _apply_loaded_agents_prepared(
         self,
         prep: _PreparedApplyData,
@@ -466,6 +576,7 @@ class AgentLoadingMixin:
             save_dismissed_agents(self._dismissed_agents)
 
         self._preserve_revived_agents_for_incomplete_load(prep, load_state)
+        self._merge_incomplete_load_after_complete_history(prep, load_state)
 
         self._agent_load_state = load_state
         if (

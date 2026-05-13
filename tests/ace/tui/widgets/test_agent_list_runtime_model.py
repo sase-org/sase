@@ -503,6 +503,16 @@ def test_sort_and_reorder_populates_runtime_children_idempotently() -> None:
     assert parent.runtime_children == [planner, coder]
 
 
+def test_sort_and_reorder_drops_followup_without_parent() -> None:
+    orphan = agent(
+        raw_suffix="20260425140400",
+        cl_name="code",
+    )
+    orphan.parent_timestamp = "missing-parent"
+
+    assert sort_and_reorder([orphan], []) == []
+
+
 def test_sort_reorder_runtime_children_ignore_step_suffix_collision() -> None:
     parent_suffix = "20260506130900"
     parent = agent(

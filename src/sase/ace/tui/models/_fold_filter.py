@@ -24,10 +24,15 @@ def filter_agents_by_fold_state(
     # First pass: collect children per parent and compute counts
     fold_counts: dict[str, tuple[int, int]] = {}
     children_by_parent: dict[str, list[Agent]] = {}
+    present_parent_keys = {
+        agent.raw_suffix for agent in agents if not agent.is_workflow_child
+    }
 
     for agent in agents:
         if agent.is_workflow_child and agent.parent_timestamp:
             parent_key = agent.parent_timestamp
+            if parent_key not in present_parent_keys:
+                continue
             if parent_key not in children_by_parent:
                 children_by_parent[parent_key] = []
             children_by_parent[parent_key].append(agent)
@@ -49,6 +54,8 @@ def filter_agents_by_fold_state(
     for agent in agents:
         if agent.is_workflow_child and agent.parent_timestamp:
             parent_key = agent.parent_timestamp
+            if parent_key not in present_parent_keys:
+                continue
             if parent_key in hidden_only_parents:
                 continue
             level = fold_manager.get(parent_key)

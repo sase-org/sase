@@ -178,6 +178,19 @@ def test_mixed_children_keeps_parent() -> None:
     assert counts["ts1"] == (1, 1)
 
 
+def test_orphan_workflow_child_is_dropped_even_when_expanded() -> None:
+    """A stale fold state must not render a child whose parent is absent."""
+    child = _make_child("missing-parent", "step1")
+    agents = [child]
+
+    mgr = FoldStateManager()
+    mgr.expand("missing-parent")
+    filtered, counts = filter_agents_by_fold_state(agents, mgr)
+
+    assert filtered == []
+    assert counts == {}
+
+
 def test_annotation_suppressed_anonymous_single_prompt() -> None:
     """Test annotation suppressed for collapsed anonymous single-prompt workflow."""
     parent = _make_anonymous_parent("ts1")
