@@ -88,6 +88,16 @@ def _lookup_bead_issue(
         pass
 
     try:
+        from sase.bead.workspace import MergedBeadView, get_project_beads_dirs
+
+        beads_dirs = get_project_beads_dirs()
+        if beads_dirs:
+            with MergedBeadView(beads_dirs) as view:
+                return view.show(bead_id)
+    except Exception:
+        pass
+
+    try:
         from sase.bead.workspace import MergedBeadView, get_all_project_beads_dirs
 
         beads_dirs = get_all_project_beads_dirs()

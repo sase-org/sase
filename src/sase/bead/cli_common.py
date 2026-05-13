@@ -10,7 +10,6 @@ from sase.bead.project import (
     BEADS_DIRNAME_NON_VC,
     BeadProject,
 )
-from sase.bead.workspace import MergedBeadView, get_project_beads_dirs
 
 
 def find_beads_location() -> tuple[Path, str]:
@@ -90,14 +89,8 @@ def get_project() -> BeadProject:
     return BeadProject(root, beads_dirname=beads_dirname)
 
 
-def get_read_view() -> MergedBeadView | BeadProject:
-    """Get a merged read view across all workspaces.
-
-    Falls back to the local BeadProject if workspace resolution fails.
-    """
-    beads_dirs = get_project_beads_dirs()
-    if beads_dirs:
-        return MergedBeadView(beads_dirs)
+def get_read_view() -> BeadProject:
+    """Open the same single bead store used by write commands."""
     return get_project()
 
 
