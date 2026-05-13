@@ -41,7 +41,7 @@ class DismissedAgentSelectModal(
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         Binding("tab", "toggle_mark", "Mark", priority=True),
         Binding("ctrl+a", "toggle_all", "Mark All", priority=True),
-        Binding("ctrl+n", "load_more", "More", priority=True),
+        Binding("pagedown", "load_more", "More", priority=True),
     ]
 
     def __init__(
@@ -386,7 +386,7 @@ class DismissedAgentSelectModal(
         count = len(self._marked)
         loading = " | archive loading" if self._loading_archive else ""
         error = f" | {self._query_error}" if self._query_error else ""
-        more = " | ^n: more" if self._archive_cursor is not None else ""
+        more = " | PgDn: more" if self._archive_cursor is not None else ""
         if count:
             return (
                 "j/k: navigate | tab: mark | ^a: all | ^d/^u: scroll"

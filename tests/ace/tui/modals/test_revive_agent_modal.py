@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from textual.app import App, ComposeResult
+from textual.widgets import OptionList
 
 from sase.ace.agent_query.archive_planner import (
     ArchiveQueryError,
@@ -137,6 +138,7 @@ class _RecordingProvider:
 
     pages: dict[str, ArchiveQueryPage] = field(default_factory=dict)
     calls: list[str] = field(default_factory=list)
+    cursors: list[int | None] = field(default_factory=list)
     delay_s: float = 0.0
     started: threading.Event = field(default_factory=threading.Event)
 
@@ -148,6 +150,7 @@ class _RecordingProvider:
         cursor: int | None = None,
     ) -> ArchiveQueryPage:
         self.calls.append(query)
+        self.cursors.append(cursor)
         self.started.set()
         if self.delay_s:
             time.sleep(self.delay_s)
@@ -254,6 +257,66 @@ async def test_slow_provider_keeps_app_responsive() -> None:
         elapsed = loop.time() - start
 
     assert elapsed < 0.3
+
+
+async def test_ctrl_n_and_ctrl_p_navigate_when_archive_has_more_results() -> None:
+    """Archive pagination cursor must not steal ctrl+n row navigation."""
+    provider = _RecordingProvider(
+        pages={"": ArchiveQueryPage(results=[], next_cursor=25)}
+    )
+    modal = DismissedAgentSelectModal(
+        [
+            make_agent(cl_name="alpha", raw_suffix="20260512120000"),
+            make_agent(cl_name="beta", raw_suffix="20260512120100"),
+        ],
+        archive_query_provider=provider,
+    )
+
+    async with _ModalTestApp().run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await _wait_for(lambda: modal._archive_cursor == 25)
+        provider.calls.clear()
+        provider.cursors.clear()
+
+        option_list = modal.query_one("#dismissed-agent-list", OptionList)
+        assert option_list.highlighted == 0
+
+        await pilot.press("ctrl+n")
+        await pilot.pause(0.2)
+
+        assert option_list.highlighted == 1
+        assert provider.calls == []
+
+        await pilot.press("ctrl+p")
+        await pilot.pause()
+
+        assert option_list.highlighted == 0
+        assert provider.calls == []
+
+
+async def test_pagedown_loads_more_archive_results_with_current_cursor() -> None:
+    provider = _RecordingProvider(
+        pages={
+            "": ArchiveQueryPage(
+                results=[_result(agent_id="first", cl_name="first")],
+                next_cursor=25,
+            )
+        }
+    )
+    modal = DismissedAgentSelectModal([], archive_query_provider=provider)
+
+    async with _ModalTestApp().run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await _wait_for(lambda: modal._archive_cursor == 25)
+        provider.calls.clear()
+        provider.cursors.clear()
+
+        await pilot.press("pagedown")
+        await _wait_for(lambda: provider.calls == [""])
+
+    assert provider.cursors == [25]
 
 
 def test_scoped_archive_provider_filters_structured_query_and_scope(
