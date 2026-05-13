@@ -2,6 +2,9 @@
 create_time: 2026-05-13 15:27:52
 status: wip
 prompt: sdd/prompts/202605/rust_daemon_epic0.md
+bead_id: sase-3e.2
+tier: epic
+legend_bead_id: sase-3e
 ---
 # Plan: Epic 0 Baseline, Contracts, and Compatibility Inventory
 
