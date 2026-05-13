@@ -11,7 +11,6 @@ import pytest
 
 from sase.ace.tui.actions.agents._approve import (
     AgentApproveMixin,
-    persist_approve_field,
     persist_plan_auto_approval,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -67,14 +66,14 @@ class FakeApproveApp(AgentApproveMixin):
 
 def testpersist_approve_field_writes_new_file(tmp_path: Any) -> None:
     meta_path = tmp_path / "agent_meta.json"
-    persist_approve_field(meta_path, True)
+    persist_plan_auto_approval(meta_path, True, None)
     assert json.loads(meta_path.read_text()) == {"approve": True}
 
 
 def testpersist_approve_field_preserves_other_keys(tmp_path: Any) -> None:
     meta_path = tmp_path / "agent_meta.json"
     meta_path.write_text(json.dumps({"approve": False, "other": "keep"}))
-    persist_approve_field(meta_path, True)
+    persist_plan_auto_approval(meta_path, True, None)
     data = json.loads(meta_path.read_text())
     assert data["approve"] is True
     assert data["other"] == "keep"

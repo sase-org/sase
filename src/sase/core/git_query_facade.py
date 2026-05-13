@@ -108,7 +108,7 @@ def parse_git_name_status_z(stdout: str) -> list[tuple[str, str]]:
     ]
 
 
-def parse_git_numstat_z_python(stdout: str) -> list[tuple[str, str, str]]:
+def _parse_git_numstat_z_python(stdout: str) -> list[tuple[str, str, str]]:
     """Parse ``git diff --numstat -z`` output.
 
     Returns ``(raw_added, raw_removed, path)`` rows.  For rename/copy rows Git's
@@ -154,7 +154,7 @@ def parse_git_numstat_z_python(stdout: str) -> list[tuple[str, str, str]]:
 
 def parse_git_numstat_z(stdout: str) -> list[tuple[str, str, str]]:
     """Parse the NUL-delimited output of ``git diff --numstat -z``."""
-    return parse_git_numstat_z_python(stdout)
+    return _parse_git_numstat_z_python(stdout)
 
 
 def _parse_git_branch_name_python(stdout: str) -> str | None:
@@ -262,5 +262,4 @@ __all__ = [
     "parse_git_local_changes",
     "parse_git_name_status_z",
     "parse_git_numstat_z",
-    "parse_git_numstat_z_python",
 ]

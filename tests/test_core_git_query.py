@@ -38,7 +38,7 @@ from sase.core.git_query_facade import (
     parse_git_name_status_z,
     _parse_git_name_status_z_python,
     parse_git_numstat_z,
-    parse_git_numstat_z_python,
+    _parse_git_numstat_z_python,
 )
 from sase.core.git_query_wire import (
     GIT_QUERY_WIRE_SCHEMA_VERSION,
@@ -138,7 +138,7 @@ def test_parse_numstat_text_paths_and_spaces() -> None:
         ("12", "3", "src/a.py"),
         ("4", "0", "path with spaces/file.txt"),
     ]
-    assert parse_git_numstat_z(stream) == parse_git_numstat_z_python(stream)
+    assert parse_git_numstat_z(stream) == _parse_git_numstat_z_python(stream)
 
 
 def test_parse_numstat_binary_file() -> None:

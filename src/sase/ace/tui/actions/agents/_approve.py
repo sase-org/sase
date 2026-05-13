@@ -42,15 +42,6 @@ def persist_plan_auto_approval(
         json.dump(meta, f, indent=2)
 
 
-def persist_approve_field(meta_path: Path, approve: bool) -> None:
-    """Backward-compatible wrapper for the legacy boolean auto-approve field."""
-    persist_plan_auto_approval(
-        meta_path,
-        approve=approve,
-        auto_approve_plan_action=None,
-    )
-
-
 def _next_auto_approval_state(agent: Agent) -> tuple[bool, str | None, str]:
     if agent.auto_approve_plan_action == "epic":
         return False, None, "Auto-approve disabled"

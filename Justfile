@@ -112,9 +112,6 @@ _lint-pyvision: _setup
         BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 src/sase \
         --epic-symbol 'sase-3a(MultiAgentXPromptDepthError)' \
         --epic-symbol 'sase-3a(QueryErrorWire)' \
-        --epic-symbol 'sase-3a(parse_git_numstat_z_python)' \
-        --epic-symbol 'sase-3a(parse_project_bytes)' \
-        --epic-symbol 'sase-3a(persist_approve_field)' \
         --epic-symbol 'sase-3a(persist_bulk_dismiss_transaction)' \
         --epic-symbol 'sase-3a(persist_plan_auto_approval)' \
         --epic-symbol 'sase-3a(plan_agent_cleanup_python)' \
