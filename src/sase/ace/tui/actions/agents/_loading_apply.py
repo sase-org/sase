@@ -169,12 +169,10 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         load_state: AgentLoadState | None,
     ) -> None:
         """Treat post-reconcile Tier 1 loads as patches over full history."""
-        previous_state = getattr(self, "_agent_load_state", None)
         if (
-            previous_state is None
-            or not previous_state.complete_history
-            or load_state is None
+            load_state is None
             or load_state.complete_history
+            or not getattr(self, "_agents_seen_complete_history", False)
         ):
             return
 
@@ -358,6 +356,8 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         self._preserve_revived_agents_for_incomplete_load(prep, load_state)
         self._merge_incomplete_load_after_complete_history(prep, load_state)
 
+        if load_state is not None and load_state.complete_history:
+            self._agents_seen_complete_history = True
         self._agent_load_state = load_state
         if (
             load_state is not None

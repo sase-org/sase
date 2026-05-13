@@ -97,6 +97,7 @@ class AgentLoadingStateMixin:
     # `_on_auto_refresh` already apply to their refresh triggers.
     _nav_gate: NavigationGate
     _agent_load_state: AgentLoadState | None
+    _agents_seen_complete_history: bool
 
     def _apply_loaded_agents_prepared(
         self,

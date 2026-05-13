@@ -72,12 +72,15 @@ class FakeLoadingApp(AgentLoadingMixin):
         self._agent_search_query = ""
         self._agents_loading = False
         self._agent_load_state: AgentLoadState | None = None
+        self._agents_seen_complete_history = False
         # Pretend the first async load already happened so _apply_loaded_agents
         # doesn't try to query widgets that aren't mounted in this fake.
         self._agents_first_load_done = True
 
     def _finalize_agent_list(self, *args: object, **kwargs: object) -> None:
         """Stub — the real finalizer needs tabbar/panel widgets we don't have."""
+        if kwargs.get("save_unfiltered"):
+            self._agents_with_children = list(self._agents)
 
     def _persist_dismissed_agent(
         self, identity: tuple[AgentType, str, str | None]
@@ -320,6 +323,7 @@ def test_incomplete_load_after_complete_history_patches_cached_rows() -> None:
     new_agent = _make_agent(cl_name="new", raw_suffix="20260303120000")
 
     app._agent_load_state = _SOURCE_SCAN_STATE
+    app._agents_seen_complete_history = True
     app._agents_with_children = [active_cached, historical, dismissed]
     app._agents = list(app._agents_with_children)
     app._dismissed_agents = {dismissed.identity}
@@ -338,6 +342,59 @@ def test_incomplete_load_after_complete_history_patches_cached_rows() -> None:
         "20240102120000",
     ]
     assert app._agents[1] is active_updated
+
+
+def test_repeated_incomplete_load_after_complete_history_keeps_cached_rows() -> None:
+    """The complete-history watermark survives multiple Tier 1 patches."""
+    app = FakeLoadingApp()
+    active_cached = _make_agent(
+        cl_name="active",
+        status="RUNNING",
+        raw_suffix="20260202120000",
+    )
+    historical = _make_agent(cl_name="historical", raw_suffix="20240102120000")
+    launched = _make_agent(
+        cl_name="launched",
+        status="RUNNING",
+        raw_suffix="20260303120000",
+    )
+    launched_updated = _make_agent(
+        cl_name="launched",
+        status="DONE",
+        raw_suffix="20260303120000",
+    )
+
+    app._apply_loaded_agents(
+        [active_cached, historical],
+        [],
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=_SOURCE_SCAN_STATE,
+    )
+    assert app._agents_seen_complete_history is True
+
+    app._apply_loaded_agents(
+        [launched],
+        [],
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=_INCOMPLETE_INDEX_STATE,
+    )
+
+    app._apply_loaded_agents(
+        [launched_updated],
+        [],
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=_INCOMPLETE_INDEX_STATE,
+    )
+
+    assert [a.raw_suffix for a in app._agents] == [
+        "20260303120000",
+        "20260202120000",
+        "20240102120000",
+    ]
+    assert app._agents[0] is launched_updated
 
 
 def test_incomplete_load_after_complete_history_drops_running_duplicate_root() -> None:
@@ -373,6 +430,7 @@ def test_incomplete_load_after_complete_history_drops_running_duplicate_root() -
     )
 
     app._agent_load_state = _SOURCE_SCAN_STATE
+    app._agents_seen_complete_history = True
     app._agents_with_children = [workflow_parent, workflow_child]
     app._agents = list(app._agents_with_children)
 
@@ -409,6 +467,7 @@ def test_incomplete_load_after_complete_history_keeps_non_workflow_suffix_guard(
     )
 
     app._agent_load_state = _SOURCE_SCAN_STATE
+    app._agents_seen_complete_history = True
     app._agents_with_children = [cached_running]
     app._agents = list(app._agents_with_children)
 
@@ -464,6 +523,7 @@ def test_incomplete_load_after_complete_history_merges_running_shadow_metadata()
     )
 
     app._agent_load_state = _SOURCE_SCAN_STATE
+    app._agents_seen_complete_history = True
     app._agents_with_children = [workflow_parent, workflow_child]
     app._agents = list(app._agents_with_children)
 
@@ -509,6 +569,7 @@ def test_incomplete_load_after_complete_history_dedups_cross_snapshot_same_pid()
     )
 
     app._agent_load_state = _SOURCE_SCAN_STATE
+    app._agents_seen_complete_history = True
     app._agents_with_children = [cached_vcs_claim]
     app._agents = list(app._agents_with_children)
 
@@ -561,6 +622,7 @@ def test_incomplete_load_after_complete_history_reattaches_pid_dedup_children() 
     )
 
     app._agent_load_state = _SOURCE_SCAN_STATE
+    app._agents_seen_complete_history = True
     app._agents_with_children = [cached_running, cached_child]
     app._agents = list(app._agents_with_children)
 
