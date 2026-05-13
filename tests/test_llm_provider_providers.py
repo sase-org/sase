@@ -10,7 +10,7 @@ import pytest
 from sase.llm_provider._subprocess import stream_process_output
 from sase.llm_provider.base import LLMProvider
 from sase.llm_provider.claude import ClaudeCodeProvider
-from sase.llm_provider.config import get_model_aliases, resolve_model_alias
+from sase.llm_provider.config import _get_model_aliases, resolve_model_alias
 from sase.llm_provider.registry import resolve_model_provider
 from sase.llm_provider.gemini import GeminiProvider
 from sase.llm_provider.types import InvokeResult, ModelTier
@@ -53,7 +53,7 @@ def test_model_aliases_ignore_invalid_entries(mock_config: MagicMock) -> None:
         }
     }
 
-    assert get_model_aliases() == {"other": "claude/opus"}
+    assert _get_model_aliases() == {"other": "claude/opus"}
 
 
 @patch("sase.llm_provider.config.get_llm_provider_config")

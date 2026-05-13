@@ -8,7 +8,7 @@ from sase.bead.db import (
     add_dependency,
     create_issue,
     _delete_issue,
-    get_dependencies,
+    _get_dependencies,
     get_epic_children,
     get_issue,
     init_db,
@@ -290,7 +290,7 @@ class TestDependencies:
         create_issue(conn, _epic("e-1"))
         create_issue(conn, _epic("e-2"))
         add_dependency(conn, "e-2", "e-1", NOW, "user")
-        deps = get_dependencies(conn, "e-2")
+        deps = _get_dependencies(conn, "e-2")
         assert len(deps) == 1
         assert deps[0].depends_on_id == "e-1"
 
@@ -342,7 +342,7 @@ class TestDeleteIssue:
         create_issue(conn, _epic("e-2"))
         add_dependency(conn, "e-2", "e-1", NOW)
         self._delete_issue_in_db(conn, "e-1")
-        assert get_dependencies(conn, "e-2") == []
+        assert _get_dependencies(conn, "e-2") == []
 
 
 class TestIsReadyToWork:

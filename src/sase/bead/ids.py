@@ -24,7 +24,7 @@ def to_base36(n: int) -> str:
     return "".join(reversed(digits))
 
 
-def from_base36(s: str) -> int:
+def _from_base36(s: str) -> int:
     """Convert a base36 string to an integer."""
     return int(s, 36)
 
@@ -59,7 +59,7 @@ def max_top_level_counter(issue_prefix: str, beads_dir: Path) -> int:
         if match is None:
             continue
         try:
-            max_counter = max(max_counter, from_base36(match.group(1)))
+            max_counter = max(max_counter, _from_base36(match.group(1)))
         except ValueError:
             continue
     return max_counter

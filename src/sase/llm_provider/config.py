@@ -30,7 +30,7 @@ def get_llm_provider_config() -> dict[str, Any]:
         return {}
 
 
-def get_model_aliases() -> dict[str, str]:
+def _get_model_aliases() -> dict[str, str]:
     """Return cleaned ``llm_provider.model_aliases`` entries from config."""
     aliases = get_llm_provider_config().get("model_aliases", {})
     if not isinstance(aliases, dict):
@@ -74,7 +74,7 @@ def resolve_model_alias(model: str) -> str:
         ):
             return f"{override.pre_override_provider}/{override.pre_override_model}"
 
-    aliases = get_model_aliases()
+    aliases = _get_model_aliases()
     if not aliases:
         return model
 

@@ -7,7 +7,7 @@ import pytest
 
 from sase.bead.ids import (
     IdGenerator,
-    from_base36,
+    _from_base36,
     max_top_level_counter,
     to_base36,
 )
@@ -34,7 +34,7 @@ class TestBase36:
 
     def test_roundtrip(self) -> None:
         for n in [0, 1, 35, 36, 100, 999, 10000]:
-            assert from_base36(to_base36(n)) == n
+            assert _from_base36(to_base36(n)) == n
 
 
 class TestIdGenerator:
