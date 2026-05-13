@@ -7,7 +7,7 @@ from datetime import datetime
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panel_index import (
     AgentPanelIndex,
-    PanelSlice,
+    _PanelSlice,
     build_agent_panel_index,
 )
 
@@ -130,7 +130,7 @@ def test_non_child_indices_excludes_workflow_children() -> None:
 def test_slice_for_unknown_key_returns_empty_slice() -> None:
     index = AgentPanelIndex()
     empty = index.slice_for("missing")
-    assert isinstance(empty, PanelSlice)
+    assert isinstance(empty, _PanelSlice)
     assert empty.agents == []
     assert empty.global_indices == []
     assert empty.global_to_local == {}
