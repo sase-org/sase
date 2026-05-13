@@ -8,7 +8,7 @@ import pytest
 
 from sase.bead.model import BeadTier, Status
 from sase.bead.work import (
-    CrossEpicBlockerError,
+    _CrossEpicBlockerError,
     _CycleError,
     EpicPlanError,
     build_epic_work_plan,
@@ -329,7 +329,7 @@ class TestCrossEpicBlockerRejected:
         )
         depends(conn, "p1", "ext")
 
-        with pytest.raises(CrossEpicBlockerError):
+        with pytest.raises(_CrossEpicBlockerError):
             build_epic_work_plan(conn, "e1")
 
 

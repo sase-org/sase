@@ -95,7 +95,7 @@ class _CycleError(EpicPlanError):
     """Raised when the open phase children form a dependency cycle."""
 
 
-class CrossEpicBlockerError(EpicPlanError):
+class _CrossEpicBlockerError(EpicPlanError):
     """Raised when a phase has an out-of-epic blocker that is not closed."""
 
 
@@ -113,7 +113,7 @@ def build_epic_work_plan(
     Raises:
         EpicPlanError: If the epic does not exist, is not a plan-type bead,
             or has no non-closed phase children.
-        CrossEpicBlockerError: If a phase depends on an out-of-epic blocker
+        _CrossEpicBlockerError: If a phase depends on an out-of-epic blocker
             that is not closed.
         _CycleError: If the open phases form a dependency cycle.
     """
@@ -278,7 +278,7 @@ def _raise_epic_plan_error(exc: ValueError) -> None:
     if kind == "cycle":
         raise _CycleError(message) from exc
     if kind == "cross_epic_blocker":
-        raise CrossEpicBlockerError(message) from exc
+        raise _CrossEpicBlockerError(message) from exc
     raise EpicPlanError(message) from exc
 
 
