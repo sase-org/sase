@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 19:28:08
-status: wip
+status: done
 prompt: sdd/prompts/202605/retry_agent_skill.md
 ---
 # Plan: Teach `/sase_agents_status` How to Retry Agents
