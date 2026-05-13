@@ -106,7 +106,12 @@ def resolve_prefix(prefix: str, *, include_legacy: bool = True) -> _PrefixResolu
     return _PrefixResolution("", prefix, len(prefix), "ambiguous_prefix")
 
 
-def cleanup_stale(*, now: float | None = None) -> list[str]:
+def cleanup_stale_entries(*, now: float | None = None) -> list[str]:
+    """Remove stale pending entries and return removed prefixes."""
+    return _cleanup_stale_pending_actions(now=now)
+
+
+def _cleanup_stale_pending_actions(*, now: float | None = None) -> list[str]:
     """Remove stale pending entries and return removed prefixes."""
     current = time.time() if now is None else now
     with _locked_store() as store:
@@ -309,7 +314,7 @@ __all__ = [
     "LEGACY_TELEGRAM_PENDING_ACTIONS_PATH",
     "PENDING_ACTIONS_PATH",
     "action_state_for_notification",
-    "cleanup_stale",
+    "cleanup_stale_entries",
     "load_store",
     "register_notification",
     "resolve_prefix",

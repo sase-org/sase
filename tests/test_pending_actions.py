@@ -41,7 +41,7 @@ def test_register_resolve_and_cleanup_shared_pending_action_store(
         assert pending_actions.resolve_prefix("abcdef01").notification_id == n1.id
         assert pending_actions.resolve_prefix("abcdef").resolution == "ambiguous_prefix"
 
-        removed = pending_actions.cleanup_stale(
+        removed = pending_actions.cleanup_stale_entries(
             now=10.0 + pending_actions.STALE_THRESHOLD_SECONDS + 1
         )
         assert removed == ["abcdef01", "abcdef02"]

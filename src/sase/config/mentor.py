@@ -18,16 +18,6 @@ _local_profile_names_cache_token: tuple[str, int, int] | None = None
 _local_profile_names_cache_value: set[str] | None = None
 
 
-def clear_mentor_profiles_cache() -> None:
-    """Drop cached mentor profiles.  Call from tests or explicit refresh paths."""
-    global _mentor_profiles_cache_token, _mentor_profiles_cache_value
-    global _local_profile_names_cache_token, _local_profile_names_cache_value
-    _mentor_profiles_cache_token = None
-    _mentor_profiles_cache_value = None
-    _local_profile_names_cache_token = None
-    _local_profile_names_cache_value = None
-
-
 @dataclass
 class _MentorFocusArea:
     """Represents a single focus area for a mentor's review."""

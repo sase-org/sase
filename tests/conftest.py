@@ -119,11 +119,18 @@ def _clear_config_caches() -> None:
     config across tests that patch ``load_merged_config`` or rewrite tmp_path
     sase.yml files between runs.
     """
-    from sase.config.core import clear_config_cache
-    from sase.config.mentor import clear_mentor_profiles_cache
+    from sase.config import core as config_core
+    from sase.config import mentor as mentor_config
 
-    clear_config_cache()
-    clear_mentor_profiles_cache()
+    config_core._default_config_cache = None
+    config_core._plugin_configs_cache = None
+    config_core._merged_config_cache_token = None
+    config_core._merged_config_cache_value = None
+
+    mentor_config._mentor_profiles_cache_token = None
+    mentor_config._mentor_profiles_cache_value = None
+    mentor_config._local_profile_names_cache_token = None
+    mentor_config._local_profile_names_cache_value = None
 
 
 @pytest.fixture

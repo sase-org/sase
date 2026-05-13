@@ -10,11 +10,7 @@ from unittest.mock import patch
 import yaml
 from sase.config import core as config_core
 from sase.config import mentor as mentor_config
-from sase.config.core import (
-    clear_config_cache,
-    load_merged_config,
-    set_include_local_config,
-)
+from sase.config.core import load_merged_config, set_include_local_config
 from sase.config.mentor import _load_mentor_profiles
 
 
@@ -100,7 +96,10 @@ def test_clear_config_cache_forces_reload(tmp_path: Path) -> None:
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
     ):
         first = load_merged_config()
-        clear_config_cache()
+        config_core._default_config_cache = None
+        config_core._plugin_configs_cache = None
+        config_core._merged_config_cache_token = None
+        config_core._merged_config_cache_value = None
         second = load_merged_config()
 
     # Distinct dicts because the cache was dropped between calls.
@@ -209,7 +208,10 @@ mentor_profiles:
     data = yaml.safe_load(yaml_content)
     with patch("sase.config.mentor.load_merged_config", return_value=data):
         first = _load_mentor_profiles()
-        mentor_config.clear_mentor_profiles_cache()
+        mentor_config._mentor_profiles_cache_token = None
+        mentor_config._mentor_profiles_cache_value = None
+        mentor_config._local_profile_names_cache_token = None
+        mentor_config._local_profile_names_cache_value = None
         second = _load_mentor_profiles()
 
     assert first is not second
