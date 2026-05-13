@@ -16,7 +16,7 @@ planner integration happens *inside*
 
 The Python golden helpers
 :func:`sase.status_state_machine.field_updates.read_status_from_lines_python`,
-:func:`sase.status_state_machine.field_updates.apply_status_update_python`,
+:func:`sase.status_state_machine.field_updates._apply_status_update_python`,
 and :func:`sase.core.status_wire_conversion.plan_status_transition_python`
 remain in their modules as the byte-for-byte golden references for the
 parity tests against the Rust implementations.

@@ -110,7 +110,7 @@ def test_status_facade_line_helpers_real_extension_parity(
     """
     pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
     from sase.status_state_machine.field_updates import (
-        apply_status_update_python,
+        _apply_status_update_python,
         read_status_from_lines_python,
     )
 
@@ -120,7 +120,7 @@ def test_status_facade_line_helpers_real_extension_parity(
     ) == read_status_from_lines_python(lines, "example")
     assert status_facade.apply_status_update(
         lines, "example", "Draft"
-    ) == apply_status_update_python(lines, "example", "Draft")
+    ) == _apply_status_update_python(lines, "example", "Draft")
 
 
 # === plan_status_transition (Phase 4E) =======================================

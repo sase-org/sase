@@ -18,7 +18,7 @@ def apply_status_update(lines: list[str], changespec_name: str, new_status: str)
 
     Public entry point — calls
     :func:`sase.core.status_facade.apply_status_update`, which delegates
-    directly to the Rust binding. :func:`apply_status_update_python`
+    directly to the Rust binding. :func:`_apply_status_update_python`
     below is the host-logic golden reference used by parity tests.
     """
     from sase.core.status_facade import apply_status_update as _facade
@@ -26,7 +26,7 @@ def apply_status_update(lines: list[str], changespec_name: str, new_status: str)
     return _facade(lines, changespec_name, new_status)
 
 
-def apply_status_update_python(
+def _apply_status_update_python(
     lines: list[str], changespec_name: str, new_status: str
 ) -> str:
     """Host-logic golden reference for :func:`apply_status_update`.
