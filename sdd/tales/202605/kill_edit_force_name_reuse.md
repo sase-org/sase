@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 15:52:58
-status: wip
+status: done
 prompt: sdd/prompts/202605/kill_edit_force_name_reuse.md
 ---
 # Plan: Force Name Reuse When Killing And Editing Agents

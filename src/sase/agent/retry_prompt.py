@@ -47,3 +47,75 @@ def rewrite_retry_prompt_name(raw_prompt: str, retry_name: str) -> str:
     protected = f"%name:{retry_name}\n{protected}"
     protected = unprotect_disabled_regions(protected, disabled)
     return unprotect_fenced_blocks(protected, fenced)
+
+
+def force_name_reuse_in_prompt(raw_prompt: str) -> str:
+    """Mark the first explicit top-level name directive for forced reuse."""
+    if "%n" not in raw_prompt and "%name" not in raw_prompt:
+        return raw_prompt
+
+    from sase.xprompt._directive_types import (
+        _DIRECTIVE_ALIASES,
+        _DIRECTIVE_PATTERN,
+    )
+    from sase.xprompt._disabled_regions import (
+        protect_disabled_regions,
+        unprotect_disabled_regions,
+    )
+    from sase.xprompt._fenced_blocks import (
+        protect_fenced_blocks,
+        unprotect_fenced_blocks,
+    )
+    from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
+
+    fenced: list[str] = []
+    protected = protect_fenced_blocks(raw_prompt, fenced)
+    disabled: list[str] = []
+    protected = protect_disabled_regions(protected, disabled)
+
+    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+        raw_name = match.group(1)
+        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "name":
+            continue
+
+        insertion_index: int | None = None
+        if match.group(2) is not None:
+            paren_start = match.end() - 1
+            paren_end = find_matching_paren_for_args(protected, paren_start)
+            if paren_end is None:
+                break
+            inner = protected[paren_start + 1 : paren_end]
+            positional_args, _ = parse_args(inner)
+            if not positional_args or positional_args[0].startswith("!"):
+                break
+            stripped_inner = inner.lstrip()
+            if not stripped_inner:
+                break
+            insertion_index = paren_start + 1 + (len(inner) - len(stripped_inner))
+            if stripped_inner[0] in ('"', "'"):
+                insertion_index += 1
+            elif stripped_inner.startswith("[["):
+                insertion_index += 2
+        elif match.group(3) is not None:
+            raw_arg = match.group(3)
+            insertion_index = match.start(3)
+            if raw_arg.startswith("`") and raw_arg.endswith("`"):
+                value = raw_arg[1:-1]
+                if value.startswith("!"):
+                    break
+                insertion_index += 1
+            elif raw_arg.startswith("!"):
+                break
+        else:
+            break
+
+        rewritten = (
+            f"{protected[:insertion_index]}!{protected[insertion_index:]}"
+            if insertion_index is not None
+            else protected
+        )
+        rewritten = unprotect_disabled_regions(rewritten, disabled)
+        return unprotect_fenced_blocks(rewritten, fenced)
+
+    protected = unprotect_disabled_regions(protected, disabled)
+    return unprotect_fenced_blocks(protected, fenced)
