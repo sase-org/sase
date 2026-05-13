@@ -442,23 +442,24 @@ selection always lands somewhere meaningful in the rendered tree.
 Press `o` on the Agents tab to cycle the L0 grouping bucket through three modes. The Agents tab shows a brief toast
 (`Grouping: by project` / `by date` / `by status`) on each cycle:
 
-| Mode        | L0 buckets                                                         | Notes                                                                                                                                       |
-| ----------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `STANDARD`  | Project (with optional ChangeSpec sub-level)                       | The "by project" default. Uses the 2-/3-level layout described above.                                                                       |
-| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`                    | Date bucket at L0 and 4-hour window at L1; hour-of-day (`HH:00`) L2 appears only inside 4-hour windows with 2+ agents. Sorted newest-first. |
-| `BY_STATUS` | `Stopped` / `Failed` / `Running` / `Waiting` / `Done` / `Starting` | Bucketed by shared status semantics; name-root sub-level inside each bucket.                                                                |
+| Mode        | L0 buckets                                                         | Notes                                                                                             |
+| ----------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `STANDARD`  | Project (with optional ChangeSpec sub-level)                       | The "by project" default. Uses the 2-/3-level layout described above.                             |
+| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`                    | Date bucket at L0, then a date-aware L1 subgroup. Sorted newest-first within each bucket.         |
+| `BY_STATUS` | `Stopped` / `Failed` / `Running` / `Waiting` / `Done` / `Starting` | Bucketed by shared status semantics; name-root and dotted-name subgroups appear only when useful. |
 
-In `BY_DATE` mode the L0 date bucket is sub-grouped by compact **4-hour windows** (`8AM-12PM`), then by **hour-of-day**
-(`09:00`) only when the 4-hour window contains at least two agents, so long Today/Yesterday lists are easier to scan
-without adding extra headings for singleton windows. The time anchor is `stop_time` for terminal agents and `start_time`
-otherwise; both time levels sort newest-first within their date bucket. Workflow children inherit the parent's anchor so
-they stay adjacent regardless of their own start time, and agents with no usable timestamp fall into a `(no time)`
-bucket that sorts last. In `BY_STATUS` mode the L0 banner is the status bucket and L1 is the name-root, with the same
-singleton-suppression rule as `STANDARD`. The bucket order is fixed: Stopped, Failed, Running, Waiting, Done, Starting.
-The `Starting` bucket sorts last so startup-only rows do not displace active work during daemon or launch refreshes.
-Each mode keeps its own per-group fold registry, so collapsing buckets in `BY_STATUS` doesn't affect the project layout
-you had in `STANDARD`. `BY_STATUS` banners are prefixed with semantic glyphs (`▲`, `✗`, `▶`, `⏳`, `✓`) so the bucket
-title still leads visually.
+In `BY_DATE` mode, ACE chooses one L1 subgroup style from the L0 date bucket: one-hour windows (`09:00`) for `Today` and
+`Yesterday`, calendar-day labels for `This Week`, and Monday-start week ranges for `Earlier`. The time anchor is
+`stop_time` for terminal agents and `start_time` otherwise; both buckets and their subgroups sort newest-first. Workflow
+children inherit the parent's anchor so they stay adjacent regardless of their own start time, and agents with no usable
+timestamp fall into a `(no time)` subgroup that sorts last.
+
+In `BY_STATUS` mode the L0 banner is the status bucket and L1 is the name-root, with the same singleton-suppression rule
+as `STANDARD`. The bucket order is fixed: Stopped, Failed, Running, Waiting, Done, Starting. The `Starting` bucket sorts
+last so startup-only rows do not displace active work during daemon or launch refreshes. Each mode keeps its own
+per-group fold registry, so collapsing buckets in `BY_STATUS` doesn't affect the project layout you had in `STANDARD`.
+`BY_STATUS` banners are prefixed with semantic glyphs (`▲`, `✗`, `▶`, `⏳`, `✓`, `◐`) so the bucket title still leads
+visually.
 
 The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the current
 session mode is always visible after the cycle toast fades. The same header starts with a visible top-level agent metric
@@ -1104,17 +1105,17 @@ Press `R` on the Agents tab to revive a previously dismissed agent. Dismissed ag
 files under month shards in `~/.sase/dismissed_bundles/YYYYMM/` and can be restored later. There is no limit on the
 number of dismissed agents that can be stored.
 
-Dismiss operations are O(1) per agent - each agent is saved to its own JSON file rather than a monolithic store. Parent
+Dismiss operations are O(1) per agent: each agent is saved to its own JSON file rather than a monolithic store. Parent
 workflow rows use `<raw_suffix>.json`; workflow children use `<raw_suffix>__c<step_index>.json`. ACE keeps a SQLite
-summary index in the dismissed-bundle directory so revival and run-log lookups can load dismissed agents lazily. Use
-`sase agents archive verify` to check the index, or `sase agents archive rebuild-index` to rebuild it from bundle files.
-The index is a metadata index, not a full-text archive: archive searches match summary fields such as status, name,
-project, model, provider, workflow, and ChangeSpec metadata. The older `runtime:` archive-query key is still accepted as
-an alias for `provider:` for compatibility with saved commands.
+summary index in the dismissed-bundle directory so the revive modal and internal lookups can list dismissed agents
+without opening every bundle. Use `sase agents archive verify` to check that maintenance index, or
+`sase agents archive rebuild-index` to rebuild it from bundle files. The index stores metadata such as status, name,
+project, model, provider, workflow, and ChangeSpec metadata; it is not a full-text copy of agent chat contents.
 
-Revival restores enough artifact files for ACE to rediscover the agent and preserves the dismissed bundle as historical
-recovery data. The reload path forces a full-history scan and can hydrate the just-revived row directly from the bundle,
-so agents still appear after revive even if the persistent artifact index was empty or stale.
+Revival removes the agent identity from the dismissed set, restores enough artifact files for ACE to rediscover the
+agent, and preserves the dismissed bundle as historical recovery data. The reload path forces a full-history scan and
+can hydrate the just-revived row directly from the bundle, so agents still appear after revive even if the persistent
+artifact index was empty or stale.
 
 Every revival also writes structured events to `~/.sase/logs/events.jsonl` (start, per-agent success, per-agent
 failure). Read them back with `sase revive-log` — see [Agent revival audit log](troubleshooting/agent-revival.md) for

@@ -52,7 +52,7 @@ agents from the TUI.
 | `sase bead dep add`                          | Add an issue dependency.                                                  | [Beads](beads.md#dependencies)                  |
 | `sase bead sync`                             | Export the bead database to git-tracked JSONL and stage it.               | [Beads](beads.md#sync-mechanism)                |
 | `sase bead stats` / `doctor`                 | Inspect project statistics or bead-store health.                          | [Beads](beads.md#rust-backend)                  |
-| `sase bead work`                             | Launch phase agents for an epic, or epic-planning agents for a legend.    | [Beads](beads.md#multi-workspace-support)       |
+| `sase bead work`                             | Launch phase agents for an epic, or epic-planning agents for a legend.    | [Beads](beads.md#sase-bead-work-id)             |
 | `sase plan`                                  | Submit a plan for approval from the plan skill path.                      | [XPrompt directives](xprompt.md#plan-directive) |
 | `sase questions`                             | Ask structured user questions from the questions skill path.              | [XPrompt directives](xprompt.md#directives)     |
 

@@ -3,7 +3,7 @@
 Emits ``agent_revive_started``, ``agent_revived``, and ``agent_revive_failed``
 events via ``sase.logs.run_log.log_event`` so the post-mortem question
 "what agent did I last try to revive?" can be answered without grepping
-through bundle directories that have already been deleted.
+through dismissed-bundle directories.
 
 A broken log writer must never break a revival — every helper here wraps
 the underlying ``log_event`` call in a broad ``except`` and silently

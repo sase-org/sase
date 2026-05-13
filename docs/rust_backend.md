@@ -20,8 +20,8 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
 - Notification JSONL store operations: `read_notifications_snapshot`, `append_notification`,
   `apply_notification_state_update`, and `rewrite_notifications`
 - Agent cleanup planning plus deterministic cleanup mutations: dismissed-identity index writes, artifact-marker
-  deletion, workspace-release text mutation, and hook/mentor/comment kill marking. Dismissed-bundle JSON persistence and
-  its summary SQLite index are Python-owned.
+  deletion, workspace-release text mutation, and hook/mentor/comment kill marking. In the current ACE host path,
+  dismissed-bundle JSON persistence and its summary SQLite index are Python-owned.
 - Agent launch preparation, low-level detached spawn, timestamp allocation, fan-out planning, and RUNNING-field
   workspace-claim planning/mutation helpers
 - Bead data operations: read queries (`show`, `list`, `ready`, `blocked`, `stats`, `doctor`, epic-child lookups), merged
@@ -47,9 +47,9 @@ The intentionally Python-owned facade surfaces (host logic, not backend fallback
   registry recording, and user-facing launch callbacks. Rust owns deterministic launch planning/preparation and the
   low-level detached spawn binding.
 - Agent cleanup process signalling, dismissed-bundle persistence, dismissed-bundle summary indexing, and TUI
-  orchestration stay on the host. The Rust boundary owns reusable cleanup planning, compact dismissed-identity writes,
-  artifact deletion, workspace-release content rewrites, and ChangeSpec-entry kill marking exposed through Python
-  helpers in `sase.core.agent_cleanup_*`.
+  orchestration stay on the Python host path. The Rust boundary owns reusable cleanup planning, compact
+  dismissed-identity writes, artifact deletion, workspace-release content rewrites, and ChangeSpec-entry kill marking
+  exposed through Python helpers in `sase.core.agent_cleanup_*`.
 - Bead host responsibilities stay in Python where they touch the surrounding application: storage-location discovery,
   SASE workspace/project lookup, VCS prompt context for `sase bead work`, xprompt resolution, user confirmation, agent
   launch, rollback of already-spawned children, and telemetry increments. Rust owns the bead data model, storage/query

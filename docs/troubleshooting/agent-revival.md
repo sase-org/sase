@@ -19,9 +19,11 @@ Common fields on every record:
 - `timestamp` — local time as `YYmmdd_HHMMSS`.
 - `event` — one of the three names above.
 - `batch_size` — `1` for a single revival; the count of selected agents for a batch.
+- `agents` — only on `agent_revive_started`; a list of `[agent_type, cl_name, raw_suffix]` identities that were selected
+  before mutation began.
 - `outcome` — `"success"` or `"failure"` (omitted for `agent_revive_started`).
 - `selection_scope` — `"all"`, `"home"`, `"project"`, or `"cl"`, plus `selection_project` / `selection_cl` when
-  applicable.
+  applicable. These fields are omitted when the revive was not launched from a scoped selection.
 
 Per-agent fields on `agent_revived` / `agent_revive_failed`:
 
@@ -29,7 +31,7 @@ Per-agent fields on `agent_revived` / `agent_revive_failed`:
 - `agent_type`, `cl_name`, `raw_suffix`, `project_file`.
 - `bundle_path` — the path under `~/.sase/dismissed_bundles/YYYYMM/` that the revive flow loaded. Revive preserves the
   bundle as historical recovery data.
-- `child_suffixes` — workflow steps / follow-up agents revived alongside the parent (sorted).
+- `child_suffixes` — only on `agent_revived`; workflow steps / follow-up agents revived alongside the parent (sorted).
 
 Failure-only fields:
 
