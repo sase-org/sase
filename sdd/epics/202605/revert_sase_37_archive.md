@@ -167,6 +167,17 @@ Owner: one implementation agent.
 5. Acceptance: test files describe the retained behavior, not removed archive features, and SDD/bead changes are scoped
    to the rollback.
 
+### Phase 6 Rollback Record - 2026-05-13
+
+- Removed the leftover archive query planner module and live-agent query package exports so
+  `sase.ace.agent_query` exposes live-agent query APIs only.
+- Rewrote dismissed-bundle tests to pin the legacy sharded bundle/index/revive contract without validating deleted
+  archive-query metadata fields.
+- Kept `sase agents archive` coverage scoped to maintenance commands: `rebuild-index`, `verify`, and unknown-command
+  usage.
+- Left historical `sase-37` bead records untouched; only the rollback phase bead `sase-3b.6` should be closed for this
+  phase.
+
 ## Phase 7 - Integration Validation and Final Audit
 
 Owner: one validation agent.

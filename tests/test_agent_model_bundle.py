@@ -31,8 +31,10 @@ def test_bundle_round_trip_basic() -> None:
     assert restored.identity == agent.identity
 
 
-def test_bundle_serialization_omits_archive_query_metadata(tmp_path: Path) -> None:
-    """Dismissed bundles keep Agent fields only, without query projections."""
+def test_bundle_serialization_keeps_agent_state_without_artifact_text(
+    tmp_path: Path,
+) -> None:
+    """Dismissed bundles serialize Agent state without embedding artifact text."""
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
     chat_path = tmp_path / "chat.md"
@@ -77,10 +79,14 @@ def test_bundle_serialization_omits_archive_query_metadata(tmp_path: Path) -> No
 
     bundle = agent.to_bundle_dict()
 
-    assert "archive_search_text" not in bundle
-    assert "archive_search_scrubber_version" not in bundle
-    assert "bundle_schema_version" not in bundle
-    assert "archive_revision" not in bundle
+    assert bundle["raw_suffix"] == "20250615103000"
+    assert bundle["cl_name"] == "my_feature"
+    assert bundle["response_path"] == str(response_path)
+    serialized = json.dumps(bundle)
+    assert "sk-test1234567890abcdef" not in serialized
+    assert "Bearer abcdefghijklmnopqrstuvwxyz" not in serialized
+    assert "api_key=abcdef1234567890" not in serialized
+    assert "ghp_abcdefghijklmnopqrstuvwx123456" not in serialized
 
 
 def test_bundle_round_trip_datetime_serialization() -> None:

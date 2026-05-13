@@ -152,9 +152,11 @@ def test_save_dismissed_bundle_writes_legacy_sharded_file(tmp_path: Path) -> Non
         assert bundle_path.is_file()
         bundle = json.loads(bundle_path.read_text())
         assert bundle["raw_suffix"] == "20250615100000"
-        assert "bundle_schema_version" not in bundle
-        assert "archive_revision" not in bundle
-        assert "archive_search_text" not in bundle
+        assert bundle["cl_name"] == "indexed_cl"
+        assert bundle["artifacts_dir"] == str(artifacts_dir)
+        serialized = json.dumps(bundle)
+        assert "findable prompt" not in serialized
+        assert "findable reply" not in serialized
 
         for path in artifacts_dir.iterdir():
             path.unlink()

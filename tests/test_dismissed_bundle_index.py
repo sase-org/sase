@@ -90,7 +90,7 @@ def test_dismissed_bundle_index_rebuild_and_query(tmp_path: Path) -> None:
 
 
 def test_dismissed_bundle_index_legacy_summary_fields(tmp_path: Path) -> None:
-    """Legacy summary rows expose storage fields, not archive-query metadata."""
+    """Legacy summary rows expose only storage and revive lookup fields."""
     bundles_dir = tmp_path / "bundles"
     with (
         patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
@@ -122,8 +122,32 @@ def test_dismissed_bundle_index_legacy_summary_fields(tmp_path: Path) -> None:
     assert summary.status == "FAILED"
     assert summary.model == "gpt-test"
     assert summary.llm_provider == "codex"
-    assert not hasattr(summary, "archive_revision")
-    assert not hasattr(summary, "bundle_schema_version")
+    assert set(summary.__dataclass_fields__) == {
+        "agent_name",
+        "agent_type",
+        "bundle_path",
+        "cl_name",
+        "filename",
+        "is_workflow_child",
+        "llm_provider",
+        "meta_changespec",
+        "model",
+        "parent_timestamp",
+        "project_file",
+        "raw_suffix",
+        "retried_as_timestamp",
+        "retry_attempt",
+        "retry_chain_root_timestamp",
+        "retry_of_timestamp",
+        "shard",
+        "start_time",
+        "status",
+        "step_index",
+        "step_name",
+        "stop_time",
+        "vcs_provider",
+        "workflow",
+    }
 
 
 def test_dismissed_bundle_index_schema_mismatch_recreates_table(
@@ -147,7 +171,7 @@ def test_dismissed_bundle_index_schema_mismatch_recreates_table(
         )
         conn.execute(
             "CREATE TABLE dismissed_bundle_summaries "
-            "(bundle_path TEXT PRIMARY KEY, archive_revision INTEGER)"
+            "(bundle_path TEXT PRIMARY KEY, obsolete_col INTEGER)"
         )
 
     with (
@@ -163,8 +187,8 @@ def test_dismissed_bundle_index_schema_mismatch_recreates_table(
             row[1]
             for row in conn.execute("PRAGMA table_info(dismissed_bundle_summaries)")
         }
-    assert "archive_revision" not in columns
-    assert "bundle_schema_version" not in columns
+    assert "obsolete_col" not in columns
+    assert {"bundle_path", "raw_suffix", "cl_name", "mtime_ns", "size_bytes"} <= columns
 
 
 def test_dismissed_bundle_verify_reports_stale_and_missing_rows(

@@ -70,8 +70,7 @@ def _ensure_schema(conn: sqlite3.Connection, root: Path) -> None:
         ).fetchone()
         existing_version = _schema_version_from_row(row)
         if existing_version is not None and existing_version != SCHEMA_VERSION:
-            conn.execute("DROP TABLE IF EXISTS dismissed_bundle_search_fts")
-            conn.execute("DROP TABLE IF EXISTS dismissed_bundle_summaries")
+            _drop_index_tables(conn)
             conn.execute("DELETE FROM dismissed_bundle_index_meta")
             _create_schema(conn)
         else:
@@ -94,6 +93,21 @@ def _schema_version_from_row(row: sqlite3.Row | None) -> int | None:
         return int(row["value"])
     except (TypeError, ValueError):
         return -1
+
+
+def _drop_index_tables(conn: sqlite3.Connection) -> None:
+    rows = conn.execute(
+        """
+        SELECT name FROM sqlite_master
+        WHERE type = 'table'
+          AND name NOT LIKE 'sqlite_%'
+          AND name != 'dismissed_bundle_index_meta'
+        """
+    ).fetchall()
+    for row in rows:
+        name = str(row["name"])
+        quoted_name = '"' + name.replace('"', '""') + '"'
+        conn.execute(f"DROP TABLE IF EXISTS {quoted_name}")
 
 
 def _create_schema(conn: sqlite3.Connection) -> None:

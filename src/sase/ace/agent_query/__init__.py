@@ -11,13 +11,6 @@ the :func:`evaluate_agent_query` semantics layer; Phase 3 wires it into
 """
 
 from .evaluator import evaluate_agent_query
-from .archive_planner import (
-    ArchiveQueryError,
-    ArchiveQueryPage,
-    ArchiveQueryResult,
-    search_archive,
-    select_archive_results,
-)
 from .highlighting import (
     AGENT_QUERY_TOKEN_STYLES,
     tokenize_agent_query_for_display,
@@ -37,9 +30,6 @@ from .types import (
 __all__ = [
     "AGENT_QUERY_TOKEN_STYLES",
     "AgentQueryParseError",
-    "ArchiveQueryError",
-    "ArchiveQueryPage",
-    "ArchiveQueryResult",
     "AndExpr",
     "DurationCompare",
     "NotExpr",
@@ -49,8 +39,6 @@ __all__ = [
     "StringMatch",
     "evaluate_agent_query",
     "parse_agent_query",
-    "search_archive",
-    "select_archive_results",
     "to_canonical_string",
     "tokenize_agent_query_for_display",
 ]
