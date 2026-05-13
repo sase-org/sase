@@ -10,26 +10,17 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
-from ..models.agent import Agent, AgentType
+from ..models.agent import Agent
 from .base import OptionListNavigationMixin
-
-_TYPE_COLORS: dict[AgentType, str] = {
-    AgentType.RUNNING: "#87AFFF",
-    AgentType.WORKFLOW: "#FF87D7",
-}
-
-_STEP_TYPE_COLORS: dict[str, str] = {
-    "agent": "#5FD7FF",
-    "bash": "#FFAF5F",
-    "python": "#87D787",
-    "parallel": "#D7AFFF",
-}
-
-_STATUS_COLORS: dict[str, str] = {
-    "DONE": "#5FD75F",
-    "FAILED": "#FF5F5F",
-    "WAITING INPUT": "#FF87D7",
-}
+from .revive_agent_rendering import (
+    build_metadata_preview,
+    build_response_preview,
+    create_options,
+    format_agent_label,
+    get_status_style,
+    get_type_color,
+    placeholder_option,
+)
 
 
 class _ReviveFilterInput(Input):
@@ -180,79 +171,34 @@ class DismissedAgentSelectModal(
 
     def _get_type_color(self, agent: Agent) -> str:
         """Get the color for an agent's type label."""
-        if agent.appears_as_agent:
-            return _TYPE_COLORS[AgentType.RUNNING]
-        if agent.is_workflow_child and agent.step_type in _STEP_TYPE_COLORS:
-            return _STEP_TYPE_COLORS[agent.step_type]
-        return _TYPE_COLORS.get(agent.agent_type, "#FFFFFF")
+        return get_type_color(agent)
 
     def _get_status_style(self, status: str) -> str:
         """Get Rich style string for a status value."""
-        color = _STATUS_COLORS.get(status)
-        if color:
-            return f"bold {color}"
-        return "dim"
+        return get_status_style(status)
 
     def _format_agent_label(self, agent: Agent, orig_idx: int = -1) -> Text:
         """Create styled text for an agent option."""
-        text = Text()
-
-        if orig_idx in self._marked:
-            text.append(" \u25cf ", style="bold #00D7D7")
-        else:
-            text.append("   ")
-
-        if agent.status == "DONE":
-            text.append("\u2714 ", style="bold #5FD75F")
-        elif agent.status == "FAILED":
-            text.append("\u2718 ", style="bold #FF5F5F")
-        else:
-            text.append("\u25cb ", style="dim")
-
-        type_color = self._get_type_color(agent)
-        text.append(f"[{agent.display_type}]", style=f"bold {type_color}")
-        text.append(" ")
-
-        text.append(agent.display_name, style="bold")
-
-        if agent.agent_name:
-            text.append("  ")
-            text.append(f"@{agent.agent_name}", style="#87D7FF")
-
-        text.append("  ")
-        text.append(agent.start_time_compact, style="dim")
-
-        if agent.model:
-            text.append("  ")
-            text.append(agent.model, style="dim italic")
-
-        if agent.raw_suffix and agent.raw_suffix in self._step_counts:
-            count = self._step_counts[agent.raw_suffix]
-            text.append("  ")
-            text.append(f"({count} steps)", style="dim #00D7D7")
-
-        return text
+        return format_agent_label(
+            agent,
+            orig_idx,
+            marked=self._marked,
+            step_counts=self._step_counts,
+        )
 
     def _create_options(self, agents: list[Agent]) -> list[Option]:
         """Create options from agents."""
-        return [
-            Option(self._format_agent_label(agent, i), id=str(i))
-            for i, agent in enumerate(agents)
-        ]
+        return create_options(
+            agents,
+            marked=self._marked,
+            step_counts=self._step_counts,
+        )
 
     def _create_options_or_placeholder(self) -> list[Option]:
         """Create agent options or a disabled loading/empty placeholder."""
         if self.agents:
             return self._create_options(self.agents)
-        if self._loading_archive:
-            return [
-                Option(Text("Loading dismissed archive...", style="dim"), disabled=True)
-            ]
-        return [
-            Option(
-                Text("No dismissed agents in this scope", style="dim"), disabled=True
-            )
-        ]
+        return [placeholder_option(loading_archive=self._loading_archive)]
 
     def _get_filtered_agents(self, filter_text: str) -> list[tuple[int, Agent]]:
         """Get agents matching the filter text."""
@@ -307,16 +253,9 @@ class DismissedAgentSelectModal(
                     Option(self._format_agent_label(agent, orig_idx), id=str(orig_idx))
                 )
         elif self._loading_archive:
-            option_list.add_option(
-                Option(Text("Loading dismissed archive...", style="dim"), disabled=True)
-            )
+            option_list.add_option(placeholder_option(loading_archive=True))
         else:
-            option_list.add_option(
-                Option(
-                    Text("No dismissed agents in this scope", style="dim"),
-                    disabled=True,
-                )
-            )
+            option_list.add_option(placeholder_option(loading_archive=False))
         if old_highlighted is not None and 0 <= old_highlighted < len(self._filtered):
             option_list.highlighted = old_highlighted
 
@@ -353,16 +292,9 @@ class DismissedAgentSelectModal(
                     Option(self._format_agent_label(agent, orig_idx), id=str(orig_idx))
                 )
         elif self._loading_archive:
-            option_list.add_option(
-                Option(Text("Loading dismissed archive...", style="dim"), disabled=True)
-            )
+            option_list.add_option(placeholder_option(loading_archive=True))
         else:
-            option_list.add_option(
-                Option(
-                    Text("No dismissed agents in this scope", style="dim"),
-                    disabled=True,
-                )
-            )
+            option_list.add_option(placeholder_option(loading_archive=False))
         if self._filtered:
             self._update_preview(self._filtered[0][1])
         else:
@@ -422,87 +354,10 @@ class DismissedAgentSelectModal(
             metadata_widget = self.query_one("#dismissed-preview-metadata", Static)
             content_widget = self.query_one("#dismissed-preview-content", Static)
 
-            meta = Text()
-
-            type_color = self._get_type_color(agent)
-            header = f"[{agent.display_type}] {agent.display_name}"
-            meta.append("\u2501\u2501\u2501 ", style="dim")
-            meta.append(header, style=f"bold {type_color}")
-            meta.append(
-                " " + "\u2501" * max(1, 36 - len(header)),
-                style="dim",
+            metadata_widget.update(
+                build_metadata_preview(agent, self._get_child_steps(agent))
             )
-            meta.append("\n\n")
-
-            label_width = 12
-
-            meta.append(f"  {'Status':<{label_width}}", style="bold")
-            meta.append(agent.status, style=self._get_status_style(agent.status))
-            meta.append("\n")
-
-            meta.append(f"  {'Started':<{label_width}}", style="bold")
-            meta.append(f"{agent.start_time_display}\n", style="dim")
-
-            meta.append(f"  {'Duration':<{label_width}}", style="bold")
-            meta.append(f"{agent.duration_display}\n", style="dim")
-
-            if agent.model:
-                meta.append(f"  {'Model':<{label_width}}", style="bold")
-                meta.append(f"{agent.model}\n", style="dim italic")
-
-            if agent.llm_provider:
-                meta.append(f"  {'Provider':<{label_width}}", style="bold")
-                meta.append(f"{agent.llm_provider}\n", style="dim")
-
-            if agent.agent_name:
-                meta.append(f"  {'Agent':<{label_width}}", style="bold")
-                meta.append(f"@{agent.agent_name}\n", style="#87D7FF")
-
-            if agent.workflow and not agent.appears_as_agent:
-                meta.append(f"  {'Workflow':<{label_width}}", style="bold")
-                meta.append(f"{agent.workflow}\n", style="dim")
-
-            children = self._get_child_steps(agent)
-            if children:
-                meta.append(f"\n  \u2500\u2500 Steps ({len(children)}) ")
-                meta.append(
-                    "\u2500" * 24 + "\n",
-                    style="dim",
-                )
-                for i, child in enumerate(children, 1):
-                    step_type = child.step_type or "step"
-                    step_name = child.step_name or child.cl_name
-                    status_style = self._get_status_style(child.status)
-                    meta.append(f"  {i}. ", style="dim #AAAAAA")
-                    step_color = _STEP_TYPE_COLORS.get(step_type, type_color)
-                    meta.append(f"[{step_type}] ", style=f"dim {step_color}")
-                    meta.append(f"{step_name:<20}", style="dim")
-                    meta.append(f"{child.status}\n", style=status_style)
-
-            if agent.error_message:
-                meta.append("\n  \u2500\u2500 Error ")
-                meta.append("\u2500" * 28 + "\n", style="dim")
-                meta.append(f"  {agent.error_message}\n", style="bold #FF5F5F")
-                if agent.error_traceback:
-                    meta.append(f"  {agent.error_traceback}\n", style="dim #FF5F5F")
-
-            metadata_widget.update(meta)
-
-            raw = agent.get_response_content()
-            content = raw.strip() if raw else None
-
-            if content:
-                preview = Text()
-                preview.append(
-                    "\n  \u2500\u2500 Response " + "\u2500" * 26 + "\n",
-                    style="dim",
-                )
-                preview.append(content[:5000])
-                if len(content) > 5000:
-                    preview.append("\n... (truncated)", style="dim")
-                content_widget.update(preview)
-            else:
-                content_widget.update(Text("(no response content)", style="dim italic"))
+            content_widget.update(build_response_preview(agent))
 
         except Exception:
             pass
