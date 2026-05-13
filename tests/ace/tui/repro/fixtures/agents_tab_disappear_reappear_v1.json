@@ -1,0 +1,255 @@
+{
+  "manifest": {
+    "schema_version": 1,
+    "name": "agents_tab_disappear_reappear_v1",
+    "created_at": "2026-05-13T12:00:00Z",
+    "source": "synthetic_commit_safe_fixture",
+    "commit_safe": true,
+    "description": "Tier 1 incomplete, Tier 2 complete, then repeated Tier 1 incomplete projection that represents the historical Agents-tab row disappearance bug."
+  },
+  "load_steps": [
+    {
+      "step_id": "step_a_tier1_initial",
+      "label": "Step A: initial incomplete artifact-index snapshot with current row only",
+      "load_state": {
+        "tier": "tier1",
+        "complete_history": false,
+        "artifact_source": "artifact_index",
+        "used_artifact_index": true,
+        "index_error": null
+      },
+      "agent_rows": [
+        {
+          "agent_type": "run",
+          "cl_name": "current_work",
+          "raw_suffix": "20260513120000",
+          "status": "RUNNING",
+          "parent_timestamp": null,
+          "parent_workflow": null,
+          "workflow": "run",
+          "appears_as_agent": false,
+          "step_type": null,
+          "pid": 41001,
+          "workspace_num": 100,
+          "agent_name": "current.agent",
+          "tag": "active",
+          "metadata": {
+            "llm_provider": "codex",
+            "vcs_provider": "GitHub"
+          }
+        }
+      ],
+      "app_state": {
+        "visible_identities": [
+          ["run", "current_work", "20260513120000"]
+        ],
+        "selected_identity": ["run", "current_work", "20260513120000"],
+        "dismissed_identities": [],
+        "flattened_parent_timestamps": [],
+        "agents_seen_complete_history": false,
+        "selection_fallback": null
+      },
+      "screen": {
+        "text": "Agents\n[agent] current_work RUNNING",
+        "svg_path": null
+      }
+    },
+    {
+      "step_id": "step_b_tier2_complete",
+      "label": "Step B: complete source scan includes current row plus historical workflow parent and child",
+      "load_state": {
+        "tier": "tier2",
+        "complete_history": true,
+        "artifact_source": "source_scan",
+        "used_artifact_index": false,
+        "index_error": null
+      },
+      "agent_rows": [
+        {
+          "agent_type": "run",
+          "cl_name": "current_work",
+          "raw_suffix": "20260513120000",
+          "status": "RUNNING",
+          "parent_timestamp": null,
+          "parent_workflow": null,
+          "workflow": "run",
+          "appears_as_agent": false,
+          "step_type": null,
+          "pid": 41001,
+          "workspace_num": 100,
+          "agent_name": "current.agent",
+          "tag": "active",
+          "metadata": {
+            "llm_provider": "codex",
+            "vcs_provider": "GitHub"
+          }
+        },
+        {
+          "agent_type": "workflow",
+          "cl_name": "history_work",
+          "raw_suffix": "20260510103000",
+          "status": "DONE",
+          "parent_timestamp": null,
+          "parent_workflow": null,
+          "workflow": "ace-run",
+          "appears_as_agent": false,
+          "step_type": null,
+          "pid": null,
+          "workspace_num": 100,
+          "agent_name": "history.workflow",
+          "tag": "archive",
+          "metadata": {
+            "llm_provider": "codex",
+            "vcs_provider": "GitHub"
+          }
+        },
+        {
+          "agent_type": "workflow",
+          "cl_name": "history_work",
+          "raw_suffix": "20260510103000.01",
+          "status": "DONE",
+          "parent_timestamp": "20260510103000",
+          "parent_workflow": "ace-run",
+          "workflow": "ace-run",
+          "appears_as_agent": false,
+          "step_type": "agent",
+          "pid": 39001,
+          "workspace_num": 100,
+          "agent_name": "history.workflow.1",
+          "tag": "archive",
+          "metadata": {
+            "llm_provider": "codex",
+            "vcs_provider": "GitHub",
+            "step_index": 0
+          }
+        }
+      ],
+      "app_state": {
+        "visible_identities": [
+          ["run", "current_work", "20260513120000"],
+          ["workflow", "history_work", "20260510103000"],
+          ["workflow", "history_work", "20260510103000.01"]
+        ],
+        "selected_identity": ["run", "current_work", "20260513120000"],
+        "dismissed_identities": [],
+        "flattened_parent_timestamps": [],
+        "agents_seen_complete_history": true,
+        "selection_fallback": null
+      },
+      "screen": {
+        "text": "Agents\n[agent] current_work RUNNING\n[agent] ace-run DONE\n  [agent] history.workflow.1 DONE",
+        "svg_path": null
+      }
+    },
+    {
+      "step_id": "step_c_tier1_post_complete_broken",
+      "label": "Step C: repeated incomplete artifact-index snapshot with old replace-only projection",
+      "load_state": {
+        "tier": "tier1",
+        "complete_history": false,
+        "artifact_source": "artifact_index",
+        "used_artifact_index": true,
+        "index_error": null
+      },
+      "agent_rows": [
+        {
+          "agent_type": "run",
+          "cl_name": "current_work",
+          "raw_suffix": "20260513120000",
+          "status": "RUNNING",
+          "parent_timestamp": null,
+          "parent_workflow": null,
+          "workflow": "run",
+          "appears_as_agent": false,
+          "step_type": null,
+          "pid": 41001,
+          "workspace_num": 100,
+          "agent_name": "current.agent",
+          "tag": "active",
+          "metadata": {
+            "llm_provider": "codex",
+            "vcs_provider": "GitHub"
+          }
+        }
+      ],
+      "app_state": {
+        "visible_identities": [
+          ["run", "current_work", "20260513120000"]
+        ],
+        "selected_identity": ["run", "current_work", "20260513120000"],
+        "dismissed_identities": [],
+        "flattened_parent_timestamps": [],
+        "agents_seen_complete_history": true,
+        "selection_fallback": null
+      },
+      "screen": {
+        "text": "Agents\n[agent] current_work RUNNING",
+        "svg_path": null
+      }
+    },
+    {
+      "step_id": "step_c_repeat_tier1_post_complete_broken",
+      "label": "Step C repeat: same incomplete snapshot remains shrunk under the broken projection",
+      "load_state": {
+        "tier": "tier1",
+        "complete_history": false,
+        "artifact_source": "artifact_index",
+        "used_artifact_index": true,
+        "index_error": null
+      },
+      "agent_rows": [
+        {
+          "agent_type": "run",
+          "cl_name": "current_work",
+          "raw_suffix": "20260513120000",
+          "status": "RUNNING",
+          "parent_timestamp": null,
+          "parent_workflow": null,
+          "workflow": "run",
+          "appears_as_agent": false,
+          "step_type": null,
+          "pid": 41001,
+          "workspace_num": 100,
+          "agent_name": "current.agent",
+          "tag": "active",
+          "metadata": {
+            "llm_provider": "codex",
+            "vcs_provider": "GitHub"
+          }
+        }
+      ],
+      "app_state": {
+        "visible_identities": [
+          ["run", "current_work", "20260513120000"]
+        ],
+        "selected_identity": ["run", "current_work", "20260513120000"],
+        "dismissed_identities": [],
+        "flattened_parent_timestamps": [],
+        "agents_seen_complete_history": true,
+        "selection_fallback": null
+      },
+      "screen": {
+        "text": "Agents\n[agent] current_work RUNNING",
+        "svg_path": null
+      }
+    }
+  ],
+  "assertions": {
+    "expected_visible_identities_by_step": {
+      "step_c_tier1_post_complete_broken": [
+        ["run", "current_work", "20260513120000"],
+        ["workflow", "history_work", "20260510103000"],
+        ["workflow", "history_work", "20260510103000.01"]
+      ],
+      "step_c_repeat_tier1_post_complete_broken": [
+        ["run", "current_work", "20260513120000"],
+        ["workflow", "history_work", "20260510103000"],
+        ["workflow", "history_work", "20260510103000.01"]
+      ]
+    },
+    "stable_step_ids": [
+      "step_c_tier1_post_complete_broken",
+      "step_c_repeat_tier1_post_complete_broken"
+    ]
+  }
+}
