@@ -22,7 +22,6 @@ from sase.core.wire import (
     CommitWire,
     ParseErrorWire,
     RawChangeSpecWire,
-    SectionWire,
     SourceSpanWire,
     to_json_dict,
 )
@@ -244,12 +243,6 @@ def test_individual_to_wire_helpers() -> None:
     assert mentor_entry_to_wire(cs.mentors[0]).entry_id == "1"
     assert timestamp_entry_to_wire(cs.timestamps[0]).event_type == "STATUS"
     assert delta_entry_to_wire(cs.deltas[0]).change_type == "A"
-
-
-def test_section_wire_defaults() -> None:
-    section = SectionWire(name="DESCRIPTION", start_line=3, end_line=5)
-    assert section.raw_lines == []
-    assert to_json_dict(section)["name"] == "DESCRIPTION"
 
 
 def test_raw_changespec_wire_round_trips_through_json() -> None:

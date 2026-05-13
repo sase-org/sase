@@ -36,16 +36,6 @@ class SourceSpanWire:
 
 
 @dataclass
-class SectionWire:
-    """A raw section captured by line range so Python can rewrite atomically."""
-
-    name: str
-    start_line: int
-    end_line: int
-    raw_lines: list[str] = field(default_factory=list)
-
-
-@dataclass
 class CommitWire:
     """Wire form of :class:`sase.ace.changespec.models.CommitEntry`."""
 
