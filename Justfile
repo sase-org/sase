@@ -197,8 +197,7 @@ _lint-pyvision: _setup
         --epic-symbol 'sase-3a(to_archive_project_spec_path)' \
         --epic-symbol 'sase-3a(to_base36)' \
         --epic-symbol 'sase-3a(token_from_wire)' \
-        --epic-symbol 'sase-3a(token_to_wire)' \
-        --epic-symbol 'sase-3a(with_options)'
+        --epic-symbol 'sase-3a(token_to_wire)'
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted
