@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 17:55:38
-status: wip
+status: done
 prompt: sdd/prompts/202605/repeat_last_leader_keymap.md
 bead_id: sase-3f
 tier: epic
