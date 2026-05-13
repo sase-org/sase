@@ -1,0 +1,126 @@
+"""Shared type declarations for the agent loading mixins."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from ....changespec import ChangeSpec
+from ._loading_compute import PreparedApplyData
+from ._loading_helpers import TabName
+
+if TYPE_CHECKING:
+    from ....agent_query import QueryExpr
+    from ...models import Agent
+    from ...models.agent import AgentType
+    from ...models.agent_content_search import AgentContentSearchCache
+    from ...models.agent_group_fold import AgentGroupFoldRegistry
+    from ...models.agent_loader import AgentLoadState
+    from ...models.fold_state import FoldStateManager
+    from ...util.nav_gate import NavigationGate
+
+
+class AgentLoadingStateMixin:
+    """Attribute declarations shared by the narrow loading mixins.
+
+    AceApp initializes these attributes at runtime. Keeping the declarations
+    in one base avoids repeating the same long annotation block across the
+    split loading implementation modules.
+    """
+
+    # ChangeSpec state
+    changespecs: list[ChangeSpec]
+    current_idx: int
+    current_tab: TabName
+    refresh_interval: int
+    hide_non_run_agents: bool
+    _agents: list[Agent]
+    _agents_with_children: list[Agent]
+    _agents_last_idx: int
+    _agents_last_identity: tuple[AgentType, str, str | None] | None
+    _has_always_visible: bool
+    _hidden_count: int
+    _hideable_agents: list[Agent]
+
+    # Fold state for workflow steps
+    _fold_manager: FoldStateManager
+    _fold_counts: dict[str, tuple[int, int]]
+
+    # Per-group collapse state for the Agents-tab two-level grouping tree.
+    # Always points to the active mode's slot in
+    # ``_group_fold_registries`` (see startup.py).
+    _group_fold_registry: AgentGroupFoldRegistry
+
+    # Agent completion tracking for notifications
+    _dismissed_agents: set[tuple[AgentType, str, str | None]]
+    _dismissed_agent_objects: list[Agent]
+    _revived_agent_raw_suffixes: set[str]
+    _unread_completed_agent_ids: set[tuple[AgentType, str, str | None]]
+    _manual_unread_agent_ids: set[tuple[AgentType, str, str | None]]
+    _agent_display_status_by_identity: dict[tuple[AgentType, str, str | None], str]
+
+    # Agent status override system (for PLAN/PLAN APPROVED/QUESTION statuses)
+    _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
+    _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
+
+    # Agent search/filter query
+    _agent_search_query: str
+    _agent_content_search_cache: AgentContentSearchCache
+    # Cached (raw_query, parsed_ast) so re-renders re-use the parse. ``None``
+    # AST means an empty query (no filter). The cache is invalidated whenever
+    # the raw query string changes.
+    _agent_query_cache: tuple[str, QueryExpr | None] | None
+    # Last parse error message (for the modal to surface). ``None`` means the
+    # current query parsed cleanly or is empty.
+    _agent_query_parse_error: str | None
+
+    # Loading guard
+    _agents_loading: bool
+    # Startup loading indicator flag: flipped to True once the first async
+    # load completes; remains True forever afterward.
+    _agents_first_load_done: bool
+    # Last-request-wins coalescing: set when a refresh is requested while
+    # another one is already running. The in-flight refresh re-schedules
+    # itself once it finishes so the final UI state reflects disk state
+    # after the last trigger.
+    _agents_refresh_pending: bool
+    _agents_refresh_pending_full_history: bool
+    _agents_refresh_scheduled: bool
+    _agents_refresh_scheduled_full_history: bool
+    # Source-aware debounce gate for ``request_agents_refresh``: True while
+    # a debounce timer is armed so a burst of fan-out spawn callbacks
+    # collapses into a single deferred ``_schedule_agents_async_refresh``.
+    _agents_refresh_debounce_armed: bool
+
+    # Navigation gate (set up in startup.py). Used to defer the post-await
+    # apply/render leg of `_run_agents_async_refresh` while the user is
+    # mid j/k burst — the same protection `_on_artifact_change` and
+    # `_on_auto_refresh` already apply to their refresh triggers.
+    _nav_gate: NavigationGate
+    _agent_load_state: AgentLoadState | None
+
+    def _apply_loaded_agents_prepared(
+        self,
+        prep: PreparedApplyData,
+        *,
+        on_agents_tab: bool,
+        selected_identity: tuple[AgentType, str, str | None] | None,
+        load_state: AgentLoadState | None = None,
+        persist_dismissed_changes: bool,
+    ) -> None:
+        raise NotImplementedError
+
+    async def _load_agents_async(self, *, full_history: bool = False) -> None:
+        raise NotImplementedError
+
+    def _load_agents(self, *, full_history: bool = False) -> None:
+        raise NotImplementedError
+
+    def _finalize_agent_list(
+        self,
+        on_agents_tab: bool,
+        selected_identity: tuple[AgentType, str, str | None] | None,
+        *,
+        save_unfiltered: bool,
+        prior_pos: int | None = None,
+    ) -> None:
+        raise NotImplementedError
