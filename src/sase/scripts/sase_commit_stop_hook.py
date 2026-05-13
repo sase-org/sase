@@ -85,7 +85,12 @@ def build_commit_details(
 
 
 def _resolve_project_dir() -> str:
-    for key in ("CLAUDE_PROJECT_DIR", "GEMINI_PROJECT_DIR", "CODEX_PROJECT_DIR"):
+    for key in (
+        "CLAUDE_PROJECT_DIR",
+        "QWEN_PROJECT_DIR",
+        "GEMINI_PROJECT_DIR",
+        "CODEX_PROJECT_DIR",
+    ):
         candidate = os.environ.get(key)
         if candidate and os.path.isdir(candidate):
             return candidate
@@ -96,8 +101,14 @@ def _is_codex_runtime() -> bool:
     return bool(os.environ.get("CODEX_THREAD_ID") or os.environ.get("CODEX_CI"))
 
 
+def _is_qwen_runtime() -> bool:
+    return bool(os.environ.get("QWEN_PROJECT_DIR"))
+
+
 def _is_gemini_runtime() -> bool:
-    return bool(os.environ.get("GEMINI_PROJECT_DIR"))
+    # Qwen Code (a Gemini fork) also sets GEMINI_PROJECT_DIR, so a Qwen
+    # session must be excluded here to avoid mislabeling it as Gemini.
+    return bool(os.environ.get("GEMINI_PROJECT_DIR")) and not _is_qwen_runtime()
 
 
 def _read_hook_stdin() -> dict:
@@ -147,7 +158,7 @@ def _emit_block(reason: str, details: str | None = None) -> int:
             print(details, file=sys.stderr)
         return 0
 
-    if _is_gemini_runtime():
+    if _is_gemini_runtime() or _is_qwen_runtime():
         print(json.dumps({"decision": "deny", "reason": details or reason}))
         return 0
 
@@ -348,7 +359,9 @@ def main() -> int:
         return code
 
     runtime = (
-        "gemini"
+        "qwen"
+        if _is_qwen_runtime()
+        else "gemini"
         if _is_gemini_runtime()
         else "codex"
         if _is_codex_runtime()
@@ -382,10 +395,10 @@ def main() -> int:
         _jlog("session_dedup_skip", marker=str(marker_file))
         return _exit(0, reason="session_dedup")
 
-    # Deduplication: Gemini uses stop_hook_active from stdin
-    if runtime == "gemini" and hook_input.get("stop_hook_active"):
-        _jlog("gemini_dedup_skip")
-        return _exit(0, reason="gemini_dedup")
+    # Deduplication: Gemini and Qwen use stop_hook_active from stdin
+    if runtime in ("gemini", "qwen") and hook_input.get("stop_hook_active"):
+        _jlog(f"{runtime}_dedup_skip")
+        return _exit(0, reason=f"{runtime}_dedup")
 
     has_changes, changed_files, commit_instruction, details = build_commit_details(
         project_dir, commit_method=commit_method

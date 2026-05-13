@@ -20,6 +20,7 @@ def _run_hook(
     *,
     timestamp: str = "260425_120000",
     codex: bool = False,
+    qwen: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     env = {
         "HOME": str(tmp_path / "home"),
@@ -30,6 +31,11 @@ def _run_hook(
     }
     if codex:
         env["CODEX_THREAD_ID"] = "codex-test-thread"
+    if qwen:
+        # Qwen Code exports both QWEN_PROJECT_DIR and GEMINI_PROJECT_DIR; the
+        # hook must classify the session as Qwen rather than Gemini.
+        env["QWEN_PROJECT_DIR"] = str(project_dir)
+        env["GEMINI_PROJECT_DIR"] = str(project_dir)
 
     Path(env["HOME"]).mkdir(parents=True, exist_ok=True)
     Path(env["SASE_TMPDIR"]).mkdir(parents=True, exist_ok=True)
@@ -170,6 +176,22 @@ def test_codex_fallback_command_blocks_without_codex_project_dir(
     )
     assert "cd ../sase-telegram" in payload["reason"]
     assert payload["reason"] in result.stderr
+
+
+def test_qwen_json_reason_uses_deny_decision(tmp_path: Path) -> None:
+    project_dir = _make_project(tmp_path)
+    _make_dirty_repo(tmp_path / "sase-telegram")
+
+    result = _run_hook(project_dir, tmp_path, qwen=True)
+
+    assert result.returncode == 0
+    payload = json.loads(result.stdout)
+    assert payload["decision"] == "deny"
+    assert (
+        "Uncommitted changes detected in sibling repo(s): ../sase-telegram"
+        in payload["reason"]
+    )
+    assert "/sase_git_commit" not in payload["reason"]
 
 
 def test_multiple_dirty_sibling_repos_lists_all_and_repeats_workflow(

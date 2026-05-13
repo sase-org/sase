@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$QWEN_PROJECT_DIR\"/tools/sase_sibling_commit_stop_hook",
+            "timeout": 60000
+          }
+        ]
+      }
+    ]
+  }
+}

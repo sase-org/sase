@@ -9,4 +9,6 @@ below:
 The memory/long/llm_provider_hooks/codex.md file contains qwen code's hook documentation.
 
 **Qwen Code Hook Documentation**  
-The https://qwenlm.github.io/qwen-code-docs/en/users/features/hooks/ URL contains qwen code's hook documentation.
+The https://qwenlm.github.io/qwen-code-docs/en/users/features/hooks/ URL contains qwen code's hook documentation. Qwen
+Code fires the Claude-style `Stop` event (not Gemini's `AfterAgent`) and exports both `QWEN_PROJECT_DIR` and
+`GEMINI_PROJECT_DIR`, so Qwen-runtime detection must precede Gemini-runtime detection.

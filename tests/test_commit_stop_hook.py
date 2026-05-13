@@ -206,6 +206,9 @@ def test_claude_emit_block_returns_nonzero_with_details(capsys: object) -> None:
         patch(
             "sase.scripts.sase_commit_stop_hook._is_gemini_runtime", return_value=False
         ),
+        patch(
+            "sase.scripts.sase_commit_stop_hook._is_qwen_runtime", return_value=False
+        ),
     ):
         rc = _emit_block("generic reason", details="detailed instructions here")
 
@@ -213,3 +216,49 @@ def test_claude_emit_block_returns_nonzero_with_details(capsys: object) -> None:
     captured = capsys.readouterr()  # type: ignore[union-attr]
     assert captured.out == ""
     assert "detailed instructions here" in captured.err
+
+
+def test_qwen_emit_block_uses_deny_decision_like_gemini(capsys: object) -> None:
+    """Qwen (a Gemini fork) must emit the same deny-shaped JSON payload."""
+    with (
+        patch(
+            "sase.scripts.sase_commit_stop_hook._is_codex_runtime", return_value=False
+        ),
+        patch(
+            "sase.scripts.sase_commit_stop_hook._is_gemini_runtime", return_value=False
+        ),
+        patch("sase.scripts.sase_commit_stop_hook._is_qwen_runtime", return_value=True),
+    ):
+        rc = _emit_block("generic reason", details="detailed instructions here")
+
+    assert rc == 0
+    captured = capsys.readouterr()  # type: ignore[union-attr]
+    payload = json.loads(captured.out.strip())
+    assert payload["decision"] == "deny"
+    assert payload["reason"] == "detailed instructions here"
+
+
+def test_qwen_runtime_detection_excludes_gemini(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Qwen Code exports both QWEN_PROJECT_DIR and GEMINI_PROJECT_DIR; the
+    Gemini detector must yield to Qwen when both are present so the runtime
+    is labeled and dispatched as qwen."""
+    from sase.scripts.sase_commit_stop_hook import (
+        _is_gemini_runtime,
+        _is_qwen_runtime,
+    )
+
+    monkeypatch.setenv("QWEN_PROJECT_DIR", "/tmp")
+    monkeypatch.setenv("GEMINI_PROJECT_DIR", "/tmp")
+    assert _is_qwen_runtime() is True
+    assert _is_gemini_runtime() is False
+
+
+def test_resolve_project_dir_prefers_qwen_project_dir(monkeypatch, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """_resolve_project_dir should consult QWEN_PROJECT_DIR."""
+    from sase.scripts.sase_commit_stop_hook import _resolve_project_dir
+
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    monkeypatch.delenv("GEMINI_PROJECT_DIR", raising=False)
+    monkeypatch.delenv("CODEX_PROJECT_DIR", raising=False)
+    monkeypatch.setenv("QWEN_PROJECT_DIR", str(tmp_path))
+    assert _resolve_project_dir() == str(tmp_path)

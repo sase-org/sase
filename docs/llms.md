@@ -287,6 +287,20 @@ Qwen Code config is left in Qwen's normal locations (`~/.qwen/settings.json` and
 does not create a shadow Qwen home in the first implementation because local Qwen was unavailable during this phase, so
 no normal headless-run config mutation could be verified.
 
+### Stop Hook
+
+Qwen Code fires the Claude-style `Stop` event after each agent turn (not Gemini's `AfterAgent`). SASE registers
+`sase_commit_stop_hook` for that event in two places:
+
+- The global `~/.qwen/settings.json` (deployed from `~/.local/share/chezmoi/home/dot_qwen/settings.json`) so every Qwen
+  session, regardless of cwd, runs the generic commit stop hook.
+- The repo-local `.qwen/settings.json` in this repo, which additionally runs `tools/sase_sibling_commit_stop_hook` so
+  sibling-repo dirty trees are caught during sase development.
+
+Qwen Code exports both `QWEN_PROJECT_DIR` and `GEMINI_PROJECT_DIR` (it is a Gemini fork). `sase_commit_stop_hook`
+detects Qwen first and labels the run `runtime: "qwen"` in `~/.sase_commit_stop_hook.jsonl`. The block payload uses the
+Gemini-family `{"decision": "deny", "reason": …}` shape, which Qwen Code honors per its hook contract.
+
 ### Timer Display
 
 While waiting for a response, a `gemini_timer("Waiting for Qwen")` spinner is shown (unless `suppress_output` is
