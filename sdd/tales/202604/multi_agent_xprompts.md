@@ -192,7 +192,7 @@ Functions:
       - Recurse into the resulting sub-segments with `max_depth - 1`.
       - Replace this segment with the resulting list.
     - Else: keep the segment as-is.
-  - On `max_depth == 0` and a hit: raise `MultiAgentXPromptDepthError`.
+  - On `max_depth == 0` and a hit: raise `_MultiAgentXPromptDepthError`.
   - Return the new flat list.
 
 **Exception class**: `MultiAgentXPromptUsageError` (raised when a multi-agent xprompt is referenced mid-segment;
@@ -250,7 +250,7 @@ Create `tests/test_multi_agent_xprompt.py`:
 - `---` inside fenced code blocks in xprompt body → not split.
 - Leading `%name:custom` on the call site attaches to first sub-segment only.
 - Local xprompts defined in user frontmatter resolve in every spawned segment.
-- Depth cap: a self-referential multi-agent xprompt → `MultiAgentXPromptDepthError`.
+- Depth cap: a self-referential multi-agent xprompt → `_MultiAgentXPromptDepthError`.
 
 Augment existing tests:
 

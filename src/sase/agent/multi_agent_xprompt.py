@@ -45,7 +45,7 @@ class MultiAgentXPromptUsageError(_MultiAgentXPromptError):
     """Raised when a multi-agent xprompt reference is ambiguous or invalid."""
 
 
-class MultiAgentXPromptDepthError(_MultiAgentXPromptError):
+class _MultiAgentXPromptDepthError(_MultiAgentXPromptError):
     """Raised when recursive multi-agent xprompt expansion exceeds the depth cap."""
 
 
@@ -402,7 +402,7 @@ def _expand_embedded_multi_agent_reference(
     max_depth: int,
 ) -> list[str]:
     if max_depth <= 0:
-        raise MultiAgentXPromptDepthError(
+        raise _MultiAgentXPromptDepthError(
             f"multi-agent xprompt expansion exceeded max depth at "
             f"#{ref.name} (possible self-reference)"
         )
@@ -447,12 +447,12 @@ def expand_multi_agent_xprompts(
     Recursion: each sub-segment is fed back through this function with
     ``max_depth - 1`` so a multi-agent xprompt can compose another multi-agent
     xprompt.  When *max_depth* is exhausted on a still-qualifying reference,
-    :class:`MultiAgentXPromptDepthError` is raised.
+    :class:`_MultiAgentXPromptDepthError` is raised.
 
     Raises:
         MultiAgentXPromptUsageError: A segment contains a multi-agent xprompt
             reference but isn't a sole top-level reference to it.
-        MultiAgentXPromptDepthError: Recursive expansion exceeded *max_depth*.
+        _MultiAgentXPromptDepthError: Recursive expansion exceeded *max_depth*.
     """
     # Fast path: if no segment contains '#', no xprompt reference is possible.
     if not any("#" in seg for seg in segments):
@@ -472,7 +472,7 @@ def expand_multi_agent_xprompts(
         call = extract_top_level_xprompt_reference(segment, available)
         if call is not None and call.name in multi_agent_names:
             if max_depth <= 0:
-                raise MultiAgentXPromptDepthError(
+                raise _MultiAgentXPromptDepthError(
                     f"multi-agent xprompt expansion exceeded max depth at "
                     f"#!{call.name} (possible self-reference)"
                 )
@@ -539,7 +539,7 @@ def expand_multi_agent_xprompts(
 
 
 __all__ = [
-    "MultiAgentXPromptDepthError",
+    "_MultiAgentXPromptDepthError",
     "MultiAgentXPromptUsageError",
     "expand_multi_agent_xprompts",
     "extract_top_level_xprompt_reference",
