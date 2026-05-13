@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 16:03:05
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_panel_highlight_reset.md
 ---
 # Stop stale row highlight after dynamic agent panel switches

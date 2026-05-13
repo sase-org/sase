@@ -253,6 +253,14 @@ class AgentList(OptionList, inherit_bindings=False):
         finally:
             self._programmatic_update = False
 
+    def clear_highlight(self) -> None:
+        """Clear highlight silently without moving the scroll viewport."""
+        self._programmatic_update = True
+        try:
+            self.highlighted = None
+        finally:
+            self._programmatic_update = False
+
     def _clear_programmatic_flag(self) -> None:
         """Clear programmatic update flag after event processing."""
         self._programmatic_update = False

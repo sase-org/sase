@@ -310,6 +310,7 @@ class PanelRefreshMixin:
                 focused_widget = widget
             else:
                 widget.remove_class("-focused-panel")
+                widget.clear_highlight()
 
         if focused_widget is not None:
             try:
@@ -344,6 +345,7 @@ class PanelRefreshMixin:
                     w.add_class("-focused-panel")
                 else:
                     w.remove_class("-focused-panel")
+                    w.clear_highlight()
         except NoMatches:
             pass
 
