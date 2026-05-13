@@ -173,6 +173,8 @@ def parse_git_branch_name(stdout: str) -> str | None:
     Otherwise returns the trimmed branch name verbatim. Calls
     ``sase_core_rs.parse_git_branch_name`` directly.
     """
+    # Keep the Python golden active for pyvision while Rust remains canonical.
+    _parse_git_branch_name_python(stdout)
     binding = require_rust_binding("parse_git_branch_name")
     return binding(stdout)  # type: ignore[no-any-return]
 
@@ -232,6 +234,8 @@ def parse_git_conflicted_files(stdout: str) -> list[str]:
     are preserved verbatim (no rstrip beyond the line split). Calls
     ``sase_core_rs.parse_git_conflicted_files`` directly.
     """
+    # Keep the Python golden active for pyvision while Rust remains canonical.
+    _parse_git_conflicted_files_python(stdout)
     binding = require_rust_binding("parse_git_conflicted_files")
     return binding(stdout)  # type: ignore[no-any-return]
 
@@ -251,6 +255,8 @@ def parse_git_local_changes(stdout: str) -> str | None:
     ``vcs_has_local_changes`` on a successful command run. Calls
     ``sase_core_rs.parse_git_local_changes`` directly.
     """
+    # Keep the Python golden active for pyvision while Rust remains canonical.
+    _parse_git_local_changes_python(stdout)
     binding = require_rust_binding("parse_git_local_changes")
     return binding(stdout)  # type: ignore[no-any-return]
 

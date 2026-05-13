@@ -70,7 +70,7 @@ def action_state_for_notification(
 ) -> str:
     """Return the mobile action state for a notification without mutating it."""
     current = time.time() if now is None else now
-    store = load_store(include_legacy=True)
+    store = _load_store(include_legacy=True)
     pending = next(
         (
             entry
@@ -85,7 +85,7 @@ def action_state_for_notification(
 
 def resolve_prefix(prefix: str, *, include_legacy: bool = True) -> _PrefixResolution:
     """Resolve a full notification id or unique notification-id prefix."""
-    store = load_store(include_legacy=include_legacy)
+    store = _load_store(include_legacy=include_legacy)
     ids = [
         str(entry.get("notification_id"))
         for entry in store.get("actions", {}).values()
@@ -106,28 +106,7 @@ def resolve_prefix(prefix: str, *, include_legacy: bool = True) -> _PrefixResolu
     return _PrefixResolution("", prefix, len(prefix), "ambiguous_prefix")
 
 
-def cleanup_stale_entries(*, now: float | None = None) -> list[str]:
-    """Remove stale pending entries and return removed prefixes."""
-    return _cleanup_stale_pending_actions(now=now)
-
-
-def _cleanup_stale_pending_actions(*, now: float | None = None) -> list[str]:
-    """Remove stale pending entries and return removed prefixes."""
-    current = time.time() if now is None else now
-    with _locked_store() as store:
-        actions = store["actions"]
-        stale = [
-            prefix
-            for prefix, entry in actions.items()
-            if isinstance(entry, dict)
-            and float(entry.get("stale_deadline_unix", 0.0)) <= current
-        ]
-        for prefix in stale:
-            actions.pop(prefix, None)
-        return stale
-
-
-def load_store(*, include_legacy: bool = False) -> dict[str, Any]:
+def _load_store(*, include_legacy: bool = False) -> dict[str, Any]:
     """Load the shared pending-action store."""
     store = _load_json(PENDING_ACTIONS_PATH)
     if not isinstance(store, dict) or "actions" not in store:
@@ -286,7 +265,7 @@ def _locked_store() -> Any:
     with lock_path.open("a+", encoding="utf-8") as lock_file:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
         try:
-            store = load_store()
+            store = _load_store()
             yield store
             _write_store(store)
         finally:
@@ -314,8 +293,6 @@ __all__ = [
     "LEGACY_TELEGRAM_PENDING_ACTIONS_PATH",
     "PENDING_ACTIONS_PATH",
     "action_state_for_notification",
-    "cleanup_stale_entries",
-    "load_store",
     "register_notification",
     "resolve_prefix",
 ]

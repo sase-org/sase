@@ -5,7 +5,6 @@ from __future__ import annotations
 from inline_snapshot import snapshot
 
 from sase.ace.query.parser import _parse_query_python
-from sase.ace.query.tokenizer import tokenize
 from sase.ace.query.types import to_canonical_string
 from sase.core.query_wire import (
     QueryExprWire,
@@ -16,8 +15,6 @@ from sase.core.query_wire import (
 from sase.core.query_wire_conversion import (
     query_expr_from_wire,
     _query_expr_to_wire,
-    token_from_wire,
-    _token_to_wire,
 )
 
 from tests._query_golden_corpus import GOLDEN_QUERIES
@@ -33,15 +30,6 @@ def test_query_program_wire_round_trip() -> None:
         # are not hashable, so we compare on the canonical form which is the
         # contract callers care about).
         assert to_canonical_string(rebuilt) == to_canonical_string(expr), q
-
-
-def test_token_wire_round_trip() -> None:
-    """Token wire conversion is invertible for every corpus query."""
-    for q in GOLDEN_QUERIES:
-        for original in tokenize(q):
-            wire = _token_to_wire(original)
-            rebuilt = token_from_wire(wire)
-            assert rebuilt == original, q
 
 
 def test_query_program_wire_snapshot() -> None:

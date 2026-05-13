@@ -69,7 +69,7 @@ class ChatInstallStatusResult:
     restart_succeeded: bool | None = None
 
 
-def load_chat_install_config() -> _ChatInstallConfig:
+def _load_chat_install_config() -> _ChatInstallConfig:
     """Read and normalize the ``chat_install`` merged-config section."""
     raw = load_merged_config().get("chat_install", {})
     if not isinstance(raw, dict):
@@ -120,7 +120,7 @@ def _resolve_registered_sase_workspace() -> Path | None:
 
 def start_chat_install_worker() -> ChatInstallLaunchResult:
     """Launch the detached chat install worker, returning chat-safe status."""
-    config = load_chat_install_config()
+    config = _load_chat_install_config()
     if not config.command:
         return ChatInstallLaunchResult(
             status="config_missing_command",
@@ -294,7 +294,7 @@ def _run_worker(
     try:
         _log("chat install worker started")
         _log(f"workspace: {workspace}")
-        config = load_chat_install_config()
+        config = _load_chat_install_config()
         if not config.command:
             _log("chat_install.command is empty; skipping stop/sync/install")
             exit_code = 2

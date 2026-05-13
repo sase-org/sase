@@ -5,7 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.ace.tui.actions.agents._loading_helpers import load_agents_from_disk
+from sase.ace.tui.actions.agents._loading_helpers import (
+    load_agents_from_disk_with_state,
+)
 from sase.ace.tui.models.agent_loader import AgentLoadState
 from sase.ace.tui.actions.agents._revive import AgentRevivalMixin
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -90,11 +92,11 @@ def test_load_agents_from_disk_hides_dismissed_identity_without_hiding_running_a
             return_value=[],
         ),
     ):
-        all_agents, dismissed_from_loader = load_agents_from_disk(dismissed_ids)
+        load_result = load_agents_from_disk_with_state(dismissed_ids)
 
-    assert all_agents == [dismissed_done, running_alias, visible]
-    assert dismissed_from_loader == [dismissed_done]
-    assert running_alias not in dismissed_from_loader
+    assert load_result.all_agents == [dismissed_done, running_alias, visible]
+    assert load_result.dismissed_from_loader == [dismissed_done]
+    assert running_alias not in load_result.dismissed_from_loader
 
 
 def test_startup_loader_does_not_hydrate_dismissed_archive() -> None:
@@ -112,7 +114,7 @@ def test_startup_loader_does_not_hydrate_dismissed_archive() -> None:
             return_value=[],
         ) as mock_dismissed_bundles,
     ):
-        load_agents_from_disk(set())
+        load_agents_from_disk_with_state(set())
 
     mock_dismissed_bundles.assert_not_called()
 

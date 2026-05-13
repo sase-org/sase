@@ -30,11 +30,8 @@ from sase.core.git_query_facade import (
     derive_git_workspace_name,
     _derive_git_workspace_name_python,
     parse_git_branch_name,
-    _parse_git_branch_name_python,
     parse_git_conflicted_files,
-    _parse_git_conflicted_files_python,
     parse_git_local_changes,
-    _parse_git_local_changes_python,
     parse_git_name_status_z,
     _parse_git_name_status_z_python,
     parse_git_numstat_z,
@@ -471,10 +468,15 @@ def test_rust_extension_parity_for_all_helpers() -> None:
         ]
         assert rust_flat == _parse_git_name_status_z_python(stdout)
 
-    for stdout in ["feature-x\n", "HEAD\n", "", "   \n", "  feat/x  \n"]:
-        assert rust_module.parse_git_branch_name(
-            stdout
-        ) == _parse_git_branch_name_python(stdout)
+    branch_cases = [
+        ("feature-x\n", "feature-x"),
+        ("HEAD\n", None),
+        ("", None),
+        ("   \n", None),
+        ("  feat/x  \n", "feat/x"),
+    ]
+    for stdout, expected in branch_cases:
+        assert rust_module.parse_git_branch_name(stdout) == expected
 
     workspace_pairs: list[tuple[str | None, str | None]] = [
         ("https://github.com/sase-org/sase_100.git", None),
@@ -490,12 +492,19 @@ def test_rust_extension_parity_for_all_helpers() -> None:
             remote, root
         ) == _derive_git_workspace_name_python(remote, root)
 
-    for stdout in ["", "src/a.py\n\nsrc/b.py\n", "z.py\na.py\nm.py\n", "\n\n   \n"]:
-        assert rust_module.parse_git_conflicted_files(
-            stdout
-        ) == _parse_git_conflicted_files_python(stdout)
+    conflicted_cases = [
+        ("", []),
+        ("src/a.py\n\nsrc/b.py\n", ["src/a.py", "src/b.py"]),
+        ("z.py\na.py\nm.py\n", ["z.py", "a.py", "m.py"]),
+        ("\n\n   \n", []),
+    ]
+    for stdout, expected in conflicted_cases:
+        assert rust_module.parse_git_conflicted_files(stdout) == expected
 
-    for stdout in ["", "   \n", "M src/a.py\n?? new.py\n"]:
-        assert rust_module.parse_git_local_changes(
-            stdout
-        ) == _parse_git_local_changes_python(stdout)
+    local_changes_cases = [
+        ("", None),
+        ("   \n", None),
+        ("M src/a.py\n?? new.py\n", "M src/a.py\n?? new.py"),
+    ]
+    for stdout, expected in local_changes_cases:
+        assert rust_module.parse_git_local_changes(stdout) == expected

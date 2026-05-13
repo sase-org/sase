@@ -1,8 +1,8 @@
 """Phase-5 wiring tests for the agent loader.
 
-Verifies that ``load_agents_from_disk`` accepts a pre-fetched ChangeSpec
-snapshot and forwards it through to ``load_all_agents`` so the loader
-does not call ``find_all_changespecs()`` itself.
+Verifies that ``load_agents_from_disk_with_state`` accepts a pre-fetched
+ChangeSpec snapshot and forwards it through to ``load_all_agents`` so the
+loader does not call ``find_all_changespecs()`` itself.
 """
 
 from __future__ import annotations
@@ -12,7 +12,6 @@ from unittest.mock import patch
 
 from sase.ace.changespec import ChangeSpec
 from sase.ace.tui.actions.agents._loading_helpers import (
-    load_agents_from_disk,
     load_agents_from_disk_with_state,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -101,7 +100,7 @@ def test_load_agents_from_disk_passes_snapshot_through() -> None:
             return_value=[],
         ),
     ):
-        load_agents_from_disk(set(), changespec_snapshot=snapshot)
+        load_agents_from_disk_with_state(set(), changespec_snapshot=snapshot)
 
     mock_find.assert_not_called()
 
@@ -154,7 +153,7 @@ def test_load_agents_from_disk_falls_back_to_find_all() -> None:
             return_value=[],
         ),
     ):
-        load_agents_from_disk(set())
+        load_agents_from_disk_with_state(set())
 
     mock_find.assert_called_once()
 
@@ -169,11 +168,11 @@ def test_load_agents_from_disk_preserves_meta_tag_without_persisted_tag() -> Non
         ),
         patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
     ):
-        loaded, dismissed = load_agents_from_disk(set())
+        load_result = load_agents_from_disk_with_state(set())
 
-    assert dismissed == []
-    assert loaded == [agent]
-    assert loaded[0].tag == "sase-26"
+    assert load_result.dismissed_from_loader == []
+    assert load_result.all_agents == [agent]
+    assert load_result.all_agents[0].tag == "sase-26"
 
 
 def test_load_agents_from_disk_persisted_tag_overrides_meta_tag() -> None:
@@ -189,11 +188,11 @@ def test_load_agents_from_disk_persisted_tag_overrides_meta_tag() -> None:
             return_value={agent.identity: "manual"},
         ),
     ):
-        loaded, dismissed = load_agents_from_disk(set())
+        load_result = load_agents_from_disk_with_state(set())
 
-    assert dismissed == []
-    assert loaded == [agent]
-    assert loaded[0].tag == "manual"
+    assert load_result.dismissed_from_loader == []
+    assert load_result.all_agents == [agent]
+    assert load_result.all_agents[0].tag == "manual"
 
 
 def test_load_agents_from_disk_uses_artifact_index_for_initial_tier(

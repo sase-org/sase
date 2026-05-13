@@ -12,7 +12,7 @@ from sase.ace.tui_activity import (
     _IDLE_GUARD_SECONDS,
     _PID_MISSING_GUARD_SECONDS,
     _is_tui_running,
-    _is_idle,
+    is_idle,
     remove_idle_state,
     remove_last_keypress,
     remove_tui_pid,
@@ -201,7 +201,7 @@ def test_is_idle_true_when_tui_not_running_no_state_file(tmp_path: Path) -> None
         patch("sase.ace.tui_activity._is_tui_running", return_value=False),
     ):
         # No idle_state file → idle
-        assert _is_idle() is True
+        assert is_idle() is True
 
 
 def test_is_idle_true_when_state_file_missing(tmp_path: Path) -> None:
@@ -210,7 +210,7 @@ def test_is_idle_true_when_state_file_missing(tmp_path: Path) -> None:
         _patch_last_keypress_file(tmp_path),
         patch("sase.ace.tui_activity._is_tui_running", return_value=True),
     ):
-        assert _is_idle() is True
+        assert is_idle() is True
 
 
 def test_is_idle_true_when_state_says_idle(tmp_path: Path) -> None:
@@ -220,7 +220,7 @@ def test_is_idle_true_when_state_says_idle(tmp_path: Path) -> None:
         patch("sase.ace.tui_activity._is_tui_running", return_value=True),
     ):
         write_idle_state(True)
-        assert _is_idle() is True
+        assert is_idle() is True
 
 
 def test_is_idle_false_when_state_says_active(tmp_path: Path) -> None:
@@ -230,7 +230,7 @@ def test_is_idle_false_when_state_says_active(tmp_path: Path) -> None:
         patch("sase.ace.tui_activity._is_tui_running", return_value=True),
     ):
         write_idle_state(False)
-        assert _is_idle() is False
+        assert is_idle() is False
 
 
 def test_is_idle_true_after_state_transitions_to_idle(tmp_path: Path) -> None:
@@ -240,9 +240,9 @@ def test_is_idle_true_after_state_transitions_to_idle(tmp_path: Path) -> None:
         patch("sase.ace.tui_activity._is_tui_running", return_value=True),
     ):
         write_idle_state(False)
-        assert _is_idle() is False
+        assert is_idle() is False
         write_idle_state(True)
-        assert _is_idle() is True
+        assert is_idle() is True
 
 
 def test_is_idle_true_after_state_file_removed(tmp_path: Path) -> None:
@@ -252,9 +252,9 @@ def test_is_idle_true_after_state_file_removed(tmp_path: Path) -> None:
         patch("sase.ace.tui_activity._is_tui_running", return_value=True),
     ):
         write_idle_state(False)
-        assert _is_idle() is False
+        assert is_idle() is False
         remove_idle_state()
-        assert _is_idle() is True
+        assert is_idle() is True
 
 
 # ── missing PID file with active state ───────────────────────────
@@ -271,7 +271,7 @@ def test_is_idle_false_when_pid_missing_but_state_active_and_recent_keypress(
     ):
         write_idle_state(False)
         write_last_keypress(time.time())
-        assert _is_idle() is False
+        assert is_idle() is False
 
 
 def test_is_idle_true_when_pid_missing_state_active_but_old_keypress(
@@ -285,7 +285,7 @@ def test_is_idle_true_when_pid_missing_state_active_but_old_keypress(
     ):
         write_idle_state(False)
         write_last_keypress(time.time() - _PID_MISSING_GUARD_SECONDS - 10)
-        assert _is_idle() is True
+        assert is_idle() is True
 
 
 def test_is_idle_true_when_pid_missing_state_active_keypress_past_short_guard(
@@ -304,7 +304,7 @@ def test_is_idle_true_when_pid_missing_state_active_keypress_past_short_guard(
     ):
         write_idle_state(False)
         write_last_keypress(time.time() - 60)
-        assert _is_idle() is True
+        assert is_idle() is True
 
 
 def test_is_idle_true_when_pid_missing_state_active_no_keypress(
@@ -317,7 +317,7 @@ def test_is_idle_true_when_pid_missing_state_active_no_keypress(
         patch("sase.ace.tui_activity._is_tui_running", return_value=False),
     ):
         write_idle_state(False)
-        assert _is_idle() is True
+        assert is_idle() is True
 
 
 # ── keypress guard ────────────────────────────────────────────────
@@ -334,7 +334,7 @@ def test_is_idle_false_when_keypress_recent(tmp_path: Path) -> None:
         write_idle_state(True)
         # Keypress just happened
         write_last_keypress(time.time())
-        assert _is_idle() is False
+        assert is_idle() is False
 
 
 def test_is_idle_true_when_keypress_old_enough(tmp_path: Path) -> None:
@@ -348,7 +348,7 @@ def test_is_idle_true_when_keypress_old_enough(tmp_path: Path) -> None:
         write_idle_state(True)
         # Keypress was a long time ago (> _IDLE_GUARD_SECONDS)
         write_last_keypress(time.time() - _IDLE_GUARD_SECONDS - 10)
-        assert _is_idle() is True
+        assert is_idle() is True
 
 
 def test_is_idle_true_when_no_keypress_file(tmp_path: Path) -> None:
@@ -361,7 +361,7 @@ def test_is_idle_true_when_no_keypress_file(tmp_path: Path) -> None:
     ):
         write_idle_state(True)
         # No keypress file — guard does not apply
-        assert _is_idle() is True
+        assert is_idle() is True
 
 
 def test_is_idle_true_when_keypress_is_zero(tmp_path: Path) -> None:
@@ -374,7 +374,7 @@ def test_is_idle_true_when_keypress_is_zero(tmp_path: Path) -> None:
     ):
         write_idle_state(True)
         write_last_keypress(0)
-        assert _is_idle() is True
+        assert is_idle() is True
 
 
 def test_write_last_keypress_creates_file(tmp_path: Path) -> None:

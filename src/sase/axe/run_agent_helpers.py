@@ -584,28 +584,3 @@ def merge_qa_for_prompt(rounds: list[QARound]) -> str:
 
     body = build_merged_qa_markdown(rounds)
     return f"%xprompts_enabled:false\n{body}\n%xprompts_enabled:true"
-
-
-def _format_qa_for_prompt(
-    questions: list[dict[str, Any]],
-    response: dict[str, Any],
-) -> str:
-    """Render a single Q&A round as markdown for prompt appending.
-
-    Single-round convenience: builds one :class:`QARound` from the
-    given questions + response and delegates to
-    :func:`merge_qa_for_prompt`. Multi-round callers should accumulate
-    :class:`QARound` instances and render via :func:`merge_qa_for_prompt`
-    directly.
-
-    Includes every option (with checkbox state) so the follow-up agent
-    can see the full ballot, not just the picked label.
-
-    The output is wrapped in ``%xprompts_enabled:false`` /
-    ``%xprompts_enabled:true`` markers so user-supplied free text in
-    answers, custom feedback, or the global note is not subject to
-    xprompt expansion (e.g. a literal ``#some_name`` in an answer is
-    preserved verbatim). The markers are stripped before the agent
-    sees the prompt.
-    """
-    return merge_qa_for_prompt([build_qa_round(questions, response)])

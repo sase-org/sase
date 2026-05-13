@@ -27,7 +27,7 @@ def _notification(
     )
 
 
-def test_register_resolve_and_cleanup_shared_pending_action_store(
+def test_register_and_resolve_shared_pending_action_store(
     tmp_path: Path,
 ) -> None:
     store_path = tmp_path / "pending_actions" / "actions.json"
@@ -40,12 +40,6 @@ def test_register_resolve_and_cleanup_shared_pending_action_store(
 
         assert pending_actions.resolve_prefix("abcdef01").notification_id == n1.id
         assert pending_actions.resolve_prefix("abcdef").resolution == "ambiguous_prefix"
-
-        removed = pending_actions.cleanup_stale_entries(
-            now=10.0 + pending_actions.STALE_THRESHOLD_SECONDS + 1
-        )
-        assert removed == ["abcdef01", "abcdef02"]
-        assert pending_actions.load_store()["actions"] == {}
 
 
 def test_pending_action_state_detects_external_handled_and_stale(
@@ -105,7 +99,7 @@ def test_legacy_telegram_pending_actions_are_compatibility_source(
             legacy_path,
         ),
     ):
-        store = pending_actions.load_store(include_legacy=True)
+        store = pending_actions._load_store(include_legacy=True)
 
     entry = store["actions"]["abcd1234"]
     assert entry["notification_id"] == "abcd1234-full"

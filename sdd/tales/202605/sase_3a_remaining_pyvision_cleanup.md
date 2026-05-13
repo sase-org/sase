@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 14:03:13
-status: wip
+status: done
 prompt: sdd/prompts/202605/sase_3a_remaining_pyvision_cleanup.md
 ---
 # Plan: Finish sase-3a Pyvision Cleanup Verification

@@ -77,9 +77,10 @@ def test_mutation_facade_jsonl_matches_python_after_each_operation(
 
         monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:04:00Z")
         project.update(py_child.id, status="open")
-        rust_opened, _ = rust_beads._open_issue(
+        rust_opened, _ = rust_beads.update(
             rust_root / "sdd/beads",
             rust_child.id,
+            status="open",
             now="2026-01-01T00:04:00Z",
         )
         assert rust_opened.status == Status.OPEN

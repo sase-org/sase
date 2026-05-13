@@ -13,8 +13,6 @@ import pytest
 from sase.core.agent_launch_facade import (
     LaunchTimestampBatchAllocator,
     _allocate_launch_timestamp_batch,
-    _fake_output_path,
-    _fake_prompt_path,
     plan_agent_launch_fanout,
     plan_fake_fanout,
     prepare_agent_launch,
@@ -114,6 +112,8 @@ def test_prepare_agent_launch_rust_writes_prompt_and_returns_process_shape(
 
     assert Path(prepared.prompt_file).read_text() == "fix it"
     assert Path(prepared.prompt_file).parent == prompt_root
+    assert Path(prepared.prompt_file).name.startswith("sase_ace_prompt_")
+    assert Path(prepared.prompt_file).suffix == ".md"
     assert prepared.output_path == str(
         output_root / "feature_test_ace-run-260501_120000.txt"
     )
@@ -486,11 +486,5 @@ def test_launch_timestamp_allocator_tracks_previous_batch(
         assert allocator.allocate(2) == ["260501_120002", "260501_120003"]
 
 
-def test_fake_paths_match_launch_safe_name_contract(tmp_path: Path) -> None:
+def test_safe_launch_name_matches_launch_path_contract() -> None:
     assert safe_launch_name("feature/test:1") == "feature_test_1"
-    assert _fake_prompt_path(tmp_path, "260501_120000").endswith(
-        "sase_ace_prompt_260501_120000.md"
-    )
-    assert _fake_output_path(tmp_path, "feature/test", "260501_120000").endswith(
-        "feature_test_ace-run-260501_120000.txt"
-    )

@@ -37,6 +37,7 @@ from typing import Any
 QUERY_WIRE_SCHEMA_VERSION = 1
 
 
+# pyvision: https://github.com/sase-org/sase-core.git
 @dataclass(frozen=True)
 class QueryTokenWire:
     """Wire form of a single :class:`sase.ace.query.tokenizer.Token`.
@@ -111,6 +112,7 @@ class QueryExprWire:
     operands: tuple[QueryExprWire, ...] = ()
 
 
+# pyvision: https://github.com/sase-org/sase-core.git
 @dataclass(frozen=True)
 class QueryProgramWire:
     """Serializable representation of a compiled query.

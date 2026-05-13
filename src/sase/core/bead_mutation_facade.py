@@ -106,17 +106,6 @@ def preclaim_epic_work(
     return issues_from_list(payload.get("issues", [])), rollback, payload
 
 
-def _open_issue(
-    beads_dir: Path | str,
-    issue_id: str,
-    *,
-    now: str | None = None,
-) -> tuple[Issue, dict[str, Any]]:
-    binding = require_rust_binding("bead_open")
-    payload = _call_issue_operation(binding, str(beads_dir), issue_id, now)
-    return _issue_payload(payload), payload
-
-
 def close(
     beads_dir: Path | str,
     issue_ids: list[str],

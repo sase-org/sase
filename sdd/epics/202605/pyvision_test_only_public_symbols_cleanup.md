@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 18:35:00
-status: wip
+status: done
 bead_id: sase-3a
 tier: epic
 ---

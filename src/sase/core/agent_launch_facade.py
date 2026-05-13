@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import fcntl
-import os
 from pathlib import Path
 
 from sase.core.agent_launch_wire import (
@@ -188,18 +187,6 @@ def plan_fake_fanout(
         fanout_sleep_seconds=fanout_sleep_seconds,
         requires_sequential_naming_wait=requires_sequential_naming_wait,
     )
-
-
-def _fake_output_path(root: Path, cl_name: str, timestamp: str) -> str:
-    """Return the launch output path shape without touching global state."""
-
-    return str(root / f"{safe_launch_name(cl_name)}_ace-run-{timestamp}.txt")
-
-
-def _fake_prompt_path(root: Path, timestamp: str) -> str:
-    """Return a deterministic fake prompt file path for tests/benchmarks."""
-
-    return os.fspath(root / f"sase_ace_prompt_{timestamp}.md")
 
 
 __all__ = [

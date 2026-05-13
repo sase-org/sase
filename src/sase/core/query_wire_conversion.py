@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from sase.ace.query.tokenizer import Token, TokenType
 from sase.ace.query.types import (
     AndExpr,
     NotExpr,
@@ -26,67 +25,7 @@ from sase.core.query_wire import (
     EXPR_KIND_PROPERTY,
     EXPR_KIND_STRING,
     QueryExprWire,
-    QueryTokenWire,
-    TOKEN_KIND_AND,
-    TOKEN_KIND_ANY_SPECIAL,
-    TOKEN_KIND_EOF,
-    TOKEN_KIND_ERROR_SUFFIX,
-    TOKEN_KIND_LPAREN,
-    TOKEN_KIND_NOT,
-    TOKEN_KIND_NOT_ERROR_SUFFIX,
-    TOKEN_KIND_NOT_RUNNING_AGENT,
-    TOKEN_KIND_NOT_RUNNING_PROCESS,
-    TOKEN_KIND_OR,
-    TOKEN_KIND_PROPERTY,
-    TOKEN_KIND_RPAREN,
-    TOKEN_KIND_RUNNING_AGENT,
-    TOKEN_KIND_RUNNING_PROCESS,
-    TOKEN_KIND_STRING,
 )
-
-_TOKEN_TYPE_TO_WIRE: dict[TokenType, str] = {
-    TokenType.STRING: TOKEN_KIND_STRING,
-    TokenType.PROPERTY: TOKEN_KIND_PROPERTY,
-    TokenType.AND: TOKEN_KIND_AND,
-    TokenType.OR: TOKEN_KIND_OR,
-    TokenType.NOT: TOKEN_KIND_NOT,
-    TokenType.ERROR_SUFFIX: TOKEN_KIND_ERROR_SUFFIX,
-    TokenType.NOT_ERROR_SUFFIX: TOKEN_KIND_NOT_ERROR_SUFFIX,
-    TokenType.RUNNING_AGENT: TOKEN_KIND_RUNNING_AGENT,
-    TokenType.NOT_RUNNING_AGENT: TOKEN_KIND_NOT_RUNNING_AGENT,
-    TokenType.RUNNING_PROCESS: TOKEN_KIND_RUNNING_PROCESS,
-    TokenType.NOT_RUNNING_PROCESS: TOKEN_KIND_NOT_RUNNING_PROCESS,
-    TokenType.ANY_SPECIAL: TOKEN_KIND_ANY_SPECIAL,
-    TokenType.LPAREN: TOKEN_KIND_LPAREN,
-    TokenType.RPAREN: TOKEN_KIND_RPAREN,
-    TokenType.EOF: TOKEN_KIND_EOF,
-}
-
-_WIRE_TO_TOKEN_TYPE: dict[str, TokenType] = {
-    v: k for k, v in _TOKEN_TYPE_TO_WIRE.items()
-}
-
-
-def _token_to_wire(token: Token) -> QueryTokenWire:
-    """Project a tokenizer :class:`Token` to its wire record."""
-    return QueryTokenWire(
-        kind=_TOKEN_TYPE_TO_WIRE[token.type],
-        value=token.value,
-        position=token.position,
-        case_sensitive=token.case_sensitive,
-        property_key=token.property_key,
-    )
-
-
-def token_from_wire(wire: QueryTokenWire) -> Token:
-    """Inverse of :func:`_token_to_wire`."""
-    return Token(
-        type=_WIRE_TO_TOKEN_TYPE[wire.kind],
-        value=wire.value,
-        case_sensitive=wire.case_sensitive,
-        position=wire.position,
-        property_key=wire.property_key,
-    )
 
 
 def _query_expr_to_wire(expr: QueryExpr) -> QueryExprWire:
@@ -118,12 +57,12 @@ def _query_expr_to_wire(expr: QueryExpr) -> QueryExprWire:
     if isinstance(expr, AndExpr):
         return QueryExprWire(
             kind=EXPR_KIND_AND,
-        operands=tuple(_query_expr_to_wire(op) for op in expr.operands),
+            operands=tuple(_query_expr_to_wire(op) for op in expr.operands),
         )
     if isinstance(expr, OrExpr):
         return QueryExprWire(
             kind=EXPR_KIND_OR,
-        operands=tuple(_query_expr_to_wire(op) for op in expr.operands),
+            operands=tuple(_query_expr_to_wire(op) for op in expr.operands),
         )
     raise TypeError(f"Unknown query expression type: {type(expr)!r}")
 

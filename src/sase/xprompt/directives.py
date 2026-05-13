@@ -22,8 +22,7 @@ The implementation is split across a few private sibling modules:
 
 This module is the public entry point and owns
 :func:`extract_prompt_directives` plus the cheap ``has_*_directive``
-predicates.  It re-exports the private helpers that existing tests
-import from ``sase.xprompt.directives``.
+predicates.
 """
 
 import re
@@ -66,18 +65,6 @@ __all__ = [
     "split_prompt_for_alternatives",
     "split_prompt_for_models",
 ]
-
-
-def _has_wait_directive(prompt: str) -> bool:
-    """Quick check whether a prompt contains ``%wait`` or ``%w`` directives.
-
-    This avoids the overhead of full xprompt expansion and is suitable for
-    early detection in the agent launcher.
-    """
-    return _has_protected_directive_match(
-        prompt,
-        r"(?:^|\s)%(?:wait|w)(?:[:+(]|\s|$)",
-    )
 
 
 def has_deferred_start_directive(prompt: str) -> bool:

@@ -84,29 +84,6 @@ def is_axe_spawned_agent(agent: Agent) -> bool:
     return False
 
 
-def load_agents_from_disk(
-    dismissed_agents: set[tuple[AgentType, str, str | None]],
-    *,
-    changespec_snapshot: list[ChangeSpec] | None = None,
-) -> tuple[list[Agent], list[Agent]]:
-    """Load agents from disk (thread-safe, no app state mutation).
-
-    Args:
-        dismissed_agents: Snapshot of dismissed agent identities.
-        changespec_snapshot: Optional pre-fetched ChangeSpec list. When
-            supplied, the loader skips its own ``find_all_changespecs()``
-            call and reuses this snapshot for bug/CL lookups.
-
-    Returns:
-        Tuple of (all_agents, dismissed_from_loader).
-    """
-    with tui_trace("agents.load_from_disk"):
-        result = _load_agents_from_disk_impl(
-            dismissed_agents, changespec_snapshot=changespec_snapshot
-        )
-    return result.all_agents, result.dismissed_from_loader
-
-
 def load_agents_from_disk_with_state(
     dismissed_agents: set[tuple[AgentType, str, str | None]],
     *,

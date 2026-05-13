@@ -16,7 +16,9 @@ import pytest
 
 from sase.ace.tui.actions.agents import _loading
 from sase.ace.tui.actions.agents._loading import AgentLoadingMixin
-from sase.ace.tui.actions.agents._loading_helpers import load_agents_from_disk
+from sase.ace.tui.actions.agents._loading_helpers import (
+    load_agents_from_disk_with_state,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import AgentLoadState
 
@@ -192,10 +194,10 @@ def test_load_agents_from_disk_does_not_include_bundle_only_archive_rows() -> No
             return_value=[bundled],
         ) as mock_dismissed_bundles,
     ):
-        all_agents, dismissed_from_loader = load_agents_from_disk(set())
+        load_result = load_agents_from_disk_with_state(set())
 
-    assert all_agents == []
-    assert dismissed_from_loader == []
+    assert load_result.all_agents == []
+    assert load_result.dismissed_from_loader == []
     mock_dismissed_bundles.assert_not_called()
 
 

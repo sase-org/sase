@@ -163,6 +163,12 @@ def _is_tui_running() -> bool:
     return True
 
 
+# pyvision: docs/ace.md
+def is_idle() -> bool:
+    """Return True if the user is idle."""
+    return _is_idle()
+
+
 def _is_idle() -> bool:
     """Return True if the user is idle.
 
