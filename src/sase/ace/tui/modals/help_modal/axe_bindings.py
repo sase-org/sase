@@ -1,0 +1,125 @@
+"""Axe tab keybinding sections for the help modal."""
+
+from ...keymaps import KeymapRegistry, key_display_name
+from .binding_common import Sections, custom_mode_sections, sk
+
+
+def axe_bindings(km: KeymapRegistry) -> Sections:
+    """Build keybinding sections for the AXE tab."""
+    d = key_display_name
+    a = km.app
+    lm = km.leader_mode
+    bm = km.bang_mode
+    cm = km.copy_mode
+
+    axe_copy = cm.keys["axe"]
+    assert isinstance(axe_copy, dict)
+
+    sections: Sections = [
+        (
+            "Navigation",
+            [
+                (
+                    f"{d(a.next_changespec)} / {d(a.prev_changespec)}",
+                    "Move to next / previous command",
+                ),
+                (d(a.jump_to_entry), "Jump to entry (' first/back)"),
+                (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
+                (
+                    f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",
+                    "Next / previous chop run",
+                ),
+                (d(a.scroll_to_top), "Scroll to top"),
+                (d(a.scroll_to_bottom), "Scroll to bottom"),
+            ],
+        ),
+        (
+            "Background Commands",
+            [
+                (d(a.start_custom_agent), "Run agent"),
+                (d(a.show_agent_run_log), "Agent run log"),
+                (d(a.open_agent_cleanup_panel), "Clear output"),
+                (d(a.run_workflow), "Run chop, or re-run done bgcmd"),
+            ],
+        ),
+        (
+            f"Leader Mode ({d(lm.prefix)})",
+            [
+                (f"{d(lm.prefix)}{d(sk(lm.keys, 'agent_home'))}", "Run agent (home)"),
+                (f"{d(lm.prefix)}{d(sk(lm.keys, 'runners'))}", "Show runners info"),
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'prompt_history'))}",
+                    "Prompt history (last CL)",
+                ),
+                (
+                    f"{d(lm.prefix)} {d(sk(lm.keys, 'prompt_history_edit_first'))}",
+                    "Edit first prompt history entry",
+                ),
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'prompt_history_cancelled'))}",
+                    "Prompt history (+cancelled)",
+                ),
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'activity_info'))}",
+                    "Activity dashboard",
+                ),
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'temporary_llm_override'))}",
+                    "Temporary model override",
+                ),
+            ],
+        ),
+        (
+            f"Bang Mode ({d(bm.prefix)})",
+            [
+                (
+                    f"{d(bm.prefix)}{d(sk(bm.keys, 'run_cmd'))}",
+                    "Run background command",
+                ),
+                (
+                    f"{d(bm.prefix)}{d(sk(bm.keys, 'toggle_axe'))}",
+                    "Start / stop axe (or select process)",
+                ),
+            ],
+        ),
+        (
+            f"Copy Mode ({d(cm.prefix)})",
+            [
+                (f"{d(cm.prefix)}{d(axe_copy['visible'])}", "Copy visible output"),
+                (f"{d(cm.prefix)}{d(axe_copy['full'])}", "Copy full output"),
+                (f"{d(cm.prefix)}{d(axe_copy['snapshot'])}", "Copy sase ace snapshot"),
+            ],
+        ),
+        (
+            "Axe Control",
+            [
+                (d(a.kill_agent), "Start / stop axe (or kill command)"),
+                (d(a.open_agent_cleanup_panel), "Clear output"),
+                (d(a.stop_axe_and_quit), "Stop axe and quit"),
+            ],
+        ),
+    ]
+    # Insert custom mode sections before "General".
+    sections.extend(custom_mode_sections(km))
+    sections.append(
+        (
+            "General",
+            [
+                (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'mark_inactive'))}",
+                    "Toggle idle (any key clears)",
+                ),
+                (d(a.mark_inactive_pinned), "Toggle pinned idle (sticky)"),
+                (d(a.start_agent_from_changespec), "Repeat last @/Space selection"),
+                (d(a.browse_xprompts), "Browse xprompts"),
+                (d(a.show_notifications), "Show notifications"),
+                (d(a.dismiss_toasts), "Dismiss toasts"),
+                (d(a.refresh), "Refresh"),
+                (d(a.quit), "Quit"),
+                (d(a.open_command_palette), "Open command palette"),
+                (d(a.show_help), "Show this help"),
+            ],
+        ),
+    )
+    return sections

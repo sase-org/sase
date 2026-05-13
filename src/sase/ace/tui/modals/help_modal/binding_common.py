@@ -1,0 +1,62 @@
+"""Shared helpers and constants for help modal keybinding sections."""
+
+from typing import Literal
+
+from ...keymaps import BUILTIN_MODE_NAMES, KeymapRegistry, key_display_name
+
+TabName = Literal["changespecs", "agents", "axe"]
+
+# Box dimensions for consistent formatting
+BOX_WIDTH = 57  # Total box width in characters
+CONTENT_WIDTH = 50  # Inner content width (BOX_WIDTH - borders)
+
+# Type alias for binding sections
+Sections = list[tuple[str, list[tuple[str, str]]]]
+_Sections = Sections
+
+
+def sk(keys: dict[str, str | dict[str, str]], name: str) -> str:
+    """Extract a string value from a mode keys dict."""
+    v = keys[name]
+    assert isinstance(v, str)
+    return v
+
+
+_sk = sk
+
+
+def custom_mode_sections(km: KeymapRegistry) -> Sections:
+    """Build help sections for user-defined (non-builtin) custom modes."""
+    d = key_display_name
+    sections: Sections = []
+    for mode_name, mode in km.modes.items():
+        if mode_name in BUILTIN_MODE_NAMES:
+            continue
+        display_name = mode_name.replace("_", " ").title()
+        bindings: list[tuple[str, str]] = []
+        for action_name, spec in mode.keys.items():
+            if not isinstance(spec, dict):
+                continue
+            key = spec.get("key", "")
+            desc = spec.get("description", action_name)
+            bindings.append((f"{d(mode.prefix)}{d(key)}", desc))
+        if bindings:
+            sections.append((f"{display_name} ({d(mode.prefix)})", bindings))
+    return sections
+
+
+_custom_mode_sections = custom_mode_sections
+
+
+TAB_DISPLAY_NAMES = {
+    "changespecs": "CLs",
+    "agents": "Agents",
+    "axe": "Axe",
+}
+
+# Column split indices for each tab (left column gets indices < split, right gets >= split)
+COLUMN_SPLITS = {
+    "changespecs": 2,  # Left: Navigation, CL Actions; Right: rest
+    "agents": 3,  # Left: Navigation, Agent Actions, Workflow Folding; Right: rest
+    "axe": 3,  # Left: Navigation, BgCmds, Leader Mode; Right: rest
+}

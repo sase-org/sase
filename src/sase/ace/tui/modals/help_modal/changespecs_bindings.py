@@ -1,0 +1,272 @@
+"""ChangeSpec tab keybinding sections for the help modal."""
+
+from ...keymaps import KeymapRegistry, key_display_name
+from .binding_common import Sections, custom_mode_sections, sk
+
+
+def cls_bindings(km: KeymapRegistry) -> Sections:
+    """Build keybinding sections for the CLs tab."""
+    d = key_display_name
+    a = km.app
+    fm = km.fold_mode
+    lm = km.leader_mode
+    bm = km.bang_mode
+    cm = km.copy_mode
+
+    cs_copy = cm.keys["changespecs"]
+    assert isinstance(cs_copy, dict)
+
+    sections: Sections = [
+        (
+            "Navigation",
+            [
+                (
+                    f"{d(a.next_changespec)} / {d(a.prev_changespec)}",
+                    "Move to next / previous CL",
+                ),
+                (
+                    f"{d(a.start_ancestor_mode)} / {d(a.start_child_mode)} / {d(a.start_sibling_mode)}",
+                    "Navigate to ancestor / child / sibling",
+                ),
+                (
+                    f"{d(a.prev_changespec_history)} / {d(a.next_changespec_history)}",
+                    "Jump back / forward in history",
+                ),
+                (d(a.jump_to_entry), "Jump to entry (' first/back)"),
+                (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
+                (
+                    f"{d(a.scroll_detail_down)} / {d(a.scroll_detail_up)}",
+                    "Scroll detail panel down / up",
+                ),
+                (
+                    f"{d(a.scroll_to_top)} / {d(a.scroll_to_bottom)}",
+                    "Scroll detail panel to top / bottom",
+                ),
+            ],
+        ),
+        (
+            "CL Actions",
+            [
+                (d(a.accept_proposal), "Accept (! = spec only, @ = mail)"),
+                (d(a.rebase), "Rebase CL onto parent"),
+                (
+                    f"{d(a.checkout)} / {d(a.start_checkout_mode)}1-{d(a.start_checkout_mode)}9",
+                    "Checkout CL (workspace 1-9)",
+                ),
+                (d(a.show_diff), "Show diff"),
+                (d(a.edit_hooks), "Edit hooks"),
+                (d(a.hooks_or_collapse_all), "Add hooks from failed targets"),
+                (d(a.show_agent_run_log), "Agent run log"),
+                (d(a.mail), "Mail CL"),
+                (d(a.toggle_mark), "Mark/unmark current CL"),
+                (d(a.rename_cl), "Rename CL (non-Sub/Rev)"),
+                (d(a.start_rewind), "Rewind to prev commit (! skip VCS)"),
+                (d(a.change_status), "Change status"),
+                (d(a.bulk_change_status), "Bulk status change (marked CLs)"),
+                (d(a.start_tmux_mode), "Checkout + tmux (prompts ws#)"),
+                (d(a.clear_marks), "Clear all marks"),
+                (d(a.view_files), "View files"),
+                (d(a.reword), "Reword CL description"),
+                (d(a.add_tag), "Add tag to CL description"),
+                (d(a.sync), "Sync workspace"),
+                (d(a.edit_spec), "Edit spec file"),
+            ],
+        ),
+        (
+            f"Fold Mode ({d(fm.prefix)})",
+            [
+                (
+                    f"{d(fm.prefix)} {d(sk(fm.keys, 'cycle_commits'))}",
+                    "Cycle commits folding",
+                ),
+                (
+                    f"{d(fm.prefix)} {d(sk(fm.keys, 'cycle_hooks'))}",
+                    "Cycle hooks folding",
+                ),
+                (
+                    f"{d(fm.prefix)} {d(sk(fm.keys, 'cycle_mentors'))}",
+                    "Cycle mentors folding",
+                ),
+                (
+                    f"{d(fm.prefix)} {d(sk(fm.keys, 'cycle_timestamps'))}",
+                    "Cycle timestamps folding",
+                ),
+                (
+                    f"{d(fm.prefix)} {d(sk(fm.keys, 'cycle_deltas'))}",
+                    "Cycle deltas summary/files/lines",
+                ),
+                (
+                    f"{d(fm.prefix)} {d(sk(fm.keys, 'toggle_commits'))}",
+                    "Toggle commits collapsed/expanded",
+                ),
+                (
+                    f"{d(fm.prefix)} {d(sk(fm.keys, 'toggle_hooks'))}",
+                    "Toggle hooks collapsed/expanded",
+                ),
+                (
+                    f"{d(fm.prefix)} {d(sk(fm.keys, 'toggle_mentors'))}",
+                    "Toggle mentors collapsed/expanded",
+                ),
+                (
+                    f"{d(fm.prefix)} {d(sk(fm.keys, 'toggle_timestamps'))}",
+                    "Toggle timestamps collapsed/expanded",
+                ),
+                (
+                    f"{d(fm.prefix)} {d(sk(fm.keys, 'toggle_deltas'))}",
+                    "Toggle deltas folded/unfolded",
+                ),
+                (
+                    f"{d(fm.prefix)} {d(sk(fm.keys, 'cycle_all'))}",
+                    "Cycle all sections",
+                ),
+                (
+                    f"{d(fm.prefix)} {d(sk(fm.keys, 'toggle_all'))}",
+                    "Toggle all collapsed/expanded",
+                ),
+            ],
+        ),
+        (
+            "Workflows & Agents",
+            [
+                (d(a.run_workflow), "Run workflow"),
+                (d(a.start_custom_agent), "Run an agent"),
+                (d(a.start_agent_from_changespec), "Repeat last @/Space selection"),
+            ],
+        ),
+        (
+            f"Bang Mode ({d(bm.prefix)})",
+            [
+                (
+                    f"{d(bm.prefix)}{d(sk(bm.keys, 'run_cmd'))}",
+                    "Run background command",
+                ),
+                (
+                    f"{d(bm.prefix)}{d(sk(bm.keys, 'toggle_axe'))}",
+                    "Start / stop axe (or select process)",
+                ),
+            ],
+        ),
+        (
+            f"Leader Mode ({d(lm.prefix)})",
+            [
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'clear_comments'))}",
+                    "Clear COMMENTS field",
+                ),
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'run_cmd'))}",
+                    "Run command (use current CL)",
+                ),
+                (f"{d(lm.prefix)}{d(sk(lm.keys, 'agent_home'))}", "Run agent (home)"),
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'kill_mentors'))}",
+                    "Kill running mentors",
+                ),
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'review_mentors'))}",
+                    "Review mentor comments",
+                ),
+                (f"{d(lm.prefix)}{d(sk(lm.keys, 'runners'))}", "Show runners info"),
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'agent_from_cl'))}",
+                    "Run agent from current CL",
+                ),
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'prompt_history'))}",
+                    "Prompt history (last CL)",
+                ),
+                (
+                    f"{d(lm.prefix)} {d(sk(lm.keys, 'prompt_history_edit_first'))}",
+                    "Edit first prompt history entry",
+                ),
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'prompt_history_cancelled'))}",
+                    "Prompt history (+cancelled)",
+                ),
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'agent_run_log'))}",
+                    "Agent run log",
+                ),
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'task_queue'))}",
+                    "Task queue viewer",
+                ),
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'activity_info'))}",
+                    "Activity dashboard",
+                ),
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'temporary_llm_override'))}",
+                    "Temporary model override",
+                ),
+            ],
+        ),
+        (
+            "Queries",
+            [
+                (d(a.edit_query), "Edit search query"),
+                ("0-9", "Load saved query"),
+                (d(a.prev_query), "Previous query"),
+                (d(a.next_query), "Next query"),
+            ],
+        ),
+        (
+            "Grouping",
+            [
+                (
+                    f"{d(a.cycle_grouping_mode)} / {d(a.cycle_grouping_mode_reverse)}",
+                    "Cycle: proj→date→status",
+                ),
+                ("CL by date", "Today/Yesterday by 4h then hour; week/older unchanged"),
+                (
+                    f"{d(a.expand_or_layout)} / {d(a.hooks_or_collapse)}",
+                    "Expand/collapse group",
+                ),
+                (
+                    f"{d(a.expand_all_folds)} / {d(a.hooks_or_collapse_all)}",
+                    "Expand/collapse all",
+                ),
+            ],
+        ),
+        (
+            f"Copy Mode ({d(cm.prefix)})",
+            [
+                (f"{d(cm.prefix)}{d(cs_copy['raw'])}", "Copy ChangeSpec"),
+                (
+                    f"{d(cm.prefix)}{d(cs_copy['with_snapshot'])}",
+                    "Copy ChangeSpec + snapshot",
+                ),
+                (f"{d(cm.prefix)}{d(cs_copy['bug'])}", "Copy bug number"),
+                (f"{d(cm.prefix)}{d(cs_copy['cl_number'])}", "Copy CL number"),
+                (f"{d(cm.prefix)}{d(cs_copy['name'])}", "Copy CL name"),
+                (f"{d(cm.prefix)}{d(cs_copy['spec'])}", "Copy project spec file"),
+                (f"{d(cm.prefix)}{d(cs_copy['snapshot'])}", "Copy sase ace snapshot"),
+            ],
+        ),
+    ]
+    # Insert custom mode sections before "General".
+    sections.extend(custom_mode_sections(km))
+    sections.append(
+        (
+            "General",
+            [
+                (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'mark_inactive'))}",
+                    "Toggle idle (any key clears)",
+                ),
+                (d(a.mark_inactive_pinned), "Toggle pinned idle (sticky)"),
+                (d(a.toggle_hide_submitted), "Show/hide submitted CLs"),
+                (d(a.toggle_hide_reverted), "Show/hide reverted CLs"),
+                (d(a.browse_xprompts), "Browse xprompts"),
+                (d(a.show_notifications), "Show notifications"),
+                (d(a.dismiss_toasts), "Dismiss toasts"),
+                (d(a.stop_axe_and_quit), "Stop axe and quit"),
+                (d(a.refresh), "Refresh"),
+                (d(a.quit), "Quit"),
+                (d(a.open_command_palette), "Open command palette"),
+                (d(a.show_help), "Show this help"),
+            ],
+        ),
+    )
+    return sections
