@@ -11,10 +11,10 @@ from sase.bead.model import BeadTier, IssueType
 from sase.bead.project import BeadProject
 from sase.bead.work import (
     _LegendEpicAssignment,
+    _build_legend_work_plan,
     LegendPlanError,
     LegendWorkPlan,
     VCSLaunchContext,
-    build_legend_work_plan,
     build_legend_work_plan_from_beads_dir,
     render_legend_multi_prompt,
 )
@@ -27,7 +27,7 @@ class TestLegendWorkPlan:
     def test_builds_linear_epic_assignments(self, conn: sqlite3.Connection) -> None:
         seed(conn, [legend("l1", epic_count=3)])
 
-        plan = build_legend_work_plan(conn, "l1")
+        plan = _build_legend_work_plan(conn, "l1")
 
         assert isinstance(plan, LegendWorkPlan)
         assert plan.legend_id == "l1"
@@ -51,37 +51,37 @@ class TestLegendWorkPlan:
         seed(conn, [legend("l1", epic_count=None)])
 
         with pytest.raises(LegendPlanError, match="missing epic_count"):
-            build_legend_work_plan(conn, "l1")
+            _build_legend_work_plan(conn, "l1")
 
     def test_missing_design_path_raises(self, conn: sqlite3.Connection) -> None:
         seed(conn, [legend("l1", design="")])
 
         with pytest.raises(LegendPlanError, match="missing a design/plan file"):
-            build_legend_work_plan(conn, "l1")
+            _build_legend_work_plan(conn, "l1")
 
     def test_non_legend_plan_raises(self, conn: sqlite3.Connection) -> None:
         seed(conn, [epic("e1")])
 
         with pytest.raises(LegendPlanError, match="not a legend bead"):
-            build_legend_work_plan(conn, "e1")
+            _build_legend_work_plan(conn, "e1")
 
     def test_phase_target_raises(self, conn: sqlite3.Connection) -> None:
         seed(conn, [epic("e1"), phase("p1")])
 
         with pytest.raises(LegendPlanError, match="not a plan/legend bead"):
-            build_legend_work_plan(conn, "p1")
+            _build_legend_work_plan(conn, "p1")
 
     def test_land_model_flows_from_legend_bead(self, conn: sqlite3.Connection) -> None:
         seed(conn, [legend("l1", epic_count=2, model="claude/opus")])
 
-        plan = build_legend_work_plan(conn, "l1")
+        plan = _build_legend_work_plan(conn, "l1")
 
         assert plan.land_model == "claude/opus"
 
     def test_missing_model_defaults_to_empty(self, conn: sqlite3.Connection) -> None:
         seed(conn, [legend("l1", epic_count=1)])
 
-        plan = build_legend_work_plan(conn, "l1")
+        plan = _build_legend_work_plan(conn, "l1")
 
         assert plan.land_model == ""
 
@@ -108,7 +108,7 @@ class TestLegendWorkPlan:
 class TestLegendRendering:
     def test_renders_snapshot_without_vcs(self, conn: sqlite3.Connection) -> None:
         seed(conn, [legend("l1", epic_count=2)])
-        plan = build_legend_work_plan(conn, "l1")
+        plan = _build_legend_work_plan(conn, "l1")
 
         rendered = render_legend_multi_prompt(
             plan,
@@ -150,7 +150,7 @@ class TestLegendRendering:
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [legend("l1", epic_count=2)])
-        plan = build_legend_work_plan(conn, "l1")
+        plan = _build_legend_work_plan(conn, "l1")
 
         rendered = render_legend_multi_prompt(
             plan,
@@ -180,7 +180,7 @@ class TestLegendRendering:
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [legend("l1", epic_count=1)])
-        plan = build_legend_work_plan(conn, "l1")
+        plan = _build_legend_work_plan(conn, "l1")
 
         rendered = render_legend_multi_prompt(
             plan,
@@ -195,7 +195,7 @@ class TestLegendModelDirective:
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [legend("l1", epic_count=2, model="codex/gpt-5.5")])
-        plan = build_legend_work_plan(conn, "l1")
+        plan = _build_legend_work_plan(conn, "l1")
 
         assert plan.land_model == "codex/gpt-5.5"
 
@@ -221,7 +221,7 @@ class TestLegendModelDirective:
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [legend("l1", epic_count=1)])
-        plan = build_legend_work_plan(conn, "l1")
+        plan = _build_legend_work_plan(conn, "l1")
 
         assert plan.land_model == ""
         rendered = render_legend_multi_prompt(

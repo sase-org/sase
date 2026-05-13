@@ -115,7 +115,6 @@ _lint-pyvision: _setup
         --epic-symbol 'sase-3a(QueryErrorWire)' \
         --epic-symbol 'sase-3a(allocate_launch_timestamp_batch)' \
         --epic-symbol 'sase-3a(build_epic_work_plan)' \
-        --epic-symbol 'sase-3a(build_legend_work_plan)' \
         --epic-symbol 'sase-3a(build_query_program_wire)' \
         --epic-symbol 'sase-3a(build_wait_chained_multi_prompt)' \
         --epic-symbol 'sase-3a(cleanup_stale)' \

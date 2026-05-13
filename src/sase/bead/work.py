@@ -136,7 +136,7 @@ def build_epic_work_plan_from_beads_dir(
     return build_epic_work_plan(beads_dir, epic_id)
 
 
-def build_legend_work_plan(
+def _build_legend_work_plan(
     source: sqlite3.Connection | str | Path,
     legend_id: str,
 ) -> LegendWorkPlan:
@@ -157,7 +157,7 @@ def build_legend_work_plan_from_beads_dir(
     legend_id: str,
 ) -> LegendWorkPlan:
     """Compute a legend work plan directly from a bead store through Rust."""
-    return build_legend_work_plan(beads_dir, legend_id)
+    return _build_legend_work_plan(beads_dir, legend_id)
 
 
 def _build_epic_work_plan_from_issues(
