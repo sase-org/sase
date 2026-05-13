@@ -6,7 +6,8 @@ SASE treats files produced by agents as first-class completion artifacts. When a
 supported image file, the completion path records the image in `done.json` and appends it to the notification file list
 after the standard chat and diff artifacts, and after any generated Markdown PDFs. When a successful agent adds or
 modifies up to 10 Markdown files, core SASE renders PDF artifacts and attaches those PDFs to the same completion
-notification. Notification plugins can then deliver those files without re-scanning the workspace.
+notification. Explicit artifacts saved with `sase artifact create` are appended after generated images when the agent
+completion notification is sent. Notification plugins can then deliver those files without re-scanning the workspace.
 
 ACE is SASE's terminal UI. It has two image surfaces: lightweight in-panel previews for notification and file-panel
 attachments, and the separate `A` artifact viewer for opening completed agent artifacts.
@@ -98,11 +99,27 @@ Sources:
 - `src/sase/attachments/markdown_pdf.py`
 - `src/sase/axe/run_agent_exec.py`
 
+## Explicit Artifact Contract
+
+Agents can save a generated file explicitly with:
+
+```bash
+sase artifact create -p <path> [-n <label>] [-k <kind>]
+```
+
+The command moves the file into persistent SASE artifact storage, records an association with the current agent, and
+lets ACE show the artifact even after the agent is dismissed and later revived. During completion notification delivery,
+SASE appends existing explicit artifact files after chat, diff, generated Markdown PDFs, and generated image
+attachments. Duplicate paths and missing files are ignored, and explicit-artifact index failures do not fail the
+completion path.
+
+Source: `src/sase/core/agent_artifact_facade.py`
+
 ## Notification Delivery
 
-Core SASE stores generated PDFs and image attachments in the existing `Notification.files` list. There is no separate
-notification schema field for typed attachments yet. This keeps the contract compatible with existing notification
-storage and lets downstream plugins decide how to render each file:
+Core SASE stores generated PDFs, generated images, and explicit artifact attachments in the existing
+`Notification.files` list. There is no separate notification schema field for typed attachments yet. This keeps the
+contract compatible with existing notification storage and lets downstream plugins decide how to render each file:
 
 - Telegram integrations can send images as photos and keep markdown/diff files as documents.
 - Google Chat integrations can upload image files directly into the completion thread.

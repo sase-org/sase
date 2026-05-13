@@ -784,6 +784,11 @@ The repo-level `xprompts/` directory also ships standalone YAML workflows that a
 | `#!sase/audit_recent_bugs`         | `project`, `gh_ref`, `threshold` | Scheduled audit of recently filed bugs         |
 | `#!sase/audit_recent_improvements` | `project`, `gh_ref`, `threshold` | Scheduled audit of recently filed improvements |
 
+The `#!sase/fix_just` workflow runs `just install`, `just fmt-check`, `just lint`, and `just test`. When formatting
+fails, it runs `just fmt` and pushes the resulting commit directly when that produces staged changes. If lint or test
+checks fail, it launches separate `#gh:sase #pr(...)` repair agents for `fix_just_linters` and `fix_just_tests`, so
+those agents inherit the normal draft pull-request workflow context instead of working as detached repair prompts.
+
 The scheduled documentation refresh workflow lives in this repo as `xprompts/refresh_docs.yml` and is invoked as
 `#!sase/refresh_docs`. It accepts `project`, `gh_ref`, and `threshold`, defaulting to the main `sase` repo behavior
 (`project=sase`, `gh_ref=sase`, `threshold=50`). For scheduled checks in sibling repos, pass repo-specific values such

@@ -350,7 +350,9 @@ Successful runs also scan the agent workspace for generated image files (`.png`,
 Markdown files (`.md`, `.markdown`). When 10 or fewer Markdown sources are discovered after filtering, they are rendered
 to PDFs under the agent artifact directory, then the generated PDF paths are appended after the standard chat/diff
 notification attachments and before image attachments. The PDF list is persisted as `done.json.markdown_pdf_paths`; the
-image list is persisted as `done.json.image_paths`.
+image list is persisted as `done.json.image_paths`. Explicit artifacts created during the run with
+`sase artifact create -p <path> [-n <label>] [-k <kind>]` are appended after image attachments when their stored files
+still exist.
 
 The scan uses git name-status output, untracked files, saved diff metadata, and the latest commit when the agent
 committed or opened a PR. Deleted, missing, unsupported, and duplicate paths are ignored. If more than 10 Markdown

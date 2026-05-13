@@ -193,6 +193,7 @@ The modal supports live filtering as you type in the search box and displays las
 
 | Key        | Action                                                                                        |
 | ---------- | --------------------------------------------------------------------------------------------- |
+| `,,`       | Repeat the last leader command                                                                |
 | `,!`       | Run command using current CL context                                                          |
 | `,A`       | Open the Agent Run Log modal for the current CL                                               |
 | `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)                                |
@@ -573,6 +574,7 @@ Unread-completed actions operate on terminal rows that are loaded in the tab; `,
 
 | Key        | Action                                                                                        |
 | ---------- | --------------------------------------------------------------------------------------------- |
+| `,,`       | Repeat the last leader command                                                                |
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                       |
 | `,I`       | Toggle manual idle (shows IDLE indicator; any keypress re-activates)                          |
 | `,g`       | Toggle between tag-split panels and one merged agent panel                                    |
@@ -709,6 +711,7 @@ numerical identity.
 
 | Key  | Action                                                                                        |
 | ---- | --------------------------------------------------------------------------------------------- |
+| `,,` | Repeat the last leader command                                                                |
 | `,h` | Run agent from home prompt context; bare prompts default to `#git:home`                       |
 | `,P` | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
 | `,r` | Show runners info                                                                             |

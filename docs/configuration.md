@@ -86,6 +86,10 @@ ace:
       # ... all app-level keybindings are configurable
     modes:
       # Built-in modes (fold, copy, leader, bang) are configurable
+      leader_mode:
+        prefix: "comma"
+        keys:
+          repeat_last: "comma" # press the leader prefix twice to repeat the last leader command
       fold_mode:
         prefix: "z"
         keys:
