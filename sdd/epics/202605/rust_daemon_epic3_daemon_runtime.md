@@ -2,6 +2,9 @@
 create_time: 2026-05-13 18:55:53
 status: wip
 prompt: sdd/prompts/202605/rust_daemon_epic3_daemon_runtime.md
+bead_id: sase-3e.3
+tier: epic
+legend_bead_id: sase-3e
 ---
 # Epic 3 Plan - Daemon Runtime, Ownership, and Local Transport
 
