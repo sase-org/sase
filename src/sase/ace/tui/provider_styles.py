@@ -105,7 +105,7 @@ def _with_primary(style: _ProviderStyle, primary: str) -> _ProviderStyle:
     )
 
 
-def provider_style_for(provider: str | None) -> _ProviderStyle:
+def _provider_style_for(provider: str | None) -> _ProviderStyle:
     """Return a deterministic provider palette.
 
     Provider plugin metadata supplies the primary color. Built-in fallback
@@ -164,10 +164,10 @@ def provider_model_badge_markup(
     provider, display_model = _resolve_provider_and_model(llm_provider, model)
     if provider is None:
         label = format_provider_model_label(llm_provider, display_model)
-        style = provider_style_for(None)
+        style = _provider_style_for(None)
         return f"[{style.name_style}]{escape(label)}[/]"
 
-    style = provider_style_for(provider)
+    style = _provider_style_for(provider)
     provider_name = provider.upper()
     if display_model:
         return (
@@ -181,7 +181,7 @@ def provider_model_badge_markup(
 
 def provider_header_text(provider: str, model_count: int) -> Text:
     """Render a compact provider group header."""
-    style = provider_style_for(provider)
+    style = _provider_style_for(provider)
     label = Text("  ")
     label.append("━ ", style=style.secondary_style)
     label.append(provider.upper(), style=style.name_style)
@@ -198,7 +198,7 @@ def model_option_text(
     hint: str | None = None,
 ) -> Text:
     """Render a dense selectable model row."""
-    style = provider_style_for(provider)
+    style = _provider_style_for(provider)
     label = Text()
     if hint:
         label.append(f"{hint:>2} ", style=style.name_style)

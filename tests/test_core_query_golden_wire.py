@@ -11,11 +11,11 @@ from sase.core.query_wire import (
     QueryExprWire,
     QueryProgramWire,
     QUERY_WIRE_SCHEMA_VERSION,
-    query_wire_to_json_dict,
+    _query_wire_to_json_dict,
 )
 from sase.core.query_wire_conversion import (
     query_expr_from_wire,
-    query_expr_to_wire,
+    _query_expr_to_wire,
     token_from_wire,
     token_to_wire,
 )
@@ -27,7 +27,7 @@ def test_query_program_wire_round_trip() -> None:
     """``query_expr_from_wire(query_expr_to_wire(x))`` must round-trip."""
     for q in GOLDEN_QUERIES:
         expr = _parse_query_python(q)
-        wire = query_expr_to_wire(expr)
+        wire = _query_expr_to_wire(expr)
         rebuilt = query_expr_from_wire(wire)
         # AST round-trip equality via canonical string (the AST dataclasses
         # are not hashable, so we compare on the canonical form which is the
@@ -57,9 +57,9 @@ def test_query_program_wire_snapshot() -> None:
         schema_version=QUERY_WIRE_SCHEMA_VERSION,
         source=q,
         canonical=to_canonical_string(expr),
-        ast=query_expr_to_wire(expr),
+        ast=_query_expr_to_wire(expr),
     )
-    assert query_wire_to_json_dict(program) == snapshot(
+    assert _query_wire_to_json_dict(program) == snapshot(
         {
             "schema_version": QUERY_WIRE_SCHEMA_VERSION,
             "source": '("alpha" OR "beta") AND NOT status:Submitted',

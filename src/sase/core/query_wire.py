@@ -181,7 +181,7 @@ EXPR_KIND_AND = "and"
 EXPR_KIND_OR = "or"
 
 
-def query_wire_to_json_dict(record: Any) -> Any:
+def _query_wire_to_json_dict(record: Any) -> Any:
     """Project a query wire record (or list of them) to a JSON-safe shape.
 
     Mirrors :func:`sase.core.wire.to_json_dict` but is local to this module
@@ -189,9 +189,9 @@ def query_wire_to_json_dict(record: Any) -> Any:
     schema bumps.
     """
     if isinstance(record, (list, tuple)):
-        return [query_wire_to_json_dict(item) for item in record]
+        return [_query_wire_to_json_dict(item) for item in record]
     if isinstance(record, dict):
-        return {k: query_wire_to_json_dict(v) for k, v in record.items()}
+        return {k: _query_wire_to_json_dict(v) for k, v in record.items()}
     if hasattr(record, "__dataclass_fields__"):
         return asdict(record)
     return record
@@ -225,5 +225,4 @@ __all__ = [
     "TOKEN_KIND_RUNNING_AGENT",
     "TOKEN_KIND_RUNNING_PROCESS",
     "TOKEN_KIND_STRING",
-    "query_wire_to_json_dict",
 ]

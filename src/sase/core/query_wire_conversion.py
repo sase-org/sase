@@ -89,7 +89,7 @@ def token_from_wire(wire: QueryTokenWire) -> Token:
     )
 
 
-def query_expr_to_wire(expr: QueryExpr) -> QueryExprWire:
+def _query_expr_to_wire(expr: QueryExpr) -> QueryExprWire:
     """Project a :class:`QueryExpr` AST to its tagged wire shape.
 
     Lists of operands become tuples so the wire record stays hashable and
@@ -113,23 +113,23 @@ def query_expr_to_wire(expr: QueryExpr) -> QueryExprWire:
     if isinstance(expr, NotExpr):
         return QueryExprWire(
             kind=EXPR_KIND_NOT,
-            operands=(query_expr_to_wire(expr.operand),),
+            operands=(_query_expr_to_wire(expr.operand),),
         )
     if isinstance(expr, AndExpr):
         return QueryExprWire(
             kind=EXPR_KIND_AND,
-            operands=tuple(query_expr_to_wire(op) for op in expr.operands),
+        operands=tuple(_query_expr_to_wire(op) for op in expr.operands),
         )
     if isinstance(expr, OrExpr):
         return QueryExprWire(
             kind=EXPR_KIND_OR,
-            operands=tuple(query_expr_to_wire(op) for op in expr.operands),
+        operands=tuple(_query_expr_to_wire(op) for op in expr.operands),
         )
     raise TypeError(f"Unknown query expression type: {type(expr)!r}")
 
 
 def query_expr_from_wire(wire: QueryExprWire) -> QueryExpr:
-    """Inverse of :func:`query_expr_to_wire`.
+    """Inverse of :func:`_query_expr_to_wire`.
 
     Raises ``ValueError`` if ``wire.kind`` is unknown or the operand count
     is wrong for the kind.
