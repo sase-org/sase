@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 from sase.ace.tui.actions.agents._notifications import AgentNotificationMixin
 from sase.core.notification_store_wire import (
     NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
-    NotificationCountsWire,
+    _NotificationCountsWire,
     NotificationStoreSnapshotWire,
 )
 from sase.core.time import get_timezone
@@ -100,7 +100,7 @@ def _snapshot(
             priority_count += 1
         else:
             rest_count += 1
-    counts = NotificationCountsWire(
+    counts = _NotificationCountsWire(
         priority=priority_count,
         rest=rest_count,
         muted=muted_count,

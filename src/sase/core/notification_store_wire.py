@@ -11,7 +11,7 @@ NOTIFICATION_STORE_WIRE_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True)
-class NotificationCountsWire:
+class _NotificationCountsWire:
     priority: int = 0
     errors: int = 0
     rest: int = 0
@@ -32,7 +32,7 @@ class _NotificationStoreStatsWire:
 class NotificationStoreSnapshotWire:
     schema_version: int
     notifications: list[Notification] = field(default_factory=list)
-    counts: NotificationCountsWire = field(default_factory=NotificationCountsWire)
+    counts: _NotificationCountsWire = field(default_factory=_NotificationCountsWire)
     expired_ids: list[str] = field(default_factory=list)
     stats: _NotificationStoreStatsWire = field(
         default_factory=_NotificationStoreStatsWire
@@ -47,7 +47,7 @@ class NotificationUpdateOutcomeWire:
     appended_count: int = 0
     rewritten: bool = False
     notifications: list[Notification] = field(default_factory=list)
-    counts: NotificationCountsWire = field(default_factory=NotificationCountsWire)
+    counts: _NotificationCountsWire = field(default_factory=_NotificationCountsWire)
     expired_ids: list[str] = field(default_factory=list)
     stats: _NotificationStoreStatsWire = field(
         default_factory=_NotificationStoreStatsWire
@@ -130,7 +130,7 @@ def notification_snapshot_from_dict(
         notifications=[
             notification_from_dict(item) for item in data.get("notifications") or []
         ],
-        counts=NotificationCountsWire(**(data.get("counts") or {})),
+        counts=_NotificationCountsWire(**(data.get("counts") or {})),
         expired_ids=[str(item) for item in data.get("expired_ids") or []],
         stats=_NotificationStoreStatsWire(**(data.get("stats") or {})),
     )
@@ -154,7 +154,7 @@ def notification_update_outcome_from_dict(
         notifications=[
             notification_from_dict(item) for item in data.get("notifications") or []
         ],
-        counts=NotificationCountsWire(**(data.get("counts") or {})),
+        counts=_NotificationCountsWire(**(data.get("counts") or {})),
         expired_ids=[str(item) for item in data.get("expired_ids") or []],
         stats=_NotificationStoreStatsWire(**(data.get("stats") or {})),
     )
@@ -163,7 +163,6 @@ def notification_update_outcome_from_dict(
 __all__ = [
     "NOTIFICATION_STORE_WIRE_SCHEMA_VERSION",
     "NotificationAgentKeyWire",
-    "NotificationCountsWire",
     "NotificationStateUpdateWire",
     "NotificationStoreSnapshotWire",
     "_NotificationStoreStatsWire",

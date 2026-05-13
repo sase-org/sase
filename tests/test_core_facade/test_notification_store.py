@@ -14,8 +14,8 @@ import pytest
 from sase.core import notification_store_facade as facade
 from sase.core.notification_store_wire import (
     NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
+    _NotificationCountsWire,
     NotificationAgentKeyWire,
-    NotificationCountsWire,
     NotificationStateUpdateWire,
     _NotificationStoreStatsWire,
     notification_from_dict,
@@ -174,7 +174,7 @@ def test_wire_helpers_rehydrate_and_serialize_agent_keys() -> None:
     )
 
     assert n.id == "n1"
-    assert NotificationCountsWire(priority=1).priority == 1
+    assert _NotificationCountsWire(priority=1).priority == 1
     assert _NotificationStoreStatsWire(total_lines=3).total_lines == 3
     assert notification_store_wire_to_json_dict(update) == {
         "kind": "dismiss_matching_agents",
