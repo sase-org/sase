@@ -111,13 +111,13 @@ def test_status_facade_line_helpers_real_extension_parity(
     pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
     from sase.status_state_machine.field_updates import (
         _apply_status_update_python,
-        read_status_from_lines_python,
+        _read_status_from_lines_python,
     )
 
     lines = sample_project.read_text().splitlines(keepends=True)
     assert status_facade.read_status_from_lines(
         lines, "example"
-    ) == read_status_from_lines_python(lines, "example")
+    ) == _read_status_from_lines_python(lines, "example")
     assert status_facade.apply_status_update(
         lines, "example", "Draft"
     ) == _apply_status_update_python(lines, "example", "Draft")

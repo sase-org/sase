@@ -160,7 +160,7 @@ def read_status_from_lines(lines: list[str], changespec_name: str) -> str | None
     Public entry point — calls
     :func:`sase.core.status_facade.read_status_from_lines`, which
     delegates directly to the Rust binding.
-    :func:`read_status_from_lines_python` below is the host-logic golden
+    :func:`_read_status_from_lines_python` below is the host-logic golden
     reference used by parity tests.
     """
     from sase.core.status_facade import read_status_from_lines as _facade
@@ -168,7 +168,9 @@ def read_status_from_lines(lines: list[str], changespec_name: str) -> str | None
     return _facade(lines, changespec_name)
 
 
-def read_status_from_lines_python(lines: list[str], changespec_name: str) -> str | None:
+def _read_status_from_lines_python(
+    lines: list[str], changespec_name: str
+) -> str | None:
     """Host-logic golden reference for :func:`read_status_from_lines`.
 
     Args:

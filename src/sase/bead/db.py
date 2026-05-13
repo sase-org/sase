@@ -380,27 +380,6 @@ def update_issue(
     return get_issue(conn, issue_id)
 
 
-def ready_issues(conn: sqlite3.Connection) -> list[Issue]:
-    """Return open issues with no active (non-closed) blockers."""
-    rows = conn.execute(
-        "SELECT i.* FROM issues i "
-        "WHERE i.status = 'open' "
-        "  AND (i.issue_type = 'phase' OR i.tier = 'epic') "
-        "  AND i.id NOT IN ("
-        "    SELECT d.issue_id FROM dependencies d "
-        "    JOIN issues blocker ON d.depends_on_id = blocker.id "
-        "    WHERE blocker.status IN ('open', 'in_progress')"
-        "  ) "
-        "ORDER BY i.created_at ASC"
-    ).fetchall()
-    issues = []
-    for row in rows:
-        issue = _row_to_issue(row)
-        issue.dependencies = _load_dependencies(conn, issue.id)
-        issues.append(issue)
-    return issues
-
-
 def add_dependency(
     conn: sqlite3.Connection,
     issue_id: str,

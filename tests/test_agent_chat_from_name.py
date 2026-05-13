@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.scripts.agent_chat_from_name import main, resolve_agent_chat_path
+from sase.scripts.agent_chat_from_name import main, _resolve_agent_chat_path
 
 
 def _write_agent(
@@ -52,7 +52,7 @@ def test_explicit_completed_agent_uses_done_response_path(
         meta={"chat_path": str(fallback)},
     )
 
-    assert resolve_agent_chat_path("alpha") == str(chat)
+    assert _resolve_agent_chat_path("alpha") == str(chat)
 
 
 def test_explicit_running_agent_falls_back_to_meta_chat_path(
@@ -67,7 +67,7 @@ def test_explicit_running_agent_falls_back_to_meta_chat_path(
         meta={"chat_path": str(chat), "pid": os.getpid()},
     )
 
-    assert resolve_agent_chat_path("bravo") == str(chat)
+    assert _resolve_agent_chat_path("bravo") == str(chat)
 
 
 def test_missing_chat_history_fails_clearly(
@@ -84,7 +84,7 @@ def test_missing_chat_history_fails_clearly(
     with pytest.raises(
         RuntimeError, match="No agent with chat history found for: charlie"
     ):
-        resolve_agent_chat_path("charlie")
+        _resolve_agent_chat_path("charlie")
 
 
 def test_malformed_metadata_is_ignored(
@@ -94,7 +94,7 @@ def test_malformed_metadata_is_ignored(
     _write_agent(tmp_path, "20260504010101", "bad", malformed_meta=True)
 
     with pytest.raises(RuntimeError, match="No agent with chat history found for: bad"):
-        resolve_agent_chat_path("bad")
+        _resolve_agent_chat_path("bad")
 
 
 def test_omitted_name_uses_most_recent_named_agent(
@@ -116,8 +116,8 @@ def test_omitted_name_uses_most_recent_named_agent(
         done={"response_path": str(newer_chat), "outcome": "completed"},
     )
 
-    assert resolve_agent_chat_path(None) == str(newer_chat)
-    assert resolve_agent_chat_path("") == str(newer_chat)
+    assert _resolve_agent_chat_path(None) == str(newer_chat)
+    assert _resolve_agent_chat_path("") == str(newer_chat)
 
 
 def test_omitted_name_excludes_current_artifacts_dir(
@@ -139,7 +139,7 @@ def test_omitted_name_excludes_current_artifacts_dir(
     )
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(current_dir))
 
-    assert resolve_agent_chat_path(None) == str(older_chat)
+    assert _resolve_agent_chat_path(None) == str(older_chat)
 
 
 def test_omitted_name_fails_when_no_previous_named_agent(
@@ -148,7 +148,7 @@ def test_omitted_name_fails_when_no_previous_named_agent(
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
 
     with pytest.raises(RuntimeError, match="No previous named agent found"):
-        resolve_agent_chat_path(None)
+        _resolve_agent_chat_path(None)
 
 
 def test_main_emits_parseable_json(

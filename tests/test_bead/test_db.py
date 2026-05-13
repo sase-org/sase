@@ -13,13 +13,34 @@ from sase.bead.db import (
     get_issue,
     init_db,
     list_issues,
-    ready_issues,
     stats,
     update_issue,
 )
 from sase.bead.model import BeadTier, Issue, IssueType, Status
 
 NOW = "2026-03-17T00:00:00Z"
+
+
+def _ready_issues(conn: sqlite3.Connection) -> list[Issue]:
+    open_issues = list_issues(conn, statuses=[Status.OPEN])
+    issue_by_id = {issue.id: issue for issue in open_issues}
+
+    blocked_ids: set[str] = set()
+    for issue in open_issues:
+        for dep in issue.dependencies:
+            blocker = issue_by_id.get(dep.depends_on_id)
+            if blocker is not None and blocker.status in {
+                Status.OPEN,
+                Status.IN_PROGRESS,
+            }:
+                blocked_ids.add(issue.id)
+
+    return [
+        issue
+        for issue in open_issues
+        if issue.id not in blocked_ids
+        and (issue.issue_type == IssueType.PHASE or issue.tier == BeadTier.EPIC)
+    ]
 
 
 @pytest.fixture
@@ -257,14 +278,14 @@ class TestCloseIssue:
 class TestReadyAndBlocked:
     def test_ready_no_deps(self, conn: sqlite3.Connection) -> None:
         create_issue(conn, _epic())
-        ready = ready_issues(conn)
+        ready = _ready_issues(conn)
         assert len(ready) == 1
 
     def test_blocked_by_open_dep(self, conn: sqlite3.Connection) -> None:
         create_issue(conn, _epic("e-1", "Epic 1"))
         create_issue(conn, _epic("e-2", "Epic 2"))
         add_dependency(conn, "e-2", "e-1", NOW)
-        ready = ready_issues(conn)
+        ready = _ready_issues(conn)
         assert len(ready) == 1
         assert ready[0].id == "e-1"
 
@@ -273,14 +294,14 @@ class TestReadyAndBlocked:
         create_issue(conn, _epic("e-2", "Epic 2"))
         add_dependency(conn, "e-2", "e-1", NOW)
         self._close_issue(conn, "e-1", closed_at=NOW)
-        ready = ready_issues(conn)
+        ready = _ready_issues(conn)
         assert any(i.id == "e-2" for i in ready)
 
     def test_in_progress_not_ready(self, conn: sqlite3.Connection) -> None:
         """in_progress issues should NOT appear in ready list."""
         create_issue(conn, _epic())
         update_issue(conn, "e-1", status="in_progress")
-        ready = ready_issues(conn)
+        ready = _ready_issues(conn)
         assert len(ready) == 0
 
 

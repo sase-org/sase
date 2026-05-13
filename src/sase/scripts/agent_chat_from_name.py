@@ -12,7 +12,7 @@ from typing import Any
 from sase.agent.names import find_named_agent, get_most_recent_agent_name
 
 
-def resolve_agent_chat_path(name: str | None = None) -> str:
+def _resolve_agent_chat_path(name: str | None = None) -> str:
     """Return the chat path for an explicit or default resume target.
 
     Explicit names preserve the legacy lookup order: completed agents use
@@ -41,7 +41,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("name", nargs="?", default=None)
     args = parser.parse_args(argv)
-    print(json.dumps({"path": resolve_agent_chat_path(args.name)}))
+    print(json.dumps({"path": _resolve_agent_chat_path(args.name)}))
     return 0
 
 
