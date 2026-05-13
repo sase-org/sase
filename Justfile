@@ -112,9 +112,6 @@ _lint-pyvision: _setup
         BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 src/sase \
         --epic-symbol 'sase-3a(MultiAgentXPromptDepthError)' \
         --epic-symbol 'sase-3a(QueryErrorWire)' \
-        --epic-symbol 'sase-3a(fake_output_path)' \
-        --epic-symbol 'sase-3a(fake_prompt_path)' \
-        --epic-symbol 'sase-3a(format_qa_for_prompt)' \
         --epic-symbol 'sase-3a(from_base36)' \
         --epic-symbol 'sase-3a(get_dependencies)' \
         --epic-symbol 'sase-3a(get_model_aliases)' \

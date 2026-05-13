@@ -190,13 +190,13 @@ def plan_fake_fanout(
     )
 
 
-def fake_output_path(root: Path, cl_name: str, timestamp: str) -> str:
+def _fake_output_path(root: Path, cl_name: str, timestamp: str) -> str:
     """Return the launch output path shape without touching global state."""
 
     return str(root / f"{safe_launch_name(cl_name)}_ace-run-{timestamp}.txt")
 
 
-def fake_prompt_path(root: Path, timestamp: str) -> str:
+def _fake_prompt_path(root: Path, timestamp: str) -> str:
     """Return a deterministic fake prompt file path for tests/benchmarks."""
 
     return os.fspath(root / f"sase_ace_prompt_{timestamp}.md")
@@ -205,8 +205,6 @@ def fake_prompt_path(root: Path, timestamp: str) -> str:
 __all__ = [
     "LaunchTimestampBatchAllocator",
     "_allocate_launch_timestamp_batch",
-    "fake_output_path",
-    "fake_prompt_path",
     "plan_fake_fanout",
     "plan_agent_launch_fanout",
     "prepare_agent_launch",

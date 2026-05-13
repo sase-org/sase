@@ -13,8 +13,8 @@ import pytest
 from sase.core.agent_launch_facade import (
     LaunchTimestampBatchAllocator,
     _allocate_launch_timestamp_batch,
-    fake_output_path,
-    fake_prompt_path,
+    _fake_output_path,
+    _fake_prompt_path,
     plan_agent_launch_fanout,
     plan_fake_fanout,
     prepare_agent_launch,
@@ -488,9 +488,9 @@ def test_launch_timestamp_allocator_tracks_previous_batch(
 
 def test_fake_paths_match_launch_safe_name_contract(tmp_path: Path) -> None:
     assert safe_launch_name("feature/test:1") == "feature_test_1"
-    assert fake_prompt_path(tmp_path, "260501_120000").endswith(
+    assert _fake_prompt_path(tmp_path, "260501_120000").endswith(
         "sase_ace_prompt_260501_120000.md"
     )
-    assert fake_output_path(tmp_path, "feature/test", "260501_120000").endswith(
+    assert _fake_output_path(tmp_path, "feature/test", "260501_120000").endswith(
         "feature_test_ace-run-260501_120000.txt"
     )

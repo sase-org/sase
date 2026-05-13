@@ -586,7 +586,7 @@ def merge_qa_for_prompt(rounds: list[QARound]) -> str:
     return f"%xprompts_enabled:false\n{body}\n%xprompts_enabled:true"
 
 
-def format_qa_for_prompt(
+def _format_qa_for_prompt(
     questions: list[dict[str, Any]],
     response: dict[str, Any],
 ) -> str:

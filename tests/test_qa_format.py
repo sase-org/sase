@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from sase.axe.run_agent_helpers import (
     build_qa_round,
-    format_qa_for_prompt,
+    _format_qa_for_prompt,
     merge_qa_for_prompt,
 )
 from sase.main.qa_markdown import QARound, build_merged_qa_markdown, build_qa_markdown
@@ -32,7 +32,7 @@ def test_single_select_shows_checked_and_unchecked() -> None:
         "answers": [{"selected": ["B: bar"], "custom_feedback": None}],
         "global_note": "",
     }
-    out = format_qa_for_prompt([q], response)
+    out = _format_qa_for_prompt([q], response)
     assert "- [ ] **A: foo** — first" in out
     assert "- [x] **B: bar** — second" in out
     assert "*Multi-select*" not in out
@@ -48,7 +48,7 @@ def test_multi_select_marks_indicator_and_multiple_checks() -> None:
         "answers": [{"selected": ["A", "C"], "custom_feedback": None}],
         "global_note": "",
     }
-    out = format_qa_for_prompt([q], response)
+    out = _format_qa_for_prompt([q], response)
     assert "- [x] **A**" in out
     assert "- [ ] **B**" in out
     assert "- [x] **C**" in out
@@ -61,7 +61,7 @@ def test_other_with_custom_feedback_renders_quoted_line() -> None:
         "answers": [{"selected": ["Other"], "custom_feedback": "free-form text"}],
         "global_note": "",
     }
-    out = format_qa_for_prompt([q], response)
+    out = _format_qa_for_prompt([q], response)
     assert '- [x] **Other:** "free-form text"' in out
 
 
@@ -71,14 +71,14 @@ def test_other_without_custom_feedback() -> None:
         "answers": [{"selected": ["Other"], "custom_feedback": ""}],
         "global_note": "",
     }
-    out = format_qa_for_prompt([q], response)
+    out = _format_qa_for_prompt([q], response)
     assert "- [x] **Other**" in out
     assert '"Other:"' not in out
 
 
 def test_question_header_renders() -> None:
     q = _q("Pick", [("A", "")], header="My Header")
-    out = format_qa_for_prompt(
+    out = _format_qa_for_prompt(
         [q], {"answers": [{"selected": ["A"]}], "global_note": ""}
     )
     assert "#### Q1: My Header" in out
@@ -86,7 +86,7 @@ def test_question_header_renders() -> None:
 
 def test_question_without_header() -> None:
     q = _q("Pick", [("A", "")])
-    out = format_qa_for_prompt(
+    out = _format_qa_for_prompt(
         [q], {"answers": [{"selected": ["A"]}], "global_note": ""}
     )
     assert "#### Q1\n" in out
@@ -95,7 +95,7 @@ def test_question_without_header() -> None:
 
 def test_global_note_appears_under_divider() -> None:
     q = _q("Pick", [("A", "")])
-    out = format_qa_for_prompt(
+    out = _format_qa_for_prompt(
         [q],
         {"answers": [{"selected": ["A"]}], "global_note": "be careful"},
     )
@@ -105,7 +105,7 @@ def test_global_note_appears_under_divider() -> None:
 
 def test_global_note_omitted_when_empty() -> None:
     q = _q("Pick", [("A", "")])
-    out = format_qa_for_prompt(
+    out = _format_qa_for_prompt(
         [q], {"answers": [{"selected": ["A"]}], "global_note": ""}
     )
     assert "Global Note" not in out
@@ -118,7 +118,7 @@ def test_legacy_string_selected_still_renders() -> None:
         "answers": [{"selected": "B", "custom_feedback": None}],
         "global_note": "",
     }
-    out = format_qa_for_prompt([q], response)
+    out = _format_qa_for_prompt([q], response)
     assert "- [ ] **A** — alpha" in out
     assert "- [x] **B** — beta" in out
 
@@ -129,7 +129,7 @@ def test_unknown_selected_label_is_surfaced() -> None:
         "answers": [{"selected": ["Z: stale"], "custom_feedback": None}],
         "global_note": "",
     }
-    out = format_qa_for_prompt([q], response)
+    out = _format_qa_for_prompt([q], response)
     # Known options remain unchecked.
     assert "- [ ] **A** — alpha" in out
     assert "- [ ] **B** — beta" in out
@@ -139,7 +139,7 @@ def test_unknown_selected_label_is_surfaced() -> None:
 
 def test_question_text_rendered_as_blockquote() -> None:
     q = _q("line one\nline two", [("A", "")])
-    out = format_qa_for_prompt(
+    out = _format_qa_for_prompt(
         [q], {"answers": [{"selected": ["A"]}], "global_note": ""}
     )
     assert "> line one" in out
@@ -152,7 +152,7 @@ def test_build_qa_markdown_direct_matches_format_qa_for_prompt_body() -> None:
     answers = [{"selected": ["A"], "custom_feedback": None}]
 
     direct = build_qa_markdown(questions=questions, answers=answers, global_note="note")
-    via_response = format_qa_for_prompt(
+    via_response = _format_qa_for_prompt(
         questions, {"answers": answers, "global_note": "note"}
     )
     # The prompt-bound formatter wraps the body in disabled-region markers.
@@ -169,7 +169,7 @@ def test_length_mismatch_falls_back_to_text_match() -> None:
         ],
         "global_note": "",
     }
-    out = format_qa_for_prompt([q1, q2], response)
+    out = _format_qa_for_prompt([q1, q2], response)
     assert "- [ ] **A**" in out  # q1: not answered
     assert "- [x] **X**" in out  # q2: matched by text
 
@@ -202,7 +202,7 @@ def test_tui_modal_preview_matches_prompt_section_body() -> None:
     modal._global_note = "note"
 
     tui_out = modal._build_qa_markdown()
-    prompt_out = format_qa_for_prompt(
+    prompt_out = _format_qa_for_prompt(
         questions,
         {
             "answers": [{"selected": ["A"], "custom_feedback": None}],
@@ -214,7 +214,7 @@ def test_tui_modal_preview_matches_prompt_section_body() -> None:
 
 def test_format_qa_for_prompt_is_wrapped_in_disabled_region_markers() -> None:
     q = _q("Pick", [("A", "alpha")])
-    out = format_qa_for_prompt(
+    out = _format_qa_for_prompt(
         [q], {"answers": [{"selected": ["A"]}], "global_note": ""}
     )
     assert out.startswith("%xprompts_enabled:false\n")
@@ -229,7 +229,7 @@ def test_qa_xprompt_token_in_question_survives_expansion_pipeline() -> None:
     from sase.xprompt.processor import process_xprompt_references
 
     q = _q("see #some_xprompt_name for context", [("A", "alpha")])
-    qa_text = format_qa_for_prompt(
+    qa_text = _format_qa_for_prompt(
         [q], {"answers": [{"selected": ["A"]}], "global_note": ""}
     )
     prompt = "Original prompt.\n\n" + qa_text
@@ -369,7 +369,7 @@ def test_qa_custom_feedback_with_hash_token_preserved_verbatim() -> None:
         "answers": [{"selected": ["Other"], "custom_feedback": "please #fix-me later"}],
         "global_note": "",
     }
-    qa_text = format_qa_for_prompt([q], response)
+    qa_text = _format_qa_for_prompt([q], response)
 
     regions: list[str] = []
     protected = protect_disabled_regions(qa_text, regions)
