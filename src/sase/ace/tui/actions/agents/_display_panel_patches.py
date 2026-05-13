@@ -1,0 +1,169 @@
+"""Incremental AgentList row removal and row patch helpers."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+from ...models.agent_groups import GroupingMode
+from ._display_helpers import TabName, panel_widget_id
+from ._display_panel_titles import agent_panel_border_title, agent_panel_counts
+
+if TYPE_CHECKING:
+    from ...models import Agent
+    from ...models.agent import AgentType
+    from ...models.agent_panels import AgentPanelGroup
+
+
+class PanelPatchMixin:
+    """Fast paths for in-place row removal and single-row refreshes."""
+
+    current_idx: int
+    current_attempt_number: int | None
+    current_tab: TabName
+    _agents: list[Agent]
+    _marked_agents: set[tuple[AgentType, str, str | None]]
+    _current_group_key: tuple[str, ...] | None
+    _panel_group: AgentPanelGroup
+    _agents_first_load_done: bool
+
+    def _try_remove_agent_rows(
+        self,
+        removed_identities: set[tuple[AgentType, str, str | None]],
+    ) -> bool:
+        """Apply optimistic removes in place across panel widgets."""
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentList
+
+        if not removed_identities:
+            return True
+        if self.current_tab != "agents":
+            return False
+        if getattr(self, "_agent_search_query", ""):
+            return False
+        if (
+            getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+            is not GroupingMode.STANDARD
+        ):
+            return False
+
+        if not hasattr(self, "query_one"):
+            return False
+        try:
+            container = self.query_one("#agent-list-container")  # type: ignore[attr-defined]
+        except NoMatches:
+            return False
+
+        panel_widgets = [w for w in container.children if isinstance(w, AgentList)]
+        target_widget: AgentList | None = None
+        for widget in panel_widgets:
+            widget_identities = {a.identity for a in widget._agents}
+            overlap = widget_identities & removed_identities
+            if not overlap:
+                continue
+            if overlap != removed_identities:
+                return False
+            if target_widget is not None:
+                return False
+            target_widget = widget
+
+        if target_widget is None:
+            return True
+
+        if not target_widget.try_remove_rows(removed_identities):
+            return False
+
+        return True
+
+    def _patch_agent_runtime_rows(self) -> int:
+        """Patch visible Agents-tab rows with active runtime suffixes."""
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentList
+
+        if self.current_tab != "agents":
+            return 0
+        if not getattr(self, "_agents_first_load_done", False):
+            return 0
+
+        try:
+            container = self.query_one("#agent-list-container")  # type: ignore[attr-defined]
+        except NoMatches:
+            return 0
+
+        now = datetime.now()
+        patched = 0
+        for widget in container.children:
+            if isinstance(widget, AgentList):
+                patched += widget.patch_active_runtime_rows(now)
+        return patched
+
+    def _try_patch_agent_row(self, agent: Agent) -> bool:
+        """Patch a single agent's row in place when no group membership changed."""
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentList
+
+        if self.current_tab != "agents":
+            return False
+
+        try:
+            agent_idx = self._agents.index(agent)
+        except ValueError:
+            return False
+
+        panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
+        agent_panel_key = panel_index.keys_per_agent[agent_idx]
+
+        target_panel_idx: int | None = None
+        for idx, key in enumerate(self._panel_group.panel_keys):
+            if key == agent_panel_key:
+                target_panel_idx = idx
+                break
+        if target_panel_idx is None:
+            return False
+
+        wid = panel_widget_id(target_panel_idx)
+        try:
+            widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
+        except NoMatches:
+            return False
+
+        local_idx = panel_index.local_idx_for(agent_panel_key, agent_idx)
+        if local_idx < 0:
+            return False
+
+        if (
+            getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+            is GroupingMode.BY_STATUS
+        ):
+            return False
+
+        is_selected = (
+            agent_idx == self.current_idx
+            and self.current_attempt_number is None
+            and self._current_group_key is None
+        )
+        ok = widget.patch_agent_row(
+            local_idx,
+            marked_agents=self._marked_agents,
+            unread_agents=getattr(self, "_unread_completed_agent_ids", set()),
+            is_selected=is_selected,
+            now=None,
+        )
+        if not ok:
+            return False
+
+        slot = panel_index.slice_for(agent_panel_key)
+        unread: set[tuple[AgentType, str, str | None]] = getattr(
+            self, "_unread_completed_agent_ids", set()
+        )
+        widget.border_title = agent_panel_border_title(
+            agent_panel_key,
+            len(slot.agents),
+            merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
+            counts=agent_panel_counts(slot.agents, unread),
+        )
+        self._update_agents_info_panel()  # type: ignore[attr-defined]
+        return True
