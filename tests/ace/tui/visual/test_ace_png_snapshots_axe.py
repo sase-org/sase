@@ -530,6 +530,12 @@ async def test_axe_long_label_widening_png_snapshot(
             f"expected sidebar to widen past {_MIN_BGCMD_LIST_WIDTH}, "
             f"got {sidebar_width}"
         )
+        # The AXE footer repaint can lag the tab change under xdist; settle
+        # only the footer so the dashboard golden stays focused on layout.
+        from sase.ace.tui.widgets import KeybindingFooter
+
+        footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
+        footer.update_axe_bindings(axe_current_view=page.app._axe_current_view)
 
         ace_png_visual.assert_page_png(
             page,

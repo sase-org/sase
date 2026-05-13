@@ -7,7 +7,6 @@ import pytest
 from sase.bead.db import (
     add_dependency,
     create_issue,
-    _delete_issue,
     _get_dependencies,
     get_epic_children,
     get_issue,
@@ -72,6 +71,22 @@ def _child(id: str = "c-1", parent_id: str = "e-1", title: str = "Child") -> Iss
         parent_id=parent_id,
         created_at=NOW,
         updated_at=NOW,
+    )
+
+
+def _close_issue(
+    conn: sqlite3.Connection,
+    issue_id: str,
+    closed_at: str,
+    reason: str | None = None,
+) -> Issue | None:
+    return update_issue(
+        conn,
+        issue_id,
+        status="closed",
+        closed_at=closed_at,
+        close_reason=reason,
+        updated_at=closed_at,
     )
 
 
@@ -250,25 +265,9 @@ class TestUpdateIssue:
 
 
 class TestCloseIssue:
-    def _close_issue(
-        self,
-        conn: sqlite3.Connection,
-        issue_id: str,
-        closed_at: str,
-        reason: str | None = None,
-    ) -> Issue | None:
-        return update_issue(
-            conn,
-            issue_id,
-            status="closed",
-            closed_at=closed_at,
-            close_reason=reason,
-            updated_at=closed_at,
-        )
-
     def test_close_issue(self, conn: sqlite3.Connection) -> None:
         create_issue(conn, _epic())
-        closed = self._close_issue(conn, "e-1", closed_at=NOW, reason="Done")
+        closed = _close_issue(conn, "e-1", closed_at=NOW, reason="Done")
         assert closed is not None
         assert closed.status == Status.CLOSED
         assert closed.closed_at == NOW
@@ -293,7 +292,7 @@ class TestReadyAndBlocked:
         create_issue(conn, _epic("e-1", "Epic 1"))
         create_issue(conn, _epic("e-2", "Epic 2"))
         add_dependency(conn, "e-2", "e-1", NOW)
-        self._close_issue(conn, "e-1", closed_at=NOW)
+        _close_issue(conn, "e-1", closed_at=NOW)
         ready = _ready_issues(conn)
         assert any(i.id == "e-2" for i in ready)
 
@@ -580,7 +579,7 @@ class TestStats:
         create_issue(conn, _epic("e-1"))
         create_issue(conn, _child("c-1"))
         create_issue(conn, _child("c-2"))
-        self._close_issue(conn, "c-2", NOW)
+        _close_issue(conn, "c-2", NOW)
         s = stats(conn)
         assert s["total"] == 3
         assert s["open"] == 2
