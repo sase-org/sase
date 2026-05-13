@@ -6,6 +6,8 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from sase.agent.status_buckets import status_bucket_for_values
+
 from ._loading_helpers import DISMISSABLE_STATUSES
 
 if TYPE_CHECKING:
@@ -16,6 +18,20 @@ if TYPE_CHECKING:
 def is_unread_completed_status(status: str) -> bool:
     """Return True for terminal statuses that can be surfaced as unread."""
     return status in DISMISSABLE_STATUSES
+
+
+def is_stopped_agent_status(status: str) -> bool:
+    """Return True for statuses displayed in the Stopped agent bucket."""
+    return status_bucket_for_values(status) == "Stopped"
+
+
+def _stopped_agent_jump_time(agent: Agent) -> datetime | None:
+    """Return the best timestamp for ordering stopped-agent jumps."""
+    if agent.status == "PLAN" and agent.plan_times:
+        return max(agent.plan_times)
+    if agent.status == "QUESTION" and agent.questions_times:
+        return max(agent.questions_times)
+    return agent.stop_time or agent.start_time
 
 
 class AgentUnreadMixin:
@@ -42,8 +58,8 @@ class AgentUnreadMixin:
         )
 
     def _has_stopped_agent(self) -> bool:
-        """Return True when a terminal agent row is currently loaded."""
-        return any(is_unread_completed_status(agent.status) for agent in self._agents)
+        """Return True when a stopped agent row is currently loaded."""
+        return any(is_stopped_agent_status(agent.status) for agent in self._agents)
 
     def _mark_all_unread_done_agents_read(self) -> int:
         """Acknowledge all currently loaded unread terminal agent rows."""
@@ -115,8 +131,9 @@ class AgentUnreadMixin:
     def _jump_to_next_stopped_agent(self) -> bool:
         """Move focus to the next visible stopped agent without acknowledging it."""
         return self._jump_to_next_completed_agent(
-            predicate=lambda agent: is_unread_completed_status(agent.status),
+            predicate=lambda agent: is_stopped_agent_status(agent.status),
             after_select=None,
+            time_for_agent=_stopped_agent_jump_time,
         )
 
     def _jump_to_next_completed_agent(
@@ -124,6 +141,7 @@ class AgentUnreadMixin:
         *,
         predicate: Callable[[Agent], bool],
         after_select: Callable[[Agent, bool], None] | None,
+        time_for_agent: Callable[[Agent], datetime | None] | None = None,
     ) -> bool:
         """Move focus to the next visible completed agent matching *predicate*."""
         if not self._agents:
@@ -137,7 +155,12 @@ class AgentUnreadMixin:
         for idx, panel_idx in visible_panel_indices.items():
             agent = self._agents[idx]
             if predicate(agent):
-                candidates.append((idx, panel_idx, agent.stop_time or agent.start_time))
+                jump_time = (
+                    time_for_agent(agent)
+                    if time_for_agent is not None
+                    else agent.stop_time or agent.start_time
+                )
+                candidates.append((idx, panel_idx, jump_time))
 
         if not candidates:
             return False

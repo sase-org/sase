@@ -19,7 +19,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from sase.ace.tui.actions.agents._core import is_unread_completed_status
+from sase.ace.tui.actions.agents._core import (
+    is_stopped_agent_status,
+    is_unread_completed_status,
+)
 from sase.ace.tui.commands.types import CommandContext, CommandTab
 from sase.ace.tui.widgets.bgcmd_list import BgCmdItem
 
@@ -86,6 +89,11 @@ def _has_agent_artifacts(app: AceApp, agent) -> bool:  # type: ignore[no-untyped
 def _completed_agent_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
     agents = getattr(app, "_agents", [])
     return sum(1 for a in agents if is_unread_completed_status(a.status))
+
+
+def _stopped_agent_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
+    agents = getattr(app, "_agents", [])
+    return sum(1 for a in agents if is_stopped_agent_status(a.status))
 
 
 def _unread_completed_agent_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
@@ -155,6 +163,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         mark_count = len(getattr(app, "marked_indices", set()) or set())
 
     completed = _completed_agent_count(app) if tab == "agents" else 0
+    stopped = _stopped_agent_count(app) if tab == "agents" else 0
     unread_completed = _unread_completed_agent_count(app) if tab == "agents" else 0
     can_jump = _can_jump_to_changespec(app, agent) if tab == "agents" else False
     attempt_pinned = (
@@ -180,6 +189,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         axe_item=axe_item,
         mark_count=mark_count,
         completed_agent_count=completed,
+        stopped_agent_count=stopped,
         unread_completed_agent_count=unread_completed,
         runner_count=_runner_count(app),
         can_jump_to_changespec=can_jump,

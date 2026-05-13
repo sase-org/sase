@@ -180,6 +180,16 @@ def test_has_unread_completed_agent_includes_plan_done() -> None:
     assert app._has_unread_completed_agent()
 
 
+def test_has_stopped_agent_tracks_stopped_status_bucket() -> None:
+    plan = make_agent(name="plan", status="PLAN", raw_suffix="plan")
+    question = make_agent(name="question", status="QUESTION", raw_suffix="question")
+    done = make_agent(name="done", status="DONE", raw_suffix="done")
+
+    assert _UnreadJumpApp([done])._has_stopped_agent() is False
+    assert _UnreadJumpApp([done, plan])._has_stopped_agent() is True
+    assert _UnreadJumpApp([question])._has_stopped_agent() is True
+
+
 def test_jump_to_next_unread_done_agent_uses_completion_recency_and_wraps() -> None:
     older = make_agent(
         name="older",
@@ -410,53 +420,61 @@ def test_jump_to_next_unread_done_agent_finds_non_focused_panel_row() -> None:
     assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
 
 
-def test_jump_to_next_stopped_agent_uses_completion_recency_and_wraps(
+def test_jump_to_next_stopped_agent_uses_stopped_recency_and_wraps(
     notification_dismiss: Mock,
 ) -> None:
-    older = make_agent(
+    older_plan = make_agent(
         name="older",
-        status="DONE",
+        status="PLAN",
         raw_suffix="older",
-        stop_time=datetime(2026, 5, 7, 10, 0, 0),
+        start_time=datetime(2026, 5, 7, 8, 0, 0),
     )
-    fallback_newest = make_agent(
+    older_plan.plan_times = [datetime(2026, 5, 7, 10, 0, 0)]
+    newest_question = make_agent(
+        name="newest",
+        status="QUESTION",
+        raw_suffix="newest",
+        start_time=datetime(2026, 5, 7, 7, 0, 0),
+    )
+    newest_question.questions_times = [datetime(2026, 5, 7, 12, 0, 0)]
+    fallback_plan = make_agent(
         name="fallback",
-        status="PLAN DONE",
+        status="PLAN",
         raw_suffix="fallback",
-        start_time=datetime(2026, 5, 7, 13, 0, 0),
+        start_time=datetime(2026, 5, 7, 11, 0, 0),
         stop_time=None,
     )
-    running = make_agent(
-        name="running",
-        status="RUNNING",
-        raw_suffix="running",
+    done = make_agent(
+        name="done",
+        status="DONE",
+        raw_suffix="done",
+        stop_time=datetime(2026, 5, 7, 13, 0, 0),
+    )
+    failed = make_agent(
+        name="failed",
+        status="FAILED",
+        raw_suffix="failed",
         stop_time=datetime(2026, 5, 7, 14, 0, 0),
     )
-    middle = make_agent(
-        name="middle",
-        status="FAILED",
-        raw_suffix="middle",
-        stop_time=datetime(2026, 5, 7, 11, 0, 0),
-    )
     app = _UnreadJumpApp(
-        [older, fallback_newest, running, middle],
-        visible=[2, 0, 3, 1],
+        [older_plan, newest_question, done, failed, fallback_plan],
+        visible=[2, 0, 3, 4, 1],
         current_idx=2,
     )
     app._unread_completed_agent_ids.update(
-        {older.identity, fallback_newest.identity, middle.identity}
+        {older_plan.identity, newest_question.identity, fallback_plan.identity}
     )
 
     assert app._jump_to_next_stopped_agent()
     assert app.current_idx == 1
     assert app._unread_completed_agent_ids == {
-        older.identity,
-        fallback_newest.identity,
-        middle.identity,
+        older_plan.identity,
+        newest_question.identity,
+        fallback_plan.identity,
     }
 
     assert app._jump_to_next_stopped_agent()
-    assert app.current_idx == 3
+    assert app.current_idx == 4
 
     assert app._jump_to_next_stopped_agent()
     assert app.current_idx == 0
@@ -468,10 +486,12 @@ def test_jump_to_next_stopped_agent_uses_completion_recency_and_wraps(
     notification_dismiss.assert_not_called()
 
 
-def test_jump_to_next_stopped_agent_ignores_running_rows() -> None:
+def test_jump_to_next_stopped_agent_ignores_non_stopped_rows() -> None:
     running = make_agent(name="running", status="RUNNING", raw_suffix="running")
     waiting = make_agent(name="waiting", status="WAITING INPUT", raw_suffix="waiting")
-    app = _UnreadJumpApp([running, waiting], current_idx=0)
+    done = make_agent(name="done", status="DONE", raw_suffix="done")
+    failed = make_agent(name="failed", status="FAILED", raw_suffix="failed")
+    app = _UnreadJumpApp([running, waiting, done, failed], current_idx=0)
 
     assert not app._jump_to_next_stopped_agent()
     assert app.current_idx == 0
@@ -482,16 +502,18 @@ def test_jump_to_next_stopped_agent_ignores_running_rows() -> None:
 def test_jump_to_next_stopped_agent_starts_at_newest_from_focused_banner() -> None:
     first = make_agent(
         name="first",
-        status="DONE",
+        status="PLAN",
         raw_suffix="first",
-        stop_time=datetime(2026, 5, 7, 10, 0, 0),
+        start_time=datetime(2026, 5, 7, 9, 0, 0),
     )
+    first.plan_times = [datetime(2026, 5, 7, 10, 0, 0)]
     second = make_agent(
         name="second",
-        status="DONE",
+        status="QUESTION",
         raw_suffix="second",
-        stop_time=datetime(2026, 5, 7, 12, 0, 0),
+        start_time=datetime(2026, 5, 7, 9, 0, 0),
     )
+    second.questions_times = [datetime(2026, 5, 7, 12, 0, 0)]
     app = _UnreadJumpApp(
         [first, second],
         visible=[0, 1],
@@ -511,11 +533,12 @@ def test_jump_to_next_stopped_agent_finds_non_focused_panel_row() -> None:
     focused = make_agent(name="focused", status="RUNNING", raw_suffix="focused")
     target = make_agent(
         name="target",
-        status="PLAN DONE",
+        status="PLAN",
         raw_suffix="target",
         tag="chop",
-        stop_time=datetime(2026, 5, 7, 12, 0, 0),
+        start_time=datetime(2026, 5, 7, 12, 0, 0),
     )
+    target.plan_times = [datetime(2026, 5, 7, 12, 0, 0)]
     app = _UnreadJumpApp(
         [focused, target],
         current_idx=0,

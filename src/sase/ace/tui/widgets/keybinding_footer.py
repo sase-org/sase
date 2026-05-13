@@ -448,7 +448,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             has_notification: Whether the selected agent has a pending notification.
             has_mentor_results: Whether the selected ChangeSpec has mentor results.
             has_unread_completed_agent: Whether any completed agent is unread.
-            has_stopped_agent: Whether any completed agent is loaded.
+            has_stopped_agent: Whether any stopped agent is loaded.
         """
         d = footer_key_display
         keys = self._kr().leader_mode.keys

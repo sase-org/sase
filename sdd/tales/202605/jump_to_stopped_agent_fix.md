@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 15:12:02
-status: wip
+status: done
 prompt: sdd/prompts/202605/jump_to_stopped_agent_fix.md
 ---
 # Plan: Fix `,J` Stopped-Agent Navigation

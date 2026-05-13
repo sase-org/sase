@@ -31,6 +31,7 @@ from sase.ace.tui.commands import (
 from sase.ace.tui.commands.context import (
     _selected_axe_slot_states,
     _completed_agent_count,
+    _stopped_agent_count,
     _unread_completed_agent_count,
 )
 from sase.ace.tui.widgets.bgcmd_list import (
@@ -105,7 +106,7 @@ def test_extract_context_changespecs_tab_handles_empty_list() -> None:
 
 def test_extract_context_agents_tab_uses_agents_state() -> None:
     agent = SimpleNamespace(status="DONE", attempt_history=[], response_path=None)
-    other = SimpleNamespace(status="RUNNING", attempt_history=[], response_path=None)
+    other = SimpleNamespace(status="PLAN", attempt_history=[], response_path=None)
     marked = {("workflow", "x", None), ("workflow", "y", None)}
     app = _make_app_stub(
         tab="agents",
@@ -120,6 +121,7 @@ def test_extract_context_agents_tab_uses_agents_state() -> None:
     assert ctx.agent is agent
     assert ctx.mark_count == 2
     assert ctx.completed_agent_count == 1
+    assert ctx.stopped_agent_count == 1
     assert ctx.group_focused is False
     assert ctx.attempt_pinned is False
 
@@ -194,6 +196,19 @@ def test_completed_agent_count_includes_done_and_failed() -> None:
     ]
     app = SimpleNamespace(_agents=agents)
     assert _completed_agent_count(app) == 3  # type: ignore[arg-type]
+
+
+def test_stopped_agent_count_uses_stopped_status_bucket() -> None:
+    agents = [
+        SimpleNamespace(status="PLAN"),
+        SimpleNamespace(status="QUESTION"),
+        SimpleNamespace(status="DONE"),
+        SimpleNamespace(status="FAILED"),
+        SimpleNamespace(status="WAITING INPUT"),
+        SimpleNamespace(status="RUNNING"),
+    ]
+    app = SimpleNamespace(_agents=agents)
+    assert _stopped_agent_count(app) == 2  # type: ignore[arg-type]
 
 
 def test_unread_completed_agent_count_includes_plan_done() -> None:

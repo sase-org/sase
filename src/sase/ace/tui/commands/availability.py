@@ -260,7 +260,7 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return ctx.unread_completed_agent_count > 0
 
     if spec.id == "leader.jump_to_next_stopped_agent":
-        return ctx.completed_agent_count > 0
+        return ctx.stopped_agent_count > 0
 
     if spec.id in {
         "leader.kill_and_edit",

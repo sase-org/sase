@@ -325,18 +325,18 @@ def test_jump_to_next_unread_done_agent_requires_unread_completed_agent() -> Non
     )
 
 
-def test_jump_to_next_stopped_agent_requires_completed_agent() -> None:
+def test_jump_to_next_stopped_agent_requires_stopped_agent() -> None:
     catalog = _catalog_by_id()
     spec = catalog["leader.jump_to_next_stopped_agent"]
     assert not is_command_available(
-        spec, CommandContext(tab="agents", completed_agent_count=0)
+        spec, CommandContext(tab="agents", stopped_agent_count=0)
     )
     assert is_command_available(
-        spec, CommandContext(tab="agents", completed_agent_count=1)
+        spec, CommandContext(tab="agents", stopped_agent_count=1)
     )
     assert not is_command_available(
         spec,
-        CommandContext(tab="changespecs", completed_agent_count=1),
+        CommandContext(tab="changespecs", stopped_agent_count=1),
     )
 
 
