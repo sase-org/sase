@@ -112,12 +112,8 @@ _lint-pyvision: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 src/sase \
         --epic-symbol 'sase-3a(CrossEpicBlockerError)' \
         --epic-symbol 'sase-3a(MultiAgentXPromptDepthError)' \
-        --epic-symbol 'sase-3a(MultiAgentXPromptUsageError)' \
-        --epic-symbol 'sase-3a(NotificationStoreStatsWire)' \
-        --epic-symbol 'sase-3a(PhaseAssignment)' \
         --epic-symbol 'sase-3a(QueryErrorWire)' \
         --epic-symbol 'sase-3a(StatusFieldUpdateWire)' \
-        --epic-symbol 'sase-3a(StreamedScriptResult)' \
         --epic-symbol 'sase-3a(allocate_launch_timestamp_batch)' \
         --epic-symbol 'sase-3a(blocked_issues)' \
         --epic-symbol 'sase-3a(build_epic_work_plan)' \
