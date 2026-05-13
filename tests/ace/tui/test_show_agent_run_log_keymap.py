@@ -381,6 +381,25 @@ def test_footer_surfaces_repeat_last_on_all_tabs() -> None:
         assert "repeat" in rendered
 
 
+def test_footer_surfaces_configured_repeat_last_key() -> None:
+    footer = KeybindingFooter()
+    footer.set_keymap_registry(
+        load_keymap_registry(
+            {"keymaps": {"modes": {"leader_mode": {"keys": {"repeat_last": "R"}}}}}
+        )
+    )
+    captured: list[object] = []
+    footer._update_display = MagicMock(  # type: ignore[method-assign]
+        side_effect=lambda text: captured.append(text)
+    )
+
+    footer.update_leader_bindings(current_tab="agents")
+
+    rendered = str(captured[-1])
+    assert "R" in rendered
+    assert "repeat" in rendered
+
+
 def test_footer_surfaces_unread_done_jump_only_when_available() -> None:
     footer = KeybindingFooter()
     captured: list[object] = []

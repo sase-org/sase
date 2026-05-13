@@ -65,6 +65,18 @@ def test_leader_repeat_last_override_updates_help_display() -> None:
         assert (",R", "Repeat last leader command") in pairs
 
 
+def test_leader_prefix_override_updates_repeat_last_help_display() -> None:
+    """Leader help displays the configured prefix for repeat_last."""
+    reg = load_keymap_registry(
+        {"keymaps": {"modes": {"leader_mode": {"prefix": "space"}}}}
+    )
+    for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
+        pairs = {
+            (key, label) for _section, bindings in sections for key, label in bindings
+        }
+        assert ("Space,", "Repeat last leader command") in pairs
+
+
 def test_edit_hooks_default_binding() -> None:
     """Guard: ``f`` is bound to ``edit_hooks`` (restored after d7b96606)."""
     reg = load_keymap_registry({})

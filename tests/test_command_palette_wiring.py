@@ -25,6 +25,7 @@ from sase.ace.tui.commands import (
     CommandContext,
     CommandExecutor,
     CommandSpec,
+    build_command_catalog,
     execute_command,
     extract_command_context,
 )
@@ -38,6 +39,7 @@ from sase.ace.tui.widgets.bgcmd_list import (
     BgCmdItem,
     LumberjackItem,
 )
+from sase.ace.tui.keymaps import load_keymap_registry
 
 
 # ---------------------------------------------------------------------------
@@ -325,6 +327,22 @@ def test_execute_leader_mode_sets_active_then_handles() -> None:
     execute_command(app, spec)
     assert app._leader_mode_active is True
     app._handle_leader_key.assert_called_once_with("t")
+
+
+def test_execute_leader_repeat_last_dispatches_configured_subkeys() -> None:
+    app = MagicMock()
+    catalog = {
+        spec.id: spec for spec in build_command_catalog(load_keymap_registry({}))
+    }
+
+    execute_command(app, catalog["leader.task_queue"])
+    execute_command(app, catalog["leader.repeat_last"])
+
+    assert app._leader_mode_active is True
+    assert app._handle_leader_key.call_args_list == [
+        (("t",),),
+        (("comma",),),
+    ]
 
 
 def test_execute_bang_mode_sets_active_then_handles() -> None:
