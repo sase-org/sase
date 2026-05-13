@@ -73,6 +73,10 @@ sdd/tales/202605/perf_artifacts/agent_launch_regression_check.json
 # Override global gitignore rule that ignores 'core'
 !src/sase/core/
 
+# Override global gitignore rules for committed Rust daemon fixture logs.
+!tests/fixtures/rust_daemon_epic1/sources/logs/
+!tests/fixtures/rust_daemon_epic1/sources/logs/axe-run.log
+
 # Phase 7 perf artifacts that capture private home-tree data; keep raw
 # JSON local and link to it from the surface's handoff per
 # sdd/tales/202604/perf_artifacts/README.md.
