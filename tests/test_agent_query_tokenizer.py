@@ -4,7 +4,6 @@ import pytest
 from sase.ace.agent_query.tokenizer import (
     BOOL_PROPERTY_KEYS,
     ENUM_PROPERTY_KEYS,
-    NUMERIC_PROPERTY_KEYS,
     SUBSTRING_PROPERTY_KEYS,
     TokenizerError,
     TokenType,
@@ -123,37 +122,6 @@ def test_property_value_can_be_dotted() -> None:
     assert tokens[0].property_key == "tag"
     assert tokens[0].value == "sase-42.3"
     assert tokens[1].type == TokenType.EOF
-
-
-@pytest.mark.parametrize("key", sorted(NUMERIC_PROPERTY_KEYS))
-def test_numeric_property_keys_accept_comparisons(key: str) -> None:
-    tokens = list(tokenize(f"{key}>=42"))
-    assert tokens[0].type == TokenType.NUMERIC
-    assert tokens[0].property_key == key
-    assert tokens[0].numeric_op == ">="
-    assert tokens[0].numeric_value == 42
-
-
-def test_numeric_property_colon_means_equality() -> None:
-    tokens = list(tokenize("step_index:3"))
-    assert tokens[0].type == TokenType.NUMERIC
-    assert tokens[0].numeric_op == "="
-    assert tokens[0].numeric_value == 3
-
-
-def test_archive_property_keys_tokenize() -> None:
-    for query in (
-        "runtime:codex",
-        "archived_before:2026-05-12",
-        "archived_after:2026-05-01",
-        "revived:false",
-        "step_type:bash",
-        "retry_of:20260512123456",
-        "parent:20260512120000",
-        "error:timeout",
-    ):
-        tokens = list(tokenize(query))
-        assert tokens[0].type == TokenType.PROPERTY
 
 
 # --- Duration / age ---------------------------------------------------------

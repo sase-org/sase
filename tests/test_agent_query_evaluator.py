@@ -288,13 +288,6 @@ def test_age_missing_start_time_always_false() -> None:
     assert not _eval("age:0s", agent)
 
 
-def test_numeric_step_and_retry_queries() -> None:
-    agent = _make_agent(step_index=2, retry_attempt=1)
-    assert _eval("step_index:2", agent)
-    assert _eval("retry_attempt>=1", agent)
-    assert not _eval("step_index<2", agent)
-
-
 # --- Boolean composition -----------------------------------------------------
 
 

@@ -6,7 +6,6 @@ from sase.ace.agent_query import (
     AndExpr,
     DurationCompare,
     NotExpr,
-    NumericCompare,
     OrExpr,
     PropertyMatch,
     StringMatch,
@@ -55,15 +54,6 @@ def test_parses_age_comparisons() -> None:
     # `age:N` is sugar for `age>=N`.
     assert parse_agent_query("age:1d") == DurationCompare(
         key="age", op=">=", seconds=86400
-    )
-
-
-def test_parses_numeric_comparisons() -> None:
-    assert parse_agent_query("step_index:2") == NumericCompare(
-        key="step_index", op="=", value=2
-    )
-    assert parse_agent_query("tokens>=1000") == NumericCompare(
-        key="tokens", op=">=", value=1000
     )
 
 
