@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import re
 import threading
-from collections.abc import Iterable
 from pathlib import Path
 
 _ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz"
@@ -51,11 +50,11 @@ class IdGenerator:
             return issue_id
 
 
-def max_top_level_counter(issue_prefix: str, beads_dirs: Iterable[Path]) -> int:
-    """Return the highest allocated top-level counter in workspace JSONL files."""
+def max_top_level_counter(issue_prefix: str, beads_dir: Path) -> int:
+    """Return the highest allocated top-level counter in one JSONL store."""
     pattern = re.compile(rf"^{re.escape(issue_prefix)}-([0-9a-z]+)$")
     max_counter = 0
-    for issue_id in _iter_jsonl_issue_ids(beads_dirs):
+    for issue_id in _iter_jsonl_issue_ids(beads_dir):
         match = pattern.fullmatch(issue_id)
         if match is None:
             continue
@@ -66,47 +65,27 @@ def max_top_level_counter(issue_prefix: str, beads_dirs: Iterable[Path]) -> int:
     return max_counter
 
 
-def max_child_counter(parent_id: str, beads_dirs: Iterable[Path]) -> int:
-    """Return the highest direct child counter for *parent_id* in JSONL files."""
-    prefix = f"{parent_id}."
-    max_counter = 0
-    for issue_id in _iter_jsonl_issue_ids(beads_dirs):
-        if not issue_id.startswith(prefix):
-            continue
-        suffix = issue_id[len(prefix) :]
-        if "." in suffix:
-            continue
-        try:
-            max_counter = max(max_counter, int(suffix))
-        except ValueError:
-            continue
-    return max_counter
-
-
-def _iter_jsonl_issue_ids(beads_dirs: Iterable[Path]) -> Iterable[str]:
-    """Yield issue IDs from workspace JSONL files, skipping malformed records."""
-    seen_paths: set[Path] = set()
-    for beads_dir in beads_dirs:
-        jsonl_path = (Path(beads_dir) / "issues.jsonl").resolve()
-        if jsonl_path in seen_paths:
-            continue
-        seen_paths.add(jsonl_path)
-        if not jsonl_path.exists():
+def _iter_jsonl_issue_ids(beads_dir: Path) -> list[str]:
+    """Return issue IDs from one JSONL file, skipping malformed records."""
+    jsonl_path = (Path(beads_dir) / "issues.jsonl").resolve()
+    if not jsonl_path.exists():
+        return []
+    try:
+        lines = jsonl_path.read_text().splitlines()
+    except OSError:
+        return []
+    ids: list[str] = []
+    for line in lines:
+        line = line.strip()
+        if not line:
             continue
         try:
-            lines = jsonl_path.read_text().splitlines()
-        except OSError:
+            data = json.loads(line)
+        except json.JSONDecodeError:
             continue
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                data = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if not isinstance(data, dict):
-                continue
-            issue_id = data.get("id")
-            if isinstance(issue_id, str):
-                yield issue_id
+        if not isinstance(data, dict):
+            continue
+        issue_id = data.get("id")
+        if isinstance(issue_id, str):
+            ids.append(issue_id)
+    return ids

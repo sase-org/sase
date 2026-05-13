@@ -46,7 +46,7 @@ def test_bead_project_create_delegates_to_rust_mutation(
         assert calls[0]["beads_dir"] == project.beads_dir
         assert calls[0]["title"] == "Delegated"
         assert calls[0]["issue_type"] == IssueType.PLAN
-        assert project.beads_dir in calls[0]["workspace_beads_dirs"]
+        assert "workspace_beads_dirs" not in calls[0]
 
 
 def test_bead_project_show_returns_issue_with_model(

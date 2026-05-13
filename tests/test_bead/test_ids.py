@@ -8,7 +8,6 @@ import pytest
 from sase.bead.ids import (
     IdGenerator,
     from_base36,
-    max_child_counter,
     max_top_level_counter,
     to_base36,
 )
@@ -64,40 +63,24 @@ class TestIdGenerator:
         assert gen.next_id().startswith("my-project-")
 
 
-class TestWorkspaceCounters:
+class TestJsonlCounters:
     def test_max_top_level_counter_scans_valid_ids_only(self, tmp_path: Path) -> None:
-        beads_a = tmp_path / "workspace-a" / "sdd/beads"
-        beads_b = tmp_path / "workspace-b" / "sdd/beads"
+        beads_dir = tmp_path / "sdd/beads"
         _write_issue_ids(
-            beads_a,
+            beads_dir,
             [
                 "sase-1",
                 "sase-z",
                 "other-100",
                 "sase-1.1",
                 "sase-not-base36!",
+                "sase-10",
             ],
         )
-        _write_issue_ids(beads_b, ["sase-10"])
-        with open(beads_b / "issues.jsonl", "a") as f:
+        with open(beads_dir / "issues.jsonl", "a") as f:
             f.write("{not json}\n")
 
-        assert max_top_level_counter("sase", [beads_a, beads_b]) == 36
-
-    def test_max_child_counter_scans_direct_children_only(self, tmp_path: Path) -> None:
-        beads_dir = tmp_path / "sdd/beads"
-        _write_issue_ids(
-            beads_dir,
-            [
-                "sase-1.1",
-                "sase-1.4",
-                "sase-1.4.1",
-                "sase-10.9",
-                "sase-1.not-int",
-            ],
-        )
-
-        assert max_child_counter("sase-1", [beads_dir]) == 4
+        assert max_top_level_counter("sase", beads_dir) == 36
 
 
 def _write_issue_ids(beads_dir: Path, issue_ids: list[str]) -> None:

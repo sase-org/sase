@@ -10,7 +10,7 @@ from pathlib import Path
 
 from sase.bead import db as db_mod
 from sase.bead.config import get_default_config, load_config, save_config
-from sase.bead.ids import IdGenerator, max_child_counter, max_top_level_counter
+from sase.bead.ids import IdGenerator, max_top_level_counter
 from sase.bead.jsonl import export_to_jsonl
 from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
 from sase.bead.sync import git_sync, rebuild_from_jsonl
@@ -126,7 +126,6 @@ class BeadProject:
             epic_count=epic_count,
             model=model,
             now=_now(),
-            workspace_beads_dirs=self._workspace_beads_dirs(),
         )
         BEAD_OPERATIONS.labels(operation="create").inc()
         self._refresh_db_from_jsonl()
@@ -348,10 +347,7 @@ class BeadProject:
 
     def _next_child_id(self, parent_id: str) -> str:
         """Generate the next hierarchical child ID ``<parent_id>.<N>``."""
-        max_n = max(
-            self._max_local_child_counter(parent_id),
-            max_child_counter(parent_id, self._workspace_beads_dirs()),
-        )
+        max_n = self._max_local_child_counter(parent_id)
         return f"{parent_id}.{max_n + 1}"
 
     def _max_local_child_counter(self, parent_id: str) -> int:
@@ -373,34 +369,12 @@ class BeadProject:
         return max_n
 
     def _next_top_level_counter(self) -> int:
-        """Return the next safe top-level counter for this workspace set."""
+        """Return the next safe top-level counter for this bead store."""
         prefix = str(self._config.get("issue_prefix", "beads"))
         return max(
             self._id_gen.counter,
-            max_top_level_counter(prefix, self._workspace_beads_dirs()) + 1,
+            max_top_level_counter(prefix, self.beads_dir) + 1,
         )
-
-    def _workspace_beads_dirs(self) -> list[Path]:
-        """Return discovered workspace bead stores, always including this one."""
-        if Path.cwd().resolve().is_relative_to(self.root_dir):
-            try:
-                from sase.bead.workspace import get_project_beads_dirs
-
-                discovered = get_project_beads_dirs()
-            except Exception:
-                discovered = None
-        else:
-            discovered = None
-
-        beads_dirs: list[Path] = []
-        seen: set[Path] = set()
-        for beads_dir in [*(discovered or []), self.beads_dir]:
-            resolved = Path(beads_dir).resolve()
-            if resolved in seen:
-                continue
-            seen.add(resolved)
-            beads_dirs.append(resolved)
-        return beads_dirs
 
     def _update_active_gauge(self, issues: list[Issue]) -> None:
         """Update BEAD_ACTIVE gauge from a full (unfiltered) issue list."""

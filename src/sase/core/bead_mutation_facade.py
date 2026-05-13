@@ -43,7 +43,6 @@ def create(
     epic_count: int | None = None,
     model: str = "",
     now: str | None = None,
-    workspace_beads_dirs: list[Path] | list[str] | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
     binding = require_rust_binding("bead_create")
     payload = _call_issue_operation(
@@ -63,7 +62,6 @@ def create(
             "epic_count": epic_count,
             "model": model,
             "now": now,
-            "workspace_beads_dirs": _path_strings(workspace_beads_dirs or []),
         },
     )
     return _issue_payload(payload), payload
@@ -214,10 +212,6 @@ def _call_issue_operation(binding: Any, *args: Any) -> dict[str, Any]:
 
 def _issue_payload(payload: dict[str, Any]) -> Issue:
     return issue_from_dict(payload["issue"])
-
-
-def _path_strings(paths: list[Path] | list[str]) -> list[str]:
-    return [str(path) for path in paths]
 
 
 def _optional_text(value: str | int | None) -> str:
