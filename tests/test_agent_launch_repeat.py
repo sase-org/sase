@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -67,6 +68,7 @@ class _FakeApp(AgentLaunchMixin):
         vcs_ref: tuple[str, str] | None = None,
         deferred_workspace: bool = False,
         extra_env: dict[str, str] | None = None,
+        retry_transfer_from_pid: int | None = None,
     ) -> None:
         del (
             project_file,
@@ -86,6 +88,7 @@ class _FakeApp(AgentLaunchMixin):
                 "prompt": prompt,
                 "workflow_name": workflow_name,
                 "extra_env": extra_env,
+                "retry_transfer_from_pid": retry_transfer_from_pid,
             }
         )
 
@@ -147,6 +150,35 @@ class TestLaunchRepeatAgents:
             assert "%r:2" not in prompt  # type: ignore[operator]
             assert f"%n:bar.{idx}" in prompt  # type: ignore[operator]
             assert "do Y" in prompt  # type: ignore[operator]
+
+    def test_forwards_workspace_claim_transfer_pid(self, tmp_path: Path) -> None:
+        app = _FakeApp()
+        ctx = _fake_context()
+        ctx.is_home_mode = False
+
+        with (
+            patch.object(Path, "home", return_value=tmp_path),
+            patch(
+                "sase.running_field.claim_next_axe_workspace",
+                side_effect=[21, 22],
+            ),
+            patch(
+                "sase.running_field.get_workspace_directory_for_num",
+                side_effect=[("/tmp/ws21", None), ("/tmp/ws22", None)],
+            ),
+        ):
+            app._launch_repeat_agents(
+                prompt="%r:2 %n:foo body",
+                ctx=ctx,
+                vcs_ref=None,
+                has_wait=False,
+            )
+
+        assert len(app.launched) == 2
+        assert [call["retry_transfer_from_pid"] for call in app.launched] == [
+            os.getpid(),
+            os.getpid(),
+        ]
 
     def test_single_iteration_falls_through(self, tmp_path: Path) -> None:
         """%r:1 should be a no-op — _launch_repeat_agents only runs when >1,

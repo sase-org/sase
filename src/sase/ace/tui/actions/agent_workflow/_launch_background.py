@@ -23,6 +23,7 @@ class BackgroundAgentLaunchMixin:
         deferred_workspace: bool = False,
         extra_env: dict[str, str] | None = None,
         local_xprompts_file: str | None = None,
+        retry_transfer_from_pid: int | None = None,
     ) -> None:
         """Launch agent as background process.
 
@@ -44,6 +45,8 @@ class BackgroundAgentLaunchMixin:
                 spawned subprocess (e.g. ``SASE_REPEAT_*`` for repeat fan-out).
             local_xprompts_file: Optional serialized local-xprompt file for the
                 spawned subprocess.
+            retry_transfer_from_pid: Optional parent PID that already owns the
+                workspace claim and should transfer it to the child process.
         """
         from sase.agent.launcher import spawn_agent_subprocess
 
@@ -63,4 +66,5 @@ class BackgroundAgentLaunchMixin:
             deferred_workspace=deferred_workspace,
             extra_env=extra_env,
             local_xprompts_file=local_xprompts_file,
+            retry_transfer_from_pid=retry_transfer_from_pid,
         )

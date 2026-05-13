@@ -12,6 +12,7 @@ in ``test_agent_launch_dispatch.py``.
 
 from __future__ import annotations
 
+import os
 import re
 from contextlib import ExitStack
 from pathlib import Path
@@ -25,6 +26,7 @@ from tests.ace.tui._agent_launch_helpers import (
     _cd_git_metadata,
     _cd_metadata,
     _fake_context,
+    _run_launch_body_with_common_patches,
 )
 
 
@@ -251,6 +253,16 @@ def test_run_agent_launch_body_known_project_ref_without_provider_targets_projec
     first_ws.assert_called_once()
     assert first_ws.call_args.args[0] == project_file
     ws_dir.assert_called_once_with(101, "sase")
+
+
+def test_run_agent_launch_body_forwards_workspace_claim_transfer_pid() -> None:
+    app = _LaunchBodyApp()
+
+    _run_launch_body_with_common_patches(app, "do normal work")
+
+    assert len(app.launched) == 1
+    launch = app.launched[0]
+    assert launch["retry_transfer_from_pid"] == os.getpid()
 
 
 def test_run_agent_launch_body_does_not_save_non_launchable_resolved_vcs_ref() -> None:

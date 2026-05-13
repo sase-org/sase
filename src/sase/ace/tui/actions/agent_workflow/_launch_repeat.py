@@ -145,6 +145,7 @@ class RepeatLaunchMixin:
                     vcs_ref=request.vcs_ref,
                     deferred_workspace=request.deferred_workspace,
                     extra_env=request.extra_env,
+                    retry_transfer_from_pid=request.transfer_from_pid,
                 )
 
             def _refresh_after_slot(_record: object) -> None:

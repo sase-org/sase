@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 10:58:47
-status: wip
+status: done
 prompt: sdd/prompts/202605/tui_workspace_claim_transfer.md
 ---
 # Fix TUI Workspace Claim Transfer

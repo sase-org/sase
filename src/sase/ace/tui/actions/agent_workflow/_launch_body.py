@@ -466,6 +466,7 @@ class AgentLaunchBodyMixin:
                         deferred_workspace=request.deferred_workspace,
                         extra_env=request.extra_env,
                         local_xprompts_file=request.local_xprompts_file,
+                        retry_transfer_from_pid=request.transfer_from_pid,
                     )
 
                 execute_launch_plan(
