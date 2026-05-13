@@ -126,18 +126,6 @@ class DeltaWire:
 
 
 @dataclass
-class RawChangeSpecWire:
-    """A raw, unparsed ChangeSpec slice — exactly the bytes between
-    ``source_span.start_line`` and ``source_span.end_line`` in the source file.
-
-    A Rust parser can be handed one of these without re-reading the file.
-    """
-
-    source_span: SourceSpanWire
-    raw_text: str
-
-
-@dataclass
 class ChangeSpecWire:
     """The full parsed wire form of one ChangeSpec.
 

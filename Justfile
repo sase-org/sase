@@ -116,7 +116,6 @@ _lint-pyvision: _setup
         --epic-symbol 'sase-3a(NotificationStoreStatsWire)' \
         --epic-symbol 'sase-3a(PhaseAssignment)' \
         --epic-symbol 'sase-3a(QueryErrorWire)' \
-        --epic-symbol 'sase-3a(RawChangeSpecWire)' \
         --epic-symbol 'sase-3a(StatusFieldUpdateWire)' \
         --epic-symbol 'sase-3a(StreamedScriptResult)' \
         --epic-symbol 'sase-3a(allocate_launch_timestamp_batch)' \

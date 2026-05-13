@@ -21,7 +21,6 @@ from sase.core.wire import (
     ChangeSpecWire,
     CommitWire,
     ParseErrorWire,
-    RawChangeSpecWire,
     SourceSpanWire,
     to_json_dict,
 )
@@ -243,16 +242,6 @@ def test_individual_to_wire_helpers() -> None:
     assert mentor_entry_to_wire(cs.mentors[0]).entry_id == "1"
     assert timestamp_entry_to_wire(cs.timestamps[0]).event_type == "STATUS"
     assert delta_entry_to_wire(cs.deltas[0]).change_type == "A"
-
-
-def test_raw_changespec_wire_round_trips_through_json() -> None:
-    raw = RawChangeSpecWire(
-        source_span=SourceSpanWire(file_path="/p/proj.sase", start_line=1, end_line=2),
-        raw_text="NAME: x\nSTATUS: WIP\n",
-    )
-    payload = to_json_dict(raw)
-    assert payload["raw_text"].startswith("NAME: x")
-    assert payload["source_span"]["start_line"] == 1
 
 
 def test_parse_error_wire_optional_position() -> None:
