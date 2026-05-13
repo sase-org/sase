@@ -65,7 +65,7 @@ def get_last_keypress() -> float | None:
         return None
 
 
-def get_tui_last_activity() -> float | None:
+def _get_tui_last_activity() -> float | None:
     """Return the epoch stored in the activity file, or ``None``."""
     try:
         return float(ACTIVITY_FILE.read_text().strip())
@@ -212,7 +212,7 @@ def is_idle() -> bool:
         return True
     # When the user manually marked idle (activity epoch == 0), trust
     # their explicit intent — skip the keypress safety guard.
-    activity_ts = get_tui_last_activity()
+    activity_ts = _get_tui_last_activity()
     if activity_ts is not None and activity_ts == 0:
         return True
     # Safety guard: recent keypress overrides the idle state file.

@@ -44,6 +44,7 @@ def agent_status_bucket_glyph(bucket: str) -> str:
     return AGENT_STATUS_BUCKET_GLYPHS.get(bucket, "")
 
 
+# pyvision: https://github.com/sase-org/sase-telegram.git
 def group_agent_statuses(
     agents: Iterable[RunningAgentInfo],
 ) -> list[AgentStatusGroup]:

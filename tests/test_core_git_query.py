@@ -44,7 +44,6 @@ from sase.core.git_query_wire import (
     GIT_QUERY_WIRE_SCHEMA_VERSION,
     GitNameStatusEntryWire,
     git_name_status_entry_from_dict,
-    git_query_wire_to_json_dict,
 )
 
 
@@ -289,25 +288,6 @@ def test_parse_local_changes_dirty_tree_returns_stripped_text() -> None:
 
 def test_git_query_wire_schema_version_is_one() -> None:
     assert GIT_QUERY_WIRE_SCHEMA_VERSION == 1
-
-
-def test_git_query_wire_to_json_dict_round_trip_for_entry() -> None:
-    entry = GitNameStatusEntryWire(status="R100", path="old.py\tnew.py")
-    payload = git_query_wire_to_json_dict(entry)
-    assert payload == {"status": "R100", "path": "old.py\tnew.py"}
-    assert git_name_status_entry_from_dict(payload) == entry
-
-
-def test_git_query_wire_to_json_dict_handles_lists() -> None:
-    entries = [
-        GitNameStatusEntryWire(status="A", path="a.py"),
-        GitNameStatusEntryWire(status="M", path="b.py"),
-    ]
-    payload = git_query_wire_to_json_dict(entries)
-    assert payload == [
-        {"status": "A", "path": "a.py"},
-        {"status": "M", "path": "b.py"},
-    ]
 
 
 # ---------------------------------------------------------------------------

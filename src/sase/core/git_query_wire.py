@@ -75,16 +75,16 @@ class GitNameStatusEntryWire:
     path: str
 
 
-def git_query_wire_to_json_dict(record: Any) -> Any:
+def _git_query_wire_to_json_dict(record: Any) -> Any:
     """Project a Git-query wire record (or list of them) to a JSON-safe shape.
 
     Mirrors :func:`sase.core.agent_scan_wire.agent_scan_wire_to_json_dict`
     so the Git-query wire stays independent of other facades' schema bumps.
     """
     if isinstance(record, (list, tuple)):
-        return [git_query_wire_to_json_dict(item) for item in record]
+        return [_git_query_wire_to_json_dict(item) for item in record]
     if isinstance(record, dict):
-        return {k: git_query_wire_to_json_dict(v) for k, v in record.items()}
+        return {k: _git_query_wire_to_json_dict(v) for k, v in record.items()}
     if hasattr(record, "__dataclass_fields__"):
         return asdict(record)
     return record
@@ -107,5 +107,4 @@ __all__ = [
     "GIT_QUERY_WIRE_SCHEMA_VERSION",
     "GitNameStatusEntryWire",
     "git_name_status_entry_from_dict",
-    "git_query_wire_to_json_dict",
 ]
