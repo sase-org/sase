@@ -8,8 +8,12 @@ from unittest.mock import Mock
 
 import pytest
 
+from sase.ace.tui.actions.agent_workflow._leader_mode import LeaderModeMixin
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
+from sase.ace.tui.actions.agents._navigation_order import AgentNavigationOrderMixin
+from sase.ace.tui.actions.agents._unread import AgentUnreadMixin
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
+from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panels import AgentPanelGroup, panel_key_per_agent
 
@@ -82,6 +86,51 @@ class _UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin):
 
     def _refresh_agents_display_debounced(self) -> None:
         self.debounced_refresh_calls += 1
+
+    def _refresh_notification_count(self) -> None:
+        self.notification_count_refresh_calls += 1
+
+
+class _LeaderUnreadJumpApp(
+    LeaderModeMixin,
+    AgentUnreadMixin,
+    AgentNavigationOrderMixin,
+):
+    def __init__(self, agents: list[Agent], *, current_idx: int = 0) -> None:
+        self._agents = agents
+        self.current_idx = current_idx
+        self.current_attempt_number: int | None = 3
+        self.current_tab = "agents"
+        self._current_group_key: tuple[str, ...] | None = None
+        self._agent_panels_grouped = False
+        self._panel_group = AgentPanelGroup.from_agents(agents, focused_key=None)
+        self._nav_stops_cache: tuple[Any, ...] | None = None
+        self._leader_mode_active = True
+        self._last_leader_key: str | None = None
+        self._keymap_registry = load_keymap_registry({})
+        self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self.patch_calls: list[Agent] = []
+        self.refresh_calls: list[dict[str, Any]] = []
+        self.current_tab_refresh_calls = 0
+        self.notification_count_refresh_calls = 0
+        self.notifications: list[str] = []
+
+    def notify(self, message: str, **_: Any) -> None:
+        self.notifications.append(message)
+
+    def _refresh_current_tab(self) -> None:
+        self.current_tab_refresh_calls += 1
+
+    def _panel_keys_per_agent(self) -> list[str | None]:
+        return panel_key_per_agent(self._agents, merge_tag_panels=False)
+
+    def _try_patch_agent_row(self, agent: Agent) -> bool:
+        self.patch_calls.append(agent)
+        return True
+
+    def _refresh_agents_display(self, **kwargs: Any) -> None:
+        self.refresh_calls.append(kwargs)
 
     def _refresh_notification_count(self) -> None:
         self.notification_count_refresh_calls += 1
@@ -238,6 +287,73 @@ def test_jump_to_next_unread_done_agent_uses_completion_recency_and_wraps() -> N
 
     assert not app._jump_to_next_unread_done_agent()
     assert app.current_idx == 0
+
+
+def test_repeated_leader_j_walks_unread_done_agents_by_recency(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.return_value = 1
+    oldest = make_agent(
+        name="oldest",
+        status="DONE",
+        raw_suffix="oldest",
+        tag="zeta",
+        stop_time=datetime(2026, 5, 7, 10, 0, 0),
+    )
+    newest = make_agent(
+        name="newest",
+        status="PLAN DONE",
+        raw_suffix="newest",
+        tag="alpha",
+        stop_time=datetime(2026, 5, 7, 13, 0, 0),
+    )
+    running = make_agent(
+        name="running",
+        status="RUNNING",
+        raw_suffix="running",
+        stop_time=datetime(2026, 5, 7, 14, 0, 0),
+    )
+    middle = make_agent(
+        name="middle",
+        status="FAILED",
+        raw_suffix="middle",
+        tag="beta",
+        stop_time=datetime(2026, 5, 7, 12, 0, 0),
+    )
+    app = _LeaderUnreadJumpApp(
+        [oldest, newest, running, middle],
+        current_idx=2,
+    )
+    app._unread_completed_agent_ids.update(
+        {oldest.identity, newest.identity, middle.identity}
+    )
+
+    assert app._handle_leader_key("j") is True
+    assert app.current_idx == 1
+    assert app._panel_group.focused_key == "alpha"
+
+    assert app._handle_leader_key("comma") is True
+    assert app.current_idx == 3
+    assert app._panel_group.focused_key == "beta"
+
+    assert app._handle_leader_key("comma") is True
+    assert app.current_idx == 0
+    assert app._panel_group.focused_key == "zeta"
+
+    assert app._handle_leader_key("comma") is True
+    assert app.current_idx == 0
+    assert app._last_leader_key == "j"
+    assert app._unread_completed_agent_ids == set()
+    assert app.notifications == ["No unread completed agents"]
+    assert app.current_tab_refresh_calls == 4
+    assert app.refresh_calls == [
+        {"list_changed": True, "defer_detail": True},
+        {"list_changed": True, "defer_detail": True},
+        {"list_changed": True, "defer_detail": True},
+    ]
+    assert app.patch_calls == []
+    assert notification_dismiss.call_count == 3
+    assert app.notification_count_refresh_calls == 3
 
 
 def test_jump_to_next_unread_done_agent_wraps_from_oldest_to_newest() -> None:
