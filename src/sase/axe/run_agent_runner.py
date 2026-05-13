@@ -472,6 +472,7 @@ def main() -> None:
                 error_report_path=error_report_path,
                 saved_path=saved_path,
                 diff_path=diff_path,
+                current_artifacts_dir=current_artifacts_dir,
                 markdown_pdf_paths=markdown_pdf_paths,
                 markdown_source_count=markdown_source_count,
                 image_paths=image_paths,

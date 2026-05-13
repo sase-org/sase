@@ -121,4 +121,5 @@ class TestRunStartedAtRecording:
             "2026-05-12T12:00:00+00:00"
         )
         notify.assert_called_once()
+        assert notify.call_args.kwargs["current_artifacts_dir"] == artifacts_dir
         assert notify.call_args.kwargs["runtime"] == "4m32s"

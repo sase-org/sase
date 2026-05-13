@@ -124,6 +124,31 @@ def record_completion_metrics(
         pass
 
 
+def _completion_explicit_artifact_paths(current_artifacts_dir: str | None) -> list[str]:
+    """Return explicit artifact file paths for notification attachment."""
+    if not current_artifacts_dir:
+        return []
+
+    try:
+        from sase.core.agent_artifact_facade import list_explicit_agent_artifacts
+
+        artifacts = list_explicit_agent_artifacts(current_artifacts_dir)
+    except Exception:
+        return []
+
+    paths: list[str] = []
+    for artifact in artifacts:
+        path = artifact.path
+        if not path:
+            continue
+        try:
+            if os.path.isfile(path):
+                paths.append(path)
+        except (OSError, ValueError):
+            continue
+    return paths
+
+
 def send_completion_notification(
     *,
     cl_name: str,
@@ -138,6 +163,7 @@ def send_completion_notification(
     error_report_path: str | None,
     saved_path: str | None,
     diff_path: str | None,
+    current_artifacts_dir: str | None = None,
     markdown_pdf_paths: list[str] | None = None,
     markdown_source_count: int | None = None,
     image_paths: list[str] | None = None,
@@ -165,6 +191,8 @@ def send_completion_notification(
             extra_files.append(output_path)
     extra_files.extend(append_unique_paths(markdown_pdf_paths or [], extra_files))
     extra_files.extend(append_unique_paths(image_paths or [], extra_files))
+    explicit_artifact_paths = _completion_explicit_artifact_paths(current_artifacts_dir)
+    extra_files.extend(append_unique_paths(explicit_artifact_paths, extra_files))
 
     agent_label = format_provider_model_label(agent_llm_provider, agent_model)
 

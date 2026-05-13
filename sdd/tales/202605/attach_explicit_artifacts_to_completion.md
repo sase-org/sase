@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 16:54:50
-status: wip
+status: done
 prompt: sdd/prompts/202605/attach_explicit_artifacts_to_completion.md
 ---
 # Attach explicit agent artifacts to completion notifications

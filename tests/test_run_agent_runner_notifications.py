@@ -6,6 +6,7 @@ SASE_AGENT_AUTO_DISMISS) forward ``silent=True`` to
 count for runs the user never asked to see.
 """
 
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -35,6 +36,7 @@ def base_kwargs(tmp_path):
         "error_report_path": None,
         "saved_path": None,
         "diff_path": None,
+        "current_artifacts_dir": str(tmp_path / "agent_artifacts"),
         "markdown_pdf_paths": [],
         "markdown_source_count": None,
         "image_paths": [],
@@ -257,6 +259,99 @@ def test_completion_notification_dedupes_image_paths(base_kwargs, tmp_path):
         send_completion_notification(**base_kwargs)
 
     assert mock_notify.call_args.kwargs["extra_files"] == [str(image)]
+
+
+def test_completion_notification_appends_explicit_artifact_paths(base_kwargs, tmp_path):
+    chat = tmp_path / "chat.md"
+    explicit = tmp_path / "result.png"
+    base_kwargs["saved_path"] = str(chat)
+    explicit.write_bytes(b"png")
+
+    with (
+        patch(
+            "sase.core.agent_artifact_facade.list_explicit_agent_artifacts",
+            return_value=[SimpleNamespace(path=str(explicit))],
+        ) as list_artifacts,
+        patch("sase.notifications.senders.notify_workflow_complete") as mock_notify,
+    ):
+        send_completion_notification(**base_kwargs)
+
+    list_artifacts.assert_called_once_with(base_kwargs["current_artifacts_dir"])
+    assert mock_notify.call_args.kwargs["extra_files"] == [
+        str(chat),
+        str(explicit),
+    ]
+
+
+def test_completion_notification_dedupes_explicit_artifact_paths(base_kwargs, tmp_path):
+    chat = tmp_path / "chat.md"
+    diff = tmp_path / "diff.diff"
+    pdf = tmp_path / "notes.pdf"
+    image = tmp_path / "screen.png"
+    explicit = tmp_path / "explicit.txt"
+    for path in (chat, diff, pdf, image, explicit):
+        path.write_text("content\n")
+    base_kwargs["saved_path"] = str(chat)
+    base_kwargs["diff_path"] = str(diff)
+    base_kwargs["markdown_pdf_paths"] = [str(pdf)]
+    base_kwargs["image_paths"] = [str(image)]
+
+    with (
+        patch(
+            "sase.core.agent_artifact_facade.list_explicit_agent_artifacts",
+            return_value=[
+                SimpleNamespace(path=str(chat)),
+                SimpleNamespace(path=str(pdf)),
+                SimpleNamespace(path=str(image)),
+                SimpleNamespace(path=str(explicit)),
+            ],
+        ),
+        patch("sase.notifications.senders.notify_workflow_complete") as mock_notify,
+    ):
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["extra_files"] == [
+        str(chat),
+        str(diff),
+        str(pdf),
+        str(image),
+        str(explicit),
+    ]
+
+
+def test_completion_notification_skips_missing_explicit_artifacts(
+    base_kwargs, tmp_path
+):
+    explicit = tmp_path / "result.png"
+    explicit.write_bytes(b"png")
+
+    with (
+        patch(
+            "sase.core.agent_artifact_facade.list_explicit_agent_artifacts",
+            return_value=[
+                SimpleNamespace(path=""),
+                SimpleNamespace(path=str(tmp_path / "missing.png")),
+                SimpleNamespace(path=str(explicit)),
+            ],
+        ),
+        patch("sase.notifications.senders.notify_workflow_complete") as mock_notify,
+    ):
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["extra_files"] == [str(explicit)]
+
+
+def test_completion_notification_ignores_explicit_artifact_index_errors(base_kwargs):
+    with (
+        patch(
+            "sase.core.agent_artifact_facade.list_explicit_agent_artifacts",
+            side_effect=OSError("index unavailable"),
+        ),
+        patch("sase.notifications.senders.notify_workflow_complete") as mock_notify,
+    ):
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["extra_files"] == []
 
 
 def test_completed_done_marker_includes_markdown_pdf_paths(tmp_path):
