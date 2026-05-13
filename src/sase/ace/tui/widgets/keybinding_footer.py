@@ -438,6 +438,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         has_notification: bool = False,
         has_mentor_results: bool = False,
         has_unread_completed_agent: bool = False,
+        has_stopped_agent: bool = False,
     ) -> None:
         """Update bindings to show leader mode options.
 
@@ -447,6 +448,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             has_notification: Whether the selected agent has a pending notification.
             has_mentor_results: Whether the selected ChangeSpec has mentor results.
             has_unread_completed_agent: Whether any completed agent is unread.
+            has_stopped_agent: Whether any completed agent is loaded.
         """
         d = footer_key_display
         keys = self._kr().leader_mode.keys
@@ -472,6 +474,8 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             bindings.append((k("agent_from_cl"), "run agent (CL)"))
         if current_tab == "agents":
             bindings.append((k("toggle_agent_panel_grouping"), "group panels"))
+            if has_stopped_agent:
+                bindings.append((k("jump_to_next_stopped_agent"), "next stopped"))
             if has_unread_completed_agent:
                 bindings.append(
                     (k("jump_to_next_unread_done_agent"), "next unread done")

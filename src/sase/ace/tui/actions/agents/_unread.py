@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -39,6 +40,10 @@ class AgentUnreadMixin:
             is_unread_completed_status(agent.status) and agent.identity in unread_ids
             for agent in self._agents
         )
+
+    def _has_stopped_agent(self) -> bool:
+        """Return True when a terminal agent row is currently loaded."""
+        return any(is_unread_completed_status(agent.status) for agent in self._agents)
 
     def _mark_all_unread_done_agents_read(self) -> int:
         """Acknowledge all currently loaded unread terminal agent rows."""
@@ -84,6 +89,43 @@ class AgentUnreadMixin:
 
     def _jump_to_next_unread_done_agent(self) -> bool:
         """Move focus to the next visible unread completed agent and acknowledge it."""
+        unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
+            self, "_unread_completed_agent_ids", set()
+        )
+        if not unread_ids:
+            return False
+
+        def acknowledge_target(agent: Agent, needs_full_refresh: bool) -> None:
+            if needs_full_refresh:
+                self._clear_agent_unread_and_dismiss_notification(agent)
+                self._refresh_agents_display(  # type: ignore[attr-defined]
+                    list_changed=True, defer_detail=True
+                )
+            else:
+                self._acknowledge_agent_unread(agent)
+
+        return self._jump_to_next_completed_agent(
+            predicate=lambda agent: (
+                agent.identity in unread_ids
+                and is_unread_completed_status(agent.status)
+            ),
+            after_select=acknowledge_target,
+        )
+
+    def _jump_to_next_stopped_agent(self) -> bool:
+        """Move focus to the next visible stopped agent without acknowledging it."""
+        return self._jump_to_next_completed_agent(
+            predicate=lambda agent: is_unread_completed_status(agent.status),
+            after_select=None,
+        )
+
+    def _jump_to_next_completed_agent(
+        self,
+        *,
+        predicate: Callable[[Agent], bool],
+        after_select: Callable[[Agent, bool], None] | None,
+    ) -> bool:
+        """Move focus to the next visible completed agent matching *predicate*."""
         if not self._agents:
             return False
 
@@ -91,27 +133,11 @@ class AgentUnreadMixin:
         if not visible_panel_indices:
             return False
 
-        unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
-            self, "_unread_completed_agent_ids", set()
-        )
-        if not unread_ids:
-            return False
-
         candidates: list[tuple[int, int | None, datetime | None]] = []
-        for idx, agent in enumerate(self._agents):
-            if idx not in visible_panel_indices:
-                continue
-            if (
-                is_unread_completed_status(agent.status)
-                and agent.identity in unread_ids
-            ):
-                candidates.append(
-                    (
-                        idx,
-                        visible_panel_indices[idx],
-                        agent.stop_time or agent.start_time,
-                    )
-                )
+        for idx, panel_idx in visible_panel_indices.items():
+            agent = self._agents[idx]
+            if predicate(agent):
+                candidates.append((idx, panel_idx, agent.stop_time or agent.start_time))
 
         if not candidates:
             return False
@@ -154,13 +180,12 @@ class AgentUnreadMixin:
         needs_full_refresh = panel_changed or (
             old_idx == target_idx and old_group_key is not None
         )
-        if needs_full_refresh:
-            self._clear_agent_unread_and_dismiss_notification(target_agent)
+        if after_select is not None:
+            after_select(target_agent, needs_full_refresh)
+        elif needs_full_refresh:
             self._refresh_agents_display(  # type: ignore[attr-defined]
                 list_changed=True, defer_detail=True
             )
-        else:
-            self._acknowledge_agent_unread(target_agent)
         return True
 
     def _manual_unread_ids(self) -> set[tuple[AgentType, str, str | None]]:

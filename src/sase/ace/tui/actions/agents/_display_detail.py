@@ -107,6 +107,7 @@ class DetailMixin:
             footer_widget.update_leader_bindings(
                 current_tab="agents",
                 has_unread_completed_agent=self._has_unread_completed_agent(),  # type: ignore[attr-defined]
+                has_stopped_agent=self._has_stopped_agent(),  # type: ignore[attr-defined]
             )
         elif getattr(self, "_bang_mode_active", False):
             footer_widget.update_bang_bindings()

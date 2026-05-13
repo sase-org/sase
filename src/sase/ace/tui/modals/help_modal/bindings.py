@@ -390,6 +390,10 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     "Jump to next unread done agent",
                 ),
                 (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'jump_to_next_stopped_agent'))}",
+                    "Jump to next stopped agent",
+                ),
+                (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'mark_all_unread_done_agents_read'))}",
                     "Mark all unread done agents read",
                 ),

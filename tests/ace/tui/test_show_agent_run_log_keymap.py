@@ -34,6 +34,8 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self.toggle_panel_grouping_count = 0
         self.jump_unread_count = 0
         self.jump_unread_result = True
+        self.jump_stopped_count = 0
+        self.jump_stopped_result = True
         self.mark_all_unread_count = 0
         self.mark_all_unread_result = 2
         self.prompt_history_calls: list[dict[str, bool]] = []
@@ -54,6 +56,10 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
     def _jump_to_next_unread_done_agent(self) -> bool:
         self.jump_unread_count += 1
         return self.jump_unread_result
+
+    def _jump_to_next_stopped_agent(self) -> bool:
+        self.jump_stopped_count += 1
+        return self.jump_stopped_result
 
     def _mark_all_unread_done_agents_read(self) -> int:
         self.mark_all_unread_count += 1
@@ -83,7 +89,8 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
     assert registry.app.open_agent_artifacts == "A"
     assert registry.leader_mode.keys["agent_run_log"] == "A"
     assert registry.app.focus_next_agent_panel == "J"
-    assert registry.leader_mode.keys["mark_all_unread_done_agents_read"] == "J"
+    assert registry.leader_mode.keys["jump_to_next_stopped_agent"] == "J"
+    assert registry.leader_mode.keys["mark_all_unread_done_agents_read"] == "U"
 
     bindings = build_app_bindings(registry.app)
     by_key = {b.key: b.action for b in bindings}
@@ -187,27 +194,28 @@ def test_leader_j_noops_on_non_agents_tabs() -> None:
     assert app.refresh_count == 1
 
 
-def test_leader_shift_j_marks_all_unread_done_agents_read_on_agents_tab() -> None:
+def test_leader_shift_j_jumps_to_next_stopped_agent_on_agents_tab() -> None:
     app = _FakeApp(current_tab="agents")
 
     handled = app._handle_leader_key("J")
 
     assert handled is True
     assert app._leader_mode_active is False
-    assert app.mark_all_unread_count == 1
-    assert app.notifications == ["Marked 2 completed agents read"]
-    assert app.refresh_count == 0
+    assert app.jump_stopped_count == 1
+    assert app.mark_all_unread_count == 0
+    assert app.notifications == []
+    assert app.refresh_count == 1
 
 
-def test_leader_shift_j_notifies_when_no_unread_done_agents() -> None:
+def test_leader_shift_j_notifies_when_no_stopped_agents() -> None:
     app = _FakeApp(current_tab="agents")
-    app.mark_all_unread_result = 0
+    app.jump_stopped_result = False
 
     handled = app._handle_leader_key("J")
 
     assert handled is True
-    assert app.mark_all_unread_count == 1
-    assert app.notifications == ["No unread completed agents"]
+    assert app.jump_stopped_count == 1
+    assert app.notifications == ["No stopped agents"]
     assert app.refresh_count == 1
 
 
@@ -218,7 +226,32 @@ def test_leader_shift_j_noops_on_non_agents_tabs() -> None:
 
     assert handled is True
     assert app.mark_all_unread_count == 0
+    assert app.jump_stopped_count == 0
     assert app.notifications == []
+    assert app.refresh_count == 1
+
+
+def test_leader_u_marks_all_unread_done_agents_read_on_agents_tab() -> None:
+    app = _FakeApp(current_tab="agents")
+
+    handled = app._handle_leader_key("U")
+
+    assert handled is True
+    assert app._leader_mode_active is False
+    assert app.mark_all_unread_count == 1
+    assert app.notifications == ["Marked 2 completed agents read"]
+    assert app.refresh_count == 0
+
+
+def test_leader_u_notifies_when_no_unread_done_agents() -> None:
+    app = _FakeApp(current_tab="agents")
+    app.mark_all_unread_result = 0
+
+    handled = app._handle_leader_key("U")
+
+    assert handled is True
+    assert app.mark_all_unread_count == 1
+    assert app.notifications == ["No unread completed agents"]
     assert app.refresh_count == 1
 
 
@@ -277,7 +310,7 @@ def test_footer_surfaces_unread_done_jump_only_when_available() -> None:
     rendered = str(captured[-1])
     assert "j" in rendered
     assert "next unread done" in rendered
-    assert "J" in rendered
+    assert "U" in rendered
     assert "mark all read" in rendered
 
     footer.update_leader_bindings(
@@ -285,3 +318,19 @@ def test_footer_surfaces_unread_done_jump_only_when_available() -> None:
     )
     assert "next unread done" not in str(captured[-1])
     assert "mark all read" not in str(captured[-1])
+
+
+def test_footer_surfaces_stopped_jump_only_when_available() -> None:
+    footer = KeybindingFooter()
+    captured: list[object] = []
+    footer._update_display = MagicMock(  # type: ignore[method-assign]
+        side_effect=lambda text: captured.append(text)
+    )
+
+    footer.update_leader_bindings(current_tab="agents", has_stopped_agent=True)
+    rendered = str(captured[-1])
+    assert "J" in rendered
+    assert "next stopped" in rendered
+
+    footer.update_leader_bindings(current_tab="agents", has_stopped_agent=False)
+    assert "next stopped" not in str(captured[-1])

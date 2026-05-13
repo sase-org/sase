@@ -377,6 +377,18 @@ def test_leader_mode_includes_jump_to_next_unread_done_agent() -> None:
     assert reg.leader_mode.keys["jump_to_next_unread_done_agent"] == "j"
 
 
+def test_leader_mode_includes_jump_to_next_stopped_agent() -> None:
+    """LeaderModeKeymaps default includes the ``,J`` stopped-agent jump."""
+    reg = load_keymap_registry({})
+    assert reg.leader_mode.keys["jump_to_next_stopped_agent"] == "J"
+
+
+def test_leader_mode_marks_all_unread_done_agents_read_with_u() -> None:
+    """LeaderModeKeymaps default moves mark-all-read to ``,U``."""
+    reg = load_keymap_registry({})
+    assert reg.leader_mode.keys["mark_all_unread_done_agents_read"] == "U"
+
+
 def test_leader_mode_includes_prompt_history_edit_first() -> None:
     """LeaderModeKeymaps default includes the ``, Ctrl+G`` history edit."""
     reg = load_keymap_registry({})

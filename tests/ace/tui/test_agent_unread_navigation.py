@@ -410,6 +410,130 @@ def test_jump_to_next_unread_done_agent_finds_non_focused_panel_row() -> None:
     assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
 
 
+def test_jump_to_next_stopped_agent_uses_completion_recency_and_wraps(
+    notification_dismiss: Mock,
+) -> None:
+    older = make_agent(
+        name="older",
+        status="DONE",
+        raw_suffix="older",
+        stop_time=datetime(2026, 5, 7, 10, 0, 0),
+    )
+    fallback_newest = make_agent(
+        name="fallback",
+        status="PLAN DONE",
+        raw_suffix="fallback",
+        start_time=datetime(2026, 5, 7, 13, 0, 0),
+        stop_time=None,
+    )
+    running = make_agent(
+        name="running",
+        status="RUNNING",
+        raw_suffix="running",
+        stop_time=datetime(2026, 5, 7, 14, 0, 0),
+    )
+    middle = make_agent(
+        name="middle",
+        status="FAILED",
+        raw_suffix="middle",
+        stop_time=datetime(2026, 5, 7, 11, 0, 0),
+    )
+    app = _UnreadJumpApp(
+        [older, fallback_newest, running, middle],
+        visible=[2, 0, 3, 1],
+        current_idx=2,
+    )
+    app._unread_completed_agent_ids.update(
+        {older.identity, fallback_newest.identity, middle.identity}
+    )
+
+    assert app._jump_to_next_stopped_agent()
+    assert app.current_idx == 1
+    assert app._unread_completed_agent_ids == {
+        older.identity,
+        fallback_newest.identity,
+        middle.identity,
+    }
+
+    assert app._jump_to_next_stopped_agent()
+    assert app.current_idx == 3
+
+    assert app._jump_to_next_stopped_agent()
+    assert app.current_idx == 0
+
+    assert app._jump_to_next_stopped_agent()
+    assert app.current_idx == 1
+    assert app.patch_calls == []
+    assert app.refresh_calls == []
+    notification_dismiss.assert_not_called()
+
+
+def test_jump_to_next_stopped_agent_ignores_running_rows() -> None:
+    running = make_agent(name="running", status="RUNNING", raw_suffix="running")
+    waiting = make_agent(name="waiting", status="WAITING INPUT", raw_suffix="waiting")
+    app = _UnreadJumpApp([running, waiting], current_idx=0)
+
+    assert not app._jump_to_next_stopped_agent()
+    assert app.current_idx == 0
+    assert app.patch_calls == []
+    assert app.refresh_calls == []
+
+
+def test_jump_to_next_stopped_agent_starts_at_newest_from_focused_banner() -> None:
+    first = make_agent(
+        name="first",
+        status="DONE",
+        raw_suffix="first",
+        stop_time=datetime(2026, 5, 7, 10, 0, 0),
+    )
+    second = make_agent(
+        name="second",
+        status="DONE",
+        raw_suffix="second",
+        stop_time=datetime(2026, 5, 7, 12, 0, 0),
+    )
+    app = _UnreadJumpApp(
+        [first, second],
+        visible=[0, 1],
+        stops=[("banner", ("group",)), ("agent", 1), ("agent", 0)],
+    )
+    app._current_group_key = ("group",)
+
+    assert app._jump_to_next_stopped_agent()
+
+    assert app.current_idx == 1
+    assert app._current_group_key is None
+    assert app.current_attempt_number is None
+    assert app.refresh_calls == []
+
+
+def test_jump_to_next_stopped_agent_finds_non_focused_panel_row() -> None:
+    focused = make_agent(name="focused", status="RUNNING", raw_suffix="focused")
+    target = make_agent(
+        name="target",
+        status="PLAN DONE",
+        raw_suffix="target",
+        tag="chop",
+        stop_time=datetime(2026, 5, 7, 12, 0, 0),
+    )
+    app = _UnreadJumpApp(
+        [focused, target],
+        current_idx=0,
+        with_panels=True,
+        focused_key=None,
+    )
+    assert app._panel_group.panel_keys == [None, "chop"]
+    assert app._panel_group.focused_idx == 0
+
+    assert app._jump_to_next_stopped_agent()
+
+    assert app.current_idx == 1
+    assert app._panel_group.focused_idx == 1
+    assert app.current_attempt_number is None
+    assert app.patch_calls == []
+    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+
+
 def test_manual_unread_guards_per_row_dismissal(
     notification_dismiss: Mock,
 ) -> None:
