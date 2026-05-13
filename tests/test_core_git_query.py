@@ -28,7 +28,7 @@ import pytest
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 from sase.core.git_query_facade import (
     derive_git_workspace_name,
-    derive_git_workspace_name_python,
+    _derive_git_workspace_name_python,
     parse_git_branch_name,
     parse_git_branch_name_python,
     parse_git_conflicted_files,
@@ -508,7 +508,7 @@ def test_rust_extension_parity_for_all_helpers() -> None:
     for remote, root in workspace_pairs:
         assert rust_module.derive_git_workspace_name(
             remote, root
-        ) == derive_git_workspace_name_python(remote, root)
+        ) == _derive_git_workspace_name_python(remote, root)
 
     for stdout in ["", "src/a.py\n\nsrc/b.py\n", "z.py\na.py\nm.py\n", "\n\n   \n"]:
         assert rust_module.parse_git_conflicted_files(

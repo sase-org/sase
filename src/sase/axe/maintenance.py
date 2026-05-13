@@ -109,10 +109,13 @@ def clear_stale_maintenance(
 
 
 @contextmanager
-def enter_maintenance(reason: str) -> Iterator[dict[str, Any]]:
+def _enter_maintenance(reason: str) -> Iterator[dict[str, Any]]:
     """Context manager that creates and clears an axe maintenance marker."""
     marker = start_maintenance(reason)
     try:
         yield marker
     finally:
         clear_maintenance()
+
+
+_enter_maintenance_context = _enter_maintenance

@@ -280,7 +280,7 @@ def _leading_vcs_ref_text(segment: str) -> str | None:
     return stripped[0] if stripped is not None else None
 
 
-def extract_top_level_xprompt_reference(
+def _extract_top_level_xprompt_reference(
     segment: str, available: set[str]
 ) -> _XPromptCall | None:
     """Return the call info if *segment* is a sole top-level xprompt reference.
@@ -469,7 +469,7 @@ def expand_multi_agent_xprompts(
 
     expanded: list[str] = []
     for segment in segments:
-        call = extract_top_level_xprompt_reference(segment, available)
+        call = _extract_top_level_xprompt_reference(segment, available)
         if call is not None and call.name in multi_agent_names:
             if max_depth <= 0:
                 raise MultiAgentXPromptDepthError(
@@ -541,6 +541,6 @@ def expand_multi_agent_xprompts(
 __all__ = [
     "MultiAgentXPromptDepthError",
     "expand_multi_agent_xprompts",
-    "extract_top_level_xprompt_reference",
+    "_extract_top_level_xprompt_reference",
     "xprompt_has_segment_separators",
 ]

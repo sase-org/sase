@@ -12,7 +12,7 @@ from sase.agent.multi_agent_xprompt import (
     MultiAgentXPromptDepthError,
     _MultiAgentXPromptUsageError,
     expand_multi_agent_xprompts,
-    extract_top_level_xprompt_reference,
+    _extract_top_level_xprompt_reference,
     xprompt_has_segment_separators,
 )
 from sase.xprompt.models import InputArg, InputType, XPrompt
@@ -72,7 +72,7 @@ def test_has_separators_inside_fence_ignored() -> None:
 
 
 def test_extract_simple_reference() -> None:
-    call = extract_top_level_xprompt_reference("#foo", {"foo"})
+    call = _extract_top_level_xprompt_reference("#foo", {"foo"})
     assert call is not None
     assert call.name == "foo"
     assert call.marker.value == "#"
@@ -80,26 +80,26 @@ def test_extract_simple_reference() -> None:
 
 
 def test_extract_standalone_reference() -> None:
-    call = extract_top_level_xprompt_reference("#!foo", {"foo"})
+    call = _extract_top_level_xprompt_reference("#!foo", {"foo"})
     assert call is not None
     assert call.name == "foo"
     assert call.marker.value == "#!"
 
 
 def test_extract_with_args() -> None:
-    call = extract_top_level_xprompt_reference("#!foo(a, b)", {"foo"})
+    call = _extract_top_level_xprompt_reference("#!foo(a, b)", {"foo"})
     assert call is not None
     assert call.positional_args == ["a", "b"]
 
 
 def test_extract_with_named_args() -> None:
-    call = extract_top_level_xprompt_reference("#foo(name=val)", {"foo"})
+    call = _extract_top_level_xprompt_reference("#foo(name=val)", {"foo"})
     assert call is not None
     assert call.named_args == {"name": "val"}
 
 
 def test_extract_with_leading_directives() -> None:
-    call = extract_top_level_xprompt_reference("%name:custom\n%wait\n#foo", {"foo"})
+    call = _extract_top_level_xprompt_reference("%name:custom\n%wait\n#foo", {"foo"})
     assert call is not None
     assert call.name == "foo"
     assert call.leading_directives == ["%name:custom", "%wait"]
@@ -107,7 +107,7 @@ def test_extract_with_leading_directives() -> None:
 
 def test_extract_with_same_line_directives_before_vcs_ref() -> None:
     with _patch_vcs_patterns():
-        call = extract_top_level_xprompt_reference(
+        call = _extract_top_level_xprompt_reference(
             "%n:custom %model:opus #gh:sase #!foo", {"foo"}
         )
     assert call is not None
@@ -117,26 +117,26 @@ def test_extract_with_same_line_directives_before_vcs_ref() -> None:
 
 
 def test_extract_returns_none_for_prose() -> None:
-    assert extract_top_level_xprompt_reference("Hello #foo and stuff", {"foo"}) is None
+    assert _extract_top_level_xprompt_reference("Hello #foo and stuff", {"foo"}) is None
 
 
 def test_extract_returns_none_for_trailing_prose() -> None:
-    assert extract_top_level_xprompt_reference("#foo and stuff", {"foo"}) is None
+    assert _extract_top_level_xprompt_reference("#foo and stuff", {"foo"}) is None
 
 
 def test_extract_returns_none_when_name_unknown() -> None:
-    assert extract_top_level_xprompt_reference("#foo", {"bar"}) is None
+    assert _extract_top_level_xprompt_reference("#foo", {"bar"}) is None
 
 
 def test_extract_colon_arg() -> None:
-    call = extract_top_level_xprompt_reference("#foo:hello", {"foo"})
+    call = _extract_top_level_xprompt_reference("#foo:hello", {"foo"})
     assert call is not None
     assert call.positional_args == ["hello"]
 
 
 def test_extract_with_leading_vcs_ref() -> None:
     with _patch_vcs_patterns():
-        call = extract_top_level_xprompt_reference("#gh:sase #!foo", {"foo"})
+        call = _extract_top_level_xprompt_reference("#gh:sase #!foo", {"foo"})
     assert call is not None
     assert call.name == "foo"
     assert call.leading_vcs_ref_text == "#gh:sase"

@@ -14,7 +14,7 @@ from sase.axe.maintenance import (
     MAINTENANCE_FILENAME,
     clear_maintenance,
     clear_stale_maintenance,
-    enter_maintenance,
+    _enter_maintenance,
     read_maintenance,
     start_maintenance,
 )
@@ -108,7 +108,7 @@ def test_clear_stale_maintenance_removes_malformed_timestamp(
 
 
 def test_enter_maintenance_clears_marker_on_exit(temp_state_dir: Path) -> None:
-    with enter_maintenance("test"):
+    with _enter_maintenance("test"):
         assert read_maintenance() is not None
 
     assert read_maintenance() is None
