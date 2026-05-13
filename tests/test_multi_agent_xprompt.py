@@ -9,8 +9,8 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.multi_agent_xprompt import (
-    _MultiAgentXPromptDepthError,
-    MultiAgentXPromptUsageError,
+    MultiAgentXPromptDepthError,
+    _MultiAgentXPromptUsageError,
     expand_multi_agent_xprompts,
     extract_top_level_xprompt_reference,
     xprompt_has_segment_separators,
@@ -157,7 +157,7 @@ def test_bang_single_segment_xprompt_invalid() -> None:
     """Ordinary xprompts remain embeddable and cannot use the standalone marker."""
     catalog = {"single": _xp("single", "just one body")}
     with _patch_catalog(catalog):
-        with pytest.raises(MultiAgentXPromptUsageError, match=r"Use '#single'"):
+        with pytest.raises(_MultiAgentXPromptUsageError, match=r"Use '#single'"):
             expand_multi_agent_xprompts(["#!single"])
 
 
@@ -407,7 +407,7 @@ def test_multiple_multi_agent_references_in_one_segment_raises() -> None:
         "b": _xp("b", "b1\n---\nb2"),
     }
     with _patch_catalog(catalog):
-        with pytest.raises(MultiAgentXPromptUsageError, match="only one"):
+        with pytest.raises(_MultiAgentXPromptUsageError, match="only one"):
             expand_multi_agent_xprompts(["Use #a and #b"])
 
 

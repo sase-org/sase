@@ -41,7 +41,7 @@ class _MultiAgentXPromptError(ValueError):
     """Base class for multi-agent xprompt expansion errors."""
 
 
-class MultiAgentXPromptUsageError(_MultiAgentXPromptError):
+class _MultiAgentXPromptUsageError(_MultiAgentXPromptError):
     """Raised when a multi-agent xprompt reference is ambiguous or invalid."""
 
 
@@ -450,7 +450,7 @@ def expand_multi_agent_xprompts(
     :class:`_MultiAgentXPromptDepthError` is raised.
 
     Raises:
-        MultiAgentXPromptUsageError: A segment contains a multi-agent xprompt
+        _MultiAgentXPromptUsageError: A segment contains a multi-agent xprompt
             reference but isn't a sole top-level reference to it.
         _MultiAgentXPromptDepthError: Recursive expansion exceeded *max_depth*.
     """
@@ -496,7 +496,7 @@ def expand_multi_agent_xprompts(
             )
             expanded.extend(recursively_expanded)
         elif call is not None and call.marker is XPromptReferenceMarker.STANDALONE:
-            raise MultiAgentXPromptUsageError(
+            raise _MultiAgentXPromptUsageError(
                 _invalid_explicit_xprompt_message(
                     XPromptReference(
                         marker=call.marker,
@@ -512,14 +512,14 @@ def expand_multi_agent_xprompts(
                 segment, catalog, multi_agent_names
             )
             if invalid_standalone is not None:
-                raise MultiAgentXPromptUsageError(
+                raise _MultiAgentXPromptUsageError(
                     _invalid_explicit_xprompt_message(invalid_standalone)
                 )
 
             if _strict_segment_check:
                 multi_agent_refs = _multi_agent_references(segment, multi_agent_names)
                 if len(multi_agent_refs) > 1:
-                    raise MultiAgentXPromptUsageError(
+                    raise _MultiAgentXPromptUsageError(
                         _multiple_multi_agent_reference_message(segment)
                     )
                 if len(multi_agent_refs) == 1:
@@ -539,8 +539,7 @@ def expand_multi_agent_xprompts(
 
 
 __all__ = [
-    "_MultiAgentXPromptDepthError",
-    "MultiAgentXPromptUsageError",
+    "MultiAgentXPromptDepthError",
     "expand_multi_agent_xprompts",
     "extract_top_level_xprompt_reference",
     "xprompt_has_segment_separators",
