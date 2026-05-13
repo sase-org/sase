@@ -54,6 +54,7 @@ async def test_changespec_selected_row_png_snapshot(
         await page.expect_state("tab", "changespecs")
         await page.press("j")
         await page.expect_state("selected.name", "visual_billing")
+        page.app._refresh_changespec_detail_only()
 
         ace_png_visual.assert_page_png(
             page,

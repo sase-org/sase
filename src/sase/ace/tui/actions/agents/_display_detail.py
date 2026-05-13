@@ -145,9 +145,15 @@ class DetailMixin:
 
     def _update_agents_info_panel(self) -> None:
         """Update the agents info panel with current position and countdown."""
+        from textual.css.query import NoMatches
+
         from ...widgets import AgentDetail, AgentInfoPanel
 
-        agent_info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)  # type: ignore[attr-defined]
+        try:
+            agent_info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)  # type: ignore[attr-defined]
+        except NoMatches:
+            log.debug("agents info panel update skipped: widget tree unavailable")
+            return
         panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
         total = panel_index.non_child_total
         position = (
@@ -215,7 +221,13 @@ class DetailMixin:
         )
         # Show current panel view mode when an agent is selected
         if self._get_selected_agent() is not None:  # type: ignore[attr-defined]
-            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            try:
+                agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            except NoMatches:
+                log.debug(
+                    "agents info panel view mode skipped: widget tree unavailable"
+                )
+                return
             agent_info_panel.update_view_mode(agent_detail.panel_mode_label)
         else:
             agent_info_panel.update_view_mode("")
