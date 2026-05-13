@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tarfile
 import time
 from datetime import datetime
@@ -44,62 +45,49 @@ def purge_dismissed_archive(
     if dry_run or not rows:
         return report
 
-    from .dismissed_bundle_index import (
-        archive_maintenance_lock,
-        delete_bundle_summaries_for_paths,
-    )
+    from .dismissed_bundle_index import delete_bundle_summaries_for_suffixes
 
     removed_paths: set[str] = set()
     removed_suffixes: set[str] = set()
     failures: list[dict[str, str]] = []
-    with archive_maintenance_lock(ctx._DISMISSED_BUNDLES_DIR):
-        for row in rows:
-            path = Path(row.bundle_path)
-            try:
-                path.unlink()
-                if path.name == "bundle.json" and path.parent.name.count(".") >= 1:
-                    try:
-                        path.parent.rmdir()
-                    except OSError:
-                        pass
-                removed_paths.add(row.bundle_path)
-                removed_suffixes.add(row.raw_suffix)
-            except FileNotFoundError:
-                removed_paths.add(row.bundle_path)
-                removed_suffixes.add(row.raw_suffix)
-            except OSError as exc:
-                failures.append(
-                    {
-                        "agent_id": row.agent_id,
-                        "bundle_path": row.bundle_path,
-                        "error": str(exc),
-                    }
-                )
-        if removed_paths:
-            if delete_bundle_summaries_for_paths(
-                ctx._DISMISSED_BUNDLES_DIR, removed_paths
-            ):
-                report["summary_rows_removed"] = len(removed_paths)
-                report["fts_rows_removed"] = len(removed_paths)
-            else:
-                failures.append(
-                    {
-                        "agent_id": "",
-                        "bundle_path": "",
-                        "error": "failed to remove archive index rows",
-                    }
-                )
-        if removed_suffixes:
-            dismissed = ctx.load_dismissed_agents()
-            next_dismissed = {
-                identity
-                for identity in dismissed
-                if identity[2] is None or identity[2] not in removed_suffixes
-            }
-            if next_dismissed != dismissed and ctx.save_dismissed_agents(
-                next_dismissed
-            ):
-                report["visibility_rows_removed"] = len(dismissed - next_dismissed)
+    for row in rows:
+        path = Path(row.bundle_path)
+        try:
+            path.unlink()
+            removed_paths.add(row.bundle_path)
+            removed_suffixes.add(row.raw_suffix)
+        except FileNotFoundError:
+            removed_paths.add(row.bundle_path)
+            removed_suffixes.add(row.raw_suffix)
+        except OSError as exc:
+            failures.append(
+                {
+                    "agent_id": row.agent_id,
+                    "bundle_path": row.bundle_path,
+                    "error": str(exc),
+                }
+            )
+    if removed_suffixes:
+        if delete_bundle_summaries_for_suffixes(
+            ctx._DISMISSED_BUNDLES_DIR, removed_suffixes
+        ):
+            report["summary_rows_removed"] = len(removed_paths)
+        else:
+            failures.append(
+                {
+                    "agent_id": "",
+                    "bundle_path": "",
+                    "error": "failed to remove archive index rows",
+                }
+            )
+        dismissed = ctx.load_dismissed_agents()
+        next_dismissed = {
+            identity
+            for identity in dismissed
+            if identity[2] is None or identity[2] not in removed_suffixes
+        }
+        if next_dismissed != dismissed and ctx.save_dismissed_agents(next_dismissed):
+            report["visibility_rows_removed"] = len(dismissed - next_dismissed)
 
     report["purged"] = len(removed_paths)
     report["failed"] = failures
@@ -115,22 +103,11 @@ def scrub_dismissed_archive(
     query: str | None = None,
     since_scrubber_version: int | None = None,
 ) -> dict[str, Any]:
-    """Redact archive search projections for selected bundles."""
-    from .archive_search_text import (
-        ARCHIVE_SEARCH_SCRUBBER_VERSION,
-        normalize_archive_bundle_projection,
-        scrub_archive_text,
-    )
-    from .dismissed_bundle_index import (
-        archive_payload_hash,
-        upsert_bundle_summary,
-    )
+    """Remove obsolete archive search projections from selected bundles."""
+    from .dismissed_bundle_index import upsert_bundle_summary
 
     rows = select_archive_lifecycle_rows(ctx, before=before, query=query)
-    target_version = max(
-        ARCHIVE_SEARCH_SCRUBBER_VERSION,
-        since_scrubber_version or ARCHIVE_SEARCH_SCRUBBER_VERSION,
-    )
+    target_version = since_scrubber_version or 0
     scrubbed = 0
     unchanged = 0
     failures: list[dict[str, str]] = []
@@ -140,22 +117,10 @@ def scrub_dismissed_archive(
             bundle = json.loads(path.read_text(encoding="utf-8"))
             if not isinstance(bundle, dict):
                 raise ValueError("bundle JSON must be an object")
-            current_version = nonnegative_int(
-                bundle.get("archive_search_scrubber_version")
-            )
-            if (
-                since_scrubber_version is not None
-                and current_version >= since_scrubber_version
-            ):
-                unchanged += 1
-                continue
             before_bundle = json.dumps(bundle, sort_keys=True)
-            normalize_archive_bundle_projection(bundle)
-            text = bundle.get("archive_search_text")
-            if isinstance(text, str):
-                bundle["archive_search_text"] = scrub_archive_text(text)
-            bundle["archive_search_scrubber_version"] = target_version
-            bundle["archive_payload_sha256"] = archive_payload_hash(bundle)
+            bundle.pop("archive_search_text", None)
+            bundle.pop("archive_search_scrubber_version", None)
+            bundle.pop("archive_payload_sha256", None)
             if json.dumps(bundle, sort_keys=True) == before_bundle:
                 unchanged += 1
                 continue
@@ -318,15 +283,27 @@ def append_archive_audit_event(ctx: Any, report: dict[str, Any]) -> None:
 
 
 def redact_audit_value(value: Any) -> Any:
-    from .archive_search_text import scrub_archive_text
-
     if isinstance(value, str):
-        return scrub_archive_text(value)
+        return _scrub_audit_text(value)
     if isinstance(value, dict):
         return {str(k): redact_audit_value(v) for k, v in value.items()}
     if isinstance(value, list):
         return [redact_audit_value(item) for item in value]
     return value
+
+
+_SECRET_PATTERNS = (
+    re.compile(r"(?i)(api[_-]?key|token|secret|bearer)\s*[:=]\s*\S+"),
+    re.compile(r"\b(sk-[A-Za-z0-9_-]{12,})\b"),
+    re.compile(r"\b(ghp_[A-Za-z0-9_]{20,})\b"),
+)
+
+
+def _scrub_audit_text(text: str) -> str:
+    result = text
+    for pattern in _SECRET_PATTERNS:
+        result = pattern.sub("[REDACTED]", result)
+    return result
 
 
 def nonnegative_int(value: object) -> int:

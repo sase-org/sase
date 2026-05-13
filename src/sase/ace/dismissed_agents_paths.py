@@ -30,10 +30,6 @@ def iter_bundle_paths(bundles_dir: Path, pattern: str = "*.json") -> list[Path]:
     for entry in bundles_dir.iterdir():
         if entry.is_dir() and _SHARD_DIR_RE.match(entry.name):
             results.extend(path for path in entry.glob(pattern) if path.is_file())
-            if pattern == "*.json":
-                results.extend(
-                    path for path in entry.glob("*/bundle.json") if path.is_file()
-                )
     # Legacy (pre-migration) files directly in the root.
     for path in bundles_dir.glob(pattern):
         if path.is_file():

@@ -52,7 +52,7 @@ def _agent(**kwargs: Any) -> Agent:
     return Agent(**defaults)
 
 
-def test_dismissed_index_and_bundle_layout_use_rust_helpers(
+def test_dismissed_index_and_bundle_layout_use_legacy_paths(
     tmp_path: Path,
 ) -> None:
     dismissed_file = tmp_path / "dismissed_agents.json"
@@ -85,7 +85,7 @@ def test_dismissed_index_and_bundle_layout_use_rust_helpers(
         ["run", "demo", "20260430010203"],
         ["workflow", "flow", None],
     ]
-    bundle_paths = sorted(bundles_dir.glob("202604/*/bundle.json"))
+    bundle_paths = sorted(bundles_dir.glob("202604/*.json"))
     assert len(bundle_paths) == 2
     assert {json.loads(path.read_text())["step_index"] for path in bundle_paths} == {
         None,

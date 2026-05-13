@@ -4,11 +4,6 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from sase.ace.archive_search_text import (
-    ARCHIVE_BUNDLE_SCHEMA_VERSION,
-    ARCHIVE_REVISION,
-    ARCHIVE_SEARCH_SCRUBBER_VERSION,
-)
 from sase.ace.tui.models.agent import Agent, AgentType, AttemptRecord
 
 
@@ -36,26 +31,8 @@ def test_bundle_round_trip_basic() -> None:
     assert restored.identity == agent.identity
 
 
-def test_bundle_includes_archive_schema_metadata() -> None:
-    """New bundles carry archive schema and revision metadata."""
-    agent = Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="my_feature",
-        project_file="/tmp/test.sase",
-        status="DONE",
-        start_time=datetime(2025, 6, 15, 10, 30, 0),
-        raw_suffix="20250615103000",
-    )
-
-    bundle = agent.to_bundle_dict()
-
-    assert bundle["bundle_schema_version"] == ARCHIVE_BUNDLE_SCHEMA_VERSION
-    assert bundle["archive_revision"] == ARCHIVE_REVISION
-    assert bundle["archive_search_scrubber_version"] == ARCHIVE_SEARCH_SCRUBBER_VERSION
-
-
-def test_bundle_search_projection_collects_and_scrubs_files(tmp_path: Path) -> None:
-    """Archive search text is bounded and redacts obvious secrets."""
+def test_bundle_serialization_omits_archive_query_metadata(tmp_path: Path) -> None:
+    """Dismissed bundles keep Agent fields only, without query projections."""
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
     chat_path = tmp_path / "chat.md"
@@ -99,15 +76,11 @@ def test_bundle_search_projection_collects_and_scrubs_files(tmp_path: Path) -> N
     )
 
     bundle = agent.to_bundle_dict()
-    search_text = bundle["archive_search_text"]
 
-    assert "Prompt" in search_text
-    assert "Live reply" in search_text
-    assert "Chat Bearer [REDACTED]" in search_text
-    assert "Response api_key=[REDACTED]" in search_text
-    assert "Attempt reply [REDACTED]" in search_text
-    assert "sk-test1234567890abcdef" not in search_text
-    assert len(search_text) <= 128 * 1024
+    assert "archive_search_text" not in bundle
+    assert "archive_search_scrubber_version" not in bundle
+    assert "bundle_schema_version" not in bundle
+    assert "archive_revision" not in bundle
 
 
 def test_bundle_round_trip_datetime_serialization() -> None:

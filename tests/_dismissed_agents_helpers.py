@@ -1,8 +1,6 @@
 """Shared helpers for dismissed agent persistence tests."""
 
 from datetime import datetime
-from pathlib import Path
-
 from sase.ace.tui.models.agent import Agent, AgentType
 
 
@@ -30,7 +28,3 @@ def make_agent(
         parent_timestamp=parent_timestamp,
         step_index=step_index,
     )
-
-
-def saved_revision_bundles(bundles_dir: Path) -> list[Path]:
-    return sorted(bundles_dir.glob("*/**/bundle.json"))

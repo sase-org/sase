@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import sqlite3
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -42,44 +40,11 @@ def save_dismissed_bundle(ctx: Any, agent: Agent) -> bool:
     if agent.raw_suffix is None:
         return False
     bundle = agent.to_bundle_dict()
-
     try:
-        from .dismissed_bundle_index import next_archive_revision
-
-        revision = next_archive_revision(ctx._DISMISSED_BUNDLES_DIR, bundle)
-    except (OSError, ValueError, sqlite3.Error):
-        existing = bundle.get("archive_revision")
-        revision = existing if isinstance(existing, int) else 1
-
-    saved_path: Path | None = None
-    for _ in range(8):
-        bundle["archive_revision"] = revision
-        try:
-            from sase.core.agent_cleanup_execution import try_save_dismissed_bundle
-
-            result = try_save_dismissed_bundle(ctx._DISMISSED_BUNDLES_DIR, bundle)
-            if result is not None:
-                saved_path = Path(str(result["path"]))
-                break
-        except (FileExistsError, ValueError) as exc:
-            if "already exists" in str(exc):
-                revision += 1
-                continue
-            return False
-        except OSError:
-            return False
-
-        try:
-            saved_path = ctx._save_dismissed_bundle_python(
-                ctx._DISMISSED_BUNDLES_DIR, bundle
-            )
-            break
-        except FileExistsError:
-            revision += 1
-            continue
-        except OSError:
-            return False
-    if saved_path is None:
+        saved_path = ctx._save_dismissed_bundle_python(
+            ctx._DISMISSED_BUNDLES_DIR, bundle
+        )
+    except OSError:
         return False
 
     try:
@@ -102,15 +67,6 @@ def rebuild_dismissed_bundle_index(ctx: Any) -> tuple[int, int]:
 
 def verify_dismissed_bundle_index(ctx: Any) -> dict[str, int | bool]:
     """Return diagnostics for the persistent dismissed bundle summary index."""
-    try:
-        from sase.core.agent_archive_facade import try_verify_agent_archive_index
-
-        rust_result = try_verify_agent_archive_index(ctx._DISMISSED_BUNDLES_DIR)
-        if rust_result is not None:
-            return rust_result
-    except (OSError, ValueError):
-        pass
-
     from .dismissed_bundle_index import verify_index
 
     result = verify_index(ctx._DISMISSED_BUNDLES_DIR)
@@ -121,11 +77,6 @@ def verify_dismissed_bundle_index(ctx: Any) -> dict[str, int | bool]:
         "corrupt_bundles": result.corrupt_bundles,
         "stale_rows": result.stale_rows,
         "missing_rows": result.missing_rows,
-        "fts_missing_rows": result.fts_missing_rows,
-        "fts_orphan_rows": result.fts_orphan_rows,
-        "payload_hash_mismatches": result.payload_hash_mismatches,
-        "orphan_visibility_rows": result.orphan_visibility_rows,
-        "orphan_revision_rows": result.orphan_revision_rows,
     }
 
 
@@ -169,7 +120,7 @@ def load_dismissed_bundle_summaries(
 
 
 def ensure_dismissed_archive_ready(ctx: Any) -> None:
-    """Run cold-start archive setup (migrations + index build)."""
+    """Run cold-start dismissed-bundle setup (migrations + index build)."""
     from .dismissed_bundle_index import archive_index_exists, rebuild_index
 
     ctx._run_dismissed_archive_maintenance()
@@ -197,54 +148,11 @@ def mark_bundles_revived_by_suffixes(
     *,
     revived_at: str | None = None,
 ) -> int:
-    """Mark preserved dismissed bundles as revived without deleting them."""
+    """Preserve dismissed bundles after revive without archive lifecycle markers."""
+    del revived_at
     if not suffixes:
         return 0
-    timestamp = revived_at or datetime.now().isoformat()
-    paths = ctx._bundle_paths_for_suffixes(suffixes)
-    try:
-        from sase.core.agent_archive_facade import (
-            try_mark_agent_archive_bundles_revived,
-        )
-        from sase.core.agent_archive_wire import AgentArchiveReviveMarkRequestWire
-
-        report = try_mark_agent_archive_bundles_revived(
-            ctx._DISMISSED_BUNDLES_DIR,
-            AgentArchiveReviveMarkRequestWire(
-                bundle_paths=[str(path) for path in paths],
-                revived_at=timestamp,
-            ),
-        )
-        if report is not None:
-            return int(report.get("changed", 0))
-    except (OSError, ValueError):
-        pass
-
-    changed = 0
-    for path in paths:
-        try:
-            bundle = json.loads(path.read_text(encoding="utf-8"))
-            if not isinstance(bundle, dict):
-                continue
-            bundle["revived_at"] = timestamp
-            times_revived = bundle.get("times_revived", 0)
-            if not isinstance(times_revived, int):
-                try:
-                    times_revived = int(times_revived)
-                except (TypeError, ValueError):
-                    times_revived = 0
-            bundle["times_revived"] = max(0, times_revived) + 1
-            ctx._write_json_file_atomic(path, bundle)
-            try:
-                from .dismissed_bundle_index import upsert_bundle_summary
-
-                upsert_bundle_summary(ctx._DISMISSED_BUNDLES_DIR, path, bundle)
-            except (OSError, ValueError, sqlite3.Error):
-                pass
-            changed += 1
-        except (OSError, json.JSONDecodeError):
-            continue
-    return changed
+    return len(ctx._bundle_paths_for_suffixes(suffixes))
 
 
 def bundle_paths_for_suffixes(ctx: Any, suffixes: set[str]) -> list[Path]:
@@ -269,44 +177,29 @@ def bundle_paths_for_suffixes(ctx: Any, suffixes: set[str]) -> list[Path]:
             paths.extend(ctx._iter_bundle_paths(pattern=f"{suffix}__c*.json"))
         except OSError:
             continue
-    matched = {path.resolve(strict=False) for path in paths}
-    try:
-        for path in ctx._iter_bundle_paths():
-            if path.resolve(strict=False) in matched:
-                continue
-            if path.name != "bundle.json":
-                continue
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                continue
-            if isinstance(data, dict) and data.get("raw_suffix") in suffixes:
-                paths.append(path)
-                matched.add(path.resolve(strict=False))
-    except OSError:
-        pass
     return paths
 
 
 def save_dismissed_bundle_python(root: Path, bundle: dict[str, Any]) -> Path:
-    from .dismissed_bundle_index import archive_bundle_path
-
-    revision = bundle.get("archive_revision")
-    if not isinstance(revision, int):
-        revision = 1
-    target = archive_bundle_path(root, bundle, revision)
-    final_dir = target.parent
-    shard_dir = final_dir.parent
-    shard_dir.mkdir(parents=True, exist_ok=True)
-    tmp_dir = shard_dir / f".{final_dir.name}.tmp.{os.getpid()}.{time.time_ns()}"
-    tmp_dir.mkdir(mode=0o700)
+    raw_suffix = bundle.get("raw_suffix")
+    if not isinstance(raw_suffix, str) or not raw_suffix:
+        raise OSError("dismissed bundle missing raw_suffix")
+    is_child = bool(bundle.get("parent_workflow") or bundle.get("parent_timestamp"))
+    if is_child:
+        step_index = bundle.get("step_index")
+        if not isinstance(step_index, int):
+            step_index = 0
+        filename = f"{raw_suffix}__c{step_index}.json"
+    else:
+        filename = f"{raw_suffix}.json"
+    target = root / filename
     try:
-        write_json_file_atomic(tmp_dir / "bundle.json", bundle)
-        os.replace(tmp_dir, final_dir)
-        fsync_dir(shard_dir)
-    except Exception:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-        raise
+        from .dismissed_agents_paths import bundle_shard_dir
+
+        target = bundle_shard_dir(root, filename) / filename
+    except (OSError, ValueError):
+        pass
+    write_json_file_atomic(target, bundle)
     return target
 
 
@@ -361,7 +254,6 @@ def load_dismissed_bundles(ctx: Any, suffixes: set[str] | None = None) -> list[A
             indexed_paths = query_bundle_paths_by_suffixes(
                 ctx._DISMISSED_BUNDLES_DIR,
                 suffixes,
-                latest_only=True,
             )
         except (OSError, ValueError):
             indexed_paths = None

@@ -7,7 +7,6 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.ace.archive_search_text import ARCHIVE_BUNDLE_SCHEMA_VERSION
 from sase.ace.dismissed_agents import (
     has_dismissed_bundle,
     load_dismissed_bundle_summaries,
@@ -15,7 +14,7 @@ from sase.ace.dismissed_agents import (
     save_dismissed_bundle,
 )
 from sase.ace.tui.models.agent import AgentType
-from tests._dismissed_agents_helpers import make_agent, saved_revision_bundles
+from tests._dismissed_agents_helpers import make_agent
 
 
 def test_bundle_save_load_round_trip(tmp_path: Path) -> None:
@@ -135,8 +134,8 @@ def test_bundle_load_by_suffixes_with_children(tmp_path: Path) -> None:
         assert step_indices == [0, 1]
 
 
-def test_save_dismissed_bundle_persists_search_projection(tmp_path: Path) -> None:
-    """New dismissed bundles keep search text after artifacts disappear."""
+def test_save_dismissed_bundle_writes_legacy_sharded_file(tmp_path: Path) -> None:
+    """New dismissed bundles use the legacy sharded JSON file contract."""
     bundles_dir = tmp_path / "bundles"
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
@@ -149,23 +148,26 @@ def test_save_dismissed_bundle_persists_search_projection(tmp_path: Path) -> Non
         agent = make_agent(cl_name="indexed_cl", raw_suffix="20250615100000")
         agent.artifacts_dir = str(artifacts_dir)
         assert save_dismissed_bundle(agent)
-        [bundle_path] = saved_revision_bundles(bundles_dir)
+        bundle_path = bundles_dir / "202506" / "20250615100000.json"
+        assert bundle_path.is_file()
         bundle = json.loads(bundle_path.read_text())
-        assert bundle["bundle_schema_version"] == ARCHIVE_BUNDLE_SCHEMA_VERSION
-        assert "findable prompt" in bundle["archive_search_text"]
-        assert "findable reply" in bundle["archive_search_text"]
+        assert bundle["raw_suffix"] == "20250615100000"
+        assert "bundle_schema_version" not in bundle
+        assert "archive_revision" not in bundle
+        assert "archive_search_text" not in bundle
 
         for path in artifacts_dir.iterdir():
             path.unlink()
 
-        loaded_bundle = json.loads(bundle_path.read_text())
-        assert "findable prompt" in loaded_bundle["archive_search_text"]
+        loaded = load_dismissed_bundles({"20250615100000"})
+        assert len(loaded) == 1
+        assert loaded[0].identity == agent.identity
 
 
-def test_re_dismiss_writes_new_revision_without_overwriting(
+def test_re_dismiss_overwrites_legacy_bundle_path(
     tmp_path: Path,
 ) -> None:
-    """Repeated dismissals preserve older archive revisions."""
+    """Repeated dismissals return to the legacy single-bundle path."""
     bundles_dir = tmp_path / "bundles"
     with (
         patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
@@ -174,19 +176,18 @@ def test_re_dismiss_writes_new_revision_without_overwriting(
         agent = make_agent(cl_name="indexed_cl", raw_suffix="20250615100000")
         agent.status = "FAILED"
         assert save_dismissed_bundle(agent)
-        first_path = saved_revision_bundles(bundles_dir)[0]
+        first_path = bundles_dir / "202506" / "20250615100000.json"
         first_payload = json.loads(first_path.read_text())
+        assert first_payload["status"] == "FAILED"
 
         agent.status = "DONE"
         assert save_dismissed_bundle(agent)
-        paths = saved_revision_bundles(bundles_dir)
-        assert len(paths) == 2
-        payloads = [json.loads(path.read_text()) for path in paths]
-        assert sorted(payload["archive_revision"] for payload in payloads) == [1, 2]
-        assert json.loads(first_path.read_text()) == first_payload
+        paths = sorted((bundles_dir / "202506").glob("*.json"))
+        assert paths == [first_path]
+        assert json.loads(first_path.read_text())["status"] == "DONE"
 
         summaries = load_dismissed_bundle_summaries(suffixes={"20250615100000"})
-        assert sorted(summary.archive_revision for summary in summaries) == [1, 2]
+        assert [summary.raw_suffix for summary in summaries] == ["20250615100000"]
         loaded = load_dismissed_bundles({"20250615100000"})
         assert len(loaded) == 1
         assert loaded[0].status == "DONE"
@@ -215,10 +216,10 @@ def test_save_dismissed_bundle_is_fast_with_many_existing_bundles(
     assert elapsed < 1.0, f"save_dismissed_bundle took {elapsed:.3f}s with 1k bundles"
 
 
-def test_dismissed_bundle_python_fallback_uses_atomic_revision_directory(
+def test_dismissed_bundle_python_fallback_uses_atomic_legacy_file(
     tmp_path: Path,
 ) -> None:
-    """Fallback writes never expose the legacy overwrite path."""
+    """Fallback writes through a temp file before replacing the legacy path."""
     bundles_dir = tmp_path / "bundles"
     with (
         patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
@@ -229,9 +230,9 @@ def test_dismissed_bundle_python_fallback_uses_atomic_revision_directory(
         agent = make_agent(cl_name="indexed_cl", raw_suffix="20250615100000")
         assert save_dismissed_bundle(agent)
 
-    [bundle_path] = saved_revision_bundles(bundles_dir)
-    assert bundle_path.name == "bundle.json"
-    assert not (bundles_dir / "202506" / "20250615100000.json").exists()
+    bundle_path = bundles_dir / "202506" / "20250615100000.json"
+    assert bundle_path.is_file()
+    assert json.loads(bundle_path.read_text())["raw_suffix"] == "20250615100000"
     assert not list((bundles_dir / "202506").glob("*.tmp.*"))
 
 

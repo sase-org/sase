@@ -9,10 +9,8 @@ from typing import Any
 from sase.core.agent_archive_wire import (
     AgentArchiveFacetRequestWire,
     AgentArchiveQueryRequestWire,
-    AgentArchiveReviveMarkRequestWire,
     agent_archive_facet_request_to_dict,
     agent_archive_query_request_to_dict,
-    agent_archive_revive_mark_request_to_dict,
 )
 from sase.core.rust import require_rust_binding
 
@@ -83,50 +81,6 @@ def try_agent_archive_facet_counts(
     }
 
 
-def try_mark_agent_archive_bundles_revived(
-    root: Path,
-    request: AgentArchiveReviveMarkRequestWire,
-) -> dict[str, Any] | None:
-    """Mark archive bundles via Rust, or ``None`` if binding is unavailable."""
-
-    try:
-        binding = require_rust_binding("mark_agent_archive_bundles_revived")
-    except (ImportError, AttributeError):
-        return None
-    try:
-        return dict(
-            binding(str(root), agent_archive_revive_mark_request_to_dict(request))
-        )
-    except (RuntimeError, ValueError):
-        return None
-
-
-def try_verify_agent_archive_index(root: Path) -> dict[str, int | bool] | None:
-    """Verify archive index via Rust, or ``None`` if binding is unavailable."""
-
-    try:
-        binding = require_rust_binding("verify_agent_archive_index")
-    except (ImportError, AttributeError):
-        return None
-    try:
-        payload = dict(binding(str(root)))
-    except (RuntimeError, ValueError):
-        return None
-    return {
-        "ok": bool(payload.get("ok", False)),
-        "indexed_rows": int(payload.get("indexed_rows", 0)),
-        "valid_bundles": int(payload.get("valid_bundles", 0)),
-        "corrupt_bundles": int(payload.get("corrupt_bundles", 0)),
-        "stale_rows": int(payload.get("stale_rows", 0)),
-        "missing_rows": int(payload.get("missing_rows", 0)),
-        "fts_missing_rows": int(payload.get("fts_missing_rows", 0)),
-        "fts_orphan_rows": int(payload.get("fts_orphan_rows", 0)),
-        "payload_hash_mismatches": int(payload.get("payload_hash_mismatches", 0)),
-        "orphan_visibility_rows": int(payload.get("orphan_visibility_rows", 0)),
-        "orphan_revision_rows": int(payload.get("orphan_revision_rows", 0)),
-    }
-
-
 def _page_from_dict(payload: dict[str, Any]) -> _AgentArchiveQueryPageWire:
     rows = payload.get("results", [])
     return _AgentArchiveQueryPageWire(
@@ -181,7 +135,5 @@ def _optional_int(value: object) -> int | None:
 
 __all__ = [
     "try_agent_archive_facet_counts",
-    "try_mark_agent_archive_bundles_revived",
     "try_query_agent_archive",
-    "try_verify_agent_archive_index",
 ]

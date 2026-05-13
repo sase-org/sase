@@ -24,12 +24,6 @@ class AgentArchiveFacetRequestWire:
     limit: int = 20
 
 
-@dataclass(frozen=True)
-class AgentArchiveReviveMarkRequestWire:
-    bundle_paths: list[str]
-    revived_at: str
-
-
 def agent_archive_query_request_to_dict(
     request: AgentArchiveQueryRequestWire,
 ) -> dict[str, Any]:
@@ -50,23 +44,10 @@ def agent_archive_facet_request_to_dict(
         "facet": request.facet,
         "limit": request.limit,
     }
-
-
-def agent_archive_revive_mark_request_to_dict(
-    request: AgentArchiveReviveMarkRequestWire,
-) -> dict[str, Any]:
-    return {
-        "bundle_paths": list(request.bundle_paths),
-        "revived_at": request.revived_at,
-    }
-
-
 __all__ = [
     "AGENT_ARCHIVE_WIRE_SCHEMA_VERSION",
     "AgentArchiveFacetRequestWire",
     "AgentArchiveQueryRequestWire",
-    "AgentArchiveReviveMarkRequestWire",
     "agent_archive_facet_request_to_dict",
     "agent_archive_query_request_to_dict",
-    "agent_archive_revive_mark_request_to_dict",
 ]

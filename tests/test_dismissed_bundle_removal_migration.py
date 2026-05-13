@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.dismissed_agents import load_dismissed_bundles
-from tests._dismissed_agents_helpers import make_agent, saved_revision_bundles
+from tests._dismissed_agents_helpers import make_agent
 
 
 def test_migration_from_monolithic_file(tmp_path: Path) -> None:
@@ -27,7 +27,7 @@ def test_migration_from_monolithic_file(tmp_path: Path) -> None:
         assert suffixes == {"20250615100000", "20250615110000"}
 
         assert not old_file.exists()
-        assert len(saved_revision_bundles(bundles_dir)) == 2
+        assert len(sorted(bundles_dir.glob("202506/*.json"))) == 2
 
 
 def test_migration_skips_when_no_old_file(tmp_path: Path) -> None:

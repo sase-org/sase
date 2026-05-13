@@ -32,17 +32,6 @@ def try_save_dismissed_agents_index(
     return True
 
 
-def try_save_dismissed_bundle(
-    root: Path,
-    bundle: dict[str, Any],
-) -> dict[str, Any] | None:
-    try:
-        binding = require_rust_binding("save_dismissed_bundle")
-    except (ImportError, AttributeError):
-        return None
-    return dict(binding(str(root), bundle))
-
-
 def try_delete_agent_artifacts(artifacts_dir: str | None) -> bool:
     if not artifacts_dir:
         return True
