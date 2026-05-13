@@ -1,0 +1,8 @@
+{
+  "bundle_id": "legacy-bundle",
+  "created_at": "2026-05-13T09:46:00Z",
+  "items": [
+    {"cl_name": "daemon_child", "timestamp": "20260513094000", "artifacts_dir": "projects/demo/artifacts/ace-run/20260513094000"}
+  ]
+}
+

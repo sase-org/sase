@@ -1,0 +1,9 @@
+{
+  "current_step_index": 1,
+  "prompt_step_files": ["prompt_step_001_plan.json"],
+  "script_outputs": ["script_step_002_approve.stdout"],
+  "status": "waiting",
+  "steps": ["plan", "approve"],
+  "workflow_name": "review"
+}
+

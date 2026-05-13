@@ -1,0 +1,6 @@
+{
+  "checks": ["lint:passed", "tests:failed"],
+  "log_lines": 2,
+  "scheduler_running": false
+}
+

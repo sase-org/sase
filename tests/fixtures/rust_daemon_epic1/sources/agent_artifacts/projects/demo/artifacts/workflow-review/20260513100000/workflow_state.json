@@ -1,0 +1,14 @@
+{
+  "workflow_name": "review",
+  "context": {"cl_name": "daemon_active"},
+  "status": "waiting",
+  "pid": 10000,
+  "appears_as_agent": true,
+  "current_step_index": 1,
+  "start_time": "2026-05-13T10:00:00",
+  "steps": [
+    {"name": "plan", "status": "completed", "output": {"plan_path": "sdd/tales/202605/demo.md"}, "output_types": {"plan_path": "path"}},
+    {"name": "approve", "status": "waiting", "output": {"notification_id": "notif-hitl"}}
+  ]
+}
+

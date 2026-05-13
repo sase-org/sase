@@ -1,0 +1,6 @@
+{
+  "id": "editor-1",
+  "method": "xprompt.catalog",
+  "params": {"project": "demo", "query": "daemon"}
+}
+

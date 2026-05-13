@@ -1,0 +1,9 @@
+{
+  "names": ["config_demo", "package_demo", "project_demo", "user_demo"],
+  "tags": {
+    "config_demo": ["work_phase_bead"],
+    "package_demo": ["memory"],
+    "project_demo": ["crs"],
+    "user_demo": ["vcs"]
+  }
+}

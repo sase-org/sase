@@ -1,0 +1,17 @@
+{
+  "chat_previous_turns": 1,
+  "file_references": ["src/sase/main.py", "~/notes/daemon.md"],
+  "prompt_entries": [
+    {
+      "cancelled": false,
+      "text": "Inspect @src/sase/main.py and ~/notes/daemon.md",
+      "workspace": "demo"
+    },
+    {
+      "cancelled": true,
+      "text": "Cancelled daemon fixture prompt",
+      "workspace": "demo"
+    }
+  ]
+}
+

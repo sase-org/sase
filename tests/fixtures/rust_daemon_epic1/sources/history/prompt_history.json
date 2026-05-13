@@ -1,0 +1,21 @@
+{
+  "prompts": [
+    {
+      "text": "Inspect @src/sase/main.py and ~/notes/daemon.md",
+      "branch_or_workspace": "daemon_active",
+      "timestamp": "20260513_103000",
+      "last_used": "20260513_103100",
+      "workspace": "demo",
+      "cancelled": false
+    },
+    {
+      "text": "Cancelled daemon fixture prompt",
+      "branch_or_workspace": "daemon_child",
+      "timestamp": "20260513_103200",
+      "last_used": "20260513_103200",
+      "workspace": "demo",
+      "cancelled": true
+    }
+  ]
+}
+

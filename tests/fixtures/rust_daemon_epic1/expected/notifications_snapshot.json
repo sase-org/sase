@@ -1,0 +1,28 @@
+{
+  "ids": [
+    "notif-unread",
+    "notif-read",
+    "notif-dismissed",
+    "notif-snoozed",
+    "notif-stale",
+    "notif-hitl",
+    "notif-missing-target"
+  ],
+  "state_counts": {
+    "action_backed": 4,
+    "dismissed": 1,
+    "muted": 1,
+    "read": 2,
+    "snoozed": 1,
+    "unread": 5
+  },
+  "stats": {
+    "blank_lines": 1,
+    "dismissed_filtered": 0,
+    "invalid_json_lines": 1,
+    "invalid_record_lines": 0,
+    "loaded_rows": 7,
+    "total_lines": 9
+  }
+}
+

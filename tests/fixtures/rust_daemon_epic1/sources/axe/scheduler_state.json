@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "running": false,
+  "last_tick": "2026-05-13T10:40:00Z",
+  "checks": ["lint", "tests"],
+  "lock": {"pid": null, "path": ".sase/axe/scheduler.lock"}
+}
+

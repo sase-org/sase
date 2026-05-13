@@ -1,0 +1,8 @@
+{
+  "outcome": "failed",
+  "finished_at": 1778664900.0,
+  "cl_name": "daemon_child",
+  "name": "failed_agent",
+  "error": "fixture failure"
+}
+

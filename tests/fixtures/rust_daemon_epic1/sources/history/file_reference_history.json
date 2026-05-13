@@ -1,0 +1,9 @@
+{
+  "paths": [
+    "src/sase/main.py",
+    "~/notes/daemon.md",
+    ".sase/internal/ignored.json",
+    123
+  ]
+}
+

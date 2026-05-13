@@ -1,0 +1,16 @@
+NAME: daemon_archived
+DESCRIPTION: Archived canonical project fixture.
+PARENT:
+PR: https://example.test/sase/pull/9
+STATUS: Archived
+COMMITS:
+  (1) [run] Archive previous work
+      | CHAT: ~/.sase/chats/202605/demo-archive.md (1s)
+
+
+NAME: daemon_reverted
+DESCRIPTION: Reverted canonical project fixture.
+PARENT:
+PR:
+STATUS: Reverted
+

@@ -1,0 +1,6 @@
+{
+  "bundle_ids": ["bundle-current", "legacy-bundle"],
+  "dismissed_names": ["failed_agent", "killed_stale_agent"],
+  "legacy_item_count": 1
+}
+

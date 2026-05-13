@@ -1,0 +1,10 @@
+{
+  "name": "retry_parent",
+  "model": "codex/gpt-5.5",
+  "llm_provider": "codex",
+  "retry_chain_root_timestamp": "20260513095000",
+  "retried_as_timestamp": "20260513101000",
+  "retry_terminal": true,
+  "retry_error_category": "transient"
+}
+

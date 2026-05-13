@@ -1,0 +1,9 @@
+{
+  "documents": [
+    "sources/sdd/epics/202605/demo_epic.md",
+    "sources/sdd/prompts/202605/demo_prompt.md",
+    "sources/sdd/research/202605/demo_research.md"
+  ],
+  "frontmatter_docs": 2
+}
+

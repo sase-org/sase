@@ -1,0 +1,8 @@
+{
+  "name": "killed_stale_agent",
+  "pid": 9040,
+  "model": "qwen/qwen3",
+  "llm_provider": "qwen",
+  "stopped_at": "2026-05-13T09:41:00Z"
+}
+

@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "paired": true,
+  "session_id": "mobile-session",
+  "pending_actions_path": "pending_actions/current/actions.json",
+  "notification_store_path": "notifications/notifications.jsonl"
+}
+

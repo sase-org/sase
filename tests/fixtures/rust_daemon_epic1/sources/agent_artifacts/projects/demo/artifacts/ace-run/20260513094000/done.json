@@ -1,0 +1,8 @@
+{
+  "outcome": "killed",
+  "finished_at": 1778665260.0,
+  "cl_name": "daemon_child",
+  "name": "killed_stale_agent",
+  "error": "terminated by user"
+}
+
