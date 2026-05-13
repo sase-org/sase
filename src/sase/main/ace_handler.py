@@ -4,9 +4,44 @@ import argparse
 import os
 import sys
 from datetime import datetime
-from typing import Literal, cast
+from pathlib import Path
+from typing import Any, Literal, cast
 
 from sase.ace.query import QueryParseError
+from sase.core.clipboard import copy_to_system_clipboard
+from sase.core.paths import get_sase_tmpdir, shorten_path
+
+
+def _profile_output_path(profile_arg: str) -> str:
+    """Return the profile output path for an enabled ``--profile`` argument."""
+    if profile_arg:
+        output_path = os.path.expanduser(profile_arg)
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        return output_path
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"ace_profile_{timestamp}.txt"
+    tmpdir = get_sase_tmpdir()
+    return os.path.join(tmpdir, filename) if tmpdir else filename
+
+
+def _write_profile_output(profiler: Any, profile_arg: str) -> str:
+    """Write profiler output and report a short, clipboard-friendly path."""
+    output_path = _profile_output_path(profile_arg)
+    Path(output_path).write_text(
+        profiler.output_text(unicode=True, color=False, show_all=True)
+    )
+
+    display_path = shorten_path(output_path)
+    print(f"Profile written to: {display_path}", file=sys.stderr)
+    if copy_to_system_clipboard(display_path):
+        print("Profile path copied to clipboard.", file=sys.stderr)
+    else:
+        print(
+            "Profile path not copied: clipboard command not available.",
+            file=sys.stderr,
+        )
+    return output_path
 
 
 def handle_ace_command(args: argparse.Namespace) -> None:
@@ -62,21 +97,7 @@ def handle_ace_command(args: argparse.Namespace) -> None:
     if profiler is not None:
         app.run()
         profiler.stop()
-
-        if args.profile:
-            output_path = args.profile
-            os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-        else:
-            from sase.core.paths import get_sase_tmpdir
-
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"ace_profile_{timestamp}.txt"
-            tmpdir = get_sase_tmpdir()
-            output_path = os.path.join(tmpdir, filename) if tmpdir else filename
-
-        with open(output_path, "w") as f:
-            f.write(profiler.output_text(unicode=True, color=False, show_all=True))
-        print(f"Profile written to: {output_path}", file=sys.stderr)
+        _write_profile_output(profiler, args.profile)
     else:
         app.run()
 

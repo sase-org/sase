@@ -7,9 +7,9 @@ and the fallback ChangeSpec text formatter.
 from __future__ import annotations
 
 import subprocess
-import sys
 from typing import TYPE_CHECKING
 
+from sase.core.clipboard import copy_to_system_clipboard
 from sase.workspace_provider import get_change_label
 
 if TYPE_CHECKING:
@@ -50,29 +50,6 @@ def format_multi_copy_content(contents: list[tuple[str, str]]) -> str:
         parts.append(content)
         parts.append("```")
     return "\n".join(parts)
-
-
-def copy_to_system_clipboard(content: str) -> bool:
-    """Copy content to system clipboard.
-
-    Args:
-        content: The text content to copy.
-
-    Returns:
-        True if successful, False otherwise.
-    """
-    if sys.platform == "darwin":
-        clipboard_cmd = ["pbcopy"]
-    elif sys.platform.startswith("linux"):
-        clipboard_cmd = ["xclip", "-selection", "clipboard"]
-    else:
-        return False
-
-    try:
-        subprocess.run(clipboard_cmd, input=content, text=True, check=True)
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
 
 
 def format_changespec_for_clipboard(cs: ChangeSpec) -> str:

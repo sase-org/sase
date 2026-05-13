@@ -31,6 +31,7 @@ from sase.core.changespec import (
     has_suffix,
     strip_reverted_suffix,
 )
+from sase.core.clipboard import copy_to_system_clipboard
 from sase.core.paths import (
     ensure_sase_directory,
     get_sase_directory,
@@ -49,6 +50,7 @@ from sase.core.time import generate_timestamp, get_timezone
 __all__ = [
     "changespec_name_to_branch",
     "changespec_name_to_branch_with_suffix",
+    "copy_to_system_clipboard",
     "ensure_sase_directory",
     "generate_timestamp",
     "get_next_suffix_number",
