@@ -1,7 +1,7 @@
 ---
 bead_id: sase-3a
 create_time: 2026-05-13 14:14:10
-status: wip
+status: done
 prompt: sdd/prompts/202605/finish_sase_3a.md
 ---
 

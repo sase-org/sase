@@ -37,6 +37,11 @@ _INCOMPLETE_INDEX_STATE = AgentLoadState(
 )
 
 
+def load_agents_from_disk(*args, **kwargs):
+    result = load_agents_from_disk_with_state(*args, **kwargs)
+    return result.all_agents, result.dismissed_from_loader
+
+
 def _make_agent(**overrides: object) -> Agent:
     """Create a minimal Agent for self-heal tests."""
     defaults: dict[str, object] = {

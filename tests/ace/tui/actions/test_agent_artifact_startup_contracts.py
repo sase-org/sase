@@ -25,6 +25,11 @@ _SOURCE_SCAN_STATE = AgentLoadState(
 )
 
 
+def load_agents_from_disk(*args, **kwargs):
+    result = load_agents_from_disk_with_state(*args, **kwargs)
+    return result.all_agents, result.dismissed_from_loader
+
+
 class FakeReviveApp(AgentRevivalMixin):
     """Minimal host for revive grouping contract tests."""
 

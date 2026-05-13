@@ -20,12 +20,12 @@ from sase.integrations.chat_install import (
 )
 
 
-def test_load_chat_install_config_defaults() -> None:
+def test__load_chat_install_config_defaults() -> None:
     with patch("sase.integrations.chat_install.load_merged_config", return_value={}):
         assert _load_chat_install_config() == _ChatInstallConfig(command="")
 
 
-def test_load_chat_install_config_normalizes_values() -> None:
+def test__load_chat_install_config_normalizes_values() -> None:
     with patch(
         "sase.integrations.chat_install.load_merged_config",
         return_value={

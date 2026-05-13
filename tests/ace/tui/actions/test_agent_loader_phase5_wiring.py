@@ -19,6 +19,11 @@ from sase.ace.tui.models.agent_loader import AgentLoadState
 from tests._agent_loader_helpers import _empty_artifact_snapshot
 
 
+def load_agents_from_disk(*args, **kwargs):
+    result = load_agents_from_disk_with_state(*args, **kwargs)
+    return result.all_agents, result.dismissed_from_loader
+
+
 def _make_snapshot() -> list[ChangeSpec]:
     return [
         ChangeSpec(

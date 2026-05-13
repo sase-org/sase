@@ -1,4 +1,4 @@
-"""Convert query language tokens / AST nodes to and from wire records.
+"""Convert query language AST nodes to and from wire records.
 
 These helpers are the only place :mod:`sase.ace.query` Python types touch the
 wire shape defined in :mod:`sase.core.query_wire`. Phase 2A uses them to pin

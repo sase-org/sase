@@ -12,7 +12,7 @@ just install
 .venv/bin/python - <<'PY'
 import time
 
-from sase.ace.tui.actions.agents._loading_helpers import load_agents_from_disk
+from sase.ace.tui.actions.agents._loading_helpers import load_agents_from_disk_with_state
 from sase.ace.dismissed_agents import load_dismissed_agents, load_dismissed_bundles
 from sase.ace.tui.modals.agent_run_log_modal import _load_agents_for_cl
 
@@ -25,7 +25,7 @@ def timed(label, fn):
     return result
 
 dismissed = timed("load_dismissed_agents", load_dismissed_agents)
-timed("load_agents_from_disk", lambda: load_agents_from_disk(dismissed))
+timed("load_agents_from_disk_with_state", lambda: load_agents_from_disk_with_state(dismissed))
 timed("load_dismissed_bundles(all)", load_dismissed_bundles)
 timed("run_log_open(sample)", lambda: _load_agents_for_cl("replace_with_cl_name"))
 PY

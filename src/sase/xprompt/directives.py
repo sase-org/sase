@@ -67,6 +67,14 @@ __all__ = [
 ]
 
 
+def _has_wait_directive(prompt: str) -> bool:
+    """Quick check whether a prompt contains ``%wait`` or ``%w`` directives."""
+    return _has_protected_directive_match(
+        prompt,
+        r"(?:^|\s)%(?:wait|w)(?:[:+(]|\s|$)",
+    )
+
+
 def has_deferred_start_directive(prompt: str) -> bool:
     """Quick check whether a prompt defers launch (``%wait``/``%w`` or ``%time``/``%t``).
 
@@ -74,9 +82,9 @@ def has_deferred_start_directive(prompt: str) -> bool:
     start (waiting on a dependency or a wall-clock time) does not claim a
     workspace until it is actually ready to run.
     """
-    return _has_protected_directive_match(
+    return _has_wait_directive(prompt) or _has_protected_directive_match(
         prompt,
-        r"(?:^|\s)%(?:wait|w|time|t)(?:[:+(]|\s|$)",
+        r"(?:^|\s)%(?:time|t)(?:[:+(]|\s|$)",
     )
 
 
