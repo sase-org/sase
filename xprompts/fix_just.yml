@@ -79,9 +79,9 @@ steps:
   - name: fix_linters
     if: "{{ decide_fixers.launch_linters }}"
     agent: |
-      #gh:sase Can you help me fix the `just lint` command?
+      #gh:sase #pr(fix_just_linters) Can you help me fix the `just lint` command?
 
   - name: fix_tests
     if: "{{ decide_fixers.launch_tests }}"
     agent: |
-      #gh:sase Can you help me fix the `just test` command?
+      #gh:sase #pr(fix_just_tests) Can you help me fix the `just test` command?
