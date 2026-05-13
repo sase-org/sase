@@ -13,7 +13,7 @@ from sase.bead.cli_work import (
     _find_live_legend_name_collisions,
 )
 from sase.bead.project import BeadProject
-from sase.bead.work import LegendEpicAssignment, LegendWorkPlan
+from sase.bead.work import _LegendEpicAssignment, LegendWorkPlan
 
 from .cli_work_helpers import FakeLaunchResult, make_args, seed_legend
 
@@ -327,8 +327,8 @@ def test_legend_collision_helpers_report_live_planning_agents(
         legend_id="l1",
         plan_file="sdd/legends/202605/roadmap.md",
         assignments=(
-            LegendEpicAssignment(epic_number=1, agent_name="l1.1.0", waits_on=()),
-            LegendEpicAssignment(
+            _LegendEpicAssignment(epic_number=1, agent_name="l1.1.0", waits_on=()),
+            _LegendEpicAssignment(
                 epic_number=2, agent_name="l1.2.0", waits_on=("l1.1",)
             ),
         ),

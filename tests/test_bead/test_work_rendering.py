@@ -163,14 +163,14 @@ class TestRenderEdgeCases:
         )
 
     def test_legend_work_segment_env_uses_legend_bead_id(self) -> None:
-        from sase.bead.work import LegendEpicAssignment, LegendWorkPlan
+        from sase.bead.work import _LegendEpicAssignment, LegendWorkPlan
 
         plan = LegendWorkPlan(
             legend_id="l1",
             plan_file="sdd/legends/202605/roadmap.md",
             assignments=(
-                LegendEpicAssignment(epic_number=1, agent_name="l1.1.0", waits_on=()),
-                LegendEpicAssignment(
+                _LegendEpicAssignment(epic_number=1, agent_name="l1.1.0", waits_on=()),
+                _LegendEpicAssignment(
                     epic_number=2,
                     agent_name="l1.2.0",
                     waits_on=("l1.1",),

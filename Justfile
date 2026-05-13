@@ -111,8 +111,8 @@ _lint-pyscripts: _setup
 _lint-pyvision: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 src/sase \
         --epic-symbol 'sase-3a(CrossEpicBlockerError)' \
-        --epic-symbol 'sase-3a(LegendEpicAssignment)' \
         --epic-symbol 'sase-3a(MultiAgentXPromptDepthError)' \
+        --epic-symbol 'sase-3a(MultiAgentXPromptUsageError)' \
         --epic-symbol 'sase-3a(NotificationCountsWire)' \
         --epic-symbol 'sase-3a(NotificationStoreStatsWire)' \
         --epic-symbol 'sase-3a(PanelSlice)' \

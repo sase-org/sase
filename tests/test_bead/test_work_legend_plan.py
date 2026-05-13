@@ -10,7 +10,7 @@ import pytest
 from sase.bead.model import BeadTier, IssueType
 from sase.bead.project import BeadProject
 from sase.bead.work import (
-    LegendEpicAssignment,
+    _LegendEpicAssignment,
     LegendPlanError,
     LegendWorkPlan,
     VCSLaunchContext,
@@ -32,7 +32,7 @@ class TestLegendWorkPlan:
         assert isinstance(plan, LegendWorkPlan)
         assert plan.legend_id == "l1"
         assert plan.plan_file == "sdd/legends/202605/roadmap.md"
-        assert all(isinstance(a, LegendEpicAssignment) for a in plan.assignments)
+        assert all(isinstance(a, _LegendEpicAssignment) for a in plan.assignments)
         assert [a.epic_number for a in plan.assignments] == [1, 2, 3]
         assert [a.agent_name for a in plan.assignments] == [
             "l1.1.0",

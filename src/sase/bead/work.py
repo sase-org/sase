@@ -47,7 +47,7 @@ class EpicWorkPlan:
 
 
 @dataclass(frozen=True)
-class LegendEpicAssignment:
+class _LegendEpicAssignment:
     """One proposed epic from a legend plan assigned to an epic-planning agent."""
 
     epic_number: int
@@ -61,7 +61,7 @@ class LegendWorkPlan:
 
     legend_id: str
     plan_file: str
-    assignments: tuple[LegendEpicAssignment, ...]
+    assignments: tuple[_LegendEpicAssignment, ...]
     land_agent_name: str
     land_waits_on: tuple[str, ...]
     land_model: str = ""
@@ -217,7 +217,7 @@ def _plan_from_payload(payload: dict[str, Any]) -> EpicWorkPlan:
 def _legend_plan_from_payload(payload: dict[str, Any]) -> LegendWorkPlan:
     legend_id = str(payload["legend_id"])
     assignments = tuple(
-        LegendEpicAssignment(
+        _LegendEpicAssignment(
             epic_number=int(assignment["epic_number"]),
             agent_name=str(assignment["agent_name"]),
             waits_on=tuple(str(v) for v in assignment.get("waits_on", [])),
