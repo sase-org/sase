@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 from enum import Enum
 
 from sase.agent.status_buckets import (
-    AGENT_STATUS_BUCKETS,
     _NEEDS_INPUT_STATUSES,
     _STOPPED_STATUSES,
     _TERMINAL_STATUSES,
@@ -43,7 +42,7 @@ class GroupingMode(Enum):
     - ``BY_DATE``: L0 is a date bucket (``Today`` / ``Yesterday`` /
       ``This Week`` / ``Earlier``) derived from each agent's ``start_time``.
     - ``BY_STATUS``: L0 is a status bucket (``Stopped`` /
-      ``Failed`` / ``Starting`` / ``Running`` / ``Waiting`` / ``Done``)
+      ``Failed`` / ``Running`` / ``Waiting`` / ``Done`` / ``Starting``)
       derived from each agent's ``status``.
 
     In ``BY_DATE`` and ``BY_STATUS`` modes the project and ChangeSpec
@@ -60,7 +59,14 @@ class GroupingMode(Enum):
 
 
 _DATE_BUCKETS: tuple[str, ...] = ("Today", "Yesterday", "This Week", "Earlier")
-_STATUS_BUCKETS: tuple[str, ...] = (*AGENT_STATUS_BUCKETS,)
+_STATUS_BUCKETS: tuple[str, ...] = (
+    "Stopped",
+    "Failed",
+    "Running",
+    "Waiting",
+    "Done",
+    "Starting",
+)
 
 
 def date_bucket_for(agent: Agent, now: datetime) -> str:

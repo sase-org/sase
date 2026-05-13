@@ -108,7 +108,7 @@ def test_by_status_mode_emits_status_bucket_banners() -> None:
     ]
 
 
-def test_by_status_mode_renders_actionable_and_failed_buckets_adjacent() -> None:
+def test_by_status_mode_renders_starting_bucket_last() -> None:
     widget = AgentList()
     widget.update_list(
         [
@@ -126,10 +126,10 @@ def test_by_status_mode_renders_actionable_and_failed_buckets_adjacent() -> None
     assert _status_bucket_banner_labels(widget) == [
         "Stopped",
         "Failed",
-        "Starting",
         "Running",
         "Waiting",
         "Done",
+        "Starting",
     ]
 
 

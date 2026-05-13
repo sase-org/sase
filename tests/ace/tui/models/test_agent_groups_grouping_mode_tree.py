@@ -63,7 +63,7 @@ def test_build_agent_tree_by_date_orders_buckets_newest_first_regardless_of_inpu
 
 def test_build_agent_tree_by_status_orders_buckets_priority_first() -> None:
     """BY_STATUS bucket order is fixed at
-    Stopped → Failed → Running → Waiting → Done.
+    Stopped → Failed → Running → Waiting → Done → Starting.
     """
     needs = _agent(cl_name="a", agent_name="x.a", status="QUESTION")
     running = _agent(cl_name="b", agent_name="y.a", status="RUNNING")
@@ -75,9 +75,10 @@ def test_build_agent_tree_by_status_orders_buckets_priority_first() -> None:
     )
     failed = _agent(cl_name="c", agent_name="z.a", status="FAILED")
     done = _agent(cl_name="d", agent_name="w.a", status="DONE")
+    starting = _agent(cl_name="f", agent_name="u.a", status="STARTING")
     # Feed them in scrambled order to verify the sort is intrinsic.
     entries = build_agent_tree(
-        [done, failed, needs, waiting, running],
+        [starting, done, failed, needs, waiting, running],
         mode=GroupingMode.BY_STATUS,
         now=_NOW,
     )
@@ -92,6 +93,7 @@ def test_build_agent_tree_by_status_orders_buckets_priority_first() -> None:
         ("Running",),
         ("Waiting",),
         ("Done",),
+        ("Starting",),
     ]
 
 
