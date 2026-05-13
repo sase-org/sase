@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sase.agent.running import RunningAgentInfo
 from sase.integrations.agent_status_groups import (
-    agent_status_bucket,
+    _agent_status_bucket,
     group_agent_statuses,
 )
 
@@ -33,34 +33,34 @@ def _agent(
 
 
 def test_agent_status_bucket_running() -> None:
-    assert agent_status_bucket(_agent("a", "RUNNING")) == "Running"
+    assert _agent_status_bucket(_agent("a", "RUNNING")) == "Running"
 
 
 def test_agent_status_bucket_starting() -> None:
-    assert agent_status_bucket(_agent("a", "STARTING")) == "Starting"
+    assert _agent_status_bucket(_agent("a", "STARTING")) == "Starting"
 
 
 def test_agent_status_bucket_waiting() -> None:
-    assert agent_status_bucket(_agent("a", "WAITING")) == "Waiting"
+    assert _agent_status_bucket(_agent("a", "WAITING")) == "Waiting"
 
 
 def test_agent_status_bucket_question() -> None:
-    assert agent_status_bucket(_agent("a", "QUESTION")) == "Stopped"
+    assert _agent_status_bucket(_agent("a", "QUESTION")) == "Stopped"
 
 
 def test_agent_status_bucket_failed_without_retry() -> None:
-    assert agent_status_bucket(_agent("a", "FAILED")) == "Failed"
+    assert _agent_status_bucket(_agent("a", "FAILED")) == "Failed"
 
 
 def test_agent_status_bucket_failed_with_retry() -> None:
     assert (
-        agent_status_bucket(_agent("a", "FAILED", retried_as_timestamp="child-ts"))
+        _agent_status_bucket(_agent("a", "FAILED", retried_as_timestamp="child-ts"))
         == "Failed"
     )
 
 
 def test_agent_status_bucket_done() -> None:
-    assert agent_status_bucket(_agent("a", "DONE")) == "Done"
+    assert _agent_status_bucket(_agent("a", "DONE")) == "Done"
 
 
 def test_group_agent_statuses_omits_empty_buckets_and_preserves_order() -> None:

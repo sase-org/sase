@@ -14,7 +14,7 @@ from sase.agent.status_buckets import (
 
 __all__ = [
     "AgentStatusGroup",
-    "agent_status_bucket",
+    "_agent_status_bucket",
     "agent_status_bucket_glyph",
     "group_agent_statuses",
     "status_bucket_header",
@@ -30,7 +30,7 @@ class AgentStatusGroup:
     agents: list[RunningAgentInfo]
 
 
-def agent_status_bucket(info: RunningAgentInfo) -> str:
+def _agent_status_bucket(info: RunningAgentInfo) -> str:
     """Return the shared Agents-tab status bucket for a running-agent record."""
     status = info.status if isinstance(info.status, str) else None
     retried_as_timestamp = getattr(info, "retried_as_timestamp", None)
@@ -52,7 +52,7 @@ def group_agent_statuses(
         bucket: [] for bucket in AGENT_STATUS_BUCKETS
     }
     for agent in agents:
-        buckets[agent_status_bucket(agent)].append(agent)
+        buckets[_agent_status_bucket(agent)].append(agent)
 
     return [
         AgentStatusGroup(bucket=bucket, agents=buckets[bucket])
