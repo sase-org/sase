@@ -207,6 +207,11 @@ The modal supports live filtering as you type in the search box and displays las
 | `,.`       | Open prompt history modal for the last CL                                                     |
 | `,>`       | Open prompt history modal with cancelled prompts visible                                      |
 
+The repeat binding is the leader prefix followed by the configured `repeat_last` key. With the defaults both are comma,
+so the sequence is `,,`; if the leader prefix is changed but `repeat_last` is not, the second key remains comma. Repeat
+re-dispatches the last recognized leader subkey against the current tab and selection. If no leader command has been run
+yet, ACE shows a toast and does nothing.
+
 > **Note:** `,x` (kill & edit) is only available on the Agents tab — see
 > [Agents Tab Leader Mode](#leader-mode-prefix_1).
 

@@ -7,15 +7,18 @@ supported image file, the completion path records the image in `done.json` and a
 after the standard chat and diff artifacts, and after any generated Markdown PDFs. When a successful agent adds or
 modifies up to 10 Markdown files, core SASE renders PDF artifacts and attaches those PDFs to the same completion
 notification. Explicit artifacts saved with `sase artifact create` are appended after generated images when the agent
-completion notification is sent. Notification plugins can then deliver those files without re-scanning the workspace.
+completion notification is sent. Notification plugins can then deliver those files from `Notification.files` without
+re-scanning the workspace.
 
 ACE is SASE's terminal UI. It has two image surfaces: lightweight in-panel previews for notification and file-panel
 attachments, and the separate `A` artifact viewer for opening completed agent artifacts.
 
-ACE also surfaces image files referenced in saved prompt artifacts (`raw_xprompt.md` and `*_prompt.md`) even when the
-image itself was not part of the agent's git diff. Those prompt-referenced images participate in the Agents-tab artifact
-picker and prompt-panel `ARTIFACTS` header, but they are discovered from the artifact metadata at view time rather than
-persisted as notification attachments.
+ACE can also surface image files referenced in saved prompt artifacts (`raw_xprompt.md` and `*_prompt.md`) even when the
+image itself was not part of the agent's git diff. For current successful runs, those prompt-referenced images are
+copied into persistent SASE artifact storage with the other default image artifacts so the Agents-tab artifact picker
+can still open them after a workspace is cleaned up. Legacy runs without persisted default artifacts fall back to
+prompt-file discovery at view time. Prompt-referenced images are not notification delivery attachments unless they also
+appear in `done.json.image_paths` or were saved explicitly with `sase artifact create`.
 
 Supported image extensions are:
 
@@ -27,7 +30,8 @@ Supported image extensions are:
 
 ## Image Attachment Contract
 
-Image discovery runs when an agent finalizes successfully. The collector checks candidate paths in stable order:
+Generated-image discovery runs when an agent finalizes successfully. This contract covers images added to
+`done.json.image_paths` and completion notifications. The collector checks candidate paths in stable order:
 
 1. tracked files changed relative to `HEAD`
 2. untracked files in the agent workspace
@@ -45,19 +49,21 @@ Source: `src/sase/axe/image_attachments.py`
 
 ### Prompt-Referenced Images
 
-The artifact list synthesizer scans the saved prompt files in the agent artifacts directory:
+Default artifact persistence also scans the saved prompt files in the agent artifacts directory:
 
 - `raw_xprompt.md`
 - every sibling `*_prompt.md` file
 
 Any path-like token ending in a common image suffix is resolved as an absolute, home-relative, or workspace-relative
-path. Existing files are added as image artifacts after `done.json.image_paths`, duplicates are removed, and the file
-does not need to appear in the agent's git diff. This is useful when a prompt asks an agent to inspect or transform an
-existing screenshot, mockup, or reference image and the resulting run should keep that image one keypress away in ACE.
+path. Existing files are added as ACE image artifacts after `done.json.image_paths`, duplicates are removed, and the
+file does not need to appear in the agent's git diff. This is useful when a prompt asks an agent to inspect or transform
+an existing screenshot, mockup, or reference image and the resulting run should keep that image one keypress away in
+ACE.
 
-Prompt-referenced images are ACE artifact-list entries, not notification delivery attachments. They are recomputed from
-the prompt artifacts, so downstream notification plugins should continue to use `done.json.image_paths` for the
-generated-image notification contract.
+Prompt-referenced images are ACE artifact-list entries, not notification delivery attachments. Current runs persist them
+to the global artifact index during finalization; legacy runs can still synthesize them from prompt artifacts when ACE
+loads the row. Downstream notification plugins should continue to use `done.json.image_paths` for the generated-image
+notification contract.
 
 Source: `src/sase/core/agent_artifact_defaults.py`
 
@@ -107,11 +113,12 @@ Agents can save a generated file explicitly with:
 sase artifact create -p <path> [-n <label>] [-k <kind>]
 ```
 
-The command moves the file into persistent SASE artifact storage, records an association with the current agent, and
-lets ACE show the artifact even after the agent is dismissed and later revived. During completion notification delivery,
-SASE appends existing explicit artifact files after chat, diff, generated Markdown PDFs, and generated image
-attachments. Duplicate paths and missing files are ignored, and explicit-artifact index failures do not fail the
-completion path.
+The CLI command is intended for agent processes: it requires `SASE_AGENT=1` and `SASE_ARTIFACTS_DIR` so SASE knows which
+run owns the artifact. It moves the source file into persistent SASE artifact storage, records an association with the
+current agent, and lets ACE show the artifact even after the agent is dismissed and later revived. During completion
+notification delivery, SASE appends existing explicit artifact files after chat, diff, generated Markdown PDFs, and
+generated image attachments. Duplicate paths and missing files are ignored, and explicit-artifact index failures do not
+fail the completion path.
 
 Source: `src/sase/core/agent_artifact_facade.py`
 

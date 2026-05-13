@@ -100,9 +100,9 @@ Agent completion notifications attach the standard chat transcript and diff firs
 error report and output log when those files exist. When a successful agent added or modified 10 or fewer Markdown
 files, SASE renders best-effort PDF artifacts and appends those PDFs after the standard artifacts. When the run added or
 modified image files, SASE appends those generated images after any Markdown PDFs. Explicit artifacts created during the
-run with `sase artifact create -p <path> [-n <label>] [-k <kind>]` are appended last when their stored files still
-exist. Supported Markdown extensions are `.md` and `.markdown`; supported image extensions are `.png`, `.jpg`, `.jpeg`,
-`.webp`, and `.gif`.
+run with `sase artifact create -p <path> [-n <label>] [-k <kind>]` are read from the persistent artifact index and
+appended last when their stored files still exist. Supported Markdown extensions are `.md` and `.markdown`; supported
+image extensions are `.png`, `.jpg`, `.jpeg`, `.webp`, and `.gif`.
 
 Attachment paths are discovered from local git changes, untracked files, saved proposal/commit diffs, and the latest
 commit when the agent committed or opened a PR. Missing, deleted, unsupported, and duplicate paths are ignored. If more
@@ -114,8 +114,9 @@ index at notification time, deduplicated against the standard attachments, and i
 In ACE, completion artifacts are opened from the Agents tab with `A`. The artifact panel supports marking multiple files
 and opening the full artifact sequence, so notification attachments, generated PDFs/images, plan files, and explicit
 artifacts use one selection workflow. ACE may also include image files referenced by saved prompt artifacts in that
-picker; those prompt-referenced images are local artifact-list entries and are not appended to notification delivery
-payloads unless they also appear in `done.json.image_paths`.
+picker. Those prompt-referenced images are persisted or synthesized as ACE artifact-list entries, but they are not
+appended to notification delivery payloads unless they also appear in `done.json.image_paths` or were saved explicitly
+with `sase artifact create`.
 
 The Agents tab also treats user-agent completions as unread work items. When a terminal agent is selected after it has
 been marked unread, or when the user jumps to it with the unread-agent shortcut, ACE clears the row's unread marker and

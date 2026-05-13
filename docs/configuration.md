@@ -89,7 +89,7 @@ ace:
       leader_mode:
         prefix: "comma"
         keys:
-          repeat_last: "comma" # press the leader prefix twice to repeat the last leader command
+          repeat_last: "comma" # press the leader prefix, then this key; defaults render as `,,`
       fold_mode:
         prefix: "z"
         keys:
