@@ -181,6 +181,10 @@ class AcePage:
         """Press one or more keys via the pilot."""
         await self._pilot.press(*keys)
 
+    async def pause(self) -> None:
+        """Let the Textual message queue settle."""
+        await self._pilot.pause()
+
     async def click(self, selector: str) -> None:
         """Click a widget by CSS selector."""
         await self._pilot.click(selector)

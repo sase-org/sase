@@ -15,6 +15,11 @@ from .capture import (
     record_agents_tab_loader_result,
 )
 from .redact import RedactionContext, redact_bundle
+from .replay import (
+    ReproReplayResult,
+    ReproReplayStepSnapshot,
+    replay_agents_tab_bundle,
+)
 from .schema import (
     AgentIdentity,
     ReproAgentRow,
@@ -42,6 +47,8 @@ __all__ = [
     "ReproLoadState",
     "ReproLoadStep",
     "ReproManifest",
+    "ReproReplayResult",
+    "ReproReplayStepSnapshot",
     "ReproScreen",
     "ReproSelectionFallback",
     "RedactionContext",
@@ -54,6 +61,7 @@ __all__ = [
     "record_agents_tab_app_projection",
     "record_agents_tab_loader_result",
     "redact_bundle",
+    "replay_agents_tab_bundle",
     "serialize_agent_row",
     "serialize_agent_rows",
 ]
