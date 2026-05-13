@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 15:09:29
-status: wip
+status: done
 prompt: sdd/prompts/202605/unread_angel_devil_markers.md
 ---
 # Plan: Angel / devil markers for unread agent rows

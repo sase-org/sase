@@ -10,7 +10,7 @@ from datetime import datetime
 from rich.text import Text
 from textual.widgets.option_list import Option
 
-from sase.agent.status_buckets import agent_is_asking
+from sase.agent.status_buckets import agent_is_asking, status_bucket_for_values
 
 from ..models.agent import (
     Agent,
@@ -39,10 +39,16 @@ _RUNTIME_ELAPSED_STYLE = "bold #BCBCBC"
 # without competing with the row's status color.
 _RUNTIME_LIVE_MARKER = "🏃‍♂️ "
 _RUNTIME_LIVE_MARKER_STYLE = "#D7AF5F"
-# Completed-unread marker: occupies the same suffix slot as the live marker
-# so newly finished unseen rows scan where active runtimes did.
-_RUNTIME_UNREAD_COMPLETED_MARKER = "🙂 "
-_RUNTIME_UNREAD_COMPLETED_MARKER_STYLE = "#5FD7FF"
+# Completed-unread markers: occupy the same suffix slot as the live marker
+# so newly finished unseen rows scan where active runtimes did. The angel
+# variant is used for non-failed terminal rows; the devil variant for any
+# row whose status falls in the Failed bucket.
+_RUNTIME_UNREAD_DONE_MARKER = "😇 "
+_RUNTIME_UNREAD_FAILED_MARKER = "😈 "
+# Emoji glyphs render in their intrinsic colors in modern terminals; the
+# foreground style only affects the trailing space, so a single style serves
+# both variants.
+_RUNTIME_UNREAD_MARKER_STYLE = "#5FD7FF"
 # User-paused marker: same suffix slot, used when the row is waiting on
 # an explicit user action instead of active runtime.
 _RUNTIME_USER_PAUSED_MARKER = "✋ "
@@ -52,6 +58,12 @@ _ACTIVITY_STYLE = "bold #D7AF5F"
 
 def _runtime_suffix_user_paused(agent: Agent, *, is_ticking: bool) -> bool:
     return agent_is_asking(agent.status) and not is_ticking
+
+
+def _unread_marker(agent: Agent) -> str:
+    if status_bucket_for_values(agent.status) == "Failed":
+        return _RUNTIME_UNREAD_FAILED_MARKER
+    return _RUNTIME_UNREAD_DONE_MARKER
 
 
 def render_tier_gutter(tier_styles: tuple[str, ...]) -> Text:
@@ -85,8 +97,8 @@ def build_runtime_suffix(
     if ts_pair is None and elapsed is None:
         if show_unread_marker:
             suffix.append(
-                _RUNTIME_UNREAD_COMPLETED_MARKER.rstrip(),
-                style=_RUNTIME_UNREAD_COMPLETED_MARKER_STYLE,
+                _unread_marker(agent).rstrip(),
+                style=_RUNTIME_UNREAD_MARKER_STYLE,
             )
         elif show_user_paused_marker:
             suffix.append(
@@ -106,8 +118,8 @@ def build_runtime_suffix(
             suffix.append(_RUNTIME_LIVE_MARKER, style=_RUNTIME_LIVE_MARKER_STYLE)
         elif show_unread_marker:
             suffix.append(
-                _RUNTIME_UNREAD_COMPLETED_MARKER,
-                style=_RUNTIME_UNREAD_COMPLETED_MARKER_STYLE,
+                _unread_marker(agent),
+                style=_RUNTIME_UNREAD_MARKER_STYLE,
             )
         elif show_user_paused_marker:
             suffix.append(
@@ -117,8 +129,8 @@ def build_runtime_suffix(
         suffix.append(elapsed, style=_RUNTIME_ELAPSED_STYLE)
     elif show_unread_marker:
         suffix.append(
-            _RUNTIME_UNREAD_COMPLETED_MARKER.rstrip(),
-            style=_RUNTIME_UNREAD_COMPLETED_MARKER_STYLE,
+            _unread_marker(agent).rstrip(),
+            style=_RUNTIME_UNREAD_MARKER_STYLE,
         )
     elif show_user_paused_marker:
         suffix.append(
