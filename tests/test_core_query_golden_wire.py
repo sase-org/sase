@@ -17,7 +17,7 @@ from sase.core.query_wire_conversion import (
     query_expr_from_wire,
     _query_expr_to_wire,
     token_from_wire,
-    token_to_wire,
+    _token_to_wire,
 )
 
 from tests._query_golden_corpus import GOLDEN_QUERIES
@@ -39,7 +39,7 @@ def test_token_wire_round_trip() -> None:
     """Token wire conversion is invertible for every corpus query."""
     for q in GOLDEN_QUERIES:
         for original in tokenize(q):
-            wire = token_to_wire(original)
+            wire = _token_to_wire(original)
             rebuilt = token_from_wire(wire)
             assert rebuilt == original, q
 

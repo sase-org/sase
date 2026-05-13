@@ -30,7 +30,7 @@ from sase.ace.query.tokenizer import tokenize
 from sase.ace.query.types import to_canonical_string
 from sase.core import parser_facade
 from sase.core.query_wire import _query_wire_to_json_dict
-from sase.core.query_wire_conversion import token_to_wire
+from sase.core.query_wire_conversion import _token_to_wire
 
 _CORPUS_DIR = Path(__file__).parent / "core_golden"
 PROJECT_GP = _CORPUS_DIR / "myproj.sase"
@@ -128,7 +128,7 @@ def load_specs() -> list[ChangeSpec]:
 
 
 def token_dicts(query: str) -> list[dict]:
-    return [_query_wire_to_json_dict(token_to_wire(t)) for t in tokenize(query)]
+    return [_query_wire_to_json_dict(_token_to_wire(t)) for t in tokenize(query)]
 
 
 def canonical(query: str) -> str:

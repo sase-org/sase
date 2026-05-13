@@ -11,7 +11,7 @@ _ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz"
 _lock = threading.Lock()
 
 
-def to_base36(n: int) -> str:
+def _to_base36(n: int) -> str:
     """Convert a non-negative integer to a base36 string."""
     if n < 0:
         raise ValueError("Cannot convert negative number to base36")
@@ -45,7 +45,7 @@ class IdGenerator:
         with _lock:
             if minimum_counter is not None:
                 self._counter = max(self._counter, minimum_counter)
-            issue_id = f"{self.prefix}-{to_base36(self._counter)}"
+            issue_id = f"{self.prefix}-{_to_base36(self._counter)}"
             self._counter += 1
             return issue_id
 

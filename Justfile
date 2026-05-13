@@ -112,9 +112,8 @@ _lint-pyvision: _setup
         BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 src/sase \
         --epic-symbol 'sase-3a(MultiAgentXPromptDepthError)' \
         --epic-symbol 'sase-3a(QueryErrorWire)' \
-        --epic-symbol 'sase-3a(to_base36)' \
-        --epic-symbol 'sase-3a(token_from_wire)' \
-        --epic-symbol 'sase-3a(token_to_wire)'
+        --epic-symbol 'sase-3a(MultiAgentXPromptDepthError)' \
+        --epic-symbol 'sase-3a(QueryErrorWire)'
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted

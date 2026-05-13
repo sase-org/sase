@@ -9,32 +9,32 @@ from sase.bead.ids import (
     IdGenerator,
     _from_base36,
     max_top_level_counter,
-    to_base36,
+    _to_base36,
 )
 
 
 class TestBase36:
     def test_zero(self) -> None:
-        assert to_base36(0) == "0"
+        assert _to_base36(0) == "0"
 
     def test_small_numbers(self) -> None:
-        assert to_base36(1) == "1"
-        assert to_base36(9) == "9"
-        assert to_base36(10) == "a"
-        assert to_base36(35) == "z"
+        assert _to_base36(1) == "1"
+        assert _to_base36(9) == "9"
+        assert _to_base36(10) == "a"
+        assert _to_base36(35) == "z"
 
     def test_larger_numbers(self) -> None:
-        assert to_base36(36) == "10"
-        assert to_base36(37) == "11"
-        assert to_base36(100) == "2s"
+        assert _to_base36(36) == "10"
+        assert _to_base36(37) == "11"
+        assert _to_base36(100) == "2s"
 
     def test_negative_raises(self) -> None:
         with pytest.raises(ValueError, match="negative"):
-            to_base36(-1)
+            _to_base36(-1)
 
     def test_roundtrip(self) -> None:
         for n in [0, 1, 35, 36, 100, 999, 10000]:
-            assert _from_base36(to_base36(n)) == n
+            assert _from_base36(_to_base36(n)) == n
 
 
 class TestIdGenerator:

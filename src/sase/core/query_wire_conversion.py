@@ -67,7 +67,7 @@ _WIRE_TO_TOKEN_TYPE: dict[str, TokenType] = {
 }
 
 
-def token_to_wire(token: Token) -> QueryTokenWire:
+def _token_to_wire(token: Token) -> QueryTokenWire:
     """Project a tokenizer :class:`Token` to its wire record."""
     return QueryTokenWire(
         kind=_TOKEN_TYPE_TO_WIRE[token.type],
@@ -79,7 +79,7 @@ def token_to_wire(token: Token) -> QueryTokenWire:
 
 
 def token_from_wire(wire: QueryTokenWire) -> Token:
-    """Inverse of :func:`token_to_wire`."""
+    """Inverse of :func:`_token_to_wire`."""
     return Token(
         type=_WIRE_TO_TOKEN_TYPE[wire.kind],
         value=wire.value,
