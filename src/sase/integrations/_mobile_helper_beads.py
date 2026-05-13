@@ -3,17 +3,13 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from sase.bead.model import BeadTier, Issue, IssueType, Status
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC, BeadProject
-from sase.bead.workspace import (
-    get_all_project_beads_dirs,
-    get_project_beads_dirs_for_project,
-)
+from sase.bead.workspace import get_project_beads_dirs_for_project
 
 from ._mobile_helper_common import (
     GATEWAY_WIRE_SCHEMA_VERSION,
@@ -33,7 +29,7 @@ from ._mobile_helper_common import (
 class _BeadReadScope:
     project: str | None
     scope: str
-    groups: tuple[tuple[str | None, tuple[Path, ...]], ...]
+    groups: tuple[tuple[str, Path], ...]
     skipped: tuple[dict[str, str | None], ...] = ()
 
 
@@ -55,13 +51,13 @@ def beads_list_response(request: dict[str, Any]) -> dict[str, Any]:
     )
     limit = optional_limit(request.get("limit"))
 
-    projected: dict[str, tuple[str | None, Issue, list[Issue], Path | None]] = {}
+    projected: dict[str, tuple[str, Issue, list[Issue], Path | None]] = {}
     skipped = list(scope.skipped)
-    for project, beads_dirs in scope.groups:
+    for project, beads_dir in scope.groups:
         try:
-            all_issues = _read_group_issues(beads_dirs)
+            all_issues = _read_store_issues(beads_dir)
         except Exception as exc:
-            skipped.append(skip_record(project or _paths_label(beads_dirs), str(exc)))
+            skipped.append(skip_record(project, str(exc)))
             continue
         filtered = _filter_bead_issues(
             all_issues,
@@ -69,11 +65,10 @@ def beads_list_response(request: dict[str, Any]) -> dict[str, Any]:
             issue_types=issue_types,
             tiers=tiers,
         )
-        representative_dir = beads_dirs[0] if beads_dirs else None
         for issue in filtered:
             current = projected.get(issue.id)
             if current is None or _issue_sort_key(issue) > _issue_sort_key(current[1]):
-                projected[issue.id] = (project, issue, all_issues, representative_dir)
+                projected[issue.id] = (project, issue, all_issues, beads_dir)
 
     summaries = [
         _bead_summary_wire(issue, project, all_issues)
@@ -101,20 +96,20 @@ def beads_show_response(request: dict[str, Any]) -> dict[str, Any]:
     bead_id = required_string(request.get("bead_id"), "bead_id")
     scope = _resolve_bead_read_scope(request)
 
-    best: tuple[str | None, Issue, list[Issue], Path | None] | None = None
+    best: tuple[str, Issue, list[Issue], Path | None] | None = None
     skipped = list(scope.skipped)
-    for project, beads_dirs in scope.groups:
+    for project, beads_dir in scope.groups:
         try:
-            issue, all_issues, representative_dir = _show_group_issue(
-                beads_dirs, bead_id
-            )
+            all_issues = _read_store_issues(beads_dir)
+            with _open_project_for_beads_dir(beads_dir) as bead_project:
+                issue = bead_project.show(bead_id)
         except KeyError:
             continue
         except Exception as exc:
-            skipped.append(skip_record(project or _paths_label(beads_dirs), str(exc)))
+            skipped.append(skip_record(project, str(exc)))
             continue
         if best is None or _issue_sort_key(issue) > _issue_sort_key(best[1]):
-            best = (project, issue, all_issues, representative_dir)
+            best = (project, issue, all_issues, beads_dir)
 
     if best is None:
         raise MobileHelperNotFoundError(bead_id)
@@ -148,32 +143,25 @@ def _resolve_bead_read_scope(request: dict[str, Any]) -> _BeadReadScope:
 
 
 def _explicit_project_scope(project: str) -> _BeadReadScope:
-    beads_dirs = get_project_beads_dirs_for_project(project)
-    if not beads_dirs:
+    beads_dir = _canonical_beads_dir_for_project(project)
+    if beads_dir is None:
         return _BeadReadScope(
             project=project,
             scope="explicit",
             groups=(),
             skipped=(skip_record(project, "no readable bead store"),),
         )
-    existing_dirs = tuple(path for path in beads_dirs if path.is_dir())
-    skipped = tuple(
-        skip_record(str(path), "bead store is unavailable")
-        for path in beads_dirs
-        if not path.is_dir()
-    )
-    if not existing_dirs:
+    if not beads_dir.is_dir():
         return _BeadReadScope(
             project=project,
             scope="explicit",
             groups=(),
-            skipped=skipped,
+            skipped=(skip_record(str(beads_dir), "bead store is unavailable"),),
         )
     return _BeadReadScope(
         project=project,
         scope="explicit",
-        groups=((project, existing_dirs),),
-        skipped=skipped,
+        groups=((project, beads_dir),),
     )
 
 
@@ -188,22 +176,12 @@ def _device_project_scope(project: str) -> _BeadReadScope:
 
 
 def _all_known_project_scope() -> _BeadReadScope:
-    all_dirs = tuple(get_all_project_beads_dirs())
-    groups: list[tuple[str | None, tuple[Path, ...]]] = []
-    covered: set[Path] = set()
+    groups: list[tuple[str, Path]] = []
     for project in _known_project_names():
-        beads_dirs = get_project_beads_dirs_for_project(project) or []
-        usable = tuple(beads_dirs)
-        if not usable:
+        beads_dir = _canonical_beads_dir_for_project(project)
+        if beads_dir is None or not beads_dir.is_dir():
             continue
-        groups.append((project, usable))
-        covered.update(_resolved_paths(usable))
-
-    orphan_dirs = tuple(
-        path for path in all_dirs if path.resolve() not in covered and path.is_dir()
-    )
-    if orphan_dirs:
-        groups.append((None, orphan_dirs))
+        groups.append((project, beads_dir))
 
     return _BeadReadScope(
         project=None,
@@ -227,6 +205,13 @@ def _known_project_names() -> list[str]:
         if project_file.is_file():
             result.append(project_name)
     return result
+
+
+def _canonical_beads_dir_for_project(project: str) -> Path | None:
+    beads_dirs = get_project_beads_dirs_for_project(project)
+    if not beads_dirs:
+        return None
+    return beads_dirs[0]
 
 
 def _remembered_device_project(device_id: str | None) -> str | None:
@@ -253,25 +238,9 @@ def _remembered_device_project(device_id: str | None) -> str | None:
         return None
 
 
-def _read_group_issues(beads_dirs: Iterable[Path]) -> list[Issue]:
-    issues: list[Issue] = []
-    for beads_dir in beads_dirs:
-        with _open_project_for_beads_dir(beads_dir) as project:
-            issues.extend(project.list_issues())
-    return issues
-
-
-def _show_group_issue(
-    beads_dirs: Iterable[Path], bead_id: str
-) -> tuple[Issue, list[Issue], Path]:
-    all_issues = _read_group_issues(beads_dirs)
-    for beads_dir in beads_dirs:
-        try:
-            with _open_project_for_beads_dir(beads_dir) as project:
-                return project.show(bead_id), all_issues, beads_dir
-        except KeyError:
-            continue
-    raise KeyError(bead_id)
+def _read_store_issues(beads_dir: Path) -> list[Issue]:
+    with _open_project_for_beads_dir(beads_dir) as project:
+        return project.list_issues()
 
 
 def _open_project_for_beads_dir(beads_dir: Path) -> BeadProject:
@@ -444,11 +413,3 @@ def _workspace_display(beads_dir: Path | None) -> str | None:
     if len(parts) >= 2 and parts[-2:] == ("sdd", "beads"):
         return str(beads_dir.parents[1])
     return str(beads_dir)
-
-
-def _paths_label(paths: Iterable[Path]) -> str:
-    return ",".join(str(path) for path in paths)
-
-
-def _resolved_paths(paths: Iterable[Path]) -> set[Path]:
-    return {path.resolve() for path in paths}

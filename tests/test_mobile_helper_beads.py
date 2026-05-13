@@ -72,6 +72,50 @@ def test_beads_list_bridge_filters_explicit_project_status_type_and_tier(
     assert [row["id"] for row in data["beads"]] == [alpha_epic.id]  # type: ignore[index]
 
 
+def test_beads_list_bridge_uses_only_first_canonical_project_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("sase.bead.config.infer_project_name_from_cwd", lambda: None)
+    alpha_dir, alpha_epic, _, _ = seed_bead_project(tmp_path / "alpha")
+    sibling_dir, sibling_epic, _, _ = seed_bead_project(tmp_path / "alpha_101")
+    monkeypatch.setattr(
+        "sase.integrations.mobile_helpers.get_project_beads_dirs_for_project",
+        lambda project: [alpha_dir, sibling_dir],
+    )
+
+    code, data, stderr = run_bridge(
+        {"schema_version": 1, "project": "alpha"}, "beads-list"
+    )
+
+    assert code == 0
+    assert stderr == ""
+    ids = {row["id"] for row in data["beads"]}  # type: ignore[index]
+    assert alpha_epic.id in ids
+    assert sibling_epic.id not in ids
+
+
+def test_beads_list_bridge_all_known_projects_ignores_orphan_bead_dirs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("sase.bead.config.infer_project_name_from_cwd", lambda: None)
+    alpha_dir, alpha_epic, _, _ = seed_bead_project(tmp_path / "alpha")
+    sibling_dir, sibling_epic, _, _ = seed_bead_project(tmp_path / "alpha_101")
+    seed_known_projects(tmp_path, {"alpha": alpha_dir})
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.setattr(
+        "sase.integrations.mobile_helpers.get_all_project_beads_dirs",
+        lambda: [sibling_dir],
+    )
+
+    code, data, stderr = run_bridge({"schema_version": 1}, "beads-list")
+
+    assert code == 0
+    assert stderr == ""
+    ids = {row["id"] for row in data["beads"]}  # type: ignore[index]
+    assert alpha_epic.id in ids
+    assert sibling_epic.id not in ids
+
+
 def test_beads_list_bridge_uses_remembered_device_project_context(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -131,6 +175,27 @@ def test_beads_show_bridge_returns_detail(
     assert data["bead"]["children"] == [alpha_phase.id]  # type: ignore[index]
     assert data["bead"]["blocks"] == [alpha_phase.id]  # type: ignore[index]
     assert data["bead"]["workspace_display"] == str(tmp_path / "alpha")  # type: ignore[index]
+
+
+def test_beads_show_bridge_does_not_search_extra_project_stores(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("sase.bead.config.infer_project_name_from_cwd", lambda: None)
+    alpha_dir, _, _, _ = seed_bead_project(tmp_path / "alpha")
+    sibling_dir, sibling_epic, _, _ = seed_bead_project(tmp_path / "alpha_101")
+    monkeypatch.setattr(
+        "sase.integrations.mobile_helpers.get_project_beads_dirs_for_project",
+        lambda project: [alpha_dir, sibling_dir],
+    )
+
+    code, data, stderr = run_bridge(
+        {"schema_version": 1, "project": "alpha", "bead_id": sibling_epic.id},
+        "beads-show",
+    )
+
+    assert code == 4
+    assert data == {}
+    assert sibling_epic.id in stderr
 
 
 def test_beads_show_bridge_returns_not_found_exit_code(

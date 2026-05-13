@@ -130,8 +130,10 @@ the saved path into the agent prompt. Launch, kill, retry, upload, and per-devic
 Helper bridge operations cover `changespec-tags`, `xprompt-catalog`, `beads-list`, `beads-show`, `update-start`, and
 `update-status`. ChangeSpec, xprompt, and bead helpers are read-only. The only mutating helper operation is
 `update-start`, which starts the configured `chat_install.command` worker and reports status through structured polling.
-The structured xprompt catalog includes `definition_path` when the source can be resolved to a real file, so mobile and
-editor clients can offer jump-to-definition without reverse-engineering display paths.
+Bead helper reads use one canonical bead store per project, typically the project's current checkout at
+`sdd/beads/issues.jsonl`; they do not merge numbered sibling workspaces or legacy bead stores. The structured xprompt
+catalog includes `definition_path` when the source can be resolved to a real file, so mobile and editor clients can
+offer jump-to-definition without reverse-engineering display paths.
 
 Bridge commands read a JSON object from stdin and write a compact JSON object to stdout:
 
