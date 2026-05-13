@@ -29,10 +29,12 @@ def test_run_mentor_checks_reuses_loaded_profiles(monkeypatch: Any) -> None:
         _max_runners: int,
         _started: int,
         mentor_profiles: list[Any] | None = None,
+        verbose_diagnostics: bool = False,
     ) -> tuple[list[str], int]:
         nonlocal check_calls
         check_calls += 1
         assert mentor_profiles is profile
+        assert verbose_diagnostics is False
         return ([], 0)
 
     monkeypatch.setattr("sase.axe.hook_jobs.get_all_mentor_profiles", _get_profiles)
