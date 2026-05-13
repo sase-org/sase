@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-12 22:33:58
-status: wip
+status: done
 prompt: sdd/prompts/202605/claude_thinking_panel_fix.md
 ---
 # Plan: Restore Claude thinking panel content

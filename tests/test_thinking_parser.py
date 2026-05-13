@@ -106,6 +106,73 @@ def test_empty_thinking_text_skipped(tmp_path: Path) -> None:
     assert blocks[0].text == "real thought"
 
 
+def _make_encrypted_thinking_event(
+    *,
+    signature: str = "EvsBClkIDR_signature_blob",
+    output_tokens: int | None = 274,
+    ts: str = "2026-05-12T10:00:00Z",
+) -> dict[str, Any]:
+    usage: dict[str, Any] = {}
+    if output_tokens is not None:
+        usage["output_tokens"] = output_tokens
+    return {
+        "type": "assistant",
+        "timestamp": ts,
+        "message": {
+            "content": [{"type": "thinking", "thinking": "", "signature": signature}],
+            "usage": usage,
+            "stop_reason": None,
+        },
+    }
+
+
+def test_signature_only_block_emits_placeholder(tmp_path: Path) -> None:
+    """Opus 4.7 encrypts thinking; emit placeholder when signature is present."""
+    path = _write_jsonl(
+        tmp_path,
+        [_make_encrypted_thinking_event(output_tokens=274)],
+    )
+    blocks = parse_thinking_blocks(path)
+    assert len(blocks) == 1
+    assert blocks[0].text == "[encrypted thought · ~274 output tokens]"
+
+
+def test_signature_only_block_without_token_count(tmp_path: Path) -> None:
+    """Falls back to bare placeholder when output_tokens is missing."""
+    path = _write_jsonl(
+        tmp_path,
+        [_make_encrypted_thinking_event(output_tokens=None)],
+    )
+    blocks = parse_thinking_blocks(path)
+    assert len(blocks) == 1
+    assert blocks[0].text == "[encrypted thought]"
+
+
+def test_empty_signature_and_empty_thinking_still_skipped(tmp_path: Path) -> None:
+    """A truly empty thinking block (no signature either) is dropped."""
+    path = _write_jsonl(
+        tmp_path,
+        [_make_encrypted_thinking_event(signature="", output_tokens=274)],
+    )
+    blocks = parse_thinking_blocks(path)
+    assert blocks == []
+
+
+def test_signature_only_block_picks_up_following_action(tmp_path: Path) -> None:
+    """Placeholder blocks still get the next tool_use attached as following action."""
+    path = _write_jsonl(
+        tmp_path,
+        [
+            _make_encrypted_thinking_event(output_tokens=100),
+            _make_tool_use_event("Read", {"file_path": "/x/foo.py"}),
+        ],
+    )
+    blocks = parse_thinking_blocks(path)
+    assert len(blocks) == 1
+    assert blocks[0].text == "[encrypted thought · ~100 output tokens]"
+    assert blocks[0].following_action == "Read foo.py"
+
+
 def test_malformed_json_skipped(tmp_path: Path) -> None:
     path = tmp_path / "bad.jsonl"
     with open(path, "w") as f:
