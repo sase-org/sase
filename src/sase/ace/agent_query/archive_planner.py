@@ -76,6 +76,8 @@ def search_archive(
     where_sql, params = _compile_query_text(query)
     offset = max(0, cursor or 0)
     page_size = max(0, limit)
+    if page_size == 0:
+        return ArchiveQueryPage(results=[], next_cursor=None)
     sql = (
         "SELECT s.* FROM dismissed_bundle_summaries s "
         f"WHERE {where_sql} "

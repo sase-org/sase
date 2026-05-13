@@ -188,13 +188,24 @@ def scrub_dismissed_archive(
 def export_dismissed_archive(ctx: Any, *, query: str, out: Path) -> dict[str, Any]:
     """Export matching archive bundles to a restorable tar artifact."""
     rows = select_archive_lifecycle_rows(ctx, query=query)
+    row_refs = [
+        {
+            **archive_row_ref(row),
+            "export_path": _export_bundle_arcname(
+                ctx._DISMISSED_BUNDLES_DIR,
+                row,
+                index,
+            ),
+        }
+        for index, row in enumerate(rows)
+    ]
     out = out.expanduser()
     manifest = {
         "schema_version": 1,
         "created_at": datetime.now().isoformat(),
         "query": query,
         "bundle_count": len(rows),
-        "rows": [archive_row_ref(row) for row in rows],
+        "rows": row_refs,
     }
     failures: list[dict[str, str]] = []
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -207,11 +218,14 @@ def export_dismissed_archive(ctx: Any, *, query: str, out: Path) -> dict[str, An
             manifest_info = tarfile.TarInfo("manifest.json")
             manifest_info.size = len(manifest_bytes)
             archive.addfile(manifest_info, fileobj=BytesIO(manifest_bytes))
-            for row in rows:
+            for row, row_ref in zip(rows, row_refs, strict=True):
                 path = Path(row.bundle_path)
                 try:
-                    arcname = f"bundles/{row.agent_id}.{row.raw_suffix}.json"
-                    archive.add(path, arcname=arcname, recursive=False)
+                    archive.add(
+                        path,
+                        arcname=str(row_ref["export_path"]),
+                        recursive=False,
+                    )
                 except OSError as exc:
                     failures.append(
                         {
@@ -241,6 +255,19 @@ def export_dismissed_archive(ctx: Any, *, query: str, out: Path) -> dict[str, An
     }
     append_archive_audit_event(ctx, report)
     return report
+
+
+def _export_bundle_arcname(root: Path, row: Any, index: int) -> str:
+    """Return a unique archive-relative tar path for an exported bundle row."""
+    path = Path(row.bundle_path)
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        relative = Path(f"{index:06d}-{path.name or 'bundle.json'}")
+    clean_parts = [part for part in relative.parts if part not in {"", ".", ".."}]
+    if not clean_parts:
+        clean_parts = [f"{index:06d}-bundle.json"]
+    return "bundles/" + "/".join(clean_parts)
 
 
 def select_archive_lifecycle_rows(

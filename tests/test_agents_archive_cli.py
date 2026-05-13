@@ -333,3 +333,56 @@ def test_archive_export_writes_restorable_tar_artifact(
         names = archive.getnames()
         assert "manifest.json" in names
         assert any(name.startswith("bundles/") for name in names)
+
+
+def test_archive_export_keeps_revisions_at_distinct_tar_paths(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    out = tmp_path / "archive-export.tar.gz"
+    raw_suffix = "20260512120000"
+    for revision, status in ((1, "FAILED"), (2, "DONE")):
+        bundle_path = tmp_path / "202605" / f"same-agent.{revision}" / "bundle.json"
+        bundle_path.parent.mkdir(parents=True, exist_ok=True)
+        bundle_path.write_text(
+            json.dumps(
+                {
+                    "raw_suffix": raw_suffix,
+                    "agent_type": "run",
+                    "cl_name": "export_cl",
+                    "agent_name": "export_agent",
+                    "project_file": "/tmp/projects/sase/sase.sase",
+                    "status": status,
+                    "start_time": "2026-05-12T12:00:00",
+                    "dismissed_at": f"2026-05-12T12:3{revision}:00",
+                    "model": "gpt-5.5",
+                    "llm_provider": "codex",
+                    "runtime": "codex",
+                    "archive_revision": revision,
+                }
+            ),
+            encoding="utf-8",
+        )
+    rebuild_index(tmp_path)
+
+    args = _archive_args(
+        archive_subcommand="export",
+        query="cl:export_cl",
+        out=str(out),
+    )
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", tmp_path),
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_agents_archive(args)
+
+    assert excinfo.value.code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["exported"] == 2
+    export_paths = [row["export_path"] for row in data["rows"]]
+    assert len(export_paths) == len(set(export_paths)) == 2
+    with tarfile.open(out, "r:gz") as archive:
+        bundle_names = [
+            name for name in archive.getnames() if name.startswith("bundles/")
+        ]
+    assert sorted(bundle_names) == sorted(export_paths)

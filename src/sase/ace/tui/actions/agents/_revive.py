@@ -289,11 +289,6 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         )
         self.app.push_screen(modal, _on_agents_selected)  # type: ignore[attr-defined]
 
-        try:
-            modal._schedule_archive_query("")
-        except Exception:
-            self.notify("Failed to load dismissed archive", severity="error")  # type: ignore[attr-defined]
-
     def _ensure_dismissed_archive_groups_loaded(self, agents: list[object]) -> None:
         """Hydrate selected archive groups so revive can restore children."""
         from ....dismissed_agents import load_dismissed_bundles, save_dismissed_agents

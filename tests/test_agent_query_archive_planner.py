@@ -161,3 +161,13 @@ def test_archive_pagination_and_facets(tmp_path: Path) -> None:
         "DONE": 1,
         "FAILED": 1,
     }
+
+
+def test_archive_search_zero_limit_has_no_non_advancing_cursor(tmp_path: Path) -> None:
+    _write_bundle(tmp_path, cl_name="present")
+    rebuild_index(tmp_path)
+
+    page = search_archive(tmp_path, "", limit=0)
+
+    assert page.results == []
+    assert page.next_cursor is None

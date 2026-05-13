@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from sase.ace.tui.modals.project_select_modal import SelectionItem
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 
@@ -44,6 +45,46 @@ def test_do_revive_agent_removes_suffix_aliases() -> None:
     assert len(app.restored) == 2
     assert app.restored[0] == (parent.identity, None)
     assert app.restored[1] == (child.identity, parent.artifacts_dir)
+
+
+def test_show_dismissed_scope_defers_archive_query_until_modal_mount(
+    monkeypatch,
+) -> None:
+    """The revive caller must not synchronously search the archive after push."""
+
+    class ModalWithoutMountedDebouncer:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+        def _schedule_archive_query(self, _query: str) -> None:
+            raise AssertionError("archive query should be owned by modal.on_mount")
+
+    class PushRecorder:
+        def __init__(self) -> None:
+            self.modal: object | None = None
+
+        def push_screen(self, modal: object, _callback: object) -> None:
+            self.modal = modal
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.revive_agent_modal.DismissedAgentSelectModal",
+        ModalWithoutMountedDebouncer,
+    )
+
+    app = FakeReviveApp()
+    app.app = PushRecorder()  # type: ignore[attr-defined]
+    app._dismissed_agent_objects = [
+        make_agent(cl_name="feature", raw_suffix="20260201101010")
+    ]
+
+    app._show_dismissed_agents_for_scope(
+        SelectionItem("[P] myproj", "project", "myproj", None)
+    )
+
+    assert isinstance(
+        app.app.modal,  # type: ignore[attr-defined]
+        ModalWithoutMountedDebouncer,
+    )
 
 
 def test_do_revive_agent_selects_revived_agent_panel_after_reload() -> None:
