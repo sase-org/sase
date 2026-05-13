@@ -30,6 +30,25 @@ def test_lightweight_context_reads_current_checkout_store(
     assert beads_dirname == _BEADS_DIRNAME
 
 
+def test_lightweight_context_prefers_current_vc_store_over_primary_non_vc(
+    tmp_path: Path, monkeypatch
+) -> None:
+    primary = tmp_path / "workspaces" / "sase"
+    sibling = tmp_path / "workspaces" / "sase_106"
+    (primary / ".sase" / "sdd" / "beads").mkdir(parents=True)
+    (sibling / "sdd/beads").mkdir(parents=True)
+    _write_project_file(tmp_path, "sase", primary)
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    result = _resolve_lightweight_beads_context(sibling.resolve())
+
+    assert result is not None
+    read_dirs, write_dir, beads_dirname = result
+    assert read_dirs == [sibling / "sdd/beads"]
+    assert write_dir == sibling / "sdd/beads"
+    assert beads_dirname == _BEADS_DIRNAME
+
+
 def test_fast_path_ignores_legacy_store_by_default(tmp_path: Path, monkeypatch) -> None:
     primary = tmp_path / "workspaces" / "sase"
     (primary / ".sase_beads").mkdir(parents=True)
