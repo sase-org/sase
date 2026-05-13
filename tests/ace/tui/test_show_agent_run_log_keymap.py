@@ -27,11 +27,14 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self.marked_indices = set()
         self._agents = []
         self._leader_mode_active = True
+        self._last_leader_key: str | None = None
         self._keymap_registry = load_keymap_registry({})
         self.pushed_modals: list[Any] = []
         self.notifications: list[str] = []
         self.refresh_count = 0
         self.toggle_panel_grouping_count = 0
+        self.retry_edit_count = 0
+        self.runners_count = 0
         self.jump_unread_count = 0
         self.jump_unread_result = True
         self.jump_stopped_count = 0
@@ -52,6 +55,12 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
 
     def action_toggle_agent_panel_grouping(self) -> None:
         self.toggle_panel_grouping_count += 1
+
+    def _retry_edit_agent(self) -> None:
+        self.retry_edit_count += 1
+
+    def action_show_runners(self) -> None:
+        self.runners_count += 1
 
     def _jump_to_next_unread_done_agent(self) -> bool:
         self.jump_unread_count += 1
@@ -169,6 +178,65 @@ def test_leader_j_jumps_to_next_unread_done_agent_on_agents_tab() -> None:
     assert app.jump_unread_count == 1
     assert app.notifications == []
     assert app.refresh_count == 1
+
+
+def test_leader_j_records_and_repeat_invokes_unread_jump_again() -> None:
+    app = _FakeApp(current_tab="agents")
+
+    handled = app._handle_leader_key("j")
+    repeated = app._handle_leader_key("comma")
+
+    assert handled is True
+    assert repeated is True
+    assert app.jump_unread_count == 2
+    assert app._last_leader_key == "j"
+    assert app.refresh_count == 2
+
+
+def test_leader_repeat_without_previous_command_notifies_and_refreshes() -> None:
+    app = _FakeApp(current_tab="agents")
+
+    handled = app._handle_leader_key("comma")
+
+    assert handled is True
+    assert app._last_leader_key is None
+    assert app.notifications == ["No leader command to repeat"]
+    assert app.refresh_count == 1
+
+
+def test_leader_unknown_key_and_escape_do_not_overwrite_previous_command() -> None:
+    app = _FakeApp(current_tab="agents")
+    app._handle_leader_key("j")
+
+    app._handle_leader_key("unknown")
+    app._handle_leader_key("escape")
+    app._handle_leader_key("comma")
+
+    assert app._last_leader_key == "j"
+    assert app.jump_unread_count == 2
+    assert app.refresh_count == 4
+
+
+def test_leader_repeat_does_not_record_repeat_subkey() -> None:
+    app = _FakeApp(current_tab="agents")
+
+    app._handle_leader_key("j")
+    app._handle_leader_key("comma")
+
+    assert app._last_leader_key == "j"
+    assert app.jump_unread_count == 2
+
+
+def test_leader_repeat_uses_raw_subkey_for_duplicate_r_behavior() -> None:
+    app = _FakeApp(current_tab="agents")
+    app._handle_leader_key("r")
+
+    app.current_tab = "changespecs"  # type: ignore[assignment]
+    app._handle_leader_key("comma")
+
+    assert app._last_leader_key == "r"
+    assert app.retry_edit_count == 1
+    assert app.runners_count == 1
 
 
 def test_leader_j_notifies_when_no_unread_done_agent() -> None:

@@ -22,6 +22,7 @@ class LeaderModeMixin:
     marked_indices: set[int]
     _agents: list[Agent]
     _leader_mode_active: bool
+    _last_leader_key: str | None
     _keymap_registry: KeymapRegistry
 
     def action_start_leader_mode(self) -> None:
@@ -47,8 +48,28 @@ class LeaderModeMixin:
             return True
 
         leader_keys = self._keymap_registry.leader_mode.keys
+        if key == leader_keys["repeat_last"]:
+            if self._last_leader_key is None:
+                self.notify("No leader command to repeat")  # type: ignore[attr-defined]
+                self._refresh_current_tab()  # type: ignore[attr-defined]
+                return True
+            return LeaderModeMixin._dispatch_leader_key(
+                self, self._last_leader_key, remember=False
+            )
+
+        return LeaderModeMixin._dispatch_leader_key(self, key, remember=True)
+
+    def _remember_leader_key(self, key: str, *, remember: bool) -> None:
+        """Remember a matched raw leader subkey for future repeat dispatch."""
+        if remember:
+            self._last_leader_key = key
+
+    def _dispatch_leader_key(self, key: str, *, remember: bool) -> bool:
+        """Dispatch a non-repeat leader subkey."""
+        leader_keys = self._keymap_registry.leader_mode.keys
 
         if key == leader_keys["run_cmd"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab != "changespecs":
                 self._refresh_current_tab()  # type: ignore[attr-defined]
                 return True
@@ -58,35 +79,41 @@ class LeaderModeMixin:
 
         if key == leader_keys["retry_edit"]:
             if self.current_tab == "agents":
+                LeaderModeMixin._remember_leader_key(self, key, remember=remember)
                 self._retry_edit_agent()  # type: ignore[attr-defined]
                 self._refresh_current_tab()  # type: ignore[attr-defined]
                 return True
             # Fall through to runners (same key) on other tabs
 
         if key == leader_keys["runners"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             self.action_show_runners()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["kill_mentors"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "changespecs":
                 self.action_kill_mentors()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["review_mentors"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "changespecs":
                 self._open_mentor_review()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["agent_home"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             # Shortcut for @ → ~ (home): skip the ProjectSelectModal
             self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["agent_from_cl"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "changespecs":
                 if self.marked_indices:
                     self._start_agents_from_marked()  # type: ignore[attr-defined]
@@ -98,12 +125,14 @@ class LeaderModeMixin:
             return True
 
         if key == leader_keys["toggle_agent_panel_grouping"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "agents":
                 self.action_toggle_agent_panel_grouping()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["jump_to_next_unread_done_agent"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "agents":
                 if not self._jump_to_next_unread_done_agent():  # type: ignore[attr-defined]
                     self.notify("No unread completed agents")  # type: ignore[attr-defined]
@@ -111,6 +140,7 @@ class LeaderModeMixin:
             return True
 
         if key == leader_keys["jump_to_next_stopped_agent"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "agents":
                 if not self._jump_to_next_stopped_agent():  # type: ignore[attr-defined]
                     self.notify("No stopped agents")  # type: ignore[attr-defined]
@@ -118,6 +148,7 @@ class LeaderModeMixin:
             return True
 
         if key == leader_keys["mark_all_unread_done_agents_read"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "agents":
                 marked_count = self._mark_all_unread_done_agents_read()  # type: ignore[attr-defined]
                 if marked_count:
@@ -132,72 +163,85 @@ class LeaderModeMixin:
             return True
 
         if key == leader_keys["kill_and_edit"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "agents":
                 self._kill_and_edit_agent()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["task_queue"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             self._show_task_queue_modal()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["activity_info"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             self._show_activity_dashboard()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["mark_inactive"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             self.action_mark_inactive()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["clear_comments"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "changespecs":
                 self._clear_changespec_comments()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["jump_to_notification"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "agents":
                 self._jump_to_agent_notification()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["capture_agents_repro"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "agents":
                 self.action_capture_agents_repro()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["toggle_agents_repro_checks"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "agents":
                 self.action_toggle_agents_repro_checks()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["prompt_history"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             self._start_prompt_history_from_last_selection()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["prompt_history_edit_first"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             self._start_prompt_history_from_last_selection(edit_first=True)  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["prompt_history_cancelled"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             self._start_prompt_history_from_last_selection(show_cancelled=True)  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["agent_run_log"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "changespecs":
                 self.action_show_agent_run_log()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["temporary_llm_override"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             self._open_temporary_llm_override_modal()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True

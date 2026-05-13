@@ -146,6 +146,7 @@ class StateInitMixin:
 
         # Leader mode state (for , key sub-commands)
         self._leader_mode_active: bool = False
+        self._last_leader_key: str | None = None
 
         # Bang mode state (for ! key sub-commands)
         self._bang_mode_active: bool = False

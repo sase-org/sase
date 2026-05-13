@@ -46,6 +46,13 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert isinstance(reg.bang_mode, BangModeKeymaps)
 
 
+def test_leader_repeat_last_default_binding() -> None:
+    """Typed defaults and YAML defaults both bind leader repeat to comma."""
+    reg = load_keymap_registry({})
+    assert LeaderModeKeymaps().keys["repeat_last"] == "comma"
+    assert reg.leader_mode.keys["repeat_last"] == "comma"
+
+
 def test_edit_hooks_default_binding() -> None:
     """Guard: ``f`` is bound to ``edit_hooks`` (restored after d7b96606)."""
     reg = load_keymap_registry({})

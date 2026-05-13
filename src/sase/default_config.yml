@@ -171,6 +171,7 @@ ace:
       leader_mode:
         prefix: "comma"
         keys:
+          repeat_last: "comma"
           run_cmd: "exclamation_mark"
           runners: "r"
           kill_mentors: "M"

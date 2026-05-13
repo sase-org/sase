@@ -385,6 +385,7 @@ class LeaderModeKeymaps(ModeKeymaps):
     prefix: str = "comma"
     keys: dict[str, str | dict[str, str]] = field(
         default_factory=lambda: {
+            "repeat_last": "comma",
             "run_cmd": "exclamation_mark",
             "runners": "r",
             "kill_mentors": "M",
