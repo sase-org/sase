@@ -2,6 +2,9 @@
 create_time: 2026-05-13 14:43:59
 status: wip
 prompt: sdd/prompts/202605/rust_daemon_indexed_projections_1.md
+legend_bead_id: sase-3e
+tier: legend
+epic_count: 11
 ---
 # Plan - Rust Daemon and Indexed Projections Performance Rebuild
 
@@ -69,7 +72,7 @@ epic should later be split into smaller phases owned by distinct agent instances
 5. Migration proceeds in shadow mode first: daemon indexes existing files and diff-tests its projections against current
    Python implementations before it becomes authoritative for reads or writes.
 
-## Epic 0 - Baseline, Contracts, and Compatibility Inventory
+## Epic 1 - Baseline, Contracts, and Compatibility Inventory
 
 Purpose: make the performance and functional contract explicit before building the daemon.
 
@@ -92,9 +95,9 @@ Deliverables:
 
 Suggested later phases:
 
-- Phase 0A: inventory and fixtures only.
-- Phase 0B: perf harnesses and thresholds.
-- Phase 0C: daemon wire versioning and contract snapshot scaffolding.
+- Phase 1A: inventory and fixtures only.
+- Phase 1B: perf harnesses and thresholds.
+- Phase 1C: daemon wire versioning and contract snapshot scaffolding.
 
 Acceptance gates:
 
@@ -102,7 +105,7 @@ Acceptance gates:
 - The plan records which behavior is intentionally unchanged, intentionally moved, or deferred.
 - No production command is rerouted yet.
 
-## Epic 1 - Event Model and Projection Storage Core
+## Epic 2 - Event Model and Projection Storage Core
 
 Purpose: define the Rust-owned state substrate that every indexed surface will share.
 
@@ -142,11 +145,11 @@ Deliverables:
 
 Suggested later phases:
 
-- Phase 1A: event envelope, migrations, metadata, unit tests.
-- Phase 1B: ChangeSpec and notification projections.
-- Phase 1C: agent/artifact/archive projections.
-- Phase 1D: bead/workflow/xprompt projections.
-- Phase 1E: replay, rebuild, checkpoint, backup, and compaction.
+- Phase 2A: event envelope, migrations, metadata, unit tests.
+- Phase 2B: ChangeSpec and notification projections.
+- Phase 2C: agent/artifact/archive projections.
+- Phase 2D: bead/workflow/xprompt projections.
+- Phase 2E: replay, rebuild, checkpoint, backup, and compaction.
 
 Acceptance gates:
 
@@ -154,7 +157,7 @@ Acceptance gates:
 - Corrupt or stale projections can be dropped and rebuilt deterministically.
 - Existing Rust-backed parser/query/notification/bead APIs are reused rather than duplicated.
 
-## Epic 2 - Daemon Runtime, Ownership, and Local Transport
+## Epic 3 - Daemon Runtime, Ownership, and Local Transport
 
 Purpose: turn `sase_gateway` into the single SASE daemon process.
 
@@ -185,11 +188,11 @@ Deliverables:
 
 Suggested later phases:
 
-- Phase 2A: process lifecycle, lock, config, health, Python `sase daemon` wrapper.
-- Phase 2B: Unix-socket transport and request/response contract.
-- Phase 2C: delta stream and subscription contract.
-- Phase 2D: observability and metrics.
-- Phase 2E: fallback and recovery behavior.
+- Phase 3A: process lifecycle, lock, config, health, Python `sase daemon` wrapper.
+- Phase 3B: Unix-socket transport and request/response contract.
+- Phase 3C: delta stream and subscription contract.
+- Phase 3D: observability and metrics.
+- Phase 3E: fallback and recovery behavior.
 
 Acceptance gates:
 
@@ -197,7 +200,7 @@ Acceptance gates:
 - Mobile gateway routes still pass existing contract tests.
 - A local client can query health and subscribe to heartbeats without importing Textual or heavyweight Python modules.
 
-## Epic 3 - Shadow Indexers and File Watch Ownership
+## Epic 4 - Shadow Indexers and File Watch Ownership
 
 Purpose: make the daemon observe current SASE files and build projections without changing behavior.
 
@@ -230,11 +233,11 @@ Deliverables:
 
 Suggested later phases:
 
-- Phase 3A: ChangeSpec watcher and diff.
-- Phase 3B: notification watcher and diff.
-- Phase 3C: agent/artifact watcher and diff.
-- Phase 3D: bead/workflow/xprompt watchers and diff.
-- Phase 3E: reconciliation, throttling, and large-history soak tests.
+- Phase 4A: ChangeSpec watcher and diff.
+- Phase 4B: notification watcher and diff.
+- Phase 4C: agent/artifact watcher and diff.
+- Phase 4D: bead/workflow/xprompt watchers and diff.
+- Phase 4E: reconciliation, throttling, and large-history soak tests.
 
 Acceptance gates:
 
@@ -242,7 +245,7 @@ Acceptance gates:
 - No full history hydration is needed after initial backfill for ordinary file changes.
 - Watcher loss or reordering is repaired by reconciliation.
 
-## Epic 4 - Daemon-Backed Read APIs for CLI, Editor, and ACE
+## Epic 5 - Daemon-Backed Read APIs for CLI, Editor, and ACE
 
 Purpose: move hot read paths to paged daemon queries while keeping current Python behavior as fallback.
 
@@ -270,12 +273,12 @@ Deliverables:
 
 Suggested later phases:
 
-- Phase 4A: local client facade and `sase agents`/notification reads.
-- Phase 4B: ChangeSpec list/search/detail reads.
-- Phase 4C: editor helper and file-history reads.
-- Phase 4D: ACE Agents tab indexed provider.
-- Phase 4E: ACE ChangeSpecs/Notifications providers.
-- Phase 4F: bead read routing once parity is proven.
+- Phase 5A: local client facade and `sase agents`/notification reads.
+- Phase 5B: ChangeSpec list/search/detail reads.
+- Phase 5C: editor helper and file-history reads.
+- Phase 5D: ACE Agents tab indexed provider.
+- Phase 5E: ACE ChangeSpecs/Notifications providers.
+- Phase 5F: bead read routing once parity is proven.
 
 Acceptance gates:
 
@@ -283,7 +286,7 @@ Acceptance gates:
 - CLI output stays byte-compatible or has recorded intentional differences.
 - ACE no-change refresh stops firing broad load spans for daemon-backed tabs.
 
-## Epic 5 - Transactional Write APIs and Source Export Compatibility
+## Epic 6 - Transactional Write APIs and Source Export Compatibility
 
 Purpose: move state mutations into Rust transactions while preserving auditable source artifacts.
 
@@ -311,11 +314,11 @@ Deliverables:
 
 Suggested later phases:
 
-- Phase 5A: notifications and pending actions.
-- Phase 5B: ChangeSpec transitions and comments.
-- Phase 5C: agent cleanup/dismiss/revive metadata.
-- Phase 5D: bead mutations.
-- Phase 5E: workflow state writes and source export.
+- Phase 6A: notifications and pending actions.
+- Phase 6B: ChangeSpec transitions and comments.
+- Phase 6C: agent cleanup/dismiss/revive metadata.
+- Phase 6D: bead mutations.
+- Phase 6E: workflow state writes and source export.
 
 Acceptance gates:
 
@@ -323,7 +326,7 @@ Acceptance gates:
 - Retried writes are idempotent.
 - Existing tests for side-effecting commands continue to pass through daemon and no-daemon modes.
 
-## Epic 6 - Scheduler, Agent Lifecycle, and Durable Workflow Execution
+## Epic 7 - Scheduler, Agent Lifecycle, and Durable Workflow Execution
 
 Purpose: make the daemon own background orchestration and "what is running?" state.
 
@@ -356,11 +359,11 @@ Deliverables:
 
 Suggested later phases:
 
-- Phase 6A: lifecycle read model and reconciliation.
-- Phase 6B: batch launch planning/enqueue with Python host execution.
-- Phase 6C: workflow transition persistence and resume/retry.
-- Phase 6D: axe scheduler migration.
-- Phase 6E: kill/dismiss/cleanup fan-out and backpressure.
+- Phase 7A: lifecycle read model and reconciliation.
+- Phase 7B: batch launch planning/enqueue with Python host execution.
+- Phase 7C: workflow transition persistence and resume/retry.
+- Phase 7D: axe scheduler migration.
+- Phase 7E: kill/dismiss/cleanup fan-out and backpressure.
 
 Acceptance gates:
 
@@ -368,7 +371,7 @@ Acceptance gates:
 - Launch fan-out no longer blocks the UI thread.
 - Daemon restart reconstructs running/waiting/completed state from events and source artifacts.
 
-## Epic 7 - Plugin and Provider Host Isolation
+## Epic 8 - Plugin and Provider Host Isolation
 
 Purpose: keep extensibility without letting Python import graphs or plugin behavior slow every command.
 
@@ -396,11 +399,11 @@ Deliverables:
 
 Suggested later phases:
 
-- Phase 7A: provider/plugin contract inventory.
-- Phase 7B: Python host subprocess with timeouts/logs.
-- Phase 7C: route one low-risk provider call through host IPC.
-- Phase 7D: resource limits and manifest capability checks.
-- Phase 7E: migrate high-traffic provider paths selectively.
+- Phase 8A: provider/plugin contract inventory.
+- Phase 8B: Python host subprocess with timeouts/logs.
+- Phase 8C: route one low-risk provider call through host IPC.
+- Phase 8D: resource limits and manifest capability checks.
+- Phase 8E: migrate high-traffic provider paths selectively.
 
 Acceptance gates:
 
@@ -408,7 +411,7 @@ Acceptance gates:
 - Existing provider behavior remains available.
 - Misbehaving plugin calls cannot starve the daemon runtime.
 
-## Epic 8 - Incremental ACE and UI Data Virtualization
+## Epic 9 - Incremental ACE and UI Data Virtualization
 
 Purpose: adapt ACE to the daemon contract without prematurely rewriting the TUI.
 
@@ -435,11 +438,11 @@ Deliverables:
 
 Suggested later phases:
 
-- Phase 8A: data-provider abstraction and daemon snapshot plumbing.
-- Phase 8B: Agents tab pages/deltas/lazy detail.
-- Phase 8C: ChangeSpecs tab pages/deltas/query handles.
-- Phase 8D: Notifications/artifacts/archive/search views.
-- Phase 8E: remove broad refresh fallbacks and enforce perf gates.
+- Phase 9A: data-provider abstraction and daemon snapshot plumbing.
+- Phase 9B: Agents tab pages/deltas/lazy detail.
+- Phase 9C: ChangeSpecs tab pages/deltas/query handles.
+- Phase 9D: Notifications/artifacts/archive/search views.
+- Phase 9E: remove broad refresh fallbacks and enforce perf gates.
 
 Acceptance gates:
 
@@ -447,7 +450,7 @@ Acceptance gates:
 - No-change auto-refresh performs no broad data reload for daemon-backed tabs.
 - ACE remains functional when daemon is unavailable by falling back to current loaders.
 
-## Epic 9 - Multi-Machine Sync, Recovery, and Operations
+## Epic 10 - Multi-Machine Sync, Recovery, and Operations
 
 Purpose: make the daemon safe for users who sync `~/.sase/` and for histories that have years of artifacts.
 
@@ -478,10 +481,10 @@ Deliverables:
 
 Suggested later phases:
 
-- Phase 9A: storage layout and docs.
-- Phase 9B: doctor/rebuild/backup commands.
-- Phase 9C: sync chaos tests.
-- Phase 9D: migration guide and user-facing diagnostics.
+- Phase 10A: storage layout and docs.
+- Phase 10B: doctor/rebuild/backup commands.
+- Phase 10C: sync chaos tests.
+- Phase 10D: migration guide and user-facing diagnostics.
 
 Acceptance gates:
 
@@ -489,7 +492,7 @@ Acceptance gates:
 - Projection corruption is recoverable without losing source artifacts.
 - User-facing errors explain exactly which command repairs the problem.
 
-## Epic 10 - Release Sequencing and Rollout Controls
+## Epic 11 - Release Sequencing and Rollout Controls
 
 Purpose: make adoption incremental and reversible.
 
@@ -527,16 +530,16 @@ Acceptance gates:
 
 ## Dependency Order
 
-1. Epic 0 must land first enough to provide fixtures and perf gates.
-2. Epic 1 and Epic 2 can proceed in parallel once wire/versioning policy is agreed.
-3. Epic 3 depends on initial storage and daemon lifecycle.
-4. Epic 4 depends on shadow projections for the migrated surface.
-5. Epic 5 depends on event transactions and read parity for each surface.
-6. Epic 6 depends on write events and host IPC shape.
-7. Epic 7 can start contract design early, but high-traffic migration should wait for daemon scheduling/backpressure.
-8. Epic 8 should start after the daemon read API for a tab exists.
-9. Epic 9 starts early for storage layout decisions and continues through all phases.
-10. Epic 10 wraps every milestone.
+1. Epic 1 must land first enough to provide fixtures and perf gates.
+2. Epic 2 and Epic 3 can proceed in parallel once wire/versioning policy is agreed.
+3. Epic 4 depends on initial storage and daemon lifecycle.
+4. Epic 5 depends on shadow projections for the migrated surface.
+5. Epic 6 depends on event transactions and read parity for each surface.
+6. Epic 7 depends on write events and host IPC shape.
+7. Epic 8 can start contract design early, but high-traffic migration should wait for daemon scheduling/backpressure.
+8. Epic 9 should start after the daemon read API for a tab exists.
+9. Epic 10 starts early for storage layout decisions and continues through all phases.
+10. Epic 11 wraps every milestone.
 
 ## Cross-Epic Testing Strategy
 
@@ -558,9 +561,9 @@ Acceptance gates:
 The first implementation work should not start by moving a user command. It should create the substrate needed for safe
 parallelization:
 
-1. Add Epic 0 fixtures/perf baselines and a daemon contract skeleton.
-2. Add Epic 1 event envelope, projection metadata, and migration runner in `sase_core`.
-3. Add Epic 2 daemon lifecycle/health/lock/local transport in `sase_gateway`.
+1. Add Epic 1 fixtures/perf baselines and a daemon contract skeleton.
+2. Add Epic 2 event envelope, projection metadata, and migration runner in `sase_core`.
+3. Add Epic 3 daemon lifecycle/health/lock/local transport in `sase_gateway`.
 4. Add a shadow ChangeSpec or notification projection as the first vertical slice.
 5. Diff that projection against the current Python implementation before any read path uses it.
 
