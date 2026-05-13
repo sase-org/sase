@@ -2,6 +2,9 @@
 create_time: 2026-05-13 14:43:59
 status: wip
 prompt: sdd/prompts/202605/rust_daemon_indexed_projections_1.md
+legend_bead_id: sase-3e
+tier: legend
+epic_count: 11
 ---
 # Plan - Rust Daemon and Indexed Projections Performance Rebuild
 
