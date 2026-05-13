@@ -106,7 +106,7 @@ def preclaim_epic_work(
     return issues_from_list(payload.get("issues", [])), rollback, payload
 
 
-def open_issue(
+def _open_issue(
     beads_dir: Path | str,
     issue_id: str,
     *,
@@ -225,7 +225,6 @@ __all__ = [
     "export_jsonl",
     "init_store",
     "mark_ready_to_work",
-    "open_issue",
     "preclaim_epic_work",
     "remove",
     "sync_is_clean",

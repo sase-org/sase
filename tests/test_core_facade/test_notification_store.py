@@ -18,7 +18,7 @@ from sase.core.notification_store_wire import (
     NotificationAgentKeyWire,
     NotificationStateUpdateWire,
     _NotificationStoreStatsWire,
-    notification_from_dict,
+    _notification_from_dict,
     notification_store_wire_to_json_dict,
 )
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
@@ -161,7 +161,7 @@ def test_update_wire_serializes_mark_many_dismissed_shape() -> None:
 
 
 def test_wire_helpers_rehydrate_and_serialize_agent_keys() -> None:
-    n = notification_from_dict(
+    n = _notification_from_dict(
         {
             "id": "n1",
             "timestamp": "2026-04-30T12:00:00+00:00",

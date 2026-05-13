@@ -157,7 +157,7 @@ def parse_git_numstat_z(stdout: str) -> list[tuple[str, str, str]]:
     return parse_git_numstat_z_python(stdout)
 
 
-def parse_git_branch_name_python(stdout: str) -> str | None:
+def _parse_git_branch_name_python(stdout: str) -> str | None:
     """Pure-Python golden-contract implementation of :func:`parse_git_branch_name`."""
     name = stdout.strip()
     if not name or name == "HEAD":
@@ -258,7 +258,6 @@ def parse_git_local_changes(stdout: str) -> str | None:
 __all__ = [
     "derive_git_workspace_name",
     "parse_git_branch_name",
-    "parse_git_branch_name_python",
     "parse_git_conflicted_files",
     "parse_git_conflicted_files_python",
     "parse_git_local_changes",

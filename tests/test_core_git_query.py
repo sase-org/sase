@@ -30,7 +30,7 @@ from sase.core.git_query_facade import (
     derive_git_workspace_name,
     _derive_git_workspace_name_python,
     parse_git_branch_name,
-    parse_git_branch_name_python,
+    _parse_git_branch_name_python,
     parse_git_conflicted_files,
     parse_git_conflicted_files_python,
     parse_git_local_changes,
@@ -474,7 +474,7 @@ def test_rust_extension_parity_for_all_helpers() -> None:
     for stdout in ["feature-x\n", "HEAD\n", "", "   \n", "  feat/x  \n"]:
         assert rust_module.parse_git_branch_name(
             stdout
-        ) == parse_git_branch_name_python(stdout)
+        ) == _parse_git_branch_name_python(stdout)
 
     workspace_pairs: list[tuple[str | None, str | None]] = [
         ("https://github.com/sase-org/sase_100.git", None),
