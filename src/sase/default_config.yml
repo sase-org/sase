@@ -242,7 +242,7 @@ ace:
           toggle_agent_panel_grouping: "g"
           jump_to_next_unread_done_agent: "j"
           jump_to_next_stopped_agent: "J"
-          mark_all_unread_done_agents_read: "U"
+          mark_all_unread_done_agents_read: "u"
           kill_and_edit: "x"
           mark_inactive: "I"
           retry_edit: "r"

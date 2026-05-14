@@ -591,7 +591,7 @@ Unread-completed actions operate on terminal rows that are loaded in the tab; `,
 | `,g`       | Toggle between tag-split panels and one merged agent panel                                    |
 | `,j`       | Jump to the next visible unread completed agent, newest first, and mark it read               |
 | `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state  |
-| `,U`       | Mark all loaded unread completed agents as read                                               |
+| `,u`       | Mark all loaded unread completed agents as read                                               |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                         |
 | `,P`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
 | `,R`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication      |

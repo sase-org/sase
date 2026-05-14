@@ -99,7 +99,7 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
     assert registry.leader_mode.keys["agent_run_log"] == "A"
     assert registry.app.focus_next_agent_panel == "J"
     assert registry.leader_mode.keys["jump_to_next_stopped_agent"] == "J"
-    assert registry.leader_mode.keys["mark_all_unread_done_agents_read"] == "U"
+    assert registry.leader_mode.keys["mark_all_unread_done_agents_read"] == "u"
 
     bindings = build_app_bindings(registry.app)
     by_key = {b.key: b.action for b in bindings}
@@ -302,7 +302,7 @@ def test_leader_shift_j_noops_on_non_agents_tabs() -> None:
 def test_leader_u_marks_all_unread_done_agents_read_on_agents_tab() -> None:
     app = _FakeApp(current_tab="agents")
 
-    handled = app._handle_leader_key("U")
+    handled = app._handle_leader_key("u")
 
     assert handled is True
     assert app._leader_mode_active is False
@@ -315,7 +315,7 @@ def test_leader_u_notifies_when_no_unread_done_agents() -> None:
     app = _FakeApp(current_tab="agents")
     app.mark_all_unread_result = 0
 
-    handled = app._handle_leader_key("U")
+    handled = app._handle_leader_key("u")
 
     assert handled is True
     assert app.mark_all_unread_count == 1
@@ -411,7 +411,7 @@ def test_footer_surfaces_unread_done_jump_only_when_available() -> None:
     rendered = str(captured[-1])
     assert "j" in rendered
     assert "next unread done" in rendered
-    assert "U" in rendered
+    assert "u" in rendered
     assert "mark all read" in rendered
 
     footer.update_leader_bindings(

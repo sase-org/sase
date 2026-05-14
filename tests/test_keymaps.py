@@ -415,9 +415,9 @@ def test_leader_mode_includes_jump_to_next_stopped_agent() -> None:
 
 
 def test_leader_mode_marks_all_unread_done_agents_read_with_u() -> None:
-    """LeaderModeKeymaps default moves mark-all-read to ``,U``."""
+    """LeaderModeKeymaps default binds mark-all-read to ``,u``."""
     reg = load_keymap_registry({})
-    assert reg.leader_mode.keys["mark_all_unread_done_agents_read"] == "U"
+    assert reg.leader_mode.keys["mark_all_unread_done_agents_read"] == "u"
 
 
 def test_leader_mode_includes_prompt_history_edit_first() -> None:
