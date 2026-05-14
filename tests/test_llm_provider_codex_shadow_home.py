@@ -147,7 +147,7 @@ def test_codex_provider_shadow_home_copies_config_and_symlinks_state(
     real_home = tmp_path / "real-codex"
     real_home.mkdir()
     real_config = real_home / "config.toml"
-    config_text = 'model = "gpt-5.5"\n\n[features]\nhooks = true\ncodex_hooks = true\n'
+    config_text = 'model = "gpt-5.5"\n\n[features]\nhooks = true\n'
     real_config.write_text(config_text)
     auth_file = real_home / "auth.json"
     auth_file.write_text("{}\n")
@@ -168,6 +168,7 @@ def test_codex_provider_shadow_home_copies_config_and_symlinks_state(
         shadow_config = observed_shadow_home / "config.toml"
 
         assert shadow_config.read_text() == config_text
+        assert "codex_hooks" not in shadow_config.read_text()
         assert not shadow_config.is_symlink()
         assert (observed_shadow_home / "auth.json").is_symlink()
         assert (observed_shadow_home / "auth.json").resolve() == auth_file
