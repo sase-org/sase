@@ -10,6 +10,11 @@ from sase.llm_provider._subprocess import (
     _process_json_line,
     stream_and_parse_json_output,
 )
+from sase.llm_provider._tool_calls import (
+    _normalize_claude_tool_call_event,
+    _summarize_tool_input,
+    append_claude_tool_call_event,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -129,6 +134,211 @@ def test_process_json_line_error_events_still_captured() -> None:
     assert usage_totals["input_tokens"] == 42
     assert len(error_events) == 1
     assert "[result]" in error_events[0]
+
+
+def test_process_json_line_writes_post_tool_use_artifact() -> None:
+    """Claude hook events are normalized without changing core stream parsing."""
+    usage_totals = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+    }
+    assistant_texts: list[str] = []
+    error_events: list[str] = []
+    hook_event = {
+        "hook_event_name": "PostToolUse",
+        "session_id": "session-1",
+        "transcript_path": "/tmp/transcript.jsonl",
+        "cwd": "/repo",
+        "permission_mode": "bypassPermissions",
+        "tool_use_id": "toolu_1",
+        "tool_name": "Bash",
+        "tool_input": {
+            "command": "OPENAI_API_KEY=sk-secret pytest tests/test_foo.py",
+            "description": "Run focused tests",
+            "timeout": 120000,
+        },
+        "tool_response": {
+            "stdout": "ok\n",
+            "stderr": "",
+            "exit_code": 0,
+            "success": True,
+        },
+        "duration_ms": 123,
+    }
+    result_event = {
+        "type": "result",
+        "result": "done",
+        "usage": {"input_tokens": 5, "output_tokens": 7},
+    }
+    assistant_event = {
+        "type": "assistant",
+        "message": {"content": [{"type": "text", "text": "hello"}]},
+    }
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch.dict(os.environ, {"SASE_ARTIFACTS_DIR": tmpdir}):
+            _process_json_line(
+                json.dumps(hook_event),
+                assistant_texts,
+                suppress_output=True,
+                error_events=error_events,
+                usage_totals=usage_totals,
+            )
+            _process_json_line(
+                json.dumps(result_event),
+                assistant_texts,
+                suppress_output=True,
+                error_events=error_events,
+                usage_totals=usage_totals,
+            )
+            _process_json_line(
+                json.dumps(assistant_event),
+                assistant_texts,
+                suppress_output=True,
+                error_events=error_events,
+                usage_totals=usage_totals,
+            )
+
+        tool_calls_path = os.path.join(tmpdir, "tool_calls.jsonl")
+        with open(tool_calls_path, encoding="utf-8") as f:
+            records = [json.loads(line) for line in f]
+
+    assert assistant_texts == ["hello"]
+    assert usage_totals["input_tokens"] == 5
+    assert usage_totals["output_tokens"] == 7
+    assert error_events == ["[result] done"]
+    assert len(records) == 1
+    record = records[0]
+    assert record["schema_version"] == 1
+    assert record["runtime"] == "claude"
+    assert record["event"] == "PostToolUse"
+    assert record["status"] == "success"
+    assert record["tool_name"] == "Bash"
+    assert record["tool_use_id"] == "toolu_1"
+    assert record["duration_ms"] == 123
+    assert "sk-secret" not in record["tool_input_summary"]["command"]
+    assert record["tool_input_summary"]["command"].startswith(
+        "OPENAI_API_KEY=[REDACTED]"
+    )
+    assert record["tool_response_summary"]["stdout_preview"] == "ok\n"
+
+
+def test_process_json_line_writes_post_tool_use_failure_artifact() -> None:
+    """PostToolUseFailure maps to a failure record with bounded error detail."""
+    event = {
+        "hook_event_name": "PostToolUseFailure",
+        "tool_use_id": "toolu_failed",
+        "tool_name": "Bash",
+        "tool_input": {"command": "pytest tests/test_missing.py"},
+        "error": "Command exited with non-zero status code 4",
+        "is_interrupt": False,
+        "duration_ms": 900,
+    }
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch.dict(os.environ, {"SASE_ARTIFACTS_DIR": tmpdir}):
+            _process_json_line(
+                json.dumps(event),
+                assistant_texts=[],
+                suppress_output=True,
+            )
+
+        with open(os.path.join(tmpdir, "tool_calls.jsonl"), encoding="utf-8") as f:
+            record = json.loads(f.readline())
+
+    assert record["event"] == "PostToolUseFailure"
+    assert record["status"] == "failure"
+    assert record["tool_response_summary"]["error"] == event["error"]
+    assert record["is_interrupt"] is False
+
+
+def test_process_json_line_writes_subagent_events() -> None:
+    """Subagent lifecycle events are preserved for later grouping."""
+    event = {
+        "hook_event_name": "SubagentStart",
+        "agent_id": "agent-1",
+        "agent_type": "Explore",
+        "session_id": "session-1",
+    }
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch.dict(os.environ, {"SASE_ARTIFACTS_DIR": tmpdir}):
+            _process_json_line(
+                json.dumps(event),
+                assistant_texts=[],
+                suppress_output=True,
+            )
+
+        with open(os.path.join(tmpdir, "tool_calls.jsonl"), encoding="utf-8") as f:
+            record = json.loads(f.readline())
+
+    assert record["event"] == "SubagentStart"
+    assert record["status"] == "subagent"
+    assert record["agent_id"] == "agent-1"
+    assert record["agent_type"] == "Explore"
+
+
+def test_append_claude_tool_call_event_noops_without_artifacts_dir() -> None:
+    """Tool-call capture is disabled when SASE_ARTIFACTS_DIR is unset."""
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch("sase.llm_provider._tool_calls._append_jsonl") as mock_append,
+    ):
+        append_claude_tool_call_event({"hook_event_name": "PostToolUse"})
+
+    mock_append.assert_not_called()
+
+
+def test_tool_call_input_summaries_are_conservative() -> None:
+    """Known inputs are useful, while risky content is summarized by length."""
+    bash_summary = _summarize_tool_input(
+        "Bash",
+        {
+            "command": "TOKEN=abc123 SECRET_KEY='very-secret' echo hi",
+            "description": "demo",
+        },
+    )
+    write_summary = _summarize_tool_input(
+        "Write",
+        {"file_path": "secret.txt", "content": "x" * 1000},
+    )
+    edit_summary = _summarize_tool_input(
+        "Edit",
+        {"file_path": "app.py", "old_string": "old", "new_string": "new value"},
+    )
+    unknown_summary = _summarize_tool_input(
+        "mcp__memory__create_entities",
+        {
+            "entities": [{"name": "secret", "observations": ["private"]}],
+            "dry_run": True,
+        },
+    )
+    malformed_summary = _summarize_tool_input("Bash", "not an object")
+
+    assert "abc123" not in bash_summary["command"]
+    assert "very-secret" not in bash_summary["command"]
+    assert write_summary == {"file_path": "secret.txt", "content_length": 1000}
+    assert edit_summary["old_string_length"] == 3
+    assert edit_summary["new_string_length"] == 9
+    assert unknown_summary == {"input_keys": ["dry_run", "entities"]}
+    assert malformed_summary == {}
+
+
+def test_normalize_claude_tool_call_event_interrupt_status() -> None:
+    """Interrupt failures use the dedicated interrupted status."""
+    record = _normalize_claude_tool_call_event(
+        {
+            "hook_event_name": "PostToolUseFailure",
+            "tool_name": "Bash",
+            "is_interrupt": True,
+            "error": "Interrupted by user",
+        }
+    )
+
+    assert record is not None
+    assert record["status"] == "interrupted"
 
 
 # ---------------------------------------------------------------------------

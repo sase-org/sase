@@ -180,6 +180,7 @@ class ClaudeCodeProvider(LLMProvider):
                 model_alias,
                 "--output-format",
                 "stream-json",
+                "--include-hook-events",
                 "--dangerously-skip-permissions",
                 "--session-id",
                 session_uuid,

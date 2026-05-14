@@ -273,6 +273,7 @@ def test_claude_provider_extra_args_from_env_small(
     cmd = call_args[0][0]
     assert "--max-tokens" in cmd
     assert "1000" in cmd
+    assert "--include-hook-events" in cmd
 
 
 def test_base_provider_resolve_model_name_returns_unknown() -> None:

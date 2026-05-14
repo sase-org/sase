@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+from collections.abc import Mapping
 from typing import IO
 
 from ._subprocess_artifacts import (
@@ -12,6 +13,7 @@ from ._subprocess_artifacts import (
     write_usage_artifact,
 )
 from ._subprocess_stream import append_error_events, stream_json_lines
+from ._tool_calls import append_claude_tool_call_event
 
 
 def stream_and_parse_json_output(
@@ -82,8 +84,11 @@ def _process_json_line(
         event = json.loads(line)
     except json.JSONDecodeError:
         return
+    if not isinstance(event, Mapping):
+        return
 
     event_type = event.get("type")
+    append_claude_tool_call_event(event)
 
     if event_type == "assistant":
         message = event.get("message", {})
