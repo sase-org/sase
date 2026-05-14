@@ -230,7 +230,7 @@ axe:
         - name: orphan_cleanup
           description: "Release workspace claims orphaned by reverted CLs with dead PIDs"
     waits:
-      interval: 2
+      interval: 10
       chops:
         - name: wait_checks
           description: "Resolve agent wait dependencies and write ready.json when satisfied"
