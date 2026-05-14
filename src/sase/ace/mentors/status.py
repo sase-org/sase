@@ -8,7 +8,6 @@ from sase.ace.changespec import (
     MentorStatusLine,
     changespec_lock,
     parse_project_file,
-    write_changespec_atomic,
 )
 
 from sase.ace.mentors.formatting import apply_mentors_update
@@ -123,10 +122,27 @@ def set_mentor_status(
             )
             content = "".join(updated_lines)
 
-            write_changespec_atomic(
-                project_file,
-                content,
-                f"Set mentor status {profile_name}:{mentor_name} -> {status}",
+            from sase.daemon.changespec_writes import (
+                write_changespec_project_file_mutation_locked,
+            )
+
+            write_changespec_project_file_mutation_locked(
+                "changespec.mentor_status",
+                project_file=project_file,
+                changespec_name=changespec_name,
+                updated_content=content,
+                payload={
+                    "section_names": ["mentors"],
+                    "entry_id": entry_id,
+                    "profile_name": profile_name,
+                    "mentor_name": mentor_name,
+                    "status": status,
+                    "suffix_type": suffix_type,
+                },
+                commit_message=(
+                    f"Set mentor status {profile_name}:{mentor_name} -> {status}"
+                ),
+                return_value=None,
             )
             return True
     except Exception:
@@ -256,10 +272,21 @@ def update_changespec_mentors_field(
             updated_lines = apply_mentors_update(lines, changespec_name, merged)
             content = "".join(updated_lines)
 
-            write_changespec_atomic(
-                project_file,
-                content,
-                f"Update MENTORS field for {changespec_name}",
+            from sase.daemon.changespec_writes import (
+                write_changespec_project_file_mutation_locked,
+            )
+
+            write_changespec_project_file_mutation_locked(
+                "changespec.mentors",
+                project_file=project_file,
+                changespec_name=changespec_name,
+                updated_content=content,
+                payload={
+                    "section_names": ["mentors"],
+                    "mentor_entry_count": len(merged),
+                },
+                commit_message=f"Update MENTORS field for {changespec_name}",
+                return_value=None,
             )
             return True
     except Exception:
@@ -317,10 +344,26 @@ def clear_mentor_status_lines(
             )
             content = "".join(updated_lines)
 
-            write_changespec_atomic(
-                project_file,
-                content,
-                f"Clear mentor status lines for {changespec_name}",
+            from sase.daemon.changespec_writes import (
+                write_changespec_project_file_mutation_locked,
+            )
+
+            write_changespec_project_file_mutation_locked(
+                "changespec.mentors",
+                project_file=project_file,
+                changespec_name=changespec_name,
+                updated_content=content,
+                payload={
+                    "section_names": ["mentors"],
+                    "cleared": {
+                        entry_id: sorted(
+                            [f"{mentor}:{profile}" for mentor, profile in lines]
+                        )
+                        for entry_id, lines in mentors_to_clear.items()
+                    },
+                },
+                commit_message=f"Clear mentor status lines for {changespec_name}",
+                return_value=None,
             )
             return True
     except Exception:

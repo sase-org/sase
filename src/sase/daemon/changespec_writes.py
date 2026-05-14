@@ -123,6 +123,113 @@ def write_changespec_project_file_mutation_locked[T](
     )
 
 
+def write_changespec_archive_move_mutation_locked(
+    *,
+    source_file: str,
+    dest_file: str,
+    changespec_name: str,
+    source_content: str,
+    dest_content: str,
+    commit_message: str,
+    return_value: bool,
+    args: Any | None = None,
+    client: LocalDaemonClient | None = None,
+) -> DaemonWriteResult[bool]:
+    """Route an active/archive ChangeSpec move through one daemon mutation.
+
+    The caller must already hold locks for ``source_file`` and ``dest_file`` in
+    stable order.  Both rewritten project files are exported together so the
+    daemon outbox can repair a crash between the add/remove filesystem writes.
+    """
+
+    current_source = _read_existing_text(source_file)
+    current_dest = _read_existing_text(dest_file)
+    if current_source == source_content and current_dest == dest_content:
+        return DaemonWriteResult(
+            value=return_value,
+            surface="changespec.active_archive_moved",
+            used_daemon=False,
+            fallback_reason="unchanged",
+            fallback_message="project file content is already current",
+        )
+
+    source_expected = _source_fingerprint(source_file, current_source)
+    dest_expected = (
+        _source_fingerprint(dest_file, current_dest)
+        if current_dest is not None
+        else None
+    )
+    spec = _changespec_spec_from_content(dest_file, dest_content, changespec_name)
+    source_export = _source_export_plan(
+        source_file,
+        expected_fingerprint=source_expected,
+        content_utf8=source_content,
+        repair_context={
+            "domain": "changespec",
+            "changespec_name": changespec_name,
+            "surface": "changespec.active_archive_moved",
+            "role": "source",
+        },
+    )
+    dest_export = _source_export_plan(
+        dest_file,
+        expected_fingerprint=dest_expected,
+        content_utf8=dest_content,
+        repair_context={
+            "domain": "changespec",
+            "changespec_name": changespec_name,
+            "surface": "changespec.active_archive_moved",
+            "role": "destination",
+        },
+    )
+    source_exports = [source_export, dest_export]
+    request_payload = {
+        "spec": spec,
+        "from_path": source_file,
+        "to_path": dest_file,
+        "is_archive": _is_archive_project_file(dest_file),
+    }
+    expected_fingerprints = [source_expected]
+    if dest_expected is not None:
+        expected_fingerprints.append(dest_expected)
+    write_data = {
+        "schema_version": MUTATION_WIRE_SCHEMA_VERSION,
+        "project_id": _project_id(dest_file),
+        "idempotency_key": _idempotency_key(
+            "changespec.active_archive_moved",
+            source_file,
+            changespec_name,
+            {"source": source_expected, "dest": dest_expected},
+            request_payload,
+            _source_exports_sha(source_exports),
+        ),
+        "actor": _actor(),
+        "payload": request_payload,
+        "expected_source_fingerprints": expected_fingerprints,
+        "source_exports": source_exports,
+    }
+
+    def daemon_writer(daemon: LocalDaemonClient) -> bool:
+        daemon.write("changespec.active_archive_moved", write_data)
+        return return_value
+
+    def direct_writer() -> bool:
+        write_changespec_atomic(dest_file, dest_content, f"Add {changespec_name}")
+        write_changespec_atomic(
+            source_file, source_content, f"Remove {changespec_name}"
+        )
+        return return_value
+
+    return write_or_fallback(
+        "changespec.active_archive_moved",
+        daemon_writer=daemon_writer,
+        direct_writer=direct_writer,
+        args=args,
+        client=client,
+        required_capability="changespecs.write",
+    )
+
+
 def _changespec_spec_from_content(
     project_file: str, content: str, changespec_name: str
 ) -> dict[str, Any]:
@@ -137,7 +244,9 @@ def _changespec_spec_from_content(
     raise ValueError(f"ChangeSpec {changespec_name!r} not found after update")
 
 
-def _source_fingerprint(path: str, content: str) -> dict[str, Any]:
+def _source_fingerprint(path: str, content: str | None) -> dict[str, Any]:
+    if content is None:
+        raise FileNotFoundError(path)
     encoded = content.encode("utf-8")
     return {
         "schema_version": MUTATION_WIRE_SCHEMA_VERSION,
@@ -149,7 +258,7 @@ def _source_fingerprint(path: str, content: str) -> dict[str, Any]:
 def _source_export_plan(
     path: str,
     *,
-    expected_fingerprint: dict[str, Any],
+    expected_fingerprint: dict[str, Any] | None,
     content_utf8: str,
     repair_context: dict[str, Any],
 ) -> dict[str, Any]:
@@ -162,6 +271,19 @@ def _source_export_plan(
         "content_utf8": content_utf8,
         "repair_context": repair_context,
     }
+
+
+def _read_existing_text(path: str) -> str | None:
+    try:
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        return None
+
+
+def _source_exports_sha(exports: list[dict[str, Any]]) -> str:
+    encoded = json.dumps(exports, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _idempotency_key(
@@ -203,6 +325,7 @@ def _is_archive_project_file(project_file: str) -> bool:
 
 
 __all__ = [
+    "write_changespec_archive_move_mutation_locked",
     "write_changespec_project_file_mutation",
     "write_changespec_project_file_mutation_locked",
 ]

@@ -10,7 +10,6 @@ from ..changespec import (
     HookStatusLine,
     LockTimeoutError,
     changespec_lock,
-    write_changespec_atomic,
 )
 from .formatting import apply_hooks_update, format_hooks_field
 
@@ -46,11 +45,29 @@ def write_hooks_unlocked(
         lines = f.readlines()
 
     updated_lines = apply_hooks_update(lines, changespec_name, hooks)
+    updated_content = "".join(updated_lines)
 
-    write_changespec_atomic(
-        project_file,
-        "".join(updated_lines),
-        f"Update HOOKS for {changespec_name}",
+    from sase.daemon.changespec_writes import (
+        write_changespec_project_file_mutation_locked,
+    )
+
+    write_changespec_project_file_mutation_locked(
+        "changespec.hooks",
+        project_file=project_file,
+        changespec_name=changespec_name,
+        updated_content=updated_content,
+        payload={
+            "section_names": ["hooks"],
+            "hooks": [
+                {
+                    "command": hook.command,
+                    "status_line_count": len(hook.status_lines or []),
+                }
+                for hook in hooks
+            ],
+        },
+        commit_message=f"Update HOOKS for {changespec_name}",
+        return_value=None,
     )
 
 

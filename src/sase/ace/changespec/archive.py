@@ -7,8 +7,10 @@ main file lean while preserving history.
 
 import logging
 import os
+from collections.abc import Iterator
+from contextlib import ExitStack, contextmanager
 
-from .locking import changespec_lock, write_changespec_atomic
+from .locking import changespec_lock
 from .project_spec_path import (
     LEGACY_PROJECT_SPEC_EXTENSION,
     PROJECT_SPEC_ARCHIVE_SUFFIX,
@@ -158,6 +160,17 @@ def _extract_changespec_block(
     return extracted, cleaned
 
 
+@contextmanager
+def _ordered_changespec_locks(*project_files: str) -> Iterator[None]:
+    """Acquire ChangeSpec locks in path order to avoid active/archive deadlocks."""
+
+    ordered_files = sorted({os.path.abspath(path) for path in project_files})
+    with ExitStack() as stack:
+        for project_file in ordered_files:
+            stack.enter_context(changespec_lock(project_file))
+        yield
+
+
 def move_changespec_to_file(
     source_file: str, dest_file: str, changespec_name: str
 ) -> bool:
@@ -174,25 +187,21 @@ def move_changespec_to_file(
     Returns:
         ``True`` on success, ``False`` if the ChangeSpec was not found.
     """
-    # Step 1: Read source and extract the block
-    with changespec_lock(source_file):
+    with _ordered_changespec_locks(source_file, dest_file):
         if not os.path.isfile(source_file):
             return False
         with open(source_file, encoding="utf-8") as f:
             source_lines = f.readlines()
 
-        extracted, _ = _extract_changespec_block(source_lines, changespec_name)
+        extracted, remaining = _extract_changespec_block(source_lines, changespec_name)
 
-    if extracted is None:
-        logger.debug(
-            "ChangeSpec '%s' not found in %s, skipping move",
-            changespec_name,
-            source_file,
-        )
-        return False
-
-    # Step 2: Append to destination file
-    with changespec_lock(dest_file):
+        if extracted is None:
+            logger.debug(
+                "ChangeSpec '%s' not found in %s, skipping move",
+                changespec_name,
+                source_file,
+            )
+            return False
         if os.path.isfile(dest_file):
             with open(dest_file, encoding="utf-8") as f:
                 dest_content = f.read()
@@ -214,17 +223,23 @@ def move_changespec_to_file(
         if dest_dir:
             os.makedirs(dest_dir, exist_ok=True)
 
-        write_changespec_atomic(dest_file, dest_content, f"Add {changespec_name}")
-
-    # Step 3: Re-read source and remove the block
-    with changespec_lock(source_file):
-        with open(source_file, encoding="utf-8") as f:
-            source_lines = f.readlines()
-
-        _, remaining = _extract_changespec_block(source_lines, changespec_name)
         new_content = "".join(remaining)
 
-        write_changespec_atomic(source_file, new_content, f"Remove {changespec_name}")
+        from sase.daemon.changespec_writes import (
+            write_changespec_archive_move_mutation_locked,
+        )
+
+        result = write_changespec_archive_move_mutation_locked(
+            source_file=source_file,
+            dest_file=dest_file,
+            changespec_name=changespec_name,
+            source_content=new_content,
+            dest_content=dest_content,
+            commit_message=f"Move {changespec_name} from active/archive",
+            return_value=True,
+        )
+        if not result.value:
+            return False
 
     logger.info(
         "Moved ChangeSpec '%s' from %s to %s",
