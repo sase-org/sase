@@ -95,7 +95,7 @@ def notification_store_wire_to_json_dict(record: Any) -> Any:
     return record
 
 
-def _notification_from_dict(data: dict[str, Any]) -> Notification:
+def notification_from_dict(data: dict[str, Any]) -> Notification:
     return Notification(
         id=str(data["id"]),
         timestamp=str(data["timestamp"]),
@@ -128,7 +128,7 @@ def notification_snapshot_from_dict(
     return NotificationStoreSnapshotWire(
         schema_version=schema,
         notifications=[
-            _notification_from_dict(item) for item in data.get("notifications") or []
+            notification_from_dict(item) for item in data.get("notifications") or []
         ],
         counts=_NotificationCountsWire(**(data.get("counts") or {})),
         expired_ids=[str(item) for item in data.get("expired_ids") or []],
@@ -152,7 +152,7 @@ def notification_update_outcome_from_dict(
         appended_count=int(data.get("appended_count", 0)),
         rewritten=bool(data.get("rewritten", False)),
         notifications=[
-            _notification_from_dict(item) for item in data.get("notifications") or []
+            notification_from_dict(item) for item in data.get("notifications") or []
         ],
         counts=_NotificationCountsWire(**(data.get("counts") or {})),
         expired_ids=[str(item) for item in data.get("expired_ids") or []],
@@ -167,6 +167,7 @@ __all__ = [
     "NotificationStoreSnapshotWire",
     "_NotificationStoreStatsWire",
     "NotificationUpdateOutcomeWire",
+    "notification_from_dict",
     "notification_snapshot_from_dict",
     "notification_store_wire_to_json_dict",
     "notification_update_outcome_from_dict",

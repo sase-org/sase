@@ -7,10 +7,10 @@ import os
 import socket
 import struct
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 LOCAL_DAEMON_SCHEMA_VERSION = 1
 LOCAL_DAEMON_MAX_PAYLOAD_BYTES = 1_048_576
@@ -54,6 +54,13 @@ class LocalDaemonRpcError(LocalDaemonError):
         return self.message
 
 
+class LocalDaemonTransport(Protocol):
+    """In-process transport seam for tests and non-socket embedders."""
+
+    def request(self, envelope: dict[str, Any]) -> dict[str, Any]:
+        """Return one local daemon response envelope for ``envelope``."""
+
+
 class LocalDaemonClient:
     """Small synchronous client for one-request local daemon RPC calls."""
 
@@ -64,6 +71,7 @@ class LocalDaemonClient:
         timeout: float = 1.0,
         client_name: str = "sase-cli",
         client_version: str = "0.1.1",
+        transport: LocalDaemonTransport | None = None,
     ) -> None:
         self.socket_path = (
             Path(socket_path) if socket_path is not None else default_socket_path()
@@ -71,6 +79,7 @@ class LocalDaemonClient:
         self.timeout = timeout
         self.client_name = client_name
         self.client_version = client_version
+        self.transport = transport
 
     def request(
         self,
@@ -117,6 +126,393 @@ class LocalDaemonClient:
     def batch(self, requests: list[dict[str, Any]]) -> dict[str, Any]:
         response = self.request({"type": "batch", "data": {"requests": requests}})
         return _payload_data(response, "batch")
+
+    def read(self, surface: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
+        response = self.request(
+            {
+                "type": "read",
+                "data": {"surface": surface, "data": data or {}},
+            }
+        )
+        return _read_payload_data(response, surface)
+
+    def changespec_list(
+        self,
+        *,
+        project_id: str | None = None,
+        query: str | None = None,
+        status: str | None = None,
+        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        return self.read(
+            "changespec_list",
+            _changespec_list_data(
+                project_id=project_id,
+                query=query,
+                status=status,
+                limit=limit,
+                cursor=cursor,
+            ),
+        )
+
+    def changespec_search(
+        self,
+        *,
+        project_id: str | None = None,
+        query: str | None = None,
+        status: str | None = None,
+        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        return self.read(
+            "changespec_search",
+            _changespec_list_data(
+                project_id=project_id,
+                query=query,
+                status=status,
+                limit=limit,
+                cursor=cursor,
+            ),
+        )
+
+    def changespec_detail(self, handle: str) -> dict[str, Any]:
+        return self.read(
+            "changespec_detail",
+            {"schema_version": LOCAL_DAEMON_SCHEMA_VERSION, "handle": handle},
+        )
+
+    def agent_active(
+        self,
+        *,
+        project_id: str,
+        include_hidden: bool = False,
+        query: str | None = None,
+        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        return self.read(
+            "agent_active",
+            _agent_list_data(
+                project_id=project_id,
+                include_hidden=include_hidden,
+                query=query,
+                limit=limit,
+                cursor=cursor,
+            ),
+        )
+
+    def agent_recent(
+        self,
+        *,
+        project_id: str,
+        include_hidden: bool = False,
+        query: str | None = None,
+        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        return self.read(
+            "agent_recent",
+            _agent_list_data(
+                project_id=project_id,
+                include_hidden=include_hidden,
+                query=query,
+                limit=limit,
+                cursor=cursor,
+            ),
+        )
+
+    def agent_archive(
+        self,
+        *,
+        project_id: str,
+        include_hidden: bool = False,
+        query: str | None = None,
+        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        return self.read(
+            "agent_archive",
+            _agent_list_data(
+                project_id=project_id,
+                include_hidden=include_hidden,
+                query=query,
+                limit=limit,
+                cursor=cursor,
+            ),
+        )
+
+    def agent_search(
+        self,
+        *,
+        project_id: str,
+        include_hidden: bool = False,
+        query: str | None = None,
+        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        return self.read(
+            "agent_search",
+            _agent_list_data(
+                project_id=project_id,
+                include_hidden=include_hidden,
+                query=query,
+                limit=limit,
+                cursor=cursor,
+            ),
+        )
+
+    def agent_detail(self, *, project_id: str, agent_id: str) -> dict[str, Any]:
+        return self.read(
+            "agent_detail",
+            {
+                "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
+                "project_id": project_id,
+                "agent_id": agent_id,
+            },
+        )
+
+    def notification_list(
+        self,
+        *,
+        include_dismissed: bool = False,
+        query: str | None = None,
+        sender: str | None = None,
+        unread: bool | None = None,
+        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        return self.read(
+            "notification_list",
+            {
+                "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
+                "page": _page_data(limit=limit, cursor=cursor),
+                "include_dismissed": include_dismissed,
+                "query": query,
+                "sender": sender,
+                "unread": unread,
+            },
+        )
+
+    def notification_detail(self, notification_id: str) -> dict[str, Any]:
+        return self.read(
+            "notification_detail",
+            {
+                "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
+                "notification_id": notification_id,
+            },
+        )
+
+    def notification_counts(self) -> dict[str, Any]:
+        return self.read("notification_counts")
+
+    def notification_pending_actions(self) -> dict[str, Any]:
+        return self.read("notification_pending_actions")
+
+    def bead_list(
+        self,
+        *,
+        project_id: str,
+        statuses: list[str] | None = None,
+        issue_types: list[str] | None = None,
+        tiers: list[str] | None = None,
+        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        return self.read(
+            "bead_list",
+            _bead_list_data(
+                project_id=project_id,
+                statuses=statuses,
+                issue_types=issue_types,
+                tiers=tiers,
+                limit=limit,
+                cursor=cursor,
+            ),
+        )
+
+    def bead_ready(
+        self,
+        *,
+        project_id: str,
+        statuses: list[str] | None = None,
+        issue_types: list[str] | None = None,
+        tiers: list[str] | None = None,
+        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        return self.read(
+            "bead_ready",
+            _bead_list_data(
+                project_id=project_id,
+                statuses=statuses,
+                issue_types=issue_types,
+                tiers=tiers,
+                limit=limit,
+                cursor=cursor,
+            ),
+        )
+
+    def bead_blocked(
+        self,
+        *,
+        project_id: str,
+        statuses: list[str] | None = None,
+        issue_types: list[str] | None = None,
+        tiers: list[str] | None = None,
+        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        return self.read(
+            "bead_blocked",
+            _bead_list_data(
+                project_id=project_id,
+                statuses=statuses,
+                issue_types=issue_types,
+                tiers=tiers,
+                limit=limit,
+                cursor=cursor,
+            ),
+        )
+
+    def bead_show(self, *, project_id: str, bead_id: str) -> dict[str, Any]:
+        return self.read(
+            "bead_show",
+            {
+                "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
+                "project_id": project_id,
+                "bead_id": bead_id,
+            },
+        )
+
+    def bead_stats(
+        self,
+        *,
+        project_id: str,
+        statuses: list[str] | None = None,
+        issue_types: list[str] | None = None,
+        tiers: list[str] | None = None,
+        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        return self.read(
+            "bead_stats",
+            _bead_list_data(
+                project_id=project_id,
+                statuses=statuses,
+                issue_types=issue_types,
+                tiers=tiers,
+                limit=limit,
+                cursor=cursor,
+            ),
+        )
+
+    def xprompt_catalog(
+        self,
+        *,
+        project_id: str | None = None,
+        query: str | None = None,
+        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        return self.read(
+            "xprompt_catalog",
+            _catalog_list_data(
+                project_id=project_id,
+                query=query,
+                limit=limit,
+                cursor=cursor,
+            ),
+        )
+
+    def editor_catalog(
+        self,
+        *,
+        project_id: str | None = None,
+        query: str | None = None,
+        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        return self.read(
+            "editor_catalog",
+            _catalog_list_data(
+                project_id=project_id,
+                query=query,
+                limit=limit,
+                cursor=cursor,
+            ),
+        )
+
+    def snippet_catalog(
+        self,
+        *,
+        project_id: str | None = None,
+        query: str | None = None,
+        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        return self.read(
+            "snippet_catalog",
+            _catalog_list_data(
+                project_id=project_id,
+                query=query,
+                limit=limit,
+                cursor=cursor,
+            ),
+        )
+
+    def file_history(
+        self,
+        *,
+        project_id: str | None = None,
+        query: str | None = None,
+        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        return self.read(
+            "file_history",
+            _catalog_list_data(
+                project_id=project_id,
+                query=query,
+                limit=limit,
+                cursor=cursor,
+            ),
+        )
+
+    def iter_read_pages(
+        self,
+        surface: str,
+        make_data: Callable[[str | None], dict[str, Any]],
+        *,
+        first_cursor: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        cursor = first_cursor
+        while True:
+            page = self.read(surface, make_data(cursor))
+            yield page
+            page_info = page.get("page")
+            if not isinstance(page_info, dict):
+                return
+            next_cursor = page_info.get("next_cursor")
+            if not isinstance(next_cursor, str) or not next_cursor:
+                return
+            cursor = next_cursor
+
+    def iter_read_items(
+        self,
+        surface: str,
+        make_data: Callable[[str | None], dict[str, Any]],
+        *,
+        items_key: str,
+        first_cursor: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        for page in self.iter_read_pages(surface, make_data, first_cursor=first_cursor):
+            items = page.get(items_key)
+            if not isinstance(items, list):
+                return
+            for item in items:
+                if isinstance(item, dict):
+                    yield item
 
     def indexing_status(
         self,
@@ -218,6 +614,8 @@ class LocalDaemonClient:
         return batches
 
     def _send_envelope(self, envelope: dict[str, Any]) -> dict[str, Any]:
+        if self.transport is not None:
+            return self.transport.request(envelope)
         with self._connected_socket(envelope) as sock:
             return self._read_response(sock)
 
@@ -392,6 +790,16 @@ def diff(
     )
 
 
+def read(
+    surface: str,
+    data: dict[str, Any] | None = None,
+    *,
+    socket_path: str | Path | None = None,
+    timeout: float = 1.0,
+) -> dict[str, Any]:
+    return LocalDaemonClient(socket_path, timeout=timeout).read(surface, data)
+
+
 def daemon_disabled(args: Any | None = None) -> bool:
     """Shared hook for future commands that expose ``--no-daemon``."""
     arg_value = bool(getattr(args, "no_daemon", False)) if args is not None else False
@@ -428,6 +836,82 @@ def _selector_data(
     return data
 
 
+def _page_data(*, limit: int, cursor: str | None) -> dict[str, Any]:
+    return {
+        "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
+        "limit": limit,
+        "cursor": cursor,
+    }
+
+
+def _changespec_list_data(
+    *,
+    project_id: str | None,
+    query: str | None,
+    status: str | None,
+    limit: int,
+    cursor: str | None,
+) -> dict[str, Any]:
+    return {
+        "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
+        "page": _page_data(limit=limit, cursor=cursor),
+        "project_id": project_id,
+        "query": query,
+        "status": status,
+    }
+
+
+def _agent_list_data(
+    *,
+    project_id: str,
+    include_hidden: bool,
+    query: str | None,
+    limit: int,
+    cursor: str | None,
+) -> dict[str, Any]:
+    return {
+        "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
+        "page": _page_data(limit=limit, cursor=cursor),
+        "project_id": project_id,
+        "include_hidden": include_hidden,
+        "query": query,
+    }
+
+
+def _bead_list_data(
+    *,
+    project_id: str,
+    statuses: list[str] | None,
+    issue_types: list[str] | None,
+    tiers: list[str] | None,
+    limit: int,
+    cursor: str | None,
+) -> dict[str, Any]:
+    return {
+        "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
+        "page": _page_data(limit=limit, cursor=cursor),
+        "project_id": project_id,
+        "statuses": list(statuses or []),
+        "issue_types": list(issue_types or []),
+        "tiers": list(tiers or []),
+    }
+
+
+def _catalog_list_data(
+    *,
+    project_id: str | None,
+    query: str | None,
+    limit: int,
+    cursor: str | None,
+) -> dict[str, Any]:
+    return {
+        "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
+        "page": _page_data(limit=limit, cursor=cursor),
+        "project_id": project_id,
+        "query": query,
+    }
+
+
 def _read_exact(sock: socket.socket, size: int) -> bytes:
     chunks: list[bytes] = []
     remaining = size
@@ -460,6 +944,26 @@ def _payload_data(response: dict[str, Any], expected_type: str) -> dict[str, Any
             fallback_reason=None,
         )
     return data
+
+
+def _read_payload_data(
+    response: dict[str, Any], expected_surface: str
+) -> dict[str, Any]:
+    data = _payload_data(response, "read")
+    if data.get("surface") != expected_surface:
+        raise LocalDaemonTransportError(
+            f"unexpected local daemon read surface for {expected_surface}",
+            code="invalid_request",
+            fallback_reason=None,
+        )
+    surface_data = data.get("data")
+    if not isinstance(surface_data, dict):
+        raise LocalDaemonTransportError(
+            f"missing local daemon read data for {expected_surface}",
+            code="invalid_request",
+            fallback_reason=None,
+        )
+    return surface_data
 
 
 def _rpc_error(data: dict[str, Any]) -> LocalDaemonRpcError:
