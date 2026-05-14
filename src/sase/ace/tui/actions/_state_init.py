@@ -92,8 +92,6 @@ class StateInitMixin:
         self._artifact_change_defer_pending: bool = False
         self._last_full_sanity_refresh: float = 0.0
         self._daemon_refresh_event_ids: dict[str, str] = {}
-        self._daemon_read_client: Any = None
-        self._daemon_read_args: Any = None
 
         # Hint mode state
         self._hint_mode_active: bool = False

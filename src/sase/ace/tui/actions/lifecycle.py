@@ -67,10 +67,9 @@ class LifecycleMixin:
         from sase.ace.tui.actions.agents._notification_provider import (
             read_notification_startup_for_tui,
         )
-        from sase.ace.tui.actions._daemon_read_client import ace_daemon_read_client
 
         result = read_notification_startup_for_tui(
-            client=ace_daemon_read_client(self),
+            client=getattr(self, "_daemon_read_client", None),
             args=getattr(self, "_daemon_read_args", None),
         )
         snapshot = result.value

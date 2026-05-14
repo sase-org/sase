@@ -207,11 +207,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
                 surface artifacts the persistent index may not yet know
                 about.
         """
-        from ...data_providers import (
-            agents_daemon_reads_enabled,
-            make_agents_data_provider,
-        )
-        from .._daemon_read_client import ace_daemon_read_client
+        from ...data_providers import agents_daemon_reads_enabled
         from ....changespec import find_all_changespecs_cached
 
         on_agents_tab = self.current_tab == "agents"
@@ -227,14 +223,8 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
 
         self._merge_external_dismissals()
         dismissed_snapshot = set(self._dismissed_agents)
-        use_daemon_provider = agents_daemon_reads_enabled()
         changespec_snapshot = (
-            None if use_daemon_provider else find_all_changespecs_cached()
-        )
-        data_provider = (
-            make_agents_data_provider(client=ace_daemon_read_client(self))
-            if use_daemon_provider
-            else None
+            None if agents_daemon_reads_enabled() else find_all_changespecs_cached()
         )
         search_query = getattr(self, "_agent_search_query", "") or ""
         load_result = _resolve_load_agents_from_disk_with_state()(
@@ -243,7 +233,6 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             full_history=full_history or bool(search_query),
             search_query=search_query,
             viewport=_agents_viewport_for_app(self, on_agents_tab=on_agents_tab),
-            data_provider=data_provider,
         )
         self._agents_provider_snapshot = getattr(load_result, "provider_snapshot", None)
         self._agents_last_loaded_signature = _agents_loaded_signature(
@@ -285,11 +274,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         """
         import asyncio
 
-        from ...data_providers import (
-            agents_daemon_reads_enabled,
-            make_agents_data_provider,
-        )
-        from .._daemon_read_client import ace_daemon_read_client
+        from ...data_providers import agents_daemon_reads_enabled
         from ....changespec import find_all_changespecs_cached
 
         merge_result = await asyncio.to_thread(
@@ -297,16 +282,10 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         )
         self._apply_external_dismissal_merge(merge_result)
         dismissed_snapshot = set(self._dismissed_agents)
-        use_daemon_provider = agents_daemon_reads_enabled()
         changespec_snapshot = (
             None
-            if use_daemon_provider
+            if agents_daemon_reads_enabled()
             else await asyncio.to_thread(find_all_changespecs_cached)
-        )
-        data_provider = (
-            make_agents_data_provider(client=ace_daemon_read_client(self))
-            if use_daemon_provider
-            else None
         )
         search_query = getattr(self, "_agent_search_query", "") or ""
         disk_start = time.perf_counter()
@@ -319,7 +298,6 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             viewport=_agents_viewport_for_app(
                 self, on_agents_tab=self.current_tab == "agents"
             ),
-            data_provider=data_provider,
         )
         self._agents_provider_snapshot = getattr(load_result, "provider_snapshot", None)
         loaded_signature = _agents_loaded_signature(
