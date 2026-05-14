@@ -14,6 +14,7 @@ from sase.agent.running import _KillResult, RunningAgentInfo
 from sase.agents.cli_kill import handle_agents_kill
 from sase.agents.cli_show import handle_agents_show
 from sase.agents.cli_status import handle_agents_status
+from sase.daemon.client import LocalDaemonClient
 from sase.core.agent_scan_wire import (
     AgentArtifactIndexUpdateWire,
     AgentArtifactIndexVerifyWire,
@@ -47,9 +48,111 @@ def _status_args(**overrides: Any) -> argparse.Namespace:
         "all": False,
         "json": False,
         "project": None,
+        "no_daemon": False,
     }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
+
+
+class _FakeDaemonTransport:
+    def __init__(
+        self,
+        *,
+        capabilities: list[str],
+        reads: dict[str, list[dict[str, Any]]],
+    ) -> None:
+        self.capabilities = capabilities
+        self.reads = reads
+        self.requests: list[dict[str, Any]] = []
+
+    def request(self, envelope: dict[str, Any]) -> dict[str, Any]:
+        payload = envelope["payload"]
+        self.requests.append(payload)
+        if payload["type"] == "capabilities":
+            return _daemon_response(
+                "capabilities",
+                {"schema_version": 1, "capabilities": self.capabilities},
+            )
+        if payload["type"] == "read":
+            surface = payload["data"]["surface"]
+            return _daemon_response(
+                "read",
+                {"surface": surface, "data": self.reads[surface].pop(0)},
+            )
+        raise AssertionError(f"unexpected fake daemon request: {payload['type']}")
+
+
+def _daemon_response(payload_type: str, data: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "request_id": "req-test",
+        "payload": {"type": payload_type, "data": data},
+    }
+
+
+def _agent_page(entries: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "snapshot": {"schema_version": 1, "snapshot_id": "snap-1"},
+        "page": {"schema_version": 1, "next_cursor": None},
+        "entries": {"schema_version": 1, "entries": entries},
+        "bounded": {
+            "schema_version": 1,
+            "max_payload_bytes": 1048576,
+            "truncated": False,
+        },
+    }
+
+
+def _agent_detail(summary: dict[str, Any], **extra: Any) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "snapshot": {"schema_version": 1, "snapshot_id": "snap-1"},
+        "summary": summary,
+        "children": [],
+        "artifacts": [],
+        "bounded": {
+            "schema_version": 1,
+            "max_payload_bytes": 1048576,
+            "truncated": False,
+        },
+        **extra,
+    }
+
+
+def _agent_summary(**overrides: Any) -> dict[str, Any]:
+    summary: dict[str, Any] = {
+        "schema_version": 1,
+        "agent_id": "agent:sase:20260423123456",
+        "project_id": "sase",
+        "project_name": "sase",
+        "project_dir": "/home/bryan/.sase/projects/sase",
+        "project_file": "/home/bryan/.sase/projects/sase/sase.gp",
+        "workflow_dir_name": "ace-run",
+        "artifact_dir": (
+            "/home/bryan/.sase/projects/sase/artifacts/ace-run/20260423123456"
+        ),
+        "timestamp": "20260423123456",
+        "status": "running",
+        "agent_type": "agent",
+        "agent_name": "brisk-otter",
+        "model": "claude-opus-4.7",
+        "llm_provider": "claude",
+        "started_at": "2026-04-23T12:34:56+00:00",
+        "finished_at": None,
+        "hidden": False,
+        "has_done_marker": False,
+        "has_running_marker": True,
+        "has_waiting_marker": False,
+        "has_workflow_state": False,
+        "last_seq": 7,
+        "pid": 12345,
+        "workspace_num": 3,
+        "approve": False,
+        "prompt_snippet": "Fix the bug where X breaks under Y",
+    }
+    summary.update(overrides)
+    return summary
 
 
 # === sase agents status (pretty) ===
@@ -189,6 +292,39 @@ def test_status_project_filter(capsys: pytest.CaptureFixture[str]) -> None:
     assert data[0]["name"] == "b"
 
 
+def test_status_project_filter_uses_daemon_when_capable(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Project-scoped status routes through daemon agent projections."""
+    transport = _FakeDaemonTransport(
+        capabilities=["agents.read"],
+        reads={"agent_active": [_agent_page([_agent_summary()])]},
+    )
+    args = _status_args(
+        json=True,
+        project="sase",
+        _daemon_client=LocalDaemonClient(transport=transport),
+    )
+
+    with patch(
+        "sase.agents.cli_status.list_running_agents",
+        side_effect=AssertionError("direct scan should not run"),
+    ):
+        handle_agents_status(args)
+
+    row = json.loads(capsys.readouterr().out)[0]
+    assert row["name"] == "brisk-otter"
+    assert row["project"] == "sase"
+    assert row["provider"] == "claude"
+    assert row["workspace_num"] == 3
+    assert row["prompt_snippet"] == "Fix the bug where X breaks under Y"
+    assert [request["type"] for request in transport.requests] == [
+        "capabilities",
+        "read",
+    ]
+    assert transport.requests[-1]["data"]["surface"] == "agent_active"
+
+
 # === --all mode ===
 
 
@@ -216,6 +352,48 @@ def test_status_all_uses_list_all_agents(capsys: pytest.CaptureFixture[str]) -> 
         "DONE",
         "FAILED",
     }
+
+
+def test_status_all_project_combines_daemon_active_and_recent(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Daemon --all keeps running rows before recent terminal rows."""
+    done_summary = _agent_summary(
+        agent_id="agent:sase:20260422100000",
+        timestamp="20260422100000",
+        status="failed",
+        has_done_marker=True,
+        has_running_marker=False,
+        agent_name="broken-one",
+        finished_at=1770000100.0,
+    )
+    transport = _FakeDaemonTransport(
+        capabilities=["agents.read"],
+        reads={
+            "agent_active": [_agent_page([_agent_summary()])],
+            "agent_recent": [_agent_page([done_summary])],
+        },
+    )
+    args = _status_args(
+        all=True,
+        json=True,
+        project="sase",
+        _daemon_client=LocalDaemonClient(transport=transport),
+    )
+
+    with patch(
+        "sase.agents.cli_status.list_all_agents",
+        side_effect=AssertionError("direct scan should not run"),
+    ):
+        handle_agents_status(args)
+
+    data = json.loads(capsys.readouterr().out)
+    assert [row["name"] for row in data] == ["brisk-otter", "broken-one"]
+    assert [row["status"] for row in data] == ["RUNNING", "FAILED"]
+    assert [request["data"]["surface"] for request in transport.requests[1:]] == [
+        "agent_active",
+        "agent_recent",
+    ]
 
 
 # === dispatch: bare `sase agents` → status ===
@@ -452,3 +630,72 @@ def test_show_renders_running_panel(
     assert "RUNNING" in out
     assert "Fix the flaky test" in out
     assert "live_reply.md" in out
+
+
+def test_show_handle_uses_daemon_detail_without_name_scan(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An agent:<project>:<timestamp> handle can render from daemon detail."""
+    summary = _agent_summary()
+    transport = _FakeDaemonTransport(
+        capabilities=["agents.read"],
+        reads={
+            "agent_detail": [
+                _agent_detail(summary, prompt="Investigate daemon-backed reads")
+            ]
+        },
+    )
+    args = argparse.Namespace(
+        name="agent:sase:20260423123456",
+        project=None,
+        no_daemon=False,
+        _daemon_client=LocalDaemonClient(transport=transport),
+    )
+
+    with patch(
+        "sase.agents.cli_show.find_named_agent",
+        side_effect=AssertionError("direct name scan should not run"),
+    ):
+        handle_agents_show(args)
+
+    out = capsys.readouterr().out
+    assert "brisk-otter" in out
+    assert "RUNNING" in out
+    assert "Investigate daemon-backed reads" in out
+    assert [request["type"] for request in transport.requests] == [
+        "capabilities",
+        "read",
+    ]
+
+
+def test_show_project_name_uses_daemon_search_then_detail(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Project-scoped name lookup resolves through daemon search."""
+    summary = _agent_summary()
+    transport = _FakeDaemonTransport(
+        capabilities=["agents.read"],
+        reads={
+            "agent_search": [_agent_page([summary])],
+            "agent_detail": [_agent_detail(summary, prompt="Search-resolved prompt")],
+        },
+    )
+    args = argparse.Namespace(
+        name="brisk-otter",
+        project="sase",
+        no_daemon=False,
+        _daemon_client=LocalDaemonClient(transport=transport),
+    )
+
+    with patch(
+        "sase.agents.cli_show.find_named_agent",
+        side_effect=AssertionError("direct name scan should not run"),
+    ):
+        handle_agents_show(args)
+
+    out = capsys.readouterr().out
+    assert "Search-resolved prompt" in out
+    assert [request["data"]["surface"] for request in transport.requests[1:]] == [
+        "agent_search",
+        "agent_detail",
+    ]

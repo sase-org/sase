@@ -38,6 +38,11 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
         "--project",
         help="Only show agents for the given project name",
     )
+    status_parser.add_argument(
+        "--no-daemon",
+        action="store_true",
+        help="Read directly from source stores instead of the local daemon",
+    )
 
     # sase agents kill -n NAME
     kill_parser = agents_sub.add_parser(
@@ -61,6 +66,17 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
         "--name",
         required=True,
         help="Name of the agent to show",
+    )
+    show_parser.add_argument(
+        "-p",
+        "--project",
+        default=None,
+        help="Project name for daemon-backed name lookup",
+    )
+    show_parser.add_argument(
+        "--no-daemon",
+        action="store_true",
+        help="Read directly from source stores instead of the local daemon",
     )
 
     # sase agents tag {set,unset,list}

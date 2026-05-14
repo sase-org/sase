@@ -126,11 +126,67 @@ class ChangeSpecListRead:
 
 
 @dataclass(frozen=True)
+class AgentProjectionSummary:
+    schema_version: int
+    agent_id: str
+    project_id: str
+    project_name: str
+    project_dir: str
+    project_file: str
+    workflow_dir_name: str
+    artifact_dir: str
+    timestamp: str
+    status: str
+    agent_type: str
+    cl_name: str | None = None
+    agent_name: str | None = None
+    model: str | None = None
+    llm_provider: str | None = None
+    started_at: str | None = None
+    finished_at: float | None = None
+    hidden: bool = False
+    has_done_marker: bool = False
+    has_running_marker: bool = False
+    has_waiting_marker: bool = False
+    has_workflow_state: bool = False
+    last_seq: int = 0
+    extra: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class AgentArtifactAssociation:
+    schema_version: int
+    agent_id: str
+    artifact_path: str
+    artifact_kind: str
+    display_name: str | None = None
+    role: str | None = None
+
+
+@dataclass(frozen=True)
+class _AgentListRead:
+    snapshot: ProjectionSnapshot
+    page: ProjectionPage
+    agents: list[AgentProjectionSummary] = field(default_factory=list)
+    bounded: ProjectionPayloadBound | None = None
+
+
+@dataclass(frozen=True)
 class ChangeSpecDetailRead:
     snapshot: ProjectionSnapshot
     changespec: ChangeSpec | None
     summary: ChangeSpecListEntry | None = None
     bounded: ProjectionPayloadBound | None = None
+
+
+@dataclass(frozen=True)
+class AgentDetailRead:
+    snapshot: ProjectionSnapshot
+    summary: AgentProjectionSummary
+    children: list[AgentProjectionSummary] = field(default_factory=list)
+    artifacts: list[AgentArtifactAssociation] = field(default_factory=list)
+    bounded: ProjectionPayloadBound | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
 def generic_read_from_dict(surface: str, data: Mapping[str, Any]) -> GenericDaemonRead:
@@ -240,6 +296,20 @@ def changespec_list_from_dict(data: Mapping[str, Any]) -> ChangeSpecListRead:
     )
 
 
+def agent_list_from_dict(data: Mapping[str, Any]) -> _AgentListRead:
+    raw = dict(data)
+    entries = _require_dict(raw.get("entries"), "entries")
+    return _AgentListRead(
+        snapshot=_required_snapshot(raw.get("snapshot")),
+        page=_required_page(raw.get("page")),
+        agents=[
+            _agent_summary_from_dict(item)
+            for item in _dict_list(entries.get("entries"), "entries.entries")
+        ],
+        bounded=_bounded(raw.get("bounded")),
+    )
+
+
 def changespec_detail_from_dict(data: Mapping[str, Any]) -> ChangeSpecDetailRead:
     raw = dict(data)
     detail_raw = raw.get("detail")
@@ -261,6 +331,25 @@ def changespec_detail_from_dict(data: Mapping[str, Any]) -> ChangeSpecDetailRead
     )
 
 
+def agent_detail_from_dict(data: Mapping[str, Any]) -> AgentDetailRead:
+    raw = dict(data)
+    known = {"snapshot", "summary", "children", "artifacts", "bounded"}
+    return AgentDetailRead(
+        snapshot=_required_snapshot(raw.get("snapshot")),
+        summary=_agent_summary_from_dict(_require_dict(raw.get("summary"), "summary")),
+        children=[
+            _agent_summary_from_dict(item)
+            for item in _dict_list(raw.get("children", []), "children")
+        ],
+        artifacts=[
+            agent_artifact_from_dict(item)
+            for item in _dict_list(raw.get("artifacts", []), "artifacts")
+        ],
+        bounded=_bounded(raw.get("bounded")),
+        extra={key: value for key, value in raw.items() if key not in known},
+    )
+
+
 def _changespec_list_entry_from_dict(data: Mapping[str, Any]) -> ChangeSpecListEntry:
     raw = dict(data)
     return ChangeSpecListEntry(
@@ -278,6 +367,74 @@ def _changespec_list_entry_from_dict(data: Mapping[str, Any]) -> ChangeSpecListE
         bug=_optional_str(raw.get("bug")),
         updated_at=str(raw["updated_at"]),
         last_seq=int(raw["last_seq"]),
+    )
+
+
+def _agent_summary_from_dict(data: Mapping[str, Any]) -> AgentProjectionSummary:
+    raw = dict(data)
+    known = {
+        "schema_version",
+        "agent_id",
+        "project_id",
+        "project_name",
+        "project_dir",
+        "project_file",
+        "workflow_dir_name",
+        "artifact_dir",
+        "timestamp",
+        "status",
+        "agent_type",
+        "cl_name",
+        "agent_name",
+        "model",
+        "llm_provider",
+        "started_at",
+        "finished_at",
+        "hidden",
+        "has_done_marker",
+        "has_running_marker",
+        "has_waiting_marker",
+        "has_workflow_state",
+        "last_seq",
+    }
+    finished_at = raw.get("finished_at")
+    return AgentProjectionSummary(
+        schema_version=int(raw.get("schema_version", PROJECTION_READ_SCHEMA_VERSION)),
+        agent_id=str(raw["agent_id"]),
+        project_id=str(raw["project_id"]),
+        project_name=str(raw["project_name"]),
+        project_dir=str(raw["project_dir"]),
+        project_file=str(raw["project_file"]),
+        workflow_dir_name=str(raw["workflow_dir_name"]),
+        artifact_dir=str(raw["artifact_dir"]),
+        timestamp=str(raw["timestamp"]),
+        status=str(raw["status"]),
+        agent_type=str(raw["agent_type"]),
+        cl_name=_optional_str(raw.get("cl_name")),
+        agent_name=_optional_str(raw.get("agent_name")),
+        model=_optional_str(raw.get("model")),
+        llm_provider=_optional_str(raw.get("llm_provider")),
+        started_at=_optional_str(raw.get("started_at")),
+        finished_at=None if finished_at is None else float(finished_at),
+        hidden=bool(raw.get("hidden", False)),
+        has_done_marker=bool(raw.get("has_done_marker", False)),
+        has_running_marker=bool(raw.get("has_running_marker", False)),
+        has_waiting_marker=bool(raw.get("has_waiting_marker", False)),
+        has_workflow_state=bool(raw.get("has_workflow_state", False)),
+        last_seq=int(raw.get("last_seq", 0)),
+        extra={key: value for key, value in raw.items() if key not in known},
+    )
+
+
+def agent_artifact_from_dict(data: Mapping[str, Any]) -> AgentArtifactAssociation:
+    raw = dict(data)
+    return AgentArtifactAssociation(
+        schema_version=int(raw.get("schema_version", PROJECTION_READ_SCHEMA_VERSION)),
+        agent_id=str(raw["agent_id"]),
+        artifact_path=str(raw["artifact_path"]),
+        artifact_kind=str(raw["artifact_kind"]),
+        display_name=_optional_str(raw.get("display_name")),
+        role=_optional_str(raw.get("role")),
     )
 
 
@@ -345,6 +502,9 @@ def _optional_str(value: Any) -> str | None:
 
 __all__ = [
     "PROJECTION_READ_SCHEMA_VERSION",
+    "AgentArtifactAssociation",
+    "AgentDetailRead",
+    "AgentProjectionSummary",
     "BeadDetailRead",
     "BeadListRead",
     "BeadStatsRead",
@@ -359,6 +519,9 @@ __all__ = [
     "ProjectionPage",
     "ProjectionPayloadBound",
     "ProjectionSnapshot",
+    "agent_artifact_from_dict",
+    "agent_detail_from_dict",
+    "agent_list_from_dict",
     "bead_detail_from_dict",
     "bead_list_from_dict",
     "bead_stats_from_dict",

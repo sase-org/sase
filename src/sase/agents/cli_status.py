@@ -16,6 +16,8 @@ from sase.agent.running import (
     list_all_agents,
     list_running_agents,
 )
+from sase.agents.daemon_reads import load_status_agents
+from sase.daemon.read_facade import read_or_fallback
 
 _STATUS_COLORS: dict[str, str] = {
     "STARTING": "cyan",
@@ -43,16 +45,44 @@ def handle_agents_status(args: argparse.Namespace) -> None:
     project_filter: str | None = getattr(args, "project", None)
     as_json = bool(getattr(args, "json", False))
 
-    agents = list_all_agents() if include_all else list_running_agents()
-
-    if project_filter:
-        agents = [a for a in agents if a.project == project_filter]
+    agents = _load_agents(args, include_all=include_all, project_filter=project_filter)
 
     if as_json:
         _print_json(agents)
         return
 
     _print_pretty(agents, include_all=include_all)
+
+
+def _load_agents(
+    args: argparse.Namespace,
+    *,
+    include_all: bool,
+    project_filter: str | None,
+) -> list[RunningAgentInfo]:
+    def direct_loader() -> list[RunningAgentInfo]:
+        agents = list_all_agents() if include_all else list_running_agents()
+        if project_filter:
+            return [agent for agent in agents if agent.project == project_filter]
+        return agents
+
+    if not project_filter:
+        return direct_loader()
+
+    surface = "agent_recent" if include_all else "agent_active"
+    result = read_or_fallback(
+        surface,
+        args=args,
+        client=getattr(args, "_daemon_client", None),
+        daemon_loader=lambda client: load_status_agents(
+            client,
+            project_id=project_filter,
+            include_all=include_all,
+        ),
+        direct_loader=direct_loader,
+        required_capability="agents.read",
+    )
+    return result.value
 
 
 def _print_json(agents: list[RunningAgentInfo]) -> None:
