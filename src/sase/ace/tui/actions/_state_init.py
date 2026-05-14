@@ -143,6 +143,10 @@ class StateInitMixin:
         # list identity changes (see ``_get_changespec_graph_index``).
         self._changespec_graph_index: Any = None
         self._changespec_graph_index_for_id: int | None = None
+        from ..provider_contract import SelectionGeneration
+
+        self._changespec_detail_generation = SelectionGeneration()
+        self._changespec_row_handles_by_identity: dict[str, Any] = {}
 
         # Leader mode state (for , key sub-commands)
         self._leader_mode_active: bool = False

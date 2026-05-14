@@ -37,13 +37,22 @@ class ChangeSpecLoadingMixin:
         """Return the full ChangeSpec list via the configured ACE provider."""
         from ._provider import read_changespecs_for_tui
 
+        provider_query = getattr(self, "canonical_query_string", None)
+        if provider_query is None:
+            provider_query = getattr(self, "query_string", "")
         result = read_changespecs_for_tui(
             client=getattr(self, "_daemon_read_client", None),
             args=getattr(self, "_daemon_read_args", None),
+            query=str(provider_query),
         )
         self._changespec_provider_used_daemon = result.used_daemon  # type: ignore[attr-defined]
         self._changespec_provider_fallback_reason = result.fallback_reason  # type: ignore[attr-defined]
         self._changespec_provider_snapshot = result.value  # type: ignore[attr-defined]
+        self._changespec_row_handles_by_identity = {  # type: ignore[attr-defined]
+            handle.local_identity: handle
+            for handle in result.value.row_handles
+            if handle.local_identity is not None
+        }
         return result.value.rows
 
     def _read_changespecs_from_disk(self) -> list[ChangeSpec]:
@@ -103,9 +112,12 @@ class ChangeSpecLoadingMixin:
         ctx = build_query_context(changespecs)
         status_map = ctx.status_map
 
-        corpus = self._get_query_corpus_for_changespecs(changespecs)
-        mask = evaluate_query_many_with_corpus(self.query_string, corpus)
-        result = [cs for cs, keep in zip(changespecs, mask, strict=True) if keep]
+        if self._active_changespec_provider_query_matches():
+            result = list(changespecs)
+        else:
+            corpus = self._get_query_corpus_for_changespecs(changespecs)
+            mask = evaluate_query_many_with_corpus(self.query_string, corpus)
+            result = [cs for cs, keep in zip(changespecs, mask, strict=True) if keep]
 
         # Determine effective hide settings (disabled if query targets them)
         effective_hide_reverted = (
@@ -137,6 +149,21 @@ class ChangeSpecLoadingMixin:
             result = filtered
 
         return result
+
+    def _active_changespec_provider_query_matches(self) -> bool:
+        """Return whether the daemon already evaluated the active query."""
+
+        if not getattr(self, "_changespec_provider_used_daemon", False):
+            return False
+        snapshot = getattr(self, "_changespec_provider_snapshot", None)
+        if snapshot is None or snapshot.provider.source != "daemon":
+            return False
+        active_query = str(snapshot.metadata.get("active_query", ""))
+        provider_query = getattr(self, "canonical_query_string", None)
+        if provider_query is None:
+            provider_query = getattr(self, "query_string", "")
+        current_query = str(provider_query)
+        return active_query.strip() == current_query.strip()
 
     def _get_query_corpus_for_changespecs(
         self, changespecs: list[ChangeSpec]

@@ -148,7 +148,6 @@ class AceDetailRequest:
     selection_generation: int
 
 
-# pyvision: sdd/epics/202605/rust_daemon_epic9_ace_ui_virtualization.md
 class SelectionGeneration:
     """Monotonic generation used to ignore stale lazy detail responses."""
 
