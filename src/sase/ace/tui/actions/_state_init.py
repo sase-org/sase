@@ -333,7 +333,10 @@ class StateInitMixin:
         self._agent_info_metrics_cache: tuple[Any, ...] | None = None
 
         # Agent completion tracking for notifications
-        from ...dismissed_agents import load_dismissed_agents
+        from ...dismissed_agents import (
+            dismissed_agents_file_signature,
+            load_dismissed_agents,
+        )
 
         self._last_unread_ids: set[str] = set()
         self._notification_snapshot_cache: Any | None = None
@@ -345,6 +348,9 @@ class StateInitMixin:
             tuple[AgentType, str, str | None], str
         ] = {}
         self._dismissed_agents = load_dismissed_agents()
+        self._dismissed_agents_disk_signature = dismissed_agents_file_signature()
+        self._dismissed_agents_disk_identities = set(self._dismissed_agents)
+        self._dismissed_agents_disk_signature_initialized = True
         self._dismissed_agent_objects: list[Agent] = []
         self._revived_agent_raw_suffixes: set[str] = set()
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()

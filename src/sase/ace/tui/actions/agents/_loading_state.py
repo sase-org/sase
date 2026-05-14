@@ -52,6 +52,9 @@ class AgentLoadingStateMixin:
 
     # Agent completion tracking for notifications
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
+    _dismissed_agents_disk_signature: tuple[int, int] | None
+    _dismissed_agents_disk_identities: set[tuple[AgentType, str, str | None]]
+    _dismissed_agents_disk_signature_initialized: bool
     _dismissed_agent_objects: list[Agent]
     _revived_agent_raw_suffixes: set[str]
     _unread_completed_agent_ids: set[tuple[AgentType, str, str | None]]

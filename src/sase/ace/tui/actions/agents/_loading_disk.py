@@ -6,6 +6,7 @@ import logging
 import sys
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 from . import _loading_helpers
@@ -24,6 +25,13 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class _ExternalDismissalMergeResult:
+    file_signature: tuple[int, int] | None
+    on_disk_identities: set[tuple[AgentType, str, str | None]]
+    new_external_identities: set[tuple[AgentType, str, str | None]]
+
+
 def _resolve_load_agents_from_disk_with_state() -> Callable[..., Any]:
     """Resolve through the public facade so existing monkeypatches still work."""
     facade = sys.modules.get(f"{__package__}._loading")
@@ -35,8 +43,67 @@ def _resolve_load_agents_from_disk_with_state() -> Callable[..., Any]:
     return cast(Callable[..., Any], loader)
 
 
+def _compute_external_dismissal_merge(
+    *,
+    cached_signature: tuple[int, int] | None,
+    cached_on_disk_identities: set[tuple[AgentType, str, str | None]],
+    cache_initialized: bool,
+    dismissed_snapshot: set[tuple[AgentType, str, str | None]],
+) -> _ExternalDismissalMergeResult | None:
+    from ....dismissed_agents import (
+        dismissed_agents_file_signature,
+        load_dismissed_agents,
+    )
+
+    file_signature = dismissed_agents_file_signature()
+    if cache_initialized and file_signature == cached_signature:
+        return None
+
+    try:
+        on_disk = load_dismissed_agents()
+    except Exception:
+        return None
+
+    if cache_initialized:
+        new_external = on_disk - cached_on_disk_identities
+    else:
+        new_external = on_disk - dismissed_snapshot
+
+    return _ExternalDismissalMergeResult(
+        file_signature=file_signature,
+        on_disk_identities=set(on_disk),
+        new_external_identities=new_external,
+    )
+
+
 class AgentLoadingDiskMixin(AgentLoadingStateMixin):
     """Methods that read agent state from disk and prepare apply snapshots."""
+
+    def _external_dismissal_merge_result(
+        self,
+        dismissed_snapshot: set[tuple[AgentType, str, str | None]],
+    ) -> _ExternalDismissalMergeResult | None:
+        return _compute_external_dismissal_merge(
+            cached_signature=getattr(self, "_dismissed_agents_disk_signature", None),
+            cached_on_disk_identities=set(
+                getattr(self, "_dismissed_agents_disk_identities", set())
+            ),
+            cache_initialized=bool(
+                getattr(self, "_dismissed_agents_disk_signature_initialized", False)
+            ),
+            dismissed_snapshot=dismissed_snapshot,
+        )
+
+    def _apply_external_dismissal_merge(
+        self, result: _ExternalDismissalMergeResult | None
+    ) -> None:
+        if result is None:
+            return
+        self._dismissed_agents_disk_signature = result.file_signature
+        self._dismissed_agents_disk_identities = set(result.on_disk_identities)
+        self._dismissed_agents_disk_signature_initialized = True
+        if result.new_external_identities:
+            self._dismissed_agents.update(result.new_external_identities)
 
     def _merge_external_dismissals(self) -> None:
         """Union on-disk dismissed-agent identities into the in-memory set.
@@ -51,15 +118,8 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         haven't been flushed to disk yet (the optimistic kill flow updates
         memory first and persists asynchronously).
         """
-        from ....dismissed_agents import load_dismissed_agents
-
-        try:
-            on_disk = load_dismissed_agents()
-        except Exception:
-            return
-        new_external = on_disk - self._dismissed_agents
-        if new_external:
-            self._dismissed_agents.update(new_external)
+        result = self._external_dismissal_merge_result(set(self._dismissed_agents))
+        self._apply_external_dismissal_merge(result)
 
     def _load_agents(self, *, full_history: bool = False) -> None:
         """Load agents from all sources.
@@ -126,7 +186,10 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
 
         from ....changespec import find_all_changespecs_cached
 
-        self._merge_external_dismissals()
+        merge_result = await asyncio.to_thread(
+            self._external_dismissal_merge_result, set(self._dismissed_agents)
+        )
+        self._apply_external_dismissal_merge(merge_result)
         dismissed_snapshot = set(self._dismissed_agents)
         changespec_snapshot = await asyncio.to_thread(find_all_changespecs_cached)
         disk_start = time.perf_counter()

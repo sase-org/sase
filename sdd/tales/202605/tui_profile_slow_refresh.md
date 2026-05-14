@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 20:31:53
-status: wip
+status: done
 prompt: sdd/prompts/202605/tui_profile_slow_refresh.md
 ---
 # Plan: Fix ACE TUI Slow Refresh From Dismissed-Agent Reloads

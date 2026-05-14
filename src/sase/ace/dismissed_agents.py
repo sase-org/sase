@@ -72,6 +72,14 @@ def load_dismissed_agents() -> set[tuple[AgentType, str, str | None]]:
     return _load_dismissed_agents_impl(_DISMISSED_AGENTS_FILE)
 
 
+def dismissed_agents_file_signature() -> tuple[int, int] | None:
+    try:
+        stat = _DISMISSED_AGENTS_FILE.stat()
+    except OSError:
+        return None
+    return (stat.st_mtime_ns, stat.st_size)
+
+
 def save_dismissed_agents(
     dismissed: set[tuple[AgentType, str, str | None]],
 ) -> bool:
