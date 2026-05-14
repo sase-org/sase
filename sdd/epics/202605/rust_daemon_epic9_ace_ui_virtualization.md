@@ -321,6 +321,9 @@ Deliverables:
   - no-change auto-refresh p95 and broad-loader-call count.
   - query edit p95 on large ChangeSpec and agent-history fixtures.
   - lazy detail stale-load cancellation count.
+- Phase 9F public Python helper symbols live under the ACE TUI perf utilities:
+  `Epic9PerfTarget`, `failing_epic9_perf_gates`, `forbidden_daemon_no_change_refresh_spans`, and
+  `ace_default_rollout_violations`.
 - Extend trace summarization to assert forbidden spans for daemon-backed no-change refresh, such as direct full loaders.
 - Add test fixtures/fakes for daemon pages, cursor expiry, snapshot expiry, delta batches, and projection errors.
 - Define rollout policy:
@@ -331,6 +334,19 @@ Deliverables:
   - required backend contracts before considering replacement.
   - Textual provider API compatibility requirements.
   - explicit non-blocking criteria for the daemon benefits.
+
+Phase 9F checkpoint note:
+
+- Epic 9 completion does not require a Rust/Ratatui shell. The production shell remains Textual while the provider
+  contracts, trace fields, fallback reasons, page cursors, delta batches, selection-generation guards, and direct
+  fallback behavior stabilize.
+- A Ratatui replacement checkpoint should only reopen after the daemon contracts can supply stable pages, snapshot ids,
+  delta sequences, lazy detail handles, projection-error reasons, and no-change freshness checks for all ACE read-heavy
+  surfaces without relying on Textual widget internals.
+- Any future Ratatui spike must consume the same ACE provider vocabulary or an equivalent Rust binding contract, preserve
+  one-surface-at-a-time rollout, and keep daemon benefits unblocked for the existing Textual shell.
+- Default enablement remains conservative: `ace_agents`, `ace_changespecs`, `ace_notifications`, `ace_artifacts`, and
+  `ace_archive_search` stay opt-in until their perf/parity gates pass in CI and on real project history.
 
 Acceptance gates:
 

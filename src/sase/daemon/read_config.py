@@ -35,10 +35,35 @@ SURFACE_GROUP_BY_READ_SURFACE = {
     "editor_catalog": "catalogs",
     "snippet_catalog": "catalogs",
     "file_history": "catalogs",
+    "ace_agent_active": "ace_agents",
+    "ace_agent_recent": "ace_agents",
+    "ace_agent_archive": "ace_agents",
+    "ace_agent_search": "ace_agents",
+    "ace_agent_detail": "ace_agents",
+    "ace_changespec_list": "ace_changespecs",
+    "ace_changespec_search": "ace_changespecs",
+    "ace_changespec_detail": "ace_changespecs",
+    "ace_notification_list": "ace_notifications",
+    "ace_notification_detail": "ace_notifications",
+    "ace_notification_counts": "ace_notifications",
+    "ace_artifact_list": "ace_artifacts",
+    "ace_artifact_detail": "ace_artifacts",
+    "ace_archive": "ace_archive_search",
+    "ace_search": "ace_archive_search",
 }
 
 DEFAULT_ENABLED_SURFACE_GROUPS = frozenset(
     {"changespecs", "notifications", "agents", "beads", "catalogs"}
+)
+
+ACE_DAEMON_SURFACE_GROUPS = frozenset(
+    {
+        "ace_agents",
+        "ace_changespecs",
+        "ace_notifications",
+        "ace_artifacts",
+        "ace_archive_search",
+    }
 )
 
 
@@ -161,6 +186,7 @@ def _surface_env_name(group: str) -> str:
 
 
 __all__ = [
+    "ACE_DAEMON_SURFACE_GROUPS",
     "DEFAULT_ENABLED_SURFACE_GROUPS",
     "SURFACE_GROUP_BY_READ_SURFACE",
     "daemon_fallback_diagnostics_enabled",

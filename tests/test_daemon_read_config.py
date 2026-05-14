@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.daemon.read_config import (
+    ACE_DAEMON_SURFACE_GROUPS,
     DEFAULT_ENABLED_SURFACE_GROUPS,
     daemon_fallback_diagnostics_enabled,
     daemon_read_disable_reason,
@@ -24,8 +25,8 @@ def test_default_enabled_surface_groups_match_phase_5i_rollout() -> None:
     }
     assert daemon_read_surface_enabled("notification_list") is True
     assert daemon_read_surface_enabled("file_history") is True
-    assert daemon_read_surface_enabled("ace_agents") is False
-    assert daemon_read_surface_enabled("ace_archive_search") is False
+    for surface in ACE_DAEMON_SURFACE_GROUPS:
+        assert daemon_read_surface_enabled(surface) is False
 
 
 def test_surface_config_controls_logical_group() -> None:
@@ -47,6 +48,7 @@ def test_surface_config_controls_logical_group() -> None:
         assert daemon_read_surface_enabled("notification_counts") is False
         assert daemon_read_surface_enabled("ace_agents") is True
         assert daemon_read_surface_enabled("ace_archive_search") is True
+        assert daemon_read_surface_enabled("ace_agent_active") is True
 
 
 def test_surface_env_override_wins(monkeypatch: pytest.MonkeyPatch) -> None:

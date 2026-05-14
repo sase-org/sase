@@ -44,6 +44,10 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.tui.app import AceApp
+from sase.ace.tui.util.perf_gates import (
+    EPIC9_TUI_TARGETS,
+    forbidden_daemon_no_change_refresh_spans,
+)
 
 from .fixtures import (
     AGENT_SIZES,
@@ -251,10 +255,21 @@ async def _run_full_baseline(
         )
         result["spans"] = _summarize_spans(_read_jsonl(trace_path))
         result["jk_paint"] = _summarize_jk(_read_jsonl(perf_path))
+        result["epic9_forbidden_daemon_no_change_refresh_spans"] = (
+            forbidden_daemon_no_change_refresh_spans(_read_jsonl(trace_path))
+        )
         scenarios.append(result)
 
     baseline = {
         "version": 1,
+        "epic9_target_budgets": {
+            name: {
+                "budget": target.budget,
+                "unit": target.unit,
+                "direction": target.direction,
+            }
+            for name, target in EPIC9_TUI_TARGETS.items()
+        },
         "j_keys_per_burst": _DEFAULT_J_KEYS,
         "query_edit_sequence": list(_QUERY_EDIT_SEQUENCE),
         "large_reply_mb": LARGE_REPLY_SIZES_MB[0],
