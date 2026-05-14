@@ -96,6 +96,25 @@ class AgentNotificationMixin:
             getattr(self, "_notification_snapshot_version", 0) + 1
         )
 
+    def _read_notification_snapshot_from_provider(
+        self,
+        *,
+        include_dismissed: bool = False,
+        expire_due_snoozes: bool = False,
+    ) -> Any:
+        """Return the notification snapshot via the configured ACE provider."""
+        from ._notification_provider import read_notification_snapshot_for_tui
+
+        result = read_notification_snapshot_for_tui(
+            include_dismissed=include_dismissed,
+            expire_due_snoozes=expire_due_snoozes,
+            client=getattr(self, "_daemon_read_client", None),
+            args=getattr(self, "_daemon_read_args", None),
+        )
+        self._notification_provider_used_daemon = result.used_daemon  # type: ignore[attr-defined]
+        self._notification_provider_fallback_reason = result.fallback_reason  # type: ignore[attr-defined]
+        return result.value
+
     def _schedule_notification_snapshot_refresh(self) -> None:
         """Refresh the notification cache off the current finalization frame."""
         if getattr(self, "_notification_snapshot_refresh_pending", False):
@@ -164,14 +183,11 @@ class AgentNotificationMixin:
         """
         import asyncio
 
-        from sase.notifications import read_notification_snapshot
-
         from ._toasts import format_batch_toasts
 
         snapshot = await asyncio.to_thread(
-            read_notification_snapshot,
-            False,
-            True,
+            self._read_notification_snapshot_from_provider,
+            expire_due_snoozes=True,
         )
         self._set_notification_snapshot_cache(snapshot)
         notifications = snapshot.notifications
@@ -433,11 +449,9 @@ class AgentNotificationMixin:
         Called after notifications are dismissed outside the notification modal
         (e.g. when an agent is killed or dismissed-done).
         """
-        from sase.notifications import read_notification_snapshot
-
         from ...widgets import NotificationIndicator
 
-        snapshot = read_notification_snapshot()
+        snapshot = self._read_notification_snapshot_from_provider()
         self._set_notification_snapshot_cache(snapshot)
         unread_priority, unread_errors, unread_rest, _ = _unread_notification_buckets(
             snapshot.notifications
@@ -461,12 +475,12 @@ class AgentNotificationMixin:
         """
         import asyncio
 
-        from sase.notifications import read_notification_snapshot
-
         from ...widgets import NotificationIndicator
 
         try:
-            snapshot = await asyncio.to_thread(read_notification_snapshot)
+            snapshot = await asyncio.to_thread(
+                self._read_notification_snapshot_from_provider
+            )
         except Exception:
             self._notification_snapshot_refresh_pending = False  # type: ignore[attr-defined]
             raise
@@ -545,11 +559,9 @@ class AgentNotificationMixin:
         if agent is None:
             return
 
-        from sase.notifications import read_notification_snapshot
-
         from ._notification_navigation import agent_matches_notification_identity
 
-        snapshot = read_notification_snapshot()
+        snapshot = self._read_notification_snapshot_from_provider()
         notifications = snapshot.notifications
         unread = [n for n in notifications if not n.read]
 
@@ -626,7 +638,7 @@ class AgentNotificationMixin:
         Args:
             initial_index: Index of the notification to highlight initially.
         """
-        from sase.notifications import mark_read, read_notification_snapshot
+        from sase.notifications import mark_read
 
         from ._notification_actions import (
             handle_hitl,
@@ -640,7 +652,7 @@ class AgentNotificationMixin:
         )
         from ...modals import NotificationModal
 
-        snapshot = read_notification_snapshot()
+        snapshot = self._read_notification_snapshot_from_provider()
         notifications = snapshot.notifications
         unread = [n for n in notifications if not n.read and not n.silent]
 
