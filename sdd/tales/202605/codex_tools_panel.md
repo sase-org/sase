@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-14 19:30:49
-status: wip
+status: done
 prompt: sdd/prompts/202605/codex_tools_panel.md
 ---
 # Plan: Add Codex Support To The Agents Tools Panel

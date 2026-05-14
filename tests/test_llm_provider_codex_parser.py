@@ -1,8 +1,11 @@
 """Tests for Codex NDJSON parser and _format_codex_action."""
 
 import json
+import os
 import subprocess
 import sys
+from pathlib import Path
+from unittest.mock import patch
 
 from sase.llm_provider._subprocess import (
     _format_codex_action,
@@ -151,6 +154,99 @@ def test_codex_json_parser_error_events_appended_to_stderr_on_failure() -> None:
 
     assert rc == 1
     assert "[error] API error occurred" in stderr
+
+
+def test_codex_json_parser_writes_function_call_artifact(
+    tmp_path: Path,
+) -> None:
+    """Tool-call capture does not disturb Codex text, errors, or thinking."""
+    assistant_texts: list[str] = []
+    error_events: list[str] = []
+    pending_reasoning: list[dict[str, object]] = []
+    thinking_path = tmp_path / "codex_thinking.jsonl"
+
+    with thinking_path.open("w", encoding="utf-8") as thinking_file:
+        with patch.dict(os.environ, {"SASE_ARTIFACTS_DIR": str(tmp_path)}):
+            _process_codex_json_line(
+                json.dumps(
+                    {
+                        "type": "item.completed",
+                        "item": {
+                            "id": "rs_1",
+                            "type": "reasoning",
+                            "summary": [
+                                {"type": "summary_text", "text": "Need to inspect"}
+                            ],
+                        },
+                    }
+                ),
+                assistant_texts,
+                True,
+                error_events,
+                thinking_file=thinking_file,
+                pending_reasoning=pending_reasoning,
+            )
+            _process_codex_json_line(
+                json.dumps(
+                    {
+                        "type": "item.completed",
+                        "item": {
+                            "id": "fc_1",
+                            "call_id": "call_1",
+                            "type": "function_call",
+                            "name": "read_file",
+                            "arguments": '{"path": "src/app.py"}',
+                        },
+                    }
+                ),
+                assistant_texts,
+                True,
+                error_events,
+                thinking_file=thinking_file,
+                pending_reasoning=pending_reasoning,
+            )
+            _process_codex_json_line(
+                json.dumps(
+                    {
+                        "type": "item.completed",
+                        "item": {
+                            "id": "msg_1",
+                            "type": "agent_message",
+                            "text": "Done",
+                        },
+                    }
+                ),
+                assistant_texts,
+                True,
+                error_events,
+                thinking_file=thinking_file,
+                pending_reasoning=pending_reasoning,
+            )
+            _process_codex_json_line(
+                json.dumps({"type": "error", "message": "minor warning"}),
+                assistant_texts,
+                True,
+                error_events,
+            )
+
+    tool_calls_path = tmp_path / "tool_calls.jsonl"
+    records = [
+        json.loads(line)
+        for line in tool_calls_path.read_text(encoding="utf-8").splitlines()
+    ]
+    thinking_records = [
+        json.loads(line)
+        for line in thinking_path.read_text(encoding="utf-8").splitlines()
+    ]
+
+    assert assistant_texts == ["Done"]
+    assert error_events == ["[error] minor warning"]
+    assert len(records) == 1
+    assert records[0]["runtime"] == "codex"
+    assert records[0]["tool_name"] == "Read"
+    assert records[0]["tool_use_id"] == "call_1"
+    assert records[0]["tool_input_summary"]["file_path"] == "src/app.py"
+    assert thinking_records[0]["following_action"] == "Read app.py"
 
 
 # --- _format_codex_action tests ---

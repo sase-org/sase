@@ -12,8 +12,10 @@ from sase.llm_provider._subprocess import (
 )
 from sase.llm_provider._tool_calls import (
     _normalize_claude_tool_call_event,
+    _normalize_codex_tool_call_event,
     _summarize_tool_input,
     append_claude_tool_call_event,
+    append_codex_tool_call_event,
 )
 
 
@@ -287,6 +289,130 @@ def test_append_claude_tool_call_event_noops_without_artifacts_dir() -> None:
         patch("sase.llm_provider._tool_calls._append_jsonl") as mock_append,
     ):
         append_claude_tool_call_event({"hook_event_name": "PostToolUse"})
+
+    mock_append.assert_not_called()
+
+
+def test_append_codex_tool_call_event_writes_shell_artifact() -> None:
+    """Codex function_call items are normalized into the shared artifact schema."""
+    event = {
+        "type": "item.completed",
+        "item": {
+            "id": "item_1",
+            "call_id": "call_1",
+            "type": "function_call",
+            "name": "container.exec",
+            "arguments": {
+                "command": ["OPENAI_API_KEY=sk-secret", "pytest", "tests/test_foo.py"],
+                "timeout": 120000,
+            },
+        },
+    }
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch.dict(os.environ, {"SASE_ARTIFACTS_DIR": tmpdir}):
+            append_codex_tool_call_event(event)
+
+        with open(os.path.join(tmpdir, "tool_calls.jsonl"), encoding="utf-8") as f:
+            record = json.loads(f.readline())
+
+    assert record["schema_version"] == 1
+    assert record["runtime"] == "codex"
+    assert record["event"] == "FunctionCall"
+    assert record["status"] == "success"
+    assert record["tool_name"] == "Bash"
+    assert record["tool_use_id"] == "call_1"
+    assert record["tool_response_summary"] == {}
+    command = record["tool_input_summary"]["command"]
+    assert command.startswith("OPENAI_API_KEY=[REDACTED] pytest")
+    assert "sk-secret" not in command
+
+
+def test_normalize_codex_tool_call_event_maps_paths_and_unknown_tools() -> None:
+    """Known Codex path arguments get compact targets; unknown tools stay intact."""
+    read_record = _normalize_codex_tool_call_event(
+        {
+            "type": "item.completed",
+            "item": {
+                "id": "item_read",
+                "type": "function_call",
+                "name": "read_file",
+                "arguments": '{"path": "src/sase/foo.py", "limit": 20}',
+            },
+        }
+    )
+    edit_record = _normalize_codex_tool_call_event(
+        {
+            "type": "item.completed",
+            "item": {
+                "id": "item_edit",
+                "type": "function_call",
+                "name": "apply_patch",
+                "arguments": {"path": "src/sase/foo.py", "patch": "*** Begin Patch"},
+            },
+        }
+    )
+    unknown_record = _normalize_codex_tool_call_event(
+        {
+            "type": "item.completed",
+            "item": {
+                "id": "item_web",
+                "type": "function_call",
+                "name": "web_search",
+                "arguments": {"query": "sase", "extra": {"private": "value"}},
+            },
+        }
+    )
+
+    assert read_record is not None
+    assert read_record["tool_name"] == "Read"
+    assert read_record["tool_input_summary"] == {
+        "file_path": "src/sase/foo.py",
+        "limit": 20,
+    }
+    assert edit_record is not None
+    assert edit_record["tool_name"] == "Edit"
+    assert edit_record["tool_input_summary"]["file_path"] == "src/sase/foo.py"
+    assert unknown_record is not None
+    assert unknown_record["tool_name"] == "web_search"
+    assert unknown_record["tool_input_summary"] == {"input_keys": ["extra", "query"]}
+
+
+def test_normalize_codex_tool_call_event_tolerates_malformed_arguments() -> None:
+    """Malformed Codex arguments are summarized as an empty input, not an error."""
+    record = _normalize_codex_tool_call_event(
+        {
+            "type": "item.completed",
+            "item": {
+                "id": "item_bad",
+                "type": "function_call",
+                "name": "shell",
+                "arguments": "{not json",
+            },
+        }
+    )
+
+    assert record is not None
+    assert record["tool_name"] == "Bash"
+    assert record["tool_input_summary"] == {}
+
+
+def test_append_codex_tool_call_event_noops_without_artifacts_dir() -> None:
+    """Codex tool-call capture is disabled when SASE_ARTIFACTS_DIR is unset."""
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch("sase.llm_provider._tool_calls._append_jsonl") as mock_append,
+    ):
+        append_codex_tool_call_event(
+            {
+                "type": "item.completed",
+                "item": {
+                    "type": "function_call",
+                    "name": "shell",
+                    "arguments": '{"command": "pwd"}',
+                },
+            }
+        )
 
     mock_append.assert_not_called()
 
