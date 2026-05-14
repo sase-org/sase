@@ -204,9 +204,9 @@ def test_ace_daemon_surfaces_are_opt_in_and_independently_gated() -> None:
     default_config = _load_default_config()
     surfaces = default_config["daemon"]["reads"]["surfaces"]
 
-    assert {
-        surface: surfaces[surface] for surface in ACE_DAEMON_SURFACE_GROUPS
-    } == dict.fromkeys(ACE_DAEMON_SURFACE_GROUPS, False)
+    assert {surface: surfaces[surface] for surface in ACE_DAEMON_SURFACE_GROUPS} == {
+        surface: surface == "ace_notifications" for surface in ACE_DAEMON_SURFACE_GROUPS
+    }
     with patch("sase.daemon.read_config.load_merged_config", return_value={}):
         assert ace_default_rollout_violations(daemon_read_surface_enabled) == []
 

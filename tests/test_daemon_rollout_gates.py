@@ -142,6 +142,16 @@ def test_policy_blocks_ace_default_enablement_until_registry_allows_it() -> None
     assert "registry policy does not allow default enablement" in violations[0].reason
 
 
+def test_policy_allows_staged_ace_notifications_default_enablement() -> None:
+    assert (
+        default_gate_violations(
+            ["read.ace_notifications"],
+            _registered_gate_coverage(),
+        )
+        == ()
+    )
+
+
 _PROVIDER_HOST_DEFAULT_OPERATIONS = {
     "llm.metadata",
     "xprompt.catalog",

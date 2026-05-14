@@ -184,11 +184,15 @@ def test_health_rpc_keeps_liveness_when_detailed_diagnostics_timeout(
                 }
             raise TimeoutError(f"detailed health timed out after {timeout}")
 
+        def capabilities(self, *, timeout: float | None = None) -> dict[str, object]:
+            return {"capabilities": ["notifications.read"]}
+
     monkeypatch.setattr("sase.daemon.client.LocalDaemonClient", FakeClient)
 
     rpc = lifecycle._try_health_rpc(socket_path)
 
     assert rpc["available"] is True
+    assert rpc["capabilities"] == {"capabilities": ["notifications.read"]}
     assert rpc["health"] == {
         "status": "ok",
         "details": {"projection_db": {"state": "ok"}},

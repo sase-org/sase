@@ -105,6 +105,7 @@ def test_rollout_payload_includes_capabilities_compatibility_and_perf_report(
         "_try_health_rpc",
         lambda _socket: {
             "available": True,
+            "capabilities": {"capabilities": ["notifications.read"]},
             "health": {
                 "status": "ok",
                 "capabilities": ["changespecs.read", "notifications.read"],

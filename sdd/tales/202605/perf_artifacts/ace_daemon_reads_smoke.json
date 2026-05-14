@@ -1,0 +1,277 @@
+{
+  "daemon_timeout_seconds": 0.05,
+  "perf_gates": {
+    "ace_daemon_read.perf.ace_agents": {
+      "absolute_p95_budget_ms": 250.0,
+      "daemon_p95_ms": 86.1071647144854,
+      "daemon_to_direct_ratio": 1.1184374536526176,
+      "direct_p95_ms": 76.9888065115083,
+      "fallback_scenarios": [
+        "daemon_ace_agents_snapshot"
+      ],
+      "max_daemon_to_direct_ratio": 1.0,
+      "status": "blocked",
+      "surface": "ace_agents"
+    },
+    "ace_daemon_read.perf.ace_changespecs": {
+      "absolute_p95_budget_ms": 250.0,
+      "daemon_p95_ms": 12.24184850580059,
+      "daemon_to_direct_ratio": 0.5037072742834541,
+      "direct_p95_ms": 24.303497548680753,
+      "fallback_scenarios": [
+        "daemon_changespec_snapshot"
+      ],
+      "max_daemon_to_direct_ratio": 1.0,
+      "status": "blocked",
+      "surface": "ace_changespecs"
+    },
+    "ace_daemon_read.perf.ace_notifications": {
+      "absolute_p95_budget_ms": 250.0,
+      "daemon_p95_ms": 11.152846016921103,
+      "daemon_to_direct_ratio": 0.23922281175353619,
+      "direct_p95_ms": 46.62116432446055,
+      "fallback_scenarios": [],
+      "max_daemon_to_direct_ratio": 1.0,
+      "status": "ok",
+      "surface": "ace_notifications"
+    }
+  },
+  "runs": 3,
+  "scenarios": {
+    "daemon_ace_agents_snapshot": {
+      "max_ms": 86.25022601336241,
+      "median_ms": 84.8196130245924,
+      "min_ms": 84.28730699233711,
+      "p95_ms": 86.1071647144854,
+      "samples_ms": [
+        84.8196130245924,
+        84.28730699233711,
+        86.25022601336241
+      ],
+      "summary": {
+        "agent_count": 4,
+        "fallback_reason": "daemon_not_running",
+        "has_counts": false,
+        "notification_count": null,
+        "request_count": 2,
+        "row_count": null,
+        "type": "AgentsProviderSnapshot",
+        "used_daemon": false
+      }
+    },
+    "daemon_changespec_snapshot": {
+      "max_ms": 12.377773004118353,
+      "median_ms": 11.018528020940721,
+      "min_ms": 10.720919002778828,
+      "p95_ms": 12.24184850580059,
+      "samples_ms": [
+        11.018528020940721,
+        12.377773004118353,
+        10.720919002778828
+      ],
+      "summary": {
+        "debug": {
+          "fallback_diagnostics_enabled": true,
+          "fallback_message": "local daemon does not advertise changespecs.read",
+          "fallback_reason": "unsupported_capability",
+          "surface": "ace_changespec_list",
+          "used": false
+        },
+        "fallback_reason": "unsupported_capability",
+        "request_count": 1,
+        "used_daemon": false,
+        "value": {
+          "agent_count": null,
+          "fallback_reason": null,
+          "has_counts": false,
+          "notification_count": null,
+          "row_count": 2002,
+          "type": "AceSnapshot",
+          "used_daemon": null
+        }
+      }
+    },
+    "daemon_notification_counts": {
+      "max_ms": 11.088400962762535,
+      "median_ms": 9.847020031884313,
+      "min_ms": 6.388006033375859,
+      "p95_ms": 10.964262869674712,
+      "samples_ms": [
+        11.088400962762535,
+        6.388006033375859,
+        9.847020031884313
+      ],
+      "summary": {
+        "debug": {
+          "fallback_diagnostics_enabled": true,
+          "fallback_message": null,
+          "fallback_reason": null,
+          "surface": "ace_notification_counts",
+          "used": true
+        },
+        "fallback_reason": null,
+        "request_count": 2,
+        "used_daemon": true,
+        "value": {
+          "agent_count": null,
+          "fallback_reason": null,
+          "has_counts": true,
+          "notification_count": null,
+          "row_count": null,
+          "type": "AceNotificationCountSnapshot",
+          "used_daemon": null
+        }
+      }
+    },
+    "daemon_notification_first_page": {
+      "max_ms": 11.219430016353726,
+      "median_ms": 10.553590022027493,
+      "min_ms": 6.894986028783023,
+      "p95_ms": 11.152846016921103,
+      "samples_ms": [
+        11.219430016353726,
+        10.553590022027493,
+        6.894986028783023
+      ],
+      "summary": {
+        "debug": {
+          "fallback_diagnostics_enabled": true,
+          "fallback_message": null,
+          "fallback_reason": null,
+          "surface": "ace_notification_list",
+          "used": true
+        },
+        "fallback_reason": null,
+        "request_count": 2,
+        "used_daemon": true,
+        "value": {
+          "agent_count": null,
+          "fallback_reason": null,
+          "has_counts": true,
+          "notification_count": 24,
+          "row_count": null,
+          "type": "AceNotificationPage",
+          "used_daemon": null
+        }
+      }
+    },
+    "direct_ace_agents_snapshot": {
+      "max_ms": 81.63737901486456,
+      "median_ms": 35.15165398130193,
+      "min_ms": 32.39357704296708,
+      "p95_ms": 76.9888065115083,
+      "samples_ms": [
+        81.63737901486456,
+        32.39357704296708,
+        35.15165398130193
+      ],
+      "summary": {
+        "agent_count": 4,
+        "fallback_reason": null,
+        "has_counts": false,
+        "notification_count": null,
+        "request_count": null,
+        "row_count": null,
+        "type": "AgentsProviderSnapshot",
+        "used_daemon": false
+      }
+    },
+    "direct_changespec_snapshot": {
+      "max_ms": 25.852589053101838,
+      "median_ms": 10.361674008890986,
+      "min_ms": 9.740045992657542,
+      "p95_ms": 24.303497548680753,
+      "samples_ms": [
+        25.852589053101838,
+        9.740045992657542,
+        10.361674008890986
+      ],
+      "summary": {
+        "debug": {
+          "fallback_diagnostics_enabled": true,
+          "fallback_message": "daemon reads disabled by --no-daemon or SASE_NO_DAEMON",
+          "fallback_reason": "daemon_disabled",
+          "surface": "ace_changespec_list",
+          "used": false
+        },
+        "fallback_reason": "daemon_disabled",
+        "request_count": null,
+        "used_daemon": false,
+        "value": {
+          "agent_count": null,
+          "fallback_reason": null,
+          "has_counts": false,
+          "notification_count": null,
+          "row_count": 2002,
+          "type": "AceSnapshot",
+          "used_daemon": null
+        }
+      }
+    },
+    "direct_notification_counts": {
+      "max_ms": 46.872401027940214,
+      "median_ms": 44.36003399314359,
+      "min_ms": 43.735082959756255,
+      "p95_ms": 46.62116432446055,
+      "samples_ms": [
+        46.872401027940214,
+        43.735082959756255,
+        44.36003399314359
+      ],
+      "summary": {
+        "debug": {
+          "fallback_diagnostics_enabled": true,
+          "fallback_message": "daemon reads disabled by --no-daemon or SASE_NO_DAEMON",
+          "fallback_reason": "daemon_disabled",
+          "surface": "ace_notification_counts",
+          "used": false
+        },
+        "fallback_reason": "daemon_disabled",
+        "request_count": null,
+        "used_daemon": false,
+        "value": {
+          "agent_count": null,
+          "fallback_reason": null,
+          "has_counts": true,
+          "notification_count": null,
+          "row_count": null,
+          "type": "AceNotificationCountSnapshot",
+          "used_daemon": null
+        }
+      }
+    },
+    "direct_notification_first_page": {
+      "max_ms": 45.37496401462704,
+      "median_ms": 43.33067999687046,
+      "min_ms": 43.258472986053675,
+      "p95_ms": 45.17053561285138,
+      "samples_ms": [
+        45.37496401462704,
+        43.33067999687046,
+        43.258472986053675
+      ],
+      "summary": {
+        "debug": {
+          "fallback_diagnostics_enabled": true,
+          "fallback_message": "daemon reads disabled by --no-daemon or SASE_NO_DAEMON",
+          "fallback_reason": "daemon_disabled",
+          "surface": "ace_notification_list",
+          "used": false
+        },
+        "fallback_reason": "daemon_disabled",
+        "request_count": null,
+        "used_daemon": false,
+        "value": {
+          "agent_count": null,
+          "fallback_reason": null,
+          "has_counts": true,
+          "notification_count": 0,
+          "row_count": null,
+          "type": "AceNotificationPage",
+          "used_daemon": null
+        }
+      }
+    }
+  },
+  "tool": "bench_ace_daemon_reads"
+}
