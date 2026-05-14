@@ -464,9 +464,9 @@ class Agent:
 
     @property
     def is_agent_entry(self) -> bool:
-        """Check if this entry represents an agent process (with thinking support).
+        """Check if this entry represents an agent process (with tools support).
 
-        Agent entries run an LLM agent and may have thinking blocks:
+        Agent entries run an LLM agent and may have tool-call artifacts:
         RUNNING agents, plus WORKFLOW entries that appear as agents
         and workflow child steps of type ``agent``.
         """

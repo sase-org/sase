@@ -15,20 +15,20 @@ from .file_panel import (
     FileTrimChanged,
     FileVisibilityChanged,
 )
-from .thinking_panel import AgentThinkingPanel, ThinkingVisibilityChanged
+from .tools_panel import AgentToolsPanel, ToolsVisibilityChanged
 
 
 class DetailPanelMode(Enum):
     """Three-state cycle for the detail panel view mode."""
 
     AUTO = "auto"  # File shown (prompt expanded when no file)
-    THINKING = "thinking"  # Thinking panel forced on
+    TOOLS = "tools"  # Tools panel forced on
     INFO = "info"  # Metadata only, prompt at 100%
 
 
 _MODE_LABELS: dict[DetailPanelMode, str] = {
     DetailPanelMode.AUTO: "file",
-    DetailPanelMode.THINKING: "thinking",
+    DetailPanelMode.TOOLS: "tools",
     DetailPanelMode.INFO: "collapsed",
 }
 
@@ -49,7 +49,7 @@ class AgentDetailPanelMixin(Static):
     # ------------------------------------------------------------------
     _panel_mode: DetailPanelMode
     _has_file_content: bool
-    _has_thinking_content: bool
+    _has_tools_content: bool
     _current_agent: Agent | None
     _layout_swapped: bool
     _file_count: int
@@ -75,10 +75,10 @@ class AgentDetailPanelMixin(Static):
     # Panel mode cycling
     # ------------------------------------------------------------------
 
-    def toggle_thinking(self, agent: Agent, *, reverse: bool = False) -> None:
+    def toggle_tools(self, agent: Agent, *, reverse: bool = False) -> None:
         """Cycle to the next (or previous) panel mode.
 
-        Always cycles through file -> thinking -> none -> file so the
+        Always cycles through file -> tools -> none -> file so the
         ``]`` key behaves consistently regardless of content availability.
         The ``[`` key cycles in the opposite direction.
 
@@ -92,8 +92,8 @@ class AgentDetailPanelMixin(Static):
     def _next_panel_mode(self, *, reverse: bool = False) -> DetailPanelMode:
         """Compute the next panel mode in the fixed cycle.
 
-        For agent entries: AUTO -> THINKING -> INFO -> AUTO.
-        For non-agent entries: AUTO -> INFO -> AUTO (no thinking).
+        For agent entries: AUTO -> TOOLS -> INFO -> AUTO.
+        For non-agent entries: AUTO -> INFO -> AUTO (no tools).
 
         Args:
             reverse: If True, cycle in the reverse direction.
@@ -104,7 +104,7 @@ class AgentDetailPanelMixin(Static):
         if self._current_agent and self._current_agent.is_agent_entry:
             cycle = [
                 DetailPanelMode.AUTO,
-                DetailPanelMode.THINKING,
+                DetailPanelMode.TOOLS,
                 DetailPanelMode.INFO,
             ]
         else:
@@ -125,7 +125,7 @@ class AgentDetailPanelMixin(Static):
             reverse: If True, return the label for the reverse direction.
 
         Returns:
-            Label string like "file", "thinking", or "collapsed".
+            Label string like "file", "tools", or "collapsed".
         """
         return _MODE_LABELS[self._next_panel_mode(reverse=reverse)]
 
@@ -134,7 +134,7 @@ class AgentDetailPanelMixin(Static):
         """Get a human-readable label for the current panel mode.
 
         Returns:
-            ``"file"``, ``"thinking"``, or ``"collapsed"``.
+            ``"file"``, ``"tools"``, or ``"collapsed"``.
         """
         return _MODE_LABELS[self._panel_mode]
 
@@ -146,30 +146,30 @@ class AgentDetailPanelMixin(Static):
             agent: The currently selected agent.
         """
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
-        thinking_scroll = self.query_one("#agent-thinking-scroll", VerticalScroll)
-        thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
+        tools_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
+        tools_panel = self.query_one("#agent-tools-panel", AgentToolsPanel)
         prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
 
-        if mode == DetailPanelMode.THINKING:
-            # Show thinking, hide file
+        if mode == DetailPanelMode.TOOLS:
+            # Show tools, hide file
             file_scroll.add_class("hidden")
-            thinking_scroll.remove_class("hidden")
+            tools_scroll.remove_class("hidden")
             prompt_scroll.remove_class("expanded")
 
             if self._layout_swapped:
-                thinking_scroll.add_class("layout-secondary")
+                tools_scroll.add_class("layout-secondary")
                 prompt_scroll.add_class("layout-priority")
             else:
-                thinking_scroll.remove_class("layout-secondary")
+                tools_scroll.remove_class("layout-secondary")
                 prompt_scroll.remove_class("layout-priority")
 
-            self._panel_mode = DetailPanelMode.THINKING
-            thinking_panel.update_display(agent)
+            self._panel_mode = DetailPanelMode.TOOLS
+            tools_panel.update_display(agent)
 
         elif mode == DetailPanelMode.INFO:
             # Hide both secondary panels, prompt at 100%
             file_scroll.add_class("hidden")
-            thinking_scroll.add_class("hidden")
+            tools_scroll.add_class("hidden")
             prompt_scroll.add_class("expanded")
             prompt_scroll.remove_class("layout-priority")
 
@@ -179,7 +179,7 @@ class AgentDetailPanelMixin(Static):
             # AUTO: re-evaluate what to show
             self._panel_mode = DetailPanelMode.AUTO
             prompt_scroll.remove_class("expanded")
-            thinking_scroll.add_class("hidden")
+            tools_scroll.add_class("hidden")
             file_scroll.remove_class("hidden")
             # Invalidate file_panel state so the next dispatch skips the
             # same-agent fast paths in both `_update_display_body` and
@@ -224,34 +224,26 @@ class AgentDetailPanelMixin(Static):
         self._trim_is_trimmed = message.is_trimmed
         self._update_file_scroll_subtitle()
 
-    def on_thinking_visibility_changed(
-        self, message: ThinkingVisibilityChanged
-    ) -> None:
-        """Handle thinking panel visibility changes.
+    def on_tools_visibility_changed(self, message: ToolsVisibilityChanged) -> None:
+        """Handle tools panel visibility changes.
 
         Args:
             message: The visibility change message.
         """
-        self._has_thinking_content = message.has_thinking
+        self._has_tools_content = message.has_tools
         self._update_panel_indicators()
 
-        if self._panel_mode != DetailPanelMode.THINKING:
+        if self._panel_mode != DetailPanelMode.TOOLS:
             return
 
         prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
-        thinking_scroll = self.query_one("#agent-thinking-scroll", VerticalScroll)
+        tools_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
 
-        if message.has_thinking:
-            thinking_scroll.remove_class("hidden")
-            prompt_scroll.remove_class("expanded")
-            if self._layout_swapped:
-                prompt_scroll.add_class("layout-priority")
-                thinking_scroll.add_class("layout-secondary")
-        else:
-            thinking_scroll.add_class("hidden")
-            prompt_scroll.add_class("expanded")
-            prompt_scroll.remove_class("layout-priority")
-            thinking_scroll.remove_class("layout-secondary")
+        tools_scroll.remove_class("hidden")
+        prompt_scroll.remove_class("expanded")
+        if self._layout_swapped:
+            prompt_scroll.add_class("layout-priority")
+            tools_scroll.add_class("layout-secondary")
 
     def on_file_visibility_changed(self, message: FileVisibilityChanged) -> None:
         """Handle file panel visibility changes.
@@ -264,8 +256,8 @@ class AgentDetailPanelMixin(Static):
         self._file_index = message.file_index
         self._update_panel_indicators()
 
-        # Skip file visibility changes in THINKING or INFO modes
-        if self._panel_mode in (DetailPanelMode.THINKING, DetailPanelMode.INFO):
+        # Skip file visibility changes in TOOLS or INFO modes
+        if self._panel_mode in (DetailPanelMode.TOOLS, DetailPanelMode.INFO):
             return
 
         prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
@@ -347,22 +339,21 @@ class AgentDetailPanelMixin(Static):
             text.append("○", style="dim")
             text.append(" files", style="dim")
 
-        # Thinking indicator - only for agent entries
+        # Tools indicator - only for agent entries
         if self._current_agent and self._current_agent.is_agent_entry:
             text.append("  ")
 
-            thinking_active = (
-                self._panel_mode == DetailPanelMode.THINKING
-                and self._has_thinking_content
+            tools_active = (
+                self._panel_mode == DetailPanelMode.TOOLS and self._has_tools_content
             )
-            if thinking_active and self._panel_mode != DetailPanelMode.INFO:
-                text.append("●", style="bold #af87d7")
-                text.append(" thinking", style="bold #af87d7")
-            elif self._has_thinking_content:
-                text.append("●", style="#af87d7")
-                text.append(" thinking", style="dim")
+            if tools_active and self._panel_mode != DetailPanelMode.INFO:
+                text.append("●", style="bold #87D7FF")
+                text.append(" tools", style="bold #87D7FF")
+            elif self._has_tools_content:
+                text.append("●", style="#87D7FF")
+                text.append(" tools", style="dim")
             else:
                 text.append("○", style="dim")
-                text.append(" thinking", style="dim")
+                text.append(" tools", style="dim")
 
         prompt_scroll.border_subtitle = text

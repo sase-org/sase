@@ -13,7 +13,7 @@ from ._agent_detail_panels import (
 )
 from .file_panel import AgentFilePanel
 from .prompt_panel import AgentPromptPanel
-from .thinking_panel import AgentThinkingPanel
+from .tools_panel import AgentToolsPanel
 from ..util.trace import tui_trace
 
 
@@ -41,7 +41,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         self._panel_mode: DetailPanelMode = DetailPanelMode.AUTO
         self._current_agent: Agent | None = None
         self._has_file_content: bool = False
-        self._has_thinking_content: bool = False
+        self._has_tools_content: bool = False
         self._file_count: int = 0
         self._file_index: int = 0
         self._trim_visible_lines: int = 0
@@ -62,8 +62,8 @@ class AgentDetail(AgentDetailPanelMixin, Static):
                 yield AgentPromptPanel(id="agent-prompt-panel")
             with VerticalScroll(id="agent-file-scroll"):
                 yield AgentFilePanel(id="agent-file-panel")
-            with VerticalScroll(id="agent-thinking-scroll", classes="hidden"):
-                yield AgentThinkingPanel(id="agent-thinking-panel")
+            with VerticalScroll(id="agent-tools-scroll", classes="hidden"):
+                yield AgentToolsPanel(id="agent-tools-panel")
 
     def update_display(
         self,
@@ -100,7 +100,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
 
         Called synchronously from the j/k debounced refresh so the user sees
         the new agent's title/status and any cached prompt content with no
-        latency, while the file/thinking/diff workers wait for the detail
+        latency, while the file/tools/diff workers wait for the detail
         debouncer to settle on a final selection.
         """
         self._agent_detail_generation += 1
@@ -122,51 +122,46 @@ class AgentDetail(AgentDetailPanelMixin, Static):
     ) -> None:
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-        thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
+        tools_panel = self.query_one("#agent-tools-panel", AgentToolsPanel)
 
         # Detect agent change and reset per-agent state, but preserve the
         # user's explicit panel mode choice so that e.g. pressing ']' to show
-        # thinking persists across j/k navigation.
+        # tools persists across j/k navigation.
         prev_agent = self._current_agent
         self._current_agent = agent
         self._current_attempt_number = attempt_number
         if prev_agent is not None and prev_agent.identity != agent.identity:
             self._has_file_content = False
-            self._has_thinking_content = False
-            # Reset from THINKING mode when switching to non-agent entry
-            if (
-                not agent.is_agent_entry
-                and self._panel_mode == DetailPanelMode.THINKING
-            ):
+            self._has_tools_content = False
+            # Reset from TOOLS mode when switching to non-agent entry
+            if not agent.is_agent_entry and self._panel_mode == DetailPanelMode.TOOLS:
                 self._panel_mode = DetailPanelMode.AUTO
-            if self._panel_mode != DetailPanelMode.THINKING:
-                thinking_scroll = self.query_one(
-                    "#agent-thinking-scroll", VerticalScroll
-                )
-                thinking_scroll.add_class("hidden")
+            if self._panel_mode != DetailPanelMode.TOOLS:
+                tools_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
+                tools_scroll.add_class("hidden")
 
         prompt_panel.attempt_view_mode = self._attempt_view_mode
         prompt_panel.attempt_pinned_number = attempt_number
         prompt_panel.update_display(agent)
         self._update_panel_indicators()
 
-        # Attempt-pinned view: bypass file/thinking panels — we can't
-        # reconstruct per-attempt file or thinking history from the archived
+        # Attempt-pinned view: bypass file/tools panels — we can't
+        # reconstruct per-attempt file or tool history from the archived
         # snapshots. Expand the prompt panel to fill the area.
         if attempt_number is not None:
             self._expand_prompt_only()
             return
 
-        # Probe thinking availability in the background so that
-        # _has_thinking_content is accurate for panel mode cycling.
+        # Probe tools availability in the background so that
+        # _has_tools_content is accurate for panel mode cycling.
         # Skip the probe when the same agent is still selected and we're in
-        # INFO mode — the thinking panel is hidden anyway and the cache will
-        # be checked when the user toggles to thinking mode.
+        # INFO mode — the tools panel is hidden anyway and the cache will
+        # be checked when the user toggles to tools mode.
         same_agent = prev_agent is not None and prev_agent.identity == agent.identity
         if agent.is_agent_entry and not (
             same_agent and self._panel_mode == DetailPanelMode.INFO
         ):
-            thinking_panel.update_display(
+            tools_panel.update_display(
                 agent, stale_threshold_seconds=stale_threshold_seconds
             )
 
@@ -178,9 +173,9 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             prompt_scroll.add_class("expanded")
             return
 
-        # When thinking panel is visible, keep it showing and just refresh data
-        if self._panel_mode == DetailPanelMode.THINKING:
-            # Still update file panel in background (for when thinking is toggled off)
+        # When tools panel is visible, keep it showing and just refresh data
+        if self._panel_mode == DetailPanelMode.TOOLS:
+            # Still update file panel in background (for when tools is toggled off)
             if agent.status in _ACTIVE_STATUSES:
                 file_panel.update_display(
                     agent, stale_threshold_seconds=stale_threshold_seconds
@@ -232,22 +227,22 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         """Show empty state for all panels."""
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-        thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
+        tools_panel = self.query_one("#agent-tools-panel", AgentToolsPanel)
 
         prompt_panel.show_empty()
         file_panel.show_empty()
-        thinking_panel.show_empty()
+        tools_panel.show_empty()
 
-        # Hide file and thinking panels when no agent is selected
+        # Hide file and tools panels when no agent is selected
         prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
-        thinking_scroll = self.query_one("#agent-thinking-scroll", VerticalScroll)
+        tools_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
         file_scroll.add_class("hidden")
-        thinking_scroll.add_class("hidden")
+        tools_scroll.add_class("hidden")
         prompt_scroll.add_class("expanded")
         self._panel_mode = DetailPanelMode.AUTO
         self._has_file_content = False
-        self._has_thinking_content = False
+        self._has_tools_content = False
         self._file_count = 0
         self._file_index = 0
         self._trim_visible_lines = 0
@@ -284,9 +279,9 @@ class AgentDetail(AgentDetailPanelMixin, Static):
 
         self._layout_swapped = not self._layout_swapped
 
-        # Apply layout classes to whichever panel (file or thinking) is visible
-        if self.is_thinking_visible():
-            secondary_scroll = self.query_one("#agent-thinking-scroll", VerticalScroll)
+        # Apply layout classes to whichever panel (file or tools) is visible
+        if self.is_tools_visible():
+            secondary_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
         else:
             secondary_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
 
@@ -302,13 +297,13 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
             self.call_after_refresh(file_panel.reset_trim)
 
-    def is_thinking_visible(self) -> bool:
-        """Check if the thinking panel is currently visible.
+    def is_tools_visible(self) -> bool:
+        """Check if the tools panel is currently visible.
 
         Returns:
-            True if the thinking panel is visible, False otherwise.
+            True if the tools panel is visible, False otherwise.
         """
-        return self._panel_mode == DetailPanelMode.THINKING
+        return self._panel_mode == DetailPanelMode.TOOLS
 
     def is_info_mode(self) -> bool:
         """Check if the panel is in info-only mode.
@@ -343,9 +338,9 @@ class AgentDetail(AgentDetailPanelMixin, Static):
                 file_panel.get_current_content(),
                 ".diff",
             )
-        if self.is_thinking_visible():
-            thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
-            return (None, thinking_panel.get_thinking_text(), ".md")
+        if self.is_tools_visible():
+            tools_panel = self.query_one("#agent-tools-panel", AgentToolsPanel)
+            return (None, tools_panel.get_tools_text(), ".md")
         return (None, None, "")
 
     def get_current_image_path(self) -> str | None:

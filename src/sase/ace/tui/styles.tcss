@@ -963,18 +963,18 @@ HintInputBar #hint-escape-hint {
     height: 3fr;
 }
 
-#agent-thinking-scroll {
+#agent-tools-scroll {
     height: 7fr;
-    border: solid #af87d7;
+    border: solid #87D7FF;
     padding: 1 2;
     scrollbar-gutter: stable;
 }
 
-#agent-thinking-scroll.hidden {
+#agent-tools-scroll.hidden {
     display: none;
 }
 
-#agent-thinking-scroll.layout-secondary {
+#agent-tools-scroll.layout-secondary {
     height: 3fr;
 }
 

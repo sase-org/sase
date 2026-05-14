@@ -6,7 +6,7 @@ from ._panel_types import TabName
 
 
 class AgentPanelDetailMixin:
-    """Mixin providing detail-panel file, chat, and thinking actions."""
+    """Mixin providing detail-panel file, chat, and tools actions."""
 
     current_tab: TabName
 
@@ -96,8 +96,7 @@ class AgentPanelDetailMixin:
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
 
         if agent_detail.is_info_mode() or (
-            not agent_detail.is_file_visible()
-            and not agent_detail.is_thinking_visible()
+            not agent_detail.is_file_visible() and not agent_detail.is_tools_visible()
         ):
             self.notify("No panel to toggle layout", severity="warning")  # type: ignore[attr-defined]
             return
@@ -196,11 +195,11 @@ class AgentPanelDetailMixin:
         self._refresh_agents_display()  # type: ignore[attr-defined]
 
     def action_toggle_thinking(self) -> None:
-        """Toggle the thinking panel for the selected agent."""
+        """Toggle the tools panel for the selected agent."""
         self._cycle_panel_mode()
 
     def action_toggle_thinking_reverse(self) -> None:
-        """Toggle the thinking panel in reverse direction."""
+        """Toggle the tools panel in reverse direction."""
         self._cycle_panel_mode(reverse=True)
 
     def _cycle_panel_mode(self, *, reverse: bool = False) -> None:
@@ -216,7 +215,7 @@ class AgentPanelDetailMixin:
         from ...widgets import AgentDetail
 
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-        agent_detail.toggle_thinking(agent, reverse=reverse)
+        agent_detail.toggle_tools(agent, reverse=reverse)
 
         # Refresh footer to reflect new state
         self._refresh_agents_display()  # type: ignore[attr-defined]

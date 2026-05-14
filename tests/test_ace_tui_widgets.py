@@ -358,7 +358,7 @@ def test_parallel_step_no_output_shows_placeholder() -> None:
 
 
 async def test_update_display_expands_prompt_for_done_workflow_without_diff() -> None:
-    """Done top-level workflow (non-agent) without diff_path should expand prompt, not thinking."""
+    """Done top-level workflow (non-agent) without diff_path should expand prompt, not tools."""
     from sase.ace.tui.widgets.agent_detail import AgentDetail
     from textual.app import App, ComposeResult
 
@@ -386,12 +386,12 @@ async def test_update_display_expands_prompt_for_done_workflow_without_diff() ->
         detail.update_display(agent)
 
         diff_scroll = detail.query_one("#agent-file-scroll")
-        thinking_scroll = detail.query_one("#agent-thinking-scroll")
+        tools_scroll = detail.query_one("#agent-tools-scroll")
         prompt_scroll = detail.query_one("#agent-prompt-scroll")
         assert diff_scroll.has_class("hidden")
-        assert thinking_scroll.has_class("hidden")
+        assert tools_scroll.has_class("hidden")
         assert prompt_scroll.has_class("expanded")
-        assert not detail.is_thinking_visible()
+        assert not detail.is_tools_visible()
 
 
 async def test_tab_bar_integration_tab_key() -> None:

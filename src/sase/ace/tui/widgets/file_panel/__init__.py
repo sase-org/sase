@@ -306,7 +306,7 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
             )
             # Display the extra file immediately so the parent receives
             # FileVisibilityChanged(has_file=True) and can switch from
-            # auto-shown thinking to the file panel.
+            # auto-shown tools to the file panel.
             if (
                 self._file_list
                 and self._file_list[self._current_file_index] != _LIVE_DIFF_SENTINEL

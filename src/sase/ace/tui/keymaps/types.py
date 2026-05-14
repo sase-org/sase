@@ -79,8 +79,8 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("expand_or_layout", "Expand / Layout", False),
     ("expand_all_folds", "Expand All", False),
     ("toggle_layout", "Layout", False),
-    ("toggle_thinking", "Thinking", False),
-    ("toggle_thinking_reverse", "Thinking Rev", False),
+    ("toggle_thinking", "Tools", False),
+    ("toggle_thinking_reverse", "Tools Rev", False),
     ("mark_inactive_pinned", "Pin Inactive", False),
     ("copy_tab_content", "Copy", False),
     ("scroll_to_top", "Top", False),
@@ -281,7 +281,7 @@ class AppKeymaps:
     # Grouping mode cycle (agents tab)
     cycle_grouping_mode: str
     cycle_grouping_mode_reverse: str
-    # Thinking panel
+    # Tools panel
     toggle_thinking: str
     toggle_thinking_reverse: str
     # File trim

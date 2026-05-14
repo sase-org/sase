@@ -209,11 +209,11 @@ _APP_COMMAND_META: tuple[
         _AGENTS_ONLY,
         (),
     ),
-    # Thinking panel
-    ("toggle_thinking", "Toggle thinking panel", "Display", _AGENTS_ONLY, ()),
+    # Tools panel
+    ("toggle_thinking", "Toggle tools panel", "Display", _AGENTS_ONLY, ()),
     (
         "toggle_thinking_reverse",
-        "Toggle thinking panel (reverse)",
+        "Toggle tools panel (reverse)",
         "Display",
         _AGENTS_ONLY,
         (),

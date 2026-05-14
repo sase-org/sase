@@ -70,10 +70,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("l", "expand_or_layout", "Expand / Layout", show=False),
     Binding("L", "expand_all_folds", "Expand All", show=False),
     Binding("p", "toggle_layout", "Layout", show=False),
-    Binding("right_square_bracket", "toggle_thinking", "Thinking", show=False),
-    Binding(
-        "left_square_bracket", "toggle_thinking_reverse", "Thinking Rev", show=False
-    ),
+    Binding("right_square_bracket", "toggle_thinking", "Tools", show=False),
+    Binding("left_square_bracket", "toggle_thinking_reverse", "Tools Rev", show=False),
     Binding("A", "open_agent_artifacts", "Artifacts", show=False),
     Binding("D", "toggle_attempt_view", "Attempt View", show=False),
     Binding("U", "toggle_agent_unread", "Toggle Agent Unread", show=False),

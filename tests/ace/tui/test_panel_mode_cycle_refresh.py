@@ -1,6 +1,6 @@
 """Regression tests for the `]` AUTO-toggle stale-diff bug.
 
-After cycling AUTO -> THINKING -> INFO -> j/k -> AUTO, the file panel
+After cycling AUTO -> TOOLS -> INFO -> j/k -> AUTO, the file panel
 must re-render for the currently selected agent rather than display the
 stale content left over from when AUTO was last visible.
 """
@@ -49,7 +49,7 @@ def _build_detail(file_panel: Any) -> Any:
     detail = MagicMock(spec=AgentDetailPanelMixin)
     detail._panel_mode = DetailPanelMode.INFO
     detail._has_file_content = True
-    detail._has_thinking_content = False
+    detail._has_tools_content = False
     detail._current_agent = None
     detail._layout_swapped = False
     detail._file_count = 0
@@ -57,16 +57,16 @@ def _build_detail(file_panel: Any) -> Any:
 
     file_scroll = _StubScroll()
     file_scroll.add_class("hidden")
-    thinking_scroll = _StubScroll()
-    thinking_scroll.add_class("hidden")
+    tools_scroll = _StubScroll()
+    tools_scroll.add_class("hidden")
     prompt_scroll = _StubScroll()
     prompt_scroll.add_class("expanded")
-    thinking_panel = MagicMock()
+    tools_panel = MagicMock()
 
     by_id = {
         "#agent-file-scroll": file_scroll,
-        "#agent-thinking-scroll": thinking_scroll,
-        "#agent-thinking-panel": thinking_panel,
+        "#agent-tools-scroll": tools_scroll,
+        "#agent-tools-panel": tools_panel,
         "#agent-prompt-scroll": prompt_scroll,
         "#agent-file-panel": file_panel,
     }

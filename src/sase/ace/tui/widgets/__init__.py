@@ -13,7 +13,7 @@ from .changespec_info_panel import ChangeSpecInfoPanel
 from .changespec_list import ChangeSpecList
 from .hint_input_bar import HintInputBar
 from .keybinding_footer import KeybindingFooter
-from .thinking_panel import AgentThinkingPanel, ThinkingVisibilityChanged
+from .tools_panel import AgentToolsPanel, ToolsVisibilityChanged
 from .inactive_indicator import InactiveIndicator
 from .llm_override_indicator import LLMOverrideIndicator
 from .notification_indicator import NotificationIndicator
@@ -38,7 +38,7 @@ from .xprompt_arg_assist import (
 __all__ = [
     "AgentDetail",
     "AgentInfoPanel",
-    "AgentThinkingPanel",
+    "AgentToolsPanel",
     "AgentList",
     "AncestorsChildrenPanel",
     "ActiveXPromptArgHint",
@@ -58,7 +58,7 @@ __all__ = [
     "SearchQueryPanel",
     "TabBar",
     "TaskIndicator",
-    "ThinkingVisibilityChanged",
+    "ToolsVisibilityChanged",
     "XPromptAssistEntry",
     "XPromptInputHint",
     "append_input_hints",

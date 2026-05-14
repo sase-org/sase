@@ -110,7 +110,7 @@ class AgentInfoPanel(Static):
         """Update the panel view mode indicator.
 
         Args:
-            mode: The current view mode label (``"file"``, ``"thinking"``,
+            mode: The current view mode label (``"file"``, ``"tools"``,
                 or ``"collapsed"``). Empty string hides the indicator.
         """
         self._view_mode = mode
@@ -214,7 +214,7 @@ class AgentInfoPanel(Static):
 
     _VIEW_MODE_STYLES: dict[str, str] = {
         "file": "bold green",
-        "thinking": "bold #af87d7",
+        "tools": "bold #87D7FF",
         "collapsed": "dim italic",
     }
 

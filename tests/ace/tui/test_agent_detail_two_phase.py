@@ -1,7 +1,7 @@
 """Phase-5 two-phase detail update + generation token tests.
 
 The debounced agent-list refresh should update the detail prompt header
-immediately (cheap, no workers) and defer file/thinking/diff worker
+immediately (cheap, no workers) and defer file/tools/diff worker
 spawns until the j/k burst settles.  Each ``update_display`` /
 ``update_display_immediate`` call bumps the monotonic generation token
 so debounced workers can drop stale results.

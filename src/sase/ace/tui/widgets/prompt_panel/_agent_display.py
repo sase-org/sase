@@ -80,7 +80,7 @@ class AgentDisplayMixin:
         renders it directly. Does **not** touch the artifact cache, list
         the artifacts directory, or read prompt / reply / response files.
         The debounced full update path is responsible for filling in the
-        prompt body, reply, thinking, and file content shortly after.
+        prompt body, reply, tools, and file content shortly after.
         """
         with tui_trace("widget.prompt_panel.update_header_only"):
             header_text, error_tb_syntax = build_header_text(agent, cheap=True)
@@ -358,7 +358,7 @@ class AgentDisplayMixin:
 
         Shows the attempt banner (number, timestamp, outcome), the full
         ``error_full`` traceback, the agent prompt (invariant across retries),
-        and the archived ``live_reply.md`` for the attempt. Thinking/files
+        and the archived ``live_reply.md`` for the attempt. Tools/files
         aren't snapshotted per-attempt; the detail panel hides those panels.
         """
         record = _find_attempt(agent, attempt_number)

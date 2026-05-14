@@ -62,7 +62,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.edit_panel), "Edit panel content in editor"),
                 (
                     f"{d(a.toggle_thinking)} / {d(a.toggle_thinking_reverse)}",
-                    "Cycle panels: file → thinking → metadata",
+                    "Cycle panels: file → tools → metadata",
                 ),
                 (d(a.toggle_layout), "Toggle file/prompt layout"),
                 (d(a.open_agent_artifacts), "Artifacts pane (or marked set)"),
