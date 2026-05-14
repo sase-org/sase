@@ -140,14 +140,30 @@ notes, and the contract snapshot path used by future Android work.
 The local daemon is built by the same `crates/sase_gateway` binary in the sibling `../sase-core/` workspace.
 `sase daemon start` launches `sase_gateway daemon`, stores host-local runtime files under `~/.sase/run/<hostname>/`, and
 exposes a Unix-socket framed JSON RPC surface for health, capabilities, bounded event heartbeats, diagnostics, and
-projection maintenance. Direct Python source-store readers remain authoritative until later indexed-read epics route
-CLI, ACE, editor, and mobile read paths through the daemon.
+projection maintenance. Direct Python source-store readers remain authoritative, while daemon-backed reads are
+read-through accelerators with direct fallback.
 
-Shadow indexing is diagnostic-only. The daemon watches and backfills existing source stores into rebuildable SQLite
-projections so operators can compare projected state against the current loaders before any production read path moves.
-Supported selectors are `changespecs`, `notifications`, `agents`, `beads`, `catalogs`, and `all`; use `--project` where
-the selected surface has project-scoped inputs. Diff records are bounded and categorized as `missing`, `stale`, `extra`,
-or `corrupt`.
+The daemon watches and backfills existing source stores into rebuildable SQLite projections. Read-heavy CLI, editor, and
+ACE surfaces can route through those projections when the daemon advertises the matching capability and the selected
+project/store matches the direct loader's context. Source stores remain authoritative: daemon read failures fall back to
+direct loaders unless a diagnostic command explicitly asks for daemon state. Supported selectors are `changespecs`,
+`notifications`, `agents`, `beads`, `catalogs`, and `all`; use `--project` where the selected surface has project-scoped
+inputs. Diff records are bounded and categorized as `missing`, `stale`, `extra`, or `corrupt`.
+
+Read routing controls:
+
+- `--no-daemon` on daemon-capable read commands forces the direct loader for that invocation.
+- `SASE_NO_DAEMON=1` forces direct loaders for all daemon-capable reads in the process.
+- `daemon.reads.enabled: false` disables daemon read-through globally from `sase.yml`.
+- `daemon.reads.force_direct: true` keeps the daemon available for lifecycle/diagnostics but routes production reads
+  directly to source stores.
+- `daemon.reads.surfaces.{changespecs,notifications,agents,beads,catalogs}: false` disables one rollout group.
+- `daemon.reads.surfaces.ace_agents: true` or `SASE_ACE_AGENTS_DAEMON_READS=1` enables the ACE Agents provider, which
+  remains opt-in while larger local histories continue to be measured.
+
+Fallback reasons in debug output use stable tokens: `daemon_disabled`, `daemon_reads_disabled`, `force_direct`,
+`surface_disabled`, `daemon_not_running`, `unsupported_capability`, `projection_degraded`, `cursor_expired`,
+`snapshot_expired`, `payload_too_large`, and `resource_not_found`.
 
 Recovery and diagnostic commands:
 

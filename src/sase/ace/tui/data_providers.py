@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from sase.daemon.client import LOCAL_DAEMON_DEFAULT_PAGE_LIMIT, LocalDaemonClient
+from sase.daemon.read_config import daemon_read_surface_enabled
 from sase.daemon.read_facade import DaemonReadResult, read_or_fallback
 from sase.daemon.read_models import (
     AgentProjectionSummary,
@@ -202,7 +203,11 @@ def agents_daemon_reads_enabled() -> bool:
     """Return whether ACE should try daemon-backed Agents-tab reads."""
 
     value = os.environ.get("SASE_ACE_AGENTS_DAEMON_READS", "").strip().lower()
-    return value in {"1", "true", "yes", "on"}
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    return daemon_read_surface_enabled("ace_agents")
 
 
 def make_agents_data_provider() -> AgentsDataProvider:

@@ -11,7 +11,10 @@ from sase.daemon.client import (
     LocalDaemonError,
     LocalDaemonRpcError,
     LocalDaemonTransportError,
-    daemon_disabled,
+)
+from sase.daemon.read_config import (
+    daemon_fallback_diagnostics_enabled,
+    daemon_read_disable_reason,
 )
 
 FALLBACKABLE_RPC_CODES = {
@@ -66,6 +69,7 @@ class DaemonReadResult[T]:
                 "used": self.used_daemon,
                 "fallback_reason": self.fallback_reason,
                 "fallback_message": self.fallback_message,
+                "fallback_diagnostics_enabled": (daemon_fallback_diagnostics_enabled()),
             }
         }
 
@@ -82,12 +86,13 @@ def read_or_fallback[T](
     """Run a daemon read when supported, otherwise run the direct loader."""
 
     capability = required_capability or CAPABILITY_BY_READ_SURFACE.get(surface)
-    if daemon_disabled(args):
+    disable_reason = daemon_read_disable_reason(surface, args=args)
+    if disable_reason is not None:
         return _fallback(
             surface,
             direct_loader,
-            reason="daemon_disabled",
-            message="daemon reads disabled by --no-daemon or SASE_NO_DAEMON",
+            reason=disable_reason.reason,
+            message=disable_reason.message,
         )
 
     daemon_client = client or LocalDaemonClient()

@@ -6,6 +6,8 @@ from datetime import datetime
 from typing import Any
 from unittest.mock import patch
 
+import pytest
+
 from sase.ace.tui.actions.agents._loading_helpers import (
     load_agents_from_disk_with_state,
 )
@@ -13,6 +15,7 @@ from sase.ace.tui.data_providers import (
     _AgentsProviderSnapshot,
     _DaemonAgentsDataProvider,
     _apply_daemon_agent_events,
+    agents_daemon_reads_enabled,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import AgentLoadState
@@ -201,6 +204,26 @@ def test_daemon_agents_provider_falls_back_when_capability_missing() -> None:
     assert snapshot.used_daemon is False
     assert snapshot.fallback_reason == "unsupported_capability"
     assert [agent.cl_name for agent in snapshot.agents] == ["fallback"]
+
+
+def test_ace_agents_provider_honors_rollout_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SASE_ACE_AGENTS_DAEMON_READS", raising=False)
+    config = {"daemon": {"reads": {"surfaces": {"ace_agents": True}}}}
+
+    with patch("sase.daemon.read_config.load_merged_config", return_value=config):
+        assert agents_daemon_reads_enabled() is True
+
+
+def test_ace_agents_provider_env_override_wins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_ACE_AGENTS_DAEMON_READS", "0")
+    config = {"daemon": {"reads": {"surfaces": {"ace_agents": True}}}}
+
+    with patch("sase.daemon.read_config.load_merged_config", return_value=config):
+        assert agents_daemon_reads_enabled() is False
 
 
 def test_daemon_agent_events_apply_upsert_delete_and_resync() -> None:

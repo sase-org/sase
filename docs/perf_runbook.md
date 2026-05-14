@@ -167,6 +167,38 @@ active indexed data on large histories      < 250 ms
 event-driven no-change refresh              ~0 ms
 ```
 
+## Rust daemon Epic 5 rollout gates
+
+Epic 5 routes production reads through daemon projections for surfaces that have parity tests, direct fallback, and a
+bounded recovery path. The committed gate policy lives in `tests/perf/daemon_read_rollout.py` and is exercised by
+`tests/perf/test_daemon_read_rollout.py`.
+
+Default-enabled read groups are `changespecs`, `notifications`, `agents`, `beads`, and `catalogs`. The ACE Agents data
+provider remains opt-in with `daemon.reads.surfaces.ace_agents: true` or `SASE_ACE_AGENTS_DAEMON_READS=1` until large
+history measurements prove it should be default-on.
+
+Rollout budgets:
+
+```text
+warm CLI/editor daemon read p95       <= 30 ms
+ACE first indexed snapshot p95        <= 250 ms
+ACE no-change refresh p95             <= 5 ms
+large ChangeSpec search p95           <= 100 ms
+large agent-history status p95        <= 250 ms
+```
+
+Before default-enabling a new read group, run:
+
+```bash
+sase daemon rebuild --surface <surface>
+sase daemon verify --surface <surface>
+sase daemon diff --surface <surface> --limit 100
+pytest tests/perf/test_daemon_read_rollout.py
+```
+
+Use `--no-daemon`, `SASE_NO_DAEMON=1`, `daemon.reads.force_direct: true`, or the relevant
+`daemon.reads.surfaces.<name>: false` switch to recover immediately without rebuilding projections.
+
 ## Targets per phase gate
 
 The targets below come from `sdd/research/202604/sase_perf_research.md` and are restated here so each phase agent has a

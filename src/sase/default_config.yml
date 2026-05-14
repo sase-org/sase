@@ -23,6 +23,19 @@ mobile_gateway:
   push_retry_limit: 1
   startup_timeout_seconds: 10
 
+daemon:
+  reads:
+    enabled: true
+    force_direct: false
+    fallback_diagnostics: false
+    surfaces:
+      changespecs: true
+      notifications: true
+      agents: true
+      beads: true
+      catalogs: true
+      ace_agents: false
+
 ace:
   inactive_seconds: 600
   repro_output_dir: ""

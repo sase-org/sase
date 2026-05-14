@@ -6,6 +6,7 @@ import dataclasses
 import shutil
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -196,6 +197,73 @@ def test_read_or_fallback_honors_environment_disable(
     assert result.value == "direct"
     assert result.used_daemon is False
     assert result.fallback_reason == "daemon_disabled"
+    assert transport.requests == []
+
+
+def test_read_or_fallback_honors_global_config_disable() -> None:
+    transport = FakeDaemonTransport(capabilities=["notifications.read"])
+
+    with patch(
+        "sase.daemon.read_config.load_merged_config",
+        return_value={"daemon": {"reads": {"enabled": False}}},
+    ):
+        result = read_or_fallback(
+            "notification_list",
+            client=LocalDaemonClient(transport=transport),
+            daemon_loader=lambda daemon: daemon.notification_list(),
+            direct_loader=lambda: "direct",
+        )
+
+    assert result.value == "direct"
+    assert result.used_daemon is False
+    assert result.fallback_reason == "daemon_reads_disabled"
+    assert transport.requests == []
+
+
+def test_read_or_fallback_honors_force_direct_config() -> None:
+    transport = FakeDaemonTransport(capabilities=["notifications.read"])
+
+    with patch(
+        "sase.daemon.read_config.load_merged_config",
+        return_value={"daemon": {"reads": {"force_direct": True}}},
+    ):
+        result = read_or_fallback(
+            "notification_list",
+            client=LocalDaemonClient(transport=transport),
+            daemon_loader=lambda daemon: daemon.notification_list(),
+            direct_loader=lambda: "direct",
+        )
+
+    assert result.value == "direct"
+    assert result.used_daemon is False
+    assert result.fallback_reason == "force_direct"
+    assert transport.requests == []
+
+
+def test_read_or_fallback_honors_surface_disable_config() -> None:
+    transport = FakeDaemonTransport(capabilities=["notifications.read"])
+
+    with patch(
+        "sase.daemon.read_config.load_merged_config",
+        return_value={
+            "daemon": {
+                "reads": {
+                    "enabled": True,
+                    "surfaces": {"notifications": False},
+                }
+            }
+        },
+    ):
+        result = read_or_fallback(
+            "notification_list",
+            client=LocalDaemonClient(transport=transport),
+            daemon_loader=lambda daemon: daemon.notification_list(),
+            direct_loader=lambda: "direct",
+        )
+
+    assert result.value == "direct"
+    assert result.used_daemon is False
+    assert result.fallback_reason == "surface_disabled"
     assert transport.requests == []
 
 

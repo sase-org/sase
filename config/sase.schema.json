@@ -216,6 +216,72 @@
         }
       }
     },
+    "daemon": {
+      "type": "object",
+      "description": "Configuration for the local daemon and daemon-backed reads",
+      "additionalProperties": false,
+      "properties": {
+        "reads": {
+          "type": "object",
+          "description": "Read-through routing from CLI, editor, and ACE surfaces to local daemon projections",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Globally enable daemon read-through routing when a surface and daemon capability are available.",
+              "default": true
+            },
+            "force_direct": {
+              "type": "boolean",
+              "description": "Force all daemon-capable read surfaces to use direct source-store loaders.",
+              "default": false
+            },
+            "fallback_diagnostics": {
+              "type": "boolean",
+              "description": "Allow daemon-aware commands and UIs to expose fallback reason metadata in debug output.",
+              "default": false
+            },
+            "surfaces": {
+              "type": "object",
+              "description": "Per-surface daemon read-through switches. Disabled surfaces always use direct loaders.",
+              "additionalProperties": false,
+              "properties": {
+                "changespecs": {
+                  "type": "boolean",
+                  "description": "Enable daemon-backed ChangeSpec list/search/detail reads.",
+                  "default": true
+                },
+                "notifications": {
+                  "type": "boolean",
+                  "description": "Enable daemon-backed notification list/detail/count reads.",
+                  "default": true
+                },
+                "agents": {
+                  "type": "boolean",
+                  "description": "Enable daemon-backed project-scoped agent CLI reads.",
+                  "default": true
+                },
+                "beads": {
+                  "type": "boolean",
+                  "description": "Enable daemon-backed bead reads when the selected store matches the daemon project.",
+                  "default": true
+                },
+                "catalogs": {
+                  "type": "boolean",
+                  "description": "Enable daemon-backed xprompt, snippet, editor catalog, and file-history reads.",
+                  "default": true
+                },
+                "ace_agents": {
+                  "type": "boolean",
+                  "description": "Enable the daemon-backed ACE Agents data provider by default.",
+                  "default": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "metahooks": {
       "type": "array",
       "description": "Metahooks intercept failing hooks before the summarize agent runs",
