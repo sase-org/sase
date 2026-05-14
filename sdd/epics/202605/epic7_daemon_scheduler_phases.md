@@ -72,6 +72,7 @@ Deliverables:
   in memory.
 - Add read APIs for lifecycle pages and individual lifecycle records that are independent of ACE rendering models.
 - Add shadow diff tests against current Python `list_running_agents()`, `list_all_agents()`, and workflow state loaders.
+  - Python comparison helper: `compare_lifecycle_classifications`.
 
 Acceptance gates:
 

@@ -125,7 +125,7 @@ def _running_info_from_summary(summary: AgentProjectionSummary) -> RunningAgentI
     return RunningAgentInfo(
         name=summary.agent_name,
         project=summary.project_name,
-        pid=_extra_int(summary.extra, "pid"),
+        pid=summary.pid or _extra_int(summary.extra, "pid"),
         model=summary.model,
         provider=summary.llm_provider,
         workspace_num=_workspace_num(summary),
@@ -156,7 +156,9 @@ def _show_data_from_detail(detail: AgentDetailRead) -> AgentShowData:
         project=summary.project_name,
         model=summary.model,
         provider=summary.llm_provider,
-        pid=_extra_int(summary.extra, "pid") or _extra_int(detail.extra, "pid"),
+        pid=summary.pid
+        or _extra_int(summary.extra, "pid")
+        or _extra_int(detail.extra, "pid"),
         finished_at=_finished_at_label(summary),
         outcome=outcome,
         prompt_text=_prompt_from_detail(detail),

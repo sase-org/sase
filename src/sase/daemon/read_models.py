@@ -149,6 +149,19 @@ class AgentProjectionSummary:
     has_running_marker: bool = False
     has_waiting_marker: bool = False
     has_workflow_state: bool = False
+    batch_id: str | None = None
+    queue_id: str | None = None
+    parent_agent_id: str | None = None
+    workflow_id: str | None = None
+    retry_of_agent_id: str | None = None
+    resume_of_agent_id: str | None = None
+    host_id: str | None = None
+    pid: int | None = None
+    workspace_claim_id: str | None = None
+    last_heartbeat_at: str | None = None
+    last_check_at: str | None = None
+    lifecycle_changed_at: str | None = None
+    stale_reason: str | None = None
     last_seq: int = 0
     extra: dict[str, Any] = field(default_factory=dict)
 
@@ -395,6 +408,19 @@ def _agent_summary_from_dict(data: Mapping[str, Any]) -> AgentProjectionSummary:
         "has_running_marker",
         "has_waiting_marker",
         "has_workflow_state",
+        "batch_id",
+        "queue_id",
+        "parent_agent_id",
+        "workflow_id",
+        "retry_of_agent_id",
+        "resume_of_agent_id",
+        "host_id",
+        "pid",
+        "workspace_claim_id",
+        "last_heartbeat_at",
+        "last_check_at",
+        "lifecycle_changed_at",
+        "stale_reason",
         "last_seq",
     }
     finished_at = raw.get("finished_at")
@@ -421,6 +447,19 @@ def _agent_summary_from_dict(data: Mapping[str, Any]) -> AgentProjectionSummary:
         has_running_marker=bool(raw.get("has_running_marker", False)),
         has_waiting_marker=bool(raw.get("has_waiting_marker", False)),
         has_workflow_state=bool(raw.get("has_workflow_state", False)),
+        batch_id=_optional_str(raw.get("batch_id")),
+        queue_id=_optional_str(raw.get("queue_id")),
+        parent_agent_id=_optional_str(raw.get("parent_agent_id")),
+        workflow_id=_optional_str(raw.get("workflow_id")),
+        retry_of_agent_id=_optional_str(raw.get("retry_of_agent_id")),
+        resume_of_agent_id=_optional_str(raw.get("resume_of_agent_id")),
+        host_id=_optional_str(raw.get("host_id")),
+        pid=_optional_int(raw.get("pid")),
+        workspace_claim_id=_optional_str(raw.get("workspace_claim_id")),
+        last_heartbeat_at=_optional_str(raw.get("last_heartbeat_at")),
+        last_check_at=_optional_str(raw.get("last_check_at")),
+        lifecycle_changed_at=_optional_str(raw.get("lifecycle_changed_at")),
+        stale_reason=_optional_str(raw.get("stale_reason")),
         last_seq=int(raw.get("last_seq", 0)),
         extra={key: value for key, value in raw.items() if key not in known},
     )
@@ -498,6 +537,10 @@ def _dict_list(value: Any, field_name: str) -> list[dict[str, Any]]:
 
 def _optional_str(value: Any) -> str | None:
     return None if value is None else str(value)
+
+
+def _optional_int(value: Any) -> int | None:
+    return None if value is None else int(value)
 
 
 __all__ = [
