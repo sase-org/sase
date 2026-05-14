@@ -15,6 +15,11 @@
           "description": "Seconds of inactivity before auto-sleep",
           "default": 600
         },
+        "repro_output_dir": {
+          "type": "string",
+          "description": "Directory where ACE agent repro captures are written. Empty string uses the runtime default.",
+          "default": ""
+        },
         "snippets": {
           "type": "object",
           "description": "Snippet expansions for the prompt input (trigger string to expansion text)",
@@ -116,6 +121,17 @@
           },
           "default": []
         },
+        "lumberjack_log_max_bytes": {
+          "type": "integer",
+          "description": "Maximum bytes retained for each bounded lumberjack log.",
+          "default": 52428800,
+          "minimum": 1
+        },
+        "verbose_lumberjack_diagnostics": {
+          "type": "boolean",
+          "description": "Include verbose lumberjack diagnostics in chop script contexts.",
+          "default": false
+        },
         "lumberjacks": {
           "type": "object",
           "description": "Named lumberjack definitions. Each key is a lumberjack name with interval and chops config.",
@@ -187,6 +203,94 @@
         }
       }
     },
+    "mobile_gateway": {
+      "type": "object",
+      "description": "Configuration for the workstation-hosted mobile gateway",
+      "additionalProperties": false,
+      "properties": {
+        "bind_address": {
+          "type": "string",
+          "description": "Host address to bind the mobile gateway.",
+          "default": "127.0.0.1"
+        },
+        "port": {
+          "type": "integer",
+          "description": "TCP port for the mobile gateway HTTP API.",
+          "default": 7629,
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "state_dir": {
+          "type": "string",
+          "description": "State directory passed to the gateway as the SASE home. Empty string uses the runtime default.",
+          "default": ""
+        },
+        "allow_non_loopback": {
+          "type": "boolean",
+          "description": "Allow explicit non-loopback gateway binds.",
+          "default": false
+        },
+        "command": {
+          "type": "string",
+          "description": "Gateway command override, parsed without a shell. Empty string uses PATH/sibling-repo discovery.",
+          "default": ""
+        },
+        "agent_bridge_command": {
+          "type": "string",
+          "description": "Agent bridge command override passed through to the gateway.",
+          "default": ""
+        },
+        "helper_bridge_command": {
+          "type": "string",
+          "description": "Helper bridge command override passed through to the gateway.",
+          "default": ""
+        },
+        "push_provider": {
+          "type": "string",
+          "description": "Push notification provider for mobile clients.",
+          "enum": ["disabled", "test", "fcm"],
+          "default": "disabled"
+        },
+        "fcm_project_id": {
+          "type": "string",
+          "description": "Firebase Cloud Messaging project ID.",
+          "default": ""
+        },
+        "fcm_service_account_json": {
+          "type": "string",
+          "description": "Path to a Firebase service account JSON file. Empty string disables file credentials.",
+          "default": ""
+        },
+        "fcm_credential_env": {
+          "type": "string",
+          "description": "Environment variable containing Firebase credentials JSON.",
+          "default": ""
+        },
+        "fcm_dry_run": {
+          "type": "boolean",
+          "description": "Send FCM notifications in dry-run mode.",
+          "default": false
+        },
+        "push_timeout_seconds": {
+          "type": "number",
+          "description": "Seconds to wait for each push notification request.",
+          "default": 5,
+          "exclusiveMinimum": 0
+        },
+        "push_retry_limit": {
+          "type": "integer",
+          "description": "Number of push notification retry attempts.",
+          "default": 1,
+          "minimum": 0
+        },
+        "startup_timeout_seconds": {
+          "type": "number",
+          "description": "Seconds to wait for the gateway to become ready.",
+          "default": 10,
+          "exclusiveMinimum": 0
+        }
+      }
+    },
     "chat_install": {
       "type": "object",
       "description": "Configuration for chat-driven update workflows",
@@ -221,6 +325,61 @@
       "description": "Configuration for the local daemon and daemon-backed reads",
       "additionalProperties": false,
       "properties": {
+        "command": {
+          "type": "string",
+          "description": "Daemon gateway command override, parsed without a shell. Empty string uses PATH/sibling-repo discovery.",
+          "default": ""
+        },
+        "sase_home": {
+          "type": "string",
+          "description": "SASE home directory for daemon state. Empty string uses the runtime default.",
+          "default": ""
+        },
+        "run_root": {
+          "type": "string",
+          "description": "Daemon runtime directory. Empty string uses the runtime default.",
+          "default": ""
+        },
+        "socket_path": {
+          "type": "string",
+          "description": "Daemon Unix socket path. Empty string uses the runtime default.",
+          "default": ""
+        },
+        "disable_mobile_http": {
+          "type": "boolean",
+          "description": "Disable the mobile HTTP API when starting daemon mode.",
+          "default": false
+        },
+        "startup_timeout_seconds": {
+          "type": "number",
+          "description": "Seconds to wait for daemon background startup metadata.",
+          "default": 5,
+          "exclusiveMinimum": 0
+        },
+        "rollout": {
+          "type": "object",
+          "description": "Daemon rollout milestone controls.",
+          "additionalProperties": false,
+          "properties": {
+            "milestones": {
+              "type": "object",
+              "description": "Milestone-level daemon rollout switches.",
+              "additionalProperties": false,
+              "properties": {
+                "m0_shadow_indexing": {
+                  "type": "boolean",
+                  "description": "Enable M0 shadow indexing, rebuild, verify, and diff diagnostics.",
+                  "default": true
+                },
+                "m1_read_through": {
+                  "type": "boolean",
+                  "description": "Enable M1 selected CLI/editor daemon read-through surfaces.",
+                  "default": true
+                }
+              }
+            }
+          }
+        },
         "provider_host": {
           "type": "object",
           "description": "Rollout controls for isolated provider/plugin host routing",
@@ -289,6 +448,31 @@
             }
           }
         },
+        "scheduler": {
+          "type": "object",
+          "description": "Daemon scheduler rollout modes.",
+          "additionalProperties": false,
+          "properties": {
+            "launch_mode": {
+              "type": "string",
+              "description": "Rollout mode for agent launch scheduling.",
+              "enum": ["direct", "shadow", "daemon"],
+              "default": "direct"
+            },
+            "lifecycle_mode": {
+              "type": "string",
+              "description": "Rollout mode for agent lifecycle mutation scheduling.",
+              "enum": ["direct", "shadow", "daemon"],
+              "default": "direct"
+            },
+            "axe_mode": {
+              "type": "string",
+              "description": "Rollout mode for axe task scheduling.",
+              "enum": ["direct", "daemon"],
+              "default": "direct"
+            }
+          }
+        },
         "reads": {
           "type": "object",
           "description": "Read-through routing from CLI, editor, and ACE surfaces to local daemon projections",
@@ -342,6 +526,26 @@
                 "ace_agents": {
                   "type": "boolean",
                   "description": "Enable the daemon-backed ACE Agents data provider by default.",
+                  "default": false
+                },
+                "ace_changespecs": {
+                  "type": "boolean",
+                  "description": "Enable the daemon-backed ACE ChangeSpecs data provider by default.",
+                  "default": false
+                },
+                "ace_notifications": {
+                  "type": "boolean",
+                  "description": "Enable the daemon-backed ACE Notifications data provider by default.",
+                  "default": false
+                },
+                "ace_artifacts": {
+                  "type": "boolean",
+                  "description": "Enable the daemon-backed ACE Artifacts data provider by default.",
+                  "default": false
+                },
+                "ace_archive_search": {
+                  "type": "boolean",
+                  "description": "Enable the daemon-backed ACE archive search provider by default.",
                   "default": false
                 }
               }

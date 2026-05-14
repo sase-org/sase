@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-14 13:15:41
-status: wip
+status: done
 prompt: sdd/prompts/202605/config_schema_coverage.md
 ---
 # Config Schema Coverage Plan
