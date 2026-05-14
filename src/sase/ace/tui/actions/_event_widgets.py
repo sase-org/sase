@@ -1,0 +1,239 @@
+"""Widget message handlers for the ACE TUI."""
+
+from __future__ import annotations
+
+from textual import events
+
+from ..widgets import AgentList, BgCmdList, ChangeSpecList, TabBar
+from ._event_base import EventHandlersBase
+
+
+class EventWidgetHandlersMixin(EventHandlersBase):
+    """Mixin providing list, tab, and resize message handlers."""
+
+    def on_change_spec_list_selection_changed(
+        self, event: ChangeSpecList.SelectionChanged
+    ) -> None:
+        """Handle selection change in the ChangeSpec list widget."""
+        if self.current_tab == "changespecs" and 0 <= event.index < len(
+            self.changespecs
+        ):
+            # Push to history when clicking on a different CL
+            if event.index != self.current_idx:
+                self._push_changespec_to_history()  # type: ignore[attr-defined]
+            self.current_idx = event.index
+
+    def on_agent_list_selection_changed(
+        self, event: AgentList.SelectionChanged
+    ) -> None:
+        """Handle selection change in the Agent list widget.
+
+        Each AgentList instance is a tag-bucket panel; ``event.index`` is
+        local to that panel, so we translate it back to a global agent
+        index using the panel's filtered slice.
+        """
+        if self.current_tab != "agents":
+            return
+
+        from ..models.agent_panels import agents_for_panel
+        from ..widgets import AgentList
+
+        widget = event.control
+        if not isinstance(widget, AgentList):
+            return
+        wid = widget.id
+        panel_keys = self._panel_group.panel_keys  # type: ignore[attr-defined]
+        # Map widget id back to panel index.
+        try:
+            if wid == "agent-list-panel":
+                panel_idx = 0
+            elif wid is not None and wid.startswith("agent-list-panel-"):
+                panel_idx = int(wid.rsplit("-", 1)[-1])
+            else:
+                return
+        except ValueError:
+            return
+        if not (0 <= panel_idx < len(panel_keys)):
+            return
+        panel_key = panel_keys[panel_idx]
+
+        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
+        global_indices = [i for i, k in enumerate(keys_per_agent) if k == panel_key]
+        panel_agents = agents_for_panel(
+            self._agents,
+            panel_key,
+            merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
+        )
+
+        if event.group_key is not None:
+            # Banner row click — anchor focus on the first agent in the
+            # banner's group (already mapped to a local index when
+            # AgentList resolved the row).
+            if not (0 <= event.index < len(panel_agents)):
+                return
+            target_global = global_indices[event.index]
+        else:
+            if not (0 <= event.index < len(panel_agents)):
+                return
+            target_global = global_indices[event.index]
+
+        if (
+            panel_idx != self._panel_group.focused_idx  # type: ignore[attr-defined]
+            or target_global != self.current_idx
+            or event.group_key != getattr(self, "_current_group_key", None)
+        ):
+            guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
+            if callable(guard) and guard():
+                return
+
+        # Switching panel via mouse click moves panel focus too.
+        if panel_idx != self._panel_group.focused_idx:  # type: ignore[attr-defined]
+            self._panel_group.focused_idx = panel_idx  # type: ignore[attr-defined]
+
+        old_idx = self.current_idx
+        old_group_key = getattr(self, "_current_group_key", None)
+        if (
+            old_group_key is None
+            and 0 <= old_idx < len(self._agents)
+            and (target_global != old_idx or event.group_key is not None)
+        ):
+            old_agent = self._agents[old_idx]
+            arm_manual = getattr(self, "_arm_manual_unread_after_departure", None)
+            if callable(arm_manual):
+                arm_manual(old_agent)
+            else:
+                manual_ids = getattr(self, "_manual_unread_agent_ids", None)
+                if manual_ids is not None:
+                    manual_ids.discard(old_agent.identity)
+
+        # Updating current_idx clears _current_attempt_number (setter
+        # in AceApp). Set the attempt number after so attempt-child
+        # selections land on the pinned view.
+        if target_global == self.current_idx:
+            self.current_attempt_number = event.attempt_number  # type: ignore[attr-defined]
+        else:
+            self.current_idx = target_global
+            self.current_attempt_number = event.attempt_number  # type: ignore[attr-defined]
+        # A banner row carries a ``group_key`` so banner-aware actions
+        # can target the group; selecting an agent row clears it.
+        self._current_group_key = event.group_key  # type: ignore[attr-defined]
+
+        if event.group_key is None and 0 <= target_global < len(self._agents):
+            target_agent = self._agents[target_global]
+            ack_unread = getattr(self, "_acknowledge_agent_unread", None)
+            if callable(ack_unread):
+                ack_unread(target_agent)
+                return
+            manual_ids = getattr(self, "_manual_unread_agent_ids", None)
+            if isinstance(manual_ids, set) and target_agent.identity in manual_ids:
+                return
+            unread_ids = getattr(self, "_unread_completed_agent_ids", None)
+            if unread_ids is not None and target_agent.identity in unread_ids:
+                unread_ids.discard(target_agent.identity)
+                patched = False
+                patch_row = getattr(self, "_try_patch_agent_row", None)
+                if callable(patch_row):
+                    patched = bool(patch_row(target_agent))
+                if not patched:
+                    refresh = getattr(self, "_refresh_agents_display", None)
+                    if callable(refresh):
+                        refresh(list_changed=True, defer_detail=True)
+
+    def on_tab_bar_tab_clicked(self, event: TabBar.TabClicked) -> None:
+        """Handle tab clicks from the tab bar."""
+        if event.tab != self.current_tab:
+            # Save current position before switching
+            self._save_current_tab_position()  # type: ignore[attr-defined]
+            # Set appropriate index for target tab
+            if event.tab == "changespecs":
+                self.current_idx = self._get_clamped_changespecs_idx()  # type: ignore[attr-defined]
+            elif event.tab == "agents":
+                self.current_idx = self._get_clamped_agents_idx()  # type: ignore[attr-defined]
+            else:  # axe
+                self.current_idx = self._get_clamped_axe_idx()  # type: ignore[attr-defined]
+            self.current_tab = event.tab  # type: ignore[assignment]
+
+    def on_change_spec_list_width_changed(
+        self, event: ChangeSpecList.WidthChanged
+    ) -> None:
+        """Handle width change from the list widget."""
+        from textual.css.query import NoMatches
+
+        from ..app import _MAX_LIST_WIDTH, _MIN_LIST_WIDTH
+
+        width = max(_MIN_LIST_WIDTH, min(_MAX_LIST_WIDTH, event.width))
+        try:
+            list_container = self.query_one("#list-container")  # type: ignore[attr-defined]
+        except NoMatches:
+            return
+        list_container.styles.width = width
+
+    def on_agent_list_width_changed(self, event: AgentList.WidthChanged) -> None:
+        """Handle width change from the agent list widget."""
+        from textual.css.query import NoMatches
+
+        from ..app import _MAX_AGENT_LIST_WIDTH, _MIN_AGENT_LIST_WIDTH
+
+        try:
+            agent_list_container = self.query_one("#agent-list-container")  # type: ignore[attr-defined]
+        except NoMatches:
+            return
+        agent_lists = self.query("#agent-list-container AgentList").results(  # type: ignore[attr-defined]
+            AgentList
+        )
+        requested_widths = [
+            width
+            for widget in agent_lists
+            if (width := getattr(widget, "_requested_width", 0)) > 0
+        ]
+        desired_width = max([event.width, *requested_widths])
+        width = max(_MIN_AGENT_LIST_WIDTH, min(_MAX_AGENT_LIST_WIDTH, desired_width))
+        agent_list_container.styles.width = width
+
+    def on_resize(self, _event: events.Resize) -> None:
+        """Re-apply per-panel heights when geometry changes.
+
+        Layout cycling and terminal resizes change the agent-list
+        container's available height; the panel-sizing decision is
+        height-dependent, so recompute without rebuilding options.
+        """
+        if not hasattr(self, "_panel_group"):
+            return
+        reapply = getattr(self, "_reapply_panel_heights", None)
+        if reapply is not None:
+            reapply()
+
+    def on_bg_cmd_list_selection_changed(
+        self, event: BgCmdList.SelectionChanged
+    ) -> None:
+        """Handle selection change in the BgCmdList widget."""
+        if self.current_tab == "axe":
+            self.current_idx = event.index
+
+    def on_bg_cmd_list_width_changed(self, event: BgCmdList.WidthChanged) -> None:
+        """Resize the AXE sidebar to fit its widest formatted row."""
+        from textual.css.query import NoMatches
+
+        from ..app import (
+            _BGCMD_LIST_RESERVED_FOR_DASHBOARD,
+            _MAX_BGCMD_LIST_WIDTH,
+            _MIN_BGCMD_LIST_WIDTH,
+        )
+
+        try:
+            container = self.query_one("#bgcmd-list-container")  # type: ignore[attr-defined]
+        except NoMatches:
+            return
+        terminal_width = getattr(getattr(self, "size", None), "width", 0) or 0
+        max_for_terminal = _MAX_BGCMD_LIST_WIDTH
+        if terminal_width > 0:
+            # Leave at least ``_BGCMD_LIST_RESERVED_FOR_DASHBOARD`` cells for
+            # the right-hand AXE dashboard so a wide sidebar can never push
+            # the dashboard out of the viewport on tight terminals.
+            terminal_cap = max(
+                _MIN_BGCMD_LIST_WIDTH,
+                terminal_width - _BGCMD_LIST_RESERVED_FOR_DASHBOARD,
+            )
+            max_for_terminal = min(_MAX_BGCMD_LIST_WIDTH, terminal_cap)
+        width = max(_MIN_BGCMD_LIST_WIDTH, min(max_for_terminal, event.width))
+        container.styles.width = width
