@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socket
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from sase.daemon.client import (
     LocalDaemonUnavailableError,
     default_socket_path,
 )
+from sase.daemon.protocol import read_exact
 from tests._daemon_client_helpers import serve_one, serve_stream
 
 
@@ -166,6 +168,22 @@ def test_missing_socket_raises_typed_unavailable(tmp_path: Path) -> None:
         LocalDaemonClient(tmp_path / "missing.sock", timeout=0.01).health()
 
     assert error.value.fallback_reason == "daemon_not_running"
+
+
+def test_socket_close_during_frame_is_fallbackable() -> None:
+    """Daemon restart/crash mid-frame should route read surfaces to fallback."""
+    reader, writer = socket.socketpair()
+    try:
+        writer.close()
+
+        with pytest.raises(LocalDaemonTransportError) as error:
+            read_exact(reader, 4)
+
+        assert error.value.code == "daemon_unavailable"
+        assert error.value.fallback_reason == "daemon_not_running"
+        assert error.value.retryable is True
+    finally:
+        reader.close()
 
 
 def test_read_events_sends_subscription_request_and_reads_bounded_batches(

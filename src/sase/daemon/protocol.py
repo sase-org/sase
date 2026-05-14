@@ -34,8 +34,9 @@ def read_exact(sock: socket.socket, size: int) -> bytes:
         if not chunk:
             raise LocalDaemonTransportError(
                 "local daemon socket closed before a complete frame was read",
-                code="invalid_request",
-                fallback_reason=None,
+                code="daemon_unavailable",
+                fallback_reason="daemon_not_running",
+                retryable=True,
             )
         chunks.append(chunk)
         remaining -= len(chunk)
