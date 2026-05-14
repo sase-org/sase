@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "manifest_version": "host-manifest.v1-draft",
+  "required_fields": [
+    "plugin_id",
+    "manifest_version",
+    "entry_points",
+    "operation_families",
+    "classification_summary",
+    "network_policy",
+    "filesystem_roots",
+    "process_policy",
+    "environment_requirements",
+    "timeout_hints",
+    "warm_host_eligible",
+    "wasm_compatibility_notes",
+    "compatibility_mode"
+  ],
+  "manifests": [
+    {
+      "plugin_id": "builtin.llm.claude",
+      "manifest_version": "host-manifest.v1-draft",
+      "entry_points": {"sase_llm": "claude"},
+      "operation_families": ["llm.metadata", "llm.resolve_model", "llm.invoke"],
+      "classification_summary": {
+        "llm.metadata": "pure_metadata",
+        "llm.resolve_model": "pure_metadata",
+        "llm.invoke": "long_running_execution"
+      },
+      "network_policy": {"default": "deny", "llm.invoke": "provider_cli_may_network"},
+      "filesystem_roots": ["cwd", "sase_home", "provider_config_home", "agent_artifacts_dir"],
+      "process_policy": {"spawn": ["claude"], "kill_children_on_cancel": true},
+      "environment_requirements": ["PATH", "HOME", "SASE_HOME", "CLAUDE_*"],
+      "timeout_hints": {"metadata_ms": 1000, "invoke_default_ms": 1800000},
+      "warm_host_eligible": true,
+      "wasm_compatibility_notes": "Metadata is WASM-compatible; invocation depends on external CLI/process APIs.",
+      "compatibility_mode": "builtin_default"
+    },
+    {
+      "plugin_id": "builtin.llm.codex",
+      "manifest_version": "host-manifest.v1-draft",
+      "entry_points": {"sase_llm": "codex"},
+      "operation_families": ["llm.metadata", "llm.resolve_model", "llm.invoke"],
+      "classification_summary": {
+        "llm.metadata": "pure_metadata",
+        "llm.resolve_model": "pure_metadata",
+        "llm.invoke": "long_running_execution"
+      },
+      "network_policy": {"default": "deny", "llm.invoke": "provider_cli_may_network"},
+      "filesystem_roots": ["cwd", "sase_home", "provider_config_home", "agent_artifacts_dir"],
+      "process_policy": {"spawn": ["codex"], "kill_children_on_cancel": true},
+      "environment_requirements": ["PATH", "HOME", "SASE_HOME", "CODEX_*", "OPENAI_*"],
+      "timeout_hints": {"metadata_ms": 1000, "invoke_default_ms": 1800000},
+      "warm_host_eligible": true,
+      "wasm_compatibility_notes": "Metadata is WASM-compatible; invocation depends on external CLI/process APIs.",
+      "compatibility_mode": "builtin_default"
+    },
+    {
+      "plugin_id": "builtin.llm.gemini",
+      "manifest_version": "host-manifest.v1-draft",
+      "entry_points": {"sase_llm": "gemini"},
+      "operation_families": ["llm.metadata", "llm.resolve_model", "llm.invoke"],
+      "classification_summary": {
+        "llm.metadata": "pure_metadata",
+        "llm.resolve_model": "pure_metadata",
+        "llm.invoke": "long_running_execution"
+      },
+      "network_policy": {"default": "deny", "llm.invoke": "provider_cli_may_network"},
+      "filesystem_roots": ["cwd", "sase_home", "provider_config_home", "agent_artifacts_dir"],
+      "process_policy": {"spawn": ["gemini"], "kill_children_on_cancel": true},
+      "environment_requirements": ["PATH", "HOME", "SASE_HOME", "GEMINI_*", "GOOGLE_*"],
+      "timeout_hints": {"metadata_ms": 1000, "invoke_default_ms": 1800000},
+      "warm_host_eligible": true,
+      "wasm_compatibility_notes": "Metadata is WASM-compatible; invocation depends on external CLI/process APIs.",
+      "compatibility_mode": "builtin_default"
+    },
+    {
+      "plugin_id": "builtin.llm.opencode",
+      "manifest_version": "host-manifest.v1-draft",
+      "entry_points": {"sase_llm": "opencode"},
+      "operation_families": ["llm.metadata", "llm.resolve_model", "llm.invoke"],
+      "classification_summary": {
+        "llm.metadata": "pure_metadata",
+        "llm.resolve_model": "pure_metadata",
+        "llm.invoke": "long_running_execution"
+      },
+      "network_policy": {"default": "deny", "llm.invoke": "provider_cli_may_network"},
+      "filesystem_roots": ["cwd", "sase_home", "provider_config_home", "agent_artifacts_dir"],
+      "process_policy": {"spawn": ["opencode"], "kill_children_on_cancel": true},
+      "environment_requirements": ["PATH", "HOME", "SASE_HOME", "OPENCODE_*"],
+      "timeout_hints": {"metadata_ms": 1000, "invoke_default_ms": 1800000},
+      "warm_host_eligible": true,
+      "wasm_compatibility_notes": "Metadata is WASM-compatible; invocation depends on external CLI/process APIs.",
+      "compatibility_mode": "builtin_default"
+    },
+    {
+      "plugin_id": "builtin.llm.qwen",
+      "manifest_version": "host-manifest.v1-draft",
+      "entry_points": {"sase_llm": "qwen"},
+      "operation_families": ["llm.metadata", "llm.resolve_model", "llm.invoke"],
+      "classification_summary": {
+        "llm.metadata": "pure_metadata",
+        "llm.resolve_model": "pure_metadata",
+        "llm.invoke": "long_running_execution"
+      },
+      "network_policy": {"default": "deny", "llm.invoke": "provider_cli_may_network"},
+      "filesystem_roots": ["cwd", "sase_home", "provider_config_home", "agent_artifacts_dir"],
+      "process_policy": {"spawn": ["qwen"], "kill_children_on_cancel": true},
+      "environment_requirements": ["PATH", "HOME", "SASE_HOME", "QWEN_*"],
+      "timeout_hints": {"metadata_ms": 1000, "invoke_default_ms": 1800000},
+      "warm_host_eligible": true,
+      "wasm_compatibility_notes": "Metadata is WASM-compatible; invocation depends on external CLI/process APIs.",
+      "compatibility_mode": "builtin_default"
+    },
+    {
+      "plugin_id": "builtin.vcs.bare_git",
+      "manifest_version": "host-manifest.v1-draft",
+      "entry_points": {"sase_vcs": "bare_git", "sase_workspace": "bare_git"},
+      "operation_families": [
+        "vcs.query",
+        "vcs.mutation",
+        "vcs.commit_dispatch",
+        "workspace.metadata",
+        "workspace.resolve_ref",
+        "workspace.setup",
+        "workspace.submit"
+      ],
+      "classification_summary": {
+        "vcs.query": "bounded_side_effect_query",
+        "vcs.mutation": "durable_mutation",
+        "vcs.commit_dispatch": "durable_mutation",
+        "workspace.metadata": "pure_query",
+        "workspace.resolve_ref": "bounded_side_effect_query",
+        "workspace.setup": "durable_mutation",
+        "workspace.submit": "durable_mutation"
+      },
+      "network_policy": {"default": "deny", "remote_push_or_fetch": "compatibility_mode"},
+      "filesystem_roots": ["cwd", "workspace_root", "project_file_dir", "sase_home"],
+      "process_policy": {"spawn": ["git"], "kill_children_on_cancel": true},
+      "environment_requirements": ["PATH", "HOME", "SASE_HOME", "GIT_*"],
+      "timeout_hints": {"query_ms": 10000, "mutation_ms": 120000, "setup_ms": 300000},
+      "warm_host_eligible": true,
+      "wasm_compatibility_notes": "Query metadata could be WASM-compatible with a Git library; current implementation shells out to git.",
+      "compatibility_mode": "builtin_default"
+    },
+    {
+      "plugin_id": "builtin.workspace.cd",
+      "manifest_version": "host-manifest.v1-draft",
+      "entry_points": {"sase_workspace": "cd"},
+      "operation_families": ["workspace.metadata", "workspace.resolve_ref"],
+      "classification_summary": {
+        "workspace.metadata": "pure_metadata",
+        "workspace.resolve_ref": "bounded_side_effect_query"
+      },
+      "network_policy": {"default": "deny"},
+      "filesystem_roots": ["cwd", "declared_workspace_root"],
+      "process_policy": {"spawn": [], "kill_children_on_cancel": false},
+      "environment_requirements": ["HOME", "SASE_HOME"],
+      "timeout_hints": {"metadata_ms": 1000, "resolve_ref_ms": 5000},
+      "warm_host_eligible": true,
+      "wasm_compatibility_notes": "Mostly WASM-compatible if path and config inputs are provided by the host envelope.",
+      "compatibility_mode": "builtin_default"
+    },
+    {
+      "plugin_id": "external.github",
+      "manifest_version": "host-manifest.v1-draft",
+      "entry_points": {
+        "sase_vcs": "github",
+        "sase_workspace": "github",
+        "sase_config": "sase_github",
+        "sase_xprompts": "sase_github"
+      },
+      "operation_families": [
+        "vcs.query",
+        "vcs.mutation",
+        "vcs.commit_dispatch",
+        "workspace.metadata",
+        "workspace.resolve_ref",
+        "workspace.submit",
+        "config.resources",
+        "xprompt.catalog"
+      ],
+      "classification_summary": {
+        "vcs.query": "bounded_side_effect_query",
+        "vcs.mutation": "durable_mutation",
+        "vcs.commit_dispatch": "durable_mutation",
+        "workspace.metadata": "pure_query",
+        "workspace.resolve_ref": "bounded_side_effect_query",
+        "workspace.submit": "durable_mutation",
+        "config.resources": "pure_query",
+        "xprompt.catalog": "pure_query"
+      },
+      "network_policy": {
+        "default": "deny",
+        "github_api_read": "required_for_vcs_get_change_body_and_reviewer_comments",
+        "github_api_write": "required_for_pull_request_submit_and_abandon"
+      },
+      "filesystem_roots": ["cwd", "workspace_root", "project_file_dir", "sase_home", "package_resources"],
+      "process_policy": {"spawn": ["git", "gh"], "kill_children_on_cancel": true},
+      "environment_requirements": ["PATH", "HOME", "SASE_HOME", "GH_*", "GITHUB_*"],
+      "timeout_hints": {"query_ms": 15000, "mutation_ms": 180000, "resource_catalog_ms": 5000},
+      "warm_host_eligible": true,
+      "wasm_compatibility_notes": "Resource catalog is WASM-compatible. VCS/workspace operations currently require git/gh process and network APIs.",
+      "compatibility_mode": "external_maintained_default"
+    }
+  ]
+}
