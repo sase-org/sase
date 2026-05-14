@@ -138,7 +138,7 @@ class ReproLoadState:
 
     tier: Literal["tier1", "tier2"]
     complete_history: bool
-    artifact_source: Literal["artifact_index", "source_scan"]
+    artifact_source: Literal["artifact_index", "source_scan", "daemon_projection"]
     used_artifact_index: bool
     index_error: str | None = None
 
@@ -148,9 +148,14 @@ class ReproLoadState:
         if tier != "tier1" and tier != "tier2":
             raise ValueError("load_state.tier must be 'tier1' or 'tier2'")
         source = data.get("artifact_source")
-        if source != "artifact_index" and source != "source_scan":
+        if (
+            source != "artifact_index"
+            and source != "source_scan"
+            and source != "daemon_projection"
+        ):
             raise ValueError(
-                "load_state.artifact_source must be 'artifact_index' or 'source_scan'"
+                "load_state.artifact_source must be 'artifact_index', "
+                "'source_scan', or 'daemon_projection'"
             )
         return cls(
             tier=tier,

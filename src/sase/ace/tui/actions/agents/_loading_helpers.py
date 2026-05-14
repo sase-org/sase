@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType  # noqa: F401
     from ...models.agent_loader import AgentLoadState
+    from ...data_providers import AgentsDataProvider
 
 from ...util.trace import tui_trace
 from ...models.agent_status import DISMISSABLE_STATUSES
@@ -79,6 +80,7 @@ def load_agents_from_disk_with_state(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     full_history: bool = False,
+    data_provider: AgentsDataProvider | None = None,
 ) -> _AgentDiskLoadResult:
     """Load agents from disk and include the tiered load state."""
 
@@ -87,6 +89,7 @@ def load_agents_from_disk_with_state(
             dismissed_agents,
             changespec_snapshot=changespec_snapshot,
             full_history=full_history,
+            data_provider=data_provider,
         )
 
 
@@ -95,13 +98,17 @@ def _load_agents_from_disk_impl(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     full_history: bool = False,
+    data_provider: AgentsDataProvider | None = None,
 ) -> _AgentDiskLoadResult:
-    from ...models.agent_loader import load_tiered_agents
+    from ...data_providers import make_agents_data_provider
 
-    all_agents, load_state = load_tiered_agents(
+    provider = data_provider or make_agents_data_provider()
+    snapshot = provider.load_agents(
         changespec_snapshot=changespec_snapshot,
         full_history=full_history,
     )
+    all_agents = snapshot.agents
+    load_state = snapshot.load_state
 
     # Populate retry fields from retry_state.json for running agents and
     # prior-attempt history (from attempts/<N>/) for all agents.

@@ -131,6 +131,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
                 surface artifacts the persistent index may not yet know
                 about.
         """
+        from ...data_providers import agents_daemon_reads_enabled
         from ....changespec import find_all_changespecs_cached
 
         on_agents_tab = self.current_tab == "agents"
@@ -146,7 +147,9 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
 
         self._merge_external_dismissals()
         dismissed_snapshot = set(self._dismissed_agents)
-        changespec_snapshot = find_all_changespecs_cached()
+        changespec_snapshot = (
+            None if agents_daemon_reads_enabled() else find_all_changespecs_cached()
+        )
         load_result = _resolve_load_agents_from_disk_with_state()(
             dismissed_snapshot,
             changespec_snapshot=changespec_snapshot,
@@ -184,6 +187,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         """
         import asyncio
 
+        from ...data_providers import agents_daemon_reads_enabled
         from ....changespec import find_all_changespecs_cached
 
         merge_result = await asyncio.to_thread(
@@ -191,7 +195,11 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         )
         self._apply_external_dismissal_merge(merge_result)
         dismissed_snapshot = set(self._dismissed_agents)
-        changespec_snapshot = await asyncio.to_thread(find_all_changespecs_cached)
+        changespec_snapshot = (
+            None
+            if agents_daemon_reads_enabled()
+            else await asyncio.to_thread(find_all_changespecs_cached)
+        )
         disk_start = time.perf_counter()
         load_result = await asyncio.to_thread(
             _resolve_load_agents_from_disk_with_state(),
