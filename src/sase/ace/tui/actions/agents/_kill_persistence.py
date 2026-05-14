@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 from ._dismiss_persistence import (
     persist_cleanup_side_effect_intents,
     persist_dismiss_side_effects,
+    submit_lifecycle_targets,
 )
 from ._killing_utils import (
     delete_agent_artifacts,
@@ -36,6 +37,8 @@ def persist_kill_side_effects(
     kind: KillKind,
     agents_with_children_snapshot: list[Agent],
     cleanup_plan: AgentCleanupPlanWire | None = None,
+    *,
+    submit_scheduler: bool = True,
 ) -> bool:
     """Apply filesystem/project-file side effects for a kill operation.
 
@@ -44,6 +47,12 @@ def persist_kill_side_effects(
     persistence paths because those status-line updates are not represented as
     cleanup-plan intents.
     """
+    if submit_scheduler:
+        submit_lifecycle_targets(
+            "kill",
+            [agent],
+            reason=f"ace.kill.{kind}",
+        )
     consumed_intents = persist_cleanup_side_effect_intents(
         cleanup_plan,
         agents_with_children_snapshot,
@@ -74,6 +83,16 @@ def persist_bulk_kill_side_effects(
     """Apply filesystem/project-file side effects for a bulk kill operation."""
     from ....dismissed_agents import save_dismissed_agents
 
+    submit_lifecycle_targets(
+        "kill",
+        [item.agent for item in kill_items],
+        reason="ace.kill.bulk",
+    )
+    submit_lifecycle_targets(
+        "dismiss",
+        dismissable,
+        reason="ace.kill.bulk_dismissable",
+    )
     consumed_intents = persist_cleanup_side_effect_intents(
         cleanup_plan,
         agents_with_children_snapshot,
@@ -85,6 +104,7 @@ def persist_bulk_kill_side_effects(
             item.agent,
             item.kind,
             agents_with_children_snapshot,
+            submit_scheduler=False,
         )
     if not consumed_intents:
         for agent in dismissable:

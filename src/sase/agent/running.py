@@ -418,10 +418,30 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
     project_name = artifacts_path.parent.parent.parent.name
     project_dir = artifacts_path.parent.parent.parent
     project_file = preferred_project_spec_path(str(project_dir), project_name)
+    cl_name = _read_cl_name_from_meta(artifacts_path)
+
+    try:
+        from sase.daemon.lifecycle_scheduler import (
+            lifecycle_target_for_name,
+            submit_lifecycle_batch_if_enabled,
+        )
+
+        submit_lifecycle_batch_if_enabled(
+            [
+                lifecycle_target_for_name(
+                    "kill",
+                    name,
+                    project_id=project_name or "global",
+                    reason="agents.kill",
+                    exact_name=exact_name,
+                )
+            ]
+        )
+    except Exception:
+        pass
 
     # Find PID
     pid: int | None = None
-    cl_name: str | None = None
     is_home = project_name == "home"
 
     if is_home:
@@ -434,7 +454,6 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
                 pid = data.get("pid")
             except (json.JSONDecodeError, OSError):
                 pass
-        cl_name = _read_cl_name_from_meta(artifacts_path)
     else:
         # Non-home: scan RUNNING field for matching artifacts_timestamp
         from sase.running_field import get_claimed_workspaces

@@ -30,6 +30,12 @@ daemon:
     # daemon: submit launch batches to the daemon and fall back to direct on
     #         unavailable/unsupported scheduler routing
     launch_mode: "direct"
+    # direct: use existing Python lifecycle mutation paths
+    # shadow: enqueue lifecycle mutations to the daemon scheduler, then still
+    #         apply the existing direct side effects
+    # daemon: enqueue lifecycle mutations to the daemon scheduler and keep
+    #         direct fallback available while host execution rolls out
+    lifecycle_mode: "direct"
   reads:
     enabled: true
     force_direct: false
