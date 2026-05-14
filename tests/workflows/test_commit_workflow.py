@@ -499,6 +499,33 @@ def test_capture_pre_commit_diff_fallback_to_sase_diffs(
     assert Path(diff_path).read_text() == "diff --git a/f b/f\n+hello\n"
 
 
+def test_capture_pre_commit_diff_prefers_untracked_diff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """New-file diffs are captured before the commit workflow stages files."""
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+
+    mock_provider = MagicMock()
+    untracked_diff = (
+        "diff --git a/new.md b/new.md\n"
+        "new file mode 100644\n"
+        "--- /dev/null\n"
+        "+++ b/new.md\n"
+        "@@ -0,0 +1 @@\n"
+        "+hello\n"
+    )
+    mock_provider.diff_with_untracked.return_value = (True, untracked_diff)
+
+    diff_path = capture_pre_commit_diff(mock_provider, str(tmp_path), "my_branch")
+
+    assert diff_path == str(artifacts_dir / "commit_diff.diff")
+    assert Path(diff_path).read_text() == untracked_diff
+    mock_provider.diff_with_untracked.assert_called_once_with(str(tmp_path))
+    mock_provider.diff.assert_not_called()
+
+
 def test_capture_pre_commit_diff_skips_without_cl_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

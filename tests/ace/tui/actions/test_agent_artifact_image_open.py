@@ -5,12 +5,33 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+from sase.ace.tui.actions.agents._panel_artifacts import AgentPanelArtifactMixin
 from sase.ace.tui.graphics import (
     ArtifactViewerResult,
     TmuxPaneDecorationResult,
 )
+from sase.core.agent_artifact_facade import AgentArtifact
 
 from ._agent_artifact_image_helpers import _ImageActionApp, _decoration_state
+
+
+class _ArtifactCacheApp(AgentPanelArtifactMixin):
+    def __init__(self) -> None:
+        self._daemon_read_client = None
+        self._daemon_read_args = None
+
+
+class _ArtifactCacheAgent:
+    def __init__(self, artifacts_dir: Path) -> None:
+        self.identity = ("run", "feature", "20260514100000")
+        self.status = "RUNNING"
+        self.diff_path = None
+        self.response_path = None
+        self.extra_files = []
+        self._artifacts_dir = artifacts_dir
+
+    def get_artifacts_dir(self) -> str:
+        return str(self._artifacts_dir)
 
 
 def test_agents_open_artifacts_action_pushes_single_artifact_selection_modal(
@@ -45,6 +66,44 @@ def test_agents_open_artifacts_action_pushes_single_artifact_selection_modal(
 
     assert calls == [artifact]
     app.notify.assert_not_called()
+
+
+def test_agents_artifact_cache_refetches_after_artifact_state_changes(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    app = _ArtifactCacheApp()
+    agent = _ArtifactCacheAgent(tmp_path)
+    artifact = AgentArtifact(
+        id="chat",
+        label="Chat",
+        kind="chat",
+        path=str(tmp_path / "chat.md"),
+    )
+    pages = [
+        SimpleNamespace(artifacts=[], request=None, shared_snapshot=None),
+        SimpleNamespace(artifacts=[artifact], request=None, shared_snapshot=None),
+    ]
+    calls = 0
+
+    def fake_read_agent_artifacts_for_tui(*_args, **_kwargs):
+        nonlocal calls
+        page = pages[calls]
+        calls += 1
+        return SimpleNamespace(value=page, used_daemon=False)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._artifact_provider.read_agent_artifacts_for_tui",
+        fake_read_agent_artifacts_for_tui,
+    )
+
+    assert app._list_selected_agent_artifacts(agent) == []
+
+    agent.status = "DONE"
+    (tmp_path / "done.json").write_text("{}", encoding="utf-8")
+
+    assert app._list_selected_agent_artifacts(agent) == [artifact]
+    assert calls == 2
 
 
 def test_agents_open_artifacts_single_selection_uses_tmux_pane_without_suspend(

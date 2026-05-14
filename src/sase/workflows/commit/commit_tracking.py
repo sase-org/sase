@@ -71,7 +71,18 @@ def capture_pre_commit_diff(
         diff_path = os.path.join(diffs_dir, f"{cl_name}-{generate_timestamp()}.diff")
 
     try:
-        ok, diff_text = provider.diff(cwd)  # type: ignore[union-attr]
+        diff_with_untracked = getattr(provider, "diff_with_untracked", None)
+        if callable(diff_with_untracked):
+            try:
+                result = diff_with_untracked(cwd)
+            except NotImplementedError:
+                result = None
+            if isinstance(result, tuple) and len(result) == 2:
+                ok, diff_text = result
+            else:
+                ok, diff_text = provider.diff(cwd)  # type: ignore[union-attr]
+        else:
+            ok, diff_text = provider.diff(cwd)  # type: ignore[union-attr]
     except Exception:
         return None
     if not ok or not diff_text:

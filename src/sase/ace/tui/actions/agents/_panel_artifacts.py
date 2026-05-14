@@ -198,7 +198,9 @@ class AgentPanelArtifactMixin:
         if generation is None:
             generation = SelectionGeneration()
             self._agent_artifact_selection_generation = generation  # type: ignore[attr-defined]
-        cache: dict[str, list[Any]] = getattr(self, "_agent_artifact_page_cache", {})
+        cache: dict[tuple[Any, ...], list[Any]] = getattr(
+            self, "_agent_artifact_page_cache", {}
+        )
         if not hasattr(self, "_agent_artifact_page_cache"):
             self._agent_artifact_page_cache = cache  # type: ignore[attr-defined]
 
@@ -214,7 +216,7 @@ class AgentPanelArtifactMixin:
             except Exception:
                 return []
 
-        row_key = "|".join(str(part) for part in identity)
+        row_key = self._agent_artifact_cache_key(agent, identity)
         cached = cache.get(row_key)
         if cached is not None:
             return list(cached)
@@ -237,6 +239,38 @@ class AgentPanelArtifactMixin:
         self._agent_artifact_provider_used_daemon = result.used_daemon  # type: ignore[attr-defined]
         self._agent_artifact_provider_snapshot = page.shared_snapshot  # type: ignore[attr-defined]
         return artifacts
+
+    def _agent_artifact_cache_key(
+        self,
+        agent: Agent,
+        identity: tuple[Any, ...],
+    ) -> tuple[Any, ...]:
+        """Return cache key state that changes when row artifacts can change."""
+        artifacts_dir = agent.get_artifacts_dir()
+        marker_stats: list[tuple[str, int | None, int | None]] = []
+        if artifacts_dir is not None:
+            for marker in (
+                "done.json",
+                "agent_meta.json",
+                "plan_path.json",
+                os.path.join("markdown_pdfs", "index.json"),
+            ):
+                marker_path = os.path.join(artifacts_dir, marker)
+                try:
+                    stat = os.stat(marker_path)
+                    marker_stats.append((marker, stat.st_mtime_ns, stat.st_size))
+                except OSError:
+                    marker_stats.append((marker, None, None))
+
+        return (
+            *(str(part) for part in identity),
+            getattr(agent, "status", None),
+            getattr(agent, "diff_path", None),
+            getattr(agent, "response_path", None),
+            tuple(getattr(agent, "extra_files", ()) or ()),
+            artifacts_dir,
+            tuple(marker_stats),
+        )
 
     def _open_agent_artifact(self, artifact: Any) -> None:
         from ...graphics import (
