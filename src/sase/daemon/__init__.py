@@ -4,6 +4,10 @@ from sase.daemon.changespec_reads import (
     load_changespecs_from_daemon,
     read_changespecs_or_fallback,
 )
+from sase.daemon.changespec_writes import (
+    write_changespec_project_file_mutation,
+    write_changespec_project_file_mutation_locked,
+)
 from sase.daemon.client import (
     LocalDaemonClient,
     diff,
@@ -106,5 +110,7 @@ __all__ = [
     "rebuild",
     "verify",
     "write",
+    "write_changespec_project_file_mutation",
+    "write_changespec_project_file_mutation_locked",
     "write_or_fallback",
 ]

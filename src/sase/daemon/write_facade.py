@@ -27,6 +27,9 @@ FALLBACKABLE_WRITE_RPC_CODES = {
 CAPABILITY_BY_WRITE_SURFACE = {
     "beads": "beads.write",
     "contract": "writes.contract",
+    "changespec.status": "changespecs.write",
+    "changespec.field": "changespecs.write",
+    "changespec.comments": "changespecs.write",
 }
 
 
