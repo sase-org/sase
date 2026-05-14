@@ -2,6 +2,9 @@
 create_time: 2026-05-14 02:30:59
 status: wip
 prompt: sdd/prompts/202605/epic7_daemon_scheduler_phases.md
+bead_id: sase-3e.7
+tier: epic
+legend_bead_id: sase-3e
 ---
 # Epic 7 Plan - Daemon Scheduler, Agent Lifecycle, and Durable Workflow Execution
 
