@@ -143,15 +143,26 @@ exposes a Unix-socket framed JSON RPC surface for health, capabilities, bounded 
 projection maintenance. Direct Python source-store readers remain authoritative until later indexed-read epics route
 CLI, ACE, editor, and mobile read paths through the daemon.
 
-Recovery commands:
+Shadow indexing is diagnostic-only. The daemon watches and backfills existing source stores into rebuildable SQLite
+projections so operators can compare projected state against the current loaders before any production read path moves.
+Supported selectors are `changespecs`, `notifications`, `agents`, `beads`, `catalogs`, and `all`; use `--project` where
+the selected surface has project-scoped inputs. Diff records are bounded and categorized as `missing`, `stale`, `extra`,
+or `corrupt`.
+
+Recovery and diagnostic commands:
 
 - `sase daemon status` reads ownership metadata first, then local RPC health when the socket is available.
 - `sase daemon doctor` distinguishes stopped, healthy, degraded projection, stale lock, incompatible metadata, and
-  host-conflict states.
-- `sase daemon rebuild` uses a live daemon RPC when possible; while stopped, it runs
-  `sase_gateway daemon --rebuild-once`, which acquires daemon ownership, resets projection tables, replays retained
-  projection events, prints JSON, and exits. Domain source-store reindexing is intentionally deferred until filesystem
-  indexing lands, so rebuild output reports the current "storage reset/replay only" limitation.
+  host-conflict states. With a running daemon, `--json` also includes indexing service health, watcher state, queue
+  counters, recent reports, and compact per-surface diff summaries.
+- `sase daemon rebuild --surface all` uses a live daemon RPC to backfill shadow projections from source stores.
+  `--surface changespecs|notifications|agents|beads|catalogs` scopes the rebuild. Passing `--reset-storage` preserves
+  the explicit projection-table reset/replay recovery path; when the daemon is stopped this is the only supported
+  one-shot rebuild mode.
+- `sase daemon verify --surface all` compares shadow projections against current source-store loaders and exits nonzero
+  when any surface reports differences.
+- `sase daemon diff --surface all --limit 100` prints a bounded page of actionable shadow diff records. Use `--json` and
+  `--cursor` for machine-readable pagination.
 
 ## Bead Backend
 
