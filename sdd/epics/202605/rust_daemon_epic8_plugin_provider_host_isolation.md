@@ -2,6 +2,9 @@
 create_time: 2026-05-14 05:02:58
 status: wip
 prompt: sdd/prompts/202605/rust_daemon_epic8_plugin_provider_host_isolation.md
+bead_id: sase-3e.8
+tier: epic
+legend_bead_id: sase-3e
 ---
 # Plan - Rust Daemon Epic 8 Plugin and Provider Host Isolation
 
