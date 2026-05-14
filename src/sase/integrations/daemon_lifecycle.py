@@ -63,6 +63,25 @@ class _DaemonInspection:
     message: str = ""
     rpc: dict[str, Any] | None = None
 
+    @property
+    def log_path(self) -> Path:
+        return self.paths.run_root / "daemon.log"
+
+    @property
+    def metrics_endpoint(self) -> str | None:
+        rpc = self.rpc or {}
+        health = rpc.get("health") if isinstance(rpc, dict) else None
+        if not isinstance(health, dict):
+            return None
+        details = health.get("details")
+        if not isinstance(details, dict):
+            return None
+        metrics = details.get("metrics")
+        if not isinstance(metrics, dict):
+            return None
+        endpoint = metrics.get("endpoint")
+        return endpoint if isinstance(endpoint, str) and endpoint else None
+
 
 PopenFactory = Callable[..., subprocess.Popen[Any]]
 SleepFn = Callable[[float], None]
@@ -173,6 +192,8 @@ def _prepare_daemon_launch(
         argv.extend(["--socket-path", str(paths.socket_path)])
     if foreground:
         argv.append("--foreground")
+    if bool(getattr(args, "tokio_console", False)):
+        argv.append("--tokio-console")
     if disable_mobile_http:
         argv.append("--disable-mobile-http")
     if bind_address := getattr(args, "bind_address", None):
@@ -334,10 +355,13 @@ def _run_daemon_start(
         )
     inspection = _wait_for_background_start(launch, proc, sleep)
     if inspection.state == "running":
-        print(
-            "SASE daemon started; ownership metadata is available. "
-            "Local RPC health is unavailable until the daemon transport is ready."
-        )
+        if inspection.rpc and inspection.rpc.get("available"):
+            print("SASE daemon started; local RPC health is available.")
+        else:
+            print(
+                "SASE daemon started; ownership metadata is available. "
+                "Local RPC health is unavailable until the daemon transport is ready."
+            )
         return 0
     raise _DaemonLifecycleError(inspection.message)
 
@@ -462,6 +486,9 @@ def _print_status(inspection: _DaemonInspection) -> None:
     print(f"SASE daemon status: {inspection.state}")
     print(f"Run root: {inspection.paths.run_root}")
     print(f"Socket: {inspection.paths.socket_path}")
+    print(f"Log: {inspection.log_path}")
+    if inspection.metrics_endpoint:
+        print(f"Metrics: {inspection.metrics_endpoint}")
     if inspection.metadata is not None:
         pid = inspection.metadata.get("pid")
         hostname = inspection.metadata.get("hostname")
@@ -484,6 +511,8 @@ def _inspection_to_dict(inspection: _DaemonInspection) -> dict[str, Any]:
         "run_root": str(inspection.paths.run_root),
         "socket_path": str(inspection.paths.socket_path),
         "metadata_path": str(inspection.paths.metadata_path),
+        "log_path": str(inspection.log_path),
+        "metrics_endpoint": inspection.metrics_endpoint,
         "metadata": inspection.metadata,
         "message": inspection.message,
         "rpc": inspection.rpc,

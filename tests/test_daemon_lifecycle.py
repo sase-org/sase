@@ -25,6 +25,7 @@ def _args(**overrides: Any) -> argparse.Namespace:
         "run_root": None,
         "socket_path": None,
         "foreground": False,
+        "tokio_console": False,
         "disable_mobile_http": False,
         "bind_address": None,
         "allow_non_loopback": False,
@@ -75,6 +76,7 @@ def test_parser_accepts_daemon_start_flags() -> None:
             "--socket-path",
             "/tmp/sase.sock",
             "--foreground",
+            "--tokio-console",
             "--disable-mobile-http",
             "-b",
             "127.0.0.1:7630",
@@ -92,6 +94,7 @@ def test_parser_accepts_daemon_start_flags() -> None:
     assert args.run_root == "/tmp/sase/run/host"
     assert args.socket_path == "/tmp/sase.sock"
     assert args.foreground is True
+    assert args.tokio_console is True
     assert args.disable_mobile_http is True
     assert args.bind_address == "127.0.0.1:7630"
     assert args.allow_non_loopback is True
@@ -106,6 +109,7 @@ def test_prepare_daemon_launch_builds_safe_argv(tmp_path: Path) -> None:
             run_root=str(tmp_path / "run"),
             socket_path=str(tmp_path / "daemon.sock"),
             foreground=True,
+            tokio_console=True,
             disable_mobile_http=True,
             bind_address="127.0.0.1:7630",
             agent_bridge_command="sase --bridge",
@@ -125,6 +129,7 @@ def test_prepare_daemon_launch_builds_safe_argv(tmp_path: Path) -> None:
         "--socket-path",
         str(tmp_path / "daemon.sock"),
         "--foreground",
+        "--tokio-console",
         "--disable-mobile-http",
         "--bind",
         "127.0.0.1:7630",
@@ -284,3 +289,30 @@ def test_background_start_reports_metadata_without_rpc(
     ]
     assert popen_calls[0]["start_new_session"] is True
     assert "RPC health is unavailable" in capsys.readouterr().out
+
+
+def test_status_json_includes_log_path_and_metrics_endpoint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOSTNAME", "workstation.local")
+    run_root = tmp_path / "run"
+    _write_metadata(run_root, _metadata(os.getpid(), "workstation.local"))
+    monkeypatch.setattr(
+        lifecycle,
+        "_try_health_rpc",
+        lambda _socket: {
+            "available": True,
+            "health": {
+                "details": {"metrics": {"endpoint": "http://127.0.0.1:7629/metrics"}}
+            },
+        },
+    )
+
+    inspection = lifecycle._inspect_daemon(
+        _args(sase_home=str(tmp_path / "home"), run_root=str(run_root))
+    )
+    payload = lifecycle._inspection_to_dict(inspection)
+
+    assert payload["log_path"] == str(run_root / "daemon.log")
+    assert payload["metrics_endpoint"] == "http://127.0.0.1:7629/metrics"

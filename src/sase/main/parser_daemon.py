@@ -26,6 +26,11 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Run the daemon in the foreground",
     )
     start_parser.add_argument(
+        "--tokio-console",
+        action="store_true",
+        help="Enable tokio-console support when the gateway was built with it",
+    )
+    start_parser.add_argument(
         "--disable-mobile-http",
         action="store_true",
         help="Disable the mobile HTTP API inside daemon mode",
