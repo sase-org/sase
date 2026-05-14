@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 from typing import Any
 
 from sase.daemon.paths import storage_layout_diagnostics
@@ -55,6 +56,7 @@ def inspection_to_dict(inspection: DaemonInspection) -> dict[str, Any]:
         "run_root": str(inspection.paths.run_root),
         "socket_path": str(inspection.paths.socket_path),
         "projection_db_path": str(inspection.projection_db_path),
+        "lock_path": str(inspection.lock_path),
         "metadata_path": str(inspection.paths.metadata_path),
         "log_path": str(inspection.log_path),
         "storage_layout": _storage_layout(inspection),
@@ -114,13 +116,167 @@ def doctor_payload(inspection: DaemonInspection) -> dict[str, Any]:
         ),
     ]
     doctor_state = _worst_check_state(check["state"] for check in checks)
+    repair_actions = _repair_actions(inspection)
     payload = inspection_to_dict(inspection)
-    payload["doctor"] = {"state": doctor_state, "checks": checks}
+    payload["repair_actions"] = repair_actions
+    payload["doctor"] = {
+        "state": doctor_state,
+        "checks": checks,
+        "repair_actions": repair_actions,
+    }
     return payload
 
 
 def _check(name: str, state: str, message: str) -> dict[str, str]:
     return {"name": name, "state": state, "message": message}
+
+
+def _repair_actions(inspection: DaemonInspection) -> list[dict[str, str]]:
+    actions: list[dict[str, str]] = []
+    layout = _storage_layout(inspection)
+    warnings = layout.get("warnings", [])
+    has_layout_error = False
+    if isinstance(warnings, list):
+        for warning in warnings:
+            if isinstance(warning, dict) and warning.get("severity") == "error":
+                has_layout_error = True
+                actions.append(
+                    _repair_action(
+                        "move_run_root",
+                        None,
+                        "requires_manual_review",
+                        (
+                            "Move daemon runtime files to a host-local run_root, "
+                            "then exclude ~/.sase/run/ from sync."
+                        ),
+                    )
+                )
+                break
+
+    if inspection.state == "stopped":
+        if not has_layout_error:
+            actions.append(
+                _repair_action(
+                    "daemon_start",
+                    _daemon_command("start", inspection),
+                    "runtime_only",
+                    "Start the local daemon for live projection reads and maintenance.",
+                )
+            )
+    elif inspection.state == "running":
+        actions.extend(
+            [
+                _repair_action(
+                    "daemon_verify",
+                    _daemon_command("verify", inspection),
+                    "read_only",
+                    "Verify daemon projections against source stores.",
+                ),
+                _repair_action(
+                    "daemon_stop",
+                    _daemon_command("stop", inspection),
+                    "runtime_only",
+                    "Stop the live daemon owned by this host.",
+                ),
+            ]
+        )
+        projection = _projection_details(inspection)
+        if isinstance(projection, dict) and (
+            projection.get("repair_needed") or projection.get("state") == "degraded"
+        ):
+            actions.append(
+                _repair_action(
+                    "daemon_rebuild_reset_storage",
+                    _daemon_command("rebuild", inspection, "--reset-storage"),
+                    "runtime_only",
+                    (
+                        "Reset and replay daemon projection storage; source stores "
+                        "are not modified."
+                    ),
+                )
+            )
+    elif inspection.state == "stale":
+        actions.append(
+            _repair_action(
+                "remove_stale_lock",
+                _daemon_command("doctor", inspection, "--repair-stale-lock"),
+                "runtime_only",
+                (
+                    "Remove stale daemon lock, metadata, and host-local socket files "
+                    "after confirming no live process owns the lock."
+                ),
+            )
+        )
+    elif inspection.state == "conflict":
+        actions.append(
+            _repair_action(
+                "inspect_host_conflict",
+                _daemon_command("status", inspection, "--json"),
+                "requires_manual_review",
+                (
+                    "Inspect ownership metadata before changing anything; different-host "
+                    "or live PID conflicts are never repaired automatically."
+                ),
+            )
+        )
+    elif inspection.state == "incompatible":
+        actions.append(
+            _repair_action(
+                "inspect_host_conflict",
+                _daemon_command("status", inspection, "--json"),
+                "requires_manual_review",
+                "Inspect incompatible daemon ownership metadata manually.",
+            )
+        )
+    return _dedupe_actions(actions)
+
+
+def _repair_action(
+    action_id: str,
+    command: str | None,
+    risk: str,
+    explanation: str,
+) -> dict[str, str]:
+    payload = {
+        "id": action_id,
+        "risk": risk,
+        "explanation": explanation,
+    }
+    if command:
+        payload["command"] = command
+    return payload
+
+
+def _daemon_command(
+    subcommand: str,
+    inspection: DaemonInspection,
+    *extra: str,
+) -> str:
+    parts = [
+        "sase",
+        "daemon",
+        subcommand,
+        "-H",
+        str(inspection.paths.sase_home),
+        "--run-root",
+        str(inspection.paths.run_root),
+        "--socket-path",
+        str(inspection.paths.socket_path),
+        *extra,
+    ]
+    return shlex.join(parts)
+
+
+def _dedupe_actions(actions: list[dict[str, str]]) -> list[dict[str, str]]:
+    seen: set[str] = set()
+    result: list[dict[str, str]] = []
+    for action in actions:
+        action_id = action["id"]
+        if action_id in seen:
+            continue
+        seen.add(action_id)
+        result.append(action)
+    return result
 
 
 def _storage_layout(inspection: DaemonInspection) -> dict[str, Any]:

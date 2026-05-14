@@ -17,6 +17,7 @@ from sase.integrations import _daemon_lifecycle_process as _process
 from sase.integrations import _daemon_lifecycle_types as _types
 from sase.integrations import _daemon_lifecycle_values as _values
 from sase.integrations._daemon_lifecycle_actions import (
+    repair_stale_lock,
     run_daemon_diff,
     run_daemon_rebuild,
     run_daemon_start,
@@ -43,6 +44,7 @@ from sase.integrations._daemon_lifecycle_inspection import (
 
 DEFAULT_STARTUP_TIMEOUT_SECONDS = _types.DEFAULT_STARTUP_TIMEOUT_SECONDS
 DEFAULT_STOP_TIMEOUT_SECONDS = _types.DEFAULT_STOP_TIMEOUT_SECONDS
+LOCK_FILENAME = _types.LOCK_FILENAME
 LOCK_METADATA_FILENAME = _types.LOCK_METADATA_FILENAME
 LOCK_SCHEMA_VERSION = _types.LOCK_SCHEMA_VERSION
 SOCKET_FILENAME = _types.SOCKET_FILENAME
@@ -62,6 +64,7 @@ _positive_float = _values.positive_float
 __all__ = [
     "DEFAULT_STARTUP_TIMEOUT_SECONDS",
     "DEFAULT_STOP_TIMEOUT_SECONDS",
+    "LOCK_FILENAME",
     "LOCK_METADATA_FILENAME",
     "LOCK_SCHEMA_VERSION",
     "SOCKET_FILENAME",
@@ -88,6 +91,7 @@ __all__ = [
     "_process_is_live",
     "_read_metadata",
     "_resolve_gateway_command",
+    "_repair_stale_lock",
     "_run_daemon_diff",
     "_run_daemon_rebuild",
     "_run_daemon_start",
@@ -150,6 +154,25 @@ def handle_daemon_stop(args: argparse.Namespace) -> int:
 
 def handle_daemon_doctor(args: argparse.Namespace) -> int:
     """Run daemon lifecycle and projection diagnostics."""
+    if getattr(args, "repair_stale_lock", False):
+        try:
+            repair_payload = _repair_stale_lock(args)
+        except _DaemonLifecycleError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+        if getattr(args, "json_output", False):
+            print(json.dumps(repair_payload, indent=2, sort_keys=True))
+        else:
+            print(f"Repair: {repair_payload['action']} {repair_payload['state']}")
+            removed = repair_payload.get("removed", [])
+            if isinstance(removed, list):
+                for path in removed:
+                    print(f"- removed {path}")
+            skipped = repair_payload.get("skipped", [])
+            if isinstance(skipped, list):
+                for path in skipped:
+                    print(f"- skipped {path}")
+        return 0
     inspection = _inspect_daemon(args)
     payload = _doctor_payload(inspection)
     if getattr(args, "json_output", False):
@@ -159,6 +182,22 @@ def handle_daemon_doctor(args: argparse.Namespace) -> int:
         print(f"Doctor: {payload['doctor']['state']}")
         for check in payload["doctor"]["checks"]:
             print(f"- {check['name']}: {check['state']} - {check['message']}")
+        repair_actions = payload.get("repair_actions", [])
+        if repair_actions:
+            print("Repair actions:")
+            for action in repair_actions:
+                if not isinstance(action, dict):
+                    continue
+                command = action.get("command")
+                suffix = f" -> {command}" if command else ""
+                print(
+                    "- {id}: {risk} - {explanation}{suffix}".format(
+                        id=action.get("id", "unknown"),
+                        risk=action.get("risk", "unknown"),
+                        explanation=action.get("explanation", ""),
+                        suffix=suffix,
+                    )
+                )
     return 0
 
 
@@ -415,6 +454,7 @@ def _inspect_daemon(args: argparse.Namespace) -> _DaemonInspection:
         runtime_paths_from_args=_runtime_paths_from_args,
         host_identity_from_env=_host_identity_from_env,
         process_is_live=_process_is_live,
+        executable_matches_metadata=_executable_matches_metadata,
         metadata_reader=_read_metadata,
         health_rpc=_try_health_rpc,
     )
@@ -466,6 +506,10 @@ def _run_daemon_rebuild(args: argparse.Namespace) -> dict[str, Any]:
         inspect_daemon=_inspect_daemon,
         prepare_daemon_launch=_prepare_daemon_launch,
     )
+
+
+def _repair_stale_lock(args: argparse.Namespace) -> dict[str, Any]:
+    return repair_stale_lock(args, inspect_daemon=_inspect_daemon)
 
 
 def _run_daemon_verify(args: argparse.Namespace) -> dict[str, Any]:

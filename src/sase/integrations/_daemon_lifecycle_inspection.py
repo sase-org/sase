@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -29,6 +30,7 @@ def inspect_daemon(
     ] = runtime_paths_from_args,
     host_identity_from_env: Callable[[], str] = host_identity_from_env,
     process_is_live: Callable[[int], bool] = process_is_live,
+    executable_matches_metadata: Callable[[int, dict[str, Any]], bool] | None = None,
     metadata_reader: Callable[[Path], dict[str, Any] | str | None] | None = None,
     health_rpc: Callable[[Path], dict[str, Any]] | None = None,
 ) -> DaemonInspection:
@@ -37,12 +39,53 @@ def inspect_daemon(
     read = metadata_reader or read_metadata
     metadata_result = read(paths.metadata_path)
     if metadata_result is None:
+        if paths.lock_path.exists():
+            lock_held = lock_file_is_held(paths.lock_path)
+            if lock_held is True:
+                return DaemonInspection(
+                    state="conflict",
+                    paths=paths,
+                    message=(
+                        f"daemon lock file exists at {paths.lock_path} and is held, "
+                        f"but ownership metadata is missing at {paths.metadata_path}"
+                    ),
+                )
+            if lock_held is None:
+                return DaemonInspection(
+                    state="incompatible",
+                    paths=paths,
+                    message=(
+                        f"daemon lock file exists at {paths.lock_path}, but ownership "
+                        "could not be checked and metadata is missing"
+                    ),
+                )
+            return DaemonInspection(
+                state="stale",
+                paths=paths,
+                message=(
+                    f"stale daemon lock file exists at {paths.lock_path} without "
+                    f"ownership metadata at {paths.metadata_path}"
+                ),
+            )
         return DaemonInspection(
             state="stopped",
             paths=paths,
             message=f"no ownership metadata at {paths.metadata_path}",
         )
     if isinstance(metadata_result, str):
+        lock_held = lock_file_is_held(paths.lock_path)
+        if lock_held is True:
+            return DaemonInspection(
+                state="conflict",
+                paths=paths,
+                message=f"{metadata_result}; daemon lock is currently held",
+            )
+        if lock_held is False:
+            return DaemonInspection(
+                state="stale",
+                paths=paths,
+                message=f"{metadata_result}; daemon lock is not held",
+            )
         return DaemonInspection(
             state="incompatible",
             paths=paths,
@@ -80,6 +123,17 @@ def inspect_daemon(
             metadata=metadata,
             message=f"metadata pid {pid!r} is not live",
         )
+    executable_matcher = executable_matches_metadata or (lambda _pid, _metadata: True)
+    if not executable_matcher(pid, metadata):
+        return DaemonInspection(
+            state="conflict",
+            paths=paths,
+            metadata=metadata,
+            message=(
+                f"metadata pid {pid} is live on this host, but its executable "
+                "does not match the daemon ownership metadata"
+            ),
+        )
 
     rpc_client = health_rpc or try_health_rpc
     rpc = rpc_client(paths.socket_path)
@@ -106,6 +160,26 @@ def read_metadata(path: Path) -> dict[str, Any] | str | None:
     if not isinstance(payload, dict):
         return f"ownership metadata {path} is not a JSON object"
     return payload
+
+
+def lock_file_is_held(path: Path) -> bool | None:
+    try:
+        with path.open("r+b") as lock_file:
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return True
+            except OSError:
+                return None
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                return None
+            return False
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return None
 
 
 def try_health_rpc(socket_path: Path) -> dict[str, Any]:

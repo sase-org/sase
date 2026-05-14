@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+LOCK_FILENAME = "daemon.lock"
 LOCK_METADATA_FILENAME = "daemon.lock.json"
 SOCKET_FILENAME = "sase-daemon.sock"
 LOCK_SCHEMA_VERSION = 1
@@ -36,6 +37,10 @@ class DaemonRuntimePaths:
     socket_path: Path
     metadata_path: Path
 
+    @property
+    def lock_path(self) -> Path:
+        return self.run_root / LOCK_FILENAME
+
 
 @dataclass(frozen=True)
 class DaemonLaunch:
@@ -56,6 +61,10 @@ class DaemonInspection:
     @property
     def log_path(self) -> Path:
         return self.paths.run_root / "daemon.log"
+
+    @property
+    def lock_path(self) -> Path:
+        return self.paths.lock_path
 
     @property
     def projection_db_path(self) -> Path:

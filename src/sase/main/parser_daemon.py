@@ -208,6 +208,14 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="json_output",
         help="Print machine-readable diagnostic JSON",
     )
+    doctor_parser.add_argument(
+        "--repair-stale-lock",
+        action="store_true",
+        help=(
+            "Remove same-host stale daemon lock, metadata, and host-local socket "
+            "runtime files after doctor confirms no live process owns the lock"
+        ),
+    )
 
     rebuild_parser = daemon_subparsers.add_parser(
         "rebuild",

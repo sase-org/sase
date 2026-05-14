@@ -9,6 +9,7 @@ import signal
 import subprocess
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from sase.integrations._daemon_lifecycle_config import (
@@ -125,6 +126,76 @@ def run_daemon_stop(
     raise DaemonLifecycleError(
         f"sent SIGTERM to daemon pid {pid}, but it is still running"
     )
+
+
+def repair_stale_lock(
+    args: argparse.Namespace,
+    *,
+    inspect_daemon: Callable[[argparse.Namespace], DaemonInspection] = inspect_daemon,
+) -> dict[str, Any]:
+    inspection = inspect_daemon(args)
+    if inspection.state != "stale":
+        raise DaemonLifecycleError(
+            f"refusing stale-lock repair from {inspection.state} daemon state: "
+            f"{inspection.message}"
+        )
+    try:
+        from sase.integrations._daemon_lifecycle_inspection import lock_file_is_held
+
+        lock_held = lock_file_is_held(inspection.lock_path)
+    except Exception as exc:
+        raise DaemonLifecycleError(
+            f"could not verify daemon lock ownership: {exc}"
+        ) from exc
+    if lock_held is not False:
+        raise DaemonLifecycleError(
+            f"refusing stale-lock repair because {inspection.lock_path} "
+            "may still be held"
+        )
+
+    removed: list[str] = []
+    skipped: list[str] = []
+    for path in (
+        inspection.paths.metadata_path,
+        inspection.lock_path,
+        inspection.paths.socket_path,
+    ):
+        if path == inspection.paths.socket_path and not _is_under(
+            path, inspection.paths.run_root
+        ):
+            skipped.append(str(path))
+            continue
+        if not _is_under(path, inspection.paths.run_root):
+            skipped.append(str(path))
+            continue
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise DaemonLifecycleError(
+                f"failed to remove stale daemon runtime file {path}: {exc}"
+            ) from exc
+        removed.append(str(path))
+    return {
+        "state": "repaired",
+        "action": "remove_stale_lock",
+        "risk": "runtime_only",
+        "removed": removed,
+        "skipped": skipped,
+        "message": "removed stale daemon runtime lock state",
+    }
+
+
+def _is_under(path: os.PathLike[str] | str, parent: os.PathLike[str] | str) -> bool:
+    try:
+        return (
+            Path(path)
+            .resolve(strict=False)
+            .is_relative_to(Path(parent).resolve(strict=False))
+        )
+    except OSError:
+        return False
 
 
 def run_daemon_rebuild(

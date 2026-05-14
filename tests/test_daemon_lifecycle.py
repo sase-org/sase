@@ -43,6 +43,7 @@ def _args(**overrides: Any) -> argparse.Namespace:
         "limit": 100,
         "cursor": None,
         "json_output": False,
+        "repair_stale_lock": False,
     }
     values.update(overrides)
     return argparse.Namespace(**values)
@@ -54,7 +55,7 @@ def _metadata(pid: int, host: str, **overrides: Any) -> dict[str, Any]:
         "pid": pid,
         "hostname": host,
         "boot_session_hint": "boot",
-        "executable_path": "/bin/sase_gateway",
+        "executable_path": str(Path("/proc") / str(pid) / "exe"),
         "socket_path": "/tmp/sase-daemon.sock",
         "started_at": "2026-05-13T00:00:00Z",
         "sase_home": "/tmp/sase",
@@ -240,6 +241,60 @@ def test_inspect_daemon_stale_dead_pid(
     assert "not live" in inspection.message
 
 
+def test_inspect_daemon_reports_missing_metadata_stale_lock(tmp_path: Path) -> None:
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    (run_root / lifecycle.LOCK_FILENAME).write_text("", encoding="utf-8")
+
+    inspection = lifecycle._inspect_daemon(
+        _args(sase_home=str(tmp_path / "home"), run_root=str(run_root))
+    )
+
+    assert inspection.state == "stale"
+    assert "without ownership metadata" in inspection.message
+
+
+def test_inspect_daemon_reports_malformed_metadata_as_stale(
+    tmp_path: Path,
+) -> None:
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    (run_root / lifecycle.LOCK_FILENAME).write_text("", encoding="utf-8")
+    (run_root / lifecycle.LOCK_METADATA_FILENAME).write_text(
+        "{not-json",
+        encoding="utf-8",
+    )
+
+    inspection = lifecycle._inspect_daemon(
+        _args(sase_home=str(tmp_path / "home"), run_root=str(run_root))
+    )
+
+    assert inspection.state == "stale"
+    assert "failed to parse ownership metadata" in inspection.message
+
+
+def test_inspect_daemon_live_pid_mismatched_executable_is_conflict(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOSTNAME", "workstation.local")
+    run_root = tmp_path / "run"
+    _write_metadata(run_root, _metadata(1234, "workstation.local"))
+    monkeypatch.setattr(lifecycle, "_process_is_live", lambda _pid: True)
+    monkeypatch.setattr(
+        lifecycle,
+        "_executable_matches_metadata",
+        lambda _pid, _metadata: False,
+    )
+
+    inspection = lifecycle._inspect_daemon(
+        _args(sase_home=str(tmp_path / "home"), run_root=str(run_root))
+    )
+
+    assert inspection.state == "conflict"
+    assert "executable does not match" in inspection.message
+
+
 def test_stop_refuses_mismatched_host_without_signal(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -392,6 +447,73 @@ def test_doctor_reports_unsafe_storage_layout(
     assert layout_check["state"] == "error"
     assert "run_root_under_source_root" in layout_check["message"]
     assert payload["storage_layout"]["run_root"]["path_kind"] == "source_root"
+    assert [action["id"] for action in payload["repair_actions"]] == ["move_run_root"]
+
+
+def test_doctor_reports_stable_repair_actions_for_stale_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOSTNAME", "workstation.local")
+    run_root = tmp_path / "run"
+    _write_metadata(run_root, _metadata(4_294_967_000, "workstation.local"))
+
+    inspection = lifecycle._inspect_daemon(
+        _args(sase_home=str(tmp_path / "home"), run_root=str(run_root))
+    )
+    payload = lifecycle._doctor_payload(inspection)  # noqa: SLF001
+
+    assert payload["repair_actions"] == payload["doctor"]["repair_actions"]
+    remove_stale_lock = payload["repair_actions"][0]
+    assert remove_stale_lock["id"] == "remove_stale_lock"
+    assert remove_stale_lock["risk"] == "runtime_only"
+    assert "--repair-stale-lock" in remove_stale_lock["command"]
+
+
+def test_doctor_repair_stale_lock_removes_runtime_only_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOSTNAME", "workstation.local")
+    run_root = tmp_path / "run"
+    socket_path = run_root / "sase-daemon.sock"
+    _write_metadata(run_root, _metadata(4_294_967_000, "workstation.local"))
+    (run_root / lifecycle.LOCK_FILENAME).write_text("", encoding="utf-8")
+    socket_path.write_text("stale socket", encoding="utf-8")
+
+    payload = lifecycle._repair_stale_lock(  # noqa: SLF001
+        _args(
+            sase_home=str(tmp_path / "home"),
+            run_root=str(run_root),
+            socket_path=str(socket_path),
+        )
+    )
+
+    assert payload["action"] == "remove_stale_lock"
+    assert not (run_root / lifecycle.LOCK_FILENAME).exists()
+    assert not (run_root / lifecycle.LOCK_METADATA_FILENAME).exists()
+    assert not socket_path.exists()
+
+
+def test_doctor_repair_stale_lock_refuses_host_conflict(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOSTNAME", "this-host")
+    run_root = tmp_path / "run"
+    _write_metadata(run_root, _metadata(4_294_967_000, "other-host"))
+
+    with pytest.raises(_DaemonLifecycleError, match="refusing stale-lock repair"):
+        lifecycle._repair_stale_lock(  # noqa: SLF001
+            _args(sase_home=str(tmp_path / "home"), run_root=str(run_root))
+        )
+
+
+def test_parser_accepts_doctor_repair_stale_lock() -> None:
+    args = create_parser().parse_args(["daemon", "doctor", "--repair-stale-lock"])
+
+    assert args.daemon_subcommand == "doctor"
+    assert args.repair_stale_lock is True
 
 
 def test_doctor_distinguishes_degraded_projection(
