@@ -21,9 +21,11 @@ FALLBACKABLE_WRITE_RPC_CODES = {
     "payload_too_large",
     "host_adapter_required",
     "daemon_unavailable",
+    "invalid_request",
 }
 
 CAPABILITY_BY_WRITE_SURFACE = {
+    "beads": "beads.write",
     "contract": "writes.contract",
 }
 
