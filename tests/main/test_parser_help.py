@@ -83,3 +83,47 @@ def test_agents_help_renders_sorted_subcommands() -> None:
 
     assert help_commands == sorted(expected_commands)
     assert "{archive,index,kill,names,show,status,tag}" in agents_parser.format_help()
+
+
+def test_daemon_help_keeps_recovery_commands_discoverable() -> None:
+    """Daemon help exposes the user-facing recovery command sequence."""
+    daemon_parser = _parser_for(("sase", "daemon"))
+    help_text = daemon_parser.format_help()
+    expected_commands = {
+        "backup",
+        "checkpoint",
+        "diff",
+        "doctor",
+        "list-backups",
+        "rebuild",
+        "restore",
+        "scheduler",
+        "start",
+        "status",
+        "stop",
+        "verify",
+    }
+
+    help_commands = _help_subcommand_rows(help_text, expected_commands)
+
+    assert help_commands == sorted(expected_commands)
+    assert "sase daemon doctor" in help_text
+    assert "sase daemon verify --surface all" in help_text
+    assert "sase daemon rebuild --surface all" in help_text
+    assert "SASE_NO_DAEMON=1" in help_text
+
+
+def test_daemon_subcommand_help_names_runtime_scope() -> None:
+    """Recovery subcommand help states what is runtime-only."""
+    doctor_help = _parser_for(("sase", "daemon", "doctor")).format_help()
+    rebuild_help = _parser_for(("sase", "daemon", "rebuild")).format_help()
+    restore_help = _parser_for(("sase", "daemon", "restore")).format_help()
+
+    assert "--repair-stale-lock" in doctor_help
+    assert "sase daemon doctor --json" in doctor_help
+    assert "--reset-storage" in rebuild_help
+    assert "Source files, JSONL stores, artifacts, and repos are not deleted" in (
+        rebuild_help
+    )
+    assert "projection-only" in restore_help
+    assert "does not edit source stores" in restore_help

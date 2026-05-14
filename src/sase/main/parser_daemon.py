@@ -4,12 +4,33 @@ from __future__ import annotations
 
 import argparse
 
+HELP_FORMATTER = argparse.RawDescriptionHelpFormatter
+
 
 def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``sase daemon`` subcommand parser."""
     daemon_parser = subparsers.add_parser(
         "daemon",
-        help="Manage the local SASE daemon",
+        help="Manage local daemon runtime, diagnostics, and projection recovery",
+        description=(
+            "Manage the local SASE daemon.\n\n"
+            "Common recovery flow:\n"
+            "  sase daemon status\n"
+            "  sase daemon doctor\n"
+            "  sase daemon verify --surface all\n"
+            "  sase daemon diff --surface all\n"
+            "  sase daemon rebuild --surface all\n"
+            "  sase daemon backup\n"
+            "  sase daemon restore <backup.sqlite>\n\n"
+            "Source stores remain authoritative. Daemon projections, sockets, "
+            "locks, logs, WAL/SHM files, and backups are host-local runtime "
+            "state under run_root."
+        ),
+        epilog=(
+            "Use --no-daemon on daemon-capable read commands, or "
+            "SASE_NO_DAEMON=1, to force direct source-store reads."
+        ),
+        formatter_class=HELP_FORMATTER,
     )
     daemon_subparsers = daemon_parser.add_subparsers(
         dest="daemon_subcommand", help="Daemon subcommands"
@@ -199,7 +220,15 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
 
     doctor_parser = daemon_subparsers.add_parser(
         "doctor",
-        help="Run daemon lifecycle diagnostics",
+        help="Diagnose daemon health and print exact repair commands",
+        description=(
+            "Diagnose daemon lifecycle, storage layout, projection health, "
+            "source-export conflicts, scheduler state, and mobile HTTP health.\n\n"
+            "Start with:\n"
+            "  sase daemon doctor\n"
+            "  sase daemon doctor --json"
+        ),
+        formatter_class=HELP_FORMATTER,
     )
     _add_runtime_options(doctor_parser)
     doctor_parser.add_argument(
@@ -219,7 +248,15 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
 
     rebuild_parser = daemon_subparsers.add_parser(
         "rebuild",
-        help="Rebuild daemon projections",
+        help="Rebuild runtime projections from authoritative source stores",
+        description=(
+            "Rebuild daemon projections from source stores through the live "
+            "daemon. Source files, JSONL stores, artifacts, and repos are not "
+            "deleted by rebuild.\n\n"
+            "Use --reset-storage only for the explicit one-shot projection "
+            "table reset/replay recovery path."
+        ),
+        formatter_class=HELP_FORMATTER,
     )
     _add_runtime_options(rebuild_parser)
     rebuild_parser.add_argument(
@@ -262,7 +299,7 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
 
     checkpoint_parser = daemon_subparsers.add_parser(
         "checkpoint",
-        help="Checkpoint the projection WAL",
+        help="Checkpoint the host-local projection WAL",
     )
     _add_runtime_options(checkpoint_parser)
     checkpoint_parser.add_argument(
@@ -287,7 +324,13 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
 
     backup_parser = daemon_subparsers.add_parser(
         "backup",
-        help="Create a projection backup snapshot",
+        help="Create a host-local projection backup snapshot",
+        description=(
+            "Create a projection-only backup snapshot under run_root/backups "
+            "by default. Backups capture runtime projection state and do not "
+            "copy source stores."
+        ),
+        formatter_class=HELP_FORMATTER,
     )
     _add_runtime_options(backup_parser)
     backup_parser.add_argument(
@@ -311,7 +354,7 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
 
     list_backups_parser = daemon_subparsers.add_parser(
         "list-backups",
-        help="List recent projection backup snapshots",
+        help="List recent host-local projection backup snapshots",
     )
     _add_runtime_options(list_backups_parser)
     list_backups_parser.add_argument(
@@ -336,7 +379,13 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
 
     restore_parser = daemon_subparsers.add_parser(
         "restore",
-        help="Restore a projection backup snapshot",
+        help="Restore a projection backup without touching source stores",
+        description=(
+            "Restore a projection backup into run_root/projections. Restore "
+            "is projection-only: it does not edit source stores, JSONL files, "
+            "ProjectSpec files, artifacts, or external repos."
+        ),
+        formatter_class=HELP_FORMATTER,
     )
     _add_runtime_options(restore_parser)
     restore_parser.add_argument(
@@ -369,7 +418,7 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
 
     verify_parser = daemon_subparsers.add_parser(
         "verify",
-        help="Verify daemon shadow indexes against source stores",
+        help="Verify runtime projections against authoritative source stores",
     )
     _add_runtime_options(verify_parser)
     _add_indexing_selector_options(verify_parser)
@@ -389,7 +438,7 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
 
     diff_parser = daemon_subparsers.add_parser(
         "diff",
-        help="Show daemon shadow index differences",
+        help="Show bounded runtime projection differences",
     )
     _add_runtime_options(diff_parser)
     _add_indexing_selector_options(diff_parser)

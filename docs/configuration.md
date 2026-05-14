@@ -716,7 +716,8 @@ The default runtime layout is:
 Source stores such as `projects`, `notifications`, `pending_actions`, `artifacts`, `chats`, `beads`, repo metadata, and
 workflow state remain authoritative user-visible state. Runtime projections, sockets, locks, WAL/SHM files, backups,
 checkpoints, and transient queues live under `run_root` and should be excluded from Syncthing, rclone, Git, and
-cloud-drive sync rules. Use one daemon per host-local `run_root`.
+cloud-drive sync rules. Use one daemon per host-local `run_root`. See the
+[daemon operations guide](troubleshooting/daemon-operations.md) for recovery recipes and example exclusion patterns.
 
 `sase daemon status --json` and `sase daemon doctor --json` report a `storage_layout` object with path kinds for
 `sase_home`, `run_root`, `socket_path`, `projection_db_path`, and `log_path`, plus a `runtime_files` exclusion list.

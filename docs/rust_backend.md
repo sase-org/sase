@@ -198,7 +198,8 @@ human-readable JSON/JSONL/project files. On startup, `sase daemon rebuild --rese
 rebuilds, the daemon retries safe pending/failed source exports. Conflicted exports remain in the outbox with the target
 path, surface, status, and last error so an operator can fix the source file and rerun doctor/rebuild.
 
-Storage layout contract:
+Storage layout contract (see the [daemon operations guide](troubleshooting/daemon-operations.md) for recovery recipes
+and sync-exclusion examples):
 
 - `sase_home` is the user-visible source root, defaulting to `~/.sase`. Human-readable stores under it remain the
   compatibility and recovery surfaces: projects, notifications, pending actions, artifacts, chats, beads, repo metadata,

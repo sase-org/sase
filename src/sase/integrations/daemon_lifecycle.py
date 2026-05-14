@@ -201,15 +201,15 @@ def handle_daemon_doctor(args: argparse.Namespace) -> int:
                 if not isinstance(action, dict):
                     continue
                 command = action.get("command")
-                suffix = f" -> {command}" if command else ""
                 print(
-                    "- {id}: {risk} - {explanation}{suffix}".format(
+                    "- {id}: {risk} - {explanation}".format(
                         id=action.get("id", "unknown"),
                         risk=action.get("risk", "unknown"),
                         explanation=action.get("explanation", ""),
-                        suffix=suffix,
                     )
                 )
+                if command:
+                    print(f"  Command: {command}")
     return 0
 
 

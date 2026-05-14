@@ -31,6 +31,7 @@ nav:
       - Mobile MVP Runbook: mobile_mvp_runbook.md
       - Performance Runbook: perf_runbook.md
       - Telemetry: telemetry.md
+      - Daemon Operations: troubleshooting/daemon-operations.md
       - Agent Revival Log: troubleshooting/agent-revival.md
   - Integrations:
       - Integration APIs: integrations.md

@@ -520,6 +520,27 @@ def test_doctor_reports_stable_repair_actions_for_stale_lock(
     assert "--repair-stale-lock" in remove_stale_lock["command"]
 
 
+def test_doctor_human_output_prints_exact_repair_command(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("HOSTNAME", "workstation.local")
+    run_root = tmp_path / "run"
+    _write_metadata(run_root, _metadata(4_294_967_000, "workstation.local"))
+
+    code = lifecycle.handle_daemon_doctor(
+        _args(sase_home=str(tmp_path / "home"), run_root=str(run_root))
+    )
+    out = capsys.readouterr().out
+
+    assert code == 0
+    assert "Repair actions:" in out
+    assert "- remove_stale_lock: runtime_only" in out
+    assert "Command: sase daemon doctor" in out
+    assert "--repair-stale-lock" in out
+
+
 def test_doctor_repair_stale_lock_removes_runtime_only_files(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
