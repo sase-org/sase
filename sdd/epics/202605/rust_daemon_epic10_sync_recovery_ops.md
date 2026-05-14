@@ -2,6 +2,9 @@
 create_time: 2026-05-14 08:48:24
 status: wip
 prompt: sdd/prompts/202605/rust_daemon_epic10_sync_recovery_ops.md
+bead_id: sase-3e.10
+tier: epic
+legend_bead_id: sase-3e
 ---
 # Plan - Rust Daemon Epic 10 Multi-Machine Sync, Recovery, and Operations
 
