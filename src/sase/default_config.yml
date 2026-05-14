@@ -41,7 +41,7 @@ daemon:
     # shadow: run host-routed safe reads for comparison, return direct results
     # host-preferred: use host routing with direct fallback on unavailable/unsupported
     # host-required: require host routing; intended for tests and diagnostics only
-    default_mode: "direct"
+    default_mode: "host-preferred"
     shadow_compare: true
     modes:
       llm_metadata: "host-preferred"
@@ -49,40 +49,40 @@ daemon:
       vcs_query: "host-preferred"
       workspace_metadata: "host-preferred"
       workspace_resolve_ref: "host-preferred"
-      llm_invoke: "direct"
-      workflow_step: "direct"
-      vcs_mutation: "direct"
+      llm_invoke: "host-preferred"
+      workflow_step: "host-preferred"
+      vcs_mutation: "host-preferred"
   scheduler:
     # direct: use existing Python launch paths
     # shadow: submit launch batches to the daemon, then still launch directly
     # daemon: submit launch batches to the daemon and fall back to direct on
     #         unavailable/unsupported scheduler routing
-    launch_mode: "direct"
+    launch_mode: "daemon"
     # direct: use existing Python lifecycle mutation paths
     # shadow: enqueue lifecycle mutations to the daemon scheduler, then still
     #         apply the existing direct side effects
     # daemon: enqueue lifecycle mutations to the daemon scheduler and keep
     #         direct fallback available while host execution rolls out
-    lifecycle_mode: "direct"
+    lifecycle_mode: "daemon"
     # direct: use existing Python axe orchestrator/lumberjack paths
     # daemon: submit axe chops/ticks as daemon scheduler tasks and fall back to
     #         direct execution on unavailable/unsupported scheduler routing
-    axe_mode: "direct"
+    axe_mode: "daemon"
   reads:
     enabled: true
     force_direct: false
-    fallback_diagnostics: false
+    fallback_diagnostics: true
     surfaces:
       changespecs: true
       notifications: true
       agents: true
       beads: true
       catalogs: true
-      ace_agents: false
-      ace_changespecs: false
-      ace_notifications: false
-      ace_artifacts: false
-      ace_archive_search: false
+      ace_agents: true
+      ace_changespecs: true
+      ace_notifications: true
+      ace_artifacts: true
+      ace_archive_search: true
 
 ace:
   inactive_seconds: 600
