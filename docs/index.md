@@ -115,6 +115,7 @@ title: Structured Agentic Software Engineering
     <li><strong>XPrompts</strong> turn prompt templates into reusable workflows with reference expansion and typed inputs.</li>
     <li><strong>ACE</strong> is the interactive control surface for daily work.</li>
     <li><strong>Axe Automation</strong> runs background hooks, mentors, maintenance jobs, and scheduled workflows.</li>
+    <li><strong>Local daemon</strong> provides host-local projections, scheduler rollout, provider-host routing, and recovery commands.</li>
     <li><strong>Provider and workspace abstractions</strong> route agent launches, VCS operations, and workspace setup through plugin-backed boundaries.</li>
   </ul>
   </div>
@@ -168,6 +169,15 @@ title: Structured Agentic Software Engineering
   <p>Review setup, verification commands, source layout, and docs deployment.</p>
 
 <a href="development/">Open development</a>
+
+  </article>
+
+  <article class="sase-card sase-card--compact">
+  <h3>Operate the daemon</h3>
+
+  <p>Review daemon lifecycle, rollout, projection maintenance, backup, and restore commands.</p>
+
+<a href="local_daemon/">Open local daemon</a>
 
   </article>
 

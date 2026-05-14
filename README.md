@@ -44,6 +44,8 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
 - **ChangeSpecs** - Tracked CL/PR-sized units of work with lifecycle state, commits, comments, mentors, and metadata.
 - **SDD and Beads** - Spec-driven planning artifacts plus git-portable issue tracking for epics, phases, and
   dependencies.
+- **Local Daemon** - Host-local projections, scheduler rollout, provider-host routing, and recovery operations for
+  larger SASE installations.
 - **Plugins** - Provider boundaries for agents, VCS operations, workspaces, notifications, and external integrations.
 
 ## Quick start
@@ -86,6 +88,7 @@ The full documentation lives at **[sase.sh](https://sase.sh/)**. Start with:
 - [Plugins](https://sase.sh/plugins/) ([local](docs/plugins.md))
 - [LLM Providers](https://sase.sh/llms/) ([local](docs/llms.md))
 - [Notifications](https://sase.sh/notifications/) ([local](docs/notifications.md))
+- [Local Daemon](https://sase.sh/local_daemon/) ([local](docs/local_daemon.md))
 - [Agent Attachments](https://sase.sh/agent_images/) ([local](docs/agent_images.md))
 - [Mobile Gateway](https://sase.sh/mobile_gateway/) ([local](docs/mobile_gateway.md))
 - [Telemetry](https://sase.sh/telemetry/) ([local](docs/telemetry.md))

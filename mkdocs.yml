@@ -26,6 +26,7 @@ nav:
   - The Nitty Gritty:
       - Commit Workflows: commit_workflows.md
       - Notifications: notifications.md
+      - Local Daemon: local_daemon.md
       - Mobile Gateway: mobile_gateway.md
       - Mobile MVP Runbook: mobile_mvp_runbook.md
       - Performance Runbook: perf_runbook.md

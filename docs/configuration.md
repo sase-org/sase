@@ -670,6 +670,37 @@ daemon:
   socket_path: "" # optional Unix socket path
   disable_mobile_http: false
   startup_timeout_seconds: 5
+  provider_host:
+    default_mode: direct
+    shadow_compare: true
+    modes:
+      llm_metadata: host-preferred
+      xprompt_catalog: host-preferred
+      vcs_query: host-preferred
+      workspace_metadata: host-preferred
+      workspace_resolve_ref: host-preferred
+      llm_invoke: direct
+      workflow_step: direct
+      vcs_mutation: direct
+  scheduler:
+    launch_mode: direct # direct, shadow, daemon
+    lifecycle_mode: direct # direct, shadow, daemon
+    axe_mode: direct # direct, daemon
+  reads:
+    enabled: true
+    force_direct: false
+    fallback_diagnostics: false
+    surfaces:
+      changespecs: true
+      notifications: true
+      agents: true
+      beads: true
+      catalogs: true
+      ace_agents: false
+      ace_changespecs: false
+      ace_notifications: false
+      ace_artifacts: false
+      ace_archive_search: false
 ```
 
 The default runtime layout is:
@@ -700,7 +731,40 @@ Projection operation commands are scoped to runtime state:
 - `sase daemon restore <backup.sqlite>` restores only `<run_root>/projections/projection.sqlite`; use rebuild instead
   when source stores are healthy and you only need to regenerate projections from authoritative files.
 
-Source: `src/sase/default_config.yml`, `src/sase/integrations/_daemon_lifecycle_config.py`, `src/sase/daemon/paths.py`
+Read rollout controls:
+
+| Field                               | Default | Description                                                                                           |
+| ----------------------------------- | ------- | ----------------------------------------------------------------------------------------------------- |
+| `daemon.reads.enabled`              | `true`  | Global daemon read-through switch.                                                                    |
+| `daemon.reads.force_direct`         | `false` | Keep daemon lifecycle/diagnostics available while routing production reads directly to source stores. |
+| `daemon.reads.fallback_diagnostics` | `false` | Expose read fallback metadata at call sites that support it.                                          |
+| `daemon.reads.surfaces.<group>`     | varies  | Enable or disable one logical read rollout group.                                                     |
+
+Default-on read groups are `changespecs`, `notifications`, `agents`, `beads`, and `catalogs`. ACE-specific groups
+default off: `ace_agents`, `ace_changespecs`, `ace_notifications`, `ace_artifacts`, and `ace_archive_search`.
+
+Scheduler rollout controls:
+
+| Field                             | Values                       | Default  | Description                                                          |
+| --------------------------------- | ---------------------------- | -------- | -------------------------------------------------------------------- |
+| `daemon.scheduler.launch_mode`    | `direct`, `shadow`, `daemon` | `direct` | Controls `sase run`, ACE, and mobile agent launch routing.           |
+| `daemon.scheduler.lifecycle_mode` | `direct`, `shadow`, `daemon` | `direct` | Controls kill, dismiss, cleanup, revive, and bulk lifecycle routing. |
+| `daemon.scheduler.axe_mode`       | `direct`, `daemon`           | `direct` | Controls axe task routing.                                           |
+
+Provider-host rollout controls:
+
+| Field                                    | Values                                                | Default            | Description                                               |
+| ---------------------------------------- | ----------------------------------------------------- | ------------------ | --------------------------------------------------------- |
+| `daemon.provider_host.default_mode`      | `direct`, `shadow`, `host-preferred`, `host-required` | `direct`           | Fallback mode for operations without a specific entry.    |
+| `daemon.provider_host.shadow_compare`    | bool                                                  | `true`             | Record comparisons when an operation runs in shadow mode. |
+| `daemon.provider_host.modes.<operation>` | `direct`, `shadow`, `host-preferred`, `host-required` | operation-specific | Per-operation routing mode.                               |
+
+Low-risk operations default to `host-preferred`: `llm_metadata`, `xprompt_catalog`, `vcs_query`, `workspace_metadata`,
+and `workspace_resolve_ref`. Mutation-heavy operations default to `direct`: `llm_invoke`, `workflow_step`, and
+`vcs_mutation`.
+
+Source: `src/sase/default_config.yml`, `src/sase/daemon/read_config.py`, `src/sase/daemon/scheduler_config.py`,
+`src/sase/host/routing.py`, `src/sase/integrations/_daemon_lifecycle_config.py`, `src/sase/daemon/paths.py`
 
 ### sdd
 
@@ -817,6 +881,28 @@ entry points directly.
 | `SASE_DISABLE_PLUGINS`         | Disable plugin-provided xprompts, workflows, and config defaults.       |
 | `SASE_DISABLE_PLUGIN_XPROMPTS` | Disable plugin-provided xprompt and workflow files.                     |
 | `SASE_DISABLE_PLUGIN_CONFIG`   | Disable plugin-provided `default_config.yml` files and config xprompts. |
+
+### Local Daemon And Provider Host
+
+These variables override daemon configuration for one process or provide immediate rollback switches.
+
+| Variable                               | Description                                                                                                                                                                              |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SASE_HOME`                            | Override the SASE source-store root. Used by daemon lifecycle commands, mobile helpers, beads, and provider-host manifests.                                                              |
+| `SASE_NO_DAEMON`                       | Disable daemon-capable reads, writes, and scheduler routing for the current process.                                                                                                     |
+| `SASE_DAEMON_READS`                    | Override `daemon.reads.enabled` (`1/true/yes/on` or `0/false/no/off`).                                                                                                                   |
+| `SASE_DAEMON_FORCE_DIRECT`             | Override `daemon.reads.force_direct`; also forces provider query helpers away from daemon host routing.                                                                                  |
+| `SASE_DAEMON_FALLBACK_DIAGNOSTICS`     | Override `daemon.reads.fallback_diagnostics`.                                                                                                                                            |
+| `SASE_DAEMON_<SURFACE>_READS`          | Override one daemon read group, such as `SASE_DAEMON_CHANGESPECS_READS`, `SASE_DAEMON_NOTIFICATIONS_READS`, `SASE_DAEMON_ACE_NOTIFICATIONS_READS`, or `SASE_DAEMON_ACE_ARTIFACTS_READS`. |
+| `SASE_ACE_AGENTS_DAEMON_READS`         | Compatibility override for ACE Agents daemon reads.                                                                                                                                      |
+| `SASE_ACE_ARCHIVE_SEARCH_DAEMON_READS` | Compatibility override for ACE archive-search daemon reads.                                                                                                                              |
+| `SASE_DAEMON_SCHEDULER_LAUNCH_MODE`    | Override `daemon.scheduler.launch_mode`.                                                                                                                                                 |
+| `SASE_DAEMON_SCHEDULER_LIFECYCLE_MODE` | Override `daemon.scheduler.lifecycle_mode`.                                                                                                                                              |
+| `SASE_DAEMON_SCHEDULER_AXE_MODE`       | Override `daemon.scheduler.axe_mode`.                                                                                                                                                    |
+| `SASE_PROVIDER_HOST_MODE`              | Override provider-host routing globally; use `direct` as the one-env rollback switch.                                                                                                    |
+| `SASE_PROVIDER_HOST_<OPERATION>_MODE`  | Override one provider-host operation, such as `SASE_PROVIDER_HOST_LLM_METADATA_MODE`.                                                                                                    |
+| `SASE_DISABLE_PROVIDER_HOST_ROUTING`   | Force all provider-host operations to `direct`.                                                                                                                                          |
+| `SASE_PROVIDER_HOST_QUERIES`           | Legacy boolean override for low-risk provider-host query/metadata operations.                                                                                                            |
 
 ### General
 
@@ -1139,6 +1225,37 @@ may point at an SDD root or at a project root containing `sdd/`.
 | _subcommand_ | `status`, `list`, `snapshot`, `dashboard`, `health`, `export-config` | (required) | Telemetry subcommand |
 
 See [docs/telemetry.md](telemetry.md) for the full CLI reference including per-subcommand flags.
+
+### `sase daemon`
+
+Every public daemon subcommand accepts the same runtime path overrides:
+
+| Flag              | Values | Default                       | Description              |
+| ----------------- | ------ | ----------------------------- | ------------------------ |
+| `-H, --sase-home` | path   | `SASE_HOME` or `~/.sase`      | Source-store root.       |
+| `--run-root`      | path   | `~/.sase/run/<host>`          | Host-local runtime root. |
+| `--socket-path`   | path   | `<run_root>/sase-daemon.sock` | Unix socket path.        |
+
+Daemon subcommands:
+
+| Form                           | Flags                                                                                                                          | Description                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `sase daemon start`            | `--foreground`, `--tokio-console`, `--disable-mobile-http`, `--bind`, `--allow-non-loopback`, `--command`, `--startup-timeout` | Start the daemon or run it in the foreground.                                                        |
+| `sase daemon stop`             | `--timeout`                                                                                                                    | Stop the daemon.                                                                                     |
+| `sase daemon status`           | `--json`                                                                                                                       | Show ownership metadata, local RPC health when available, and storage-layout diagnostics.            |
+| `sase daemon doctor`           | `--json`, `--repair-stale-lock`                                                                                                | Run lifecycle diagnostics and optionally remove confirmed same-host stale lock/socket runtime files. |
+| `sase daemon scheduler status` | `--project`, `--batch`, `--json`                                                                                               | Show one daemon scheduler batch.                                                                     |
+| `sase daemon scheduler cancel` | `--project`, `--batch`, `--slot`, `--reason`, `--idempotency-key`, `--json`                                                    | Record an idempotent operator recovery cancellation for a scheduler batch or slot.                   |
+| `sase daemon rebuild`          | `--surface`, `--project`, `--reset-storage`, `--json`, `--timeout`                                                             | Rebuild projections from source stores or reset/replay retained projection events.                   |
+| `sase daemon checkpoint`       | `--mode`, `--json`, `--timeout`                                                                                                | Checkpoint the projection WAL; mode is `passive`, `full`, `restart`, or `truncate`.                  |
+| `sase daemon backup`           | `--path`, `--json`, `--timeout`                                                                                                | Create a projection-only SQLite backup plus metadata sidecar.                                        |
+| `sase daemon list-backups`     | `--limit`, `--json`, `--timeout`                                                                                               | List recent metadata-backed projection snapshots.                                                    |
+| `sase daemon restore`          | `path`, `--live-recovery`, `--allow-host-mismatch`, `--json`, `--timeout`                                                      | Restore only the projection database from a backup snapshot.                                         |
+| `sase daemon verify`           | `--surface`, `--project`, `--json`, `--timeout`                                                                                | Compare daemon projections against current source-store loaders.                                     |
+| `sase daemon diff`             | `--surface`, `--project`, `--limit`, `--cursor`, `--json`, `--timeout`                                                         | Page through bounded projection diff records.                                                        |
+
+`--surface` accepts `changespecs`, `notifications`, `agents`, `beads`, `catalogs`, or `all`. Projection backup and
+restore never edit source stores, project specs, artifacts, JSONL files, or external repositories.
 
 ### `sase logs`
 

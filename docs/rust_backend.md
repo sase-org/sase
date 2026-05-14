@@ -143,6 +143,9 @@ exposes a Unix-socket framed JSON RPC surface for health, capabilities, bounded 
 projection maintenance. Direct Python source-store readers remain authoritative, while daemon-backed reads are
 read-through accelerators with direct fallback.
 
+For the operator-facing command guide, runtime layout, rollout controls, and recovery playbooks, see
+[`docs/local_daemon.md`](local_daemon.md).
+
 The daemon watches and backfills existing source stores into rebuildable SQLite projections. Read-heavy CLI, editor, and
 ACE surfaces can route through those projections when the daemon advertises the matching capability and the selected
 project/store matches the direct loader's context. Source stores remain authoritative: daemon read failures fall back to
