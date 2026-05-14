@@ -122,9 +122,9 @@ GitHub pull requests, and other provider plugins.
 | `sase daemon start`              | Start the host-local Rust daemon.                                            | [Local daemon](local_daemon.md)                                     |
 | `sase daemon status`             | Show local daemon ownership, socket, log, and projection paths.              | [Daemon operations](troubleshooting/daemon-operations.md)           |
 | `sase daemon doctor`             | Diagnose daemon health and print exact repair commands.                      | [Daemon operations](troubleshooting/daemon-operations.md)           |
-| `sase daemon rebuild`            | Rebuild daemon projections from authoritative source stores.                 | [Daemon operations](troubleshooting/daemon-operations.md)           |
-| `sase daemon verify` / `diff`    | Compare runtime projections against authoritative source stores.             | [Daemon operations](troubleshooting/daemon-operations.md)           |
-| `sase daemon backup` / `restore` | Create or restore host-local projection snapshots without editing sources.   | [Daemon operations](troubleshooting/daemon-operations.md)           |
+| `sase daemon rebuild`            | Backfill daemon projections, or replay retained projection events.           | [Daemon operations](troubleshooting/daemon-operations.md)           |
+| `sase daemon verify` / `diff`    | Compare runtime projections against source-store loaders.                    | [Daemon operations](troubleshooting/daemon-operations.md)           |
+| `sase daemon backup` / `restore` | Create live projection snapshots or restore projection-only backups.         | [Daemon operations](troubleshooting/daemon-operations.md)           |
 | `sase daemon scheduler`          | Inspect or cancel daemon scheduler batches.                                  | [Local daemon](local_daemon.md#scheduler-and-provider-host-rollout) |
 | `sase telemetry status`          | Show telemetry configuration and reachability.                               | [Telemetry](telemetry.md)                                           |
 | `sase telemetry list`            | Display the metric catalog.                                                  | [Telemetry](telemetry.md)                                           |

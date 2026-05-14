@@ -660,7 +660,8 @@ Source: `src/sase/default_config.yml`, `src/sase/integrations/mobile_gateway.py`
 
 ### daemon
 
-Configuration for the local Rust daemon lifecycle, scheduler, host-provider routing, and daemon-backed reads.
+Configuration for the optional local Rust daemon lifecycle, scheduler, provider-host routing, and daemon-backed reads.
+The daemon is separate from AXE automation; most user-visible data remains in source stores under `SASE_HOME`.
 
 ```yaml
 daemon:
@@ -726,11 +727,15 @@ source stores or when the socket is outside `run_root`.
 
 Projection operation commands are scoped to runtime state:
 
-- `sase daemon checkpoint --mode truncate` checkpoints the host-local projection WAL.
-- `sase daemon backup` creates `<run_root>/backups/projection-<timestamp>.sqlite` plus a metadata sidecar.
-- `sase daemon list-backups` lists recent metadata-backed projection snapshots.
-- `sase daemon restore <backup.sqlite>` restores only `<run_root>/projections/projection.sqlite`; use rebuild instead
-  when source stores are healthy and you only need to regenerate projections from authoritative files.
+- `sase daemon rebuild --surface all` backfills projections from source stores through a running daemon.
+- `sase daemon rebuild --reset-storage` is the stopped/stale one-shot mode; it resets projection tables and replays
+  retained projection events.
+- `sase daemon checkpoint --mode truncate` checkpoints the host-local projection WAL through a running daemon.
+- `sase daemon backup` creates `<run_root>/backups/projection-<timestamp>.sqlite` plus a metadata sidecar through a
+  running daemon.
+- `sase daemon list-backups` lists recent metadata-backed projection snapshots through a running daemon.
+- `sase daemon restore <backup.sqlite>` restores only `<run_root>/projections/projection.sqlite`; it can run offline
+  when the daemon is stopped or stale, while a running daemon requires `--live-recovery`.
 
 Read rollout controls:
 
@@ -761,8 +766,9 @@ Provider-host rollout controls:
 | `daemon.provider_host.modes.<operation>` | `direct`, `shadow`, `host-preferred`, `host-required` | operation-specific | Per-operation routing mode.                               |
 
 Low-risk operations default to `host-preferred`: `llm_metadata`, `xprompt_catalog`, `vcs_query`, `workspace_metadata`,
-and `workspace_resolve_ref`. Mutation-heavy operations default to `direct`: `llm_invoke`, `workflow_step`, and
-`vcs_mutation`.
+and `workspace_resolve_ref`. In `host-preferred` mode SASE uses the daemon host-call path when it is running and
+capable, then falls back to the direct Python path. Mutation-heavy operations default to `direct`: `llm_invoke`,
+`workflow_step`, and `vcs_mutation`.
 
 Source: `src/sase/default_config.yml`, `src/sase/daemon/read_config.py`, `src/sase/daemon/scheduler_config.py`,
 `src/sase/host/routing.py`, `src/sase/integrations/_daemon_lifecycle_config.py`, `src/sase/daemon/paths.py`
@@ -902,7 +908,7 @@ These variables override daemon configuration for one process or provide immedia
 | `SASE_DAEMON_SCHEDULER_AXE_MODE`       | Override `daemon.scheduler.axe_mode`.                                                                                                                                                    |
 | `SASE_PROVIDER_HOST_MODE`              | Override provider-host routing globally; use `direct` as the one-env rollback switch.                                                                                                    |
 | `SASE_PROVIDER_HOST_<OPERATION>_MODE`  | Override one provider-host operation, such as `SASE_PROVIDER_HOST_LLM_METADATA_MODE`.                                                                                                    |
-| `SASE_DISABLE_PROVIDER_HOST_ROUTING`   | Force all provider-host operations to `direct`.                                                                                                                                          |
+| `SASE_DISABLE_PROVIDER_HOST_ROUTING`   | Force all provider-host operations to `direct` when set to a non-empty value.                                                                                                            |
 | `SASE_PROVIDER_HOST_QUERIES`           | Legacy boolean override for low-risk provider-host query/metadata operations.                                                                                                            |
 
 ### General
@@ -1229,7 +1235,8 @@ See [docs/telemetry.md](telemetry.md) for the full CLI reference including per-s
 
 ### `sase daemon`
 
-Every public daemon subcommand accepts the same runtime path overrides:
+Every public daemon subcommand accepts the same runtime path overrides. For nested scheduler commands, place these
+options before `status` or `cancel`, for example `sase daemon scheduler --run-root /tmp/sase-run status ...`.
 
 | Flag              | Values | Default                       | Description              |
 | ----------------- | ------ | ----------------------------- | ------------------------ |
@@ -1239,21 +1246,21 @@ Every public daemon subcommand accepts the same runtime path overrides:
 
 Daemon subcommands:
 
-| Form                           | Flags                                                                                                                          | Description                                                                                          |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `sase daemon start`            | `--foreground`, `--tokio-console`, `--disable-mobile-http`, `--bind`, `--allow-non-loopback`, `--command`, `--startup-timeout` | Start the daemon or run it in the foreground.                                                        |
-| `sase daemon stop`             | `--timeout`                                                                                                                    | Stop the daemon.                                                                                     |
-| `sase daemon status`           | `--json`                                                                                                                       | Show ownership metadata, local RPC health when available, and storage-layout diagnostics.            |
-| `sase daemon doctor`           | `--json`, `--repair-stale-lock`                                                                                                | Run lifecycle diagnostics and optionally remove confirmed same-host stale lock/socket runtime files. |
-| `sase daemon scheduler status` | `--project`, `--batch`, `--json`                                                                                               | Show one daemon scheduler batch.                                                                     |
-| `sase daemon scheduler cancel` | `--project`, `--batch`, `--slot`, `--reason`, `--idempotency-key`, `--json`                                                    | Record an idempotent operator recovery cancellation for a scheduler batch or slot.                   |
-| `sase daemon rebuild`          | `--surface`, `--project`, `--reset-storage`, `--json`, `--timeout`                                                             | Rebuild projections from source stores or reset/replay retained projection events.                   |
-| `sase daemon checkpoint`       | `--mode`, `--json`, `--timeout`                                                                                                | Checkpoint the projection WAL; mode is `passive`, `full`, `restart`, or `truncate`.                  |
-| `sase daemon backup`           | `--path`, `--json`, `--timeout`                                                                                                | Create a projection-only SQLite backup plus metadata sidecar.                                        |
-| `sase daemon list-backups`     | `--limit`, `--json`, `--timeout`                                                                                               | List recent metadata-backed projection snapshots.                                                    |
-| `sase daemon restore`          | `path`, `--live-recovery`, `--allow-host-mismatch`, `--json`, `--timeout`                                                      | Restore only the projection database from a backup snapshot.                                         |
-| `sase daemon verify`           | `--surface`, `--project`, `--json`, `--timeout`                                                                                | Compare daemon projections against current source-store loaders.                                     |
-| `sase daemon diff`             | `--surface`, `--project`, `--limit`, `--cursor`, `--json`, `--timeout`                                                         | Page through bounded projection diff records.                                                        |
+| Form                           | Flags                                                                                                                          | Description                                                                                                                 |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `sase daemon start`            | `--foreground`, `--tokio-console`, `--disable-mobile-http`, `--bind`, `--allow-non-loopback`, `--command`, `--startup-timeout` | Start the daemon or run it in the foreground.                                                                               |
+| `sase daemon stop`             | `--timeout`                                                                                                                    | Stop the daemon.                                                                                                            |
+| `sase daemon status`           | `--json`                                                                                                                       | Show ownership metadata, local RPC health when available, and storage-layout diagnostics.                                   |
+| `sase daemon doctor`           | `--json`, `--repair-stale-lock`                                                                                                | Run lifecycle diagnostics and optionally remove confirmed same-host stale lock/socket runtime files.                        |
+| `sase daemon scheduler status` | `--project`, `--batch`, `--json`                                                                                               | Show one daemon scheduler batch.                                                                                            |
+| `sase daemon scheduler cancel` | `--project`, `--batch`, `--slot`, `--reason`, `--idempotency-key`, `--json`                                                    | Record an idempotent operator recovery cancellation for a scheduler batch or slot.                                          |
+| `sase daemon rebuild`          | `--surface`, `--project`, `--reset-storage`, `--json`, `--timeout`                                                             | Backfill projections through a running daemon, or use `--reset-storage` for stopped/stale replay.                           |
+| `sase daemon checkpoint`       | `--mode`, `--json`, `--timeout`                                                                                                | Checkpoint the projection WAL through a running daemon; mode is `passive`, `full`, `restart`, or `truncate`.                |
+| `sase daemon backup`           | `--path`, `--json`, `--timeout`                                                                                                | Create a projection-only SQLite backup plus metadata sidecar through a running daemon.                                      |
+| `sase daemon list-backups`     | `--limit`, `--json`, `--timeout`                                                                                               | List recent metadata-backed projection snapshots through a running daemon.                                                  |
+| `sase daemon restore`          | `path`, `--live-recovery`, `--allow-host-mismatch`, `--json`, `--timeout`                                                      | Restore only the projection database; stopped/stale daemons can restore offline, running daemons require `--live-recovery`. |
+| `sase daemon verify`           | `--surface`, `--project`, `--json`, `--timeout`                                                                                | Compare daemon projections against current source-store loaders through a running daemon.                                   |
+| `sase daemon diff`             | `--surface`, `--project`, `--limit`, `--cursor`, `--json`, `--timeout`                                                         | Page through bounded projection diff records through a running daemon.                                                      |
 
 `--surface` accepts `changespecs`, `notifications`, `agents`, `beads`, `catalogs`, or `all`. Projection backup and
 restore never edit source stores, project specs, artifacts, JSONL files, or external repositories.

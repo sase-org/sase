@@ -1,12 +1,18 @@
 # Local Daemon
 
-The local SASE daemon is a host-local Rust process launched through `sase_gateway daemon`. It provides a Unix-socket
-JSON RPC surface for health checks, projection maintenance, daemon-backed reads, durable write-through events, scheduler
-rollout, provider-host routing, and mobile HTTP serving.
+The local SASE daemon is an optional host-local Rust process. Users normally start it with `sase daemon start`, which
+launches `sase_gateway daemon` under the hood. It provides a Unix-socket JSON RPC surface for health checks, projection
+maintenance, daemon-backed reads, durable write-through events, scheduler rollout, provider-host routing, and mobile
+HTTP serving.
 
 Source stores remain authoritative. Project files, notifications, pending actions, artifacts, chats, beads, repo
 metadata, and workflow state live under the SASE home directory, defaulting to `~/.sase`. The daemon stores rebuildable
 runtime state under a host-local `run_root`, defaulting to `~/.sase/run/<host>/`.
+
+A projection is the daemon's rebuildable SQLite view of those source stores. If the daemon is stopped or disabled,
+daemon-capable read/write paths fall back to direct source-store behavior, while scheduler paths fall back to direct
+Python host behavior where that surface supports fallback. The local daemon is separate from AXE, which is the
+background automation scheduler documented in [AXE Automation](axe.md).
 
 ## Runtime Layout
 
@@ -42,6 +48,12 @@ Common options:
 | `--run-root <path>`      | all daemon commands                            | Override the host-local runtime root.              |
 | `--socket-path <path>`   | all daemon commands                            | Override the Unix socket path.                     |
 | `--json`                 | status, doctor, scheduler, projection commands | Emit machine-readable output.                      |
+
+For nested scheduler commands, put runtime path overrides before the scheduler action:
+
+```bash
+sase daemon scheduler --run-root /tmp/sase-run status --project <project> --batch <batch>
+```
 
 `sase daemon doctor` reports stopped, running, degraded projection, stale lock, incompatible metadata, and host-conflict
 states. When doctor confirms that a same-host lock is stale and no live process owns it, run:
@@ -81,10 +93,10 @@ reason tokens include `daemon_disabled`, `daemon_reads_disabled`, `force_direct`
 `daemon_not_running`, `unsupported_capability`, `projection_degraded`, `cursor_expired`, `snapshot_expired`,
 `payload_too_large`, and `resource_not_found`.
 
-Daemon writes append projection events and source-export outbox rows before updating human-readable source files. The
-currently routed durable write surfaces are notifications, ChangeSpec metadata, agent metadata, bead mutations, and
-workflow state/response files. Host side effects such as process kills, provider subprocesses, shell/Python workflow
-execution, and VCS operations remain direct host actions.
+When a write is routed through the daemon, it appends projection events and source-export outbox rows before updating
+human-readable source files. The currently routed durable write surfaces are notifications, ChangeSpec metadata, agent
+metadata, bead mutations, and workflow state/response files. Host side effects such as process kills, provider
+subprocesses, shell/Python workflow execution, and VCS operations remain direct host actions.
 
 ## Scheduler And Provider Host Rollout
 
@@ -103,13 +115,15 @@ sase daemon scheduler status --project <project> --batch <batch>
 sase daemon scheduler cancel --project <project> --batch <batch> [--slot <slot>]
 ```
 
-Provider-host routing isolates provider/plugin operations behind a host subprocess. Low-risk metadata, catalog, query,
-and reference-resolution paths default to `host-preferred`; mutation-heavy paths remain direct. Use
-`SASE_PROVIDER_HOST_MODE=direct` or `SASE_DISABLE_PROVIDER_HOST_ROUTING=1` as global rollback switches.
+Provider-host routing sends selected provider/plugin operations through the daemon's host-call path. Low-risk metadata,
+catalog, query, and reference-resolution paths default to `host-preferred`, which uses the host path when the daemon is
+running and capable, then falls back direct. Mutation-heavy paths remain direct. Use `SASE_PROVIDER_HOST_MODE=direct` or
+set `SASE_DISABLE_PROVIDER_HOST_ROUTING=1` as global rollback switches.
 
 ## Projection Maintenance
 
-Use rebuild and verify when the source stores are healthy and daemon projections need to catch up:
+Use rebuild and verify when the source stores are healthy and daemon projections need to catch up. A source backfill
+rebuild, verify, and diff require a running daemon with local RPC available:
 
 ```bash
 sase daemon rebuild --surface all
@@ -120,7 +134,12 @@ sase daemon diff --surface all --limit 100
 `--surface` accepts `changespecs`, `notifications`, `agents`, `beads`, `catalogs`, or `all`. Use `--project` when the
 selected surface supports project-scoped input. `diff --json --cursor <cursor>` pages through bounded diff records.
 
-Use checkpoint, backup, and restore for projection storage recovery:
+If the daemon is stopped or stale, the only rebuild mode is `sase daemon rebuild --reset-storage`, which resets
+projection tables and replays retained projection events instead of backfilling from source stores.
+
+Use checkpoint, backup, and restore for projection storage recovery. Checkpoint, backup, and list-backups require a
+running daemon. Restore can run offline when the daemon is stopped or stale; when the daemon is running it requires
+`--live-recovery`.
 
 ```bash
 sase daemon checkpoint --mode truncate

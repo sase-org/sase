@@ -44,8 +44,8 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
 - **ChangeSpecs** - Tracked CL/PR-sized units of work with lifecycle state, commits, comments, mentors, and metadata.
 - **SDD and Beads** - Spec-driven planning artifacts plus git-portable issue tracking for epics, phases, and
   dependencies.
-- **Local Daemon** - Host-local projections, scheduler rollout, provider-host routing, and recovery operations for
-  larger SASE installations.
+- **Local Daemon** - Optional Rust daemon for host-local projections, provider-host routing, mobile serving, and
+  scheduler rollout. This is separate from AXE automation.
 - **Plugins** - Provider boundaries for agents, VCS operations, workspaces, notifications, and external integrations.
 
 ## Quick start

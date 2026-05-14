@@ -120,6 +120,9 @@ Use `doctor` when the daemon is stopped, stale, conflicting, degraded, or confus
 sase daemon doctor
 ```
 
+Live projection backfill, verify, diff, backup, and list-backups use the daemon RPC path and require a running daemon.
+Offline recovery is limited to stopped/stale restore and `sase daemon rebuild --reset-storage`.
+
 Use `verify` after a rebuild, restore, or suspected projection drift:
 
 ```bash
