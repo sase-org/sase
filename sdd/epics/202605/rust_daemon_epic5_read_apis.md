@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-14
-status: proposed
+status: done
 legend_bead_id: sase-3e
 bead_id: sase-3e.5
 tier: epic
