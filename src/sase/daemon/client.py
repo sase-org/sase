@@ -15,6 +15,11 @@ from sase.daemon.constants import (
     LOCAL_DAEMON_MAX_PAYLOAD_BYTES,
     LOCAL_DAEMON_SCHEMA_VERSION,
 )
+from sase.daemon.compatibility import (
+    client_metadata,
+    validate_negotiated_compatibility,
+    validate_response_envelope,
+)
 from sase.daemon.errors import (
     LocalDaemonError,
     LocalDaemonRpcError,
@@ -88,14 +93,14 @@ class LocalDaemonClient(LocalDaemonReadMixin):
         envelope = {
             "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
             "request_id": request_id or f"req_{uuid.uuid4().hex}",
-            "client": {
-                "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
-                "name": self.client_name,
-                "version": self.client_version,
-            },
+            "client": client_metadata(
+                name=self.client_name,
+                version=self.client_version,
+            ),
             "payload": payload,
         }
         response = self._send_envelope(envelope)
+        validate_response_envelope(response)
         response_payload = response.get("payload")
         if (
             isinstance(response_payload, dict)
@@ -115,11 +120,15 @@ class LocalDaemonClient(LocalDaemonReadMixin):
             },
             timeout=timeout,
         )
-        return payload_data(response, "health")
+        data = payload_data(response, "health")
+        validate_negotiated_compatibility(data)
+        return data
 
     def capabilities(self) -> dict[str, Any]:
         response = self.request({"type": "capabilities"})
-        return payload_data(response, "capabilities")
+        data = payload_data(response, "capabilities")
+        validate_negotiated_compatibility(data)
+        return data
 
     def batch(self, requests: list[dict[str, Any]]) -> dict[str, Any]:
         response = self.request({"type": "batch", "data": {"requests": requests}})
@@ -332,16 +341,16 @@ class LocalDaemonClient(LocalDaemonReadMixin):
         envelope = {
             "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
             "request_id": f"req_{uuid.uuid4().hex}",
-            "client": {
-                "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
-                "name": self.client_name,
-                "version": self.client_version,
-            },
+            "client": client_metadata(
+                name=self.client_name,
+                version=self.client_version,
+            ),
             "payload": payload,
         }
         with self._connected_socket(envelope) as sock:
             while True:
                 response = self._read_response(sock)
+                validate_response_envelope(response)
                 raise_for_rpc_error(response)
                 yield response
 

@@ -58,6 +58,73 @@ def test_health_sends_framed_request_and_returns_payload(tmp_path: Path) -> None
         "type": "health",
         "data": {"include_capabilities": True},
     }
+    assert request_holder["request"]["client"] | {"sase_core_rs_version": None} == {
+        "schema_version": 1,
+        "metadata_schema_version": 1,
+        "name": "sase-cli",
+        "version": "0.1.1",
+        "package_version": "0.1.0",
+        "min_supported_schema_version": 1,
+        "max_supported_schema_version": 1,
+        "sase_core_rs_version": None,
+    }
+
+
+def test_newer_daemon_response_schema_is_typed_compatibility_error() -> None:
+    class NewerDaemonTransport:
+        def request(self, envelope: dict[str, Any]) -> dict[str, Any]:
+            return {
+                "schema_version": 2,
+                "request_id": envelope["request_id"],
+                "snapshot_id": None,
+                "payload": {"type": "capabilities", "data": {}},
+            }
+
+    with pytest.raises(LocalDaemonRpcError) as error:
+        LocalDaemonClient(transport=NewerDaemonTransport()).capabilities()
+
+    assert error.value.code == "unsupported_server_version"
+    assert error.value.target == "schema_version"
+    assert error.value.fallback_reason == "unsupported_server_version"
+
+
+def test_health_projection_schema_mismatch_is_typed_error() -> None:
+    class ProjectionMismatchTransport:
+        def request(self, envelope: dict[str, Any]) -> dict[str, Any]:
+            return {
+                "schema_version": 1,
+                "request_id": envelope["request_id"],
+                "snapshot_id": None,
+                "payload": {
+                    "type": "health",
+                    "data": {
+                        "schema_version": 1,
+                        "status": "degraded",
+                        "service": "sase_local_daemon",
+                        "daemon_started": True,
+                        "version": "0.1.1",
+                        "min_client_schema_version": 1,
+                        "max_client_schema_version": 1,
+                        "fallback": {"available": False},
+                        "details": {},
+                        "compatibility": {
+                            "supported_client_schema_range": {
+                                "min": 1,
+                                "max": 1,
+                            },
+                            "projection_read_schema_version": 99,
+                            "projection_write_schema_version": 1,
+                        },
+                    },
+                },
+            }
+
+    with pytest.raises(LocalDaemonRpcError) as error:
+        LocalDaemonClient(transport=ProjectionMismatchTransport()).health()
+
+    assert error.value.code == "projection_schema_mismatch"
+    assert error.value.target == "compatibility.projection_read_schema_version"
+    assert error.value.fallback_message is not None
 
 
 def test_rpc_error_exposes_typed_fallback(tmp_path: Path) -> None:

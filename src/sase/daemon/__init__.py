@@ -20,7 +20,9 @@ from sase.daemon.client import (
 )
 from sase.daemon.constants import (
     LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+    LOCAL_DAEMON_MAX_SUPPORTED_SCHEMA_VERSION,
     LOCAL_DAEMON_MAX_PAYLOAD_BYTES,
+    LOCAL_DAEMON_MIN_SUPPORTED_SCHEMA_VERSION,
     LOCAL_DAEMON_SCHEMA_VERSION,
 )
 from sase.daemon.errors import (
@@ -106,7 +108,9 @@ from sase.daemon.scheduler_host import (
 
 __all__ = [
     "LOCAL_DAEMON_DEFAULT_PAGE_LIMIT",
+    "LOCAL_DAEMON_MAX_SUPPORTED_SCHEMA_VERSION",
     "LOCAL_DAEMON_MAX_PAYLOAD_BYTES",
+    "LOCAL_DAEMON_MIN_SUPPORTED_SCHEMA_VERSION",
     "LOCAL_DAEMON_SCHEMA_VERSION",
     "LocalDaemonClient",
     "LocalDaemonError",
