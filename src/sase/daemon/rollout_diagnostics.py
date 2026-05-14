@@ -6,7 +6,6 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from sase.ace.tui.util.perf_gates import ace_m2_read_perf_gate_results
 from sase.config.core import load_config_without_plugin_defaults
 from sase.daemon.rollout_registry import RolloutSurfaceRecord, rollout_surface_records
 from sase.daemon._rollout_diagnostics_modes import effective_mode, top_level_state
@@ -28,7 +27,6 @@ from sase.daemon._rollout_diagnostics_utils import (
     mapping,
     missing_count,
     mode_needs_daemon,
-    reported_gate_value,
     source_label,
 )
 from sase.integrations._daemon_lifecycle_types import DaemonInspection
@@ -219,7 +217,6 @@ def _surface_payload(
         "compatibility_status": compatibility["status"],
         "parity_status": parity_status(record, inspection),
         "perf_status": perf_status(record, benchmark_report),
-        "benchmark_observation": _benchmark_observation(record, benchmark_report),
         "fallback": {
             "available": record.direct_fallback_available,
             "command": fallback_command(record, mode["mode"]),
@@ -229,55 +226,6 @@ def _surface_payload(
         "default_enablement_allowed": record.default_enablement_allowed,
         "blocked": bool(blocked_reasons),
         "blocked_reasons": blocked_reasons,
-    }
-
-
-def _benchmark_observation(
-    record: RolloutSurfaceRecord,
-    report: Mapping[str, Any] | None,
-) -> dict[str, Any]:
-    if report is None or record.family != "read" or not record.perf_gates:
-        return {}
-    surface = record.surface_id.removeprefix("read.")
-    scenarios_by_surface = {
-        "ace_agents": ("daemon_ace_agents_snapshot",),
-        "ace_changespecs": ("daemon_changespec_snapshot",),
-        "ace_notifications": (
-            "daemon_notification_counts",
-            "daemon_notification_first_page",
-        ),
-    }
-    scenario_names = scenarios_by_surface.get(surface)
-    if scenario_names is None:
-        return {}
-    scenarios = report.get("scenarios")
-    if not isinstance(scenarios, Mapping):
-        return {}
-    scenario_payloads = []
-    for name in scenario_names:
-        scenario = mapping(scenarios.get(name))
-        summary = mapping(scenario.get("summary"))
-        debug = mapping(summary.get("debug"))
-        fallback = mapping(debug.get("fallback_diagnostics"))
-        scenario_payloads.append(
-            {
-                "scenario": name,
-                "p95_ms": scenario.get("p95_ms"),
-                "request_count": summary.get("request_count"),
-                "used_daemon": summary.get("used_daemon"),
-                "fallback_reason": summary.get("fallback_reason"),
-                "circuit_open": fallback.get("circuit_open"),
-                "circuit_reason": fallback.get("circuit_reason"),
-            }
-        )
-    gate = record.perf_gates[0]
-    gate_status = reported_gate_value(report, gate)
-    if gate_status is None:
-        gate_status = ace_m2_read_perf_gate_results(report).get(gate)
-    return {
-        "perf_gate": gate,
-        "perf_gate_status": gate_status,
-        "scenarios": scenario_payloads,
     }
 
 

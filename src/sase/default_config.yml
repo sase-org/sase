@@ -78,11 +78,11 @@ daemon:
       agents: true
       beads: true
       catalogs: true
-      ace_agents: false
-      ace_changespecs: false
-      ace_notifications: false
-      ace_artifacts: false
-      ace_archive_search: false
+      ace_agents: true
+      ace_changespecs: true
+      ace_notifications: true
+      ace_artifacts: true
+      ace_archive_search: true
 
 ace:
   inactive_seconds: 600

@@ -131,15 +131,13 @@ def test_missing_perf_gate_blocks_default_enablement() -> None:
     assert "missing perf gates: daemon_read.perf.changespecs" in violations[0].reason
 
 
-def test_policy_blocks_ace_default_enablement_until_registry_allows_it() -> None:
+def test_policy_allows_gated_ace_default_enablement() -> None:
     violations = default_gate_violations(
         ["read.ace_agents"],
         _registered_gate_coverage(),
     )
 
-    assert len(violations) == 1
-    assert violations[0].surface_id == "read.ace_agents"
-    assert "registry policy does not allow default enablement" in violations[0].reason
+    assert violations == ()
 
 
 _PROVIDER_HOST_DEFAULT_OPERATIONS = {
