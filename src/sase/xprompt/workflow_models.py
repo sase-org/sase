@@ -140,6 +140,7 @@ class Workflow:
         wraps_all: If True, this workflow's pre-steps run before all other embedded
             workflows' pre-steps and its post-steps run after all others. Used for
             workspace setup/teardown workflows like #git, #gh, #hg.
+        hidden: If true, this workflow run row is hidden by default in ACE.
         environment: Environment variables to set at workflow start. Keys are
             variable names, values are strings (supporting Jinja2 templates
             rendered against input args). Set once before any steps run and
@@ -152,6 +153,7 @@ class Workflow:
     source_path: str | None = None
     xprompts: dict[str, XPrompt] = field(default_factory=dict)
     wraps_all: bool = False  # Deprecated: use tags: vcs instead
+    hidden: bool = False
     tags: frozenset[XPromptTag] = field(default_factory=frozenset)
     keywords: list[str] = field(default_factory=list)
     environment: dict[str, str] = field(default_factory=dict)

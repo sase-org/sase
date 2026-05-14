@@ -1,3 +1,5 @@
+hidden: true
+
 input:
   project: { type: line, default: "sase" }
   gh_ref: { type: line, default: "sase" }

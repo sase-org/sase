@@ -167,6 +167,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
             "pid": os.getpid(),
             "appears_as_agent": self.workflow.appears_as_agent(),
             "is_anonymous": self.workflow.is_anonymous(),
+            "hidden": self.workflow.hidden,
             "agents_launched": self._agents_launched,
         }
 

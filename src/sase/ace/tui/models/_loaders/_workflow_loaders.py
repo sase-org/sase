@@ -164,6 +164,7 @@ def load_workflow_states(
             # Read appears_as_agent and is_anonymous flags
             appears_as_agent = data.get("appears_as_agent", False)
             is_anonymous = data.get("is_anonymous", False)
+            hidden = data.get("hidden", False)
             activity = data.get("activity")
             if not isinstance(activity, str):
                 activity = None
@@ -221,6 +222,7 @@ def load_workflow_states(
                     pid=pid,
                     appears_as_agent=appears_as_agent,
                     is_anonymous=is_anonymous,
+                    hidden=hidden,
                     diff_path=diff_path,
                     error_message=error_message,
                     error_traceback=error_traceback,
@@ -317,6 +319,7 @@ def load_workflow_agents(
             pid=entry.pid,
             appears_as_agent=entry.appears_as_agent,
             is_anonymous=entry.is_anonymous,
+            hidden=entry.hidden,
             artifacts_dir=entry.artifacts_dir,
             diff_path=entry.diff_path,
             extra_files=extra_files,

@@ -119,6 +119,7 @@ def _namespace_workflow(project: str, wf: Workflow) -> Workflow:
         source_path=wf.source_path,
         xprompts=wf.xprompts,
         wraps_all=wf.wraps_all,
+        hidden=wf.hidden,
         tags=wf.tags,
         keywords=wf.keywords,
         environment=wf.environment,
@@ -140,6 +141,7 @@ def _load_workflow_from_mapping(
     """
     # Parse wraps_all
     wraps_all = bool(data.get("wraps_all", False))
+    hidden = bool(data.get("hidden", False))
 
     # Parse tags (with wraps_all backward compat)
     from sase.xprompt.tags import XPromptTag
@@ -220,6 +222,7 @@ def _load_workflow_from_mapping(
         source_path=source_path,
         xprompts=parsed_xprompts,
         wraps_all=wraps_all,
+        hidden=hidden,
         tags=tags,
         environment=environment,
     )
@@ -392,6 +395,7 @@ def _load_workflows_from_plugins() -> dict[str, Workflow]:
                         source_path=source,
                         xprompts=workflow.xprompts,
                         wraps_all=workflow.wraps_all,
+                        hidden=workflow.hidden,
                         tags=workflow.tags,
                         keywords=workflow.keywords,
                         environment=workflow.environment,

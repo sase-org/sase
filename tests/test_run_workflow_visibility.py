@@ -14,6 +14,7 @@ from unittest.mock import patch
 from sase.ace.tui.models._dedup import dedup_running_vs_workflow
 from sase.ace.tui.models._loaders._workflow_loaders import (
     _iter_workflow_timestamp_dirs,
+    load_workflow_agents,
     load_workflow_states,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -62,6 +63,7 @@ def test_load_workflow_states_from_run_dir(tmp_path: Path) -> None:
     state = {
         "status": "running",
         "appears_as_agent": True,
+        "hidden": True,
         "pid": 12345,
         "context": {"cl_name": "my_cl"},
         "steps": [],
@@ -89,7 +91,45 @@ def test_load_workflow_states_from_run_dir(tmp_path: Path) -> None:
     assert entry.cl_name == "my_cl"
     assert entry.status == "RUNNING"
     assert entry.appears_as_agent is True
+    assert entry.hidden is True
     assert entry.pid == 12345
+
+
+def test_load_workflow_agents_maps_state_hidden_to_agent_hidden(
+    tmp_path: Path,
+) -> None:
+    fake_home = tmp_path / "fakehome"
+    ts_dir = (
+        fake_home
+        / ".sase"
+        / "projects"
+        / "testproj"
+        / "artifacts"
+        / "workflow-launcher"
+        / "20260329140000"
+    )
+    ts_dir.mkdir(parents=True)
+    with open(ts_dir / "workflow_state.json", "w") as f:
+        json.dump(
+            {
+                "status": "running",
+                "hidden": True,
+                "context": {"cl_name": "my_cl"},
+                "steps": [],
+                "current_step_index": 0,
+                "workflow_name": "launcher",
+            },
+            f,
+        )
+
+    with patch(
+        "sase.ace.tui.models._loaders._workflow_loaders.Path.home",
+        return_value=fake_home,
+    ):
+        agents = load_workflow_agents()
+
+    assert len(agents) == 1
+    assert agents[0].hidden is True
 
 
 def test_dedup_running_vs_workflow_merges_plain_run() -> None:

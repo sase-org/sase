@@ -322,6 +322,7 @@ def _write_failed_workflow_state(
         "pid": os.getpid(),
         "error": error_message,
         "is_anonymous": workflow_name.startswith("tmp_"),
+        "hidden": bool(workflow.hidden) if workflow is not None else False,
     }
     if step_prompts:
         state_dict["step_prompts"] = step_prompts

@@ -13,6 +13,9 @@ from sase.core.agent_scan_facade import (
 )
 from sase.core.agent_scan_wire import AGENT_SCAN_WIRE_SCHEMA_VERSION
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
+from sase.ace.tui.models._loaders._workflow_snapshot_loaders import (
+    load_workflow_agents_from_snapshot,
+)
 
 from .core_agent_scan_helpers import (
     core_agent_scan_fixture_root as _fixture_root,
@@ -147,6 +150,27 @@ def test_scan_agent_artifacts_calls_rust_binding(
     assert options_dict["include_workflow_state"] is True
     assert options_dict["include_waiting"] is True
     assert options_dict["only_projects"] == []
+
+
+def test_snapshot_workflow_hidden_maps_to_agent_hidden(tmp_path: Path) -> None:
+    projects_root = tmp_path / "projects"
+    record = minimal_record(projects_root, "20260514120000", "workflow-parent")
+    record["workflow_dir_name"] = "workflow-launcher"
+    record["workflow_state"] = {
+        "workflow_name": "launcher",
+        "status": "running",
+        "hidden": True,
+        "current_step_index": 0,
+        "steps": [],
+    }
+
+    snapshot = minimal_snapshot(str(projects_root), [record])
+    from sase.core.agent_scan_wire import agent_scan_wire_from_dict
+
+    agents = load_workflow_agents_from_snapshot(agent_scan_wire_from_dict(snapshot))
+
+    assert len(agents) == 1
+    assert agents[0].hidden is True
 
 
 def test_scan_agent_artifacts_missing_extension_raises_importerror(

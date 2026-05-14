@@ -174,6 +174,16 @@ class TestLoadWorkflowWithStepImports:
         assert workflow.steps[0].hidden is True
         assert workflow.steps[0].output is not None
 
+    def test_workflow_hidden_field(self, tmp_path: Path) -> None:
+        wf_file = tmp_path / "hidden_wf.yml"
+        wf_file.write_text("hidden: true\nsteps:\n  - name: run\n    bash: echo ok\n")
+
+        workflow = _load_workflow_from_file(wf_file)
+
+        assert workflow is not None
+        assert workflow.hidden is True
+        assert workflow.steps[0].hidden is False
+
     @pytest.mark.usefixtures("_patch_search_dirs")
     def test_workflow_use_with_local_override(self, tmp_path: Path) -> None:
         wf_file = tmp_path / "test_wf.yml"

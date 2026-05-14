@@ -1,6 +1,7 @@
 """Tests for the WorkflowExecutor class."""
 
 import os
+import json
 import re
 import tempfile
 from pathlib import Path
@@ -229,6 +230,26 @@ class TestShouldHitl:
 
 class TestPythonStepExecution:
     """Tests for Python step execution."""
+
+    def test_workflow_hidden_is_persisted_to_state(self) -> None:
+        """Workflow-level hidden is independent from step-level hidden."""
+        step = WorkflowStep(name="python_step", python='print("ok=true")')
+        workflow = Workflow(name="hidden_parent", steps=[step], hidden=True)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            executor = WorkflowExecutor(
+                workflow=workflow,
+                args={},
+                artifacts_dir=tmpdir,
+            )
+
+            assert executor.execute() is True
+
+            state_path = Path(tmpdir) / "workflow_state.json"
+            data = json.loads(state_path.read_text(encoding="utf-8"))
+
+        assert data["hidden"] is True
+        assert data["steps"][0]["hidden"] is False
 
     def test_python_step_with_jinja_context(self) -> None:
         """Test Python step can access Jinja2 context variables."""

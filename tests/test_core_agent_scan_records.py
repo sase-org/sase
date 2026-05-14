@@ -296,6 +296,7 @@ def test_workflow_root_record_has_state_and_steps(fixture_root: Path) -> None:
     assert state.status == "completed"
     assert state.appears_as_agent is True
     assert state.is_anonymous is False
+    assert state.hidden is False
     assert len(state.steps) == 3
     assert state.steps[0].name == "plan"
     assert state.steps[0].status == "completed"
@@ -319,6 +320,61 @@ def test_workflow_root_record_has_state_and_steps(fixture_root: Path) -> None:
     assert plan.output is not None and plan.output.get("meta_workspace") == "5"
     assert code.hidden is True
     assert code.diff_path == "/tmp/diff.diff"
+
+
+def test_workflow_state_hidden_is_parsed(fixture_root: Path) -> None:
+    state_path = (
+        fixture_root
+        / "myproj"
+        / "artifacts"
+        / "workflow-three_phase"
+        / TS_WORKFLOW_ROOT
+        / "workflow_state.json"
+    )
+    data = json.loads(state_path.read_text(encoding="utf-8"))
+    data["hidden"] = True
+    state_path.write_text(json.dumps(data), encoding="utf-8")
+
+    snapshot = scan_agent_artifacts(fixture_root)
+    rec = record_by_timestamp(snapshot, TS_WORKFLOW_ROOT)
+
+    assert rec.workflow_state is not None
+    assert rec.workflow_state.hidden is True
+
+
+def test_artifact_index_treats_workflow_state_hidden_as_hidden(
+    fixture_root: Path,
+    tmp_path: Path,
+) -> None:
+    state_path = (
+        fixture_root
+        / "myproj"
+        / "artifacts"
+        / "workflow-three_phase"
+        / TS_WORKFLOW_ROOT
+        / "workflow_state.json"
+    )
+    data = json.loads(state_path.read_text(encoding="utf-8"))
+    data["hidden"] = True
+    state_path.write_text(json.dumps(data), encoding="utf-8")
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    rebuild_agent_artifact_index(index_path, fixture_root)
+
+    artifact_dir = str(
+        fixture_root
+        / "myproj"
+        / "artifacts"
+        / "workflow-three_phase"
+        / TS_WORKFLOW_ROOT
+    )
+    with sqlite3.connect(index_path) as conn:
+        row = conn.execute(
+            "SELECT hidden FROM agent_artifacts WHERE artifact_dir = ?",
+            (artifact_dir,),
+        ).fetchone()
+
+    assert row == (1,)
 
 
 def test_mentor_dir_is_walked(fixture_root: Path) -> None:

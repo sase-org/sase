@@ -1,3 +1,5 @@
+hidden: true
+
 input:
   limits: { type: text, default: "1000 850 700" }
 steps:
