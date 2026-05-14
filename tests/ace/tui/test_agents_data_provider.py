@@ -12,6 +12,7 @@ from sase.ace.tui.actions.agents._loading_helpers import (
     load_agents_from_disk_with_state,
 )
 from sase.ace.tui.data_providers import (
+    AgentsViewport,
     _AgentsProviderSnapshot,
     _DaemonAgentsDataProvider,
     _apply_daemon_agent_events,
@@ -94,11 +95,13 @@ def _daemon_response(payload_type: str, data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _agent_page(entries: list[dict[str, Any]]) -> dict[str, Any]:
+def _agent_page(
+    entries: list[dict[str, Any]], *, next_cursor: str | None = None
+) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "snapshot": {"schema_version": 1, "snapshot_id": "snap-1"},
-        "page": {"schema_version": 1, "next_cursor": None},
+        "page": {"schema_version": 1, "next_cursor": next_cursor},
         "entries": {"schema_version": 1, "entries": entries},
     }
 
@@ -206,9 +209,81 @@ def test_daemon_agents_provider_loads_initial_snapshot_without_source_scan() -> 
     assert provider_snapshot.provider.source == "daemon"
     assert provider_snapshot.snapshot_id == "snap-1"
     assert provider_snapshot.metadata["page_count"] == 2
+    assert provider_snapshot.metadata["full_reload"] is False
+    assert provider_snapshot.metadata["surfaces"] == ["agent_active", "agent_recent"]
     assert provider_snapshot.row_handles[0] == agent_row_handle(
         provider_snapshot.rows[0]
     )
+
+
+def test_daemon_agents_provider_fetches_only_viewport_pages() -> None:
+    transport = _FakeDaemonTransport(
+        capabilities=["agents.read"],
+        reads={
+            "agent_active": [_agent_page([_agent_summary()], next_cursor="next")],
+            "agent_recent": [_agent_page([])],
+        },
+    )
+    provider = _DaemonAgentsDataProvider(
+        client=LocalDaemonClient(transport=transport),
+        project_ids=["demo"],
+    )
+
+    snapshot = provider.load_agents(
+        viewport=AgentsViewport(visible_rows=5, prefetch_rows=7)
+    )
+
+    read_requests = [
+        request["data"] for request in transport.requests if request["type"] == "read"
+    ]
+    assert [request["surface"] for request in read_requests] == [
+        "agent_active",
+        "agent_recent",
+    ]
+    assert [request["data"]["page"]["limit"] for request in read_requests] == [12, 12]
+    assert snapshot.shared_snapshot.metadata["page_count"] == 2
+    assert snapshot.shared_snapshot.first_page.next_cursor == "next"
+
+
+def test_daemon_agents_provider_uses_search_and_archive_surfaces() -> None:
+    search_transport = _FakeDaemonTransport(
+        capabilities=["agents.read"],
+        reads={"agent_search": [_agent_page([_agent_summary(cl_name="needle")])]},
+    )
+    search_provider = _DaemonAgentsDataProvider(
+        client=LocalDaemonClient(transport=search_transport),
+        project_ids=["demo"],
+    )
+
+    search_snapshot = search_provider.load_agents(search_query="needle")
+
+    assert search_snapshot.agents[0].cl_name == "needle"
+    search_reads = [
+        request["data"]
+        for request in search_transport.requests
+        if request["type"] == "read"
+    ]
+    assert [request["surface"] for request in search_reads] == ["agent_search"]
+    assert search_reads[0]["data"]["query"] == "needle"
+
+    archive_transport = _FakeDaemonTransport(
+        capabilities=["agents.read"],
+        reads={"agent_archive": [_agent_page([_agent_summary(cl_name="old")])]},
+    )
+    archive_provider = _DaemonAgentsDataProvider(
+        client=LocalDaemonClient(transport=archive_transport),
+        project_ids=["demo"],
+    )
+
+    archive_snapshot = archive_provider.load_agents(full_history=True)
+
+    assert archive_snapshot.agents[0].cl_name == "old"
+    archive_reads = [
+        request["data"]
+        for request in archive_transport.requests
+        if request["type"] == "read"
+    ]
+    assert [request["surface"] for request in archive_reads] == ["agent_archive"]
 
 
 def test_daemon_agents_provider_falls_back_when_capability_missing() -> None:

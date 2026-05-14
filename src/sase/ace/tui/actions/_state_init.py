@@ -376,8 +376,10 @@ class StateInitMixin:
 
         # Debouncer for j/k navigation detail panel updates (agents tab)
         from ..util.debounce import DetailPanelDebouncer
+        from ..provider_contract import SelectionGeneration
 
         self._agent_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]
+        self._agent_detail_selection_generation = SelectionGeneration()
 
         # Axe state
         from sase.axe.state import (

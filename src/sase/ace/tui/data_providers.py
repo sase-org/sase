@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
-from sase.daemon.client import LOCAL_DAEMON_DEFAULT_PAGE_LIMIT, LocalDaemonClient
+from sase.daemon.client import LocalDaemonClient
 from sase.daemon.read_config import daemon_read_surface_enabled
 from sase.daemon.read_facade import DaemonReadResult, read_or_fallback
 from sase.daemon.read_models import (
@@ -63,6 +63,19 @@ class _AgentEventApplyResult:
     resync_reason: str | None = None
 
 
+@dataclass(frozen=True)
+class AgentsViewport:
+    """Bounded Agents-tab read window used by daemon-backed providers."""
+
+    start_row: int = 0
+    visible_rows: int = 40
+    prefetch_rows: int = 80
+
+    @property
+    def requested_limit(self) -> int:
+        return max(1, self.start_row + self.visible_rows + self.prefetch_rows)
+
+
 class AgentsDataProvider(Protocol):
     """Provider contract for the ACE Agents tab."""
 
@@ -73,6 +86,8 @@ class AgentsDataProvider(Protocol):
         *,
         changespec_snapshot: list[Any] | None = None,
         full_history: bool = False,
+        search_query: str | None = None,
+        viewport: AgentsViewport | None = None,
     ) -> _AgentsProviderSnapshot:
         """Load an Agents-tab snapshot without touching Textual widgets."""
 
@@ -87,9 +102,12 @@ class _DirectAgentsDataProvider:
         *,
         changespec_snapshot: list[Any] | None = None,
         full_history: bool = False,
+        search_query: str | None = None,
+        viewport: AgentsViewport | None = None,
     ) -> _AgentsProviderSnapshot:
         from .models.agent_loader import load_tiered_agents
 
+        del search_query, viewport
         agents, load_state = load_tiered_agents(
             changespec_snapshot=changespec_snapshot,
             full_history=full_history,
@@ -134,6 +152,8 @@ class _DaemonAgentsDataProvider:
         *,
         changespec_snapshot: list[Any] | None = None,
         full_history: bool = False,
+        search_query: str | None = None,
+        viewport: AgentsViewport | None = None,
     ) -> _AgentsProviderSnapshot:
         def direct_loader() -> _AgentsProviderSnapshot:
             return self._direct_provider.load_agents(
@@ -145,7 +165,12 @@ class _DaemonAgentsDataProvider:
             "agent_recent",
             client=self._client,
             required_capability="agents.read",
-            daemon_loader=lambda client: self._load_daemon_snapshot(client),
+            daemon_loader=lambda client: self._load_daemon_snapshot(
+                client,
+                full_history=full_history,
+                search_query=search_query,
+                viewport=viewport,
+            ),
             direct_loader=direct_loader,
         )
         if result.used_daemon:
@@ -172,28 +197,36 @@ class _DaemonAgentsDataProvider:
         )
 
     def _load_daemon_snapshot(
-        self, client: LocalDaemonClient
+        self,
+        client: LocalDaemonClient,
+        *,
+        full_history: bool,
+        search_query: str | None,
+        viewport: AgentsViewport | None,
     ) -> _AgentsProviderSnapshot:
         summaries: list[AgentProjectionSummary] = []
         snapshot_id: str | None = None
         page_count = 0
+        next_cursor: str | None = None
+        read_surfaces = _agent_daemon_surfaces(
+            full_history=full_history,
+            search_query=search_query,
+        )
+        page_limit = (viewport or AgentsViewport()).requested_limit
         for project_id in self._daemon_project_ids():
-            active = _iter_agent_summaries(
-                client,
-                "active",
-                project_id=project_id,
-                include_hidden=True,
-            )
-            recent = _iter_agent_summaries(
-                client,
-                "recent",
-                project_id=project_id,
-                include_hidden=True,
-            )
-            summaries.extend(active.agents)
-            summaries.extend(recent.agents)
-            snapshot_id = snapshot_id or active.snapshot_id or recent.snapshot_id
-            page_count += active.page_count + recent.page_count
+            for surface in read_surfaces:
+                page = _read_agent_page(
+                    client,
+                    surface,
+                    project_id=project_id,
+                    include_hidden=True,
+                    query=search_query,
+                    limit=page_limit,
+                )
+                summaries.extend(page.agents)
+                snapshot_id = snapshot_id or page.snapshot_id
+                next_cursor = next_cursor or page.next_cursor
+                page_count += 1
 
         agents = _prepare_daemon_agents(_agent_from_summary(row) for row in summaries)
         shared_snapshot = _agent_snapshot(
@@ -204,7 +237,11 @@ class _DaemonAgentsDataProvider:
             fallback_message=None,
             snapshot_id=snapshot_id,
             page_count=page_count,
-            full_reload=True,
+            full_reload=False,
+            requested_limit=page_limit,
+            next_cursor=next_cursor,
+            query=search_query,
+            surfaces=read_surfaces,
         )
         return _AgentsProviderSnapshot(
             agents=agents,
@@ -243,6 +280,7 @@ class _DaemonAgentPage:
     agents: list[AgentProjectionSummary]
     snapshot_id: str | None
     page_count: int
+    next_cursor: str | None = None
 
 
 def agents_daemon_reads_enabled() -> bool:
@@ -264,7 +302,6 @@ def make_agents_data_provider() -> AgentsDataProvider:
     return _DirectAgentsDataProvider()
 
 
-# pyvision: sdd/epics/202605/rust_daemon_epic9_ace_ui_virtualization.md
 def agent_row_handle(agent: Agent) -> AceRowHandle:
     """Return the stable ACE row handle for an agent row."""
 
@@ -287,6 +324,10 @@ def _agent_snapshot(
     snapshot_id: str | None,
     page_count: int,
     full_reload: bool,
+    requested_limit: int | None = None,
+    next_cursor: str | None = None,
+    query: str | None = None,
+    surfaces: Sequence[str] | None = None,
 ) -> AceSnapshot[Agent]:
     snapshot = make_snapshot(
         surface="agents",
@@ -300,13 +341,19 @@ def _agent_snapshot(
             capabilities=AceProviderCapabilities(
                 pages=provider_source == "daemon",
                 deltas=provider_source == "daemon",
-                lazy_details=False,
+                lazy_details=provider_source == "daemon",
             ),
             fallback=AceFallbackMetadata(fallback_reason, fallback_message),
         ),
         snapshot_id=snapshot_id,
         page_count=page_count,
+        next_cursor=next_cursor,
         full_reload=full_reload,
+        metadata={
+            "requested_limit": requested_limit,
+            "query": query,
+            "surfaces": list(surfaces or ()),
+        },
     )
     trace_provider_snapshot(snapshot)
     return snapshot
@@ -351,7 +398,7 @@ def _apply_daemon_agent_events(
                 agent for agent in current if _daemon_handle_for_agent(agent) != handle
             ]
             continue
-        if operation == "upsert":
+        if operation in {"insert", "upsert"}:
             fields = delta.get("fields")
             if not isinstance(fields, dict):
                 return _AgentEventApplyResult(
@@ -372,48 +419,74 @@ def _apply_daemon_agent_events(
             if not replaced:
                 next_agents.append(incoming)
             current = _prepare_daemon_agents(next_agents)
+            continue
+        if operation:
+            return _AgentEventApplyResult(
+                current,
+                resync_required=True,
+                resync_reason=f"unknown_agent_delta_operation:{operation}",
+            )
     return _AgentEventApplyResult(current)
 
 
-def _iter_agent_summaries(
+def _agent_daemon_surfaces(
+    *,
+    full_history: bool,
+    search_query: str | None,
+) -> list[str]:
+    if search_query:
+        return ["agent_search"]
+    if full_history:
+        return ["agent_archive"]
+    return ["agent_active", "agent_recent"]
+
+
+def _read_agent_page(
     client: LocalDaemonClient,
     surface: str,
     *,
     project_id: str,
     include_hidden: bool,
+    query: str | None,
+    limit: int,
 ) -> _DaemonAgentPage:
-    cursor: str | None = None
-    agents: list[AgentProjectionSummary] = []
-    snapshot_id: str | None = None
-    page_count = 0
-    while True:
-        if surface == "active":
-            data = client.agent_active(
-                project_id=project_id,
-                include_hidden=include_hidden,
-                limit=LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
-                cursor=cursor,
-            )
-        elif surface == "recent":
-            data = client.agent_recent(
-                project_id=project_id,
-                include_hidden=include_hidden,
-                limit=LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
-                cursor=cursor,
-            )
-        else:
-            raise ValueError(f"unsupported daemon agent surface: {surface}")
-        page = agent_list_from_dict(data)
-        agents.extend(page.agents)
-        snapshot_id = snapshot_id or page.snapshot.snapshot_id
-        page_count += 1
-        cursor = page.page.next_cursor
-        if not cursor:
-            return _DaemonAgentPage(
-                agents=agents,
-                snapshot_id=snapshot_id,
-                page_count=page_count,
-            )
+    if surface == "agent_active":
+        data = client.agent_active(
+            project_id=project_id,
+            include_hidden=include_hidden,
+            query=query,
+            limit=limit,
+        )
+    elif surface == "agent_recent":
+        data = client.agent_recent(
+            project_id=project_id,
+            include_hidden=include_hidden,
+            query=query,
+            limit=limit,
+        )
+    elif surface == "agent_archive":
+        data = client.agent_archive(
+            project_id=project_id,
+            include_hidden=include_hidden,
+            query=query,
+            limit=limit,
+        )
+    elif surface == "agent_search":
+        data = client.agent_search(
+            project_id=project_id,
+            include_hidden=include_hidden,
+            query=query,
+            limit=limit,
+        )
+    else:
+        raise ValueError(f"unsupported daemon agent surface: {surface}")
+    page = agent_list_from_dict(data)
+    return _DaemonAgentPage(
+        agents=page.agents,
+        snapshot_id=page.snapshot.snapshot_id,
+        page_count=1,
+        next_cursor=page.page.next_cursor,
+    )
 
 
 def _prepare_daemon_agents(agents: Iterable[Agent]) -> list[Agent]:
@@ -580,6 +653,7 @@ __all__ = [
     "AceProviderInfo",
     "AceRowHandle",
     "AceSnapshot",
+    "AgentsViewport",
     "AgentsDataProvider",
     "agent_row_handle",
     "agents_daemon_reads_enabled",

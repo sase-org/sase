@@ -16,6 +16,7 @@ from sase.agent.status_buckets import agent_is_asking
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
+    from ...provider_contract import AceDetailRequest
     from ...widgets import AgentDetail, KeybindingFooter
 
 from ...models.agent_groups import GroupingMode, status_bucket_for
@@ -46,6 +47,26 @@ class DetailMixin:
     _countdown_remaining: int
     _agent_info_metrics_cache: tuple[Any, ...] | None
 
+    def _agent_detail_generation_guard(self) -> Any:
+        generation = getattr(self, "_agent_detail_selection_generation", None)
+        if generation is None:
+            from ...provider_contract import SelectionGeneration
+
+            generation = SelectionGeneration()
+            self._agent_detail_selection_generation = generation  # type: ignore[attr-defined]
+        return generation
+
+    def _agent_detail_request_for(self, agent: Agent) -> AceDetailRequest:
+        from ...data_providers import agent_row_handle
+
+        generation = self._agent_detail_generation_guard()
+        return generation.request(agent_row_handle(agent))
+
+    def _bump_agent_detail_selection(self, agent: Agent | None) -> None:
+        if agent is None:
+            return
+        self._agent_detail_generation_guard().bump()
+
     def _apply_agent_detail_immediate(self) -> None:
         """Update the agent detail prompt header without spawning workers."""
         from textual.css.query import NoMatches
@@ -61,6 +82,7 @@ class DetailMixin:
         if current_agent is None:
             agent_detail.show_empty()
             return
+        self._bump_agent_detail_selection(current_agent)
         agent_detail.update_display_immediate(
             current_agent, attempt_number=self.current_attempt_number
         )
@@ -78,6 +100,13 @@ class DetailMixin:
             log.debug("debounced detail update skipped: widget tree unavailable")
             return
 
+        current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        detail_request = (
+            self._agent_detail_request_for(current_agent)
+            if current_agent is not None
+            else None
+        )
+        self._pending_agent_detail_request = detail_request  # type: ignore[attr-defined]
         self._apply_agent_detail_update(agent_detail, footer_widget)
 
     def _apply_agent_detail_update(
@@ -92,6 +121,20 @@ class DetailMixin:
             footer_widget: The keybinding footer widget.
         """
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        detail_request = getattr(self, "_pending_agent_detail_request", None)
+        self._pending_agent_detail_request = None  # type: ignore[attr-defined]
+        if (
+            detail_request is not None
+            and not self._agent_detail_generation_guard().accepts(detail_request)
+        ):
+            from ...util.trace import trace_event
+
+            trace_event(
+                "agents.detail_stale_ignored",
+                row_handle=detail_request.row_handle.stable_id,
+                selection_generation=detail_request.selection_generation,
+            )
+            return
         if current_agent is not None:
             agent_detail.update_display(
                 current_agent,

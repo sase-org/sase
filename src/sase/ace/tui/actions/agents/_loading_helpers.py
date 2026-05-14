@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType  # noqa: F401
     from ...models.agent_loader import AgentLoadState
-    from ...data_providers import AgentsDataProvider
+    from ...data_providers import AgentsDataProvider, AgentsViewport
     from ...provider_contract import AceSnapshot
 
 from ...util.trace import tui_trace
@@ -82,6 +82,8 @@ def load_agents_from_disk_with_state(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     full_history: bool = False,
+    search_query: str | None = None,
+    viewport: AgentsViewport | None = None,
     data_provider: AgentsDataProvider | None = None,
 ) -> _AgentDiskLoadResult:
     """Load agents from disk and include the tiered load state."""
@@ -91,6 +93,8 @@ def load_agents_from_disk_with_state(
             dismissed_agents,
             changespec_snapshot=changespec_snapshot,
             full_history=full_history,
+            search_query=search_query,
+            viewport=viewport,
             data_provider=data_provider,
         )
 
@@ -100,6 +104,8 @@ def _load_agents_from_disk_impl(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     full_history: bool = False,
+    search_query: str | None = None,
+    viewport: AgentsViewport | None = None,
     data_provider: AgentsDataProvider | None = None,
 ) -> _AgentDiskLoadResult:
     from ...data_providers import make_agents_data_provider
@@ -108,6 +114,8 @@ def _load_agents_from_disk_impl(
     snapshot = provider.load_agents(
         changespec_snapshot=changespec_snapshot,
         full_history=full_history,
+        search_query=search_query,
+        viewport=viewport,
     )
     all_agents = snapshot.agents
     load_state = snapshot.load_state

@@ -139,7 +139,6 @@ class AceDeltaBatch[T]:
         return self.invalidation_reason is not None or self.resync_hint is not None
 
 
-# pyvision: sdd/epics/202605/rust_daemon_epic9_ace_ui_virtualization.md
 @dataclass(frozen=True)
 class AceDetailRequest:
     """Lazy detail request guarded by the active selection generation."""
