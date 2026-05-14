@@ -447,7 +447,7 @@ def _try_health_rpc(socket_path: Path) -> dict[str, Any]:
         if hasattr(daemon_client, "health"):
             health = daemon_client.health(socket_path=socket_path, timeout=0.5)
         elif hasattr(daemon_client, "LocalDaemonClient"):
-            health = daemon_client.LocalDaemonClient(socket_path).health(timeout=0.5)
+            health = daemon_client.LocalDaemonClient(socket_path, timeout=0.5).health()
         else:
             return {
                 "available": False,
