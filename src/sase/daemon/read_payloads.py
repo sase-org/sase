@@ -49,21 +49,6 @@ def agent_list_data(
     }
 
 
-def ace_agent_snapshot_data(
-    *,
-    include_hidden: bool,
-    query: str | None,
-    limit: int,
-    cursor: str | None,
-) -> dict[str, Any]:
-    return {
-        "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
-        "page": page_data(limit=limit, cursor=cursor),
-        "include_hidden": include_hidden,
-        "query": query,
-    }
-
-
 def bead_list_data(
     *,
     project_id: str,

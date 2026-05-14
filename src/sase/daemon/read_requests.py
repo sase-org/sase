@@ -11,7 +11,6 @@ from sase.daemon.constants import (
 )
 from sase.daemon.protocol import read_payload_data
 from sase.daemon.read_payloads import (
-    ace_agent_snapshot_data,
     agent_list_data,
     bead_list_data,
     catalog_list_data,
@@ -113,24 +112,6 @@ class LocalDaemonReadMixin:
             "agent_active",
             agent_list_data(
                 project_id=project_id,
-                include_hidden=include_hidden,
-                query=query,
-                limit=limit,
-                cursor=cursor,
-            ),
-        )
-
-    def ace_agent_snapshot(
-        self: _ReadClient,
-        *,
-        include_hidden: bool = False,
-        query: str | None = None,
-        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
-        cursor: str | None = None,
-    ) -> dict[str, Any]:
-        return self.read(
-            "ace_agent_snapshot",
-            ace_agent_snapshot_data(
                 include_hidden=include_hidden,
                 query=query,
                 limit=limit,

@@ -74,24 +74,3 @@ def read_agent_page(
         page_count=1,
         next_cursor=page.page.next_cursor,
     )
-
-
-def read_ace_agent_snapshot_page(
-    client: LocalDaemonClient,
-    *,
-    include_hidden: bool,
-    query: str | None,
-    limit: int,
-) -> _DaemonAgentPage:
-    data = client.ace_agent_snapshot(
-        include_hidden=include_hidden,
-        query=query,
-        limit=limit,
-    )
-    page = agent_list_from_dict(data)
-    return _DaemonAgentPage(
-        agents=page.agents,
-        snapshot_id=page.snapshot.snapshot_id,
-        page_count=1,
-        next_cursor=page.page.next_cursor,
-    )

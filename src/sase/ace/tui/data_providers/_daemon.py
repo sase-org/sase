@@ -6,18 +6,14 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from sase.daemon.client import LocalDaemonClient, LocalDaemonRpcError
+from sase.daemon.client import LocalDaemonClient
 from sase.daemon.read_facade import DaemonReadResult, read_or_fallback
 from sase.daemon.read_models import AgentProjectionSummary
 
 from ..models.agent import Agent
 from ..models.agent_loader import AgentLoadState
 from ._conversion import agent_from_summary
-from ._daemon_pages import (
-    agent_daemon_surfaces,
-    read_ace_agent_snapshot_page,
-    read_agent_page,
-)
+from ._daemon_pages import agent_daemon_surfaces, read_agent_page
 from ._events import apply_daemon_agent_events
 from ._normalize import prepare_daemon_agents
 from ._snapshots import agent_snapshot
@@ -100,75 +96,6 @@ class DaemonAgentsDataProvider:
         )
 
     def _load_daemon_snapshot(
-        self,
-        client: LocalDaemonClient,
-        *,
-        full_history: bool,
-        search_query: str | None,
-        viewport: AgentsViewport | None,
-    ) -> AgentsProviderSnapshot:
-        if not full_history:
-            try:
-                return self._load_daemon_global_snapshot(
-                    client,
-                    search_query=search_query,
-                    viewport=viewport,
-                )
-            except LocalDaemonRpcError as error:
-                if not _is_ace_agent_snapshot_compatibility_error(error):
-                    raise
-
-        return self._load_daemon_project_loop_snapshot(
-            client,
-            full_history=full_history,
-            search_query=search_query,
-            viewport=viewport,
-        )
-
-    def _load_daemon_global_snapshot(
-        self,
-        client: LocalDaemonClient,
-        *,
-        search_query: str | None,
-        viewport: AgentsViewport | None,
-    ) -> AgentsProviderSnapshot:
-        page_limit = (viewport or AgentsViewport()).requested_limit
-        page = read_ace_agent_snapshot_page(
-            client,
-            include_hidden=True,
-            query=search_query,
-            limit=page_limit,
-        )
-        agents = prepare_daemon_agents(agent_from_summary(row) for row in page.agents)
-        shared_snapshot = agent_snapshot(
-            agents,
-            provider_source="daemon",
-            prefers_daemon=True,
-            fallback_reason=None,
-            fallback_message=None,
-            snapshot_id=page.snapshot_id,
-            page_count=page.page_count,
-            full_reload=False,
-            requested_limit=page_limit,
-            next_cursor=page.next_cursor,
-            query=search_query,
-            surfaces=["ace_agent_snapshot"],
-        )
-        return AgentsProviderSnapshot(
-            agents=agents,
-            workflow_agent_steps=[],
-            load_state=AgentLoadState(
-                tier="tier1",
-                complete_history=False,
-                artifact_source="daemon_projection",
-                used_artifact_index=False,
-            ),
-            shared_snapshot=shared_snapshot,
-            used_daemon=True,
-            snapshot_id=page.snapshot_id,
-        )
-
-    def _load_daemon_project_loop_snapshot(
         self,
         client: LocalDaemonClient,
         *,
@@ -259,12 +186,4 @@ def _rollout_surface_for_agents_read(
         return "ace_search"
     if full_history:
         return "ace_archive"
-    return "ace_agent_snapshot"
-
-
-def _is_ace_agent_snapshot_compatibility_error(error: LocalDaemonRpcError) -> bool:
-    if error.code == "unsupported_capability":
-        return True
-    if error.code != "invalid_request":
-        return False
-    return "ace_agent_snapshot" in error.message
+    return "ace_agent_recent"

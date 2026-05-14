@@ -78,7 +78,6 @@ def test_all_phase_5a_read_client_methods_emit_contract_surfaces() -> None:
             lambda client: client.changespec_detail("changespec:demo:one"),
         ),
         ("agent_active", lambda client: client.agent_active(project_id="demo")),
-        ("ace_agent_snapshot", lambda client: client.ace_agent_snapshot()),
         ("agent_recent", lambda client: client.agent_recent(project_id="demo")),
         ("agent_archive", lambda client: client.agent_archive(project_id="demo")),
         (
@@ -164,31 +163,6 @@ def test_notification_list_request_matches_contract_shape() -> None:
                 "query": "plan",
                 "sender": "mentor",
                 "unread": False,
-            },
-        },
-    }
-
-
-def test_ace_agent_snapshot_request_matches_contract_shape() -> None:
-    transport = FakeDaemonTransport(reads={"ace_agent_snapshot": [{}]})
-    client = LocalDaemonClient(transport=transport)
-
-    client.ace_agent_snapshot(
-        include_hidden=True,
-        query="plan",
-        limit=7,
-        cursor="cur-1",
-    )
-
-    assert transport.requests[-1] == {
-        "type": "read",
-        "data": {
-            "surface": "ace_agent_snapshot",
-            "data": {
-                "schema_version": 1,
-                "page": {"schema_version": 1, "limit": 7, "cursor": "cur-1"},
-                "include_hidden": True,
-                "query": "plan",
             },
         },
     }
