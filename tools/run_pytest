@@ -10,6 +10,12 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+PYTEST_ENV_UNSET_KEYS = (
+    "SASE_COMMIT_METHOD",
+    "SASE_COMMIT_METHOD_ALLOW_OVERRIDE",
+    "SASE_PR_NAME",
+    "SASE_PR_STATUS",
+)
 NON_PATH_VALUE_OPTIONS = frozenset(
     {
         "-k",
@@ -138,6 +144,11 @@ def _pytest_command(mode: str, args: list[str]) -> list[str]:
     return command
 
 
+def _sanitize_pytest_environment() -> None:
+    for key in PYTEST_ENV_UNSET_KEYS:
+        os.environ.pop(key, None)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("fast", "slow", "visual", "cov"))
@@ -151,6 +162,7 @@ def main(argv: list[str] | None = None) -> int:
     pytest_args = _normalize_args(pytest_args, invocation_dir)
     command = _pytest_command(mode, pytest_args)
 
+    _sanitize_pytest_environment()
     os.chdir(REPO_ROOT)
     os.execv(sys.executable, command)
     raise AssertionError("unreachable")
