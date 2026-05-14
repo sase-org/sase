@@ -74,42 +74,28 @@ def test_read_surface_registry_matches_config_and_helper_constants() -> None:
     assert default_on == DEFAULT_ENABLED_SURFACE_GROUPS
 
 
-def test_ace_read_surfaces_are_staged_behind_m2_perf_gates() -> None:
+def test_ace_read_surfaces_are_opt_in_until_m2_perf_gates_pass() -> None:
     config = _default_config()
     records = rollout_records_by_id()
 
     for surface in ACE_DAEMON_SURFACE_GROUPS:
         record = records[f"read.{surface}"]
         default_enabled = bool(_lookup(config, f"daemon.reads.surfaces.{surface}"))
-        if surface == "ace_notifications":
-            assert default_enabled
-            assert record.default_policy == "default_on"
-            assert record.default_enablement_allowed
-        else:
-            assert not default_enabled
-            assert record.default_policy == "opt_in"
-            assert not record.default_enablement_allowed
+        assert not default_enabled
+        assert record.default_policy == "opt_in"
+        assert not record.default_enablement_allowed
         assert record.parity_gates
         assert record.perf_gates
 
 
 def test_m2_ace_read_surfaces_have_independent_gate_records() -> None:
     records = rollout_records_by_id()
-    capabilities = {
-        "ace_agents": ("agents.read",),
-        "ace_changespecs": ("changespecs.read",),
-        "ace_notifications": ("notifications.read",),
-        "ace_artifacts": ("agents.read",),
-        "ace_archive_search": ("agents.read",),
-    }
 
     for surface, gate in ACE_M2_SURFACE_GATES.items():
         record = records[f"read.{surface}"]
         assert record.minimum_milestone == "M2"
-        expected_enabled = surface == "ace_notifications"
-        assert record.default_policy == ("default_on" if expected_enabled else "opt_in")
-        assert record.default_enablement_allowed is expected_enabled
-        assert record.daemon_capabilities == capabilities[surface]
+        assert record.default_policy == "opt_in"
+        assert record.default_enablement_allowed is False
         assert record.parity_gates == (gate.parity_gate,)
         assert record.perf_gates == (gate.perf_gate,)
         assert record.direct_fallback_available is True

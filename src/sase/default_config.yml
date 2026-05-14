@@ -80,7 +80,7 @@ daemon:
       catalogs: true
       ace_agents: false
       ace_changespecs: false
-      ace_notifications: true
+      ace_notifications: false
       ace_artifacts: false
       ace_archive_search: false
 

@@ -61,7 +61,6 @@ DEFAULT_ENABLED_SURFACE_GROUPS = frozenset(
         "agents",
         "beads",
         "catalogs",
-        "ace_notifications",
     }
 )
 

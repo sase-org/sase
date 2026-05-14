@@ -54,9 +54,7 @@ def observed_capabilities(inspection: DaemonInspection) -> frozenset[str]:
     rpc = inspection.rpc if isinstance(inspection.rpc, dict) else {}
     health = mapping(rpc.get("health"))
     details = mapping(health.get("details"))
-    capabilities_payload = mapping(rpc.get("capabilities"))
     capabilities: set[str] = set()
-    collect_string_list(capabilities, capabilities_payload.get("capabilities"))
     collect_string_list(capabilities, health.get("capabilities"))
     collect_string_list(capabilities, health.get("declared_capabilities"))
     collect_string_list(capabilities, details.get("capabilities"))

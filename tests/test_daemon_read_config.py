@@ -23,14 +23,11 @@ def test_default_enabled_surface_groups_keep_ace_daemon_reads_opt_in() -> None:
         "agents",
         "beads",
         "catalogs",
-        "ace_notifications",
     }
     assert daemon_read_surface_enabled("notification_list") is True
     assert daemon_read_surface_enabled("file_history") is True
-    assert daemon_read_surface_enabled("ace_notification_list") is True
     for surface in ACE_DAEMON_SURFACE_GROUPS:
-        expected = surface == "ace_notifications"
-        assert daemon_read_surface_enabled(surface) is expected
+        assert daemon_read_surface_enabled(surface) is False
 
 
 def test_surface_config_controls_logical_group() -> None:

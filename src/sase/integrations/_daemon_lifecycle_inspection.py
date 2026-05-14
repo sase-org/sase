@@ -217,19 +217,6 @@ def try_health_rpc(socket_path: Path) -> dict[str, Any]:
 
     rpc: dict[str, Any] = {"available": True, "health": health}
     try:
-        if client is not None and hasattr(client, "capabilities"):
-            rpc["capabilities"] = client.capabilities(timeout=0.5)
-        elif hasattr(daemon_client, "capabilities"):
-            rpc["capabilities"] = daemon_client.capabilities(
-                socket_path=socket_path,
-                timeout=0.5,
-            )
-    except Exception as exc:
-        rpc["capabilities_diagnostics"] = {
-            "available": False,
-            "message": str(exc),
-        }
-    try:
         if client is not None:
             rpc["health"] = client.health(
                 include_capabilities=True,

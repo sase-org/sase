@@ -113,19 +113,6 @@ def _provider_host_env_name(operation_key: str) -> str:
     return f"SASE_PROVIDER_HOST_{operation_key.upper()}_MODE"
 
 
-_READ_CAPABILITY_BY_GROUP = {
-    "agents": "agents.read",
-    "ace_agents": "agents.read",
-    "ace_artifacts": "agents.read",
-    "ace_archive_search": "agents.read",
-    "beads": "beads.read",
-    "catalogs": "catalogs.read",
-    "changespecs": "changespecs.read",
-    "ace_changespecs": "changespecs.read",
-    "notifications": "notifications.read",
-    "ace_notifications": "notifications.read",
-}
-
 _READ_PARITY_GATE_BY_WRITE_CAPABILITY = {
     "agents.write": "daemon_read.parity.agents",
     "beads.write": "daemon_read.parity.beads",
@@ -151,7 +138,7 @@ def _read_surface_record(group: str) -> RolloutSurfaceRecord:
             "SASE_DAEMON_FORCE_DIRECT",
             _surface_env_name(group),
         ),
-        daemon_capabilities=(_READ_CAPABILITY_BY_GROUP[group],),
+        daemon_capabilities=(f"{group}.read",),
         schema_versions=(("local_daemon", LOCAL_DAEMON_SCHEMA_VERSION),),
         parity_gates=(f"{gate_prefix}.parity.{group}",),
         perf_gates=(f"{gate_prefix}.perf.{group}",),
