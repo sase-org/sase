@@ -2,7 +2,7 @@
 bead_id: sase-3e.4
 created_at: 2026-05-14
 create_time: 2026-05-13 22:34:20
-status: wip
+status: done
 prompt: sdd/prompts/202605/sase_3e_4_remaining_shadow_indexing.md
 ---
 

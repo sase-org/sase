@@ -5,7 +5,7 @@ tier: epic
 epic_number: 4
 source: sdd/legends/202605/rust_daemon_indexed_projections_1.md
 create_time: 2026-05-13 20:56:36
-status: wip
+status: done
 prompt: sdd/prompts/202605/rust_daemon_epic4_shadow_indexers.md
 ---
 
