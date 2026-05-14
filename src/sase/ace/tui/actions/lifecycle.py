@@ -58,21 +58,14 @@ class LifecycleMixin:
         }
 
     def _read_notifications_for_startup(self) -> tuple[set[str], int, int, int]:
-        """Bounded startup read returning unread_ids + priority/rest/muted counts.
+        """Single-pass disk read returning unread_ids + priority/rest/muted counts.
 
-        The ACE notification provider reads one unread page and uses count
-        facets from that page when the daemon supplies them. Older daemons can
-        fall back to one count-only read through the same cached daemon facade.
+        Avoids parsing the JSONL twice during startup (once for the unread-id
+        seed, once for the indicator counts).
         """
-        from sase.ace.tui.actions.agents._notification_provider import (
-            read_notification_startup_for_tui,
-        )
+        from sase.notifications import read_notification_snapshot
 
-        result = read_notification_startup_for_tui(
-            client=getattr(self, "_daemon_read_client", None),
-            args=getattr(self, "_daemon_read_args", None),
-        )
-        snapshot = result.value
+        snapshot = read_notification_snapshot()
         notifications = snapshot.notifications
         unread_ids: set[str] = set()
         for n in notifications:

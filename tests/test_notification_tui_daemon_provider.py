@@ -14,7 +14,6 @@ from sase.ace.tui.actions.agents._notification_provider import (
     read_notification_counts_for_tui,
     read_notification_detail_for_tui,
     read_notification_pending_actions_for_tui,
-    read_notification_startup_for_tui,
 )
 from sase.daemon.client import LocalDaemonClient
 
@@ -114,84 +113,6 @@ def test_ace_notification_modal_uses_daemon_unread_page_without_full_snapshot(
     ]
 
 
-def test_ace_notification_startup_uses_one_page_when_list_includes_counts(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _enable_ace_notification_daemon_reads(monkeypatch)
-    notification = _make(action="JumpToAgent", notes=["done"])
-    transport = _FakeDaemonTransport(
-        {
-            "notification_list": [
-                _notification_page(
-                    [dataclasses.asdict(notification)],
-                    counts={"priority": 3, "errors": 2, "rest": 1, "muted": 4},
-                    next_cursor="next-page",
-                )
-            ],
-            "notification_counts": [
-                {"priority": 9, "errors": 9, "rest": 9, "muted": 9}
-            ],
-        }
-    )
-
-    with patch(
-        "sase.notifications.read_notification_snapshot",
-        side_effect=AssertionError("notification JSONL snapshot read"),
-    ):
-        result = read_notification_startup_for_tui(
-            client=LocalDaemonClient(transport=transport)
-        )
-
-    assert result.used_daemon is True
-    assert result.value.notifications == [notification]
-    assert result.value.counts.priority == 3
-    assert result.value.counts.errors == 2
-    assert result.value.counts.rest == 1
-    assert result.value.counts.muted == 4
-    assert [request["data"]["surface"] for request in transport.requests[1:]] == [
-        "notification_list",
-    ]
-
-
-def test_ace_notification_startup_uses_count_read_for_legacy_list_counts(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _enable_ace_notification_daemon_reads(monkeypatch)
-    notification = _make(action="JumpToAgent", notes=["done"])
-    transport = _FakeDaemonTransport(
-        {
-            "notification_list": [
-                _notification_page(
-                    [dataclasses.asdict(notification)],
-                    counts={"active": 42, "unread": 42},
-                )
-            ],
-            "notification_counts": [
-                {"priority": 1, "errors": 2, "rest": 3, "muted": 4}
-            ],
-        }
-    )
-
-    with patch(
-        "sase.notifications.read_notification_snapshot",
-        side_effect=AssertionError("notification JSONL snapshot read"),
-    ):
-        result = read_notification_startup_for_tui(
-            client=LocalDaemonClient(transport=transport)
-        )
-
-    assert result.used_daemon is True
-    assert result.value.notifications == [notification]
-    assert result.value.counts.priority == 1
-    assert result.value.counts.errors == 2
-    assert result.value.counts.rest == 3
-    assert result.value.counts.muted == 4
-    assert [request["data"]["surface"] for request in transport.requests[1:]] == [
-        "notification_list",
-        "notification_counts",
-    ]
-
-
 def test_ace_notification_detail_and_pending_actions_use_daemon_when_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -258,7 +179,6 @@ def test_ace_notification_provider_falls_back_when_ace_surface_disabled(
 def _notification_page(
     notifications: list[dict[str, Any]],
     *,
-    counts: dict[str, Any] | None = None,
     next_cursor: str | None = None,
 ) -> dict[str, Any]:
     return {
@@ -266,8 +186,7 @@ def _notification_page(
         "snapshot": {"schema_version": 1, "snapshot_id": "snap-notifications"},
         "page": {"schema_version": 1, "next_cursor": next_cursor},
         "notifications": notifications,
-        "counts": counts
-        or {"active": len(notifications), "unread": len(notifications)},
+        "counts": {"active": len(notifications), "unread": len(notifications)},
         "bounded": {
             "schema_version": 1,
             "max_payload_bytes": 1_048_576,

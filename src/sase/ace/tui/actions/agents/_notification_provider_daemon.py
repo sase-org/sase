@@ -12,7 +12,6 @@ from sase.daemon.read_models import (
 )
 
 from ._notification_provider_metadata import (
-    counts_from_mapping,
     counts_from_notifications,
     notification_count_snapshot_from_counts,
     notification_detail_with_shared_metadata,
@@ -113,16 +112,7 @@ def daemon_unread_notification_page(
         )
     )
     notifications = [n for n in page.notifications if not n.read and not n.silent]
-    page_counts, counts_complete = counts_from_mapping(page.counts)
-    if counts_complete:
-        counts = {
-            "priority": page_counts.priority,
-            "errors": page_counts.errors,
-            "rest": page_counts.rest,
-            "muted": page_counts.muted,
-        }
-    else:
-        counts = counts_from_notifications(notifications)
+    counts = counts_from_notifications(notifications)
     bounded = page.bounded
     snapshot = AceNotificationPage(
         notifications=notifications,
@@ -132,7 +122,6 @@ def daemon_unread_notification_page(
             rest=int(counts.get("rest", 0)),
             muted=int(counts.get("muted", 0)),
         ),
-        counts_complete=counts_complete,
         next_cursor=page.page.next_cursor,
         bounded=bounded is not None,
         truncated=bool(bounded.truncated) if bounded is not None else False,

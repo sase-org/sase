@@ -191,7 +191,6 @@ def notification_page_with_shared_metadata(
     return AceNotificationPage(
         notifications=page.notifications,
         counts=page.counts,
-        counts_complete=page.counts_complete,
         next_cursor=page.next_cursor,
         shared_snapshot=shared_snapshot,
         bounded=page.bounded,
@@ -300,24 +299,6 @@ def counts_mapping(counts: Any) -> dict[str, int]:
     }
 
 
-def counts_from_mapping(
-    counts: Mapping[str, Any],
-) -> tuple[AceNotificationCounts, bool]:
-    """Return ACE count facets when the source supplied the full count shape."""
-    required = {"priority", "errors", "rest", "muted"}
-    if not required.issubset(counts):
-        return AceNotificationCounts(), False
-    return (
-        AceNotificationCounts(
-            priority=int(counts.get("priority", 0)),
-            errors=int(counts.get("errors", 0)),
-            rest=int(counts.get("rest", 0)),
-            muted=int(counts.get("muted", 0)),
-        ),
-        True,
-    )
-
-
 def counts_from_notifications(notifications: list[Any]) -> dict[str, int]:
     from sase.notifications.priority import is_error, is_priority
 
@@ -340,7 +321,6 @@ __all__ = [
     "apply_notification_count_delta",
     "count_value",
     "counts_from_notifications",
-    "counts_from_mapping",
     "counts_mapping",
     "notification_count_snapshot_from_counts",
     "notification_detail_with_shared_metadata",
