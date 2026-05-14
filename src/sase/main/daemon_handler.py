@@ -20,6 +20,11 @@ def handle_daemon_command(args: argparse.Namespace) -> None:
     )
 
     sub = getattr(args, "daemon_subcommand", None)
+    if sub == "provider-host":
+        from sase.host.runtime import main as host_main
+
+        sys.exit(host_main())
+
     if sub == "scheduler-bridge":
         from sase.daemon.scheduler_host import handle_scheduler_host_bridge
 

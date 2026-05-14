@@ -1,9 +1,19 @@
 """Provider/plugin host IPC foundation models.
 
-Phase 8B exposes wire helpers only. Production providers are still invoked
-through the existing direct Python paths until routed host verticals land.
+Phase 8C exposes a subprocess runtime for fake/no-op operations only.
+Production providers are still invoked through the existing direct Python
+paths until routed host verticals land.
 """
 
+from sase.host.runtime import (
+    DEFAULT_HOST_TIMEOUT_MS,
+    MAX_HOST_LOG_BYTES,
+    ProviderHostRuntime,
+    ProviderHostRuntimeConfig,
+    ProviderHostRuntimeError,
+    redact_host_log,
+    run_provider_host_stdio,
+)
 from sase.host.wire import (
     HOST_CAP_IPC_V1,
     HOST_CAP_LLM_METADATA,
@@ -41,6 +51,8 @@ __all__ = [
     "HOST_CAP_XPROMPT_CATALOG",
     "HOST_ERROR_CODES",
     "HOST_OPERATION_FAMILIES",
+    "DEFAULT_HOST_TIMEOUT_MS",
+    "MAX_HOST_LOG_BYTES",
     "PROVIDER_HOST_IPC_WIRE_SCHEMA_VERSION",
     "FakeInProcessHostTransport",
     "HostActorWire",
@@ -59,7 +71,12 @@ __all__ = [
     "HostResponseEnvelopeWire",
     "HostSideEffectIntentWire",
     "HostWorkspaceIdentityWire",
+    "ProviderHostRuntime",
+    "ProviderHostRuntimeConfig",
+    "ProviderHostRuntimeError",
     "host_request_from_dict",
     "host_response_from_dict",
     "host_wire_to_json_dict",
+    "redact_host_log",
+    "run_provider_host_stdio",
 ]

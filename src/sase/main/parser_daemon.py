@@ -15,6 +15,11 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="daemon_subcommand", help="Daemon subcommands"
     )
 
+    daemon_subparsers.add_parser(
+        "provider-host",
+        help=argparse.SUPPRESS,
+    )
+
     scheduler_bridge_parser = daemon_subparsers.add_parser(
         "scheduler-bridge",
         help=argparse.SUPPRESS,
