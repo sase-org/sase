@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
+from weakref import WeakKeyDictionary
 
 from sase.daemon.client import (
     LocalDaemonClient,
@@ -66,6 +67,50 @@ CAPABILITY_BY_READ_SURFACE = {
     "file_history": "catalogs.read",
 }
 
+CAPABILITY_PROBE_TIMEOUT_SECONDS = 0.05
+
+
+@dataclass
+class _DaemonReadSession:
+    """One process/client-local daemon read routing session."""
+
+    capabilities: set[str] | None = None
+    circuit_open: bool = False
+    circuit_reason: str | None = None
+    circuit_message: str | None = None
+    circuit_surface: str | None = None
+    capability_attempts: int = 0
+    diagnostics: dict[str, Any] = field(default_factory=dict)
+
+    def open_circuit(self, surface: str, error: LocalDaemonError) -> None:
+        self.circuit_open = True
+        self.circuit_reason = _error_reason(error)
+        self.circuit_message = _error_message(error)
+        self.circuit_surface = surface
+        self.diagnostics = {
+            "opened_by_surface": surface,
+            "opened_by_reason": self.circuit_reason,
+            "opened_by_message": self.circuit_message,
+        }
+
+    def diagnostic_json(self) -> dict[str, Any]:
+        return {
+            "circuit_open": self.circuit_open,
+            "circuit_reason": self.circuit_reason,
+            "circuit_message": self.circuit_message,
+            "circuit_surface": self.circuit_surface,
+            "capabilities_cached": self.capabilities is not None,
+            "capability_attempts": self.capability_attempts,
+            "capability_probe_timeout_seconds": CAPABILITY_PROBE_TIMEOUT_SECONDS,
+            **self.diagnostics,
+        }
+
+
+_PROCESS_READ_SESSION = _DaemonReadSession()
+_CLIENT_READ_SESSIONS: WeakKeyDictionary[LocalDaemonClient, _DaemonReadSession] = (
+    WeakKeyDictionary()
+)
+
 
 @dataclass(frozen=True)
 class DaemonReadResult[T]:
@@ -76,17 +121,22 @@ class DaemonReadResult[T]:
     used_daemon: bool
     fallback_reason: str | None = None
     fallback_message: str | None = None
+    fallback_diagnostics: dict[str, Any] | None = None
 
     def debug_json(self) -> dict[str, Any]:
-        return {
+        diagnostics_enabled = daemon_fallback_diagnostics_enabled()
+        daemon: dict[str, Any] = {
             "daemon": {
                 "surface": self.surface,
                 "used": self.used_daemon,
                 "fallback_reason": self.fallback_reason,
                 "fallback_message": self.fallback_message,
-                "fallback_diagnostics_enabled": (daemon_fallback_diagnostics_enabled()),
+                "fallback_diagnostics_enabled": diagnostics_enabled,
             }
         }
+        if diagnostics_enabled and self.fallback_diagnostics is not None:
+            daemon["daemon"]["fallback_diagnostics"] = self.fallback_diagnostics
+        return daemon
 
 
 def read_or_fallback[T](
@@ -101,6 +151,7 @@ def read_or_fallback[T](
     """Run a daemon read when supported, otherwise run the direct loader."""
 
     capability = required_capability or CAPABILITY_BY_READ_SURFACE.get(surface)
+    read_session = _read_session_for_client(client)
     disable_reason = daemon_read_disable_reason(surface, args=args)
     if disable_reason is not None:
         return _fallback(
@@ -110,12 +161,27 @@ def read_or_fallback[T](
             message=disable_reason.message,
         )
 
+    if read_session.circuit_open:
+        return _fallback(
+            surface,
+            direct_loader,
+            reason="daemon_circuit_open",
+            message=read_session.circuit_message,
+            diagnostics=read_session.diagnostic_json(),
+        )
+
     daemon_client = client or LocalDaemonClient()
     if capability:
         try:
-            capabilities = _capability_set(daemon_client.capabilities())
+            capabilities = _cached_capability_set(daemon_client, read_session)
         except LocalDaemonError as error:
-            return _fallback_from_error(surface, direct_loader, error)
+            _maybe_open_circuit(read_session, surface, error)
+            return _fallback_from_error(
+                surface,
+                direct_loader,
+                error,
+                diagnostics=read_session.diagnostic_json(),
+            )
         if capability not in capabilities:
             return _fallback(
                 surface,
@@ -133,7 +199,13 @@ def read_or_fallback[T](
     except LocalDaemonError as error:
         if not is_fallbackable_daemon_error(error):
             raise
-        return _fallback_from_error(surface, direct_loader, error)
+        _maybe_open_circuit(read_session, surface, error)
+        return _fallback_from_error(
+            surface,
+            direct_loader,
+            error,
+            diagnostics=read_session.diagnostic_json(),
+        )
 
 
 def is_fallbackable_daemon_error(error: LocalDaemonError) -> bool:
@@ -151,12 +223,45 @@ def _capability_set(response: dict[str, Any]) -> set[str]:
     return {item for item in capabilities if isinstance(item, str)}
 
 
+def _cached_capability_set(
+    client: LocalDaemonClient,
+    session: _DaemonReadSession,
+) -> set[str]:
+    if session.capabilities is not None:
+        return session.capabilities
+    session.capability_attempts += 1
+    response = client.capabilities(timeout=CAPABILITY_PROBE_TIMEOUT_SECONDS)
+    session.capabilities = _capability_set(response)
+    return session.capabilities
+
+
+def _read_session_for_client(
+    client: LocalDaemonClient | None,
+) -> _DaemonReadSession:
+    if client is None:
+        return _PROCESS_READ_SESSION
+    try:
+        return _CLIENT_READ_SESSIONS.setdefault(client, _DaemonReadSession())
+    except TypeError:
+        return _DaemonReadSession()
+
+
+def _maybe_open_circuit(
+    session: _DaemonReadSession,
+    surface: str,
+    error: LocalDaemonError,
+) -> None:
+    if isinstance(error, LocalDaemonTransportError):
+        session.open_circuit(surface, error)
+
+
 def _fallback[T](
     surface: str,
     direct_loader: Callable[[], T],
     *,
     reason: str,
     message: str | None,
+    diagnostics: dict[str, Any] | None = None,
 ) -> DaemonReadResult[T]:
     return DaemonReadResult(
         value=direct_loader(),
@@ -164,6 +269,7 @@ def _fallback[T](
         used_daemon=False,
         fallback_reason=reason,
         fallback_message=message,
+        fallback_diagnostics=diagnostics,
     )
 
 
@@ -171,6 +277,8 @@ def _fallback_from_error[T](
     surface: str,
     direct_loader: Callable[[], T],
     error: LocalDaemonError,
+    *,
+    diagnostics: dict[str, Any] | None = None,
 ) -> DaemonReadResult[T]:
     if isinstance(error, LocalDaemonRpcError):
         return _fallback(
@@ -178,6 +286,7 @@ def _fallback_from_error[T](
             direct_loader,
             reason=error.fallback_reason or error.code,
             message=error.fallback_message or error.message,
+            diagnostics=diagnostics,
         )
     if isinstance(error, LocalDaemonTransportError):
         return _fallback(
@@ -185,17 +294,34 @@ def _fallback_from_error[T](
             direct_loader,
             reason=error.fallback_reason or error.code,
             message=str(error),
+            diagnostics=diagnostics,
         )
     return _fallback(
         surface,
         direct_loader,
         reason="daemon_error",
         message=str(error),
+        diagnostics=diagnostics,
     )
+
+
+def _error_reason(error: LocalDaemonError) -> str:
+    if isinstance(error, LocalDaemonRpcError):
+        return error.fallback_reason or error.code
+    if isinstance(error, LocalDaemonTransportError):
+        return error.fallback_reason or error.code
+    return "daemon_error"
+
+
+def _error_message(error: LocalDaemonError) -> str:
+    if isinstance(error, LocalDaemonRpcError):
+        return error.fallback_message or error.message
+    return str(error)
 
 
 __all__ = [
     "CAPABILITY_BY_READ_SURFACE",
+    "CAPABILITY_PROBE_TIMEOUT_SECONDS",
     "FALLBACKABLE_RPC_CODES",
     "DaemonReadResult",
     "is_fallbackable_daemon_error",

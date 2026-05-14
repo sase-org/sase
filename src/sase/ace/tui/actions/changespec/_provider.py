@@ -96,6 +96,7 @@ def read_changespecs_for_tui(
         used_daemon=False,
         fallback_reason=result.fallback_reason,
         fallback_message=result.fallback_message,
+        fallback_diagnostics=result.fallback_diagnostics,
     )
 
 
