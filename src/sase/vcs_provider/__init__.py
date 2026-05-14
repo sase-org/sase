@@ -14,7 +14,9 @@ from ._errors import VCSOperationError, VCSProviderNotFoundError
 from ._hookspec import VCSHookSpec, hookimpl, hookspec
 from ._plugin_manager import VCSPluginManager
 from ._registry import (
+    detect_vcs_direct,
     detect_vcs,
+    detect_vcs_family_direct,
     detect_vcs_family,
     get_vcs_provider,
 )
@@ -31,7 +33,9 @@ __all__ = [
     "VCSProvider",
     "VCSProviderNotFoundError",
     "detect_vcs",
+    "detect_vcs_direct",
     "detect_vcs_family",
+    "detect_vcs_family_direct",
     "get_vcs_provider",
     "get_workspace_root",
     "hookimpl",

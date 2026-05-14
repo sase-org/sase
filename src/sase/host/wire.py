@@ -11,6 +11,9 @@ HOST_CAP_IPC_V1 = "host.ipc.v1"
 HOST_CAP_MANIFEST_V1 = "host.manifest.v1"
 HOST_CAP_LLM_METADATA = "host.llm.metadata"
 HOST_CAP_XPROMPT_CATALOG = "host.xprompt.catalog"
+HOST_CAP_VCS_QUERY = "host.vcs.query"
+HOST_CAP_WORKSPACE_METADATA = "host.workspace.metadata"
+HOST_CAP_WORKSPACE_RESOLVE_REF = "host.workspace.resolve_ref"
 HOST_CAP_RESOURCE_POLICY_DIAGNOSTICS = "host.resource_policy.diagnostics"
 
 HOST_OPERATION_FAMILIES = (
@@ -480,6 +483,9 @@ __all__ = [
     "HOST_CAP_LLM_METADATA",
     "HOST_CAP_MANIFEST_V1",
     "HOST_CAP_RESOURCE_POLICY_DIAGNOSTICS",
+    "HOST_CAP_VCS_QUERY",
+    "HOST_CAP_WORKSPACE_METADATA",
+    "HOST_CAP_WORKSPACE_RESOLVE_REF",
     "HOST_CAP_XPROMPT_CATALOG",
     "HOST_ERROR_CODES",
     "HOST_OPERATION_FAMILIES",

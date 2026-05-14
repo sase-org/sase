@@ -117,7 +117,7 @@ def get_embedded_vcs_tag_pattern() -> re.Pattern[str]:
     )
 
 
-def detect_workflow_type(project_file: str) -> str:
+def detect_workflow_type_direct(project_file: str) -> str:
     """Detect the workflow type for *project_file* via plugins.
 
     Returns ``"gh"``, ``"git"``, ``"hg"``, etc.
@@ -134,7 +134,26 @@ def detect_workflow_type(project_file: str) -> str:
     )
 
 
-def get_change_label(project_file: str) -> str:
+def detect_workflow_type(project_file: str) -> str:
+    """Detect the workflow type, using the provider host when enabled."""
+    if _provider_host_queries_enabled():
+        try:
+            from sase.host.provider_queries import host_workspace_metadata
+
+            result = host_workspace_metadata(
+                "detect_workflow_type",
+                payload={"project_file": project_file},
+                cwd=project_file,
+            )
+            value = result.get("value")
+            if isinstance(value, str):
+                return value
+        except Exception:
+            pass
+    return detect_workflow_type_direct(project_file)
+
+
+def get_change_label_direct(project_file: str) -> str:
     """Return the change label (``"PR"`` or ``"CL"``) for *project_file*.
 
     Falls back to legacy detection when no plugin claims the project.
@@ -159,7 +178,26 @@ def get_change_label(project_file: str) -> str:
     )
 
 
-def resolve_ref(ref: str, workflow_type: str) -> ResolvedRef:
+def get_change_label(project_file: str) -> str:
+    """Return the change label, using the provider host when enabled."""
+    if _provider_host_queries_enabled():
+        try:
+            from sase.host.provider_queries import host_workspace_metadata
+
+            result = host_workspace_metadata(
+                "get_change_label",
+                payload={"project_file": project_file},
+                cwd=project_file,
+            )
+            value = result.get("value")
+            if isinstance(value, str):
+                return value
+        except Exception:
+            pass
+    return get_change_label_direct(project_file)
+
+
+def resolve_ref_direct(ref: str, workflow_type: str) -> ResolvedRef:
     """Resolve a workspace reference via plugins.
 
     Falls back to legacy resolution functions when no plugin handles
@@ -173,6 +211,30 @@ def resolve_ref(ref: str, workflow_type: str) -> ResolvedRef:
         return result
 
     raise ValueError(f"No workspace plugin found for workflow type '{workflow_type}'")
+
+
+def resolve_ref(ref: str, workflow_type: str) -> ResolvedRef:
+    """Resolve a workspace reference, using the provider host when enabled."""
+    if _provider_host_queries_enabled():
+        try:
+            from sase.host.provider_queries import host_workspace_resolve_ref
+
+            result = host_workspace_resolve_ref(ref, workflow_type)
+            value = result.get("value")
+            if isinstance(value, dict):
+                return ResolvedRef(
+                    project_file=str(value["project_file"]),
+                    project_name=str(value["project_name"]),
+                    primary_workspace_dir=str(value["primary_workspace_dir"]),
+                    checkout_target=str(value["checkout_target"]),
+                    extra={
+                        str(key): str(item)
+                        for key, item in dict(value.get("extra") or {}).items()
+                    },
+                )
+        except Exception:
+            pass
+    return resolve_ref_direct(ref, workflow_type)
 
 
 def extract_change_identifier(cl_url: str) -> tuple[str, str] | None:
@@ -195,7 +257,7 @@ def generate_reviewer_comments_script(changespec_name: str) -> str | None:
     return _get_manager().generate_reviewer_comments_script(changespec_name)
 
 
-def get_workspace_directory(
+def get_workspace_directory_direct(
     workflow_type: str,
     workspace_num: int,
     project_name: str,
@@ -217,6 +279,42 @@ def get_workspace_directory(
     raise RuntimeError(
         f"No workspace plugin provided a workspace directory for "
         f"workflow type '{workflow_type}'"
+    )
+
+
+def get_workspace_directory(
+    workflow_type: str,
+    workspace_num: int,
+    project_name: str,
+    primary_workspace_dir: str,
+) -> str:
+    """Get the workspace directory, using the provider host when enabled."""
+    if _provider_host_queries_enabled():
+        try:
+            from sase.host.provider_queries import host_workspace_metadata
+
+            result = host_workspace_metadata(
+                "get_workspace_directory",
+                payload={
+                    "workflow_type": workflow_type,
+                    "workspace_num": workspace_num,
+                    "project_name": project_name,
+                    "primary_workspace_dir": primary_workspace_dir,
+                },
+                cwd=primary_workspace_dir,
+                manifest_plugin_id=(
+                    "builtin.workspace.cd"
+                    if workflow_type == "cd"
+                    else "builtin.vcs.bare_git"
+                ),
+            )
+            value = result.get("value")
+            if isinstance(value, str):
+                return value
+        except Exception:
+            pass
+    return get_workspace_directory_direct(
+        workflow_type, workspace_num, project_name, primary_workspace_dir
     )
 
 
@@ -270,9 +368,36 @@ def format_commit_description(
         f.write(f"[{project}] {content}\n")
 
 
-def get_workspace_name(cwd: str) -> str | None:
+def get_workspace_name_direct(cwd: str) -> str | None:
     """Detect the workspace/project name for *cwd* via plugins."""
     return _get_manager().get_workspace_name(cwd)
+
+
+def get_workspace_name(cwd: str) -> str | None:
+    """Detect the workspace/project name, using the provider host when enabled."""
+    if _provider_host_queries_enabled():
+        try:
+            from sase.host.provider_queries import host_workspace_metadata
+
+            result = host_workspace_metadata(
+                "get_workspace_name",
+                payload={"cwd": cwd},
+                cwd=cwd,
+            )
+            value = result.get("value")
+            return value if isinstance(value, str) else None
+        except Exception:
+            pass
+    return get_workspace_name_direct(cwd)
+
+
+def _provider_host_queries_enabled() -> bool:
+    try:
+        from sase.host.provider_queries import provider_host_queries_enabled
+
+        return provider_host_queries_enabled()
+    except Exception:
+        return False
 
 
 def submit_changespec(

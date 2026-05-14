@@ -26,6 +26,7 @@ def _request(
     operation: str = "fake.echo",
     payload: dict[str, Any] | None = None,
     *,
+    family: str = "config",
     timeout_ms: int = 30_000,
     manifest: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -45,7 +46,7 @@ def _request(
             "runtime": "python",
         },
         "operation": {
-            "family": "config",
+            "family": family,
             "operation": operation,
         },
         "declared_capabilities": [HOST_CAP_IPC_V1],
@@ -120,6 +121,78 @@ def test_runtime_rejects_network_when_manifest_denies_it() -> None:
     assert response.status == "error"
     assert response.error is not None
     assert response.error.code == "network_denied"
+
+
+def test_runtime_routes_bare_git_detect_query_through_host(tmp_path) -> None:
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(tmp_path / "origin.git")],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    runtime = ProviderHostRuntime(ProviderHostRuntimeConfig())
+
+    response = runtime.handle_json_frame(
+        json.dumps(
+            _request(
+                "vcs.query",
+                {"query": "detect_vcs", "cwd": str(tmp_path)},
+                family="vcs",
+                manifest=_manifest("vcs.query", network_mode="compatibility"),
+            )
+        )
+    )
+
+    assert response.status == "ok"
+    assert response.result == {"query": "detect_vcs", "value": "bare_git"}
+
+
+def test_runtime_routes_cd_workspace_ref_through_host(tmp_path) -> None:
+    runtime = ProviderHostRuntime(ProviderHostRuntimeConfig())
+
+    response = runtime.handle_json_frame(
+        json.dumps(
+            _request(
+                "workspace.resolve_ref",
+                {"ref": str(tmp_path), "workflow_type": "cd"},
+                family="workspace",
+                manifest=_manifest("workspace.resolve_ref"),
+            )
+        )
+    )
+
+    assert response.status == "ok"
+    assert response.result["value"]["primary_workspace_dir"] == str(tmp_path)
+    assert response.result["value"]["checkout_target"] == str(tmp_path)
+
+
+def test_runtime_vcs_mutation_returns_shadow_side_effect_intent() -> None:
+    runtime = ProviderHostRuntime(ProviderHostRuntimeConfig())
+
+    response = runtime.handle_json_frame(
+        json.dumps(
+            _request(
+                "vcs.mutation",
+                {
+                    "provider": "bare_git",
+                    "operation": "checkout",
+                    "cwd": "/tmp/workspace",
+                },
+                family="vcs",
+                manifest=_manifest("vcs.mutation"),
+            )
+        )
+    )
+
+    assert response.status == "ok"
+    assert response.result == {
+        "shadow": True,
+        "provider": "bare_git",
+        "operation": "checkout",
+    }
+    assert response.side_effects[0].type == "vcs_mutation"
+    assert response.side_effects[0].data["workspace_dir"] == "/tmp/workspace"
 
 
 def test_manifest_discovery_reports_builtin_and_unknown_plugins() -> None:

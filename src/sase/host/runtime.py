@@ -38,6 +38,7 @@ from sase.host.wire import (
     HostRequestEnvelopeWire,
     HostResourceUsageWire,
     HostResponseEnvelopeWire,
+    HostSideEffectIntentWire,
     host_request_from_dict,
     host_wire_to_json_dict,
 )
@@ -144,7 +145,15 @@ class _OperationContext:
             )
 
 
-OperationHandler = Callable[[_OperationContext], Mapping[str, Any]]
+@dataclass(frozen=True)
+class _OperationResult:
+    result: Mapping[str, Any]
+    side_effects: tuple[HostSideEffectIntentWire, ...] = ()
+    spawned_processes: int = 0
+    network_requests: int = 0
+
+
+OperationHandler = Callable[[_OperationContext], Mapping[str, Any] | _OperationResult]
 
 
 def run_provider_host_stdio(
@@ -195,6 +204,10 @@ class ProviderHostRuntime:
             ("config", "host.discover_plugins"): self._discover_plugins,
             ("llm", "llm.metadata"): self._llm_metadata,
             ("xprompt", "xprompt.catalog"): self._xprompt_catalog,
+            ("vcs", "vcs.query"): self._vcs_query,
+            ("vcs", "vcs.mutation"): self._vcs_mutation_shadow,
+            ("workspace", "workspace.metadata"): self._workspace_metadata,
+            ("workspace", "workspace.resolve_ref"): self._workspace_resolve_ref,
         }
 
     def handle_json_frame(self, raw_frame: str) -> HostResponseEnvelopeWire:
@@ -230,21 +243,35 @@ class ProviderHostRuntime:
                     ),
                     target="operation",
                 )
-            result = dict(handler(context))
+            old_active = os.environ.get("SASE_PROVIDER_HOST_ACTIVE")
+            os.environ["SASE_PROVIDER_HOST_ACTIVE"] = "1"
+            try:
+                raw_result = handler(context)
+            finally:
+                if old_active is None:
+                    os.environ.pop("SASE_PROVIDER_HOST_ACTIVE", None)
+                else:
+                    os.environ["SASE_PROVIDER_HOST_ACTIVE"] = old_active
+            operation_result = (
+                raw_result
+                if isinstance(raw_result, _OperationResult)
+                else _OperationResult(result=dict(raw_result))
+            )
             context.check_deadline()
             duration_ms = context.elapsed_ms()
             return HostResponseEnvelopeWire(
                 schema_version=PROVIDER_HOST_IPC_WIRE_SCHEMA_VERSION,
                 request_id=request.request_id,
                 status="ok",
-                result=result,
+                result=dict(operation_result.result),
                 logs=tuple(logs.records),
                 duration_ms=duration_ms,
                 resource_usage=HostResourceUsageWire(
                     wall_ms=duration_ms,
-                    spawned_processes=0,
-                    network_requests=0,
+                    spawned_processes=operation_result.spawned_processes,
+                    network_requests=operation_result.network_requests,
                 ),
+                side_effects=operation_result.side_effects,
             )
         except ProviderHostRuntimeError as exc:
             return self._error_response(request.request_id, exc, started, logs=logs)
@@ -462,6 +489,242 @@ class ProviderHostRuntime:
             "projection": asdict(projection),
             "cache_invalidation": _xprompt_catalog_cache_policy(),
         }
+
+    def _vcs_query(self, context: _OperationContext) -> _OperationResult:
+        from sase.vcs_provider import (
+            detect_vcs_direct,
+            detect_vcs_family_direct,
+            get_vcs_provider,
+        )
+
+        payload = dict(context.request.payload)
+        query = str(payload.get("query", ""))
+        cwd = _payload_str(payload, "cwd")
+        context.logs.append(
+            "info", f"vcs query dispatched: {query}", target="sase.host.vcs"
+        )
+        if query == "detect_vcs":
+            value = detect_vcs_direct(cwd)
+        elif query == "detect_vcs_family":
+            value = detect_vcs_family_direct(cwd)
+        else:
+            provider = get_vcs_provider(cwd)
+            value = _call_vcs_query(provider, query, payload, cwd)
+        return _OperationResult(
+            result={"query": query, "value": value},
+            spawned_processes=1,
+            network_requests=_network_request_count(context.request),
+        )
+
+    def _vcs_mutation_shadow(self, context: _OperationContext) -> _OperationResult:
+        payload = dict(context.request.payload)
+        provider = str(payload.get("provider") or "unknown")
+        operation = str(payload.get("operation") or "")
+        cwd = _payload_str(payload, "cwd", field_name="workspace_dir")
+        if not operation:
+            raise ProviderHostRuntimeError(
+                "host_protocol_error",
+                "vcs mutation payload must include operation",
+                target="payload.operation",
+            )
+        context.logs.append(
+            "warn",
+            f"vcs mutation shadow-routed only: {provider}.{operation}",
+            target="sase.host.vcs",
+        )
+        return _OperationResult(
+            result={"shadow": True, "provider": provider, "operation": operation},
+            side_effects=(
+                HostSideEffectIntentWire(
+                    type="vcs_mutation",
+                    data={
+                        "provider": provider,
+                        "operation": operation,
+                        "workspace_dir": cwd,
+                    },
+                ),
+            ),
+        )
+
+    def _workspace_metadata(self, context: _OperationContext) -> Mapping[str, Any]:
+        from dataclasses import asdict, is_dataclass
+
+        import sase.workspace_provider as workspace_registry
+
+        payload = dict(context.request.payload)
+        query = str(payload.get("query", ""))
+        context.logs.append(
+            "info",
+            f"workspace metadata query dispatched: {query}",
+            target="sase.host.workspace",
+        )
+        value: Any
+        if query == "workflow_metadata":
+            value = [
+                asdict(item) if is_dataclass(item) else dict(item)
+                for item in workspace_registry.get_all_workflow_metadata()
+            ]
+        elif query == "workflow_names":
+            value = sorted(workspace_registry.get_workflow_names())
+        elif query == "detect_workflow_type":
+            value = workspace_registry.detect_workflow_type_direct(
+                _payload_str(payload, "project_file")
+            )
+        elif query == "get_change_label":
+            value = workspace_registry.get_change_label_direct(
+                _payload_str(payload, "project_file")
+            )
+        elif query == "get_display_name":
+            value = workspace_registry.get_display_name(
+                _payload_str(payload, "workflow_type")
+            )
+        elif query == "get_display_name_by_vcs":
+            value = workspace_registry.get_display_name_by_vcs(
+                _payload_str(payload, "vcs_name")
+            )
+        elif query == "get_display_name_by_vcs_family":
+            value = workspace_registry.get_display_name_by_vcs_family(
+                _payload_str(payload, "vcs_family")
+            )
+        elif query == "get_pre_allocated_env_prefix":
+            value = workspace_registry.get_pre_allocated_env_prefix(
+                _payload_str(payload, "workflow_type")
+            )
+        elif query == "get_workspace_directory":
+            value = workspace_registry.get_workspace_directory_direct(
+                _payload_str(payload, "workflow_type"),
+                int(payload.get("workspace_num", 1)),
+                _payload_str(payload, "project_name"),
+                _payload_str(payload, "primary_workspace_dir"),
+            )
+        elif query == "get_workspace_name":
+            value = workspace_registry.get_workspace_name_direct(
+                _payload_str(payload, "cwd")
+            )
+        else:
+            raise ProviderHostRuntimeError(
+                "operation_unsupported",
+                f"unsupported workspace metadata query: {query}",
+                target="payload.query",
+            )
+        return {"query": query, "value": value}
+
+    def _workspace_resolve_ref(self, context: _OperationContext) -> Mapping[str, Any]:
+        from dataclasses import asdict
+
+        from sase.workspace_provider import resolve_ref_direct
+
+        payload = dict(context.request.payload)
+        resolved = resolve_ref_direct(
+            _payload_str(payload, "ref"),
+            _payload_str(payload, "workflow_type"),
+        )
+        return {"value": asdict(resolved)}
+
+
+def _payload_str(
+    payload: Mapping[str, Any],
+    key: str,
+    *,
+    field_name: str | None = None,
+) -> str:
+    value = payload.get(key)
+    if not isinstance(value, str) or not value:
+        target = field_name or key
+        raise ProviderHostRuntimeError(
+            "host_protocol_error",
+            f"{target} must be a non-empty string",
+            target=f"payload.{target}",
+        )
+    return value
+
+
+def _call_vcs_query(
+    provider: object,
+    query: str,
+    payload: Mapping[str, Any],
+    cwd: str,
+) -> Any:
+    if query in {"get_branch_name", "get_workspace_name", "has_local_changes"}:
+        return _call_provider_method(provider, query, cwd)
+    if query == "resolve_revision":
+        return provider.resolve_revision(  # type: ignore[attr-defined]
+            _payload_str(payload, "changespec_name"),
+            _payload_str(payload, "project_basename"),
+            cwd,
+        )
+    if query == "resolve_current_changespec_head_ref":
+        return provider.resolve_current_changespec_head_ref(  # type: ignore[attr-defined]
+            _payload_str(payload, "changespec_name"),
+            _payload_str(payload, "project_basename"),
+            cwd,
+        )
+    if query in {
+        "diff",
+        "diff_with_untracked",
+        "committed_diff",
+        "get_default_parent_revision",
+        "get_cl_number",
+        "get_bug_number",
+        "get_change_url",
+        "get_conflicted_files",
+        "is_sync_in_progress",
+    }:
+        return _call_provider_method(provider, query, cwd)
+    if query in {"diff_revision", "show_revision", "get_description"}:
+        return _call_provider_method(
+            provider, query, _payload_str(payload, "revision"), cwd
+        )
+    if query == "diff_name_status":
+        return provider.diff_name_status(  # type: ignore[attr-defined]
+            _payload_str(payload, "parent_ref"),
+            _payload_str(payload, "head_ref"),
+            cwd,
+        )
+    if query == "diff_line_stats":
+        return provider.diff_line_stats(  # type: ignore[attr-defined]
+            _payload_str(payload, "parent_ref"),
+            _payload_str(payload, "head_ref"),
+            cwd,
+        )
+    if query == "file_at_revision":
+        return provider.file_at_revision(  # type: ignore[attr-defined]
+            _payload_str(payload, "revision"),
+            _payload_str(payload, "file_path"),
+            cwd,
+        )
+    if query == "get_change_body":
+        return provider.get_change_body(  # type: ignore[attr-defined]
+            _payload_str(payload, "change_ref"),
+            cwd,
+        )
+    raise ProviderHostRuntimeError(
+        "operation_unsupported",
+        f"unsupported vcs query: {query}",
+        target="payload.query",
+    )
+
+
+def _call_provider_method(provider: object, method_name: str, *args: object) -> Any:
+    method = getattr(provider, method_name, None)
+    if method is None:
+        raise ProviderHostRuntimeError(
+            "operation_unsupported",
+            f"VCS provider has no query method: {method_name}",
+            target="payload.query",
+        )
+    return method(*args)
+
+
+def _network_request_count(request: HostRequestEnvelopeWire) -> int:
+    payload = dict(request.payload)
+    network = payload.get("network")
+    if isinstance(network, Mapping) and network.get("required") is True:
+        return 1
+    return int(
+        payload.get("network_required") is True
+        or payload.get("requires_network") is True
+    )
 
 
 def redact_host_log(message: str) -> str:

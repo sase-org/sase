@@ -31,6 +31,12 @@ from sase.daemon.protocol import (
     selector_data,
 )
 from sase.daemon.read_requests import LocalDaemonReadMixin
+from sase.host.wire import (
+    HostRequestEnvelopeWire,
+    HostResponseEnvelopeWire,
+    host_response_from_dict,
+    host_wire_to_json_dict,
+)
 
 __all__ = [
     "LOCAL_DAEMON_DEFAULT_PAGE_LIMIT",
@@ -157,6 +163,22 @@ class LocalDaemonClient(LocalDaemonReadMixin):
     def scheduler_cancel(self, data: dict[str, Any]) -> dict[str, Any]:
         response = self.request({"type": "scheduler_cancel", "data": data})
         return payload_data(response, "scheduler_cancel")
+
+    def host_call(
+        self,
+        envelope: HostRequestEnvelopeWire | dict[str, Any],
+    ) -> HostResponseEnvelopeWire:
+        response = self.request(
+            {
+                "type": "host_call",
+                "data": (
+                    host_wire_to_json_dict(envelope)
+                    if isinstance(envelope, HostRequestEnvelopeWire)
+                    else envelope
+                ),
+            }
+        )
+        return host_response_from_dict(payload_data(response, "host_call"))
 
     def rebuild(
         self,

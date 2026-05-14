@@ -109,7 +109,7 @@ def _classify_by_url(git_dir: str) -> str:
     return "bare_git"
 
 
-def detect_vcs(cwd: str) -> str | None:
+def detect_vcs_direct(cwd: str) -> str | None:
     """Walk up from *cwd* looking for VCS markers or ``.git``.
 
     Uses plugins via :meth:`~VCSHookSpec.vcs_detect_repo_type` to detect
@@ -139,15 +139,51 @@ def detect_vcs(cwd: str) -> str | None:
     return None
 
 
+def detect_vcs(cwd: str) -> str | None:
+    """Detect the VCS provider, using the daemon provider host when enabled."""
+    if _provider_host_queries_enabled():
+        try:
+            from sase.host.provider_queries import host_vcs_query
+
+            result = host_vcs_query("detect_vcs", cwd=cwd)
+            value = result.get("value")
+            return value if isinstance(value, str) else None
+        except Exception:
+            pass
+    return detect_vcs_direct(cwd)
+
+
+def detect_vcs_family_direct(cwd: str) -> str | None:
+    vcs = detect_vcs_direct(cwd)
+    if vcs in ("github", "bare_git"):
+        return "git"
+    return vcs
+
+
 def detect_vcs_family(cwd: str) -> str | None:
     """Like :func:`detect_vcs` but collapses git variants to ``"git"``.
 
     Returns ``"git"``, ``"hg"``, or ``None``.
     """
-    vcs = detect_vcs(cwd)
-    if vcs in ("github", "bare_git"):
-        return "git"
-    return vcs
+    if _provider_host_queries_enabled():
+        try:
+            from sase.host.provider_queries import host_vcs_query
+
+            result = host_vcs_query("detect_vcs_family", cwd=cwd)
+            value = result.get("value")
+            return value if isinstance(value, str) else None
+        except Exception:
+            pass
+    return detect_vcs_family_direct(cwd)
+
+
+def _provider_host_queries_enabled() -> bool:
+    try:
+        from sase.host.provider_queries import provider_host_queries_enabled
+
+        return provider_host_queries_enabled()
+    except Exception:
+        return False
 
 
 def _resolve_vcs_name(cwd: str) -> str | None:
