@@ -1,7 +1,7 @@
 """Subprocess runtime for provider/plugin host IPC.
 
-This module intentionally exposes only fake/no-op operations plus host
-manifest/resource diagnostics. Real provider routing lands in later phases.
+This module exposes fake/no-op operations, host manifest/resource diagnostics,
+and the first read-only provider metadata/catalog operations routed in Phase 8E.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import signal
 import sys
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any, TextIO
 
 from sase.host.manifest import (
@@ -28,6 +28,8 @@ from sase.host.manifest import (
 )
 from sase.host.wire import (
     HOST_ERROR_CODES,
+    HOST_CAP_LLM_METADATA,
+    HOST_CAP_XPROMPT_CATALOG,
     HOST_OPERATION_FAMILIES,
     PROVIDER_HOST_IPC_WIRE_SCHEMA_VERSION,
     HostErrorWire,
@@ -191,6 +193,8 @@ class ProviderHostRuntime:
             ("config", "fake.sleep"): self._fake_sleep,
             ("config", "fake.stderr"): self._fake_stderr,
             ("config", "host.discover_plugins"): self._discover_plugins,
+            ("llm", "llm.metadata"): self._llm_metadata,
+            ("xprompt", "xprompt.catalog"): self._xprompt_catalog,
         }
 
     def handle_json_frame(self, raw_frame: str) -> HostResponseEnvelopeWire:
@@ -421,6 +425,44 @@ class ProviderHostRuntime:
             "resource_policy": resource_policy_diagnostics(),
         }
 
+    def _llm_metadata(self, context: _OperationContext) -> Mapping[str, Any]:
+        _require_capability(context, HOST_CAP_LLM_METADATA)
+        from sase.llm_provider.registry import direct_llm_metadata_payload
+
+        context.logs.append("info", "LLM metadata collected", target="sase.host.llm")
+        return direct_llm_metadata_payload()
+
+    def _xprompt_catalog(self, context: _OperationContext) -> Mapping[str, Any]:
+        _require_capability(context, HOST_CAP_XPROMPT_CATALOG)
+        payload = context.request.payload
+        include_pdf = bool(payload.get("include_pdf", False))
+        if include_pdf:
+            raise ProviderHostRuntimeError(
+                "operation_unsupported",
+                "host-routed xprompt.catalog is read-only and does not generate PDFs",
+                target="payload.include_pdf",
+            )
+
+        from sase.xprompt._catalog_structured import (
+            build_structured_xprompts_catalog,
+        )
+
+        projection = build_structured_xprompts_catalog(
+            project=_optional_str(payload.get("project")),
+            source=_optional_str(payload.get("source")),
+            tag=_optional_str(payload.get("tag")),
+            query=_optional_str(payload.get("query")),
+            include_pdf=False,
+            limit=_optional_int(payload.get("limit")),
+        )
+        context.logs.append(
+            "info", "xprompt catalog collected", target="sase.host.xprompt"
+        )
+        return {
+            "projection": asdict(projection),
+            "cache_invalidation": _xprompt_catalog_cache_policy(),
+        }
+
 
 def redact_host_log(message: str) -> str:
     redacted = message
@@ -435,6 +477,67 @@ def redact_host_log(message: str) -> str:
             if value:
                 redacted = redacted.replace(value, _REDACTED)
     return redacted
+
+
+def _require_capability(context: _OperationContext, capability: str) -> None:
+    if capability in context.request.declared_capabilities:
+        return
+    raise ProviderHostRuntimeError(
+        "capability_denied",
+        f"host operation requires declared capability {capability}",
+        target="declared_capabilities",
+    )
+
+
+def _xprompt_catalog_cache_policy() -> dict[str, Any]:
+    """Return stable cache inputs for xprompt/resource catalog calls."""
+
+    from sase.xprompt.loader_sources import get_xprompt_search_paths
+
+    paths: list[dict[str, Any]] = []
+    for path in get_xprompt_search_paths():
+        paths.append(_path_fingerprint(path))
+    for env_name in ("SASE_DISABLE_PLUGINS", "SASE_DISABLE_PLUGIN_XPROMPTS"):
+        value = os.environ.get(env_name)
+        paths.append({"env": env_name, "value": value})
+    return {
+        "version": 1,
+        "sources": paths,
+        "plugin_entry_points": _entry_point_fingerprint("sase_xprompts"),
+    }
+
+
+def _entry_point_fingerprint(group: str) -> list[dict[str, str]]:
+    try:
+        entry_points = importlib.metadata.entry_points(group=group)
+    except Exception:
+        return []
+    return [
+        {"name": ep.name, "value": ep.value}
+        for ep in sorted(entry_points, key=lambda item: item.name)
+    ]
+
+
+def _path_fingerprint(path: Any) -> dict[str, Any]:
+    path_str = os.fspath(path)
+    try:
+        stat = os.stat(path_str)
+    except OSError:
+        return {"path": path_str, "exists": False}
+    return {
+        "path": path_str,
+        "exists": True,
+        "mtime_ns": stat.st_mtime_ns,
+        "size": stat.st_size,
+    }
+
+
+def _optional_str(value: Any) -> str | None:
+    return None if value is None else str(value)
+
+
+def _optional_int(value: Any) -> int | None:
+    return None if value is None else int(value)
 
 
 def _install_host_signal_handlers() -> None:

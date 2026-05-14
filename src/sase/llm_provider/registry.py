@@ -14,9 +14,15 @@ callers iterate ``pm.list_name_plugin()`` to collect per-plugin values.
 
 import functools
 import importlib.metadata
+import os
 import shutil
+from dataclasses import asdict, is_dataclass
+from typing import Any
 
 import pluggy
+
+from sase.host.client import call_provider_host, is_host_fallbackable
+from sase.host.wire import HOST_CAP_LLM_METADATA
 
 from ._hookspec import LLMHookSpec
 from ._plugin_manager import LLMPluginManager
@@ -30,6 +36,8 @@ _PROVIDER_FAMILY_COLORS: dict[str, str] = {
     "codex": "#10A37F",
     "openai": "#10A37F",
 }
+_LLM_METADATA_OPERATION = "llm.metadata"
+_LLM_METADATA_DISABLE_ENV = "SASE_DISABLE_HOST_LLM_METADATA"
 
 
 @functools.cache
@@ -53,17 +61,83 @@ def iter_plugins() -> list[tuple[str, object]]:
     return list(_build_llm_pm().list_name_plugin())
 
 
+def direct_llm_metadata_payload() -> dict[str, Any]:
+    """Collect LLM metadata directly from pluggy providers inside the host."""
+
+    providers: dict[str, dict[str, Any]] = {}
+    model_to_provider: dict[str, str] = {}
+    provider_short_names: dict[str, str] = {}
+    model_short_aliases: dict[str, str] = {}
+    provider_colors = dict(_PROVIDER_FAMILY_COLORS)
+    autodetect_candidates: list[dict[str, Any]] = []
+    default_retry_configs: dict[str, dict[str, Any]] = {}
+
+    for name, plugin in iter_plugins():
+        provider_metadata = _provider_metadata(name, plugin)
+        providers[name] = provider_metadata
+
+        for model in provider_metadata["known_model_names"]:
+            model_to_provider[model] = name
+
+        provider_short_names[name] = provider_metadata["short_name"] or name
+        model_short_aliases.update(provider_metadata["model_short_aliases"])
+        color = provider_metadata["cli_status_color"]
+        if color:
+            provider_colors[name] = color
+
+        priority = provider_metadata["autodetect_priority"]
+        if priority is not None:
+            autodetect_candidates.append(
+                {
+                    "priority": priority,
+                    "provider": name,
+                    "cli_name": provider_metadata["autodetect_cli_name"],
+                }
+            )
+
+        retry_config = provider_metadata["default_retry_config"]
+        if retry_config is not None:
+            default_retry_configs[name] = retry_config
+
+    autodetect_candidates.sort(
+        key=lambda item: (int(item["priority"]), str(item["provider"]))
+    )
+    return {
+        "schema_version": 1,
+        "providers": providers,
+        "provider_names": sorted(providers),
+        "model_to_provider": model_to_provider,
+        "provider_short_names": provider_short_names,
+        "model_short_aliases": model_short_aliases,
+        "provider_cli_status_colors": provider_colors,
+        "autodetect_candidates": autodetect_candidates,
+        "default_retry_configs": default_retry_configs,
+        "cache_invalidation": _llm_metadata_cache_policy(),
+    }
+
+
+def llm_metadata_payload() -> dict[str, Any]:
+    """Return routed LLM metadata with direct Python fallback."""
+
+    if not os.environ.get(_LLM_METADATA_DISABLE_ENV):
+        try:
+            response = call_provider_host(
+                family="llm",
+                operation=_LLM_METADATA_OPERATION,
+                payload={},
+                required_capability=HOST_CAP_LLM_METADATA,
+            )
+            if response.status == "ok":
+                return dict(response.result)
+        except Exception as error:
+            if not is_host_fallbackable(error):
+                raise
+    return direct_llm_metadata_payload()
+
+
 def model_to_provider_map() -> dict[str, str]:
     """Build a ``{model_name → provider_name}`` map from plugin metadata."""
-    mapping: dict[str, str] = {}
-    for name, plugin in iter_plugins():
-        method = getattr(plugin, "llm_known_model_names", None)
-        if method is None:
-            continue
-        models = method() or []
-        for model in models:
-            mapping[model] = name
-    return mapping
+    return _str_dict(llm_metadata_payload().get("model_to_provider"))
 
 
 def provider_short_name_map() -> dict[str, str]:
@@ -73,12 +147,7 @@ def provider_short_name_map() -> dict[str, str]:
     fallback is its entry-point name — preserving today's behavior for
     plugins that haven't been updated.
     """
-    mapping: dict[str, str] = {}
-    for name, plugin in iter_plugins():
-        method = getattr(plugin, "llm_provider_short_name", None)
-        short = method() if method is not None else None
-        mapping[name] = short or name
-    return mapping
+    return _str_dict(llm_metadata_payload().get("provider_short_names"))
 
 
 def model_short_alias_map() -> dict[str, str]:
@@ -88,32 +157,20 @@ def model_short_alias_map() -> dict[str, str]:
     returning a dict of long-form model names to short aliases used in
     multi-model agent name suffixes.  Last writer wins on duplicates.
     """
-    mapping: dict[str, str] = {}
-    for _, plugin in iter_plugins():
-        method = getattr(plugin, "llm_model_short_aliases", None)
-        if method is None:
-            continue
-        aliases = method() or {}
-        mapping.update(aliases)
-    return mapping
+    return _str_dict(llm_metadata_payload().get("model_short_aliases"))
 
 
 def provider_cli_status_color_map() -> dict[str, str]:
     """Return provider colors from plugin metadata, plus vendor-family defaults."""
-    colors = dict(_PROVIDER_FAMILY_COLORS)
-    for name, plugin in iter_plugins():
-        method = getattr(plugin, "llm_cli_status_color", None)
-        if method is None:
-            continue
-        color = method()
-        if color:
-            colors[name] = color
-    return colors
+    return _str_dict(llm_metadata_payload().get("provider_cli_status_colors"))
 
 
 def _provider_names() -> list[str]:
     """Return all registered provider names (entry-point keys)."""
-    return [name for name, _ in iter_plugins()]
+    names = llm_metadata_payload().get("provider_names")
+    if not isinstance(names, list):
+        return []
+    return [str(name) for name in names]
 
 
 def _find_plugin_class(name: str) -> type | None:
@@ -253,20 +310,16 @@ def get_default_provider_name() -> str:
     if provider:
         return provider
 
-    candidates: list[tuple[int, str, str | None]] = []
-    for name, plugin in iter_plugins():
-        prio_method = getattr(plugin, "llm_autodetect_priority", None)
-        if prio_method is None:
+    candidates = llm_metadata_payload().get("autodetect_candidates")
+    if not isinstance(candidates, list):
+        candidates = []
+    for item in candidates:
+        if not isinstance(item, dict):
             continue
-        priority = prio_method()
-        if priority is None:
-            continue
-        cli_method = getattr(plugin, "llm_autodetect_cli_name", None)
-        cli_name = cli_method() if cli_method is not None else None
-        candidates.append((priority, name, cli_name))
-
-    candidates.sort()
-    for _, name, cli_name in candidates:
+        name = str(item.get("provider"))
+        cli_name = item.get("cli_name")
+        if cli_name is not None:
+            cli_name = str(cli_name)
         if cli_name is None or shutil.which(cli_name):
             return name
 
@@ -274,3 +327,108 @@ def get_default_provider_name() -> str:
         "No LLM provider is available. Install a provider plugin "
         "or set llm_provider.provider explicitly."
     )
+
+
+def _llm_metadata_cache_policy() -> dict[str, Any]:
+    """Return cache invalidation inputs for host-routed LLM metadata."""
+
+    env_names = (
+        "SASE_DISABLE_PLUGINS",
+        "SASE_DISABLE_PLUGIN_LLM",
+        "SASE_CLAUDE_PATH",
+        "SASE_CODEX_PATH",
+        "SASE_GEMINI_PATH",
+        "SASE_OPENCODE_PATH",
+        "SASE_QWEN_PATH",
+    )
+    return {
+        "version": 1,
+        "plugin_entry_points": [
+            {"name": ep.name, "value": ep.value}
+            for ep in sorted(
+                importlib.metadata.entry_points(group="sase_llm"),
+                key=lambda item: item.name,
+            )
+        ],
+        "environment": {name: os.environ.get(name) for name in env_names},
+        "config": _config_fingerprint(),
+    }
+
+
+def _provider_metadata(name: str, plugin: object) -> dict[str, Any]:
+    provider_name = _call_optional(plugin, "llm_provider_name")
+    short_name = _call_optional(plugin, "llm_provider_short_name") or name
+    known_models = _call_optional(plugin, "llm_known_model_names") or []
+    model_aliases = _call_optional(plugin, "llm_model_short_aliases") or {}
+    retry_config = _call_optional(plugin, "llm_default_retry_config")
+
+    model_resolutions: dict[str, str] = {}
+    resolve_model = getattr(plugin, "llm_resolve_model_name", None)
+    if resolve_model is not None:
+        for tier in ("large", "small"):
+            try:
+                model_resolutions[tier] = str(resolve_model(tier))
+            except Exception:
+                continue
+
+    return {
+        "provider_name": provider_name or name,
+        "short_name": short_name,
+        "known_model_names": [str(model) for model in known_models],
+        "model_short_aliases": _str_dict(model_aliases),
+        "skill_template_context": _str_dict(
+            _call_optional(plugin, "llm_skill_template_context") or {}
+        ),
+        "skill_deploy_subpath": _call_optional(plugin, "llm_skill_deploy_subpath"),
+        "cli_status_color": _call_optional(plugin, "llm_cli_status_color"),
+        "autodetect_priority": _call_optional(plugin, "llm_autodetect_priority"),
+        "autodetect_cli_name": _call_optional(plugin, "llm_autodetect_cli_name"),
+        "default_retry_config": _dataclass_to_dict(retry_config),
+        "model_resolutions": model_resolutions,
+    }
+
+
+def _call_optional(plugin: object, method_name: str) -> Any:
+    method = getattr(plugin, method_name, None)
+    if method is None:
+        return None
+    try:
+        return method()
+    except Exception:
+        return None
+
+
+def _dataclass_to_dict(value: Any) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if is_dataclass(value):
+        return dict(asdict(value))  # type: ignore[arg-type]
+    if isinstance(value, dict):
+        return dict(value)
+    return None
+
+
+def _str_dict(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): str(item) for key, item in value.items()}
+
+
+def _config_fingerprint() -> dict[str, Any]:
+    paths = (
+        os.path.expanduser("~/.config/sase/sase.yml"),
+        os.path.join(os.getcwd(), "sase.yml"),
+    )
+    result: dict[str, Any] = {}
+    for raw_path in paths:
+        try:
+            stat = os.stat(raw_path)
+        except OSError:
+            result[raw_path] = {"exists": False}
+            continue
+        result[raw_path] = {
+            "exists": True,
+            "mtime_ns": stat.st_mtime_ns,
+            "size": stat.st_size,
+        }
+    return result

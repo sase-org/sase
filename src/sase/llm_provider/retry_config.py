@@ -100,20 +100,27 @@ _CONTEXT_OVERFLOW_NUDGE = (
 
 
 def _built_in_defaults() -> dict[str, ProviderRetryConfig]:
-    """Aggregate ``llm_default_retry_config()`` values from registered plugins."""
-    from .registry import iter_plugins
+    """Aggregate ``llm_default_retry_config()`` values from provider metadata."""
+    from .registry import llm_metadata_payload
 
     defaults: dict[str, ProviderRetryConfig] = {}
-    for name, plugin in iter_plugins():
-        method = getattr(plugin, "llm_default_retry_config", None)
-        if method is None:
+    metadata = llm_metadata_payload()
+    retry_defaults = metadata.get("default_retry_configs")
+    if not isinstance(retry_defaults, dict):
+        return defaults
+
+    for name, raw_config in retry_defaults.items():
+        if not isinstance(raw_config, dict):
             continue
-        try:
-            config = method()
-        except Exception:
-            continue
-        if config is not None:
-            defaults[name] = config
+        defaults[str(name)] = ProviderRetryConfig(
+            max_retries=int(raw_config.get("max_retries", 0)),
+            error_patterns=[str(item) for item in raw_config.get("error_patterns", [])],
+            wait_times=[int(item) for item in raw_config.get("wait_times", [30])],
+            fallback_model=raw_config.get("fallback_model") or None,
+            continuation_prompt=raw_config.get("continuation_prompt") or None,
+            preserve_workspace=bool(raw_config.get("preserve_workspace", False)),
+            spawn_new_agent=bool(raw_config.get("spawn_new_agent", False)),
+        )
     return defaults
 
 
