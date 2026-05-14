@@ -7,11 +7,13 @@ from typing import Any
 from unittest.mock import patch
 
 from sase.ace.tui.util.perf_gates import (
+    ACE_M2_READ_PERF_BUDGETS,
     ACE_M2_SURFACE_GATES,
     EPIC9_DAEMON_NO_CHANGE_FORBIDDEN_SPANS,
     EPIC9_ROLLOUT_PARITY_GATES,
     EPIC9_ROLLOUT_PERF_GATES,
     EPIC9_TUI_TARGETS,
+    ace_m2_read_perf_gate_results,
     ace_default_rollout_violations,
     failing_epic9_perf_gates,
     forbidden_daemon_no_change_refresh_spans,
@@ -198,15 +200,61 @@ def test_forbidden_daemon_no_change_refresh_spans_are_reported() -> None:
     assert "changespec.filter" in EPIC9_DAEMON_NO_CHANGE_FORBIDDEN_SPANS
 
 
-def test_ace_daemon_surfaces_are_default_enabled_but_independently_gated() -> None:
+def test_ace_daemon_surfaces_are_opt_in_and_independently_gated() -> None:
     default_config = _load_default_config()
     surfaces = default_config["daemon"]["reads"]["surfaces"]
 
     assert {
         surface: surfaces[surface] for surface in ACE_DAEMON_SURFACE_GROUPS
-    } == dict.fromkeys(ACE_DAEMON_SURFACE_GROUPS, True)
+    } == dict.fromkeys(ACE_DAEMON_SURFACE_GROUPS, False)
     with patch("sase.daemon.read_config.load_merged_config", return_value={}):
         assert ace_default_rollout_violations(daemon_read_surface_enabled) == []
+
+
+def test_ace_read_perf_gate_results_require_daemon_to_beat_direct_and_budget() -> None:
+    report = {
+        "scenarios": {
+            "direct_ace_agents_snapshot": {"p95_ms": 120.0},
+            "daemon_ace_agents_snapshot": {"p95_ms": 100.0},
+            "direct_changespec_snapshot": {"p95_ms": 100.0},
+            "daemon_changespec_snapshot": {"p95_ms": 105.0},
+            "direct_notification_counts": {"p95_ms": 100.0},
+            "direct_notification_first_page": {"p95_ms": 110.0},
+            "daemon_notification_counts": {"p95_ms": 90.0},
+            "daemon_notification_first_page": {"p95_ms": 300.0},
+        }
+    }
+
+    results = ace_m2_read_perf_gate_results(report)
+
+    assert set(ACE_M2_READ_PERF_BUDGETS) == {
+        "ace_agents",
+        "ace_changespecs",
+        "ace_notifications",
+    }
+    assert results["ace_daemon_read.perf.ace_agents"]["status"] == "ok"
+    assert results["ace_daemon_read.perf.ace_changespecs"]["status"] == "blocked"
+    assert results["ace_daemon_read.perf.ace_notifications"]["status"] == "blocked"
+
+
+def test_ace_read_perf_gate_blocks_fallback_only_daemon_scenarios() -> None:
+    report = {
+        "scenarios": {
+            "direct_ace_agents_snapshot": {"p95_ms": 100.0},
+            "daemon_ace_agents_snapshot": {
+                "p95_ms": 50.0,
+                "summary": {
+                    "used_daemon": False,
+                    "fallback_reason": "daemon_not_running",
+                },
+            },
+        }
+    }
+
+    result = ace_m2_read_perf_gate_results(report)["ace_daemon_read.perf.ace_agents"]
+
+    assert result["status"] == "blocked"
+    assert result["fallback_scenarios"] == ["daemon_ace_agents_snapshot"]
 
 
 def test_rollout_policy_detects_enabled_ace_surface_without_gate() -> None:

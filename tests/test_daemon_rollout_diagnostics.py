@@ -127,11 +127,40 @@ def test_rollout_payload_includes_capabilities_compatibility_and_perf_report(
         json.dumps(
             {
                 "perf_gates": {
-                    "daemon_read.perf.changespecs": {"status": "ok", "p95_ms": 12}
+                    "daemon_read.perf.changespecs": {"status": "ok", "p95_ms": 12},
+                    "ace_daemon_read.perf.ace_notifications": {
+                        "status": "blocked",
+                        "daemon_p95_ms": 300,
+                        "direct_p95_ms": 100,
+                    },
                 },
                 "parity_gates": ["daemon_read.parity.changespecs"],
                 "recovery_checks": ["sase.daemon.rebuild.surface.changespecs"],
                 "docs_links": ["docs/perf_runbook.md#daemon-read-rollout"],
+                "scenarios": {
+                    "daemon_notification_counts": {
+                        "p95_ms": 80,
+                        "summary": {
+                            "request_count": 2,
+                            "used_daemon": False,
+                            "fallback_reason": "daemon_circuit_open",
+                            "debug": {
+                                "fallback_diagnostics": {
+                                    "circuit_open": True,
+                                    "circuit_reason": "unavailable",
+                                }
+                            },
+                        },
+                    },
+                    "daemon_notification_first_page": {
+                        "p95_ms": 300,
+                        "summary": {
+                            "request_count": 1,
+                            "used_daemon": True,
+                            "fallback_reason": None,
+                        },
+                    },
+                },
             }
         ),
         encoding="utf-8",
@@ -156,6 +185,12 @@ def test_rollout_payload_includes_capabilities_compatibility_and_perf_report(
     assert changespecs["parity_status"]["status"] == "ok"
     assert changespecs["perf_status"]["status"] == "ok"
     assert changespecs["fallback"]["command"] == "SASE_NO_DAEMON=1"
+    ace_notifications = _surface(payload, "read.ace_notifications")
+    observation = ace_notifications["benchmark_observation"]
+    assert observation["perf_gate"] == "ace_daemon_read.perf.ace_notifications"
+    assert observation["scenarios"][0]["request_count"] == 2
+    assert observation["scenarios"][0]["fallback_reason"] == "daemon_circuit_open"
+    assert observation["scenarios"][0]["circuit_open"] is True
 
 
 def test_rollout_payload_includes_m5_release_checklist(
@@ -184,7 +219,7 @@ def test_rollout_payload_includes_m5_release_checklist(
     )
     assert "sase daemon rebuild --surface all" in checklist["migration_rebuild_steps"]
     assert "SASE_PROVIDER_HOST_MODE=direct" in checklist["rollback_commands"]
-    assert "read.ace_agents" not in checklist["known_opt_in_surfaces"]
+    assert "read.ace_agents" in checklist["known_opt_in_surfaces"]
     assert checklist["supported_schema_ranges"]["sase_core_rs"]["dependency"] == (
         "sase-core-rs>=0.1.1,<0.2.0"
     )

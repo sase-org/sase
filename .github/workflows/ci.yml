@@ -326,6 +326,38 @@ jobs:
           name: phase7-perf-floor-report
           path: sdd/tales/202604/perf_artifacts/rust_backend_phase7_floor_check.json
 
+  # ACE daemon read rollout evidence (sase-3i.7). Captures the direct-vs-daemon
+  # read benchmark report with perf_gates for later rollout diagnostics; default
+  # ACE daemon surfaces remain opt-in until those gates pass on representative
+  # data.
+  ace-daemon-read-perf-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - name: Install just
+        run: |
+          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
+          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/just.tar.gz -C /tmp just
+          sudo install -m 0755 /tmp/just /usr/local/bin/just
+          just --version
+      - name: Set up Python
+        run: uv python install 3.12
+      - name: Install dependencies
+        run: just install
+      - name: Run ACE daemon read performance smoke
+        run: just ace-daemon-read-perf-smoke
+      - name: Upload ACE daemon read performance smoke
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ace-daemon-read-perf-smoke
+          path: sdd/tales/202605/perf_artifacts/ace_daemon_reads_smoke.json
+
   # Phase 9 launch regression floor (sase-1r.9). Keeps the Rust-backed
   # launch path from drifting back toward the Phase 1 parent-side sleep
   # baseline while still using fake subprocesses/no LLM CLIs.

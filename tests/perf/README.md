@@ -48,6 +48,21 @@ indexed data under 250 ms on large local histories, and no-change refresh near 0
 The Phase 1E readiness review at `sdd/research/202605/rust_daemon_epic1_readiness.md` maps these baselines to fixture
 families, normalized snapshots, local daemon contract surfaces, and later daemon epics.
 
+## ACE Daemon Read Rollout
+
+Use this recipe before enabling any `ace_*` daemon read surface in `src/sase/default_config.yml`.
+
+```bash
+just install
+just ace-daemon-read-perf-smoke --runs 5
+sase daemon rollout --benchmark-report sdd/tales/202605/perf_artifacts/ace_daemon_reads_smoke.json --json
+```
+
+The report compares direct and daemon-backed ACE startup slices for agents, ChangeSpecs, and notification first
+page/count reads. Its `perf_gates` object only passes a surface when daemon p95 is below direct p95 and below the
+absolute M2 budget. The rollout diagnostics payload also surfaces request count, fallback reason, and circuit state for
+the daemon scenarios.
+
 ## Agent Artifact Startup
 
 Use this recipe when changing `sase ace` startup loading, dismissed archive queries, revive, run-log loading, or

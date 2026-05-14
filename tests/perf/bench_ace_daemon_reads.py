@@ -16,6 +16,7 @@ import os
 import statistics
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -29,6 +30,7 @@ from sase.ace.tui.actions.agents._notification_provider import (
 from sase.ace.tui.actions.changespec._provider import read_changespecs_for_tui
 from sase.ace.tui.data_providers._daemon import DaemonAgentsDataProvider
 from sase.ace.tui.data_providers._direct import DirectAgentsDataProvider
+from sase.ace.tui.util.perf_gates import ace_m2_read_perf_gate_results
 from sase.daemon.client import LocalDaemonClient
 from sase.daemon.read_facade import DaemonReadResult
 
@@ -40,6 +42,27 @@ _ACE_DAEMON_ENV = {
     "SASE_DAEMON_ACE_NOTIFICATIONS_READS": "1",
     "SASE_DAEMON_FALLBACK_DIAGNOSTICS": "1",
 }
+
+
+@dataclass(frozen=True)
+class _BenchResult:
+    value: Any
+    request_count: int | None = None
+
+
+class _CountingLocalDaemonClient(LocalDaemonClient):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.request_count = 0
+
+    def request(
+        self,
+        payload: dict[str, Any],
+        *,
+        request_id: str | None = None,
+    ) -> dict[str, Any]:
+        self.request_count += 1
+        return super().request(payload, request_id=request_id)
 
 
 def run_bench(
@@ -82,6 +105,7 @@ def run_bench(
 
     for name, func in scenarios.items():
         report["scenarios"][name] = _time_scenario(func, runs=runs)
+    report["perf_gates"] = ace_m2_read_perf_gate_results(report)
 
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -100,6 +124,7 @@ def _time_scenario(func: Callable[[], Any], *, runs: int) -> dict[str, Any]:
     return {
         "samples_ms": samples_ms,
         "median_ms": statistics.median(samples_ms),
+        "p95_ms": _percentile(samples_ms, 0.95),
         "min_ms": samples_sorted[0],
         "max_ms": samples_sorted[-1],
         "summary": _result_summary(last_result),
@@ -113,8 +138,11 @@ def _direct_agents_snapshot() -> Any:
 
 def _daemon_agents_snapshot(daemon_timeout: float) -> Any:
     with patch.dict(os.environ, _ACE_DAEMON_ENV, clear=False):
-        client = LocalDaemonClient(timeout=daemon_timeout)
-        return DaemonAgentsDataProvider(client=client).load_agents()
+        client = _CountingLocalDaemonClient(timeout=daemon_timeout)
+        return _BenchResult(
+            DaemonAgentsDataProvider(client=client).load_agents(),
+            request_count=client.request_count,
+        )
 
 
 def _direct_changespec_snapshot() -> DaemonReadResult[Any]:
@@ -122,10 +150,13 @@ def _direct_changespec_snapshot() -> DaemonReadResult[Any]:
         return read_changespecs_for_tui()
 
 
-def _daemon_changespec_snapshot(daemon_timeout: float) -> DaemonReadResult[Any]:
+def _daemon_changespec_snapshot(daemon_timeout: float) -> Any:
     with patch.dict(os.environ, _ACE_DAEMON_ENV, clear=False):
-        client = LocalDaemonClient(timeout=daemon_timeout)
-        return read_changespecs_for_tui(client=client)
+        client = _CountingLocalDaemonClient(timeout=daemon_timeout)
+        return _BenchResult(
+            read_changespecs_for_tui(client=client),
+            request_count=client.request_count,
+        )
 
 
 def _direct_notification_counts() -> DaemonReadResult[Any]:
@@ -133,10 +164,13 @@ def _direct_notification_counts() -> DaemonReadResult[Any]:
         return read_notification_counts_for_tui()
 
 
-def _daemon_notification_counts(daemon_timeout: float) -> DaemonReadResult[Any]:
+def _daemon_notification_counts(daemon_timeout: float) -> Any:
     with patch.dict(os.environ, _ACE_DAEMON_ENV, clear=False):
-        client = LocalDaemonClient(timeout=daemon_timeout)
-        return read_notification_counts_for_tui(client=client)
+        client = _CountingLocalDaemonClient(timeout=daemon_timeout)
+        return _BenchResult(
+            read_notification_counts_for_tui(client=client),
+            request_count=client.request_count,
+        )
 
 
 def _direct_notification_first_page(limit: int) -> DaemonReadResult[Any]:
@@ -147,21 +181,42 @@ def _direct_notification_first_page(limit: int) -> DaemonReadResult[Any]:
 def _daemon_notification_first_page(
     daemon_timeout: float,
     limit: int,
-) -> DaemonReadResult[Any]:
+) -> Any:
     with patch.dict(os.environ, _ACE_DAEMON_ENV, clear=False):
-        client = LocalDaemonClient(timeout=daemon_timeout)
-        return read_unread_notification_page_for_tui(client=client, limit=limit)
+        client = _CountingLocalDaemonClient(timeout=daemon_timeout)
+        return _BenchResult(
+            read_unread_notification_page_for_tui(client=client, limit=limit),
+            request_count=client.request_count,
+        )
 
 
 def _result_summary(result: Any) -> dict[str, Any]:
+    request_count: int | None = None
+    if isinstance(result, _BenchResult):
+        request_count = result.request_count
+        result = result.value
     if isinstance(result, DaemonReadResult):
         return {
             "used_daemon": result.used_daemon,
             "fallback_reason": result.fallback_reason,
+            "request_count": request_count,
             "debug": result.debug_json()["daemon"],
             "value": _value_summary(result.value),
         }
-    return _value_summary(result)
+    summary = _value_summary(result)
+    summary["request_count"] = request_count
+    return summary
+
+
+def _percentile(samples: list[float], percentile: float) -> float:
+    ordered = sorted(samples)
+    if len(ordered) == 1:
+        return ordered[0]
+    rank = percentile * (len(ordered) - 1)
+    lower = int(rank)
+    upper = min(lower + 1, len(ordered) - 1)
+    fraction = rank - lower
+    return ordered[lower] + (ordered[upper] - ordered[lower]) * fraction
 
 
 def _value_summary(value: Any) -> dict[str, Any]:

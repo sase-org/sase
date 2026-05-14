@@ -16,23 +16,18 @@ from sase.daemon.read_config import (
 )
 
 
-def test_default_enabled_surface_groups_match_phase_5i_rollout() -> None:
+def test_default_enabled_surface_groups_keep_ace_daemon_reads_opt_in() -> None:
     assert DEFAULT_ENABLED_SURFACE_GROUPS == {
         "changespecs",
         "notifications",
         "agents",
         "beads",
         "catalogs",
-        "ace_agents",
-        "ace_changespecs",
-        "ace_notifications",
-        "ace_artifacts",
-        "ace_archive_search",
     }
     assert daemon_read_surface_enabled("notification_list") is True
     assert daemon_read_surface_enabled("file_history") is True
     for surface in ACE_DAEMON_SURFACE_GROUPS:
-        assert daemon_read_surface_enabled(surface) is True
+        assert daemon_read_surface_enabled(surface) is False
 
 
 def test_surface_config_controls_logical_group() -> None:

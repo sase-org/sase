@@ -39,6 +39,18 @@ class _AceM2SurfaceGate:
     perf_gate: str
 
 
+@dataclass(frozen=True)
+class _AceM2ReadPerfBudget:
+    """Direct-vs-daemon budget for one ACE daemon read surface."""
+
+    surface: str
+    perf_gate: str
+    daemon_scenarios: tuple[str, ...]
+    direct_scenarios: tuple[str, ...]
+    absolute_p95_ms: float
+    max_daemon_to_direct_ratio: float = 1.0
+
+
 EPIC9_TUI_TARGETS: dict[str, Epic9PerfTarget] = {
     "ace_shell_first_useful_paint_p95_ms": Epic9PerfTarget(
         "ace_shell_first_useful_paint_p95_ms", 500.0, "ms"
@@ -183,6 +195,36 @@ ACE_M2_SURFACE_GATES: dict[str, _AceM2SurfaceGate] = {
     ),
 }
 
+ACE_M2_READ_PERF_BUDGETS: dict[str, _AceM2ReadPerfBudget] = {
+    "ace_agents": _AceM2ReadPerfBudget(
+        surface="ace_agents",
+        perf_gate="ace_daemon_read.perf.ace_agents",
+        daemon_scenarios=("daemon_ace_agents_snapshot",),
+        direct_scenarios=("direct_ace_agents_snapshot",),
+        absolute_p95_ms=250.0,
+    ),
+    "ace_changespecs": _AceM2ReadPerfBudget(
+        surface="ace_changespecs",
+        perf_gate="ace_daemon_read.perf.ace_changespecs",
+        daemon_scenarios=("daemon_changespec_snapshot",),
+        direct_scenarios=("direct_changespec_snapshot",),
+        absolute_p95_ms=250.0,
+    ),
+    "ace_notifications": _AceM2ReadPerfBudget(
+        surface="ace_notifications",
+        perf_gate="ace_daemon_read.perf.ace_notifications",
+        daemon_scenarios=(
+            "daemon_notification_counts",
+            "daemon_notification_first_page",
+        ),
+        direct_scenarios=(
+            "direct_notification_counts",
+            "direct_notification_first_page",
+        ),
+        absolute_p95_ms=250.0,
+    ),
+}
+
 
 # pyvision: sdd/epics/202605/rust_daemon_epic9_ace_ui_virtualization.md
 def failing_epic9_perf_gates(metrics: Mapping[str, float]) -> list[str]:
@@ -194,6 +236,62 @@ def failing_epic9_perf_gates(metrics: Mapping[str, float]) -> list[str]:
         if value is not None and target.fails(value):
             failures.append(name)
     return failures
+
+
+def ace_m2_read_perf_gate_results(
+    report: Mapping[str, Any],
+    *,
+    budgets: Mapping[str, _AceM2ReadPerfBudget] = ACE_M2_READ_PERF_BUDGETS,
+) -> dict[str, dict[str, Any]]:
+    """Return rollout perf gate statuses from an ACE direct-vs-daemon report."""
+
+    results: dict[str, dict[str, Any]] = {}
+    scenarios = report.get("scenarios")
+    if not isinstance(scenarios, Mapping):
+        return {
+            budget.perf_gate: {
+                "status": "missing",
+                "surface": surface,
+                "reason": "report has no scenarios object",
+            }
+            for surface, budget in budgets.items()
+        }
+
+    for surface, budget in budgets.items():
+        daemon_p95 = _max_scenario_p95(scenarios, budget.daemon_scenarios)
+        direct_p95 = _max_scenario_p95(scenarios, budget.direct_scenarios)
+        missing = [
+            name
+            for name in (*budget.daemon_scenarios, *budget.direct_scenarios)
+            if not _scenario_has_p95(scenarios, name)
+        ]
+        if missing or daemon_p95 is None or direct_p95 is None:
+            results[budget.perf_gate] = {
+                "status": "missing",
+                "surface": surface,
+                "missing_scenarios": missing,
+            }
+            continue
+        ratio = daemon_p95 / direct_p95 if direct_p95 > 0 else float("inf")
+        daemon_fallbacks = _daemon_scenario_fallbacks(
+            scenarios,
+            budget.daemon_scenarios,
+        )
+        passes = not daemon_fallbacks and (
+            daemon_p95 <= budget.absolute_p95_ms
+            and ratio <= budget.max_daemon_to_direct_ratio
+        )
+        results[budget.perf_gate] = {
+            "status": "ok" if passes else "blocked",
+            "surface": surface,
+            "fallback_scenarios": daemon_fallbacks,
+            "daemon_p95_ms": daemon_p95,
+            "direct_p95_ms": direct_p95,
+            "max_daemon_to_direct_ratio": budget.max_daemon_to_direct_ratio,
+            "daemon_to_direct_ratio": ratio,
+            "absolute_p95_budget_ms": budget.absolute_p95_ms,
+        }
+    return results
 
 
 # pyvision: sdd/epics/202605/rust_daemon_epic9_ace_ui_virtualization.md
@@ -239,13 +337,56 @@ def _is_daemon_no_change_refresh_record(record: Mapping[str, Any]) -> bool:
     }
 
 
+def _max_scenario_p95(
+    scenarios: Mapping[str, Any],
+    names: Iterable[str],
+) -> float | None:
+    values: list[float] = []
+    for name in names:
+        value = _scenario_p95(scenarios, name)
+        if value is not None:
+            values.append(value)
+    return max(values) if values else None
+
+
+def _scenario_has_p95(scenarios: Mapping[str, Any], name: str) -> bool:
+    return _scenario_p95(scenarios, name) is not None
+
+
+def _scenario_p95(scenarios: Mapping[str, Any], name: str) -> float | None:
+    scenario = scenarios.get(name)
+    if not isinstance(scenario, Mapping):
+        return None
+    value = scenario.get("p95_ms")
+    if isinstance(value, int | float):
+        return float(value)
+    return None
+
+
+def _daemon_scenario_fallbacks(
+    scenarios: Mapping[str, Any],
+    names: Iterable[str],
+) -> list[str]:
+    fallbacks: list[str] = []
+    for name in names:
+        scenario = scenarios.get(name)
+        if not isinstance(scenario, Mapping):
+            continue
+        summary = scenario.get("summary")
+        if isinstance(summary, Mapping) and summary.get("used_daemon") is False:
+            fallbacks.append(name)
+    return fallbacks
+
+
 __all__ = [
+    "ACE_M2_READ_PERF_BUDGETS",
     "EPIC9_DAEMON_NO_CHANGE_FORBIDDEN_SPANS",
     "EPIC9_ROLLOUT_PARITY_GATES",
     "EPIC9_ROLLOUT_PERF_GATES",
     "EPIC9_TUI_TARGETS",
     "ACE_M2_SURFACE_GATES",
     "Epic9PerfTarget",
+    "ace_m2_read_perf_gate_results",
     "ace_default_rollout_violations",
     "failing_epic9_perf_gates",
     "forbidden_daemon_no_change_refresh_spans",

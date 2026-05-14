@@ -147,9 +147,7 @@ def _read_surface_record(group: str) -> RolloutSurfaceRecord:
             f"sase daemon diff --surface {group}",
             f"sase daemon rebuild --surface {group}",
         ),
-        default_policy="default_on"
-        if default_on
-        else ("opt_in" if ace_surface else "default_off"),
+        default_policy="default_on" if default_on else "opt_in",
         default_enablement_allowed=default_on,
     )
 

@@ -447,6 +447,17 @@ bead-perf-smoke *args: _setup
         --output sdd/tales/202605/perf_artifacts/bead_perf_smoke.json \
         {{ args }}
 
+# Capture ACE direct-vs-daemon read rollout evidence. This is an artifact
+# smoke, not a hard latency floor; Phase 8 only promotes surfaces when the
+# emitted perf_gates show daemon p95 below direct p95 and the absolute budget.
+ace-daemon-read-perf-smoke *args: _setup
+    @printf "\n---------- ACE daemon read rollout performance smoke (sase-3i.7) ----------\n"
+    mkdir -p sdd/tales/202605/perf_artifacts
+    {{ venv_bin }}/python -m tests.perf.bench_ace_daemon_reads \
+        --runs 1 \
+        --output sdd/tales/202605/perf_artifacts/ace_daemon_reads_smoke.json \
+        {{ args }}
+
 # Run the Python status state machine benchmark. Times the pure
 # line-based helpers (read_status_from_lines, apply_status_update,
 # is_valid_transition, remove_workspace_suffix) and the

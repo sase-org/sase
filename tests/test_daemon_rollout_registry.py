@@ -74,16 +74,16 @@ def test_read_surface_registry_matches_config_and_helper_constants() -> None:
     assert default_on == DEFAULT_ENABLED_SURFACE_GROUPS
 
 
-def test_ace_read_surfaces_are_default_enabled_with_m2_gates() -> None:
+def test_ace_read_surfaces_are_opt_in_until_m2_perf_gates_pass() -> None:
     config = _default_config()
     records = rollout_records_by_id()
 
     for surface in ACE_DAEMON_SURFACE_GROUPS:
         record = records[f"read.{surface}"]
         default_enabled = bool(_lookup(config, f"daemon.reads.surfaces.{surface}"))
-        assert default_enabled
-        assert record.default_policy == "default_on"
-        assert record.default_enablement_allowed
+        assert not default_enabled
+        assert record.default_policy == "opt_in"
+        assert not record.default_enablement_allowed
         assert record.parity_gates
         assert record.perf_gates
 
@@ -94,8 +94,8 @@ def test_m2_ace_read_surfaces_have_independent_gate_records() -> None:
     for surface, gate in ACE_M2_SURFACE_GATES.items():
         record = records[f"read.{surface}"]
         assert record.minimum_milestone == "M2"
-        assert record.default_policy == "default_on"
-        assert record.default_enablement_allowed is True
+        assert record.default_policy == "opt_in"
+        assert record.default_enablement_allowed is False
         assert record.parity_gates == (gate.parity_gate,)
         assert record.perf_gates == (gate.perf_gate,)
         assert record.direct_fallback_available is True
