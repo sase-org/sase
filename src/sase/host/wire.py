@@ -11,6 +11,7 @@ HOST_CAP_IPC_V1 = "host.ipc.v1"
 HOST_CAP_MANIFEST_V1 = "host.manifest.v1"
 HOST_CAP_LLM_METADATA = "host.llm.metadata"
 HOST_CAP_XPROMPT_CATALOG = "host.xprompt.catalog"
+HOST_CAP_RESOURCE_POLICY_DIAGNOSTICS = "host.resource_policy.diagnostics"
 
 HOST_OPERATION_FAMILIES = (
     "llm",
@@ -478,6 +479,7 @@ __all__ = [
     "HOST_CAP_IPC_V1",
     "HOST_CAP_LLM_METADATA",
     "HOST_CAP_MANIFEST_V1",
+    "HOST_CAP_RESOURCE_POLICY_DIAGNOSTICS",
     "HOST_CAP_XPROMPT_CATALOG",
     "HOST_ERROR_CODES",
     "HOST_OPERATION_FAMILIES",

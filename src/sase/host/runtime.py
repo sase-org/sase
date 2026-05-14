@@ -1,8 +1,7 @@
 """Subprocess runtime for provider/plugin host IPC.
 
-This module intentionally exposes only fake/no-op operations for Phase 8C.
-Real provider routing lands in later phases after manifest and policy
-enforcement is in place.
+This module intentionally exposes only fake/no-op operations plus host
+manifest/resource diagnostics. Real provider routing lands in later phases.
 """
 
 from __future__ import annotations
@@ -20,6 +19,13 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, TextIO
 
+from sase.host.manifest import (
+    HostPolicyError,
+    discover_host_manifests,
+    effective_timeout_ms,
+    resource_policy_diagnostics,
+    validate_manifest_for_request,
+)
 from sase.host.wire import (
     HOST_ERROR_CODES,
     HOST_OPERATION_FAMILIES,
@@ -124,7 +130,9 @@ class _OperationContext:
         return int((time.monotonic() - self.started_monotonic) * 1000)
 
     def check_deadline(self) -> None:
-        timeout_ms = self.request.deadline.timeout_ms or self.config.default_timeout_ms
+        timeout_ms = effective_timeout_ms(
+            self.request, default_timeout_ms=self.config.default_timeout_ms
+        )
         if self.elapsed_ms() > timeout_ms:
             raise ProviderHostRuntimeError(
                 "host_timeout",
@@ -236,6 +244,18 @@ class ProviderHostRuntime:
             )
         except ProviderHostRuntimeError as exc:
             return self._error_response(request.request_id, exc, started, logs=logs)
+        except HostPolicyError as exc:
+            return self._error_response(
+                request.request_id,
+                ProviderHostRuntimeError(
+                    exc.code,
+                    exc.message,
+                    target=exc.target,
+                    details=exc.details,
+                ),
+                started,
+                logs=logs,
+            )
 
     def protocol_error(
         self,
@@ -272,6 +292,7 @@ class ProviderHostRuntime:
                 "host request_id must not be empty",
                 target="request_id",
             )
+        validate_manifest_for_request(request)
 
     def _error_response(
         self,
@@ -356,7 +377,13 @@ class ProviderHostRuntime:
         return {"slept_ms": sleep_ms}
 
     def _discover_plugins(self, context: _OperationContext) -> Mapping[str, Any]:
-        groups = ("sase_llm", "sase_vcs", "sase_workspace", "sase_xprompts")
+        groups = (
+            "sase_llm",
+            "sase_vcs",
+            "sase_workspace",
+            "sase_config",
+            "sase_xprompts",
+        )
         discovered: dict[str, list[dict[str, str]]] = {}
         entry_points = importlib.metadata.entry_points()
         for group in groups:
@@ -366,10 +393,33 @@ class ProviderHostRuntime:
                     entry_points.select(group=group), key=lambda item: item.name
                 )
             ]
-        context.logs.append(
-            "info", "plugin entry points discovered", target="sase.host"
+        discovery = discover_host_manifests(
+            entry_points={
+                group: tuple(item["name"] for item in items)
+                for group, items in discovered.items()
+            }
         )
-        return {"entry_points": discovered}
+        context.logs.append(
+            "info",
+            "plugin entry points and host manifests discovered",
+            target="sase.host",
+        )
+        return {
+            "entry_points": discovered,
+            "manifests": [
+                {
+                    "plugin_id": record.manifest.plugin_id,
+                    "operation_families": list(record.manifest.operation_families),
+                    "network_mode": record.manifest.network.mode,
+                    "compatibility_mode": record.compatibility_mode,
+                    "source": record.source,
+                    "daemon_authoritative": record.daemon_authoritative,
+                }
+                for record in discovery.records
+            ],
+            "manifest_diagnostics": list(discovery.diagnostics),
+            "resource_policy": resource_policy_diagnostics(),
+        }
 
 
 def redact_host_log(message: str) -> str:
