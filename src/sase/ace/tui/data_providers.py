@@ -466,6 +466,15 @@ def _apply_daemon_agent_events(
     return _AgentEventApplyResult(current)
 
 
+def apply_daemon_agent_events(
+    agents: Sequence[Agent],
+    event_batch: dict[str, Any],
+) -> _AgentEventApplyResult:
+    """Apply daemon agent deltas to an in-memory Agents-tab snapshot."""
+
+    return _apply_daemon_agent_events(agents, event_batch)
+
+
 def _agent_daemon_surfaces(
     *,
     full_history: bool,
@@ -694,5 +703,6 @@ __all__ = [
     "AgentsDataProvider",
     "agent_row_handle",
     "agents_daemon_reads_enabled",
+    "apply_daemon_agent_events",
     "make_agents_data_provider",
 ]
