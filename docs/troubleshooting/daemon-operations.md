@@ -74,6 +74,10 @@ commands can force direct mode with `--no-daemon`. To force direct reads for a w
 SASE_NO_DAEMON=1 sase agents status
 ```
 
+`status` and `doctor` check fast daemon liveness separately from detailed diagnostics. If a projection, source-export,
+indexing, or scheduler diagnostic times out, the daemon can still be reported as running while that specific diagnostic
+is marked unavailable in the human output and JSON payload.
+
 ## Diagnostic JSON
 
 `sase daemon doctor --json` includes `storage_layout`, `doctor.checks`, and `repair_actions`. Automation consumers

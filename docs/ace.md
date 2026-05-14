@@ -1668,12 +1668,12 @@ so a quiet TUI does ~zero work between real changes without going stale.
 ### Daemon Read Rollout
 
 ACE daemon reads are gated independently from CLI/editor daemon reads. The read groups `ace_agents`, `ace_changespecs`,
-`ace_notifications`, `ace_artifacts`, and `ace_archive_search` default off and can be enabled or rolled back one at a
-time with `daemon.reads.surfaces.<group>` or `SASE_DAEMON_<GROUP>_READS`.
+`ace_notifications`, `ace_artifacts`, and `ace_archive_search` are default-enabled in the bundled config but remain
+independently rollbackable with `daemon.reads.surfaces.<group>: false` or `SASE_DAEMON_<GROUP>_READS=0`.
 
-Before an ACE group is default-enabled, it must have a registered M2 gate for its provider contract, direct fallback,
-projection-degraded fallback, no-broad-loader refresh trace, and the relevant first-snapshot or `j`/`k` latency target.
-Use `SASE_NO_DAEMON=1` or `SASE_DAEMON_FORCE_DIRECT=1` as the process-wide rollback switch.
+Each default-enabled ACE group has a registered M2 gate for its provider contract, direct fallback, projection-degraded
+fallback, no-broad-loader refresh trace, and the relevant first-snapshot or `j`/`k` latency target. Use
+`SASE_NO_DAEMON=1` or `SASE_DAEMON_FORCE_DIRECT=1` as the process-wide rollback switch.
 
 ### Performance Tracing
 

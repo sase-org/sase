@@ -677,8 +677,8 @@ Source: `src/sase/xprompt/snippet_bridge.py`, `src/sase/xprompt/models.py`
 ## Skill Field
 
 XPrompts can be marked as agent skill sources by setting the `skill` field in their front matter. The `sase init-skills`
-command reads this field to determine which xprompts should be rendered into per-provider SKILL.md files and deployed to
-agent skill directories.
+command reads the loaded xprompt catalog, including bundled skill sources and runtime config overlays, to determine
+which xprompts should be rendered into per-provider SKILL.md files and deployed to agent skill directories.
 
 ```markdown
 ---
@@ -701,8 +701,10 @@ The `description` field provides a human-readable summary shown in `sase xprompt
 also marks these entries with `is_skill: true`; ACE and editor clients use that flag to offer slash-skill completions
 such as `/sase_plan` while keeping ordinary xprompts out of slash completion results.
 
-**Workflow:** Edit skill sources in `src/sase/xprompts/skills/`, run `sase init-skills --force`, then `chezmoi apply` to
-deploy the generated files to their live locations. Do not edit deployed SKILL.md files directly.
+**Workflow:** Edit packaged skill sources in `src/sase/xprompts/skills/`, or define user/runtime skill xprompts through
+the normal xprompt catalog sources, then run `sase init-skills --force`. When `use_chezmoi` is enabled, `init-skills`
+commits, pushes, and applies the generated files unless passed `--no-commit`, `--no-push`, or `--no-apply`. Do not edit
+deployed SKILL.md files directly.
 
 ### Bundled Skills
 

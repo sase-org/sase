@@ -360,7 +360,7 @@ def test_agent_artifact_provider_uses_daemon_detail_surface(
 def test_agent_artifact_provider_falls_back_when_ace_surface_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("SASE_DAEMON_ACE_ARTIFACTS_READS", raising=False)
+    monkeypatch.setenv("SASE_DAEMON_ACE_ARTIFACTS_READS", "0")
     transport = _FakeDaemonTransport(
         capabilities=["agents.read"],
         reads={"agent_detail": [_agent_detail([])]},
@@ -403,7 +403,7 @@ def test_daemon_agents_provider_falls_back_when_capability_missing(
 def test_daemon_agents_provider_falls_back_when_ace_surface_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("SASE_DAEMON_ACE_AGENTS_READS", raising=False)
+    monkeypatch.setenv("SASE_DAEMON_ACE_AGENTS_READS", "0")
     monkeypatch.delenv("SASE_ACE_AGENTS_DAEMON_READS", raising=False)
     transport = _FakeDaemonTransport(
         capabilities=["agents.read"],
@@ -432,7 +432,7 @@ def test_daemon_agents_provider_archive_search_has_independent_rollout_gate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("SASE_DAEMON_ACE_AGENTS_READS", "1")
-    monkeypatch.delenv("SASE_DAEMON_ACE_ARCHIVE_SEARCH_READS", raising=False)
+    monkeypatch.setenv("SASE_DAEMON_ACE_ARCHIVE_SEARCH_READS", "0")
     monkeypatch.delenv("SASE_ACE_ARCHIVE_SEARCH_DAEMON_READS", raising=False)
     transport = _FakeDaemonTransport(
         capabilities=["agents.read"],

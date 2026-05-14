@@ -131,15 +131,13 @@ def test_missing_perf_gate_blocks_default_enablement() -> None:
     assert "missing perf gates: daemon_read.perf.changespecs" in violations[0].reason
 
 
-def test_policy_blocks_ungated_ace_default_enablement() -> None:
+def test_policy_allows_gated_ace_default_enablement() -> None:
     violations = default_gate_violations(
         ["read.ace_agents"],
         _registered_gate_coverage(),
     )
 
-    assert len(violations) == 1
-    assert violations[0].surface_id == "read.ace_agents"
-    assert "registry policy does not allow default enablement" in violations[0].reason
+    assert violations == ()
 
 
 _PROVIDER_HOST_DEFAULT_OPERATIONS = {
@@ -148,6 +146,9 @@ _PROVIDER_HOST_DEFAULT_OPERATIONS = {
     "vcs.query",
     "workspace.metadata",
     "workspace.resolve_ref",
+    "llm.invoke",
+    "workflow.step",
+    "vcs.mutation",
 }
 _PROVIDER_HOST_ROLLOUT_PARITY_GATES = frozenset(
     f"provider_host.parity.{operation}"
@@ -168,6 +169,7 @@ def _registered_gate_coverage() -> GateCoverage:
             | EPIC7_ROLLOUT_PARITY_GATES
             | EPIC9_ROLLOUT_PARITY_GATES
             | _PROVIDER_HOST_ROLLOUT_PARITY_GATES
+            | {"daemon_read.diagnostics.fallback_metadata"}
         ),
         perf_gates=(
             EPIC5_ROLLOUT_PERF_GATES

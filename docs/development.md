@@ -47,6 +47,10 @@ directory where `just` was invoked, so this works the same from the repository r
 just test tests/main/test_parser.py::test_example
 ```
 
+`just lint` and `just fix-keep-sorted` bootstrap a project-local `keep-sorted` executable into `.venv/bin/` from `PATH`,
+or by running `go install github.com/google/keep-sorted@v0.8.0` when Go is available. If neither `keep-sorted` nor Go is
+installed, those recipes fail with a setup error before linting YAML keep-sorted blocks.
+
 Default test runs exclude `slow` and `terminal_smoke` markers but include the ACE PNG snapshot regression tests. Use
 `just test-visual` for focused visual-snapshot work; both recipes install the optional PNG rasterizer dependencies when
 they are missing. Direct `pytest` runs still inherit the repository `pyproject.toml` default marker expression, which

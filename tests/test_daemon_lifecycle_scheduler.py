@@ -48,11 +48,11 @@ class _SchedulerTransport:
         raise AssertionError(f"unexpected request: {payload['type']}")
 
 
-def test_lifecycle_scheduler_mode_defaults_direct(monkeypatch) -> None:
+def test_lifecycle_scheduler_mode_defaults_daemon(monkeypatch) -> None:
     monkeypatch.delenv("SASE_DAEMON_SCHEDULER_LIFECYCLE_MODE", raising=False)
     monkeypatch.delenv("SASE_SCHEDULER_LIFECYCLE_MODE", raising=False)
 
-    assert _scheduler_lifecycle_mode() == "direct"
+    assert _scheduler_lifecycle_mode() == "daemon"
 
 
 def test_lifecycle_batch_shadow_submits_one_slot_per_target(monkeypatch) -> None:

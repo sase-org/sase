@@ -121,7 +121,7 @@ def test_llm_metadata_host_fallback_is_briefly_memoized(monkeypatch) -> None:
     assert calls == 1
 
 
-def test_provider_host_rollout_defaults_low_risk_paths_to_host_preferred(
+def test_provider_host_rollout_defaults_configured_paths_to_host_preferred(
     monkeypatch,
 ) -> None:
     monkeypatch.delenv("SASE_PROVIDER_HOST_MODE", raising=False)
@@ -130,7 +130,7 @@ def test_provider_host_rollout_defaults_low_risk_paths_to_host_preferred(
 
     assert host_routing_mode("llm.metadata") == "host-preferred"
     assert host_routing_mode("vcs.query") == "host-preferred"
-    assert host_routing_mode("llm.invoke") == "direct"
+    assert host_routing_mode("llm.invoke") == "host-preferred"
     assert provider_host_queries_enabled() is True
 
 

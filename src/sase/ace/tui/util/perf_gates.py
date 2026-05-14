@@ -218,11 +218,16 @@ def forbidden_daemon_no_change_refresh_spans(
 # pyvision: sdd/epics/202605/rust_daemon_epic9_ace_ui_virtualization.md
 def ace_default_rollout_violations(
     surface_enabled: Callable[[str], bool],
+    *,
+    gated_surfaces: Iterable[str] = ACE_M2_SURFACE_GATES,
 ) -> list[str]:
-    """Return ACE daemon surfaces that are enabled before explicit gate coverage."""
+    """Return enabled ACE daemon surfaces missing explicit M2 gate coverage."""
 
+    gated = set(gated_surfaces)
     return sorted(
-        surface for surface in ACE_DAEMON_SURFACE_GROUPS if surface_enabled(surface)
+        surface
+        for surface in ACE_DAEMON_SURFACE_GROUPS
+        if surface_enabled(surface) and surface not in gated
     )
 
 

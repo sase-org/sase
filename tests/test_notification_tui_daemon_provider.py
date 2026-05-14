@@ -148,7 +148,7 @@ def test_ace_notification_detail_and_pending_actions_use_daemon_when_enabled(
 def test_ace_notification_provider_falls_back_when_ace_surface_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("SASE_DAEMON_ACE_NOTIFICATIONS_READS", raising=False)
+    monkeypatch.setenv("SASE_DAEMON_ACE_NOTIFICATIONS_READS", "0")
     transport = _FakeDaemonTransport(
         {"notification_counts": [{"priority": 9, "errors": 9, "rest": 9, "muted": 9}]}
     )

@@ -74,17 +74,18 @@ def test_read_surface_registry_matches_config_and_helper_constants() -> None:
     assert default_on == DEFAULT_ENABLED_SURFACE_GROUPS
 
 
-def test_ace_read_surfaces_stay_opt_in_until_registry_allows_default() -> None:
+def test_ace_read_surfaces_are_default_enabled_with_m2_gates() -> None:
     config = _default_config()
     records = rollout_records_by_id()
 
     for surface in ACE_DAEMON_SURFACE_GROUPS:
         record = records[f"read.{surface}"]
         default_enabled = bool(_lookup(config, f"daemon.reads.surfaces.{surface}"))
-        assert record.default_policy == "opt_in"
+        assert default_enabled
+        assert record.default_policy == "default_on"
+        assert record.default_enablement_allowed
         assert record.parity_gates
         assert record.perf_gates
-        assert not default_enabled or record.default_enablement_allowed
 
 
 def test_m2_ace_read_surfaces_have_independent_gate_records() -> None:
@@ -93,8 +94,8 @@ def test_m2_ace_read_surfaces_have_independent_gate_records() -> None:
     for surface, gate in ACE_M2_SURFACE_GATES.items():
         record = records[f"read.{surface}"]
         assert record.minimum_milestone == "M2"
-        assert record.default_policy == "opt_in"
-        assert record.default_enablement_allowed is False
+        assert record.default_policy == "default_on"
+        assert record.default_enablement_allowed is True
         assert record.parity_gates == (gate.parity_gate,)
         assert record.perf_gates == (gate.perf_gate,)
         assert record.direct_fallback_available is True
@@ -128,7 +129,8 @@ def test_scheduler_inventory_matches_default_config_modes() -> None:
 
     for mode_key, record in registry_by_key.items():
         assert config_scheduler[mode_key] in record.allowed_modes
-        assert record.default_policy == "default_off"
+        assert record.default_policy == "default_on"
+        assert record.default_enablement_allowed
 
 
 def test_provider_host_inventory_matches_operation_modes() -> None:
@@ -170,8 +172,8 @@ def test_m5_provider_host_surfaces_require_manifest_and_resource_gates() -> None
 
     workflow = records["provider_host.workflow_step"]
     assert HOST_CAP_WORKFLOW_STEP in workflow.daemon_capabilities
-    assert workflow.default_policy == "default_off"
-    assert workflow.default_enablement_allowed is False
+    assert workflow.default_policy == "default_on"
+    assert workflow.default_enablement_allowed is True
 
 
 def test_write_surface_inventory_matches_capability_helper() -> None:

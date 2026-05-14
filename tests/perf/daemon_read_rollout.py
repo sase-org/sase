@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from sase.daemon.read_config import DEFAULT_ENABLED_SURFACE_GROUPS
+from sase.daemon.read_config import (
+    ACE_DAEMON_SURFACE_GROUPS,
+    DEFAULT_ENABLED_SURFACE_GROUPS,
+)
+
+EPIC5_DEFAULT_SURFACE_GROUPS = (
+    DEFAULT_ENABLED_SURFACE_GROUPS - ACE_DAEMON_SURFACE_GROUPS
+)
 
 EPIC5_TARGETS_MS = {
     "warm_cli_read_p95": 30.0,
@@ -16,11 +23,11 @@ EPIC5_TARGETS_MS = {
 
 EPIC5_ROLLOUT_PARITY_GATES = frozenset(
     {"daemon_read.parity.global"}
-    | {f"daemon_read.parity.{surface}" for surface in DEFAULT_ENABLED_SURFACE_GROUPS}
+    | {f"daemon_read.parity.{surface}" for surface in EPIC5_DEFAULT_SURFACE_GROUPS}
 )
 EPIC5_ROLLOUT_PERF_GATES = frozenset(
     {"daemon_read.perf.global"}
-    | {f"daemon_read.perf.{surface}" for surface in DEFAULT_ENABLED_SURFACE_GROUPS}
+    | {f"daemon_read.perf.{surface}" for surface in EPIC5_DEFAULT_SURFACE_GROUPS}
 )
 
 
@@ -38,6 +45,7 @@ def failing_perf_gates(metrics_ms: Mapping[str, float]) -> list[str]:
 __all__ = [
     "EPIC5_ROLLOUT_PARITY_GATES",
     "EPIC5_ROLLOUT_PERF_GATES",
+    "EPIC5_DEFAULT_SURFACE_GROUPS",
     "EPIC5_TARGETS_MS",
     "failing_perf_gates",
 ]

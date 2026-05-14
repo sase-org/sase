@@ -1,9 +1,10 @@
 # Local Daemon
 
-The local SASE daemon is an optional host-local Rust process. Users normally start it with `sase daemon start`, which
-launches `sase_gateway daemon` under the hood. It provides a Unix-socket JSON RPC surface for health checks, projection
-maintenance, daemon-backed reads, durable write-through events, scheduler rollout, provider-host routing, and mobile
-HTTP serving.
+The local SASE daemon is a host-local Rust process. Users normally start it with `sase daemon start`, which launches
+`sase_gateway daemon` under the hood. Bundled config routes daemon-capable reads, scheduler work, and provider-host
+operations through the daemon when it is running and capable, with direct fallback for normal user-facing paths. It
+provides a Unix-socket JSON RPC surface for health checks, projection maintenance, daemon-backed reads, durable
+write-through events, scheduler rollout, provider-host routing, and mobile HTTP serving.
 
 Source stores remain authoritative. Project files, notifications, pending actions, artifacts, chats, beads, repo
 metadata, and workflow state live under the SASE home directory, defaulting to `~/.sase`. The daemon stores rebuildable
@@ -72,14 +73,14 @@ expired projection response, or is disabled by rollout config, callers use direc
 
 Supported read rollout groups:
 
-| Group                                                                                       | Example surfaces                                                         |
-| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `changespecs`                                                                               | ChangeSpec list/search/detail                                            |
-| `notifications`                                                                             | Notification list/detail/counts/pending actions                          |
-| `agents`                                                                                    | Active/recent/archive/search/detail agent reads                          |
-| `beads`                                                                                     | Bead list/show/ready/blocked/stats                                       |
-| `catalogs`                                                                                  | XPrompt, editor, snippet, and file-history catalogs                      |
-| `ace_agents`, `ace_changespecs`, `ace_notifications`, `ace_artifacts`, `ace_archive_search` | ACE-specific provider surfaces, defaulting off while rollout is measured |
+| Group                                                                                       | Example surfaces                                                               |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `changespecs`                                                                               | ChangeSpec list/search/detail                                                  |
+| `notifications`                                                                             | Notification list/detail/counts/pending actions                                |
+| `agents`                                                                                    | Active/recent/archive/search/detail agent reads                                |
+| `beads`                                                                                     | Bead list/show/ready/blocked/stats                                             |
+| `catalogs`                                                                                  | XPrompt, editor, snippet, and file-history catalogs                            |
+| `ace_agents`, `ace_changespecs`, `ace_notifications`, `ace_artifacts`, `ace_archive_search` | ACE-specific provider surfaces, default-enabled but independently rollbackable |
 
 Immediate direct-mode controls:
 
@@ -87,6 +88,7 @@ Immediate direct-mode controls:
 sase changespec search --no-daemon 'status:ready'
 SASE_NO_DAEMON=1 sase ace
 SASE_DAEMON_M1_READ_THROUGH=0 sase changespec search 'status:ready'
+SASE_DAEMON_ACE_AGENTS_READS=0 sase ace
 ```
 
 Config controls live under `daemon.reads`; see the [configuration reference](configuration.md#daemon). Stable fallback
@@ -122,10 +124,10 @@ sase daemon scheduler status --project <project> --batch <batch>
 sase daemon scheduler cancel --project <project> --batch <batch> [--slot <slot>]
 ```
 
-Provider-host routing sends selected provider/plugin operations through the daemon's host-call path. Low-risk metadata,
-catalog, query, and reference-resolution paths default to `host-preferred`, which uses the host path when the daemon is
-running and capable, then falls back direct. Mutation-heavy paths remain direct. Use `SASE_PROVIDER_HOST_MODE=direct` or
-set `SASE_DISABLE_PROVIDER_HOST_ROUTING=1` as global rollback switches.
+Provider-host routing sends selected provider/plugin operations through the daemon's host-call path. Metadata, catalog,
+query, reference-resolution, invocation, workflow-step, and VCS-mutation operations default to `host-preferred`, which
+uses the host path when the daemon is running and capable, then falls back direct. Use `SASE_PROVIDER_HOST_MODE=direct`
+or set `SASE_DISABLE_PROVIDER_HOST_ROUTING=1` as global rollback switches.
 
 ## Rollout Status And Release Checklist
 
@@ -146,7 +148,7 @@ The JSON payload includes a generated `release_checklist` aligned with the rollo
 | `supported_schema_ranges`        | Local daemon schema range, projection schema versions, provider-host IPC schema, and package guard |
 | `migration_rebuild_steps`        | `doctor`, `rebuild`, `verify`, `diff`, and `backup` commands to run before promotion               |
 | `rollback_commands`              | Global and per-surface direct-mode controls, including `SASE_NO_DAEMON=1`                          |
-| `known_opt_in_surfaces`          | Surfaces that remain opt-in, such as ACE daemon-read groups                                        |
+| `known_opt_in_surfaces`          | Surfaces that remain opt-in after the bundled default-on rollout, if any                           |
 | `required_ci_perf_soak_evidence` | M0-M5 coverage status with missing capability, contract, parity, perf, recovery, and docs gates    |
 
 The release package guard currently expects `sase-core-rs>=0.1.1,<0.2.0`, local daemon wire schema v1, projection

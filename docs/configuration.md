@@ -660,8 +660,10 @@ Source: `src/sase/default_config.yml`, `src/sase/integrations/mobile_gateway.py`
 
 ### daemon
 
-Configuration for the optional local Rust daemon lifecycle, scheduler, provider-host routing, and daemon-backed reads.
-The daemon is separate from AXE automation; most user-visible data remains in source stores under `SASE_HOME`.
+Configuration for the host-local Rust daemon lifecycle, scheduler, provider-host routing, and daemon-backed reads. The
+bundled defaults route daemon-capable reads, scheduler work, and provider-host operations through the daemon when it is
+running and capable, with direct fallback for normal user-facing paths. The daemon is separate from AXE automation; most
+user-visible data remains in source stores under `SASE_HOME`.
 
 ```yaml
 daemon:
@@ -672,7 +674,7 @@ daemon:
   disable_mobile_http: false
   startup_timeout_seconds: 5
   provider_host:
-    default_mode: direct
+    default_mode: host-preferred
     shadow_compare: true
     modes:
       llm_metadata: host-preferred
@@ -680,28 +682,28 @@ daemon:
       vcs_query: host-preferred
       workspace_metadata: host-preferred
       workspace_resolve_ref: host-preferred
-      llm_invoke: direct
-      workflow_step: direct
-      vcs_mutation: direct
+      llm_invoke: host-preferred
+      workflow_step: host-preferred
+      vcs_mutation: host-preferred
   scheduler:
-    launch_mode: direct # direct, shadow, daemon
-    lifecycle_mode: direct # direct, shadow, daemon
-    axe_mode: direct # direct, daemon
+    launch_mode: daemon # direct, shadow, daemon
+    lifecycle_mode: daemon # direct, shadow, daemon
+    axe_mode: daemon # direct, daemon
   reads:
     enabled: true
     force_direct: false
-    fallback_diagnostics: false
+    fallback_diagnostics: true
     surfaces:
       changespecs: true
       notifications: true
       agents: true
       beads: true
       catalogs: true
-      ace_agents: false
-      ace_changespecs: false
-      ace_notifications: false
-      ace_artifacts: false
-      ace_archive_search: false
+      ace_agents: true
+      ace_changespecs: true
+      ace_notifications: true
+      ace_artifacts: true
+      ace_archive_search: true
 ```
 
 The default runtime layout is:
@@ -743,32 +745,33 @@ Read rollout controls:
 | ----------------------------------- | ------- | ----------------------------------------------------------------------------------------------------- |
 | `daemon.reads.enabled`              | `true`  | Global daemon read-through switch.                                                                    |
 | `daemon.reads.force_direct`         | `false` | Keep daemon lifecycle/diagnostics available while routing production reads directly to source stores. |
-| `daemon.reads.fallback_diagnostics` | `false` | Expose read fallback metadata at call sites that support it.                                          |
+| `daemon.reads.fallback_diagnostics` | `true`  | Expose read fallback metadata at call sites that support it.                                          |
 | `daemon.reads.surfaces.<group>`     | varies  | Enable or disable one logical read rollout group.                                                     |
 
-Default-on read groups are `changespecs`, `notifications`, `agents`, `beads`, and `catalogs`. ACE-specific groups
-default off: `ace_agents`, `ace_changespecs`, `ace_notifications`, `ace_artifacts`, and `ace_archive_search`.
+Bundled default-on read groups are `changespecs`, `notifications`, `agents`, `beads`, `catalogs`, `ace_agents`,
+`ace_changespecs`, `ace_notifications`, `ace_artifacts`, and `ace_archive_search`. Each group can still be disabled
+independently with `daemon.reads.surfaces.<group>: false` or `SASE_DAEMON_<GROUP>_READS=0`.
 
 Scheduler rollout controls:
 
 | Field                             | Values                       | Default  | Description                                                          |
 | --------------------------------- | ---------------------------- | -------- | -------------------------------------------------------------------- |
-| `daemon.scheduler.launch_mode`    | `direct`, `shadow`, `daemon` | `direct` | Controls `sase run`, ACE, and mobile agent launch routing.           |
-| `daemon.scheduler.lifecycle_mode` | `direct`, `shadow`, `daemon` | `direct` | Controls kill, dismiss, cleanup, revive, and bulk lifecycle routing. |
-| `daemon.scheduler.axe_mode`       | `direct`, `daemon`           | `direct` | Controls axe task routing.                                           |
+| `daemon.scheduler.launch_mode`    | `direct`, `shadow`, `daemon` | `daemon` | Controls `sase run`, ACE, and mobile agent launch routing.           |
+| `daemon.scheduler.lifecycle_mode` | `direct`, `shadow`, `daemon` | `daemon` | Controls kill, dismiss, cleanup, revive, and bulk lifecycle routing. |
+| `daemon.scheduler.axe_mode`       | `direct`, `daemon`           | `daemon` | Controls axe task routing.                                           |
 
 Provider-host rollout controls:
 
 | Field                                    | Values                                                | Default            | Description                                               |
 | ---------------------------------------- | ----------------------------------------------------- | ------------------ | --------------------------------------------------------- |
-| `daemon.provider_host.default_mode`      | `direct`, `shadow`, `host-preferred`, `host-required` | `direct`           | Fallback mode for operations without a specific entry.    |
+| `daemon.provider_host.default_mode`      | `direct`, `shadow`, `host-preferred`, `host-required` | `host-preferred`   | Fallback mode for operations without a specific entry.    |
 | `daemon.provider_host.shadow_compare`    | bool                                                  | `true`             | Record comparisons when an operation runs in shadow mode. |
 | `daemon.provider_host.modes.<operation>` | `direct`, `shadow`, `host-preferred`, `host-required` | operation-specific | Per-operation routing mode.                               |
 
-Low-risk operations default to `host-preferred`: `llm_metadata`, `xprompt_catalog`, `vcs_query`, `workspace_metadata`,
-and `workspace_resolve_ref`. In `host-preferred` mode SASE uses the daemon host-call path when it is running and
-capable, then falls back to the direct Python path. Mutation-heavy operations default to `direct`: `llm_invoke`,
-`workflow_step`, and `vcs_mutation`.
+The bundled operation map defaults to `host-preferred` for `llm_metadata`, `xprompt_catalog`, `vcs_query`,
+`workspace_metadata`, `workspace_resolve_ref`, `llm_invoke`, `workflow_step`, and `vcs_mutation`. In `host-preferred`
+mode SASE uses the daemon host-call path when it is running and capable, then falls back to the direct Python path. Use
+`SASE_PROVIDER_HOST_MODE=direct`, `SASE_DISABLE_PROVIDER_HOST_ROUTING=1`, or a per-operation mode to roll back.
 
 Source: `src/sase/default_config.yml`, `src/sase/daemon/read_config.py`, `src/sase/daemon/scheduler_config.py`,
 `src/sase/host/routing.py`, `src/sase/integrations/_daemon_lifecycle_config.py`, `src/sase/daemon/paths.py`

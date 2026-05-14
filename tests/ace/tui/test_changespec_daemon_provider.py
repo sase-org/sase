@@ -120,7 +120,7 @@ def test_ace_changespec_provider_uses_daemon_search_for_active_query(
 def test_ace_changespec_provider_falls_back_when_ace_surface_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("SASE_DAEMON_ACE_CHANGESPECS_READS", raising=False)
+    monkeypatch.setenv("SASE_DAEMON_ACE_CHANGESPECS_READS", "0")
     direct = _cs("proj_direct")
     transport = _FakeDaemonTransport([_cs("proj_daemon")])
     monkeypatch.setattr(

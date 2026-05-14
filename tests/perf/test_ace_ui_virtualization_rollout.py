@@ -198,21 +198,21 @@ def test_forbidden_daemon_no_change_refresh_spans_are_reported() -> None:
     assert "changespec.filter" in EPIC9_DAEMON_NO_CHANGE_FORBIDDEN_SPANS
 
 
-def test_ace_daemon_surfaces_remain_default_opt_in() -> None:
+def test_ace_daemon_surfaces_are_default_enabled_but_independently_gated() -> None:
     default_config = _load_default_config()
     surfaces = default_config["daemon"]["reads"]["surfaces"]
 
-    assert DEFAULT_ENABLED_SURFACE_GROUPS.isdisjoint(ACE_DAEMON_SURFACE_GROUPS)
     assert {
         surface: surfaces[surface] for surface in ACE_DAEMON_SURFACE_GROUPS
-    } == dict.fromkeys(ACE_DAEMON_SURFACE_GROUPS, False)
+    } == dict.fromkeys(ACE_DAEMON_SURFACE_GROUPS, True)
     with patch("sase.daemon.read_config.load_merged_config", return_value={}):
         assert ace_default_rollout_violations(daemon_read_surface_enabled) == []
 
 
-def test_rollout_policy_detects_enabled_ace_surface() -> None:
+def test_rollout_policy_detects_enabled_ace_surface_without_gate() -> None:
     assert ace_default_rollout_violations(
-        lambda surface: surface == "ace_changespecs"
+        lambda surface: surface == "ace_changespecs",
+        gated_surfaces=(),
     ) == ["ace_changespecs"]
 
 

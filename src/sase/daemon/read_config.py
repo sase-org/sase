@@ -54,7 +54,18 @@ SURFACE_GROUP_BY_READ_SURFACE = {
 }
 
 DEFAULT_ENABLED_SURFACE_GROUPS = frozenset(
-    {"changespecs", "notifications", "agents", "beads", "catalogs"}
+    {
+        "changespecs",
+        "notifications",
+        "agents",
+        "beads",
+        "catalogs",
+        "ace_agents",
+        "ace_changespecs",
+        "ace_notifications",
+        "ace_artifacts",
+        "ace_archive_search",
+    }
 )
 
 ACE_DAEMON_SURFACE_GROUPS = frozenset(

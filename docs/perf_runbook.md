@@ -173,9 +173,9 @@ Epic 5 routes production reads through daemon projections for surfaces that have
 bounded recovery path. The committed gate policy lives in `tests/perf/daemon_read_rollout.py` and is exercised by
 `tests/perf/test_daemon_read_rollout.py`.
 
-Default-enabled read groups are `changespecs`, `notifications`, `agents`, `beads`, and `catalogs`. ACE read groups stay
-opt-in per surface: `ace_agents`, `ace_changespecs`, `ace_notifications`, `ace_artifacts`, and `ace_archive_search`.
-Each ACE group needs its own M2 gate bundle before default enablement.
+Default-enabled read groups are `changespecs`, `notifications`, `agents`, `beads`, `catalogs`, `ace_agents`,
+`ace_changespecs`, `ace_notifications`, `ace_artifacts`, and `ace_archive_search`. Each ACE group keeps its own M2 gate
+bundle and independent rollback switch.
 
 Rollout budgets:
 
@@ -187,7 +187,7 @@ large ChangeSpec search p95           <= 100 ms
 large agent-history status p95        <= 250 ms
 ```
 
-Before default-enabling a new read group, run:
+Before default-enabling a new read group or changing a gate budget, run:
 
 ```bash
 SASE_DAEMON_M0_SHADOW_INDEXING=1 sase daemon rebuild --surface all

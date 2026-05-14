@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
-from sase.daemon.read_config import DEFAULT_ENABLED_SURFACE_GROUPS
-from tests.perf.daemon_read_rollout import EPIC5_TARGETS_MS, failing_perf_gates
+from tests.perf.daemon_read_rollout import (
+    EPIC5_DEFAULT_SURFACE_GROUPS,
+    EPIC5_TARGETS_MS,
+    failing_perf_gates,
+)
 
 
 def test_phase_5i_perf_gate_names_cover_rollout_targets() -> None:
@@ -17,14 +20,14 @@ def test_phase_5i_perf_gate_names_cover_rollout_targets() -> None:
 
 
 def test_phase_5i_default_surfaces_have_policy_gate() -> None:
-    assert DEFAULT_ENABLED_SURFACE_GROUPS == {
+    assert EPIC5_DEFAULT_SURFACE_GROUPS == {
         "changespecs",
         "notifications",
         "agents",
         "beads",
         "catalogs",
     }
-    assert "ace_agents" not in DEFAULT_ENABLED_SURFACE_GROUPS
+    assert "ace_agents" not in EPIC5_DEFAULT_SURFACE_GROUPS
 
 
 def test_failing_perf_gates_reports_only_exceeded_targets() -> None:

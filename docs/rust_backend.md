@@ -161,10 +161,9 @@ Read routing controls:
 - `daemon.reads.force_direct: true` keeps the daemon available for lifecycle/diagnostics but routes production reads
   directly to source stores.
 - `daemon.reads.surfaces.{changespecs,notifications,agents,beads,catalogs}: false` disables one rollout group.
-- ACE reads use independent opt-in groups: `ace_agents`, `ace_changespecs`, `ace_notifications`, `ace_artifacts`, and
-  `ace_archive_search`. Set `daemon.reads.surfaces.<group>: true` or `SASE_DAEMON_<GROUP>_READS=1` to promote one ACE
-  surface without changing CLI/editor read routing. `SASE_ACE_AGENTS_DAEMON_READS` and
-  `SASE_ACE_ARCHIVE_SEARCH_DAEMON_READS` remain compatibility aliases.
+- ACE reads use independent groups: `ace_agents`, `ace_changespecs`, `ace_notifications`, `ace_artifacts`, and
+  `ace_archive_search`. Bundled config enables them by default after their M2 gates, but each surface can still be
+  rolled back with `daemon.reads.surfaces.<group>: false` or `SASE_DAEMON_<GROUP>_READS=0`.
 
 Fallback reasons in debug output use stable tokens: `daemon_disabled`, `daemon_reads_disabled`, `force_direct`,
 `surface_disabled`, `daemon_not_running`, `unsupported_capability`, `projection_degraded`, `cursor_expired`,
@@ -178,9 +177,9 @@ Scheduler rollout controls:
   dismiss, cleanup, revive, and bulk lifecycle routing.
 - `daemon.scheduler.axe_mode: direct|daemon` or `SASE_DAEMON_SCHEDULER_AXE_MODE` controls axe task routing.
 - `daemon.provider_host.modes.<operation>: direct|shadow|host-preferred|host-required` or
-  `SASE_PROVIDER_HOST_<OPERATION>_MODE` controls isolated provider/plugin host routing. Low-risk metadata/catalog/query
-  paths default to `host-preferred`; mutation-heavy paths remain `direct`. `SASE_PROVIDER_HOST_MODE=direct` is the
-  one-env rollback switch.
+  `SASE_PROVIDER_HOST_<OPERATION>_MODE` controls isolated provider/plugin host routing. Bundled defaults use
+  `host-preferred` for metadata/catalog/query, invocation, workflow-step, and VCS-mutation operations.
+  `SASE_PROVIDER_HOST_MODE=direct` is the one-env rollback switch.
 - `--no-daemon` / `SASE_NO_DAEMON=1` remains the direct-mode escape hatch for daemon-capable read and scheduler
   surfaces.
 
@@ -207,10 +206,10 @@ fallback for non-authoritative modes, and `sase daemon doctor` / `sase daemon re
 Rolling back with `--no-daemon` or `SASE_NO_DAEMON=1` must leave the source JSON/JSONL/project files readable by direct
 Python paths.
 
-M4 scheduler promotion is also per surface. Agent launch, lifecycle, and axe scheduler routing remain `direct` by
-default; `shadow` modes submit daemon batches while still executing direct side effects. Launch batches use
-deterministic idempotency keys derived from the normalized launch plan, resolved slot metadata, and allocated timestamps
-so a retry after daemon restart or client timeout does not enqueue duplicate scheduler work.
+M4 scheduler promotion is also per surface. Bundled config uses daemon scheduler routing for agent launch, lifecycle,
+and axe tasks with direct fallback; `shadow` modes submit daemon batches while still executing direct side effects.
+Launch batches use deterministic idempotency keys derived from the normalized launch plan, resolved slot metadata, and
+allocated timestamps so a retry after daemon restart or client timeout does not enqueue duplicate scheduler work.
 `SASE_DAEMON_SCHEDULER_*_MODE=direct` and `SASE_NO_DAEMON=1` are the rollback controls.
 
 Storage layout contract (see the [daemon operations guide](troubleshooting/daemon-operations.md) for recovery recipes

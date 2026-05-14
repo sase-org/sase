@@ -184,7 +184,7 @@ def test_rollout_payload_includes_m5_release_checklist(
     )
     assert "sase daemon rebuild --surface all" in checklist["migration_rebuild_steps"]
     assert "SASE_PROVIDER_HOST_MODE=direct" in checklist["rollback_commands"]
-    assert "read.ace_agents" in checklist["known_opt_in_surfaces"]
+    assert "read.ace_agents" not in checklist["known_opt_in_surfaces"]
     assert checklist["supported_schema_ranges"]["sase_core_rs"]["dependency"] == (
         "sase-core-rs>=0.1.1,<0.2.0"
     )

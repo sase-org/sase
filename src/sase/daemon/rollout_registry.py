@@ -227,9 +227,9 @@ _PROVIDER_HOST_OPERATIONS = (
     ("vcs_query", "vcs.query", True),
     ("workspace_metadata", "workspace.metadata", True),
     ("workspace_resolve_ref", "workspace.resolve_ref", True),
-    ("llm_invoke", "llm.invoke", False),
-    ("workflow_step", "workflow.step", False),
-    ("vcs_mutation", "vcs.mutation", False),
+    ("llm_invoke", "llm.invoke", True),
+    ("workflow_step", "workflow.step", True),
+    ("vcs_mutation", "vcs.mutation", True),
 )
 
 _PROVIDER_HOST_CAPABILITIES_BY_OPERATION = {
@@ -335,7 +335,8 @@ _ROLLOUT_SURFACE_RECORDS = (
         env_overrides=("SASE_DAEMON_FALLBACK_DIAGNOSTICS",),
         parity_gates=("daemon_read.diagnostics.fallback_metadata",),
         recovery_commands=("sase daemon diff --surface all",),
-        default_policy="default_off",
+        default_policy="default_on",
+        default_enablement_allowed=True,
     ),
     *(_read_surface_record(group) for group in _READ_SURFACE_GROUPS),
     *(
@@ -361,7 +362,8 @@ _ROLLOUT_SURFACE_RECORDS = (
         parity_gates=("scheduler.launch.parity",),
         perf_gates=("scheduler.launch.perf",),
         recovery_commands=("SASE_DAEMON_SCHEDULER_LAUNCH_MODE=direct",),
-        default_policy="default_off",
+        default_policy="default_on",
+        default_enablement_allowed=True,
     ),
     RolloutSurfaceRecord(
         surface_id="scheduler.lifecycle",
@@ -382,7 +384,8 @@ _ROLLOUT_SURFACE_RECORDS = (
         parity_gates=("scheduler.lifecycle.parity",),
         perf_gates=("scheduler.lifecycle.perf",),
         recovery_commands=("SASE_DAEMON_SCHEDULER_LIFECYCLE_MODE=direct",),
-        default_policy="default_off",
+        default_policy="default_on",
+        default_enablement_allowed=True,
     ),
     RolloutSurfaceRecord(
         surface_id="scheduler.axe",
@@ -402,7 +405,8 @@ _ROLLOUT_SURFACE_RECORDS = (
         parity_gates=("scheduler.axe.parity",),
         perf_gates=("scheduler.axe.perf",),
         recovery_commands=("SASE_DAEMON_SCHEDULER_AXE_MODE=direct",),
-        default_policy="default_off",
+        default_policy="default_on",
+        default_enablement_allowed=True,
     ),
     RolloutSurfaceRecord(
         surface_id="provider_host.global",
