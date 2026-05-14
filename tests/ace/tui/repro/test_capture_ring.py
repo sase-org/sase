@@ -123,8 +123,15 @@ def test_redacted_capture_bundle_loads_against_schema(tmp_path: Path) -> None:
     bundle = load_bundle(bundle_path)
 
     assert bundle.manifest.commit_safe is True
-    assert bundle.load_steps[0].agent_rows[0].raw_suffix == "20260513123000"
-    assert bundle.load_steps[0].agent_rows[0].agent_name is None
+    step = bundle.load_steps[0]
+    assert step.agent_rows[0].raw_suffix == "20260513123000"
+    assert step.agent_rows[0].agent_name is None
+    assert step.metadata["selected_identity_before"] == list(
+        step.app_state.selected_identity
+    )
+    assert step.metadata["selected_identity_after"] == list(
+        step.app_state.selected_identity
+    )
     assert "secret/customer/project" not in raw
     assert "customer-agent-name" not in raw
     check_bundle_invariants(bundle).assert_ok()

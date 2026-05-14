@@ -134,7 +134,7 @@ def _redact_metadata(value: Any, ctx: RedactionContext) -> Any:
             key_text = str(key)
             if key_text in _BODY_KEYS or key_text.endswith("_body"):
                 continue
-            if key_text.endswith("identity") and isinstance(item, list | tuple):
+            if "identity" in key_text and isinstance(item, list | tuple):
                 redacted[key_text] = _redact_identity_like(item, ctx)
             else:
                 redacted[key_text] = _redact_metadata(item, ctx)
