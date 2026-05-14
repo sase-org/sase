@@ -267,9 +267,7 @@ def _mentor_entry_from_wire(record: MentorWire) -> MentorEntry:
     return MentorEntry(
         entry_id=record.entry_id,
         profiles=list(record.profiles),
-        status_lines=[
-            _mentor_status_line_from_wire(sl) for sl in record.status_lines
-        ],
+        status_lines=[_mentor_status_line_from_wire(sl) for sl in record.status_lines],
         is_draft=record.is_draft,
     )
 
