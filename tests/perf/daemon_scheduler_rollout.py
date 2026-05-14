@@ -11,6 +11,21 @@ EPIC7_SCHEDULER_TARGETS_MS: dict[str, float] = {
     "axe_tick_throughput_p95": 250.0,
 }
 
+EPIC7_ROLLOUT_PARITY_GATES = frozenset(
+    {
+        "scheduler.launch.parity",
+        "scheduler.lifecycle.parity",
+        "scheduler.axe.parity",
+    }
+)
+EPIC7_ROLLOUT_PERF_GATES = frozenset(
+    {
+        "scheduler.launch.perf",
+        "scheduler.lifecycle.perf",
+        "scheduler.axe.perf",
+    }
+)
+
 
 def failing_scheduler_perf_gates(metrics: dict[str, float]) -> list[str]:
     """Return Epic 7 scheduler rollout gates whose reported values exceed target."""
@@ -20,3 +35,11 @@ def failing_scheduler_perf_gates(metrics: dict[str, float]) -> list[str]:
         for name, target_ms in EPIC7_SCHEDULER_TARGETS_MS.items()
         if metrics.get(name, 0.0) > target_ms
     ]
+
+
+__all__ = [
+    "EPIC7_ROLLOUT_PARITY_GATES",
+    "EPIC7_ROLLOUT_PERF_GATES",
+    "EPIC7_SCHEDULER_TARGETS_MS",
+    "failing_scheduler_perf_gates",
+]

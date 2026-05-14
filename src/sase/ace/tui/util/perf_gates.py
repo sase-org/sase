@@ -72,6 +72,13 @@ EPIC9_DAEMON_NO_CHANGE_FORBIDDEN_SPANS = frozenset(
     }
 )
 
+EPIC9_ROLLOUT_PARITY_GATES = frozenset(
+    f"ace_daemon_read.parity.{surface}" for surface in ACE_DAEMON_SURFACE_GROUPS
+)
+EPIC9_ROLLOUT_PERF_GATES = frozenset(
+    f"ace_daemon_read.perf.{surface}" for surface in ACE_DAEMON_SURFACE_GROUPS
+)
+
 
 # pyvision: sdd/epics/202605/rust_daemon_epic9_ace_ui_virtualization.md
 def failing_epic9_perf_gates(metrics: Mapping[str, float]) -> list[str]:
@@ -125,6 +132,8 @@ def _is_daemon_no_change_refresh_record(record: Mapping[str, Any]) -> bool:
 
 __all__ = [
     "EPIC9_DAEMON_NO_CHANGE_FORBIDDEN_SPANS",
+    "EPIC9_ROLLOUT_PARITY_GATES",
+    "EPIC9_ROLLOUT_PERF_GATES",
     "EPIC9_TUI_TARGETS",
     "Epic9PerfTarget",
     "ace_default_rollout_violations",

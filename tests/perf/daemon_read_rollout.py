@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from sase.daemon.read_config import DEFAULT_ENABLED_SURFACE_GROUPS
+
 EPIC5_TARGETS_MS = {
     "warm_cli_read_p95": 30.0,
     "ace_first_indexed_snapshot_p95": 250.0,
@@ -11,6 +13,15 @@ EPIC5_TARGETS_MS = {
     "large_changespec_search_p95": 100.0,
     "large_agent_history_status_p95": 250.0,
 }
+
+EPIC5_ROLLOUT_PARITY_GATES = frozenset(
+    {"daemon_read.parity.global"}
+    | {f"daemon_read.parity.{surface}" for surface in DEFAULT_ENABLED_SURFACE_GROUPS}
+)
+EPIC5_ROLLOUT_PERF_GATES = frozenset(
+    {"daemon_read.perf.global"}
+    | {f"daemon_read.perf.{surface}" for surface in DEFAULT_ENABLED_SURFACE_GROUPS}
+)
 
 
 def failing_perf_gates(metrics_ms: Mapping[str, float]) -> list[str]:
@@ -22,3 +33,11 @@ def failing_perf_gates(metrics_ms: Mapping[str, float]) -> list[str]:
         if value is not None and value > budget_ms:
             failures.append(name)
     return failures
+
+
+__all__ = [
+    "EPIC5_ROLLOUT_PARITY_GATES",
+    "EPIC5_ROLLOUT_PERF_GATES",
+    "EPIC5_TARGETS_MS",
+    "failing_perf_gates",
+]
