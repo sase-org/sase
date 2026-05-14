@@ -4,6 +4,7 @@ import json
 from dataclasses import asdict
 
 from sase.host.client import _host_request_payload
+from sase.host.client import ProviderHostCallUnavailable
 from sase.host.provider_queries import provider_host_queries_enabled
 from sase.host.routing import host_routing_diagnostics, host_routing_mode
 from sase.host.runtime import ProviderHostRuntime, ProviderHostRuntimeConfig
@@ -62,10 +63,14 @@ def test_registry_metadata_uses_host_without_entry_point_imports(monkeypatch) ->
         "autodetect_candidates": [],
         "default_retry_configs": {},
     }
+    calls = 0
 
-    monkeypatch.setattr(
-        registry, "call_provider_host", lambda **_: _ok_response(payload)
-    )
+    def ok_host(**_: object) -> HostResponseEnvelopeWire:
+        nonlocal calls
+        calls += 1
+        return _ok_response(payload)
+
+    monkeypatch.setattr(registry, "call_provider_host", ok_host)
     monkeypatch.setattr(
         registry.importlib.metadata,
         "entry_points",
@@ -80,6 +85,40 @@ def test_registry_metadata_uses_host_without_entry_point_imports(monkeypatch) ->
         "provider-a",
         "model-a",
     )
+    assert calls == 1
+
+
+def test_llm_metadata_host_fallback_is_briefly_memoized(monkeypatch) -> None:
+    payload = {
+        "model_to_provider": {"model-a": "provider-a"},
+        "provider_short_names": {"provider-a": "pa"},
+        "model_short_aliases": {"model-a": "ma"},
+        "provider_cli_status_colors": {"provider-a": "#123456"},
+        "provider_names": ["provider-a"],
+        "autodetect_candidates": [],
+        "default_retry_configs": {},
+    }
+    calls = 0
+
+    def unavailable(**kwargs: object) -> None:
+        nonlocal calls
+        calls += 1
+        assert kwargs["timeout_ms"] == 1_000
+        raise ProviderHostCallUnavailable(
+            "daemon_not_running",
+            "local daemon unavailable",
+        )
+
+    monkeypatch.setattr(registry, "_llm_metadata_host_fallback_until", 0.0)
+    monkeypatch.setattr(registry, "_llm_metadata_host_fallback_call_id", None)
+    monkeypatch.setattr(registry, "_llm_metadata_host_cached_payload", None)
+    monkeypatch.setattr(registry, "_llm_metadata_host_cached_call_id", None)
+    monkeypatch.setattr(registry, "call_provider_host", unavailable)
+    monkeypatch.setattr(registry, "direct_llm_metadata_payload", lambda: payload)
+
+    assert registry.llm_metadata_payload() == payload
+    assert registry.llm_metadata_payload() == payload
+    assert calls == 1
 
 
 def test_provider_host_rollout_defaults_low_risk_paths_to_host_preferred(
@@ -177,6 +216,7 @@ def test_structured_catalog_uses_host_without_direct_catalog_imports(
         "call_provider_host",
         lambda **_: _ok_response({"projection": asdict(projection)}),
     )
+    monkeypatch.setattr(catalog, "_catalog_source_dependencies_patched", lambda: False)
     monkeypatch.setattr(
         catalog,
         "get_all_xprompts",

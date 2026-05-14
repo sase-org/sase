@@ -87,6 +87,16 @@ from ._catalog_structured import (
     structured_inputs as _structured_inputs,
 )
 
+_XPROMPT_CATALOG_TIMEOUT_MS = 5_000
+_CATALOG_SOURCE_DEPENDENCIES = (
+    get_all_workflows,
+    get_all_xprompts,
+    get_known_project_workspaces,
+    get_sase_package_default_xprompts_dir,
+    get_sase_package_xprompts_dir,
+    load_project_local_xprompts,
+)
+
 
 def build_xprompts_catalog(output_dir: Path | None = None) -> CatalogArtifact:
     """Gather every xprompt, compute stats, and render a PDF catalog."""
@@ -108,6 +118,8 @@ def build_structured_xprompts_catalog(
     """Return a mobile-safe structured xprompt catalog projection."""
     operation = "xprompt.catalog"
     mode = host_routing_mode(operation)
+    if _catalog_source_dependencies_patched():
+        mode = "direct"
     if not include_pdf:
         if mode == "shadow":
             _sync_catalog_source_dependencies()
@@ -186,6 +198,7 @@ def _build_structured_xprompts_catalog_host(
             "limit": limit,
         },
         required_capability=HOST_CAP_XPROMPT_CATALOG,
+        timeout_ms=_XPROMPT_CATALOG_TIMEOUT_MS,
     )
     if response.status != "ok":
         raise ProviderHostCallUnavailable(
@@ -200,6 +213,17 @@ def _build_structured_xprompts_catalog_host(
             "host-routed xprompt catalog response is missing projection",
         )
     return _structured_projection_from_wire(projection)
+
+
+def _catalog_source_dependencies_patched() -> bool:
+    return _CATALOG_SOURCE_DEPENDENCIES != (
+        get_all_workflows,
+        get_all_xprompts,
+        get_known_project_workspaces,
+        get_sase_package_default_xprompts_dir,
+        get_sase_package_xprompts_dir,
+        load_project_local_xprompts,
+    )
 
 
 def _structured_projection_from_wire(

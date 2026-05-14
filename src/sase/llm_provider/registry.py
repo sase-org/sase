@@ -16,6 +16,7 @@ import functools
 import importlib.metadata
 import os
 import shutil
+import time
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
@@ -43,6 +44,12 @@ _PROVIDER_FAMILY_COLORS: dict[str, str] = {
 }
 _LLM_METADATA_OPERATION = "llm.metadata"
 _LLM_METADATA_DISABLE_ENV = "SASE_DISABLE_HOST_LLM_METADATA"
+_LLM_METADATA_TIMEOUT_MS = 1_000
+_LLM_METADATA_HOST_FALLBACK_RETRY_S = 30.0
+_llm_metadata_host_cached_payload: dict[str, Any] | None = None
+_llm_metadata_host_cached_call_id: int | None = None
+_llm_metadata_host_fallback_until = 0.0
+_llm_metadata_host_fallback_call_id: int | None = None
 
 
 @functools.cache
@@ -138,6 +145,7 @@ def llm_metadata_payload() -> dict[str, Any]:
                 operation=operation,
                 payload={},
                 required_capability=HOST_CAP_LLM_METADATA,
+                timeout_ms=_LLM_METADATA_TIMEOUT_MS,
             )
             host = dict(response.result) if response.status == "ok" else None
             record_shadow_comparison(operation, direct=direct, host=host)
@@ -148,19 +156,61 @@ def llm_metadata_payload() -> dict[str, Any]:
         return direct
 
     if mode in {"host-preferred", "host-required"}:
+        cached = _llm_metadata_cached_host_payload()
+        if cached is not None:
+            return cached
+        if mode == "host-preferred" and _llm_metadata_host_fallback_active():
+            return direct_llm_metadata_payload()
         try:
             response = call_provider_host(
                 family="llm",
                 operation=operation,
                 payload={},
                 required_capability=HOST_CAP_LLM_METADATA,
+                timeout_ms=_LLM_METADATA_TIMEOUT_MS,
             )
             if response.status == "ok":
-                return dict(response.result)
+                payload = dict(response.result)
+                _remember_llm_metadata_host_payload(payload)
+                return payload
+            _remember_llm_metadata_host_fallback()
         except Exception as error:
             if host_required(operation) or not is_host_fallbackable(error):
                 raise
+            _remember_llm_metadata_host_fallback()
     return direct_llm_metadata_payload()
+
+
+def _llm_metadata_cached_host_payload() -> dict[str, Any] | None:
+    if (
+        _llm_metadata_host_cached_call_id == id(call_provider_host)
+        and _llm_metadata_host_cached_payload is not None
+    ):
+        return dict(_llm_metadata_host_cached_payload)
+    return None
+
+
+def _remember_llm_metadata_host_payload(payload: dict[str, Any]) -> None:
+    global _llm_metadata_host_cached_call_id
+    global _llm_metadata_host_cached_payload
+    _llm_metadata_host_cached_call_id = id(call_provider_host)
+    _llm_metadata_host_cached_payload = dict(payload)
+
+
+def _llm_metadata_host_fallback_active() -> bool:
+    return (
+        _llm_metadata_host_fallback_call_id == id(call_provider_host)
+        and time.monotonic() < _llm_metadata_host_fallback_until
+    )
+
+
+def _remember_llm_metadata_host_fallback() -> None:
+    global _llm_metadata_host_fallback_call_id
+    global _llm_metadata_host_fallback_until
+    _llm_metadata_host_fallback_call_id = id(call_provider_host)
+    _llm_metadata_host_fallback_until = (
+        time.monotonic() + _LLM_METADATA_HOST_FALLBACK_RETRY_S
+    )
 
 
 def model_to_provider_map() -> dict[str, str]:
