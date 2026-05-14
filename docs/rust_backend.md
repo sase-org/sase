@@ -172,6 +172,10 @@ Scheduler rollout controls:
 - `daemon.scheduler.lifecycle_mode: direct|shadow|daemon` or `SASE_DAEMON_SCHEDULER_LIFECYCLE_MODE` controls kill,
   dismiss, cleanup, revive, and bulk lifecycle routing.
 - `daemon.scheduler.axe_mode: direct|daemon` or `SASE_DAEMON_SCHEDULER_AXE_MODE` controls axe task routing.
+- `daemon.provider_host.modes.<operation>: direct|shadow|host-preferred|host-required` or
+  `SASE_PROVIDER_HOST_<OPERATION>_MODE` controls isolated provider/plugin host routing. Low-risk metadata/catalog/query
+  paths default to `host-preferred`; mutation-heavy paths remain `direct`. `SASE_PROVIDER_HOST_MODE=direct` is the
+  one-env rollback switch.
 - `--no-daemon` / `SASE_NO_DAEMON=1` remains the direct-mode escape hatch for daemon-capable read and scheduler
   surfaces.
 

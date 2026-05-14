@@ -363,6 +363,29 @@ def load_merged_config() -> dict[str, Any]:
     return result
 
 
+def load_config_without_plugin_defaults() -> dict[str, Any]:
+    """Load built-in, user, overlay, and local config without plugin defaults.
+
+    This is for startup-sensitive paths that must read local rollout switches
+    without touching entry-point discovery for provider/plugin packages.
+    """
+
+    result = dict(_load_default_config())
+    user_base = _load_yaml_file(CONFIG_DIR / "sase.yml")
+    if user_base:
+        result = _deep_merge(result, user_base, list_strategy="replace")
+    for overlay_path in _get_overlay_paths():
+        overlay = _load_yaml_file(overlay_path)
+        if overlay:
+            result = _deep_merge(result, overlay)
+    local_path = _get_local_config_path()
+    if local_path:
+        local_config = _load_yaml_file(local_path)
+        if local_config:
+            result = _deep_merge(result, local_config)
+    return result
+
+
 # Top-level config keys that were once supported but have since been removed.
 # Surfaced via ``sase config layers`` so users see why their entries are ignored.
 UNSUPPORTED_TOP_LEVEL_KEYS: frozenset[str] = frozenset({"workflows"})

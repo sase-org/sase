@@ -4,6 +4,8 @@ import json
 from dataclasses import asdict
 
 from sase.host.client import _host_request_payload
+from sase.host.provider_queries import provider_host_queries_enabled
+from sase.host.routing import host_routing_diagnostics, host_routing_mode
 from sase.host.runtime import ProviderHostRuntime, ProviderHostRuntimeConfig
 from sase.host.wire import (
     HOST_CAP_LLM_INVOKE,
@@ -80,6 +82,46 @@ def test_registry_metadata_uses_host_without_entry_point_imports(monkeypatch) ->
     )
 
 
+def test_provider_host_rollout_defaults_low_risk_paths_to_host_preferred(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("SASE_PROVIDER_HOST_MODE", raising=False)
+    monkeypatch.delenv("SASE_DISABLE_PROVIDER_HOST_ROUTING", raising=False)
+    monkeypatch.delenv("SASE_PROVIDER_HOST_QUERIES", raising=False)
+
+    assert host_routing_mode("llm.metadata") == "host-preferred"
+    assert host_routing_mode("vcs.query") == "host-preferred"
+    assert host_routing_mode("llm.invoke") == "direct"
+    assert provider_host_queries_enabled() is True
+
+
+def test_provider_host_direct_mode_is_one_env_rollback(monkeypatch) -> None:
+    monkeypatch.setenv("SASE_PROVIDER_HOST_MODE", "direct")
+
+    assert host_routing_mode("llm.metadata") == "direct"
+    assert provider_host_queries_enabled() is False
+
+
+def test_llm_metadata_shadow_mode_returns_direct_and_records_comparison(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_PROVIDER_HOST_LLM_METADATA_MODE", "shadow")
+    direct = registry.direct_llm_metadata_payload()
+    monkeypatch.setattr(
+        registry,
+        "call_provider_host",
+        lambda **_: _ok_response({"schema_version": 1, "provider_names": ["other"]}),
+    )
+
+    assert registry.llm_metadata_payload() == direct
+    recent = host_routing_diagnostics()["shadow_recent"]
+    assert recent[-1] == {
+        "operation": "llm.metadata",
+        "matched": False,
+        "reason": "mismatch",
+    }
+
+
 def test_xprompt_catalog_host_operation_matches_direct_structured_catalog() -> None:
     direct = build_structured_xprompts_catalog_direct(limit=5)
     request = _host_request_payload(
@@ -95,6 +137,23 @@ def test_xprompt_catalog_host_operation_matches_direct_structured_catalog() -> N
     assert response.status == "ok"
     assert response.result["projection"] == asdict(direct)
     assert response.result["cache_invalidation"]["version"] == 1
+
+
+def test_provider_host_discovery_reports_rollout_diagnostics() -> None:
+    request = _host_request_payload(
+        family="config",
+        operation="host.discover_plugins",
+        payload={},
+        required_capability=HOST_CAP_LLM_METADATA,
+    )
+    runtime = ProviderHostRuntime(ProviderHostRuntimeConfig())
+
+    response = runtime.handle_json_frame(json.dumps(request))
+
+    assert response.status == "ok"
+    routing = response.result["routing"]
+    assert routing == host_routing_diagnostics()
+    assert routing["operation_modes"]["llm.metadata"] == "host-preferred"
 
 
 def test_structured_catalog_uses_host_without_direct_catalog_imports(

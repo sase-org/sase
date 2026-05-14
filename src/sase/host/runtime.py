@@ -28,6 +28,7 @@ from sase.host.manifest import (
     resource_policy_diagnostics,
     validate_manifest_for_request,
 )
+from sase.host.routing import host_routing_diagnostics
 from sase.host.wire import (
     HOST_ERROR_CODES,
     HOST_CAP_LLM_INVOKE,
@@ -457,6 +458,7 @@ class ProviderHostRuntime:
             ],
             "manifest_diagnostics": list(discovery.diagnostics),
             "resource_policy": resource_policy_diagnostics(),
+            "routing": host_routing_diagnostics(),
         }
 
     def _llm_metadata(self, context: _OperationContext) -> Mapping[str, Any]:

@@ -22,6 +22,11 @@ from typing import Any
 import pluggy
 
 from sase.host.client import call_provider_host, is_host_fallbackable
+from sase.host.routing import (
+    host_required,
+    host_routing_mode,
+    record_shadow_comparison,
+)
 from sase.host.wire import HOST_CAP_LLM_METADATA
 
 from ._hookspec import LLMHookSpec
@@ -119,18 +124,41 @@ def direct_llm_metadata_payload() -> dict[str, Any]:
 def llm_metadata_payload() -> dict[str, Any]:
     """Return routed LLM metadata with direct Python fallback."""
 
-    if not os.environ.get(_LLM_METADATA_DISABLE_ENV):
+    operation = _LLM_METADATA_OPERATION
+    mode = (
+        "direct"
+        if os.environ.get(_LLM_METADATA_DISABLE_ENV)
+        else host_routing_mode(operation)
+    )
+    if mode == "shadow":
+        direct = direct_llm_metadata_payload()
         try:
             response = call_provider_host(
                 family="llm",
-                operation=_LLM_METADATA_OPERATION,
+                operation=operation,
+                payload={},
+                required_capability=HOST_CAP_LLM_METADATA,
+            )
+            host = dict(response.result) if response.status == "ok" else None
+            record_shadow_comparison(operation, direct=direct, host=host)
+        except Exception as error:
+            if not is_host_fallbackable(error):
+                raise
+            record_shadow_comparison(operation, direct=direct, error=error)
+        return direct
+
+    if mode in {"host-preferred", "host-required"}:
+        try:
+            response = call_provider_host(
+                family="llm",
+                operation=operation,
                 payload={},
                 required_capability=HOST_CAP_LLM_METADATA,
             )
             if response.status == "ok":
                 return dict(response.result)
         except Exception as error:
-            if not is_host_fallbackable(error):
+            if host_required(operation) or not is_host_fallbackable(error):
                 raise
     return direct_llm_metadata_payload()
 

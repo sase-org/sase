@@ -6,6 +6,8 @@ import subprocess
 
 import pluggy
 
+from sase.host.routing import host_required, host_routing_mode, record_shadow_comparison
+
 from ._base import VCSProvider
 from ._errors import VCSProviderNotFoundError
 from ._hookspec import VCSHookSpec
@@ -141,15 +143,24 @@ def detect_vcs_direct(cwd: str) -> str | None:
 
 def detect_vcs(cwd: str) -> str | None:
     """Detect the VCS provider, using the daemon provider host when enabled."""
-    if _provider_host_queries_enabled():
+    operation = "vcs.query"
+    mode = (
+        host_routing_mode(operation) if _provider_host_queries_enabled() else "direct"
+    )
+    if mode == "shadow":
+        direct = detect_vcs_direct(cwd)
         try:
-            from sase.host.provider_queries import host_vcs_query
-
-            result = host_vcs_query("detect_vcs", cwd=cwd)
-            value = result.get("value")
-            return value if isinstance(value, str) else None
+            host = _host_vcs_query_value("detect_vcs", cwd=cwd)
+            record_shadow_comparison("vcs.query.detect_vcs", direct=direct, host=host)
+        except Exception as error:
+            record_shadow_comparison("vcs.query.detect_vcs", direct=direct, error=error)
+        return direct
+    if mode in {"host-preferred", "host-required"}:
+        try:
+            return _host_vcs_query_value("detect_vcs", cwd=cwd)
         except Exception:
-            pass
+            if host_required(operation):
+                raise
     return detect_vcs_direct(cwd)
 
 
@@ -165,15 +176,28 @@ def detect_vcs_family(cwd: str) -> str | None:
 
     Returns ``"git"``, ``"hg"``, or ``None``.
     """
-    if _provider_host_queries_enabled():
+    operation = "vcs.query"
+    mode = (
+        host_routing_mode(operation) if _provider_host_queries_enabled() else "direct"
+    )
+    if mode == "shadow":
+        direct = detect_vcs_family_direct(cwd)
         try:
-            from sase.host.provider_queries import host_vcs_query
-
-            result = host_vcs_query("detect_vcs_family", cwd=cwd)
-            value = result.get("value")
-            return value if isinstance(value, str) else None
+            host = _host_vcs_query_value("detect_vcs_family", cwd=cwd)
+            record_shadow_comparison(
+                "vcs.query.detect_vcs_family", direct=direct, host=host
+            )
+        except Exception as error:
+            record_shadow_comparison(
+                "vcs.query.detect_vcs_family", direct=direct, error=error
+            )
+        return direct
+    if mode in {"host-preferred", "host-required"}:
+        try:
+            return _host_vcs_query_value("detect_vcs_family", cwd=cwd)
         except Exception:
-            pass
+            if host_required(operation):
+                raise
     return detect_vcs_family_direct(cwd)
 
 
@@ -184,6 +208,14 @@ def _provider_host_queries_enabled() -> bool:
         return provider_host_queries_enabled()
     except Exception:
         return False
+
+
+def _host_vcs_query_value(query: str, *, cwd: str) -> str | None:
+    from sase.host.provider_queries import host_vcs_query
+
+    result = host_vcs_query(query, cwd=cwd)
+    value = result.get("value")
+    return value if isinstance(value, str) else None
 
 
 def _resolve_vcs_name(cwd: str) -> str | None:

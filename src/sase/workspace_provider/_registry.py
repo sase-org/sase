@@ -5,9 +5,12 @@ from __future__ import annotations
 import functools
 import importlib.metadata
 import re
+from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 import pluggy
+
+from sase.host.routing import host_required, host_routing_mode, record_shadow_comparison
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -136,20 +139,42 @@ def detect_workflow_type_direct(project_file: str) -> str:
 
 def detect_workflow_type(project_file: str) -> str:
     """Detect the workflow type, using the provider host when enabled."""
-    if _provider_host_queries_enabled():
+    operation = "workspace.metadata"
+    mode = (
+        host_routing_mode(operation) if _provider_host_queries_enabled() else "direct"
+    )
+    if mode == "shadow":
+        direct = detect_workflow_type_direct(project_file)
         try:
-            from sase.host.provider_queries import host_workspace_metadata
-
-            result = host_workspace_metadata(
+            host = _host_workspace_metadata_value(
                 "detect_workflow_type",
                 payload={"project_file": project_file},
                 cwd=project_file,
             )
-            value = result.get("value")
+            record_shadow_comparison(
+                "workspace.metadata.detect_workflow_type",
+                direct=direct,
+                host=host,
+            )
+        except Exception as error:
+            record_shadow_comparison(
+                "workspace.metadata.detect_workflow_type",
+                direct=direct,
+                error=error,
+            )
+        return direct
+    if mode in {"host-preferred", "host-required"}:
+        try:
+            value = _host_workspace_metadata_value(
+                "detect_workflow_type",
+                payload={"project_file": project_file},
+                cwd=project_file,
+            )
             if isinstance(value, str):
                 return value
         except Exception:
-            pass
+            if host_required(operation):
+                raise
     return detect_workflow_type_direct(project_file)
 
 
@@ -180,20 +205,38 @@ def get_change_label_direct(project_file: str) -> str:
 
 def get_change_label(project_file: str) -> str:
     """Return the change label, using the provider host when enabled."""
-    if _provider_host_queries_enabled():
+    operation = "workspace.metadata"
+    mode = (
+        host_routing_mode(operation) if _provider_host_queries_enabled() else "direct"
+    )
+    if mode == "shadow":
+        direct = get_change_label_direct(project_file)
         try:
-            from sase.host.provider_queries import host_workspace_metadata
-
-            result = host_workspace_metadata(
+            host = _host_workspace_metadata_value(
                 "get_change_label",
                 payload={"project_file": project_file},
                 cwd=project_file,
             )
-            value = result.get("value")
+            record_shadow_comparison(
+                "workspace.metadata.get_change_label", direct=direct, host=host
+            )
+        except Exception as error:
+            record_shadow_comparison(
+                "workspace.metadata.get_change_label", direct=direct, error=error
+            )
+        return direct
+    if mode in {"host-preferred", "host-required"}:
+        try:
+            value = _host_workspace_metadata_value(
+                "get_change_label",
+                payload={"project_file": project_file},
+                cwd=project_file,
+            )
             if isinstance(value, str):
                 return value
         except Exception:
-            pass
+            if host_required(operation):
+                raise
     return get_change_label_direct(project_file)
 
 
@@ -215,25 +258,34 @@ def resolve_ref_direct(ref: str, workflow_type: str) -> ResolvedRef:
 
 def resolve_ref(ref: str, workflow_type: str) -> ResolvedRef:
     """Resolve a workspace reference, using the provider host when enabled."""
-    if _provider_host_queries_enabled():
+    operation = "workspace.resolve_ref"
+    mode = (
+        host_routing_mode(operation) if _provider_host_queries_enabled() else "direct"
+    )
+    if mode == "shadow":
+        direct = resolve_ref_direct(ref, workflow_type)
         try:
-            from sase.host.provider_queries import host_workspace_resolve_ref
-
-            result = host_workspace_resolve_ref(ref, workflow_type)
-            value = result.get("value")
+            value = _host_workspace_resolve_ref_value(ref, workflow_type)
+            if not isinstance(value, Mapping):
+                raise TypeError("host resolve_ref response value must be a mapping")
+            record_shadow_comparison(
+                "workspace.resolve_ref",
+                direct=direct,
+                host=_resolved_ref_from_wire(value),
+            )
+        except Exception as error:
+            record_shadow_comparison(
+                "workspace.resolve_ref", direct=direct, error=error
+            )
+        return direct
+    if mode in {"host-preferred", "host-required"}:
+        try:
+            value = _host_workspace_resolve_ref_value(ref, workflow_type)
             if isinstance(value, dict):
-                return ResolvedRef(
-                    project_file=str(value["project_file"]),
-                    project_name=str(value["project_name"]),
-                    primary_workspace_dir=str(value["primary_workspace_dir"]),
-                    checkout_target=str(value["checkout_target"]),
-                    extra={
-                        str(key): str(item)
-                        for key, item in dict(value.get("extra") or {}).items()
-                    },
-                )
+                return _resolved_ref_from_wire(value)
         except Exception:
-            pass
+            if host_required(operation):
+                raise
     return resolve_ref_direct(ref, workflow_type)
 
 
@@ -289,30 +341,55 @@ def get_workspace_directory(
     primary_workspace_dir: str,
 ) -> str:
     """Get the workspace directory, using the provider host when enabled."""
-    if _provider_host_queries_enabled():
+    operation = "workspace.metadata"
+    mode = (
+        host_routing_mode(operation) if _provider_host_queries_enabled() else "direct"
+    )
+    manifest_plugin_id = (
+        "builtin.workspace.cd" if workflow_type == "cd" else "builtin.vcs.bare_git"
+    )
+    payload = {
+        "workflow_type": workflow_type,
+        "workspace_num": workspace_num,
+        "project_name": project_name,
+        "primary_workspace_dir": primary_workspace_dir,
+    }
+    if mode == "shadow":
+        direct = get_workspace_directory_direct(
+            workflow_type, workspace_num, project_name, primary_workspace_dir
+        )
         try:
-            from sase.host.provider_queries import host_workspace_metadata
-
-            result = host_workspace_metadata(
+            host = _host_workspace_metadata_value(
                 "get_workspace_directory",
-                payload={
-                    "workflow_type": workflow_type,
-                    "workspace_num": workspace_num,
-                    "project_name": project_name,
-                    "primary_workspace_dir": primary_workspace_dir,
-                },
+                payload=payload,
                 cwd=primary_workspace_dir,
-                manifest_plugin_id=(
-                    "builtin.workspace.cd"
-                    if workflow_type == "cd"
-                    else "builtin.vcs.bare_git"
-                ),
+                manifest_plugin_id=manifest_plugin_id,
             )
-            value = result.get("value")
+            record_shadow_comparison(
+                "workspace.metadata.get_workspace_directory",
+                direct=direct,
+                host=host,
+            )
+        except Exception as error:
+            record_shadow_comparison(
+                "workspace.metadata.get_workspace_directory",
+                direct=direct,
+                error=error,
+            )
+        return direct
+    if mode in {"host-preferred", "host-required"}:
+        try:
+            value = _host_workspace_metadata_value(
+                "get_workspace_directory",
+                payload=payload,
+                cwd=primary_workspace_dir,
+                manifest_plugin_id=manifest_plugin_id,
+            )
             if isinstance(value, str):
                 return value
         except Exception:
-            pass
+            if host_required(operation):
+                raise
     return get_workspace_directory_direct(
         workflow_type, workspace_num, project_name, primary_workspace_dir
     )
@@ -375,19 +452,37 @@ def get_workspace_name_direct(cwd: str) -> str | None:
 
 def get_workspace_name(cwd: str) -> str | None:
     """Detect the workspace/project name, using the provider host when enabled."""
-    if _provider_host_queries_enabled():
+    operation = "workspace.metadata"
+    mode = (
+        host_routing_mode(operation) if _provider_host_queries_enabled() else "direct"
+    )
+    if mode == "shadow":
+        direct = get_workspace_name_direct(cwd)
         try:
-            from sase.host.provider_queries import host_workspace_metadata
-
-            result = host_workspace_metadata(
+            host = _host_workspace_metadata_value(
                 "get_workspace_name",
                 payload={"cwd": cwd},
                 cwd=cwd,
             )
-            value = result.get("value")
+            record_shadow_comparison(
+                "workspace.metadata.get_workspace_name", direct=direct, host=host
+            )
+        except Exception as error:
+            record_shadow_comparison(
+                "workspace.metadata.get_workspace_name", direct=direct, error=error
+            )
+        return direct
+    if mode in {"host-preferred", "host-required"}:
+        try:
+            value = _host_workspace_metadata_value(
+                "get_workspace_name",
+                payload={"cwd": cwd},
+                cwd=cwd,
+            )
             return value if isinstance(value, str) else None
         except Exception:
-            pass
+            if host_required(operation):
+                raise
     return get_workspace_name_direct(cwd)
 
 
@@ -398,6 +493,42 @@ def _provider_host_queries_enabled() -> bool:
         return provider_host_queries_enabled()
     except Exception:
         return False
+
+
+def _host_workspace_metadata_value(
+    query: str,
+    *,
+    payload: dict[str, object] | None = None,
+    cwd: str | None = None,
+    manifest_plugin_id: str | None = None,
+) -> object:
+    from sase.host.provider_queries import host_workspace_metadata
+
+    result = host_workspace_metadata(
+        query,
+        payload=payload,
+        cwd=cwd,
+        manifest_plugin_id=manifest_plugin_id,
+    )
+    return result.get("value")
+
+
+def _host_workspace_resolve_ref_value(ref: str, workflow_type: str) -> object:
+    from sase.host.provider_queries import host_workspace_resolve_ref
+
+    return host_workspace_resolve_ref(ref, workflow_type).get("value")
+
+
+def _resolved_ref_from_wire(value: Mapping[str, object]) -> ResolvedRef:
+    raw_extra = value.get("extra")
+    extra = raw_extra if isinstance(raw_extra, Mapping) else {}
+    return ResolvedRef(
+        project_file=str(value["project_file"]),
+        project_name=str(value["project_name"]),
+        primary_workspace_dir=str(value["primary_workspace_dir"]),
+        checkout_target=str(value["checkout_target"]),
+        extra={str(key): str(item) for key, item in extra.items()},
+    )
 
 
 def submit_changespec(

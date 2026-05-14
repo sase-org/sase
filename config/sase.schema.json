@@ -221,6 +221,74 @@
       "description": "Configuration for the local daemon and daemon-backed reads",
       "additionalProperties": false,
       "properties": {
+        "provider_host": {
+          "type": "object",
+          "description": "Rollout controls for isolated provider/plugin host routing",
+          "additionalProperties": false,
+          "properties": {
+            "default_mode": {
+              "type": "string",
+              "description": "Default provider-host routing mode for operations not listed in modes.",
+              "enum": ["direct", "shadow", "host-preferred", "host-required"],
+              "default": "direct"
+            },
+            "shadow_compare": {
+              "type": "boolean",
+              "description": "Record diagnostics for safe host-vs-direct shadow comparisons.",
+              "default": true
+            },
+            "modes": {
+              "type": "object",
+              "description": "Per-operation provider-host rollout modes.",
+              "additionalProperties": {
+                "type": "string",
+                "enum": ["direct", "shadow", "host-preferred", "host-required"]
+              },
+              "properties": {
+                "llm_metadata": {
+                  "type": "string",
+                  "enum": ["direct", "shadow", "host-preferred", "host-required"],
+                  "default": "host-preferred"
+                },
+                "xprompt_catalog": {
+                  "type": "string",
+                  "enum": ["direct", "shadow", "host-preferred", "host-required"],
+                  "default": "host-preferred"
+                },
+                "vcs_query": {
+                  "type": "string",
+                  "enum": ["direct", "shadow", "host-preferred", "host-required"],
+                  "default": "host-preferred"
+                },
+                "workspace_metadata": {
+                  "type": "string",
+                  "enum": ["direct", "shadow", "host-preferred", "host-required"],
+                  "default": "host-preferred"
+                },
+                "workspace_resolve_ref": {
+                  "type": "string",
+                  "enum": ["direct", "shadow", "host-preferred", "host-required"],
+                  "default": "host-preferred"
+                },
+                "llm_invoke": {
+                  "type": "string",
+                  "enum": ["direct", "shadow", "host-preferred", "host-required"],
+                  "default": "direct"
+                },
+                "workflow_step": {
+                  "type": "string",
+                  "enum": ["direct", "shadow", "host-preferred", "host-required"],
+                  "default": "direct"
+                },
+                "vcs_mutation": {
+                  "type": "string",
+                  "enum": ["direct", "shadow", "host-preferred", "host-required"],
+                  "default": "direct"
+                }
+              }
+            }
+          }
+        },
         "reads": {
           "type": "object",
           "description": "Read-through routing from CLI, editor, and ACE surfaces to local daemon projections",

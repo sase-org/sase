@@ -7,6 +7,7 @@ Public surface:
 
 from __future__ import annotations
 
+from dataclasses import asdict
 import shutil
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,11 @@ from sase.host.client import (
     ProviderHostCallUnavailable,
     call_provider_host,
     is_host_fallbackable,
+)
+from sase.host.routing import (
+    host_required,
+    host_routing_mode,
+    record_shadow_comparison,
 )
 from sase.host.wire import HOST_CAP_XPROMPT_CATALOG
 from sase.xprompt.loader import (
@@ -100,18 +106,52 @@ def build_structured_xprompts_catalog(
     limit: int | None = None,
 ) -> StructuredCatalogProjection:
     """Return a mobile-safe structured xprompt catalog projection."""
+    operation = "xprompt.catalog"
+    mode = host_routing_mode(operation)
     if not include_pdf:
-        try:
-            return _build_structured_xprompts_catalog_host(
+        if mode == "shadow":
+            _sync_catalog_source_dependencies()
+            from ._catalog_structured import build_structured_xprompts_catalog as _build
+
+            direct = _build(
                 project=project,
                 source=source,
                 tag=tag,
                 query=query,
+                include_pdf=False,
                 limit=limit,
             )
-        except Exception as error:
-            if not is_host_fallbackable(error):
-                raise
+            try:
+                host = _build_structured_xprompts_catalog_host(
+                    project=project,
+                    source=source,
+                    tag=tag,
+                    query=query,
+                    limit=limit,
+                )
+                record_shadow_comparison(
+                    operation,
+                    direct=asdict(direct),
+                    host=asdict(host),
+                )
+            except Exception as error:
+                if not is_host_fallbackable(error):
+                    raise
+                record_shadow_comparison(operation, direct=asdict(direct), error=error)
+            return direct
+
+        if mode in {"host-preferred", "host-required"}:
+            try:
+                return _build_structured_xprompts_catalog_host(
+                    project=project,
+                    source=source,
+                    tag=tag,
+                    query=query,
+                    limit=limit,
+                )
+            except Exception as error:
+                if host_required(operation) or not is_host_fallbackable(error):
+                    raise
 
     _sync_catalog_source_dependencies()
     from ._catalog_structured import build_structured_xprompts_catalog as _build

@@ -11,6 +11,7 @@ from sase.daemon.client import LocalDaemonClient
 from sase.daemon.errors import LocalDaemonError
 from sase.daemon.paths import daemon_disabled
 from sase.host.manifest import discover_host_manifests
+from sase.host.routing import host_routing_enabled
 from sase.host.wire import (
     HOST_CAP_IPC_V1,
     HOST_CAP_MANIFEST_V1,
@@ -47,7 +48,14 @@ def provider_host_queries_enabled() -> bool:
     env_value = _optional_env_bool("SASE_PROVIDER_HOST_QUERIES")
     if env_value is not None:
         return env_value
-    return False
+    return any(
+        host_routing_enabled(operation)
+        for operation in (
+            "vcs.query",
+            "workspace.metadata",
+            "workspace.resolve_ref",
+        )
+    )
 
 
 def host_vcs_query(

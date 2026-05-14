@@ -24,6 +24,22 @@ mobile_gateway:
   startup_timeout_seconds: 10
 
 daemon:
+  provider_host:
+    # direct: use existing in-process Python provider/plugin paths
+    # shadow: run host-routed safe reads for comparison, return direct results
+    # host-preferred: use host routing with direct fallback on unavailable/unsupported
+    # host-required: require host routing; intended for tests and diagnostics only
+    default_mode: "direct"
+    shadow_compare: true
+    modes:
+      llm_metadata: "host-preferred"
+      xprompt_catalog: "host-preferred"
+      vcs_query: "host-preferred"
+      workspace_metadata: "host-preferred"
+      workspace_resolve_ref: "host-preferred"
+      llm_invoke: "direct"
+      workflow_step: "direct"
+      vcs_mutation: "direct"
   scheduler:
     # direct: use existing Python launch paths
     # shadow: submit launch batches to the daemon, then still launch directly
