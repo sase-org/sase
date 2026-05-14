@@ -3,65 +3,56 @@
 from __future__ import annotations
 
 import json
-import os
 import socket
 import struct
 import uuid
-from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
-LOCAL_DAEMON_SCHEMA_VERSION = 1
-LOCAL_DAEMON_MAX_PAYLOAD_BYTES = 1_048_576
-LOCAL_DAEMON_DEFAULT_PAGE_LIMIT = 100
+from sase.daemon.constants import (
+    LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+    LOCAL_DAEMON_MAX_PAYLOAD_BYTES,
+    LOCAL_DAEMON_SCHEMA_VERSION,
+)
+from sase.daemon.errors import (
+    LocalDaemonError,
+    LocalDaemonRpcError,
+    LocalDaemonTransportError,
+    LocalDaemonUnavailableError,
+)
+from sase.daemon.paths import daemon_disabled, default_socket_path
+from sase.daemon.protocol import (
+    LocalDaemonTransport,
+    payload_data,
+    raise_for_rpc_error,
+    read_exact,
+    rpc_error,
+    selector_data,
+)
+from sase.daemon.read_requests import LocalDaemonReadMixin
 
-
-class LocalDaemonError(RuntimeError):
-    """Base class for local daemon client failures."""
-
-
-@dataclass(frozen=True)
-class LocalDaemonTransportError(LocalDaemonError):
-    """Transport-level failure with daemon fallback metadata."""
-
-    message: str
-    code: str = "daemon_unavailable"
-    fallback_reason: str | None = "daemon_not_running"
-    retryable: bool = False
-
-    def __str__(self) -> str:
-        return self.message
-
-
-class LocalDaemonUnavailableError(LocalDaemonTransportError):
-    """Typed failure for unavailable local daemon transport."""
-
-
-@dataclass(frozen=True)
-class LocalDaemonRpcError(LocalDaemonError):
-    """Typed error returned by the local daemon RPC protocol."""
-
-    code: str
-    message: str
-    retryable: bool
-    target: str | None
-    details: dict[str, Any] | None
-    fallback_reason: str | None
-    fallback_message: str | None
-
-    def __str__(self) -> str:
-        return self.message
-
-
-class LocalDaemonTransport(Protocol):
-    """In-process transport seam for tests and non-socket embedders."""
-
-    def request(self, envelope: dict[str, Any]) -> dict[str, Any]:
-        """Return one local daemon response envelope for ``envelope``."""
+__all__ = [
+    "LOCAL_DAEMON_DEFAULT_PAGE_LIMIT",
+    "LOCAL_DAEMON_MAX_PAYLOAD_BYTES",
+    "LOCAL_DAEMON_SCHEMA_VERSION",
+    "LocalDaemonClient",
+    "LocalDaemonError",
+    "LocalDaemonRpcError",
+    "LocalDaemonTransport",
+    "LocalDaemonTransportError",
+    "LocalDaemonUnavailableError",
+    "daemon_disabled",
+    "default_socket_path",
+    "diff",
+    "health",
+    "read",
+    "rebuild",
+    "verify",
+]
 
 
-class LocalDaemonClient:
+class LocalDaemonClient(LocalDaemonReadMixin):
     """Small synchronous client for one-request local daemon RPC calls."""
 
     def __init__(
@@ -104,7 +95,7 @@ class LocalDaemonClient:
             and response_payload.get("type") == "error"
             and isinstance(response_payload.get("data"), dict)
         ):
-            raise _rpc_error(response_payload["data"])
+            raise rpc_error(response_payload["data"])
         return response
 
     def health(
@@ -117,402 +108,15 @@ class LocalDaemonClient:
             },
             timeout=timeout,
         )
-        return _payload_data(response, "health")
+        return payload_data(response, "health")
 
     def capabilities(self) -> dict[str, Any]:
         response = self.request({"type": "capabilities"})
-        return _payload_data(response, "capabilities")
+        return payload_data(response, "capabilities")
 
     def batch(self, requests: list[dict[str, Any]]) -> dict[str, Any]:
         response = self.request({"type": "batch", "data": {"requests": requests}})
-        return _payload_data(response, "batch")
-
-    def read(self, surface: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
-        response = self.request(
-            {
-                "type": "read",
-                "data": {"surface": surface, "data": data or {}},
-            }
-        )
-        return _read_payload_data(response, surface)
-
-    def changespec_list(
-        self,
-        *,
-        project_id: str | None = None,
-        query: str | None = None,
-        status: str | None = None,
-        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
-        cursor: str | None = None,
-    ) -> dict[str, Any]:
-        return self.read(
-            "changespec_list",
-            _changespec_list_data(
-                project_id=project_id,
-                query=query,
-                status=status,
-                limit=limit,
-                cursor=cursor,
-            ),
-        )
-
-    def changespec_search(
-        self,
-        *,
-        project_id: str | None = None,
-        query: str | None = None,
-        status: str | None = None,
-        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
-        cursor: str | None = None,
-    ) -> dict[str, Any]:
-        return self.read(
-            "changespec_search",
-            _changespec_list_data(
-                project_id=project_id,
-                query=query,
-                status=status,
-                limit=limit,
-                cursor=cursor,
-            ),
-        )
-
-    def changespec_detail(self, handle: str) -> dict[str, Any]:
-        return self.read(
-            "changespec_detail",
-            {"schema_version": LOCAL_DAEMON_SCHEMA_VERSION, "handle": handle},
-        )
-
-    def agent_active(
-        self,
-        *,
-        project_id: str,
-        include_hidden: bool = False,
-        query: str | None = None,
-        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
-        cursor: str | None = None,
-    ) -> dict[str, Any]:
-        return self.read(
-            "agent_active",
-            _agent_list_data(
-                project_id=project_id,
-                include_hidden=include_hidden,
-                query=query,
-                limit=limit,
-                cursor=cursor,
-            ),
-        )
-
-    def agent_recent(
-        self,
-        *,
-        project_id: str,
-        include_hidden: bool = False,
-        query: str | None = None,
-        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
-        cursor: str | None = None,
-    ) -> dict[str, Any]:
-        return self.read(
-            "agent_recent",
-            _agent_list_data(
-                project_id=project_id,
-                include_hidden=include_hidden,
-                query=query,
-                limit=limit,
-                cursor=cursor,
-            ),
-        )
-
-    def agent_archive(
-        self,
-        *,
-        project_id: str,
-        include_hidden: bool = False,
-        query: str | None = None,
-        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
-        cursor: str | None = None,
-    ) -> dict[str, Any]:
-        return self.read(
-            "agent_archive",
-            _agent_list_data(
-                project_id=project_id,
-                include_hidden=include_hidden,
-                query=query,
-                limit=limit,
-                cursor=cursor,
-            ),
-        )
-
-    def agent_search(
-        self,
-        *,
-        project_id: str,
-        include_hidden: bool = False,
-        query: str | None = None,
-        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
-        cursor: str | None = None,
-    ) -> dict[str, Any]:
-        return self.read(
-            "agent_search",
-            _agent_list_data(
-                project_id=project_id,
-                include_hidden=include_hidden,
-                query=query,
-                limit=limit,
-                cursor=cursor,
-            ),
-        )
-
-    def agent_detail(self, *, project_id: str, agent_id: str) -> dict[str, Any]:
-        return self.read(
-            "agent_detail",
-            {
-                "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
-                "project_id": project_id,
-                "agent_id": agent_id,
-            },
-        )
-
-    def notification_list(
-        self,
-        *,
-        include_dismissed: bool = False,
-        query: str | None = None,
-        sender: str | None = None,
-        unread: bool | None = None,
-        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
-        cursor: str | None = None,
-    ) -> dict[str, Any]:
-        return self.read(
-            "notification_list",
-            {
-                "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
-                "page": _page_data(limit=limit, cursor=cursor),
-                "include_dismissed": include_dismissed,
-                "query": query,
-                "sender": sender,
-                "unread": unread,
-            },
-        )
-
-    def notification_detail(self, notification_id: str) -> dict[str, Any]:
-        return self.read(
-            "notification_detail",
-            {
-                "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
-                "notification_id": notification_id,
-            },
-        )
-
-    def notification_counts(self) -> dict[str, Any]:
-        return self.read("notification_counts")
-
-    def notification_pending_actions(self) -> dict[str, Any]:
-        return self.read("notification_pending_actions")
-
-    def bead_list(
-        self,
-        *,
-        project_id: str,
-        statuses: list[str] | None = None,
-        issue_types: list[str] | None = None,
-        tiers: list[str] | None = None,
-        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
-        cursor: str | None = None,
-    ) -> dict[str, Any]:
-        return self.read(
-            "bead_list",
-            _bead_list_data(
-                project_id=project_id,
-                statuses=statuses,
-                issue_types=issue_types,
-                tiers=tiers,
-                limit=limit,
-                cursor=cursor,
-            ),
-        )
-
-    def bead_ready(
-        self,
-        *,
-        project_id: str,
-        statuses: list[str] | None = None,
-        issue_types: list[str] | None = None,
-        tiers: list[str] | None = None,
-        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
-        cursor: str | None = None,
-    ) -> dict[str, Any]:
-        return self.read(
-            "bead_ready",
-            _bead_list_data(
-                project_id=project_id,
-                statuses=statuses,
-                issue_types=issue_types,
-                tiers=tiers,
-                limit=limit,
-                cursor=cursor,
-            ),
-        )
-
-    def bead_blocked(
-        self,
-        *,
-        project_id: str,
-        statuses: list[str] | None = None,
-        issue_types: list[str] | None = None,
-        tiers: list[str] | None = None,
-        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
-        cursor: str | None = None,
-    ) -> dict[str, Any]:
-        return self.read(
-            "bead_blocked",
-            _bead_list_data(
-                project_id=project_id,
-                statuses=statuses,
-                issue_types=issue_types,
-                tiers=tiers,
-                limit=limit,
-                cursor=cursor,
-            ),
-        )
-
-    def bead_show(self, *, project_id: str, bead_id: str) -> dict[str, Any]:
-        return self.read(
-            "bead_show",
-            {
-                "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
-                "project_id": project_id,
-                "bead_id": bead_id,
-            },
-        )
-
-    def bead_stats(
-        self,
-        *,
-        project_id: str,
-        statuses: list[str] | None = None,
-        issue_types: list[str] | None = None,
-        tiers: list[str] | None = None,
-        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
-        cursor: str | None = None,
-    ) -> dict[str, Any]:
-        return self.read(
-            "bead_stats",
-            _bead_list_data(
-                project_id=project_id,
-                statuses=statuses,
-                issue_types=issue_types,
-                tiers=tiers,
-                limit=limit,
-                cursor=cursor,
-            ),
-        )
-
-    def xprompt_catalog(
-        self,
-        *,
-        project_id: str | None = None,
-        query: str | None = None,
-        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
-        cursor: str | None = None,
-    ) -> dict[str, Any]:
-        return self.read(
-            "xprompt_catalog",
-            _catalog_list_data(
-                project_id=project_id,
-                query=query,
-                limit=limit,
-                cursor=cursor,
-            ),
-        )
-
-    def editor_catalog(
-        self,
-        *,
-        project_id: str | None = None,
-        query: str | None = None,
-        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
-        cursor: str | None = None,
-    ) -> dict[str, Any]:
-        return self.read(
-            "editor_catalog",
-            _catalog_list_data(
-                project_id=project_id,
-                query=query,
-                limit=limit,
-                cursor=cursor,
-            ),
-        )
-
-    def snippet_catalog(
-        self,
-        *,
-        project_id: str | None = None,
-        query: str | None = None,
-        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
-        cursor: str | None = None,
-    ) -> dict[str, Any]:
-        return self.read(
-            "snippet_catalog",
-            _catalog_list_data(
-                project_id=project_id,
-                query=query,
-                limit=limit,
-                cursor=cursor,
-            ),
-        )
-
-    def file_history(
-        self,
-        *,
-        project_id: str | None = None,
-        query: str | None = None,
-        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
-        cursor: str | None = None,
-    ) -> dict[str, Any]:
-        return self.read(
-            "file_history",
-            _catalog_list_data(
-                project_id=project_id,
-                query=query,
-                limit=limit,
-                cursor=cursor,
-            ),
-        )
-
-    def iter_read_pages(
-        self,
-        surface: str,
-        make_data: Callable[[str | None], dict[str, Any]],
-        *,
-        first_cursor: str | None = None,
-    ) -> Iterator[dict[str, Any]]:
-        cursor = first_cursor
-        while True:
-            page = self.read(surface, make_data(cursor))
-            yield page
-            page_info = page.get("page")
-            if not isinstance(page_info, dict):
-                return
-            next_cursor = page_info.get("next_cursor")
-            if not isinstance(next_cursor, str) or not next_cursor:
-                return
-            cursor = next_cursor
-
-    def iter_read_items(
-        self,
-        surface: str,
-        make_data: Callable[[str | None], dict[str, Any]],
-        *,
-        items_key: str,
-        first_cursor: str | None = None,
-    ) -> Iterator[dict[str, Any]]:
-        for page in self.iter_read_pages(surface, make_data, first_cursor=first_cursor):
-            items = page.get(items_key)
-            if not isinstance(items, list):
-                return
-            for item in items:
-                if isinstance(item, dict):
-                    yield item
+        return payload_data(response, "batch")
 
     def indexing_status(
         self,
@@ -520,9 +124,9 @@ class LocalDaemonClient:
         surface: str = "all",
         project_id: str | None = None,
     ) -> dict[str, Any]:
-        data = _selector_data(surface=surface, project_id=project_id)
+        data = selector_data(surface=surface, project_id=project_id)
         response = self.request({"type": "indexing_status", "data": data})
-        return _payload_data(response, "indexing_status")
+        return payload_data(response, "indexing_status")
 
     def rebuild(
         self,
@@ -531,7 +135,7 @@ class LocalDaemonClient:
         surface: str = "all",
         project_id: str | None = None,
     ) -> dict[str, Any]:
-        data = _selector_data(surface=surface, project_id=project_id)
+        data = selector_data(surface=surface, project_id=project_id)
         data["storage_reset_only"] = storage_reset_only
         response = self.request(
             {
@@ -539,7 +143,7 @@ class LocalDaemonClient:
                 "data": data,
             }
         )
-        return _payload_data(response, "rebuild")
+        return payload_data(response, "rebuild")
 
     def verify(
         self,
@@ -547,9 +151,9 @@ class LocalDaemonClient:
         surface: str = "all",
         project_id: str | None = None,
     ) -> dict[str, Any]:
-        data = _selector_data(surface=surface, project_id=project_id)
+        data = selector_data(surface=surface, project_id=project_id)
         response = self.request({"type": "verify", "data": data})
-        return _payload_data(response, "verify")
+        return payload_data(response, "verify")
 
     def diff(
         self,
@@ -559,10 +163,10 @@ class LocalDaemonClient:
         limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
         cursor: str | None = None,
     ) -> dict[str, Any]:
-        data = _selector_data(surface=surface, project_id=project_id)
+        data = selector_data(surface=surface, project_id=project_id)
         data["page"] = {"limit": limit, "cursor": cursor}
         response = self.request({"type": "diff", "data": data})
-        return _payload_data(response, "diff")
+        return payload_data(response, "diff")
 
     def events(
         self,
@@ -584,7 +188,7 @@ class LocalDaemonClient:
         if collections:
             data["collections"] = collections
         for response in self._stream_payload({"type": "events", "data": data}):
-            yield _payload_data(response, "events")
+            yield payload_data(response, "events")
 
     def read_events(
         self,
@@ -645,7 +249,7 @@ class LocalDaemonClient:
         with self._connected_socket(envelope) as sock:
             while True:
                 response = self._read_response(sock)
-                _raise_for_rpc_error(response)
+                raise_for_rpc_error(response)
                 yield response
 
     def _connected_socket(self, envelope: dict[str, Any]) -> socket.socket:
@@ -685,7 +289,7 @@ class LocalDaemonClient:
 
     def _read_response(self, sock: socket.socket) -> dict[str, Any]:
         try:
-            response_len = _read_exact(sock, 4)
+            response_len = read_exact(sock, 4)
             expected = struct.unpack(">I", response_len)[0]
             if expected > LOCAL_DAEMON_MAX_PAYLOAD_BYTES:
                 raise LocalDaemonTransportError(
@@ -696,7 +300,7 @@ class LocalDaemonClient:
                     code="payload_too_large",
                     fallback_reason=None,
                 )
-            response_payload = _read_exact(sock, expected)
+            response_payload = read_exact(sock, expected)
         except TimeoutError as error:
             raise LocalDaemonUnavailableError(
                 f"timed out talking to local daemon at {self.socket_path}",
@@ -725,18 +329,6 @@ class LocalDaemonClient:
                 fallback_reason=None,
             )
         return response
-
-
-def default_socket_path(
-    *,
-    sase_home: str | Path | None = None,
-    host_identity: str | None = None,
-) -> Path:
-    home = _default_sase_home() if sase_home is None else Path(sase_home)
-    host = _sanitize_host_identity(
-        host_identity if host_identity is not None else os.environ.get("HOSTNAME")
-    )
-    return home / "run" / host / "sase-daemon.sock"
 
 
 def health(
@@ -798,200 +390,3 @@ def read(
     timeout: float = 1.0,
 ) -> dict[str, Any]:
     return LocalDaemonClient(socket_path, timeout=timeout).read(surface, data)
-
-
-def daemon_disabled(args: Any | None = None) -> bool:
-    """Shared hook for future commands that expose ``--no-daemon``."""
-    arg_value = bool(getattr(args, "no_daemon", False)) if args is not None else False
-    env_value = os.environ.get("SASE_NO_DAEMON", "").strip().lower()
-    return arg_value or env_value in {"1", "true", "yes", "on"}
-
-
-def _default_sase_home() -> Path:
-    if value := os.environ.get("SASE_HOME"):
-        return Path(value)
-    if value := os.environ.get("HOME"):
-        return Path(value) / ".sase"
-    return Path(".sase")
-
-
-def _sanitize_host_identity(value: str | None) -> str:
-    if value is None or not value.strip():
-        return "sase-host"
-    sanitized = "".join(
-        ch if ch.isascii() and (ch.isalnum() or ch in ".-_") else "-"
-        for ch in value.strip()
-    ).strip("-")
-    return sanitized or "sase-host"
-
-
-def _selector_data(
-    *,
-    surface: str,
-    project_id: str | None,
-) -> dict[str, Any]:
-    data: dict[str, Any] = {"surface": surface}
-    if project_id:
-        data["project_id"] = project_id
-    return data
-
-
-def _page_data(*, limit: int, cursor: str | None) -> dict[str, Any]:
-    return {
-        "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
-        "limit": limit,
-        "cursor": cursor,
-    }
-
-
-def _changespec_list_data(
-    *,
-    project_id: str | None,
-    query: str | None,
-    status: str | None,
-    limit: int,
-    cursor: str | None,
-) -> dict[str, Any]:
-    return {
-        "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
-        "page": _page_data(limit=limit, cursor=cursor),
-        "project_id": project_id,
-        "query": query,
-        "status": status,
-    }
-
-
-def _agent_list_data(
-    *,
-    project_id: str,
-    include_hidden: bool,
-    query: str | None,
-    limit: int,
-    cursor: str | None,
-) -> dict[str, Any]:
-    return {
-        "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
-        "page": _page_data(limit=limit, cursor=cursor),
-        "project_id": project_id,
-        "include_hidden": include_hidden,
-        "query": query,
-    }
-
-
-def _bead_list_data(
-    *,
-    project_id: str,
-    statuses: list[str] | None,
-    issue_types: list[str] | None,
-    tiers: list[str] | None,
-    limit: int,
-    cursor: str | None,
-) -> dict[str, Any]:
-    return {
-        "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
-        "page": _page_data(limit=limit, cursor=cursor),
-        "project_id": project_id,
-        "statuses": list(statuses or []),
-        "issue_types": list(issue_types or []),
-        "tiers": list(tiers or []),
-    }
-
-
-def _catalog_list_data(
-    *,
-    project_id: str | None,
-    query: str | None,
-    limit: int,
-    cursor: str | None,
-) -> dict[str, Any]:
-    return {
-        "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
-        "page": _page_data(limit=limit, cursor=cursor),
-        "project_id": project_id,
-        "query": query,
-    }
-
-
-def _read_exact(sock: socket.socket, size: int) -> bytes:
-    chunks: list[bytes] = []
-    remaining = size
-    while remaining:
-        chunk = sock.recv(remaining)
-        if not chunk:
-            raise LocalDaemonTransportError(
-                "local daemon socket closed before a complete frame was read",
-                code="invalid_request",
-                fallback_reason=None,
-            )
-        chunks.append(chunk)
-        remaining -= len(chunk)
-    return b"".join(chunks)
-
-
-def _payload_data(response: dict[str, Any], expected_type: str) -> dict[str, Any]:
-    payload = response.get("payload")
-    if not isinstance(payload, dict) or payload.get("type") != expected_type:
-        raise LocalDaemonTransportError(
-            f"unexpected local daemon response payload for {expected_type}",
-            code="invalid_request",
-            fallback_reason=None,
-        )
-    data = payload.get("data")
-    if not isinstance(data, dict):
-        raise LocalDaemonTransportError(
-            f"missing local daemon response data for {expected_type}",
-            code="invalid_request",
-            fallback_reason=None,
-        )
-    return data
-
-
-def _read_payload_data(
-    response: dict[str, Any], expected_surface: str
-) -> dict[str, Any]:
-    data = _payload_data(response, "read")
-    if data.get("surface") != expected_surface:
-        raise LocalDaemonTransportError(
-            f"unexpected local daemon read surface for {expected_surface}",
-            code="invalid_request",
-            fallback_reason=None,
-        )
-    surface_data = data.get("data")
-    if not isinstance(surface_data, dict):
-        raise LocalDaemonTransportError(
-            f"missing local daemon read data for {expected_surface}",
-            code="invalid_request",
-            fallback_reason=None,
-        )
-    return surface_data
-
-
-def _rpc_error(data: dict[str, Any]) -> LocalDaemonRpcError:
-    fallback_raw = data.get("fallback")
-    fallback: dict[str, Any] = fallback_raw if isinstance(fallback_raw, dict) else {}
-    details = data.get("details") if isinstance(data.get("details"), dict) else None
-    return LocalDaemonRpcError(
-        code=str(data.get("code", "internal")),
-        message=str(data.get("message", "local daemon RPC failed")),
-        retryable=bool(data.get("retryable", False)),
-        target=data.get("target") if isinstance(data.get("target"), str) else None,
-        details=details,
-        fallback_reason=(
-            fallback.get("reason") if isinstance(fallback.get("reason"), str) else None
-        ),
-        fallback_message=(
-            fallback.get("message")
-            if isinstance(fallback.get("message"), str)
-            else None
-        ),
-    )
-
-
-def _raise_for_rpc_error(response: dict[str, Any]) -> None:
-    response_payload = response.get("payload")
-    if (
-        isinstance(response_payload, dict)
-        and response_payload.get("type") == "error"
-        and isinstance(response_payload.get("data"), dict)
-    ):
-        raise _rpc_error(response_payload["data"])
