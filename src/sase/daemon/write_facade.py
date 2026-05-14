@@ -49,6 +49,8 @@ CAPABILITY_BY_WRITE_SURFACE = {
     "pending_actions.update": "notifications.write",
     "pending_actions.cleanup": "notifications.write",
     "workflow.action_response": "workflows.write",
+    "workflow.hitl_request": "workflows.write",
+    "workflow.step_transition": "workflows.write",
     "workflow.state": "workflows.write",
 }
 

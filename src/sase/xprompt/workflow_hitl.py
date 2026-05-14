@@ -84,7 +84,6 @@ class TUIHITLHandler:
         if os.path.exists(response_path):
             os.unlink(response_path)
 
-        # Write the request file
         request_data: dict[str, Any] = {
             "step_name": step_name,
             "step_type": step_type,
@@ -93,8 +92,20 @@ class TUIHITLHandler:
         }
         if output_types is not None:
             request_data["output_types"] = output_types
-        with open(request_path, "w", encoding="utf-8") as f:
-            json.dump(request_data, f, indent=2, default=str)
+
+        def direct_writer() -> None:
+            with open(request_path, "w", encoding="utf-8") as f:
+                json.dump(request_data, f, indent=2, default=str)
+
+        from sase.xprompt.workflow_daemon_writes import write_hitl_request
+
+        write_hitl_request(
+            request_path,
+            request_data,
+            workflow_id=os.path.basename(os.path.normpath(self.artifacts_dir)),
+            reason=f"{step_type}:{step_name}",
+            direct_writer=direct_writer,
+        )
 
         from sase.notifications.senders import notify_hitl_request
 

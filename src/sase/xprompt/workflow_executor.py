@@ -599,3 +599,36 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         except Exception:
             # Non-critical - just for TUI visibility
             pass
+
+        try:
+            from sase.xprompt.workflow_daemon_writes import (
+                write_workflow_step_transition,
+            )
+
+            write_workflow_step_transition(
+                self.artifacts_dir,
+                workflow_name=self.workflow.name,
+                step_name=step_name,
+                status=step_state.status.value,
+                step_index=step_index,
+                step_type=step_type,
+                step_source=step_source,
+                output=step_state.output,
+                output_types=output_types,
+                error=step_state.error,
+                traceback=step_state.traceback,
+                log_summary=_bounded_step_summary(step_state.output),
+            )
+        except Exception:
+            # Durable daemon step events are advisory while direct workflow
+            # execution remains the source-compatible fallback.
+            pass
+
+
+def _bounded_step_summary(output: Any) -> str | None:
+    if output is None:
+        return None
+    text = json.dumps(output, sort_keys=True, default=str)
+    if len(text) <= 4096:
+        return text
+    return text[:4093] + "..."
