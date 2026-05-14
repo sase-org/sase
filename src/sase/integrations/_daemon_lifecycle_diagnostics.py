@@ -418,6 +418,20 @@ def _source_exports_check_message(inspection: DaemonInspection) -> str:
     message = source_exports.get("message")
     if isinstance(message, str) and message:
         return message
+    conflict_count = _int_or_zero(source_exports.get("conflict"))
+    if conflict_count:
+        examples = source_exports.get("examples")
+        target = None
+        if isinstance(examples, list):
+            for example in examples:
+                if isinstance(example, dict) and example.get("target_path"):
+                    target = str(example["target_path"])
+                    break
+        detail = f"; first target: {target}" if target else ""
+        return (
+            f"{conflict_count} source export conflict(s) need manual review; "
+            f"run `sase daemon diff --surface all --json`{detail}"
+        )
     return ("pending={pending}, failed={failed}, conflicts={conflict}").format(
         pending=source_exports.get("pending", 0),
         failed=source_exports.get("failed", 0),
@@ -556,3 +570,10 @@ def _worst_check_state(states: Any) -> str:
             worst = str(state)
             worst_score = score
     return worst
+
+
+def _int_or_zero(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0

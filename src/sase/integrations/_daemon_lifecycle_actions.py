@@ -291,6 +291,13 @@ def _attach_source_export_health(payload: dict[str, Any], client: Any) -> None:
         projection.get("source_exports") if isinstance(projection, dict) else None
     )
     if isinstance(source_exports, dict):
+        existing = payload.get("source_exports")
+        if (
+            isinstance(existing, dict)
+            and "retry" in existing
+            and "retry" not in source_exports
+        ):
+            source_exports = {**source_exports, "retry": existing["retry"]}
         payload["source_exports"] = source_exports
 
 

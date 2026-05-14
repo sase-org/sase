@@ -216,7 +216,14 @@ def handle_daemon_rebuild(args: argparse.Namespace) -> int:
         source = payload.get("source")
         print(f"Rebuild: {mode} completed via {source}.")
         if limitation:
-            print(f"Limitation: {limitation}")
+            prefix = (
+                "WARNING: reset-storage limitation"
+                if payload.get("storage_reset_only")
+                else "Limitation"
+            )
+            print(f"{prefix}: {limitation}")
+        if payload.get("elapsed_ms") is not None:
+            print(f"Elapsed: {payload['elapsed_ms']} ms")
         source_exports = payload.get("source_exports")
         if isinstance(source_exports, dict):
             print(
@@ -228,6 +235,23 @@ def handle_daemon_rebuild(args: argparse.Namespace) -> int:
                     conflict=source_exports.get("conflict", 0),
                 )
             )
+            retry = source_exports.get("retry")
+            if isinstance(retry, dict):
+                print(
+                    "Source export retry: attempted={attempted} applied={applied} "
+                    "failed={failed} conflicts={conflict} preserved_conflicts={preserved}".format(
+                        attempted=retry.get("attempted", 0),
+                        applied=retry.get("applied", 0),
+                        failed=retry.get("failed", 0),
+                        conflict=retry.get("conflict", 0),
+                        preserved=retry.get("preserved_conflicts", 0),
+                    )
+                )
+        for summary in payload.get("summaries", []):
+            if isinstance(summary, dict):
+                _print_indexing_summary(summary)
+        if payload.get("next_command"):
+            print(f"Next: {payload['next_command']}")
     return 0
 
 
@@ -245,22 +269,7 @@ def handle_daemon_verify(args: argparse.Namespace) -> int:
         print(f"Verify: {state}")
         for summary in payload.get("summaries", []):
             if isinstance(summary, dict):
-                counts = summary.get("diff_counts", {})
-                print(
-                    "- {surface}: {state} "
-                    "missing={missing} stale={stale} extra={extra} corrupt={corrupt}".format(
-                        surface=summary.get("surface", "unknown"),
-                        state=summary.get("state", "unknown"),
-                        missing=counts.get("missing", 0)
-                        if isinstance(counts, dict)
-                        else 0,
-                        stale=counts.get("stale", 0) if isinstance(counts, dict) else 0,
-                        extra=counts.get("extra", 0) if isinstance(counts, dict) else 0,
-                        corrupt=counts.get("corrupt", 0)
-                        if isinstance(counts, dict)
-                        else 0,
-                    )
-                )
+                _print_indexing_summary(summary)
     return 0 if payload.get("ok") else 1
 
 
@@ -287,6 +296,8 @@ def handle_daemon_diff(args: argparse.Namespace) -> int:
                 )
         if payload.get("next_cursor"):
             print(f"Next cursor: {payload['next_cursor']}")
+        if payload.get("next_command"):
+            print(f"Next: {payload['next_command']}")
     counts = payload.get("counts")
     has_diff = (
         isinstance(counts, dict)
@@ -296,6 +307,31 @@ def handle_daemon_diff(args: argparse.Namespace) -> int:
         > 0
     )
     return 1 if has_diff else 0
+
+
+def _print_indexing_summary(summary: dict[str, Any]) -> None:
+    counts = summary.get("diff_counts", {})
+    if not isinstance(counts, dict):
+        counts = {}
+    print(
+        "- {surface}: {state} scanned={scanned} indexed={indexed} skipped={skipped} "
+        "parse_failures={parse_failures} missing={missing} stale={stale} "
+        "extra={extra} corrupt={corrupt} elapsed_ms={elapsed}".format(
+            surface=summary.get("surface", "unknown"),
+            state=summary.get("state", "unknown"),
+            scanned=summary.get("scanned_sources", 0),
+            indexed=summary.get("indexed_rows", 0),
+            skipped=summary.get("skipped_rows", 0),
+            parse_failures=summary.get("parse_failures", 0),
+            missing=counts.get("missing", 0),
+            stale=counts.get("stale", 0),
+            extra=counts.get("extra", 0),
+            corrupt=counts.get("corrupt", 0),
+            elapsed=summary.get("elapsed_ms", 0),
+        )
+    )
+    if summary.get("next_command"):
+        print(f"  Next: {summary['next_command']}")
 
 
 def _handle_daemon_scheduler_status(args: argparse.Namespace) -> int:
