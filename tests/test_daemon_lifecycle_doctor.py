@@ -160,6 +160,78 @@ def test_doctor_distinguishes_degraded_projection(
     assert projection["message"] == "projection replay needs repair"
 
 
+def test_health_rpc_keeps_liveness_when_detailed_diagnostics_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    socket_path = tmp_path / "sase-daemon.sock"
+    socket_path.write_text("", encoding="utf-8")
+
+    class FakeClient:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+        def health(
+            self,
+            *,
+            include_capabilities: bool = True,
+            timeout: float | None = None,
+        ) -> dict[str, object]:
+            if not include_capabilities:
+                return {
+                    "status": "ok",
+                    "details": {"projection_db": {"state": "ok"}},
+                }
+            raise TimeoutError(f"detailed health timed out after {timeout}")
+
+    monkeypatch.setattr("sase.daemon.client.LocalDaemonClient", FakeClient)
+
+    rpc = lifecycle._try_health_rpc(socket_path)
+
+    assert rpc["available"] is True
+    assert rpc["health"] == {
+        "status": "ok",
+        "details": {"projection_db": {"state": "ok"}},
+    }
+    assert rpc["diagnostics"]["available"] is False
+    assert "detailed health timed out" in rpc["diagnostics"]["message"]
+
+
+def test_doctor_marks_slow_detailed_diagnostics_unknown_not_rpc_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOSTNAME", "workstation.local")
+    run_root = tmp_path / "run"
+    _write_metadata(run_root, _metadata(os.getpid(), "workstation.local"))
+    monkeypatch.setattr(
+        lifecycle,
+        "_try_health_rpc",
+        lambda _socket: {
+            "available": True,
+            "health": {
+                "status": "ok",
+                "details": {"projection_db": {"state": "ok"}},
+            },
+            "diagnostics": {
+                "available": False,
+                "message": "detailed health timed out",
+            },
+        },
+    )
+
+    inspection = lifecycle._inspect_daemon(
+        _args(sase_home=str(tmp_path / "home"), run_root=str(run_root))
+    )
+    payload = lifecycle._doctor_payload(inspection)  # noqa: SLF001
+    checks = {check["name"]: check for check in payload["doctor"]["checks"]}
+
+    assert checks["socket_rpc_health"]["state"] == "ok"
+    assert "detailed diagnostics unavailable" in checks["socket_rpc_health"]["message"]
+    assert checks["source_exports"]["state"] == "unknown"
+    assert checks["scheduler"]["state"] == "unknown"
+
+
 def test_doctor_reports_source_export_conflicts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -197,10 +197,16 @@ def try_health_rpc(socket_path: Path) -> dict[str, Any]:
         }
 
     try:
-        if hasattr(daemon_client, "health"):
-            health = daemon_client.health(socket_path=socket_path, timeout=0.5)
-        elif hasattr(daemon_client, "LocalDaemonClient"):
-            health = daemon_client.LocalDaemonClient(socket_path, timeout=0.5).health()
+        if hasattr(daemon_client, "LocalDaemonClient"):
+            client = daemon_client.LocalDaemonClient(socket_path, timeout=0.5)
+            health = client.health(include_capabilities=False)
+        elif hasattr(daemon_client, "health"):
+            health = daemon_client.health(
+                socket_path=socket_path,
+                timeout=0.5,
+                include_capabilities=False,
+            )
+            client = None
         else:
             return {
                 "available": False,
@@ -208,4 +214,40 @@ def try_health_rpc(socket_path: Path) -> dict[str, Any]:
             }
     except Exception as exc:
         return {"available": False, "message": str(exc)}
-    return {"available": True, "health": health}
+
+    rpc: dict[str, Any] = {"available": True, "health": health}
+    try:
+        if client is not None:
+            rpc["health"] = client.health(
+                include_capabilities=True,
+                timeout=2.0,
+            )
+        else:
+            rpc["health"] = daemon_client.health(
+                socket_path=socket_path,
+                timeout=2.0,
+                include_capabilities=True,
+            )
+        diagnostics = _health_diagnostics_unavailable(rpc["health"])
+        if diagnostics is not None:
+            rpc["diagnostics"] = diagnostics
+    except Exception as exc:
+        rpc["diagnostics"] = {
+            "available": False,
+            "message": str(exc),
+        }
+    return rpc
+
+
+def _health_diagnostics_unavailable(health: Any) -> dict[str, Any] | None:
+    if not isinstance(health, dict):
+        return None
+    details = health.get("details")
+    if not isinstance(details, dict):
+        return None
+    diagnostics = details.get("diagnostics")
+    if not isinstance(diagnostics, dict):
+        return None
+    if diagnostics.get("available") is not False:
+        return None
+    return diagnostics

@@ -405,7 +405,10 @@ class LocalDaemonClient(LocalDaemonReadMixin):
             response_payload = read_exact(sock, expected)
         except TimeoutError as error:
             raise LocalDaemonUnavailableError(
-                f"timed out talking to local daemon at {self.socket_path}",
+                (
+                    "timed out waiting for local daemon response after connecting "
+                    f"to {self.socket_path}"
+                ),
                 fallback_reason="daemon_not_running",
                 retryable=True,
             ) from error
@@ -434,9 +437,14 @@ class LocalDaemonClient(LocalDaemonReadMixin):
 
 
 def health(
-    *, socket_path: str | Path | None = None, timeout: float = 1.0
+    *,
+    socket_path: str | Path | None = None,
+    timeout: float = 1.0,
+    include_capabilities: bool = True,
 ) -> dict[str, Any]:
-    return LocalDaemonClient(socket_path, timeout=timeout).health()
+    return LocalDaemonClient(socket_path, timeout=timeout).health(
+        include_capabilities=include_capabilities
+    )
 
 
 def rebuild(

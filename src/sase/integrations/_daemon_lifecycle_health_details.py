@@ -40,6 +40,12 @@ def rpc_check_message(inspection: DaemonInspection) -> str:
         return str(inspection.rpc.get("message") or "local RPC unavailable")
     health = inspection.rpc.get("health")
     if isinstance(health, dict):
+        diagnostics = _diagnostics_unavailable(inspection)
+        if diagnostics:
+            return (
+                f"health status {health.get('status', 'unknown')}; "
+                f"detailed diagnostics unavailable: {diagnostics}"
+            )
         return f"health status {health.get('status', 'unknown')}"
     return "local RPC health is available"
 
@@ -88,6 +94,8 @@ def source_exports_check_state(inspection: DaemonInspection) -> str:
     if source_exports is None:
         if inspection.state != "running":
             return "skipped"
+        if _diagnostics_unavailable(inspection):
+            return "unknown"
         return "ok" if projection_details(inspection) is not None else "unknown"
     state = source_exports.get("state")
     if state == "ok":
@@ -100,6 +108,9 @@ def source_exports_check_state(inspection: DaemonInspection) -> str:
 def source_exports_check_message(inspection: DaemonInspection) -> str:
     source_exports = _source_exports_details(inspection)
     if source_exports is None:
+        diagnostics = _diagnostics_unavailable(inspection)
+        if diagnostics:
+            return f"detailed source-export diagnostics unavailable: {diagnostics}"
         if projection_details(inspection) is not None:
             return "source-export diagnostics were not reported"
         return "source-export diagnostics require live daemon RPC"
@@ -179,6 +190,8 @@ def _indexing_details(inspection: DaemonInspection) -> dict[str, Any] | None:
 def scheduler_check_state(inspection: DaemonInspection) -> str:
     scheduler = scheduler_details(inspection)
     if scheduler is None:
+        if _diagnostics_unavailable(inspection):
+            return "unknown"
         return "skipped" if inspection.state != "running" else "unknown"
     state = scheduler.get("state")
     if state == "ok":
@@ -191,6 +204,9 @@ def scheduler_check_state(inspection: DaemonInspection) -> str:
 def scheduler_check_message(inspection: DaemonInspection) -> str:
     scheduler = scheduler_details(inspection)
     if scheduler is None:
+        diagnostics = _diagnostics_unavailable(inspection)
+        if diagnostics:
+            return f"detailed scheduler diagnostics unavailable: {diagnostics}"
         return "scheduler health requires live daemon RPC"
     message = scheduler.get("message")
     if isinstance(message, str) and message:
@@ -222,6 +238,17 @@ def scheduler_details(inspection: DaemonInspection) -> dict[str, Any] | None:
     details = health.get("details") if isinstance(health, dict) else None
     scheduler = details.get("scheduler") if isinstance(details, dict) else None
     return scheduler if isinstance(scheduler, dict) else None
+
+
+def _diagnostics_unavailable(inspection: DaemonInspection) -> str | None:
+    rpc = inspection.rpc or {}
+    diagnostics = rpc.get("diagnostics") if isinstance(rpc, dict) else None
+    if not isinstance(diagnostics, dict):
+        return None
+    if diagnostics.get("available") is not False:
+        return None
+    message = diagnostics.get("message")
+    return str(message or "diagnostic health RPC failed")
 
 
 def mobile_http_check_state(inspection: DaemonInspection) -> str:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-14 14:44:15
-status: wip
+status: done
 prompt: sdd/prompts/202605/daemon_rpc_timeout.md
 ---
 # Plan: Diagnose and Fix Daemon RPC Health Timeouts
