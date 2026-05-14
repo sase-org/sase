@@ -25,11 +25,17 @@ FALLBACKABLE_WRITE_RPC_CODES = {
 }
 
 CAPABILITY_BY_WRITE_SURFACE = {
+    "agents.dismissed_identity": "agents.write",
+    "agents.archive_bundle": "agents.write",
+    "agents.archive_revived": "agents.write",
+    "agents.archive_purged": "agents.write",
+    "agents.artifact_associated": "agents.write",
+    "agents.cleanup_result": "agents.write",
     "beads": "beads.write",
-    "contract": "writes.contract",
     "changespec.status": "changespecs.write",
     "changespec.field": "changespecs.write",
     "changespec.comments": "changespecs.write",
+    "contract": "writes.contract",
 }
 
 

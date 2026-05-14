@@ -40,20 +40,52 @@ def save_dismissed_bundle(ctx: Any, agent: Agent) -> bool:
     if agent.raw_suffix is None:
         return False
     bundle = agent.to_bundle_dict()
+
+    def direct_writer() -> bool:
+        try:
+            saved_path = ctx._save_dismissed_bundle_python(
+                ctx._DISMISSED_BUNDLES_DIR, bundle
+            )
+        except OSError:
+            return False
+
+        try:
+            from .dismissed_bundle_index import upsert_bundle_summary
+
+            upsert_bundle_summary(ctx._DISMISSED_BUNDLES_DIR, saved_path, bundle)
+        except (OSError, ValueError):
+            pass
+        return True
+
     try:
-        saved_path = ctx._save_dismissed_bundle_python(
-            ctx._DISMISSED_BUNDLES_DIR, bundle
+        from sase.daemon.agent_writes import (
+            atomic_json_export,
+            daemon_agent_write,
+            project_id_from_bundle,
+            write_agent_metadata_or_fallback,
         )
-    except OSError:
-        return False
 
-    try:
-        from .dismissed_bundle_index import upsert_bundle_summary
+        target = _bundle_target_path(ctx, bundle)
+        content = json.dumps(bundle, indent=2) + "\n"
+        archive = _archive_summary_from_bundle(bundle, target)
 
-        upsert_bundle_summary(ctx._DISMISSED_BUNDLES_DIR, saved_path, bundle)
+        def daemon_writer(client: Any) -> bool:
+            daemon_agent_write(
+                client,
+                "agents.archive_bundle",
+                project_id=project_id_from_bundle(bundle),
+                payload={"archive": archive, "bundle": bundle},
+                source_exports=[atomic_json_export(target, content)],
+            )
+            return True
+
+        return write_agent_metadata_or_fallback(
+            "agents.archive_bundle",
+            daemon_writer=daemon_writer,
+            direct_writer=direct_writer,
+        )
     except (OSError, ValueError):
-        pass
-    return True
+        return direct_writer()
 
 
 def rebuild_dismissed_bundle_index(ctx: Any) -> tuple[int, int]:
@@ -135,10 +167,47 @@ def mark_bundles_revived_by_suffixes(
     revived_at: str | None = None,
 ) -> int:
     """Preserve dismissed bundles after revive without archive lifecycle markers."""
-    del revived_at
     if not suffixes:
         return 0
-    return len(ctx._bundle_paths_for_suffixes(suffixes))
+    bundle_paths = ctx._bundle_paths_for_suffixes(suffixes)
+
+    def direct_writer() -> int:
+        return len(bundle_paths)
+
+    try:
+        from datetime import UTC, datetime
+
+        from sase.daemon.agent_writes import (
+            daemon_agent_write,
+            write_agent_metadata_or_fallback,
+        )
+
+        revived_value = revived_at or datetime.now(UTC).isoformat()
+
+        def daemon_writer(client: Any) -> int:
+            changed = 0
+            for path in bundle_paths:
+                bundle = _read_json_dict(path)
+                project_id = str(bundle.get("project_name") or "global")
+                daemon_agent_write(
+                    client,
+                    "agents.archive_revived",
+                    project_id=project_id,
+                    payload={
+                        "bundle_path": str(path),
+                        "revived_at": revived_value,
+                    },
+                )
+                changed += 1
+            return changed
+
+        return write_agent_metadata_or_fallback(
+            "agents.archive_revived",
+            daemon_writer=daemon_writer,
+            direct_writer=direct_writer,
+        )
+    except (OSError, ValueError, json.JSONDecodeError):
+        return direct_writer()
 
 
 def bundle_paths_for_suffixes(ctx: Any, suffixes: set[str]) -> list[Path]:
@@ -187,6 +256,63 @@ def save_dismissed_bundle_python(root: Path, bundle: dict[str, Any]) -> Path:
         pass
     write_json_file_atomic(target, bundle)
     return target
+
+
+def _bundle_target_path(ctx: Any, bundle: dict[str, Any]) -> Path:
+    raw_suffix = bundle.get("raw_suffix")
+    if not isinstance(raw_suffix, str) or not raw_suffix:
+        raise OSError("dismissed bundle missing raw_suffix")
+    is_child = bool(bundle.get("parent_workflow") or bundle.get("parent_timestamp"))
+    if is_child:
+        step_index = bundle.get("step_index")
+        if not isinstance(step_index, int):
+            step_index = 0
+        filename = f"{raw_suffix}__c{step_index}.json"
+    else:
+        filename = f"{raw_suffix}.json"
+    try:
+        return ctx._bundle_shard_dir(filename) / filename
+    except (OSError, ValueError):
+        return ctx._DISMISSED_BUNDLES_DIR / filename
+
+
+def _archive_summary_from_bundle(
+    bundle: dict[str, Any], target: Path
+) -> dict[str, Any]:
+    from sase.daemon.agent_writes import agent_id, project_id_from_bundle
+
+    raw_suffix = str(bundle.get("raw_suffix") or "")
+    project_id = project_id_from_bundle(bundle)
+    return {
+        "agent_id": agent_id(project_id, raw_suffix),
+        "raw_suffix": raw_suffix,
+        "bundle_path": str(target),
+        "cl_name": str(bundle.get("cl_name") or "unknown"),
+        "agent_name": bundle.get("agent_name"),
+        "status": str(bundle.get("status") or "DONE"),
+        "start_time": bundle.get("start_time"),
+        "dismissed_at": bundle.get("dismissed_at") or bundle.get("stop_time"),
+        "revived_at": bundle.get("revived_at"),
+        "project_name": project_id,
+        "model": bundle.get("model"),
+        "runtime": bundle.get("runtime") or bundle.get("llm_provider"),
+        "llm_provider": bundle.get("llm_provider"),
+        "step_index": bundle.get("step_index"),
+        "step_name": bundle.get("step_name"),
+        "step_type": bundle.get("step_type"),
+        "retry_attempt": int(bundle.get("retry_attempt") or 0),
+        "is_workflow_child": bool(
+            bundle.get("is_workflow_child")
+            or bundle.get("parent_workflow")
+            or bundle.get("parent_timestamp")
+        ),
+    }
+
+
+def _read_json_dict(path: Path) -> dict[str, Any]:
+    with path.open(encoding="utf-8") as handle:
+        data = json.load(handle)
+    return data if isinstance(data, dict) else {}
 
 
 def write_json_file_atomic(path: Path, data: dict[str, Any]) -> None:
