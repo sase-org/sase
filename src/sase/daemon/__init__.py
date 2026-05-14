@@ -41,6 +41,12 @@ from sase.daemon.write_facade import (
     is_fallbackable_daemon_write_error,
     write_or_fallback,
 )
+from sase.daemon.rollout_registry import (
+    RolloutSurfaceRecord,
+    rollout_records_by_family,
+    rollout_records_by_id,
+    rollout_surface_records,
+)
 from sase.daemon.read_models import (
     PROJECTION_READ_SCHEMA_VERSION,
     BeadDetailRead,
@@ -110,6 +116,7 @@ __all__ = [
     "ProjectionPage",
     "ProjectionPayloadBound",
     "ProjectionSnapshot",
+    "RolloutSurfaceRecord",
     "SchedulerAxeTaskSpec",
     "SchedulerAxeTaskSubmit",
     "SchedulerBatchSubmit",
@@ -142,6 +149,9 @@ __all__ = [
     "read_or_fallback",
     "read_scheduler_batch_status",
     "rebuild",
+    "rollout_records_by_family",
+    "rollout_records_by_id",
+    "rollout_surface_records",
     "submit_scheduler_batch",
     "submit_scheduler_axe_tasks",
     "scheduler_host_slot_from_request",
