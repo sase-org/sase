@@ -16,6 +16,7 @@ from sase.daemon.client import (
     LocalDaemonClient,
     LocalDaemonRpcError,
     LocalDaemonTransportError,
+    LocalDaemonUnavailableError,
     default_socket_path,
 )
 
@@ -94,6 +95,43 @@ def test_rpc_error_exposes_typed_fallback(tmp_path: Path) -> None:
     assert error.value.code == "unsupported_client_version"
     assert error.value.target == "schema_version"
     assert error.value.fallback_reason == "unsupported_client_version"
+
+
+def test_rebuild_sends_storage_reset_request(tmp_path: Path) -> None:
+    request_holder: dict[str, Any] = {}
+    socket_path = tmp_path / "daemon.sock"
+    response = {
+        "schema_version": 1,
+        "request_id": "req_rebuild",
+        "snapshot_id": None,
+        "payload": {
+            "type": "rebuild",
+            "data": {
+                "schema_version": 1,
+                "mode": "projection_storage_rebuild",
+                "storage_reset_only": True,
+                "limitation": "storage reset/replay only",
+                "report": {"seeded_events": 0},
+            },
+        },
+    }
+    thread = _serve_one(socket_path, response, request_holder)
+
+    result = LocalDaemonClient(socket_path, timeout=1.0).rebuild()
+    thread.join(timeout=1)
+
+    assert result["mode"] == "projection_storage_rebuild"
+    assert request_holder["request"]["payload"] == {
+        "type": "rebuild",
+        "data": {"storage_reset_only": True},
+    }
+
+
+def test_missing_socket_raises_typed_unavailable(tmp_path: Path) -> None:
+    with pytest.raises(LocalDaemonUnavailableError) as error:
+        LocalDaemonClient(tmp_path / "missing.sock", timeout=0.01).health()
+
+    assert error.value.fallback_reason == "daemon_not_running"
 
 
 def test_read_events_sends_subscription_request_and_reads_bounded_batches(

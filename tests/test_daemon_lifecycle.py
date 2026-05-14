@@ -34,6 +34,7 @@ def _args(**overrides: Any) -> argparse.Namespace:
         "daemon_command": None,
         "startup_timeout": None,
         "stop_timeout": None,
+        "rebuild_timeout": None,
         "json_output": False,
     }
     values.update(overrides)
@@ -316,3 +317,90 @@ def test_status_json_includes_log_path_and_metrics_endpoint(
 
     assert payload["log_path"] == str(run_root / "daemon.log")
     assert payload["metrics_endpoint"] == "http://127.0.0.1:7629/metrics"
+
+
+def test_doctor_distinguishes_degraded_projection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOSTNAME", "workstation.local")
+    run_root = tmp_path / "run"
+    _write_metadata(run_root, _metadata(os.getpid(), "workstation.local"))
+    monkeypatch.setattr(
+        lifecycle,
+        "_try_health_rpc",
+        lambda _socket: {
+            "available": True,
+            "health": {
+                "status": "degraded",
+                "details": {
+                    "projection_db": {
+                        "state": "degraded",
+                        "schema_initialized": True,
+                        "migrations_applied": True,
+                        "repair_needed": True,
+                        "gap_count": 1,
+                        "recovery_issue_count": 0,
+                        "message": "projection replay needs repair",
+                    }
+                },
+            },
+        },
+    )
+
+    inspection = lifecycle._inspect_daemon(
+        _args(sase_home=str(tmp_path / "home"), run_root=str(run_root))
+    )
+    payload = lifecycle._doctor_payload(inspection)  # noqa: SLF001
+
+    assert payload["doctor"]["state"] == "degraded"
+    projection = [
+        check
+        for check in payload["doctor"]["checks"]
+        if check["name"] == "projection_db"
+    ][0]
+    assert projection["state"] == "degraded"
+    assert projection["message"] == "projection replay needs repair"
+
+
+def test_rebuild_uses_live_daemon_rpc(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root = tmp_path / "run"
+    socket_path = tmp_path / "daemon.sock"
+    monkeypatch.setattr(
+        lifecycle,
+        "_inspect_daemon",
+        lambda _args: lifecycle._DaemonInspection(
+            state="running",
+            paths=lifecycle._DaemonRuntimePaths(
+                sase_home=tmp_path / "home",
+                run_root=run_root,
+                socket_path=socket_path,
+                metadata_path=run_root / "daemon.lock.json",
+            ),
+            metadata=_metadata(1234, "host"),
+            rpc={"available": True, "health": {"status": "ok"}},
+        ),
+    )
+
+    class FakeClient:
+        def __init__(self, socket_path_arg: Path, *, timeout: float) -> None:
+            assert socket_path_arg == socket_path
+            assert timeout == 3
+
+        def rebuild(self, *, storage_reset_only: bool) -> dict[str, Any]:
+            assert storage_reset_only is True
+            return {"mode": "projection_storage_rebuild"}
+
+    monkeypatch.setattr("sase.daemon.client.LocalDaemonClient", FakeClient)
+
+    payload = lifecycle._run_daemon_rebuild(  # noqa: SLF001
+        _args(rebuild_timeout=3)
+    )
+
+    assert payload == {
+        "mode": "projection_storage_rebuild",
+        "source": "live_daemon_rpc",
+    }

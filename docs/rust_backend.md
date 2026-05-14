@@ -135,6 +135,24 @@ The Python repo owns user-facing startup through `sase mobile gateway start`, co
 glue. See [`docs/mobile_gateway.md`](mobile_gateway.md) for local setup, pairing, Tailscale Serve guidance, security
 notes, and the contract snapshot path used by future Android work.
 
+## Local Daemon
+
+The local daemon is built by the same `crates/sase_gateway` binary in the sibling `../sase-core/` workspace.
+`sase daemon start` launches `sase_gateway daemon`, stores host-local runtime files under `~/.sase/run/<hostname>/`, and
+exposes a Unix-socket framed JSON RPC surface for health, capabilities, bounded event heartbeats, diagnostics, and
+projection maintenance. Direct Python source-store readers remain authoritative until later indexed-read epics route
+CLI, ACE, editor, and mobile read paths through the daemon.
+
+Recovery commands:
+
+- `sase daemon status` reads ownership metadata first, then local RPC health when the socket is available.
+- `sase daemon doctor` distinguishes stopped, healthy, degraded projection, stale lock, incompatible metadata, and
+  host-conflict states.
+- `sase daemon rebuild` uses a live daemon RPC when possible; while stopped, it runs
+  `sase_gateway daemon --rebuild-once`, which acquires daemon ownership, resets projection tables, replays retained
+  projection events, prints JSON, and exits. Domain source-store reindexing is intentionally deferred until filesystem
+  indexing lands, so rebuild output reports the current "storage reset/replay only" limitation.
+
 ## Bead Backend
 
 The `sase bead` migration is tracked by `sdd/epics/202605/bead_rust_backend_migration.md`. The shipped path is now

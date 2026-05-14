@@ -34,6 +34,10 @@ class LocalDaemonTransportError(LocalDaemonError):
         return self.message
 
 
+class LocalDaemonUnavailableError(LocalDaemonTransportError):
+    """Typed failure for unavailable local daemon transport."""
+
+
 @dataclass(frozen=True)
 class LocalDaemonRpcError(LocalDaemonError):
     """Typed error returned by the local daemon RPC protocol."""
@@ -113,6 +117,15 @@ class LocalDaemonClient:
     def batch(self, requests: list[dict[str, Any]]) -> dict[str, Any]:
         response = self.request({"type": "batch", "data": {"requests": requests}})
         return _payload_data(response, "batch")
+
+    def rebuild(self, *, storage_reset_only: bool = True) -> dict[str, Any]:
+        response = self.request(
+            {
+                "type": "rebuild",
+                "data": {"storage_reset_only": storage_reset_only},
+            }
+        )
+        return _payload_data(response, "rebuild")
 
     def events(
         self,
@@ -218,7 +231,7 @@ class LocalDaemonClient:
         except TimeoutError as error:
             if sock is not None:
                 sock.close()
-            raise LocalDaemonTransportError(
+            raise LocalDaemonUnavailableError(
                 f"timed out talking to local daemon at {self.socket_path}",
                 fallback_reason="daemon_not_running",
                 retryable=True,
@@ -226,7 +239,7 @@ class LocalDaemonClient:
         except OSError as error:
             if sock is not None:
                 sock.close()
-            raise LocalDaemonTransportError(
+            raise LocalDaemonUnavailableError(
                 f"local daemon socket unavailable at {self.socket_path}: {error}",
                 fallback_reason="daemon_not_running",
             ) from error
@@ -246,13 +259,13 @@ class LocalDaemonClient:
                 )
             response_payload = _read_exact(sock, expected)
         except TimeoutError as error:
-            raise LocalDaemonTransportError(
+            raise LocalDaemonUnavailableError(
                 f"timed out talking to local daemon at {self.socket_path}",
                 fallback_reason="daemon_not_running",
                 retryable=True,
             ) from error
         except OSError as error:
-            raise LocalDaemonTransportError(
+            raise LocalDaemonUnavailableError(
                 f"local daemon socket read failed at {self.socket_path}: {error}",
                 fallback_reason="daemon_not_running",
                 retryable=True,
@@ -285,6 +298,30 @@ def default_socket_path(
         host_identity if host_identity is not None else os.environ.get("HOSTNAME")
     )
     return home / "run" / host / "sase-daemon.sock"
+
+
+def health(
+    *, socket_path: str | Path | None = None, timeout: float = 1.0
+) -> dict[str, Any]:
+    return LocalDaemonClient(socket_path, timeout=timeout).health()
+
+
+def rebuild(
+    *,
+    socket_path: str | Path | None = None,
+    timeout: float = 5.0,
+    storage_reset_only: bool = True,
+) -> dict[str, Any]:
+    return LocalDaemonClient(socket_path, timeout=timeout).rebuild(
+        storage_reset_only=storage_reset_only
+    )
+
+
+def daemon_disabled(args: Any | None = None) -> bool:
+    """Shared hook for future commands that expose ``--no-daemon``."""
+    arg_value = bool(getattr(args, "no_daemon", False)) if args is not None else False
+    env_value = os.environ.get("SASE_NO_DAEMON", "").strip().lower()
+    return arg_value or env_value in {"1", "true", "yes", "on"}
 
 
 def _default_sase_home() -> Path:

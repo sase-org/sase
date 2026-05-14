@@ -112,6 +112,19 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Rebuild daemon projections",
     )
     _add_runtime_options(rebuild_parser)
+    rebuild_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable rebuild JSON",
+    )
+    rebuild_parser.add_argument(
+        "-T",
+        "--timeout",
+        type=float,
+        dest="rebuild_timeout",
+        help="Seconds to wait for live-daemon rebuild RPC",
+    )
 
 
 def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
