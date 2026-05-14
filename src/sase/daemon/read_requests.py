@@ -42,10 +42,13 @@ class LocalDaemonReadMixin:
         surface: str,
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        request_data: dict[str, Any] = {"surface": surface}
+        if data is not None:
+            request_data["data"] = data
         response = self.request(
             {
                 "type": "read",
-                "data": {"surface": surface, "data": data or {}},
+                "data": request_data,
             }
         )
         return read_payload_data(response, surface)

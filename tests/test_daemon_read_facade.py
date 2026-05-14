@@ -102,6 +102,24 @@ def test_all_phase_5a_read_client_methods_emit_contract_surfaces() -> None:
         assert payload["data"]["surface"] == expected_surface
 
 
+def test_unit_read_client_methods_omit_data_field_for_rust_wire_contract() -> None:
+    """Unit enum read surfaces must not send an empty content payload."""
+
+    transport = FakeDaemonTransport(
+        reads={
+            "notification_counts": [{}],
+            "notification_pending_actions": [{}],
+        }
+    )
+    client = LocalDaemonClient(transport=transport)
+
+    assert client.notification_counts() == {}
+    assert client.notification_pending_actions() == {}
+
+    assert transport.requests[-2]["data"] == {"surface": "notification_counts"}
+    assert transport.requests[-1]["data"] == {"surface": "notification_pending_actions"}
+
+
 def test_notification_list_request_matches_contract_shape() -> None:
     transport = FakeDaemonTransport(
         reads={"notification_list": [_notification_page([])]}
