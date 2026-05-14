@@ -13,6 +13,10 @@ from sase.xprompt.workflow_executor_utils import (
     parse_bash_output,
     render_template,
 )
+from sase.xprompt.workflow_host_steps import (
+    run_hosted_bash_step,
+    run_hosted_python_step,
+)
 from sase.xprompt.workflow_models import (
     StepState,
     StepStatus,
@@ -101,39 +105,47 @@ class ScriptStepMixin:
         if python_bin_dir not in current_path.split(os.pathsep):
             env["PATH"] = python_bin_dir + os.pathsep + current_path
 
-        # Execute command
-        try:
-            result = subprocess.run(
-                rendered_command,
-                shell=True,
-                capture_output=True,
-                text=True,
-                cwd=os.getcwd(),
-                env=env,
-            )
-        except Exception as e:
-            raise WorkflowExecutionError(
-                f"Failed to execute bash step '{step.name}': {e}"
-            ) from e
+        host_result = run_hosted_bash_step(rendered_command, cwd=os.getcwd(), env=env)
+        if host_result is None:
+            try:
+                result = subprocess.run(
+                    rendered_command,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    cwd=os.getcwd(),
+                    env=env,
+                )
+            except Exception as e:
+                raise WorkflowExecutionError(
+                    f"Failed to execute bash step '{step.name}': {e}"
+                ) from e
+            returncode = result.returncode
+            stdout = result.stdout
+            stderr = result.stderr
+        else:
+            returncode = host_result.returncode
+            stdout = host_result.stdout
+            stderr = host_result.stderr
 
-        if result.returncode != 0:
+        if returncode != 0:
             parts = []
-            if result.stderr.strip():
-                parts.append(result.stderr.strip())
-            if result.stdout.strip():
-                parts.append(result.stdout.strip())
-            error_msg = "\n".join(parts) if parts else f"Exit code {result.returncode}"
+            if stderr.strip():
+                parts.append(stderr.strip())
+            if stdout.strip():
+                parts.append(stdout.strip())
+            error_msg = "\n".join(parts) if parts else f"Exit code {returncode}"
             raise WorkflowExecutionError(f"Bash step '{step.name}' failed: {error_msg}")
 
         # Save stdout artifact before parsing key=value output
         artifact_path: str | None = None
-        if step.artifact == "stdout" and result.stdout.strip():
+        if step.artifact == "stdout" and stdout.strip():
             artifact_path = os.path.join(self.artifacts_dir, f"{step.name}.stdout")
             with open(artifact_path, "w") as f:
-                f.write(result.stdout)
+                f.write(stdout)
 
         # Parse output
-        output = parse_bash_output(result.stdout)
+        output = parse_bash_output(stdout)
 
         # Coerce types based on output schema (e.g. "true" → True for bool fields)
         step_output_types = output_types_from_step(step)
@@ -249,49 +261,56 @@ class ScriptStepMixin:
         # Render code with Jinja2 context
         rendered_code = render_template(step.python, self.context)
 
-        # Execute python code using the same interpreter.
-        # stderr is streamed in real-time so long-running subprocesses
-        # (e.g. sase_hg_sync) surface progress output as it happens,
-        # while also being collected for error reporting on failure.
-        try:
-            proc = subprocess.Popen(
-                [sys.executable, "-c", rendered_code],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                cwd=os.getcwd(),
-            )
-        except Exception as e:
-            raise WorkflowExecutionError(
-                f"Failed to execute python step '{step.name}': {e}"
-            ) from e
+        host_result = run_hosted_python_step(
+            rendered_code, cwd=os.getcwd(), env=dict(os.environ)
+        )
+        if host_result is None:
+            # Execute python code using the same interpreter.
+            # stderr is streamed in real-time so long-running subprocesses
+            # (e.g. sase_hg_sync) surface progress output as it happens,
+            # while also being collected for error reporting on failure.
+            try:
+                proc = subprocess.Popen(
+                    [sys.executable, "-c", rendered_code],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    cwd=os.getcwd(),
+                )
+            except Exception as e:
+                raise WorkflowExecutionError(
+                    f"Failed to execute python step '{step.name}': {e}"
+                ) from e
 
-        # Stream stderr to the terminal in real-time while collecting it.
-        stderr_lines: list[str] = []
+            # Stream stderr to the terminal in real-time while collecting it.
+            stderr_lines: list[str] = []
 
-        def _stream_stderr() -> None:
-            assert proc.stderr is not None
-            for line in proc.stderr:
-                sys.stderr.write(line)
-                sys.stderr.flush()
-                stderr_lines.append(line)
+            def _stream_stderr() -> None:
+                assert proc.stderr is not None
+                for line in proc.stderr:
+                    sys.stderr.write(line)
+                    sys.stderr.flush()
+                    stderr_lines.append(line)
 
-        stderr_thread = threading.Thread(target=_stream_stderr)
-        stderr_thread.start()
+            stderr_thread = threading.Thread(target=_stream_stderr)
+            stderr_thread.start()
 
-        assert proc.stdout is not None
-        stdout = proc.stdout.read()
-        proc.wait()
-        stderr_thread.join()
-        captured_stderr = "".join(stderr_lines)
+            assert proc.stdout is not None
+            stdout = proc.stdout.read()
+            proc.wait()
+            stderr_thread.join()
+            captured_stderr = "".join(stderr_lines)
+            returncode = proc.returncode
+        else:
+            stdout = host_result.stdout
+            captured_stderr = host_result.stderr
+            returncode = host_result.returncode
 
-        if proc.returncode != 0:
+        if returncode != 0:
             # Prefer stderr (contains tracebacks), fall back to stdout,
             # then to a bare exit-code message.
             error_msg = (
-                captured_stderr.strip()
-                or stdout.strip()
-                or f"Exit code {proc.returncode}"
+                captured_stderr.strip() or stdout.strip() or f"Exit code {returncode}"
             )
             raise WorkflowExecutionError(
                 f"Python step '{step.name}' failed: {error_msg}"

@@ -6,11 +6,14 @@ from dataclasses import asdict
 from sase.host.client import _host_request_payload
 from sase.host.runtime import ProviderHostRuntime, ProviderHostRuntimeConfig
 from sase.host.wire import (
+    HOST_CAP_LLM_INVOKE,
     HOST_CAP_LLM_METADATA,
+    HOST_CAP_WORKFLOW_STEP,
     HOST_CAP_XPROMPT_CATALOG,
     PROVIDER_HOST_IPC_WIRE_SCHEMA_VERSION,
     HostResponseEnvelopeWire,
 )
+from sase.llm_provider.types import InvokeResult
 from sase.llm_provider import registry
 from sase.xprompt import catalog
 from sase.xprompt._catalog_structured import (
@@ -124,3 +127,64 @@ def test_structured_catalog_uses_host_without_direct_catalog_imports(
     )
 
     assert catalog.build_structured_xprompts_catalog() == projection
+
+
+def test_llm_invoke_host_operation_uses_direct_provider(monkeypatch) -> None:
+    class FakeProvider:
+        def invoke(self, prompt: str, **kwargs: object) -> InvokeResult:
+            assert prompt == "hello"
+            assert kwargs["model_tier"] == "small"
+            assert kwargs["model_override"] == "test-model"
+            return InvokeResult(
+                content="hosted response",
+                usage={"input_tokens": 3, "output_tokens": 5},
+            )
+
+    monkeypatch.setattr(registry, "get_default_provider_name", lambda: "fake")
+    monkeypatch.setattr(registry, "get_provider", lambda _name=None: FakeProvider())
+    request = _host_request_payload(
+        family="llm",
+        operation="llm.invoke",
+        payload={
+            "prompt": "hello",
+            "model_tier": "small",
+            "model_override": "test-model",
+            "suppress_output": True,
+            "provider_name": None,
+        },
+        required_capability=HOST_CAP_LLM_INVOKE,
+    )
+    runtime = ProviderHostRuntime(ProviderHostRuntimeConfig())
+
+    response = runtime.handle_json_frame(json.dumps(request))
+
+    assert response.status == "ok"
+    assert response.result["content"] == "hosted response"
+    assert response.result["usage"] == {"input_tokens": 3, "output_tokens": 5}
+    assert response.result["provider"] == "fake"
+
+
+def test_workflow_step_host_operations_execute_bash_and_python() -> None:
+    runtime = ProviderHostRuntime(ProviderHostRuntimeConfig())
+    bash_request = _host_request_payload(
+        family="workflow.step",
+        operation="workflow.step.bash",
+        payload={"command": "printf 'answer=42\\n'", "cwd": "."},
+        required_capability=HOST_CAP_WORKFLOW_STEP,
+    )
+    python_request = _host_request_payload(
+        family="workflow.step",
+        operation="workflow.step.python",
+        payload={"code": "print('kind=python')", "cwd": "."},
+        required_capability=HOST_CAP_WORKFLOW_STEP,
+    )
+
+    bash_response = runtime.handle_json_frame(json.dumps(bash_request))
+    python_response = runtime.handle_json_frame(json.dumps(python_request))
+
+    assert bash_response.status == "ok"
+    assert bash_response.result["returncode"] == 0
+    assert bash_response.result["stdout"] == "answer=42\n"
+    assert python_response.status == "ok"
+    assert python_response.result["returncode"] == 0
+    assert python_response.result["stdout"] == "kind=python\n"

@@ -7,17 +7,19 @@ and the first read-only provider metadata/catalog operations routed in Phase 8E.
 from __future__ import annotations
 
 import contextlib
+import io
 import importlib.metadata
 import json
 import logging
 import os
 import re
 import signal
+import subprocess
 import sys
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
-from typing import Any, TextIO
+from typing import Any, Literal, TextIO, cast
 
 from sase.host.manifest import (
     HostPolicyError,
@@ -28,7 +30,9 @@ from sase.host.manifest import (
 )
 from sase.host.wire import (
     HOST_ERROR_CODES,
+    HOST_CAP_LLM_INVOKE,
     HOST_CAP_LLM_METADATA,
+    HOST_CAP_WORKFLOW_STEP,
     HOST_CAP_XPROMPT_CATALOG,
     HOST_OPERATION_FAMILIES,
     PROVIDER_HOST_IPC_WIRE_SCHEMA_VERSION,
@@ -203,6 +207,9 @@ class ProviderHostRuntime:
             ("config", "fake.stderr"): self._fake_stderr,
             ("config", "host.discover_plugins"): self._discover_plugins,
             ("llm", "llm.metadata"): self._llm_metadata,
+            ("llm", "llm.invoke"): self._llm_invoke,
+            ("workflow.step", "workflow.step.bash"): self._workflow_step_bash,
+            ("workflow.step", "workflow.step.python"): self._workflow_step_python,
             ("xprompt", "xprompt.catalog"): self._xprompt_catalog,
             ("vcs", "vcs.query"): self._vcs_query,
             ("vcs", "vcs.mutation"): self._vcs_mutation_shadow,
@@ -458,6 +465,86 @@ class ProviderHostRuntime:
 
         context.logs.append("info", "LLM metadata collected", target="sase.host.llm")
         return direct_llm_metadata_payload()
+
+    def _llm_invoke(self, context: _OperationContext) -> Mapping[str, Any]:
+        _require_capability(context, HOST_CAP_LLM_INVOKE)
+        payload = context.request.payload
+        prompt = _required_str(payload, "prompt")
+        model_tier = _optional_str(payload.get("model_tier")) or "large"
+        if model_tier not in ("large", "small"):
+            raise ProviderHostRuntimeError(
+                "host_protocol_error",
+                "payload.model_tier must be 'large' or 'small'",
+                target="payload.model_tier",
+            )
+        model_tier_value = cast(Literal["large", "small"], model_tier)
+        suppress_output = bool(payload.get("suppress_output", False))
+        model_override = _optional_str(payload.get("model_override"))
+        provider_name = _optional_str(payload.get("provider_name"))
+        cwd = _optional_str(payload.get("cwd"))
+        provider_label = provider_name
+
+        from sase.llm_provider.registry import (
+            get_default_provider_name,
+            get_provider,
+        )
+
+        if provider_label is None:
+            provider_label = get_default_provider_name()
+
+        stdout_buffer = io.StringIO()
+        stderr_buffer = io.StringIO()
+        try:
+            with (
+                _temporary_environ(_string_mapping(payload.get("env"))),
+                _temporary_cwd(cwd),
+                contextlib.redirect_stdout(stdout_buffer),
+                contextlib.redirect_stderr(stderr_buffer),
+            ):
+                os.environ["SASE_PROVIDER_HOST_DIRECT_CALL"] = "1"
+                provider = get_provider(provider_name)
+                invoke_result = provider.invoke(
+                    prompt,
+                    model_tier=model_tier_value,
+                    suppress_output=suppress_output,
+                    model_override=model_override,
+                )
+        except Exception as exc:
+            _append_captured_process_logs(context, stdout_buffer, stderr_buffer)
+            raise ProviderHostRuntimeError(
+                "provider_execution_failed",
+                str(exc).strip() or type(exc).__name__,
+                target="llm.invoke",
+                details={"type": type(exc).__name__},
+            ) from exc
+
+        _append_captured_process_logs(context, stdout_buffer, stderr_buffer)
+        context.logs.append("info", "LLM invocation completed", target="sase.host.llm")
+        return {
+            "content": invoke_result.content,
+            "usage": invoke_result.usage,
+            "provider": provider_label,
+        }
+
+    def _workflow_step_bash(self, context: _OperationContext) -> Mapping[str, Any]:
+        _require_capability(context, HOST_CAP_WORKFLOW_STEP)
+        return _run_workflow_step_process(
+            context,
+            command=_required_str(context.request.payload, "command"),
+            shell=True,
+        )
+
+    def _workflow_step_python(self, context: _OperationContext) -> Mapping[str, Any]:
+        _require_capability(context, HOST_CAP_WORKFLOW_STEP)
+        return _run_workflow_step_process(
+            context,
+            command=[
+                sys.executable,
+                "-c",
+                _required_str(context.request.payload, "code"),
+            ],
+            shell=False,
+        )
 
     def _xprompt_catalog(self, context: _OperationContext) -> Mapping[str, Any]:
         _require_capability(context, HOST_CAP_XPROMPT_CATALOG)
@@ -799,8 +886,125 @@ def _optional_str(value: Any) -> str | None:
     return None if value is None else str(value)
 
 
+def _required_str(payload: Mapping[str, Any], key: str) -> str:
+    value = payload.get(key)
+    if not isinstance(value, str) or not value:
+        raise ProviderHostRuntimeError(
+            "host_protocol_error",
+            f"payload.{key} must be a non-empty string",
+            target=f"payload.{key}",
+        )
+    return value
+
+
 def _optional_int(value: Any) -> int | None:
     return None if value is None else int(value)
+
+
+def _string_mapping(value: Any) -> dict[str, str]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {
+        str(key): str(item)
+        for key, item in value.items()
+        if isinstance(key, str) and isinstance(item, str)
+    }
+
+
+@contextlib.contextmanager
+def _temporary_environ(values: Mapping[str, str]) -> Any:
+    if not values:
+        yield
+        return
+    previous = dict(os.environ)
+    os.environ.clear()
+    os.environ.update(values)
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(previous)
+
+
+@contextlib.contextmanager
+def _temporary_cwd(cwd: str | None) -> Any:
+    if not cwd:
+        yield
+        return
+    previous = os.getcwd()
+    os.chdir(cwd)
+    try:
+        yield
+    finally:
+        os.chdir(previous)
+
+
+def _append_captured_process_logs(
+    context: _OperationContext,
+    stdout_buffer: io.StringIO,
+    stderr_buffer: io.StringIO,
+) -> None:
+    stdout = stdout_buffer.getvalue()
+    if stdout:
+        context.logs.append("info", stdout, target="sase.host.process", stream="stdout")
+    stderr = stderr_buffer.getvalue()
+    if stderr:
+        context.logs.append("warn", stderr, target="sase.host.process", stream="stderr")
+
+
+def _run_workflow_step_process(
+    context: _OperationContext,
+    *,
+    command: str | list[str],
+    shell: bool,
+) -> Mapping[str, Any]:
+    payload = context.request.payload
+    cwd = _optional_str(payload.get("cwd")) or os.getcwd()
+    env = os.environ.copy()
+    env.update(_string_mapping(payload.get("env")))
+    timeout_ms = effective_timeout_ms(
+        context.request, default_timeout_ms=context.config.default_timeout_ms
+    )
+    try:
+        result = subprocess.run(
+            command,
+            shell=shell,
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            env=env,
+            timeout=timeout_ms / 1000,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ProviderHostRuntimeError(
+            "host_timeout",
+            f"workflow step exceeded timeout of {timeout_ms}ms",
+            retryable=True,
+            target=context.request.request_id,
+            details={"stdout": exc.stdout, "stderr": exc.stderr},
+        ) from exc
+    except Exception as exc:
+        raise ProviderHostRuntimeError(
+            "provider_execution_failed",
+            str(exc).strip() or type(exc).__name__,
+            target="workflow.step",
+            details={"type": type(exc).__name__},
+        ) from exc
+
+    if result.stdout:
+        context.logs.append(
+            "info", result.stdout, target="sase.host.workflow", stream="stdout"
+        )
+    if result.stderr:
+        context.logs.append(
+            "warn", result.stderr, target="sase.host.workflow", stream="stderr"
+        )
+    return {
+        "returncode": result.returncode,
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "cwd": cwd,
+    }
 
 
 def _install_host_signal_handlers() -> None:
