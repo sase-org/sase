@@ -6,10 +6,18 @@ Dispatches HITL, user question, and plan approval actions that push modal screen
 from __future__ import annotations
 
 import logging
-import json
-from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+
+from ._notification_hitl_modal import handle_hitl as handle_hitl
+from ._notification_modal_responses import write_workflow_action_response
+from ._notification_plan_persistence import (
+    persist_plan_approved as persist_plan_approved,
+)
+from ._notification_question_modal import (
+    handle_user_question as handle_user_question,
+    open_user_question_modal_from_marker as open_user_question_modal_from_marker,
+)
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
@@ -19,207 +27,6 @@ if TYPE_CHECKING:
 
 
 log = logging.getLogger(__name__)
-
-
-def handle_hitl(app: object, notification: Notification) -> bool:
-    """Show the HITL modal for the workflow step in the notification.
-
-    Args:
-        app: The AceApp instance.
-        notification: The notification with action_data containing
-            artifacts_dir and workflow_name.
-
-    Returns:
-        True if the HITL modal was pushed (response handled asynchronously).
-    """
-    import json
-    from pathlib import Path
-
-    from sase.xprompt import HITLResult
-
-    from ...modals import WorkflowHITLInput, WorkflowHITLModal
-
-    artifacts_dir = notification.action_data.get("artifacts_dir")
-    workflow_name = notification.action_data.get("workflow_name", "unknown")
-    if not artifacts_dir:
-        app.notify("No artifacts_dir in notification", severity="warning")  # type: ignore[attr-defined]
-        return False
-
-    artifacts_path = Path(artifacts_dir)
-    request_path = artifacts_path / "hitl_request.json"
-
-    if not request_path.exists():
-        app.notify("No HITL request found", severity="warning")  # type: ignore[attr-defined]
-        return False
-
-    try:
-        with open(request_path, encoding="utf-8") as f:
-            request_data = json.load(f)
-    except Exception as e:
-        app.notify(f"Error reading HITL request: {e}", severity="error")  # type: ignore[attr-defined]
-        return False
-
-    input_data = WorkflowHITLInput(
-        step_name=request_data.get("step_name", "unknown"),
-        step_type=request_data.get("step_type", "agent"),
-        output=request_data.get("output", {}),
-        workflow_name=workflow_name,
-        has_output=request_data.get("has_output", False),
-        output_types=request_data.get("output_types") or {},
-    )
-
-    def on_dismiss(result: object) -> None:
-        if result is None:
-            return
-        if not isinstance(result, HITLResult):
-            return
-
-        # Handle edit action
-        if result.action == "edit":
-            edited_output = app._edit_hitl_output(request_data.get("output", {}))  # type: ignore[attr-defined]
-            if edited_output is not None:
-                result = HITLResult(action="edit", edited_output=edited_output)
-            else:
-                return
-
-        # Write response file
-        response_path = artifacts_path / "hitl_response.json"
-        response_data: dict[str, object] = {
-            "action": result.action,
-            "approved": result.approved,
-        }
-        if result.edited_output is not None:
-            response_data["edited_output"] = result.edited_output
-        if result.feedback is not None:
-            response_data["feedback"] = result.feedback
-
-        try:
-            _write_workflow_action_response(
-                response_path,
-                response_data,
-                action_kind="hitl",
-                notification_id=notification.id,
-                default=str,
-            )
-            app.notify(f"Sent {result.action} response")  # type: ignore[attr-defined]
-        except Exception as e:
-            app.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
-
-    app.push_screen(WorkflowHITLModal(input_data), on_dismiss)  # type: ignore[attr-defined]
-    return True
-
-
-def handle_user_question(app: object, notification: Notification) -> bool:
-    """Show the user question modal for a Claude Code AskUserQuestion hook.
-
-    Args:
-        app: The AceApp instance.
-        notification: The notification with action_data containing
-            response_dir and session_id.
-
-    Returns:
-        True if the user question modal was pushed.
-    """
-    response_dir = notification.action_data.get("response_dir")
-    if not response_dir:
-        app.notify("No response_dir in notification", severity="warning")  # type: ignore[attr-defined]
-        return False
-
-    return _open_user_question_modal(
-        app,
-        response_dir,
-        notification_id=notification.id,
-        on_response_written=lambda: _on_user_question_response_written(
-            app, notification
-        ),
-    )
-
-
-def _on_user_question_response_written(app: object, notification: Notification) -> None:
-    from sase.notifications import mark_dismissed
-
-    mark_dismissed(notification.id)
-    _restore_pre_question_status(app, notification)
-
-
-def open_user_question_modal_from_marker(app: object, response_dir: str) -> bool:
-    """Open the UserQuestionModal directly from a pending_question.json marker.
-
-    Used by the "jump to current agent's question" keybind when the matching
-    notification has been dismissed but the agent is still blocked on user
-    input (marker is still present). No notification is dismissed because
-    none is present — the marker is cleared by ``handle_questions_flow()``
-    itself once the response is consumed.
-    """
-    return _open_user_question_modal(
-        app, response_dir, notification_id=None, on_response_written=None
-    )
-
-
-def _open_user_question_modal(
-    app: object,
-    response_dir: str,
-    *,
-    notification_id: str | None,
-    on_response_written: object,
-) -> bool:
-    import json
-    from pathlib import Path
-
-    from ...modals import UserQuestionModal, UserQuestionResult
-
-    response_path = Path(response_dir)
-    request_path = response_path / "question_request.json"
-
-    if not request_path.exists():
-        app.notify("User question request expired or not found", severity="warning")  # type: ignore[attr-defined]
-        return False
-
-    try:
-        with open(request_path, encoding="utf-8") as f:
-            request_data = json.load(f)
-    except Exception as e:
-        app.notify(f"Error reading question request: {e}", severity="error")  # type: ignore[attr-defined]
-        return False
-
-    questions = request_data.get("questions", [])
-
-    def on_dismiss(result: object) -> None:
-        if result is None:
-            return
-        if not isinstance(result, UserQuestionResult):
-            return
-
-        response_data: dict[str, object] = {
-            "answers": [
-                {
-                    "question": a.question,
-                    "selected": a.selected,
-                    "custom_feedback": a.custom_feedback,
-                }
-                for a in result.answers
-            ],
-            "global_note": result.global_note,
-        }
-
-        question_response_path = response_path / "question_response.json"
-        try:
-            _write_workflow_action_response(
-                question_response_path,
-                response_data,
-                action_kind="user_question",
-                notification_id=notification_id or str(question_response_path),
-            )
-            app.notify("Sent question response")  # type: ignore[attr-defined]
-        except Exception as e:
-            app.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
-            return
-
-        if callable(on_response_written):
-            on_response_written()
-
-    app.push_screen(UserQuestionModal(questions), on_dismiss)  # type: ignore[attr-defined]
-    return True
 
 
 def handle_plan_approval(
@@ -239,9 +46,6 @@ def handle_plan_approval(
     Returns:
         True if the plan approval modal was pushed.
     """
-    import json
-    from pathlib import Path
-
     from ...modals import PlanApprovalModal, PlanApprovalResult
 
     response_dir = notification.action_data.get("response_dir")
@@ -342,7 +146,7 @@ def handle_plan_approval(
         # (e.g. Telegram) can detect the rejection, then kill the agent.
         if result.action == "reject" and result.feedback is None:
             plan_response_path = response_path / "plan_response.json"
-            _write_workflow_action_response(
+            write_workflow_action_response(
                 plan_response_path,
                 {"action": "reject"},
                 action_kind="plan_approval",
@@ -367,7 +171,7 @@ def handle_plan_approval(
         response_data = _build_plan_approval_response(result)
 
         try:
-            _write_workflow_action_response(
+            write_workflow_action_response(
                 plan_response_path,
                 response_data,
                 action_kind="plan_approval",
@@ -644,90 +448,3 @@ def _finish_plan_approval_background_work(
     schedule_refresh = getattr(app, "_schedule_agents_async_refresh", None)
     if callable(schedule_refresh):
         schedule_refresh()
-
-
-def _restore_pre_question_status(app: object, notification: Notification) -> None:
-    """Restore agent status override after a user question is answered.
-
-    Looks up the agent's pre-question status and either restores it as the
-    override (e.g. "PLAN APPROVED") or removes the override entirely (reverting
-    the agent to its disk status, e.g. "RUNNING").
-    """
-    cl_name = notification.action_data.get("agent_cl_name")
-    if not cl_name:
-        return
-
-    from ._notification_navigation import agent_matches_notification_identity
-
-    # Find matching agent to get identity
-    for agent in app._agents:  # type: ignore[attr-defined]
-        if not agent_matches_notification_identity(agent, notification, cl_name):
-            continue
-
-        identity = agent.identity
-        pre_status = app._agent_pre_question_status.pop(identity, None)  # type: ignore[attr-defined]
-        if pre_status is not None:
-            # Restore previous override (e.g. "PLAN APPROVED")
-            app._agent_status_overrides[identity] = pre_status  # type: ignore[attr-defined]
-        else:
-            # No previous override — remove it so agent reverts to disk status
-            app._agent_status_overrides.pop(identity, None)  # type: ignore[attr-defined]
-
-        # Reload agents to apply the restored status
-        app._load_agents()  # type: ignore[attr-defined]
-        break
-
-
-def _write_workflow_action_response(
-    response_path: Path,
-    response_data: dict[str, object],
-    *,
-    action_kind: str,
-    notification_id: str,
-    default: Callable[[Any], Any] | None = None,
-) -> None:
-    from sase.xprompt.workflow_daemon_writes import write_action_response_once
-
-    def direct_writer() -> None:
-        with response_path.open("x", encoding="utf-8") as f:
-            json.dump(response_data, f, indent=2, default=default)
-            f.write("\n")
-
-    write_action_response_once(
-        response_path,
-        response_data,
-        action_kind=action_kind,
-        notification_id=notification_id,
-        direct_writer=direct_writer,
-    )
-
-
-def persist_plan_approved(agent: Agent, action: str = "approve") -> None:
-    """Write plan_approved flag to agent_meta.json so it survives TUI restarts.
-
-    Args:
-        agent: The agent whose plan was approved.
-        action: The plan action taken — "approve", "commit", "epic", or "legend".
-    """
-    import json
-    from pathlib import Path
-
-    artifacts_dir = agent.artifacts_dir or agent.get_artifacts_dir()
-    if not artifacts_dir:
-        return
-
-    meta_path = Path(artifacts_dir) / "agent_meta.json"
-    meta: dict[str, object] = {}
-    try:
-        with open(meta_path, encoding="utf-8") as f:
-            meta = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        pass
-
-    meta["plan_approved"] = True
-    meta["plan_action"] = action
-    try:
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(meta, f, indent=2)
-    except OSError:
-        pass
