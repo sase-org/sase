@@ -7,6 +7,7 @@ the host that executes chops, lumberjack ticks, and related side effects.
 from __future__ import annotations
 
 import os
+import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -139,6 +140,7 @@ def execute_axe_task(
     *,
     execute_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    started = time.monotonic()
     prepared = prepare_axe_task(request)
     runner = execute_fn or _execute_axe_task_payload
     old_value = os.environ.get("SASE_DAEMON_SCHEDULER_AXE_HOST_BRIDGE")
@@ -149,6 +151,7 @@ def execute_axe_task(
         return {
             **_base_response(prepared),
             "status": "failed",
+            "duration_ms": _elapsed_ms(started),
             "result": None,
             "failure": {
                 "type": type(exc).__name__,
@@ -165,6 +168,7 @@ def execute_axe_task(
     return {
         **_base_response(prepared),
         "status": "completed",
+        "duration_ms": _elapsed_ms(started),
         "result": result,
         "failure": None,
     }
@@ -305,6 +309,10 @@ def _optional_str(value: object) -> str | None:
 
 def _dict_or_empty(value: object) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
+
+
+def _elapsed_ms(started: float) -> int:
+    return max(0, int((time.monotonic() - started) * 1000))
 
 
 def _chop_run_source(value: str) -> ChopRunSource:

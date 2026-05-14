@@ -23,7 +23,10 @@ from sase.daemon.scheduler import (
     SchedulerAxeTaskSpec,
     SchedulerAxeTaskSubmit,
     SchedulerBatchSubmit,
+    SchedulerCancel,
     SchedulerLaunchSpec,
+    cancel_scheduler_batch,
+    read_scheduler_batch_status,
     submit_scheduler_axe_tasks,
     submit_scheduler_batch,
 )
@@ -203,6 +206,66 @@ def test_scheduler_axe_task_submit_uses_axe_queue_and_metadata() -> None:
         "metadata": {
             "lumberjack_name": "hooks",
             "chop_name": "hook_checks",
+        },
+    }
+
+
+def test_scheduler_status_and_cancel_helpers_send_recovery_payloads() -> None:
+    status_data = {
+        "schema_version": 1,
+        "handle": {"batch_id": "batch-a", "status": "queued"},
+        "slots": [],
+    }
+    status_transport = _CaptureTransport("scheduler_status", status_data)
+    status_client = LocalDaemonClient(transport=status_transport)
+
+    status = read_scheduler_batch_status(
+        status_client,
+        project_id="project-a",
+        batch_id="batch-a",
+    )
+
+    assert status == status_data
+    assert status_transport.envelope is not None
+    assert status_transport.envelope["payload"] == {
+        "type": "scheduler_status",
+        "data": {
+            "schema_version": 1,
+            "project_id": "project-a",
+            "batch_id": "batch-a",
+        },
+    }
+
+    cancel_data = {
+        "schema_version": 1,
+        "handle": {"batch_id": "batch-a", "status": "terminal"},
+        "slots": [],
+    }
+    cancel_transport = _CaptureTransport("scheduler_cancel", cancel_data)
+    cancel_client = LocalDaemonClient(transport=cancel_transport)
+
+    cancelled = cancel_scheduler_batch(
+        cancel_client,
+        SchedulerCancel(
+            project_id="project-a",
+            batch_id="batch-a",
+            slot_id="slot-a",
+            reason="operator_recovery",
+            idempotency_key="recover-a",
+        ),
+    )
+
+    assert cancelled == cancel_data
+    assert cancel_transport.envelope is not None
+    assert cancel_transport.envelope["payload"] == {
+        "type": "scheduler_cancel",
+        "data": {
+            "schema_version": 1,
+            "project_id": "project-a",
+            "batch_id": "batch-a",
+            "slot_id": "slot-a",
+            "reason": "operator_recovery",
+            "idempotency_key": "recover-a",
         },
     }
 

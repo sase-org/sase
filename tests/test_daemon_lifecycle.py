@@ -419,6 +419,75 @@ def test_doctor_reports_source_export_conflicts(
     assert source_exports["message"] == "1 source export(s) still need repair"
 
 
+def test_doctor_reports_scheduler_health(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOSTNAME", "workstation.local")
+    run_root = tmp_path / "run"
+    _write_metadata(run_root, _metadata(os.getpid(), "workstation.local"))
+    monkeypatch.setattr(
+        lifecycle,
+        "_try_health_rpc",
+        lambda _socket: {
+            "available": True,
+            "health": {
+                "status": "degraded",
+                "details": {
+                    "scheduler": {
+                        "state": "degraded",
+                        "queue_depth": 3,
+                        "running_tasks": 2,
+                        "starting_tasks": 1,
+                        "blocked_tasks": 0,
+                        "stale_starts": 1,
+                        "host_bridge": {"available": True},
+                        "projection_lag": {"pending_events": 0},
+                    }
+                },
+            },
+        },
+    )
+
+    inspection = lifecycle._inspect_daemon(
+        _args(sase_home=str(tmp_path / "home"), run_root=str(run_root))
+    )
+    payload = lifecycle._doctor_payload(inspection)  # noqa: SLF001
+
+    scheduler = [
+        check for check in payload["doctor"]["checks"] if check["name"] == "scheduler"
+    ][0]
+    assert scheduler["state"] == "degraded"
+    assert "queued=3" in scheduler["message"]
+    assert "stale_starts=1" in scheduler["message"]
+
+
+def test_parser_accepts_daemon_scheduler_recovery_commands() -> None:
+    args = create_parser().parse_args(
+        [
+            "daemon",
+            "scheduler",
+            "cancel",
+            "--project",
+            "sase",
+            "--batch",
+            "batch-a",
+            "--slot",
+            "slot-a",
+            "--reason",
+            "operator_recovery",
+            "--json",
+        ]
+    )
+
+    assert args.daemon_subcommand == "scheduler"
+    assert args.daemon_scheduler_subcommand == "cancel"
+    assert args.project_id == "sase"
+    assert args.batch_id == "batch-a"
+    assert args.slot_id == "slot-a"
+    assert args.json_output is True
+
+
 def test_rebuild_uses_live_daemon_rpc(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

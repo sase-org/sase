@@ -123,6 +123,75 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Print machine-readable status JSON",
     )
 
+    scheduler_parser = daemon_subparsers.add_parser(
+        "scheduler",
+        help="Inspect and recover daemon scheduler batches",
+    )
+    _add_runtime_options(scheduler_parser)
+    scheduler_subparsers = scheduler_parser.add_subparsers(
+        dest="daemon_scheduler_subcommand",
+        help="Scheduler subcommands",
+    )
+    scheduler_status_parser = scheduler_subparsers.add_parser(
+        "status",
+        help="Show a scheduler batch status",
+    )
+    scheduler_status_parser.add_argument(
+        "--project",
+        dest="project_id",
+        required=True,
+        help="Scheduler project id",
+    )
+    scheduler_status_parser.add_argument(
+        "--batch",
+        dest="batch_id",
+        required=True,
+        help="Scheduler batch id",
+    )
+    scheduler_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable scheduler status JSON",
+    )
+    scheduler_cancel_parser = scheduler_subparsers.add_parser(
+        "cancel",
+        help="Cancel stuck queued, starting, or running scheduler work",
+    )
+    scheduler_cancel_parser.add_argument(
+        "--project",
+        dest="project_id",
+        required=True,
+        help="Scheduler project id",
+    )
+    scheduler_cancel_parser.add_argument(
+        "--batch",
+        dest="batch_id",
+        required=True,
+        help="Scheduler batch id",
+    )
+    scheduler_cancel_parser.add_argument(
+        "--slot",
+        dest="slot_id",
+        help="Specific scheduler slot id to cancel; omit to cancel the batch",
+    )
+    scheduler_cancel_parser.add_argument(
+        "--reason",
+        default="operator_recovery",
+        help="Recovery reason recorded on scheduler events",
+    )
+    scheduler_cancel_parser.add_argument(
+        "--idempotency-key",
+        dest="idempotency_key",
+        help="Stable idempotency key for retrying this recovery action",
+    )
+    scheduler_cancel_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable cancel result JSON",
+    )
+
     doctor_parser = daemon_subparsers.add_parser(
         "doctor",
         help="Run daemon lifecycle diagnostics",

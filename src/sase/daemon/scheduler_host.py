@@ -7,6 +7,7 @@ import json
 import os
 import re
 import sys
+import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -77,6 +78,7 @@ def execute_launch_slot(
     launch_fn: LaunchFn | None = None,
 ) -> dict[str, Any]:
     """Execute one queued scheduler slot through the existing Python launcher."""
+    started = time.monotonic()
     prepared = prepare_launch_slot(request)
     prompt = prepared["launch"]["prompt"]
     cwd = prepared["launch"]["cwd"]
@@ -88,6 +90,7 @@ def execute_launch_slot(
         return {
             **_base_response(prepared, operation="execute-launch-slot"),
             "status": "failed",
+            "duration_ms": _elapsed_ms(started),
             "primary": None,
             "slots": [],
             "failure": _failure_payload(exc),
@@ -97,6 +100,7 @@ def execute_launch_slot(
         return {
             **_base_response(prepared, operation="execute-launch-slot"),
             "status": "failed",
+            "duration_ms": _elapsed_ms(started),
             "primary": None,
             "slots": [],
             "failure": {
@@ -113,6 +117,7 @@ def execute_launch_slot(
     return {
         **_base_response(prepared, operation="execute-launch-slot"),
         "status": "launched",
+        "duration_ms": _elapsed_ms(started),
         "primary": slot_results[0],
         "slots": slot_results,
         "failure": None,
@@ -332,6 +337,10 @@ def _failure_payload(exc: Exception) -> dict[str, Any]:
 def _safe_error_message(exc: Exception) -> str:
     message = str(exc).strip() or type(exc).__name__
     return message.replace("\x00", "")[:1000]
+
+
+def _elapsed_ms(started: float) -> int:
+    return max(0, int((time.monotonic() - started) * 1000))
 
 
 def _cancel_target_name(request: dict[str, Any], slot: SchedulerHostSlot) -> str | None:

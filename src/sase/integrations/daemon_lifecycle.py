@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import signal
 import sys
@@ -99,6 +100,7 @@ __all__ = [
     "handle_daemon_diff",
     "handle_daemon_doctor",
     "handle_daemon_rebuild",
+    "handle_daemon_scheduler",
     "handle_daemon_start",
     "handle_daemon_status",
     "handle_daemon_stop",
@@ -124,6 +126,17 @@ def handle_daemon_status(args: argparse.Namespace) -> int:
     else:
         _print_status(inspection)
     return 0
+
+
+def handle_daemon_scheduler(args: argparse.Namespace) -> int:
+    """CLI wrapper for daemon scheduler inspection and recovery commands."""
+    sub = getattr(args, "daemon_scheduler_subcommand", None)
+    if sub == "status":
+        return _handle_daemon_scheduler_status(args)
+    if sub == "cancel":
+        return _handle_daemon_scheduler_cancel(args)
+    print("Usage: sase daemon scheduler {status,cancel}", file=sys.stderr)
+    return 1
 
 
 def handle_daemon_stop(args: argparse.Namespace) -> int:
@@ -244,6 +257,120 @@ def handle_daemon_diff(args: argparse.Namespace) -> int:
         > 0
     )
     return 1 if has_diff else 0
+
+
+def _handle_daemon_scheduler_status(args: argparse.Namespace) -> int:
+    from sase.daemon.client import LocalDaemonClient, LocalDaemonError
+
+    inspection = _inspect_daemon(args)
+    if (
+        inspection.state != "running"
+        or not inspection.rpc
+        or not inspection.rpc.get("available")
+    ):
+        print(
+            f"Error: daemon scheduler status requires a running daemon: {inspection.message}",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        payload = LocalDaemonClient(
+            inspection.paths.socket_path, timeout=5.0
+        ).scheduler_status(
+            project_id=str(args.project_id),
+            batch_id=str(args.batch_id),
+        )
+    except LocalDaemonError as exc:
+        print(f"Error: daemon scheduler status failed: {exc}", file=sys.stderr)
+        return 1
+    if getattr(args, "json_output", False):
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        _print_scheduler_status(payload)
+    return 0
+
+
+def _handle_daemon_scheduler_cancel(args: argparse.Namespace) -> int:
+    from sase.daemon.client import LocalDaemonClient, LocalDaemonError
+    from sase.daemon.scheduler import SchedulerCancel, cancel_scheduler_batch
+
+    inspection = _inspect_daemon(args)
+    if (
+        inspection.state != "running"
+        or not inspection.rpc
+        or not inspection.rpc.get("available")
+    ):
+        print(
+            f"Error: daemon scheduler cancel requires a running daemon: {inspection.message}",
+            file=sys.stderr,
+        )
+        return 1
+    request = SchedulerCancel(
+        project_id=str(args.project_id),
+        batch_id=str(args.batch_id),
+        slot_id=getattr(args, "slot_id", None),
+        reason=getattr(args, "reason", None) or "operator_recovery",
+        idempotency_key=getattr(args, "idempotency_key", None)
+        or _scheduler_cancel_idempotency_key(args),
+    )
+    try:
+        payload = cancel_scheduler_batch(
+            LocalDaemonClient(inspection.paths.socket_path, timeout=5.0),
+            request,
+        )
+    except LocalDaemonError as exc:
+        print(f"Error: daemon scheduler cancel failed: {exc}", file=sys.stderr)
+        return 1
+    if getattr(args, "json_output", False):
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        _print_scheduler_status(payload, prefix="Cancel")
+    return 0
+
+
+def _scheduler_cancel_idempotency_key(args: argparse.Namespace) -> str:
+    raw = "|".join(
+        str(value or "")
+        for value in (
+            getattr(args, "project_id", None),
+            getattr(args, "batch_id", None),
+            getattr(args, "slot_id", None),
+            getattr(args, "reason", None),
+        )
+    )
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+    return f"scheduler-recovery:{digest}"
+
+
+def _print_scheduler_status(
+    payload: dict[str, Any], *, prefix: str = "Scheduler"
+) -> None:
+    raw_handle = payload.get("handle")
+    handle: dict[str, Any] = raw_handle if isinstance(raw_handle, dict) else {}
+    print(
+        "{prefix}: batch={batch} project={project} queue={queue} status={status} slots={slots}".format(
+            prefix=prefix,
+            batch=handle.get("batch_id", "unknown"),
+            project=handle.get("project_id", "unknown"),
+            queue=handle.get("queue_id", "unknown"),
+            status=handle.get("status", "unknown"),
+            slots=handle.get("slot_count", 0),
+        )
+    )
+    for slot in payload.get("slots", []):
+        if not isinstance(slot, dict):
+            continue
+        raw_task = slot.get("task_id")
+        task: dict[str, Any] = raw_task if isinstance(raw_task, dict) else {}
+        print(
+            "- {slot_id}: {status} position={position} terminal={terminal} reason={reason}".format(
+                slot_id=task.get("slot_id") or slot.get("slot_id") or "unknown",
+                status=slot.get("status", "unknown"),
+                position=slot.get("queued_position"),
+                terminal=slot.get("terminal", False),
+                reason=slot.get("reason"),
+            )
+        )
 
 
 def _load_daemon_config() -> _DaemonLifecycleConfig:

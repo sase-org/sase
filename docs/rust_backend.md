@@ -165,6 +165,16 @@ Fallback reasons in debug output use stable tokens: `daemon_disabled`, `daemon_r
 `surface_disabled`, `daemon_not_running`, `unsupported_capability`, `projection_degraded`, `cursor_expired`,
 `snapshot_expired`, `payload_too_large`, and `resource_not_found`.
 
+Scheduler rollout controls:
+
+- `daemon.scheduler.launch_mode: direct|shadow|daemon` or `SASE_DAEMON_SCHEDULER_LAUNCH_MODE` controls `sase run`, ACE,
+  and mobile launch routing.
+- `daemon.scheduler.lifecycle_mode: direct|shadow|daemon` or `SASE_DAEMON_SCHEDULER_LIFECYCLE_MODE` controls kill,
+  dismiss, cleanup, revive, and bulk lifecycle routing.
+- `daemon.scheduler.axe_mode: direct|daemon` or `SASE_DAEMON_SCHEDULER_AXE_MODE` controls axe task routing.
+- `--no-daemon` / `SASE_NO_DAEMON=1` remains the direct-mode escape hatch for daemon-capable read and scheduler
+  surfaces.
+
 Write rollout controls:
 
 | Surface                                                               | Daemon capability     | Rollout state                                                                                             | Direct fallback                                                                |
@@ -186,7 +196,11 @@ Recovery and diagnostic commands:
 - `sase daemon status` reads ownership metadata first, then local RPC health when the socket is available.
 - `sase daemon doctor` distinguishes stopped, healthy, degraded projection, stale lock, incompatible metadata, and
   host-conflict states. With a running daemon, `--json` also includes source-export repair summaries, indexing service
-  health, watcher state, queue counters, recent reports, and compact per-surface diff summaries.
+  health, watcher state, scheduler queue depth/running/starting/stale counters, host bridge availability, projection
+  lag, recent reports, and compact per-surface diff summaries.
+- `sase daemon scheduler status --project <id> --batch <batch>` prints a scheduler batch and per-slot state.
+- `sase daemon scheduler cancel --project <id> --batch <batch> [--slot <slot>]` records an idempotent operator recovery
+  cancellation for stuck queued, starting, running, or stale host-bridge work.
 - `sase daemon rebuild --surface all` uses a live daemon RPC to backfill shadow projections from source stores.
   `--surface changespecs|notifications|agents|beads|catalogs` scopes the rebuild. Passing `--reset-storage` preserves
   the explicit projection-table reset/replay recovery path; when the daemon is stopped this is the only supported
@@ -508,6 +522,7 @@ just check                   # formatting, lint, SDD validation, and tests
 just rust-check              # cargo fmt --check + clippy + cargo test (requires sibling ../sase-core checkout)
 just bead-perf-smoke         # tiny Rust-backed bead shell/facade/work-plan benchmark
 just launch-perf-check       # launch fan-out regression floor against the Phase 1 baseline
+just scheduler-rollout-perf-check  # Epic 7 scheduler rollout gate table
 just phase7-perf-check       # Phase 7 regression-floor check against the recorded Rust ceilings
 ```
 

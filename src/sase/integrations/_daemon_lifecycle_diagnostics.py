@@ -27,6 +27,19 @@ def print_status(inspection: DaemonInspection) -> None:
         print(f"Detail: {inspection.message}")
     if inspection.rpc is not None:
         print(f"RPC: {inspection.rpc.get('message') or inspection.rpc}")
+    scheduler = _scheduler_details(inspection)
+    if scheduler is not None:
+        print(
+            "Scheduler: {state} queued={queued} running={running} "
+            "starting={starting} blocked={blocked} stale={stale}".format(
+                state=scheduler.get("state", "unknown"),
+                queued=scheduler.get("queue_depth", 0),
+                running=scheduler.get("running_tasks", 0),
+                starting=scheduler.get("starting_tasks", 0),
+                blocked=scheduler.get("blocked_tasks", 0),
+                stale=scheduler.get("stale_starts", 0),
+            )
+        )
 
 
 def inspection_to_dict(inspection: DaemonInspection) -> dict[str, Any]:
@@ -75,6 +88,11 @@ def doctor_payload(inspection: DaemonInspection) -> dict[str, Any]:
             "indexing",
             _indexing_check_state(inspection),
             _indexing_check_message(inspection),
+        ),
+        _check(
+            "scheduler",
+            _scheduler_check_state(inspection),
+            _scheduler_check_message(inspection),
         ),
         _check(
             "mobile_http",
@@ -245,6 +263,54 @@ def _indexing_details(inspection: DaemonInspection) -> dict[str, Any] | None:
     details = health.get("details") if isinstance(health, dict) else None
     indexing = details.get("indexing") if isinstance(details, dict) else None
     return indexing if isinstance(indexing, dict) else None
+
+
+def _scheduler_check_state(inspection: DaemonInspection) -> str:
+    scheduler = _scheduler_details(inspection)
+    if scheduler is None:
+        return "skipped" if inspection.state != "running" else "unknown"
+    state = scheduler.get("state")
+    if state == "ok":
+        return "ok"
+    if state == "degraded":
+        return "degraded"
+    return "unknown"
+
+
+def _scheduler_check_message(inspection: DaemonInspection) -> str:
+    scheduler = _scheduler_details(inspection)
+    if scheduler is None:
+        return "scheduler health requires live daemon RPC"
+    message = scheduler.get("message")
+    if isinstance(message, str) and message:
+        return message
+    lag = scheduler.get("projection_lag")
+    pending = lag.get("pending_events", 0) if isinstance(lag, dict) else 0
+    bridge = scheduler.get("host_bridge")
+    bridge_available = (
+        bridge.get("available") if isinstance(bridge, dict) else "unknown"
+    )
+    return (
+        "queued={queued}, running={running}, starting={starting}, "
+        "blocked={blocked}, stale_starts={stale}, host_bridge={bridge}, "
+        "projection_pending_events={pending}"
+    ).format(
+        queued=scheduler.get("queue_depth", 0),
+        running=scheduler.get("running_tasks", 0),
+        starting=scheduler.get("starting_tasks", 0),
+        blocked=scheduler.get("blocked_tasks", 0),
+        stale=scheduler.get("stale_starts", 0),
+        bridge=bridge_available,
+        pending=pending,
+    )
+
+
+def _scheduler_details(inspection: DaemonInspection) -> dict[str, Any] | None:
+    rpc = inspection.rpc or {}
+    health = rpc.get("health") if isinstance(rpc, dict) else None
+    details = health.get("details") if isinstance(health, dict) else None
+    scheduler = details.get("scheduler") if isinstance(details, dict) else None
+    return scheduler if isinstance(scheduler, dict) else None
 
 
 def _mobile_http_check_state(inspection: DaemonInspection) -> str:

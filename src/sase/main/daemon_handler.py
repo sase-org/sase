@@ -11,6 +11,7 @@ def handle_daemon_command(args: argparse.Namespace) -> None:
     from sase.integrations.daemon_lifecycle import (
         handle_daemon_doctor,
         handle_daemon_rebuild,
+        handle_daemon_scheduler,
         handle_daemon_start,
         handle_daemon_status,
         handle_daemon_stop,
@@ -28,6 +29,7 @@ def handle_daemon_command(args: argparse.Namespace) -> None:
         "start": handle_daemon_start,
         "stop": handle_daemon_stop,
         "status": handle_daemon_status,
+        "scheduler": handle_daemon_scheduler,
         "doctor": handle_daemon_doctor,
         "rebuild": handle_daemon_rebuild,
         "verify": handle_daemon_verify,
@@ -36,7 +38,7 @@ def handle_daemon_command(args: argparse.Namespace) -> None:
     handler = handlers.get(sub) if isinstance(sub, str) else None
     if handler is None:
         print(
-            "Usage: sase daemon {start,stop,status,doctor,rebuild,verify,diff}",
+            "Usage: sase daemon {start,stop,status,scheduler,doctor,rebuild,verify,diff}",
             file=sys.stderr,
         )
         sys.exit(1)

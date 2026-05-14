@@ -411,6 +411,11 @@ launch-perf-check *args: _setup
     @printf "\n---------- Agent launch regression floor (sase-1r.9) ----------\n"
     {{ venv_bin }}/python tests/perf/check_agent_launch_regression.py {{ args }}
 
+# Validate the Epic 7 daemon scheduler rollout gate table.
+scheduler-rollout-perf-check *args: _setup
+    @printf "\n---------- Daemon scheduler rollout gates (sase-3e.7.8) ----------\n"
+    {{ venv_bin }}/pytest tests/perf/test_daemon_scheduler_rollout.py {{ args }}
+
 # Run a tiny bead benchmark as a CI smoke. This records the Rust-backed
 # shell/facade/work-plan path without enforcing workstation-sensitive latency
 # thresholds.

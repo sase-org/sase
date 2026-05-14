@@ -199,6 +199,36 @@ pytest tests/perf/test_daemon_read_rollout.py
 Use `--no-daemon`, `SASE_NO_DAEMON=1`, `daemon.reads.force_direct: true`, or the relevant
 `daemon.reads.surfaces.<name>: false` switch to recover immediately without rebuilding projections.
 
+## Rust daemon Epic 7 scheduler rollout gates
+
+Epic 7 moves launches, workflows, axe tasks, and lifecycle mutations behind daemon scheduler queues. The committed gate
+policy lives in `tests/perf/daemon_scheduler_rollout.py` and is exercised by
+`tests/perf/test_daemon_scheduler_rollout.py`.
+
+Rollout budgets:
+
+```text
+launch fan-out submit p95             <= 50 ms
+ACE launch responsiveness p95         <= 100 ms
+mobile launch latency p95             <= 150 ms
+scheduler restart recovery p95        <= 250 ms
+bulk kill submit p95                  <= 100 ms
+axe tick throughput p95               <= 250 ms
+```
+
+Before switching a scheduler surface from shadow to daemon-authoritative mode, run:
+
+```bash
+sase daemon doctor
+sase daemon scheduler status --project <project> --batch <batch>
+pytest tests/perf/test_daemon_scheduler_rollout.py
+```
+
+Use `--no-daemon`, `SASE_NO_DAEMON=1`, `daemon.scheduler.launch_mode: direct`,
+`daemon.scheduler.lifecycle_mode: direct`, or `daemon.scheduler.axe_mode: direct` as the immediate opt-out. For stuck
+queued or starting work, use `sase daemon scheduler cancel --project <project> --batch <batch> [--slot <slot>]`; for
+projection drift, use the existing `sase daemon rebuild`, `verify`, and `diff` commands.
+
 ## Targets per phase gate
 
 The targets below come from `sdd/research/202604/sase_perf_research.md` and are restated here so each phase agent has a
