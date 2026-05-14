@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 14:43:59
-status: wip
+status: done
 prompt: sdd/prompts/202605/rust_daemon_indexed_projections_1.md
 legend_bead_id: sase-3e
 tier: legend
