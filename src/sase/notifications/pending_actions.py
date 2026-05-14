@@ -47,22 +47,35 @@ def register_notification(
     )
     if entry is None:
         return
+
+    from sase.notifications.daemon_writes import (
+        register_pending_action,
+    )
+
+    register_pending_action(
+        entry,
+        direct_writer=lambda: _register_notification_direct(entry),
+    )
+
+
+def _register_notification_direct(entry: dict[str, Any]) -> None:
     with _locked_store() as store:
         existing = store["actions"].get(entry["prefix"])
+        next_entry = dict(entry)
         if isinstance(existing, dict):
-            entry["created_at_unix"] = existing.get(
-                "created_at_unix", entry["created_at_unix"]
+            next_entry["created_at_unix"] = existing.get(
+                "created_at_unix", next_entry["created_at_unix"]
             )
             transports = list(existing.get("transports") or [])
-            for transport in entry["transports"]:
+            for transport in next_entry["transports"]:
                 if not any(
                     item.get("transport") == transport["transport"]
                     for item in transports
                     if isinstance(item, dict)
                 ):
                     transports.append(transport)
-            entry["transports"] = transports
-        store["actions"][entry["prefix"]] = entry
+            next_entry["transports"] = transports
+        store["actions"][next_entry["prefix"]] = next_entry
 
 
 def action_state_for_notification(

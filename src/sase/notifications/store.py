@@ -91,9 +91,21 @@ def _agent_key(cl_name: str, raw_suffix: str | None = None) -> Any:
 
 
 def _apply_state_update(update: Any, *, include_notifications: bool = False) -> Any:
-    outcome = _rust_apply_notification_state_update(
-        _notifications_path(), update, include_notifications=include_notifications
+    from sase.notifications.daemon_writes import (
+        apply_notification_state_update,
     )
+
+    update_payload = _state_update_to_dict(update)
+
+    def direct_writer() -> Any:
+        return _rust_apply_notification_state_update(
+            _notifications_path(), update, include_notifications=include_notifications
+        )
+
+    outcome = apply_notification_state_update(
+        update_payload,
+        direct_writer=direct_writer,
+    ).value
     if outcome.rewritten or outcome.changed_count > 0:
         _invalidate_load_cache()
     return outcome
@@ -102,7 +114,14 @@ def _apply_state_update(update: Any, *, include_notifications: bool = False) -> 
 def append_notification(n: Notification) -> None:
     """Append a notification as a JSON line through the Rust store."""
     _ensure_notifications_dir()
-    _rust_append_notification(_notifications_path(), n)
+    from sase.notifications.daemon_writes import (
+        append_notification as daemon_append_notification,
+    )
+
+    daemon_append_notification(
+        n,
+        direct_writer=lambda: _rust_append_notification(_notifications_path(), n),
+    )
     try:
         from sase.notifications.pending_actions import register_notification
 
@@ -324,3 +343,39 @@ def _normalize_agent_keys(agent_keys: list[dict[str, Any] | Any]) -> list[Any]:
         if key is not None:
             keys.append(key)
     return keys
+
+
+def _state_update_to_dict(update: Any) -> dict[str, Any]:
+    kind = str(update.kind)
+    data: dict[str, Any] = {"kind": kind}
+    for field in (
+        "id",
+        "ids",
+        "muted",
+        "until",
+        "now",
+        "agents",
+        "notifications",
+    ):
+        if not hasattr(update, field):
+            continue
+        value = getattr(update, field)
+        if value is None:
+            continue
+        data[field] = _jsonable_state_value(value)
+    return data
+
+
+def _jsonable_state_value(value: Any) -> Any:
+    if isinstance(value, tuple):
+        return [_jsonable_state_value(item) for item in value]
+    if isinstance(value, list):
+        return [_jsonable_state_value(item) for item in value]
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return dataclasses.asdict(value)
+    if hasattr(value, "cl_name"):
+        return {
+            "cl_name": value.cl_name,
+            "raw_suffix": getattr(value, "raw_suffix", None),
+        }
+    return value

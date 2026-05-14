@@ -36,6 +36,11 @@ CAPABILITY_BY_WRITE_SURFACE = {
     "changespec.field": "changespecs.write",
     "changespec.comments": "changespecs.write",
     "contract": "writes.contract",
+    "notifications.append": "notifications.write",
+    "notifications.state_update": "notifications.write",
+    "pending_actions.register": "notifications.write",
+    "pending_actions.update": "notifications.write",
+    "pending_actions.cleanup": "notifications.write",
 }
 
 

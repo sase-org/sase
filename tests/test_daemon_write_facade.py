@@ -6,6 +6,7 @@ from typing import Any
 
 from sase.daemon.client import LocalDaemonClient
 from sase.daemon.write_facade import write_or_fallback
+from sase.notifications.daemon_writes import apply_notification_state_update
 
 
 class FakeDaemonTransport:
@@ -43,7 +44,34 @@ class FakeDaemonTransport:
                         "changed": True,
                         "resource_handle": "test:1",
                         "source_exports": [],
-                        "projection_snapshot": None,
+                        "projection_snapshot": {
+                            "outcome": {
+                                "schema_version": 1,
+                                "matched_count": 1,
+                                "changed_count": 1,
+                                "appended_count": 0,
+                                "rewritten": True,
+                                "notifications": [
+                                    {
+                                        "id": "n1",
+                                        "timestamp": "2026-05-14T00:00:00+00:00",
+                                        "sender": "test",
+                                        "notes": [],
+                                        "files": [],
+                                        "action": None,
+                                        "action_data": {},
+                                        "read": True,
+                                        "dismissed": False,
+                                        "silent": False,
+                                        "muted": False,
+                                        "snooze_until": None,
+                                    }
+                                ],
+                                "counts": {},
+                                "expired_ids": [],
+                                "stats": {},
+                            }
+                        },
                     },
                     "fallback": {"available": False, "reason": None, "message": None},
                 },
@@ -135,6 +163,26 @@ def test_write_or_fallback_checks_capability_before_routing() -> None:
     assert not result.used_daemon
     assert result.fallback_reason == "unsupported_capability"
     assert [request["type"] for request in transport.requests] == ["capabilities"]
+
+
+def test_notification_state_update_uses_notifications_write_capability() -> None:
+    transport = FakeDaemonTransport(capabilities=["notifications.write"])
+    client = LocalDaemonClient(transport=transport)
+
+    result = apply_notification_state_update(
+        {"kind": "mark_read", "id": "n1"},
+        client=client,
+        direct_writer=lambda: "direct",
+    )
+
+    assert result.used_daemon
+    assert result.value.matched_count == 1
+    assert result.value.notifications[0].read is True
+    assert [request["type"] for request in transport.requests] == [
+        "capabilities",
+        "write",
+    ]
+    assert transport.requests[-1]["data"]["surface"] == "notifications.state_update"
 
 
 def _response(payload_type: str, data: dict[str, Any]) -> dict[str, Any]:

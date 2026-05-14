@@ -298,9 +298,7 @@ def _direct_add_dependency(
     now: str | None = None,
 ) -> dict[str, Any]:
     binding = require_rust_binding("bead_dep_add")
-    return _call_issue_operation(
-        binding, str(beads_dir), issue_id, depends_on_id, now
-    )
+    return _call_issue_operation(binding, str(beads_dir), issue_id, depends_on_id, now)
 
 
 def mark_ready_to_work(
@@ -319,9 +317,7 @@ def mark_ready_to_work(
     result = _write_or_fallback(
         beads_dir,
         payload,
-        direct_writer=lambda: _direct_mark_ready_to_work(
-            beads_dir, epic_id, now=now
-        ),
+        direct_writer=lambda: _direct_mark_ready_to_work(beads_dir, epic_id, now=now),
     )
     return _issue_payload(result), result
 
@@ -352,9 +348,7 @@ def unmark_ready_to_work(
     result = _write_or_fallback(
         beads_dir,
         payload,
-        direct_writer=lambda: _direct_unmark_ready_to_work(
-            beads_dir, epic_id, now=now
-        ),
+        direct_writer=lambda: _direct_unmark_ready_to_work(beads_dir, epic_id, now=now),
     )
     return _issue_payload(result), result
 
