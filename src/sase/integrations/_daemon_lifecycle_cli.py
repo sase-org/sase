@@ -34,6 +34,31 @@ def handle_daemon_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_daemon_rollout(args: argparse.Namespace) -> int:
+    """CLI wrapper for ``sase daemon rollout``."""
+    from sase.daemon.rollout_diagnostics import (
+        print_rollout_diagnostics,
+        rollout_diagnostics_payload,
+    )
+
+    lifecycle = _lifecycle()
+    try:
+        inspection = lifecycle._inspect_daemon(args)
+        payload = rollout_diagnostics_payload(
+            inspection,
+            args=args,
+            benchmark_report_path=getattr(args, "benchmark_report", None),
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"Error: daemon rollout diagnostics failed: {exc}", file=sys.stderr)
+        return 1
+    if getattr(args, "json_output", False):
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print_rollout_diagnostics(payload)
+    return 0
+
+
 def handle_daemon_scheduler(args: argparse.Namespace) -> int:
     """CLI wrapper for daemon scheduler inspection and recovery commands."""
     sub = getattr(args, "daemon_scheduler_subcommand", None)

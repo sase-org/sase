@@ -62,6 +62,10 @@ from sase.daemon.rollout_gates import (
     evaluate_milestone_coverage,
     milestone_gate_records,
 )
+from sase.daemon.rollout_diagnostics import (
+    print_rollout_diagnostics,
+    rollout_diagnostics_payload,
+)
 from sase.daemon.read_models import (
     PROJECTION_READ_SCHEMA_VERSION,
     BeadDetailRead,
@@ -171,6 +175,7 @@ __all__ = [
     "milestone_gate_records",
     "notification_detail_from_dict",
     "notification_list_from_dict",
+    "print_rollout_diagnostics",
     "prepare_launch_slot",
     "read",
     "read_changespecs_or_fallback",
@@ -180,6 +185,7 @@ __all__ = [
     "rollout_records_by_family",
     "rollout_records_by_id",
     "rollout_surface_records",
+    "rollout_diagnostics_payload",
     "submit_scheduler_batch",
     "submit_scheduler_axe_tasks",
     "scheduler_host_slot_from_request",

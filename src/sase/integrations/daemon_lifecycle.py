@@ -113,6 +113,7 @@ __all__ = [
     "handle_daemon_list_backups",
     "handle_daemon_rebuild",
     "handle_daemon_restore",
+    "handle_daemon_rollout",
     "handle_daemon_scheduler",
     "handle_daemon_start",
     "handle_daemon_status",
@@ -291,6 +292,12 @@ def handle_daemon_start(args: argparse.Namespace) -> int:
 
 def handle_daemon_status(args: argparse.Namespace) -> int:
     from sase.integrations._daemon_lifecycle_cli import handle_daemon_status as impl
+
+    return impl(args)
+
+
+def handle_daemon_rollout(args: argparse.Namespace) -> int:
+    from sase.integrations._daemon_lifecycle_cli import handle_daemon_rollout as impl
 
     return impl(args)
 

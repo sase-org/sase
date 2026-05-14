@@ -41,6 +41,8 @@ def _args(**overrides: Any) -> argparse.Namespace:
         "cursor": None,
         "json_output": False,
         "repair_stale_lock": False,
+        "no_daemon": False,
+        "benchmark_report": None,
     }
     values.update(overrides)
     return argparse.Namespace(**values)

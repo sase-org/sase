@@ -15,6 +15,7 @@ def handle_daemon_command(args: argparse.Namespace) -> None:
         handle_daemon_list_backups,
         handle_daemon_rebuild,
         handle_daemon_restore,
+        handle_daemon_rollout,
         handle_daemon_scheduler,
         handle_daemon_start,
         handle_daemon_status,
@@ -38,6 +39,7 @@ def handle_daemon_command(args: argparse.Namespace) -> None:
         "start": handle_daemon_start,
         "stop": handle_daemon_stop,
         "status": handle_daemon_status,
+        "rollout": handle_daemon_rollout,
         "scheduler": handle_daemon_scheduler,
         "doctor": handle_daemon_doctor,
         "rebuild": handle_daemon_rebuild,
@@ -51,7 +53,7 @@ def handle_daemon_command(args: argparse.Namespace) -> None:
     handler = handlers.get(sub) if isinstance(sub, str) else None
     if handler is None:
         print(
-            "Usage: sase daemon {start,stop,status,scheduler,doctor,rebuild,checkpoint,backup,list-backups,restore,verify,diff}",
+            "Usage: sase daemon {start,stop,status,rollout,scheduler,doctor,rebuild,checkpoint,backup,list-backups,restore,verify,diff}",
             file=sys.stderr,
         )
         sys.exit(1)

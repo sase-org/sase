@@ -91,6 +91,24 @@ def test_parser_accepts_doctor_repair_stale_lock() -> None:
     assert args.repair_stale_lock is True
 
 
+def test_parser_accepts_daemon_rollout_diagnostics() -> None:
+    args = create_parser().parse_args(
+        [
+            "daemon",
+            "rollout",
+            "--no-daemon",
+            "--benchmark-report",
+            "/tmp/perf.json",
+            "--json",
+        ]
+    )
+
+    assert args.daemon_subcommand == "rollout"
+    assert args.no_daemon is True
+    assert args.benchmark_report == "/tmp/perf.json"
+    assert args.json_output is True
+
+
 def test_parser_accepts_daemon_scheduler_recovery_commands() -> None:
     args = create_parser().parse_args(
         [

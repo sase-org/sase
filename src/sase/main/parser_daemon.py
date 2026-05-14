@@ -16,6 +16,7 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
             "Manage the local SASE daemon.\n\n"
             "Common recovery flow:\n"
             "  sase daemon status\n"
+            "  sase daemon rollout\n"
             "  sase daemon doctor\n"
             "  sase daemon verify --surface all\n"
             "  sase daemon diff --surface all\n"
@@ -147,6 +148,32 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         dest="json_output",
         help="Print machine-readable status JSON",
+    )
+
+    rollout_parser = daemon_subparsers.add_parser(
+        "rollout",
+        help="Show daemon rollout modes, gates, compatibility, and recovery actions",
+        description=(
+            "Show effective daemon rollout state across reads, writes, scheduler, "
+            "provider host, mobile, and recovery surfaces."
+        ),
+        formatter_class=HELP_FORMATTER,
+    )
+    _add_runtime_options(rollout_parser)
+    rollout_parser.add_argument(
+        "--no-daemon",
+        action="store_true",
+        help="Report diagnostics as direct-source fallback with daemon disabled",
+    )
+    rollout_parser.add_argument(
+        "--benchmark-report",
+        help="JSON report containing perf_gates and optional rollout gate coverage",
+    )
+    rollout_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable rollout diagnostics JSON",
     )
 
     scheduler_parser = daemon_subparsers.add_parser(
