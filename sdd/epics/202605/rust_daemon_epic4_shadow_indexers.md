@@ -1,4 +1,5 @@
 ---
+bead_id: sase-3e.4
 legend_bead_id: sase-3e
 tier: epic
 epic_number: 4
