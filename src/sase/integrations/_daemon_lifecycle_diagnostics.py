@@ -67,6 +67,11 @@ def doctor_payload(inspection: DaemonInspection) -> dict[str, Any]:
             _projection_check_message(inspection),
         ),
         _check(
+            "indexing",
+            _indexing_check_state(inspection),
+            _indexing_check_message(inspection),
+        ),
+        _check(
             "mobile_http",
             _mobile_http_check_state(inspection),
             _mobile_http_check_message(inspection),
@@ -156,6 +161,45 @@ def _projection_details(inspection: DaemonInspection) -> dict[str, Any] | None:
     details = health.get("details") if isinstance(health, dict) else None
     projection = details.get("projection_db") if isinstance(details, dict) else None
     return projection if isinstance(projection, dict) else None
+
+
+def _indexing_check_state(inspection: DaemonInspection) -> str:
+    indexing = _indexing_details(inspection)
+    if indexing is None:
+        return "skipped" if inspection.state != "running" else "unknown"
+    state = indexing.get("state")
+    if state in {"ok", "stopped"}:
+        return "ok" if state == "ok" else "stopped"
+    if state == "degraded":
+        return "degraded"
+    return "unknown"
+
+
+def _indexing_check_message(inspection: DaemonInspection) -> str:
+    indexing = _indexing_details(inspection)
+    if indexing is None:
+        return "indexing health requires live daemon RPC"
+    message = indexing.get("message")
+    if isinstance(message, str) and message:
+        return message
+    return (
+        "watcher_active={watcher_active}, queued={queued}, dropped={dropped}, "
+        "indexed={indexed}, failed_parses={failed}"
+    ).format(
+        watcher_active=indexing.get("watcher_active"),
+        queued=indexing.get("queued_changes"),
+        dropped=indexing.get("dropped_changes"),
+        indexed=indexing.get("indexed_sources"),
+        failed=indexing.get("failed_parses"),
+    )
+
+
+def _indexing_details(inspection: DaemonInspection) -> dict[str, Any] | None:
+    rpc = inspection.rpc or {}
+    health = rpc.get("health") if isinstance(rpc, dict) else None
+    details = health.get("details") if isinstance(health, dict) else None
+    indexing = details.get("indexing") if isinstance(details, dict) else None
+    return indexing if isinstance(indexing, dict) else None
 
 
 def _mobile_http_check_state(inspection: DaemonInspection) -> str:

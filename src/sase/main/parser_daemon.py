@@ -113,6 +113,30 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     _add_runtime_options(rebuild_parser)
     rebuild_parser.add_argument(
+        "--surface",
+        choices=[
+            "changespecs",
+            "notifications",
+            "agents",
+            "beads",
+            "catalogs",
+            "all",
+        ],
+        default="all",
+        help="Projection surface to rebuild from source stores",
+    )
+    rebuild_parser.add_argument(
+        "--project",
+        dest="project_id",
+        help="Project id to rebuild when supported by the selected surface",
+    )
+    rebuild_parser.add_argument(
+        "--reset-storage",
+        action="store_true",
+        dest="storage_reset_only",
+        help="Replay retained projection events after resetting projection tables",
+    )
+    rebuild_parser.add_argument(
         "--json",
         action="store_true",
         dest="json_output",
@@ -124,6 +148,56 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
         type=float,
         dest="rebuild_timeout",
         help="Seconds to wait for live-daemon rebuild RPC",
+    )
+
+    verify_parser = daemon_subparsers.add_parser(
+        "verify",
+        help="Verify daemon shadow indexes against source stores",
+    )
+    _add_runtime_options(verify_parser)
+    _add_indexing_selector_options(verify_parser)
+    verify_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable verify JSON",
+    )
+    verify_parser.add_argument(
+        "-T",
+        "--timeout",
+        type=float,
+        dest="verify_timeout",
+        help="Seconds to wait for live-daemon verify RPC",
+    )
+
+    diff_parser = daemon_subparsers.add_parser(
+        "diff",
+        help="Show daemon shadow index differences",
+    )
+    _add_runtime_options(diff_parser)
+    _add_indexing_selector_options(diff_parser)
+    diff_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable diff JSON",
+    )
+    diff_parser.add_argument(
+        "--limit",
+        type=int,
+        default=100,
+        help="Maximum diff records to return",
+    )
+    diff_parser.add_argument(
+        "--cursor",
+        help="Opaque diff cursor from a previous response",
+    )
+    diff_parser.add_argument(
+        "-T",
+        "--timeout",
+        type=float,
+        dest="diff_timeout",
+        help="Seconds to wait for live-daemon diff RPC",
     )
 
 
@@ -140,4 +214,25 @@ def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--socket-path",
         help="Local daemon socket path",
+    )
+
+
+def _add_indexing_selector_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--surface",
+        choices=[
+            "changespecs",
+            "notifications",
+            "agents",
+            "beads",
+            "catalogs",
+            "all",
+        ],
+        default="all",
+        help="Projection surface to inspect",
+    )
+    parser.add_argument(
+        "--project",
+        dest="project_id",
+        help="Project id to inspect when supported by the selected surface",
     )

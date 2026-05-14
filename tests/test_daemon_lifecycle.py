@@ -35,6 +35,13 @@ def _args(**overrides: Any) -> argparse.Namespace:
         "startup_timeout": None,
         "stop_timeout": None,
         "rebuild_timeout": None,
+        "verify_timeout": None,
+        "diff_timeout": None,
+        "surface": "all",
+        "project_id": None,
+        "storage_reset_only": False,
+        "limit": 100,
+        "cursor": None,
         "json_output": False,
     }
     values.update(overrides)
@@ -390,14 +397,22 @@ def test_rebuild_uses_live_daemon_rpc(
             assert socket_path_arg == socket_path
             assert timeout == 3
 
-        def rebuild(self, *, storage_reset_only: bool) -> dict[str, Any]:
-            assert storage_reset_only is True
+        def rebuild(
+            self,
+            *,
+            storage_reset_only: bool,
+            surface: str,
+            project_id: str | None,
+        ) -> dict[str, Any]:
+            assert storage_reset_only is False
+            assert surface == "beads"
+            assert project_id == "demo"
             return {"mode": "projection_storage_rebuild"}
 
     monkeypatch.setattr("sase.daemon.client.LocalDaemonClient", FakeClient)
 
     payload = lifecycle._run_daemon_rebuild(  # noqa: SLF001
-        _args(rebuild_timeout=3)
+        _args(rebuild_timeout=3, surface="beads", project_id="demo")
     )
 
     assert payload == {

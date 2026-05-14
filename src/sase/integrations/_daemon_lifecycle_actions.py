@@ -145,7 +145,11 @@ def run_daemon_rebuild(
                 payload = LocalDaemonClient(
                     inspection.paths.socket_path,
                     timeout=timeout,
-                ).rebuild(storage_reset_only=True)
+                ).rebuild(
+                    storage_reset_only=bool(getattr(args, "storage_reset_only", False)),
+                    surface=str(getattr(args, "surface", "all")),
+                    project_id=getattr(args, "project_id", None),
+                )
             except Exception as exc:
                 raise DaemonLifecycleError(
                     f"live daemon rebuild RPC failed: {exc}"
@@ -160,6 +164,12 @@ def run_daemon_rebuild(
         raise DaemonLifecycleError(
             f"refusing one-shot rebuild from {inspection.state} daemon state: "
             f"{inspection.message}"
+        )
+    if not bool(getattr(args, "storage_reset_only", False)):
+        raise DaemonLifecycleError(
+            "source backfill rebuild requires a running daemon; use "
+            "`sase daemon start` first, or pass --reset-storage for the "
+            "one-shot projection replay recovery path"
         )
 
     launch = prepare_daemon_launch(
@@ -195,6 +205,68 @@ def run_daemon_rebuild(
         raise DaemonLifecycleError("one-shot rebuild returned non-object JSON")
     payload["source"] = "one_shot_daemon_rebuild"
     return payload
+
+
+def run_daemon_verify(
+    args: argparse.Namespace,
+    *,
+    inspect_daemon: Callable[[argparse.Namespace], DaemonInspection] = inspect_daemon,
+) -> dict[str, Any]:
+    inspection = inspect_daemon(args)
+    timeout = positive_float(getattr(args, "verify_timeout", None), 5.0)
+    if inspection.state != "running" or not inspection.rpc:
+        raise DaemonLifecycleError(
+            f"daemon verify requires a running daemon: {inspection.message}"
+        )
+    if not inspection.rpc.get("available"):
+        raise DaemonLifecycleError(
+            "daemon metadata is live but local RPC is unavailable; run "
+            "`sase daemon doctor` before verifying"
+        )
+    try:
+        from sase.daemon.client import LocalDaemonClient
+
+        return LocalDaemonClient(
+            inspection.paths.socket_path,
+            timeout=timeout,
+        ).verify(
+            surface=str(getattr(args, "surface", "all")),
+            project_id=getattr(args, "project_id", None),
+        )
+    except Exception as exc:
+        raise DaemonLifecycleError(f"live daemon verify RPC failed: {exc}") from exc
+
+
+def run_daemon_diff(
+    args: argparse.Namespace,
+    *,
+    inspect_daemon: Callable[[argparse.Namespace], DaemonInspection] = inspect_daemon,
+) -> dict[str, Any]:
+    inspection = inspect_daemon(args)
+    timeout = positive_float(getattr(args, "diff_timeout", None), 5.0)
+    if inspection.state != "running" or not inspection.rpc:
+        raise DaemonLifecycleError(
+            f"daemon diff requires a running daemon: {inspection.message}"
+        )
+    if not inspection.rpc.get("available"):
+        raise DaemonLifecycleError(
+            "daemon metadata is live but local RPC is unavailable; run "
+            "`sase daemon doctor` before diffing"
+        )
+    try:
+        from sase.daemon.client import LocalDaemonClient
+
+        return LocalDaemonClient(
+            inspection.paths.socket_path,
+            timeout=timeout,
+        ).diff(
+            surface=str(getattr(args, "surface", "all")),
+            project_id=getattr(args, "project_id", None),
+            limit=int(getattr(args, "limit", 100) or 100),
+            cursor=getattr(args, "cursor", None),
+        )
+    except Exception as exc:
+        raise DaemonLifecycleError(f"live daemon diff RPC failed: {exc}") from exc
 
 
 def wait_for_background_start(

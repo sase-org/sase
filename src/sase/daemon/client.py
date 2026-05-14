@@ -118,14 +118,55 @@ class LocalDaemonClient:
         response = self.request({"type": "batch", "data": {"requests": requests}})
         return _payload_data(response, "batch")
 
-    def rebuild(self, *, storage_reset_only: bool = True) -> dict[str, Any]:
+    def indexing_status(
+        self,
+        *,
+        surface: str = "all",
+        project_id: str | None = None,
+    ) -> dict[str, Any]:
+        data = _selector_data(surface=surface, project_id=project_id)
+        response = self.request({"type": "indexing_status", "data": data})
+        return _payload_data(response, "indexing_status")
+
+    def rebuild(
+        self,
+        *,
+        storage_reset_only: bool = False,
+        surface: str = "all",
+        project_id: str | None = None,
+    ) -> dict[str, Any]:
+        data = _selector_data(surface=surface, project_id=project_id)
+        data["storage_reset_only"] = storage_reset_only
         response = self.request(
             {
                 "type": "rebuild",
-                "data": {"storage_reset_only": storage_reset_only},
+                "data": data,
             }
         )
         return _payload_data(response, "rebuild")
+
+    def verify(
+        self,
+        *,
+        surface: str = "all",
+        project_id: str | None = None,
+    ) -> dict[str, Any]:
+        data = _selector_data(surface=surface, project_id=project_id)
+        response = self.request({"type": "verify", "data": data})
+        return _payload_data(response, "verify")
+
+    def diff(
+        self,
+        *,
+        surface: str = "all",
+        project_id: str | None = None,
+        limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        data = _selector_data(surface=surface, project_id=project_id)
+        data["page"] = {"limit": limit, "cursor": cursor}
+        response = self.request({"type": "diff", "data": data})
+        return _payload_data(response, "diff")
 
     def events(
         self,
@@ -310,10 +351,44 @@ def rebuild(
     *,
     socket_path: str | Path | None = None,
     timeout: float = 5.0,
-    storage_reset_only: bool = True,
+    storage_reset_only: bool = False,
+    surface: str = "all",
+    project_id: str | None = None,
 ) -> dict[str, Any]:
     return LocalDaemonClient(socket_path, timeout=timeout).rebuild(
-        storage_reset_only=storage_reset_only
+        storage_reset_only=storage_reset_only,
+        surface=surface,
+        project_id=project_id,
+    )
+
+
+def verify(
+    *,
+    socket_path: str | Path | None = None,
+    timeout: float = 5.0,
+    surface: str = "all",
+    project_id: str | None = None,
+) -> dict[str, Any]:
+    return LocalDaemonClient(socket_path, timeout=timeout).verify(
+        surface=surface,
+        project_id=project_id,
+    )
+
+
+def diff(
+    *,
+    socket_path: str | Path | None = None,
+    timeout: float = 5.0,
+    surface: str = "all",
+    project_id: str | None = None,
+    limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+    cursor: str | None = None,
+) -> dict[str, Any]:
+    return LocalDaemonClient(socket_path, timeout=timeout).diff(
+        surface=surface,
+        project_id=project_id,
+        limit=limit,
+        cursor=cursor,
     )
 
 
@@ -340,6 +415,17 @@ def _sanitize_host_identity(value: str | None) -> str:
         for ch in value.strip()
     ).strip("-")
     return sanitized or "sase-host"
+
+
+def _selector_data(
+    *,
+    surface: str,
+    project_id: str | None,
+) -> dict[str, Any]:
+    data: dict[str, Any] = {"surface": surface}
+    if project_id:
+        data["project_id"] = project_id
+    return data
 
 
 def _read_exact(sock: socket.socket, size: int) -> bytes:

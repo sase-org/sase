@@ -10,8 +10,10 @@ from sase.daemon.client import (
     LocalDaemonUnavailableError,
     default_socket_path,
     daemon_disabled,
+    diff,
     health,
     rebuild,
+    verify,
 )
 
 __all__ = [
@@ -24,6 +26,8 @@ __all__ = [
     "LocalDaemonUnavailableError",
     "default_socket_path",
     "daemon_disabled",
+    "diff",
     "health",
     "rebuild",
+    "verify",
 ]

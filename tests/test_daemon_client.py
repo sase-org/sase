@@ -123,7 +123,115 @@ def test_rebuild_sends_storage_reset_request(tmp_path: Path) -> None:
     assert result["mode"] == "projection_storage_rebuild"
     assert request_holder["request"]["payload"] == {
         "type": "rebuild",
-        "data": {"storage_reset_only": True},
+        "data": {"surface": "all", "storage_reset_only": False},
+    }
+
+
+def test_rebuild_can_request_explicit_storage_reset(tmp_path: Path) -> None:
+    request_holder: dict[str, Any] = {}
+    socket_path = tmp_path / "daemon.sock"
+    response = {
+        "schema_version": 1,
+        "request_id": "req_rebuild",
+        "snapshot_id": None,
+        "payload": {
+            "type": "rebuild",
+            "data": {
+                "schema_version": 1,
+                "mode": "projection_storage_rebuild",
+                "storage_reset_only": True,
+                "surface": "beads",
+                "project_id": "demo",
+                "limitation": "storage reset/replay only",
+                "report": {"seeded_events": 0},
+                "summaries": [],
+            },
+        },
+    }
+    thread = _serve_one(socket_path, response, request_holder)
+
+    result = LocalDaemonClient(socket_path, timeout=1.0).rebuild(
+        storage_reset_only=True,
+        surface="beads",
+        project_id="demo",
+    )
+    thread.join(timeout=1)
+
+    assert result["storage_reset_only"] is True
+    assert request_holder["request"]["payload"] == {
+        "type": "rebuild",
+        "data": {
+            "surface": "beads",
+            "project_id": "demo",
+            "storage_reset_only": True,
+        },
+    }
+
+
+def test_verify_and_diff_send_indexing_selectors(tmp_path: Path) -> None:
+    verify_holder: dict[str, Any] = {}
+    verify_socket = tmp_path / "verify.sock"
+    verify_response = {
+        "schema_version": 1,
+        "request_id": "req_verify",
+        "snapshot_id": None,
+        "payload": {
+            "type": "verify",
+            "data": {
+                "schema_version": 1,
+                "ok": True,
+                "summaries": [],
+            },
+        },
+    }
+    verify_thread = _serve_one(verify_socket, verify_response, verify_holder)
+
+    verify = LocalDaemonClient(verify_socket, timeout=1.0).verify(
+        surface="agents",
+        project_id="demo",
+    )
+    verify_thread.join(timeout=1)
+
+    assert verify["ok"] is True
+    assert verify_holder["request"]["payload"] == {
+        "type": "verify",
+        "data": {"surface": "agents", "project_id": "demo"},
+    }
+
+    diff_holder: dict[str, Any] = {}
+    diff_socket = tmp_path / "diff.sock"
+    diff_response = {
+        "schema_version": 1,
+        "request_id": "req_diff",
+        "snapshot_id": None,
+        "payload": {
+            "type": "diff",
+            "data": {
+                "schema_version": 1,
+                "surface": "beads",
+                "records": [],
+                "counts": {"missing": 0, "stale": 0, "extra": 0, "corrupt": 0},
+                "next_cursor": None,
+                "bounded": {"max_payload_bytes": 1048576, "truncated": False},
+            },
+        },
+    }
+    diff_thread = _serve_one(diff_socket, diff_response, diff_holder)
+
+    diff = LocalDaemonClient(diff_socket, timeout=1.0).diff(
+        surface="beads",
+        limit=7,
+        cursor="14",
+    )
+    diff_thread.join(timeout=1)
+
+    assert diff["records"] == []
+    assert diff_holder["request"]["payload"] == {
+        "type": "diff",
+        "data": {
+            "surface": "beads",
+            "page": {"limit": 7, "cursor": "14"},
+        },
     }
 
 

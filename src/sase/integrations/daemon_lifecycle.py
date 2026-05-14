@@ -16,9 +16,11 @@ from sase.integrations import _daemon_lifecycle_process as _process
 from sase.integrations import _daemon_lifecycle_types as _types
 from sase.integrations import _daemon_lifecycle_values as _values
 from sase.integrations._daemon_lifecycle_actions import (
+    run_daemon_diff,
     run_daemon_rebuild,
     run_daemon_start,
     run_daemon_stop,
+    run_daemon_verify,
     wait_for_background_start,
 )
 from sase.integrations._daemon_lifecycle_config import (
@@ -85,18 +87,22 @@ __all__ = [
     "_process_is_live",
     "_read_metadata",
     "_resolve_gateway_command",
+    "_run_daemon_diff",
     "_run_daemon_rebuild",
     "_run_daemon_start",
     "_run_daemon_stop",
+    "_run_daemon_verify",
     "_runtime_paths_from_args",
     "_terminate_process",
     "_try_health_rpc",
     "_wait_for_background_start",
+    "handle_daemon_diff",
     "handle_daemon_doctor",
     "handle_daemon_rebuild",
     "handle_daemon_start",
     "handle_daemon_status",
     "handle_daemon_stop",
+    "handle_daemon_verify",
     "signal",
 ]
 
@@ -160,6 +166,73 @@ def handle_daemon_rebuild(args: argparse.Namespace) -> int:
         if limitation:
             print(f"Limitation: {limitation}")
     return 0
+
+
+def handle_daemon_verify(args: argparse.Namespace) -> int:
+    """Verify daemon shadow projections through a live daemon."""
+    try:
+        payload = _run_daemon_verify(args)
+    except _DaemonLifecycleError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if getattr(args, "json_output", False):
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        state = "ok" if payload.get("ok") else "degraded"
+        print(f"Verify: {state}")
+        for summary in payload.get("summaries", []):
+            if isinstance(summary, dict):
+                counts = summary.get("diff_counts", {})
+                print(
+                    "- {surface}: {state} "
+                    "missing={missing} stale={stale} extra={extra} corrupt={corrupt}".format(
+                        surface=summary.get("surface", "unknown"),
+                        state=summary.get("state", "unknown"),
+                        missing=counts.get("missing", 0)
+                        if isinstance(counts, dict)
+                        else 0,
+                        stale=counts.get("stale", 0) if isinstance(counts, dict) else 0,
+                        extra=counts.get("extra", 0) if isinstance(counts, dict) else 0,
+                        corrupt=counts.get("corrupt", 0)
+                        if isinstance(counts, dict)
+                        else 0,
+                    )
+                )
+    return 0 if payload.get("ok") else 1
+
+
+def handle_daemon_diff(args: argparse.Namespace) -> int:
+    """Print bounded daemon shadow projection diffs."""
+    try:
+        payload = _run_daemon_diff(args)
+    except _DaemonLifecycleError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if getattr(args, "json_output", False):
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(f"Diff: {payload.get('surface', 'all')}")
+        for record in payload.get("records", []):
+            if isinstance(record, dict):
+                print(
+                    "- {category} {domain} {handle}: {message}".format(
+                        category=record.get("category", "unknown"),
+                        domain=record.get("domain", "unknown"),
+                        handle=record.get("handle") or record.get("source_path") or "",
+                        message=record.get("message", ""),
+                    )
+                )
+        if payload.get("next_cursor"):
+            print(f"Next cursor: {payload['next_cursor']}")
+    counts = payload.get("counts")
+    has_diff = (
+        isinstance(counts, dict)
+        and sum(
+            int(counts.get(key, 0)) for key in ("missing", "stale", "extra", "corrupt")
+        )
+        > 0
+    )
+    return 1 if has_diff else 0
 
 
 def _load_daemon_config() -> _DaemonLifecycleConfig:
@@ -255,6 +328,14 @@ def _run_daemon_rebuild(args: argparse.Namespace) -> dict[str, Any]:
         inspect_daemon=_inspect_daemon,
         prepare_daemon_launch=_prepare_daemon_launch,
     )
+
+
+def _run_daemon_verify(args: argparse.Namespace) -> dict[str, Any]:
+    return run_daemon_verify(args, inspect_daemon=_inspect_daemon)
+
+
+def _run_daemon_diff(args: argparse.Namespace) -> dict[str, Any]:
+    return run_daemon_diff(args, inspect_daemon=_inspect_daemon)
 
 
 def _wait_for_background_start(

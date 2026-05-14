@@ -14,6 +14,8 @@ def handle_daemon_command(args: argparse.Namespace) -> None:
         handle_daemon_start,
         handle_daemon_status,
         handle_daemon_stop,
+        handle_daemon_verify,
+        handle_daemon_diff,
     )
 
     sub = getattr(args, "daemon_subcommand", None)
@@ -23,11 +25,13 @@ def handle_daemon_command(args: argparse.Namespace) -> None:
         "status": handle_daemon_status,
         "doctor": handle_daemon_doctor,
         "rebuild": handle_daemon_rebuild,
+        "verify": handle_daemon_verify,
+        "diff": handle_daemon_diff,
     }
     handler = handlers.get(sub) if isinstance(sub, str) else None
     if handler is None:
         print(
-            "Usage: sase daemon {start,stop,status,doctor,rebuild}",
+            "Usage: sase daemon {start,stop,status,doctor,rebuild,verify,diff}",
             file=sys.stderr,
         )
         sys.exit(1)
