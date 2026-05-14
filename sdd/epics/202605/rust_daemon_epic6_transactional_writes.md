@@ -2,6 +2,9 @@
 create_time: 2026-05-14 00:51:51
 status: wip
 prompt: sdd/prompts/202605/rust_daemon_epic6_transactional_writes.md
+bead_id: sase-3e.6
+tier: epic
+legend_bead_id: sase-3e
 ---
 # Plan - Rust Daemon Epic 6 Transactional Writes
 
