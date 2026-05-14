@@ -49,6 +49,7 @@ __all__ = [
     "read",
     "rebuild",
     "verify",
+    "write",
 ]
 
 
@@ -117,6 +118,14 @@ class LocalDaemonClient(LocalDaemonReadMixin):
     def batch(self, requests: list[dict[str, Any]]) -> dict[str, Any]:
         response = self.request({"type": "batch", "data": {"requests": requests}})
         return payload_data(response, "batch")
+
+    def write(
+        self,
+        surface: str,
+        data: dict[str, Any],
+    ) -> dict[str, Any]:
+        response = self.request({"type": "write", "data": {"surface": surface, **data}})
+        return payload_data(response, "write")
 
     def indexing_status(
         self,
@@ -390,3 +399,13 @@ def read(
     timeout: float = 1.0,
 ) -> dict[str, Any]:
     return LocalDaemonClient(socket_path, timeout=timeout).read(surface, data)
+
+
+def write(
+    surface: str,
+    data: dict[str, Any],
+    *,
+    socket_path: str | Path | None = None,
+    timeout: float = 1.0,
+) -> dict[str, Any]:
+    return LocalDaemonClient(socket_path, timeout=timeout).write(surface, data)

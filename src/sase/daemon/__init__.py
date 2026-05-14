@@ -4,7 +4,15 @@ from sase.daemon.changespec_reads import (
     load_changespecs_from_daemon,
     read_changespecs_or_fallback,
 )
-from sase.daemon.client import LocalDaemonClient, diff, health, read, rebuild, verify
+from sase.daemon.client import (
+    LocalDaemonClient,
+    diff,
+    health,
+    read,
+    rebuild,
+    verify,
+    write,
+)
 from sase.daemon.constants import (
     LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
     LOCAL_DAEMON_MAX_PAYLOAD_BYTES,
@@ -22,6 +30,11 @@ from sase.daemon.read_facade import (
     DaemonReadResult,
     is_fallbackable_daemon_error,
     read_or_fallback,
+)
+from sase.daemon.write_facade import (
+    DaemonWriteResult,
+    is_fallbackable_daemon_write_error,
+    write_or_fallback,
 )
 from sase.daemon.read_models import (
     PROJECTION_READ_SCHEMA_VERSION,
@@ -58,6 +71,7 @@ __all__ = [
     "LocalDaemonTransportError",
     "LocalDaemonUnavailableError",
     "DaemonReadResult",
+    "DaemonWriteResult",
     "PROJECTION_READ_SCHEMA_VERSION",
     "BeadDetailRead",
     "BeadListRead",
@@ -82,6 +96,7 @@ __all__ = [
     "generic_read_from_dict",
     "health",
     "is_fallbackable_daemon_error",
+    "is_fallbackable_daemon_write_error",
     "load_changespecs_from_daemon",
     "notification_detail_from_dict",
     "notification_list_from_dict",
@@ -90,4 +105,6 @@ __all__ = [
     "read_or_fallback",
     "rebuild",
     "verify",
+    "write",
+    "write_or_fallback",
 ]
