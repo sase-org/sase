@@ -100,6 +100,14 @@ def _provider_host_env_name(operation_key: str) -> str:
     return f"SASE_PROVIDER_HOST_{operation_key.upper()}_MODE"
 
 
+_READ_PARITY_GATE_BY_WRITE_CAPABILITY = {
+    "agents.write": "daemon_read.parity.agents",
+    "beads.write": "daemon_read.parity.beads",
+    "changespecs.write": "daemon_read.parity.changespecs",
+    "notifications.write": "daemon_read.parity.notifications",
+}
+
+
 def _read_surface_record(group: str) -> RolloutSurfaceRecord:
     ace_surface = group in ACE_DAEMON_SURFACE_GROUPS
     default_on = group in DEFAULT_ENABLED_SURFACE_GROUPS
@@ -134,6 +142,14 @@ def _read_surface_record(group: str) -> RolloutSurfaceRecord:
 
 
 def _write_surface_record(surface: str, capability: str) -> RolloutSurfaceRecord:
+    read_parity_gate = _READ_PARITY_GATE_BY_WRITE_CAPABILITY.get(capability)
+    parity_gates = (
+        *((read_parity_gate,) if read_parity_gate is not None else ()),
+        f"daemon_write.parity.{surface}",
+        f"daemon_write.idempotency.{surface}",
+        f"daemon_write.stale_source_conflict.{surface}",
+        f"daemon_write.source_export_repair.{surface}",
+    )
     return RolloutSurfaceRecord(
         surface_id=f"write.{surface}",
         family="write",
@@ -143,8 +159,11 @@ def _write_surface_record(surface: str, capability: str) -> RolloutSurfaceRecord
         env_overrides=(TOP_LEVEL_DAEMON_ESCAPE_HATCH_ENV,),
         daemon_capabilities=(capability,),
         schema_versions=(("local_daemon", LOCAL_DAEMON_SCHEMA_VERSION),),
-        parity_gates=(f"daemon_write.parity.{surface}",),
-        recovery_commands=("sase daemon doctor",),
+        parity_gates=parity_gates,
+        recovery_commands=(
+            "sase daemon doctor",
+            "sase daemon rebuild --surface all",
+        ),
         default_policy="default_off",
     )
 

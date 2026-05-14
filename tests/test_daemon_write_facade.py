@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from sase.daemon.client import LocalDaemonClient
+import pytest
+
+from sase.daemon.client import LocalDaemonClient, LocalDaemonRpcError
 from sase.daemon.write_facade import write_or_fallback
 from sase.notifications.daemon_writes import apply_notification_state_update
 
@@ -148,6 +150,44 @@ def test_write_or_fallback_uses_direct_writer_for_unsupported_mutation() -> None
     assert result.fallback_reason == "unsupported_mutation"
 
 
+def test_write_or_fallback_does_not_direct_fallback_for_stale_source_conflict() -> None:
+    transport = FakeDaemonTransport(
+        capabilities=["writes.contract"],
+        write_errors={
+            "contract": _rpc_error(
+                "conflict_stale_source",
+                fallback_available=False,
+                fallback_reason=None,
+            )
+        },
+    )
+    client = LocalDaemonClient(transport=transport)
+    direct_calls: list[str] = []
+
+    with pytest.raises(LocalDaemonRpcError, match="conflict stale source"):
+        write_or_fallback(
+            "contract",
+            client=client,
+            daemon_writer=lambda daemon: daemon.write(
+                "contract",
+                {
+                    "schema_version": 1,
+                    "project_id": "project-a",
+                    "idempotency_key": "key-stale",
+                    "actor": {
+                        "schema_version": 1,
+                        "actor_type": "test",
+                        "name": "pytest",
+                    },
+                    "payload": {},
+                },
+            ),
+            direct_writer=lambda: direct_calls.append("direct"),
+        )
+
+    assert direct_calls == []
+
+
 def test_write_or_fallback_checks_capability_before_routing() -> None:
     transport = FakeDaemonTransport(capabilities=[])
     client = LocalDaemonClient(transport=transport)
@@ -185,6 +225,28 @@ def test_notification_state_update_uses_notifications_write_capability() -> None
     assert transport.requests[-1]["data"]["surface"] == "notifications.state_update"
 
 
+def test_notification_state_update_uses_stable_idempotency_key() -> None:
+    update = {"kind": "mark_read", "id": "n1"}
+    first = FakeDaemonTransport(capabilities=["notifications.write"])
+    second = FakeDaemonTransport(capabilities=["notifications.write"])
+
+    apply_notification_state_update(
+        update,
+        client=LocalDaemonClient(transport=first),
+        direct_writer=lambda: "direct",
+    )
+    apply_notification_state_update(
+        dict(update),
+        client=LocalDaemonClient(transport=second),
+        direct_writer=lambda: "direct",
+    )
+
+    first_key = first.requests[-1]["data"]["idempotency_key"]
+    second_key = second.requests[-1]["data"]["idempotency_key"]
+    assert first_key == second_key
+    assert first_key.startswith("notifications.state_update:")
+
+
 def _response(payload_type: str, data: dict[str, Any]) -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -198,7 +260,12 @@ def _error_response(error: dict[str, Any]) -> dict[str, Any]:
     return _response("error", error)
 
 
-def _rpc_error(code: str) -> dict[str, Any]:
+def _rpc_error(
+    code: str,
+    *,
+    fallback_available: bool = True,
+    fallback_reason: str | None = None,
+) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "code": code,
@@ -206,5 +273,11 @@ def _rpc_error(code: str) -> dict[str, Any]:
         "retryable": False,
         "target": "payload",
         "details": {"capability": "contract.write"},
-        "fallback": {"available": True, "reason": code, "message": "use direct"},
+        "fallback": {
+            "available": fallback_available,
+            "reason": (code if fallback_reason is None else fallback_reason)
+            if fallback_available
+            else fallback_reason,
+            "message": "use direct" if fallback_available else None,
+        },
     }

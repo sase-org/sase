@@ -129,6 +129,43 @@ def test_execute_launch_plan_daemon_mode_submits_scheduler_batch(
     assert submitted["launch_specs"][0]["metadata"]["timestamp"] == "ts"
 
 
+def test_execute_launch_plan_daemon_mode_uses_stable_idempotency_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_DAEMON_SCHEDULER_LAUNCH_MODE", "daemon")
+    response = {
+        "handle": {
+            "batch_id": "batch-a",
+            "queue_id": "agents",
+            "status": "queued",
+        },
+        "status": {"slots": [{"slot_index": 0, "slot_id": "slot-a"}]},
+    }
+
+    with patch(
+        "sase.daemon.scheduler.submit_scheduler_batch", return_value=response
+    ) as submit:
+        for _ in range(2):
+            execute_launch_plan(
+                plan_fake_fanout("single", ["do work"]),
+                LaunchExecutionContext(
+                    cl_name="home",
+                    project_file="/home.sase",
+                    project_name="home",
+                    is_home_mode=True,
+                    workspace_num=0,
+                    workspace_dir="/home/user",
+                ),
+                base_timestamp="ts",
+            )
+
+    first = submit.call_args_list[0].args[1].to_wire()
+    second = submit.call_args_list[1].args[1].to_wire()
+    assert first["idempotency_key"] == second["idempotency_key"]
+    assert first["batch_id"] == second["batch_id"]
+    assert first["idempotency_key"].startswith("scheduler.launch:")
+
+
 def test_execute_launch_plan_shadow_mode_submits_then_launches_direct(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -198,6 +198,19 @@ human-readable JSON/JSONL/project files. On startup, `sase daemon rebuild --rese
 rebuilds, the daemon retries safe pending/failed source exports. Conflicted exports remain in the outbox with the target
 path, surface, status, and last error so an operator can fix the source file and rerun doctor/rebuild.
 
+M3 write promotion is gated per surface. A write surface is not eligible for default daemon-authoritative behavior until
+the rollout registry records same-surface read parity where applicable, daemon capability coverage, stable idempotency
+keys for retried calls, stale-source conflict coverage before source fallback, source-export repair coverage, direct
+fallback for non-authoritative modes, and `sase daemon doctor` / `sase daemon rebuild --surface all` recovery guidance.
+Rolling back with `--no-daemon` or `SASE_NO_DAEMON=1` must leave the source JSON/JSONL/project files readable by direct
+Python paths.
+
+M4 scheduler promotion is also per surface. Agent launch, lifecycle, and axe scheduler routing remain `direct` by
+default; `shadow` modes submit daemon batches while still executing direct side effects. Launch batches use
+deterministic idempotency keys derived from the normalized launch plan, resolved slot metadata, and allocated timestamps
+so a retry after daemon restart or client timeout does not enqueue duplicate scheduler work.
+`SASE_DAEMON_SCHEDULER_*_MODE=direct` and `SASE_NO_DAEMON=1` are the rollback controls.
+
 Storage layout contract (see the [daemon operations guide](troubleshooting/daemon-operations.md) for recovery recipes
 and sync-exclusion examples):
 

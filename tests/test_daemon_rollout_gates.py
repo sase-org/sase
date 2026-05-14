@@ -77,6 +77,12 @@ def test_milestone_aggregator_connects_existing_rollout_gate_registries() -> Non
         EPIC9_ROLLOUT_PARITY_GATES <= records_by_milestone["M2"].required_parity_gates
     )
     assert EPIC9_ROLLOUT_PERF_GATES <= records_by_milestone["M2"].required_perf_gates
+    assert {
+        "daemon_write.idempotency.notifications.append",
+        "daemon_write.stale_source_conflict.changespec.status",
+        "daemon_write.source_export_repair.beads",
+        "daemon_read.parity.notifications",
+    } <= records_by_milestone["M3"].required_parity_gates
     assert (
         EPIC7_ROLLOUT_PARITY_GATES <= records_by_milestone["M4"].required_parity_gates
     )

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import random
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
-from uuid import uuid4
 
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.agent_launch_facade import LaunchTimestampBatchAllocator
@@ -340,10 +341,15 @@ def _scheduler_batch_request_for_plan(
     if not specs:
         return None
 
-    batch_id = f"launch_{uuid4().hex}"
+    idempotency_key = _scheduler_launch_idempotency_key(
+        plan=plan,
+        context=context,
+        specs=specs,
+    )
+    batch_id = f"launch_{_short_hash(idempotency_key)}"
     return SchedulerBatchSubmit(
         project_id=_scheduler_project_id(context),
-        idempotency_key=batch_id,
+        idempotency_key=idempotency_key,
         batch_id=batch_id,
         queue_id="agents",
         launch_specs=specs,
@@ -354,6 +360,34 @@ def _scheduler_batch_request_for_plan(
             "scheduler_launch_mode": mode,
         },
     )
+
+
+def _scheduler_launch_idempotency_key(
+    *,
+    plan: LaunchFanoutPlanWire,
+    context: LaunchExecutionContext,
+    specs: list[Any],
+) -> str:
+    stable = {
+        "launch_kind": plan.launch_kind,
+        "context": {
+            "cl_name": context.cl_name,
+            "project_file": context.project_file,
+            "project_name": context.project_name,
+            "update_target": context.update_target,
+            "history_sort_key": context.history_sort_key,
+            "is_home_mode": context.is_home_mode,
+            "vcs_ref": context.vcs_ref,
+            "deferred_workspace": context.deferred_workspace,
+        },
+        "slots": [spec.to_wire() for spec in specs],
+    }
+    encoded = json.dumps(stable, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return f"scheduler.launch:{hashlib.sha256(encoded).hexdigest()}"
+
+
+def _short_hash(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
 
 
 def _scheduler_slot_env(

@@ -145,6 +145,36 @@ def test_write_surface_inventory_matches_capability_helper() -> None:
         assert record.default_policy == "default_off"
 
 
+def test_m3_write_surfaces_require_reversible_hardening_gates() -> None:
+    records = rollout_records_by_family("write")
+
+    for record in records:
+        surface = record.surface_id.removeprefix("write.")
+        assert record.minimum_milestone == "M3"
+        assert f"daemon_write.parity.{surface}" in record.parity_gates
+        assert f"daemon_write.idempotency.{surface}" in record.parity_gates
+        assert f"daemon_write.stale_source_conflict.{surface}" in record.parity_gates
+        assert f"daemon_write.source_export_repair.{surface}" in record.parity_gates
+        assert "sase daemon doctor" in record.recovery_commands
+        assert "sase daemon rebuild --surface all" in record.recovery_commands
+        assert record.direct_fallback_available is True
+
+
+def test_m3_write_surfaces_with_matching_reads_require_read_parity() -> None:
+    records = rollout_records_by_family("write")
+    read_parity_by_capability = {
+        "agents.write": "daemon_read.parity.agents",
+        "beads.write": "daemon_read.parity.beads",
+        "changespecs.write": "daemon_read.parity.changespecs",
+        "notifications.write": "daemon_read.parity.notifications",
+    }
+
+    for record in records:
+        expected = read_parity_by_capability.get(record.daemon_capabilities[0])
+        if expected is not None:
+            assert expected in record.parity_gates
+
+
 def test_no_daemon_escape_hatch_covers_fallbackable_runtime_surfaces() -> None:
     runtime_families = {"read", "write", "scheduler", "provider_host"}
 
