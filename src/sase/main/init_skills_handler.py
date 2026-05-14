@@ -2,6 +2,7 @@
 
 import argparse
 import difflib
+import json
 import re
 import shutil
 import subprocess
@@ -104,23 +105,52 @@ def _render_skill(
 
 def _build_output(name: str, description: str, body: str) -> str:
     """Build the final SKILL.md content with frontmatter."""
+    yaml_name = _yaml_inline_string(name)
     if "\n" in description.strip():
         # Multi-line: use YAML literal block scalar (|)
-        header = f"---\nname: {name}\ndescription: |\n"
+        header = f"---\nname: {yaml_name}\ndescription: |\n"
         for line in description.strip().splitlines():
             header += f"  {line}\n"
         header += "---"
     elif len(f"description: {description}") > 120:
-        # Long single-line: wrap as YAML plain scalar with continuation indent
+        # Long single-line: wrap as a folded block scalar so YAML punctuation in
+        # the description remains data rather than syntax.
         wrapped = textwrap.fill(description, width=118)
         indented = textwrap.indent(wrapped, "  ")
-        header = f"---\nname: {name}\ndescription:\n{indented}\n---"
+        header = f"---\nname: {yaml_name}\ndescription: >-\n{indented}\n---"
     else:
-        header = f"---\nname: {name}\ndescription: {description}\n---"
+        header = (
+            f"---\nname: {yaml_name}\n"
+            f"description: {_yaml_inline_string(description)}\n---"
+        )
     content = header + "\n\n" + body
     if not content.endswith("\n"):
         content += "\n"
     return content
+
+
+def _yaml_inline_string(value: str) -> str:
+    """Return a compact YAML scalar that parses back as the same string."""
+    if _is_safe_plain_yaml_string(value):
+        return value
+    return json.dumps(value, ensure_ascii=True)
+
+
+def _is_safe_plain_yaml_string(value: str) -> bool:
+    """Whether *value* can be emitted as an unquoted one-line YAML string."""
+    if not value or value != value.strip():
+        return False
+    if value in {"~", "null", "Null", "NULL"}:
+        return False
+    if value.lower() in {"true", "false", "yes", "no", "on", "off"}:
+        return False
+    if re.fullmatch(r"[-+]?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", value):
+        return False
+    if value[0] in "!&*{}[],#|>@`\"'":
+        return False
+    if value[0] in "-?:" and (len(value) == 1 or value[1].isspace()):
+        return False
+    return ": " not in value and " #" not in value
 
 
 def _prompt_overwrite(target: Path, new_content: str) -> bool:

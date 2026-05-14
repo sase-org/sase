@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 
 from sase.main import init_skills_handler
-from sase.main.init_skills_handler import _get_target_path, handle_init_skills_command
+from sase.main.init_skills_handler import (
+    _build_output,
+    _get_target_path,
+    handle_init_skills_command,
+)
 from sase.xprompt.loader import get_sase_package_xprompts_dir
 from sase.xprompt.loader_parsing import parse_yaml_front_matter
 from sase.xprompt.models import XPrompt
@@ -160,3 +164,30 @@ def test_skill_provider_list_respects_requested_provider(
     out = capsys.readouterr().out
     assert str(_get_target_path("codex", "codex_only", use_chezmoi=False)) not in out
     assert "Dry run: 1 source entries, no files written" in out
+
+
+def test_build_output_quotes_yaml_sensitive_inline_description() -> None:
+    """Generated skill frontmatter remains valid YAML for colon descriptions."""
+    description = "Use when the user asks for Gmail: read-only gog access."
+
+    front_matter, body = parse_yaml_front_matter(
+        _build_output("sase_gmail", description, "Use gog.\n")
+    )
+
+    assert front_matter == {"name": "sase_gmail", "description": description}
+    assert body == "Use gog.\n"
+
+
+def test_build_output_uses_folded_scalar_for_long_inline_description() -> None:
+    """Long one-line descriptions are valid YAML even when wrapped."""
+    description = (
+        "Use when the user asks for an audit: inspect every relevant commit, "
+        "then make only objective low-risk changes with focused verification."
+    )
+
+    front_matter, body = parse_yaml_front_matter(
+        _build_output("audit_skill", description, "Audit.\n")
+    )
+
+    assert front_matter == {"name": "audit_skill", "description": description}
+    assert body == "Audit.\n"
