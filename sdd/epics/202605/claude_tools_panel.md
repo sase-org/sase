@@ -2,6 +2,8 @@
 create_time: 2026-05-14 13:18:43
 status: wip
 prompt: sdd/prompts/202605/claude_tools_panel.md
+bead_id: sase-3g
+tier: epic
 ---
 # MVP Tools Panel For Claude
 
