@@ -10,6 +10,7 @@ from typing import Any
 _BEADS_DIRNAME = "sdd/beads"
 _BEADS_DIRNAME_NON_VC = "beads"
 _FAST_WRITE_COMMANDS = {"open", "update", "close", "dep"}
+_DAEMON_ROUTABLE_READ_COMMANDS = {"list", "show", "ready", "blocked", "stats"}
 
 
 def try_handle_bead_fast_path(argv: list[str]) -> int | None:
@@ -19,6 +20,8 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
     the command through the compatibility slow path.
     """
     if not argv or any(arg in {"-h", "--help"} for arg in argv):
+        return None
+    if _should_use_argparse_read_router(argv):
         return None
 
     context = _resolve_fast_path_context(argv)
@@ -56,6 +59,17 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
         _apply_mutation_side_effects(context.write_beads_dir, mutation_summary)
 
     return int(outcome.get("exit_code") or 0)
+
+
+def _should_use_argparse_read_router(argv: list[str]) -> bool:
+    subcommand = argv[0]
+    if subcommand not in _DAEMON_ROUTABLE_READ_COMMANDS:
+        return False
+    if "--no-daemon" in argv:
+        return True
+    from sase.daemon.client import daemon_disabled
+
+    return not daemon_disabled()
 
 
 class _FastPathContext:

@@ -211,6 +211,10 @@ def register_file_history_parser(subparsers: argparse._SubParsersAction) -> None
     fh_subparsers.add_parser(
         "list",
         help="Print the recency-ordered file-reference history as a JSON array",
+    ).add_argument(
+        "--no-daemon",
+        action="store_true",
+        help="Read directly from the file-history store instead of the local daemon",
     )
 
     # sase file-history delete <path>

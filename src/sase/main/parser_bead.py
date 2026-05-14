@@ -3,6 +3,14 @@
 import argparse
 
 
+def _add_no_daemon(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--no-daemon",
+        action="store_true",
+        help="Read directly from the bead store instead of the local daemon",
+    )
+
+
 def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'bead' subcommand parser."""
     bead_parser = subparsers.add_parser(
@@ -14,7 +22,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     # sase bead blocked
-    bead_subparsers.add_parser("blocked", help="Show blocked issues")
+    _add_no_daemon(bead_subparsers.add_parser("blocked", help="Show blocked issues"))
 
     # sase bead close
     bead_close_parser = bead_subparsers.add_parser(
@@ -99,6 +107,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         action="append",
         help="Filter by plan-bead tier (repeatable)",
     )
+    _add_no_daemon(bead_list_parser)
 
     # sase bead onboard
     bead_subparsers.add_parser("onboard", help="Show quick-start guide")
@@ -108,7 +117,9 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     bead_open_parser.add_argument("id", help="Issue ID to reopen")
 
     # sase bead ready
-    bead_subparsers.add_parser("ready", help="Show issues ready to work")
+    _add_no_daemon(
+        bead_subparsers.add_parser("ready", help="Show issues ready to work")
+    )
 
     # sase bead rm
     bead_rm_parser = bead_subparsers.add_parser(
@@ -119,9 +130,10 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     # sase bead show
     bead_show_parser = bead_subparsers.add_parser("show", help="Show issue details")
     bead_show_parser.add_argument("id", help="Issue ID")
+    _add_no_daemon(bead_show_parser)
 
     # sase bead stats
-    bead_subparsers.add_parser("stats", help="Show project statistics")
+    _add_no_daemon(bead_subparsers.add_parser("stats", help="Show project statistics"))
 
     # sase bead sync
     bead_sync_parser = bead_subparsers.add_parser("sync", help="Sync with git")

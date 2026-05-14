@@ -5,11 +5,14 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from sase.bead.model import BeadTier, Issue, IssueType, Status
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC, BeadProject
 from sase.bead.workspace import get_project_beads_dirs_for_project
+from sase.daemon.read_facade import read_or_fallback
+from sase.daemon.read_models import bead_detail_from_dict, bead_list_from_dict
 
 from ._mobile_helper_common import (
     GATEWAY_WIRE_SCHEMA_VERSION,
@@ -50,6 +53,18 @@ def beads_list_response(request: dict[str, Any]) -> dict[str, Any]:
         "tier",
     )
     limit = optional_limit(request.get("limit"))
+    no_daemon = optional_bool(request.get("no_daemon"), "no_daemon")
+
+    daemon_response = _try_daemon_beads_list_response(
+        scope,
+        statuses=statuses,
+        issue_types=issue_types,
+        tiers=tiers,
+        limit=limit,
+        no_daemon=no_daemon,
+    )
+    if daemon_response is not None:
+        return daemon_response
 
     projected: dict[tuple[str, str], tuple[str, Issue, list[Issue], Path | None]] = {}
     skipped = list(scope.skipped)
@@ -97,6 +112,13 @@ def beads_list_response(request: dict[str, Any]) -> dict[str, Any]:
 def beads_show_response(request: dict[str, Any]) -> dict[str, Any]:
     bead_id = required_string(request.get("bead_id"), "bead_id")
     scope = _resolve_bead_read_scope(request)
+    no_daemon = optional_bool(request.get("no_daemon"), "no_daemon")
+
+    daemon_response = _try_daemon_beads_show_response(
+        scope, bead_id=bead_id, no_daemon=no_daemon
+    )
+    if daemon_response is not None:
+        return daemon_response
 
     best: tuple[str, Issue, list[Issue], Path | None] | None = None
     skipped = list(scope.skipped)
@@ -128,6 +150,164 @@ def beads_show_response(request: dict[str, Any]) -> dict[str, Any]:
             issue, project, all_issues, detail_representative_dir
         ),
     }
+
+
+def _try_daemon_beads_list_response(
+    scope: _BeadReadScope,
+    *,
+    statuses: list[Status] | None,
+    issue_types: list[IssueType] | None,
+    tiers: list[BeadTier] | None,
+    limit: int | None,
+    no_daemon: bool,
+) -> dict[str, Any] | None:
+    context = _daemon_scope_context(scope)
+    if context is None:
+        return None
+
+    result = read_or_fallback(
+        "bead_list",
+        args=SimpleNamespace(no_daemon=no_daemon),
+        direct_loader=lambda: None,
+        daemon_loader=lambda daemon: _daemon_beads_list_response(
+            daemon,
+            context,
+            scope,
+            statuses=statuses,
+            issue_types=issue_types,
+            tiers=tiers,
+            limit=limit,
+        ),
+    )
+    return result.value if result.used_daemon else None
+
+
+def _try_daemon_beads_show_response(
+    scope: _BeadReadScope,
+    *,
+    bead_id: str,
+    no_daemon: bool,
+) -> dict[str, Any] | None:
+    context = _daemon_scope_context(scope)
+    if context is None:
+        return None
+
+    result = read_or_fallback(
+        "bead_show",
+        args=SimpleNamespace(no_daemon=no_daemon),
+        direct_loader=lambda: None,
+        daemon_loader=lambda daemon: _daemon_beads_show_response(
+            daemon, context, scope, bead_id=bead_id
+        ),
+    )
+    return result.value if result.used_daemon else None
+
+
+def _daemon_scope_context(scope: _BeadReadScope) -> tuple[str, Path] | None:
+    if scope.project is None or len(scope.groups) != 1:
+        return None
+    project, beads_dir = scope.groups[0]
+    if project != scope.project:
+        return None
+    canonical = _canonical_beads_dir_for_project(project)
+    if canonical is None:
+        return None
+    try:
+        if canonical.resolve() != beads_dir.resolve():
+            return None
+    except OSError:
+        return None
+    return project, beads_dir
+
+
+def _daemon_beads_list_response(
+    daemon: Any,
+    context: tuple[str, Path],
+    scope: _BeadReadScope,
+    *,
+    statuses: list[Status] | None,
+    issue_types: list[IssueType] | None,
+    tiers: list[BeadTier] | None,
+    limit: int | None,
+) -> dict[str, Any]:
+    project, beads_dir = context
+    all_issues = _daemon_bead_pages(daemon, project_id=project)
+    filtered = _daemon_bead_pages(
+        daemon,
+        project_id=project,
+        statuses=statuses,
+        issue_types=issue_types,
+        tiers=tiers,
+    )
+    filtered.sort(key=_issue_sort_key, reverse=True)
+    summaries = [_bead_summary_wire(issue, project, all_issues) for issue in filtered]
+    total_count = len(summaries)
+    if limit is not None:
+        summaries = summaries[:limit]
+    skipped = list(scope.skipped)
+    return {
+        "schema_version": GATEWAY_WIRE_SCHEMA_VERSION,
+        "result": _bead_helper_result(
+            _beads_list_message(len(summaries), len(skipped)),
+            skipped=skipped,
+        ),
+        "context": {"project": scope.project, "scope": scope.scope},
+        "beads": summaries,
+        "total_count": total_count,
+    }
+
+
+def _daemon_beads_show_response(
+    daemon: Any,
+    context: tuple[str, Path],
+    scope: _BeadReadScope,
+    *,
+    bead_id: str,
+) -> dict[str, Any]:
+    project, beads_dir = context
+    issue = bead_detail_from_dict(
+        daemon.bead_show(project_id=project, bead_id=bead_id)
+    ).issue
+    all_issues = _daemon_bead_pages(daemon, project_id=project)
+    skipped = list(scope.skipped)
+    return {
+        "schema_version": GATEWAY_WIRE_SCHEMA_VERSION,
+        "result": _bead_helper_result(
+            f"loaded bead {bead_id}",
+            skipped=skipped,
+        ),
+        "context": {"project": scope.project, "scope": scope.scope},
+        "bead": _bead_detail_wire(issue, project, all_issues, beads_dir),
+    }
+
+
+def _daemon_bead_pages(
+    daemon: Any,
+    *,
+    project_id: str,
+    statuses: list[Status] | None = None,
+    issue_types: list[IssueType] | None = None,
+    tiers: list[BeadTier] | None = None,
+) -> list[Issue]:
+    issues: list[Issue] = []
+    cursor: str | None = None
+    while True:
+        page = bead_list_from_dict(
+            daemon.bead_list(
+                project_id=project_id,
+                statuses=None if statuses is None else [row.value for row in statuses],
+                issue_types=(
+                    None if issue_types is None else [row.value for row in issue_types]
+                ),
+                tiers=None if tiers is None else [row.value for row in tiers],
+                limit=500,
+                cursor=cursor,
+            )
+        )
+        issues.extend(page.issues)
+        cursor = page.page.next_cursor
+        if not cursor:
+            return issues
 
 
 def _resolve_bead_read_scope(request: dict[str, Any]) -> _BeadReadScope:

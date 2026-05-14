@@ -21,6 +21,7 @@ FALLBACKABLE_RPC_CODES = {
     "unsupported_capability",
     "unsupported_client_version",
     "payload_too_large",
+    "resource_not_found",
 }
 
 CAPABILITY_BY_READ_SURFACE = {

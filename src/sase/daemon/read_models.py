@@ -78,6 +78,14 @@ class BeadDetailRead:
 
 
 @dataclass(frozen=True)
+class BeadStatsRead:
+    snapshot: ProjectionSnapshot
+    project_id: str
+    stats: dict[str, int] = field(default_factory=dict)
+    bounded: ProjectionPayloadBound | None = None
+
+
+@dataclass(frozen=True)
 class ChangeSpecListEntry:
     schema_version: int
     handle: str
@@ -165,6 +173,19 @@ def bead_detail_from_dict(data: Mapping[str, Any]) -> BeadDetailRead:
     return BeadDetailRead(
         snapshot=_required_snapshot(raw.get("snapshot")),
         issue=issue_from_dict(_require_dict(raw.get("issue"), "issue")),
+        bounded=_bounded(raw.get("bounded")),
+    )
+
+
+def bead_stats_from_dict(data: Mapping[str, Any]) -> BeadStatsRead:
+    raw = dict(data)
+    stats_raw = raw.get("stats")
+    if not isinstance(stats_raw, dict):
+        raise ValueError("expected stats to be an object")
+    return BeadStatsRead(
+        snapshot=_required_snapshot(raw.get("snapshot")),
+        project_id=str(raw.get("project_id", "")),
+        stats={str(key): int(value) for key, value in stats_raw.items()},
         bounded=_bounded(raw.get("bounded")),
     )
 
@@ -290,6 +311,7 @@ __all__ = [
     "PROJECTION_READ_SCHEMA_VERSION",
     "BeadDetailRead",
     "BeadListRead",
+    "BeadStatsRead",
     "ChangeSpecDetailRead",
     "ChangeSpecListEntry",
     "ChangeSpecListRead",
@@ -301,6 +323,7 @@ __all__ = [
     "ProjectionSnapshot",
     "bead_detail_from_dict",
     "bead_list_from_dict",
+    "bead_stats_from_dict",
     "changespec_detail_from_dict",
     "changespec_list_from_dict",
     "generic_read_from_dict",
