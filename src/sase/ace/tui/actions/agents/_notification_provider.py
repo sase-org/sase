@@ -121,7 +121,6 @@ def read_notification_snapshot_for_tui(
         used_daemon=False,
         fallback_reason=result.fallback_reason,
         fallback_message=result.fallback_message,
-        fallback_diagnostics=result.fallback_diagnostics,
     )
 
 
@@ -153,7 +152,6 @@ def read_notification_counts_for_tui(
         used_daemon=False,
         fallback_reason=result.fallback_reason,
         fallback_message=result.fallback_message,
-        fallback_diagnostics=result.fallback_diagnostics,
     )
 
 
@@ -198,7 +196,6 @@ def read_unread_notification_page_for_tui(
         used_daemon=False,
         fallback_reason=result.fallback_reason,
         fallback_message=result.fallback_message,
-        fallback_diagnostics=result.fallback_diagnostics,
     )
 
 
@@ -235,7 +232,6 @@ def read_notification_detail_for_tui(
         used_daemon=False,
         fallback_reason=result.fallback_reason,
         fallback_message=result.fallback_message,
-        fallback_diagnostics=result.fallback_diagnostics,
     )
 
 
@@ -268,7 +264,6 @@ def read_notification_pending_actions_for_tui(
         used_daemon=False,
         fallback_reason=result.fallback_reason,
         fallback_message=result.fallback_message,
-        fallback_diagnostics=result.fallback_diagnostics,
     )
 
 

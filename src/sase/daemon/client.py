@@ -124,11 +124,8 @@ class LocalDaemonClient(LocalDaemonReadMixin):
         validate_negotiated_compatibility(data)
         return data
 
-    def capabilities(self, *, timeout: float | None = None) -> dict[str, Any]:
-        response = self._request_with_optional_timeout(
-            {"type": "capabilities"},
-            timeout=timeout,
-        )
+    def capabilities(self) -> dict[str, Any]:
+        response = self.request({"type": "capabilities"})
         data = payload_data(response, "capabilities")
         validate_negotiated_compatibility(data)
         return data

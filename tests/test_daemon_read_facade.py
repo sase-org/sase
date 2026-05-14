@@ -11,11 +11,8 @@ from unittest.mock import patch
 import pytest
 
 from sase.bead.project import BeadProject
-from sase.daemon.client import LocalDaemonClient, LocalDaemonTransportError
-from sase.daemon.read_facade import (
-    CAPABILITY_PROBE_TIMEOUT_SECONDS,
-    read_or_fallback,
-)
+from sase.daemon.client import LocalDaemonClient
+from sase.daemon.read_facade import read_or_fallback
 from sase.daemon.read_models import (
     bead_list_from_dict,
     notification_list_from_dict,
@@ -53,20 +50,6 @@ class FakeDaemonTransport:
             data = self.reads[surface].pop(0)
             return _response("read", {"surface": surface, "data": data})
         raise AssertionError(f"unexpected fake daemon request: {payload_type}")
-
-
-class CapabilityTimeoutTransport:
-    def __init__(self) -> None:
-        self.requests: list[dict[str, Any]] = []
-
-    def request(self, envelope: dict[str, Any]) -> dict[str, Any]:
-        self.requests.append(envelope["payload"])
-        raise LocalDaemonTransportError(
-            "capability probe timed out",
-            code="daemon_unavailable",
-            fallback_reason="daemon_not_running",
-            retryable=True,
-        )
 
 
 def test_all_phase_5a_read_client_methods_emit_contract_surfaces() -> None:
@@ -214,95 +197,6 @@ def test_read_or_fallback_uses_daemon_when_capability_is_available() -> None:
     assert result.used_daemon is True
     assert result.value["notifications"] == [{"id": "daemon"}]
     assert result.debug_json()["daemon"]["fallback_reason"] is None
-
-
-def test_read_or_fallback_caches_capabilities_for_one_client_session() -> None:
-    transport = FakeDaemonTransport(
-        capabilities=["notifications.read"],
-        reads={
-            "notification_counts": [{"priority": 1}],
-            "notification_pending_actions": [{"actions": []}],
-        },
-    )
-    client = LocalDaemonClient(transport=transport)
-
-    counts = read_or_fallback(
-        "notification_counts",
-        client=client,
-        daemon_loader=lambda daemon: daemon.notification_counts(),
-        direct_loader=lambda: {"priority": 0},
-    )
-    pending = read_or_fallback(
-        "notification_pending_actions",
-        client=client,
-        daemon_loader=lambda daemon: daemon.notification_pending_actions(),
-        direct_loader=lambda: {"actions": ["direct"]},
-    )
-
-    assert counts.used_daemon is True
-    assert pending.used_daemon is True
-    assert [request["type"] for request in transport.requests] == [
-        "capabilities",
-        "read",
-        "read",
-    ]
-
-
-def test_read_or_fallback_opens_circuit_after_capability_transport_timeout(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("SASE_DAEMON_FALLBACK_DIAGNOSTICS", "1")
-    transport = CapabilityTimeoutTransport()
-    client = LocalDaemonClient(transport=transport)
-
-    first = read_or_fallback(
-        "notification_counts",
-        client=client,
-        daemon_loader=lambda daemon: daemon.notification_counts(),
-        direct_loader=lambda: "direct-counts",
-    )
-    second = read_or_fallback(
-        "notification_pending_actions",
-        client=client,
-        daemon_loader=lambda daemon: daemon.notification_pending_actions(),
-        direct_loader=lambda: "direct-pending",
-    )
-
-    assert first.value == "direct-counts"
-    assert first.fallback_reason == "daemon_not_running"
-    assert second.value == "direct-pending"
-    assert second.fallback_reason == "daemon_circuit_open"
-    assert [request["type"] for request in transport.requests] == ["capabilities"]
-    diagnostics = second.debug_json()["daemon"]["fallback_diagnostics"]
-    assert diagnostics["circuit_open"] is True
-    assert diagnostics["opened_by_surface"] == "notification_counts"
-    assert diagnostics["capability_attempts"] == 1
-
-
-def test_capability_probe_uses_short_timeout_budget() -> None:
-    class TimeoutRecordingClient(LocalDaemonClient):
-        def __init__(self) -> None:
-            super().__init__(transport=FakeDaemonTransport())
-            self.capability_timeouts: list[float | None] = []
-
-        def capabilities(self, *, timeout: float | None = None) -> dict[str, Any]:
-            self.capability_timeouts.append(timeout)
-            return {"schema_version": 1, "capabilities": ["notifications.read"]}
-
-        def notification_counts(self) -> dict[str, Any]:
-            return {"priority": 1}
-
-    client = TimeoutRecordingClient()
-
-    result = read_or_fallback(
-        "notification_counts",
-        client=client,
-        daemon_loader=lambda daemon: daemon.notification_counts(),
-        direct_loader=lambda: {"priority": 0},
-    )
-
-    assert result.used_daemon is True
-    assert client.capability_timeouts == [CAPABILITY_PROBE_TIMEOUT_SECONDS]
 
 
 def test_read_or_fallback_honors_environment_disable(
