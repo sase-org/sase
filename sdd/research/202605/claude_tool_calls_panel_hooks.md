@@ -584,3 +584,23 @@ In-repo code references (file + symbol):
   `tests/test_axe_run_agent_exec.py`, `tests/test_llm_provider_claude_thinking.py`.
 - Runtime uniformity rule: `memory/short/gotchas.md` ("Uniform Agent Runtimes").
 - Rust core backend boundary rule (for the parser if it ever leaves Python): `memory/short/rust_core_backend_boundary.md`.
+
+## Addendum (2026-05-14): Strategy B is insufficient alone
+
+After implementing Strategy B as originally written, live captures showed `tool_calls.jsonl` never being
+populated for normal Claude runs. Two root causes converged:
+
+1. The on-the-wire field name is `hook_event` (not `hook_event_name`), and hook events arrive wrapped as
+   `type: "system"`, `subtype: "hook_response"` — not the bare hook-input shape the writer was originally
+   built to consume.
+2. More importantly, `--include-hook-events` only surfaces lifecycle events for hooks the user has actually
+   registered. Most users have no `PostToolUse` hook installed, so the flag emits no tool-call events at
+   all for real runs.
+
+Resolution: the capture layer now reads inline `assistant.content[].tool_use` blocks paired with
+`user.content[].tool_result` blocks (plus the top-level `tool_use_result` envelope) as the canonical source
+of every tool call. Hook events surfaced via `--include-hook-events` are kept as supplemental enrichment
+(durations, subagent boundaries, permission denials), not as the primary data source. The artifact schema
+was bumped to v2 with new `ToolUse` (start) and `ToolResult` (end) event names that the reader collapses
+into a single timeline entry per `tool_use_id`. See `sdd/tales/202605/tools_panel_missing_calls.md` for the
+full diagnosis and plan.

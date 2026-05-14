@@ -28,6 +28,7 @@ def _agent(artifacts_dir: Path, **kwargs: Any) -> Agent:
 
 
 def _record(**overrides: Any) -> dict[str, Any]:
+    """Build a legacy v1 hook-event record (still readable for back-compat)."""
     data: dict[str, Any] = {
         "schema_version": 1,
         "recorded_at": "2026-05-14T14:00:00+00:00",
@@ -41,6 +42,46 @@ def _record(**overrides: Any) -> dict[str, Any]:
     }
     data.update(overrides)
     return data
+
+
+def _tool_use_record(
+    *,
+    tool_use_id: str,
+    tool_name: str = "Bash",
+    recorded_at: str = "2026-05-14T14:00:00+00:00",
+    tool_input_summary: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return {
+        "schema_version": 2,
+        "recorded_at": recorded_at,
+        "runtime": "claude",
+        "event": "ToolUse",
+        "status": "pending",
+        "tool_name": tool_name,
+        "tool_use_id": tool_use_id,
+        "tool_input_summary": tool_input_summary or {"command": "pytest tests/foo.py"},
+        "tool_response_summary": {},
+    }
+
+
+def _tool_result_record(
+    *,
+    tool_use_id: str,
+    status: str = "success",
+    recorded_at: str = "2026-05-14T14:00:01+00:00",
+    tool_response_summary: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return {
+        "schema_version": 2,
+        "recorded_at": recorded_at,
+        "runtime": "claude",
+        "event": "ToolResult",
+        "status": status,
+        "tool_use_id": tool_use_id,
+        "tool_input_summary": {},
+        "tool_response_summary": tool_response_summary
+        or {"stdout_preview": "ok\n", "exit_code": 0},
+    }
 
 
 def _write_jsonl(path: Path, records: list[dict[str, Any] | str]) -> None:
@@ -73,7 +114,7 @@ def test_read_tool_calls_for_agent_distinguishes_empty_artifact(
     assert read_tool_calls_for_agent(_agent(artifacts_dir)) == []
 
 
-def test_read_tool_calls_for_agent_reads_current_directory(tmp_path: Path) -> None:
+def test_read_tool_calls_for_agent_reads_v1_record(tmp_path: Path) -> None:
     artifacts_dir = tmp_path / "ace-run" / "20260514140000"
     _write_jsonl(
         artifacts_dir / "tool_calls.jsonl",
@@ -95,6 +136,94 @@ def test_read_tool_calls_for_agent_reads_current_directory(tmp_path: Path) -> No
     assert entries[0].detail == "class Foo:"
 
 
+def test_read_tool_calls_for_agent_collapses_v2_use_result_pairs(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "ace-run" / "20260514140000"
+    _write_jsonl(
+        artifacts_dir / "tool_calls.jsonl",
+        [
+            _tool_use_record(
+                tool_use_id="toolu_a",
+                tool_name="Bash",
+                tool_input_summary={"command": "echo hi"},
+            ),
+            _tool_result_record(
+                tool_use_id="toolu_a",
+                tool_response_summary={"stdout_preview": "hi\n", "exit_code": 0},
+            ),
+        ],
+    )
+
+    entries = read_tool_calls_for_agent(_agent(artifacts_dir))
+
+    assert entries is not None
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry.event == "ToolUse"
+    assert entry.tool_use_id == "toolu_a"
+    assert entry.status == "success"
+    assert entry.tool_input_summary["command"] == "echo hi"
+    assert entry.tool_response_summary["stdout_preview"] == "hi\n"
+
+
+def test_read_tool_calls_for_agent_keeps_orphan_tool_use_as_pending(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "ace-run" / "20260514140000"
+    _write_jsonl(
+        artifacts_dir / "tool_calls.jsonl",
+        [_tool_use_record(tool_use_id="toolu_orphan")],
+    )
+
+    entries = read_tool_calls_for_agent(_agent(artifacts_dir))
+
+    assert entries is not None
+    assert len(entries) == 1
+    assert entries[0].status == "pending"
+    assert entries[0].tool_use_id == "toolu_orphan"
+
+
+def test_read_tool_calls_for_agent_propagates_failure_status(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "ace-run" / "20260514140000"
+    _write_jsonl(
+        artifacts_dir / "tool_calls.jsonl",
+        [
+            _tool_use_record(tool_use_id="toolu_fail"),
+            _tool_result_record(
+                tool_use_id="toolu_fail",
+                status="failure",
+                tool_response_summary={"stderr_preview": "boom"},
+            ),
+        ],
+    )
+
+    entries = read_tool_calls_for_agent(_agent(artifacts_dir))
+
+    assert entries is not None
+    assert entries[0].status == "failure"
+
+
+def test_read_tool_calls_for_agent_mixes_v1_and_v2(tmp_path: Path) -> None:
+    artifacts_dir = tmp_path / "ace-run" / "20260514140000"
+    _write_jsonl(
+        artifacts_dir / "tool_calls.jsonl",
+        [
+            _record(tool_use_id="legacy"),
+            _tool_use_record(tool_use_id="toolu_new"),
+            _tool_result_record(tool_use_id="toolu_new"),
+        ],
+    )
+
+    entries = read_tool_calls_for_agent(_agent(artifacts_dir))
+
+    assert entries is not None
+    ids = [entry.tool_use_id for entry in entries]
+    assert ids == ["legacy", "toolu_new"]
+
+
 def test_read_tool_calls_for_agent_tolerates_malformed_lines(
     tmp_path: Path,
 ) -> None:
@@ -103,7 +232,7 @@ def test_read_tool_calls_for_agent_tolerates_malformed_lines(
         artifacts_dir / "tool_calls.jsonl",
         [
             "{not json",
-            _record(schema_version=2, tool_use_id="ignored"),
+            _record(schema_version=99, tool_use_id="ignored"),
             _record(tool_use_id="usable"),
         ],
     )
@@ -194,3 +323,4 @@ def test_status_derivation_for_failure_interrupt_and_subagent() -> None:
         derive_tool_call_status({"tool_response_summary": {"success": False}})
         == "failure"
     )
+    assert derive_tool_call_status({"event": "ToolUse"}) == "pending"

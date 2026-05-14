@@ -1,8 +1,10 @@
 """Read normalized tool-call artifacts for TUI display.
 
 Tool-call data is read from SASE-owned per-run artifacts produced from provider
-streams. For Claude, that deliberately means Strategy B hook-event capture
-rather than installing or mutating Claude hooks in user/project settings.
+streams. For Claude that means inline ``assistant``/``user`` ``tool_use`` and
+``tool_result`` blocks captured from ``--output-format stream-json`` — hook
+events surfaced via ``--include-hook-events`` are used only as supplemental
+enrichment when the user has registered the relevant hooks.
 """
 
 from __future__ import annotations
@@ -18,8 +20,8 @@ if TYPE_CHECKING:
     from sase.ace.tui.models.agent import Agent
 
 TOOL_CALLS_FILENAME = "tool_calls.jsonl"
-SUPPORTED_SCHEMA_VERSION = 1
-KNOWN_STATUSES = frozenset({"success", "failure", "interrupted", "subagent"})
+SUPPORTED_SCHEMA_VERSIONS = frozenset({1, 2})
+KNOWN_STATUSES = frozenset({"success", "failure", "interrupted", "subagent", "pending"})
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,7 @@ class ToolCallEntry:
     permission_mode: str | None = None
     agent_id: str | None = None
     agent_type: str | None = None
+    parent_tool_use_id: str | None = None
     error: str | None = None
     is_interrupt: bool = False
     artifact_dir: str | None = None
@@ -84,7 +87,7 @@ def read_tool_calls_for_agent(agent: Agent) -> list[ToolCallEntry] | None:
     """Return tool calls for *agent*.
 
     Returns ``None`` when no relevant ``tool_calls.jsonl`` exists, and ``[]``
-    when one or more artifacts exist but contain no usable schema-v1 records.
+    when one or more artifacts exist but contain no usable records.
     """
     get_artifacts_dir = getattr(agent, "get_artifacts_dir", None)
     if not callable(get_artifacts_dir):
@@ -117,7 +120,7 @@ def read_tool_calls_for_agent(agent: Agent) -> list[ToolCallEntry] | None:
             entry.tool_use_id or "",
         )
     )
-    return entries
+    return _collapse_tool_use_pairs(entries)
 
 
 def discover_related_tool_artifact_dirs(
@@ -169,15 +172,80 @@ def derive_tool_call_status(record: Mapping[str, Any]) -> str:
         return "failure"
     if event in {"SubagentStart", "SubagentStop"}:
         return "subagent"
+    if event == "ToolUse":
+        return "pending"
 
     response = record.get("tool_response_summary")
     if isinstance(response, Mapping):
         if response.get("interrupted") is True:
             return "interrupted"
-        if response.get("success") is False or response.get("error"):
+        if (
+            response.get("success") is False
+            or response.get("is_error") is True
+            or response.get("error")
+        ):
             return "failure"
 
     return "success"
+
+
+def _collapse_tool_use_pairs(
+    entries: list[ToolCallEntry],
+) -> list[ToolCallEntry]:
+    """Merge ``ToolUse`` + ``ToolResult`` pairs with matching ``tool_use_id``.
+
+    Orphan ``ToolUse`` rows (no result yet) are kept with status ``pending``.
+    Other event types (``PostToolUse``, ``SubagentStart``, etc.) pass through
+    unchanged. Schema-v1 records are returned as-is for back-compat.
+    """
+    starts_by_id: dict[str, int] = {}
+    merged: list[ToolCallEntry | None] = list(entries)
+
+    for index, entry in enumerate(entries):
+        if entry.event == "ToolUse" and entry.tool_use_id:
+            starts_by_id[entry.tool_use_id] = index
+            continue
+        if entry.event == "ToolResult" and entry.tool_use_id:
+            start_index = starts_by_id.pop(entry.tool_use_id, None)
+            if start_index is None:
+                continue
+            start_entry = merged[start_index]
+            if start_entry is None:
+                continue
+            merged[start_index] = _merge_use_and_result(start_entry, entry)
+            merged[index] = None
+
+    return [entry for entry in merged if entry is not None]
+
+
+def _merge_use_and_result(start: ToolCallEntry, end: ToolCallEntry) -> ToolCallEntry:
+    """Combine a ``ToolUse`` start entry with its matching ``ToolResult`` end."""
+    response_summary: Mapping[str, Any] = end.tool_response_summary
+    return ToolCallEntry(
+        recorded_at=start.recorded_at,
+        runtime=start.runtime,
+        event="ToolUse",
+        status=end.status if end.status in KNOWN_STATUSES else start.status,
+        tool_name=start.tool_name,
+        tool_use_id=start.tool_use_id,
+        duration_ms=start.duration_ms or end.duration_ms,
+        tool_input_summary=start.tool_input_summary,
+        tool_response_summary=response_summary,
+        session_id=start.session_id or end.session_id,
+        transcript_path=start.transcript_path or end.transcript_path,
+        cwd=start.cwd or end.cwd,
+        permission_mode=start.permission_mode or end.permission_mode,
+        agent_id=start.agent_id or end.agent_id,
+        agent_type=start.agent_type or end.agent_type,
+        parent_tool_use_id=start.parent_tool_use_id or end.parent_tool_use_id,
+        error=start.error or end.error,
+        is_interrupt=start.is_interrupt or end.is_interrupt,
+        artifact_dir=start.artifact_dir,
+        source_path=start.source_path,
+        line_number=start.line_number,
+        _recorded_at_sort=start._recorded_at_sort,
+        _file_order=start._file_order,
+    )
 
 
 def _compact_tool_target(
@@ -296,7 +364,7 @@ def _parse_tool_call_line(
 
     if not isinstance(record, Mapping):
         return None
-    if record.get("schema_version") != SUPPORTED_SCHEMA_VERSION:
+    if record.get("schema_version") not in SUPPORTED_SCHEMA_VERSIONS:
         return None
 
     input_summary = _mapping_or_empty(record.get("tool_input_summary"))
@@ -318,6 +386,7 @@ def _parse_tool_call_line(
         permission_mode=_str_or_none(record.get("permission_mode")),
         agent_id=_str_or_none(record.get("agent_id")),
         agent_type=_str_or_none(record.get("agent_type")),
+        parent_tool_use_id=_str_or_none(record.get("parent_tool_use_id")),
         error=_str_or_none(record.get("error")),
         is_interrupt=record.get("is_interrupt") is True,
         artifact_dir=str(artifact_dir),

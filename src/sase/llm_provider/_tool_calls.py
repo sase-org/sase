@@ -1,9 +1,13 @@
 """Runtime-neutral tool-call artifact writer for LLM provider streams.
 
-The Claude MVP intentionally follows Strategy B from the tools-panel design:
-capture ``--include-hook-events`` stream records from SASE-launched sessions and
-write SASE-owned artifacts. Do not add Claude hook installation here; external
-hook mutation is outside this writer's contract.
+For Claude, the canonical source of truth for "every tool call this agent made"
+is the in-band ``assistant`` event's ``content[].tool_use`` blocks paired with
+the corresponding ``user`` event's ``content[].tool_result`` blocks (plus the
+top-level ``tool_use_result`` envelope). Hook lifecycle events emitted via
+``--include-hook-events`` only fire for hooks the user has actually registered,
+so they cannot serve as the primary tool-call source — but they are still useful
+as supplemental signal (durations, subagent lifecycle, permission denials) and
+are captured here when present.
 """
 
 from __future__ import annotations
@@ -21,7 +25,7 @@ SUPPORTED_CLAUDE_HOOK_EVENTS = frozenset(
     {"PostToolUse", "PostToolUseFailure", "SubagentStart", "SubagentStop"}
 )
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 _PREVIEW_LIMIT = 512
 _MAX_KEYS = 20
 _SECRET_ASSIGNMENT_RE = re.compile(
@@ -34,16 +38,31 @@ _SECRET_NAME_PARTS = ("TOKEN", "KEY", "SECRET", "PASSWORD", "PASS", "AUTH")
 
 
 def append_claude_tool_call_event(event: Mapping[str, Any]) -> None:
-    """Best-effort append of a Claude hook event to ``tool_calls.jsonl``."""
+    """Best-effort append of a Claude stream-json event to ``tool_calls.jsonl``.
+
+    Handles three event shapes:
+
+    - ``type: "assistant"`` with ``message.content[].tool_use`` blocks → emit a
+      ``ToolUse`` (start) record per block.
+    - ``type: "user"`` with ``message.content[].tool_result`` blocks → emit a
+      ``ToolResult`` (end) record per block, drawing structured output from the
+      top-level ``tool_use_result`` envelope when present.
+    - ``type: "system"`` with ``subtype: "hook_response"`` and a recognized
+      ``hook_event`` → emit a hook-event record for enrichment (durations,
+      subagent boundaries). ``hook_started`` is ignored for ``PostToolUse*`` to
+      avoid double-counting, but used as the boundary marker for ``Subagent*``.
+    """
     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
     if not artifacts_dir:
         return
 
     try:
-        record = _normalize_claude_tool_call_event(event)
-        if record is None:
+        records = _normalize_claude_stream_event(event)
+        if not records:
             return
-        _append_jsonl(Path(artifacts_dir) / "tool_calls.jsonl", record)
+        path = Path(artifacts_dir) / "tool_calls.jsonl"
+        for record in records:
+            _append_jsonl(path, record)
     except Exception as exc:
         _append_writer_diagnostic(artifacts_dir, event, exc)
 
@@ -63,60 +82,230 @@ def append_codex_tool_call_event(event: Mapping[str, Any]) -> None:
         _append_writer_diagnostic(artifacts_dir, event, exc)
 
 
-def _normalize_claude_tool_call_event(
+def _normalize_claude_stream_event(
+    event: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Convert a Claude stream-json event into zero or more schema-v2 records."""
+    event_type = event.get("type")
+    if event_type == "assistant":
+        return _records_from_assistant_event(event)
+    if event_type == "user":
+        return _records_from_user_event(event)
+    if event_type == "system":
+        record = _record_from_system_hook_event(event)
+        return [record] if record is not None else []
+    return []
+
+
+def _records_from_assistant_event(
+    event: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    message = event.get("message")
+    if not isinstance(message, Mapping):
+        return []
+    content = message.get("content")
+    if not isinstance(content, list):
+        return []
+
+    session_id = _string_or_none(event.get("session_id"))
+    parent_tool_use_id = _string_or_none(event.get("parent_tool_use_id"))
+    message_id = _string_or_none(message.get("id"))
+    message_uuid = _string_or_none(event.get("uuid"))
+
+    records: list[dict[str, Any]] = []
+    for block in content:
+        if not isinstance(block, Mapping) or block.get("type") != "tool_use":
+            continue
+        tool_name = _string_or_none(block.get("name"))
+        tool_use_id = _string_or_none(block.get("id"))
+        record = _base_record(
+            "ToolUse",
+            "pending",
+            tool_name=tool_name,
+            tool_use_id=tool_use_id,
+            session_id=session_id,
+            parent_tool_use_id=parent_tool_use_id,
+            message_id=message_id,
+            message_uuid=message_uuid,
+        )
+        record["tool_input_summary"] = _summarize_tool_input(
+            tool_name, block.get("input")
+        )
+        record["tool_response_summary"] = {}
+        records.append(record)
+    return records
+
+
+def _records_from_user_event(
+    event: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    message = event.get("message")
+    if not isinstance(message, Mapping):
+        return []
+    content = message.get("content")
+    if not isinstance(content, list):
+        return []
+
+    session_id = _string_or_none(event.get("session_id"))
+    parent_tool_use_id = _string_or_none(event.get("parent_tool_use_id"))
+    message_uuid = _string_or_none(event.get("uuid"))
+    tool_use_result = event.get("tool_use_result")
+
+    records: list[dict[str, Any]] = []
+    for block in content:
+        if not isinstance(block, Mapping) or block.get("type") != "tool_result":
+            continue
+        tool_use_id = _string_or_none(block.get("tool_use_id"))
+        is_error = bool(block.get("is_error")) or _result_envelope_indicates_error(
+            tool_use_result
+        )
+        interrupted = _result_envelope_is_interrupted(tool_use_result)
+        status = _derive_user_result_status(is_error=is_error, interrupted=interrupted)
+        record = _base_record(
+            "ToolResult",
+            status,
+            tool_name=None,
+            tool_use_id=tool_use_id,
+            session_id=session_id,
+            parent_tool_use_id=parent_tool_use_id,
+            message_uuid=message_uuid,
+        )
+        record["tool_input_summary"] = {}
+        record["tool_response_summary"] = _summarize_tool_response(
+            tool_name=None,
+            tool_response=tool_use_result,
+            tool_result_content=block.get("content"),
+            is_error=is_error,
+            interrupted=interrupted,
+        )
+        if interrupted:
+            record["is_interrupt"] = True
+        records.append(record)
+    return records
+
+
+def _record_from_system_hook_event(
     event: Mapping[str, Any],
 ) -> dict[str, Any] | None:
-    """Convert a Claude hook lifecycle event into SASE's tool-call schema."""
-    event_name = event.get("hook_event_name")
+    subtype = event.get("subtype")
+    hook_event = event.get("hook_event")
     if (
-        not isinstance(event_name, str)
-        or event_name not in SUPPORTED_CLAUDE_HOOK_EVENTS
+        not isinstance(hook_event, str)
+        or hook_event not in SUPPORTED_CLAUDE_HOOK_EVENTS
     ):
         return None
 
-    status = _status_for_event(event_name, event)
+    is_subagent_event = hook_event in {"SubagentStart", "SubagentStop"}
+    if is_subagent_event:
+        # Use both subtypes for subagent lifecycle; prefer hook_started as the
+        # boundary marker, but accept hook_response too so we don't drop signal.
+        if subtype not in {"hook_started", "hook_response"}:
+            return None
+    else:
+        # For tool-related hooks, hook_started would double-count: only consume
+        # hook_response (which carries the structured outcome).
+        if subtype != "hook_response":
+            return None
+
+    status = _status_for_hook_event(hook_event, event)
     tool_name = _string_or_none(event.get("tool_name"))
-    record: dict[str, Any] = {
-        "schema_version": _SCHEMA_VERSION,
-        "recorded_at": datetime.now(tz=UTC).isoformat(),
-        "runtime": "claude",
-        "event": event_name,
-        "status": status,
-        "tool_input_summary": _summarize_tool_input(tool_name, event.get("tool_input")),
-        "tool_response_summary": _summarize_tool_response(
-            tool_name,
-            event.get("tool_response"),
-            error=event.get("error"),
-        ),
-    }
+    record = _base_record(
+        hook_event,
+        status,
+        tool_name=tool_name,
+        tool_use_id=_string_or_none(event.get("tool_use_id")),
+        session_id=_string_or_none(event.get("session_id")),
+        parent_tool_use_id=_string_or_none(event.get("parent_tool_use_id")),
+    )
+    record["tool_input_summary"] = _summarize_tool_input(
+        tool_name, event.get("tool_input")
+    )
+    record["tool_response_summary"] = _summarize_tool_response(
+        tool_name=tool_name,
+        tool_response=event.get("tool_response"),
+        error=event.get("error"),
+    )
 
     for key in (
-        "session_id",
         "transcript_path",
         "cwd",
         "permission_mode",
         "agent_id",
         "agent_type",
-        "tool_use_id",
-        "tool_name",
         "error",
     ):
         value = event.get(key)
         if isinstance(value, str) and value:
             record[key] = _preview_text(value)
 
-    for key in ("duration_ms",):
-        value = event.get(key)
-        if isinstance(value, int):
-            record[key] = value
-        elif isinstance(value, float):
-            record[key] = int(value)
+    duration = event.get("duration_ms")
+    if isinstance(duration, bool):
+        pass
+    elif isinstance(duration, int):
+        record["duration_ms"] = duration
+    elif isinstance(duration, float):
+        record["duration_ms"] = int(duration)
 
     is_interrupt = event.get("is_interrupt")
     if isinstance(is_interrupt, bool):
         record["is_interrupt"] = is_interrupt
 
     return record
+
+
+def _base_record(
+    event_name: str,
+    status: str,
+    *,
+    tool_name: str | None,
+    tool_use_id: str | None,
+    session_id: str | None,
+    parent_tool_use_id: str | None,
+    message_id: str | None = None,
+    message_uuid: str | None = None,
+) -> dict[str, Any]:
+    record: dict[str, Any] = {
+        "schema_version": _SCHEMA_VERSION,
+        "recorded_at": datetime.now(tz=UTC).isoformat(),
+        "runtime": "claude",
+        "event": event_name,
+        "status": status,
+    }
+    if tool_name:
+        record["tool_name"] = _preview_text(tool_name)
+    if tool_use_id:
+        record["tool_use_id"] = _preview_text(tool_use_id)
+    if session_id:
+        record["session_id"] = _preview_text(session_id)
+    if parent_tool_use_id:
+        record["parent_tool_use_id"] = _preview_text(parent_tool_use_id)
+    if message_id:
+        record["message_id"] = _preview_text(message_id)
+    if message_uuid:
+        record["message_uuid"] = _preview_text(message_uuid)
+    return record
+
+
+def _derive_user_result_status(*, is_error: bool, interrupted: bool) -> str:
+    if interrupted:
+        return "interrupted"
+    if is_error:
+        return "failure"
+    return "success"
+
+
+def _result_envelope_indicates_error(envelope: Any) -> bool:
+    if not isinstance(envelope, Mapping):
+        return False
+    if envelope.get("is_error") is True:
+        return True
+    if envelope.get("success") is False:
+        return True
+    return False
+
+
+def _result_envelope_is_interrupted(envelope: Any) -> bool:
+    return isinstance(envelope, Mapping) and envelope.get("interrupted") is True
 
 
 def _normalize_codex_tool_call_event(
@@ -220,51 +409,100 @@ def _summarize_tool_response(
     tool_response: Any,
     *,
     error: Any = None,
+    tool_result_content: Any = None,
+    is_error: bool = False,
+    interrupted: bool = False,
 ) -> dict[str, Any]:
-    """Return a bounded summary of a Claude structured tool response."""
+    """Return a bounded summary of a Claude structured tool response.
+
+    ``tool_response`` is the structured envelope (Claude calls this
+    ``tool_response`` for hook events and ``tool_use_result`` for inline
+    user-message events; both share the same shape). ``tool_result_content``
+    is the unstructured ``content`` field from a ``tool_result`` block used as
+    a fallback when no structured envelope is available.
+    """
     if os.environ.get("SASE_TOOL_LOG_FULL") == "1":
-        summary = {"raw": _json_safe_value(tool_response)}
+        summary: dict[str, Any] = {"raw": _json_safe_value(tool_response)}
+        if tool_result_content is not None and "raw" not in summary:
+            summary["raw"] = _json_safe_value(tool_result_content)
     elif isinstance(tool_response, Mapping):
-        if tool_name == "Bash":
-            summary = _pick_fields(
-                tool_response,
-                ("exit_code", "success", "interrupted", "isImage"),
-            )
-            for key in ("stdout", "stderr"):
-                value = tool_response.get(key)
-                if isinstance(value, str) and value:
-                    summary[f"{key}_preview"] = _preview_text(value)
-            if "output" in tool_response:
-                summary["output_preview"] = _preview_text(tool_response.get("output"))
-        elif tool_name in {"Read", "WebFetch", "WebSearch"}:
-            summary = _pick_fields(tool_response, ("success", "isImage"))
-            if "content" in tool_response:
-                summary["content_preview"] = _preview_text(tool_response.get("content"))
-            if "result" in tool_response:
-                summary["result_preview"] = _preview_text(tool_response.get("result"))
-        elif tool_name in {"Write", "Edit", "MultiEdit"}:
-            summary = _pick_fields(
-                tool_response,
-                ("filePath", "file_path", "success", "structuredPatch"),
-            )
-        else:
-            summary = {
-                "response_keys": _sorted_limited_keys(tool_response),
-            }
-            for key in ("success", "error", "interrupted"):
-                if key in tool_response:
-                    summary[key] = _bounded_value(tool_response[key])
+        summary = _summarize_structured_response(tool_name, tool_response)
     elif tool_response is None:
         summary = {}
     else:
         summary = {"preview": _preview_text(tool_response)}
+
+    if not summary and tool_result_content is not None:
+        summary = _summarize_tool_result_content(tool_result_content)
+
+    if interrupted and "interrupted" not in summary:
+        summary["interrupted"] = True
+    if is_error and "is_error" not in summary and "error" not in summary:
+        summary["is_error"] = True
 
     if isinstance(error, str) and error:
         summary["error"] = _preview_text(error)
     return summary
 
 
-def _status_for_event(event_name: str, event: Mapping[str, Any]) -> str:
+def _summarize_structured_response(
+    tool_name: str | None, tool_response: Mapping[str, Any]
+) -> dict[str, Any]:
+    summary: dict[str, Any]
+    if tool_name == "Bash":
+        summary = _pick_fields(
+            tool_response,
+            ("exit_code", "success", "interrupted", "isImage"),
+        )
+        for key in ("stdout", "stderr"):
+            value = tool_response.get(key)
+            if isinstance(value, str) and value:
+                summary[f"{key}_preview"] = _preview_text(value)
+        if "output" in tool_response:
+            summary["output_preview"] = _preview_text(tool_response.get("output"))
+        return summary
+    if tool_name in {"Read", "WebFetch", "WebSearch"}:
+        summary = _pick_fields(tool_response, ("success", "isImage"))
+        if "content" in tool_response:
+            summary["content_preview"] = _preview_text(tool_response.get("content"))
+        if "result" in tool_response:
+            summary["result_preview"] = _preview_text(tool_response.get("result"))
+        return summary
+    if tool_name in {"Write", "Edit", "MultiEdit"}:
+        return _pick_fields(
+            tool_response,
+            ("filePath", "file_path", "success", "structuredPatch"),
+        )
+    # Default — including the case where tool_name is unknown (e.g. user-event
+    # records, where we don't carry tool_name on the ToolResult row): surface
+    # whatever common shape fields exist plus any text previews.
+    summary = {"response_keys": _sorted_limited_keys(tool_response)}
+    for key in ("success", "error", "interrupted", "exit_code", "isImage"):
+        if key in tool_response:
+            summary[key] = _bounded_value(tool_response[key])
+    for key in ("stdout", "stderr", "output", "content", "result"):
+        value = tool_response.get(key)
+        if isinstance(value, str) and value:
+            summary[f"{key}_preview"] = _preview_text(value)
+    return summary
+
+
+def _summarize_tool_result_content(content: Any) -> dict[str, Any]:
+    if isinstance(content, str):
+        return {"content_preview": _preview_text(content)}
+    if isinstance(content, list):
+        previews: list[str] = []
+        for block in content:
+            if isinstance(block, Mapping):
+                text = block.get("text")
+                if isinstance(text, str) and text:
+                    previews.append(text)
+        if previews:
+            return {"content_preview": _preview_text("\n".join(previews))}
+    return {}
+
+
+def _status_for_hook_event(event_name: str, event: Mapping[str, Any]) -> str:
     if event.get("is_interrupt") is True:
         return "interrupted"
     if event_name == "PostToolUseFailure":
@@ -427,10 +665,16 @@ def _append_writer_diagnostic(
     exc: Exception,
 ) -> None:
     try:
+        event_label = (
+            event.get("type")
+            or event.get("hook_event")
+            or event.get("hook_event_name")
+            or ""
+        )
         diagnostic = {
             "recorded_at": datetime.now(tz=UTC).isoformat(),
             "error": _preview_text(str(exc), 240),
-            "event": _preview_text(event.get("hook_event_name", ""), 80),
+            "event": _preview_text(str(event_label), 80),
         }
         _append_jsonl(
             Path(artifacts_dir) / "tool_calls_writer_errors.jsonl", diagnostic

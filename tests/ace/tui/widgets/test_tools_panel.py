@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
+from pathlib import Path
+from unittest.mock import patch
 
-from sase.ace.tui.tools import ToolCallEntry
+from sase.ace.tui.tools import ToolCallEntry, read_tool_calls_for_agent
+from sase.ace.tui.tools.reader import TOOL_CALLS_FILENAME
 from sase.ace.tui.widgets.tools_panel import (
     _build_tools_timeline_markdown,
     _build_tools_timeline_text,
 )
+from sase.llm_provider._tool_calls import append_claude_tool_call_event
 
 
 def _entry(**overrides: object) -> ToolCallEntry:
@@ -57,3 +62,82 @@ def test_tools_timeline_markdown_is_exportable() -> None:
     assert rendered.startswith("TOOLS")
     assert "fail | Bash" in rendered
     assert "boom" in rendered
+
+
+def test_tools_panel_renders_tool_call_from_stream_events(tmp_path: Path) -> None:
+    """End-to-end: writer captures assistant+user events, panel renders the row."""
+    from sase.ace.tui.models.agent import Agent, AgentType
+
+    artifacts_dir = tmp_path / "ace-run" / "20260514140000"
+    artifacts_dir.mkdir(parents=True)
+
+    with patch.dict(os.environ, {"SASE_ARTIFACTS_DIR": str(artifacts_dir)}):
+        append_claude_tool_call_event(
+            {
+                "type": "assistant",
+                "message": {
+                    "id": "msg_1",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_bash_1",
+                            "name": "Bash",
+                            "input": {
+                                "command": "ls /tmp",
+                                "description": "list /tmp",
+                            },
+                        }
+                    ],
+                },
+                "session_id": "session-1",
+                "uuid": "uuid-1",
+            }
+        )
+        append_claude_tool_call_event(
+            {
+                "type": "user",
+                "message": {
+                    "role": "user",
+                    "content": [
+                        {
+                            "tool_use_id": "toolu_bash_1",
+                            "type": "tool_result",
+                            "content": "alpha\nbeta\n",
+                            "is_error": False,
+                        }
+                    ],
+                },
+                "session_id": "session-1",
+                "uuid": "uuid-2",
+                "tool_use_result": {
+                    "stdout": "alpha\nbeta\n",
+                    "stderr": "",
+                    "interrupted": False,
+                },
+            }
+        )
+
+    assert (artifacts_dir / TOOL_CALLS_FILENAME).is_file()
+
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="proj",
+        project_file="/tmp/proj/proj.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 14, 10, 0, 0),
+        artifacts_dir=str(artifacts_dir),
+        raw_suffix=artifacts_dir.name,
+    )
+    entries = read_tool_calls_for_agent(agent)
+    assert entries is not None
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry.tool_name == "Bash"
+    assert entry.tool_use_id == "toolu_bash_1"
+    assert entry.status == "success"
+
+    fetch_time = datetime(2026, 5, 14, 10, 30, 0)
+    rendered = _build_tools_timeline_text(entries, fetch_time).plain
+    assert "Bash" in rendered
+    assert "ls /tmp" in rendered or "list /tmp" in rendered
+    assert "alpha" in rendered

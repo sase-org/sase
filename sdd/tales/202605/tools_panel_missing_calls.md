@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-14 19:42:52
-status: wip
+status: done
 prompt: sdd/prompts/202605/tools_panel_missing_calls.md
 ---
 # Tools Panel Not Showing All Tool Calls — Root Cause + Fix Plan
