@@ -377,6 +377,11 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Include dismissed notifications",
     )
+    list_parser.add_argument(
+        "--no-daemon",
+        action="store_true",
+        help="Read notifications directly from the source store",
+    )
 
     show_parser = notify_sub.add_parser(
         "show",
@@ -394,6 +399,11 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
         choices=("markdown", "json"),
         default="markdown",
         help="Output format: 'markdown' (default) or 'json'",
+    )
+    show_parser.add_argument(
+        "--no-daemon",
+        action="store_true",
+        help="Read notifications directly from the source store",
     )
 
 

@@ -83,6 +83,11 @@ def action_state_for_notification(
     return _state_for_notification(notification, pending, current)
 
 
+def read_pending_action_store(*, include_legacy: bool = True) -> dict[str, Any]:
+    """Return the shared pending-action store for read-only surfaces."""
+    return _load_store(include_legacy=include_legacy)
+
+
 def resolve_prefix(prefix: str, *, include_legacy: bool = True) -> _PrefixResolution:
     """Resolve a full notification id or unique notification-id prefix."""
     store = _load_store(include_legacy=include_legacy)

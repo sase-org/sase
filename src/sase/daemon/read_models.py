@@ -4,14 +4,15 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.ace.changespec import ChangeSpec
 from sase.bead.model import Issue
 from sase.core.bead_wire import issue_from_dict, issues_from_list
 from sase.core.wire_conversion import changespec_from_wire_dict
-from sase.core.notification_store_wire import notification_from_dict
-from sase.notifications.models import Notification
+
+if TYPE_CHECKING:
+    from sase.notifications.models import Notification
 
 PROJECTION_READ_SCHEMA_VERSION = 1
 
@@ -59,6 +60,19 @@ class NotificationListRead:
 class NotificationDetailRead:
     snapshot: ProjectionSnapshot
     notification: Notification | None
+    bounded: ProjectionPayloadBound | None = None
+
+
+@dataclass(frozen=True)
+class NotificationCountsRead:
+    counts: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class NotificationPendingActionsRead:
+    snapshot: ProjectionSnapshot
+    store: dict[str, Any] = field(default_factory=dict)
+    actions: list[dict[str, Any]] = field(default_factory=list)
     bounded: ProjectionPayloadBound | None = None
 
 
@@ -131,6 +145,8 @@ def generic_read_from_dict(surface: str, data: Mapping[str, Any]) -> GenericDaem
 
 
 def notification_list_from_dict(data: Mapping[str, Any]) -> NotificationListRead:
+    from sase.core.notification_store_wire import notification_from_dict
+
     raw = dict(data)
     return NotificationListRead(
         snapshot=_required_snapshot(raw.get("snapshot")),
@@ -145,6 +161,8 @@ def notification_list_from_dict(data: Mapping[str, Any]) -> NotificationListRead
 
 
 def notification_detail_from_dict(data: Mapping[str, Any]) -> NotificationDetailRead:
+    from sase.core.notification_store_wire import notification_from_dict
+
     raw = dict(data)
     notification_raw = raw.get("notification")
     return NotificationDetailRead(
@@ -154,6 +172,24 @@ def notification_detail_from_dict(data: Mapping[str, Any]) -> NotificationDetail
             if notification_raw is None
             else notification_from_dict(_require_dict(notification_raw, "notification"))
         ),
+        bounded=_bounded(raw.get("bounded")),
+    )
+
+
+def notification_counts_from_dict(data: Mapping[str, Any]) -> NotificationCountsRead:
+    return NotificationCountsRead(
+        counts={str(key): int(value) for key, value in data.items()}
+    )
+
+
+def notification_pending_actions_from_dict(
+    data: Mapping[str, Any],
+) -> NotificationPendingActionsRead:
+    raw = dict(data)
+    return NotificationPendingActionsRead(
+        snapshot=_required_snapshot(raw.get("snapshot")),
+        store=dict(_require_dict(raw.get("store"), "store")),
+        actions=_dict_list(raw.get("actions"), "actions"),
         bounded=_bounded(raw.get("bounded")),
     )
 
@@ -316,8 +352,10 @@ __all__ = [
     "ChangeSpecListEntry",
     "ChangeSpecListRead",
     "GenericDaemonRead",
+    "NotificationCountsRead",
     "NotificationDetailRead",
     "NotificationListRead",
+    "NotificationPendingActionsRead",
     "ProjectionPage",
     "ProjectionPayloadBound",
     "ProjectionSnapshot",
@@ -327,6 +365,8 @@ __all__ = [
     "changespec_detail_from_dict",
     "changespec_list_from_dict",
     "generic_read_from_dict",
+    "notification_counts_from_dict",
     "notification_detail_from_dict",
     "notification_list_from_dict",
+    "notification_pending_actions_from_dict",
 ]
