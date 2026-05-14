@@ -1,6 +1,9 @@
 ---
 create_time: 2026-05-14 07:15:47
 status: wip
+bead_id: sase-3e.9
+tier: epic
+legend_bead_id: sase-3e
 prompt: sdd/prompts/202605/rust_daemon_epic9_ace_ui_virtualization.md
 ---
 # Plan - Rust Daemon Epic 9 Incremental ACE and UI Data Virtualization
