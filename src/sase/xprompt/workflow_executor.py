@@ -169,9 +169,22 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
             "is_anonymous": self.workflow.is_anonymous(),
             "agents_launched": self._agents_launched,
         }
-        os.makedirs(self.artifacts_dir, exist_ok=True)
-        with open(state_path, "w", encoding="utf-8") as f:
-            json.dump(state_dict, f, indent=2)
+
+        def direct_writer() -> None:
+            os.makedirs(self.artifacts_dir, exist_ok=True)
+            with open(state_path, "w", encoding="utf-8") as f:
+                json.dump(state_dict, f, indent=2)
+
+        from sase.xprompt.workflow_daemon_writes import write_workflow_state
+
+        write_workflow_state(
+            state_path,
+            state_dict,
+            direct_writer=direct_writer,
+            event="run_created"
+            if self.state.current_step_index == 0 and not os.path.exists(state_path)
+            else "run_updated",
+        )
 
     def _get_output_types(self, step_index: int) -> dict[str, str] | None:
         """Get the output type mapping for a workflow step.

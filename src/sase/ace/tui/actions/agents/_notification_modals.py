@@ -6,8 +6,10 @@ Dispatches HITL, user question, and plan approval actions that push modal screen
 from __future__ import annotations
 
 import logging
+import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
@@ -92,8 +94,13 @@ def handle_hitl(app: object, notification: Notification) -> bool:
             response_data["feedback"] = result.feedback
 
         try:
-            with open(response_path, "w", encoding="utf-8") as f:
-                json.dump(response_data, f, indent=2, default=str)
+            _write_workflow_action_response(
+                response_path,
+                response_data,
+                action_kind="hitl",
+                notification_id=notification.id,
+                default=str,
+            )
             app.notify(f"Sent {result.action} response")  # type: ignore[attr-defined]
         except Exception as e:
             app.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
@@ -121,6 +128,7 @@ def handle_user_question(app: object, notification: Notification) -> bool:
     return _open_user_question_modal(
         app,
         response_dir,
+        notification_id=notification.id,
         on_response_written=lambda: _on_user_question_response_written(
             app, notification
         ),
@@ -143,13 +151,16 @@ def open_user_question_modal_from_marker(app: object, response_dir: str) -> bool
     none is present — the marker is cleared by ``handle_questions_flow()``
     itself once the response is consumed.
     """
-    return _open_user_question_modal(app, response_dir, on_response_written=None)
+    return _open_user_question_modal(
+        app, response_dir, notification_id=None, on_response_written=None
+    )
 
 
 def _open_user_question_modal(
     app: object,
     response_dir: str,
     *,
+    notification_id: str | None,
     on_response_written: object,
 ) -> bool:
     import json
@@ -193,8 +204,12 @@ def _open_user_question_modal(
 
         question_response_path = response_path / "question_response.json"
         try:
-            with open(question_response_path, "w", encoding="utf-8") as f:
-                json.dump(response_data, f, indent=2)
+            _write_workflow_action_response(
+                question_response_path,
+                response_data,
+                action_kind="user_question",
+                notification_id=notification_id or str(question_response_path),
+            )
             app.notify("Sent question response")  # type: ignore[attr-defined]
         except Exception as e:
             app.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
@@ -327,7 +342,12 @@ def handle_plan_approval(
         # (e.g. Telegram) can detect the rejection, then kill the agent.
         if result.action == "reject" and result.feedback is None:
             plan_response_path = response_path / "plan_response.json"
-            plan_response_path.write_text(json.dumps({"action": "reject"}))
+            _write_workflow_action_response(
+                plan_response_path,
+                {"action": "reject"},
+                action_kind="plan_approval",
+                notification_id=notification.id,
+            )
 
             from sase.notifications import mark_dismissed
 
@@ -347,8 +367,12 @@ def handle_plan_approval(
         response_data = _build_plan_approval_response(result)
 
         try:
-            with open(plan_response_path, "w", encoding="utf-8") as f:
-                json.dump(response_data, f, indent=2)
+            _write_workflow_action_response(
+                plan_response_path,
+                response_data,
+                action_kind="plan_approval",
+                notification_id=notification.id,
+            )
             app.notify(f"Sent plan {result.action} response")  # type: ignore[attr-defined]
         except Exception as e:
             app.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
@@ -652,6 +676,30 @@ def _restore_pre_question_status(app: object, notification: Notification) -> Non
         # Reload agents to apply the restored status
         app._load_agents()  # type: ignore[attr-defined]
         break
+
+
+def _write_workflow_action_response(
+    response_path: Path,
+    response_data: dict[str, object],
+    *,
+    action_kind: str,
+    notification_id: str,
+    default: Callable[[Any], Any] | None = None,
+) -> None:
+    from sase.xprompt.workflow_daemon_writes import write_action_response_once
+
+    def direct_writer() -> None:
+        with response_path.open("x", encoding="utf-8") as f:
+            json.dump(response_data, f, indent=2, default=default)
+            f.write("\n")
+
+    write_action_response_once(
+        response_path,
+        response_data,
+        action_kind=action_kind,
+        notification_id=notification_id,
+        direct_writer=direct_writer,
+    )
 
 
 def persist_plan_approved(agent: Agent, action: str = "approve") -> None:
