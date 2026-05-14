@@ -9,8 +9,12 @@ import sys
 def handle_daemon_command(args: argparse.Namespace) -> None:
     """Dispatch to the appropriate daemon lifecycle handler."""
     from sase.integrations.daemon_lifecycle import (
+        handle_daemon_backup,
+        handle_daemon_checkpoint,
         handle_daemon_doctor,
+        handle_daemon_list_backups,
         handle_daemon_rebuild,
+        handle_daemon_restore,
         handle_daemon_scheduler,
         handle_daemon_start,
         handle_daemon_status,
@@ -37,13 +41,17 @@ def handle_daemon_command(args: argparse.Namespace) -> None:
         "scheduler": handle_daemon_scheduler,
         "doctor": handle_daemon_doctor,
         "rebuild": handle_daemon_rebuild,
+        "checkpoint": handle_daemon_checkpoint,
+        "backup": handle_daemon_backup,
+        "list-backups": handle_daemon_list_backups,
+        "restore": handle_daemon_restore,
         "verify": handle_daemon_verify,
         "diff": handle_daemon_diff,
     }
     handler = handlers.get(sub) if isinstance(sub, str) else None
     if handler is None:
         print(
-            "Usage: sase daemon {start,stop,status,scheduler,doctor,rebuild,verify,diff}",
+            "Usage: sase daemon {start,stop,status,scheduler,doctor,rebuild,checkpoint,backup,list-backups,restore,verify,diff}",
             file=sys.stderr,
         )
         sys.exit(1)

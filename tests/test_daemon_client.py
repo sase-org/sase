@@ -442,6 +442,115 @@ def test_verify_and_diff_send_indexing_selectors(tmp_path: Path) -> None:
     }
 
 
+def test_projection_maintenance_requests(tmp_path: Path) -> None:
+    checkpoint_holder: dict[str, Any] = {}
+    checkpoint_socket = tmp_path / "checkpoint.sock"
+    checkpoint_response = {
+        "schema_version": 1,
+        "request_id": "req_checkpoint",
+        "snapshot_id": None,
+        "payload": {
+            "type": "projection_checkpoint",
+            "data": {
+                "schema_version": 1,
+                "report": {
+                    "schema_version": 1,
+                    "mode": "truncate",
+                    "busy": 0,
+                    "log_frames": 1,
+                    "checkpointed_frames": 1,
+                },
+            },
+        },
+    }
+    checkpoint_thread = _serve_one(
+        checkpoint_socket, checkpoint_response, checkpoint_holder
+    )
+
+    checkpoint = LocalDaemonClient(checkpoint_socket, timeout=1.0).checkpoint(
+        mode="truncate"
+    )
+    checkpoint_thread.join(timeout=1)
+
+    assert checkpoint["report"]["mode"] == "truncate"
+    assert checkpoint_holder["request"]["payload"] == {
+        "type": "projection_checkpoint",
+        "data": {"mode": "truncate"},
+    }
+
+    backup_holder: dict[str, Any] = {}
+    backup_socket = tmp_path / "backup.sock"
+    backup_response = {
+        "schema_version": 1,
+        "request_id": "req_backup",
+        "snapshot_id": None,
+        "payload": {
+            "type": "projection_backup",
+            "data": {
+                "schema_version": 1,
+                "report": {
+                    "schema_version": 1,
+                    "path": "/tmp/projection.sqlite",
+                    "metadata_path": "/tmp/projection.sqlite.json",
+                    "bytes": 10,
+                    "metadata": {"event_max_sequence": 7},
+                },
+            },
+        },
+    }
+    backup_thread = _serve_one(backup_socket, backup_response, backup_holder)
+
+    backup = LocalDaemonClient(backup_socket, timeout=1.0).backup(path="manual.sqlite")
+    backup_thread.join(timeout=1)
+
+    assert backup["report"]["bytes"] == 10
+    assert backup_holder["request"]["payload"] == {
+        "type": "projection_backup",
+        "data": {"path": "manual.sqlite"},
+    }
+
+    restore_holder: dict[str, Any] = {}
+    restore_socket = tmp_path / "restore.sock"
+    restore_response = {
+        "schema_version": 1,
+        "request_id": "req_restore",
+        "snapshot_id": None,
+        "payload": {
+            "type": "projection_restore",
+            "data": {
+                "schema_version": 1,
+                "report": {
+                    "schema_version": 1,
+                    "backup_path": "/tmp/projection.sqlite",
+                    "restored_path": "/tmp/run/projections/projection.sqlite",
+                    "bytes": 10,
+                    "replaced_existing": True,
+                    "projection_only": True,
+                    "metadata": {"event_max_sequence": 7},
+                },
+            },
+        },
+    }
+    restore_thread = _serve_one(restore_socket, restore_response, restore_holder)
+
+    restore = LocalDaemonClient(restore_socket, timeout=1.0).restore(
+        path="/tmp/projection.sqlite",
+        live_recovery=True,
+        allow_host_mismatch=True,
+    )
+    restore_thread.join(timeout=1)
+
+    assert restore["report"]["projection_only"] is True
+    assert restore_holder["request"]["payload"] == {
+        "type": "projection_restore",
+        "data": {
+            "path": "/tmp/projection.sqlite",
+            "live_recovery": True,
+            "allow_host_mismatch": True,
+        },
+    }
+
+
 def test_missing_socket_raises_typed_unavailable(tmp_path: Path) -> None:
     with pytest.raises(LocalDaemonUnavailableError) as error:
         LocalDaemonClient(tmp_path / "missing.sock", timeout=0.01).health()

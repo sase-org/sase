@@ -260,6 +260,113 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Seconds to wait for live-daemon rebuild RPC",
     )
 
+    checkpoint_parser = daemon_subparsers.add_parser(
+        "checkpoint",
+        help="Checkpoint the projection WAL",
+    )
+    _add_runtime_options(checkpoint_parser)
+    checkpoint_parser.add_argument(
+        "--mode",
+        choices=["passive", "full", "restart", "truncate"],
+        default="passive",
+        help="SQLite WAL checkpoint mode",
+    )
+    checkpoint_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable checkpoint JSON",
+    )
+    checkpoint_parser.add_argument(
+        "-T",
+        "--timeout",
+        type=float,
+        dest="checkpoint_timeout",
+        help="Seconds to wait for live-daemon checkpoint RPC",
+    )
+
+    backup_parser = daemon_subparsers.add_parser(
+        "backup",
+        help="Create a projection backup snapshot",
+    )
+    _add_runtime_options(backup_parser)
+    backup_parser.add_argument(
+        "--path",
+        dest="backup_path",
+        help="Backup path under run_root/backups; default creates a timestamped .sqlite",
+    )
+    backup_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable backup JSON",
+    )
+    backup_parser.add_argument(
+        "-T",
+        "--timeout",
+        type=float,
+        dest="backup_timeout",
+        help="Seconds to wait for live-daemon backup RPC",
+    )
+
+    list_backups_parser = daemon_subparsers.add_parser(
+        "list-backups",
+        help="List recent projection backup snapshots",
+    )
+    _add_runtime_options(list_backups_parser)
+    list_backups_parser.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        help="Maximum backup records to return",
+    )
+    list_backups_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable backup list JSON",
+    )
+    list_backups_parser.add_argument(
+        "-T",
+        "--timeout",
+        type=float,
+        dest="list_backups_timeout",
+        help="Seconds to wait for live-daemon backup-list RPC",
+    )
+
+    restore_parser = daemon_subparsers.add_parser(
+        "restore",
+        help="Restore a projection backup snapshot",
+    )
+    _add_runtime_options(restore_parser)
+    restore_parser.add_argument(
+        "path",
+        help="Projection backup .sqlite path under run_root/backups",
+    )
+    restore_parser.add_argument(
+        "--live-recovery",
+        action="store_true",
+        help="Allow guarded restore through a running daemon",
+    )
+    restore_parser.add_argument(
+        "--allow-host-mismatch",
+        action="store_true",
+        help="Allow restoring a backup created by a different host",
+    )
+    restore_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable restore JSON",
+    )
+    restore_parser.add_argument(
+        "-T",
+        "--timeout",
+        type=float,
+        dest="restore_timeout",
+        help="Seconds to wait for restore RPC",
+    )
+
     verify_parser = daemon_subparsers.add_parser(
         "verify",
         help="Verify daemon shadow indexes against source stores",

@@ -227,10 +227,23 @@ Recovery and diagnostic commands:
   `--surface changespecs|notifications|agents|beads|catalogs` scopes the rebuild. Passing `--reset-storage` preserves
   the explicit projection-table reset/replay recovery path; when the daemon is stopped this is the only supported
   one-shot rebuild mode. Rebuild output reports source-export pending/failed/conflict counts after safe retries.
+- `sase daemon checkpoint --mode passive|full|restart|truncate` checkpoints the projection WAL through the live daemon.
+- `sase daemon backup` writes a projection snapshot under `<run_root>/backups/` by default using SQLite `VACUUM INTO`
+  and records a `.json` metadata sidecar with daemon/core version, host identity, source `sase_home`, projection schema,
+  source-export summary, max event sequence, timestamp, and original DB path. `sase daemon list-backups` lists the
+  newest metadata-backed snapshots.
+- `sase daemon restore <backup.sqlite>` is projection-only: it replaces `<run_root>/projections/projection.sqlite` and
+  removes projection WAL/SHM sidecars, but never edits source stores, JSONL files, project specs, artifacts, or external
+  repos. A running daemon requires `--live-recovery`; a stopped daemon can restore directly. Host mismatches are refused
+  unless `--allow-host-mismatch` is explicit.
 - `sase daemon verify --surface all` compares shadow projections against current source-store loaders and exits nonzero
   when any surface reports differences.
 - `sase daemon diff --surface all --limit 100` prints a bounded page of actionable shadow diff records. Use `--json` and
   `--cursor` for machine-readable pagination.
+
+Prefer `sase daemon rebuild --surface all` when source stores are healthy and the projection is corrupt or missing. Use
+`restore` when you need a fast rollback to a runtime projection snapshot or want to inspect a previous projected state.
+Run `sase daemon verify` after either operation when shadow indexes matter.
 
 ## Bead Backend
 

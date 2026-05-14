@@ -197,6 +197,47 @@ class LocalDaemonClient(LocalDaemonReadMixin):
         )
         return payload_data(response, "rebuild")
 
+    def checkpoint(self, *, mode: str = "passive") -> dict[str, Any]:
+        response = self.request(
+            {
+                "type": "projection_checkpoint",
+                "data": {"mode": mode},
+            }
+        )
+        return payload_data(response, "projection_checkpoint")
+
+    def backup(self, *, path: str | None = None) -> dict[str, Any]:
+        data: dict[str, Any] = {}
+        if path is not None:
+            data["path"] = path
+        response = self.request({"type": "projection_backup", "data": data})
+        return payload_data(response, "projection_backup")
+
+    def list_backups(self, *, limit: int = 20) -> dict[str, Any]:
+        response = self.request(
+            {"type": "projection_list_backups", "data": {"limit": limit}}
+        )
+        return payload_data(response, "projection_list_backups")
+
+    def restore(
+        self,
+        *,
+        path: str,
+        live_recovery: bool = False,
+        allow_host_mismatch: bool = False,
+    ) -> dict[str, Any]:
+        response = self.request(
+            {
+                "type": "projection_restore",
+                "data": {
+                    "path": path,
+                    "live_recovery": live_recovery,
+                    "allow_host_mismatch": allow_host_mismatch,
+                },
+            }
+        )
+        return payload_data(response, "projection_restore")
+
     def verify(
         self,
         *,

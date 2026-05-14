@@ -18,8 +18,12 @@ from sase.integrations import _daemon_lifecycle_types as _types
 from sase.integrations import _daemon_lifecycle_values as _values
 from sase.integrations._daemon_lifecycle_actions import (
     repair_stale_lock,
+    run_daemon_backup,
+    run_daemon_checkpoint,
     run_daemon_diff,
+    run_daemon_list_backups,
     run_daemon_rebuild,
+    run_daemon_restore,
     run_daemon_start,
     run_daemon_stop,
     run_daemon_verify,
@@ -93,7 +97,11 @@ __all__ = [
     "_resolve_gateway_command",
     "_repair_stale_lock",
     "_run_daemon_diff",
+    "_run_daemon_backup",
+    "_run_daemon_checkpoint",
+    "_run_daemon_list_backups",
     "_run_daemon_rebuild",
+    "_run_daemon_restore",
     "_run_daemon_start",
     "_run_daemon_stop",
     "_run_daemon_verify",
@@ -101,9 +109,13 @@ __all__ = [
     "_terminate_process",
     "_try_health_rpc",
     "_wait_for_background_start",
+    "handle_daemon_backup",
+    "handle_daemon_checkpoint",
     "handle_daemon_diff",
     "handle_daemon_doctor",
+    "handle_daemon_list_backups",
     "handle_daemon_rebuild",
+    "handle_daemon_restore",
     "handle_daemon_scheduler",
     "handle_daemon_start",
     "handle_daemon_status",
@@ -252,6 +264,98 @@ def handle_daemon_rebuild(args: argparse.Namespace) -> int:
                 _print_indexing_summary(summary)
         if payload.get("next_command"):
             print(f"Next: {payload['next_command']}")
+    return 0
+
+
+def handle_daemon_checkpoint(args: argparse.Namespace) -> int:
+    """Checkpoint the projection WAL through a live daemon."""
+    try:
+        payload = _run_daemon_checkpoint(args)
+    except _DaemonLifecycleError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if getattr(args, "json_output", False):
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        report = payload.get("report", {})
+        print(
+            "Checkpoint: mode={mode} busy={busy} frames={done}/{log}".format(
+                mode=report.get("mode", getattr(args, "mode", "passive")),
+                busy=report.get("busy", 0),
+                done=report.get("checkpointed_frames", 0),
+                log=report.get("log_frames", 0),
+            )
+        )
+    return 0
+
+
+def handle_daemon_backup(args: argparse.Namespace) -> int:
+    """Create a projection backup through a live daemon."""
+    try:
+        payload = _run_daemon_backup(args)
+    except _DaemonLifecycleError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if getattr(args, "json_output", False):
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        report = payload.get("report", {})
+        print(
+            "Backup: {path} ({bytes} bytes)".format(
+                path=report.get("path", "unknown"),
+                bytes=report.get("bytes", 0),
+            )
+        )
+    return 0
+
+
+def handle_daemon_list_backups(args: argparse.Namespace) -> int:
+    """List projection backups through a live daemon."""
+    try:
+        payload = _run_daemon_list_backups(args)
+    except _DaemonLifecycleError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if getattr(args, "json_output", False):
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        backups = payload.get("backups", {}).get("backups", [])
+        print(f"Backups: {len(backups)}")
+        for backup in backups:
+            if isinstance(backup, dict):
+                metadata = backup.get("metadata", {})
+                print(
+                    "- {path} seq={seq} created={created}".format(
+                        path=backup.get("path", "unknown"),
+                        seq=metadata.get("event_max_sequence", 0)
+                        if isinstance(metadata, dict)
+                        else 0,
+                        created=metadata.get("created_at", "")
+                        if isinstance(metadata, dict)
+                        else "",
+                    )
+                )
+    return 0
+
+
+def handle_daemon_restore(args: argparse.Namespace) -> int:
+    """Restore a projection backup without touching source stores."""
+    try:
+        payload = _run_daemon_restore(args)
+    except _DaemonLifecycleError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if getattr(args, "json_output", False):
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        report = payload.get("report", {})
+        print(
+            "Restore: {backup} -> {target} projection_only={projection_only}".format(
+                backup=report.get("backup_path", getattr(args, "path", "")),
+                target=report.get("restored_path", "unknown"),
+                projection_only=report.get("projection_only", True),
+            )
+        )
     return 0
 
 
@@ -546,6 +650,22 @@ def _run_daemon_rebuild(args: argparse.Namespace) -> dict[str, Any]:
 
 def _repair_stale_lock(args: argparse.Namespace) -> dict[str, Any]:
     return repair_stale_lock(args, inspect_daemon=_inspect_daemon)
+
+
+def _run_daemon_checkpoint(args: argparse.Namespace) -> dict[str, Any]:
+    return run_daemon_checkpoint(args, inspect_daemon=_inspect_daemon)
+
+
+def _run_daemon_backup(args: argparse.Namespace) -> dict[str, Any]:
+    return run_daemon_backup(args, inspect_daemon=_inspect_daemon)
+
+
+def _run_daemon_list_backups(args: argparse.Namespace) -> dict[str, Any]:
+    return run_daemon_list_backups(args, inspect_daemon=_inspect_daemon)
+
+
+def _run_daemon_restore(args: argparse.Namespace) -> dict[str, Any]:
+    return run_daemon_restore(args, inspect_daemon=_inspect_daemon)
 
 
 def _run_daemon_verify(args: argparse.Namespace) -> dict[str, Any]:

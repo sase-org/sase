@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -35,8 +36,16 @@ def _args(**overrides: Any) -> argparse.Namespace:
         "startup_timeout": None,
         "stop_timeout": None,
         "rebuild_timeout": None,
+        "checkpoint_timeout": None,
+        "backup_timeout": None,
+        "list_backups_timeout": None,
+        "restore_timeout": None,
         "verify_timeout": None,
         "diff_timeout": None,
+        "backup_path": None,
+        "path": None,
+        "live_recovery": False,
+        "allow_host_mismatch": False,
         "surface": "all",
         "project_id": None,
         "storage_reset_only": False,
@@ -109,6 +118,47 @@ def test_parser_accepts_daemon_start_flags() -> None:
     assert args.allow_non_loopback is True
     assert args.daemon_command == "sase_gateway --trace"
     assert args.startup_timeout == 1
+
+
+def test_parser_accepts_projection_maintenance_commands() -> None:
+    checkpoint = create_parser().parse_args(
+        ["daemon", "checkpoint", "--mode", "truncate", "-T", "2", "--json"]
+    )
+    assert checkpoint.daemon_subcommand == "checkpoint"
+    assert checkpoint.mode == "truncate"
+    assert checkpoint.checkpoint_timeout == 2
+    assert checkpoint.json_output is True
+
+    backup = create_parser().parse_args(
+        ["daemon", "backup", "--path", "manual.sqlite", "-T", "3"]
+    )
+    assert backup.daemon_subcommand == "backup"
+    assert backup.backup_path == "manual.sqlite"
+    assert backup.backup_timeout == 3
+
+    listing = create_parser().parse_args(
+        ["daemon", "list-backups", "--limit", "5", "-T", "4"]
+    )
+    assert listing.daemon_subcommand == "list-backups"
+    assert listing.limit == 5
+    assert listing.list_backups_timeout == 4
+
+    restore = create_parser().parse_args(
+        [
+            "daemon",
+            "restore",
+            "/tmp/run/backups/manual.sqlite",
+            "--live-recovery",
+            "--allow-host-mismatch",
+            "-T",
+            "6",
+        ]
+    )
+    assert restore.daemon_subcommand == "restore"
+    assert restore.path == "/tmp/run/backups/manual.sqlite"
+    assert restore.live_recovery is True
+    assert restore.allow_host_mismatch is True
+    assert restore.restore_timeout == 6
 
 
 def test_prepare_daemon_launch_builds_safe_argv(tmp_path: Path) -> None:
@@ -747,3 +797,171 @@ def test_rebuild_uses_live_daemon_rpc(
             "conflict": 0,
         },
     }
+
+
+def test_projection_maintenance_uses_live_daemon_rpc(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root = tmp_path / "run"
+    socket_path = tmp_path / "daemon.sock"
+    monkeypatch.setattr(
+        lifecycle,
+        "_inspect_daemon",
+        lambda _args: lifecycle._DaemonInspection(
+            state="running",
+            paths=lifecycle._DaemonRuntimePaths(
+                sase_home=tmp_path / "home",
+                run_root=run_root,
+                socket_path=socket_path,
+                metadata_path=run_root / "daemon.lock.json",
+            ),
+            metadata=_metadata(1234, "host"),
+            rpc={"available": True, "health": {"status": "ok"}},
+        ),
+    )
+    calls: list[tuple[str, Any]] = []
+
+    class FakeClient:
+        def __init__(self, socket_path_arg: Path, *, timeout: float) -> None:
+            assert socket_path_arg == socket_path
+            assert timeout == 3
+
+        def checkpoint(self, *, mode: str) -> dict[str, Any]:
+            calls.append(("checkpoint", mode))
+            return {"report": {"mode": mode}}
+
+        def backup(self, *, path: str | None) -> dict[str, Any]:
+            calls.append(("backup", path))
+            return {"report": {"path": path or "auto.sqlite"}}
+
+        def list_backups(self, *, limit: int) -> dict[str, Any]:
+            calls.append(("list", limit))
+            return {"backups": {"backups": []}}
+
+        def restore(
+            self,
+            *,
+            path: str,
+            live_recovery: bool,
+            allow_host_mismatch: bool,
+        ) -> dict[str, Any]:
+            calls.append(("restore", (path, live_recovery, allow_host_mismatch)))
+            return {"report": {"projection_only": True}}
+
+    monkeypatch.setattr("sase.daemon.client.LocalDaemonClient", FakeClient)
+
+    assert (
+        lifecycle._run_daemon_checkpoint(  # noqa: SLF001
+            _args(checkpoint_timeout=3, mode="truncate")
+        )["source"]
+        == "live_daemon_rpc"
+    )
+    assert (
+        lifecycle._run_daemon_backup(  # noqa: SLF001
+            _args(backup_timeout=3, backup_path="manual.sqlite")
+        )["source"]
+        == "live_daemon_rpc"
+    )
+    assert (
+        lifecycle._run_daemon_list_backups(  # noqa: SLF001
+            _args(list_backups_timeout=3, limit=7)
+        )["source"]
+        == "live_daemon_rpc"
+    )
+    assert (
+        lifecycle._run_daemon_restore(  # noqa: SLF001
+            _args(
+                restore_timeout=3,
+                path=str(run_root / "backups" / "manual.sqlite"),
+                live_recovery=True,
+                allow_host_mismatch=True,
+            )
+        )["source"]
+        == "live_daemon_rpc"
+    )
+
+    assert calls == [
+        ("checkpoint", "truncate"),
+        ("backup", "manual.sqlite"),
+        ("list", 7),
+        ("restore", (str(run_root / "backups" / "manual.sqlite"), True, True)),
+    ]
+
+
+def test_live_restore_requires_explicit_guard(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root = tmp_path / "run"
+    monkeypatch.setattr(
+        lifecycle,
+        "_inspect_daemon",
+        lambda _args: lifecycle._DaemonInspection(
+            state="running",
+            paths=lifecycle._DaemonRuntimePaths(
+                sase_home=tmp_path / "home",
+                run_root=run_root,
+                socket_path=tmp_path / "daemon.sock",
+                metadata_path=run_root / "daemon.lock.json",
+            ),
+            metadata=_metadata(1234, "host"),
+            rpc={"available": True, "health": {"status": "ok"}},
+        ),
+    )
+
+    with pytest.raises(_DaemonLifecycleError, match="--live-recovery"):
+        lifecycle._run_daemon_restore(  # noqa: SLF001
+            _args(path=str(run_root / "backups" / "manual.sqlite"))
+        )
+
+
+def test_offline_restore_copies_projection_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root = tmp_path / "run"
+    backup = run_root / "backups" / "manual.sqlite"
+    backup.parent.mkdir(parents=True)
+    with sqlite3.connect(backup) as conn:
+        conn.execute("CREATE TABLE event_log(seq INTEGER PRIMARY KEY)")
+        conn.execute("INSERT INTO event_log(seq) VALUES (1)")
+    backup.with_name(backup.name + ".json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "backup_format_version": 1,
+                "host_identity": "test-host",
+                "event_max_sequence": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    source_store = tmp_path / "home" / "projects" / "demo.sase"
+    source_store.parent.mkdir(parents=True)
+    source_store.write_text("NAME: source\n", encoding="utf-8")
+    monkeypatch.setenv("HOSTNAME", "test-host")
+    monkeypatch.setattr(
+        lifecycle,
+        "_inspect_daemon",
+        lambda _args: lifecycle._DaemonInspection(
+            state="stopped",
+            paths=lifecycle._DaemonRuntimePaths(
+                sase_home=tmp_path / "home",
+                run_root=run_root,
+                socket_path=tmp_path / "daemon.sock",
+                metadata_path=run_root / "daemon.lock.json",
+            ),
+            message="not running",
+        ),
+    )
+
+    payload = lifecycle._run_daemon_restore(  # noqa: SLF001
+        _args(path=str(backup))
+    )
+
+    restored = run_root / "projections" / "projection.sqlite"
+    assert payload["source"] == "offline_projection_restore"
+    assert payload["report"]["projection_only"] is True
+    assert restored.is_file()
+    assert source_store.read_text(encoding="utf-8") == "NAME: source\n"

@@ -692,6 +692,14 @@ cloud-drive sync rules. Use one daemon per host-local `run_root`.
 Custom `run_root` and `socket_path` values are allowed, but doctor warns when runtime files appear under likely synced
 source stores or when the socket is outside `run_root`.
 
+Projection operation commands are scoped to runtime state:
+
+- `sase daemon checkpoint --mode truncate` checkpoints the host-local projection WAL.
+- `sase daemon backup` creates `<run_root>/backups/projection-<timestamp>.sqlite` plus a metadata sidecar.
+- `sase daemon list-backups` lists recent metadata-backed projection snapshots.
+- `sase daemon restore <backup.sqlite>` restores only `<run_root>/projections/projection.sqlite`; use rebuild instead
+  when source stores are healthy and you only need to regenerate projections from authoritative files.
+
 Source: `src/sase/default_config.yml`, `src/sase/integrations/_daemon_lifecycle_config.py`, `src/sase/daemon/paths.py`
 
 ### sdd
