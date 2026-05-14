@@ -370,6 +370,55 @@ def test_doctor_distinguishes_degraded_projection(
     assert projection["message"] == "projection replay needs repair"
 
 
+def test_doctor_reports_source_export_conflicts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOSTNAME", "workstation.local")
+    run_root = tmp_path / "run"
+    _write_metadata(run_root, _metadata(os.getpid(), "workstation.local"))
+    monkeypatch.setattr(
+        lifecycle,
+        "_try_health_rpc",
+        lambda _socket: {
+            "available": True,
+            "health": {
+                "status": "degraded",
+                "details": {
+                    "projection_db": {
+                        "state": "degraded",
+                        "schema_initialized": True,
+                        "migrations_applied": True,
+                        "repair_needed": True,
+                        "gap_count": 0,
+                        "recovery_issue_count": 1,
+                        "source_exports": {
+                            "state": "degraded",
+                            "message": "1 source export(s) still need repair",
+                            "pending": 0,
+                            "failed": 0,
+                            "conflict": 1,
+                        },
+                    }
+                },
+            },
+        },
+    )
+
+    inspection = lifecycle._inspect_daemon(
+        _args(sase_home=str(tmp_path / "home"), run_root=str(run_root))
+    )
+    payload = lifecycle._doctor_payload(inspection)  # noqa: SLF001
+
+    source_exports = [
+        check
+        for check in payload["doctor"]["checks"]
+        if check["name"] == "source_exports"
+    ][0]
+    assert source_exports["state"] == "degraded"
+    assert source_exports["message"] == "1 source export(s) still need repair"
+
+
 def test_rebuild_uses_live_daemon_rpc(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -409,6 +458,20 @@ def test_rebuild_uses_live_daemon_rpc(
             assert project_id == "demo"
             return {"mode": "projection_storage_rebuild"}
 
+        def health(self) -> dict[str, Any]:
+            return {
+                "details": {
+                    "projection_db": {
+                        "source_exports": {
+                            "state": "ok",
+                            "pending": 0,
+                            "failed": 0,
+                            "conflict": 0,
+                        }
+                    }
+                }
+            }
+
     monkeypatch.setattr("sase.daemon.client.LocalDaemonClient", FakeClient)
 
     payload = lifecycle._run_daemon_rebuild(  # noqa: SLF001
@@ -418,4 +481,10 @@ def test_rebuild_uses_live_daemon_rpc(
     assert payload == {
         "mode": "projection_storage_rebuild",
         "source": "live_daemon_rpc",
+        "source_exports": {
+            "state": "ok",
+            "pending": 0,
+            "failed": 0,
+            "conflict": 0,
+        },
     }

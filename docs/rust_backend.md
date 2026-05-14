@@ -165,16 +165,32 @@ Fallback reasons in debug output use stable tokens: `daemon_disabled`, `daemon_r
 `surface_disabled`, `daemon_not_running`, `unsupported_capability`, `projection_degraded`, `cursor_expired`,
 `snapshot_expired`, `payload_too_large`, and `resource_not_found`.
 
+Write rollout controls:
+
+| Surface                                                               | Daemon capability     | Rollout state                                                                                             | Direct fallback                                                                |
+| --------------------------------------------------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Notifications and pending actions                                     | `notifications.write` | Routed through daemon writes with source export                                                           | `--no-daemon` / `SASE_NO_DAEMON` or unsupported capability                     |
+| ChangeSpec status, comments, hooks, mentors, archive, revert metadata | `changespecs.write`   | Routed through daemon writes with project-file source export                                              | `--no-daemon` / `SASE_NO_DAEMON` or unsupported capability before event append |
+| Agent dismissed/archive/revive/cleanup metadata                       | `agents.write`        | Routed through daemon writes for durable metadata only                                                    | `--no-daemon` / `SASE_NO_DAEMON` or unsupported capability                     |
+| Bead mutations                                                        | `beads.write`         | Routed through daemon writes using the Rust bead mutation planner                                         | `--no-daemon` / `SASE_NO_DAEMON` or unsupported capability                     |
+| Workflow state and action responses                                   | `workflows.write`     | Routed through daemon writes for durable state/response files; execution stays in Python                  | `--no-daemon` / `SASE_NO_DAEMON` or unsupported capability                     |
+| Host side effects                                                     | none                  | Direct-only: process kills, provider/plugin subprocesses, shell/Python workflow execution, VCS operations | Not daemon-routed                                                              |
+
+Write-through daemon mutations append a projection event and record source-export outbox rows before updating the
+human-readable JSON/JSONL/project files. On startup, `sase daemon rebuild --reset-storage`, and live source backfill
+rebuilds, the daemon retries safe pending/failed source exports. Conflicted exports remain in the outbox with the target
+path, surface, status, and last error so an operator can fix the source file and rerun doctor/rebuild.
+
 Recovery and diagnostic commands:
 
 - `sase daemon status` reads ownership metadata first, then local RPC health when the socket is available.
 - `sase daemon doctor` distinguishes stopped, healthy, degraded projection, stale lock, incompatible metadata, and
-  host-conflict states. With a running daemon, `--json` also includes indexing service health, watcher state, queue
-  counters, recent reports, and compact per-surface diff summaries.
+  host-conflict states. With a running daemon, `--json` also includes source-export repair summaries, indexing service
+  health, watcher state, queue counters, recent reports, and compact per-surface diff summaries.
 - `sase daemon rebuild --surface all` uses a live daemon RPC to backfill shadow projections from source stores.
   `--surface changespecs|notifications|agents|beads|catalogs` scopes the rebuild. Passing `--reset-storage` preserves
   the explicit projection-table reset/replay recovery path; when the daemon is stopped this is the only supported
-  one-shot rebuild mode.
+  one-shot rebuild mode. Rebuild output reports source-export pending/failed/conflict counts after safe retries.
 - `sase daemon verify --surface all` compares shadow projections against current source-store loaders and exits nonzero
   when any surface reports differences.
 - `sase daemon diff --surface all --limit 100` prints a bounded page of actionable shadow diff records. Use `--json` and

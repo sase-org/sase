@@ -67,6 +67,11 @@ def doctor_payload(inspection: DaemonInspection) -> dict[str, Any]:
             _projection_check_message(inspection),
         ),
         _check(
+            "source_exports",
+            _source_exports_check_state(inspection),
+            _source_exports_check_message(inspection),
+        ),
+        _check(
             "indexing",
             _indexing_check_state(inspection),
             _indexing_check_message(inspection),
@@ -161,6 +166,46 @@ def _projection_details(inspection: DaemonInspection) -> dict[str, Any] | None:
     details = health.get("details") if isinstance(health, dict) else None
     projection = details.get("projection_db") if isinstance(details, dict) else None
     return projection if isinstance(projection, dict) else None
+
+
+def _source_exports_check_state(inspection: DaemonInspection) -> str:
+    source_exports = _source_exports_details(inspection)
+    if source_exports is None:
+        if inspection.state != "running":
+            return "skipped"
+        return "ok" if _projection_details(inspection) is not None else "unknown"
+    state = source_exports.get("state")
+    if state == "ok":
+        return "ok"
+    if state == "degraded":
+        return "degraded"
+    return "unknown"
+
+
+def _source_exports_check_message(inspection: DaemonInspection) -> str:
+    source_exports = _source_exports_details(inspection)
+    if source_exports is None:
+        if _projection_details(inspection) is not None:
+            return "source-export diagnostics were not reported"
+        return "source-export diagnostics require live daemon RPC"
+    message = source_exports.get("message")
+    if isinstance(message, str) and message:
+        return message
+    return ("pending={pending}, failed={failed}, conflicts={conflict}").format(
+        pending=source_exports.get("pending", 0),
+        failed=source_exports.get("failed", 0),
+        conflict=source_exports.get("conflict", 0),
+    )
+
+
+def _source_exports_details(
+    inspection: DaemonInspection,
+) -> dict[str, Any] | None:
+    projection = _projection_details(inspection)
+    if projection is None:
+        return None
+    source_exports = projection.get("source_exports")
+    return source_exports if isinstance(source_exports, dict) else None
 
 
 def _indexing_check_state(inspection: DaemonInspection) -> str:

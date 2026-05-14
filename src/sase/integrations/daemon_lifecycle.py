@@ -165,6 +165,17 @@ def handle_daemon_rebuild(args: argparse.Namespace) -> int:
         print(f"Rebuild: {mode} completed via {source}.")
         if limitation:
             print(f"Limitation: {limitation}")
+        source_exports = payload.get("source_exports")
+        if isinstance(source_exports, dict):
+            print(
+                "Source exports: {state} pending={pending} failed={failed} "
+                "conflicts={conflict}".format(
+                    state=source_exports.get("state", "unknown"),
+                    pending=source_exports.get("pending", 0),
+                    failed=source_exports.get("failed", 0),
+                    conflict=source_exports.get("conflict", 0),
+                )
+            )
     return 0
 
 

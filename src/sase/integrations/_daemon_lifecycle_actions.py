@@ -142,14 +142,16 @@ def run_daemon_rebuild(
             try:
                 from sase.daemon.client import LocalDaemonClient
 
-                payload = LocalDaemonClient(
+                client = LocalDaemonClient(
                     inspection.paths.socket_path,
                     timeout=timeout,
-                ).rebuild(
+                )
+                payload = client.rebuild(
                     storage_reset_only=bool(getattr(args, "storage_reset_only", False)),
                     surface=str(getattr(args, "surface", "all")),
                     project_id=getattr(args, "project_id", None),
                 )
+                _attach_source_export_health(payload, client)
             except Exception as exc:
                 raise DaemonLifecycleError(
                     f"live daemon rebuild RPC failed: {exc}"
@@ -205,6 +207,20 @@ def run_daemon_rebuild(
         raise DaemonLifecycleError("one-shot rebuild returned non-object JSON")
     payload["source"] = "one_shot_daemon_rebuild"
     return payload
+
+
+def _attach_source_export_health(payload: dict[str, Any], client: Any) -> None:
+    try:
+        health = client.health()
+    except Exception:
+        return
+    details = health.get("details") if isinstance(health, dict) else None
+    projection = details.get("projection_db") if isinstance(details, dict) else None
+    source_exports = (
+        projection.get("source_exports") if isinstance(projection, dict) else None
+    )
+    if isinstance(source_exports, dict):
+        payload["source_exports"] = source_exports
 
 
 def run_daemon_verify(
