@@ -9,21 +9,41 @@ agent made, and is Claude Code hook capture the right MVP implementation path?
 
 ## Short Answer
 
-Yes. For the Claude-only MVP, the cleanest path is to capture tool activity with Claude Code command hooks and store a
-per-agent `tool_calls.jsonl` artifact under the existing SASE artifacts directory. The TUI should read that artifact
-directly instead of deriving tool history from Claude transcript JSONL.
+Yes, build a "Tools" panel. There are **two viable capture strategies**, and the right MVP is to pick one and move on:
 
-The minimum useful hook set is:
+- **Strategy A — command hooks**: install a `PostToolUse` / `PostToolUseFailure` command hook that writes
+  `tool_calls.jsonl` into the active `SASE_ARTIFACTS_DIR`. Decoupled from `claude` CLI argument shape, survives SASE
+  restarts mid-session, and gives SASE a durable artifact independent of the subprocess that produced it.
+- **Strategy B — stream-JSON in-band capture**: pass `claude --include-hook-events` together with the existing
+  `--output-format stream-json` and extend `src/sase/llm_provider/_subprocess_claude.py` to fold tool events into a
+  SASE-written `tool_calls.jsonl`. No external hook installation. The subprocess parser already drops every event type
+  except `assistant`/`error`/`result` — extending it is a few-line change.
 
-- `PostToolUse` with matcher `*` or omitted: log successful tool calls, including `tool_name`, `tool_input`,
-  `tool_response` summary, `tool_use_id`, `duration_ms`, `session_id`, `transcript_path`, and `cwd`.
-- `PostToolUseFailure` with matcher `*` or omitted: log failed tool calls, including `error`, `is_interrupt`, and
-  `duration_ms`.
-- Optional later: `PostToolBatch` to record batch boundaries when Claude runs tools in parallel.
+Recommendation: **Strategy B for the MVP, with the JSONL artifact schema designed so Strategy A can drop in later
+without changing the TUI panel contract.** B avoids installing or managing any state outside the SASE process tree, has
+no risk of being disabled by `disableAllHooks` or managed policy, sidesteps the parallel-hook dedup/ordering surface
+entirely, and parallels the path Gemini/Qwen/Codex will most likely take (each has its own stream-json mode SASE
+already parses). Treat Strategy A as a fallback or a future option when SASE wants the artifact written even for
+non-SASE Claude sessions, or when SASE wants to redact tool output via `updatedToolOutput` before Claude sees it.
 
-Do not use `PreToolUse` as the main source of truth for this panel. It sees intended tool calls before they run, but the
-panel should primarily show what happened. `PreToolUse` can be added later only if the UI wants to show queued or denied
-attempts.
+The minimum useful event set in either strategy:
+
+- `PostToolUse` — successful tool calls. Includes `tool_name`, `tool_input`, `tool_response` (the **structured Output
+  object** for built-in tools, not a serialized string), `tool_use_id`, optional `duration_ms`, plus the common fields
+  `session_id`, `transcript_path`, `cwd`, `permission_mode`, `hook_event_name`, and inside subagents `agent_id` and
+  `agent_type`.
+- `PostToolUseFailure` — failed tool calls. Adds top-level `error`, optional `is_interrupt`, optional `duration_ms`.
+  Not every failure surfaces here; some tools (e.g. `Read` on a missing file) emit a `success: false` `tool_response`
+  through `PostToolUse` instead.
+- `SubagentStart` / `SubagentStop` — needed if the panel should group tool calls under their parent `Task`/`Agent`
+  subagent. Without these, subagent tool calls still arrive via `PostToolUse` but with `agent_id` set, so grouping is
+  recoverable.
+- Optional: `PermissionDenied` (auto-mode classifier denials, distinct from `PreToolUse` blocks) and `PostToolBatch`
+  (single event per parallel batch carrying every `tool_calls[i].tool_response` as a model-visible serialized string).
+
+Do not use `PreToolUse` as the main source of truth. It fires before the tool runs and may not match what actually
+happened (the tool can be denied, retried, or block on permission). It is useful only if the UI later wants to show
+queued or in-flight calls.
 
 ## Why Hooks Beat Transcript Parsing For This Panel
 
@@ -47,37 +67,113 @@ for the Tools panel.
 
 ## Relevant Claude Hook Facts
 
-Claude Code's current hook documentation says settings can define hooks at user, project, local project, managed, plugin,
-skill, and subagent scopes. Project settings live under `.claude/settings.json`, while local project settings live under
-`.claude/settings.local.json`. The docs also note that omitted, empty, or `*` matchers fire on every occurrence of the
-event.
+Claude Code's current hook documentation lists ~25 hook events across three cadences: once per session (`SessionStart`,
+`SessionEnd`), once per turn (`UserPromptSubmit`, `Stop`, `StopFailure`), and per tool call inside the agentic loop
+(`PreToolUse`, `PermissionRequest`, `PostToolUse`, `PostToolUseFailure`, `PostToolBatch`, `SubagentStart`,
+`SubagentStop`, `TaskCreated`, `TaskCompleted`, `PermissionDenied`, plus the worktree/notification/elicitation/etc.
+families).
 
-Hook commands receive JSON on stdin. Common hook input includes:
+Settings can define hooks at user, project, local project, managed, plugin, skill, and subagent scopes. Project
+settings live under `.claude/settings.json`, local project settings under `.claude/settings.local.json`, user settings
+under `~/.claude/settings.json`, plugin hooks under `<plugin>/hooks/hooks.json`. **The `claude` CLI also accepts
+`--settings <file-or-json>`**, which loads additional settings from a path or an inline JSON string for the lifetime of
+that invocation only — no on-disk mutation required. This is the most attractive install vehicle if SASE goes with
+Strategy A.
 
-- `session_id`
-- `transcript_path`
-- `cwd`
-- `permission_mode`
-- `hook_event_name`
+Omitted, empty, or `*` matchers fire on every occurrence of the event. Matchers containing only `[A-Za-z0-9_|]` are
+exact-string or `|`-separated lists; matchers with any other character are evaluated as JavaScript regex. MCP tools
+appear in `PostToolUse` with the `mcp__<server>__<tool>` naming pattern, so a server-wide match needs the explicit
+`.*`, e.g. `mcp__memory__.*`. `PostToolBatch` does not support matchers.
 
-For `PostToolUse`, Claude adds `tool_name`, `tool_input`, `tool_response`, `tool_use_id`, and optional `duration_ms`.
-This fires only after a successful tool call.
+### Common input fields
 
-For `PostToolUseFailure`, Claude adds `tool_name`, `tool_input`, `tool_use_id`, `error`, optional `is_interrupt`, and
-optional `duration_ms`.
+Hook commands receive JSON on stdin (HTTP hooks receive the same JSON as the POST body). Common fields:
 
-For `PostToolBatch`, Claude fires once after a full batch of tool calls resolves. It includes `tool_calls`, an array of
-calls with tool input, ids, and serialized model-visible results. The docs explicitly warn that `PostToolUse` fires once
-per tool and can fire concurrently for parallel tool calls, while `PostToolBatch` fires once for the whole batch.
+- `session_id`, `transcript_path`, `cwd`, `permission_mode`, `hook_event_name`
+- `effort.level` (`low`/`medium`/`high`/`xhigh`/`max`) when inside a tool-use context
+- `agent_id`, `agent_type` when the hook fires inside a subagent
 
-Command hook behavior matters for the logger:
+### Event-specific shapes worth noting
 
-- Exit `0` is success. The logger should normally exit `0` and print nothing.
-- Any non-zero hook failure could pollute the Claude transcript or affect the run, so the logger must fail open.
-- Async hooks exist, but the MVP should probably start synchronous with a very small timeout and cheap append-only I/O.
-  If logging overhead ever shows up, move the same command hook to `"async": true`.
+- `PostToolUse`: adds `tool_name`, `tool_input`, `tool_response`, `tool_use_id`, optional `duration_ms`. The
+  `tool_response` is the **tool's structured Output object** (e.g. `Write` returns `{filePath, success}`, `Bash`
+  returns `{stdout, stderr, interrupted, isImage}`). It is *not* the same shape as the `tool_result` content block the
+  model sees.
+- `PostToolUseFailure`: same identifying fields but with top-level `error: string`, optional `is_interrupt`, optional
+  `duration_ms`. Fires only when the tool actually throws/fails; "tool returned an error but completed" still arrives
+  as `PostToolUse` with `success: false` in `tool_response`.
+- `PostToolBatch`: no matcher, fires once after a full parallel batch. Carries `tool_calls`, an array where each
+  element's `tool_response` is the **serialized model-visible string/blocks**, not the structured Output object. The
+  docs explicitly note this divergence from `PostToolUse`.
+- `SubagentStart`/`SubagentStop`: matcher is the agent type (e.g. `Explore`, `Plan`, a custom name). `SubagentStop`
+  fires per subagent (rather than `Stop`).
+- `PermissionDenied`: only fires in auto-mode classifier denials, not for `PreToolUse` blocks or manual denies.
+
+### Command-hook execution semantics
+
+- **Exit codes**: `0` = success (stdout parsed for JSON output if any). `2` = blocking error for blockable events
+  (`PostToolUse` and `PostToolUseFailure` are *not* blockable: exit 2 there just shows stderr to Claude). Any other
+  non-zero is a non-blocking error that surfaces a `<hook> hook error` line in the transcript. For a telemetry-only
+  logger, exit `0` unconditionally and write nothing to stdout.
+- **Exec form vs shell form**: when `args` is set, `command` is resolved as an executable and spawned directly with no
+  shell — faster startup and no shell quoting hazards. SASE's hook script should use exec form.
+- **Async**: `"async": true` runs the hook in the background without blocking Claude's loop. Async hooks cannot block
+  (decision/permission fields are ignored), which is exactly what we want for telemetry. Caveat: each firing spawns a
+  fresh process — there is no dedup across firings of the same async hook, and output is only delivered on the next
+  conversation turn.
+- **Deduplication of identical handlers**: when the same command-string + args appears in multiple settings layers,
+  Claude dedups it. We do not need to worry about a user-level hook *and* a `--settings` hook firing twice.
+- **Parallelism**: all matching hooks for an event run in parallel. Hook handlers cannot rely on each other's ordering.
+- **Hook output cap**: `additionalContext`/`systemMessage` strings are capped at 10,000 chars. Not relevant for our
+  logger because it should never emit context to Claude, but worth flagging if a future iteration injects summaries.
+- **`disableAllHooks`** in any user/project/local settings file disables all non-managed hooks. **`allowManagedHooksOnly`**
+  in enterprise managed policy disables user/project/local/plugin hooks entirely. Strategy A breaks in both cases;
+  Strategy B does not.
 - Claude Code hook handlers run with Claude Code's environment. SASE already publishes `SASE_ARTIFACTS_DIR` before each
-  agent phase in `src/sase/axe/run_agent_exec.py`, so the hook can write to the active phase's artifacts directory.
+  agent phase in `src/sase/axe/run_agent_exec.py:_publish_phase_env`, so a command hook can write to the active phase's
+  artifacts directory.
+
+### CLI flags that change the picture
+
+- `claude --include-hook-events` (with `--output-format=stream-json`) emits every hook lifecycle event into the output
+  stream. This is the foundation of Strategy B.
+- `claude --settings <file-or-json>` loads ad-hoc settings for one invocation — clean per-process hook registration
+  with no global mutation.
+- `claude --bare` skips hooks entirely. SASE does not pass `--bare`, but any future SASE flag that adds it would
+  silently disable Strategy A.
+
+## What SASE Has Today (Code-Level Inventory)
+
+A code search confirms several relevant facts the hook design has to live with:
+
+- **No Claude hook installer exists.** SASE never writes `~/.claude/settings.json`, `.claude/settings.json`, or
+  `.claude/settings.local.json`. The existing `src/sase/scripts/sase_commit_stop_hook.py` is *invoked by* Claude's
+  native hook system based on whatever configuration the user already has on disk — it does not install itself.
+  Whichever Claude hook approach we adopt for the Tools panel is greenfield install surface for SASE.
+- **Runtime detection inside the hook script** uses env vars: `CLAUDE_PROJECT_DIR`, `GEMINI_PROJECT_DIR`,
+  `QWEN_PROJECT_DIR`, `CODEX_PROJECT_DIR` (see `sase_commit_stop_hook.py:_resolve_project_dir`). Any new SASE-owned
+  Claude hook can follow the same pattern, plus the SASE-published `SASE_ARTIFACTS_DIR`.
+- **JSONL append with `fcntl` lock** is already an in-repo pattern at `sase_commit_stop_hook.py:28-33`. Strategy A's
+  logger should reuse it verbatim. Note this is Unix-only; the codebase already assumes Unix elsewhere.
+- **Claude subprocess invocation** lives at `src/sase/llm_provider/claude.py:_run_subprocess` (~line 246) and emits
+  `["claude", "-p", "--verbose", "--model", model_alias, "--output-format", "stream-json",
+  "--dangerously-skip-permissions", "--session-id", session_uuid, ...extra_args]`. There is no `--settings` or
+  `--include-hook-events` flag today. Adding either is a localized one-line change.
+- **The stream-JSON parser** at `src/sase/llm_provider/_subprocess_claude.py:_process_json_line` currently dispatches
+  on `event.get("type") in ("assistant", "error", "result")` and silently drops everything else. With
+  `--include-hook-events`, lifecycle events arrive in the same stream and would be dropped at the same call site.
+  Strategy B extends this dispatcher.
+- **Zero tool-call observability today.** Search across the repo finds no matches for `tool_use_id`, `PostToolUse`,
+  `PreToolUse`, or `tool_calls`. There is no fixture file to model new tests on directly, but the
+  `tests/test_commit_stop_hook.py` pattern (JSON stdin → JSONL append) maps cleanly.
+- **Thinking-panel migration footprint** is concentrated in `src/sase/ace/tui/thinking/parser.py`,
+  `src/sase/ace/tui/thinking/session_resolver.py`, `src/sase/ace/tui/widgets/thinking_panel.py`, and the
+  `DetailPanelMode` enum at `src/sase/ace/tui/widgets/_agent_detail_panels.py:21-26`. Rename to a tools surface, keep
+  the existing panel-mode machinery.
+- **All four supported runtimes are uniform.** Gemini, Codex, Qwen, and Claude each invoke a stream-json mode and each
+  log interrupts to `SASE_ARTIFACTS_DIR/interrupt_log.jsonl`. There is no runtime-only branching, and the `AGENTS.md`
+  rule ("Uniform Agent Runtimes") explicitly forbids it. The panel contract has to be runtime-neutral; only the
+  capture adapter is runtime-specific.
 
 ## Current SASE Surfaces That Fit
 
@@ -97,6 +193,12 @@ The run loop publishes:
 This is exactly the correlation mechanism the tool logger needs. The hook should only write when `SASE_ARTIFACTS_DIR`
 is set and points to a directory. If it is unset, the hook should exit `0` immediately. That makes a user-level Claude
 hook safe enough to install globally because ordinary Claude Code sessions outside SASE will be ignored.
+
+There is one subtlety: `SASE_ARTIFACTS_DIR` and `SASE_AGENT_TIMESTAMP` are republished **per phase** in
+`run_agent_exec._publish_phase_env`, not per agent. Followup phases (Q&A, feedback, coder) mint fresh timestamped
+directories. The panel will therefore see a `tool_calls.jsonl` per phase. The Tools panel data adapter must aggregate
+across phases keyed on `SASE_AGENT_ROOT_TIMESTAMP` to render the full timeline for one logical agent row. The thinking
+panel already has analogous logic in `session_resolver.py`; the same pattern applies.
 
 The current thinking panel is wired as a third detail panel mode:
 
@@ -244,31 +346,58 @@ collapsed`. The old `i`/thinking label should disappear from help and footer tex
 
 ## Recommended Implementation Path
 
-1. Add a small hook command, probably `sase_tool_call_hook`, under `src/sase/scripts/`.
-2. Register it for Claude `PostToolUse` and `PostToolUseFailure`.
-3. Gate the hook on `SASE_ARTIFACTS_DIR`; exit `0` when absent.
-4. Normalize and append JSONL under file lock.
-5. Add a parser module that reads `tool_calls.jsonl`, tolerates malformed lines, sorts by recorded time and sequence,
-   and returns `ToolCallEntry` objects.
-6. Replace the thinking panel widget with a tools panel using the existing `AgentDetail` secondary-panel machinery.
-7. Update footer/help labels, tests, and PNG snapshots.
-8. Keep the transcript-based thinking parser around only if there is another consumer; otherwise remove it in a later
+### Strategy B (recommended for MVP)
+
+1. Add `--include-hook-events` to the Claude argv in `src/sase/llm_provider/claude.py` (around line 181).
+2. Extend `src/sase/llm_provider/_subprocess_claude.py:_process_json_line` to recognize `hook_event_name`-bearing events
+   (`PostToolUse`, `PostToolUseFailure`, `SubagentStart`, `SubagentStop`) and forward them to a new
+   `tool_calls_writer` module.
+3. The writer normalizes each event to the artifact schema below, then appends one JSON line to
+   `<SASE_ARTIFACTS_DIR>/tool_calls.jsonl` under `fcntl.flock` (reusing the
+   `src/sase/scripts/sase_commit_stop_hook.py:28-33` pattern). Failures should be swallowed and surfaced via a small
+   `tool_calls_writer_errors.jsonl` rather than propagated up.
+4. Add a parser module that reads `tool_calls.jsonl` across the agent's phase directories (aggregated by
+   `SASE_AGENT_ROOT_TIMESTAMP`), tolerates malformed lines, sorts by `recorded_at` then `tool_use_id`, and returns
+   `ToolCallEntry` objects.
+5. Replace the thinking panel widget with a tools panel using the existing `AgentDetail` secondary-panel machinery
+   (`DetailPanelMode.THINKING` → `DetailPanelMode.TOOLS`).
+6. Update footer/help labels, tests, and PNG snapshots. Model new tests on `tests/test_commit_stop_hook.py` (JSONL
+   append) and `tests/test_axe_run_agent_exec.py` (phase env publication).
+7. Keep the transcript-based thinking parser around only if there is another consumer; otherwise remove it in a later
    cleanup after the UI migration is stable.
+
+### Strategy A (fallback, when out-of-process capture is required)
+
+1. Add a small hook command, probably `sase_tool_call_hook`, under `src/sase/scripts/`. Exec form
+   (`{"command": "sase_tool_call_hook", "args": [], "async": true, "timeout": 5}`).
+2. Gate the hook on `SASE_ARTIFACTS_DIR`; exit `0` when absent.
+3. Register the hook via `claude --settings '<inline-json>'` from `_run_subprocess` for events `PostToolUse`,
+   `PostToolUseFailure`, and (if subagent grouping is needed) `SubagentStart` / `SubagentStop`.
+4. Reuse steps 3–7 from Strategy B for the writer, reader, and panel. The artifact schema is identical.
 
 ## Hook Registration Options
 
-Best MVP: user-level hook installed by SASE, gated by `SASE_ARTIFACTS_DIR`.
+If we adopt **Strategy A**, there are now four realistic install vehicles, not two. Ranked:
 
-Why:
+1. **`claude --settings '<inline-json>'`** (recommended for Strategy A). Pass an ad-hoc settings JSON string on the
+   command line from `src/sase/llm_provider/claude.py:_run_subprocess`. No filesystem mutation, no setup/cleanup, no
+   risk of leftover state if SASE crashes, and the hook is invisible to ordinary `claude` invocations the user makes
+   outside SASE. The same flag also accepts a path if the JSON gets too large to inline.
+2. **User-level hook in `~/.claude/settings.json`**, gated by `SASE_ARTIFACTS_DIR` (the previous-research default).
+   Works, but mutates a user-owned config file and shows up in `/hooks` for every Claude session forever. Disabled by
+   `disableAllHooks` and by enterprise `allowManagedHooksOnly`.
+3. **SASE Claude plugin shipping `hooks/hooks.json`.** Users opt in by enabling the plugin. Cleanest UX/discoverability
+   story (`/hooks` shows source `Plugin`), but requires SASE to ship + version a Claude Code plugin, which is a bigger
+   investment than the panel itself.
+4. **Per-workspace `.claude/settings.local.json` merge.** Mutates each ephemeral `sase_<N>` workspace, needs
+   non-destructive merge/restore logic around user-owned local settings, and breaks if the workspace was not cloned by
+   SASE. Avoid.
 
-- SASE can launch agents in arbitrary project workspaces, not just the SASE repo.
-- Project `.claude/settings.json` only helps repos that already carry that file.
-- Writing `.claude/settings.local.json` into every ephemeral workspace is possible, but it mutates each workspace and
-  adds another setup/cleanup edge.
-- `CLAUDE_CONFIG_DIR` can isolate configuration, but the docs say it moves all settings, credentials, session history,
-  and plugins under that directory. That is too broad for an MVP unless SASE also manages Claude auth/session state.
+**Strategy B** does not need any of this: the only knob is appending `--include-hook-events` to the existing
+`["claude", "-p", "--verbose", "--output-format", "stream-json", ...]` argv at
+`src/sase/llm_provider/claude.py:_run_subprocess`.
 
-The global hook can be safe if it is no-op outside SASE:
+If we pick option 2, the global hook can be safe because it is no-op outside SASE:
 
 ```json
 {
@@ -301,16 +430,28 @@ The global hook can be safe if it is no-op outside SASE:
 }
 ```
 
-If SASE wants to avoid modifying user-level Claude settings, the second-best option is a SASE launch preflight that
-merges a local `.claude/settings.local.json` hook into the workspace. That needs careful non-destructive merge/restore
-logic and tests around user-owned local settings.
+If we want the hook command to be self-contained (option 1, exec form, no shell):
+
+```json
+{
+  "type": "command",
+  "command": "sase_tool_call_hook",
+  "args": [],
+  "timeout": 5,
+  "async": true
+}
+```
+
+`async: true` is recommended once the logger is stable so a slow write never adds to Claude's per-tool latency.
 
 ## Risks And Decisions
 
 ### Parallel tool ordering
 
-`PostToolUse` hooks can run concurrently for parallel tool calls. Use `recorded_at`, `tool_use_id`, and a monotonic
-sequence assigned under the file lock. If exact batch grouping matters, add `PostToolBatch` later.
+`PostToolUse` hooks can run concurrently for parallel tool calls (the docs explicitly note this). Under Strategy A, the
+writer must use `recorded_at`, `tool_use_id`, and a monotonic sequence assigned under the file lock. Under Strategy B,
+events arrive serialized on the single stdout pipe Claude writes, so the parser sees them in arrival order with no
+inter-process race. If exact batch grouping matters, add `PostToolBatch` later.
 
 ### Hook failure must never fail the agent
 
@@ -340,39 +481,106 @@ The first TUI panel can parse JSONL in Python. If tool-call history becomes a da
 field, or reusable artifact projection, the parser and model belong in `../sase-core/crates/sase_core` with a thin
 Python adapter.
 
+### Phase vs. agent aggregation
+
+`SASE_ARTIFACTS_DIR` is per-phase (see `run_agent_exec._publish_phase_env`). One logical agent row can have several
+phase directories, each with its own `tool_calls.jsonl`. The reader must aggregate by `SASE_AGENT_ROOT_TIMESTAMP`.
+The thinking panel's `session_resolver.py` already solves the equivalent problem; reuse the same shape.
+
+### `disableAllHooks` and managed policy
+
+Strategy A is silently disabled if any settings layer sets `"disableAllHooks": true`, and entirely disabled by
+enterprise `"allowManagedHooksOnly": true`. We need a UX answer for "tool panel is empty because hooks are off" —
+either detect at SASE launch (parse the user's merged settings) and surface a one-time warning, or fall back to
+Strategy B automatically. Strategy B has no equivalent failure mode.
+
+### `tool_response` shape divergence
+
+`PostToolUse.tool_response` is the tool's structured Output object; `PostToolBatch.tool_calls[i].tool_response` is the
+serialized string/blocks the model actually sees. They are different shapes. The normalizer must branch on the source
+event before extracting previews — e.g. `Bash` Output has `stdout`/`stderr`/`interrupted`/`isImage`, while the
+serialized form is a single string.
+
+### MCP tools
+
+MCP tool calls arrive in `PostToolUse` with names like `mcp__memory__create_entities`. The panel's display label
+should strip `mcp__` and split server/tool for readability, and the redaction policy should default to **input keys
+only** for unknown MCP tools (we cannot enumerate every server's schema).
+
+### `updatedToolOutput` is out of scope for MVP
+
+`PostToolUse` hooks can rewrite the tool result Claude sees. Tempting for redaction (e.g. scrubbing secrets from Bash
+stdout), but with Strategy B we cannot use it, and even under Strategy A the failure mode is bad — a malformed
+replacement object can make Claude proceed on false assumptions. Defer until there is a concrete redaction policy
+worth that risk.
+
 ## Open Questions
 
-- Should SASE expose a setup command that installs the Claude tool logger hook, similar to skills/hook setup, or should
-  SASE auto-install it on first Claude run?
-- Does the user-level hook need to coexist with the existing commit stop hook installer, or should SASE consolidate all
-  Claude hook registration in one managed block?
-- Do we want `PostToolBatch` in the MVP to avoid explaining parallel ordering, or is per-tool logging enough?
-- Should failed permission/denied tool attempts appear in the panel? If yes, add `PermissionDenied` or `PreToolUse`
-  capture as a separate event type after the success/failure timeline works.
-- Should archived/dismissed agents preserve `tool_calls.jsonl` with their artifact bundle? They probably should.
+- **Strategy A vs Strategy B for the MVP.** Strategy B (extend stream-json with `--include-hook-events`) is the
+  recommendation above, but Strategy A buys the ability to capture tool calls from Claude sessions SASE did not spawn,
+  and is the only path that supports `updatedToolOutput`-based redaction later. Worth confirming we never want either.
+- **Do we land an installer command anyway?** Even with Strategy B, SASE may want `sase claude install-hooks` so that
+  the commit stop hook (which today relies on user-maintained settings) is also a one-line install. Decoupled from this
+  panel, but the design is adjacent.
+- **Should the artifact be one `tool_calls.jsonl` per phase or one per agent?** Per-phase matches `SASE_ARTIFACTS_DIR`'s
+  existing semantics and avoids cross-phase locking. Per-agent simplifies the reader. Per-phase + aggregation in the
+  adapter is the safer default.
+- **Subagent grouping.** Show `Task`/`Agent` subagent calls inline in the parent's timeline (using `agent_id`) or
+  indent under a collapsible subagent row? The latter is more useful but more UI work.
+- **Failed-permission visibility.** Should `PermissionDenied` (auto-mode denial) and `PreToolUse`-blocked attempts
+  appear in the panel? They are useful for debugging auto-mode rules but noisy in the default view.
+- **Archival.** Should archived/dismissed agents preserve `tool_calls.jsonl` with their artifact bundle? Almost
+  certainly yes — the panel becomes a primary debugging surface for failed runs.
+- **Strategy parity for Gemini/Qwen/Codex.** Each runtime has its own stream-json mode. Extending Strategy B uniformly
+  is straightforward; Strategy A requires per-runtime hook plumbing, which Gemini/Codex/Qwen may or may not support
+  identically. Audit before any cross-runtime work.
 
 ## Bottom Line Recommendation
 
-Build the Tools panel around a SASE-owned `tool_calls.jsonl` artifact populated by Claude `PostToolUse` and
-`PostToolUseFailure` hooks. Install the hook globally or through SASE-managed Claude setup, but make it a no-op unless
-`SASE_ARTIFACTS_DIR` is set. Keep the TUI data model runtime-neutral from day one, even though only Claude writes the
-artifact initially.
+Build the Tools panel around a SASE-owned per-phase `tool_calls.jsonl` artifact with a runtime-neutral schema. For the
+Claude MVP, **populate it via Strategy B**: pass `--include-hook-events` to Claude's existing `stream-json` invocation
+and extend `src/sase/llm_provider/_subprocess_claude.py:_process_json_line` to fold `PostToolUse` /
+`PostToolUseFailure` / `SubagentStart` / `SubagentStop` events into the artifact alongside the existing `assistant` /
+`error` / `result` dispatch. No hook installer, no global Claude settings mutation, no exposure to `disableAllHooks` or
+managed policy, and runtime parity with Gemini/Qwen/Codex follows naturally.
+
+Keep Strategy A (`claude --settings '<inline-json>'` registering a `sase_tool_call_hook` command) as a documented
+fallback for a future iteration that needs (a) capture from Claude sessions SASE did not spawn, or (b)
+`updatedToolOutput`-based redaction. The JSONL schema, panel UI, and reader/adapter are identical under both
+strategies, so the switch cost is small.
 
 This gives the Agents tab a more actionable panel than thinking output, avoids fragile transcript matching, and creates
 a durable artifact that can be reused by archive views, mobile, and future runtime adapters.
 
 ## Sources
 
+External Claude docs (verified 2026-05-14):
+
 - Claude Code hooks reference: <https://code.claude.com/docs/en/hooks>
 - Claude Code hooks guide: <https://code.claude.com/docs/en/hooks-guide>
 - Claude Code settings/configuration: <https://code.claude.com/docs/en/configuration>
 - Claude Code environment variables: <https://code.claude.com/docs/en/env-vars>
-- Current thinking panel plan: `sdd/epics/202602/claude_thinking_panel.md`
-- Current thinking parser/session resolver: `src/sase/ace/tui/thinking/parser.py`,
-  `src/sase/ace/tui/thinking/session_resolver.py`
-- Current thinking panel/detail wiring: `src/sase/ace/tui/widgets/thinking_panel.py`,
+- Claude Code CLI reference: `claude --help` (flags `--settings`, `--include-hook-events`, `--bare`,
+  `--append-system-prompt`, `--exclude-dynamic-system-prompt-sections`, `--output-format`)
+
+In-repo code references (file + symbol):
+
+- Current Claude provider subprocess invocation: `src/sase/llm_provider/claude.py` (`_run_subprocess` ~line 246) and
+  the argv built around line 181 with `--output-format stream-json`.
+- Stream-JSON parser to extend for Strategy B: `src/sase/llm_provider/_subprocess_claude.py`
+  (`_process_json_line`, `stream_and_parse_json_output`).
+- Existing fcntl-locked JSONL append pattern: `src/sase/scripts/sase_commit_stop_hook.py:28-33`.
+- Runtime detection pattern (env-var-based, identical for all four runtimes):
+  `sase_commit_stop_hook.py:_resolve_project_dir`.
+- Per-phase env publication: `src/sase/axe/run_agent_exec.py:_publish_phase_env` (`SASE_ARTIFACTS_DIR`,
+  `SASE_AGENT_TIMESTAMP`, `SASE_AGENT_ROOT_TIMESTAMP`).
+- Artifact directory shape: `src/sase/artifacts.py`.
+- Thinking-panel migration footprint: `src/sase/ace/tui/thinking/parser.py`,
+  `src/sase/ace/tui/thinking/session_resolver.py`, `src/sase/ace/tui/widgets/thinking_panel.py`,
   `src/sase/ace/tui/widgets/agent_detail.py`, `src/sase/ace/tui/widgets/_agent_detail_panels.py`
-- Current Claude provider subprocess invocation: `src/sase/llm_provider/claude.py`,
-  `src/sase/llm_provider/_subprocess_claude.py`
-- Current SASE agent env/artifact publication: `src/sase/axe/run_agent_exec.py`,
-  `src/sase/artifacts.py`
+  (`DetailPanelMode` enum at lines 21-26).
+- Current thinking panel plan: `sdd/epics/202602/claude_thinking_panel.md`.
+- Test patterns to model the new tool-call tests on: `tests/test_commit_stop_hook.py`,
+  `tests/test_axe_run_agent_exec.py`, `tests/test_llm_provider_claude_thinking.py`.
+- Runtime uniformity rule: `memory/short/gotchas.md` ("Uniform Agent Runtimes").
+- Rust core backend boundary rule (for the parser if it ever leaves Python): `memory/short/rust_core_backend_boundary.md`.
