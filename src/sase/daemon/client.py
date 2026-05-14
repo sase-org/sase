@@ -137,6 +137,27 @@ class LocalDaemonClient(LocalDaemonReadMixin):
         response = self.request({"type": "indexing_status", "data": data})
         return payload_data(response, "indexing_status")
 
+    def scheduler_submit(self, data: dict[str, Any]) -> dict[str, Any]:
+        response = self.request({"type": "scheduler_submit", "data": data})
+        return payload_data(response, "scheduler_submit")
+
+    def scheduler_status(self, *, project_id: str, batch_id: str) -> dict[str, Any]:
+        response = self.request(
+            {
+                "type": "scheduler_status",
+                "data": {
+                    "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
+                    "project_id": project_id,
+                    "batch_id": batch_id,
+                },
+            }
+        )
+        return payload_data(response, "scheduler_status")
+
+    def scheduler_cancel(self, data: dict[str, Any]) -> dict[str, Any]:
+        response = self.request({"type": "scheduler_cancel", "data": data})
+        return payload_data(response, "scheduler_cancel")
+
     def rebuild(
         self,
         *,

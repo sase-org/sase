@@ -64,6 +64,14 @@ from sase.daemon.read_models import (
     notification_detail_from_dict,
     notification_list_from_dict,
 )
+from sase.daemon.scheduler import (
+    SchedulerBatchSubmit,
+    SchedulerCancel,
+    SchedulerLaunchSpec,
+    cancel_scheduler_batch,
+    read_scheduler_batch_status,
+    submit_scheduler_batch,
+)
 
 __all__ = [
     "LOCAL_DAEMON_DEFAULT_PAGE_LIMIT",
@@ -90,9 +98,13 @@ __all__ = [
     "ProjectionPage",
     "ProjectionPayloadBound",
     "ProjectionSnapshot",
+    "SchedulerBatchSubmit",
+    "SchedulerCancel",
+    "SchedulerLaunchSpec",
     "bead_detail_from_dict",
     "bead_list_from_dict",
     "bead_stats_from_dict",
+    "cancel_scheduler_batch",
     "changespec_detail_from_dict",
     "changespec_list_from_dict",
     "default_socket_path",
@@ -108,7 +120,9 @@ __all__ = [
     "read",
     "read_changespecs_or_fallback",
     "read_or_fallback",
+    "read_scheduler_batch_status",
     "rebuild",
+    "submit_scheduler_batch",
     "verify",
     "write",
     "write_changespec_archive_move_mutation_locked",

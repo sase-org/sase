@@ -19,6 +19,27 @@ from sase.daemon.client import (
     LocalDaemonUnavailableError,
     default_socket_path,
 )
+from sase.daemon.scheduler import (
+    SchedulerBatchSubmit,
+    SchedulerLaunchSpec,
+    submit_scheduler_batch,
+)
+
+
+class _CaptureTransport:
+    def __init__(self, payload_type: str, data: dict[str, Any]) -> None:
+        self.payload_type = payload_type
+        self.data = data
+        self.envelope: dict[str, Any] | None = None
+
+    def request(self, envelope: dict[str, Any]) -> dict[str, Any]:
+        self.envelope = envelope
+        return {
+            "schema_version": 1,
+            "request_id": envelope["request_id"],
+            "snapshot_id": None,
+            "payload": {"type": self.payload_type, "data": self.data},
+        }
 
 
 def test_default_socket_path_matches_rust_layout(
@@ -60,6 +81,69 @@ def test_health_sends_framed_request_and_returns_payload(tmp_path: Path) -> None
     assert request_holder["request"]["payload"] == {
         "type": "health",
         "data": {"include_capabilities": True},
+    }
+
+
+def test_scheduler_submit_helper_sends_batch_payload() -> None:
+    response_data = {
+        "schema_version": 1,
+        "handle": {
+            "schema_version": 1,
+            "batch_id": "batch-a",
+            "idempotency_key": "idem-a",
+            "queue_id": "agents",
+            "project_id": "project-a",
+            "slot_count": 1,
+            "status": "queued",
+            "created_at": "2026-05-14T06:00:00Z",
+        },
+        "duplicate": False,
+        "status": {"schema_version": 1, "handle": {}, "slots": []},
+    }
+    transport = _CaptureTransport("scheduler_submit", response_data)
+    client = LocalDaemonClient(transport=transport)
+
+    result = submit_scheduler_batch(
+        client,
+        SchedulerBatchSubmit(
+            project_id="project-a",
+            idempotency_key="idem-a",
+            batch_id="batch-a",
+            queue_id="agents",
+            launch_specs=[
+                SchedulerLaunchSpec(
+                    project_id="project-a",
+                    prompt="run this",
+                    model="codex/gpt-5.5",
+                )
+            ],
+        ),
+    )
+
+    assert result == response_data
+    assert transport.envelope is not None
+    assert transport.envelope["payload"] == {
+        "type": "scheduler_submit",
+        "data": {
+            "schema_version": 1,
+            "project_id": "project-a",
+            "idempotency_key": "idem-a",
+            "batch_id": "batch-a",
+            "queue_id": "agents",
+            "launch_specs": [
+                {
+                    "schema_version": 1,
+                    "project_id": "project-a",
+                    "prompt": "run this",
+                    "cwd": None,
+                    "model": "codex/gpt-5.5",
+                    "parent_agent_id": None,
+                    "workflow_id": None,
+                    "metadata": {},
+                }
+            ],
+            "metadata": {},
+        },
     }
 
 
