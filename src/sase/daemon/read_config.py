@@ -21,6 +21,7 @@ SURFACE_GROUP_BY_READ_SURFACE = {
     "agent_archive": "agents",
     "agent_search": "agents",
     "agent_detail": "agents",
+    "ace_agent_snapshot": "ace_agents",
     "ace_archive_search": "ace_archive_search",
     "notification_list": "notifications",
     "notification_detail": "notifications",

@@ -40,6 +40,7 @@ CAPABILITY_BY_READ_SURFACE = {
     "agent_archive": "agents.read",
     "agent_search": "agents.read",
     "agent_detail": "agents.read",
+    "ace_agent_snapshot": "agents.read",
     "ace_agent_active": "agents.read",
     "ace_agent_recent": "agents.read",
     "ace_agent_archive": "agents.read",

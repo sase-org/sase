@@ -13,6 +13,7 @@ from sase.core.wire import to_json_dict
 from sase.core.wire_conversion import changespec_to_wire
 from sase.daemon.changespec_reads import load_changespecs_from_daemon
 from sase.daemon.client import LocalDaemonClient
+from sase.daemon import read_facade
 from sase.main.changespec_handler import _handle_current
 from sase.main.parser import create_parser
 from sase.main.search_handler import handle_search_command
@@ -57,6 +58,15 @@ class _FakeProvider:
         self, changespec_name: str, project_basename: str
     ) -> str:
         return changespec_name.removeprefix(f"{project_basename}_")
+
+
+@pytest.fixture(autouse=True)
+def _fresh_daemon_read_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        read_facade,
+        "_PROCESS_READ_SESSION",
+        read_facade._DaemonReadSession(),
+    )
 
 
 def test_changespec_parser_accepts_no_daemon_flags() -> None:

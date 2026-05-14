@@ -33,9 +33,11 @@ class _FakeDaemonTransport:
         *,
         capabilities: list[str],
         reads: dict[str, list[dict[str, Any]]],
+        read_errors: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         self.capabilities = capabilities
         self.reads = reads
+        self.read_errors = read_errors or {}
         self.requests: list[dict[str, Any]] = []
 
     def request(self, envelope: dict[str, Any]) -> dict[str, Any]:
@@ -48,6 +50,8 @@ class _FakeDaemonTransport:
             )
         if payload["type"] == "read":
             surface = payload["data"]["surface"]
+            if surface in self.read_errors:
+                return _daemon_error_response(self.read_errors[surface])
             return _daemon_response(
                 "read",
                 {"surface": surface, "data": self.reads[surface].pop(0)},
@@ -98,6 +102,10 @@ def _daemon_response(payload_type: str, data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _daemon_error_response(data: dict[str, Any]) -> dict[str, Any]:
+    return _daemon_response("error", data)
+
+
 def _agent_page(
     entries: list[dict[str, Any]], *, next_cursor: str | None = None
 ) -> dict[str, Any]:
@@ -106,6 +114,18 @@ def _agent_page(
         "snapshot": {"schema_version": 1, "snapshot_id": "snap-1"},
         "page": {"schema_version": 1, "next_cursor": next_cursor},
         "entries": {"schema_version": 1, "entries": entries},
+    }
+
+
+def _rpc_error(code: str, message: str | None = None) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "code": code,
+        "message": message or code.replace("_", " "),
+        "retryable": False,
+        "target": "payload",
+        "details": {"capability": "agents.read"},
+        "fallback": {"available": True, "reason": code, "message": "use direct"},
     }
 
 
@@ -192,10 +212,7 @@ def test_daemon_agents_provider_loads_initial_snapshot_without_source_scan(
     monkeypatch.setenv("SASE_DAEMON_ACE_AGENTS_READS", "1")
     transport = _FakeDaemonTransport(
         capabilities=["agents.read"],
-        reads={
-            "agent_active": [_agent_page([_agent_summary()])],
-            "agent_recent": [_agent_page([])],
-        },
+        reads={"ace_agent_snapshot": [_agent_page([_agent_summary()])]},
     )
     provider = _DaemonAgentsDataProvider(
         client=LocalDaemonClient(transport=transport),
@@ -221,17 +238,14 @@ def test_daemon_agents_provider_loads_initial_snapshot_without_source_scan(
         request["data"]["surface"]
         for request in transport.requests
         if request["type"] == "read"
-    ] == [
-        "agent_active",
-        "agent_recent",
-    ]
+    ] == ["ace_agent_snapshot"]
     provider_snapshot = result.provider_snapshot
     assert provider_snapshot is not None
     assert provider_snapshot.provider.source == "daemon"
     assert provider_snapshot.snapshot_id == "snap-1"
-    assert provider_snapshot.metadata["page_count"] == 2
+    assert provider_snapshot.metadata["page_count"] == 1
     assert provider_snapshot.metadata["full_reload"] is False
-    assert provider_snapshot.metadata["surfaces"] == ["agent_active", "agent_recent"]
+    assert provider_snapshot.metadata["surfaces"] == ["ace_agent_snapshot"]
     assert provider_snapshot.row_handles[0] == agent_row_handle(
         provider_snapshot.rows[0]
     )
@@ -244,8 +258,7 @@ def test_daemon_agents_provider_fetches_only_viewport_pages(
     transport = _FakeDaemonTransport(
         capabilities=["agents.read"],
         reads={
-            "agent_active": [_agent_page([_agent_summary()], next_cursor="next")],
-            "agent_recent": [_agent_page([])],
+            "ace_agent_snapshot": [_agent_page([_agent_summary()], next_cursor="next")],
         },
     )
     provider = _DaemonAgentsDataProvider(
@@ -261,12 +274,50 @@ def test_daemon_agents_provider_fetches_only_viewport_pages(
         request["data"] for request in transport.requests if request["type"] == "read"
     ]
     assert [request["surface"] for request in read_requests] == [
+        "ace_agent_snapshot",
+    ]
+    assert [request["data"]["page"]["limit"] for request in read_requests] == [12]
+    assert snapshot.shared_snapshot.metadata["page_count"] == 1
+    assert snapshot.shared_snapshot.first_page.next_cursor == "next"
+
+
+def test_daemon_agents_provider_uses_project_loop_for_older_daemons(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_DAEMON_ACE_AGENTS_READS", "1")
+    transport = _FakeDaemonTransport(
+        capabilities=["agents.read"],
+        read_errors={
+            "ace_agent_snapshot": _rpc_error(
+                "invalid_request",
+                "unknown variant `ace_agent_snapshot`",
+            )
+        },
+        reads={
+            "agent_active": [_agent_page([_agent_summary()])],
+            "agent_recent": [_agent_page([])],
+        },
+    )
+    provider = _DaemonAgentsDataProvider(
+        client=LocalDaemonClient(transport=transport),
+        project_ids=["demo"],
+    )
+
+    snapshot = provider.load_agents()
+
+    read_requests = [
+        request["data"] for request in transport.requests if request["type"] == "read"
+    ]
+    assert [request["surface"] for request in read_requests] == [
+        "ace_agent_snapshot",
         "agent_active",
         "agent_recent",
     ]
-    assert [request["data"]["page"]["limit"] for request in read_requests] == [12, 12]
-    assert snapshot.shared_snapshot.metadata["page_count"] == 2
-    assert snapshot.shared_snapshot.first_page.next_cursor == "next"
+    assert snapshot.used_daemon is True
+    assert snapshot.shared_snapshot.metadata["surfaces"] == [
+        "agent_active",
+        "agent_recent",
+    ]
 
 
 def test_daemon_agents_provider_uses_search_and_archive_surfaces(
@@ -275,7 +326,9 @@ def test_daemon_agents_provider_uses_search_and_archive_surfaces(
     monkeypatch.setenv("SASE_DAEMON_ACE_ARCHIVE_SEARCH_READS", "1")
     search_transport = _FakeDaemonTransport(
         capabilities=["agents.read"],
-        reads={"agent_search": [_agent_page([_agent_summary(cl_name="needle")])]},
+        reads={
+            "ace_agent_snapshot": [_agent_page([_agent_summary(cl_name="needle")])],
+        },
     )
     search_provider = _DaemonAgentsDataProvider(
         client=LocalDaemonClient(transport=search_transport),
@@ -290,7 +343,7 @@ def test_daemon_agents_provider_uses_search_and_archive_surfaces(
         for request in search_transport.requests
         if request["type"] == "read"
     ]
-    assert [request["surface"] for request in search_reads] == ["agent_search"]
+    assert [request["surface"] for request in search_reads] == ["ace_agent_snapshot"]
     assert search_reads[0]["data"]["query"] == "needle"
 
     archive_transport = _FakeDaemonTransport(
