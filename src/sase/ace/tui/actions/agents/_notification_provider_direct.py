@@ -74,7 +74,9 @@ def direct_unread_notification_page(
     unread = [
         n
         for n in snapshot.notifications
-        if not n.read and not n.silent and (include_dismissed or not n.dismissed)
+        if not n.read
+        and not n.silent
+        and (include_dismissed or getattr(n, "dismissed", False) is not True)
     ][: max(0, limit)]
     page = AceNotificationPage(
         notifications=unread,
@@ -84,6 +86,7 @@ def direct_unread_notification_page(
             rest=snapshot.counts.rest,
             muted=snapshot.counts.muted,
         ),
+        counts_complete=True,
     )
     return notification_page_with_shared_metadata(
         page,

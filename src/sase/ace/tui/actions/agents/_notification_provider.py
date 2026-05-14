@@ -202,6 +202,48 @@ def read_unread_notification_page_for_tui(
     )
 
 
+def read_notification_startup_for_tui(
+    *,
+    limit: int = LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+    args: Any | None = None,
+    client: LocalDaemonClient | None = None,
+) -> DaemonReadResult[AceNotificationSnapshot]:
+    """Return the bounded startup seed for the ACE notification indicator."""
+
+    daemon_client = client or LocalDaemonClient()
+    page_result = read_unread_notification_page_for_tui(
+        limit=limit,
+        args=args,
+        client=daemon_client,
+    )
+    page = page_result.value
+    counts = page.counts
+    fallback_diagnostics = page_result.fallback_diagnostics
+    if not page.counts_complete:
+        counts_result = read_notification_counts_for_tui(
+            args=args,
+            client=daemon_client,
+        )
+        counts = counts_result.value.counts
+        fallback_diagnostics = (
+            fallback_diagnostics or counts_result.fallback_diagnostics
+        )
+
+    return DaemonReadResult(
+        value=AceNotificationSnapshot(
+            notifications=page.notifications,
+            counts=counts,
+            expired_ids=[],
+            shared_snapshot=page.shared_snapshot,
+        ),
+        surface=page_result.surface,
+        used_daemon=page_result.used_daemon,
+        fallback_reason=page_result.fallback_reason,
+        fallback_message=page_result.fallback_message,
+        fallback_diagnostics=fallback_diagnostics,
+    )
+
+
 def read_notification_detail_for_tui(
     notification_id: str,
     *,
@@ -278,6 +320,7 @@ __all__ = [
     "read_notification_counts_for_tui",
     "read_notification_detail_for_tui",
     "read_notification_pending_actions_for_tui",
+    "read_notification_startup_for_tui",
     "read_notification_snapshot_for_tui",
     "read_unread_notification_page_for_tui",
 ]

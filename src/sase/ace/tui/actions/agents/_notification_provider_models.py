@@ -44,6 +44,7 @@ class AceNotificationPage:
 
     notifications: list[Notification] = field(default_factory=list)
     counts: AceNotificationCounts = field(default_factory=AceNotificationCounts)
+    counts_complete: bool = False
     next_cursor: str | None = None
     shared_snapshot: AceSnapshot[Notification] | None = None
     bounded: bool = False
