@@ -157,9 +157,7 @@ def detect_vcs(cwd: str) -> str | None:
         return direct
     if mode in {"host-preferred", "host-required"}:
         try:
-            host = _host_vcs_query_value("detect_vcs", cwd=cwd)
-            if host is not None or host_required(operation):
-                return host
+            return _host_vcs_query_value("detect_vcs", cwd=cwd)
         except Exception:
             if host_required(operation):
                 raise
@@ -196,9 +194,7 @@ def detect_vcs_family(cwd: str) -> str | None:
         return direct
     if mode in {"host-preferred", "host-required"}:
         try:
-            host = _host_vcs_query_value("detect_vcs_family", cwd=cwd)
-            if host is not None or host_required(operation):
-                return host
+            return _host_vcs_query_value("detect_vcs_family", cwd=cwd)
         except Exception:
             if host_required(operation):
                 raise
