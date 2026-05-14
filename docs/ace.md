@@ -264,8 +264,8 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `'`                 | Jump to entry by hint character (current tab); on the Agents tab, hints land on collapsed banners too |
 | `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                 |
 | `o` / `O`           | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                          |
-| `g`                 | Scroll to top (file, thinking, or metadata panel)                                                     |
-| `G`                 | Scroll to bottom (file, thinking, or metadata panel)                                                  |
+| `g`                 | Scroll to top (file, tools, or metadata panel)                                                        |
+| `G`                 | Scroll to bottom (file, tools, or metadata panel)                                                     |
 | `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                                                           |
 | `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up                                                                         |
 
@@ -299,7 +299,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `t`                 | Open tmux window in the focused agent's claimed workspace                                                     |
 | `T`                 | Open tmux window in the agent's primary (workspace 1) directory                                               |
 | `N`                 | Open the agent tag/untag modal (input is pre-seeded with `pinned` for untagged agents; submit empty to clear) |
-| `]` / `[`           | Cycle panels: file → thinking → metadata (forward / reverse)                                                  |
+| `]` / `[`           | Cycle panels: file → tools → metadata (forward / reverse)                                                     |
 | `p`                 | Toggle file / prompt layout                                                                                   |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                 |
 | `-`                 | Reset file trim to default                                                                                    |
@@ -1215,7 +1215,7 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   with follow-up phases (planner, feedback rounds, coder), the AGENT REPLY section consolidates replies from all phases
   into a single view with purple phase dividers showing each phase's label and start time
 
-When the file or thinking panel is empty, the `g`/`G` keys automatically fall back to scrolling the metadata panel.
+When the file or tools panel is empty, the `g`/`G` keys automatically fall back to scrolling the metadata panel.
 
 ## Plan Workflows
 

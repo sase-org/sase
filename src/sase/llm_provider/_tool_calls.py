@@ -1,4 +1,10 @@
-"""Runtime-neutral tool-call artifact writer for LLM provider streams."""
+"""Runtime-neutral tool-call artifact writer for LLM provider streams.
+
+The Claude MVP intentionally follows Strategy B from the tools-panel design:
+capture ``--include-hook-events`` stream records from SASE-launched sessions and
+write SASE-owned artifacts. Do not add Claude hook installation here; external
+hook mutation is outside this writer's contract.
+"""
 
 from __future__ import annotations
 

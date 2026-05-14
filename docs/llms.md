@@ -810,13 +810,14 @@ the legacy in-process retry runs as a fallback so the user is never worse off.
 
 Source: `src/sase/axe/run_agent_retry_spawn.py`, `src/sase/llm_provider/retry_config.py`
 
-## Thinking Panel Metadata
+## Legacy Thinking Metadata
 
-ACE can surface provider thinking/reasoning artifacts in the Agents tab thinking panel when the provider persists them.
-For Claude extended-thinking events whose `thinking` text is empty but whose payload contains an opaque `signature`, ACE
-displays an encrypted-thinking placeholder instead of hiding the block. When Claude also reports
-`message.usage.output_tokens`, the placeholder includes an approximate output-token count so the operator can tell that
-reasoning occurred even though the raw thought text is not available.
+Older parser helpers can still read provider thinking/reasoning artifacts when a caller uses them directly. For Claude
+extended-thinking events whose `thinking` text is empty but whose payload contains an opaque `signature`, those helpers
+produce an encrypted-thinking placeholder instead of hiding the block. When Claude also reports
+`message.usage.output_tokens`, the placeholder includes an approximate output-token count so the caller can tell that
+reasoning occurred even though the raw thought text is not available. The Agents tab now uses the Tools panel for
+provider tool activity instead of exposing these thinking helpers as a panel.
 
 ## Token Usage Tracking
 

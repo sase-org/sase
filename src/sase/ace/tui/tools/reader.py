@@ -1,4 +1,9 @@
-"""Read normalized tool-call artifacts for TUI display."""
+"""Read normalized tool-call artifacts for TUI display.
+
+Tool-call data is read from SASE-owned per-run artifacts produced from provider
+streams. For Claude, that deliberately means Strategy B hook-event capture
+rather than installing or mutating Claude hooks in user/project settings.
+"""
 
 from __future__ import annotations
 
