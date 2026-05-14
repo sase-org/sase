@@ -70,7 +70,7 @@ def read_agent_artifacts_for_tui(
                 fallback_reason="missing_agent_handle",
                 fallback_message="agent row does not have a daemon detail handle",
             ),
-            surface="agent_detail",
+            surface="ace_artifact_detail",
             used_daemon=False,
             fallback_reason="missing_agent_handle",
             fallback_message="agent row does not have a daemon detail handle",
@@ -78,7 +78,7 @@ def read_agent_artifacts_for_tui(
     project_id, agent_id = parsed
 
     result = read_or_fallback(
-        "agent_detail",
+        "ace_artifact_detail",
         args=args,
         client=client,
         daemon_loader=lambda daemon: _daemon_agent_artifact_page(

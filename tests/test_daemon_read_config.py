@@ -46,6 +46,7 @@ def test_surface_config_controls_logical_group() -> None:
     with patch("sase.daemon.read_config.load_merged_config", return_value=config):
         assert daemon_read_surface_enabled("notification_list") is False
         assert daemon_read_surface_enabled("notification_counts") is False
+        assert daemon_read_surface_enabled("ace_notification_pending_actions") is False
         assert daemon_read_surface_enabled("ace_agents") is True
         assert daemon_read_surface_enabled("ace_archive_search") is True
         assert daemon_read_surface_enabled("ace_agent_active") is True

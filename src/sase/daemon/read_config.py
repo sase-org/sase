@@ -46,6 +46,7 @@ SURFACE_GROUP_BY_READ_SURFACE = {
     "ace_notification_list": "ace_notifications",
     "ace_notification_detail": "ace_notifications",
     "ace_notification_counts": "ace_notifications",
+    "ace_notification_pending_actions": "ace_notifications",
     "ace_artifact_list": "ace_artifacts",
     "ace_artifact_detail": "ace_artifacts",
     "ace_archive": "ace_archive_search",

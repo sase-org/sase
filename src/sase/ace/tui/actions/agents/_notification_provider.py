@@ -102,7 +102,7 @@ def read_notification_snapshot_for_tui(
     from sase.notifications import read_notification_snapshot
 
     result = read_or_fallback(
-        "notification_list",
+        "ace_notification_list",
         args=args,
         client=client,
         daemon_loader=lambda daemon: _daemon_notification_snapshot(
@@ -152,7 +152,7 @@ def read_notification_counts_for_tui(
     """Return count-only notification data for the ACE indicator."""
 
     result = read_or_fallback(
-        "notification_counts",
+        "ace_notification_counts",
         args=args,
         client=client,
         daemon_loader=lambda daemon: _notification_count_snapshot_from_counts(
@@ -192,7 +192,7 @@ def read_unread_notification_page_for_tui(
     """Return one unread notification modal page with direct fallback."""
 
     result = read_or_fallback(
-        "notification_list",
+        "ace_notification_list",
         args=args,
         client=client,
         daemon_loader=lambda daemon: _daemon_unread_notification_page(
@@ -234,7 +234,7 @@ def read_notification_detail_for_tui(
     """Return selected notification detail with bounded payload metadata."""
 
     result = read_or_fallback(
-        "notification_detail",
+        "ace_notification_detail",
         args=args,
         client=client,
         daemon_loader=lambda daemon: _daemon_notification_detail(
@@ -269,7 +269,7 @@ def read_notification_pending_actions_for_tui(
     """Return pending HITL/plan/question action details through the provider."""
 
     result = read_or_fallback(
-        "notification_pending_actions",
+        "ace_notification_pending_actions",
         args=args,
         client=client,
         daemon_loader=lambda daemon: _pending_actions_from_daemon(

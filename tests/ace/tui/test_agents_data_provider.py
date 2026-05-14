@@ -307,7 +307,10 @@ def test_daemon_agents_provider_uses_search_and_archive_surfaces(
     assert [request["surface"] for request in archive_reads] == ["agent_archive"]
 
 
-def test_agent_artifact_provider_uses_daemon_detail_surface() -> None:
+def test_agent_artifact_provider_uses_daemon_detail_surface(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_DAEMON_ACE_ARTIFACTS_READS", "1")
     transport = _FakeDaemonTransport(
         capabilities=["agents.read"],
         reads={
@@ -346,6 +349,28 @@ def test_agent_artifact_provider_uses_daemon_detail_surface() -> None:
         request for request in transport.requests if request["type"] == "read"
     ]
     assert [request["data"]["surface"] for request in read_requests] == ["agent_detail"]
+
+
+def test_agent_artifact_provider_falls_back_when_ace_surface_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SASE_DAEMON_ACE_ARTIFACTS_READS", raising=False)
+    transport = _FakeDaemonTransport(
+        capabilities=["agents.read"],
+        reads={"agent_detail": [_agent_detail([])]},
+    )
+
+    result = read_agent_artifacts_for_tui(
+        _agent(),
+        client=LocalDaemonClient(transport=transport),
+    )
+
+    assert result.used_daemon is False
+    assert result.surface == "ace_artifact_detail"
+    assert result.fallback_reason == "surface_disabled"
+    assert result.value.shared_snapshot is not None
+    assert result.value.shared_snapshot.provider.source == "direct_fallback"
+    assert transport.requests == []
 
 
 def test_daemon_agents_provider_falls_back_when_capability_missing() -> None:

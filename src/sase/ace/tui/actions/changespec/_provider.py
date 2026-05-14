@@ -50,7 +50,7 @@ def read_changespecs_for_tui(
     from ....changespec import find_all_changespecs_cached
 
     result = read_or_fallback(
-        "changespec_list",
+        "ace_changespec_search" if query.strip() else "ace_changespec_list",
         args=args,
         client=client,
         daemon_loader=lambda daemon: _daemon_changespec_snapshot(
@@ -111,7 +111,7 @@ def load_changespec_detail_for_tui(
     if not handle:
         return DaemonReadResult(
             value=None,
-            surface="changespec_detail",
+            surface="ace_changespec_detail",
             used_daemon=False,
             fallback_reason="missing_daemon_handle",
             fallback_message="selected ChangeSpec row has no daemon handle",
@@ -122,7 +122,7 @@ def load_changespec_detail_for_tui(
         return detail.changespec
 
     return read_or_fallback(
-        "changespec_detail",
+        "ace_changespec_detail",
         args=args,
         client=client,
         daemon_loader=_load_detail,

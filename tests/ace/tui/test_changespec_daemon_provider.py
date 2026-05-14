@@ -10,6 +10,7 @@ from sase.ace.changespec import ChangeSpec
 from sase.ace.tui.actions.changespec._provider import (
     changespec_row_handle,
     load_changespec_detail_for_tui,
+    read_changespecs_for_tui,
 )
 from sase.ace.tui.actions.changespec._loading import ChangeSpecLoadingMixin
 from sase.core.wire import to_json_dict
@@ -48,6 +49,7 @@ class _FakeApp(ChangeSpecLoadingMixin):
 def test_ace_changespec_provider_uses_daemon_without_broad_disk_scan(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _enable_ace_changespec_daemon_reads(monkeypatch)
     changespec = _cs("proj_daemon")
     transport = _FakeDaemonTransport([changespec])
     app = _FakeApp(LocalDaemonClient(transport=transport))
@@ -71,7 +73,10 @@ def test_ace_changespec_provider_uses_daemon_without_broad_disk_scan(
     assert result[0].__dict__["_sase_daemon_summary_only"] is True
 
 
-def test_ace_changespec_provider_lazy_loads_selected_detail() -> None:
+def test_ace_changespec_provider_lazy_loads_selected_detail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enable_ace_changespec_daemon_reads(monkeypatch)
     changespec = _cs("proj_daemon")
     transport = _FakeDaemonTransport([changespec])
     app = _FakeApp(LocalDaemonClient(transport=transport))
@@ -93,7 +98,10 @@ def test_ace_changespec_provider_lazy_loads_selected_detail() -> None:
     ]
 
 
-def test_ace_changespec_provider_uses_daemon_search_for_active_query() -> None:
+def test_ace_changespec_provider_uses_daemon_search_for_active_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enable_ace_changespec_daemon_reads(monkeypatch)
     changespec = _cs("proj_daemon")
     transport = _FakeDaemonTransport([changespec])
     app = _FakeApp(LocalDaemonClient(transport=transport))
@@ -107,6 +115,28 @@ def test_ace_changespec_provider_uses_daemon_search_for_active_query() -> None:
     assert read_request["data"]["surface"] == "changespec_search"
     assert read_request["data"]["data"]["query"] == "status:Ready"
     assert app._changespec_provider_snapshot.metadata["active_query"] == "status:Ready"
+
+
+def test_ace_changespec_provider_falls_back_when_ace_surface_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SASE_DAEMON_ACE_CHANGESPECS_READS", raising=False)
+    direct = _cs("proj_direct")
+    transport = _FakeDaemonTransport([_cs("proj_daemon")])
+    monkeypatch.setattr(
+        "sase.ace.changespec.find_all_changespecs_cached",
+        lambda: [direct],
+    )
+
+    result = read_changespecs_for_tui(
+        client=LocalDaemonClient(transport=transport),
+    )
+
+    assert result.used_daemon is False
+    assert result.surface == "ace_changespec_list"
+    assert result.fallback_reason == "surface_disabled"
+    assert [cs.name for cs in result.value.rows] == ["proj_direct"]
+    assert transport.requests == []
 
 
 def test_changespec_row_handles_match_direct_and_daemon_logical_row() -> None:
@@ -210,3 +240,7 @@ def _read_surfaces(transport: _FakeDaemonTransport) -> list[str]:
         for request in transport.requests
         if request["type"] == "read"
     ]
+
+
+def _enable_ace_changespec_daemon_reads(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SASE_DAEMON_ACE_CHANGESPECS_READS", "1")

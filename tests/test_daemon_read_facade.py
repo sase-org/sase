@@ -312,6 +312,32 @@ def test_read_or_fallback_checks_capabilities_before_routing() -> None:
     assert [request["type"] for request in transport.requests] == ["capabilities"]
 
 
+def test_ace_read_surface_uses_ace_gate_and_underlying_capability(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_DAEMON_ACE_NOTIFICATIONS_READS", "1")
+    transport = FakeDaemonTransport(
+        capabilities=["notifications.read"],
+        reads={"notification_counts": [{"priority": 1}]},
+    )
+
+    result = read_or_fallback(
+        "ace_notification_counts",
+        client=LocalDaemonClient(transport=transport),
+        daemon_loader=lambda daemon: daemon.notification_counts(),
+        direct_loader=lambda: {"priority": 0},
+    )
+
+    assert result.used_daemon is True
+    assert result.surface == "ace_notification_counts"
+    assert result.value == {"priority": 1}
+    assert [request["type"] for request in transport.requests] == [
+        "capabilities",
+        "read",
+    ]
+    assert transport.requests[-1]["data"]["surface"] == "notification_counts"
+
+
 def test_notification_read_model_matches_direct_fixture_loader(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
