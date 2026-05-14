@@ -192,6 +192,20 @@ def test_no_daemon_escape_hatch_covers_fallbackable_runtime_surfaces() -> None:
 def test_registry_includes_shadow_diff_and_recovery_surfaces() -> None:
     records = rollout_records_by_id()
 
+    assert records["milestone.m0_shadow_indexing"].config_keys == (
+        "daemon.rollout.milestones.m0_shadow_indexing",
+    )
+    assert records["milestone.m1_read_through"].config_keys == (
+        "daemon.rollout.milestones.m1_read_through",
+    )
+    assert (
+        "SASE_DAEMON_M0_SHADOW_INDEXING"
+        in records["milestone.m0_shadow_indexing"].env_overrides
+    )
+    assert (
+        "SASE_DAEMON_M1_READ_THROUGH"
+        in records["milestone.m1_read_through"].env_overrides
+    )
     assert records["read.fallback_diagnostics"].config_keys == (
         "daemon.reads.fallback_diagnostics",
     )

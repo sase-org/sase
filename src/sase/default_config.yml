@@ -30,6 +30,12 @@ daemon:
   socket_path: ""
   disable_mobile_http: false
   startup_timeout_seconds: 5
+  rollout:
+    milestones:
+      # M0 covers shadow indexing, rebuild, verify, and diff diagnostics.
+      m0_shadow_indexing: true
+      # M1 covers selected CLI/editor daemon read-through surfaces.
+      m1_read_through: true
   provider_host:
     # direct: use existing in-process Python provider/plugin paths
     # shadow: run host-routed safe reads for comparison, return direct results

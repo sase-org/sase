@@ -190,6 +190,9 @@ large agent-history status p95        <= 250 ms
 Before default-enabling a new read group, run:
 
 ```bash
+SASE_DAEMON_M0_SHADOW_INDEXING=1 sase daemon rebuild --surface all
+SASE_DAEMON_M0_SHADOW_INDEXING=1 sase daemon verify --surface all
+SASE_DAEMON_M0_SHADOW_INDEXING=1 sase daemon diff --surface all --limit 100
 sase daemon rebuild --surface <surface>
 sase daemon verify --surface <surface>
 sase daemon diff --surface <surface> --limit 100
@@ -197,7 +200,10 @@ pytest tests/perf/test_daemon_read_rollout.py
 ```
 
 Use `--no-daemon`, `SASE_NO_DAEMON=1`, `daemon.reads.force_direct: true`, or the relevant
-`daemon.reads.surfaces.<name>: false` switch to recover immediately without rebuilding projections.
+`daemon.reads.surfaces.<name>: false` switch to recover immediately without rebuilding projections. To roll back M1
+read-through while keeping M0 shadow diagnostics available, set `SASE_DAEMON_M1_READ_THROUGH=0` or
+`daemon.rollout.milestones.m1_read_through: false`. To disable M0 readiness independently, set
+`SASE_DAEMON_M0_SHADOW_INDEXING=0` or `daemon.rollout.milestones.m0_shadow_indexing: false`.
 
 ## Rust daemon Epic 7 scheduler rollout gates
 

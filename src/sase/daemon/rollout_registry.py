@@ -14,6 +14,7 @@ from sase.daemon.read_config import (
 from sase.daemon.write_facade import CAPABILITY_BY_WRITE_SURFACE
 
 RolloutFamily = Literal[
+    "milestone",
     "process",
     "read",
     "read_diagnostics",
@@ -210,6 +211,50 @@ _PROVIDER_HOST_OPERATIONS = (
 )
 
 _ROLLOUT_SURFACE_RECORDS = (
+    RolloutSurfaceRecord(
+        surface_id="milestone.m0_shadow_indexing",
+        family="milestone",
+        title="M0 shadow indexing readiness",
+        owner_epic="epic11",
+        minimum_milestone="M0",
+        config_keys=("daemon.rollout.milestones.m0_shadow_indexing",),
+        env_overrides=(
+            TOP_LEVEL_DAEMON_ESCAPE_HATCH_ENV,
+            "SASE_DAEMON_M0_SHADOW_INDEXING",
+        ),
+        allowed_modes=("disabled", "shadow"),
+        daemon_capabilities=(
+            "indexing.rebuild",
+            "indexing.verify",
+            "indexing.diff",
+        ),
+        schema_versions=(("local_daemon", LOCAL_DAEMON_SCHEMA_VERSION),),
+        parity_gates=("daemon_shadow.parity.rebuild_verify_diff",),
+        recovery_commands=(
+            "sase daemon rebuild --surface all",
+            "sase daemon verify --surface all",
+            "sase daemon diff --surface all",
+        ),
+        default_policy="default_on",
+        default_enablement_allowed=True,
+    ),
+    RolloutSurfaceRecord(
+        surface_id="milestone.m1_read_through",
+        family="milestone",
+        title="M1 selected CLI/editor read-through readiness",
+        owner_epic="epic11",
+        minimum_milestone="M1",
+        config_keys=("daemon.rollout.milestones.m1_read_through",),
+        env_overrides=(
+            TOP_LEVEL_DAEMON_ESCAPE_HATCH_ENV,
+            "SASE_DAEMON_M1_READ_THROUGH",
+        ),
+        allowed_modes=("disabled", "read_through"),
+        schema_versions=(("local_daemon", LOCAL_DAEMON_SCHEMA_VERSION),),
+        recovery_commands=("SASE_DAEMON_M1_READ_THROUGH=0",),
+        default_policy="default_on",
+        default_enablement_allowed=True,
+    ),
     RolloutSurfaceRecord(
         surface_id="daemon.process",
         family="process",

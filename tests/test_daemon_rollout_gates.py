@@ -41,6 +41,8 @@ def test_milestone_records_are_m0_to_m5_and_cumulative() -> None:
         "M5",
     )
     assert set(records[0].surface_ids) <= set(records[-1].surface_ids)
+    assert "milestone.m0_shadow_indexing" in records[0].surface_ids
+    assert "milestone.m1_read_through" in records[1].surface_ids
     assert "read.changespecs" in records[1].surface_ids
     assert "read.ace_agents" in records[2].surface_ids
     assert "scheduler.launch" in records[4].surface_ids
@@ -87,6 +89,18 @@ def test_milestone_aggregator_connects_existing_rollout_gate_registries() -> Non
         EPIC7_ROLLOUT_PARITY_GATES <= records_by_milestone["M4"].required_parity_gates
     )
     assert EPIC7_ROLLOUT_PERF_GATES <= records_by_milestone["M4"].required_perf_gates
+
+
+def test_m0_requires_shadow_rebuild_verify_and_diff_recovery() -> None:
+    m0 = milestone_gate_records()[0]
+
+    assert "indexing.rebuild" in m0.required_capabilities
+    assert "indexing.verify" in m0.required_capabilities
+    assert "indexing.diff" in m0.required_capabilities
+    assert "daemon_shadow.parity.rebuild_verify_diff" in m0.required_parity_gates
+    assert "sase.daemon.rebuild.surface.all" in m0.required_recovery_checks
+    assert "sase.daemon.verify.surface.all" in m0.required_recovery_checks
+    assert "sase.daemon.diff.surface.all" in m0.required_recovery_checks
 
 
 def test_default_config_has_no_gate_policy_violations_with_registered_gates() -> None:

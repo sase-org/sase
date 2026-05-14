@@ -256,6 +256,7 @@ def _effective_mode(
 ) -> dict[str, Any]:
     top_source = _top_level_source(args)
     if top_level_disabled and record.family in {
+        "milestone",
         "process",
         "read",
         "write",
@@ -269,6 +270,8 @@ def _effective_mode(
             "source": top_source,
             "blocked_reasons": ["top-level daemon escape hatch is active"],
         }
+    if record.family == "milestone":
+        return _milestone_mode(record, config)
     if record.family == "read":
         return _read_mode(record, config)
     if record.family == "read_diagnostics":
@@ -311,6 +314,20 @@ def _read_mode(
     record: RolloutSurfaceRecord,
     config: Mapping[str, Any],
 ) -> dict[str, Any]:
+    m1_enabled = _milestone_enabled(
+        config,
+        key="daemon.rollout.milestones.m1_read_through",
+        env_name="SASE_DAEMON_M1_READ_THROUGH",
+        default=True,
+    )
+    if not bool(m1_enabled["enabled"]):
+        return _mode(
+            "direct",
+            str(m1_enabled["source"]["type"]),
+            str(m1_enabled["source"]["key"]),
+            m1_enabled["source"]["value"],
+            blocked_reasons=["M1 read-through milestone is disabled"],
+        )
     force_direct = _env_bool("SASE_DAEMON_FORCE_DIRECT")
     if force_direct is True:
         return _mode("direct", "env", "SASE_DAEMON_FORCE_DIRECT", "1")
@@ -344,6 +361,71 @@ def _read_mode(
     key = f"daemon.reads.surfaces.{group}"
     value = _lookup(config, key)
     return _mode("read_through" if value is True else "direct", "config", key, value)
+
+
+def _milestone_mode(
+    record: RolloutSurfaceRecord,
+    config: Mapping[str, Any],
+) -> dict[str, Any]:
+    if record.surface_id == "milestone.m0_shadow_indexing":
+        enabled = _milestone_enabled(
+            config,
+            key="daemon.rollout.milestones.m0_shadow_indexing",
+            env_name="SASE_DAEMON_M0_SHADOW_INDEXING",
+            default=True,
+        )
+        mode = "shadow" if bool(enabled["enabled"]) else "disabled"
+        blocked = (
+            []
+            if bool(enabled["enabled"])
+            else ["M0 shadow indexing milestone is disabled"]
+        )
+        return _mode_from_source(mode, enabled["source"], blocked_reasons=blocked)
+    if record.surface_id == "milestone.m1_read_through":
+        enabled = _milestone_enabled(
+            config,
+            key="daemon.rollout.milestones.m1_read_through",
+            env_name="SASE_DAEMON_M1_READ_THROUGH",
+            default=True,
+        )
+        mode = "read_through" if bool(enabled["enabled"]) else "disabled"
+        blocked = (
+            []
+            if bool(enabled["enabled"])
+            else ["M1 read-through milestone is disabled"]
+        )
+        return _mode_from_source(mode, enabled["source"], blocked_reasons=blocked)
+    return {
+        "mode": "available",
+        "source": {"type": "registry", "key": record.surface_id, "value": "available"},
+        "blocked_reasons": [],
+    }
+
+
+class _MilestoneEnabled(dict[str, Any]):
+    def __bool__(self) -> bool:
+        return bool(self["enabled"])
+
+
+def _milestone_enabled(
+    config: Mapping[str, Any],
+    *,
+    key: str,
+    env_name: str,
+    default: bool,
+) -> _MilestoneEnabled:
+    env_value = _env_bool(env_name)
+    if env_value is not None:
+        return _MilestoneEnabled(
+            enabled=env_value,
+            source={"type": "env", "key": env_name, "value": os.environ.get(env_name)},
+        )
+    value = _lookup(config, key)
+    enabled = value if isinstance(value, bool) else default
+    return _MilestoneEnabled(
+        enabled=enabled,
+        source={"type": "config", "key": key, "value": value},
+    )
 
 
 def _scheduler_mode(
@@ -445,11 +527,31 @@ def _boolean_config_mode(
     )
 
 
-def _mode(mode: str, source_type: str, key: str, value: Any) -> dict[str, Any]:
+def _mode(
+    mode: str,
+    source_type: str,
+    key: str,
+    value: Any,
+    *,
+    blocked_reasons: list[str] | None = None,
+) -> dict[str, Any]:
     return {
         "mode": mode,
         "source": {"type": source_type, "key": key, "value": value},
-        "blocked_reasons": [],
+        "blocked_reasons": blocked_reasons or [],
+    }
+
+
+def _mode_from_source(
+    mode: str,
+    source: Mapping[str, Any],
+    *,
+    blocked_reasons: list[str] | None = None,
+) -> dict[str, Any]:
+    return {
+        "mode": mode,
+        "source": dict(source),
+        "blocked_reasons": blocked_reasons or [],
     }
 
 

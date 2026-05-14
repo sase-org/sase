@@ -88,6 +88,11 @@ def daemon_read_disable_reason(
             reason="daemon_disabled",
             message="daemon reads disabled by --no-daemon or SASE_NO_DAEMON",
         )
+    if not _daemon_m1_read_through_enabled():
+        return _DaemonReadDisableReason(
+            reason="m1_read_through_disabled",
+            message="daemon M1 read-through rollout is disabled",
+        )
     if _daemon_read_force_direct():
         return _DaemonReadDisableReason(
             reason="force_direct",
@@ -134,6 +139,15 @@ def daemon_fallback_diagnostics_enabled() -> bool:
     return _reads_bool("fallback_diagnostics", default=False)
 
 
+def _daemon_m1_read_through_enabled() -> bool:
+    """Return whether M1 daemon read-through routing is enabled."""
+
+    env_value = _optional_env_bool("SASE_DAEMON_M1_READ_THROUGH")
+    if env_value is not None:
+        return env_value
+    return _milestone_bool("m1_read_through", default=True)
+
+
 def daemon_read_surface_enabled(surface: str) -> bool:
     """Return whether a logical read surface may use daemon projections."""
 
@@ -167,6 +181,20 @@ def _reads_config() -> dict[str, Any]:
         return {}
     reads_config = daemon_config.get("reads")
     return reads_config if isinstance(reads_config, dict) else {}
+
+
+def _milestone_bool(key: str, *, default: bool) -> bool:
+    daemon_config = load_merged_config().get("daemon")
+    if not isinstance(daemon_config, dict):
+        return default
+    rollout_config = daemon_config.get("rollout")
+    if not isinstance(rollout_config, dict):
+        return default
+    milestones = rollout_config.get("milestones")
+    if not isinstance(milestones, dict):
+        return default
+    value = milestones.get(key)
+    return value if isinstance(value, bool) else default
 
 
 def _optional_env_bool(name: str) -> bool | None:

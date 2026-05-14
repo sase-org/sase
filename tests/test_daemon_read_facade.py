@@ -220,6 +220,31 @@ def test_read_or_fallback_honors_global_config_disable() -> None:
     assert transport.requests == []
 
 
+def test_read_or_fallback_honors_m1_rollout_disable() -> None:
+    transport = FakeDaemonTransport(capabilities=["notifications.read"])
+
+    with patch(
+        "sase.daemon.read_config.load_merged_config",
+        return_value={
+            "daemon": {
+                "rollout": {"milestones": {"m1_read_through": False}},
+                "reads": {"enabled": True},
+            }
+        },
+    ):
+        result = read_or_fallback(
+            "notification_list",
+            client=LocalDaemonClient(transport=transport),
+            daemon_loader=lambda daemon: daemon.notification_list(),
+            direct_loader=lambda: "direct",
+        )
+
+    assert result.value == "direct"
+    assert result.used_daemon is False
+    assert result.fallback_reason == "m1_read_through_disabled"
+    assert transport.requests == []
+
+
 def test_read_or_fallback_honors_force_direct_config() -> None:
     transport = FakeDaemonTransport(capabilities=["notifications.read"])
 
@@ -297,6 +322,82 @@ def test_read_or_fallback_converts_daemon_read_errors_to_direct_loader(
     assert result.fallback_reason == expected_reason
 
 
+def test_read_or_fallback_uses_direct_loader_when_daemon_unavailable() -> None:
+    result = read_or_fallback(
+        "notification_list",
+        client=LocalDaemonClient(Path("/tmp/sase-missing-daemon.sock"), timeout=0.01),
+        daemon_loader=lambda daemon: daemon.notification_list(),
+        direct_loader=lambda: "direct",
+    )
+
+    assert result.value == "direct"
+    assert result.used_daemon is False
+    assert result.fallback_reason == "daemon_not_running"
+
+
+@pytest.mark.parametrize(
+    ("response", "expected_reason"),
+    [
+        (
+            {
+                "schema_version": 2,
+                "request_id": "req_test",
+                "snapshot_id": None,
+                "payload": {"type": "capabilities", "data": {}},
+            },
+            "unsupported_server_version",
+        ),
+        (
+            {
+                "schema_version": 1,
+                "request_id": "req_test",
+                "snapshot_id": None,
+                "payload": {
+                    "type": "capabilities",
+                    "data": {
+                        "schema_version": 1,
+                        "capabilities": ["notifications.read"],
+                        "compatibility": {
+                            "supported_client_schema_range": {"min": 1, "max": 1},
+                            "projection_read_schema_version": 99,
+                            "projection_write_schema_version": 1,
+                        },
+                    },
+                },
+            },
+            "projection_schema_mismatch",
+        ),
+    ],
+)
+def test_read_or_fallback_converts_compatibility_errors_to_direct_loader(
+    response: dict[str, Any],
+    expected_reason: str,
+) -> None:
+    class CompatibilityTransport:
+        requests: list[dict[str, Any]]
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def request(self, envelope: dict[str, Any]) -> dict[str, Any]:
+            self.requests.append(envelope["payload"])
+            return response
+
+    transport = CompatibilityTransport()
+
+    result = read_or_fallback(
+        "notification_list",
+        client=LocalDaemonClient(transport=transport),
+        daemon_loader=lambda daemon: daemon.notification_list(),
+        direct_loader=lambda: "direct",
+    )
+
+    assert result.value == "direct"
+    assert result.used_daemon is False
+    assert result.fallback_reason == expected_reason
+    assert [request["type"] for request in transport.requests] == ["capabilities"]
+
+
 def test_read_or_fallback_checks_capabilities_before_routing() -> None:
     transport = FakeDaemonTransport(capabilities=["health.read"])
 
@@ -336,6 +437,68 @@ def test_ace_read_surface_uses_ace_gate_and_underlying_capability(
         "read",
     ]
     assert transport.requests[-1]["data"]["surface"] == "notification_counts"
+
+
+@pytest.mark.parametrize(
+    ("surface", "capability", "daemon_loader", "read_surface"),
+    [
+        (
+            "changespec_list",
+            "changespecs.read",
+            lambda daemon: daemon.changespec_list(),
+            "changespec_list",
+        ),
+        (
+            "agent_active",
+            "agents.read",
+            lambda daemon: daemon.agent_active(project_id="demo"),
+            "agent_active",
+        ),
+        (
+            "bead_list",
+            "beads.read",
+            lambda daemon: daemon.bead_list(project_id="demo"),
+            "bead_list",
+        ),
+        (
+            "file_history",
+            "catalogs.read",
+            lambda daemon: daemon.file_history(project_id="demo"),
+            "file_history",
+        ),
+        (
+            "notification_list",
+            "notifications.read",
+            lambda daemon: daemon.notification_list(),
+            "notification_list",
+        ),
+    ],
+)
+def test_default_enabled_m1_read_surfaces_can_use_daemon(
+    surface: str,
+    capability: str,
+    daemon_loader: Any,
+    read_surface: str,
+) -> None:
+    transport = FakeDaemonTransport(
+        capabilities=[capability],
+        reads={read_surface: [_notification_page([])]},
+    )
+
+    result = read_or_fallback(
+        surface,
+        client=LocalDaemonClient(transport=transport),
+        daemon_loader=daemon_loader,
+        direct_loader=lambda: {"direct": True},
+    )
+
+    assert result.used_daemon is True
+    assert result.fallback_reason is None
+    assert [request["type"] for request in transport.requests] == [
+        "capabilities",
+        "read",
+    ]
+    assert transport.requests[-1]["data"]["surface"] == read_surface
 
 
 def test_notification_read_model_matches_direct_fixture_loader(

@@ -9,9 +9,10 @@ import pytest
 from sase.daemon.read_config import (
     ACE_DAEMON_SURFACE_GROUPS,
     DEFAULT_ENABLED_SURFACE_GROUPS,
-    daemon_fallback_diagnostics_enabled,
+    _daemon_m1_read_through_enabled,
     daemon_read_disable_reason,
     daemon_read_surface_enabled,
+    daemon_fallback_diagnostics_enabled,
 )
 
 
@@ -63,6 +64,39 @@ def test_fallback_diagnostics_flag_can_be_enabled() -> None:
 
     with patch("sase.daemon.read_config.load_merged_config", return_value=config):
         assert daemon_fallback_diagnostics_enabled() is True
+
+
+def test_m1_read_rollout_stays_enabled_when_m0_is_disabled() -> None:
+    config = {
+        "daemon": {
+            "rollout": {
+                "milestones": {
+                    "m0_shadow_indexing": False,
+                    "m1_read_through": True,
+                }
+            },
+            "reads": {"enabled": True, "surfaces": {"notifications": True}},
+        }
+    }
+
+    with patch("sase.daemon.read_config.load_merged_config", return_value=config):
+        assert _daemon_m1_read_through_enabled() is True
+        assert daemon_read_disable_reason("notification_list") is None
+
+
+def test_m1_rollout_disable_routes_reads_direct() -> None:
+    config = {
+        "daemon": {
+            "rollout": {"milestones": {"m1_read_through": False}},
+            "reads": {"enabled": True, "surfaces": {"notifications": True}},
+        }
+    }
+
+    with patch("sase.daemon.read_config.load_merged_config", return_value=config):
+        reason = daemon_read_disable_reason("notification_list")
+
+    assert reason is not None
+    assert reason.reason == "m1_read_through_disabled"
 
 
 def test_disable_reason_reports_surface_disable() -> None:

@@ -86,12 +86,19 @@ Immediate direct-mode controls:
 ```bash
 sase changespec search --no-daemon 'status:ready'
 SASE_NO_DAEMON=1 sase ace
+SASE_DAEMON_M1_READ_THROUGH=0 sase changespec search 'status:ready'
 ```
 
 Config controls live under `daemon.reads`; see the [configuration reference](configuration.md#daemon). Stable fallback
 reason tokens include `daemon_disabled`, `daemon_reads_disabled`, `force_direct`, `surface_disabled`,
-`daemon_not_running`, `unsupported_capability`, `projection_degraded`, `cursor_expired`, `snapshot_expired`,
+`m1_read_through_disabled`, `daemon_not_running`, `unsupported_capability`, `unsupported_client_version`,
+`unsupported_server_version`, `projection_schema_mismatch`, `projection_degraded`, `cursor_expired`, `snapshot_expired`,
 `payload_too_large`, and `resource_not_found`.
+
+M0 and M1 can be rolled back independently. `daemon.rollout.milestones.m0_shadow_indexing: false` or
+`SASE_DAEMON_M0_SHADOW_INDEXING=0` disables shadow-indexing readiness in rollout diagnostics without changing source
+stores. `daemon.rollout.milestones.m1_read_through: false` or `SASE_DAEMON_M1_READ_THROUGH=0` routes CLI/editor read
+surfaces directly while leaving M0 rebuild, verify, and diff diagnostics available.
 
 When a write is routed through the daemon, it appends projection events and source-export outbox rows before updating
 human-readable source files. The currently routed durable write surfaces are notifications, ChangeSpec metadata, agent

@@ -39,6 +39,55 @@ def test_rollout_payload_reports_no_daemon_as_disabled(
     assert read_global["blocked_reasons"] == ["top-level daemon escape hatch is active"]
 
 
+def test_rollout_payload_reports_independent_m0_and_m1_disable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def config() -> dict[str, Any]:
+        data = _minimal_rollout_config()
+        data["daemon"]["rollout"]["milestones"]["m0_shadow_indexing"] = False
+        data["daemon"]["rollout"]["milestones"]["m1_read_through"] = True
+        return data
+
+    monkeypatch.setattr(diagnostics, "load_config_without_plugin_defaults", config)
+    inspection = lifecycle._inspect_daemon(
+        _args(sase_home=str(tmp_path / "home"), run_root=str(tmp_path / "run"))
+    )
+
+    payload = diagnostics.rollout_diagnostics_payload(inspection, args=_args())
+
+    assert (
+        _surface(payload, "milestone.m0_shadow_indexing")["effective_mode"]
+        == "disabled"
+    )
+    assert (
+        _surface(payload, "milestone.m1_read_through")["effective_mode"]
+        == "read_through"
+    )
+    assert _surface(payload, "read.global")["effective_mode"] == "read_through"
+
+    def config_m1_disabled() -> dict[str, Any]:
+        data = _minimal_rollout_config()
+        data["daemon"]["rollout"]["milestones"]["m0_shadow_indexing"] = True
+        data["daemon"]["rollout"]["milestones"]["m1_read_through"] = False
+        return data
+
+    monkeypatch.setattr(
+        diagnostics,
+        "load_config_without_plugin_defaults",
+        config_m1_disabled,
+    )
+
+    payload = diagnostics.rollout_diagnostics_payload(inspection, args=_args())
+
+    assert (
+        _surface(payload, "milestone.m0_shadow_indexing")["effective_mode"] == "shadow"
+    )
+    read_global = _surface(payload, "read.global")
+    assert read_global["effective_mode"] == "direct"
+    assert "M1 read-through milestone is disabled" in read_global["blocked_reasons"]
+
+
 def test_rollout_payload_includes_capabilities_compatibility_and_perf_report(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -145,6 +194,12 @@ def _surface(payload: dict[str, Any], surface_id: str) -> dict[str, Any]:
 def _minimal_rollout_config() -> dict[str, Any]:
     return {
         "daemon": {
+            "rollout": {
+                "milestones": {
+                    "m0_shadow_indexing": True,
+                    "m1_read_through": True,
+                }
+            },
             "reads": {
                 "enabled": True,
                 "force_direct": False,
