@@ -7,6 +7,7 @@ import os
 import socket
 import struct
 import uuid
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -93,12 +94,15 @@ class LocalDaemonClient:
             raise _rpc_error(response_payload["data"])
         return response
 
-    def health(self, *, include_capabilities: bool = True) -> dict[str, Any]:
-        response = self.request(
+    def health(
+        self, *, include_capabilities: bool = True, timeout: float | None = None
+    ) -> dict[str, Any]:
+        response = self._request_with_optional_timeout(
             {
                 "type": "health",
                 "data": {"include_capabilities": include_capabilities},
-            }
+            },
+            timeout=timeout,
         )
         return _payload_data(response, "health")
 
@@ -110,7 +114,89 @@ class LocalDaemonClient:
         response = self.request({"type": "batch", "data": {"requests": requests}})
         return _payload_data(response, "batch")
 
+    def events(
+        self,
+        *,
+        after_event_id: str | None = None,
+        since_event_id: str | None = None,
+        snapshot_id: str | None = None,
+        collections: list[str] | None = None,
+        max_events: int = 1,
+    ) -> Iterator[dict[str, Any]]:
+        """Iterate local daemon event batches until the stream ends or errors."""
+
+        event_id = after_event_id if after_event_id is not None else since_event_id
+        data: dict[str, Any] = {
+            "since_event_id": event_id,
+            "snapshot_id": snapshot_id,
+            "max_events": max_events,
+        }
+        if collections:
+            data["collections"] = collections
+        for response in self._stream_payload({"type": "events", "data": data}):
+            yield _payload_data(response, "events")
+
+    def read_events(
+        self,
+        limit: int,
+        *,
+        after_event_id: str | None = None,
+        since_event_id: str | None = None,
+        snapshot_id: str | None = None,
+        collections: list[str] | None = None,
+        max_events: int = 1,
+    ) -> list[dict[str, Any]]:
+        """Read a bounded number of local daemon event batches."""
+
+        if limit < 0:
+            raise ValueError("event batch read limit must be non-negative")
+        batches: list[dict[str, Any]] = []
+        for batch in self.events(
+            after_event_id=after_event_id,
+            since_event_id=since_event_id,
+            snapshot_id=snapshot_id,
+            collections=collections,
+            max_events=max_events,
+        ):
+            batches.append(batch)
+            if len(batches) >= limit:
+                break
+        return batches
+
     def _send_envelope(self, envelope: dict[str, Any]) -> dict[str, Any]:
+        with self._connected_socket(envelope) as sock:
+            return self._read_response(sock)
+
+    def _request_with_optional_timeout(
+        self, payload: dict[str, Any], *, timeout: float | None
+    ) -> dict[str, Any]:
+        if timeout is None:
+            return self.request(payload)
+        original_timeout = self.timeout
+        self.timeout = timeout
+        try:
+            return self.request(payload)
+        finally:
+            self.timeout = original_timeout
+
+    def _stream_payload(self, payload: dict[str, Any]) -> Iterator[dict[str, Any]]:
+        envelope = {
+            "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
+            "request_id": f"req_{uuid.uuid4().hex}",
+            "client": {
+                "schema_version": LOCAL_DAEMON_SCHEMA_VERSION,
+                "name": self.client_name,
+                "version": self.client_version,
+            },
+            "payload": payload,
+        }
+        with self._connected_socket(envelope) as sock:
+            while True:
+                response = self._read_response(sock)
+                _raise_for_rpc_error(response)
+                yield response
+
+    def _connected_socket(self, envelope: dict[str, Any]) -> socket.socket:
         payload = json.dumps(envelope, separators=(",", ":")).encode("utf-8")
         if len(payload) > LOCAL_DAEMON_MAX_PAYLOAD_BYTES:
             raise LocalDaemonTransportError(
@@ -122,23 +208,43 @@ class LocalDaemonClient:
                 fallback_reason=None,
             )
         frame = struct.pack(">I", len(payload)) + payload
+        sock: socket.socket | None = None
         try:
-            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
-                sock.settimeout(self.timeout)
-                sock.connect(str(self.socket_path))
-                sock.sendall(frame)
-                response_len = _read_exact(sock, 4)
-                expected = struct.unpack(">I", response_len)[0]
-                if expected > LOCAL_DAEMON_MAX_PAYLOAD_BYTES:
-                    raise LocalDaemonTransportError(
-                        (
-                            f"local daemon response is {expected} bytes; "
-                            f"maximum is {LOCAL_DAEMON_MAX_PAYLOAD_BYTES}"
-                        ),
-                        code="payload_too_large",
-                        fallback_reason=None,
-                    )
-                response_payload = _read_exact(sock, expected)
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock.settimeout(self.timeout)
+            sock.connect(str(self.socket_path))
+            sock.sendall(frame)
+            return sock
+        except TimeoutError as error:
+            if sock is not None:
+                sock.close()
+            raise LocalDaemonTransportError(
+                f"timed out talking to local daemon at {self.socket_path}",
+                fallback_reason="daemon_not_running",
+                retryable=True,
+            ) from error
+        except OSError as error:
+            if sock is not None:
+                sock.close()
+            raise LocalDaemonTransportError(
+                f"local daemon socket unavailable at {self.socket_path}: {error}",
+                fallback_reason="daemon_not_running",
+            ) from error
+
+    def _read_response(self, sock: socket.socket) -> dict[str, Any]:
+        try:
+            response_len = _read_exact(sock, 4)
+            expected = struct.unpack(">I", response_len)[0]
+            if expected > LOCAL_DAEMON_MAX_PAYLOAD_BYTES:
+                raise LocalDaemonTransportError(
+                    (
+                        f"local daemon response is {expected} bytes; "
+                        f"maximum is {LOCAL_DAEMON_MAX_PAYLOAD_BYTES}"
+                    ),
+                    code="payload_too_large",
+                    fallback_reason=None,
+                )
+            response_payload = _read_exact(sock, expected)
         except TimeoutError as error:
             raise LocalDaemonTransportError(
                 f"timed out talking to local daemon at {self.socket_path}",
@@ -147,8 +253,9 @@ class LocalDaemonClient:
             ) from error
         except OSError as error:
             raise LocalDaemonTransportError(
-                f"local daemon socket unavailable at {self.socket_path}: {error}",
+                f"local daemon socket read failed at {self.socket_path}: {error}",
                 fallback_reason="daemon_not_running",
+                retryable=True,
             ) from error
 
         try:
@@ -251,3 +358,13 @@ def _rpc_error(data: dict[str, Any]) -> LocalDaemonRpcError:
             else None
         ),
     )
+
+
+def _raise_for_rpc_error(response: dict[str, Any]) -> None:
+    response_payload = response.get("payload")
+    if (
+        isinstance(response_payload, dict)
+        and response_payload.get("type") == "error"
+        and isinstance(response_payload.get("data"), dict)
+    ):
+        raise _rpc_error(response_payload["data"])

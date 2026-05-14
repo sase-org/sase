@@ -96,6 +96,85 @@ def test_rpc_error_exposes_typed_fallback(tmp_path: Path) -> None:
     assert error.value.fallback_reason == "unsupported_client_version"
 
 
+def test_read_events_sends_subscription_request_and_reads_bounded_batches(
+    tmp_path: Path,
+) -> None:
+    request_holder: dict[str, Any] = {}
+    socket_path = tmp_path / "daemon.sock"
+    responses = [
+        {
+            "schema_version": 1,
+            "request_id": "req_events",
+            "snapshot_id": "events_001",
+            "payload": {
+                "type": "events",
+                "data": {
+                    "schema_version": 1,
+                    "snapshot_id": "events_001",
+                    "events": [
+                        {
+                            "schema_version": 1,
+                            "event_id": "0000000000000001",
+                            "snapshot_id": "events_001",
+                            "created_at": "2026-05-13T23:30:00Z",
+                            "source": "daemon",
+                            "payload": {
+                                "type": "heartbeat",
+                                "data": {"sequence": 1},
+                            },
+                        }
+                    ],
+                    "heartbeat": {
+                        "schema_version": 1,
+                        "sequence": 1,
+                        "created_at": "2026-05-13T23:30:00Z",
+                    },
+                    "next_event_id": "0000000000000001",
+                },
+            },
+        },
+        {
+            "schema_version": 1,
+            "request_id": "req_events",
+            "snapshot_id": "events_001",
+            "payload": {
+                "type": "events",
+                "data": {
+                    "schema_version": 1,
+                    "snapshot_id": "events_001",
+                    "events": [],
+                    "heartbeat": {
+                        "schema_version": 1,
+                        "sequence": 2,
+                        "created_at": "2026-05-13T23:30:01Z",
+                    },
+                    "next_event_id": "0000000000000002",
+                },
+            },
+        },
+    ]
+    thread = _serve_stream(socket_path, responses, request_holder)
+
+    batches = LocalDaemonClient(socket_path, timeout=1.0).read_events(
+        2,
+        after_event_id="0000000000000000",
+        collections=["agents"],
+        max_events=5,
+    )
+    thread.join(timeout=1)
+
+    assert [batch["heartbeat"]["sequence"] for batch in batches] == [1, 2]
+    assert request_holder["request"]["payload"] == {
+        "type": "events",
+        "data": {
+            "since_event_id": "0000000000000000",
+            "snapshot_id": None,
+            "max_events": 5,
+            "collections": ["agents"],
+        },
+    }
+
+
 def test_oversized_request_fails_before_connect(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -129,6 +208,35 @@ def _serve_one(
                 request_holder["request"] = json.loads(payload.decode("utf-8"))
                 encoded = json.dumps(response, separators=(",", ":")).encode("utf-8")
                 conn.sendall(struct.pack(">I", len(encoded)) + encoded)
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    assert ready.wait(timeout=1)
+    return thread
+
+
+def _serve_stream(
+    socket_path: Path,
+    responses: list[dict[str, Any]],
+    request_holder: dict[str, Any],
+) -> threading.Thread:
+    ready = threading.Event()
+
+    def run() -> None:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
+            server.bind(str(socket_path))
+            server.listen(1)
+            ready.set()
+            conn, _ = server.accept()
+            with conn:
+                length = struct.unpack(">I", _recv_exact(conn, 4))[0]
+                payload = _recv_exact(conn, length)
+                request_holder["request"] = json.loads(payload.decode("utf-8"))
+                for response in responses:
+                    encoded = json.dumps(response, separators=(",", ":")).encode(
+                        "utf-8"
+                    )
+                    conn.sendall(struct.pack(">I", len(encoded)) + encoded)
 
     thread = threading.Thread(target=run, daemon=True)
     thread.start()
