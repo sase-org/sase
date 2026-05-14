@@ -1,6 +1,7 @@
 """Shared types for agent launch orchestration."""
 
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -16,3 +17,8 @@ class AgentLaunchResult:
     workflow_name: str = ""
     cl_name: str = ""
     timestamp: str = ""
+    scheduler_batch_id: str | None = None
+    scheduler_queue_id: str | None = None
+    scheduler_slot_id: str | None = None
+    scheduler_status: str | None = None
+    scheduler_handle: dict[str, Any] | None = None

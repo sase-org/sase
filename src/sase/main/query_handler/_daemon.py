@@ -20,5 +20,8 @@ def run_query_daemon(query: str) -> None:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Agent started (PID {result.pid})")
+    if result.scheduler_batch_id:
+        print(f"Agent batch queued ({result.scheduler_batch_id})")
+    else:
+        print(f"Agent started (PID {result.pid})")
     sys.exit(0)

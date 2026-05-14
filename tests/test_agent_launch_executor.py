@@ -72,6 +72,116 @@ def test_execute_single_launch_plan_uses_preallocated_context_and_timestamp() ->
     }
 
 
+def test_execute_launch_plan_daemon_mode_submits_scheduler_batch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_DAEMON_SCHEDULER_LAUNCH_MODE", "daemon")
+    requests: list[LaunchSpawnRequest] = []
+    executed: list[str] = []
+    response = {
+        "handle": {
+            "batch_id": "batch-a",
+            "queue_id": "agents",
+            "status": "queued",
+        },
+        "status": {
+            "slots": [
+                {
+                    "slot_index": 0,
+                    "slot_id": "slot-a",
+                    "status": "queued",
+                }
+            ]
+        },
+    }
+
+    with patch(
+        "sase.daemon.scheduler.submit_scheduler_batch", return_value=response
+    ) as submit:
+        execution = execute_launch_plan(
+            plan_fake_fanout("single", ["do work"]),
+            LaunchExecutionContext(
+                cl_name="home",
+                project_file="/home.sase",
+                project_name="home",
+                is_home_mode=True,
+                workspace_num=0,
+                workspace_dir="/home/user",
+            ),
+            spawn=lambda request: requests.append(request) or _result_for(request),
+            base_timestamp="ts",
+            on_slot_executed=lambda record: executed.append(
+                record.result.scheduler_batch_id if record.result else ""
+            ),
+        )
+
+    assert requests == []
+    assert execution.launched_count == 1
+    assert execution.results[0].pid == 0
+    assert execution.results[0].scheduler_batch_id == "batch-a"
+    assert execution.results[0].scheduler_slot_id == "slot-a"
+    assert executed == ["batch-a"]
+    submitted = submit.call_args.args[1].to_wire()
+    assert submitted["project_id"] == "home"
+    assert submitted["queue_id"] == "agents"
+    assert submitted["launch_specs"][0]["prompt"] == "do work"
+    assert submitted["launch_specs"][0]["cwd"] == "/home/user"
+    assert submitted["launch_specs"][0]["metadata"]["timestamp"] == "ts"
+
+
+def test_execute_launch_plan_shadow_mode_submits_then_launches_direct(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_DAEMON_SCHEDULER_LAUNCH_MODE", "shadow")
+    requests: list[LaunchSpawnRequest] = []
+
+    with patch("sase.daemon.scheduler.submit_scheduler_batch", return_value={}):
+        execution = execute_launch_plan(
+            plan_fake_fanout("single", ["do work"]),
+            LaunchExecutionContext(
+                cl_name="home",
+                project_file="/home.sase",
+                project_name="home",
+                is_home_mode=True,
+                workspace_num=0,
+                workspace_dir="/home/user",
+            ),
+            spawn=lambda request: requests.append(request) or _result_for(request),
+            base_timestamp="ts",
+        )
+
+    assert len(requests) == 1
+    assert execution.results[0].pid == 123
+    assert execution.results[0].scheduler_batch_id is None
+
+
+def test_execute_launch_plan_daemon_mode_falls_back_for_unsupported_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_DAEMON_SCHEDULER_LAUNCH_MODE", "daemon")
+    requests: list[LaunchSpawnRequest] = []
+
+    with patch("sase.daemon.scheduler.submit_scheduler_batch") as submit:
+        execution = execute_launch_plan(
+            plan_fake_fanout("single", ["do work"]),
+            LaunchExecutionContext(
+                cl_name="home",
+                project_file="/home.sase",
+                project_name="home",
+                is_home_mode=True,
+                workspace_num=0,
+                workspace_dir="/home/user",
+            ),
+            spawn=lambda request: requests.append(request) or _result_for(request),
+            extra_env={"SASE_REPEAT_NAME": "repeat.1"},
+            base_timestamp="ts",
+        )
+
+    submit.assert_not_called()
+    assert len(requests) == 1
+    assert execution.results[0].pid == 123
+
+
 def test_execute_fanout_plan_allocates_workspace_per_slot_and_merges_env() -> None:
     plan = plan_fake_fanout("model", ["%model:a p", "%model:b p"])
     plan = dataclasses.replace(

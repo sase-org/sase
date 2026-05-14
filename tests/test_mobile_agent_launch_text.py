@@ -81,6 +81,51 @@ def test_launch_mobile_text_agents_normalizes_prompt_and_returns_slots(
     assert '"request_id": "req-text-1"' in contexts
 
 
+def test_launch_mobile_text_agents_returns_scheduler_batch_fields(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+
+    def fake_launch(_prompt: str) -> list[AgentLaunchResult]:
+        return [
+            AgentLaunchResult(
+                pid=0,
+                workspace_num=0,
+                workspace_dir="/tmp/ws",
+                output_path="",
+                project_name="home",
+                timestamp="260506_143000",
+                scheduler_batch_id="batch-a",
+                scheduler_queue_id="agents",
+                scheduler_slot_id="slot-a",
+                scheduler_status="queued",
+                scheduler_handle={"batch_id": "batch-a"},
+            )
+        ]
+
+    monkeypatch.setattr(mobile_agents, "launch_agents_from_cwd", fake_launch)
+
+    payload = _launch_mobile_text_agents(
+        {
+            "schema_version": 1,
+            "prompt": "Do work",
+            "request_id": "req-text-scheduler",
+            "name": "mobile.scheduler",
+        }
+    )
+
+    assert payload["scheduler_batch"] == {
+        "batch_id": "batch-a",
+        "queue_id": "agents",
+        "status": "queued",
+        "handle": {"batch_id": "batch-a"},
+    }
+    assert payload["primary"]["status"] == "queued"
+    assert payload["primary"]["message"] == "queued in batch batch-a"
+    assert payload["primary"]["scheduler_batch_id"] == "batch-a"
+
+
 def test_launch_mobile_text_agents_persists_known_project_context(
     monkeypatch,
     tmp_path: Path,

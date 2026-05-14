@@ -238,9 +238,19 @@ def planned_name_for_prompt(prompt: str) -> str | None:
 
 
 def _default_launch_fn(prompt: str) -> list[AgentLaunchResult]:
+    import os
+
     from sase.agent.launcher import launch_agents_from_cwd
 
-    return launch_agents_from_cwd(prompt)
+    old_value = os.environ.get("SASE_DAEMON_SCHEDULER_HOST_BRIDGE")
+    os.environ["SASE_DAEMON_SCHEDULER_HOST_BRIDGE"] = "1"
+    try:
+        return launch_agents_from_cwd(prompt)
+    finally:
+        if old_value is None:
+            os.environ.pop("SASE_DAEMON_SCHEDULER_HOST_BRIDGE", None)
+        else:
+            os.environ["SASE_DAEMON_SCHEDULER_HOST_BRIDGE"] = old_value
 
 
 def _default_kill_fn(name: str) -> Any:
