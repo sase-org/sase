@@ -158,6 +158,48 @@ def test_rollout_payload_includes_capabilities_compatibility_and_perf_report(
     assert changespecs["fallback"]["command"] == "SASE_NO_DAEMON=1"
 
 
+def test_rollout_payload_includes_m5_release_checklist(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        diagnostics,
+        "load_config_without_plugin_defaults",
+        _minimal_rollout_config,
+    )
+    inspection = lifecycle._inspect_daemon(
+        _args(sase_home=str(tmp_path / "home"), run_root=str(tmp_path / "run"))
+    )
+
+    payload = diagnostics.rollout_diagnostics_payload(inspection, args=_args())
+
+    provider_host = payload["provider_host"]
+    assert provider_host["manifest_discovery"]["records"]
+    assert provider_host["resource_policy"]["timeout"]["state"] == "active"
+
+    checklist = payload["release_checklist"]
+    assert (
+        checklist["current_defaults"]["provider_host"]["modes"]["llm_metadata"]
+        == "host-preferred"
+    )
+    assert "sase daemon rebuild --surface all" in checklist["migration_rebuild_steps"]
+    assert "SASE_PROVIDER_HOST_MODE=direct" in checklist["rollback_commands"]
+    assert "read.ace_agents" in checklist["known_opt_in_surfaces"]
+    assert checklist["supported_schema_ranges"]["sase_core_rs"]["dependency"] == (
+        "sase-core-rs>=0.1.1,<0.2.0"
+    )
+    assert [
+        item["milestone"] for item in checklist["required_ci_perf_soak_evidence"]
+    ] == [
+        "M0",
+        "M1",
+        "M2",
+        "M3",
+        "M4",
+        "M5",
+    ]
+
+
 def test_rollout_handler_prints_json_payload(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

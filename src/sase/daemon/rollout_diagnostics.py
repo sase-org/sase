@@ -10,10 +10,12 @@ from typing import Any
 
 from sase.config.core import load_config_without_plugin_defaults
 from sase.daemon.paths import daemon_disabled
+from sase.daemon.release_contract import release_contract_payload
 from sase.daemon.rollout_gates import (
     GateCoverage,
     GateKind,
     evaluate_milestone_coverage,
+    milestone_gate_records,
 )
 from sase.daemon.rollout_registry import (
     TOP_LEVEL_DAEMON_ESCAPE_HATCH_ENV,
@@ -114,8 +116,14 @@ def rollout_diagnostics_payload(
             "observed": sorted(observed_capabilities),
         },
         "compatibility": compatibility,
+        "provider_host": _provider_host_payload(),
         "milestones": _milestone_payloads(coverage),
         "surfaces": surfaces,
+        "release_checklist": _release_checklist_payload(
+            config,
+            coverage,
+            surfaces=surfaces,
+        ),
         "benchmark_report": {
             "path": str(benchmark_report_path) if benchmark_report_path else None,
             "loaded": benchmark_report is not None,
@@ -151,6 +159,16 @@ def print_rollout_diagnostics(payload: Mapping[str, Any]) -> None:
             message=compatibility.get("message", ""),
         ).rstrip(" -")
     )
+    checklist = _mapping(payload.get("release_checklist"))
+    contract = _mapping(checklist.get("supported_schema_ranges"))
+    local_daemon = _mapping(contract.get("local_daemon"))
+    if local_daemon:
+        print(
+            "Schema range: local_daemon v{min}-v{max}".format(
+                min=local_daemon.get("min_supported_schema_version", "?"),
+                max=local_daemon.get("max_supported_schema_version", "?"),
+            )
+        )
 
     milestones = [
         item for item in payload.get("milestones", []) if isinstance(item, dict)
@@ -186,6 +204,134 @@ def print_rollout_diagnostics(payload: Mapping[str, Any]) -> None:
         recovery = surface.get("recovery_commands")
         if isinstance(recovery, list) and recovery:
             print(f"  Recovery: {recovery[0]}")
+
+
+def _provider_host_payload() -> dict[str, Any]:
+    from sase.host.manifest import (
+        discover_host_manifests,
+        resource_policy_diagnostics,
+    )
+    from sase.host.routing import host_routing_diagnostics
+
+    discovery = discover_host_manifests()
+    return {
+        "routing": host_routing_diagnostics(),
+        "resource_policy": resource_policy_diagnostics(),
+        "manifest_discovery": {
+            "diagnostics": list(discovery.diagnostics),
+            "records": [
+                {
+                    "plugin_id": record.manifest.plugin_id,
+                    "version": record.manifest.version,
+                    "source": record.source,
+                    "compatibility_mode": record.compatibility_mode,
+                    "daemon_authoritative": record.daemon_authoritative,
+                    "operation_families": list(record.manifest.operation_families),
+                    "capabilities": list(record.manifest.capabilities),
+                    "network_mode": record.manifest.network.mode,
+                    "spawn_allowed": record.manifest.process.spawn_allowed,
+                    "timeout_hints_ms": dict(record.manifest.timeout_hints_ms),
+                    "warm_host_eligible": record.manifest.warm_host_eligible,
+                    "diagnostics": list(record.diagnostics),
+                }
+                for record in discovery.records
+            ],
+        },
+    }
+
+
+def _release_checklist_payload(
+    config: Mapping[str, Any],
+    coverage: GateCoverage,
+    *,
+    surfaces: list[dict[str, Any]],
+) -> dict[str, Any]:
+    records = tuple(rollout_surface_records())
+    milestone_payloads = _milestone_payloads(coverage)
+    fallback_commands = sorted(
+        {
+            command
+            for surface in surfaces
+            for command in (_mapping(surface.get("fallback")).get("command"),)
+            if isinstance(command, str) and command
+        }
+        | {"SASE_NO_DAEMON=1"}
+    )
+    return {
+        "current_defaults": _release_defaults(config),
+        "supported_schema_ranges": release_contract_payload(),
+        "migration_rebuild_steps": [
+            "sase daemon doctor",
+            "sase daemon rebuild --surface all",
+            "sase daemon verify --surface all",
+            "sase daemon diff --surface all --limit 100",
+            "sase daemon backup",
+        ],
+        "rollback_commands": fallback_commands,
+        "known_opt_in_surfaces": [
+            record.surface_id for record in records if record.default_policy == "opt_in"
+        ],
+        "required_ci_perf_soak_evidence": _required_evidence(milestone_payloads),
+        "authoritative_migration_guidance": [
+            {
+                "surface_id": record.surface_id,
+                "minimum_milestone": record.minimum_milestone,
+                "parity_gates": list(record.parity_gates),
+                "recovery_commands": list(record.recovery_commands),
+                "direct_fallback_available": record.direct_fallback_available,
+            }
+            for record in records
+            if record.minimum_milestone in {"M3", "M4", "M5"}
+        ],
+    }
+
+
+def _release_defaults(config: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "reads": {
+            "enabled": _lookup(config, "daemon.reads.enabled"),
+            "force_direct": _lookup(config, "daemon.reads.force_direct"),
+            "enabled_surfaces": sorted(
+                surface
+                for surface, enabled in _mapping(
+                    _lookup(config, "daemon.reads.surfaces")
+                ).items()
+                if enabled is True
+            ),
+            "disabled_surfaces": sorted(
+                surface
+                for surface, enabled in _mapping(
+                    _lookup(config, "daemon.reads.surfaces")
+                ).items()
+                if enabled is not True
+            ),
+        },
+        "scheduler": dict(_mapping(_lookup(config, "daemon.scheduler"))),
+        "provider_host": {
+            "default_mode": _lookup(config, "daemon.provider_host.default_mode"),
+            "modes": dict(_mapping(_lookup(config, "daemon.provider_host.modes"))),
+        },
+        "milestones": dict(_mapping(_lookup(config, "daemon.rollout.milestones"))),
+    }
+
+
+def _required_evidence(
+    milestone_payloads: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    records_by_milestone = {
+        record.milestone: record for record in milestone_gate_records()
+    }
+    return [
+        {
+            "milestone": payload["milestone"],
+            "covered": payload["covered"],
+            "docs_links": sorted(
+                records_by_milestone[payload["milestone"]].required_docs_links
+            ),
+            "missing_by_kind": payload["missing_by_kind"],
+        }
+        for payload in milestone_payloads
+    ]
 
 
 def _surface_payload(

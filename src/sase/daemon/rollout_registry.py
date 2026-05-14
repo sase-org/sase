@@ -12,6 +12,18 @@ from sase.daemon.read_config import (
     SURFACE_GROUP_BY_READ_SURFACE,
 )
 from sase.daemon.write_facade import CAPABILITY_BY_WRITE_SURFACE
+from sase.host.wire import (
+    HOST_CAP_IPC_V1,
+    HOST_CAP_LLM_INVOKE,
+    HOST_CAP_LLM_METADATA,
+    HOST_CAP_MANIFEST_V1,
+    HOST_CAP_RESOURCE_POLICY_DIAGNOSTICS,
+    HOST_CAP_VCS_QUERY,
+    HOST_CAP_WORKFLOW_STEP,
+    HOST_CAP_WORKSPACE_METADATA,
+    HOST_CAP_WORKSPACE_RESOLVE_REF,
+    HOST_CAP_XPROMPT_CATALOG,
+)
 
 RolloutFamily = Literal[
     "milestone",
@@ -175,6 +187,10 @@ def _provider_host_record(
     *,
     default_on: bool,
 ) -> RolloutSurfaceRecord:
+    operation_capabilities = _PROVIDER_HOST_CAPABILITIES_BY_OPERATION.get(
+        operation,
+        (),
+    )
     return RolloutSurfaceRecord(
         surface_id=f"provider_host.{operation_key}",
         family="provider_host",
@@ -187,7 +203,13 @@ def _provider_host_record(
             _provider_host_env_name(operation_key),
         ),
         allowed_modes=PROVIDER_HOST_MODES,
-        daemon_capabilities=("host.call",),
+        daemon_capabilities=(
+            "host.call",
+            HOST_CAP_IPC_V1,
+            HOST_CAP_MANIFEST_V1,
+            HOST_CAP_RESOURCE_POLICY_DIAGNOSTICS,
+            *operation_capabilities,
+        ),
         schema_versions=(("local_daemon", LOCAL_DAEMON_SCHEMA_VERSION),),
         parity_gates=(f"provider_host.parity.{operation}",),
         perf_gates=(f"provider_host.perf.{operation}",),
@@ -209,6 +231,16 @@ _PROVIDER_HOST_OPERATIONS = (
     ("workflow_step", "workflow.step", False),
     ("vcs_mutation", "vcs.mutation", False),
 )
+
+_PROVIDER_HOST_CAPABILITIES_BY_OPERATION = {
+    "llm.metadata": (HOST_CAP_LLM_METADATA,),
+    "xprompt.catalog": (HOST_CAP_XPROMPT_CATALOG,),
+    "vcs.query": (HOST_CAP_VCS_QUERY,),
+    "workspace.metadata": (HOST_CAP_WORKSPACE_METADATA,),
+    "workspace.resolve_ref": (HOST_CAP_WORKSPACE_RESOLVE_REF,),
+    "llm.invoke": (HOST_CAP_LLM_INVOKE,),
+    "workflow.step": (HOST_CAP_WORKFLOW_STEP,),
+}
 
 _ROLLOUT_SURFACE_RECORDS = (
     RolloutSurfaceRecord(
@@ -384,7 +416,12 @@ _ROLLOUT_SURFACE_RECORDS = (
         ),
         env_overrides=PROVIDER_HOST_GLOBAL_ENV_OVERRIDES,
         allowed_modes=PROVIDER_HOST_MODES,
-        daemon_capabilities=("host.call",),
+        daemon_capabilities=(
+            "host.call",
+            HOST_CAP_IPC_V1,
+            HOST_CAP_MANIFEST_V1,
+            HOST_CAP_RESOURCE_POLICY_DIAGNOSTICS,
+        ),
         schema_versions=(("local_daemon", LOCAL_DAEMON_SCHEMA_VERSION),),
         parity_gates=("provider_host.parity.global",),
         perf_gates=("provider_host.perf.global",),

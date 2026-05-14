@@ -119,6 +119,29 @@ Resource plugins can be disabled via environment variables:
 Any non-empty value enables the disable. The VCS, workspace, and LLM provider registries currently load their provider
 entry points directly and do not consult these resource-plugin disable switches.
 
+## Provider Host Rollout
+
+Provider-host routing lets the local daemon call selected Python provider/plugin host operations through a bounded IPC
+envelope with manifest, capability, timeout, cancellation, and resource-policy diagnostics. The current default posture
+keeps side effects conservative: low-risk read/query operations are `host-preferred`, while invoke, workflow execution,
+and mutation-heavy operations remain `direct`.
+
+| Operation               | Default          | Fallback / rollback                   |
+| ----------------------- | ---------------- | ------------------------------------- |
+| `llm.metadata`          | `host-preferred` | `SASE_PROVIDER_HOST_MODE=direct`      |
+| `xprompt.catalog`       | `host-preferred` | `SASE_PROVIDER_HOST_MODE=direct`      |
+| `vcs.query`             | `host-preferred` | `SASE_PROVIDER_HOST_MODE=direct`      |
+| `workspace.metadata`    | `host-preferred` | `SASE_PROVIDER_HOST_MODE=direct`      |
+| `workspace.resolve_ref` | `host-preferred` | `SASE_PROVIDER_HOST_MODE=direct`      |
+| `llm.invoke`            | `direct`         | keep direct until invoke gates pass   |
+| `workflow.step`         | `direct`         | keep direct until workflow gates pass |
+| `vcs.mutation`          | `direct`         | keep direct until mutation gates pass |
+
+Use `daemon.provider_host.modes.<operation>` or `SASE_PROVIDER_HOST_<OPERATION>_MODE` for one operation. Use
+`SASE_PROVIDER_HOST_MODE=direct`, `SASE_DISABLE_PROVIDER_HOST_ROUTING=1`, or `SASE_NO_DAEMON=1` as global rollback
+controls. `sase daemon rollout --json` reports the provider-host manifest inventory, resource-policy diagnostics,
+required M5 gates, and release checklist.
+
 ## Writing a Plugin
 
 A sase plugin is a standard Python package that declares entry points in `pyproject.toml`.

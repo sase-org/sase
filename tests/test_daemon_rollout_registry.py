@@ -23,6 +23,13 @@ from sase.daemon.rollout_registry import (
     rollout_surface_records,
 )
 from sase.daemon.write_facade import CAPABILITY_BY_WRITE_SURFACE
+from sase.host.wire import (
+    HOST_CAP_IPC_V1,
+    HOST_CAP_LLM_METADATA,
+    HOST_CAP_MANIFEST_V1,
+    HOST_CAP_RESOURCE_POLICY_DIAGNOSTICS,
+    HOST_CAP_WORKFLOW_STEP,
+)
 
 
 def test_rollout_registry_has_stable_unique_ids() -> None:
@@ -144,6 +151,27 @@ def test_provider_host_inventory_matches_operation_modes() -> None:
             assert record.perf_gates
         else:
             assert record.default_policy == "default_off"
+
+
+def test_m5_provider_host_surfaces_require_manifest_and_resource_gates() -> None:
+    records = rollout_records_by_id()
+
+    low_risk = records["provider_host.llm_metadata"]
+    assert low_risk.minimum_milestone == "M5"
+    assert {
+        "host.call",
+        HOST_CAP_IPC_V1,
+        HOST_CAP_MANIFEST_V1,
+        HOST_CAP_RESOURCE_POLICY_DIAGNOSTICS,
+        HOST_CAP_LLM_METADATA,
+    } <= set(low_risk.daemon_capabilities)
+    assert low_risk.direct_fallback_available is True
+    assert low_risk.recovery_commands == ("SASE_PROVIDER_HOST_MODE=direct",)
+
+    workflow = records["provider_host.workflow_step"]
+    assert HOST_CAP_WORKFLOW_STEP in workflow.daemon_capabilities
+    assert workflow.default_policy == "default_off"
+    assert workflow.default_enablement_allowed is False
 
 
 def test_write_surface_inventory_matches_capability_helper() -> None:

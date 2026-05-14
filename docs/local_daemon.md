@@ -127,6 +127,32 @@ catalog, query, and reference-resolution paths default to `host-preferred`, whic
 running and capable, then falls back direct. Mutation-heavy paths remain direct. Use `SASE_PROVIDER_HOST_MODE=direct` or
 set `SASE_DISABLE_PROVIDER_HOST_ROUTING=1` as global rollback switches.
 
+## Rollout Status And Release Checklist
+
+`sase daemon rollout` reports the effective rollout mode for every M0-M5 surface, including the selected config or
+environment source, required daemon capabilities, compatibility state, fallback command, and first recovery command. Use
+JSON output for release automation:
+
+```bash
+sase daemon rollout --json
+sase daemon rollout --benchmark-report perf-report.json --json
+```
+
+The JSON payload includes a generated `release_checklist` aligned with the rollout registry:
+
+| Checklist field                  | Contents                                                                                           |
+| -------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `current_defaults`               | Effective read, scheduler, provider-host, and milestone defaults from bundled config               |
+| `supported_schema_ranges`        | Local daemon schema range, projection schema versions, provider-host IPC schema, and package guard |
+| `migration_rebuild_steps`        | `doctor`, `rebuild`, `verify`, `diff`, and `backup` commands to run before promotion               |
+| `rollback_commands`              | Global and per-surface direct-mode controls, including `SASE_NO_DAEMON=1`                          |
+| `known_opt_in_surfaces`          | Surfaces that remain opt-in, such as ACE daemon-read groups                                        |
+| `required_ci_perf_soak_evidence` | M0-M5 coverage status with missing capability, contract, parity, perf, recovery, and docs gates    |
+
+The release package guard currently expects `sase-core-rs>=0.1.1,<0.2.0`, local daemon wire schema v1, projection
+read/write schema v1, and provider-host IPC schema v1. If any of those move, update the release contract, package
+metadata, docs, and contract tests together.
+
 ## Projection Maintenance
 
 Use rebuild and verify when the source stores are healthy and daemon projections need to catch up. A source backfill
