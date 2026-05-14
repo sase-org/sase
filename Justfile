@@ -4,6 +4,8 @@ venv_dir := ".venv"
 venv_bin := venv_dir / "bin"
 venv_dir_abs := justfile_directory() / venv_dir
 venv_bin_abs := justfile_directory() / venv_bin
+keep_sorted_version := "v0.8.0"
+keep_sorted_bin := venv_bin / "keep-sorted"
 
 # Sibling Rust core repo. CI can override this with SASE_CORE_DIR after
 # checking out sase-core inside the Actions workspace.
@@ -30,6 +32,22 @@ _setup: _venv
     @if ! {{ venv_bin }}/mypy --version > /dev/null 2>&1 || \
         ! {{ venv_bin }}/python tools/validate_editable_metadata; then \
         uv pip install --no-sources --reinstall-package mypy -e ".[dev]"; \
+    fi
+
+# Bootstrap keep-sorted into the project venv so lint/fix do not depend on a
+# user-global Go bin directory being present on PATH.
+_setup-keep-sorted: _venv
+    @if [ ! -x "{{ keep_sorted_bin }}" ]; then \
+        if command -v keep-sorted > /dev/null 2>&1; then \
+            printf "[setup] Linking keep-sorted from PATH into {{ keep_sorted_bin }}.\n"; \
+            ln -sf "$(command -v keep-sorted)" "{{ keep_sorted_bin }}"; \
+        elif command -v go > /dev/null 2>&1; then \
+            printf "[setup] Installing keep-sorted {{ keep_sorted_version }} into {{ venv_bin }}.\n"; \
+            GOBIN="{{ venv_bin_abs }}" CGO_ENABLED=0 go install github.com/google/keep-sorted@{{ keep_sorted_version }}; \
+        else \
+            printf "error: keep-sorted is required. Install it or install Go so this recipe can bootstrap github.com/google/keep-sorted@{{ keep_sorted_version }}.\n" >&2; \
+            exit 127; \
+        fi; \
     fi
 
 # Print a box header for a top-level command (private helper)
@@ -130,14 +148,14 @@ fmt-md:
     prettier --write --prose-wrap=always --print-width=120 "**/*.md"
 
 # Auto-fix keep-sorted blocks in YAML files
-fix-keep-sorted:
+fix-keep-sorted: _setup-keep-sorted
     @printf "\n---------- Fixing keep-sorted blocks in YAML files... ----------\n"
-    git ls-files '*.yml' '*.yaml' | xargs keep-sorted
+    git ls-files '*.yml' '*.yaml' | xargs {{ keep_sorted_bin }}
 
 # Lint keep-sorted blocks in YAML files (CI mode)
-lint-keep-sorted:
+lint-keep-sorted: _setup-keep-sorted
     @printf "\n---------- Checking keep-sorted blocks in YAML files... ----------\n"
-    git ls-files '*.yml' '*.yaml' | xargs keep-sorted --mode lint
+    git ls-files '*.yml' '*.yaml' | xargs {{ keep_sorted_bin }} --mode lint
 
 # Check all formatting (CI mode)
 fmt-check: (_header "fmt-check") fmt-py-check fmt-md-check
