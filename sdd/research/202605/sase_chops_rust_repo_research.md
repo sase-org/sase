@@ -27,6 +27,24 @@ high-frequency scheduled work.
 
 ## Current Local Architecture
 
+### Built-in chops and their schedules
+
+Current built-in script chops are registered as Python console scripts in `pyproject.toml`, grouped under five
+lumberjacks in `src/sase/default_config.yml`. Frequency and timeout matter for the Rust port because they set the
+ceiling on per-invocation overhead a rewrite can save.
+
+| Lumberjack | Interval | Chop timeout | Chops |
+|---|---|---|---|
+| `hooks` | 5s | 90s | `hook_checks`, `mentor_checks`, `workflow_checks`, `pending_checks_poll`, `comment_zombie_checks`, `suffix_transforms`, `orphan_cleanup` |
+| `waits` | 2s | (default) | `wait_checks` |
+| `checks` | 300s | (default) | `cl_submitted_checks`, `stale_running_cleanup` |
+| `comments` | 60s | (default) | `comment_checks` |
+| `housekeeping` | 3600s | (default) | `error_digest` |
+
+`pushgateway_cleanup` is registered as an entry point but is not in any default lumberjack — it is invoked manually or
+by user-extended config. The `waits/2s` and `hooks/5s` cadences are where Rust startup savings compound: a 2s interval
+means ~43,200 invocations/day per active sase user.
+
 Current built-in script chops are registered as Python console scripts in `pyproject.toml`:
 
 - `sase_chop_hook_checks`
@@ -55,6 +73,39 @@ The scheduler-side contract is already good for a language boundary:
 
 That means a Rust chop binary can be swapped in without changing the AXE TUI or run-history model, provided it preserves
 the CLI and output contract.
+
+### Subprocess contract a Rust chop must honor
+
+The existing Python scripts inherit several non-obvious behaviors from the runner. A Rust port that ignores any of
+these will silently misbehave under AXE.
+
+- **CLI shape**: `<script> --context <path>`. Exactly one positional/flag pair. No subcommands. `--help` and
+  `--version` should also work for parity with `sase axe lumberjack list`.
+- **Context format**: JSON file matching `ChopScriptContext` (see `src/sase/axe/chop_script_context.py`). Fields:
+  `max_hook_runners`, `max_agent_runners`, `zombie_timeout_seconds`, `query`, `lumberjack_name`, `state_dir`,
+  `all_changespecs_file`, `filtered_changespecs_file`, `verbose_lumberjack_diagnostics`. The Rust port must tolerate
+  unknown extra fields (forward compatibility) and must reject older clients that omit required fields with a clear
+  error rather than panicking.
+- **ChangeSpec input**: read via the `all_changespecs_file` / `filtered_changespecs_file` paths, not via stdin.
+  Schemas match the dataclasses in `src/sase/ace/changespec.py`. This is the largest serialization surface area and
+  should be modeled in `sase_core` first so both Python and Rust share types.
+- **Environment variables injected by the runner** (`src/sase/axe/chop_agents.py`):
+  `SASE_CHOP_LUMBERJACK`, `SASE_CHOP_NAME`, `SASE_CHOP_RUN_ID`, `SASE_CHOP_PROMPT_HASH`. Rust binaries should read but
+  must not require these — they are diagnostic-only and absent in oneshot/manual modes.
+- **Stdout/stderr merging and live streaming**: `stream_chop_script` merges stderr into stdout with
+  `bufsize=0` and a per-65 KiB pump thread. A Rust binary that buffers a full BufWriter for the whole run will not
+  appear in the AXE live-output panel until exit. Rust ports should set stdout to line buffered (`LineWriter`) and
+  call `flush()` after each summary line.
+- **Process group / timeout-kill behavior**: subprocesses are launched with `start_new_session=True` and SIGKILL'd via
+  `killpg` on timeout. A Rust chop that spawns long-lived background grandchildren (e.g. via `Command::spawn`) must
+  not detach from the process group — otherwise the grandchild keeps the stdout pipe open and the parent pump thread
+  stalls past timeout (see the explicit `pump_thread.join(timeout=5)` workaround in `chop_script_runner.py`).
+- **Atomic file mutation**: the Python helper `_atomic_json_write` uses `tempfile.mkstemp` + `os.replace` in the same
+  directory. Rust ports that write `ready.json`, digest markers, etc. should use `tempfile::NamedTempFile::persist`
+  in the same directory to match crash-safety semantics.
+- **Exit codes**: today the runner records the raw `returncode`; on timeout it is `None`. Standardizing to
+  `0` (ok), `1` (operational failure), `2` (bad input/schema) keeps run history readable and avoids ambiguous
+  `None` outcomes for in-binary failures.
 
 The current scripts are not all equivalent candidates:
 
@@ -128,6 +179,40 @@ there is a strong reason; maturin's docs call out that shipping both a binary an
 
 For developers, `cargo install --path crates/sase_chops_cli --bins` can be supported as a secondary path. It should not
 be the primary install story because normal SASE users should not need Rust.
+
+### Cross-platform packaging
+
+The published wheels should target the same matrix `sase-core/.github/workflows/release.yml` already covers: Linux
+x86_64 + aarch64 (manylinux2014), macOS universal2, Windows x64. Since `bin`-binding wheels are
+platform-specific but Python-version-independent (they ship native binaries, not extension modules), the matrix is
+smaller than for PyO3 wheels — a single wheel per platform/arch.
+
+Two cross-platform discovery gaps need fixing in `discover_chop_script` before Windows works:
+
+- The direct `bin_dir / prefixed` check does not append `.exe` on Windows. `shutil.which` does, so the PATH fallback
+  works, but the venv-bin fast path will miss Rust binaries. Fix this in the discovery helper rather than the chop
+  package.
+- File-mode executability checks (`os.access(..., os.X_OK)`) are unreliable on Windows. Either use
+  `pathlib.Path.suffix == ".exe"` or rely entirely on `shutil.which` on Windows.
+
+These changes are pre-requisites in the `sase` repo, not the new `sase-chops` repo.
+
+### Co-installation shadowing risk
+
+During migration, both `sase` (with Python entry points) and `sase-chops` (with Rust binaries) will install
+`sase_chop_<name>` executables into the same venv `bin/`. With pip, the last-installed wheel wins — install order
+silently determines which language runs each chop.
+
+Three mitigations, in order of preference:
+
+1. As soon as a chop is migrated, drop the matching Python entry point from `pyproject.toml` and replace
+   `src/sase/scripts/sase_chop_<name>.py` with a thin `_legacy` module behind a config-gated wrapper. Eliminates the
+   ambiguity per chop.
+2. Until step 1 lands, name unmigrated Python entry points unchanged but route migrated ones through a configured
+   `chop_script_dirs` directory that is checked first in `discover_chop_script`. This lets the venv `bin/` keep both
+   without conflict.
+3. Add a startup self-check (`sase axe lumberjack doctor`) that resolves each chop name and reports the resolved path
+   and language, so users can see what is running.
 
 ## Versioning and Protocol
 
@@ -274,6 +359,88 @@ Each port should have three layers:
 For migrated chops, keep Python scripts as fallback/oracle until routed Rust behavior clears the parity and timing
 gates on live-ish fixture trees.
 
+### Logging and telemetry
+
+Current Python chops use the standard `logging` module with output going through stdout/stderr (and from there to the
+AXE per-run log file). The Rust ports should:
+
+- Use `tracing` with a `tracing-subscriber` `fmt` layer writing to stdout, configured for compact human-readable
+  output (no ANSI by default, since AXE may render the log directly).
+- Honor `RUST_LOG` and `SASE_CHOP_LOG` for level overrides.
+- Avoid colored output unless `verbose_lumberjack_diagnostics` is set in the context.
+- For chops that today push to Prometheus pushgateway (`pushgateway_cleanup` and any Prom-emitting code in
+  `error_digest`), reuse `sase_core` Prometheus helpers rather than pulling in the `prometheus` crate at the chop
+  layer. Keep the binary thin.
+
+## Performance Estimate
+
+Order-of-magnitude numbers, useful for sizing the win before committing:
+
+- CPython 3.12 cold start with `import sase.scripts`: ~150–250 ms on a typical dev laptop, dominated by import-time
+  side effects (the `sase` package pulls in textual, dataclasses, configuration, etc.).
+- Equivalent Rust binary cold start: ~3–10 ms.
+- `wait_checks` runs every 2s and is currently a near no-op when no `waiting.json` markers exist; the entire wall-clock
+  cost today is roughly Python startup. A Rust port reclaims ~150 ms per invocation, ~64 minutes/day of CPU, while
+  also reducing tail latency that delays scheduled hooks.
+- `hooks` lumberjack runs 7 chops every 5s. Even if individual chops do real work, replacing 7×150 ms of startup with
+  7×5 ms saves ~1 second/cycle and makes the 90s chop-timeout budget go further.
+
+These numbers should be measured on real fixtures during Phase 0, not assumed. The point is that the savings come
+from invocation count and startup, not from algorithmic speedups in the chops themselves.
+
+## Alternatives Considered
+
+### A. Keep chops as Python entry points, move logic to a `pyo3`-imported Rust crate
+
+Each Python `sase_chop_<name>.py` would `import sase_core_rs` and call into Rust for the heavy work. No new repo.
+
+Rejected because (a) it does not eliminate Python interpreter startup, which is the main per-invocation cost on
+high-frequency lumberjacks; (b) it forces `sase_core_rs` to grow PyO3 surface area for every chop's full data flow,
+which contradicts the existing memory rule that backend logic should stay pure Rust where possible; (c) it does not
+test the standalone-Rust-binary execution path that future non-Python frontends (mobile, web, daemon) will eventually
+need anyway.
+
+### B. Add a `sase_chops` crate inside the existing `sase-core` workspace
+
+Same code, same release. No new repo to maintain.
+
+This is the legitimate competing option. Pros: single CI, single release, immediate access to `sase_core`
+internals during prototyping, no cross-repo coordination tax. Cons: forces every chop change through the
+`sase-core` semver/release cadence (slow); blurs the `sase-core = pure domain library` boundary; couples chop tests
+to the core repo's manylinux/macOS matrix even though chops have different distribution requirements.
+
+Recommendation: prototype as a crate in `sase-core` for Phase 0/1, then split into a separate repo only once the
+binary distribution and CI story is proven. This avoids speculative repo overhead without locking the project in.
+
+### C. Distribute via `cargo-dist`/standalone binary releases instead of a Python wheel
+
+`cargo-dist` produces signed GitHub Releases with prebuilt binaries and an installer script.
+
+Useful as a *secondary* channel for users who want to install chops without sase, or for sase's own daemon to
+self-update binaries. Not a replacement for the wheel: most sase users install via `pip`/`uv tool install sase`, and
+asking them to run a separate installer breaks the one-command install story.
+
+### D. Bundle Rust chops into the existing `sase` Python wheel
+
+Use maturin to build the `sase` package itself as a mixed Rust/Python wheel.
+
+Rejected because the `sase` package is currently pure Python and cross-platform; converting it to a binary wheel
+would force the whole release matrix to grow (per-platform builds for code that does not need them) just to ship
+a few chop binaries. Keep the binary distribution scoped to a small dedicated package.
+
+## Open Questions
+
+- Should `sase-chops` re-export a minimal Python API (e.g. `from sase_chops import wait_checks`) so internal Python
+  callers can invoke chop logic without the subprocess hop? Probably yes for testing, but only after the binary
+  surface stabilizes.
+- How should the Python `sase` repo declare its dependency? A loose `sase-chops-rs>=0.1` lets users upgrade
+  independently; a pinned dependency forces lockstep but simplifies support. Lean toward loose with a documented
+  compatibility matrix.
+- Should the binary wheel ship debug symbols stripped or split? `sase-core` currently ships stripped binaries; match
+  that until a debugging case forces otherwise.
+- What is the owner/maintainer model for the new repo? If it stays a one-maintainer side project, the polyrepo
+  overhead is harder to justify (see Alternative B).
+
 ## Recommendation
 
 Proceed with a dedicated `sase-chops` repo, but constrain it to operational Rust binaries over `sase_core` APIs. Do not
@@ -301,6 +468,8 @@ Local code and docs:
 - `sdd/research/202604/rust_backend_migration.md`: shipped Rust-core migration foundation and packaging precedent.
 - `sdd/research/202604/rust_core_next_candidates.md`: prior warnings about FFI granularity and Python orchestration
   boundaries.
+- `src/sase/axe/chop_agents.py`: `SASE_CHOP_*` env var names that the runner injects.
+- `src/sase/default_config.yml` (axe section): canonical lumberjack/chop schedule and timeouts used in the table above.
 - `../sase-core/Cargo.toml`, `../sase-core/.github/workflows/release.yml`, `../sase-core/crates/sase_core_py/src/lib.rs`:
   existing Rust workspace, wheel matrix, and pure-core/PyO3 split.
 
@@ -311,3 +480,6 @@ External docs:
 - Cargo targets: https://doc.rust-lang.org/cargo/reference/cargo-targets.html
 - `cargo install`: https://doc.rust-lang.org/cargo/commands/cargo-install.html
 - Clap derive reference: https://docs.rs/clap/latest/clap/_derive/index.html
+- `tracing-subscriber` fmt layer: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/fmt/index.html
+- `tempfile::NamedTempFile::persist`: https://docs.rs/tempfile/latest/tempfile/struct.NamedTempFile.html#method.persist
+- `cargo-dist`: https://opensource.axo.dev/cargo-dist/
