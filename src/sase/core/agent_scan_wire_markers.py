@@ -215,6 +215,7 @@ class WorkflowStateWire:
     pid: int | None = None
     appears_as_agent: bool = False
     is_anonymous: bool = False
+    hidden: bool = False
     current_step_index: int = 0
     start_time: str | None = None
     error: str | None = None
