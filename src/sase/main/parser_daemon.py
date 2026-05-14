@@ -15,6 +15,26 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="daemon_subcommand", help="Daemon subcommands"
     )
 
+    scheduler_bridge_parser = daemon_subparsers.add_parser(
+        "scheduler-bridge",
+        help=argparse.SUPPRESS,
+    )
+    scheduler_bridge_subparsers = scheduler_bridge_parser.add_subparsers(
+        dest="daemon_scheduler_bridge_subcommand",
+    )
+    scheduler_bridge_subparsers.add_parser(
+        "prepare-launch-slot",
+        help=argparse.SUPPRESS,
+    )
+    scheduler_bridge_subparsers.add_parser(
+        "execute-launch-slot",
+        help=argparse.SUPPRESS,
+    )
+    scheduler_bridge_subparsers.add_parser(
+        "cancel-launch-slot",
+        help=argparse.SUPPRESS,
+    )
+
     start_parser = daemon_subparsers.add_parser(
         "start",
         help="Start the local daemon",

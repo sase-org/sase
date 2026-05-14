@@ -19,6 +19,11 @@ def handle_daemon_command(args: argparse.Namespace) -> None:
     )
 
     sub = getattr(args, "daemon_subcommand", None)
+    if sub == "scheduler-bridge":
+        from sase.daemon.scheduler_host import handle_scheduler_host_bridge
+
+        sys.exit(handle_scheduler_host_bridge(args))
+
     handlers = {
         "start": handle_daemon_start,
         "stop": handle_daemon_stop,
