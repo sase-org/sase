@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-13 22:34:58
-status: wip
+status: done
 prompt: sdd/prompts/202605/codex_sibling_stop_hook.md
 ---
 # Plan: Fix Codex Sibling Stop Hook Execution

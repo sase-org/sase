@@ -1,6 +1,7 @@
 """Tests for CodexProvider commit-stop fallback behavior."""
 
 import os
+import subprocess
 from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -9,12 +10,19 @@ import pytest
 
 from sase.llm_provider.codex import CodexProvider
 
+SIBLING_HOOK = (
+    Path(__file__).resolve().parents[1] / "tools" / "sase_sibling_commit_stop_hook"
+)
+
 
 def _isolate_fallback_markers(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Point fallback/native marker files into a tmp dir for the test."""
     marker_dir = tmp_path / "markers"
+    project_dir = tmp_path / "project"
     marker_dir.mkdir()
+    project_dir.mkdir()
     monkeypatch.setenv("SASE_TMPDIR", str(marker_dir))
+    monkeypatch.setenv("CODEX_PROJECT_DIR", str(project_dir))
 
 
 def _set_sase_session(
@@ -264,6 +272,68 @@ def test_codex_fallback_runs_when_dirty_and_no_native_marker(
     assert native_marker.exists()
     assert fallback_marker.exists()
     assert "second-turn-response" in result.content
+
+
+def test_codex_fallback_runs_when_sibling_hook_blocks_clean_worktree(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Codex exec fallback also surfaces dirty sibling repos."""
+    _isolate_fallback_markers(monkeypatch, tmp_path)
+    session_id = _set_sase_session(monkeypatch, "260513_220000")
+    project_dir = tmp_path / "sase"
+    tools_dir = project_dir / "tools"
+    sibling_dir = tmp_path / "sase-telegram"
+    tools_dir.mkdir(parents=True)
+    sibling_dir.mkdir()
+    (tools_dir / "sase_sibling_commit_stop_hook").symlink_to(SIBLING_HOOK)
+    subprocess.run(["git", "init", "-q"], cwd=sibling_dir, check=True)
+    (sibling_dir / "dirty.txt").write_text("dirty\n", encoding="utf-8")
+    monkeypatch.setenv("CODEX_PROJECT_DIR", str(project_dir))
+    monkeypatch.setattr(
+        "sase.llm_provider.codex.build_commit_details",
+        lambda project_dir: (False, [], "", ""),
+    )
+
+    emitted: list[tuple[str, dict[str, object]]] = []
+    monkeypatch.setattr(
+        "sase.llm_provider.codex.jlog",
+        lambda event, **kwargs: emitted.append((event, kwargs)),
+    )
+
+    prompts: list[str] = []
+    provider = CodexProvider()
+
+    def fake_run_subprocess(
+        args: list[str], prompt: str, suppress_output: bool
+    ) -> tuple[str, str, int]:
+        prompts.append(prompt)
+        return "sibling-follow-up", "", 0
+
+    monkeypatch.setattr(provider, "_run_subprocess", fake_run_subprocess)
+
+    result = provider._maybe_run_commit_fallback_turn(
+        base_args=["codex"],
+        original_prompt="prompt",
+        accumulated_response="response",
+        suppress_output=True,
+    )
+
+    assert result == "sibling-follow-up"
+    assert len(prompts) == 1
+    assert "../sase-telegram" in prompts[0]
+    assert "/sase_git_commit" in prompts[0]
+    fallback_marker = (
+        Path(os.environ["SASE_TMPDIR"])
+        / f"sase_codex_commit_fallback_done_{session_id}"
+    )
+    sibling_marker = (
+        Path(os.environ["SASE_TMPDIR"]) / f"sase_sibling_hook_done_{session_id}"
+    )
+    assert fallback_marker.exists()
+    assert sibling_marker.exists()
+    assert emitted[-1][0] == "codex_fallback_block_emitted"
+    assert emitted[-1][1]["sibling_blocked"] is True
 
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
@@ -536,6 +606,11 @@ def test_codex_fallback_inspects_spawn_workspace_when_parent_env_stale(
     assert "CODEX_PROJECT_DIR" not in captured_env
 
     _isolate_fallback_markers(monkeypatch, tmp_path)
+    monkeypatch.delenv("CODEX_PROJECT_DIR", raising=False)
+    if "SASE_ACTIVE_PROJECT_DIR" in captured_env:
+        monkeypatch.setenv(
+            "SASE_ACTIVE_PROJECT_DIR", captured_env["SASE_ACTIVE_PROJECT_DIR"]
+        )
     _set_sase_session(monkeypatch, "260512_183950")
 
     inspected: dict[str, str] = {}

@@ -1,6 +1,7 @@
 """Codex (OpenAI CLI agent) LLM provider implementation."""
 
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -114,6 +115,54 @@ def _fallback_marker_path(session_id: str) -> Path:
         Path(os.environ.get("SASE_TMPDIR", "/tmp"))
         / f"sase_codex_commit_fallback_done_{session_id}"
     )
+
+
+def _codex_sibling_hook_details(project_dir: str) -> str | None:
+    """Run the repo-local sibling hook for Codex exec fallback, if available."""
+    if not any(
+        os.environ.get(name)
+        for name in (
+            "CODEX_PROJECT_DIR",
+            SASE_ACTIVE_PROJECT_DIR_ENV,
+            *_WORKSPACE_ENV_VARS,
+        )
+    ):
+        return None
+
+    hook = Path(project_dir) / "tools" / "sase_sibling_commit_stop_hook"
+    if not hook.is_file() or not os.access(hook, os.X_OK):
+        return None
+
+    env = os.environ.copy()
+    env["CODEX_PROJECT_DIR"] = project_dir
+    env.setdefault("CODEX_CI", "1")
+
+    try:
+        result = subprocess.run(
+            [str(hook)],
+            cwd=project_dir,
+            env=env,
+            input="",
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=300,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if not result.stdout.strip():
+        return result.stderr.strip() if result.returncode == 2 else None
+
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return result.stderr.strip() or None
+
+    if payload.get("decision") != "block":
+        return None
+
+    reason = payload.get("reason")
+    return reason if isinstance(reason, str) and reason.strip() else None
 
 
 _WORKSPACE_ENV_VARS: tuple[str, ...] = (
@@ -417,7 +466,15 @@ class CodexProvider(LLMProvider):
 
         project_dir = _resolve_codex_project_dir()
         has_changes, changed_files, _, details = build_commit_details(project_dir)
-        if not has_changes:
+        sibling_details = _codex_sibling_hook_details(project_dir)
+        if has_changes and sibling_details:
+            details = (
+                f"{details}\n\n--- Sibling Commit Stop Hook ---\n{sibling_details}"
+            )
+        elif sibling_details:
+            details = sibling_details
+
+        if not has_changes and sibling_details is None:
             skip_kwargs: dict[str, object] = {
                 "reason": "no_changes",
                 "session_id": session_id,
@@ -452,6 +509,7 @@ class CodexProvider(LLMProvider):
             "codex_fallback_block_emitted",
             session_id=session_id,
             num_files=len(changed_files),
+            sibling_blocked=sibling_details is not None,
             native_marker_present=native_marker_present,
             project_dir=project_dir,
         )

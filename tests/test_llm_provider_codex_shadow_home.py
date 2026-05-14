@@ -147,7 +147,8 @@ def test_codex_provider_shadow_home_copies_config_and_symlinks_state(
     real_home = tmp_path / "real-codex"
     real_home.mkdir()
     real_config = real_home / "config.toml"
-    real_config.write_text('model = "gpt-5.5"\n')
+    config_text = 'model = "gpt-5.5"\n\n[features]\nhooks = true\ncodex_hooks = true\n'
+    real_config.write_text(config_text)
     auth_file = real_home / "auth.json"
     auth_file.write_text("{}\n")
     skills_dir = real_home / "skills"
@@ -166,7 +167,7 @@ def test_codex_provider_shadow_home_copies_config_and_symlinks_state(
         observed_shadow_home = Path(mock_popen.call_args.kwargs["env"]["CODEX_HOME"])
         shadow_config = observed_shadow_home / "config.toml"
 
-        assert shadow_config.read_text() == 'model = "gpt-5.5"\n'
+        assert shadow_config.read_text() == config_text
         assert not shadow_config.is_symlink()
         assert (observed_shadow_home / "auth.json").is_symlink()
         assert (observed_shadow_home / "auth.json").resolve() == auth_file
@@ -181,7 +182,7 @@ def test_codex_provider_shadow_home_copies_config_and_symlinks_state(
     provider = CodexProvider()
     provider.invoke("test", model_tier="large", suppress_output=True)
 
-    assert real_config.read_text() == 'model = "gpt-5.5"\n'
+    assert real_config.read_text() == config_text
     assert observed_shadow_home is not None
     assert not observed_shadow_home.exists()
 
