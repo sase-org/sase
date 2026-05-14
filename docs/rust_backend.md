@@ -166,8 +166,9 @@ Read routing controls:
   rolled back with `daemon.reads.surfaces.<group>: false` or `SASE_DAEMON_<GROUP>_READS=0`.
 
 Fallback reasons in debug output use stable tokens: `daemon_disabled`, `daemon_reads_disabled`, `force_direct`,
-`surface_disabled`, `daemon_not_running`, `unsupported_capability`, `projection_degraded`, `cursor_expired`,
-`snapshot_expired`, `payload_too_large`, and `resource_not_found`.
+`surface_disabled`, `m1_read_through_disabled`, `daemon_not_running`, `unsupported_capability`,
+`unsupported_client_version`, `unsupported_server_version`, `projection_schema_mismatch`, `projection_degraded`,
+`cursor_expired`, `snapshot_expired`, `payload_too_large`, and `resource_not_found`.
 
 Scheduler rollout controls:
 
@@ -180,8 +181,8 @@ Scheduler rollout controls:
   `SASE_PROVIDER_HOST_<OPERATION>_MODE` controls isolated provider/plugin host routing. Bundled defaults use
   `host-preferred` for metadata/catalog/query, invocation, workflow-step, and VCS-mutation operations.
   `SASE_PROVIDER_HOST_MODE=direct` is the one-env rollback switch.
-- `--no-daemon` / `SASE_NO_DAEMON=1` remains the direct-mode escape hatch for daemon-capable read and scheduler
-  surfaces.
+- `--no-daemon` / `SASE_NO_DAEMON=1` remains the direct-mode escape hatch for daemon-capable read, write, and scheduler
+  surfaces. Use `SASE_PROVIDER_HOST_MODE=direct` or `SASE_DISABLE_PROVIDER_HOST_ROUTING=1` for provider-host routing.
 
 Write rollout controls:
 

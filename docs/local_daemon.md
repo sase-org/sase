@@ -1,19 +1,20 @@
 # Local Daemon
 
 The local SASE daemon is a host-local Rust process. Users normally start it with `sase daemon start`, which launches
-`sase_gateway daemon` under the hood. Bundled config routes daemon-capable reads, scheduler work, and provider-host
-operations through the daemon when it is running and capable, with direct fallback for normal user-facing paths. It
-provides a Unix-socket JSON RPC surface for health checks, projection maintenance, daemon-backed reads, durable
-write-through events, scheduler rollout, provider-host routing, and mobile HTTP serving.
+`sase_gateway daemon` under the hood. Bundled config routes daemon-capable reads, writes, scheduler work, and
+provider-host operations through the daemon when it is running and capable. Read and write paths fall back to
+source-store loaders/writers where supported; scheduler and provider-host paths fall back to direct Python host behavior
+where supported. The daemon provides a Unix-socket JSON RPC surface for health checks, projection maintenance,
+daemon-backed reads, durable write-through events, scheduler rollout, provider-host routing, and mobile HTTP serving.
 
 Source stores remain authoritative. Project files, notifications, pending actions, artifacts, chats, beads, repo
 metadata, and workflow state live under the SASE home directory, defaulting to `~/.sase`. The daemon stores rebuildable
 runtime state under a host-local `run_root`, defaulting to `~/.sase/run/<host>/`.
 
 A projection is the daemon's rebuildable SQLite view of those source stores. If the daemon is stopped or disabled,
-daemon-capable read/write paths fall back to direct source-store behavior, while scheduler paths fall back to direct
-Python host behavior where that surface supports fallback. The local daemon is separate from AXE, which is the
-background automation scheduler documented in [AXE Automation](axe.md).
+daemon-capable read/write paths fall back to direct source-store behavior, while scheduler and provider-host paths fall
+back to direct Python host behavior where that surface supports fallback. The local daemon is separate from AXE, which
+is the background automation scheduler documented in [AXE Automation](axe.md).
 
 ## Runtime Layout
 
@@ -99,8 +100,8 @@ reason tokens include `daemon_disabled`, `daemon_reads_disabled`, `force_direct`
 
 M0 and M1 can be rolled back independently. `daemon.rollout.milestones.m0_shadow_indexing: false` or
 `SASE_DAEMON_M0_SHADOW_INDEXING=0` disables shadow-indexing readiness in rollout diagnostics without changing source
-stores. `daemon.rollout.milestones.m1_read_through: false` or `SASE_DAEMON_M1_READ_THROUGH=0` routes CLI/editor read
-surfaces directly while leaving M0 rebuild, verify, and diff diagnostics available.
+stores. `daemon.rollout.milestones.m1_read_through: false` or `SASE_DAEMON_M1_READ_THROUGH=0` routes CLI/editor read and
+ACE read surfaces directly while leaving M0 rebuild, verify, and diff diagnostics available.
 
 When a write is routed through the daemon, it appends projection events and source-export outbox rows before updating
 human-readable source files. The currently routed durable write surfaces are notifications, ChangeSpec metadata, agent
@@ -127,7 +128,8 @@ sase daemon scheduler cancel --project <project> --batch <batch> [--slot <slot>]
 Provider-host routing sends selected provider/plugin operations through the daemon's host-call path. Metadata, catalog,
 query, reference-resolution, invocation, workflow-step, and VCS-mutation operations default to `host-preferred`, which
 uses the host path when the daemon is running and capable, then falls back direct. Use `SASE_PROVIDER_HOST_MODE=direct`
-or set `SASE_DISABLE_PROVIDER_HOST_ROUTING=1` as global rollback switches.
+or set `SASE_DISABLE_PROVIDER_HOST_ROUTING=1` as global rollback switches for provider-host operations.
+`SASE_NO_DAEMON=1` is the broader daemon escape hatch for daemon-capable reads, writes, and scheduler routing.
 
 ## Rollout Status And Release Checklist
 

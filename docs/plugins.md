@@ -138,9 +138,10 @@ path.
 | `vcs.mutation`          | `host-preferred` | `SASE_PROVIDER_HOST_MODE=direct` |
 
 Use `daemon.provider_host.modes.<operation>` or `SASE_PROVIDER_HOST_<OPERATION>_MODE` for one operation. Use
-`SASE_PROVIDER_HOST_MODE=direct`, `SASE_DISABLE_PROVIDER_HOST_ROUTING=1`, or `SASE_NO_DAEMON=1` as global rollback
-controls. `sase daemon rollout --json` reports the provider-host manifest inventory, resource-policy diagnostics,
-required M5 gates, and release checklist.
+`SASE_PROVIDER_HOST_MODE=direct` or `SASE_DISABLE_PROVIDER_HOST_ROUTING=1` as global rollback controls for provider-host
+operations. `SASE_NO_DAEMON=1` is the broader escape hatch for daemon-capable reads, writes, and scheduler routing, but
+provider-host metadata/catalog calls should use the provider-host rollback switches above. `sase daemon rollout --json`
+reports the provider-host manifest inventory, resource-policy diagnostics, required M5 gates, and release checklist.
 
 ## Writing a Plugin
 

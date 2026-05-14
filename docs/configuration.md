@@ -661,9 +661,10 @@ Source: `src/sase/default_config.yml`, `src/sase/integrations/mobile_gateway.py`
 ### daemon
 
 Configuration for the host-local Rust daemon lifecycle, scheduler, provider-host routing, and daemon-backed reads. The
-bundled defaults route daemon-capable reads, scheduler work, and provider-host operations through the daemon when it is
-running and capable, with direct fallback for normal user-facing paths. The daemon is separate from AXE automation; most
-user-visible data remains in source stores under `SASE_HOME`.
+bundled defaults route daemon-capable reads, writes, scheduler work, and provider-host operations through the daemon
+when it is running and capable. Read and write paths fall back to source-store loaders/writers where supported;
+scheduler and provider-host paths fall back to direct Python host behavior where supported. The daemon is separate from
+AXE automation; most user-visible data remains in source stores under `SASE_HOME`.
 
 ```yaml
 daemon:
@@ -750,7 +751,8 @@ Read rollout controls:
 
 Bundled default-on read groups are `changespecs`, `notifications`, `agents`, `beads`, `catalogs`, `ace_agents`,
 `ace_changespecs`, `ace_notifications`, `ace_artifacts`, and `ace_archive_search`. Each group can still be disabled
-independently with `daemon.reads.surfaces.<group>: false` or `SASE_DAEMON_<GROUP>_READS=0`.
+independently with `daemon.reads.surfaces.<group>: false` or `SASE_DAEMON_<GROUP>_READS=0`, for example
+`SASE_DAEMON_ACE_ARCHIVE_SEARCH_READS=0`.
 
 Scheduler rollout controls:
 
@@ -901,11 +903,10 @@ These variables override daemon configuration for one process or provide immedia
 | `SASE_HOME`                            | Override the SASE source-store root. Used by daemon lifecycle commands, mobile helpers, beads, and provider-host manifests.                                                              |
 | `SASE_NO_DAEMON`                       | Disable daemon-capable reads, writes, and scheduler routing for the current process.                                                                                                     |
 | `SASE_DAEMON_READS`                    | Override `daemon.reads.enabled` (`1/true/yes/on` or `0/false/no/off`).                                                                                                                   |
-| `SASE_DAEMON_FORCE_DIRECT`             | Override `daemon.reads.force_direct`; also forces provider query helpers away from daemon host routing.                                                                                  |
+| `SASE_DAEMON_FORCE_DIRECT`             | Override `daemon.reads.force_direct`; also forces VCS/workspace provider query helpers away from daemon host routing.                                                                    |
 | `SASE_DAEMON_FALLBACK_DIAGNOSTICS`     | Override `daemon.reads.fallback_diagnostics`.                                                                                                                                            |
 | `SASE_DAEMON_<SURFACE>_READS`          | Override one daemon read group, such as `SASE_DAEMON_CHANGESPECS_READS`, `SASE_DAEMON_NOTIFICATIONS_READS`, `SASE_DAEMON_ACE_NOTIFICATIONS_READS`, or `SASE_DAEMON_ACE_ARTIFACTS_READS`. |
 | `SASE_ACE_AGENTS_DAEMON_READS`         | Compatibility override for ACE Agents daemon reads.                                                                                                                                      |
-| `SASE_ACE_ARCHIVE_SEARCH_DAEMON_READS` | Compatibility override for ACE archive-search daemon reads.                                                                                                                              |
 | `SASE_DAEMON_SCHEDULER_LAUNCH_MODE`    | Override `daemon.scheduler.launch_mode`.                                                                                                                                                 |
 | `SASE_DAEMON_SCHEDULER_LIFECYCLE_MODE` | Override `daemon.scheduler.lifecycle_mode`.                                                                                                                                              |
 | `SASE_DAEMON_SCHEDULER_AXE_MODE`       | Override `daemon.scheduler.axe_mode`.                                                                                                                                                    |

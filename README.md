@@ -45,7 +45,8 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
 - **SDD and Beads** - Spec-driven planning artifacts plus git-portable issue tracking for epics, phases, and
   dependencies.
 - **Local Daemon** - Host-local Rust daemon for projections, provider-host routing, mobile serving, and scheduler
-  rollout. Daemon-capable paths use it when it is running and fall back to source-store behavior when it is unavailable.
+  rollout. When it is running and capable, configured reads, writes, scheduler actions, and provider-host operations can
+  route through it; otherwise user-facing paths fall back to their direct Python implementations where supported.
 - **Plugins** - Provider boundaries for agents, VCS operations, workspaces, notifications, and external integrations.
 
 ## Quick start
