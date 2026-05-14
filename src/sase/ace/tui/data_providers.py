@@ -29,6 +29,15 @@ from .models._dedup import (
 from .models._timestamps import parse_timestamp_14_digit
 from .models.agent import Agent, AgentType
 from .models.agent_loader import AgentLoadState
+from .provider_contract import (
+    AceFallbackMetadata,
+    AceProviderCapabilities,
+    AceProviderInfo,
+    AceRowHandle,
+    AceSnapshot,
+    make_snapshot,
+    trace_provider_snapshot,
+)
 
 
 @dataclass(frozen=True)
@@ -38,6 +47,7 @@ class _AgentsProviderSnapshot:
     agents: list[Agent]
     workflow_agent_steps: list[Agent]
     load_state: AgentLoadState
+    shared_snapshot: AceSnapshot[Agent]
     used_daemon: bool = False
     fallback_reason: str | None = None
     fallback_message: str | None = None
@@ -84,10 +94,21 @@ class _DirectAgentsDataProvider:
             changespec_snapshot=changespec_snapshot,
             full_history=full_history,
         )
+        shared_snapshot = _agent_snapshot(
+            agents,
+            provider_source="direct",
+            prefers_daemon=False,
+            fallback_reason=None,
+            fallback_message=None,
+            snapshot_id=None,
+            page_count=1,
+            full_reload=True,
+        )
         return _AgentsProviderSnapshot(
             agents=agents,
             workflow_agent_steps=[],
             load_state=load_state,
+            shared_snapshot=shared_snapshot,
             used_daemon=False,
         )
 
@@ -129,10 +150,21 @@ class _DaemonAgentsDataProvider:
         )
         if result.used_daemon:
             return result.value
+        shared_snapshot = _agent_snapshot(
+            result.value.agents,
+            provider_source="direct_fallback",
+            prefers_daemon=True,
+            fallback_reason=result.fallback_reason,
+            fallback_message=result.fallback_message,
+            snapshot_id=result.value.snapshot_id,
+            page_count=result.value.shared_snapshot.metadata.get("page_count", 1),
+            full_reload=True,
+        )
         return _AgentsProviderSnapshot(
             agents=result.value.agents,
             workflow_agent_steps=result.value.workflow_agent_steps,
             load_state=result.value.load_state,
+            shared_snapshot=shared_snapshot,
             used_daemon=False,
             fallback_reason=result.fallback_reason,
             fallback_message=result.fallback_message,
@@ -144,6 +176,7 @@ class _DaemonAgentsDataProvider:
     ) -> _AgentsProviderSnapshot:
         summaries: list[AgentProjectionSummary] = []
         snapshot_id: str | None = None
+        page_count = 0
         for project_id in self._daemon_project_ids():
             active = _iter_agent_summaries(
                 client,
@@ -160,8 +193,19 @@ class _DaemonAgentsDataProvider:
             summaries.extend(active.agents)
             summaries.extend(recent.agents)
             snapshot_id = snapshot_id or active.snapshot_id or recent.snapshot_id
+            page_count += active.page_count + recent.page_count
 
         agents = _prepare_daemon_agents(_agent_from_summary(row) for row in summaries)
+        shared_snapshot = _agent_snapshot(
+            agents,
+            provider_source="daemon",
+            prefers_daemon=True,
+            fallback_reason=None,
+            fallback_message=None,
+            snapshot_id=snapshot_id,
+            page_count=page_count,
+            full_reload=True,
+        )
         return _AgentsProviderSnapshot(
             agents=agents,
             workflow_agent_steps=[],
@@ -171,6 +215,7 @@ class _DaemonAgentsDataProvider:
                 artifact_source="daemon_projection",
                 used_artifact_index=False,
             ),
+            shared_snapshot=shared_snapshot,
             used_daemon=True,
             snapshot_id=snapshot_id,
         )
@@ -197,6 +242,7 @@ class _DaemonAgentsDataProvider:
 class _DaemonAgentPage:
     agents: list[AgentProjectionSummary]
     snapshot_id: str | None
+    page_count: int
 
 
 def agents_daemon_reads_enabled() -> bool:
@@ -216,6 +262,54 @@ def make_agents_data_provider() -> AgentsDataProvider:
     if agents_daemon_reads_enabled():
         return _DaemonAgentsDataProvider()
     return _DirectAgentsDataProvider()
+
+
+# pyvision: sdd/epics/202605/rust_daemon_epic9_ace_ui_virtualization.md
+def agent_row_handle(agent: Agent) -> AceRowHandle:
+    """Return the stable ACE row handle for an agent row."""
+
+    handle = _daemon_handle_for_agent(agent)
+    return AceRowHandle(
+        surface="agents",
+        stable_id=handle,
+        daemon_handle=handle,
+        local_identity="|".join(str(part) for part in agent.identity),
+    )
+
+
+def _agent_snapshot(
+    agents: Sequence[Agent],
+    *,
+    provider_source: str,
+    prefers_daemon: bool,
+    fallback_reason: str | None,
+    fallback_message: str | None,
+    snapshot_id: str | None,
+    page_count: int,
+    full_reload: bool,
+) -> AceSnapshot[Agent]:
+    snapshot = make_snapshot(
+        surface="agents",
+        rows=list(agents),
+        row_handles=[agent_row_handle(agent) for agent in agents],
+        provider=AceProviderInfo(
+            identity=f"agents:{provider_source}",
+            surface="agents",
+            source=provider_source,
+            prefers_daemon=prefers_daemon,
+            capabilities=AceProviderCapabilities(
+                pages=provider_source == "daemon",
+                deltas=provider_source == "daemon",
+                lazy_details=False,
+            ),
+            fallback=AceFallbackMetadata(fallback_reason, fallback_message),
+        ),
+        snapshot_id=snapshot_id,
+        page_count=page_count,
+        full_reload=full_reload,
+    )
+    trace_provider_snapshot(snapshot)
+    return snapshot
 
 
 def _apply_daemon_agent_events(
@@ -291,6 +385,7 @@ def _iter_agent_summaries(
     cursor: str | None = None
     agents: list[AgentProjectionSummary] = []
     snapshot_id: str | None = None
+    page_count = 0
     while True:
         if surface == "active":
             data = client.agent_active(
@@ -311,9 +406,14 @@ def _iter_agent_summaries(
         page = agent_list_from_dict(data)
         agents.extend(page.agents)
         snapshot_id = snapshot_id or page.snapshot.snapshot_id
+        page_count += 1
         cursor = page.page.next_cursor
         if not cursor:
-            return _DaemonAgentPage(agents=agents, snapshot_id=snapshot_id)
+            return _DaemonAgentPage(
+                agents=agents,
+                snapshot_id=snapshot_id,
+                page_count=page_count,
+            )
 
 
 def _prepare_daemon_agents(agents: Iterable[Agent]) -> list[Agent]:
@@ -475,7 +575,13 @@ def _string_list(value: object) -> list[str]:
 
 
 __all__ = [
+    "AceFallbackMetadata",
+    "AceProviderCapabilities",
+    "AceProviderInfo",
+    "AceRowHandle",
+    "AceSnapshot",
     "AgentsDataProvider",
+    "agent_row_handle",
     "agents_daemon_reads_enabled",
     "make_agents_data_provider",
 ]

@@ -113,6 +113,9 @@ class AgentNotificationMixin:
         )
         self._notification_provider_used_daemon = result.used_daemon  # type: ignore[attr-defined]
         self._notification_provider_fallback_reason = result.fallback_reason  # type: ignore[attr-defined]
+        self._notification_provider_snapshot = getattr(  # type: ignore[attr-defined]
+            result.value, "shared_snapshot", None
+        )
         return result.value
 
     def _schedule_notification_snapshot_refresh(self) -> None:

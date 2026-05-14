@@ -106,6 +106,10 @@ Deliverables:
 
 - Define provider-neutral dataclasses/protocols for snapshots, pages, row handles, delta batches, fallback metadata,
   count/facet patches, and detail requests.
+- Phase 9A public Python contract symbols live under the ACE TUI provider modules: `AceCountPatch`, `AceRowPatch`,
+  `AceDeltaBatch`, `AceDetailRequest`, `SelectionGeneration`, `agent_row_handle`, `changespec_row_handle`, and
+  `notification_row_handle`. They are intentionally available for later 9B-9E migrations while this phase wires only
+  the first compatibility adapters.
 - Wrap current direct loaders as direct providers:
   - Agents loader from the current `load_tiered_agents` path.
   - ChangeSpec loader from `find_all_changespecs_cached`.

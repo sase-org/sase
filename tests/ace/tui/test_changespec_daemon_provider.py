@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 
 from sase.ace.changespec import ChangeSpec
+from sase.ace.tui.actions.changespec._provider import changespec_row_handle
 from sase.ace.tui.actions.changespec._loading import ChangeSpecLoadingMixin
 from sase.core.wire import to_json_dict
 from sase.core.wire_conversion import changespec_to_wire
@@ -54,10 +55,23 @@ def test_ace_changespec_provider_uses_daemon_without_broad_disk_scan(
 
     assert [cs.name for cs in result] == ["proj_daemon"]
     assert app._changespec_provider_used_daemon is True
+    assert app._changespec_provider_snapshot.provider.source == "daemon"
+    assert app._changespec_provider_snapshot.snapshot_id == "snap-changespecs"
+    assert app._changespec_provider_snapshot.row_handles == [
+        changespec_row_handle(changespec)
+    ]
     assert [request["data"]["surface"] for request in transport.requests[1:]] == [
         "changespec_list",
         "changespec_detail",
     ]
+
+
+def test_changespec_row_handles_match_direct_and_daemon_logical_row() -> None:
+    changespec = _cs("proj_same")
+    direct_handle = changespec_row_handle(changespec)
+    daemon_handle = changespec_row_handle(changespec)
+
+    assert direct_handle.stable_id == daemon_handle.stable_id
 
 
 def _cs(name: str) -> ChangeSpec:

@@ -43,7 +43,8 @@ class ChangeSpecLoadingMixin:
         )
         self._changespec_provider_used_daemon = result.used_daemon  # type: ignore[attr-defined]
         self._changespec_provider_fallback_reason = result.fallback_reason  # type: ignore[attr-defined]
-        return result.value
+        self._changespec_provider_snapshot = result.value  # type: ignore[attr-defined]
+        return result.value.rows
 
     def _read_changespecs_from_disk(self) -> list[ChangeSpec]:
         """Return the full changespec list freshly read from disk.

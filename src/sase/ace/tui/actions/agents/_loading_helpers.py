@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType  # noqa: F401
     from ...models.agent_loader import AgentLoadState
     from ...data_providers import AgentsDataProvider
+    from ...provider_contract import AceSnapshot
 
 from ...util.trace import tui_trace
 from ...models.agent_status import DISMISSABLE_STATUSES
@@ -26,6 +27,7 @@ class _AgentDiskLoadResult:
     all_agents: list[Agent]
     dismissed_from_loader: list[Agent]
     load_state: AgentLoadState
+    provider_snapshot: AceSnapshot[Agent] | None = None
 
 
 def is_always_visible(agent: Agent) -> bool:
@@ -109,6 +111,8 @@ def _load_agents_from_disk_impl(
     )
     all_agents = snapshot.agents
     load_state = snapshot.load_state
+    # Exposed on the result for tests and future lazy/detail migration code.
+    provider_snapshot = snapshot.shared_snapshot
 
     # Populate retry fields from retry_state.json for running agents and
     # prior-attempt history (from attempts/<N>/) for all agents.
@@ -166,4 +170,5 @@ def _load_agents_from_disk_impl(
         all_agents=all_agents,
         dismissed_from_loader=dismissed_from_loader,
         load_state=load_state,
+        provider_snapshot=provider_snapshot,
     )

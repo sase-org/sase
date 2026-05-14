@@ -155,6 +155,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             changespec_snapshot=changespec_snapshot,
             full_history=full_history or bool(getattr(self, "_agent_search_query", "")),
         )
+        self._agents_provider_snapshot = getattr(load_result, "provider_snapshot", None)
         from ...repro.capture import record_agents_tab_loader_result
 
         record_agents_tab_loader_result(
@@ -207,6 +208,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             changespec_snapshot=changespec_snapshot,
             full_history=full_history or bool(getattr(self, "_agent_search_query", "")),
         )
+        self._agents_provider_snapshot = getattr(load_result, "provider_snapshot", None)
         all_agents = load_result.all_agents
         dismissed_from_loader = load_result.dismissed_from_loader
         disk_elapsed = time.perf_counter() - disk_start

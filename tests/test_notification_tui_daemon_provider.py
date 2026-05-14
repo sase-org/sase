@@ -6,6 +6,7 @@ import dataclasses
 from typing import Any
 from unittest.mock import patch
 
+from sase.ace.tui.actions.agents._notification_provider import notification_row_handle
 from sase.daemon.client import LocalDaemonClient
 
 from tests._notification_toasts_helpers import _FakeApp, _make
@@ -54,6 +55,11 @@ def test_ace_notification_refresh_uses_daemon_without_jsonl_snapshot_read() -> N
         app._refresh_notification_count()
 
     assert app._notification_provider_used_daemon is True
+    assert app._notification_provider_snapshot.provider.source == "daemon"
+    assert app._notification_provider_snapshot.snapshot_id == "snap-notifications"
+    assert app._notification_provider_snapshot.row_handles == [
+        notification_row_handle(notification)
+    ]
     assert app._indicator_priority == 3
     assert app._indicator_rest == 3
     assert app._indicator_muted == 4
@@ -80,6 +86,15 @@ def _notification_page(
             "truncated": False,
         },
     }
+
+
+def test_notification_row_handles_match_direct_and_daemon_logical_row() -> None:
+    notification = _make(action="JumpToAgent", notes=["done"])
+
+    assert (
+        notification_row_handle(notification).stable_id
+        == notification_row_handle(notification).stable_id
+    )
 
 
 def _response(payload_type: str, data: dict[str, Any]) -> dict[str, Any]:

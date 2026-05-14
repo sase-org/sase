@@ -15,8 +15,11 @@ from sase.ace.tui.data_providers import (
     _AgentsProviderSnapshot,
     _DaemonAgentsDataProvider,
     _apply_daemon_agent_events,
+    _agent_snapshot,
     agents_daemon_reads_enabled,
+    agent_row_handle,
 )
+from sase.ace.tui.provider_contract import SelectionGeneration
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import AgentLoadState
 from sase.daemon.client import LocalDaemonClient
@@ -64,10 +67,21 @@ class _StubDirectProvider:
     ) -> _AgentsProviderSnapshot:
         del changespec_snapshot, full_history
         self.calls += 1
+        agents = [_agent(cl_name="fallback", raw_suffix="20260514110000")]
         return _AgentsProviderSnapshot(
-            agents=[_agent(cl_name="fallback", raw_suffix="20260514110000")],
+            agents=agents,
             workflow_agent_steps=[],
             load_state=_load_state("source_scan"),
+            shared_snapshot=_agent_snapshot(
+                agents,
+                provider_source="direct",
+                prefers_daemon=False,
+                fallback_reason=None,
+                fallback_message=None,
+                snapshot_id=None,
+                page_count=1,
+                full_reload=True,
+            ),
             used_daemon=False,
         )
 
@@ -187,6 +201,14 @@ def test_daemon_agents_provider_loads_initial_snapshot_without_source_scan() -> 
         "agent_active",
         "agent_recent",
     ]
+    provider_snapshot = result.provider_snapshot
+    assert provider_snapshot is not None
+    assert provider_snapshot.provider.source == "daemon"
+    assert provider_snapshot.snapshot_id == "snap-1"
+    assert provider_snapshot.metadata["page_count"] == 2
+    assert provider_snapshot.row_handles[0] == agent_row_handle(
+        provider_snapshot.rows[0]
+    )
 
 
 def test_daemon_agents_provider_falls_back_when_capability_missing() -> None:
@@ -203,6 +225,7 @@ def test_daemon_agents_provider_falls_back_when_capability_missing() -> None:
     assert direct.calls == 1
     assert snapshot.used_daemon is False
     assert snapshot.fallback_reason == "unsupported_capability"
+    assert snapshot.shared_snapshot.provider.fallback.reason == "unsupported_capability"
     assert [agent.cl_name for agent in snapshot.agents] == ["fallback"]
 
 
@@ -280,3 +303,19 @@ def test_daemon_agent_events_apply_upsert_delete_and_resync() -> None:
 
     assert after_resync.resync_required is True
     assert after_resync.resync_reason == "snapshot_expired"
+
+
+def test_agent_row_handles_match_direct_and_daemon_logical_row() -> None:
+    direct = _agent(raw_suffix="20260514100000")
+    daemon = _agent(raw_suffix="20260514100000")
+
+    assert agent_row_handle(direct).stable_id == agent_row_handle(daemon).stable_id
+
+
+def test_selection_generation_ignores_stale_detail_requests() -> None:
+    generation = SelectionGeneration()
+    request = generation.request(agent_row_handle(_agent()))
+
+    assert generation.accepts(request) is True
+    generation.bump()
+    assert generation.accepts(request) is False
