@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.main import init_skills_handler
+from sase.xprompt.models import XPrompt
 
 
 def make_args(**overrides: Any) -> argparse.Namespace:
@@ -98,14 +99,21 @@ def stub_skill_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Write one skill template so the handler has something to render."""
     skills_dir = tmp_path / "skills"
     skills_dir.mkdir()
-    (skills_dir / "foo.md").write_text(
+    src = skills_dir / "foo.md"
+    src.write_text(
         "---\nname: foo\ndescription: a test skill\nskill: [claude]\n---\n\nbody\n",
         encoding="utf-8",
     )
+    xprompt = XPrompt(
+        name="foo",
+        content="body\n",
+        source_path=str(src),
+        description="a test skill",
+        skill=["claude"],
+    )
+    monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
     monkeypatch.setattr(
-        init_skills_handler,
-        "get_sase_package_xprompts_dir",
-        lambda: tmp_path,
+        init_skills_handler, "get_all_xprompts", lambda project="": {"foo": xprompt}
     )
     return skills_dir
 
@@ -114,20 +122,24 @@ def stub_under_wrapped_skill(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     """Write a skill template whose body is hard-wrapped tighter than 120 cols."""
     skills_dir = tmp_path / "skills"
     skills_dir.mkdir()
-    (skills_dir / "foo.md").write_text(
-        "---\n"
-        "name: foo\n"
-        "description: a test skill\n"
-        "skill: [claude]\n"
-        "---\n"
-        "\n"
+    body = (
         "Use this skill when you need to do many things. This is a long sentence that\n"
-        "would normally fit on one line just fine in 120 columns.\n",
+        "would normally fit on one line just fine in 120 columns.\n"
+    )
+    src = skills_dir / "foo.md"
+    src.write_text(
+        f"---\nname: foo\ndescription: a test skill\nskill: [claude]\n---\n\n{body}",
         encoding="utf-8",
     )
+    xprompt = XPrompt(
+        name="foo",
+        content=body,
+        source_path=str(src),
+        description="a test skill",
+        skill=["claude"],
+    )
+    monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
     monkeypatch.setattr(
-        init_skills_handler,
-        "get_sase_package_xprompts_dir",
-        lambda: tmp_path,
+        init_skills_handler, "get_all_xprompts", lambda project="": {"foo": xprompt}
     )
     return skills_dir

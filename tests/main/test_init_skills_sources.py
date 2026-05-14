@@ -10,6 +10,7 @@ from sase.main import init_skills_handler
 from sase.main.init_skills_handler import _get_target_path, handle_init_skills_command
 from sase.xprompt.loader import get_sase_package_xprompts_dir
 from sase.xprompt.loader_parsing import parse_yaml_front_matter
+from sase.xprompt.models import XPrompt
 from tests.main.init_skills_handler_helpers import make_args
 
 
@@ -88,3 +89,74 @@ def test_commit_skill_sources_do_not_reference_legacy_bead_flag(
     body = src.read_text(encoding="utf-8")
     assert "--bead-id" not in body
     assert "sase bead list --status=in_progress" not in body
+
+
+def test_config_defined_skill_is_generated_from_loaded_xprompts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Config-overlay xprompts with ``skill`` participate in init-skills."""
+    xprompt = XPrompt(
+        name="sase_gmail",
+        content="Use gog for Gmail.\n",
+        source_path="config_overlay:sase_athena.yml",
+        description="Read-only personal Gmail access through gog.",
+        skill=True,
+    )
+    monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
+    monkeypatch.setattr(
+        init_skills_handler,
+        "get_all_xprompts",
+        lambda project="": {"sase_gmail": xprompt},
+    )
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _: None)
+
+    with pytest.raises(SystemExit) as exc:
+        handle_init_skills_command(make_args(dry_run=True, provider="codex"))
+
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert str(_get_target_path("codex", "sase_gmail", use_chezmoi=False)) in out
+    assert "Dry run: 1 source entries, no files written" in out
+
+
+def test_skill_provider_list_respects_requested_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``skill: [codex]`` only renders for codex, including with --provider."""
+    xprompt = XPrompt(
+        name="codex_only",
+        content="Only for Codex.\n",
+        description="Codex-only skill.",
+        skill=["codex"],
+    )
+    monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
+    monkeypatch.setattr(
+        init_skills_handler,
+        "get_all_xprompts",
+        lambda project="": {"codex_only": xprompt},
+    )
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _: None)
+
+    with pytest.raises(SystemExit) as exc:
+        handle_init_skills_command(make_args(dry_run=True))
+
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert str(_get_target_path("codex", "codex_only", use_chezmoi=False)) in out
+    assert "claude/skills/codex_only" not in out
+
+    with pytest.raises(SystemExit) as exc:
+        handle_init_skills_command(make_args(dry_run=True, provider="claude"))
+
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert str(_get_target_path("codex", "codex_only", use_chezmoi=False)) not in out
+    assert "Dry run: 1 source entries, no files written" in out

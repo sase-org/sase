@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-14 15:10:24
-status: wip
+status: done
 prompt: sdd/prompts/202605/config_xprompt_skills_1.md
 ---
 # Plan: Generate Config-Defined XPrompt Skills

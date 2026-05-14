@@ -9,6 +9,7 @@ import pytest
 
 from sase.main import init_skills_handler
 from sase.main.init_skills_handler import handle_init_skills_command
+from sase.xprompt.models import XPrompt
 from tests.main.init_skills_handler_helpers import make_args, stub_skill_source
 
 
@@ -51,14 +52,12 @@ def test_handler_zero_written_does_not_deploy(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """When nothing is written (e.g. no skill field), no deploy."""
-    skills_dir = tmp_path / "skills"
-    skills_dir.mkdir()
-    (skills_dir / "foo.md").write_text(
-        "---\nname: foo\ndescription: x\n---\n\nbody\n", encoding="utf-8"
-    )
     monkeypatch.setattr(
-        init_skills_handler, "get_sase_package_xprompts_dir", lambda: tmp_path
+        init_skills_handler,
+        "get_all_xprompts",
+        lambda project="": {"foo": XPrompt(name="foo", content="body\n")},
     )
+    monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
 
     deploy_mock = MagicMock()

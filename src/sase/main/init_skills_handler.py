@@ -13,8 +13,8 @@ import jinja2
 
 from sase.config.core import CHEZMOI_HOME, get_use_chezmoi
 from sase.llm_provider.registry import iter_plugins
-from sase.xprompt.loader import get_sase_package_xprompts_dir
-from sase.xprompt.loader_parsing import parse_yaml_front_matter
+from sase.xprompt.loader import get_all_xprompts, load_xprompts_from_internal
+from sase.xprompt.models import XPrompt
 
 
 def _all_providers() -> list[str]:
@@ -73,6 +73,15 @@ def _get_target_path(provider: str, skill_name: str, use_chezmoi: bool) -> Path:
         parts[0] = "dot_" + parts[0].removeprefix(".")
         return CHEZMOI_HOME / Path(*parts) / "skills" / skill_name / "SKILL.md"
     return Path.home() / subpath / "skills" / skill_name / "SKILL.md"
+
+
+def _load_skill_xprompts() -> list[XPrompt]:
+    """Return loaded xprompts that are installable as provider skills."""
+    xprompts = dict(load_xprompts_from_internal())
+    # Passing an empty project disables project auto-detection while still
+    # loading the global runtime catalog, including user config overlays.
+    xprompts.update(get_all_xprompts(project=""))
+    return sorted((xp for xp in xprompts.values() if xp.skill), key=lambda xp: xp.name)
 
 
 _PRETTIER_COMMENT_RE = re.compile(r"^<!-- prettier-ignore[^\n]*-->\n?", re.MULTILINE)
@@ -269,20 +278,15 @@ def _deploy_to_chezmoi(written_paths: list[Path], args: argparse.Namespace) -> i
 
 def handle_init_skills_command(args: argparse.Namespace) -> None:
     """Handle the 'sase init-skills' command."""
-    skills_dir = get_sase_package_xprompts_dir() / "skills"
-    if not skills_dir.is_dir():
-        print(f"Error: Skills directory not found: {skills_dir}", file=sys.stderr)
-        sys.exit(1)
-
     use_chezmoi = get_use_chezmoi()
     is_tty = sys.stdin.isatty()
     provider_filter: str | None = getattr(args, "provider", None)
     force: bool = getattr(args, "force", False)
     dry_run: bool = getattr(args, "dry_run", False)
 
-    source_files = sorted(skills_dir.glob("*.md"))
-    if not source_files:
-        print("No skill source files found.")
+    skill_xprompts = _load_skill_xprompts()
+    if not skill_xprompts:
+        print("No skill source entries found.")
         sys.exit(0)
 
     from sase.gemini_wrapper.file_references import format_with_prettier
@@ -306,22 +310,12 @@ def handle_init_skills_command(args: argparse.Namespace) -> None:
     skipped = 0
     written_paths: list[Path] = []
 
-    for src_path in source_files:
-        content = src_path.read_text(encoding="utf-8")
-        front_matter, body = parse_yaml_front_matter(content)
-
-        if front_matter is None:
-            print(
-                f"Warning: No frontmatter in {src_path.name}, skipping", file=sys.stderr
-            )
-            continue
-
-        skill_field = front_matter.get("skill")
+    for xprompt in skill_xprompts:
+        name = xprompt.name
+        description = xprompt.description or ""
+        skill_field = xprompt.skill
         if not skill_field:
             continue
-
-        name = front_matter.get("name", src_path.stem)
-        description = front_matter.get("description", "")
 
         target_providers = _get_target_providers(skill_field)
         if provider_filter:
@@ -329,7 +323,9 @@ def handle_init_skills_command(args: argparse.Namespace) -> None:
 
         for provider in target_providers:
             context = _provider_context(provider)
-            rendered_body, rendered_desc = _render_skill(body, description, context)
+            rendered_body, rendered_desc = _render_skill(
+                xprompt.content, description, context
+            )
             output = _build_output(name, rendered_desc.strip(), rendered_body)
             output = _format(output)
             target = _get_target_path(provider, name, use_chezmoi)
@@ -357,7 +353,7 @@ def handle_init_skills_command(args: argparse.Namespace) -> None:
             written_paths.append(target)
 
     if dry_run:
-        print(f"\nDry run: {len(source_files)} source files, no files written")
+        print(f"\nDry run: {len(skill_xprompts)} source entries, no files written")
     else:
         print(f"\nWritten: {written}, Skipped: {skipped}")
 

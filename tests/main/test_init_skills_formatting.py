@@ -10,6 +10,7 @@ import pytest
 
 from sase.main import init_skills_handler
 from sase.main.init_skills_handler import handle_init_skills_command
+from sase.xprompt.models import XPrompt
 from tests.main.init_skills_handler_helpers import (
     make_args,
     stub_under_wrapped_skill,
@@ -77,18 +78,13 @@ def test_handler_warns_once_when_prettier_missing(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """When prettier is absent, emit one warning per invocation, not per skill."""
-    skills_dir = tmp_path / "skills"
-    skills_dir.mkdir()
-    (skills_dir / "foo.md").write_text(
-        "---\nname: foo\ndescription: x\nskill: [claude]\n---\n\nbody\n",
-        encoding="utf-8",
-    )
-    (skills_dir / "bar.md").write_text(
-        "---\nname: bar\ndescription: y\nskill: [claude]\n---\n\nbody\n",
-        encoding="utf-8",
-    )
+    xprompts = {
+        "foo": XPrompt(name="foo", content="body\n", description="x", skill=["claude"]),
+        "bar": XPrompt(name="bar", content="body\n", description="y", skill=["claude"]),
+    }
+    monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
     monkeypatch.setattr(
-        init_skills_handler, "get_sase_package_xprompts_dir", lambda: tmp_path
+        init_skills_handler, "get_all_xprompts", lambda project="": xprompts
     )
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
