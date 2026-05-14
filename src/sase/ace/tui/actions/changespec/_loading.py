@@ -35,19 +35,14 @@ class ChangeSpecLoadingMixin:
 
     def _read_changespecs_from_provider(self) -> list[ChangeSpec]:
         """Return the full ChangeSpec list via the configured ACE provider."""
-        from sase.daemon.client import LocalDaemonClient
-
+        from .._daemon_read_client import ace_daemon_read_client
         from ._provider import read_changespecs_for_tui
 
         provider_query = getattr(self, "canonical_query_string", None)
         if provider_query is None:
             provider_query = getattr(self, "query_string", "")
-        client = getattr(self, "_daemon_read_client", None)
-        if client is None:
-            client = LocalDaemonClient()
-            self._daemon_read_client = client  # type: ignore[attr-defined]
         result = read_changespecs_for_tui(
-            client=client,
+            client=ace_daemon_read_client(self),
             args=getattr(self, "_daemon_read_args", None),
             query=str(provider_query),
         )

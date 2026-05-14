@@ -12,6 +12,10 @@ from sase.ace.tui.actions.agents._loading_helpers import (
     load_agents_from_disk_with_state,
 )
 from sase.ace.tui.actions.agents._artifact_provider import read_agent_artifacts_for_tui
+from sase.ace.tui.actions.agents._notification_provider import (
+    read_notification_startup_for_tui,
+)
+from sase.ace.tui.actions.changespec._provider import read_changespecs_for_tui
 from sase.ace.tui.data_providers import (
     AgentsViewport,
     _AgentsProviderSnapshot,
@@ -20,6 +24,7 @@ from sase.ace.tui.data_providers import (
     _agent_snapshot,
     agents_daemon_reads_enabled,
     agent_row_handle,
+    make_agents_data_provider,
 )
 from sase.ace.tui.provider_contract import SelectionGeneration
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -114,6 +119,55 @@ def _agent_page(
         "snapshot": {"schema_version": 1, "snapshot_id": "snap-1"},
         "page": {"schema_version": 1, "next_cursor": next_cursor},
         "entries": {"schema_version": 1, "entries": entries},
+    }
+
+
+def _changespec_page() -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "snapshot": {"schema_version": 1, "snapshot_id": "snap-changespecs"},
+        "page": {"schema_version": 1, "next_cursor": None},
+        "entries": {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "schema_version": 1,
+                    "handle": "changespec:demo:feature",
+                    "project_id": "demo",
+                    "name": "feature",
+                    "project_basename": "demo",
+                    "file_path": "/tmp/.sase/projects/demo/demo.sase",
+                    "source_path": "/tmp/.sase/projects/demo/demo.sase",
+                    "is_archive": False,
+                    "status": "WIP",
+                    "parent": None,
+                    "cl_or_pr": None,
+                    "bug": None,
+                    "updated_at": "2026-05-14T10:00:00Z",
+                    "last_seq": 1,
+                }
+            ],
+        },
+        "bounded": {
+            "schema_version": 1,
+            "max_payload_bytes": 1_048_576,
+            "truncated": False,
+        },
+    }
+
+
+def _notification_page() -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "snapshot": {"schema_version": 1, "snapshot_id": "snap-notifications"},
+        "page": {"schema_version": 1, "next_cursor": None},
+        "notifications": [],
+        "counts": {"priority": 1, "errors": 0, "rest": 2, "muted": 3},
+        "bounded": {
+            "schema_version": 1,
+            "max_payload_bytes": 1_048_576,
+            "truncated": False,
+        },
     }
 
 
@@ -249,6 +303,48 @@ def test_daemon_agents_provider_loads_initial_snapshot_without_source_scan(
     assert provider_snapshot.row_handles[0] == agent_row_handle(
         provider_snapshot.rows[0]
     )
+
+
+def test_shared_startup_daemon_client_reuses_capability_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_DAEMON_ACE_NOTIFICATIONS_READS", "1")
+    monkeypatch.setenv("SASE_DAEMON_ACE_CHANGESPECS_READS", "1")
+    monkeypatch.setenv("SASE_DAEMON_ACE_AGENTS_READS", "1")
+    transport = _FakeDaemonTransport(
+        capabilities=["notifications.read", "changespecs.read", "agents.read"],
+        reads={
+            "notification_list": [_notification_page()],
+            "changespec_list": [_changespec_page()],
+            "ace_agent_snapshot": [_agent_page([_agent_summary()])],
+        },
+    )
+    client = LocalDaemonClient(transport=transport)
+
+    notifications = read_notification_startup_for_tui(client=client)
+    changespecs = read_changespecs_for_tui(client=client)
+    provider = make_agents_data_provider(client=client)
+    with patch("sase.ace.agent_tags.load_agent_tags", return_value={}):
+        agents = provider.load_agents()
+
+    assert notifications.used_daemon is True
+    assert changespecs.used_daemon is True
+    assert agents.used_daemon is True
+    assert [request["type"] for request in transport.requests] == [
+        "capabilities",
+        "read",
+        "read",
+        "read",
+    ]
+    assert [
+        request["data"]["surface"]
+        for request in transport.requests
+        if request["type"] == "read"
+    ] == [
+        "notification_list",
+        "changespec_list",
+        "ace_agent_snapshot",
+    ]
 
 
 def test_daemon_agents_provider_fetches_only_viewport_pages(
