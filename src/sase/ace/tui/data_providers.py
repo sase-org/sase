@@ -161,8 +161,34 @@ class _DaemonAgentsDataProvider:
                 full_history=full_history,
             )
 
+        if (
+            search_query or full_history
+        ) and not _ace_archive_search_daemon_reads_enabled():
+            snapshot = direct_loader()
+            return _AgentsProviderSnapshot(
+                agents=snapshot.agents,
+                workflow_agent_steps=snapshot.workflow_agent_steps,
+                load_state=snapshot.load_state,
+                shared_snapshot=_agent_snapshot(
+                    snapshot.agents,
+                    provider_source="direct_fallback",
+                    prefers_daemon=True,
+                    fallback_reason="surface_disabled",
+                    fallback_message="daemon reads disabled for ace_archive_search",
+                    snapshot_id=snapshot.snapshot_id,
+                    page_count=snapshot.shared_snapshot.metadata.get("page_count", 1),
+                    full_reload=True,
+                ),
+                used_daemon=False,
+                fallback_reason="surface_disabled",
+                fallback_message="daemon reads disabled for ace_archive_search",
+                snapshot_id=snapshot.snapshot_id,
+            )
+
         result: DaemonReadResult[_AgentsProviderSnapshot] = read_or_fallback(
-            "agent_recent",
+            "agent_search"
+            if search_query
+            else ("agent_archive" if full_history else "agent_recent"),
             client=self._client,
             required_capability="agents.read",
             daemon_loader=lambda client: self._load_daemon_snapshot(
@@ -292,6 +318,17 @@ def agents_daemon_reads_enabled() -> bool:
     if value in {"0", "false", "no", "off"}:
         return False
     return daemon_read_surface_enabled("ace_agents")
+
+
+def _ace_archive_search_daemon_reads_enabled() -> bool:
+    """Return whether ACE archive/search agent reads may use daemon pages."""
+
+    value = os.environ.get("SASE_ACE_ARCHIVE_SEARCH_DAEMON_READS", "").strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    return daemon_read_surface_enabled("ace_archive_search")
 
 
 def make_agents_data_provider() -> AgentsDataProvider:

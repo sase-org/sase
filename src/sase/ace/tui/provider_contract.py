@@ -100,7 +100,6 @@ class AceSnapshot[T]:
         return self.first_page.row_handles
 
 
-# pyvision: sdd/epics/202605/rust_daemon_epic9_ace_ui_virtualization.md
 @dataclass(frozen=True)
 class AceCountPatch:
     """Count/facet patch carried by a delta batch."""
@@ -120,7 +119,6 @@ class AceRowPatch[T]:
     index: int | None = None
 
 
-# pyvision: sdd/epics/202605/rust_daemon_epic9_ace_ui_virtualization.md
 @dataclass(frozen=True)
 class AceDeltaBatch[T]:
     """Batch of row/count updates tied to a provider snapshot."""

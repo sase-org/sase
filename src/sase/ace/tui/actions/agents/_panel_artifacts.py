@@ -191,15 +191,52 @@ class AgentPanelArtifactMixin:
         """Return artifact entries available for *agent* without UI side effects."""
         if agent is None:
             return []
-        artifacts_dir = agent.get_artifacts_dir()
-        if artifacts_dir is None:
-            return []
-        from sase.core.agent_artifact_facade import list_agent_artifacts
+        from ...provider_contract import SelectionGeneration
+        from ._artifact_provider import read_agent_artifacts_for_tui
 
+        generation = getattr(self, "_agent_artifact_selection_generation", None)
+        if generation is None:
+            generation = SelectionGeneration()
+            self._agent_artifact_selection_generation = generation  # type: ignore[attr-defined]
+        cache: dict[str, list[Any]] = getattr(self, "_agent_artifact_page_cache", {})
+        if not hasattr(self, "_agent_artifact_page_cache"):
+            self._agent_artifact_page_cache = cache  # type: ignore[attr-defined]
+
+        identity = getattr(agent, "identity", None)
+        if identity is None:
+            artifacts_dir = agent.get_artifacts_dir()
+            if artifacts_dir is None:
+                return []
+            from sase.core.agent_artifact_facade import list_agent_artifacts
+
+            try:
+                return list_agent_artifacts(artifacts_dir)
+            except Exception:
+                return []
+
+        row_key = "|".join(str(part) for part in identity)
+        cached = cache.get(row_key)
+        if cached is not None:
+            return list(cached)
+        generation.bump()
         try:
-            return list_agent_artifacts(artifacts_dir)
+            result = read_agent_artifacts_for_tui(
+                agent,
+                selection_generation=generation,
+                client=getattr(self, "_daemon_read_client", None),
+                args=getattr(self, "_daemon_read_args", None),
+            )
         except Exception:
             return []
+        page = result.value
+        request = getattr(page, "request", None)
+        if request is not None and not generation.accepts(request):
+            return []
+        artifacts = list(page.artifacts)
+        cache[row_key] = artifacts
+        self._agent_artifact_provider_used_daemon = result.used_daemon  # type: ignore[attr-defined]
+        self._agent_artifact_provider_snapshot = page.shared_snapshot  # type: ignore[attr-defined]
+        return artifacts
 
     def _open_agent_artifact(self, artifact: Any) -> None:
         from ...graphics import (

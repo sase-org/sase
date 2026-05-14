@@ -25,6 +25,7 @@ def test_default_enabled_surface_groups_match_phase_5i_rollout() -> None:
     assert daemon_read_surface_enabled("notification_list") is True
     assert daemon_read_surface_enabled("file_history") is True
     assert daemon_read_surface_enabled("ace_agents") is False
+    assert daemon_read_surface_enabled("ace_archive_search") is False
 
 
 def test_surface_config_controls_logical_group() -> None:
@@ -32,7 +33,11 @@ def test_surface_config_controls_logical_group() -> None:
         "daemon": {
             "reads": {
                 "enabled": True,
-                "surfaces": {"notifications": False, "ace_agents": True},
+                "surfaces": {
+                    "notifications": False,
+                    "ace_agents": True,
+                    "ace_archive_search": True,
+                },
             }
         }
     }
@@ -41,6 +46,7 @@ def test_surface_config_controls_logical_group() -> None:
         assert daemon_read_surface_enabled("notification_list") is False
         assert daemon_read_surface_enabled("notification_counts") is False
         assert daemon_read_surface_enabled("ace_agents") is True
+        assert daemon_read_surface_enabled("ace_archive_search") is True
 
 
 def test_surface_env_override_wins(monkeypatch: pytest.MonkeyPatch) -> None:

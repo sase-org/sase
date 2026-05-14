@@ -56,16 +56,46 @@ def test_ace_notification_refresh_uses_daemon_without_jsonl_snapshot_read() -> N
 
     assert app._notification_provider_used_daemon is True
     assert app._notification_provider_snapshot.provider.source == "daemon"
-    assert app._notification_provider_snapshot.snapshot_id == "snap-notifications"
-    assert app._notification_provider_snapshot.row_handles == [
-        notification_row_handle(notification)
-    ]
+    assert app._notification_provider_snapshot.surface == "notification_counts"
+    assert app._notification_provider_snapshot.metadata["full_reload"] is False
+    assert app._notification_provider_snapshot.facets == {
+        "priority": 1,
+        "errors": 2,
+        "rest": 3,
+        "muted": 4,
+    }
     assert app._indicator_priority == 3
     assert app._indicator_rest == 3
     assert app._indicator_muted == 4
     assert [request["data"]["surface"] for request in transport.requests[1:]] == [
-        "notification_list",
         "notification_counts",
+    ]
+
+
+def test_ace_notification_modal_uses_daemon_unread_page_without_full_snapshot() -> None:
+    notification = _make(action="JumpToAgent", notes=["done"])
+    transport = _FakeDaemonTransport(
+        {
+            "notification_list": [
+                _notification_page([dataclasses.asdict(notification)])
+            ],
+            "notification_counts": [],
+        }
+    )
+    app = _FakeApp()
+    app._daemon_read_client = LocalDaemonClient(transport=transport)
+
+    with patch(
+        "sase.notifications.read_notification_snapshot",
+        side_effect=AssertionError("notification JSONL snapshot read"),
+    ):
+        page = app._read_unread_notification_page_from_provider()
+
+    assert page.notifications == [notification]
+    assert page.shared_snapshot.snapshot_id == "snap-notifications"
+    assert page.shared_snapshot.row_handles == [notification_row_handle(notification)]
+    assert [request["data"]["surface"] for request in transport.requests[1:]] == [
+        "notification_list",
     ]
 
 

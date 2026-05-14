@@ -11,6 +11,7 @@ import pytest
 from sase.ace.tui.actions.agents._loading_helpers import (
     load_agents_from_disk_with_state,
 )
+from sase.ace.tui.actions.agents._artifact_provider import read_agent_artifacts_for_tui
 from sase.ace.tui.data_providers import (
     AgentsViewport,
     _AgentsProviderSnapshot,
@@ -65,8 +66,10 @@ class _StubDirectProvider:
         *,
         changespec_snapshot: list[Any] | None = None,
         full_history: bool = False,
+        search_query: str | None = None,
+        viewport: AgentsViewport | None = None,
     ) -> _AgentsProviderSnapshot:
-        del changespec_snapshot, full_history
+        del changespec_snapshot, full_history, search_query, viewport
         self.calls += 1
         agents = [_agent(cl_name="fallback", raw_suffix="20260514110000")]
         return _AgentsProviderSnapshot(
@@ -103,6 +106,21 @@ def _agent_page(
         "snapshot": {"schema_version": 1, "snapshot_id": "snap-1"},
         "page": {"schema_version": 1, "next_cursor": next_cursor},
         "entries": {"schema_version": 1, "entries": entries},
+    }
+
+
+def _agent_detail(artifacts: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "snapshot": {"schema_version": 1, "snapshot_id": "snap-detail"},
+        "summary": _agent_summary(),
+        "children": [],
+        "artifacts": artifacts,
+        "bounded": {
+            "schema_version": 1,
+            "max_payload_bytes": 1_048_576,
+            "truncated": False,
+        },
     }
 
 
@@ -245,7 +263,10 @@ def test_daemon_agents_provider_fetches_only_viewport_pages() -> None:
     assert snapshot.shared_snapshot.first_page.next_cursor == "next"
 
 
-def test_daemon_agents_provider_uses_search_and_archive_surfaces() -> None:
+def test_daemon_agents_provider_uses_search_and_archive_surfaces(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_ACE_ARCHIVE_SEARCH_DAEMON_READS", "1")
     search_transport = _FakeDaemonTransport(
         capabilities=["agents.read"],
         reads={"agent_search": [_agent_page([_agent_summary(cl_name="needle")])]},
@@ -284,6 +305,47 @@ def test_daemon_agents_provider_uses_search_and_archive_surfaces() -> None:
         if request["type"] == "read"
     ]
     assert [request["surface"] for request in archive_reads] == ["agent_archive"]
+
+
+def test_agent_artifact_provider_uses_daemon_detail_surface() -> None:
+    transport = _FakeDaemonTransport(
+        capabilities=["agents.read"],
+        reads={
+            "agent_detail": [
+                _agent_detail(
+                    [
+                        {
+                            "schema_version": 1,
+                            "agent_id": "agent:demo:20260514100000",
+                            "artifact_path": "/tmp/report.md",
+                            "artifact_kind": "markdown",
+                            "display_name": "Report",
+                            "role": "explicit",
+                        }
+                    ]
+                )
+            ],
+        },
+    )
+    agent = _agent()
+
+    result = read_agent_artifacts_for_tui(
+        agent,
+        client=LocalDaemonClient(transport=transport),
+    )
+
+    assert result.used_daemon is True
+    assert [
+        (artifact.label, artifact.kind, artifact.path)
+        for artifact in result.value.artifacts
+    ] == [("Report", "markdown", "/tmp/report.md")]
+    assert result.value.shared_snapshot is not None
+    assert result.value.shared_snapshot.provider.source == "daemon"
+    assert result.value.shared_snapshot.snapshot_id == "snap-detail"
+    read_requests = [
+        request for request in transport.requests if request["type"] == "read"
+    ]
+    assert [request["data"]["surface"] for request in read_requests] == ["agent_detail"]
 
 
 def test_daemon_agents_provider_falls_back_when_capability_missing() -> None:

@@ -118,6 +118,101 @@ class AgentNotificationMixin:
         )
         return result.value
 
+    def _read_notification_counts_from_provider(self) -> Any:
+        """Return count-only notification data via the configured ACE provider."""
+        from ...provider_contract import AceCountPatch, AceDeltaBatch
+        from ._notification_provider import (
+            apply_notification_count_delta,
+            read_notification_counts_for_tui,
+        )
+
+        result = read_notification_counts_for_tui(
+            client=getattr(self, "_daemon_read_client", None),
+            args=getattr(self, "_daemon_read_args", None),
+        )
+        self._notification_provider_used_daemon = result.used_daemon  # type: ignore[attr-defined]
+        self._notification_provider_fallback_reason = result.fallback_reason  # type: ignore[attr-defined]
+        self._notification_provider_snapshot = getattr(  # type: ignore[attr-defined]
+            result.value, "shared_snapshot", None
+        )
+        previous_counts = getattr(self, "_notification_counts_cache", None)
+        if previous_counts is not None:
+            from dataclasses import replace
+
+            patched_counts = apply_notification_count_delta(
+                previous_counts,
+                AceDeltaBatch(
+                    surface="notification_counts",
+                    snapshot_id=None,
+                    sequence=None,
+                    count_patches=[
+                        AceCountPatch("priority", result.value.counts.priority),
+                        AceCountPatch("errors", result.value.counts.errors),
+                        AceCountPatch("rest", result.value.counts.rest),
+                        AceCountPatch("muted", result.value.counts.muted),
+                    ],
+                ),
+            )
+            result = replace(result, value=replace(result.value, counts=patched_counts))
+        self._notification_counts_cache = result.value.counts  # type: ignore[attr-defined]
+        return result.value
+
+    def _read_unread_notification_page_from_provider(
+        self,
+        *,
+        include_dismissed: bool = False,
+        limit: int | None = None,
+    ) -> Any:
+        """Return one unread modal page via the configured ACE provider."""
+        from sase.daemon.client import LOCAL_DAEMON_DEFAULT_PAGE_LIMIT
+
+        from ._notification_provider import read_unread_notification_page_for_tui
+
+        result = read_unread_notification_page_for_tui(
+            include_dismissed=include_dismissed,
+            limit=limit or LOCAL_DAEMON_DEFAULT_PAGE_LIMIT,
+            client=getattr(self, "_daemon_read_client", None),
+            args=getattr(self, "_daemon_read_args", None),
+        )
+        self._notification_provider_used_daemon = result.used_daemon  # type: ignore[attr-defined]
+        self._notification_provider_fallback_reason = result.fallback_reason  # type: ignore[attr-defined]
+        self._notification_provider_snapshot = getattr(  # type: ignore[attr-defined]
+            result.value, "shared_snapshot", None
+        )
+        return result.value
+
+    def _read_notification_detail_from_provider(
+        self,
+        notification_id: str,
+    ) -> Any:
+        """Return selected notification detail via the configured provider."""
+        from ._notification_provider import read_notification_detail_for_tui
+
+        result = read_notification_detail_for_tui(
+            notification_id,
+            client=getattr(self, "_daemon_read_client", None),
+            args=getattr(self, "_daemon_read_args", None),
+        )
+        self._notification_detail_provider_used_daemon = result.used_daemon  # type: ignore[attr-defined]
+        self._notification_detail_provider_snapshot = getattr(  # type: ignore[attr-defined]
+            result.value, "shared_snapshot", None
+        )
+        return result.value
+
+    def _read_notification_pending_actions_from_provider(self) -> Any:
+        """Return pending notification actions via the configured provider."""
+        from ._notification_provider import read_notification_pending_actions_for_tui
+
+        result = read_notification_pending_actions_for_tui(
+            client=getattr(self, "_daemon_read_client", None),
+            args=getattr(self, "_daemon_read_args", None),
+        )
+        self._notification_pending_actions_provider_used_daemon = result.used_daemon  # type: ignore[attr-defined]
+        self._notification_pending_actions_provider_snapshot = getattr(  # type: ignore[attr-defined]
+            result.value, "shared_snapshot", None
+        )
+        return result.value
+
     def _schedule_notification_snapshot_refresh(self) -> None:
         """Refresh the notification cache off the current finalization frame."""
         if getattr(self, "_notification_snapshot_refresh_pending", False):
@@ -454,20 +549,35 @@ class AgentNotificationMixin:
         """
         from ...widgets import NotificationIndicator
 
-        snapshot = self._read_notification_snapshot_from_provider()
-        self._set_notification_snapshot_cache(snapshot)
-        unread_priority, unread_errors, unread_rest, _ = _unread_notification_buckets(
-            snapshot.notifications
-        )
-        counts = snapshot.counts
+        count_snapshot = self._read_notification_counts_from_provider()
+        counts = count_snapshot.counts
 
-        self._last_unread_ids = {
-            n.id for n in unread_priority + unread_errors + unread_rest
-        }
+        if not getattr(self, "_notification_provider_used_daemon", False):
+            snapshot = self._read_notification_snapshot_from_provider()
+            self._set_notification_snapshot_cache(snapshot)
+            unread_priority, unread_errors, unread_rest, _ = (
+                _unread_notification_buckets(snapshot.notifications)
+            )
+            counts = snapshot.counts
+            self._last_unread_ids = {
+                n.id for n in unread_priority + unread_errors + unread_rest
+            }
+        elif (
+            cached := getattr(self, "_notification_snapshot_cache", None)
+        ) is not None:
+            unread_priority, unread_errors, unread_rest, _ = (
+                _unread_notification_buckets(cached.notifications)
+            )
+            self._last_unread_ids = {
+                n.id for n in unread_priority + unread_errors + unread_rest
+            }
 
-        indicator = self.query_one(  # type: ignore[attr-defined]
-            "#notification-indicator", NotificationIndicator
-        )
+        try:
+            indicator = self.query_one(  # type: ignore[attr-defined]
+                "#notification-indicator", NotificationIndicator
+            )
+        except Exception:
+            return
         indicator.set_counts(counts.priority + counts.errors, counts.rest, counts.muted)
         self._reconcile_unread_from_cached_notifications()
 
@@ -481,26 +591,43 @@ class AgentNotificationMixin:
         from ...widgets import NotificationIndicator
 
         try:
-            snapshot = await asyncio.to_thread(
-                self._read_notification_snapshot_from_provider
+            count_snapshot = await asyncio.to_thread(
+                self._read_notification_counts_from_provider
             )
         except Exception:
             self._notification_snapshot_refresh_pending = False  # type: ignore[attr-defined]
             raise
         self._notification_snapshot_refresh_pending = False  # type: ignore[attr-defined]
-        self._set_notification_snapshot_cache(snapshot)
-        unread_priority, unread_errors, unread_rest, _ = _unread_notification_buckets(
-            snapshot.notifications
-        )
-        counts = snapshot.counts
+        counts = count_snapshot.counts
 
-        self._last_unread_ids = {
-            n.id for n in unread_priority + unread_errors + unread_rest
-        }
+        if not getattr(self, "_notification_provider_used_daemon", False):
+            snapshot = await asyncio.to_thread(
+                self._read_notification_snapshot_from_provider
+            )
+            self._set_notification_snapshot_cache(snapshot)
+            unread_priority, unread_errors, unread_rest, _ = (
+                _unread_notification_buckets(snapshot.notifications)
+            )
+            counts = snapshot.counts
+            self._last_unread_ids = {
+                n.id for n in unread_priority + unread_errors + unread_rest
+            }
+        elif (
+            cached := getattr(self, "_notification_snapshot_cache", None)
+        ) is not None:
+            unread_priority, unread_errors, unread_rest, _ = (
+                _unread_notification_buckets(cached.notifications)
+            )
+            self._last_unread_ids = {
+                n.id for n in unread_priority + unread_errors + unread_rest
+            }
 
-        indicator = self.query_one(  # type: ignore[attr-defined]
-            "#notification-indicator", NotificationIndicator
-        )
+        try:
+            indicator = self.query_one(  # type: ignore[attr-defined]
+                "#notification-indicator", NotificationIndicator
+            )
+        except Exception:
+            return
         indicator.set_counts(counts.priority + counts.errors, counts.rest, counts.muted)
         self._reconcile_unread_from_cached_notifications()
 
@@ -564,9 +691,8 @@ class AgentNotificationMixin:
 
         from ._notification_navigation import agent_matches_notification_identity
 
-        snapshot = self._read_notification_snapshot_from_provider()
-        notifications = snapshot.notifications
-        unread = [n for n in notifications if not n.read]
+        page = self._read_unread_notification_page_from_provider()
+        unread = page.notifications
 
         # Find the notification matching this agent
         matched: Notification | None = None
@@ -596,8 +722,10 @@ class AgentNotificationMixin:
         from ._notification_actions import handle_plan_approval, handle_user_question
 
         if matched.action == "PlanApproval":
+            self._read_notification_pending_actions_from_provider()
             handle_plan_approval(self, matched)
         elif matched.action == "UserQuestion":
+            self._read_notification_pending_actions_from_provider()
             handle_user_question(self, matched)
         else:
             # Defensive fallback: open the modal for unexpected action types
@@ -655,9 +783,8 @@ class AgentNotificationMixin:
         )
         from ...modals import NotificationModal
 
-        snapshot = self._read_notification_snapshot_from_provider()
-        notifications = snapshot.notifications
-        unread = [n for n in notifications if not n.read and not n.silent]
+        page = self._read_unread_notification_page_from_provider()
+        unread = list(page.notifications)
 
         def _on_dismiss(result: Notification | None) -> None:
             if result is not None:
@@ -672,6 +799,12 @@ class AgentNotificationMixin:
 
             if result is None:
                 return
+
+            detail = self._read_notification_detail_from_provider(result.id)
+            if detail.notification is not None:
+                result = detail.notification
+            if result.action in ("PlanApproval", "UserQuestion", "HITL"):
+                self._read_notification_pending_actions_from_provider()
 
             # Dispatch action
             if result.action == "JumpToChangeSpec":
