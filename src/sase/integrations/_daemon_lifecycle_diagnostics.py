@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from sase.daemon.paths import storage_layout_diagnostics
+from sase.integrations._daemon_lifecycle_config import host_identity_from_env
 from sase.integrations._daemon_lifecycle_types import DaemonInspection
 
 
@@ -12,6 +14,10 @@ def print_status(inspection: DaemonInspection) -> None:
     print(f"Run root: {inspection.paths.run_root}")
     print(f"Socket: {inspection.paths.socket_path}")
     print(f"Log: {inspection.log_path}")
+    layout = _storage_layout(inspection)
+    warnings = layout.get("warnings", [])
+    if warnings:
+        print(f"Storage layout warnings: {len(warnings)}")
     if inspection.metrics_endpoint:
         print(f"Metrics: {inspection.metrics_endpoint}")
     if inspection.metadata is not None:
@@ -48,8 +54,10 @@ def inspection_to_dict(inspection: DaemonInspection) -> dict[str, Any]:
         "sase_home": str(inspection.paths.sase_home),
         "run_root": str(inspection.paths.run_root),
         "socket_path": str(inspection.paths.socket_path),
+        "projection_db_path": str(inspection.projection_db_path),
         "metadata_path": str(inspection.paths.metadata_path),
         "log_path": str(inspection.log_path),
+        "storage_layout": _storage_layout(inspection),
         "metrics_endpoint": inspection.metrics_endpoint,
         "metadata": inspection.metadata,
         "message": inspection.message,
@@ -59,6 +67,11 @@ def inspection_to_dict(inspection: DaemonInspection) -> dict[str, Any]:
 
 def doctor_payload(inspection: DaemonInspection) -> dict[str, Any]:
     checks = [
+        _check(
+            "storage_layout",
+            _storage_layout_check_state(inspection),
+            _storage_layout_check_message(inspection),
+        ),
         _check(
             "lock_metadata",
             _metadata_check_state(inspection),
@@ -108,6 +121,46 @@ def doctor_payload(inspection: DaemonInspection) -> dict[str, Any]:
 
 def _check(name: str, state: str, message: str) -> dict[str, str]:
     return {"name": name, "state": state, "message": message}
+
+
+def _storage_layout(inspection: DaemonInspection) -> dict[str, Any]:
+    return storage_layout_diagnostics(
+        sase_home=inspection.paths.sase_home,
+        run_root=inspection.paths.run_root,
+        socket_path=inspection.paths.socket_path,
+        host_identity=_layout_host_identity(inspection),
+    )
+
+
+def _layout_host_identity(inspection: DaemonInspection) -> str:
+    metadata_host = (inspection.metadata or {}).get("hostname")
+    if isinstance(metadata_host, str) and metadata_host:
+        return metadata_host
+    return host_identity_from_env()
+
+
+def _storage_layout_check_state(inspection: DaemonInspection) -> str:
+    warnings = _storage_layout(inspection).get("warnings", [])
+    if not isinstance(warnings, list) or not warnings:
+        return "ok"
+    has_error = any(
+        isinstance(warning, dict) and warning.get("severity") == "error"
+        for warning in warnings
+    )
+    return "error" if has_error else "degraded"
+
+
+def _storage_layout_check_message(inspection: DaemonInspection) -> str:
+    layout = _storage_layout(inspection)
+    warnings = layout.get("warnings", [])
+    if not isinstance(warnings, list) or not warnings:
+        return "runtime files are under the host-local layout"
+    ids = [
+        str(warning.get("id"))
+        for warning in warnings
+        if isinstance(warning, dict) and warning.get("id")
+    ]
+    return "layout warnings: " + ", ".join(ids)
 
 
 def _metadata_check_state(inspection: DaemonInspection) -> str:

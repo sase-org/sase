@@ -58,6 +58,10 @@ class DaemonInspection:
         return self.paths.run_root / "daemon.log"
 
     @property
+    def projection_db_path(self) -> Path:
+        return self.paths.run_root / "projections" / "projection.sqlite"
+
+    @property
     def metrics_endpoint(self) -> str | None:
         rpc = self.rpc or {}
         health = rpc.get("health") if isinstance(rpc, dict) else None

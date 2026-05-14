@@ -24,6 +24,12 @@ mobile_gateway:
   startup_timeout_seconds: 10
 
 daemon:
+  command: ""
+  sase_home: ""
+  run_root: ""
+  socket_path: ""
+  disable_mobile_http: false
+  startup_timeout_seconds: 5
   provider_host:
     # direct: use existing in-process Python provider/plugin paths
     # shadow: run host-routed safe reads for comparison, return direct results

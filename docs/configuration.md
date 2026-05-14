@@ -21,6 +21,7 @@ and CLI flags.
   - [timezone](#timezone)
   - [chat_install](#chat_install)
   - [mobile_gateway](#mobile_gateway)
+  - [daemon](#daemon)
   - [sdd](#sdd)
   - [telemetry](#telemetry)
 - [Environment Variables](#environment-variables)
@@ -656,6 +657,42 @@ gateway command line. See [`docs/mobile_gateway.md`](mobile_gateway.md#push-hint
 notes.
 
 Source: `src/sase/default_config.yml`, `src/sase/integrations/mobile_gateway.py`
+
+### daemon
+
+Configuration for the local Rust daemon lifecycle, scheduler, host-provider routing, and daemon-backed reads.
+
+```yaml
+daemon:
+  command: "" # optional sase_gateway command override
+  sase_home: "" # optional source root; empty uses SASE_HOME or ~/.sase
+  run_root: "" # optional host-local runtime root
+  socket_path: "" # optional Unix socket path
+  disable_mobile_http: false
+  startup_timeout_seconds: 5
+```
+
+The default runtime layout is:
+
+| Path                      | Default                                    | Sync guidance                                   |
+| ------------------------- | ------------------------------------------ | ----------------------------------------------- |
+| `daemon.sase_home`        | `~/.sase`                                  | May contain source stores users choose to sync. |
+| `daemon.run_root`         | `~/.sase/run/<sanitized-hostname>`         | Host-local only; exclude from sync.             |
+| `daemon.socket_path`      | `<run_root>/sase-daemon.sock`              | Host-local only; never sync.                    |
+| Projection database       | `<run_root>/projections/projection.sqlite` | Rebuildable runtime state; never sync.          |
+| Daemon log and lock files | `<run_root>/daemon.log`, `daemon.lock*`    | Host-local runtime state; never sync.           |
+
+Source stores such as `projects`, `notifications`, `pending_actions`, `artifacts`, `chats`, `beads`, repo metadata, and
+workflow state remain authoritative user-visible state. Runtime projections, sockets, locks, WAL/SHM files, backups,
+checkpoints, and transient queues live under `run_root` and should be excluded from Syncthing, rclone, Git, and
+cloud-drive sync rules. Use one daemon per host-local `run_root`.
+
+`sase daemon status --json` and `sase daemon doctor --json` report a `storage_layout` object with path kinds for
+`sase_home`, `run_root`, `socket_path`, `projection_db_path`, and `log_path`, plus a `runtime_files` exclusion list.
+Custom `run_root` and `socket_path` values are allowed, but doctor warns when runtime files appear under likely synced
+source stores or when the socket is outside `run_root`.
+
+Source: `src/sase/default_config.yml`, `src/sase/integrations/_daemon_lifecycle_config.py`, `src/sase/daemon/paths.py`
 
 ### sdd
 

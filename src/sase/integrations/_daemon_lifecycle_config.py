@@ -11,10 +11,14 @@ from pathlib import Path
 from typing import Any
 
 from sase.config.core import load_merged_config
+from sase.daemon.paths import (
+    SOCKET_FILENAME,
+    default_run_root,
+    sanitize_host_identity,
+)
 from sase.integrations._daemon_lifecycle_types import (
     DEFAULT_STARTUP_TIMEOUT_SECONDS,
     LOCK_METADATA_FILENAME,
-    SOCKET_FILENAME,
     DaemonLaunch,
     DaemonLifecycleConfig,
     DaemonLifecycleError,
@@ -119,12 +123,12 @@ def runtime_paths_from_args(
     run_root = (
         _arg_path(args, "run_root")
         or config.run_root
-        or _default_run_root(sase_home, host_identity_from_env())
+        or default_run_root(sase_home, host_identity_from_env())
     ).expanduser()
     socket_path = (
         _arg_path(args, "socket_path")
         or config.socket_path
-        or _default_socket_path(run_root)
+        or run_root / SOCKET_FILENAME
     ).expanduser()
     return DaemonRuntimePaths(
         sase_home=sase_home,
@@ -134,25 +138,9 @@ def runtime_paths_from_args(
     )
 
 
-def _default_run_root(sase_home: Path, host_identity: str) -> Path:
-    return sase_home / "run" / _sanitize_host_identity(host_identity)
-
-
-def _default_socket_path(run_root: Path) -> Path:
-    return run_root / SOCKET_FILENAME
-
-
 def host_identity_from_env() -> str:
     value = os.environ.get("HOSTNAME")
-    return _sanitize_host_identity(value) if value and value.strip() else "sase-host"
-
-
-def _sanitize_host_identity(value: str) -> str:
-    sanitized = "".join(
-        ch if ch.isascii() and (ch.isalnum() or ch in ".-_") else "-"
-        for ch in value.strip()
-    ).strip("-")
-    return sanitized or "sase-host"
+    return sanitize_host_identity(value) if value and value.strip() else "sase-host"
 
 
 def resolve_gateway_command() -> tuple[str, ...]:

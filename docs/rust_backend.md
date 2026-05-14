@@ -195,13 +195,31 @@ human-readable JSON/JSONL/project files. On startup, `sase daemon rebuild --rese
 rebuilds, the daemon retries safe pending/failed source exports. Conflicted exports remain in the outbox with the target
 path, surface, status, and last error so an operator can fix the source file and rerun doctor/rebuild.
 
+Storage layout contract:
+
+- `sase_home` is the user-visible source root, defaulting to `~/.sase`. Human-readable stores under it remain the
+  compatibility and recovery surfaces: projects, notifications, pending actions, artifacts, chats, beads, repo metadata,
+  workflow state, and mobile gateway state.
+- `run_root` is host-local daemon runtime state, defaulting to `~/.sase/run/<host>/`. Run one daemon per host-local
+  `run_root`; do not share the same runtime directory across machines.
+- Runtime files are rebuildable or transient. Exclude `~/.sase/run/` from Syncthing, rclone, Git, cloud-drive sync, and
+  similar tools. Never sync `sase-daemon.sock`, `daemon.lock`, `daemon.lock.json`, `daemon.log`,
+  `projections/projection.sqlite`, `projection.sqlite-wal`, or `projection.sqlite-shm`.
+- `sase daemon status --json` and `sase daemon doctor --json` include `storage_layout` diagnostics with path kinds for
+  `sase_home`, `run_root`, `socket_path`, `projection_db_path`, and `log_path`, plus the exact `runtime_files` exclusion
+  list. Path kinds are stable strings: `source_root`, `host_local_default`, `host_local_override`,
+  `unsafe_synced_candidate`, and `unknown`.
+- Layout warnings are diagnostic only. A custom `run_root` is allowed, but doctor warns when it is outside the default
+  host subdirectory, when a socket is outside `run_root`, or when runtime state appears under a source-store directory.
+
 Recovery and diagnostic commands:
 
 - `sase daemon status` reads ownership metadata first, then local RPC health when the socket is available.
 - `sase daemon doctor` distinguishes stopped, healthy, degraded projection, stale lock, incompatible metadata, and
-  host-conflict states. With a running daemon, `--json` also includes source-export repair summaries, indexing service
-  health, watcher state, scheduler queue depth/running/starting/stale counters, host bridge availability, projection
-  lag, recent reports, and compact per-surface diff summaries.
+  host-conflict states. `--json` always includes local storage-layout diagnostics; with a running daemon it also
+  includes daemon-reported storage layout, source-export repair summaries, indexing service health, watcher state,
+  scheduler queue depth/running/starting/stale counters, host bridge availability, projection lag, recent reports, and
+  compact per-surface diff summaries.
 - `sase daemon scheduler status --project <id> --batch <batch>` prints a scheduler batch and per-slot state.
 - `sase daemon scheduler cancel --project <id> --batch <batch> [--slot <slot>]` records an idempotent operator recovery
   cancellation for stuck queued, starting, running, or stale host-bridge work.

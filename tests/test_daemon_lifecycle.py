@@ -158,6 +158,44 @@ def test_prepare_daemon_launch_missing_binary_error(
         _prepare_daemon_launch(_args(), config=_DaemonLifecycleConfig())
 
 
+def test_python_path_contract_matches_rust_cases(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cases = [
+        (
+            "workstation.local",
+            "/tmp/sase-home/run/workstation.local",
+            "/tmp/sase-home/run/workstation.local/sase-daemon.sock",
+        ),
+        (
+            "  ",
+            "/tmp/sase-home/run/sase-host",
+            "/tmp/sase-home/run/sase-host/sase-daemon.sock",
+        ),
+        (
+            "work station/01",
+            "/tmp/sase-home/run/work-station-01",
+            "/tmp/sase-home/run/work-station-01/sase-daemon.sock",
+        ),
+    ]
+    for host, run_root, socket_path in cases:
+        monkeypatch.setenv("HOSTNAME", host)
+        paths = lifecycle._runtime_paths_from_args(
+            _args(sase_home="/tmp/sase-home"),
+            config=_DaemonLifecycleConfig(),
+        )
+
+        assert paths.run_root == Path(run_root)
+        assert paths.socket_path == Path(socket_path)
+
+    override_paths = lifecycle._runtime_paths_from_args(
+        _args(sase_home="/tmp/sase-home", run_root="/tmp/sase-run"),
+        config=_DaemonLifecycleConfig(),
+    )
+    assert override_paths.run_root == Path("/tmp/sase-run")
+    assert override_paths.socket_path == Path("/tmp/sase-run/sase-daemon.sock")
+
+
 def test_inspect_daemon_stopped(tmp_path: Path) -> None:
     inspection = lifecycle._inspect_daemon(
         _args(sase_home=str(tmp_path / "home"), run_root=str(tmp_path / "run"))
@@ -323,7 +361,37 @@ def test_status_json_includes_log_path_and_metrics_endpoint(
     payload = lifecycle._inspection_to_dict(inspection)
 
     assert payload["log_path"] == str(run_root / "daemon.log")
+    assert payload["projection_db_path"] == str(
+        run_root / "projections" / "projection.sqlite"
+    )
+    assert payload["storage_layout"]["run_root"]["path_kind"] == "host_local_override"
+    assert (
+        str(run_root / "daemon.lock.json") in payload["storage_layout"]["runtime_files"]
+    )
     assert payload["metrics_endpoint"] == "http://127.0.0.1:7629/metrics"
+
+
+def test_doctor_reports_unsafe_storage_layout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOSTNAME", "workstation.local")
+    home = tmp_path / "home"
+    run_root = home / "projects" / "demo" / "run"
+
+    inspection = lifecycle._inspect_daemon(
+        _args(sase_home=str(home), run_root=str(run_root))
+    )
+    payload = lifecycle._doctor_payload(inspection)  # noqa: SLF001
+
+    layout_check = [
+        check
+        for check in payload["doctor"]["checks"]
+        if check["name"] == "storage_layout"
+    ][0]
+    assert layout_check["state"] == "error"
+    assert "run_root_under_source_root" in layout_check["message"]
+    assert payload["storage_layout"]["run_root"]["path_kind"] == "source_root"
 
 
 def test_doctor_distinguishes_degraded_projection(
