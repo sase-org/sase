@@ -62,7 +62,7 @@ def test_watcher_start_does_not_walk_existing_descendants(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Startup installs shallow watches without scanning historical trees."""
+    """Startup installs bounded watches without scanning historical trees."""
     marker_dir = tmp_path / "proj" / "artifacts" / "ace-run" / "20260505120000"
     marker_dir.mkdir(parents=True)
 
@@ -76,13 +76,58 @@ def test_watcher_start_does_not_walk_existing_descendants(
         cb()
 
     watcher = ArtifactWatcher(
-        [tmp_path],
+        [tmp_path / "proj" / "artifacts"],
         on_change=lambda: None,
         schedule_callback=schedule,
         coalesce_s=0.02,
     )
     assert watcher.start() is True
+    watched_paths = set(watcher._watch_paths_by_wd.values())  # noqa: SLF001
+    assert tmp_path / "proj" / "artifacts" in watched_paths
+    assert tmp_path / "proj" / "artifacts" / "ace-run" in watched_paths
+    assert marker_dir not in watched_paths
     watcher.stop()
+
+
+@_LINUX_ONLY
+def test_watcher_dispatches_under_existing_workflow_dir(tmp_path: Path) -> None:
+    """A marker write under a pre-existing workflow dir wakes the callback."""
+    fired = threading.Event()
+    changed: list[tuple[Path, ...]] = []
+    artifacts_dir = tmp_path / "proj" / "artifacts"
+    workflow_dir = artifacts_dir / "ace-run"
+    workflow_dir.mkdir(parents=True)
+    marker_dir = workflow_dir / "20260514193623"
+    marker_path = marker_dir / "agent_meta.json"
+
+    def schedule(cb: Callable[[], None]) -> None:
+        cb()
+
+    def on_change(paths: tuple[Path, ...]) -> None:
+        changed.append(paths)
+        fired.set()
+
+    watcher = ArtifactWatcher(
+        [artifacts_dir],
+        on_change=on_change,
+        schedule_callback=schedule,
+        coalesce_s=0.02,
+    )
+    assert watcher.start() is True
+    try:
+        assert workflow_dir in set(watcher._watch_paths_by_wd.values())  # noqa: SLF001
+        marker_dir.mkdir()
+        assert _wait(
+            lambda: marker_dir in set(watcher._watch_paths_by_wd.values()),  # noqa: SLF001
+            timeout=3.0,
+        )
+        fired.clear()
+        changed.clear()
+        marker_path.write_text("{}")
+        assert _wait(fired.is_set, timeout=3.0)
+        assert any(marker_path in paths for paths in changed)
+    finally:
+        watcher.stop()
 
 
 @_LINUX_ONLY
@@ -113,6 +158,8 @@ def test_watcher_dispatches_on_new_nested_marker_write(tmp_path: Path) -> None:
             lambda: marker_dir in set(watcher._watch_paths_by_wd.values()),  # noqa: SLF001
             timeout=3.0,
         )
+        fired.clear()
+        changed.clear()
         marker_path.write_text("{}")
         assert _wait(fired.is_set, timeout=3.0)
         assert any(marker_path in paths for paths in changed)

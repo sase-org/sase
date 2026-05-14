@@ -135,7 +135,7 @@ class ArtifactWatcher:
             log.warning("inotify_init1 failed: errno=%d", err)
             return False
         installed = 0
-        for path in self._paths:
+        for path in self._iter_startup_watch_paths():
             installed += self._add_watch_path(libc, fd, path)
         if installed == 0:
             try:
@@ -218,6 +218,28 @@ class ArtifactWatcher:
             return 0
         self._watch_paths_by_wd[wd] = path
         return 1
+
+    def _iter_startup_watch_paths(self) -> Iterable[Path]:
+        """Yield bounded startup watch paths.
+
+        Artifact roots need one extra level so writes under pre-existing
+        workflow directories (``artifacts/ace-run/<new-ts>/...``) wake the UI.
+        This intentionally stops before timestamp/history directories.
+        """
+        for path in self._paths:
+            yield path
+            if path.name != "artifacts":
+                continue
+            try:
+                children = tuple(path.iterdir())
+            except OSError:
+                continue
+            for child in children:
+                try:
+                    if child.is_dir():
+                        yield child
+                except OSError:
+                    continue
 
     def _add_watch_tree(self, libc: ctypes.CDLL, fd: int, path: Path) -> int:
         """Install watches for a newly-created or moved directory tree.

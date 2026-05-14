@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-14 19:36:23
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_starting_refresh.md
 ---
 ## Problem
