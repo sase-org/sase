@@ -85,3 +85,18 @@ def test_visual_flag_selects_visual_mode() -> None:
 
     assert mode == "visual"
     assert args == ["-k", "axe", "tests/ace/tui/visual"]
+
+
+def test_sanitizes_commit_workflow_environment(monkeypatch) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.setenv("SASE_COMMIT_METHOD", "create_pull_request")
+    monkeypatch.setenv("SASE_COMMIT_METHOD_ALLOW_OVERRIDE", "1")
+    monkeypatch.setenv("SASE_PR_NAME", "fix_just_tests")
+    monkeypatch.setenv("SASE_PR_STATUS", "draft")
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent")
+
+    runner._sanitize_pytest_environment()
+
+    for key in runner.PYTEST_ENV_UNSET_KEYS:
+        assert key not in runner.os.environ
+    assert runner.os.environ["SASE_AGENT_NAME"] == "agent"
