@@ -1,0 +1,13 @@
+---
+plan: sdd/epics/202605/epic7_daemon_scheduler_phases.md
+---
+
+
+
+
+
+Can you help me implement epic #7 from the legend plan in the sdd/legends/202605/rust_daemon_indexed_projections_1.md file? This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but
+keep in mind that each phase will be completed by a distinct agent instance (i.e. a distinct `claude` / `gemini` /
+`codex` / `qwen` / `opencode` command). Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
+
+ Keep in mind that this epic will be split into phases and worked by separate agents after approval.
