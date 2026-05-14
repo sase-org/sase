@@ -36,6 +36,9 @@ sase ace '+myproject'                 # Filter by project
 sase ace -m small -r 30 '!!! OR @@@' # Small model, 30s refresh
 ```
 
+When `--profile` is enabled, ACE prints a shortened profile-output path after the TUI exits and tries to copy that
+shortened path to the system clipboard (`pbcopy`, `wl-copy`, `xclip`, or `xsel` when available).
+
 ## Tab System
 
 ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
@@ -584,7 +587,8 @@ Unread-completed actions operate on terminal rows that are loaded in the tab; `,
 | `,I`       | Toggle manual idle (shows IDLE indicator; any keypress re-activates)                          |
 | `,g`       | Toggle between tag-split panels and one merged agent panel                                    |
 | `,j`       | Jump to the next visible unread completed agent, newest first, and mark it read               |
-| `,J`       | Mark all loaded unread completed agents as read                                               |
+| `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state  |
+| `,U`       | Mark all loaded unread completed agents as read                                               |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                         |
 | `,P`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
 | `,R`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication      |
@@ -594,6 +598,10 @@ Unread-completed actions operate on terminal rows that are loaded in the tab; `,
 | `,<space>` | Run agent from current agent's CL (skips selection)                                           |
 | `,.`       | Open prompt history modal for the last CL                                                     |
 | `,>`       | Open prompt history modal with cancelled prompts visible                                      |
+
+Here, "stopped" means a dismissable terminal row such as `DONE`, `FAILED`, `PLAN DONE`, `TALE DONE`, `PLAN REJECTED`,
+`PLAN COMMITTED`, or `EPIC CREATED`; it is separate from the Agents header's "stopped" attention bucket for rows paused
+on user action.
 
 ### Agents Tab Reproduction Bundles
 

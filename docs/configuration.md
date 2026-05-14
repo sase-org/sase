@@ -775,15 +775,15 @@ entry points directly.
 
 ### General
 
-| Variable                              | Description                                                                                   |
-| ------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `SASE_TMPDIR`                         | Override the temp directory for all sase operations. Falls back to system default when unset. |
-| `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION` | Plan-specific auto-approval action for an agent; currently `approve` or `epic`.               |
-| `SASE_AGENT_AUTO_PLAN_ACTION`         | Backward-compatible alias for `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`.                          |
-| `SASE_AGENT_AUTO_APPROVE`             | Legacy boolean auto-approve flag; maps plan submissions to normal approval.                   |
-| `SASE_XPROMPT_LSP_CMD`                | Override the command used by `sase lsp` to launch the xprompt language server.                |
-| `SASE_PYTEST_WORKERS`                 | Override the xdist worker count used by `just test`, `just test-slow`, and `just test-cov`.   |
-| `SASE_JUST_INVOCATION_DIR`            | Internal value set by `just` so test selectors are normalized from the caller's directory.    |
+| Variable                              | Description                                                                                                     |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `SASE_TMPDIR`                         | Override the temp directory for all sase operations. Falls back to system default when unset.                   |
+| `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION` | Plan-specific auto-approval action for an agent; currently `approve` or `epic`.                                 |
+| `SASE_AGENT_AUTO_PLAN_ACTION`         | Backward-compatible alias for `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`.                                            |
+| `SASE_AGENT_AUTO_APPROVE`             | Legacy boolean auto-approve flag; maps plan submissions to normal approval.                                     |
+| `SASE_XPROMPT_LSP_CMD`                | Override the command used by `sase lsp` to launch the xprompt language server.                                  |
+| `SASE_PYTEST_WORKERS`                 | Override the xdist worker count used by `just test`, `just test-slow`, `just test-visual`, and `just test-cov`. |
+| `SASE_JUST_INVOCATION_DIR`            | Internal value set by `just` so test selectors are normalized from the caller's directory.                      |
 
 ### Workspace Management (Internal)
 
@@ -806,16 +806,16 @@ launch's values so follow-up agents cannot inherit stale workspace claims.
 
 ### `sase ace`
 
-| Flag                     | Values              | Default                   | Description                                                                                     |
-| ------------------------ | ------------------- | ------------------------- | ----------------------------------------------------------------------------------------------- |
-| `[query]`                | string              | last saved query or `!!!` | Query string for filtering ChangeSpecs.                                                         |
-| `-m, --model-tier`       | `large`, `small`    | -                         | Override model tier for all LLM invocations.                                                    |
-| `-M, --model-size`       | `big`, `little`     | -                         | Deprecated alias for `--model-tier`.                                                            |
-| `-p, --profile`          | optional path       | -                         | Profile the TUI session with pyinstrument (default output `$SASE_TMPDIR/ace_profile_<ts>.txt`). |
-| `-r, --refresh-interval` | int (seconds)       | `10`                      | Auto-refresh interval (0 to disable).                                                           |
-| `-R, --restart-axe`      | flag                | -                         | Restart the axe daemon on startup (no-op if axe is not running).                                |
-| `-x, --no-axe`           | flag                | -                         | Disable auto-starting the axe daemon.                                                           |
-| `-v, --vcs-provider`     | `git`, `hg`, `auto` | -                         | Override VCS provider.                                                                          |
+| Flag                     | Values              | Default                   | Description                                                                                                                                                                           |
+| ------------------------ | ------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[query]`                | string              | last saved query or `!!!` | Query string for filtering ChangeSpecs.                                                                                                                                               |
+| `-m, --model-tier`       | `large`, `small`    | -                         | Override model tier for all LLM invocations.                                                                                                                                          |
+| `-M, --model-size`       | `big`, `little`     | -                         | Deprecated alias for `--model-tier`.                                                                                                                                                  |
+| `-p, --profile`          | optional path       | -                         | Profile the TUI session with pyinstrument (default output `$SASE_TMPDIR/ace_profile_<ts>.txt`); after exit, print a shortened path and copy it to the system clipboard when possible. |
+| `-r, --refresh-interval` | int (seconds)       | `10`                      | Auto-refresh interval (0 to disable).                                                                                                                                                 |
+| `-R, --restart-axe`      | flag                | -                         | Restart the axe daemon on startup (no-op if axe is not running).                                                                                                                      |
+| `-x, --no-axe`           | flag                | -                         | Disable auto-starting the axe daemon.                                                                                                                                                 |
+| `-v, --vcs-provider`     | `git`, `hg`, `auto` | -                         | Override VCS provider.                                                                                                                                                                |
 
 ### `sase axe`
 
@@ -834,6 +834,25 @@ launch's values so follow-up agents cannot inherit stale workspace claims.
 
 For `sase axe start`, CLI flags take precedence over values from the `axe` config section in `sase.yml`. If neither is
 set, the built-in defaults from `default_config.yml` are used.
+
+### `sase repro`
+
+Agents-tab reproduction bundles capture and replay the loader/apply sequence used to render agent rows. The command is
+intended for debugging row disappearance, reappearance, and duplicate-parent regressions; see
+[Agents Tab Reproduction Bundles](ace.md#agents-tab-reproduction-bundles).
+
+| Form                            | Flag                | Values | Default  | Description                                                                |
+| ------------------------------- | ------------------- | ------ | -------- | -------------------------------------------------------------------------- |
+| `sase repro capture agents-tab` | `--output`          | path   | required | Directory where `agents_tab_repro.json` and capture artifacts are written. |
+| `sase repro capture agents-tab` | `--commit-safe`     | flag   | enabled  | Redact local names and paths for a shareable bundle.                       |
+| `sase repro capture agents-tab` | `--no-commit-safe`  | flag   | -        | Keep unredacted local identifiers in the capture.                          |
+| `sase repro capture agents-tab` | `--size`            | `WxH`  | `120x40` | Terminal size label stored with the bundle.                                |
+| `sase repro capture agents-tab` | `--json`            | flag   | -        | Emit a machine-readable capture result.                                    |
+| `sase repro replay`             | `path`              | path   | required | Bundle JSON file or bundle directory to replay.                            |
+| `sase repro replay`             | `--assert-stable`   | flag   | -        | Exit non-zero if replay invariants fail.                                   |
+| `sase repro replay`             | `--json`            | flag   | -        | Emit a machine-readable replay verdict.                                    |
+| `sase repro replay`             | `--write-artifacts` | path   | -        | Directory for replay screen text and SVG artifacts.                        |
+| `sase repro replay`             | `--size`            | `WxH`  | `120x40` | Headless terminal size used for replay.                                    |
 
 ### `sase axe stop`
 

@@ -28,11 +28,11 @@ resolving Python dependencies.
 just install       # Install with dev deps
 just fmt           # Auto-format code and Markdown
 just lint          # Run ruff, mypy, pyvision, keep-sorted, and SDD validation
-just test          # Fast parallel test run
+just test          # Fast parallel test run, including PNG visual snapshots
 just test-slow     # Slow pytest subset only
-just test-visual   # ACE PNG visual regression snapshots
+just test-visual   # ACE PNG visual regression snapshots only
 just test-terminal-smoke  # Optional real-terminal ACE smoke test
-just test-cov      # Parallel test run with coverage + 50% gate
+just test-cov      # Parallel test run with coverage + 50% gate, including visual snapshots
 just check         # CI-style checks: formatting, lint, SDD validation, tests
 just test-tox      # Test across Python 3.12, 3.13, 3.14
 just clean         # Remove build artifacts
@@ -47,12 +47,13 @@ directory where `just` was invoked, so this works the same from the repository r
 just test tests/main/test_parser.py::test_example
 ```
 
-Default test runs exclude both `slow` and `visual` markers. Use `just test-visual` for ACE PNG snapshot regression
-tests; the recipe installs the optional PNG rasterizer dependencies when they are missing.
+Default test runs exclude `slow` and `terminal_smoke` markers but include the ACE PNG snapshot regression tests. Use
+`just test-visual` for focused visual-snapshot work; both recipes install the optional PNG rasterizer dependencies when
+they are missing.
 
 Use `just test-terminal-smoke` only when you need to verify the ACE startup path through a real PTY. It installs
-`pexpect` and `pyte`, runs the optional `terminal_smoke` marker, and stays out of default tests, visual snapshots, and
-CI until that path has proved stable.
+`pexpect` and `pyte`, runs the optional `terminal_smoke` marker, and stays out of default tests and CI until that path
+has proved stable.
 
 ## Visual Snapshot Workflow
 

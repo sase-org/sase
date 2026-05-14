@@ -81,11 +81,14 @@ The full documentation lives at **[sase.sh](https://sase.sh/)**. Start with:
 - [ChangeSpecs](https://sase.sh/change_spec/) ([local](docs/change_spec.md))
 - [Beads](https://sase.sh/beads/) ([local](docs/beads.md))
 - [Workflows](https://sase.sh/workflow_spec/) ([local](docs/workflow_spec.md))
+- [Workspaces](https://sase.sh/workspace/) ([local](docs/workspace.md))
+- [Mentors](https://sase.sh/mentors/) ([local](docs/mentors.md))
 - [Plugins](https://sase.sh/plugins/) ([local](docs/plugins.md))
 - [LLM Providers](https://sase.sh/llms/) ([local](docs/llms.md))
 - [Notifications](https://sase.sh/notifications/) ([local](docs/notifications.md))
 - [Agent Attachments](https://sase.sh/agent_images/) ([local](docs/agent_images.md))
-- [Workspaces](https://sase.sh/workspace/) ([local](docs/workspace.md))
+- [Mobile Gateway](https://sase.sh/mobile_gateway/) ([local](docs/mobile_gateway.md))
+- [Telemetry](https://sase.sh/telemetry/) ([local](docs/telemetry.md))
 - [Rust Backend](https://sase.sh/rust_backend/) ([local](docs/rust_backend.md))
 - [CLI Reference](https://sase.sh/cli/) ([local](docs/cli.md))
 - [Configuration](https://sase.sh/configuration/) ([local](docs/configuration.md))
@@ -101,10 +104,11 @@ strict docs build and `just docs-pdf-check` for the handbook PDF validation.
 just install       # Install with dev deps
 just fmt           # Auto-format code
 just lint          # Run ruff, mypy, pyvision, keep-sorted, and SDD validation
-just test          # Fast parallel test run
+just test          # Fast parallel test run, including PNG visual snapshots
 just test-slow     # Slow pytest subset only
-just test-visual   # ACE PNG visual regression snapshots
-just test-cov      # Parallel test run with coverage + 50% gate
+just test-visual   # ACE PNG visual regression snapshots only
+just test-terminal-smoke  # Optional real-terminal ACE smoke test
+just test-cov      # Parallel test run with coverage + 50% gate, including visual snapshots
 just check         # All checks: formatting, lint, SDD validation, and tests
 just test-tox      # Test across Python 3.12, 3.13, 3.14
 just clean         # Remove build artifacts
@@ -112,9 +116,10 @@ just build         # Build wheel + sdist
 ```
 
 `just test`, `just test-slow`, `just test-visual`, and `just test-cov` size the pytest-xdist worker pool from local CPU
-count, capped at 16. Set `SASE_PYTEST_WORKERS=<N>` to override that value. Default test runs exclude slow and visual
-tests. Use `just test-visual` for ACE PNG visual regression snapshots, and accept intentional PNG golden changes with
-`--sase-update-visual-snapshots` only after inspecting `.pytest_cache/sase-visual/`.
+count, capped at 16. Set `SASE_PYTEST_WORKERS=<N>` to override that value. Default test runs exclude slow and
+terminal-smoke tests but include the PNG visual snapshot suite. Use `just test-visual` for focused ACE PNG visual
+regression work, and accept intentional PNG golden changes with `--sase-update-visual-snapshots` only after inspecting
+`.pytest_cache/sase-visual/`.
 
 ### Required Rust core
 
