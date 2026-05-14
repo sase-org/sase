@@ -165,9 +165,17 @@ def handle_scheduler_host_bridge(
             response = execute_launch_slot(request)
         elif operation == "cancel-launch-slot":
             response = cancel_launch_slot(request)
+        elif operation == "prepare-axe-task":
+            from sase.axe.scheduler_tasks import prepare_axe_task
+
+            response = prepare_axe_task(request)
+        elif operation == "execute-axe-task":
+            from sase.axe.scheduler_tasks import execute_axe_task
+
+            response = execute_axe_task(request)
         else:
             raise SchedulerHostBridgeError("unknown scheduler host bridge operation")
-    except (SchedulerHostBridgeError, ValueError, TypeError) as exc:
+    except (SchedulerHostBridgeError, RuntimeError, ValueError, TypeError) as exc:
         print(f"scheduler host bridge error: {exc}", file=stderr)
         return 2
 

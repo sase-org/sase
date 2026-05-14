@@ -36,6 +36,10 @@ daemon:
     # daemon: enqueue lifecycle mutations to the daemon scheduler and keep
     #         direct fallback available while host execution rolls out
     lifecycle_mode: "direct"
+    # direct: use existing Python axe orchestrator/lumberjack paths
+    # daemon: submit axe chops/ticks as daemon scheduler tasks and fall back to
+    #         direct execution on unavailable/unsupported scheduler routing
+    axe_mode: "direct"
   reads:
     enabled: true
     force_direct: false

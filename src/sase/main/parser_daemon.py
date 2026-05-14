@@ -34,6 +34,14 @@ def register_daemon_parser(subparsers: argparse._SubParsersAction) -> None:
         "cancel-launch-slot",
         help=argparse.SUPPRESS,
     )
+    scheduler_bridge_subparsers.add_parser(
+        "prepare-axe-task",
+        help=argparse.SUPPRESS,
+    )
+    scheduler_bridge_subparsers.add_parser(
+        "execute-axe-task",
+        help=argparse.SUPPRESS,
+    )
 
     start_parser = daemon_subparsers.add_parser(
         "start",

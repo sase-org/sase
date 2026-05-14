@@ -1,4 +1,4 @@
-"""Configuration helpers for daemon scheduler launch routing."""
+"""Configuration helpers for daemon scheduler rollout routing."""
 
 from __future__ import annotations
 
@@ -10,9 +10,11 @@ from sase.config import load_merged_config
 from sase.daemon.paths import daemon_disabled
 
 SchedulerLaunchMode = Literal["direct", "shadow", "daemon"]
+SchedulerAxeMode = Literal["direct", "daemon"]
 
 _ENV_MODE = "SASE_DAEMON_SCHEDULER_LAUNCH_MODE"
 _LEGACY_ENV_MODE = "SASE_SCHEDULER_LAUNCH_MODE"
+_ENV_AXE_MODE = "SASE_DAEMON_SCHEDULER_AXE_MODE"
 _MODE_ALIASES: dict[str, SchedulerLaunchMode] = {
     "off": "direct",
     "false": "direct",
@@ -54,6 +56,26 @@ def scheduler_launch_mode() -> SchedulerLaunchMode:
     return parsed or "direct"
 
 
+def _scheduler_axe_mode() -> SchedulerAxeMode:
+    """Return the configured daemon scheduler axe rollout mode."""
+
+    env_value = os.environ.get(_ENV_AXE_MODE)
+    parsed = _parse_mode(env_value)
+    if parsed == "daemon":
+        return "daemon"
+    if parsed in {"direct", "shadow"}:
+        return "direct"
+
+    daemon_config = load_merged_config().get("daemon")
+    scheduler_config = (
+        daemon_config.get("scheduler") if isinstance(daemon_config, dict) else None
+    )
+    if not isinstance(scheduler_config, dict):
+        return "direct"
+    parsed = _parse_mode(scheduler_config.get("axe_mode"))
+    return "daemon" if parsed == "daemon" else "direct"
+
+
 def scheduler_launch_disable_reason(
     args: object | None = None,
 ) -> _SchedulerLaunchDisableReason | None:
@@ -77,6 +99,29 @@ def scheduler_launch_disable_reason(
     return None
 
 
+def scheduler_axe_disable_reason(
+    args: object | None = None,
+) -> _SchedulerLaunchDisableReason | None:
+    """Return a direct-axe reason when daemon axe scheduling is disabled."""
+
+    if daemon_disabled(args):
+        return _SchedulerLaunchDisableReason(
+            reason="daemon_disabled",
+            message="daemon scheduler axe tasks disabled by --no-daemon or SASE_NO_DAEMON",
+        )
+    if os.environ.get("SASE_DAEMON_SCHEDULER_AXE_HOST_BRIDGE") == "1":
+        return _SchedulerLaunchDisableReason(
+            reason="host_bridge",
+            message="scheduler host bridge must execute axe tasks directly",
+        )
+    if _scheduler_axe_mode() == "direct":
+        return _SchedulerLaunchDisableReason(
+            reason="direct_mode",
+            message="daemon scheduler axe tasks disabled by daemon.scheduler.axe_mode",
+        )
+    return None
+
+
 def _parse_mode(value: object) -> SchedulerLaunchMode | None:
     if not isinstance(value, str):
         return None
@@ -84,7 +129,9 @@ def _parse_mode(value: object) -> SchedulerLaunchMode | None:
 
 
 __all__ = [
+    "SchedulerAxeMode",
     "SchedulerLaunchMode",
+    "scheduler_axe_disable_reason",
     "scheduler_launch_disable_reason",
     "scheduler_launch_mode",
 ]

@@ -91,6 +91,24 @@ class AxeChopRunMixin:
         chop_cfg = match.chop
         chop_timeout_default = match.lumberjack.chop_timeout
 
+        from sase.axe.scheduler_tasks import scheduler_submit_for_chop
+
+        scheduled = await asyncio.to_thread(
+            scheduler_submit_for_chop,
+            chop_name=chop_name,
+            lumberjack_name=lumberjack_name,
+            source="manual",
+            started_by="ace",
+        )
+        if scheduled.submitted and scheduled.response is not None:
+            handle = scheduled.response.get("handle", {})
+            batch_id = handle.get("batch_id", "unknown")
+            self.notify(  # type: ignore[attr-defined]
+                f"Queued chop '{chop_name}' under '{lumberjack_name}' ({batch_id})"
+            )
+            self._schedule_axe_async_refresh()  # type: ignore[attr-defined]
+            return
+
         def _run() -> ChopRunOutcome:
             return run_configured_chop_once(
                 lumberjack_name=lumberjack_name,

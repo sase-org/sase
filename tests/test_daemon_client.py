@@ -20,8 +20,11 @@ from sase.daemon.client import (
     default_socket_path,
 )
 from sase.daemon.scheduler import (
+    SchedulerAxeTaskSpec,
+    SchedulerAxeTaskSubmit,
     SchedulerBatchSubmit,
     SchedulerLaunchSpec,
+    submit_scheduler_axe_tasks,
     submit_scheduler_batch,
 )
 
@@ -143,6 +146,63 @@ def test_scheduler_submit_helper_sends_batch_payload() -> None:
                 }
             ],
             "metadata": {},
+        },
+    }
+
+
+def test_scheduler_axe_task_submit_uses_axe_queue_and_metadata() -> None:
+    response_data = {
+        "schema_version": 1,
+        "handle": {
+            "schema_version": 1,
+            "batch_id": "batch-axe",
+            "idempotency_key": "axe-idem",
+            "queue_id": "axe",
+            "project_id": "project-a",
+            "slot_count": 1,
+            "status": "queued",
+            "created_at": "2026-05-14T06:00:00Z",
+        },
+        "duplicate": False,
+        "status": {"schema_version": 1, "handle": {}, "slots": []},
+    }
+    transport = _CaptureTransport("scheduler_submit", response_data)
+    client = LocalDaemonClient(transport=transport)
+
+    result = submit_scheduler_axe_tasks(
+        client,
+        SchedulerAxeTaskSubmit(
+            project_id="project-a",
+            idempotency_key="axe-idem",
+            batch_id="batch-axe",
+            tasks=[
+                SchedulerAxeTaskSpec(
+                    project_id="project-a",
+                    task_kind="chop",
+                    task_key="hooks:hook_checks",
+                    metadata={
+                        "lumberjack_name": "hooks",
+                        "chop_name": "hook_checks",
+                    },
+                )
+            ],
+        ),
+    )
+
+    assert result == response_data
+    assert transport.envelope is not None
+    data = transport.envelope["payload"]["data"]
+    assert data["queue_id"] == "axe"
+    assert data["metadata"] == {"scheduler_task_kind": "axe"}
+    assert data["launch_specs"][0]["prompt"] == "axe:chop:hooks:hook_checks"
+    assert data["launch_specs"][0]["metadata"]["scheduler_task_kind"] == "axe"
+    assert data["launch_specs"][0]["metadata"]["axe_task"] == {
+        "schema_version": 1,
+        "task_kind": "chop",
+        "task_key": "hooks:hook_checks",
+        "metadata": {
+            "lumberjack_name": "hooks",
+            "chop_name": "hook_checks",
         },
     }
 

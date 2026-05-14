@@ -65,11 +65,14 @@ from sase.daemon.read_models import (
     notification_list_from_dict,
 )
 from sase.daemon.scheduler import (
+    SchedulerAxeTaskSpec,
+    SchedulerAxeTaskSubmit,
     SchedulerBatchSubmit,
     SchedulerCancel,
     SchedulerLaunchSpec,
     cancel_scheduler_batch,
     read_scheduler_batch_status,
+    submit_scheduler_axe_tasks,
     submit_scheduler_batch,
 )
 from sase.daemon.scheduler_host import (
@@ -107,6 +110,8 @@ __all__ = [
     "ProjectionPage",
     "ProjectionPayloadBound",
     "ProjectionSnapshot",
+    "SchedulerAxeTaskSpec",
+    "SchedulerAxeTaskSubmit",
     "SchedulerBatchSubmit",
     "SchedulerCancel",
     "SchedulerHostBridgeError",
@@ -138,6 +143,7 @@ __all__ = [
     "read_scheduler_batch_status",
     "rebuild",
     "submit_scheduler_batch",
+    "submit_scheduler_axe_tasks",
     "scheduler_host_slot_from_request",
     "verify",
     "write",

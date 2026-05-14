@@ -223,3 +223,6 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
 
     # --- axe stop ---
     axe_subparsers.add_parser("stop", help="Stop the running axe orchestrator")
+
+    # --- axe status ---
+    axe_subparsers.add_parser("status", help="Show axe scheduler status")
