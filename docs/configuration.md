@@ -935,6 +935,20 @@ When invoked with no arguments, opens `$EDITOR` for composing a prompt interacti
 prompt history picker. Multi-prompt queries (containing `---` separators) are auto-detected and launched as sequential
 daemon agents.
 
+### `sase repro`
+
+`sase repro` captures and replays debugging bundles for narrow, reproducible TUI bug classes. The current target is the
+Agents-tab loader/apply sequence used to diagnose row disappearance, reappearance, and duplicate workflow parents.
+
+| Form                            | Flags                                                                     | Description                                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `sase repro replay <path>`      | `--assert-stable`, `--json`, `--write-artifacts <dir>`, `--size`          | Replay a bundle JSON file or bundle directory through the headless TUI harness.                    |
+| `sase repro capture agents-tab` | `--output <dir>`, `--commit-safe`, `--no-commit-safe`, `--size`, `--json` | Capture a baseline bundle from current filesystem state. `--commit-safe` redaction is the default. |
+
+Use the in-TUI `,R` capture when a transient row-list bug has just happened in a live ACE session. The CLI capture path
+is out-of-band: it loads current filesystem state and cannot reconstruct refreshes that already passed through the
+running TUI.
+
 ### `sase xprompt expand`
 
 | Flag          | Values | Default | Description                                                  |

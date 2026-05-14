@@ -49,7 +49,8 @@ just test tests/main/test_parser.py::test_example
 
 Default test runs exclude `slow` and `terminal_smoke` markers but include the ACE PNG snapshot regression tests. Use
 `just test-visual` for focused visual-snapshot work; both recipes install the optional PNG rasterizer dependencies when
-they are missing.
+they are missing. Direct `pytest` runs still inherit the repository `pyproject.toml` default marker expression, which
+excludes `slow`, `terminal_smoke`, and `visual` unless you pass your own `-m` selector.
 
 Use `just test-terminal-smoke` only when you need to verify the ACE startup path through a real PTY. It installs
 `pexpect` and `pyte`, runs the optional `terminal_smoke` marker, and stays out of default tests and CI until that path

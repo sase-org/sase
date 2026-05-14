@@ -16,16 +16,19 @@ suffixes.
 
 ### CLI Options
 
-| Option                     | Description                                                                                                     |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `QUERY` (positional)       | Query string for filtering ChangeSpecs                                                                          |
-| `-m`, `--model-tier`       | Override model tier for all LLM providers (`large` or `small`)                                                  |
-| `-M`, `--model-size`       | Deprecated alias for `--model-tier` (`big` or `little`)                                                         |
-| `-p`, `--profile [PATH]`   | Profile the TUI session with pyinstrument (writes text output to `PATH` or `$SASE_TMPDIR/ace_profile_<ts>.txt`) |
-| `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 10, 0 to disable)                                                    |
-| `-x`, `--no-axe`           | Disable auto-starting the axe daemon on startup                                                                 |
-| `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                                                                  |
-| `-R`, `--restart-axe`      | Restart the axe daemon on startup (shows RESTARTING indicator)                                                  |
+| Option                     | Description                                                     |
+| -------------------------- | --------------------------------------------------------------- |
+| `QUERY` (positional)       | Query string for filtering ChangeSpecs                          |
+| `-m`, `--model-tier`       | Override model tier for all LLM providers (`large` or `small`)  |
+| `-M`, `--model-size`       | Deprecated alias for `--model-tier` (`big` or `little`)         |
+| `-p`, `--profile [PATH]`   | Profile the TUI session with pyinstrument; optional output path |
+| `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 10, 0 to disable)    |
+| `-x`, `--no-axe`           | Disable auto-starting the axe daemon on startup                 |
+| `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                  |
+| `-R`, `--restart-axe`      | Restart the axe daemon on startup (shows RESTARTING indicator)  |
+
+When profiling is enabled, ACE writes text output to `PATH` or `$SASE_TMPDIR/ace_profile_<ts>.txt`, prints the shortened
+path on exit, and copies that path when a clipboard tool is available.
 
 ### Examples
 
@@ -608,12 +611,13 @@ on user action.
 Agents-tab reproduction bundles capture the loader/apply sequence that determines which rows are visible. Use them when
 the Agents tab briefly drops historical rows, re-adds them, or shows duplicate workflow parents.
 
-When Bryan sees the bug in a live ACE session, switch to the Agents tab and press `,R`. ACE writes a commit-safe bundle
-to `~/.sase/repros/<timestamp>-manual-.../agents_tab_repro.json` and shows a toast with the path. The bundle includes
-structured row identities, loader state, app projection state, screen text, and an SVG screenshot. It deliberately omits
-prompt, response, chat, and diff bodies.
+When you see one of these bugs in a live ACE session, switch to the Agents tab and press `,R` before refreshing again.
+ACE writes a commit-safe bundle to `~/.sase/repros/<timestamp>-manual-.../agents_tab_repro.json` and shows a toast with
+the path. "Commit-safe" means local names and paths are redacted, and prompt, response, chat, and diff bodies are
+omitted. The bundle keeps the row identities, loader state, app projection state, screen text, and an SVG screenshot
+needed to replay the row-list behavior.
 
-Agents can replay a bundle from a prepared checkout:
+Replay a bundle from a checkout of this repository:
 
 ```bash
 sase repro replay tests/ace/tui/repro/fixtures/agents_tab_disappear_reappear_v1.json --assert-stable --json
