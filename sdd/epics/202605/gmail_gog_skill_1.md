@@ -2,6 +2,8 @@
 create_time: 2026-05-14 14:20:41
 status: wip
 prompt: sdd/prompts/202605/gmail_gog_skill_1.md
+bead_id: sase-3h
+tier: epic
 ---
 # Plan: SASE Gmail Read Skill via `gog`
 
