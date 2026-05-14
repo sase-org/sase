@@ -7,6 +7,7 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
+from sase.ace.tui.util.perf_gates import ACE_M2_SURFACE_GATES
 from sase.daemon.read_config import (
     ACE_DAEMON_SURFACE_GROUPS,
     DEFAULT_ENABLED_SURFACE_GROUPS,
@@ -77,6 +78,19 @@ def test_ace_read_surfaces_stay_opt_in_until_registry_allows_default() -> None:
         assert record.parity_gates
         assert record.perf_gates
         assert not default_enabled or record.default_enablement_allowed
+
+
+def test_m2_ace_read_surfaces_have_independent_gate_records() -> None:
+    records = rollout_records_by_id()
+
+    for surface, gate in ACE_M2_SURFACE_GATES.items():
+        record = records[f"read.{surface}"]
+        assert record.minimum_milestone == "M2"
+        assert record.default_policy == "opt_in"
+        assert record.default_enablement_allowed is False
+        assert record.parity_gates == (gate.parity_gate,)
+        assert record.perf_gates == (gate.perf_gate,)
+        assert record.direct_fallback_available is True
 
 
 def test_default_enabled_read_surfaces_have_gate_records() -> None:

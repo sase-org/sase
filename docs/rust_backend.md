@@ -161,8 +161,10 @@ Read routing controls:
 - `daemon.reads.force_direct: true` keeps the daemon available for lifecycle/diagnostics but routes production reads
   directly to source stores.
 - `daemon.reads.surfaces.{changespecs,notifications,agents,beads,catalogs}: false` disables one rollout group.
-- `daemon.reads.surfaces.ace_agents: true` or `SASE_ACE_AGENTS_DAEMON_READS=1` enables the ACE Agents provider, which
-  remains opt-in while larger local histories continue to be measured.
+- ACE reads use independent opt-in groups: `ace_agents`, `ace_changespecs`, `ace_notifications`, `ace_artifacts`, and
+  `ace_archive_search`. Set `daemon.reads.surfaces.<group>: true` or `SASE_DAEMON_<GROUP>_READS=1` to promote one ACE
+  surface without changing CLI/editor read routing. `SASE_ACE_AGENTS_DAEMON_READS` and
+  `SASE_ACE_ARCHIVE_SEARCH_DAEMON_READS` remain compatibility aliases.
 
 Fallback reasons in debug output use stable tokens: `daemon_disabled`, `daemon_reads_disabled`, `force_direct`,
 `surface_disabled`, `daemon_not_running`, `unsupported_capability`, `projection_degraded`, `cursor_expired`,

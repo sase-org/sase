@@ -16,7 +16,6 @@ from ._conversion import agent_from_summary
 from ._daemon_pages import agent_daemon_surfaces, read_agent_page
 from ._events import apply_daemon_agent_events
 from ._normalize import prepare_daemon_agents
-from ._settings import ace_archive_search_daemon_reads_enabled
 from ._snapshots import agent_snapshot
 from ._types import (
     AgentEventApplyResult,
@@ -58,34 +57,11 @@ class DaemonAgentsDataProvider:
                 full_history=full_history,
             )
 
-        if (
-            search_query or full_history
-        ) and not ace_archive_search_daemon_reads_enabled():
-            snapshot = direct_loader()
-            return AgentsProviderSnapshot(
-                agents=snapshot.agents,
-                workflow_agent_steps=snapshot.workflow_agent_steps,
-                load_state=snapshot.load_state,
-                shared_snapshot=agent_snapshot(
-                    snapshot.agents,
-                    provider_source="direct_fallback",
-                    prefers_daemon=True,
-                    fallback_reason="surface_disabled",
-                    fallback_message="daemon reads disabled for ace_archive_search",
-                    snapshot_id=snapshot.snapshot_id,
-                    page_count=snapshot.shared_snapshot.metadata.get("page_count", 1),
-                    full_reload=True,
-                ),
-                used_daemon=False,
-                fallback_reason="surface_disabled",
-                fallback_message="daemon reads disabled for ace_archive_search",
-                snapshot_id=snapshot.snapshot_id,
-            )
-
         result: DaemonReadResult[AgentsProviderSnapshot] = read_or_fallback(
-            "agent_search"
-            if search_query
-            else ("agent_archive" if full_history else "agent_recent"),
+            _rollout_surface_for_agents_read(
+                full_history=full_history,
+                search_query=search_query,
+            ),
             client=self._client,
             required_capability="agents.read",
             daemon_loader=lambda client: self._load_daemon_snapshot(
@@ -199,3 +175,15 @@ class DaemonAgentsDataProvider:
 
 
 _DaemonAgentsDataProvider = DaemonAgentsDataProvider
+
+
+def _rollout_surface_for_agents_read(
+    *,
+    full_history: bool,
+    search_query: str | None,
+) -> str:
+    if search_query:
+        return "ace_search"
+    if full_history:
+        return "ace_archive"
+    return "ace_agent_recent"

@@ -1665,6 +1665,16 @@ flags (`_dirty_changespecs`, `_dirty_agents`, `_dirty_axe`) and short-circuits t
 A 60-second `FULL_SANITY_REFRESH_SECONDS` floor still triggers a full reconcile to recover from missed inotify events,
 so a quiet TUI does ~zero work between real changes without going stale.
 
+### Daemon Read Rollout
+
+ACE daemon reads are gated independently from CLI/editor daemon reads. The read groups `ace_agents`, `ace_changespecs`,
+`ace_notifications`, `ace_artifacts`, and `ace_archive_search` default off and can be enabled or rolled back one at a
+time with `daemon.reads.surfaces.<group>` or `SASE_DAEMON_<GROUP>_READS`.
+
+Before an ACE group is default-enabled, it must have a registered M2 gate for its provider contract, direct fallback,
+projection-degraded fallback, no-broad-loader refresh trace, and the relevant first-snapshot or `j`/`k` latency target.
+Use `SASE_NO_DAEMON=1` or `SASE_DAEMON_FORCE_DIRECT=1` as the process-wide rollback switch.
+
 ### Performance Tracing
 
 For diagnosing TUI latency, set `SASE_TUI_TRACE=1` before launching `sase ace`. Tracing is near-zero-cost when the env

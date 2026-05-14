@@ -7,7 +7,10 @@ from typing import Any
 from unittest.mock import patch
 
 from sase.ace.tui.util.perf_gates import (
+    ACE_M2_SURFACE_GATES,
     EPIC9_DAEMON_NO_CHANGE_FORBIDDEN_SPANS,
+    EPIC9_ROLLOUT_PARITY_GATES,
+    EPIC9_ROLLOUT_PERF_GATES,
     EPIC9_TUI_TARGETS,
     ace_default_rollout_violations,
     failing_epic9_perf_gates,
@@ -131,6 +134,30 @@ def test_epic9_perf_gate_names_cover_rollout_targets() -> None:
         "ace_agent_history_query_edit_large_p95_ms",
         "ace_lazy_detail_stale_cancellation_count",
     }
+
+
+def test_m2_ace_surface_gates_are_per_surface_and_cover_contracts() -> None:
+    assert set(ACE_M2_SURFACE_GATES) == ACE_DAEMON_SURFACE_GROUPS
+    assert {
+        gate.parity_gate for gate in ACE_M2_SURFACE_GATES.values()
+    } == EPIC9_ROLLOUT_PARITY_GATES
+    assert {
+        gate.perf_gate for gate in ACE_M2_SURFACE_GATES.values()
+    } == EPIC9_ROLLOUT_PERF_GATES
+
+    for surface, gate in ACE_M2_SURFACE_GATES.items():
+        assert gate.surface == surface
+        assert "snapshots" in gate.provider_contracts
+        assert set(gate.fallback_tests) >= {
+            "daemon_unavailable",
+            "projection_degraded",
+            "surface_disabled",
+        }
+        assert "ace.provider_snapshot" in gate.trace_assertions
+
+    assert "deltas" in ACE_M2_SURFACE_GATES["ace_agents"].provider_contracts
+    assert "counts" in ACE_M2_SURFACE_GATES["ace_notifications"].provider_contracts
+    assert "bounded_detail" in ACE_M2_SURFACE_GATES["ace_artifacts"].provider_contracts
 
 
 def test_failing_epic9_perf_gates_reports_max_and_min_misses() -> None:

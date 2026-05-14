@@ -439,6 +439,32 @@ def test_ace_read_surface_uses_ace_gate_and_underlying_capability(
     assert transport.requests[-1]["data"]["surface"] == "notification_counts"
 
 
+def test_ace_agent_read_surface_uses_ace_gate_and_underlying_capability(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_DAEMON_ACE_AGENTS_READS", "1")
+    transport = FakeDaemonTransport(
+        capabilities=["agents.read"],
+        reads={"agent_recent": [{"agents": []}]},
+    )
+
+    result = read_or_fallback(
+        "ace_agent_recent",
+        client=LocalDaemonClient(transport=transport),
+        daemon_loader=lambda daemon: daemon.agent_recent(project_id="demo"),
+        direct_loader=lambda: {"agents": ["direct"]},
+    )
+
+    assert result.used_daemon is True
+    assert result.surface == "ace_agent_recent"
+    assert result.value == {"agents": []}
+    assert [request["type"] for request in transport.requests] == [
+        "capabilities",
+        "read",
+    ]
+    assert transport.requests[-1]["data"]["surface"] == "agent_recent"
+
+
 @pytest.mark.parametrize(
     ("surface", "capability", "daemon_loader", "read_surface"),
     [

@@ -16,14 +16,3 @@ def agents_daemon_reads_enabled() -> bool:
     if value in {"0", "false", "no", "off"}:
         return False
     return daemon_read_surface_enabled("ace_agents")
-
-
-def ace_archive_search_daemon_reads_enabled() -> bool:
-    """Return whether ACE archive/search agent reads may use daemon pages."""
-
-    value = os.environ.get("SASE_ACE_ARCHIVE_SEARCH_DAEMON_READS", "").strip().lower()
-    if value in {"1", "true", "yes", "on"}:
-        return True
-    if value in {"0", "false", "no", "off"}:
-        return False
-    return daemon_read_surface_enabled("ace_archive_search")

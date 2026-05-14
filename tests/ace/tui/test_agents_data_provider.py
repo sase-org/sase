@@ -186,7 +186,10 @@ def _agent(
     )
 
 
-def test_daemon_agents_provider_loads_initial_snapshot_without_source_scan() -> None:
+def test_daemon_agents_provider_loads_initial_snapshot_without_source_scan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_DAEMON_ACE_AGENTS_READS", "1")
     transport = _FakeDaemonTransport(
         capabilities=["agents.read"],
         reads={
@@ -234,7 +237,10 @@ def test_daemon_agents_provider_loads_initial_snapshot_without_source_scan() -> 
     )
 
 
-def test_daemon_agents_provider_fetches_only_viewport_pages() -> None:
+def test_daemon_agents_provider_fetches_only_viewport_pages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_DAEMON_ACE_AGENTS_READS", "1")
     transport = _FakeDaemonTransport(
         capabilities=["agents.read"],
         reads={
@@ -266,7 +272,7 @@ def test_daemon_agents_provider_fetches_only_viewport_pages() -> None:
 def test_daemon_agents_provider_uses_search_and_archive_surfaces(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("SASE_ACE_ARCHIVE_SEARCH_DAEMON_READS", "1")
+    monkeypatch.setenv("SASE_DAEMON_ACE_ARCHIVE_SEARCH_READS", "1")
     search_transport = _FakeDaemonTransport(
         capabilities=["agents.read"],
         reads={"agent_search": [_agent_page([_agent_summary(cl_name="needle")])]},
@@ -373,7 +379,10 @@ def test_agent_artifact_provider_falls_back_when_ace_surface_disabled(
     assert transport.requests == []
 
 
-def test_daemon_agents_provider_falls_back_when_capability_missing() -> None:
+def test_daemon_agents_provider_falls_back_when_capability_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_DAEMON_ACE_AGENTS_READS", "1")
     transport = _FakeDaemonTransport(capabilities=[], reads={})
     direct = _StubDirectProvider()
     provider = _DaemonAgentsDataProvider(
@@ -389,6 +398,62 @@ def test_daemon_agents_provider_falls_back_when_capability_missing() -> None:
     assert snapshot.fallback_reason == "unsupported_capability"
     assert snapshot.shared_snapshot.provider.fallback.reason == "unsupported_capability"
     assert [agent.cl_name for agent in snapshot.agents] == ["fallback"]
+
+
+def test_daemon_agents_provider_falls_back_when_ace_surface_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SASE_DAEMON_ACE_AGENTS_READS", raising=False)
+    monkeypatch.delenv("SASE_ACE_AGENTS_DAEMON_READS", raising=False)
+    transport = _FakeDaemonTransport(
+        capabilities=["agents.read"],
+        reads={
+            "agent_active": [_agent_page([_agent_summary()])],
+            "agent_recent": [_agent_page([])],
+        },
+    )
+    direct = _StubDirectProvider()
+    provider = _DaemonAgentsDataProvider(
+        client=LocalDaemonClient(transport=transport),
+        project_ids=["demo"],
+        direct_provider=direct,
+    )
+
+    snapshot = provider.load_agents()
+
+    assert direct.calls == 1
+    assert snapshot.used_daemon is False
+    assert snapshot.fallback_reason == "surface_disabled"
+    assert snapshot.shared_snapshot.provider.fallback.reason == "surface_disabled"
+    assert transport.requests == []
+
+
+def test_daemon_agents_provider_archive_search_has_independent_rollout_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_DAEMON_ACE_AGENTS_READS", "1")
+    monkeypatch.delenv("SASE_DAEMON_ACE_ARCHIVE_SEARCH_READS", raising=False)
+    monkeypatch.delenv("SASE_ACE_ARCHIVE_SEARCH_DAEMON_READS", raising=False)
+    transport = _FakeDaemonTransport(
+        capabilities=["agents.read"],
+        reads={"agent_search": [_agent_page([_agent_summary(cl_name="needle")])]},
+    )
+    direct = _StubDirectProvider()
+    provider = _DaemonAgentsDataProvider(
+        client=LocalDaemonClient(transport=transport),
+        project_ids=["demo"],
+        direct_provider=direct,
+    )
+
+    snapshot = provider.load_agents(search_query="needle")
+
+    assert direct.calls == 1
+    assert snapshot.used_daemon is False
+    assert snapshot.fallback_reason == "surface_disabled"
+    assert snapshot.shared_snapshot.provider.fallback.message == (
+        "daemon reads disabled for ace_archive_search"
+    )
+    assert transport.requests == []
 
 
 def test_ace_agents_provider_honors_rollout_config(

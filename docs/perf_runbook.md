@@ -173,9 +173,9 @@ Epic 5 routes production reads through daemon projections for surfaces that have
 bounded recovery path. The committed gate policy lives in `tests/perf/daemon_read_rollout.py` and is exercised by
 `tests/perf/test_daemon_read_rollout.py`.
 
-Default-enabled read groups are `changespecs`, `notifications`, `agents`, `beads`, and `catalogs`. The ACE Agents data
-provider remains opt-in with `daemon.reads.surfaces.ace_agents: true` or `SASE_ACE_AGENTS_DAEMON_READS=1` until large
-history measurements prove it should be default-on.
+Default-enabled read groups are `changespecs`, `notifications`, `agents`, `beads`, and `catalogs`. ACE read groups stay
+opt-in per surface: `ace_agents`, `ace_changespecs`, `ace_notifications`, `ace_artifacts`, and `ace_archive_search`.
+Each ACE group needs its own M2 gate bundle before default enablement.
 
 Rollout budgets:
 
