@@ -36,6 +36,16 @@ def _panel_key_for_agent(agent: Agent, parent_lookup: dict[str, Agent]) -> Panel
     return target.tag if target.tag else None
 
 
+def _agent_is_starting(agent: Agent) -> bool:
+    """Return whether *agent* is a transient pre-run STARTING row."""
+    return agent.status == "STARTING"
+
+
+def agent_is_rendered_in_agents_panel(agent: Agent) -> bool:
+    """Return whether *agent* should have an Agents-tab row."""
+    return not _agent_is_starting(agent)
+
+
 def _panel_keys_for(agents: list[Agent]) -> list[PanelKey]:
     """Return the ordered panel keys for *agents*.
 
@@ -45,13 +55,14 @@ def _panel_keys_for(agents: list[Agent]) -> list[PanelKey]:
     inheritance; all tag panels are sorted alphabetically by tag
     (case-insensitive).
     """
-    if not agents:
+    rendered_agents = [a for a in agents if agent_is_rendered_in_agents_panel(a)]
+    if not rendered_agents:
         return [None]
 
     parent_lookup = _build_parent_lookup(agents)
     distinct_tags: set[str] = set()
-    has_untagged = False
-    for a in agents:
+    has_untagged = any(_agent_is_starting(a) for a in agents)
+    for a in rendered_agents:
         key = _panel_key_for_agent(a, parent_lookup)
         if key is None:
             has_untagged = True
@@ -85,13 +96,22 @@ def panel_key_per_agent(
 
 
 def agents_for_panel(
-    agents: list[Agent], key: PanelKey, *, merge_tag_panels: bool = False
+    agents: list[Agent],
+    key: PanelKey,
+    *,
+    merge_tag_panels: bool = False,
+    include_hidden: bool = False,
 ) -> list[Agent]:
     """Return the agents whose effective panel key equals *key*."""
+    candidates = (
+        list(agents)
+        if include_hidden
+        else [a for a in agents if agent_is_rendered_in_agents_panel(a)]
+    )
     if merge_tag_panels:
-        return list(agents)
+        return candidates
     parent_lookup = _build_parent_lookup(agents)
-    return [a for a in agents if _panel_key_for_agent(a, parent_lookup) == key]
+    return [a for a in candidates if _panel_key_for_agent(a, parent_lookup) == key]
 
 
 @dataclass

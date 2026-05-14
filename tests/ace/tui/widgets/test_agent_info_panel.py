@@ -117,7 +117,7 @@ def test_agent_count_numbers_have_rich_styles() -> None:
     assert count_styles == {
         "total": "#AFAFAF",
         "asking": "bold #FFAF00",
-        "starting": "bold #87D7FF",
+        "starting": "bold #1a1a1a on #87D7FF",
         "running": "bold #00D7AF",
         "waiting": "bold #AF87FF",
         "failed": "bold #FF5F5F",
@@ -136,7 +136,7 @@ def test_agent_count_numbers_have_rich_styles() -> None:
     }
     assert label_styles == {
         " stopped": "dim",
-        " starting": "dim",
+        " starting": "bold #1a1a1a on #87D7FF",
         " running": "dim",
         " waiting": "dim",
         " failed": "dim",

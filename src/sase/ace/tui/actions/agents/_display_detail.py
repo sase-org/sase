@@ -208,6 +208,9 @@ class DetailMixin:
         visible_top_level_agents = [
             self._agents[i] for i in panel_index.non_child_indices
         ]
+        hidden_starting_agents = [
+            self._agents[i] for i in panel_index.hidden_starting_indices
+        ]
         unread_count = sum(
             1 for agent in visible_top_level_agents if agent.identity in unread_ids
         )
@@ -217,9 +220,7 @@ class DetailMixin:
         waiting_count = sum(
             1 for _agent, bucket in visible_agent_buckets if bucket == "Waiting"
         )
-        starting_count = sum(
-            1 for _agent, bucket in visible_agent_buckets if bucket == "Starting"
-        )
+        starting_count = len(hidden_starting_agents)
         failed_count = sum(
             1 for _agent, bucket in visible_agent_buckets if bucket == "Failed"
         )

@@ -17,6 +17,7 @@ def _agent(
     suffix: str | None,
     tag: str | None = None,
     name: str = "agent",
+    status: str = "RUNNING",
     parent_timestamp: str | None = None,
     parent_workflow: str | None = None,
 ) -> Agent:
@@ -24,7 +25,7 @@ def _agent(
         agent_type=AgentType.RUNNING,
         cl_name="cl",
         project_file="/r/p/p.sase",
-        status="RUNNING",
+        status=status,
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name=name,
         tag=tag,
@@ -65,6 +66,29 @@ def test_empty_agents_keep_untagged_fallback_panel() -> None:
 
     assert group.panel_keys == [None]
     assert group.focused_key is None
+
+
+def test_starting_only_tagged_agents_do_not_create_tag_panels() -> None:
+    agents = [
+        _agent(suffix="a", tag="alpha", status="STARTING"),
+        _agent(suffix="b", tag="beta", status="STARTING"),
+    ]
+
+    group = AgentPanelGroup.from_agents(agents)
+
+    assert group.panel_keys == [None]
+    assert group.focused_key is None
+
+
+def test_starting_count_gets_untagged_panel_even_with_tagged_rows() -> None:
+    agents = [
+        _agent(suffix="a", tag="alpha", status="STARTING"),
+        _agent(suffix="b", tag="beta", status="RUNNING"),
+    ]
+
+    group = AgentPanelGroup.from_agents(agents)
+
+    assert group.panel_keys == [None, "beta"]
 
 
 def test_workflow_child_inherits_parent_tag_without_empty_untagged_panel() -> None:

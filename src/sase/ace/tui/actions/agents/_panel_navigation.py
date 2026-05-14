@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ._navigation_order import rendered_panel_slice
 from ._panel_types import TabName
 
 if TYPE_CHECKING:
@@ -27,16 +28,9 @@ class AgentPanelNavigationMixin:
     ) -> int | None:
         """Return the first global agent index covered by a focused-panel group."""
         from ...models.agent_groups import GroupingMode, build_agent_tree
-        from ...models.agent_panels import agents_for_panel
 
         focused_key = self._panel_group.focused_key
-        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
-        global_indices = [i for i, k in enumerate(keys_per_agent) if k == focused_key]
-        panel_agents = agents_for_panel(
-            self._agents,
-            focused_key,
-            merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
-        )
+        global_indices, panel_agents = rendered_panel_slice(self, focused_key)
         tree = build_agent_tree(
             panel_agents,
             fold_registry=getattr(self, "_group_fold_registry", None),

@@ -17,7 +17,11 @@ class AgentSelectionMixin:
     def _get_selected_agent(self) -> Agent | None:
         """Get the currently selected agent, or None if no valid selection."""
         if self._agents and 0 <= self.current_idx < len(self._agents):
-            return self._agents[self.current_idx]
+            from ...models.agent_panels import agent_is_rendered_in_agents_panel
+
+            agent = self._agents[self.current_idx]
+            if agent_is_rendered_in_agents_panel(agent):
+                return agent
         return None
 
     def _agents_in_focused_panel(self) -> list[Agent]:
@@ -26,13 +30,12 @@ class AgentSelectionMixin:
         Falls back to the full agent list when ``_panel_group`` has not
         been built yet (early lifecycle window before the first refresh).
         """
-        from ...models.agent_panels import agents_for_panel
-
         panel_group = getattr(self, "_panel_group", None)
         if panel_group is None:
-            return list(self._agents)
-        return agents_for_panel(
-            self._agents,
-            panel_group.focused_key,
-            merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
-        )
+            from ...models.agent_panels import agent_is_rendered_in_agents_panel
+
+            return [a for a in self._agents if agent_is_rendered_in_agents_panel(a)]
+        from ._navigation_order import rendered_panel_slice
+
+        _global_indices, agents = rendered_panel_slice(self, panel_group.focused_key)
+        return list(agents)

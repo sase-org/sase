@@ -169,6 +169,20 @@ def test_non_child_position_is_o1_lookup() -> None:
     assert index.non_child_position(2) == 2
 
 
+def test_sync_panel_group_snaps_selection_off_hidden_starting_row() -> None:
+    agents = [
+        _agent(suffix="starting", status="STARTING"),
+        _agent(suffix="running", status="RUNNING"),
+    ]
+    bare = _Bare(agents)
+    bare.current_idx = 0
+
+    bare._sync_panel_group()
+
+    assert bare.current_idx == 1
+    assert bare._panel_group.panel_keys == [None]
+
+
 def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
     visible_unread = _agent(suffix="done-unread", status="DONE")
     visible_asking = _agent(suffix="asking", status="PLAN")
@@ -267,5 +281,5 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
 
     bare._update_agents_info_panel()
 
-    assert info_panel.position == (0, 7)
-    assert info_panel.counts == (1, 1, 1, 1, 1, 2, 0, 7)
+    assert info_panel.position == (0, 6)
+    assert info_panel.counts == (1, 1, 1, 1, 1, 2, 0, 6)

@@ -8,6 +8,7 @@ from ...models.agent_groups import GroupingMode
 from ...util.trace import tui_trace
 from ._display_helpers import TabName, panel_widget_id
 from ._display_panel_titles import agent_panel_border_title, agent_panel_counts
+from ._navigation_order import rendered_panel_slice
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -46,8 +47,12 @@ class PanelRefreshMixin:
 
         keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
         focused_key = self._panel_group.focused_key
+        panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
         if 0 <= self.current_idx < len(self._agents):
-            if keys_per_agent[self.current_idx] != focused_key:
+            if (
+                keys_per_agent[self.current_idx] != focused_key
+                or panel_index.local_idx_for(focused_key, self.current_idx) < 0
+            ):
                 self._snap_current_idx_to_focused_panel(keys_per_agent, focused_key)
         else:
             self._snap_current_idx_to_focused_panel(keys_per_agent, focused_key)
@@ -56,12 +61,21 @@ class PanelRefreshMixin:
         self, keys_per_agent: list[PanelKey], focused_key: PanelKey
     ) -> None:
         """Set ``current_idx`` to the first agent in the focused panel."""
+        global_indices, _panel_agents = rendered_panel_slice(self, focused_key)
+        if global_indices:
+            self.current_idx = global_indices[0]
+            return
+        panel_index_fn = getattr(self, "_agent_panel_index", None)
+        non_child_indices = (
+            set(panel_index_fn().non_child_indices)
+            if callable(panel_index_fn)
+            else set(range(len(self._agents)))
+        )
         for i, k in enumerate(keys_per_agent):
-            if k == focused_key:
+            if k == focused_key and i in non_child_indices:
                 self.current_idx = i
                 return
-        if self._agents:
-            self.current_idx = 0
+        self.current_idx = 0
 
     def _refresh_panel_widgets(
         self,
@@ -98,6 +112,7 @@ class PanelRefreshMixin:
 
         panel_keys = self._panel_group.panel_keys
         panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
+        hidden_starting_count = len(panel_index.hidden_starting_indices)
         merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
         effective_tags: list[PanelKey] = []
         if merge_tag_panels:
@@ -143,11 +158,14 @@ class PanelRefreshMixin:
             global_indices = slot.global_indices
             global_to_local = slot.global_to_local
 
+            counts = agent_panel_counts(panel_agents, unread)
+            if key is None and hidden_starting_count:
+                counts = counts.with_starting(hidden_starting_count)
             widget.border_title = agent_panel_border_title(
                 key,
                 len(panel_agents),
                 merge_tag_panels=merge_tag_panels,
-                counts=agent_panel_counts(panel_agents, unread),
+                counts=counts,
             )
             if idx == 0:
                 widget.remove_class("agent-panel-separated")

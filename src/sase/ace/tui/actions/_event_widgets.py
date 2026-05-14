@@ -35,7 +35,6 @@ class EventWidgetHandlersMixin(EventHandlersBase):
         if self.current_tab != "agents":
             return
 
-        from ..models.agent_panels import agents_for_panel
         from ..widgets import AgentList
 
         widget = event.control
@@ -57,13 +56,9 @@ class EventWidgetHandlersMixin(EventHandlersBase):
             return
         panel_key = panel_keys[panel_idx]
 
-        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
-        global_indices = [i for i, k in enumerate(keys_per_agent) if k == panel_key]
-        panel_agents = agents_for_panel(
-            self._agents,
-            panel_key,
-            merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
-        )
+        slot = self._agent_panel_index().slice_for(panel_key)  # type: ignore[attr-defined]
+        global_indices = slot.global_indices
+        panel_agents = slot.agents
 
         if event.group_key is not None:
             # Banner row click — anchor focus on the first agent in the

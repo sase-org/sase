@@ -12,7 +12,11 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from .agent import Agent
-from .agent_panels import PanelKey, panel_key_per_agent
+from .agent_panels import (
+    PanelKey,
+    agent_is_rendered_in_agents_panel,
+    panel_key_per_agent,
+)
 
 
 @dataclass
@@ -32,6 +36,7 @@ class AgentPanelIndex:
     panels: dict[PanelKey, _PanelSlice] = field(default_factory=dict)
     non_child_indices: list[int] = field(default_factory=list)
     completed_count: int = 0
+    hidden_starting_indices: list[int] = field(default_factory=list)
 
     def slice_for(self, key: PanelKey) -> _PanelSlice:
         return self.panels.get(key, _PanelSlice())
@@ -67,10 +72,15 @@ def build_agent_panel_index(
     keys_per_agent = panel_key_per_agent(agents, merge_tag_panels=merge_tag_panels)
     panels: dict[PanelKey, _PanelSlice] = {}
     non_child_indices: list[int] = []
+    hidden_starting_indices: list[int] = []
     dismissable = set(dismissable_statuses)
     completed_count = 0
     for i, agent in enumerate(agents):
         key = keys_per_agent[i]
+        if not agent_is_rendered_in_agents_panel(agent):
+            if not agent.is_workflow_child:
+                hidden_starting_indices.append(i)
+            continue
         slot = panels.get(key)
         if slot is None:
             slot = _PanelSlice()
@@ -88,4 +98,5 @@ def build_agent_panel_index(
         panels=panels,
         non_child_indices=non_child_indices,
         completed_count=completed_count,
+        hidden_starting_indices=hidden_starting_indices,
     )

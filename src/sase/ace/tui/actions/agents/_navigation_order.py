@@ -8,6 +8,36 @@ if TYPE_CHECKING:
     from ...models import Agent
 
 
+def rendered_panel_slice(owner: Any, key: Any) -> tuple[list[int], list[Agent]]:
+    """Return rendered global indices and agents for a panel."""
+    index_fn = getattr(owner, "_agent_panel_index", None)
+    if callable(index_fn):
+        slot = index_fn().slice_for(key)
+        return slot.global_indices, slot.agents
+
+    from ...models.agent_panels import (
+        agent_is_rendered_in_agents_panel,
+        agents_for_panel,
+        panel_key_per_agent,
+    )
+
+    agents = owner._agents
+    keys = panel_key_per_agent(
+        agents,
+        merge_tag_panels=getattr(owner, "_agent_panels_grouped", False),
+    )
+    global_indices = [
+        i
+        for i, panel_key in enumerate(keys)
+        if panel_key == key and agent_is_rendered_in_agents_panel(agents[i])
+    ]
+    return global_indices, agents_for_panel(
+        agents,
+        key,
+        merge_tag_panels=getattr(owner, "_agent_panels_grouped", False),
+    )
+
+
 class AgentNavigationOrderMixin:
     """Mixin providing rendered agent row ordering and focus restoration."""
 
@@ -28,25 +58,26 @@ class AgentNavigationOrderMixin:
         render contiguous with their parent.
         """
         from ...models.agent_groups import GroupingMode, build_agent_tree
-        from ...models.agent_panels import agents_for_panel
+        from ...models.agent_panels import agent_is_rendered_in_agents_panel
 
         registry = getattr(self, "_group_fold_registry", None)
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
-        merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
         panel_group = getattr(self, "_panel_group", None)
         if panel_group is None:
-            tree = build_agent_tree(self._agents, fold_registry=registry, mode=mode)
+            global_indices = [
+                i
+                for i, agent in enumerate(self._agents)
+                if agent_is_rendered_in_agents_panel(agent)
+            ]
+            panel_agents = [self._agents[i] for i in global_indices]
+            tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
             return [
-                entry.agent_idx
+                global_indices[entry.agent_idx]
                 for entry in tree
                 if entry.kind == "agent" and entry.agent_idx is not None
             ]
         focused_key = panel_group.focused_key
-        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
-        global_indices = [i for i, k in enumerate(keys_per_agent) if k == focused_key]
-        panel_agents = agents_for_panel(
-            self._agents, focused_key, merge_tag_panels=merge_tag_panels
-        )
+        global_indices, panel_agents = rendered_panel_slice(self, focused_key)
         tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
         return [
             global_indices[entry.agent_idx]
@@ -86,7 +117,7 @@ class AgentNavigationOrderMixin:
         identity / version.
         """
         from ...models.agent_groups import GroupingMode, build_agent_tree
-        from ...models.agent_panels import agents_for_panel
+        from ...models.agent_panels import agent_is_rendered_in_agents_panel
 
         registry = getattr(self, "_group_fold_registry", None)
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
@@ -108,23 +139,23 @@ class AgentNavigationOrderMixin:
             return cached[6]
 
         if panel_group is None:
-            tree = build_agent_tree(self._agents, fold_registry=registry, mode=mode)
+            global_indices = [
+                i
+                for i, agent in enumerate(self._agents)
+                if agent_is_rendered_in_agents_panel(agent)
+            ]
+            panel_agents = [self._agents[i] for i in global_indices]
+            tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
             stops: list[tuple[str, int | tuple[str, ...]]] = []
             for entry in tree:
                 if entry.kind == "group" and entry.group is not None:
                     if entry.group.is_collapsed:
                         stops.append(("banner", entry.group.group_key))
                 elif entry.kind == "agent" and entry.agent_idx is not None:
-                    stops.append(("agent", entry.agent_idx))
+                    stops.append(("agent", global_indices[entry.agent_idx]))
         else:
             focused_key = panel_group.focused_key
-            keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
-            global_indices = [
-                i for i, k in enumerate(keys_per_agent) if k == focused_key
-            ]
-            panel_agents = agents_for_panel(
-                self._agents, focused_key, merge_tag_panels=merge_tag_panels
-            )
+            global_indices, panel_agents = rendered_panel_slice(self, focused_key)
             tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
             stops = []
             for entry in tree:
@@ -269,7 +300,6 @@ class AgentNavigationOrderMixin:
         behavior used by tests and single-list contexts.
         """
         from ...models.agent_groups import GroupingMode, build_agent_tree
-        from ...models.agent_panels import agents_for_panel
 
         panel_group = getattr(self, "_panel_group", None)
         if panel_group is None:
@@ -281,15 +311,10 @@ class AgentNavigationOrderMixin:
 
         registry = getattr(self, "_group_fold_registry", None)
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
-        merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
-        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
         visible: dict[int, int | None] = {}
 
         for key in panel_group.panel_keys:
-            global_indices = [i for i, k in enumerate(keys_per_agent) if k == key]
-            panel_agents = agents_for_panel(
-                self._agents, key, merge_tag_panels=merge_tag_panels
-            )
+            global_indices, panel_agents = rendered_panel_slice(self, key)
             tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
             for entry in tree:
                 if entry.kind != "agent" or entry.agent_idx is None:

@@ -49,6 +49,7 @@ def test_empty_agents_yields_empty_index() -> None:
     assert index.keys_per_agent == []
     assert index.panels == {}
     assert index.non_child_indices == []
+    assert index.hidden_starting_indices == []
     assert index.completed_count == 0
     assert index.non_child_total == 0
     assert index.non_child_position(0) == 0
@@ -72,6 +73,24 @@ def test_groups_agents_into_panels_by_tag() -> None:
     assert alpha.agents == [a1, a2]
     assert alpha.global_indices == [1, 2]
     assert alpha.global_to_local == {1: 0, 2: 1}
+
+
+def test_starting_agents_keep_keys_but_are_hidden_from_panel_slices() -> None:
+    a0 = _agent(raw_suffix="A", tag=None, status="STARTING")
+    a1 = _agent(raw_suffix="B", tag="alpha")
+    a2 = _agent(raw_suffix="C", tag="alpha", status="STARTING")
+    a3 = _agent(raw_suffix="D", tag="beta")
+    index = build_agent_panel_index([a0, a1, a2, a3], dismissable_statuses=_DISMISSABLE)
+
+    assert index.keys_per_agent == [None, "alpha", "alpha", "beta"]
+    assert index.hidden_starting_indices == [0, 2]
+    assert set(index.panels.keys()) == {"alpha", "beta"}
+    assert index.slice_for("alpha").agents == [a1]
+    assert index.slice_for("alpha").global_indices == [1]
+    assert index.slice_for("alpha").global_to_local == {1: 0}
+    assert index.slice_for("beta").global_indices == [3]
+    assert index.non_child_indices == [1, 3]
+    assert index.non_child_total == 2
 
 
 def test_merged_index_places_every_agent_in_single_panel() -> None:

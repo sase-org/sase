@@ -226,7 +226,7 @@ class AgentInfoPanel(Static):
 
     _COUNT_STYLES: dict[str, str] = {
         "asking": "bold #FFAF00",
-        "starting": "bold #87D7FF",
+        "starting": "bold #1a1a1a on #87D7FF",
         "running": "bold #00D7AF",
         "waiting": "bold #AF87FF",
         "failed": "bold #FF5F5F",
@@ -261,7 +261,7 @@ class AgentInfoPanel(Static):
             count_style = self._COUNT_STYLES[label]
             text.append(f"{count}", style=count_style)
             suffix = f" {self._COUNT_LABELS.get(label, label)}"
-            label_style = count_style if label == "unread" else "dim"
+            label_style = count_style if label in {"starting", "unread"} else "dim"
             text.append(suffix, style=label_style)
         text.append("]", style="dim")
 

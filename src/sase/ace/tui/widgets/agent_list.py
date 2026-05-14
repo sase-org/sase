@@ -183,6 +183,31 @@ class AgentList(OptionList, inherit_bindings=False):
         # the pinned-attempt detail state but no longer affects rebuild
         # output (prior-attempt child rows aren't rendered).
         del current_attempt_number
+        from ..models.agent_panels import agent_is_rendered_in_agents_panel
+
+        display_pairs = [
+            (idx, agent)
+            for idx, agent in enumerate(agents)
+            if agent_is_rendered_in_agents_panel(agent)
+        ]
+        if len(display_pairs) != len(agents):
+            local_index_map = {
+                source_idx: display_idx
+                for display_idx, (source_idx, _agent) in enumerate(display_pairs)
+            }
+            agents = [agent for _source_idx, agent in display_pairs]
+            current_idx = local_index_map.get(current_idx, -1)
+            if jump_hints:
+                jump_hints = {
+                    local_index_map[source_idx]: hint
+                    for source_idx, hint in jump_hints.items()
+                    if source_idx in local_index_map
+                }
+            if tag_labels is not None:
+                tag_labels = [
+                    tag_labels[source_idx] if source_idx < len(tag_labels) else None
+                    for source_idx, _agent in display_pairs
+                ]
         with tui_trace("widget.agent_list.update_list", count=len(agents)):
             build_list(
                 self,

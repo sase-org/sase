@@ -108,7 +108,7 @@ def test_by_status_mode_emits_status_bucket_banners() -> None:
     ]
 
 
-def test_by_status_mode_renders_starting_bucket_last() -> None:
+def test_by_status_mode_hides_starting_bucket() -> None:
     widget = AgentList()
     widget.update_list(
         [
@@ -129,8 +129,24 @@ def test_by_status_mode_renders_starting_bucket_last() -> None:
         "Running",
         "Waiting",
         "Done",
-        "Starting",
     ]
+    assert all("starting" not in option.prompt.plain for option in widget._options)  # type: ignore[union-attr]
+
+
+def test_standard_mode_hides_starting_agent_rows() -> None:
+    widget = AgentList()
+    widget.update_list(
+        [
+            make_agent(cl_name="hidden-start", status="STARTING"),
+            make_agent(cl_name="visible-run", status="RUNNING"),
+        ],
+        current_idx=0,
+    )
+
+    rendered_text = "\n".join(option.prompt.plain for option in widget._options)  # type: ignore[union-attr]
+    assert "STARTING" not in rendered_text
+    assert "hidden-start" not in rendered_text
+    assert "visible-run" in rendered_text
 
 
 def test_by_status_stopped_banner_carries_status_glyph() -> None:

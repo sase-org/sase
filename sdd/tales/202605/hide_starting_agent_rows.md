@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-14 18:51:37
-status: wip
+status: done
 prompt: sdd/prompts/202605/hide_starting_agent_rows.md
 ---
 # Hide STARTING Agent Rows In The TUI

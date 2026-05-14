@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from rich.text import Text
@@ -21,7 +21,7 @@ _PANEL_UNTAGGED_STYLE = "dim #AFAFAF"
 _PANEL_COUNT_STYLE = "#AFAFAF"
 _PANEL_METRIC_STYLES: dict[str, str] = {
     "asking": "bold #FFAF00",
-    "starting": "bold #87D7FF",
+    "starting": "bold #1a1a1a on #87D7FF",
     "running": "bold #00D7AF",
     "waiting": "bold #AF87FF",
     "failed": "bold #FF5F5F",
@@ -57,6 +57,9 @@ class AgentPanelCounts:
             for name, _label in _PANEL_METRIC_LABELS
             if getattr(self, name)
         ]
+
+    def with_starting(self, starting: int) -> AgentPanelCounts:
+        return replace(self, starting=starting)
 
 
 def agent_panel_counts(
@@ -125,8 +128,12 @@ def agent_panel_border_title(
                 if index:
                     title.append(" ", style=_PANEL_COUNT_STYLE)
                 metric_style = _PANEL_METRIC_STYLES[name]
-                # Unread is the only metric whose letter is part of the highlight.
-                letter_style = metric_style if name == "unread" else _PANEL_COUNT_STYLE
+                # Highlight count-prefixed chips that use a visible background.
+                letter_style = (
+                    metric_style
+                    if name in {"starting", "unread"}
+                    else _PANEL_COUNT_STYLE
+                )
                 title.append(label_by_name[name], style=letter_style)
                 title.append(f"{count}", style=metric_style)
             title.append("]", style=_PANEL_COUNT_STYLE)
