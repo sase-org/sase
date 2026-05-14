@@ -6,8 +6,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from sase.ace.changespec import ChangeSpec
 from sase.bead.model import Issue
 from sase.core.bead_wire import issue_from_dict, issues_from_list
+from sase.core.wire_conversion import changespec_from_wire_dict
 from sase.core.notification_store_wire import notification_from_dict
 from sase.notifications.models import Notification
 
@@ -75,6 +77,40 @@ class BeadDetailRead:
     bounded: ProjectionPayloadBound | None = None
 
 
+@dataclass(frozen=True)
+class ChangeSpecListEntry:
+    schema_version: int
+    handle: str
+    project_id: str
+    name: str
+    project_basename: str
+    file_path: str
+    source_path: str
+    is_archive: bool
+    status: str
+    parent: str | None
+    cl_or_pr: str | None
+    bug: str | None
+    updated_at: str
+    last_seq: int
+
+
+@dataclass(frozen=True)
+class ChangeSpecListRead:
+    snapshot: ProjectionSnapshot
+    page: ProjectionPage
+    entries: list[ChangeSpecListEntry] = field(default_factory=list)
+    bounded: ProjectionPayloadBound | None = None
+
+
+@dataclass(frozen=True)
+class ChangeSpecDetailRead:
+    snapshot: ProjectionSnapshot
+    changespec: ChangeSpec | None
+    summary: ChangeSpecListEntry | None = None
+    bounded: ProjectionPayloadBound | None = None
+
+
 def generic_read_from_dict(surface: str, data: Mapping[str, Any]) -> GenericDaemonRead:
     raw = dict(data)
     return GenericDaemonRead(
@@ -130,6 +166,61 @@ def bead_detail_from_dict(data: Mapping[str, Any]) -> BeadDetailRead:
         snapshot=_required_snapshot(raw.get("snapshot")),
         issue=issue_from_dict(_require_dict(raw.get("issue"), "issue")),
         bounded=_bounded(raw.get("bounded")),
+    )
+
+
+def changespec_list_from_dict(data: Mapping[str, Any]) -> ChangeSpecListRead:
+    raw = dict(data)
+    entries_page = _require_dict(raw.get("entries"), "entries")
+    return ChangeSpecListRead(
+        snapshot=_required_snapshot(raw.get("snapshot")),
+        page=_required_page(raw.get("page")),
+        entries=[
+            _changespec_list_entry_from_dict(item)
+            for item in _dict_list(entries_page.get("entries"), "entries.entries")
+        ],
+        bounded=_bounded(raw.get("bounded")),
+    )
+
+
+def changespec_detail_from_dict(data: Mapping[str, Any]) -> ChangeSpecDetailRead:
+    raw = dict(data)
+    detail_raw = raw.get("detail")
+    detail = None if detail_raw is None else _require_dict(detail_raw, "detail")
+    summary = None
+    changespec = None
+    if detail is not None:
+        summary = _changespec_list_entry_from_dict(
+            _require_dict(detail.get("summary"), "detail.summary")
+        )
+        changespec = changespec_from_wire_dict(
+            _require_dict(detail.get("spec"), "detail.spec")
+        )
+    return ChangeSpecDetailRead(
+        snapshot=_required_snapshot(raw.get("snapshot")),
+        changespec=changespec,
+        summary=summary,
+        bounded=_bounded(raw.get("bounded")),
+    )
+
+
+def _changespec_list_entry_from_dict(data: Mapping[str, Any]) -> ChangeSpecListEntry:
+    raw = dict(data)
+    return ChangeSpecListEntry(
+        schema_version=int(raw.get("schema_version", PROJECTION_READ_SCHEMA_VERSION)),
+        handle=str(raw["handle"]),
+        project_id=str(raw["project_id"]),
+        name=str(raw["name"]),
+        project_basename=str(raw["project_basename"]),
+        file_path=str(raw["file_path"]),
+        source_path=str(raw["source_path"]),
+        is_archive=bool(raw["is_archive"]),
+        status=str(raw["status"]),
+        parent=_optional_str(raw.get("parent")),
+        cl_or_pr=_optional_str(raw.get("cl_or_pr")),
+        bug=_optional_str(raw.get("bug")),
+        updated_at=str(raw["updated_at"]),
+        last_seq=int(raw["last_seq"]),
     )
 
 
@@ -191,10 +282,17 @@ def _dict_list(value: Any, field_name: str) -> list[dict[str, Any]]:
     return [_require_dict(item, field_name) for item in value]
 
 
+def _optional_str(value: Any) -> str | None:
+    return None if value is None else str(value)
+
+
 __all__ = [
     "PROJECTION_READ_SCHEMA_VERSION",
     "BeadDetailRead",
     "BeadListRead",
+    "ChangeSpecDetailRead",
+    "ChangeSpecListEntry",
+    "ChangeSpecListRead",
     "GenericDaemonRead",
     "NotificationDetailRead",
     "NotificationListRead",
@@ -203,6 +301,8 @@ __all__ = [
     "ProjectionSnapshot",
     "bead_detail_from_dict",
     "bead_list_from_dict",
+    "changespec_detail_from_dict",
+    "changespec_list_from_dict",
     "generic_read_from_dict",
     "notification_detail_from_dict",
     "notification_list_from_dict",

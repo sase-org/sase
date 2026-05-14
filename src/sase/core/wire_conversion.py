@@ -181,6 +181,111 @@ def changespec_wire_from_dict(record: dict[str, Any]) -> ChangeSpecWire:
     )
 
 
+def changespec_from_wire_dict(record: dict[str, Any]) -> ChangeSpec:
+    """Rehydrate a Python :class:`ChangeSpec` from a wire dict."""
+    wire = changespec_wire_from_dict(record)
+    return _changespec_from_wire(wire)
+
+
+def _changespec_from_wire(wire: ChangeSpecWire) -> ChangeSpec:
+    """Rehydrate a Python :class:`ChangeSpec` from a wire record."""
+    return ChangeSpec(
+        name=wire.name,
+        description=wire.description,
+        parent=wire.parent,
+        cl=wire.cl_or_pr,
+        status=wire.status,
+        file_path=wire.file_path,
+        line_number=wire.source_span.start_line,
+        bug=wire.bug,
+        commits=[_commit_entry_from_wire(c) for c in wire.commits],
+        hooks=[_hook_entry_from_wire(h) for h in wire.hooks],
+        comments=[_comment_entry_from_wire(c) for c in wire.comments],
+        mentors=[_mentor_entry_from_wire(m) for m in wire.mentors],
+        timestamps=[_timestamp_entry_from_wire(t) for t in wire.timestamps],
+        deltas=[_delta_entry_from_wire(d) for d in wire.deltas],
+    )
+
+
+def _commit_entry_from_wire(record: CommitWire) -> CommitEntry:
+    return CommitEntry(
+        number=record.number,
+        note=record.note,
+        chat=record.chat,
+        diff=record.diff,
+        plan=record.plan,
+        proposal_letter=record.proposal_letter,
+        suffix=record.suffix,
+        suffix_type=record.suffix_type,
+        body=list(record.body),
+    )
+
+
+def _hook_status_line_from_wire(record: HookStatusLineWire) -> HookStatusLine:
+    return HookStatusLine(
+        commit_entry_num=record.commit_entry_num,
+        timestamp=record.timestamp,
+        status=record.status,
+        duration=record.duration,
+        suffix=record.suffix,
+        suffix_type=record.suffix_type,
+        summary=record.summary,
+    )
+
+
+def _hook_entry_from_wire(record: HookWire) -> HookEntry:
+    return HookEntry(
+        command=record.command,
+        status_lines=[_hook_status_line_from_wire(sl) for sl in record.status_lines],
+    )
+
+
+def _comment_entry_from_wire(record: CommentWire) -> CommentEntry:
+    return CommentEntry(
+        reviewer=record.reviewer,
+        file_path=record.file_path,
+        suffix=record.suffix,
+        suffix_type=record.suffix_type,
+    )
+
+
+def _mentor_status_line_from_wire(
+    record: MentorStatusLineWire,
+) -> MentorStatusLine:
+    return MentorStatusLine(
+        profile_name=record.profile_name,
+        mentor_name=record.mentor_name,
+        status=record.status,
+        timestamp=record.timestamp,
+        duration=record.duration,
+        suffix=record.suffix,
+        suffix_type=record.suffix_type,
+    )
+
+
+def _mentor_entry_from_wire(record: MentorWire) -> MentorEntry:
+    return MentorEntry(
+        entry_id=record.entry_id,
+        profiles=list(record.profiles),
+        status_lines=[
+            _mentor_status_line_from_wire(sl) for sl in record.status_lines
+        ],
+        is_draft=record.is_draft,
+    )
+
+
+def _timestamp_entry_from_wire(record: TimestampWire) -> TimestampEntry:
+    return TimestampEntry(
+        timestamp=record.timestamp,
+        event_type=record.event_type,
+        detail=record.detail,
+    )
+
+
+def _delta_entry_from_wire(record: DeltaWire) -> DeltaEntry:
+    return DeltaEntry(path=record.path, change_type=record.change_type)
+
+
 def _commit_wire_from_dict(record: dict[str, Any]) -> CommitWire:
     return CommitWire(
         number=record["number"],

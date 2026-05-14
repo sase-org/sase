@@ -32,6 +32,11 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         help="Path to the project .sase file (default: inferred from current workspace)",
     )
+    current_parser.add_argument(
+        "--no-daemon",
+        action="store_true",
+        help="Read ChangeSpecs directly from project files instead of the local daemon",
+    )
 
     # sase changespec search <query> [-f FORMAT]
     search_parser = cs_subparsers.add_parser(
@@ -50,6 +55,11 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
         default="rich",
         help="Output format: 'plain' for simple text, 'rich' for styled panels, "
         "'markdown' for agent-friendly markdown (default: rich)",
+    )
+    search_parser.add_argument(
+        "--no-daemon",
+        action="store_true",
+        help="Read ChangeSpecs directly from project files instead of the local daemon",
     )
 
     # sase changespec sync-deltas -c <cl_name> [-p <project_file>]
