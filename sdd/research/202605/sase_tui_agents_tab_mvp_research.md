@@ -1,11 +1,32 @@
 # Rust `sase-tui` Agents Tab MVP Research
 
-Date: 2026-05-15
+Date: 2026-05-14
 
 ## Question
 
 What is the best way to create a new `sase-tui` repository that duplicates the
 `sase ace` TUI, starting with a highly capable Rust MVP of the Agents tab?
+
+## Related Prior Research
+
+These existing notes in `sdd/research/` already cover adjacent surface and
+should be read before treating this MVP as greenfield:
+
+- `202605/rust_tui_plugin_migration.md` — broader Ratatui-vs-Textual analysis,
+  pluggy survey, and plugin-discovery options. Establishes that pluggy usage
+  in SASE is shallow (only `firstresult=True` plus name-keyed selection), so
+  the plugin layer is not a blocker for a Rust MVP that skips launch.
+- `202605/sase_chops_rust_repo_research.md` — sibling Rust repo pattern,
+  including the maturin binary-wheel distribution channel for `pip install
+  sase`. Same packaging story applies if `sase-tui` ever needs to ship inside
+  the existing Python distribution.
+- `202605/textual_image_rendering_research.md` — current Kitty graphics
+  state in the Python TUI; explains why image preview should be deferred.
+- `202605/rust_snapshot_migration_landing_research.md` — prior thinking on
+  snapshot-test migration that informs the buffer-snapshot strategy below.
+- `202605/tui_blocking_audit.md` and the async-loading commits (workflow
+  detail, file-panel reads, agent content search) — context for why the
+  Tier 1/Tier 2 loading shape is load-bearing.
 
 ## Executive Summary
 
@@ -445,6 +466,26 @@ The first MVP should be useful as a daily Agents tab replacement:
 - Plugin architecture.
 - Rich terminal image rendering.
 
+### Explicit Non-Goals for the MVP
+
+These are not just "later"; they should be actively refused if scope-creep
+appears during the first slice:
+
+- **Pixel parity with Textual.** Ratatui will render differently. The
+  parity bar is semantic (data, ordering, action effects), not visual.
+- **Embedding Python.** No PyO3, no subprocess shell-outs to `python -m
+  sase`. The MVP either talks to `sase-core` or it does not have the
+  feature.
+- **Cross-process IPC with the Python TUI.** Two TUIs sharing live state
+  is not the goal; sharing on-disk artifacts/index is.
+- **Custom widget framework.** Build the Agents tab against Ratatui +
+  small reducer; do not invent a SASE-flavored widget system before the
+  first screen is real.
+- **Multi-pane tmux orchestration from Rust.** Continue to shell out to
+  the existing tmux helpers for now.
+- **Theming/CSS engine.** A small typed theme struct is enough; no
+  user-loadable CSS-like system.
+
 Launch is deliberately deferred because current launch behavior still depends
 on Python provider/workspace/plugin machinery. Porting it first would force the
 new repo to either embed Python or duplicate unstable orchestration. A strong
@@ -639,7 +680,27 @@ For the first repo:
 Do not package the MVP as a Python wheel unless there is an immediate install
 requirement. This repo can be pure Rust. If SASE later wants `pip install sase`
 to install the TUI binary, use the same maturin binary-wheel pattern already
-considered for Rust chop binaries.
+considered for Rust chop binaries (see
+`202605/sase_chops_rust_repo_research.md` for the full pattern).
+
+### `sase-core` Dependency Source
+
+The new repo needs a concrete answer for *how* it depends on `sase-core`.
+Pick one explicitly at repo-init time:
+
+1. **Path dependency** during initial development (`sase-core = { path =
+   "../sase-core/crates/sase_core" }`). Fastest iteration but forces every
+   sase-tui contributor to have both repos checked out side by side.
+2. **Git dependency** with a pinned commit
+   (`sase-core = { git = "...", rev = "..." }`). No side-by-side checkout
+   required; bumping the pin is a deliberate PR. Recommended default once
+   the API stabilizes.
+3. **Published crate** on crates.io. Not yet — `sase-core` is not
+   currently published, and the API churn rate is too high for releases.
+
+Recommend starting with path deps in a `Cargo.toml` `[patch.crates-io]`
+override so the same source can be consumed via git in CI. This mirrors
+how `sase-core_py` is wired today.
 
 ## Risks
 
@@ -697,6 +758,11 @@ Mitigation: defer launch from MVP. Make read/control excellent first.
 
 ## Recommended First Implementation Plan
 
+0. Create an SDD epic for the new repo (e.g. `sase-tui-agents-mvp`) and a
+   bead tree mirroring the steps below, so the work threads back into
+   the existing SASE planning system. Land an empty `sase-tui` repo with
+   `Cargo.toml`, `rustfmt.toml`, `.editorconfig`, GitHub Actions skeleton,
+   and `CODEOWNERS` before any feature work.
 1. Create `sase-tui` Rust workspace and wire terminal init, event loop, panic
    restore, logging, and a static Agents screen.
 2. Add `sase-core` dependency and load `AgentArtifactScanWire` from the
@@ -709,6 +775,223 @@ Mitigation: defer launch from MVP. Make read/control excellent first.
 8. Add tag/unread/dismiss/kill actions behind confirmation and refresh.
 9. Add parity tests against representative Python ACE fixtures.
 10. Only then evaluate launch/revive/notifications.
+
+## Additional Gap Research (2026-05)
+
+### Prior-Art Rust TUIs
+
+- **gitui**: pure-Crossterm DIY, no Tokio. Threads + `std::sync::mpsc` and a
+  synchronous repaint queue. Lesson: a `Component` trait with
+  `event() -> EventState::{Consumed,NotConsumed}` lets bubbling stay explicit;
+  copy that for SASE modals/panels.
+  https://github.com/extrawurst/gitui
+- **atuin**: Crossterm + Tokio. `EventStream` polled in `tokio::select!` against
+  a tick interval and a search-debounce future. Lesson: debounce the
+  *user-input-derived* refresh future, not the file-watcher future — they have
+  different latency budgets.
+  https://github.com/atuinsh/atuin/tree/main/crates/atuin/src/command/client/search
+- **helix (helix-term)**: a `Compositor` owns `Vec<Box<dyn Component>>` layers
+  and a single `run` loop drives an `EventStream` plus LSP/DAP futures via
+  `tokio::select!`. Lesson: model "modal layers" (help, confirm, query) as
+  pushed Components rather than enum-state inside the main view.
+  https://github.com/helix-editor/helix/blob/master/docs/architecture.md
+  https://github.com/helix-editor/helix/blob/master/helix-term/src/compositor.rs
+- **yazi**: 20+ crate workspace, `LocalSet` per thread, task-priority queue
+  with explicit cancellation. Lesson: split *render-blocking* vs *streaming*
+  tasks — sase-tui should mark artifact scan as streaming so the first paint
+  never waits on Tier 2.
+  https://deepwiki.com/sxyazi/yazi
+- **oha**: Ratatui + Tokio + Hyper. Has a clean separation between a "stats
+  collector" task that owns the data and a render task. Lesson: prefer a
+  single Arc<Mutex<Snapshot>> updated by the collector and read by render,
+  rather than channelling every row delta.
+  https://github.com/hatoo/oha
+- **bottom**: Crossterm DIY, full `insta`-based snapshot suite over `Buffer`.
+  Lesson: golden-buffer snapshots scale; PNG is overkill until visual parity
+  with Textual is a product requirement.
+  https://github.com/ClementTsang/bottom
+
+### Ratatui Alternatives — Honest Take
+
+- **iocraft**: React-like declarative API with hooks and flexbox via taffy.
+  Genuinely nicer for forms/dialogs but immature ecosystem, no `insta` story,
+  and no comparable widget breadth. Not a better fit for sase-tui — list,
+  detail pane, and grouping are exactly what Ratatui's immediate-mode list
+  widget is best at.
+  https://github.com/ccbrown/iocraft
+- **cursive**: retained-mode, callback-driven, handles its own event loop.
+  Awkward for an async/Tokio app and lacks fine-grained redraw control.
+  Reject.
+- **dioxus TUI (Rink)**: Dioxus's `dioxus-tui` (formerly Rink) is alpha and now
+  builds on top of Ratatui internally; you would inherit Ratatui's behavior
+  plus a VDOM layer SASE does not need.
+  https://github.com/DioxusLabs/dioxus/issues/1311
+- **crossterm-only DIY**: viable (gitui, bottom) but you re-implement layout,
+  text wrapping, and styled spans. Not worth it given Ratatui's widget set.
+
+Verdict: stay on Ratatui 0.30.
+
+### Async/Tokio Canonical Pattern (late 2025 / 2026)
+
+The current Ratatui-recommended shape, matching the `async-template` and the
+`counter-async-app` tutorial:
+
+1. `crossterm::event::EventStream::new()` (requires `event-stream` feature).
+2. A `Tui` (or `EventHandler`) struct holding a `tokio_util::sync::CancellationToken`,
+   a `JoinHandle`, and an `mpsc::UnboundedReceiver<Event>`.
+3. Inside the spawned task: `tokio::select!` over `crossterm_stream.next()`,
+   `tick_interval.tick()`, `render_interval.tick()`, and
+   `cancel_token.cancelled()`.
+4. On shutdown: `cancel_token.cancel()` then `handle.await`.
+
+Render-storm avoidance: do NOT render on every `AppEvent`. The accepted
+pattern is a separate `render_interval` (e.g. 30 Hz) plus a dirty flag set by
+the reducer; the render tick only draws when dirty. For file-watch fanout,
+use `notify-debouncer-full` (250–500 ms window) which collapses duplicate
+paths from the typical 3–12 events Vim/VSCode emit per save.
+
+Sources:
+- https://ratatui.rs/tutorials/counter-async-app/async-event-stream/
+- https://ratatui.rs/tutorials/counter-async-app/full-async-events/
+- https://ratatui.github.io/async-template/02-structure.html
+- https://docs.rs/notify-debouncer-full
+
+### Terminal Compatibility
+
+- **Ratatui 0.30** modularized into `ratatui-core`/`ratatui-widgets`/backends
+  and now allows multiple Crossterm majors via `crossterm_{version}` features,
+  so sase-tui can pin to whatever Crossterm matches its kitty-protocol
+  requirements. https://ratatui.rs/highlights/v030/
+- **Kitty keyboard protocol**: Crossterm's `PushKeyboardEnhancementFlags` is
+  the supported path (disambiguate Ctrl+letter, modifiers on release,
+  Esc/Tab disambiguation). Required for Vim-style chord keymaps to feel
+  correct in Kitty/WezTerm/foot.
+  https://sw.kovidgoyal.net/kitty/keyboard-protocol/
+- **Bracketed paste, focus events, mouse**: Crossterm's
+  `EnableBracketedPaste`/`EnableFocusChange`/`EnableMouseCapture` are
+  separately opt-in; emit them from `terminal.rs` init and undo on restore.
+  Without bracketed paste, multi-line clipboard pastes get interleaved with
+  keymap handling — there is an active class of bugs (see e.g. Kiro #6634)
+  caused by missing this.
+- **Grapheme/wide-char**: Ratatui uses `unicode-width`; emoji/CJK width works
+  but flag sequences and ZWJ clusters still mis-measure. Truncate display
+  names with `unicode-segmentation`, not `str::chars().take(n)`.
+- **tmux passthrough**: `set -g allow-passthrough on` (tmux 3.2+) is required
+  for any DCS-wrapped Kitty graphics; tmux master has experimental native
+  Kitty graphics support on the `ta/kitty-img` branch but is not in
+  released tmux 3.6a. Plan for: Kitty image preview works direct; inside
+  tmux requires passthrough; inside screen, give up gracefully and fall
+  back to halfblocks. https://github.com/tmux/tmux/issues/4902
+
+### Logging / Observability
+
+Consensus: `tracing` + `tracing-subscriber` + `tracing-appender` writing to a
+rolling file under the data dir (e.g. `~/.local/state/sase-tui/`). Never
+write logs to stdout — Ratatui owns the alternate screen. Add `tui-logger`
+(v0.10+ is Ratatui-only) only if you want an in-app log panel, since its
+internal hot/main double-buffer is overkill for just a file sink.
+- https://ratatui.rs/recipes/apps/log-with-tracing/
+- https://github.com/gin66/tui-logger
+
+### Error Handling
+
+Consensus pattern, codified by the Ratatui `color-eyre` recipe:
+- `color-eyre` in `main()` for the panic + error hook (installs the
+  terminal-restore hook around the panic handler).
+- `eyre::Result<T>` everywhere in TUI code.
+- `thiserror` only inside `sase-core` for shared library error enums that
+  callers (web/mobile/CLI) might `match` on.
+- Do not use `anyhow` and `eyre` in the same workspace; `color-eyre`
+  subsumes `anyhow`'s ergonomics.
+
+Sources:
+- https://ratatui.rs/recipes/apps/color-eyre/
+- https://github.com/eyre-rs/eyre
+
+### Config Sharing With Python
+
+Three options:
+
+1. **Duplicate** `default_config.yml` keymaps as a Rust `serde` parse.
+   Fast, drifts.
+2. **Generate** a typed Rust config crate from the same YAML via a
+   `build.rs` that reads the Python repo's `default_config.yml`.
+   Avoids drift but couples build environments.
+3. **Move config parsing into `sase-core`** as a `sase_core::config`
+   module reading the same on-disk YAML. Python keeps its current loader
+   for behaviors `sase-core` does not own; `sase-tui` calls
+   `sase_core::config::load()`.
+
+Recommendation: option 3 for keymap, theme, and any value that affects
+both frontends; option 1 short-term for TUI-only widget state. This
+matches the existing rule that web/editor frontends should match TUI
+behavior. The default_config.yml itself can stay in the sase Python repo
+and be referenced by path (or vendored into sase-core as a build asset).
+
+### Distribution
+
+Current 2026 consensus for a Rust TUI you want users to actually install:
+
+- **cargo-dist** (axodotdev) for release pipelines: generates GitHub
+  Releases with platform tarballs, MSI/PKG, shell + PowerShell installers,
+  and Homebrew tap formulas from one Cargo.toml config.
+  https://github.com/axodotdev/cargo-dist
+- **cargo-binstall** for `cargo install`-style UX backed by the
+  cargo-dist artifacts. https://github.com/cargo-bins/cargo-binstall
+- **Homebrew**: prefer a bottle from a tap that `cargo-dist` populates
+  rather than a `head`-from-source formula.
+- **GitHub artifact attestations** (`actions/attest-build-provenance`) are
+  now the de-facto standard for supply-chain provenance on releases.
+
+`pip install sase-tui` is not the right channel; ship the binary
+independently and let the Python sase package optionally find it on PATH.
+
+### Performance Benchmarking
+
+Ratatui itself uses Criterion in-tree for its widget benchmarks. For
+application-level benchmarks (full-screen render of a 1000-row Agent list,
+scroll-through throughput), `divan` is increasingly the choice because
+its black-box API and per-iteration setup fit "build state, render once"
+better than Criterion's looped sampling. CodSpeed supports both for CI.
+
+Practical baseline: render of a full-screen `List`/`Paragraph` is well
+under 1 ms on modern hardware (ratatui discussion #1880); the realistic
+budget for sase-tui is 16 ms total per frame at 60 Hz, of which Ratatui
+draw should stay under 2 ms. Benchmark the row-build path
+(`AgentRow -> Vec<ListItem>`) separately — that is where 1000+ row lists
+typically regress.
+
+Sources:
+- https://github.com/ratatui/ratatui/discussions/1880
+- https://github.com/nvzqz/divan
+- https://codspeed.io/docs/guides/how-to-benchmark-rust-with-divan
+
+### Image / PDF Preview
+
+`ratatui-image` (8.x) supports Kitty, Sixel, iTerm2, and a Unicode
+halfblocks fallback, with auto-detection by env vars + control-sequence
+query. Kitty requires terminal Kitty ≥ 0.28; Sixel works in foot,
+WezTerm, xterm-with-sixel, mlterm; iTerm2 protocol works in iTerm2 and
+WezTerm. Inside tmux, all of these require `allow-passthrough on` and
+even then placement is fragile.
+
+Alternatives:
+- **Spawn `chafa`**: high-quality fallback, works anywhere, returns ANSI
+  to draw inline. Easy to integrate but does not coexist with Ratatui's
+  alternate-screen redraws cleanly — best for a leave-altscreen preview
+  mode. https://github.com/hpjansson/chafa
+- **Spawn `viu`**: native Kitty/iTerm2 support, simpler than chafa.
+  https://github.com/atanunq/viu
+- **Überzug++**: external image-overlay daemon; best quality, worst
+  packaging.
+
+PDF preview specifically has no good Rust crate; the realistic path is
+`pdftoppm | chafa` (or render to PNG via `pdfium-render` and feed to
+`ratatui-image`). Defer past the MVP.
+
+Sources:
+- https://github.com/benjajaja/ratatui-image
+- https://docs.rs/crate/ratatui-image/latest
 
 ## Bottom Line
 
