@@ -53,6 +53,61 @@ refreshes complete by doing significant synchronous work on the UI thread:
 
 Highest-value fixes are ranked in the [Recommended Fix Plan](#recommended-fix-plan).
 
+## Phase 6 Verification (2026-05-15)
+
+### Source
+
+- Profile artifact: `/home/bryan/tmp/sase/ace_profile_sase-3l6_20260515_workspace.txt`
+- Trace artifacts:
+  - `/home/bryan/tmp/sase/ace_trace_sase-3l6_20260515_workspace.jsonl`
+  - `/home/bryan/tmp/sase/ace_jk_sase-3l6_20260515_workspace.jsonl`
+- Query benchmark artifact: `/home/bryan/tmp/sase/bench_core_query_sase-3l6_20260515.json`
+- Profile command:
+  `SASE_TUI_TRACE=1 SASE_TUI_TRACE_PATH=/home/bryan/tmp/sase/ace_trace_sase-3l6_20260515_workspace.jsonl SASE_TUI_PERF=1 SASE_TUI_PERF_PATH=/home/bryan/tmp/sase/ace_jk_sase-3l6_20260515_workspace.jsonl .venv/bin/sase ace --profile /home/bryan/tmp/sase/ace_profile_sase-3l6_20260515_workspace.txt`
+- Recorded: 2026-05-15 09:25:54
+- Duration: 13.217s wall, 9.590s CPU, 1,637 samples
+- Interaction sequence: first top-bar indicator render, initial agent load, `j/k`
+  over the Agents tab, manual refresh, tab switch through AXE to CLs, ChangeSpec
+  refresh/filter, then quit.
+
+### Result
+
+The combined phases removed the dominant interactive hot paths from the May 15
+baseline:
+
+| Path | Baseline | Phase 6 verification |
+| --- | ---: | ---: |
+| Async ChangeSpec refresh/filter continuation | 1.079s, including 1.021s `compile_query_corpus` on the UI thread | Trace refresh/filter spans after tab switch: 2.8-5.1ms. The remaining profiled corpus compile is startup/on-mount, 0.089s inside a 0.101s `_apply_changespecs` path. |
+| Agent-load UI apply | 0.475s `_finalize_agent_list` | 0.062s `_apply_loaded_agents_prepared` / `_finalize_agent_list` in the measured refresh; trace `agents.refresh_display` 7.6ms after worker load. |
+| Full agent detail/header update | 0.572s `build_header_text` on one j/k selection, including artifact listing, deltas, and provider metadata | Trace `widget.agent_detail.update_display` 10.6ms and `widget.prompt_panel.update_display` 4.0ms for the selected done agent. Profile samples for later full updates were 0.003-0.010s. |
+| Prompt markdown paint | 1.763s `AgentPromptPanel.render_lines` plus 1.019s height calculation | No `AgentPromptPanel.render_lines` or `MarkdownLexer` hot path appeared in this profile; prompt rendering went through `LazySyntaxRenderCache` and stayed below sampling significance. |
+| First LLM indicator render | 0.655s synchronous resolver | `LLMOverrideIndicator.on_mount` scheduled a worker in 0.001s. The first provider metadata fill still appeared once through agent header rendering at 0.029s. |
+
+One quit-time `ArtifactWatcher.stop` join sampled at 0.287s. That is outside
+ordinary navigation/reload responsiveness and was not counted against the Phase
+6 target.
+
+### Query Corpus Benchmark
+
+Command:
+`just bench-query --runs 5 --warmup 1 --spec-sizes 100,1000 --skip-home-tree --output /home/bryan/tmp/sase/bench_core_query_sase-3l6_20260515.json`
+
+Key rows:
+
+| Workload | `rust_persistent_corpus_compile` median | `rust_persistent_query_keystroke_evaluate_many` median |
+| --- | ---: | ---: |
+| synthetic_100_specs | 6.408ms | 0.010ms |
+| synthetic_1000_specs | 67.297ms | 0.068ms |
+
+The corpus compile cost is still mostly Python wire serialization, but the
+measured UI path no longer repeatedly pays that cost during async reload/filter
+interaction. The remaining startup compile is just under the roughly 100ms
+target on this machine, so the data does not justify a Rust-core serialization
+phase yet. If a future real project profile shows startup/on-mount
+`_apply_changespecs` or corpus compile above 100ms, the next step is a
+separate Rust-core design to reduce `dataclasses.asdict()` / wire-dict
+allocation across `../sase-core`, `sase_core_rs`, and the Python callers.
+
 ## Captured Hot Paths
 
 ### 1. Prompt Panel Render Cost
