@@ -162,6 +162,37 @@ def discover_related_tool_artifact_dirs(
     return result
 
 
+def discover_related_tool_artifact_dirs_cached(
+    agent: Agent,
+    artifacts_dir: str | Path,
+    *,
+    cached_dirs: list[Path] | None = None,
+    cached_parent_mtime_ns: int = 0,
+) -> tuple[list[Path], int]:
+    """Discover artifact directories, reusing a prior result when possible.
+
+    Returns ``(dirs, parent_mtime_ns)``. When the parent directory's mtime
+    matches ``cached_parent_mtime_ns`` and ``cached_dirs`` is non-empty, returns
+    ``cached_dirs`` without re-walking the parent or re-reading sibling
+    metadata. Otherwise re-runs :func:`discover_related_tool_artifact_dirs`.
+    """
+    current = Path(artifacts_dir).expanduser()
+    parent = current.parent
+    try:
+        parent_mtime_ns = parent.stat().st_mtime_ns
+    except OSError:
+        return [current], 0
+
+    if (
+        cached_dirs
+        and cached_parent_mtime_ns
+        and parent_mtime_ns == cached_parent_mtime_ns
+    ):
+        return cached_dirs, parent_mtime_ns
+
+    return discover_related_tool_artifact_dirs(agent, artifacts_dir), parent_mtime_ns
+
+
 def derive_tool_call_status(record: Mapping[str, Any]) -> str:
     """Derive a known display status from a normalized artifact record."""
     raw_status = record.get("status")

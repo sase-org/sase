@@ -1,15 +1,20 @@
 from __future__ import annotations
 
 import os
+import time
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from sase.ace.tui.tools import ToolCallEntry, read_tool_calls_for_agent
 from sase.ace.tui.tools.reader import TOOL_CALLS_FILENAME
+from sase.ace.tui.widgets import tools_panel as tools_panel_mod
 from sase.ace.tui.widgets.tools_panel import (
+    AgentToolsPanel,
     _build_tools_timeline_markdown,
     _build_tools_timeline_text,
+    _ToolsCacheEntry,
+    get_cache_key,
 )
 from sase.llm_provider._tool_calls import append_claude_tool_call_event
 
@@ -232,3 +237,76 @@ def test_tools_panel_renders_tool_call_from_stream_events(tmp_path: Path) -> Non
     assert "Bash" in rendered
     assert "ls /tmp" in rendered or "list /tmp" in rendered
     assert "alpha" in rendered
+
+
+def _build_panel() -> AgentToolsPanel:
+    panel = AgentToolsPanel.__new__(AgentToolsPanel)
+    panel._current_agent = None
+    panel._current_worker = None
+    panel._has_displayed_content = True
+    panel._last_entries = None
+    panel._last_fetch_time = None
+    panel._is_background_refreshing = False
+    panel.update = MagicMock()  # type: ignore[method-assign]
+    panel.post_message = MagicMock()  # type: ignore[method-assign]
+    panel.run_worker = MagicMock(  # type: ignore[method-assign]
+        return_value=MagicMock(is_running=False)
+    )
+    return panel
+
+
+def test_warm_cache_update_display_does_not_walk_artifacts_on_event_loop(
+    tmp_path: Path,
+) -> None:
+    """Regression for the j/k slowdown: a warm-cache update_display must not
+    invoke ``discover_related_tool_artifact_dirs`` (or any sibling-walking
+    helper) on the Textual event loop. Throttling keeps repeated keystrokes
+    cheap by suppressing worker spawns inside the minimum re-read interval.
+    """
+    from sase.ace.tui.models.agent import Agent, AgentType
+
+    artifacts_dir = tmp_path / "ace-run" / "20260514140000"
+    artifacts_dir.mkdir(parents=True)
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="proj",
+        project_file="/tmp/proj/proj.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 14, 10, 0, 0),
+        artifacts_dir=str(artifacts_dir),
+        raw_suffix=artifacts_dir.name,
+    )
+
+    cache_key = get_cache_key(agent)
+    tools_panel_mod._tools_cache[cache_key] = _ToolsCacheEntry(
+        entries=[],
+        fetch_time=datetime.now(),
+        artifact_mtime_ns=1234,
+        discovered_dirs=[artifacts_dir],
+        parent_mtime_ns=5678,
+        last_worker_monotonic=time.monotonic(),
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.tools.reader.discover_related_tool_artifact_dirs"
+        ) as discover_mock,
+        patch(
+            "sase.ace.tui.tools.reader.discover_related_tool_artifact_dirs_cached"
+        ) as discover_cached_mock,
+    ):
+        try:
+            panel = _build_panel()
+            for _ in range(10):
+                panel.update_display(agent)
+        finally:
+            tools_panel_mod._tools_cache.pop(cache_key, None)
+
+    run_worker = panel.run_worker
+    update = panel.update
+    assert isinstance(run_worker, MagicMock)
+    assert isinstance(update, MagicMock)
+    assert discover_mock.call_count == 0
+    assert discover_cached_mock.call_count == 0
+    assert run_worker.call_count == 0
+    assert update.called

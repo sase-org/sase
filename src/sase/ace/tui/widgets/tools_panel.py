@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,8 @@ from sase.ace.tui.tools import ToolCallEntry, read_tool_calls_for_agent
 from sase.core.time import get_timezone
 
 from ..util.trace import tui_trace
+
+_MIN_REREAD_INTERVAL_S = 0.5
 
 
 class ToolsVisibilityChanged(Message):
@@ -35,33 +38,17 @@ class _ToolsCacheEntry:
     entries: list[ToolCallEntry] | None
     fetch_time: datetime
     artifact_mtime_ns: int = 0
+    discovered_dirs: list[Path] = field(default_factory=list)
+    parent_mtime_ns: int = 0
+    last_worker_monotonic: float = 0.0
 
 
 _tools_cache: dict[str, _ToolsCacheEntry] = {}
 
 
-def _max_tool_calls_mtime_ns(agent: Agent) -> int:
-    """Return the latest mtime (ns) across the agent's tool_calls.jsonl files.
-
-    Hook writes append to ``tool_calls.jsonl`` in real time while the agent is
-    running. Comparing the file's mtime against the cache's recorded mtime lets
-    us invalidate the cache as soon as a new write lands instead of waiting
-    out the stale-threshold window.
-    """
-    from sase.ace.tui.tools.reader import (
-        TOOL_CALLS_FILENAME,
-        discover_related_tool_artifact_dirs,
-    )
-
-    get_artifacts_dir = getattr(agent, "get_artifacts_dir", None)
-    if not callable(get_artifacts_dir):
-        return 0
-    artifacts_dir = get_artifacts_dir()
-    if not isinstance(artifacts_dir, (str, Path)) or not artifacts_dir:
-        return 0
+def _max_mtime_ns_for_paths(paths: list[Path]) -> int:
     latest = 0
-    for directory in discover_related_tool_artifact_dirs(agent, artifacts_dir):
-        path = directory / TOOL_CALLS_FILENAME
+    for path in paths:
         try:
             stat_result = path.stat()
         except OSError:
@@ -69,6 +56,16 @@ def _max_tool_calls_mtime_ns(agent: Agent) -> int:
         if stat_result.st_mtime_ns > latest:
             latest = stat_result.st_mtime_ns
     return latest
+
+
+def _resolve_artifacts_dir(agent: Agent) -> str | Path | None:
+    get_artifacts_dir = getattr(agent, "get_artifacts_dir", None)
+    if not callable(get_artifacts_dir):
+        return None
+    artifacts_dir = get_artifacts_dir()
+    if not isinstance(artifacts_dir, (str, Path)) or not artifacts_dir:
+        return None
+    return artifacts_dir
 
 
 def get_cache_key(agent: Agent) -> str:
@@ -240,34 +237,32 @@ class AgentToolsPanel(Static):
     def _update_display_impl(
         self, agent: Agent, stale_threshold_seconds: int = 10
     ) -> None:
+        del stale_threshold_seconds  # freshness now checked inside the worker
         self._current_agent = agent
         cache_key = get_cache_key(agent)
         cache_entry = _tools_cache.get(cache_key)
 
         if cache_entry is not None:
-            age_seconds = (datetime.now() - cache_entry.fetch_time).total_seconds()
-            current_mtime = _max_tool_calls_mtime_ns(agent)
-            file_changed = current_mtime > cache_entry.artifact_mtime_ns
-            if age_seconds < stale_threshold_seconds and not file_changed:
-                self._display_tools_with_timestamp(
-                    cache_entry.entries,
-                    cache_entry.fetch_time,
-                    post_visibility_message=True,
-                )
-                return
-
-            self._is_background_refreshing = True
             self._display_tools_with_timestamp(
                 cache_entry.entries,
                 cache_entry.fetch_time,
                 post_visibility_message=True,
-                is_stale=True,
             )
         else:
             self._show_loading()
 
+        if (
+            cache_entry is not None
+            and (time.monotonic() - cache_entry.last_worker_monotonic)
+            < _MIN_REREAD_INTERVAL_S
+        ):
+            return
+
         if self._current_worker is not None and self._current_worker.is_running:
-            self._current_worker.cancel()
+            return
+
+        if cache_entry is not None:
+            cache_entry.last_worker_monotonic = time.monotonic()
 
         def fetch_task() -> list[ToolCallEntry] | None:
             return self._fetch_tools_in_background(agent)
@@ -288,6 +283,9 @@ class AgentToolsPanel(Static):
                 post_visibility_message=True,
                 is_stale=True,
             )
+            # Force a re-read by invalidating the mtime watermark.
+            cache_entry.artifact_mtime_ns = 0
+            cache_entry.last_worker_monotonic = time.monotonic()
         else:
             self._show_loading()
 
@@ -353,12 +351,52 @@ class AgentToolsPanel(Static):
         self._has_displayed_content = True
 
     def _fetch_tools_in_background(self, agent: Agent) -> list[ToolCallEntry] | None:
-        entries = read_tool_calls_for_agent(agent)
+        from sase.ace.tui.tools.reader import (
+            TOOL_CALLS_FILENAME,
+            discover_related_tool_artifact_dirs_cached,
+        )
+
         cache_key = get_cache_key(agent)
+        prior = _tools_cache.get(cache_key)
+        artifacts_dir = _resolve_artifacts_dir(agent)
+
+        if artifacts_dir is None:
+            entries = read_tool_calls_for_agent(agent)
+            _tools_cache[cache_key] = _ToolsCacheEntry(
+                entries=entries,
+                fetch_time=datetime.now(),
+                last_worker_monotonic=time.monotonic(),
+            )
+            return entries
+
+        cached_dirs = prior.discovered_dirs if prior is not None else None
+        cached_parent_mtime_ns = prior.parent_mtime_ns if prior is not None else 0
+        dirs, parent_mtime_ns = discover_related_tool_artifact_dirs_cached(
+            agent,
+            artifacts_dir,
+            cached_dirs=cached_dirs,
+            cached_parent_mtime_ns=cached_parent_mtime_ns,
+        )
+        tool_call_paths = [directory / TOOL_CALLS_FILENAME for directory in dirs]
+        current_mtime = _max_mtime_ns_for_paths(tool_call_paths)
+
+        if (
+            prior is not None
+            and prior.artifact_mtime_ns
+            and current_mtime == prior.artifact_mtime_ns
+        ):
+            prior.discovered_dirs = dirs
+            prior.parent_mtime_ns = parent_mtime_ns
+            return prior.entries
+
+        entries = read_tool_calls_for_agent(agent)
         _tools_cache[cache_key] = _ToolsCacheEntry(
             entries=entries,
             fetch_time=datetime.now(),
-            artifact_mtime_ns=_max_tool_calls_mtime_ns(agent),
+            artifact_mtime_ns=current_mtime,
+            discovered_dirs=dirs,
+            parent_mtime_ns=parent_mtime_ns,
+            last_worker_monotonic=time.monotonic(),
         )
         return entries
 
