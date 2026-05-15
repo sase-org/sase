@@ -1217,6 +1217,27 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
 
 When the file or tools panel is empty, the `g`/`G` keys automatically fall back to scrolling the metadata panel.
 
+## Agents Tab Tools Panel
+
+The Agents tab tools panel (cycled to via `]`/`[`, between the file and metadata panels) shows a chronological timeline
+of provider tool calls for the selected agent. It replaces the older provider-thinking panel for tool activity.
+
+The panel reads normalized tool-call entries from the `tool_calls.jsonl` artifact in the agent run directory. Each entry
+renders one line of the timeline:
+
+- A status label (`ok`, `fail`, `stop`, `agent`, `unknown`) colored by outcome.
+- The tool name, with an optional compact target (such as a file path) and call duration when known.
+- A bounded detail preview on the next line when the writer recorded one.
+
+The header shows the total call count, failure count, interrupted count, and the time the panel last refreshed. When the
+panel is reloading in the background after an entry change, the header shows a `(refreshing...)` hint. If the artifact
+is missing the panel reads `No tools artifact available`; when the artifact is present but empty it reads
+`No tool calls recorded`.
+
+Tool-call records are emitted by the Claude tool-call hook collector and by stream-derived fallback writers in the LLM
+provider layer. See [LLM Providers — Claude tool-call hooks](llms.md#claude-tool-call-hooks) for the artifact schema and
+provider integration details.
+
 ## Plan Workflows
 
 When a workflow uses the `%plan` directive, the agent enters a planning phase before executing:

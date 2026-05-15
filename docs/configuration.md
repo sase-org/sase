@@ -678,6 +678,24 @@ bead system reference.
 
 Source: `src/sase/default_config.yml`
 
+### bead
+
+Configuration for the bead issue tracker.
+
+```yaml
+bead:
+  push_after_commit: true # default: true
+```
+
+| Field                    | Type | Default | Description                                                                                                                  |
+| ------------------------ | ---- | ------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `bead.push_after_commit` | bool | `true`  | When true, `sase bead work` runs `git push` after committing the `sdd/beads/issues.jsonl` mutation. Push failures only warn. |
+
+Set to `false` for local-only checkouts or pre-push-hook-heavy workflows where the launch commit should not be pushed
+immediately. See [`docs/beads.md`](beads.md#sase-bead-work-id) for the full `sase bead work` flow.
+
+Source: `src/sase/default_config.yml`
+
 ### telemetry
 
 Configures Prometheus-based telemetry for monitoring sase internals. See [docs/telemetry.md](telemetry.md) for the full
@@ -773,26 +791,11 @@ entry points directly.
 | `SASE_DISABLE_PLUGIN_XPROMPTS` | Disable plugin-provided xprompt and workflow files.                     |
 | `SASE_DISABLE_PLUGIN_CONFIG`   | Disable plugin-provided `default_config.yml` files and config xprompts. |
 
-### Local Daemon And Provider Host
+### Source Store
 
-These variables override daemon configuration for one process or provide immediate rollback switches.
-
-| Variable                               | Description                                                                                                                                                                              |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SASE_HOME`                            | Override the SASE source-store root. Used by daemon lifecycle commands, mobile helpers, beads, and provider-host manifests.                                                              |
-| `SASE_NO_DAEMON`                       | Disable daemon-capable reads, writes, and scheduler routing for the current process.                                                                                                     |
-| `SASE_DAEMON_READS`                    | Override `daemon.reads.enabled` (`1/true/yes/on` or `0/false/no/off`).                                                                                                                   |
-| `SASE_DAEMON_FORCE_DIRECT`             | Override `daemon.reads.force_direct`; also forces VCS/workspace provider query helpers away from daemon host routing.                                                                    |
-| `SASE_DAEMON_FALLBACK_DIAGNOSTICS`     | Override `daemon.reads.fallback_diagnostics`.                                                                                                                                            |
-| `SASE_DAEMON_<SURFACE>_READS`          | Override one daemon read group, such as `SASE_DAEMON_CHANGESPECS_READS`, `SASE_DAEMON_NOTIFICATIONS_READS`, `SASE_DAEMON_ACE_NOTIFICATIONS_READS`, or `SASE_DAEMON_ACE_ARTIFACTS_READS`. |
-| `SASE_ACE_AGENTS_DAEMON_READS`         | Compatibility override for ACE Agents daemon reads.                                                                                                                                      |
-| `SASE_DAEMON_SCHEDULER_LAUNCH_MODE`    | Override `daemon.scheduler.launch_mode`.                                                                                                                                                 |
-| `SASE_DAEMON_SCHEDULER_LIFECYCLE_MODE` | Override `daemon.scheduler.lifecycle_mode`.                                                                                                                                              |
-| `SASE_DAEMON_SCHEDULER_AXE_MODE`       | Override `daemon.scheduler.axe_mode`.                                                                                                                                                    |
-| `SASE_PROVIDER_HOST_MODE`              | Override provider-host routing globally; use `direct` as the one-env rollback switch.                                                                                                    |
-| `SASE_PROVIDER_HOST_<OPERATION>_MODE`  | Override one provider-host operation, such as `SASE_PROVIDER_HOST_LLM_METADATA_MODE`.                                                                                                    |
-| `SASE_DISABLE_PROVIDER_HOST_ROUTING`   | Force all provider-host operations to `direct` when set to a non-empty value.                                                                                                            |
-| `SASE_PROVIDER_HOST_QUERIES`           | Legacy boolean override for low-risk provider-host query/metadata operations.                                                                                                            |
+| Variable    | Description                                                                                        |
+| ----------- | -------------------------------------------------------------------------------------------------- |
+| `SASE_HOME` | Override the SASE source-store root. Used by mobile helpers, bead state, and source-store lookups. |
 
 ### General
 

@@ -321,6 +321,13 @@ it does not commit any code produced later by the spawned agents. Epic launches 
 commit fails, the command reports that agents were already launched and exits non-zero so the operator can commit or
 repair the bead state explicitly. Dry runs and stores outside git do not create a commit.
 
+When the commit succeeds and `bead.push_after_commit` is `true` (the default), `sase bead work` also runs `git push` so
+the launched-work record is published to the remote without a manual follow-up. The push inherits stdin/stdout/stderr so
+credential prompts still work, and skips silently when no git remote is configured. Push failures only warn — the local
+commit is preserved and the printed instructions show how to push manually. Disable the auto-push with
+`bead.push_after_commit: false` in `~/.config/sase/sase.yml` for local-only checkouts or workflows where the launch
+commit should not be pushed immediately.
+
 ## Rust Backend
 
 The bead data model, JSONL/config codecs, SQLite rebuild/query layer, mutation transactions, ID allocation,
