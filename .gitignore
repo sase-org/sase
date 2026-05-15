@@ -84,3 +84,6 @@ sdd/tales/202604/perf_artifacts/local_only/
 !.dev.vars.example
 .env*
 !.env.example
+
+# local claude settings
+.claude/settings.local.json
