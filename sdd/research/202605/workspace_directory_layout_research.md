@@ -22,13 +22,18 @@ The better default is a SASE-managed workspace store:
 ```text
 ${SASE_WORKSPACE_ROOT:-$XDG_STATE_HOME/sase/workspaces}/
   <project-key>/
-    ws-0001/        # optional primary alias/metadata, not necessarily a clone
-    ws-0100/
+    <project>_10/   # first claim-allocated workspace
       checkout/
-    ws-0101/
+    <project>_11/
       checkout/
     registry.json
 ```
+
+Workspace `#0` is the primary checkout and resolves to the user's existing primary working tree
+(e.g. `~/projects/github/sase-org/sase/`) — it is *not* a directory inside the managed store. Claim-allocated
+workspaces live in one unified numeric pool starting at `10` (shared by xprompts and agent runs), with `1-9` reserved
+for future special-purpose use. Each on-disk basename uses the project name as prefix (`sase_10`, `sase-core_11`, etc.)
+so that an isolated `cd` into the directory still tells the user which project they are in.
 
 For Linux, `$XDG_STATE_HOME` is the best default class: these checkouts are durable local application state that should
 survive restarts, but they are not user-authored source-of-truth data. Fall back to `~/.local/state/sase/workspaces`
@@ -86,8 +91,9 @@ The numeric namespace is partitioned by purpose, not just by allocation order:
   `src/sase/running_field/_workspace.py:28`).
 
 The path layout (`primary`, `primary_2`, ..., `primary_102`, ...) discards that semantic split: every share looks
-identical on disk. A from-scratch design can either flatten the partition (one pool of slots, allocator picks freely)
-or keep the partition but encode it in the registry so consumers no longer have to recover it from a numeric range.
+identical on disk. A from-scratch design should flatten the partition into one unified pool of claim slots starting
+at `10` and recover any per-purpose distinction (workflow share vs. axe run) from the registry, not from the numeric
+range. Workspace `#0` becomes the dedicated identifier for the primary checkout, replacing today's `#1`.
 
 There is a second, indirect coupling worth naming: `src/sase/bead/workspace.py:63` and
 `src/sase/bead/project_name.py:12` resolve the current project by scanning sibling directories whose basename matches
@@ -235,9 +241,15 @@ Store a small registry under the workspace store:
   "project_key": "sase-org_sase",
   "primary_workspace_dir": "/home/bryan/projects/github/sase-org/sase",
   "workspaces": {
-    "100": {
-      "checkout_dir": "/home/bryan/.local/state/sase/workspaces/sase-org_sase/ws-0100/checkout",
+    "0": {
+      "checkout_dir": "/home/bryan/projects/github/sase-org/sase",
+      "materialization": "primary",
+      "role": "primary"
+    },
+    "10": {
+      "checkout_dir": "/home/bryan/.local/state/sase/workspaces/sase-org_sase/sase_10/checkout",
       "materialization": "git-clone",
+      "role": "claim",
       "created_at": "2026-05-14T10:00:00-04:00",
       "last_used_at": "2026-05-14T10:05:00-04:00"
     }
@@ -245,7 +257,7 @@ Store a small registry under the workspace store:
 }
 ```
 
-The ProjectSpec `RUNNING` field can still contain `#100` for readability, but the claim layer should also persist either
+The ProjectSpec `RUNNING` field can still contain `#10` for readability, but the claim layer should also persist either
 the resolved `workspace_dir` or a registry generation ID. Artifacts already record `workspace_dir` in several paths; a
 from-scratch design should make that required for completed agents.
 
@@ -291,7 +303,8 @@ That remains correct.
 
 Allocation should become one atomic operation:
 
-1. choose the first free numeric workspace in the configured range;
+1. choose the first free numeric workspace in the unified pool (`10+`; `0` is reserved for the primary checkout and
+   `1-9` are reserved for future special-purpose slots);
 2. reserve it in the ProjectSpec `RUNNING` field;
 3. resolve or materialize its checkout directory;
 4. store the resolved path in the claim metadata;
@@ -308,14 +321,15 @@ Useful commands:
 
 ```bash
 sase workspace list
-sase workspace path 102
-sase workspace open 102
+sase workspace path 10
+sase workspace open 10
 sase workspace cleanup --stale
 sase workspace repair
 ```
 
-The TUI should show `#102` as it does now, but reveal the full path in detail views and completion notifications. This
-preserves debuggability without making generated directories compete with primary project checkouts.
+The TUI should show `#10` as it does now for the current `#102`-style label, but reveal the full path in detail views
+and completion notifications. This preserves debuggability without making generated directories compete with primary
+project checkouts.
 
 ## Sibling-Repo Coupling
 
@@ -341,9 +355,11 @@ expensive because the suffix scanner in `tools/sase_sibling_commit_stop_hook` is
 The adjacent convention has no GC: stale `project_102` directories sit in source parents forever, and the only signal
 they are stale is whether the user remembers to delete them. A managed store should make lifecycle explicit:
 
-- Each workspace registry entry carries `created_at`, `last_used_at`, and an optional `pinned: bool`.
+- Each workspace registry entry carries `created_at`, `last_used_at`, `role` (`axe` vs. `workflow-share`), and an
+  optional `pinned: bool`. The unified `10+` pool no longer encodes role in the number itself, so the registry has to
+  carry it.
 - `sase workspace cleanup --stale` reaps any unclaimed workspace whose `last_used_at` is older than a configurable
-  TTL (suggested default: 14 days for axe `100-199`, never for `1-99` workflow shares without `--include-shares`).
+  TTL (suggested default: 14 days for `role == axe`, never for `role == workflow-share` without `--include-shares`).
 - Crash recovery walks the registry, drops entries whose `checkout_dir` no longer exists, and re-materializes entries
   with a live RUNNING claim but missing on-disk checkout.
 - `git worktree prune` and `git worktree repair` should be invoked by the materializer when the worktree strategy is
@@ -431,8 +447,10 @@ Tests that lock in the new contract should cover:
 - Project-key collision: two repos with the same basename but different remotes do not share a workspace pool.
 - Registry survives an unexpected process kill mid-materialization (write-then-rename, or fsync-then-link, on the
   registry file).
-- `sase workspace cleanup --stale` reaps an unclaimed `100-199` workspace older than the TTL but leaves a pinned
+- `sase workspace cleanup --stale` reaps an unclaimed `role == axe` workspace older than the TTL but leaves a pinned
   workspace alone.
+- Allocator skips `0-9` and starts assigning at `10`; `#0` consistently resolves to the configured primary working
+  tree without ever appearing as a free slot.
 - The CWD-based inference in `bead/project_name.py` finds the correct project from a managed checkout path using the
   `.sase/checkout.json` marker, without relying on `<project>_<N>` basename matching.
 - Sibling-repo resolver, when run with `workspace.root: xdg-state`, materializes both primary and sibling under the
@@ -446,9 +464,11 @@ Tests that lock in the new contract should cover:
 
 If doing it again from scratch, model SASE workspaces as managed application state:
 
-- numeric IDs remain the user-facing identity;
+- numeric IDs remain the user-facing identity, with `#0` reserved for the primary checkout and claim slots starting
+  at `#10` in a single unified pool;
 - physical paths are resolved through a `WorkspaceStore`;
-- default storage is `$XDG_STATE_HOME/sase/workspaces/<project-key>/ws-<num>/checkout`;
+- default storage for claim slots is `$XDG_STATE_HOME/sase/workspaces/<project-key>/<project>_<num>/checkout`, while
+  `#0` resolves back to the user's existing primary working tree;
 - adjacent `primary_<num>` directories remain an explicit compatibility/debugging policy;
 - provider plugins materialize checkouts into caller-supplied target directories;
 - claims and artifacts store enough resolved-path metadata that no caller has to infer paths by suffix.
