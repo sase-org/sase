@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from rich.text import Text
@@ -33,9 +34,41 @@ class _ToolsCacheEntry:
 
     entries: list[ToolCallEntry] | None
     fetch_time: datetime
+    artifact_mtime_ns: int = 0
 
 
 _tools_cache: dict[str, _ToolsCacheEntry] = {}
+
+
+def _max_tool_calls_mtime_ns(agent: Agent) -> int:
+    """Return the latest mtime (ns) across the agent's tool_calls.jsonl files.
+
+    Hook writes append to ``tool_calls.jsonl`` in real time while the agent is
+    running. Comparing the file's mtime against the cache's recorded mtime lets
+    us invalidate the cache as soon as a new write lands instead of waiting
+    out the stale-threshold window.
+    """
+    from sase.ace.tui.tools.reader import (
+        TOOL_CALLS_FILENAME,
+        discover_related_tool_artifact_dirs,
+    )
+
+    get_artifacts_dir = getattr(agent, "get_artifacts_dir", None)
+    if not callable(get_artifacts_dir):
+        return 0
+    artifacts_dir = get_artifacts_dir()
+    if not isinstance(artifacts_dir, (str, Path)) or not artifacts_dir:
+        return 0
+    latest = 0
+    for directory in discover_related_tool_artifact_dirs(agent, artifacts_dir):
+        path = directory / TOOL_CALLS_FILENAME
+        try:
+            stat_result = path.stat()
+        except OSError:
+            continue
+        if stat_result.st_mtime_ns > latest:
+            latest = stat_result.st_mtime_ns
+    return latest
 
 
 def get_cache_key(agent: Agent) -> str:
@@ -76,6 +109,7 @@ def _status_label(status: str) -> str:
         "failure": "fail",
         "interrupted": "stop",
         "subagent": "agent",
+        "pending": "wait",
     }.get(status, status or "unknown")
 
 
@@ -85,6 +119,7 @@ def _status_style(status: str) -> str:
         "failure": "bold red",
         "interrupted": "bold yellow",
         "subagent": "bold #87D7FF",
+        "pending": "bold #FFD787",
     }.get(status, "dim")
 
 
@@ -211,7 +246,9 @@ class AgentToolsPanel(Static):
 
         if cache_entry is not None:
             age_seconds = (datetime.now() - cache_entry.fetch_time).total_seconds()
-            if age_seconds < stale_threshold_seconds:
+            current_mtime = _max_tool_calls_mtime_ns(agent)
+            file_changed = current_mtime > cache_entry.artifact_mtime_ns
+            if age_seconds < stale_threshold_seconds and not file_changed:
                 self._display_tools_with_timestamp(
                     cache_entry.entries,
                     cache_entry.fetch_time,
@@ -321,6 +358,7 @@ class AgentToolsPanel(Static):
         _tools_cache[cache_key] = _ToolsCacheEntry(
             entries=entries,
             fetch_time=datetime.now(),
+            artifact_mtime_ns=_max_tool_calls_mtime_ns(agent),
         )
         return entries
 

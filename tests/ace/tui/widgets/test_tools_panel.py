@@ -64,6 +64,97 @@ def test_tools_timeline_markdown_is_exportable() -> None:
     assert "boom" in rendered
 
 
+def test_tools_timeline_shows_pending_state() -> None:
+    fetch_time = datetime(2026, 5, 14, 10, 30, 0)
+
+    rendered = _build_tools_timeline_text(
+        [
+            _entry(
+                status="pending",
+                duration_ms=None,
+                tool_response_summary={},
+            )
+        ],
+        fetch_time,
+    ).plain
+
+    assert "wait" in rendered
+    assert "Bash" in rendered
+
+
+def test_tools_timeline_truncates_long_command() -> None:
+    fetch_time = datetime(2026, 5, 14, 10, 30, 0)
+    long_command = "echo " + "x" * 200
+
+    rendered = _build_tools_timeline_text(
+        [_entry(tool_input_summary={"command": long_command})],
+        fetch_time,
+    ).plain
+
+    assert long_command not in rendered
+    assert "..." in rendered
+
+
+def test_tools_timeline_renders_failure_with_error_detail() -> None:
+    fetch_time = datetime(2026, 5, 14, 10, 30, 0)
+
+    rendered = _build_tools_timeline_text(
+        [
+            _entry(
+                status="failure",
+                tool_response_summary={
+                    "exit_code": 2,
+                    "stderr_preview": "ENOENT: missing file",
+                },
+            )
+        ],
+        fetch_time,
+    ).plain
+
+    assert "fail" in rendered
+    assert "exit 2" in rendered
+    assert "ENOENT: missing file" in rendered
+
+
+def test_tools_timeline_renders_interrupted_state() -> None:
+    fetch_time = datetime(2026, 5, 14, 10, 30, 0)
+
+    rendered = _build_tools_timeline_text(
+        [
+            _entry(
+                status="interrupted",
+                duration_ms=None,
+                tool_response_summary={"interrupted": True},
+            )
+        ],
+        fetch_time,
+    ).plain
+
+    assert "stop" in rendered
+
+
+def test_tools_timeline_renders_rich_response_detail() -> None:
+    """A successful row should surface a stdout/content preview line."""
+    fetch_time = datetime(2026, 5, 14, 10, 30, 0)
+
+    rendered = _build_tools_timeline_text(
+        [
+            _entry(
+                tool_name="Read",
+                tool_input_summary={"file_path": "src/sase/foo.py"},
+                tool_response_summary={"content_preview": "class Foo:\n    pass"},
+                duration_ms=12,
+            )
+        ],
+        fetch_time,
+    ).plain
+
+    assert "Read" in rendered
+    assert "src/sase/foo.py" in rendered
+    assert "class Foo:" in rendered
+    assert "12ms" in rendered
+
+
 def test_tools_panel_renders_tool_call_from_stream_events(tmp_path: Path) -> None:
     """End-to-end: writer captures assistant+user events, panel renders the row."""
     from sase.ace.tui.models.agent import Agent, AgentType

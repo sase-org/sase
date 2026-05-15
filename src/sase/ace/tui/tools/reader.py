@@ -1,10 +1,12 @@
 """Read normalized tool-call artifacts for TUI display.
 
-Tool-call data is read from SASE-owned per-run artifacts produced from provider
-streams. For Claude that means inline ``assistant``/``user`` ``tool_use`` and
-``tool_result`` blocks captured from ``--output-format stream-json`` — hook
-events surfaced via ``--include-hook-events`` are used only as supplemental
-enrichment when the user has registered the relevant hooks.
+Tool-call data is read from SASE-owned per-run artifacts. For Claude these are
+written hook-first by the SASE ``PreToolUse``/``PostToolUse`` collector
+(schema v3) when SASE manages the agent workspace; the existing stream-json
+parser (schema v1/v2) remains as a fallback when hooks aren't installed and
+for back-compat with older artifact runs. When both sources have produced
+records for the same ``tool_use_id``, hook records win — they carry richer
+fields (``cwd``/``transcript_path``/``permission_mode`` and durations).
 """
 
 from __future__ import annotations
@@ -46,6 +48,7 @@ class ToolCallEntry:
     parent_tool_use_id: str | None = None
     error: str | None = None
     is_interrupt: bool = False
+    source: str | None = None
     artifact_dir: str | None = None
     source_path: str | None = None
     line_number: int = 0
@@ -120,6 +123,7 @@ def read_tool_calls_for_agent(agent: Agent) -> list[ToolCallEntry] | None:
             entry.tool_use_id or "",
         )
     )
+    entries = _prefer_hook_records(entries)
     return _collapse_tool_use_pairs(entries)
 
 
@@ -189,6 +193,30 @@ def derive_tool_call_status(record: Mapping[str, Any]) -> str:
     return "success"
 
 
+def _prefer_hook_records(entries: list[ToolCallEntry]) -> list[ToolCallEntry]:
+    """Drop stream-derived rows when a hook record exists for the same call.
+
+    Hook records (``source == "hook"``, schema v3) carry richer fields than
+    stream-derived rows for the same ``tool_use_id``: the canonical
+    ``cwd``/``transcript_path``/``permission_mode`` strings, an exact
+    ``duration_ms`` for ``PostToolUse``, and Claude's authoritative status
+    derivation. When both sources are present for the same logical tool call,
+    keep only the hook entries so the timeline is not double-counted.
+    """
+    hook_ids = {
+        entry.tool_use_id
+        for entry in entries
+        if entry.source == "hook" and entry.tool_use_id
+    }
+    if not hook_ids:
+        return entries
+    return [
+        entry
+        for entry in entries
+        if entry.tool_use_id not in hook_ids or entry.source == "hook"
+    ]
+
+
 def _collapse_tool_use_pairs(
     entries: list[ToolCallEntry],
 ) -> list[ToolCallEntry]:
@@ -240,6 +268,7 @@ def _merge_use_and_result(start: ToolCallEntry, end: ToolCallEntry) -> ToolCallE
         parent_tool_use_id=start.parent_tool_use_id or end.parent_tool_use_id,
         error=start.error or end.error,
         is_interrupt=start.is_interrupt or end.is_interrupt,
+        source=start.source or end.source,
         artifact_dir=start.artifact_dir,
         source_path=start.source_path,
         line_number=start.line_number,
@@ -389,6 +418,7 @@ def _parse_tool_call_line(
         parent_tool_use_id=_str_or_none(record.get("parent_tool_use_id")),
         error=_str_or_none(record.get("error")),
         is_interrupt=record.get("is_interrupt") is True,
+        source=_str_or_none(record.get("source")),
         artifact_dir=str(artifact_dir),
         source_path=str(source_path),
         line_number=line_number,
