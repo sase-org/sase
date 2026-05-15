@@ -2,7 +2,7 @@
 create_time: 2026-05-15 09:56:45
 bead_id: sase-3m
 tier: epic
-status: wip
+status: done
 prompt: sdd/prompts/202605/tools_panel_gemini_qwen.md
 ---
 # Tools Panel Support for Gemini and Qwen
