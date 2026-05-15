@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-15 01:02:45
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_row_unread_markers.md
 ---
 # Replace Agents Tab Unread Terminal Markers

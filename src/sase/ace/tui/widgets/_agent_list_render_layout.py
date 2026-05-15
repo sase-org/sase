@@ -40,11 +40,11 @@ _RUNTIME_ELAPSED_STYLE = "bold #BCBCBC"
 _RUNTIME_LIVE_MARKER = "🏃‍♂️ "
 _RUNTIME_LIVE_MARKER_STYLE = "#D7AF5F"
 # Completed-unread markers: occupy the same suffix slot as the live marker
-# so newly finished unseen rows scan where active runtimes did. The angel
-# variant is used for non-failed terminal rows; the devil variant for any
-# row whose status falls in the Failed bucket.
-_RUNTIME_UNREAD_DONE_MARKER = "😇 "
-_RUNTIME_UNREAD_FAILED_MARKER = "😈 "
+# so newly finished unseen rows scan where active runtimes did. The check
+# marker is used for non-failed terminal rows; the X marker for any row
+# whose status falls in the Failed bucket.
+_RUNTIME_UNREAD_DONE_MARKER = "✅ "
+_RUNTIME_UNREAD_FAILED_MARKER = "❌ "
 # Emoji glyphs render in their intrinsic colors in modern terminals; the
 # foreground style only affects the trailing space, so a single style serves
 # both variants.
