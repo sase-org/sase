@@ -1,5 +1,7 @@
 """Default keybindings for the ace TUI app."""
 
+import os
+
 from textual.binding import Binding, BindingType
 
 # Default bindings for AceApp. These are overridden at runtime by the keymap
@@ -120,3 +122,13 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("V", "show_agent_run_log", "Agent Run Log", show=False),
     Binding("ctrl+l", "dismiss_toasts", "Dismiss Toasts", show=False),
 ]
+
+
+# Opt-in developer keybind for the leak-snapshot probe. Only attached
+# when ``SASE_ACE_DEBUG_LEAKS=1`` is set so production users don't see
+# the binding in help output. Wired to ``action_debug_leak_snapshot``
+# defined on ``EventRefreshMixin``.
+if os.environ.get("SASE_ACE_DEBUG_LEAKS") == "1":
+    DEFAULT_BINDINGS.append(
+        Binding("ctrl+shift+d", "debug_leak_snapshot", "Leak Snapshot", show=False)
+    )

@@ -67,6 +67,7 @@ class StartupMixin(StateInitMixin):
     _dirty_changespecs: bool
     _dirty_agents: bool
     _dirty_axe: bool
+    _dirty_notifications: bool
     _last_full_sanity_refresh: float
     _user_snippets: dict[str, str]
     _snippets_cache: dict[str, str] | None
@@ -291,6 +292,9 @@ class StartupMixin(StateInitMixin):
         beads_dir = Path.cwd() / "sdd" / "beads"
         if beads_dir.is_dir():
             watch_paths.append(beads_dir)
+        notifications_dir = Path.home() / ".sase" / "notifications"
+        if notifications_dir.is_dir():
+            watch_paths.append(notifications_dir)
         if not watch_paths:
             return
         watcher = ArtifactWatcher(

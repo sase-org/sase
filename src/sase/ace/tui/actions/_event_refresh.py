@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import time
 
+from ._debug_leaks import debug_leaks_enabled, log_leak_snapshot
 from ._event_base import EventHandlersBase
 
 # Slow sanity-refresh floor: even when the inotify watcher is active and
@@ -50,6 +51,8 @@ class EventRefreshMixin(EventHandlersBase):
             self._dirty_agents = True
         if "axe" in targets:
             self._dirty_axe = True
+        if "notifications" in targets:
+            self._dirty_notifications = True
         if self._prompt_input_active():
             pending = set(getattr(self, "_artifact_change_deferred_paths", ()))
             pending.update(changed_paths or ())
@@ -73,13 +76,17 @@ class EventRefreshMixin(EventHandlersBase):
     ) -> set[str]:
         """Map watcher paths to the smallest ACE surface set we can infer."""
         if not changed_paths:
-            return {"changespecs", "agents", "axe"}
+            return {"changespecs", "agents", "axe", "notifications"}
 
         targets: set[str] = set()
         projects_root = Path.home() / ".sase" / "projects"
+        notifications_root = Path.home() / ".sase" / "notifications"
         beads_dir = Path.cwd() / "sdd" / "beads"
         for path in changed_paths:
             parts = path.parts
+            if notifications_root in (path, *path.parents):
+                targets.add("notifications")
+                continue
             if beads_dir in (path, *path.parents):
                 targets.add("changespecs")
                 continue
@@ -154,8 +161,14 @@ class EventRefreshMixin(EventHandlersBase):
             self._dirty_axe = False
 
         agents_due = _should_refresh("_dirty_agents")
-        if agents_due:
+        # Notification polling is its own surface so an idle tick (no
+        # new notifications) skips the on-disk snapshot read. The
+        # gating mirrors the other surfaces: poll on every tick when
+        # the watcher is inactive, otherwise wait for inotify to set
+        # the dirty flag or the sanity-refresh window to elapse.
+        if _should_refresh("_dirty_notifications"):
             await self._poll_agent_completions()  # type: ignore[attr-defined]
+            self._dirty_notifications = False
 
         # Skip changespec/agent refresh if the user is in a transient input
         # mode (hint bar or similar is active).
@@ -184,3 +197,29 @@ class EventRefreshMixin(EventHandlersBase):
 
         if sanity_due:
             self._last_full_sanity_refresh = now_mono
+
+        if debug_leaks_enabled():
+            log_leak_snapshot(self, source="auto_refresh")
+
+    def action_debug_leak_snapshot(self) -> None:
+        """One-shot leak snapshot keybind gated by ``SASE_ACE_DEBUG_LEAKS=1``.
+
+        Logs the snapshot and surfaces the headline counts via the
+        Textual notification toast so the snapshot is visible without
+        digging through the log file.
+        """
+        if not debug_leaks_enabled():
+            return
+        snapshot = log_leak_snapshot(self, source="keybind")
+        message = (
+            f"artifact_cache={snapshot['artifact_page_cache']} "
+            f"watches={snapshot['fs_watcher_watches']} "
+            f"dismissed={snapshot['dismissed_agent_objects']} "
+            f"agents={snapshot['agents_with_children']} "
+            f"tasks={snapshot['pending_asyncio_tasks']} "
+            f"fds={snapshot['open_fds']}"
+        )
+        try:
+            self.notify(message, title="leak snapshot", timeout=10)  # type: ignore[attr-defined]
+        except Exception:
+            pass

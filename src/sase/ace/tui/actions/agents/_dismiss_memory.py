@@ -12,6 +12,20 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
 
 
+# Hard cap on the live ``_dismissed_agent_objects`` list. The on-disk
+# dismissed-id registry remains the source of truth for cross-session
+# state; this cap keeps the in-memory revive/refresh hot-path bounded so
+# `O(N)` scans don't blow up over long sessions.
+DISMISSED_AGENT_OBJECTS_MAX = 500
+
+
+def trim_dismissed_agent_objects(agents: list[Agent]) -> list[Agent]:
+    """Return *agents* trimmed to the most-recent ``DISMISSED_AGENT_OBJECTS_MAX``."""
+    if len(agents) <= DISMISSED_AGENT_OBJECTS_MAX:
+        return agents
+    return agents[-DISMISSED_AGENT_OBJECTS_MAX:]
+
+
 class AgentDismissMemoryMixin:
     """Mixin for optimistic in-memory dismissal state changes."""
 
@@ -101,6 +115,9 @@ class AgentDismissMemoryMixin:
             if agent.identity not in existing_identities:
                 self._dismissed_agent_objects.append(agent)
                 existing_identities.add(agent.identity)
+        self._dismissed_agent_objects = trim_dismissed_agent_objects(
+            self._dismissed_agent_objects
+        )
 
         if fast_path:
             self._apply_dismissal_in_memory_fast_finish(
@@ -194,3 +211,6 @@ class AgentDismissMemoryMixin:
             if agent.identity not in existing:
                 self._dismissed_agent_objects.append(agent)
                 existing.add(agent.identity)
+        self._dismissed_agent_objects = trim_dismissed_agent_objects(
+            self._dismissed_agent_objects
+        )

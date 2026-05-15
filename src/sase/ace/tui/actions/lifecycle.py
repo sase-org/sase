@@ -35,6 +35,11 @@ class LifecycleMixin:
         cancel_discovery = getattr(self, "_cancel_pending_artifact_discovery", None)
         if cancel_discovery is not None:
             cancel_discovery()
+        cancel_content_search = getattr(
+            self, "_cancel_pending_content_search_refresh", None
+        )
+        if cancel_content_search is not None:
+            cancel_content_search()
         restore_artifact_decoration = getattr(
             self, "_restore_artifact_tmux_decoration", None
         )
@@ -199,6 +204,11 @@ class LifecycleMixin:
         cancel_discovery = getattr(self, "_cancel_pending_artifact_discovery", None)
         if cancel_discovery is not None:
             cancel_discovery()
+        cancel_content_search = getattr(
+            self, "_cancel_pending_content_search_refresh", None
+        )
+        if cancel_content_search is not None:
+            cancel_content_search()
         restore_artifact_decoration = getattr(
             self, "_restore_artifact_tmux_decoration", None
         )

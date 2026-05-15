@@ -41,6 +41,9 @@ _IN_MOVED_FROM = 0x00000040
 _IN_MOVED_TO = 0x00000080
 _IN_CREATE = 0x00000100
 _IN_DELETE = 0x00000200
+_IN_DELETE_SELF = 0x00000400
+_IN_MOVE_SELF = 0x00000800
+_IN_IGNORED = 0x00008000
 _IN_ISDIR = 0x40000000
 
 DEFAULT_EVENT_MASK = (
@@ -50,7 +53,14 @@ DEFAULT_EVENT_MASK = (
     | _IN_MOVED_TO
     | _IN_CREATE
     | _IN_DELETE
+    | _IN_DELETE_SELF
+    | _IN_MOVE_SELF
 )
+
+# Hard cap on simultaneously-installed inotify watches. Each launched
+# agent's artifact tree adds dozens of watches; without a ceiling the
+# kernel watch table grows unbounded over a long ACE session.
+MAX_INOTIFY_WATCHES = 4096
 
 # Event header is wd:int32, mask:uint32, cookie:uint32, len:uint32.
 _EVENT_HEADER = struct.Struct("iIII")
@@ -80,6 +90,9 @@ def _libc() -> ctypes.CDLL | None:
         ctypes.c_uint32,
     ]
     libc.inotify_add_watch.restype = ctypes.c_int
+    if hasattr(libc, "inotify_rm_watch"):
+        libc.inotify_rm_watch.argtypes = [ctypes.c_int, ctypes.c_int]
+        libc.inotify_rm_watch.restype = ctypes.c_int
     return libc
 
 
@@ -116,6 +129,7 @@ class ArtifactWatcher:
         self._last_event_mono: float = 0.0
         self._pending_paths: set[Path] = set()
         self._lock = threading.Lock()
+        self._watch_cap_warning_emitted = False
 
     def start(self) -> bool:
         """Start the watcher thread.
@@ -211,6 +225,15 @@ class ArtifactWatcher:
         except OSError:
             return 0
 
+        if len(self._watch_paths_by_wd) >= MAX_INOTIFY_WATCHES:
+            if not self._watch_cap_warning_emitted:
+                log.warning(
+                    "inotify watch cap (%d) reached; skipping new watches until pruned",
+                    MAX_INOTIFY_WATCHES,
+                )
+                self._watch_cap_warning_emitted = True
+            return 0
+
         wd = libc.inotify_add_watch(fd, str(path).encode("utf-8"), self._mask)
         if wd < 0:
             err = ctypes.get_errno()
@@ -218,6 +241,22 @@ class ArtifactWatcher:
             return 0
         self._watch_paths_by_wd[wd] = path
         return 1
+
+    def _remove_watch(self, libc: ctypes.CDLL | None, fd: int, wd: int) -> None:
+        """Drop *wd* from the tracking dict and call ``inotify_rm_watch``.
+
+        ``IN_IGNORED`` events arrive after the kernel has already detached
+        the watch (e.g. because the directory was deleted), so the
+        ``inotify_rm_watch`` call is best-effort: a failing call is
+        expected for the auto-detached case and is silently ignored.
+        """
+        self._watch_paths_by_wd.pop(wd, None)
+        if libc is None or not hasattr(libc, "inotify_rm_watch") or fd < 0:
+            return
+        try:
+            libc.inotify_rm_watch(fd, wd)
+        except OSError:
+            pass
 
     def _iter_startup_watch_paths(self) -> Iterable[Path]:
         """Yield bounded startup watch paths.
@@ -269,6 +308,12 @@ class ArtifactWatcher:
             offset += _EVENT_HEADER_SIZE
             raw_name = data[offset : offset + name_len].split(b"\0", 1)[0]
             offset += name_len
+            # ``IN_IGNORED`` arrives without ``self._mask`` bits set after
+            # the kernel auto-detaches a watch — handle it regardless so we
+            # always reclaim the tracking entry.
+            if mask & _IN_IGNORED:
+                self._remove_watch(libc, self._fd, wd)
+                continue
             if mask & self._mask:
                 base_path = self._watch_paths_by_wd.get(wd)
                 if base_path is None:
@@ -285,6 +330,11 @@ class ArtifactWatcher:
                     and mask & (_IN_CREATE | _IN_MOVED_TO)
                 ):
                     self._add_watch_tree(libc, self._fd, event_path)
+                if mask & (_IN_DELETE_SELF | _IN_MOVE_SELF):
+                    # Drop the bookkeeping entry; the kernel will follow up
+                    # with ``IN_IGNORED`` to free the wd, but removing the
+                    # path mapping here keeps the dict bounded immediately.
+                    self._remove_watch(libc, self._fd, wd)
         return paths
 
     def _maybe_flush(self) -> None:

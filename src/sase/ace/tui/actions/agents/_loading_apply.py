@@ -16,6 +16,7 @@ from ._loading_compute import (
     merge_incomplete_load_after_complete_history,
     prepare_loaded_agents_apply_boundary,
 )
+from ._dismiss_memory import trim_dismissed_agent_objects
 from ._loading_helpers import is_always_visible
 from ._loading_state import AgentLoadingStateMixin
 
@@ -324,7 +325,9 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             self._agents_refresh_pending = True
             self._agents_refresh_pending_full_history = True
 
-        self._dismissed_agent_objects = prep.dismissed_agent_objects
+        self._dismissed_agent_objects = trim_dismissed_agent_objects(
+            prep.dismissed_agent_objects
+        )
         self._has_always_visible = prep.has_always_visible
         self._hidden_count = prep.hidden_count
         self._hideable_agents = prep.hideable_agents

@@ -99,6 +99,9 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         if not callable(fork_cache):
             return
         worker_cache = fork_cache()
+        prior_task = getattr(self, "_agent_content_search_refresh_task", None)
+        if prior_task is not None and not prior_task.done():
+            prior_task.cancel()
         task = loop.create_task(
             self._run_agent_content_search_index_refresh(
                 worker_cache=worker_cache,
@@ -155,6 +158,13 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
             selected_identity,
             save_unfiltered=False,
         )
+
+    def _cancel_pending_content_search_refresh(self) -> None:
+        """Cancel any in-flight content-search index refresh (shutdown hook)."""
+        task = getattr(self, "_agent_content_search_refresh_task", None)
+        if task is not None and not task.done():
+            task.cancel()
+        self._agent_content_search_refresh_task = None  # type: ignore[attr-defined]
 
     def _finalize_agent_list(
         self,

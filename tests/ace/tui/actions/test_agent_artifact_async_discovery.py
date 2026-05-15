@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import OrderedDict
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -38,7 +39,9 @@ class _DiscoveryApp(AgentPanelArtifactMixin):
 
     def __init__(self, selected: _DiscoveryAgent | None) -> None:
         self._selected = selected
-        self._agent_artifact_page_cache: dict[tuple[Any, ...], list[Any]] = {}
+        self._agent_artifact_page_cache: OrderedDict[tuple[Any, ...], list[Any]] = (
+            OrderedDict()
+        )
         self._agent_artifact_discovery_inflight: dict[
             tuple[Any, ...], asyncio.Task[Any]
         ] = {}

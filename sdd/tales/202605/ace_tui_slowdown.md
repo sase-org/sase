@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-15 16:55:05
-status: wip
+status: done
 prompt: sdd/prompts/202605/ace_tui_slowdown.md
 ---
 # Plan: Diagnose and fix `sase ace` TUI slowdown over long sessions

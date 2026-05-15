@@ -41,6 +41,7 @@ class _FakeApp(EventHandlersMixin):
         self._dirty_changespecs = False
         self._dirty_agents = False
         self._dirty_axe = False
+        self._dirty_notifications = False
         self._artifact_change_defer_pending = False
         self._last_full_sanity_refresh = time.monotonic()
         self.deferred_calls: list[tuple[float, Callable[[], Any]]] = []
@@ -87,14 +88,27 @@ async def test_watcher_active_dirty_agents_runs_only_agent_path() -> None:
     app = _FakeApp(watcher_active=True)
     app._dirty_agents = True
     await app._on_auto_refresh()
-    # axe is still clean → no axe poll; agents+notifications run.
+    # axe / notifications are still clean → no axe poll, no notification
+    # poll; only the agents path runs.
     assert "axe" not in app.refresh_calls
-    assert "notifications" in app.refresh_calls
+    assert "notifications" not in app.refresh_calls
     assert "agents" in app.refresh_calls
     # agents tab → no changespec refresh.
     assert "changespecs" not in app.refresh_calls
     # Flag is cleared after the refresh consumed it.
     assert app._dirty_agents is False
+
+
+@pytest.mark.asyncio
+async def test_watcher_active_dirty_notifications_polls_completions() -> None:
+    """``_dirty_notifications`` gates the on-disk notification snapshot poll."""
+    app = _FakeApp(watcher_active=True)
+    app._dirty_notifications = True
+    await app._on_auto_refresh()
+    assert "notifications" in app.refresh_calls
+    assert "agents" not in app.refresh_calls
+    assert "axe" not in app.refresh_calls
+    assert app._dirty_notifications is False
 
 
 @pytest.mark.asyncio

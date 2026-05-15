@@ -10,6 +10,7 @@ import asyncio
 import logging
 import os
 import signal
+from collections import OrderedDict
 from collections.abc import Callable
 from types import FrameType
 from typing import TYPE_CHECKING, Any, Literal
@@ -97,6 +98,7 @@ class StateInitMixin:
         self._dirty_changespecs: bool = True
         self._dirty_agents: bool = True
         self._dirty_axe: bool = True
+        self._dirty_notifications: bool = True
         self._artifact_change_defer_pending: bool = False
         self._last_full_sanity_refresh: float = 0.0
 
@@ -235,7 +237,12 @@ class StateInitMixin:
         self._artifact_viewer_previous_sigusr1_handler: (
             signal.Handlers | int | Callable[[int, FrameType | None], Any] | None
         ) = None
-        self._agent_artifact_page_cache: dict[tuple[Any, ...], list[Any]] = {}
+        # Bounded LRU; eviction happens in
+        # ``_panel_artifacts._artifact_cache_put`` once the cache exceeds
+        # AGENT_ARTIFACT_PAGE_CACHE_MAX entries.
+        self._agent_artifact_page_cache: OrderedDict[tuple[Any, ...], list[Any]] = (
+            OrderedDict()
+        )
         self._agent_artifact_discovery_inflight: dict[
             tuple[Any, ...], asyncio.Task[Any]
         ] = {}

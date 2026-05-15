@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 import signal
+from collections import OrderedDict
 from collections.abc import Callable
 from types import FrameType
 from typing import TYPE_CHECKING, Any
@@ -16,6 +17,11 @@ from ._panel_types import (
     ARTIFACT_VIEWER_NAV_MESSAGE,
     TabName,
 )
+
+# Hard cap on the per-row artifact cache. Each cache key folds in the
+# agent identity, status, and marker-file mtime/size so status transitions
+# create new keys; without a cap the dict grew unbounded over a session.
+AGENT_ARTIFACT_PAGE_CACHE_MAX = 256
 
 if TYPE_CHECKING:
     from ...graphics import ArtifactViewerResult, TmuxPaneDecorationState
@@ -38,6 +44,7 @@ class AgentPanelArtifactMixin:
         signal.Handlers | int | Callable[[int, FrameType | None], Any] | None
     )
     _agent_artifact_discovery_inflight: dict[tuple[Any, ...], asyncio.Task[Any]]
+    _agent_artifact_page_cache: OrderedDict[tuple[Any, ...], list[Any]]
 
     def _install_artifact_viewer_close_signal_handler(self) -> bool:
         """Install the one-shot close notification handler if SIGUSR1 exists."""
@@ -193,15 +200,29 @@ class AgentPanelArtifactMixin:
             self._sync_artifact_viewer_layout()
         return True
 
-    def _ensure_agent_artifact_page_cache(self) -> dict[tuple[Any, ...], list[Any]]:
+    def _ensure_agent_artifact_page_cache(
+        self,
+    ) -> OrderedDict[tuple[Any, ...], list[Any]]:
         """Return (and lazily create) the per-row artifact cache dict."""
-        cache: dict[tuple[Any, ...], list[Any]] | None = getattr(
+        cache: OrderedDict[tuple[Any, ...], list[Any]] | None = getattr(
             self, "_agent_artifact_page_cache", None
         )
         if cache is None:
-            cache = {}
+            cache = OrderedDict()
             self._agent_artifact_page_cache = cache  # type: ignore[attr-defined]
         return cache
+
+    def _artifact_cache_put(
+        self,
+        cache: OrderedDict[tuple[Any, ...], list[Any]],
+        key: tuple[Any, ...],
+        value: list[Any],
+    ) -> None:
+        """Write *value* and evict the oldest entry when the cap is exceeded."""
+        cache[key] = value
+        cache.move_to_end(key)
+        while len(cache) > AGENT_ARTIFACT_PAGE_CACHE_MAX:
+            cache.popitem(last=False)
 
     def _cached_agent_artifacts(self, agent: Agent | None) -> list[Any] | None:
         """Probe the artifact cache without touching the disk.
@@ -222,6 +243,7 @@ class AgentPanelArtifactMixin:
         cached = cache.get(row_key)
         if cached is None:
             return None
+        cache.move_to_end(row_key)
         return list(cached)
 
     def _list_selected_agent_artifacts(self, agent: Agent | None) -> list[Any]:
@@ -262,7 +284,7 @@ class AgentPanelArtifactMixin:
             return []
         artifacts = list(page.artifacts)
         row_key = self._agent_artifact_cache_key(agent, identity)
-        cache[row_key] = artifacts
+        self._artifact_cache_put(cache, row_key, artifacts)
         self._agent_artifact_provider_used_daemon = False  # type: ignore[attr-defined]
         self._agent_artifact_provider_snapshot = page.shared_snapshot  # type: ignore[attr-defined]
         return artifacts
@@ -312,7 +334,7 @@ class AgentPanelArtifactMixin:
                 log.debug("background artifact discovery failed", exc_info=True)
                 artifacts = []
             cache = self._ensure_agent_artifact_page_cache()
-            cache[row_key] = artifacts
+            self._artifact_cache_put(cache, row_key, artifacts)
             current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
             if current_agent is None:
                 return

@@ -52,6 +52,7 @@ class EventHandlersBase:
     _dirty_changespecs: bool
     _dirty_agents: bool
     _dirty_axe: bool
+    _dirty_notifications: bool
     _artifact_change_defer_pending: bool
     _last_full_sanity_refresh: float
 
