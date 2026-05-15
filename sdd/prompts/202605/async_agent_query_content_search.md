@@ -1,0 +1,6 @@
+---
+plan: sdd/tales/202605/async_agent_query_content_search.md
+---
+  Can you help me make the synchronous "agent-query content search reads files during finalization"
+mentioned in the @sdd/research/202605/tui_blocking_audit.md file asynchronous? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
+ 
