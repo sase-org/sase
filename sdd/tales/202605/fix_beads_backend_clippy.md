@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-15 13:03:32
-status: wip
+status: done
 prompt: sdd/prompts/202605/fix_beads_backend_clippy.md
 ---
 # Fix `beads-backend` Clippy Failures in `sase-core`
