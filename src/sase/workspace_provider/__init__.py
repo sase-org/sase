@@ -16,6 +16,20 @@ from ._hookspec import (
     hookspec,
 )
 from ._plugin_manager import WorkspacePluginManager
+from .marker import (
+    CheckoutMarker,
+    find_marker_from_cwd,
+    read_marker,
+    write_marker,
+)
+from .registry import (
+    WorkspaceEntry,
+    WorkspaceRegistry,
+    load_or_init_registry,
+    record_workspace,
+    remove_workspace,
+    save_registry,
+)
 from ._registry import (
     detect_workflow_type,
     extract_change_identifier,
@@ -41,12 +55,16 @@ from ._registry import (
 )
 
 __all__ = [
+    "CheckoutMarker",
     "ResolvedRef",
     "WorkflowMetadata",
+    "WorkspaceEntry",
     "WorkspaceHookSpec",
     "WorkspacePluginManager",
+    "WorkspaceRegistry",
     "detect_workflow_type",
     "extract_change_identifier",
+    "find_marker_from_cwd",
     "format_commit_description",
     "generate_reviewer_comments_script",
     "generate_submitted_check_script",
@@ -64,8 +82,14 @@ __all__ = [
     "get_workspace_name",
     "hookimpl",
     "hookspec",
+    "load_or_init_registry",
     "prepare_mail",
+    "read_marker",
+    "record_workspace",
+    "remove_workspace",
     "resolve_ref",
+    "save_registry",
     "submit_changespec",
     "supports_reviewer_comments",
+    "write_marker",
 ]
