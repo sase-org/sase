@@ -58,6 +58,12 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("at", "start_custom_agent", "Run Agent", show=False),
     # Run agent from ChangeSpec (CLs tab only)
     Binding("space", "start_agent_from_changespec", "Run Agent (CL)", show=False),
+    Binding(
+        "ctrl+g",
+        "start_last_vcs_xprompt_in_editor",
+        "Edit Last VCS XPrompt",
+        show=False,
+    ),
     # Bang mode prefix (all tabs) - !x = toggle axe, !! = run bgcmd
     Binding("exclamation_mark", "start_bang_mode", "Bang Mode", show=False),
     # Marking (CLs tab only)

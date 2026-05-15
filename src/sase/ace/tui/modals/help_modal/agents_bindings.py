@@ -47,6 +47,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             "Agent Actions",
             [
                 (d(a.start_custom_agent), "Run custom agent"),
+                (d(a.start_last_vcs_xprompt_in_editor), "Edit last VCS xprompt"),
                 (d(a.accept_proposal), "Toggle auto-approve / answer HITL"),
                 (d(a.rename_cl), "Name agent"),
                 (d(a.run_workflow), "Resume chat as agent"),

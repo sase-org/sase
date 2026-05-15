@@ -83,6 +83,7 @@ ace:
       stop_axe_and_quit: "Q"
       start_custom_agent: "at"
       start_agent_from_changespec: "space"
+      start_last_vcs_xprompt_in_editor: "ctrl+g"
       jump_to_agent_changespec: "enter"
       edit_panel: "E"
       show_agent_run_log: "V"

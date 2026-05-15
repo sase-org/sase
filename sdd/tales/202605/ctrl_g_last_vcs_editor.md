@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-15 00:52:08
-status: wip
+status: done
 prompt: sdd/prompts/202605/ctrl_g_last_vcs_editor.md
 ---
 # Plan: Global Ctrl+G Editor Launch for Last VCS XPrompt

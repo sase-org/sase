@@ -131,6 +131,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.run_workflow), "Run workflow"),
                 (d(a.start_custom_agent), "Run an agent"),
                 (d(a.start_agent_from_changespec), "Repeat last @/Space selection"),
+                (d(a.start_last_vcs_xprompt_in_editor), "Edit last VCS xprompt"),
             ],
         ),
         (

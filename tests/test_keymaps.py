@@ -261,9 +261,9 @@ def test_non_dict_keymaps_config() -> None:
 
 
 def test_build_app_bindings_count() -> None:
-    """build_app_bindings produces 82 configurable + 10 digit = 92 bindings."""
+    """build_app_bindings produces 83 configurable + 10 digit = 93 bindings."""
     bindings = build_app_bindings(_default_app_keymaps())
-    assert len(bindings) == 92
+    assert len(bindings) == 93
 
 
 def test_build_app_bindings_priority() -> None:
@@ -443,6 +443,12 @@ def test_open_command_palette_default_binding() -> None:
     """
     reg = load_keymap_registry({})
     assert reg.app.open_command_palette == "colon,semicolon"
+
+
+def test_start_last_vcs_xprompt_editor_default_binding() -> None:
+    """Ctrl+G opens the last VCS xprompt directly in the editor."""
+    reg = load_keymap_registry({})
+    assert reg.app.start_last_vcs_xprompt_in_editor == "ctrl+g"
 
 
 def test_default_config_covers_all_app_keymaps() -> None:

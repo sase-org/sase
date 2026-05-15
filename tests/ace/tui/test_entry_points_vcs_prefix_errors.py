@@ -9,6 +9,7 @@ import pytest
 
 from sase.ace.tui.actions.agent_workflow import _entry_points
 from sase.ace.tui.actions.agent_workflow._entry_points import EntryPointsMixin
+from sase.ace.tui.actions.agent_workflow._prompt_bar_mount import PromptBarMountMixin
 from sase.history.prompt import PromptEntry
 from sase.ace.tui.modals import SelectionItem
 
@@ -42,6 +43,35 @@ class _App(EntryPointsMixin):
         self.finished_prompts.append(prompt)
 
 
+class _EditorApp(EntryPointsMixin, PromptBarMountMixin):
+    def __init__(self, *, editor_result: str | None = None) -> None:
+        self.notifications: list[tuple[str, str | None]] = []
+        self.editor_prompts: list[str] = []
+        self.finished_prompts: list[str] = []
+        self.mounted: list[Any] = []
+        self.prompt_launches: list[dict[str, Any]] = []
+        self._prompt_context = None
+        self.editor_result = editor_result
+
+    def notify(self, message: str, *, severity: str | None = None) -> None:
+        self.notifications.append((message, severity))
+
+    def _open_editor_for_agent_prompt(self, prompt: str) -> str:
+        self.editor_prompts.append(prompt)
+        if self.editor_result is not None:
+            return self.editor_result
+        return f"edited: {prompt}"
+
+    def _finish_agent_launch(self, prompt: str) -> None:
+        self.finished_prompts.append(prompt)
+
+    def _unmount_prompt_bar(self) -> None:
+        return None
+
+    def mount(self, widget: Any) -> None:
+        self.mounted.append(widget)
+
+
 @pytest.fixture
 def missing_workspace_plugin(monkeypatch: pytest.MonkeyPatch) -> None:
     def _raise(_project_file: str, _name: str) -> str:
@@ -73,6 +103,67 @@ def test_repeat_last_selection_reports_vcs_detection_error_without_launching(
     ]
     assert app.prompt_launches == []
     assert app.editor_launches == []
+
+
+def test_start_last_vcs_xprompt_editor_opens_mru_prefix_and_launches_edit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru",
+        lambda: ["#gh:sase", "#gh:old"],
+    )
+    app = _EditorApp()
+
+    app.action_start_last_vcs_xprompt_in_editor()
+
+    assert app.editor_prompts == ["#gh:sase "]
+    assert app.finished_prompts == ["edited: #gh:sase "]
+    assert app.notifications == []
+    assert app._prompt_context is not None
+    assert app._prompt_context.display_name == "sase"
+    assert app._prompt_context.history_sort_key == "sase"
+
+
+def test_start_last_vcs_xprompt_editor_warns_when_mru_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru",
+        lambda: [],
+    )
+    app = _App()
+
+    app.action_start_last_vcs_xprompt_in_editor()
+
+    assert app.editor_launches == []
+    assert app.prompt_launches == []
+    assert app.notifications == [("No previous VCS xprompt", "warning")]
+
+
+def test_start_last_vcs_xprompt_editor_cancel_records_prefilled_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cancelled_prompts: list[tuple[str, bool]] = []
+    monkeypatch.setattr(
+        "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru",
+        lambda: ["#gh:sase"],
+    )
+
+    def _record_cancelled_prompt(text: str, *, cancelled: bool = False) -> None:
+        cancelled_prompts.append((text, cancelled))
+
+    monkeypatch.setattr(
+        "sase.history.prompt.add_or_update_prompt",
+        _record_cancelled_prompt,
+    )
+    app = _EditorApp(editor_result="")
+
+    app.action_start_last_vcs_xprompt_in_editor()
+
+    assert app.editor_prompts == ["#gh:sase "]
+    assert cancelled_prompts == [("#gh:sase", True)]
+    assert app.notifications == [("No prompt from editor - cancelled", "warning")]
+    assert app._prompt_context is None
 
 
 def test_repeat_last_selection_clears_stale_missing_project_without_launching(

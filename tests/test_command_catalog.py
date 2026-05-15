@@ -61,6 +61,17 @@ def test_open_command_palette_command_uses_default_alternatives() -> None:
     assert spec.key_display == ": / ;"
 
 
+def test_last_vcs_xprompt_editor_command_is_all_tab_agent_command() -> None:
+    """The Ctrl+G MRU editor action is discoverable on every tab."""
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+    spec = by_id["app.start_last_vcs_xprompt_in_editor"]
+    assert spec.label == "Edit last VCS xprompt"
+    assert spec.category == "Agents"
+    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.key_sequence == ("ctrl+g",)
+    assert spec.key_display == "Ctrl+G"
+
+
 # --- Digit commands ---
 
 

@@ -115,6 +115,28 @@ class EntryPointsMixin:
             return
         self._start_custom_agent_from_selection(last)
 
+    def action_start_last_vcs_xprompt_in_editor(self) -> None:
+        """Open editor with the most recently used launchable VCS xprompt."""
+        from sase.history.vcs_xprompt_mru import load_launchable_vcs_xprompt_mru
+        from sase.xprompt import extract_project_from_vcs_tag
+
+        prefixes = [p.strip() for p in load_launchable_vcs_xprompt_mru() if p.strip()]
+        if not prefixes:
+            self.notify("No previous VCS xprompt", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        prefix = prefixes[0]
+        initial_text = f"{prefix} "
+        project_name = extract_project_from_vcs_tag(prefix)
+        display_name = project_name or prefix
+        history_sort_key = project_name or display_name
+
+        self._select_and_open_editor_for_home(  # type: ignore[attr-defined]
+            initial_text=initial_text,
+            display_name=display_name,
+            history_sort_key=history_sort_key,
+        )
+
     def _start_prompt_history_from_last_selection(
         self, *, show_cancelled: bool = False, edit_first: bool = False
     ) -> None:

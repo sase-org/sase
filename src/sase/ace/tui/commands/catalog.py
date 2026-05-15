@@ -150,6 +150,13 @@ _APP_COMMAND_META: tuple[
         (),
     ),
     (
+        "start_last_vcs_xprompt_in_editor",
+        "Edit last VCS xprompt",
+        "Agents",
+        _ALL_TABS,
+        ("ctrl+g", "last vcs", "editor"),
+    ),
+    (
         "jump_to_agent_changespec",
         "Jump to agent's CL",
         "Agents",
