@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-15 10:54:16
-status: wip
+status: done
 prompt: sdd/prompts/202605/clipboard_wayland_stderr.md
 ---
 # Fix Noisy wl-copy stderr in Copy-Mode Keymaps
