@@ -273,7 +273,12 @@ class ChangeSpecLoadingMixin:
         # highlight a banner that no longer exists.
         if not self._changespec_banner_focus_still_valid():  # type: ignore[attr-defined]
             self._current_changespec_group_key = None  # type: ignore[attr-defined]
-        self._refresh_display()  # type: ignore[attr-defined]
+        # Skip the (hidden) widget repaint entirely when off-tab. The
+        # freshly applied data sits ready and ``watch_current_tab`` will
+        # re-run ``_refresh_display`` on switch-back. Avoids the wasted
+        # hidden-widget churn that was the source of the footer flicker.
+        if on_changespecs_tab:
+            self._refresh_display()  # type: ignore[attr-defined]
 
     def _schedule_changespecs_async_refresh(self) -> None:
         """Schedule an async changespec reload without blocking.

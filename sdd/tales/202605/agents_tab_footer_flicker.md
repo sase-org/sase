@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-14 21:25:37
-status: wip
+status: done
 prompt: sdd/prompts/202605/agents_tab_footer_flicker.md
 ---
 # Fix Agents-tab footer flicker + leaked "/ edit query" hint

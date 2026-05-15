@@ -249,6 +249,44 @@ def test_mark_toggle_calls_patch_changespec_row_once_no_clear_options() -> None:
     assert app.list_widget.update_list_calls == 0
 
 
+def test_refresh_display_off_tab_does_not_touch_shared_footer() -> None:
+    """CL display refresh must not write the shared footer when off-tab.
+
+    Regression for the Agents-tab flicker where the inotify-driven CL
+    reload kept stomping the agents bindings with ``show_empty()``'s
+    ``/ edit query`` hint.
+    """
+    app = _FakeApp(count=3)
+    app.current_tab = "agents"
+
+    app._refresh_display()
+
+    assert app.footer_widget.update_bindings_calls == 0
+    assert app.footer_widget.show_empty_calls == 0
+
+
+def test_refresh_display_off_tab_empty_list_does_not_touch_footer() -> None:
+    """Empty-list branch must also skip the shared footer when off-tab."""
+    app = _FakeApp(count=0)
+    app.current_tab = "agents"
+
+    app._refresh_display()
+
+    assert app.footer_widget.update_bindings_calls == 0
+    assert app.footer_widget.show_empty_calls == 0
+
+
+def test_detail_only_refresh_off_tab_does_not_touch_shared_footer() -> None:
+    """Detail-only refresh must also respect the shared-footer invariant."""
+    app = _FakeApp(count=3)
+    app.current_tab = "agents"
+
+    app._refresh_changespec_detail_only()
+
+    assert app.footer_widget.update_bindings_calls == 0
+    assert app.footer_widget.show_empty_calls == 0
+
+
 def test_mark_toggle_falls_back_to_full_refresh_on_patch_failure() -> None:
     """When the widget rejects the patch (width grew, etc.) fall back."""
     app = _FakeApp(count=3)

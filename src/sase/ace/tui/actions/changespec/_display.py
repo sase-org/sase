@@ -236,6 +236,13 @@ class ChangeSpecDisplayMixin:
                 hide_reverted=effective_hide_reverted,
             )
         )
+        # The keybinding footer is shared across tabs; the active tab's
+        # display path is the sole writer. When the CL refresh fires
+        # off-tab (e.g. inotify-driven reload while the user is on
+        # Agents), the writes here would clobber the active tab's
+        # bindings and flicker.
+        if self.current_tab != "changespecs":
+            return
         if getattr(self, "_fold_mode_active", False):
             footer_widget.update_fold_bindings()  # type: ignore[attr-defined]
         elif getattr(self, "_leader_mode_active", False):
@@ -253,6 +260,10 @@ class ChangeSpecDisplayMixin:
 
     def _apply_empty_footer_update(self, footer_widget: Any) -> None:
         """Footer update for the empty-list branch (no selected ChangeSpec)."""
+        # See ``_apply_detail_panel_update`` — never write the shared
+        # footer when this refresh fires off-tab.
+        if self.current_tab != "changespecs":
+            return
         if getattr(self, "_fold_mode_active", False):
             return
         if getattr(self, "_leader_mode_active", False):
