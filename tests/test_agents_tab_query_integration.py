@@ -376,6 +376,59 @@ def test_prepared_apply_boundary_matches_apply_projection_for_folded_data() -> N
     assert app._fold_counts == boundary.fold.fold_counts
 
 
+def test_precomputed_fold_boundary_recomputes_when_fold_state_changes() -> None:
+    """A worker result with stale fold levels must not overwrite newer UI state."""
+    parent = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="parent",
+        status="RUNNING",
+        raw_suffix="ts1",
+    )
+    child = _make_agent(
+        cl_name="child",
+        status="DONE",
+        parent_workflow="workflow",
+        parent_timestamp="ts1",
+        raw_suffix="ts1",
+    )
+    agents = [parent, child]
+
+    app = FakeAgentApp()
+    app._fold_manager.expand("ts1")
+    expanded_levels = app._fold_manager.snapshot()
+    prep = PreparedApplyData(
+        filtered_agents=list(agents),
+        has_always_visible=True,
+        hidden_count=0,
+        hideable_agents=[],
+        dismissed_agent_objects=[],
+    )
+    stale_boundary = prepare_loaded_agents_apply_boundary(
+        prep,
+        app._make_prepared_apply_snapshot(
+            on_agents_tab=False,
+            selected_identity=None,
+            load_state=None,
+        ),
+    )
+
+    app._fold_manager.collapse("ts1")
+    app._apply_loaded_agents_prepared(
+        prep,
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=None,
+        persist_dismissed_changes=False,
+        incomplete_merge_already_applied=True,
+        precomputed_boundary=stale_boundary,
+        precomputed_fold_levels=expanded_levels,
+    )
+
+    assert app._agents_with_children == agents
+    assert app._agents == [parent]
+    assert app._fold_counts == {"ts1": (1, 0)}
+
+
 def test_on_tab_finalizer_defers_selected_agent_file_refresh() -> None:
     """Agent-list finalization must not start file/diff work inline."""
     agent = _make_agent(status="RUNNING", cl_name="active")

@@ -119,7 +119,7 @@ class _PreparedFoldFiltering:
 
 
 @dataclass(frozen=True)
-class _PreparedApplyBoundary:
+class PreparedApplyBoundary:
     """Prepared post-load data the UI thread can apply without recomputing."""
 
     prep: PreparedApplyData
@@ -366,7 +366,7 @@ def prepare_loaded_agents_apply_boundary(
     snapshot: PreparedApplySnapshot,
     *,
     merge_incomplete: bool = True,
-) -> _PreparedApplyBoundary:
+) -> PreparedApplyBoundary:
     """Prepare pure post-load apply data from an explicit app-state snapshot."""
     from ...util.trace import tui_trace
 
@@ -389,7 +389,7 @@ def prepare_loaded_agents_apply_boundary(
                 unfiltered_agents, snapshot.fold_levels
             )
 
-    return _PreparedApplyBoundary(
+    return PreparedApplyBoundary(
         prep=prep,
         fold=_PreparedFoldFiltering(
             unfiltered_agents=unfiltered_agents,
@@ -505,7 +505,7 @@ def compute_apply_loaded_agents(
     )
 
 
-def prepare_loaded_agents_worker_prep(
+def _prepare_loaded_agents_worker_prep(
     all_agents: list[Agent],
     dismissed_from_loader: list[Agent],
     dismissed_snapshot: set[tuple[AgentType, str, str | None]],
@@ -541,3 +541,25 @@ def prepare_loaded_agents_worker_prep(
         complete=getattr(snapshot.load_state, "complete_history", None),
     ):
         return merge_incomplete_load_after_complete_history(prep, snapshot_for_merge)
+
+
+def prepare_loaded_agents_worker_boundary(
+    all_agents: list[Agent],
+    dismissed_from_loader: list[Agent],
+    dismissed_snapshot: set[tuple[AgentType, str, str | None]],
+    hide_non_run_agents: bool,
+    snapshot: PreparedApplySnapshot,
+) -> PreparedApplyBoundary:
+    """Prepare async-loaded agents through the fold-filter boundary."""
+    prep = _prepare_loaded_agents_worker_prep(
+        all_agents,
+        dismissed_from_loader,
+        dismissed_snapshot,
+        hide_non_run_agents,
+        snapshot,
+    )
+    return prepare_loaded_agents_apply_boundary(
+        prep,
+        snapshot,
+        merge_incomplete=False,
+    )

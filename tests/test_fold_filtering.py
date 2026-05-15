@@ -1,12 +1,15 @@
 """Tests for filter_agents_by_fold_state and _compute_fold_annotation."""
 
+from sase.ace.tui.actions.agents._loading_compute import (
+    PreparedApplySelectionInputs,
+    PreparedApplySnapshot,
+    _filter_agents_by_fold_snapshot,
+    prepare_loaded_agents_worker_boundary,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
-from sase.ace.tui.models.fold_state import FoldStateManager
+from sase.ace.tui.models.fold_state import FoldLevel, FoldStateManager
 from sase.ace.tui.widgets.agent_list import _compute_fold_annotation
-from sase.ace.tui.actions.agents._loading_compute import (
-    _filter_agents_by_fold_snapshot,
-)
 
 
 def _make_parent(raw_suffix: str, cl_name: str = "test_cl") -> Agent:
@@ -211,6 +214,80 @@ def test_fold_snapshot_matches_live_fold_manager() -> None:
 
     assert snapshot_agents == expected_agents
     assert snapshot_counts == expected_counts
+
+
+def _make_prepared_snapshot(
+    fold_levels: dict[str, FoldLevel],
+) -> PreparedApplySnapshot:
+    return PreparedApplySnapshot(
+        cached_agents_with_children=[],
+        dismissed_agents=set(),
+        agents_seen_complete_history=False,
+        hide_non_run_agents=False,
+        load_state=None,
+        fold_levels=fold_levels,
+        selection=PreparedApplySelectionInputs(
+            on_agents_tab=False,
+            selected_identity=None,
+            prior_visual_row=None,
+        ),
+    )
+
+
+def test_worker_boundary_fold_levels_match_live_fold_manager() -> None:
+    """Worker-prepared fold filtering must match the live manager semantics."""
+    for level in (
+        FoldLevel.COLLAPSED,
+        FoldLevel.EXPANDED,
+        FoldLevel.FULLY_EXPANDED,
+    ):
+        parent = _make_parent(f"ts-{level.value}")
+        assert parent.raw_suffix is not None
+        child = _make_child(parent.raw_suffix, "step1")
+        hidden_child = _make_child(parent.raw_suffix, "step2", is_hidden=True)
+        agents = [parent, child, hidden_child]
+
+        mgr = FoldStateManager()
+        if level != FoldLevel.COLLAPSED:
+            mgr.expand(parent.raw_suffix)
+            if level == FoldLevel.FULLY_EXPANDED:
+                mgr.expand(parent.raw_suffix)
+
+        expected_agents, expected_counts = filter_agents_by_fold_state(agents, mgr)
+        boundary = prepare_loaded_agents_worker_boundary(
+            list(agents),
+            [],
+            set(),
+            False,
+            _make_prepared_snapshot(mgr.snapshot()),
+        )
+
+        assert boundary.fold.unfiltered_agents == agents
+        assert boundary.fold.visible_agents == expected_agents
+        assert boundary.fold.fold_counts == expected_counts
+
+
+def test_worker_boundary_filters_orphans_and_hidden_only_parents() -> None:
+    """Worker fold filtering must preserve edge-case filtering semantics."""
+    hidden_only_parent = _make_parent("hidden-only")
+    hidden_only_child = _make_child("hidden-only", "hidden", is_hidden=True)
+    orphan = _make_child("missing-parent", "orphan")
+    agents = [hidden_only_parent, hidden_only_child, orphan]
+
+    mgr = FoldStateManager()
+    mgr.expand("missing-parent")
+
+    expected_agents, expected_counts = filter_agents_by_fold_state(agents, mgr)
+    boundary = prepare_loaded_agents_worker_boundary(
+        list(agents),
+        [],
+        set(),
+        False,
+        _make_prepared_snapshot(mgr.snapshot()),
+    )
+
+    assert boundary.fold.visible_agents == expected_agents
+    assert boundary.fold.fold_counts == expected_counts
 
 
 def test_annotation_suppressed_anonymous_single_prompt() -> None:

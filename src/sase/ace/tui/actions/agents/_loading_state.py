@@ -7,7 +7,11 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from ....changespec import ChangeSpec
-from ._loading_compute import PreparedApplyData, PreparedApplySnapshot
+from ._loading_compute import (
+    PreparedApplyBoundary,
+    PreparedApplyData,
+    PreparedApplySnapshot,
+)
 from ._loading_helpers import TabName
 
 if TYPE_CHECKING:
@@ -21,6 +25,7 @@ if TYPE_CHECKING:
     from ...models.agent_group_fold import AgentGroupFoldRegistry
     from ...models.agent_loader import AgentLoadState
     from ...models.fold_state import FoldStateManager
+    from ...models.fold_state import FoldLevel
     from ...util.nav_gate import NavigationGate
 
 
@@ -122,6 +127,8 @@ class AgentLoadingStateMixin:
         load_state: AgentLoadState | None = None,
         persist_dismissed_changes: bool,
         incomplete_merge_already_applied: bool = False,
+        precomputed_boundary: PreparedApplyBoundary | None = None,
+        precomputed_fold_levels: dict[str, FoldLevel] | None = None,
     ) -> None:
         raise NotImplementedError
 

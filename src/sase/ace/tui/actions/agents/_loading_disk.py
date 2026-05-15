@@ -14,7 +14,7 @@ from ._loading_compute import (
     _CLEANED_ARTIFACT_DIRS,
     compute_apply_loaded_agents,
     compute_loader_cleanup,
-    prepare_loaded_agents_worker_prep,
+    prepare_loaded_agents_worker_boundary,
 )
 from ._loading_state import AgentLoadingStateMixin
 from ...util.trace import tui_trace
@@ -289,21 +289,24 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         )
 
         prep_start = time.perf_counter()
-        prep_worker = prepare_loaded_agents_worker_prep
+        boundary_worker = prepare_loaded_agents_worker_boundary
         with tui_trace(
             "agents.worker_prep",
             agents=len(all_agents),
             dismissed=len(dismissed_from_loader),
         ):
-            prep = await asyncio.to_thread(
-                prep_worker,
+            boundary = await asyncio.to_thread(
+                boundary_worker,
                 all_agents,
                 dismissed_from_loader,
                 set(self._dismissed_agents),
                 bool(self.hide_non_run_agents),
                 worker_snapshot,
             )
-        await self._prepare_agent_content_search_index_async(prep.filtered_agents)
+        prep = boundary.prep
+        await self._prepare_agent_content_search_index_async(
+            boundary.fold.unfiltered_agents
+        )
         log.debug("agents async load: prep=%.3fs", time.perf_counter() - prep_start)
 
         apply_start = time.perf_counter()
@@ -320,6 +323,8 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             or bool(prep.recovered_bundle_identities)
             or bool(prep.auto_dismissed_identities),
             incomplete_merge_already_applied=True,
+            precomputed_boundary=boundary,
+            precomputed_fold_levels=worker_snapshot.fold_levels,
         )
         log.debug("agents async load: apply=%.3fs", time.perf_counter() - apply_start)
 

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from ...models.agent import AgentType
 from ...util.trace import tui_trace
 from ._loading_compute import (
+    PreparedApplyBoundary,
     PreparedApplyData,
     PreparedApplySelectionInputs,
     PreparedApplySnapshot,
@@ -19,6 +20,7 @@ from ._loading_state import AgentLoadingStateMixin
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent_loader import AgentLoadState
+    from ...models.fold_state import FoldLevel
 
 
 class AgentLoadingApplyMixin(AgentLoadingStateMixin):
@@ -28,11 +30,11 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         self,
         prep: PreparedApplyData,
         load_state: AgentLoadState | None,
-    ) -> None:
+    ) -> bool:
         """Keep revived historical agents visible until Tier 2 reconciles."""
         revived_suffixes = getattr(self, "_revived_agent_raw_suffixes", None)
         if not revived_suffixes:
-            return
+            return False
 
         loaded_suffixes = {
             agent.raw_suffix
@@ -41,13 +43,13 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         }
         if load_state is not None and load_state.complete_history:
             revived_suffixes.difference_update(loaded_suffixes)
-            return
+            return False
         if load_state is None or load_state.complete_history:
-            return
+            return False
 
         missing_suffixes = revived_suffixes - loaded_suffixes
         if not missing_suffixes:
-            return
+            return False
 
         dismissed_suffixes = {
             raw_suffix
@@ -56,7 +58,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         }
         missing_suffixes -= dismissed_suffixes
         if not missing_suffixes:
-            return
+            return False
 
         existing_identities = {agent.identity for agent in prep.filtered_agents}
         preserved: list[Agent] = []
@@ -91,7 +93,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 existing_identities.add(agent.identity)
 
         if not preserved:
-            return
+            return False
 
         prep.filtered_agents = [*prep.filtered_agents, *preserved]
         prep.has_always_visible = any(
@@ -100,6 +102,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         prep.hideable_agents = [
             agent for agent in prep.filtered_agents if not is_always_visible(agent)
         ]
+        return True
 
     def _make_prepared_apply_snapshot(
         self,
@@ -159,6 +162,8 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         load_state: AgentLoadState | None = None,
         persist_dismissed_changes: bool,
         incomplete_merge_already_applied: bool = False,
+        precomputed_boundary: PreparedApplyBoundary | None = None,
+        precomputed_fold_levels: dict[str, FoldLevel] | None = None,
     ) -> None:
         """UI-thread step that folds prepared filter output into ``self``.
 
@@ -183,6 +188,8 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 load_state=load_state,
                 persist_dismissed_changes=persist_dismissed_changes,
                 incomplete_merge_already_applied=incomplete_merge_already_applied,
+                precomputed_boundary=precomputed_boundary,
+                precomputed_fold_levels=precomputed_fold_levels,
             )
 
     def _apply_loaded_agents_prepared_inner(
@@ -194,6 +201,8 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         load_state: AgentLoadState | None = None,
         persist_dismissed_changes: bool,
         incomplete_merge_already_applied: bool = False,
+        precomputed_boundary: PreparedApplyBoundary | None = None,
+        precomputed_fold_levels: dict[str, FoldLevel] | None = None,
     ) -> None:
         """Implementation for the traced prepared-apply UI continuation."""
         # Clear the startup loading indicators (spinner on list panels,
@@ -226,7 +235,9 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
 
             save_dismissed_agents(self._dismissed_agents)
 
-        self._preserve_revived_agents_for_incomplete_load(prep, load_state)
+        preserved_revived = self._preserve_revived_agents_for_incomplete_load(
+            prep, load_state
+        )
         if not incomplete_merge_already_applied:
             with tui_trace(
                 "agents.incomplete_load_merge",
@@ -235,15 +246,29 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 complete=getattr(load_state, "complete_history", None),
             ):
                 self._merge_incomplete_load_after_complete_history(prep, load_state)
-        boundary = prepare_loaded_agents_apply_boundary(
-            prep,
-            self._make_prepared_apply_snapshot(
-                on_agents_tab=on_agents_tab,
-                selected_identity=selected_identity,
-                load_state=load_state,
-            ),
-            merge_incomplete=False,
-        )
+
+        boundary = None
+        if (
+            precomputed_boundary is not None
+            and incomplete_merge_already_applied
+            and not preserved_revived
+        ):
+            fold_manager = getattr(self, "_fold_manager", None)
+            snapshot_fold = getattr(fold_manager, "snapshot", None)
+            current_fold_levels = snapshot_fold() if callable(snapshot_fold) else None
+            if current_fold_levels == precomputed_fold_levels:
+                boundary = precomputed_boundary
+
+        if boundary is None:
+            boundary = prepare_loaded_agents_apply_boundary(
+                prep,
+                self._make_prepared_apply_snapshot(
+                    on_agents_tab=on_agents_tab,
+                    selected_identity=selected_identity,
+                    load_state=load_state,
+                ),
+                merge_incomplete=False,
+            )
         prep = boundary.prep
 
         if load_state is not None and load_state.complete_history:
