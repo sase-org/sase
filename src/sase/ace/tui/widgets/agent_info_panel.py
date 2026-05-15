@@ -156,8 +156,14 @@ class AgentInfoPanel(Static):
         grouping_mode: str,
         search_query: str,
     ) -> None:
-        """Batch all logical info-panel state into one render."""
-        new_state = (
+        """Batch all logical info-panel state into one render.
+
+        Stable state (counts, position, modes, query) controls whether the
+        whole Rich ``Text`` is rebuilt. Countdown ticks alone are routed
+        through :meth:`update_countdown_only`, which avoids reinvalidating
+        the stable cache and requests a no-layout repaint.
+        """
+        new_stable = (
             position,
             total,
             unread,
@@ -168,13 +174,11 @@ class AgentInfoPanel(Static):
             failed,
             read,
             visible_agent_count,
-            countdown,
-            interval,
             view_mode,
             grouping_mode,
             search_query,
         )
-        old_state = (
+        old_stable = (
             self._position,
             self._total,
             self._unread_count,
@@ -185,13 +189,12 @@ class AgentInfoPanel(Static):
             self._failed_count,
             self._read_count,
             self._visible_agent_count,
-            self._countdown,
-            self._interval,
             self._view_mode,
             self._grouping_mode,
             self._search_query,
         )
-        if new_state == old_state:
+        if new_stable == old_stable:
+            self.update_countdown_only(countdown, interval)
             return
         (
             self._position,
@@ -204,13 +207,26 @@ class AgentInfoPanel(Static):
             self._failed_count,
             self._read_count,
             self._visible_agent_count,
-            self._countdown,
-            self._interval,
             self._view_mode,
             self._grouping_mode,
             self._search_query,
-        ) = new_state
+        ) = new_stable
+        self._countdown = countdown
+        self._interval = interval
         self._update_display()
+
+    def update_countdown_only(self, countdown: int, interval: int) -> None:
+        """Refresh countdown without rebuilding stable panel content.
+
+        Returns early when the rendered countdown text is unchanged.
+        Otherwise emits a ``layout=False`` repaint, since the info panel
+        is always one line and its size cannot change.
+        """
+        if self._countdown == countdown and self._interval == interval:
+            return
+        self._countdown = countdown
+        self._interval = interval
+        self._render_panel_text(layout=False)
 
     _VIEW_MODE_STYLES: dict[str, str] = {
         "file": "bold green",
@@ -265,15 +281,14 @@ class AgentInfoPanel(Static):
             text.append(suffix, style=label_style)
         text.append("]", style="dim")
 
-    def _update_display(self) -> None:
-        """Refresh the displayed text."""
+    def _build_display_text(self) -> Text:
+        """Build the full Rich ``Text`` for the current panel state."""
         text = Text()
         if self._loading:
             text.append("Agents", style="bold #87D7FF")
             text.append(": ", style="bold #87D7FF")
             text.append("…", style="dim italic")
-            self.update(text)
-            return
+            return text
         text.append(f"{self._visible_agent_count}", style=self._TOTAL_COUNT_STYLE)
         text.append(" Agents", style="bold #87D7FF")
         self._append_metric_strip(text)
@@ -304,4 +319,23 @@ class AgentInfoPanel(Static):
             text.append("(auto-refresh in ", style="dim")
             text.append(f"{self._countdown}s", style="bold #FFD700")
             text.append(")", style="dim")
-        self.update(text)
+        return text
+
+    def _render_panel_text(self, *, layout: bool) -> None:
+        """Push the current display text to the Static base.
+
+        The info panel is always one line tall, so callers should pass
+        ``layout=False`` whenever they know the rebuild cannot change the
+        widget's height (e.g. countdown ticks). A ``TypeError`` from older
+        Textual versions that lack the ``layout`` kwarg falls back to the
+        default behavior.
+        """
+        text = self._build_display_text()
+        try:
+            self.update(text, layout=layout)
+        except TypeError:
+            self.update(text)
+
+    def _update_display(self) -> None:
+        """Refresh the displayed text after a stable-state change."""
+        self._render_panel_text(layout=False)

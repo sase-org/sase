@@ -16,7 +16,11 @@ _DEFAULT_GROUPING_KEY = key_display_name(
 
 def _collect_text(panel: AgentInfoPanel) -> str:
     captured: list[str] = []
-    with patch.object(panel, "update", lambda text: captured.append(text.plain)):
+    with patch.object(
+        panel,
+        "update",
+        lambda text, **_kwargs: captured.append(text.plain),
+    ):
         panel._update_display()
     assert captured, "panel._update_display did not invoke self.update()"
     return captured[-1]
@@ -24,7 +28,11 @@ def _collect_text(panel: AgentInfoPanel) -> str:
 
 def _collect_rich_text(panel: AgentInfoPanel) -> Text:
     captured: list[Text] = []
-    with patch.object(panel, "update", lambda text: captured.append(text)):
+    with patch.object(
+        panel,
+        "update",
+        lambda text, **_kwargs: captured.append(text),
+    ):
         panel._update_display()
     assert captured, "panel._update_display did not invoke self.update()"
     return captured[-1]
@@ -149,7 +157,11 @@ def test_update_agent_counts_uses_plain_metric_text() -> None:
     panel = AgentInfoPanel()
 
     captured: list[str] = []
-    with patch.object(panel, "update", lambda text: captured.append(text.plain)):
+    with patch.object(
+        panel,
+        "update",
+        lambda text, **_kwargs: captured.append(text.plain),
+    ):
         panel.update_agent_counts(1, 2, 3, 4, 5, 6, 10)
     assert captured, "panel.update_agent_counts did not refresh the display"
     plain = captured[-1]
@@ -241,3 +253,104 @@ def test_count_strip_suppressed_while_loading() -> None:
     assert plain == "Agents: …"
     assert "unread" not in plain
     assert "failed" not in plain
+
+
+def _stable_state_kwargs(**overrides: object) -> dict[str, object]:
+    """Default kwargs for ``AgentInfoPanel.update_state``."""
+    base: dict[str, object] = {
+        "position": 0,
+        "total": 5,
+        "unread": 0,
+        "asking": 0,
+        "running": 2,
+        "waiting": 0,
+        "failed": 0,
+        "read": 0,
+        "visible_agent_count": 5,
+        "starting": 0,
+        "countdown": 5,
+        "interval": 5,
+        "view_mode": "",
+        "grouping_mode": "by project",
+        "search_query": "",
+    }
+    base.update(overrides)
+    return base
+
+
+def test_update_countdown_only_passes_layout_false() -> None:
+    """Pure countdown refreshes should request a no-layout repaint."""
+    panel = AgentInfoPanel()
+    panel._countdown = 5
+    panel._interval = 5
+
+    calls: list[dict[str, object]] = []
+
+    def fake_update(text: Text, **kwargs: object) -> None:
+        calls.append({"text": text, **kwargs})
+
+    with patch.object(panel, "update", side_effect=fake_update):
+        panel.update_countdown_only(4, 5)
+
+    assert len(calls) == 1
+    assert calls[0]["layout"] is False
+    assert "4s" in calls[0]["text"].plain  # type: ignore[union-attr]
+
+
+def test_update_countdown_only_returns_early_when_unchanged() -> None:
+    """No update is emitted when the countdown text would not change."""
+    panel = AgentInfoPanel()
+    panel._countdown = 3
+    panel._interval = 5
+
+    with patch.object(panel, "update") as mock_update:
+        panel.update_countdown_only(3, 5)
+
+    mock_update.assert_not_called()
+
+
+def test_update_state_routes_countdown_only_to_cheap_path() -> None:
+    """Stable-state cache short-circuits to ``update_countdown_only``."""
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.update_state(**_stable_state_kwargs(countdown=5))  # type: ignore[arg-type]
+
+    with (
+        patch.object(panel, "_update_display") as full_rebuild,
+        patch.object(panel, "update_countdown_only") as cheap_path,
+    ):
+        panel.update_state(**_stable_state_kwargs(countdown=4))  # type: ignore[arg-type]
+
+    full_rebuild.assert_not_called()
+    cheap_path.assert_called_once_with(4, 5)
+
+
+def test_update_state_full_rebuild_when_stable_state_changes() -> None:
+    """A metric change still triggers ``_update_display`` (full rebuild)."""
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.update_state(**_stable_state_kwargs(running=2))  # type: ignore[arg-type]
+
+    with (
+        patch.object(panel, "_update_display") as full_rebuild,
+        patch.object(panel, "update_countdown_only") as cheap_path,
+    ):
+        panel.update_state(**_stable_state_kwargs(running=3))  # type: ignore[arg-type]
+
+    full_rebuild.assert_called_once()
+    cheap_path.assert_not_called()
+
+
+def test_update_display_uses_layout_false() -> None:
+    """Full panel rebuilds also opt out of layout, since the bar is 1 line."""
+    panel = AgentInfoPanel()
+    calls: list[dict[str, object]] = []
+
+    def fake_update(text: Text, **kwargs: object) -> None:
+        calls.append({"text": text, **kwargs})
+
+    with patch.object(panel, "update", side_effect=fake_update):
+        panel._update_display()
+
+    assert calls
+    assert calls[-1]["layout"] is False

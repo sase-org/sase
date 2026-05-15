@@ -16,7 +16,11 @@ def _collect_text(panel: AgentInfoPanel | AxeInfoPanel) -> str:
     context.
     """
     captured: list[str] = []
-    with patch.object(panel, "update", lambda text: captured.append(text.plain)):
+    with patch.object(
+        panel,
+        "update",
+        lambda text, **_kwargs: captured.append(text.plain),
+    ):
         panel._update_display()
     assert captured, "panel._update_display did not invoke self.update()"
     return captured[-1]
