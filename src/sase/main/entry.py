@@ -278,6 +278,12 @@ def main() -> NoReturn:
 
         handle_telemetry_command(args)
 
+    # --- workspace ---
+    if args.command == "workspace":
+        from .workspace_handler import handle_workspace_command
+
+        handle_workspace_command(args)
+
     # --- xprompt ---
     if args.command == "xprompt":
         from .xprompt_handler import handle_xprompt_command

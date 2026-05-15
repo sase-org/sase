@@ -193,6 +193,23 @@ The workspace provider and VCS provider are complementary plugin systems:
 
 A single plugin package (e.g., `sase-github`) typically provides both a VCS plugin and a workspace plugin.
 
+## `sase workspace` CLI
+
+The `sase workspace` command surface inspects and maintains the per-project workspace registry. All subcommands accept
+`-p/--project NAME` to override the project; without it, the project is inferred from the current directory via the
+nearest managed-checkout marker, the workspace provider hook, and finally a scan of `~/.sase/projects/`.
+
+| Command                             | Description                                                                                            |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `sase workspace list [-j/--json]`   | List registered managed checkouts (always includes primary `#0`).                                      |
+| `sase workspace path NUM`           | Print the checkout path for `NUM`. Materializes only when `NUM` already has a claim or registry entry. |
+| `sase workspace open NUM`           | Conservative shim that prints the checkout path; reserved for future editor integration.               |
+| `sase workspace cleanup -s/--stale` | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`. `-n/--dry-run` previews.   |
+| `sase workspace repair [-n]`        | Drop registry entries whose checkout is gone; re-materialize checkouts for live RUNNING claims.        |
+
+`cleanup` and `repair` skip workspace `#0` (primary) and any workspace number with an active claim in the RUNNING field.
+`cleanup --include-shares` opts workflow-share checkouts into the same cleanup pass.
+
 ## Disabling Plugins
 
 The workspace provider registry loads provider entry points directly. It does not currently consult the resource-plugin

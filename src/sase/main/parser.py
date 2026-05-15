@@ -37,6 +37,7 @@ from sase.main.parser_mobile import register_mobile_parser
 from sase.main.parser_repro import register_repro_parser
 from sase.main.parser_sdd import register_sdd_parser
 from sase.main.parser_telemetry import register_telemetry_parser
+from sase.main.parser_workspace import register_workspace_parser
 from sase.main.parser_xprompt import register_xprompt_parser
 
 
@@ -104,6 +105,7 @@ def create_parser() -> argparse.ArgumentParser:
     register_run_parser(top_level_subparsers)
     register_sdd_parser(top_level_subparsers)
     register_telemetry_parser(top_level_subparsers)
+    register_workspace_parser(top_level_subparsers)
     register_xprompt_parser(top_level_subparsers)
 
     _sort_subcommand_help(parser)

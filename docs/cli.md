@@ -129,6 +129,11 @@ GitHub pull requests, and other provider plugins.
 | `sase revive-log`              | Inspect the agent-revival audit log (start / success / failure events).      | [Agent revival audit log](troubleshooting/agent-revival.md) |
 | `sase artifact create`         | Move an explicit file into persistent agent artifact storage.                | [Agent attachments](agent_images.md)                        |
 | `sase path`                    | Print well-known paths such as schemas and xprompt directories.              | [Configuration CLI flags](configuration.md#sase-path)       |
+| `sase workspace list`          | List managed workspace checkouts in the registry, including primary `#0`.    | [Workspace provider](workspace.md)                          |
+| `sase workspace path`          | Print the checkout path for a workspace number.                              | [Workspace provider](workspace.md)                          |
+| `sase workspace open`          | Print (currently) the checkout path for a workspace number.                  | [Workspace provider](workspace.md)                          |
+| `sase workspace cleanup`       | Remove stale unclaimed managed checkouts older than the configured TTL.      | [Workspace provider](workspace.md)                          |
+| `sase workspace repair`        | Reconcile the workspace registry with the filesystem.                        | [Workspace provider](workspace.md)                          |
 | `sase init-git`                | Initialize a bare-repo-backed git project.                                   | [ProjectSpec](project_spec.md)                              |
 | `sase mobile gateway start`    | Start the workstation-hosted mobile gateway.                                 | [Mobile gateway](mobile_gateway.md)                         |
 | `sase mobile agent-bridge`     | Fixed JSON bridge used by the mobile gateway for agent operations.           | [Mobile gateway](mobile_gateway.md)                         |
