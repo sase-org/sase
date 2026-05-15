@@ -62,8 +62,19 @@ def scan_projects_for_cwd(cwd: str) -> tuple[str, Path] | None:
 
 
 def infer_project_name_from_cwd(cwd: str | None = None) -> str | None:
-    """Infer current project name from *cwd* (defaults to ``os.getcwd()``)."""
+    """Infer current project name from *cwd* (defaults to ``os.getcwd()``).
+
+    Resolution order:
+      1. nearest ``.sase/checkout.json`` marker in an ancestor directory
+         (set by managed checkouts);
+      2. workspace provider ``ws_get_workspace_name`` hook;
+      3. scan ``~/.sase/projects/`` for a project whose workspace matches.
+    """
     cwd_abs = os.path.abspath(cwd or os.getcwd())
+
+    marker_project = _project_name_from_marker(cwd_abs)
+    if marker_project is not None:
+        return marker_project
 
     try:
         from sase.workspace_provider import get_workspace_name
@@ -84,3 +95,28 @@ def infer_project_name_from_cwd(cwd: str | None = None) -> str | None:
         return scanned[0]
 
     return None
+
+
+def _project_name_from_marker(cwd_abs: str) -> str | None:
+    """Resolve project name via the nearest managed-checkout marker."""
+    try:
+        from sase.workspace_provider import find_marker_from_cwd
+    except Exception:
+        return None
+
+    try:
+        found = find_marker_from_cwd(cwd_abs)
+    except Exception:
+        return None
+    if found is None:
+        return None
+    _, marker = found
+    project_name = marker.project_name.strip()
+    if not project_name:
+        return None
+
+    project_dir = Path.home() / ".sase" / "projects" / project_name
+    project_file = Path(preferred_project_spec_path(str(project_dir), project_name))
+    if not project_file.exists():
+        return None
+    return project_name

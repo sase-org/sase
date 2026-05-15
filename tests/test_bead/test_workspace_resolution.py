@@ -1,17 +1,53 @@
 """Tests for workspace-aware beads directory resolution."""
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.bead.project_name import _cwd_matches_project_workspace
+from sase.bead.project_name import (
+    _cwd_matches_project_workspace,
+    infer_project_name_from_cwd,
+)
 from sase.bead.workspace import (
     _canonical_project_beads_dir,
     _current_or_primary_beads_dir,
     get_all_project_beads_dirs,
+    get_project_beads_dirs,
     get_project_beads_dirs_for_project,
     _resolve_by_scanning_projects,
     resolve_primary_workspace,
 )
+
+
+def _write_marker(
+    checkout_dir: Path,
+    *,
+    project_name: str,
+    project_key: str,
+    primary_workspace_dir: Path,
+    workspace_num: int,
+    registry_path: Path | None = None,
+) -> Path:
+    marker_dir = checkout_dir / ".sase"
+    marker_dir.mkdir(parents=True, exist_ok=True)
+    marker_path = marker_dir / "checkout.json"
+    marker_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "project_name": project_name,
+                "project_key": project_key,
+                "workspace_num": workspace_num,
+                "primary_workspace_dir": str(primary_workspace_dir),
+                "registry_path": str(
+                    registry_path
+                    if registry_path is not None
+                    else checkout_dir / "registry.json"
+                ),
+            }
+        )
+    )
+    return marker_path
 
 
 def test_canonical_project_beads_dir_non_vc_primary_only(tmp_path: Path) -> None:
@@ -269,3 +305,145 @@ def test_resolve_primary_workspace_via_provider_when_workspace_dir_missing(
     assert result == primary
     mock_detect.assert_called_once_with(str(project_dir / f"{project_name}.sase"))
     mock_get_dir.assert_called_once_with("hg", 1, project_name, "")
+
+
+# --- Phase 6: marker-first inference ---
+
+
+def test_marker_resolves_project_name_from_xdg_state(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A managed checkout marker resolves project name without sibling parsing."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    project_name = "zorg"
+    project_dir = tmp_path / ".sase" / "projects" / project_name
+    project_dir.mkdir(parents=True)
+    primary = tmp_path / "workspaces" / project_name
+    primary.mkdir(parents=True)
+    (project_dir / f"{project_name}.sase").write_text(f"WORKSPACE_DIR: {primary}\n")
+
+    # Managed checkout lives under an xdg-state-style path far from primary.
+    managed = tmp_path / "state" / "sase" / "workspaces" / "key" / "10"
+    managed.mkdir(parents=True)
+    _write_marker(
+        managed,
+        project_name=project_name,
+        project_key="key",
+        primary_workspace_dir=primary,
+        workspace_num=10,
+    )
+
+    monkeypatch.chdir(managed)
+    assert infer_project_name_from_cwd() == project_name
+
+
+def test_marker_primary_overrides_sibling_scan(tmp_path: Path, monkeypatch) -> None:
+    """resolve_primary_workspace prefers the marker's primary over scanning."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    project_name = "zorg"
+    project_dir = tmp_path / ".sase" / "projects" / project_name
+    project_dir.mkdir(parents=True)
+    primary = tmp_path / "workspaces" / project_name
+    primary.mkdir(parents=True)
+    (project_dir / f"{project_name}.sase").write_text(f"WORKSPACE_DIR: {primary}\n")
+
+    managed = tmp_path / "state" / project_name / "10"
+    managed.mkdir(parents=True)
+    _write_marker(
+        managed,
+        project_name=project_name,
+        project_key="key",
+        primary_workspace_dir=primary,
+        workspace_num=10,
+    )
+
+    monkeypatch.chdir(managed)
+    assert resolve_primary_workspace() == primary
+
+
+def test_bead_lookup_prefers_current_checkout_bead_store(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A managed checkout with its own bead store is preferred over the primary."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    project_name = "zorg"
+    project_dir = tmp_path / ".sase" / "projects" / project_name
+    project_dir.mkdir(parents=True)
+    primary = tmp_path / "workspaces" / project_name
+    (primary / "sdd" / "beads").mkdir(parents=True)
+    (project_dir / f"{project_name}.sase").write_text(f"WORKSPACE_DIR: {primary}\n")
+
+    managed = tmp_path / "state" / project_name / "10"
+    (managed / "sdd" / "beads").mkdir(parents=True)
+    _write_marker(
+        managed,
+        project_name=project_name,
+        project_key="key",
+        primary_workspace_dir=primary,
+        workspace_num=10,
+    )
+
+    monkeypatch.chdir(managed)
+    result = get_project_beads_dirs()
+    assert result == [managed / "sdd" / "beads"]
+
+
+def test_sibling_scan_still_works_without_marker(tmp_path: Path, monkeypatch) -> None:
+    """Legacy adjacent workspaces with no marker still resolve via scan."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    project_name = "yserve"
+    project_dir = tmp_path / ".sase" / "projects" / project_name
+    project_dir.mkdir(parents=True)
+    primary = tmp_path / "workspaces" / project_name / "src"
+    primary.mkdir(parents=True)
+    (project_dir / f"{project_name}.sase").write_text(f"WORKSPACE_DIR: {primary}\n")
+
+    # Adjacent numbered variant with no marker.
+    numbered = tmp_path / "workspaces" / f"{project_name}_101" / "src"
+    numbered.mkdir(parents=True)
+
+    monkeypatch.chdir(numbered)
+    assert infer_project_name_from_cwd() == project_name
+    assert resolve_primary_workspace() == primary
+
+
+def test_malformed_marker_is_ignored(tmp_path: Path, monkeypatch) -> None:
+    """A marker with invalid JSON falls back to legacy detection."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    project_name = "yserve"
+    project_dir = tmp_path / ".sase" / "projects" / project_name
+    project_dir.mkdir(parents=True)
+    primary = tmp_path / "workspaces" / project_name
+    primary.mkdir(parents=True)
+    (project_dir / f"{project_name}.sase").write_text(f"WORKSPACE_DIR: {primary}\n")
+
+    numbered = tmp_path / "workspaces" / f"{project_name}_101"
+    numbered.mkdir(parents=True)
+    marker_dir = numbered / ".sase"
+    marker_dir.mkdir()
+    (marker_dir / "checkout.json").write_text("{ not valid json")
+
+    monkeypatch.chdir(numbered)
+    # Sibling scan still resolves project from adjacent layout.
+    assert infer_project_name_from_cwd() == project_name
+    assert resolve_primary_workspace() == primary
+
+
+def test_marker_with_unknown_project_falls_back(tmp_path: Path, monkeypatch) -> None:
+    """A marker referencing an unknown project falls back to legacy paths."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    # No project registered under ~/.sase/projects/ghost.
+    primary = tmp_path / "workspaces" / "ghost"
+    managed = tmp_path / "state" / "ghost" / "10"
+    managed.mkdir(parents=True)
+    _write_marker(
+        managed,
+        project_name="ghost",
+        project_key="k",
+        primary_workspace_dir=primary,
+        workspace_num=10,
+    )
+
+    monkeypatch.chdir(managed)
+    # Marker exists but no project file => infer returns None.
+    assert infer_project_name_from_cwd() is None

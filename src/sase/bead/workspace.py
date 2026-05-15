@@ -63,17 +63,24 @@ def get_all_project_beads_dirs() -> list[Path]:
 def resolve_primary_workspace() -> Path | None:
     """Resolve the primary workspace directory from CWD.
 
-    Tries two strategies:
-      1. Workspace provider plugin (``ws_get_workspace_name``).
-      2. Scan ``~/.sase/projects/`` and match CWD against each
+    Tries three strategies:
+      1. Managed checkout marker (``.sase/checkout.json``) in an ancestor
+         directory — preferred when CWD is inside a managed checkout.
+      2. Workspace provider plugin (``ws_get_workspace_name``).
+      3. Scan ``~/.sase/projects/`` and match CWD against each
          project's ``WORKSPACE_DIR`` (including numbered variants
          like ``project_101``).
 
-    Strategy 2 is the fallback for VCS providers (e.g. Mercurial/Google)
+    Strategy 3 is the fallback for VCS providers (e.g. Mercurial/Google)
     that implement ``vcs_get_workspace_name`` but not the workspace
-    provider hook.
+    provider hook, and for legacy adjacent workspaces with no marker.
     """
-    # Strategy 1: workspace/provider-derived project name
+    # Strategy 1: managed checkout marker
+    marker_primary = _resolve_from_marker()
+    if marker_primary is not None:
+        return marker_primary
+
+    # Strategy 2: workspace/provider-derived project name
     project_name = infer_project_name_from_cwd()
 
     if project_name:
@@ -86,8 +93,31 @@ def resolve_primary_workspace() -> Path | None:
         if result is not None:
             return result
 
-    # Strategy 2: scan all projects
+    # Strategy 3: scan all projects
     return _resolve_by_scanning_projects(os.path.abspath(os.getcwd()))
+
+
+def _resolve_from_marker() -> Path | None:
+    """Resolve the primary workspace via the nearest checkout marker."""
+    try:
+        from sase.workspace_provider import find_marker_from_cwd
+    except Exception:
+        return None
+
+    try:
+        found = find_marker_from_cwd(os.getcwd())
+    except Exception:
+        return None
+    if found is None:
+        return None
+    _, marker = found
+    primary_str = marker.primary_workspace_dir.strip()
+    if not primary_str:
+        return None
+    primary = Path(primary_str.rstrip("/"))
+    if not primary.is_dir():
+        return None
+    return primary
 
 
 def _resolve_from_project_file(project_name: str) -> Path | None:
