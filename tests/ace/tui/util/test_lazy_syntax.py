@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from rich.console import Console
 from rich.console import Group
 from rich.syntax import Syntax
 
@@ -96,6 +97,59 @@ def test_cached_lazy_renderable_reuses_segments_for_same_width(monkeypatch) -> N
     list(console.render(out))
 
     assert calls == 1
+
+
+def test_cached_lazy_renderable_reuses_segments_across_height(monkeypatch) -> None:
+    original_highlight = Syntax.highlight
+    calls = 0
+
+    def counted_highlight(self, code, line_range=None):
+        nonlocal calls
+        calls += 1
+        return original_highlight(self, code, line_range)
+
+    monkeypatch.setattr(Syntax, "highlight", counted_highlight)
+    cache = LazySyntaxRenderCache(max_entries=4)
+    out = lazy_renderable(
+        "def example():\n    return 'same width, different height'\n",
+        "python",
+        render_cache=cache,
+    )
+    console = Console(width=48, force_terminal=True)
+
+    height_10_segments = tuple(
+        out.__rich_console__(console, console.options.update(height=10))
+    )
+    height_20_segments = tuple(
+        out.__rich_console__(console, console.options.update(height=20))
+    )
+
+    assert calls == 1
+    assert height_10_segments == height_20_segments
+
+
+def test_cached_lazy_renderable_renders_distinct_width(monkeypatch) -> None:
+    original_highlight = Syntax.highlight
+    calls = 0
+
+    def counted_highlight(self, code, line_range=None):
+        nonlocal calls
+        calls += 1
+        return original_highlight(self, code, line_range)
+
+    monkeypatch.setattr(Syntax, "highlight", counted_highlight)
+    cache = LazySyntaxRenderCache(max_entries=4)
+    out = lazy_renderable(
+        "def example():\n    return 'a long line that wraps at narrow widths'\n",
+        "python",
+        render_cache=cache,
+    )
+    console = Console(width=40, force_terminal=True)
+
+    tuple(out.__rich_console__(console, console.options.update_width(40)))
+    tuple(out.__rich_console__(console, console.options.update_width(72)))
+
+    assert calls == 2
 
 
 def test_cached_lazy_renderable_reuses_renderable_for_same_content() -> None:

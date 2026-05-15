@@ -52,7 +52,6 @@ def _render_options_key(options: object) -> tuple[object, ...]:
         getattr(options, "ascii_only", None),
         getattr(options, "no_wrap", None),
         getattr(options, "overflow", None),
-        getattr(options, "height", None),
     )
 
 
@@ -63,7 +62,7 @@ class _CachedSyntaxRenderable:
         self._syntax = syntax
         self._segments_by_options: OrderedDict[tuple[object, ...], tuple[Segment, ...]]
         self._segments_by_options = OrderedDict()
-        self._max_width_entries = 4
+        self._max_width_entries = 8
 
     @property
     def code(self) -> str:
