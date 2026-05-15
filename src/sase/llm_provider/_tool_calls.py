@@ -25,7 +25,12 @@ SUPPORTED_CLAUDE_HOOK_EVENTS = frozenset(
     {"PostToolUse", "PostToolUseFailure", "SubagentStart", "SubagentStop"}
 )
 
+# Hook events consumed by the SASE tool-call hook collector (stdin payload from
+# Claude's PreToolUse/PostToolUse hooks). These produce schema-v3 records.
+HOOK_COLLECTOR_EVENTS = frozenset({"PreToolUse", "PostToolUse"})
+
 _SCHEMA_VERSION = 2
+_HOOK_SCHEMA_VERSION = 3
 _PREVIEW_LIMIT = 512
 _MAX_KEYS = 20
 _SECRET_ASSIGNMENT_RE = re.compile(
@@ -80,6 +85,157 @@ def append_codex_tool_call_event(event: Mapping[str, Any]) -> None:
         _append_jsonl(Path(artifacts_dir) / "tool_calls.jsonl", record)
     except Exception as exc:
         _append_writer_diagnostic(artifacts_dir, event, exc)
+
+
+def append_tool_call_collector_diagnostic(
+    artifacts_dir: str | None,
+    *,
+    reason: str,
+    raw_preview: str = "",
+    extra: Mapping[str, Any] | None = None,
+) -> None:
+    """Append a single line to ``tool_calls_writer_errors.jsonl``.
+
+    Public entry point used by the SASE tool-call hook collector (and other
+    runtime-provider glue) to record best-effort diagnostics without raising
+    from the caller. A missing ``artifacts_dir`` is treated as a no-op.
+    """
+    if not artifacts_dir:
+        return
+    record: dict[str, Any] = {
+        "recorded_at": datetime.now(tz=UTC).isoformat(),
+        "reason": reason,
+    }
+    if raw_preview:
+        record["raw_preview"] = _preview_text(raw_preview, 240)
+    if extra:
+        for key, value in extra.items():
+            if isinstance(value, str):
+                record[key] = _preview_text(value, 240)
+            else:
+                record[key] = value
+    try:
+        _append_jsonl(Path(artifacts_dir) / "tool_calls_writer_errors.jsonl", record)
+    except Exception:
+        pass
+
+
+def append_claude_hook_tool_call_event(payload: Mapping[str, Any]) -> None:
+    """Best-effort append of a Claude hook payload to ``tool_calls.jsonl``.
+
+    Reads a single ``PreToolUse``/``PostToolUse`` hook event (the JSON object
+    Claude writes to the collector's stdin) and emits a schema-v3 record.
+    Other ``hook_event_name`` values are written to a diagnostic file rather
+    than treated as hard failures so the collector can stay non-blocking.
+    """
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return
+
+    try:
+        record = _normalize_claude_hook_payload(payload)
+        if record is None:
+            event_name = payload.get("hook_event_name")
+            if isinstance(event_name, str) and event_name not in HOOK_COLLECTOR_EVENTS:
+                _append_writer_diagnostic(
+                    artifacts_dir,
+                    payload,
+                    ValueError(f"unsupported hook_event_name: {event_name}"),
+                )
+            return
+        _append_jsonl(Path(artifacts_dir) / "tool_calls.jsonl", record)
+    except Exception as exc:
+        _append_writer_diagnostic(artifacts_dir, payload, exc)
+
+
+def _normalize_claude_hook_payload(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Convert a Claude PreToolUse/PostToolUse hook payload into a v3 record."""
+    event_name = payload.get("hook_event_name")
+    if not isinstance(event_name, str) or event_name not in HOOK_COLLECTOR_EVENTS:
+        return None
+
+    tool_name = _string_or_none(payload.get("tool_name"))
+    tool_use_id = _string_or_none(payload.get("tool_use_id"))
+    session_id = _string_or_none(payload.get("session_id"))
+    parent_tool_use_id = _string_or_none(payload.get("parent_tool_use_id"))
+
+    if event_name == "PreToolUse":
+        record_event = "ToolUse"
+        status = "pending"
+    else:
+        record_event = "ToolResult"
+        status = _derive_hook_post_status(payload)
+
+    record: dict[str, Any] = {
+        "schema_version": _HOOK_SCHEMA_VERSION,
+        "recorded_at": datetime.now(tz=UTC).isoformat(),
+        "runtime": "claude",
+        "source": "hook",
+        "hook_event": event_name,
+        "event": record_event,
+        "status": status,
+    }
+    if tool_name:
+        record["tool_name"] = _preview_text(tool_name)
+    if tool_use_id:
+        record["tool_use_id"] = _preview_text(tool_use_id)
+    if session_id:
+        record["session_id"] = _preview_text(session_id)
+    if parent_tool_use_id:
+        record["parent_tool_use_id"] = _preview_text(parent_tool_use_id)
+
+    for key in ("transcript_path", "cwd", "permission_mode"):
+        value = payload.get(key)
+        if isinstance(value, str) and value:
+            record[key] = _preview_text(value)
+
+    if event_name == "PreToolUse":
+        record["tool_input_summary"] = _summarize_tool_input(
+            tool_name, payload.get("tool_input")
+        )
+        record["tool_response_summary"] = {}
+    else:
+        record["tool_input_summary"] = _summarize_tool_input(
+            tool_name, payload.get("tool_input")
+        )
+        is_error = _hook_post_indicates_error(payload)
+        interrupted = _result_envelope_is_interrupted(payload.get("tool_response"))
+        record["tool_response_summary"] = _summarize_tool_response(
+            tool_name=tool_name,
+            tool_response=payload.get("tool_response"),
+            error=payload.get("error"),
+            is_error=is_error,
+            interrupted=interrupted,
+        )
+        duration = payload.get("duration_ms")
+        if isinstance(duration, bool):
+            pass
+        elif isinstance(duration, int):
+            record["duration_ms"] = duration
+        elif isinstance(duration, float):
+            record["duration_ms"] = int(duration)
+        if interrupted:
+            record["is_interrupt"] = True
+
+    return record
+
+
+def _derive_hook_post_status(payload: Mapping[str, Any]) -> str:
+    if _result_envelope_is_interrupted(payload.get("tool_response")):
+        return "interrupted"
+    if _hook_post_indicates_error(payload):
+        return "failure"
+    return "success"
+
+
+def _hook_post_indicates_error(payload: Mapping[str, Any]) -> bool:
+    if isinstance(payload.get("error"), str) and payload.get("error"):
+        return True
+    if _result_envelope_indicates_error(payload.get("tool_response")):
+        return True
+    return False
 
 
 def _normalize_claude_stream_event(
