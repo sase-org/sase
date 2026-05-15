@@ -222,11 +222,12 @@ The `GeminiProvider` invokes Google's internal Gemini CLI tool.
 ### Command Construction
 
 ```
-gemini --yolo --model <model>
+gemini --output-format stream-json --yolo --model <model>
 ```
 
-The prompt is written to stdin, and output is streamed from stdout in real-time. SASE runs Gemini with `TERM=dumb` and
-`NO_COLOR=1` in a PTY so the CLI flushes useful live output for the TUI.
+The prompt is written to stdin, and stream-json events are parsed from stdout in real-time. SASE accumulates the
+assistant reply text and per-cycle usage totals, and writes normalized tool-call records (see
+[Gemini Tool-Call Capture](#gemini-tool-call-capture)).
 
 ### Default Model
 
@@ -238,6 +239,16 @@ The Gemini provider uses `gemini-3-flash-preview` as its default model. This can
 | Variable           | Description                                          |
 | ------------------ | ---------------------------------------------------- |
 | `SASE_GEMINI_PATH` | Path to the Gemini CLI binary (default: `"gemini"`). |
+
+### Gemini Tool-Call Capture
+
+SASE captures Gemini tool calls from the `gemini --output-format stream-json` event stream; it does not install Gemini
+hooks. When `SASE_ARTIFACTS_DIR` is present, the stream parser appends normalized Gemini records to
+`$SASE_ARTIFACTS_DIR/tool_calls.jsonl` for the ACE [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel) with
+`runtime: "gemini"` and `source: "stream"`. Start/completion events collapse into one Tools-panel row that preserves
+pending state while a tool is still running and surfaces result previews, failure/interruption status, and durations
+when the stream exposes them. Malformed or unsupported tool-shaped events are skipped with a diagnostic instead of
+producing a malformed record.
 
 ### Timer Display
 
@@ -357,6 +368,15 @@ The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_QWEN_*_ARGS`.
 Qwen Code config is left in Qwen's normal locations (`~/.qwen/settings.json` and project `.qwen/settings.json`). SASE
 does not create a shadow Qwen home in the first implementation because local Qwen was unavailable during this phase, so
 no normal headless-run config mutation could be verified.
+
+### Qwen Tool-Call Capture
+
+SASE captures Qwen tool calls from the `qwen --output-format stream-json` event stream; it does not install Qwen hooks.
+When `SASE_ARTIFACTS_DIR` is present, the stream parser normalizes Qwen's nested `tool_use` and `tool_result` blocks
+into records appended to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl` for the ACE
+[Agents Tab Tools Panel](ace.md#agents-tab-tools-panel) with `runtime: "qwen"` and `source: "stream"`. Malformed or
+unsupported tool-shaped events emit a diagnostic instead of producing a malformed record. The Tools-panel reader
+collapses each start/result pair into a single row.
 
 ### Stop Hook
 

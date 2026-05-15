@@ -731,27 +731,27 @@ available without needing a project- or user-level definition. They're at the bu
 [discovery order](#discovery-order), so any project, user, or config xprompt with the same name overrides the
 file-backed markdown defaults.
 
-| Reference             | Body summary                                                                                      |
-| --------------------- | ------------------------------------------------------------------------------------------------- |
-| `#plan`               | Asks the agent to think the work through and use its `/sase_plan` skill before any file changes   |
-| `#epic`               | Marks the request as a multi-phase epic and chains `#plan`                                        |
-| `#legend`             | Marks the request as a larger legend-level planning effort that should later split into epics     |
-| `#review`             | Asks the agent to fix bugs and apply only clear-win improvements                                  |
-| `#prompt/approve`     | Boilerplate "I've edited the previous reply with my decisions; implement this" preamble + `#plan` |
-| `#prompt/review`      | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                  |
-| `#research`           | Tells the agent to store research in a new `sdd/research/` markdown file                          |
-| `#research/image`     | Asks the agent to generate an infographic for an existing research markdown file                  |
-| `#research/more`      | Asks the agent to improve an existing research markdown file by filling missed gaps               |
-| `#research/prompt`    | Wraps a `prompt` input and asks for prior art, alternatives, and a recommended solution           |
-| `#!research_swarm`    | Fans out a research prompt into initial research, follow-up research, and image research agents   |
-| `#x:name,cmd`         | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                 |
-| `#bd/new_epic`        | Multi-phase epic kickoff used by `sase bead work` (resolved via `XPromptTag`)                     |
-| `#bd/new_legend`      | Legend kickoff that records `epic_count`, commits metadata, then runs `sase bead work`            |
-| `#bd/work_phase_bead` | Per-phase agent prompt used by `sase bead work`                                                   |
-| `#bd/land_epic`       | Final land-agent prompt used by `sase bead work`                                                  |
-| `#bd/next`            | "What should I work on next?" helper that consults the bead tracker                               |
-| `#bd/review/plan`     | Plan-review helper for an epic plan                                                               |
-| `#bd/review/prompt`   | Prompt-review helper for an epic plan                                                             |
+| Reference             | Body summary                                                                                             |
+| --------------------- | -------------------------------------------------------------------------------------------------------- |
+| `#plan`               | Asks the agent to think the work through and use its `/sase_plan` skill before any file changes          |
+| `#epic`               | Marks the request as a multi-phase epic and chains `#plan`                                               |
+| `#legend`             | Marks the request as a larger legend-level planning effort that should later split into epics            |
+| `#review`             | Asks the agent to fix bugs and apply only clear-win improvements                                         |
+| `#prompt/approve`     | Boilerplate "I've edited the previous reply with my decisions; implement this" preamble + `#plan`        |
+| `#prompt/review`      | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                         |
+| `#research`           | Tells the agent to store research in a new `sdd/research/` markdown file                                 |
+| `#research/image`     | Asks the agent to generate an infographic for an existing research markdown file                         |
+| `#research/more`      | Asks the agent to improve an existing research markdown file by filling missed gaps                      |
+| `#research/prompt`    | Wraps a `prompt` input and asks for prior art, alternatives, and a recommended solution                  |
+| `#!research_swarm`    | Fans out a research prompt into initial, follow-up, and image research agents (all tagged `%g:research`) |
+| `#x:name,cmd`         | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                        |
+| `#bd/new_epic`        | Multi-phase epic kickoff used by `sase bead work` (resolved via `XPromptTag`)                            |
+| `#bd/new_legend`      | Legend kickoff that records `epic_count`, commits metadata, then runs `sase bead work`                   |
+| `#bd/work_phase_bead` | Per-phase agent prompt used by `sase bead work`                                                          |
+| `#bd/land_epic`       | Final land-agent prompt used by `sase bead work`                                                         |
+| `#bd/next`            | "What should I work on next?" helper that consults the bead tracker                                      |
+| `#bd/review/plan`     | Plan-review helper for an epic plan                                                                      |
+| `#bd/review/prompt`   | Prompt-review helper for an epic plan                                                                    |
 
 `#bd/new_epic` accepts optional ChangeSpec metadata for the plan bead it creates:
 

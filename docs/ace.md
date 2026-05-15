@@ -536,8 +536,8 @@ default.
 
 The right-hand edge of each row carries a runtime suffix (`<start-timestamp> · <elapsed>`) right-aligned within the
 panel. Active rows that have actually started include a `🏃‍♂️` marker before the ticking elapsed duration; unread
-completed rows use a `✅` marker in the same suffix slot, or `❌` when the agent finished in a `FAILED` state; and
-user-paused rows (`PLAN`, `QUESTION`, `WAITING INPUT`) use a `✋` marker while waiting for a human response. Pre-run
+completed rows use a `😇` marker in the same suffix slot, or `😈` when the agent finished in the `FAILED` status bucket;
+and user-paused rows (`PLAN`, `QUESTION`, `WAITING INPUT`) use a `✋` marker while waiting for a human response. Pre-run
 `WAITING` rows with no `BEGIN` time hide the suffix so queued waits do not look like live runtime. For finished agents,
 the start-timestamp half is rendered as a humanized `(date_prefix, time)` pair sized to fit the existing 15-cell slot:
 
@@ -795,6 +795,7 @@ These work on all tabs:
 | `,i`                | Open Activity Dashboard modal                                                     |
 | `i`                 | Show notifications inbox                                                          |
 | `I`                 | Pin idle mode (IDLE stays until `I` is pressed again; keypresses don't clear it)  |
+| `Ctrl+G`            | Edit the most recent launchable VCS xprompt in the agent editor                   |
 | `Ctrl+L`            | Dismiss all currently-visible toast notifications                                 |
 | `Q`                 | Stop axe daemon and quit                                                          |
 | `y`                 | Refresh current tab                                                               |
@@ -1241,9 +1242,13 @@ Records are produced by writers that share one normalized on-disk format. Claude
 as the preferred source and keeps its stream-derived parser as a fallback when hooks are unavailable. Codex writes
 equivalent rows from its `codex exec --json` stream with `runtime: "codex"` and `source: "stream"`; current Codex
 start/completion events can show pending rows, result previews, failures, interruptions, and durations, while older
-completed-only `function_call` rows remain readable with more limited detail. See
-[LLM Providers — Claude tool-call hooks](llms.md#claude-tool-call-hooks) and
-[LLM Providers — Codex tool-call capture](llms.md#codex-tool-call-capture) for provider integration details.
+completed-only `function_call` rows remain readable with more limited detail. Gemini and Qwen both write stream-derived
+rows from their respective `--output-format stream-json` outputs with `runtime: "gemini"` / `runtime: "qwen"` and
+`source: "stream"`; start/completion (and Qwen's `tool_use` / `tool_result`) pairs collapse into single rows the same
+way Codex pairs do. See [LLM Providers — Claude tool-call hooks](llms.md#claude-tool-call-hooks),
+[LLM Providers — Codex tool-call capture](llms.md#codex-tool-call-capture),
+[LLM Providers — Gemini tool-call capture](llms.md#gemini-tool-call-capture), and
+[LLM Providers — Qwen tool-call capture](llms.md#qwen-tool-call-capture) for provider integration details.
 
 ## Plan Workflows
 

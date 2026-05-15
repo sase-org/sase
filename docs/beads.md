@@ -17,7 +17,7 @@ roadmaps through their `tier` metadata.
   - [Dependencies](#dependencies)
 - [Storage](#storage)
   - [Directory Structure](#directory-structure)
-  - [Event Log + Compatibility Projections](#event-log--compatibility-projections)
+  - [Event Log + Compatibility Projections](#event-log-compatibility-projections)
   - [Sync Mechanism](#sync-mechanism)
 - [CLI Commands](#cli-commands)
 - [Rust Backend](#rust-backend)
