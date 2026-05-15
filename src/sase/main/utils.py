@@ -9,8 +9,6 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
-from sase.workspace_provider import get_workspace_name
-
 # Type alias for project info return type
 ProjectInfo = tuple[str | None, int | None, str | None]
 
@@ -22,7 +20,9 @@ def _get_project_name() -> str | None:
         The project name, or None if not in a recognized workspace.
     """
     try:
-        return get_workspace_name(os.getcwd()) or None
+        from sase.bead.project_name import infer_project_name_from_cwd
+
+        return infer_project_name_from_cwd(os.getcwd()) or None
     except Exception:
         return None
 
@@ -37,6 +37,17 @@ def _get_workspace_num(project_name: str) -> int:
         The workspace number (1 for main workspace, 2+ for workspace shares).
     """
     cwd = os.getcwd()
+    try:
+        from sase.workspace_provider import find_marker_from_cwd
+
+        found = find_marker_from_cwd(cwd)
+        if found is not None:
+            _, marker = found
+            if marker.project_name == project_name:
+                return marker.workspace_num
+    except Exception:
+        pass
+
     for n in range(2, 101):
         workspace_suffix = f"{project_name}_{n}"
         if workspace_suffix in cwd:

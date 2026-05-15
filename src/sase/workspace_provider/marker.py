@@ -63,7 +63,12 @@ def _marker_path(checkout_dir: str) -> str:
     return str(Path(checkout_dir) / MARKER_DIR / MARKER_FILENAME)
 
 
-def write_marker(store: WorkspaceStore, workspace_path: WorkspacePath) -> str | None:
+def write_marker(
+    store: WorkspaceStore,
+    workspace_path: WorkspacePath,
+    *,
+    project_name: str | None = None,
+) -> str | None:
     """Write the marker for *workspace_path* under *store*.
 
     Returns the marker path on success or ``None`` when the marker
@@ -79,7 +84,8 @@ def write_marker(store: WorkspaceStore, workspace_path: WorkspacePath) -> str | 
         return None
 
     marker = CheckoutMarker(
-        project_name=os.path.basename(store.primary_workspace_dir.rstrip("/"))
+        project_name=project_name
+        or os.path.basename(store.primary_workspace_dir.rstrip("/"))
         or workspace_path.project_key,
         project_key=workspace_path.project_key,
         workspace_num=workspace_path.workspace_num,

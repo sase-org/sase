@@ -13,6 +13,7 @@ from sase.workspace_provider.registry import (
     load_or_init_registry,
     save_registry,
 )
+from sase.workspace_provider.marker import read_marker
 from sase.workspace_provider.store import WorkspaceStore
 from tests.main.workspace_handler_helpers import make_args, project_layout
 
@@ -67,6 +68,11 @@ class TestMigrate:
         # Registry under the new root knows about #10.
         registry = load_or_init_registry(target_store)
         assert "10" in registry.workspaces
+        marker = read_marker(str(managed))
+        assert marker is not None
+        assert marker.project_name == project_name
+        assert marker.workspace_num == 10
+        assert marker.primary_workspace_dir == str(primary)
 
     def test_migrate_with_symlink_transition_creates_symlink(
         self,

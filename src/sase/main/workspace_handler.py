@@ -20,6 +20,7 @@ from sase.workspace_provider.registry import (
     load_or_init_registry,
     save_registry,
 )
+from sase.workspace_provider.marker import write_marker
 from sase.workspace_provider.store import (
     PRIMARY_WORKSPACE_NUM,
     WorkspaceStore,
@@ -495,6 +496,7 @@ def _handle_migrate(args: argparse.Namespace) -> int:
             pinned=False,
             generation=wp.generation,
         )
+        write_marker(target_store, wp, project_name=ctx.project_name)
         if args.symlink_transition:
             symlink_path = _transition_symlink_path(ctx.primary_workspace_dir, num)
             if os.path.lexists(symlink_path):
