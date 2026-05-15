@@ -68,7 +68,21 @@ sase ace                  # open the interactive control surface
 sase run "<prompt>"       # launch an agent or workflow
 sase agents status        # inspect running agents
 sase bead onboard         # see the bead issue-tracking quick start
+sase core health          # verify the required Rust backend is loadable
+sase workspace list       # inspect managed workspace checkouts for this project
 ```
+
+## Operational model
+
+SASE keeps durable state outside any one chat session:
+
+- **Rust core** - Ported parsing, launch, notification, agent-scan, cleanup, and bead operations are served by the
+  required `sase_core_rs` extension. Run `sase core health` after install or dependency changes.
+- **Managed workspaces** - Parallel agents run in numbered project checkouts. New claims use workspace `#10` and above;
+  workspace `#0` is the primary checkout. `sase workspace list`, `path`, `repair`, `cleanup`, and `migrate` expose the
+  registry and migration tools.
+- **Durable artifacts** - Agent metadata, chats, notifications, prompt history, ChangeSpecs, SDD files, and beads are
+  stored in predictable project/user directories so ACE, AXE, CLI commands, and external integrations can share state.
 
 ## Keep reading
 

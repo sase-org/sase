@@ -220,14 +220,15 @@ User-facing checkout suffixes are `<project>_<num>` regardless of root policy. T
 The physical location of managed checkouts is controlled by `workspace.root` (see
 [`docs/configuration.md`](configuration.md#workspace)) and the `SASE_WORKSPACE_ROOT` environment override:
 
-| Value         | Layout                                                                                                                                                                                                    |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `adjacent`    | Legacy `<primary>_<num>/` siblings of the primary checkout. Default; byte-for-byte compatible with previous releases.                                                                                     |
-| `xdg-state`   | Platform state directory: `$XDG_STATE_HOME/sase/workspaces/<project_key>/<num>/` on Linux, `~/Library/Application Support/sase/workspaces/...` on macOS, `%LOCALAPPDATA%\sase\workspaces\...` on Windows. |
-| absolute path | Treat the path as the managed root and create `<project_key>/<num>/` checkouts under it.                                                                                                                  |
+| Value         | Layout                                                                                                                                                                                                         |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `adjacent`    | Legacy `<primary>_<num>/` siblings of the primary checkout. Default; byte-for-byte compatible with previous releases.                                                                                          |
+| `xdg-state`   | Platform state root: `$XDG_STATE_HOME/sase/workspaces/<project_key>/<project>_<num>/` on Linux, `~/Library/Application Support/sase/workspaces/...` on macOS, `%LOCALAPPDATA%\sase\workspaces\...` on Windows. |
+| absolute path | Treat the configured path as the managed root and create `<project_key>/<project>_<num>/` checkouts under it.                                                                                                  |
 
-`SASE_WORKSPACE_ROOT` overrides `workspace.root` for the process and takes the same forms (absolute path or one of the
-policy keywords). It is the recommended override for ephemeral test runs and CI sandboxes.
+`SASE_WORKSPACE_ROOT` overrides `workspace.root` for the process and is interpreted as an explicit managed root
+directory, with the project namespace appended underneath it. Use an absolute path for predictable behavior. It is the
+recommended override for ephemeral test runs and CI sandboxes.
 
 The `project_key` namespace under managed roots is derived from a single Git remote slug when available, otherwise from
 the primary-path basename plus a short hash so two projects with the same basename do not collide. An explicit
@@ -294,18 +295,20 @@ The `sase workspace` command surface inspects and maintains the per-project work
 `-p/--project NAME` to override the project; without it, the project is inferred from the current directory via the
 nearest managed-checkout marker, the workspace provider hook, and finally a scan of `~/.sase/projects/`.
 
-| Command                                                                | Description                                                                                              |
-| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `sase workspace list [-j/--json]`                                      | List registered managed checkouts (always includes primary `#0`).                                        |
-| `sase workspace path NUM`                                              | Print the checkout path for `NUM`. Materializes only when `NUM` already has a claim or registry entry.   |
-| `sase workspace open NUM`                                              | Conservative shim that prints the checkout path; reserved for future editor integration.                 |
-| `sase workspace cleanup -s/--stale`                                    | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`. `-n/--dry-run` previews.     |
-| `sase workspace repair [-n]`                                           | Drop registry entries whose checkout is gone; re-materialize checkouts for live RUNNING claims.          |
-| `sase workspace migrate --to xdg-state [-s/--symlink-transition] [-n]` | Move existing `<primary>_<num>` adjacent checkouts under the managed `xdg-state` root and register them. |
-| `sase workspace migrate --finalize`                                    | Remove `<primary>_<num>` transition symlinks once workflows have adapted to the managed paths.           |
+| Command                                                                | Description                                                                                                                                  |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase workspace list [-j/--json]`                                      | List registered managed checkouts, root policy, project key, root path, and primary `#0`.                                                    |
+| `sase workspace path NUM`                                              | Print the checkout path for `NUM`; for claimed or registered non-primary workspaces, create the checkout if it is missing.                   |
+| `sase workspace open NUM`                                              | Conservative shim that currently behaves like `path`; `-P/--print` is reserved for a future editor/shell integration.                        |
+| `sase workspace cleanup -s/--stale`                                    | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`. `-n/--dry-run` previews.                                         |
+| `sase workspace repair [-n]`                                           | Drop registry entries whose checkout is gone; re-materialize checkouts for live RUNNING claims.                                              |
+| `sase workspace migrate --to xdg-state [-s/--symlink-transition] [-n]` | Move existing `<primary>_<num>` adjacent checkouts under the managed `xdg-state` root and register them. Exits non-zero on skipped refusals. |
+| `sase workspace migrate --finalize`                                    | Remove `<primary>_<num>` transition symlinks once workflows have adapted to the managed paths.                                               |
 
-`cleanup` and `repair` skip workspace `#0` (primary) and any workspace number with an active claim in the RUNNING field.
-`cleanup --include-shares` opts workflow-share checkouts into the same cleanup pass.
+`path` and `open` always resolve `#0` to the primary checkout. For other numbers, they only materialize when the
+workspace is already represented by a registry entry or an active RUNNING-field claim; otherwise they print the
+configured path without cloning. `cleanup` and `repair` skip workspace `#0` and any workspace number with an active
+claim. `cleanup --include-shares` opts workflow-share checkouts into the same cleanup pass.
 
 `migrate --to xdg-state` is opt-in. Existing adjacent checkouts are left in place until the command is invoked. With
 `--symlink-transition` it leaves a `<primary>_<num>` symlink at the original adjacent path so legacy tooling that still

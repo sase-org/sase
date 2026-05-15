@@ -253,13 +253,13 @@ vcs_provider:
   use_project_pr_prefix: false # prepend [<project>] to PR titles (default: false)
 ```
 
-| Field                                | Type              | Default  | Description                                                         |
-| ------------------------------------ | ----------------- | -------- | ------------------------------------------------------------------- |
-| `vcs_provider.provider`              | string            | `"auto"` | VCS provider: `"git"`, `"hg"`, or `"auto"` for directory detection. |
-| `vcs_provider.workspace_root`        | string            | -        | Root directory for workspaces. Overridden by `SASE_WORKSPACE_ROOT`. |
-| `vcs_provider.default_hooks`         | list[string]      | -        | Hook commands added to new ChangeSpecs. Replaces built-in defaults. |
-| `vcs_provider.pr_tags`               | dict[string, str] | `{}`     | Key-value tags appended as `TAG=VALUE` lines to PR commit messages. |
-| `vcs_provider.use_project_pr_prefix` | bool              | `false`  | Prepend `[<project>] ` to PR titles / CL descriptions (see below).  |
+| Field                                | Type              | Default  | Description                                                                                            |
+| ------------------------------------ | ----------------- | -------- | ------------------------------------------------------------------------------------------------------ |
+| `vcs_provider.provider`              | string            | `"auto"` | VCS provider: `"git"`, `"hg"`, or `"auto"` for directory detection.                                    |
+| `vcs_provider.workspace_root`        | string            | -        | Legacy VCS helper workspace root. New managed-checkout layout is configured by `workspace.root` below. |
+| `vcs_provider.default_hooks`         | list[string]      | -        | Hook commands added to new ChangeSpecs. Replaces built-in defaults.                                    |
+| `vcs_provider.pr_tags`               | dict[string, str] | `{}`     | Key-value tags appended as `TAG=VALUE` lines to PR commit messages.                                    |
+| `vcs_provider.use_project_pr_prefix` | bool              | `false`  | Prepend `[<project>] ` to PR titles / CL descriptions (see below).                                     |
 
 When `default_hooks` is not set, plugins may provide their own defaults via `default_config.yml` (for example,
 Mercurial-specific hooks from a provider plugin). The core `sase` package has no built-in default hooks.
@@ -710,11 +710,11 @@ workspace:
   cleanup_ttl_days: 14 # age threshold for `sase workspace cleanup --stale`
 ```
 
-| Field                        | Type   | Default      | Description                                                                                                                                                                               |
-| ---------------------------- | ------ | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `workspace.root`             | string | `"adjacent"` | Root policy. `"adjacent"` keeps the legacy `<primary>_<num>/` layout; `"xdg-state"` uses the platform state dir; an absolute path is used verbatim. `SASE_WORKSPACE_ROOT` overrides this. |
-| `workspace.project_key`      | string | `""`         | Override the per-project namespace under managed roots. Empty derives a stable key from a single git remote slug or the primary-path basename plus a short hash.                          |
-| `workspace.cleanup_ttl_days` | int    | `14`         | Minimum age (in days) of an unclaimed managed checkout before `sase workspace cleanup --stale` will remove it.                                                                            |
+| Field                        | Type   | Default      | Description                                                                                                                                                                                                               |
+| ---------------------------- | ------ | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workspace.root`             | string | `"adjacent"` | Root policy. `"adjacent"` keeps the legacy `<primary>_<num>/` layout; `"xdg-state"` uses the platform state dir; an absolute path is used verbatim. `SASE_WORKSPACE_ROOT` overrides this with an explicit root directory. |
+| `workspace.project_key`      | string | `""`         | Override the per-project namespace under managed roots. Empty derives a stable key from a single git remote slug or the primary-path basename plus a short hash.                                                          |
+| `workspace.cleanup_ttl_days` | int    | `14`         | Minimum age (in days) of an unclaimed managed checkout before `sase workspace cleanup --stale` will remove it.                                                                                                            |
 
 Platform defaults for the `xdg-state` policy:
 
@@ -727,6 +727,10 @@ Platform defaults for the `xdg-state` policy:
 Numeric identity is the same on every root policy: `#0` is the primary checkout, `#1`–`#9` are reserved, and managed
 claim workspaces start at `#10`. See [`docs/workspace.md`](workspace.md#numeric-identity) for the full identity model
 and backup/container/NFS caveats.
+
+For non-adjacent policies, physical checkouts live under `<managed-root>/<project_key>/<project>_<num>/`. When
+`SASE_WORKSPACE_ROOT` is set, it is treated as the managed root directory and the same `<project_key>/<project>_<num>/`
+namespace is appended beneath it.
 
 Source: `src/sase/default_config.yml`, `src/sase/workspace_provider/store.py`
 
@@ -807,12 +811,12 @@ a provider prefix; use `opencode models` to list models in your configured envir
 
 ### VCS Provider
 
-| Variable              | Description                                                                                     |
-| --------------------- | ----------------------------------------------------------------------------------------------- |
-| `SASE_VCS_PROVIDER`   | Override VCS provider selection (`git`, `hg`, or `auto`).                                       |
-| `SASE_WORKSPACE_ROOT` | Override the workspace root directory (takes priority over config file).                        |
-| `SASE_BUG_ID`         | Bug ID for PR workflows. When set and non-zero, injects `BUG=<id>` into PR tags and ChangeSpec. |
-| `SASE_BEAD_ID`        | Bead ID for commit workflows. When set, `sase commit` automatically tags the commit message.    |
+| Variable              | Description                                                                                                    |
+| --------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `SASE_VCS_PROVIDER`   | Override VCS provider selection (`git`, `hg`, or `auto`).                                                      |
+| `SASE_WORKSPACE_ROOT` | Override the managed workspace root directory for this process; use an absolute path for predictable behavior. |
+| `SASE_BUG_ID`         | Bug ID for PR workflows. When set and non-zero, injects `BUG=<id>` into PR tags and ChangeSpec.                |
+| `SASE_BEAD_ID`        | Bead ID for commit workflows. When set, `sase commit` automatically tags the commit message.                   |
 
 ### Plugin System
 
