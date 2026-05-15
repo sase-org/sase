@@ -2,6 +2,8 @@
 create_time: 2026-05-14 23:03:22
 status: wip
 prompt: sdd/prompts/202605/codex_tools_panel_2.md
+bead_id: sase-3k
+tier: epic
 ---
 # Plan: Codex Support For The Agents Tab Tools Panel
 
