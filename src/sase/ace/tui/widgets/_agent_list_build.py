@@ -270,7 +270,9 @@ def build_list(
     }
     max_width = target_width
 
-    # Walk the grouping tree and emit Options in display order.
+    # Walk the grouping tree and collect Options in display order. Installing
+    # them as one batch avoids Textual rebuilding its line cache per row.
+    emitted_options: list[Option] = []
     highlighted_row: int | None = None
     banner_seq = 0
     spacer_seq = 0
@@ -285,7 +287,7 @@ def build_list(
                         disabled=True,
                     )
                     spacer_seq += 1
-                    widget.add_option(spacer)
+                    emitted_options.append(spacer)
                     widget._row_entries.append((_BANNER_ROW, None))
                 seen_first_l0 = True
             banner_selectable = entry.group.is_collapsed
@@ -312,7 +314,7 @@ def build_list(
             )
             banner_seq += 1
             row_index = len(widget._row_entries)
-            widget.add_option(option)
+            emitted_options.append(option)
             widget._row_entries.append((_BANNER_ROW, None))
             if banner_selectable:
                 widget._banner_at_row[row_index] = entry.group
@@ -329,7 +331,7 @@ def build_list(
             continue
         i = entry.agent_idx
         option = agent_options[i]
-        widget.add_option(option)
+        emitted_options.append(option)
         is_selected_agent = current_group_key is None and i == current_idx
         row_index = len(widget._row_entries)
         if is_selected_agent:
@@ -337,6 +339,8 @@ def build_list(
         widget._row_entries.append((i, None))
         widget._row_by_agent_attempt[(i, None)] = row_index
         widget._row_by_agent_idx[i] = row_index
+
+    widget.add_options(emitted_options)
 
     # Add padding for border, scrollbar, visual comfort (~8 cells)
     _PADDING = 8

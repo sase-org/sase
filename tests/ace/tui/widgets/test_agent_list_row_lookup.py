@@ -68,6 +68,29 @@ def test_update_list_populates_row_lookup_maps(monkeypatch: Any) -> None:
             assert row in agent_rows
 
 
+def test_update_list_installs_options_in_one_batch(monkeypatch: Any) -> None:
+    widget = _wire(monkeypatch)
+    original_add_options = widget.add_options
+    batch_sizes: list[int] = []
+
+    def add_options_once(options: Any) -> AgentList:
+        materialized = list(options)
+        batch_sizes.append(len(materialized))
+        return original_add_options(materialized)
+
+    def add_option_per_row(_option: Any = None) -> AgentList:
+        raise AssertionError("full list rebuild should batch add options")
+
+    monkeypatch.setattr(widget, "add_options", add_options_once)
+    monkeypatch.setattr(widget, "add_option", add_option_per_row)
+
+    agents = [_agent(raw_suffix=f"a{i}") for i in range(3)]
+    widget.update_list(agents, current_idx=0)
+
+    assert batch_sizes == [widget.option_count]
+    assert widget.option_count == len(widget._row_entries)
+
+
 def test_update_highlight_uses_row_map_no_scan(monkeypatch: Any) -> None:
     widget = _wire(monkeypatch)
     agents = [_agent(raw_suffix=f"a{i}") for i in range(5)]
