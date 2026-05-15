@@ -55,13 +55,13 @@ def _panel_keys_for(agents: list[Agent]) -> list[PanelKey]:
     inheritance; all tag panels are sorted alphabetically by tag
     (case-insensitive).
     """
-    rendered_agents = [a for a in agents if agent_is_rendered_in_agents_panel(a)]
-    if not rendered_agents:
+    if not agents:
         return [None]
 
+    rendered_agents = [a for a in agents if agent_is_rendered_in_agents_panel(a)]
     parent_lookup = _build_parent_lookup(agents)
     distinct_tags: set[str] = set()
-    has_untagged = any(_agent_is_starting(a) for a in agents)
+    has_untagged = False
     for a in rendered_agents:
         key = _panel_key_for_agent(a, parent_lookup)
         if key is None:

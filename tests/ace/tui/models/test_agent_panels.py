@@ -76,11 +76,11 @@ def test_starting_only_tagged_agents_do_not_create_tag_panels() -> None:
 
     group = AgentPanelGroup.from_agents(agents)
 
-    assert group.panel_keys == [None]
+    assert group.panel_keys == []
     assert group.focused_key is None
 
 
-def test_starting_count_gets_untagged_panel_even_with_tagged_rows() -> None:
+def test_tagged_rendered_row_with_starting_row_shows_only_tagged_panel() -> None:
     agents = [
         _agent(suffix="a", tag="alpha", status="STARTING"),
         _agent(suffix="b", tag="beta", status="RUNNING"),
@@ -88,7 +88,20 @@ def test_starting_count_gets_untagged_panel_even_with_tagged_rows() -> None:
 
     group = AgentPanelGroup.from_agents(agents)
 
-    assert group.panel_keys == [None, "beta"]
+    assert group.panel_keys == ["beta"]
+    assert group.focused_key == "beta"
+
+
+def test_rendered_untagged_row_with_starting_row_shows_untagged_panel() -> None:
+    agents = [
+        _agent(suffix="a", tag="alpha", status="STARTING"),
+        _agent(suffix="b", status="RUNNING"),
+    ]
+
+    group = AgentPanelGroup.from_agents(agents)
+
+    assert group.panel_keys == [None]
+    assert group.focused_key is None
 
 
 def test_workflow_child_inherits_parent_tag_without_empty_untagged_panel() -> None:

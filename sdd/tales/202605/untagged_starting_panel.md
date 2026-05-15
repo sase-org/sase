@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-15 10:40:10
-status: wip
+status: done
 prompt: sdd/prompts/202605/untagged_starting_panel.md
 ---
 # Fix Untagged Panel Visibility for Starting Agents

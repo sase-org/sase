@@ -295,13 +295,11 @@ def test_panel_titles_omit_starting_shorthand_for_hidden_starting_agents() -> No
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    untagged_title = _title_text(app._panel_widgets["agent-list-panel"])
-    apple_title = _title_text(app._panel_widgets["agent-list-panel-1"])
-    assert app._panel_group.panel_keys == [None, "apple"]
-    assert untagged_title.plain == "(untagged) · 0"
+    apple_title = _title_text(app._panel_widgets["agent-list-panel"])
+    assert app._panel_group.panel_keys == ["apple"]
     assert apple_title.plain == "#apple · 1 [R1]"
-    assert "T" not in untagged_title.plain
     assert "T" not in apple_title.plain
+    assert "agent-list-panel-1" not in app._panel_widgets
 
 
 def test_panel_title_shorthand_counts_only_top_level_agents() -> None:
