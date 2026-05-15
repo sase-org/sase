@@ -9,12 +9,14 @@ external dismissals and would surface the killed agent as FAILED.
 
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Any
 from unittest.mock import patch
 
 from sase.ace.tui.actions.agents._loading import AgentLoadingMixin
 from sase.ace.tui.actions.agents._loading_helpers import _AgentDiskLoadResult
 from sase.ace.tui.actions.agents._loading_disk import _ExternalDismissalMergeResult
-from sase.ace.tui.models.agent import AgentType
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import AgentLoadState
 
 
@@ -158,8 +160,11 @@ class _AsyncLoadApp(AgentLoadingMixin):
         self.current_idx = 0
         self.hide_non_run_agents = False
         self._agents = []
+        self._agents_with_children = []
         self._agents_last_identity = None
         self._agent_search_query = ""
+        self._agents_seen_complete_history = False
+        self._agent_load_state = None
         self._dismissed_agents: set[tuple[AgentType, str, str | None]] = set()
         self._dismissed_agents_disk_signature: tuple[int, int] | None = (10, 200)
         self._dismissed_agents_disk_identities: set[
@@ -167,9 +172,12 @@ class _AsyncLoadApp(AgentLoadingMixin):
         ] = set()
         self._dismissed_agents_disk_signature_initialized = True
         self.applied = False
+        self.applied_prep: Any = None
+        self.applied_kwargs: dict[str, Any] | None = None
 
     def _apply_loaded_agents_prepared(self, *args: object, **kwargs: object) -> None:
-        del args, kwargs
+        self.applied_prep = args[0]
+        self.applied_kwargs = kwargs
         self.applied = True
 
 
@@ -218,3 +226,61 @@ async def test_load_agents_async_merges_external_dismissals_before_snapshot() ->
     assert external in app._dismissed_agents
     assert app._dismissed_agents_disk_signature == (11, 240)
     assert app.applied is True
+
+
+def _make_agent(cl_name: str, raw_suffix: str, status: str = "DONE") -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name=cl_name,
+        project_file="/tmp/projects/myproj/myproj.sase",
+        status=status,
+        start_time=datetime(2024, 1, 1, 12, 0, 0),
+        raw_suffix=raw_suffix,
+    )
+
+
+async def test_load_agents_async_merges_post_history_tier1_in_worker() -> None:
+    app = _AsyncLoadApp()
+    active_cached = _make_agent("active", "20260202120000", status="RUNNING")
+    active_updated = _make_agent("active", "20260202120000", status="DONE")
+    historical = _make_agent("historical", "20240102120000")
+    new_agent = _make_agent("new", "20260303120000", status="RUNNING")
+    app._agents = [active_cached, historical]
+    app._agents_with_children = list(app._agents)
+    app._agents_seen_complete_history = True
+    load_state = AgentLoadState(
+        tier="tier1",
+        complete_history=False,
+        artifact_source="artifact_index",
+        used_artifact_index=True,
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._loading_disk._compute_external_dismissal_merge",
+            return_value=None,
+        ),
+        patch(
+            "sase.ace.changespec.find_all_changespecs_cached",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._loading.load_agents_from_disk_with_state",
+            return_value=_AgentDiskLoadResult(
+                all_agents=[new_agent, active_updated],
+                dismissed_from_loader=[],
+                load_state=load_state,
+            ),
+        ),
+        patch("sase.ace.tui.repro.capture.record_agents_tab_loader_result"),
+    ):
+        await app._load_agents_async()
+
+    assert app.applied_kwargs is not None
+    assert [agent.raw_suffix for agent in app.applied_prep.filtered_agents] == [
+        "20260303120000",
+        "20260202120000",
+        "20240102120000",
+    ]
+    assert app.applied_prep.filtered_agents[1] is active_updated
+    assert app.applied_kwargs["incomplete_merge_already_applied"] is True

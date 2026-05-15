@@ -14,6 +14,7 @@ from ._loading_compute import (
     _CLEANED_ARTIFACT_DIRS,
     compute_apply_loaded_agents,
     compute_loader_cleanup,
+    prepare_loaded_agents_worker_prep,
 )
 from ._loading_state import AgentLoadingStateMixin
 from ...util.trace import tui_trace
@@ -281,13 +282,14 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             source="async_load",
         )
 
+        worker_snapshot = self._make_prepared_apply_snapshot(
+            on_agents_tab=on_agents_tab,
+            selected_identity=selected_identity,
+            load_state=load_result.load_state,
+        )
+
         prep_start = time.perf_counter()
-        # Bind the worker function to a local so ``to_thread`` doesn't see
-        # the bare module-level reference on its own line — pyvision's
-        # multi-line-import heuristic flags ``<name>,`` as an import
-        # continuation, which would force this private helper public for
-        # no semantic reason.
-        prep_worker = compute_apply_loaded_agents
+        prep_worker = prepare_loaded_agents_worker_prep
         with tui_trace(
             "agents.worker_prep",
             agents=len(all_agents),
@@ -299,6 +301,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
                 dismissed_from_loader,
                 set(self._dismissed_agents),
                 bool(self.hide_non_run_agents),
+                worker_snapshot,
             )
         await self._prepare_agent_content_search_index_async(prep.filtered_agents)
         log.debug("agents async load: prep=%.3fs", time.perf_counter() - prep_start)
@@ -316,6 +319,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             persist_dismissed_changes=bool(orphaned)
             or bool(prep.recovered_bundle_identities)
             or bool(prep.auto_dismissed_identities),
+            incomplete_merge_already_applied=True,
         )
         log.debug("agents async load: apply=%.3fs", time.perf_counter() - apply_start)
 

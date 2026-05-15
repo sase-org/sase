@@ -158,6 +158,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         selected_identity: tuple[AgentType, str, str | None] | None,
         load_state: AgentLoadState | None = None,
         persist_dismissed_changes: bool,
+        incomplete_merge_already_applied: bool = False,
     ) -> None:
         """UI-thread step that folds prepared filter output into ``self``.
 
@@ -181,6 +182,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 selected_identity=selected_identity,
                 load_state=load_state,
                 persist_dismissed_changes=persist_dismissed_changes,
+                incomplete_merge_already_applied=incomplete_merge_already_applied,
             )
 
     def _apply_loaded_agents_prepared_inner(
@@ -191,6 +193,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         selected_identity: tuple[AgentType, str, str | None] | None,
         load_state: AgentLoadState | None = None,
         persist_dismissed_changes: bool,
+        incomplete_merge_already_applied: bool = False,
     ) -> None:
         """Implementation for the traced prepared-apply UI continuation."""
         # Clear the startup loading indicators (spinner on list panels,
@@ -224,13 +227,14 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             save_dismissed_agents(self._dismissed_agents)
 
         self._preserve_revived_agents_for_incomplete_load(prep, load_state)
-        with tui_trace(
-            "agents.incomplete_load_merge",
-            incoming=len(prep.filtered_agents),
-            cached=len(getattr(self, "_agents_with_children", [])),
-            complete=getattr(load_state, "complete_history", None),
-        ):
-            self._merge_incomplete_load_after_complete_history(prep, load_state)
+        if not incomplete_merge_already_applied:
+            with tui_trace(
+                "agents.incomplete_load_merge",
+                incoming=len(prep.filtered_agents),
+                cached=len(getattr(self, "_agents_with_children", [])),
+                complete=getattr(load_state, "complete_history", None),
+            ):
+                self._merge_incomplete_load_after_complete_history(prep, load_state)
         boundary = prepare_loaded_agents_apply_boundary(
             prep,
             self._make_prepared_apply_snapshot(

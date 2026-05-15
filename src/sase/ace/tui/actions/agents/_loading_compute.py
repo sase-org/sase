@@ -503,3 +503,41 @@ def compute_apply_loaded_agents(
         recovered_bundle_identities=recovered,
         auto_dismissed_identities=auto_dismissed_ids,
     )
+
+
+def prepare_loaded_agents_worker_prep(
+    all_agents: list[Agent],
+    dismissed_from_loader: list[Agent],
+    dismissed_snapshot: set[tuple[AgentType, str, str | None]],
+    hide_non_run_agents: bool,
+    snapshot: PreparedApplySnapshot,
+) -> PreparedApplyData:
+    """Prepare async-loaded agents, including post-history Tier 1 patch merge."""
+    from ...util.trace import tui_trace
+
+    prep = compute_apply_loaded_agents(
+        all_agents,
+        dismissed_from_loader,
+        dismissed_snapshot,
+        hide_non_run_agents,
+    )
+    snapshot_for_merge = PreparedApplySnapshot(
+        cached_agents_with_children=snapshot.cached_agents_with_children,
+        dismissed_agents=(
+            set(snapshot.dismissed_agents)
+            | prep.recovered_bundle_identities
+            | prep.auto_dismissed_identities
+        ),
+        agents_seen_complete_history=snapshot.agents_seen_complete_history,
+        hide_non_run_agents=snapshot.hide_non_run_agents,
+        load_state=snapshot.load_state,
+        fold_levels=snapshot.fold_levels,
+        selection=snapshot.selection,
+    )
+    with tui_trace(
+        "agents.incomplete_load_merge",
+        incoming=len(prep.filtered_agents),
+        cached=len(snapshot.cached_agents_with_children),
+        complete=getattr(snapshot.load_state, "complete_history", None),
+    ):
+        return merge_incomplete_load_after_complete_history(prep, snapshot_for_merge)

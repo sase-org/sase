@@ -7,7 +7,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from ....changespec import ChangeSpec
-from ._loading_compute import PreparedApplyData
+from ._loading_compute import PreparedApplyData, PreparedApplySnapshot
 from ._loading_helpers import TabName
 
 if TYPE_CHECKING:
@@ -121,7 +121,17 @@ class AgentLoadingStateMixin:
         selected_identity: tuple[AgentType, str, str | None] | None,
         load_state: AgentLoadState | None = None,
         persist_dismissed_changes: bool,
+        incomplete_merge_already_applied: bool = False,
     ) -> None:
+        raise NotImplementedError
+
+    def _make_prepared_apply_snapshot(
+        self,
+        *,
+        on_agents_tab: bool,
+        selected_identity: tuple[AgentType, str, str | None] | None,
+        load_state: AgentLoadState | None,
+    ) -> PreparedApplySnapshot:
         raise NotImplementedError
 
     async def _load_agents_async(self, *, full_history: bool = False) -> None:
