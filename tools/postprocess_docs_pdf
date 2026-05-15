@@ -181,6 +181,43 @@ def _find_page(
     return None
 
 
+_RUNNING_HEADER_RE = re.compile(r"^sase handbook\s+", re.IGNORECASE)
+_LEADING_NUMBER_RE = re.compile(r"^\d+\s+")
+
+
+def _find_chapter_start_page(
+    page_text: list[str],
+    title: str,
+    *,
+    start: int,
+    stop: int | None = None,
+) -> int | None:
+    """Find a page whose text *begins* with the chapter title.
+
+    The aggregated PDF has a running ``SASE Handbook`` header and a
+    JS-injected chapter-number prefix on each chapter heading, so we
+    strip both before testing for an exact prefix match. Anchoring the
+    match prevents in-body mentions of the title (links, citations,
+    blog cross-references) from being mistaken for the chapter's first
+    page.
+    """
+    normalized = _normalize(title)
+    compact_title = _compact(title)
+    if not normalized:
+        return None
+
+    end = stop if stop is not None else len(page_text)
+    for index in range(start, end):
+        page = page_text[index]
+        stripped = _RUNNING_HEADER_RE.sub("", page, count=1)
+        stripped = _LEADING_NUMBER_RE.sub("", stripped, count=1)
+        if stripped.startswith(normalized):
+            return index
+        if _compact(stripped).startswith(compact_title):
+            return index
+    return None
+
+
 def _chapter_pages(
     chapters: list[Chapter], page_text: list[str]
 ) -> dict[int, int]:
@@ -188,17 +225,16 @@ def _chapter_pages(
     search_start = 2
 
     for chapter in chapters:
-        title = f"{chapter.number} {chapter.title}"
-        page = _find_page(page_text, title, start=search_start)
-        if page is None:
-            page = _find_page(page_text, chapter.title, start=search_start)
+        page = _find_chapter_start_page(
+            page_text, chapter.title, start=search_start
+        )
         if page is None:
             raise RuntimeError(
                 f"could not find aggregate page for {chapter.source_path}"
             )
 
         pages[chapter.number] = page
-        search_start = page
+        search_start = page + 1
 
     return pages
 
