@@ -25,6 +25,7 @@ class _FakeApp(AgentLaunchMixin):
         self.scheduled: list[tuple[Any, tuple[Any, ...]]] = []
         self.pushed_screens: list[tuple[Any, Any]] = []
         self.body_calls: list[str] = []
+        self.unmount_calls: list[str] = []
         self._prompt_context: PromptContext | None = _fake_context()
         self._bulk_changespecs = None
         self._last_custom_agent_selection = None
@@ -40,7 +41,10 @@ class _FakeApp(AgentLaunchMixin):
         self.pushed_screens.append((screen, callback))
 
     def _unmount_prompt_bar(self) -> None:
-        pass
+        self.unmount_calls.append("cancel")
+
+    def _unmount_prompt_bar_after_submit(self) -> None:
+        self.unmount_calls.append("submit")
 
     def _run_agent_launch_body(self, prompt: str) -> None:
         self.body_calls.append(prompt)

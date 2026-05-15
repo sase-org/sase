@@ -150,7 +150,12 @@ class PromptBarMountMixin:
             record_file_references(refs)
 
     def _unmount_prompt_bar(self) -> None:
-        """Unmount the prompt input bar if present, saving any unsaved text."""
+        """Unmount the prompt input bar if present, saving any unsaved text.
+
+        Cancel/dismiss path. Use ``_unmount_prompt_bar_after_submit()`` from
+        the successful-submit path so the just-submitted prompt is not
+        re-written to history as ``cancelled=True``.
+        """
         from ...widgets import PromptInputBar
 
         try:
@@ -159,10 +164,29 @@ class PromptBarMountMixin:
             return  # Bar not present
 
         # Save any non-trivial text as cancelled before removing the bar.
-        # This is the safety net — every code path that dismisses the bar
-        # flows through here, so no prompt text can ever be silently lost.
+        # This is the safety net — every dismissal code path flows through
+        # here, so no prompt text can ever be silently lost.
         self._save_bar_text_as_cancelled(bar)
+        self._detach_prompt_bar(bar)
 
+    def _unmount_prompt_bar_after_submit(self) -> None:
+        """Unmount the prompt input bar after a successful submit.
+
+        Skips the ``_save_bar_text_as_cancelled`` safety net: on a
+        successful submit the launch path itself writes the final
+        non-cancelled history entry, and routing through the cancel path
+        would race that write with a stale ``cancelled=True`` entry.
+        """
+        from ...widgets import PromptInputBar
+
+        try:
+            bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
+        except Exception:
+            return  # Bar not present
+
+        self._detach_prompt_bar(bar)
+
+    def _detach_prompt_bar(self, bar: object) -> None:
         # Transfer focus to a live widget *before* the forcible detach below.
         # Without this, Screen.focused can be left pointing at the PromptTextArea
         # that is about to be ripped out of the DOM, swallowing the next keys
@@ -172,10 +196,10 @@ class PromptBarMountMixin:
         # Synchronously detach from parent's node list so the ID is freed
         # immediately. Without this, bar.remove() only schedules async
         # removal and a subsequent mount() would hit DuplicateIds.
-        parent = bar._parent
+        parent = bar._parent  # type: ignore[attr-defined]
         if parent is not None:
             parent._nodes._remove(bar)
-        bar.remove()
+        bar.remove()  # type: ignore[attr-defined]
 
     def _transfer_focus_off_prompt_bar(self, bar: object) -> None:
         """Move focus from *bar*'s descendants to the active tab's list widget.

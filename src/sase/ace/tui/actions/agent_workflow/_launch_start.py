@@ -62,8 +62,10 @@ class AgentLaunchStartMixin:
 
         # Unmount prompt bar first (transfers focus to the active tab's list
         # widget, see _transfer_focus_off_prompt_bar), then offload the
-        # heavy launch path to a worker thread.
-        self._unmount_prompt_bar()  # type: ignore[attr-defined]
+        # heavy launch path to a worker thread. The launch worker writes
+        # the final non-cancelled history entry, so this path must NOT go
+        # through the safety-net cancel save (sase-3q.2).
+        self._unmount_prompt_bar_after_submit()  # type: ignore[attr-defined]
         self.notify(f"Launching agent for {ctx.display_name}...")  # type: ignore[attr-defined]
 
         self.call_later(self._run_agent_launch_body_async, prompt)  # type: ignore[attr-defined]
