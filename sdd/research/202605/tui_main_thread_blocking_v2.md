@@ -315,6 +315,166 @@ likely sub-millisecond, but the pattern is the same as B5 and a future
 
 ---
 
+## Additional gaps from follow-up pass
+
+These are findings missed by the first v2 pass. They are not numbered by
+severity relative to B1-B13, but several belong in Tier 1/Tier 2 if this file
+is later re-ranked.
+
+#### B14. ChangeSpec query/history/navigation paths still call the sync disk reload
+
+`src/sase/ace/tui/actions/changespec/_loading.py:124-126`
+`src/sase/ace/tui/actions/changespec/_query.py:68, 187, 212`
+`src/sase/ace/tui/actions/changespec/_core.py:140-171`
+`src/sase/ace/tui/actions/navigation/_tree.py:272-275`
+`src/sase/ace/tui/actions/navigation/_advanced.py:584-588`
+`src/sase/ace/tui/actions/base.py:465-469`
+
+`_load_changespecs()` still does `_read_changespecs_from_disk()` plus
+`_apply_changespecs()` synchronously on the Textual thread. The async
+machinery exists (`_reload_and_reposition_async` and
+`_schedule_changespecs_async_refresh`), but common keypress flows bypass it:
+saved query slots, query-history prev/next, query edit dismissal, ancestry /
+child / sibling jumps that change the query, and hide reverted/submitted.
+
+**Why it matters:** this is a full ChangeSpec reload and query-corpus/filter
+pass in response to interactive navigation. The code comments already call a
+duplicate startup parse "~37ms", which is well above the "few milliseconds"
+budget even before accounting for larger `~/.sase/projects` directories or
+network filesystems.
+
+**Suggested fix:** split "change query and re-filter the current in-memory
+snapshot" from "reload from disk". Query-only actions can apply
+`_filter_changespecs(self._all_changespecs)` immediately, then schedule an
+async refresh if disk freshness matters. For actions that genuinely require a
+fresh disk snapshot, call `_schedule_changespecs_async_refresh()` and keep the
+cursor stable via `_snapshot_active_changespec_name()`.
+
+---
+
+#### B15. `ProjectSelectModal.__init__` scans all projects and ChangeSpecs
+
+`src/sase/ace/tui/modals/project_select_modal.py:57-66`
+`src/sase/ace/tui/modals/project_select_modal.py:91-103`
+`src/sase/ace/tui/modals/project_discovery.py:17-34`
+`src/sase/ace/tui/actions/axe_bgcmd.py:114`
+`src/sase/ace/tui/actions/agent_workflow/_entry_points.py:385`
+`src/sase/ace/tui/actions/agents/_revive.py:174-175`
+
+Constructing the project/CL picker calls `_load_items()` synchronously. That
+walks `~/.sase/projects`, validates each launchable project by reading project
+files / workspace paths / workflow type, and then calls `find_all_changespecs()`
+to add active CL entries.
+
+**Why it matters:** this modal is opened from user actions such as start bgcmd,
+start custom agent, and revive dismissed agents. The screen does not paint until
+the full project and CL scan completes.
+
+**Suggested fix:** make the modal compose with a "Loading..." option, then run
+`list_launchable_projects()` and `find_all_changespecs()` in a thread from
+`on_mount`. Replace the option list when ready. If startup already has a fresh
+`_all_changespecs`, pass that list into the modal and only discover launchable
+projects off-thread.
+
+---
+
+#### B16. `XPromptBrowserModal.__init__` loads every xprompt and project-local config
+
+`src/sase/ace/tui/modals/xprompt_browser_modal.py:79-97`
+
+Opening the xprompt browser constructs the modal and immediately calls
+`get_all_prompts()` plus `get_all_project_local_prompts()`. That path reads
+config YAML, xprompt directories, plugin/default config resources, and all known
+project-local `sase.yml` files before the modal can render.
+
+**Why it matters:** xprompt browsing is an interactive command-palette-like
+operation. A large plugin set or many project-local configs can make it feel
+like the keypress was ignored.
+
+**Suggested fix:** mirror the modal-loader pattern above: render an empty list
+and spinner/placeholder, run `_load_xprompts()` in a thread from `on_mount`, then
+rebuild groups/options on the app thread. Keep a process-wide catalog cache with
+mtime/size invalidation for config and xprompt directories so repeated browser
+opens are cheap.
+
+---
+
+#### B17. Prompt completion performs directory and xprompt-catalog scans on keypress
+
+`src/sase/ace/tui/widgets/file_completion.py:80-143`
+`src/sase/ace/tui/widgets/file_completion.py:153-162`
+`src/sase/ace/tui/widgets/_file_completion.py:358-360, 419, 464-466, 525`
+`src/sase/ace/tui/widgets/xprompt_completion.py:44`
+`src/sase/ace/tui/widgets/xprompt_arg_assist.py:94-99`
+`src/sase/xprompt/_catalog_sources.py:59-76`
+
+Path completion calls `os.scandir()` and `entry.is_dir()` synchronously. While a
+completion panel is active, `_update_file_completion_for_current_cursor()` can
+re-run this on each input change. File-history completion also loads the
+recency store synchronously. Xprompt and slash-skill completion rebuild
+assist entries via `build_structured_xprompts_catalog()`, which gathers
+workflows, xprompts, and project-local prompts.
+
+**Why it matters:** completion runs directly in text-input handling. A slow
+directory (`~/Downloads`, repo roots with many entries, remote mounts) or
+xprompt catalog rebuild will stall typing and tab completion.
+
+**Suggested fix:** introduce a completion service with debounced worker jobs and
+stale-result dropping, similar to the static file panel. Cache directory
+listings per `(expanded_dir, show_dotfiles, directory mtime/size if available)`
+with a short TTL, cap the initial entries scanned before yielding, and reuse the
+same xprompt catalog cache proposed in B16.
+
+---
+
+#### B18. Agent file-hint rendering can run live diff synchronously
+
+`src/sase/ace/tui/actions/hints/_files.py:60-68`
+`src/sase/ace/tui/widgets/prompt_panel/_agent_display_hints.py:114-118`
+`src/sase/ace/tui/widgets/prompt_panel/_agent_display_parts.py:47-63`
+`src/sase/ace/tui/widgets/prompt_panel/_agent_deltas.py:144-150`
+`src/sase/ace/tui/widgets/file_panel/_diff.py:95-154`
+
+`action_view_files()` on the Agents tab re-renders the prompt panel with inline
+hints. That calls `build_detail_header_summary()`, which calls
+`agent_delta_entries()`, which calls `get_agent_diff()`. For agents without a
+precomputed `diff_path`, `get_agent_diff()` can run provider live diff with a
+10-second timeout. The file panel correctly fetches diffs in a worker, but this
+hint-render path bypasses that protection.
+
+**Why it matters:** file hints are normally invoked by a single keypress while
+the user is inspecting an agent. On a dirty workspace or slow VCS provider, the
+TUI can freeze for the full diff call.
+
+**Suggested fix:** never compute live diffs from hint rendering. Reuse an
+already-cached diff from the file panel if present; otherwise render hints for
+the prompt/chat/artifact paths first and append DELTAS hints asynchronously when
+the worker result arrives. For precomputed `diff_path`, route the read through
+`AgentArtifactCache` or the static file worker.
+
+---
+
+#### B19. Re-running a bgcmd starts the subprocess synchronously in the modal callback
+
+`src/sase/ace/tui/actions/axe_bgcmd.py:364-379`
+`src/sase/ace/tui/bgcmd.py:323-348`
+
+The initial bgcmd launch path was fixed to submit `_bgcmd_launch_task()` to a
+background task. The re-run path for a completed bgcmd still calls
+`start_background_command()` directly from the confirmation callback. That
+function truncates `output.log`, opens it, calls `subprocess.Popen`, and writes
+PID/info files synchronously.
+
+**Why it matters:** this is shorter than the first launch path because there is
+no clean/checkout, but it can still stall on filesystem I/O or process spawn,
+and it is an avoidable inconsistency beside the already-correct launch path.
+
+**Suggested fix:** route re-run through `_start_bgcmd()` or a small worker that
+wraps `start_background_command()` plus the subsequent `_load_bgcmd_state()` /
+`_switch_to_axe_view()` UI update.
+
+---
+
 ## Cross-cutting recommendations
 
 1. **Lint rule.** Add a custom check (ruff plugin or simple AST grep) that
@@ -342,6 +502,18 @@ likely sub-millisecond, but the pattern is the same as B5 and a future
    worker completes off-thread, posts a `WorkerState` message that lands on
    the main thread, the handler invokes the sync version of the same job.
    Every `_on_*_worker_done` should be audited for this pattern.
+
+5. **Treat modal constructors as no-I/O zones.** B2, B15, and B16 all share the
+   same shape: `push_screen(SomeModal(...))` blocks before the first frame
+   because `__init__` does discovery work. Modals that need disk/catalog data
+   should accept optional preloaded data, render a placeholder, and load in
+   `on_mount`.
+
+6. **Deprecate sync reload facades in TUI code.** `_load_changespecs()` and
+   `_load_axe_status()` are too easy to call from key handlers. Prefer names
+   that encode thread expectations, e.g. `_load_changespecs_from_disk_sync` and
+   `_schedule_changespecs_async_refresh`, and add a main-thread guard to the
+   sync helpers.
 
 ---
 
@@ -374,3 +546,9 @@ likely sub-millisecond, but the pattern is the same as B5 and a future
 | B11 | `src/sase/ace/tui/actions/agents/_snapshot_cache.py:63, 120` |
 | B12 | `src/sase/ace/tui/bgcmd.py:196-217`, `actions/clipboard/_axe.py:23, 69` |
 | B13 | `src/sase/ace/tui/actions/agents/_notification_modal_flow.py:117-118` |
+| B14 | `src/sase/ace/tui/actions/changespec/_loading.py:124-126`, `_query.py:68, 187, 212`, `_core.py:140-171`, `navigation/_tree.py:272-275`, `navigation/_advanced.py:584-588`, `actions/base.py:465-469` |
+| B15 | `src/sase/ace/tui/modals/project_select_modal.py:57-66, 91-103`, `modals/project_discovery.py:17-34` |
+| B16 | `src/sase/ace/tui/modals/xprompt_browser_modal.py:79-97` |
+| B17 | `src/sase/ace/tui/widgets/file_completion.py:80-143, 153-162`, `widgets/_file_completion.py:358-360, 419, 464-466, 525`, `widgets/xprompt_completion.py:44`, `widgets/xprompt_arg_assist.py:94-99` |
+| B18 | `src/sase/ace/tui/actions/hints/_files.py:60-68`, `widgets/prompt_panel/_agent_display_hints.py:114-118`, `widgets/prompt_panel/_agent_display_parts.py:47-63`, `widgets/prompt_panel/_agent_deltas.py:144-150`, `widgets/file_panel/_diff.py:95-154` |
+| B19 | `src/sase/ace/tui/actions/axe_bgcmd.py:364-379`, `src/sase/ace/tui/bgcmd.py:323-348` |
