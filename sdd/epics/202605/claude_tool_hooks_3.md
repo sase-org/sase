@@ -2,6 +2,8 @@
 create_time: 2026-05-14 21:01:44
 status: wip
 prompt: sdd/prompts/202605/claude_tool_hooks_3.md
+bead_id: sase-3j
+tier: epic
 ---
 # Plan: Claude Tool Call Capture via Hooks
 
