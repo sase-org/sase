@@ -32,6 +32,9 @@ class LifecycleMixin:
         stop_watcher = getattr(self, "_stop_artifact_watcher", None)
         if stop_watcher is not None:
             stop_watcher()
+        cancel_discovery = getattr(self, "_cancel_pending_artifact_discovery", None)
+        if cancel_discovery is not None:
+            cancel_discovery()
         restore_artifact_decoration = getattr(
             self, "_restore_artifact_tmux_decoration", None
         )
@@ -193,6 +196,9 @@ class LifecycleMixin:
         stop_watcher = getattr(self, "_stop_artifact_watcher", None)
         if stop_watcher is not None:
             stop_watcher()
+        cancel_discovery = getattr(self, "_cancel_pending_artifact_discovery", None)
+        if cancel_discovery is not None:
+            cancel_discovery()
         restore_artifact_decoration = getattr(
             self, "_restore_artifact_tmux_decoration", None
         )

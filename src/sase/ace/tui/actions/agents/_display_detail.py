@@ -125,12 +125,20 @@ class DetailMixin:
                 if current_agent
                 else False
             )
-            list_artifacts = getattr(self, "_list_selected_agent_artifacts", None)
-            has_agent_artifacts = (
-                bool(list_artifacts(current_agent))
-                if current_agent and callable(list_artifacts)
-                else False
-            )
+            cached_artifacts = getattr(self, "_cached_agent_artifacts", None)
+            if current_agent is not None and callable(cached_artifacts):
+                probe = cached_artifacts(current_agent)
+                if probe is None:
+                    schedule = getattr(
+                        self, "_schedule_agent_artifacts_discovery", None
+                    )
+                    if callable(schedule):
+                        schedule(current_agent)
+                    has_agent_artifacts = False
+                else:
+                    has_agent_artifacts = bool(probe)
+            else:
+                has_agent_artifacts = False
             artifact_visible = getattr(self, "_artifact_tmux_pane_visible", None)
             artifact_viewer_active = (
                 bool(artifact_visible()) if callable(artifact_visible) else False

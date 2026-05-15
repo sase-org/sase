@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
 import signal
 from collections.abc import Callable
@@ -21,6 +23,9 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
 
 
+log = logging.getLogger(__name__)
+
+
 class AgentPanelArtifactMixin:
     """Mixin providing agent artifact viewer actions and tmux pane tracking."""
 
@@ -32,6 +37,7 @@ class AgentPanelArtifactMixin:
     _artifact_viewer_previous_sigusr1_handler: (
         signal.Handlers | int | Callable[[int, FrameType | None], Any] | None
     )
+    _agent_artifact_discovery_inflight: dict[tuple[Any, ...], asyncio.Task[Any]]
 
     def _install_artifact_viewer_close_signal_handler(self) -> bool:
         """Install the one-shot close notification handler if SIGUSR1 exists."""
@@ -187,15 +193,42 @@ class AgentPanelArtifactMixin:
             self._sync_artifact_viewer_layout()
         return True
 
+    def _ensure_agent_artifact_page_cache(self) -> dict[tuple[Any, ...], list[Any]]:
+        """Return (and lazily create) the per-row artifact cache dict."""
+        cache: dict[tuple[Any, ...], list[Any]] | None = getattr(
+            self, "_agent_artifact_page_cache", None
+        )
+        if cache is None:
+            cache = {}
+            self._agent_artifact_page_cache = cache  # type: ignore[attr-defined]
+        return cache
+
+    def _cached_agent_artifacts(self, agent: Agent | None) -> list[Any] | None:
+        """Probe the artifact cache without touching the disk.
+
+        Returns ``None`` on cache miss so the caller can choose whether to
+        schedule a background discovery; returns a copy of the cached list on
+        hit (which may be empty when the agent has no artifacts).
+        """
+        if agent is None:
+            return None
+        identity = getattr(agent, "identity", None)
+        if identity is None:
+            return None
+        cache = getattr(self, "_agent_artifact_page_cache", None)
+        if cache is None:
+            return None
+        row_key = self._agent_artifact_cache_key(agent, identity)
+        cached = cache.get(row_key)
+        if cached is None:
+            return None
+        return list(cached)
+
     def _list_selected_agent_artifacts(self, agent: Agent | None) -> list[Any]:
         """Return artifact entries available for *agent* without UI side effects."""
         if agent is None:
             return []
-        cache: dict[tuple[Any, ...], list[Any]] = getattr(
-            self, "_agent_artifact_page_cache", {}
-        )
-        if not hasattr(self, "_agent_artifact_page_cache"):
-            self._agent_artifact_page_cache = cache  # type: ignore[attr-defined]
+        cache = self._ensure_agent_artifact_page_cache()
 
         identity = getattr(agent, "identity", None)
         if identity is None:
@@ -209,10 +242,9 @@ class AgentPanelArtifactMixin:
             except Exception:
                 return []
 
-        row_key = self._agent_artifact_cache_key(agent, identity)
-        cached = cache.get(row_key)
+        cached = self._cached_agent_artifacts(agent)
         if cached is not None:
-            return list(cached)
+            return cached
         from ._artifact_provider import read_agent_artifacts_for_tui
 
         try:
@@ -229,10 +261,94 @@ class AgentPanelArtifactMixin:
         ):
             return []
         artifacts = list(page.artifacts)
+        row_key = self._agent_artifact_cache_key(agent, identity)
         cache[row_key] = artifacts
         self._agent_artifact_provider_used_daemon = False  # type: ignore[attr-defined]
         self._agent_artifact_provider_snapshot = page.shared_snapshot  # type: ignore[attr-defined]
         return artifacts
+
+    def _schedule_agent_artifacts_discovery(self, agent: Agent | None) -> None:
+        """Schedule artifact discovery for *agent* off the UI thread.
+
+        No-op when discovery for the agent's current cache row is already
+        in flight. The continuation populates the artifact cache and, if the
+        selection is unchanged, re-fires the debounced detail refresh so the
+        footer's artifact binding picks up the discovered state.
+        """
+        if agent is None:
+            return
+        identity = getattr(agent, "identity", None)
+        if identity is None:
+            return
+        row_key = self._agent_artifact_cache_key(agent, identity)
+        inflight: dict[tuple[Any, ...], asyncio.Task[Any]] | None = getattr(
+            self, "_agent_artifact_discovery_inflight", None
+        )
+        if inflight is None:
+            inflight = {}
+            self._agent_artifact_discovery_inflight = inflight  # type: ignore[attr-defined]
+        if row_key in inflight:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        coro = self._run_agent_artifact_discovery(agent, row_key)
+        task = loop.create_task(coro)
+        inflight[row_key] = task
+
+    async def _run_agent_artifact_discovery(
+        self,
+        agent: Agent,
+        row_key: tuple[Any, ...],
+    ) -> None:
+        """Worker body for off-thread artifact discovery."""
+        from ._artifact_provider import read_agent_artifacts_for_tui
+
+        try:
+            try:
+                result = await asyncio.to_thread(read_agent_artifacts_for_tui, agent)
+                artifacts = list(result.value.artifacts)
+            except Exception:
+                log.debug("background artifact discovery failed", exc_info=True)
+                artifacts = []
+            cache = self._ensure_agent_artifact_page_cache()
+            cache[row_key] = artifacts
+            current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
+            if current_agent is None:
+                return
+            current_identity = getattr(current_agent, "identity", None)
+            if current_identity is None:
+                return
+            current_row_key = self._agent_artifact_cache_key(
+                current_agent, current_identity
+            )
+            if current_row_key != row_key:
+                return
+            fire = getattr(self, "_fire_debounced_detail_update", None)
+            if callable(fire):
+                try:
+                    fire()
+                except Exception:
+                    log.debug("post-discovery detail refresh failed", exc_info=True)
+        finally:
+            inflight: dict[tuple[Any, ...], asyncio.Task[Any]] | None = getattr(
+                self, "_agent_artifact_discovery_inflight", None
+            )
+            if inflight is not None:
+                inflight.pop(row_key, None)
+
+    def _cancel_pending_artifact_discovery(self) -> None:
+        """Cancel any in-flight artifact discovery tasks (shutdown hook)."""
+        inflight: dict[tuple[Any, ...], asyncio.Task[Any]] | None = getattr(
+            self, "_agent_artifact_discovery_inflight", None
+        )
+        if not inflight:
+            return
+        for task in list(inflight.values()):
+            if not task.done():
+                task.cancel()
+        inflight.clear()
 
     def _agent_artifact_cache_key(
         self,

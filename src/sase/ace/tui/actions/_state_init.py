@@ -6,6 +6,7 @@ modules under the per-file line budget. Inherited by ``StartupMixin``.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import signal
@@ -227,6 +228,10 @@ class StateInitMixin:
         self._artifact_viewer_previous_sigusr1_handler: (
             signal.Handlers | int | Callable[[int, FrameType | None], Any] | None
         ) = None
+        self._agent_artifact_page_cache: dict[tuple[Any, ...], list[Any]] = {}
+        self._agent_artifact_discovery_inflight: dict[
+            tuple[Any, ...], asyncio.Task[Any]
+        ] = {}
         self._post_mount_background_loads_started = False
         self._changespecs_loading: bool = False
         self._changespecs_refresh_pending: bool = False
