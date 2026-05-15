@@ -196,8 +196,16 @@ def discover_related_tool_artifact_dirs_cached(
 def derive_tool_call_status(record: Mapping[str, Any]) -> str:
     """Derive a known display status from a normalized artifact record."""
     raw_status = record.get("status")
-    if isinstance(raw_status, str) and raw_status in KNOWN_STATUSES:
-        return raw_status
+    if isinstance(raw_status, str):
+        normalized_status = raw_status.lower()
+        if normalized_status in KNOWN_STATUSES:
+            return normalized_status
+        if normalized_status in {"failed", "error"}:
+            return "failure"
+        if normalized_status in {"cancelled", "canceled"}:
+            return "interrupted"
+        if normalized_status in {"in_progress", "running"}:
+            return "pending"
 
     if record.get("is_interrupt") is True:
         return "interrupted"
@@ -257,15 +265,15 @@ def _collapse_tool_use_pairs(
     Other event types (``PostToolUse``, ``SubagentStart``, etc.) pass through
     unchanged. Schema-v1 records are returned as-is for back-compat.
     """
-    starts_by_id: dict[str, int] = {}
+    starts_by_id: dict[tuple[str, str], int] = {}
     merged: list[ToolCallEntry | None] = list(entries)
 
     for index, entry in enumerate(entries):
         if entry.event == "ToolUse" and entry.tool_use_id:
-            starts_by_id[entry.tool_use_id] = index
+            starts_by_id[_tool_pair_key(entry)] = index
             continue
         if entry.event == "ToolResult" and entry.tool_use_id:
-            start_index = starts_by_id.pop(entry.tool_use_id, None)
+            start_index = starts_by_id.pop(_tool_pair_key(entry), None)
             if start_index is None:
                 continue
             start_entry = merged[start_index]
@@ -277,6 +285,12 @@ def _collapse_tool_use_pairs(
     return [entry for entry in merged if entry is not None]
 
 
+def _tool_pair_key(entry: ToolCallEntry) -> tuple[str, str]:
+    """Return the scope in which a provider tool-use id is unique."""
+    scope = entry.session_id or entry.artifact_dir or ""
+    return entry.tool_use_id or "", scope
+
+
 def _merge_use_and_result(start: ToolCallEntry, end: ToolCallEntry) -> ToolCallEntry:
     """Combine a ``ToolUse`` start entry with its matching ``ToolResult`` end."""
     response_summary: Mapping[str, Any] = end.tool_response_summary
@@ -285,10 +299,10 @@ def _merge_use_and_result(start: ToolCallEntry, end: ToolCallEntry) -> ToolCallE
         runtime=start.runtime,
         event="ToolUse",
         status=end.status if end.status in KNOWN_STATUSES else start.status,
-        tool_name=start.tool_name,
+        tool_name=start.tool_name or end.tool_name,
         tool_use_id=start.tool_use_id,
         duration_ms=start.duration_ms or end.duration_ms,
-        tool_input_summary=start.tool_input_summary,
+        tool_input_summary=start.tool_input_summary or end.tool_input_summary,
         tool_response_summary=response_summary,
         session_id=start.session_id or end.session_id,
         transcript_path=start.transcript_path or end.transcript_path,

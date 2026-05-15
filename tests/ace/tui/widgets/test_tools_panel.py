@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 import os
 import time
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.tools import ToolCallEntry, read_tool_calls_for_agent
 from sase.ace.tui.tools.reader import TOOL_CALLS_FILENAME
 from sase.ace.tui.widgets import tools_panel as tools_panel_mod
@@ -67,6 +69,29 @@ def test_tools_timeline_markdown_is_exportable() -> None:
     assert rendered.startswith("TOOLS")
     assert "fail | Bash" in rendered
     assert "boom" in rendered
+
+
+def test_tools_timeline_markdown_exports_codex_compact_targets() -> None:
+    fetch_time = datetime(2026, 5, 14, 10, 30, 0)
+
+    rendered = _build_tools_timeline_markdown(
+        [
+            _entry(
+                runtime="codex",
+                event="FunctionCall",
+                tool_name="Read",
+                tool_use_id="call_1",
+                duration_ms=None,
+                source="stream",
+                tool_input_summary={"file_path": "src/sase/foo.py"},
+                tool_response_summary={},
+            )
+        ],
+        fetch_time,
+    )
+
+    assert rendered is not None
+    assert "ok | Read | src/sase/foo.py" in rendered
 
 
 def test_tools_timeline_shows_pending_state() -> None:
@@ -162,8 +187,6 @@ def test_tools_timeline_renders_rich_response_detail() -> None:
 
 def test_tools_panel_renders_tool_call_from_stream_events(tmp_path: Path) -> None:
     """End-to-end: writer captures assistant+user events, panel renders the row."""
-    from sase.ace.tui.models.agent import Agent, AgentType
-
     artifacts_dir = tmp_path / "ace-run" / "20260514140000"
     artifacts_dir.mkdir(parents=True)
 
@@ -237,6 +260,86 @@ def test_tools_panel_renders_tool_call_from_stream_events(tmp_path: Path) -> Non
     assert "Bash" in rendered
     assert "ls /tmp" in rendered or "list /tmp" in rendered
     assert "alpha" in rendered
+
+
+def test_tools_panel_cache_invalidates_for_live_codex_appends(tmp_path: Path) -> None:
+    artifacts_dir = tmp_path / "ace-run" / "20260514140000"
+    artifacts_dir.mkdir(parents=True)
+    tool_calls_path = artifacts_dir / TOOL_CALLS_FILENAME
+    started = {
+        "schema_version": 2,
+        "recorded_at": "2026-05-14T14:00:00+00:00",
+        "runtime": "codex",
+        "source": "stream",
+        "event": "ToolUse",
+        "status": "pending",
+        "tool_name": "Bash",
+        "tool_use_id": "item_0",
+        "tool_input_summary": {"command": "pwd"},
+        "tool_response_summary": {},
+    }
+    completed = {
+        "schema_version": 2,
+        "recorded_at": "2026-05-14T14:00:01+00:00",
+        "runtime": "codex",
+        "source": "stream",
+        "event": "ToolResult",
+        "status": "success",
+        "tool_name": "Bash",
+        "tool_use_id": "item_0",
+        "duration_ms": 4,
+        "tool_input_summary": {"command": "pwd"},
+        "tool_response_summary": {"exit_code": 0, "output_preview": "/tmp\n"},
+    }
+    tool_calls_path.write_text(json.dumps(started) + "\n", encoding="utf-8")
+
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="proj",
+        project_file="/tmp/proj/proj.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 14, 10, 0, 0),
+        artifacts_dir=str(artifacts_dir),
+        raw_suffix=artifacts_dir.name,
+    )
+    cache_key = get_cache_key(agent)
+    initial_mtime = tool_calls_path.stat().st_mtime_ns
+    tools_panel_mod._tools_cache[cache_key] = _ToolsCacheEntry(
+        entries=[
+            _entry(
+                runtime="codex",
+                source="stream",
+                status="pending",
+                duration_ms=None,
+                tool_input_summary={"command": "pwd"},
+                tool_response_summary={},
+            )
+        ],
+        fetch_time=datetime.now(),
+        artifact_mtime_ns=initial_mtime,
+        discovered_dirs=[artifacts_dir],
+        parent_mtime_ns=artifacts_dir.parent.stat().st_mtime_ns,
+        last_worker_monotonic=time.monotonic(),
+    )
+
+    try:
+        with tool_calls_path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(completed) + "\n")
+        os.utime(
+            tool_calls_path,
+            ns=(initial_mtime + 1_000_000_000, initial_mtime + 1_000_000_000),
+        )
+
+        panel = _build_panel()
+        entries = panel._fetch_tools_in_background(agent)
+    finally:
+        tools_panel_mod._tools_cache.pop(cache_key, None)
+
+    assert entries is not None
+    assert len(entries) == 1
+    assert entries[0].status == "success"
+    assert entries[0].duration_ms == 4
+    assert entries[0].detail == "exit 0 | /tmp"
 
 
 def _build_panel() -> AgentToolsPanel:
