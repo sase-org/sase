@@ -112,7 +112,6 @@ class PanelRefreshMixin:
 
         panel_keys = self._panel_group.panel_keys
         panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
-        hidden_starting_count = len(panel_index.hidden_starting_indices)
         merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
         effective_tags: list[PanelKey] = []
         if merge_tag_panels:
@@ -159,8 +158,6 @@ class PanelRefreshMixin:
             global_to_local = slot.global_to_local
 
             counts = agent_panel_counts(panel_agents, unread)
-            if key is None and hidden_starting_count:
-                counts = counts.with_starting(hidden_starting_count)
             widget.border_title = agent_panel_border_title(
                 key,
                 len(panel_agents),

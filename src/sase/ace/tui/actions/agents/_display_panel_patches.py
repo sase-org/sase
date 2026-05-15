@@ -160,8 +160,6 @@ class PanelPatchMixin:
             self, "_unread_completed_agent_ids", set()
         )
         counts = agent_panel_counts(slot.agents, unread)
-        if agent_panel_key is None and panel_index.hidden_starting_indices:
-            counts = counts.with_starting(len(panel_index.hidden_starting_indices))
         widget.border_title = agent_panel_border_title(
             agent_panel_key,
             len(slot.agents),

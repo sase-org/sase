@@ -233,7 +233,7 @@ def test_panel_title_counts_are_scoped_to_each_panel() -> None:
     app._refresh_panel_widgets(jump_hints=None)
 
     assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
-        "(untagged) · 1 [T1 W1]"
+        "(untagged) · 1 [W1]"
     )
     assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == (
         "#apple · 2 [S1 R1]"
@@ -246,8 +246,8 @@ def test_panel_title_counts_are_scoped_to_each_panel() -> None:
     banana_title = _title_text(app._panel_widgets["agent-list-panel-2"])
     _assert_title_metric_styles(
         untagged_title,
-        neutral_ranges=[(10, 16), (18, 20), (21, 22)],
-        metric_digits=[(16, "starting"), (17, "starting"), (20, "waiting")],
+        neutral_ranges=[(10, 17), (18, 19)],
+        metric_digits=[(17, "waiting")],
     )
     _assert_title_metric_styles(
         apple_title,
@@ -286,7 +286,7 @@ def test_panel_title_unread_and_read_counts_are_panel_scoped() -> None:
     )
 
 
-def test_panel_title_starting_count_is_scoped_to_untagged_panel() -> None:
+def test_panel_titles_omit_starting_shorthand_for_hidden_starting_agents() -> None:
     agents = [
         _agent(name="starting", tag="apple", suffix="a1", status="STARTING"),
         _agent(name="running", tag="apple", suffix="a2", status="RUNNING"),
@@ -298,14 +298,10 @@ def test_panel_title_starting_count_is_scoped_to_untagged_panel() -> None:
     untagged_title = _title_text(app._panel_widgets["agent-list-panel"])
     apple_title = _title_text(app._panel_widgets["agent-list-panel-1"])
     assert app._panel_group.panel_keys == [None, "apple"]
-    assert untagged_title.plain == "(untagged) · 0 [T1]"
+    assert untagged_title.plain == "(untagged) · 0"
     assert apple_title.plain == "#apple · 1 [R1]"
-    _assert_title_range_style(
-        untagged_title,
-        start=16,
-        end=18,
-        style=_PANEL_METRIC_STYLES["starting"],
-    )
+    assert "T" not in untagged_title.plain
+    assert "T" not in apple_title.plain
 
 
 def test_panel_title_shorthand_counts_only_top_level_agents() -> None:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-15 09:49:15
-status: wip
+status: done
 prompt: sdd/prompts/202605/remove_starting_panel_shorthand.md
 ---
 # Remove STARTING Shorthand From Agent Panel Titles
