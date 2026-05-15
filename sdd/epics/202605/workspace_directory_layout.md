@@ -1,6 +1,7 @@
 ---
 bead_id: sase-3p
 tier: epic
+status: done
 ---
 
 # Workspace Directory Layout Implementation Plan

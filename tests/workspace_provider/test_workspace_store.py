@@ -12,12 +12,9 @@ from sase.workspace_provider.store import (
     WORKSPACE_ROOT_ENV,
     WorkspacePath,
     WorkspaceStore,
-    default_state_root,
-    derive_project_key,
+    _default_state_root,
+    _derive_project_key,
 )
-from sase.workspace_provider.utils import _get_git_clone_dir
-
-
 # ── adjacent parity ────────────────────────────────────────────────
 
 
@@ -36,12 +33,12 @@ class TestAdjacentParity:
         primary = "/tmp/proj"
         store = WorkspaceStore(primary, config={"workspace": {"root": "adjacent"}})
         for num in (2, 10, 199):
-            assert store.resolve(num).checkout_dir == _get_git_clone_dir(primary, num)
+            assert store.resolve(num).checkout_dir == f"{primary}_{num}/"
 
     def test_secondary_paths_match_legacy_with_trailing_slash(self) -> None:
         primary = "/tmp/proj/"
         store = WorkspaceStore(primary, config={"workspace": {"root": "adjacent"}})
-        assert store.resolve(2).checkout_dir == _get_git_clone_dir(primary, 2)
+        assert store.resolve(2).checkout_dir == "/tmp/proj_2/"
 
     def test_root_dir_is_primary_parent(self) -> None:
         store = WorkspaceStore(
@@ -93,8 +90,8 @@ class TestProjectKey:
         with patch(
             "sase.workspace_provider.store._list_git_remote_urls", return_value=[]
         ):
-            key_a = derive_project_key("/home/u/work/proj")
-            key_b = derive_project_key("/home/u/personal/proj")
+            key_a = _derive_project_key("/home/u/work/proj")
+            key_b = _derive_project_key("/home/u/personal/proj")
         assert key_a != key_b
         assert key_a.startswith("proj-")
         assert key_b.startswith("proj-")
@@ -104,7 +101,7 @@ class TestProjectKey:
             "sase.workspace_provider.store._list_git_remote_urls",
             return_value=["git@github.com:other/repo.git"],
         ):
-            assert derive_project_key("/tmp/p", explicit="my-key") == "my-key"
+            assert _derive_project_key("/tmp/p", explicit="my-key") == "my-key"
 
     def test_explicit_project_key_in_config_wins(self) -> None:
         store = WorkspaceStore(
@@ -118,14 +115,14 @@ class TestProjectKey:
             "sase.workspace_provider.store._list_git_remote_urls",
             return_value=["git@github.com:sase-org/sase.git"],
         ):
-            assert derive_project_key("/tmp/p") == "github.com_sase-org_sase"
+            assert _derive_project_key("/tmp/p") == "github.com_sase-org_sase"
 
     def test_https_remote_uses_slugified_url(self) -> None:
         with patch(
             "sase.workspace_provider.store._list_git_remote_urls",
             return_value=["https://github.com/sase-org/sase.git"],
         ):
-            assert derive_project_key("/tmp/p") == "github.com_sase-org_sase"
+            assert _derive_project_key("/tmp/p") == "github.com_sase-org_sase"
 
     def test_multiple_remotes_fall_back_to_path(self) -> None:
         with patch(
@@ -135,7 +132,7 @@ class TestProjectKey:
                 "git@gitlab.com:b/x.git",
             ],
         ):
-            key = derive_project_key("/tmp/x")
+            key = _derive_project_key("/tmp/x")
         assert key.startswith("x-")
 
     def test_unsupported_remote_url_falls_back_to_path(self) -> None:
@@ -143,7 +140,7 @@ class TestProjectKey:
             "sase.workspace_provider.store._list_git_remote_urls",
             return_value=["something-weird"],
         ):
-            key = derive_project_key("/tmp/x")
+            key = _derive_project_key("/tmp/x")
         assert key.startswith("x-")
 
 
@@ -211,7 +208,7 @@ class TestDefaultStateRoot:
     ) -> None:
         monkeypatch.setattr("sase.workspace_provider.store.sys.platform", "linux")
         monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
-        assert default_state_root() == str(tmp_path / "sase" / "workspaces")
+        assert _default_state_root() == str(tmp_path / "sase" / "workspaces")
 
     def test_linux_falls_back_to_local_state(
         self, monkeypatch: pytest.MonkeyPatch
@@ -219,21 +216,21 @@ class TestDefaultStateRoot:
         monkeypatch.setattr("sase.workspace_provider.store.sys.platform", "linux")
         monkeypatch.delenv("XDG_STATE_HOME", raising=False)
         expected = str(Path.home() / ".local" / "state" / "sase" / "workspaces")
-        assert default_state_root() == expected
+        assert _default_state_root() == expected
 
     def test_macos_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("sase.workspace_provider.store.sys.platform", "darwin")
         expected = str(
             Path.home() / "Library" / "Application Support" / "sase" / "workspaces"
         )
-        assert default_state_root() == expected
+        assert _default_state_root() == expected
 
     def test_windows_uses_localappdata(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         monkeypatch.setattr("sase.workspace_provider.store.sys.platform", "win32")
         monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
-        assert default_state_root() == str(tmp_path / "sase" / "workspaces")
+        assert _default_state_root() == str(tmp_path / "sase" / "workspaces")
 
 
 # ── empty/default config ───────────────────────────────────────────
@@ -290,14 +287,14 @@ class TestGitRemoteEnumeration:
             cwd=repo,
             check=True,
         )
-        assert derive_project_key(str(repo)) == "github.com_sase-org_sase_102"
+        assert _derive_project_key(str(repo)) == "github.com_sase-org_sase_102"
 
     def test_non_git_path_falls_back(self, tmp_path: Path) -> None:
         target = tmp_path / "plain"
         target.mkdir()
-        key = derive_project_key(str(target))
+        key = _derive_project_key(str(target))
         assert key.startswith("plain-")
 
     def test_missing_directory_falls_back(self) -> None:
-        key = derive_project_key("/nonexistent/path/that/does/not/exist")
+        key = _derive_project_key("/nonexistent/path/that/does/not/exist")
         assert "-" in key

@@ -74,7 +74,6 @@ def _get_workspace_cwd(agent: Agent) -> str | None:
     except RuntimeError:
         return None
 
-    # ensure_git_clone returns paths with trailing "/" for workspace > 1
     return cwd.rstrip("/")
 
 

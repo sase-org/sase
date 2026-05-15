@@ -173,24 +173,7 @@ def set_workspace_dir(project_file: str, workspace_dir: str) -> bool:
         return False
 
 
-def _get_git_clone_dir(primary_workspace_dir: str, workspace_num: int) -> str:
-    """Compute the path for a Git clone workspace.
-
-    Args:
-        primary_workspace_dir: Path to the primary (num=1) workspace.
-        workspace_num: 1 for the primary workspace, 2+ for secondary clones.
-
-    Returns:
-        The workspace directory path (with trailing ``/``).
-    """
-    if workspace_num == 1:
-        return primary_workspace_dir
-
-    base = primary_workspace_dir.rstrip("/")
-    return f"{base}_{workspace_num}/"
-
-
-def ensure_git_clone_at(
+def _ensure_git_clone_at(
     primary_workspace_dir: str,
     workspace_num: int,
     target_checkout_dir: str,
@@ -304,41 +287,6 @@ def ensure_git_clone_at(
     return target_checkout_dir
 
 
-def ensure_git_clone(primary_workspace_dir: str, workspace_num: int) -> str:
-    """Compatibility wrapper preserving the legacy adjacent layout.
-
-    New code should use :func:`ensure_workspace_checkout` (which routes
-    target selection through :class:`~sase.workspace_provider.store.WorkspaceStore`)
-    or :func:`ensure_git_clone_at` when the target is already known.
-    """
-    target_checkout_dir = _get_git_clone_dir(primary_workspace_dir, workspace_num)
-    return ensure_git_clone_at(
-        primary_workspace_dir, workspace_num, target_checkout_dir
-    )
-
-
-def resolve_workspace_path(
-    primary_workspace_dir: str,
-    workspace_num: int,
-    *,
-    config: Mapping[str, Any] | None = None,
-    env: Mapping[str, str] | None = None,
-) -> WorkspacePath:
-    """Resolve a :class:`WorkspacePath` for *workspace_num* via the store.
-
-    Loads the process-wide merged config when *config* is ``None`` so
-    callers can stay agnostic of the configuration layering.  No
-    directories are created — see :func:`ensure_workspace_checkout` for
-    materialization.
-    """
-    if config is None:
-        from sase.config.core import load_merged_config
-
-        config = load_merged_config()
-    store = WorkspaceStore(primary_workspace_dir, config=config, env=env)
-    return store.resolve(workspace_num)
-
-
 def ensure_workspace_checkout(
     primary_workspace_dir: str,
     workspace_num: int,
@@ -370,7 +318,7 @@ def ensure_workspace_checkout(
         config = load_merged_config()
     store = WorkspaceStore(primary_workspace_dir, config=config, env=env)
     path = store.resolve(workspace_num)
-    checkout_dir = ensure_git_clone_at(
+    checkout_dir = _ensure_git_clone_at(
         primary_workspace_dir, workspace_num, path.checkout_dir
     )
     _record_managed_workspace(store, path)
@@ -402,12 +350,9 @@ def _record_managed_workspace(store: WorkspaceStore, path: WorkspacePath) -> Non
 # Re-export Path for convenience (used by callers that need projects_base)
 __all__ = [
     "Path",
-    "ensure_git_clone",
-    "ensure_git_clone_at",
     "ensure_workspace_checkout",
     "get_default_branch",
     "parse_bare_repo_dir",
     "parse_workspace_dir",
-    "resolve_workspace_path",
     "set_workspace_dir",
 ]

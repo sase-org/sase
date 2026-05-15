@@ -119,7 +119,7 @@ def _project_key_from_path(primary_workspace_dir: str) -> str:
     return f"{_slugify(basename)}-{digest}"
 
 
-def derive_project_key(
+def _derive_project_key(
     primary_workspace_dir: str,
     *,
     explicit: str | None = None,
@@ -146,7 +146,7 @@ def derive_project_key(
     return _project_key_from_path(primary_workspace_dir)
 
 
-def default_state_root() -> str:
+def _default_state_root() -> str:
     """Return the platform-specific workspaces state root directory.
 
     - Linux/other POSIX: ``$XDG_STATE_HOME/sase/workspaces`` (falling
@@ -200,7 +200,7 @@ def _resolve_root(
     if value == "xdg-state":
         return _ResolvedRoot(
             policy="xdg-state",
-            root_dir=str(Path(default_state_root()) / project_key),
+            root_dir=str(Path(_default_state_root()) / project_key),
         )
 
     if os.path.isabs(value):
@@ -251,7 +251,7 @@ class WorkspaceStore:
 
         explicit_key = section.get("project_key", "") or ""
         explicit_key = explicit_key.strip() if isinstance(explicit_key, str) else ""
-        self._project_key = derive_project_key(
+        self._project_key = _derive_project_key(
             primary_workspace_dir, explicit=explicit_key or None
         )
         self._root = _resolve_root(
@@ -349,24 +349,10 @@ def _positive_int(value: Any, default: int) -> int:
     return result if result >= 0 else default
 
 
-def workspace_store_from_merged_config(
-    primary_workspace_dir: str,
-    *,
-    env: Mapping[str, str] | None = None,
-) -> WorkspaceStore:
-    """Build a ``WorkspaceStore`` using the process-wide merged config."""
-    from sase.config.core import load_merged_config
-
-    return WorkspaceStore(primary_workspace_dir, config=load_merged_config(), env=env)
-
-
 __all__ = [
     "LEGACY_PRIMARY_WORKSPACE_NUM",
     "PRIMARY_WORKSPACE_NUM",
     "WORKSPACE_ROOT_ENV",
     "WorkspacePath",
     "WorkspaceStore",
-    "default_state_root",
-    "derive_project_key",
-    "workspace_store_from_merged_config",
 ]

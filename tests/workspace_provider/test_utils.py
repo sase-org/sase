@@ -8,13 +8,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.workspace_provider.utils import (
-    ensure_git_clone,
-    ensure_git_clone_at,
+    _ensure_git_clone_at,
     ensure_workspace_checkout,
     get_default_branch,
     parse_bare_repo_dir,
     parse_workspace_dir,
-    resolve_workspace_path,
     set_workspace_dir,
 )
 
@@ -116,46 +114,7 @@ class TestSetWorkspaceDir:
             os.unlink(f.name)
 
 
-class TestEnsureGitClone:
-    def test_primary_exists(self) -> None:
-        with tempfile.TemporaryDirectory() as d:
-            result = ensure_git_clone(d, 1)
-            assert result == d
-
-    def test_primary_missing(self) -> None:
-        with pytest.raises(RuntimeError, match="does not exist"):
-            ensure_git_clone("/nonexistent/dir/", 1)
-
-    @patch("sase.workspace_provider.utils.subprocess.run")
-    def test_secondary_creates(self, mock_run: MagicMock) -> None:
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="https://github.com/u/r.git\n"
-        )
-        with tempfile.TemporaryDirectory() as d:
-            primary = os.path.join(d, "repo") + "/"
-            os.makedirs(primary)
-            result = ensure_git_clone(primary, 2)
-            expected = os.path.join(d, "repo") + "_2/"
-            assert result == expected
-            # Should have called: get-url, clone, set-url, fetch
-            assert mock_run.call_count == 4
-
-    @patch("sase.workspace_provider.utils.subprocess.run")
-    def test_secondary_fails(self, mock_run: MagicMock) -> None:
-        import subprocess as sp
-
-        mock_run.side_effect = [
-            MagicMock(returncode=0, stdout="https://github.com/u/r.git\n"),  # get-url
-            sp.CalledProcessError(1, "git", stderr="fatal error"),  # clone fails
-        ]
-        with tempfile.TemporaryDirectory() as d:
-            primary = os.path.join(d, "repo") + "/"
-            os.makedirs(primary)
-            with pytest.raises(RuntimeError, match="git clone failed"):
-                ensure_git_clone(primary, 2)
-
-
-# ── ensure_git_clone_at (Phase 2 target-aware materializer) ──────────
+# ── _ensure_git_clone_at (Phase 2 target-aware materializer) ──────────
 
 
 class TestEnsureGitCloneAt:
@@ -163,18 +122,18 @@ class TestEnsureGitCloneAt:
         primary = tmp_path / "repo"
         primary.mkdir()
         # workspace_num=0 (new PRIMARY identity) returns the supplied target
-        result = ensure_git_clone_at(str(primary), 0, str(primary))
+        result = _ensure_git_clone_at(str(primary), 0, str(primary))
         assert result == str(primary)
 
     def test_legacy_primary_num_one(self, tmp_path: Path) -> None:
         primary = tmp_path / "repo"
         primary.mkdir()
-        result = ensure_git_clone_at(str(primary), 1, str(primary))
+        result = _ensure_git_clone_at(str(primary), 1, str(primary))
         assert result == str(primary)
 
     def test_primary_missing_raises(self) -> None:
         with pytest.raises(RuntimeError, match="does not exist"):
-            ensure_git_clone_at("/nonexistent/dir", 0, "/nonexistent/dir")
+            _ensure_git_clone_at("/nonexistent/dir", 0, "/nonexistent/dir")
 
     @patch("sase.workspace_provider.utils.subprocess.run")
     def test_creates_clone_at_explicit_target(
@@ -186,7 +145,7 @@ class TestEnsureGitCloneAt:
         primary = tmp_path / "repo"
         primary.mkdir()
         target = tmp_path / "managed" / "repo_10"  # parent doesn't exist
-        result = ensure_git_clone_at(str(primary) + "/", 10, str(target) + "/")
+        result = _ensure_git_clone_at(str(primary) + "/", 10, str(target) + "/")
         assert result == str(target) + "/"
         # Parent should have been created
         assert target.parent.is_dir()
@@ -213,34 +172,13 @@ class TestEnsureGitCloneAt:
         # Drop a junk file so we can confirm shutil.rmtree ran
         (target / "stale.txt").write_text("garbage")
 
-        result = ensure_git_clone_at(str(primary) + "/", 2, str(target) + "/")
+        result = _ensure_git_clone_at(str(primary) + "/", 2, str(target) + "/")
         assert result == str(target) + "/"
         assert not (target / "stale.txt").exists()
         assert mock_run.call_count == 5
 
 
-# ── resolve_workspace_path / ensure_workspace_checkout ──────────────
-
-
-class TestResolveWorkspacePath:
-    def test_adjacent_matches_legacy_concat(self, tmp_path: Path) -> None:
-        primary = str(tmp_path / "proj")
-        config = {"workspace": {"root": "adjacent", "project_key": "k"}}
-        path = resolve_workspace_path(primary, 5, config=config, env={})
-        from sase.workspace_provider.utils import _get_git_clone_dir
-
-        assert path.checkout_dir == _get_git_clone_dir(primary, 5)
-
-    def test_xdg_state_places_under_managed_root(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
-        monkeypatch.delenv("SASE_WORKSPACE_ROOT", raising=False)
-        config = {"workspace": {"root": "xdg-state", "project_key": "k"}}
-        path = resolve_workspace_path("/home/u/work/proj", 10, config=config)
-        expected_root = tmp_path / "sase" / "workspaces" / "k"
-        assert path.checkout_dir.startswith(str(expected_root))
-        assert path.checkout_dir.endswith("proj_10/")
+# ── ensure_workspace_checkout ───────────────────────────────────────
 
 
 class TestEnsureWorkspaceCheckout:
