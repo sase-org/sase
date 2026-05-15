@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-15 11:26:38
-status: wip
+status: done
 bead_id: sase-3o
 tier: epic
 prompt: sdd/prompts/202605/tui_ace_options_a_b.md
