@@ -43,9 +43,10 @@ baseline targeted. The biggest *new* findings:
 4. **`_patch_agent_runtime_rows` (0.82s) fires every 1s** via the countdown
    tick and re-renders runtime-suffix rows even when only a tick suffix
    (elapsed-time text) changed. Each tick repaints active rows.
-5. **`AgentInfoPanel` content is never cached** (`_update_display` rebuilds
-   the Rich `Text` from scratch on every state mutation), so its 8.1s render
-   bucket compounds with the auto-refresh / countdown firing rate.
+5. **`AgentInfoPanel`'s existing exact-state cache is defeated by the
+   countdown** (`_update_display` rebuilds the Rich `Text` from scratch every
+   second because countdown is part of the state), so its 8.1s render bucket
+   compounds with the auto-refresh / countdown firing rate.
 6. **`_save_prompt_history` runs synchronously on the UI thread** at prompt
    bar submit (0.447s in this profile). Routinely blocking ~0.5s on submit
    matches the "feels frozen after I press enter" complaint.
@@ -55,8 +56,9 @@ baseline targeted. The biggest *new* findings:
    ChangeSpec on the event loop.
 8. **`PromptTextArea._refresh_xprompt_arg_hint_from_cursor` (0.578s)** is
    invoked synchronously on **every keystroke** from `_on_key`. It calls
-   `build_xprompt_assist_entries`, which scans the xprompt catalog
-   in-process. This makes the prompt input feel sluggish during typing.
+   the xprompt assist path every time; the project-level assist-entry cache
+   already exists, but detection still scans xprompt references across the
+   prompt text. This makes the prompt input feel sluggish during typing.
 9. **`compute_diff_cache_key` (0.578s) runs on the UI thread** (the worker
    is started *after* the key is computed). Inside it, `get_vcs_provider`
    (0.578s) and `_resolve_vcs_name` (0.422s) walk the workspace each
@@ -67,6 +69,31 @@ baseline targeted. The biggest *new* findings:
     moved. Most of it is now `_finalize_agent_list` →
     `_clear_agent_unread_and_dismiss_notification` (0.244s in
     `apply_notification_state_update_counts`).
+
+Additional source-code checks after the first analysis add three important
+refinements:
+
+- `AgentInfoPanel.update_state()` already has an exact-state early return,
+  but `_countdown_remaining` is part of that state. On the Agents tab,
+  `EventActivityMixin._on_countdown_tick()` changes that value every second,
+  so the early return is bypassed on every tick. Worse, `AgentInfoPanel`
+  inherits `Static.update()`, whose default is `layout=True`, so this one-line
+  countdown update can request a layout pass rather than a repaint-only pass.
+- `AgentList.patch_agent_row()` uses Textual's
+  `OptionList.replace_option_prompt_at_index()`. Textual implements that by
+  calling `_replace_option_prompt()` → `_clear_caches()` → `refresh()`, which
+  clears the entire option-render cache and line cache. The current
+  per-row-patch strategy therefore prevents a full `build_list()` call, but it
+  does **not** preserve Textual's per-line render caches. When multiple active
+  rows tick each second, each replacement can repeatedly flush the whole list.
+- The prompt-submit stall is specifically caused by the safety-net save in
+  `_finish_agent_launch()` → `_unmount_prompt_bar()` →
+  `_save_bar_text_as_cancelled()`. The actual launch body already runs later
+  via `call_later(..._run_agent_launch_body_async...)` and writes the final
+  non-cancelled prompt from the worker path. A safe fix should avoid the
+  duplicate cancelled save on successful submit; simply moving all prompt
+  history writes to unsynchronized background tasks risks reordering the
+  cancelled and non-cancelled mutations.
 
 ## Headline Numbers
 
@@ -271,18 +298,35 @@ The 1-second countdown tick does two things every tick:
    at scale.
 2. `_update_agents_info_panel`: rebuilds the top `AgentInfoPanel` fully via
    `Content.from_rich_text(...)`, even if only one tick suffix changed. The
-   `AgentInfoPanel` does not memoize per-input fingerprint.
+   `AgentInfoPanel` has an exact-state early return, but the countdown value is
+   included in that state, so the guard is bypassed on every tick.
+
+Source-level gap the first pass missed: `patch_agent_row()` is not a true
+strip-level patch. It calls Textual's
+`OptionList.replace_option_prompt_at_index()`, which calls `_clear_caches()` and
+then `refresh()`. That clears `_option_render_cache` and `_line_cache` for the
+entire list. This explains why the profile still shows large
+`AgentList.render_lines` / `StylesCache.render_line` buckets even though SASE's
+own `build_list()` path is mostly absent.
 
 **Fix:**
 
 - Skip `_update_agents_info_panel` on countdown ticks when only the elapsed
-  suffix changed — patch only the seconds field in the existing rendered
-  `Content` (matching the row-patch strategy in `AgentList`).
-- Add an early-out in `update_state`: if `(state_fingerprint, countdown)`
-  matches the last applied input, return without rebuilding the `Text`.
+  suffix changed, or make the countdown a repaint-only update that does not
+  rebuild the stable metric strip.
+- Split `AgentInfoPanel.update_state()` into a stable-state fingerprint and a
+  countdown-only path; the current exact-state early-out is ineffective during
+  ticking because countdown changes every call.
 - For very large agent counts, batch row patches: only refresh rows whose
   *visible suffix* changed (e.g., when seconds rolled over), not every
   active row every tick.
+- Reconsider the runtime suffix update contract. Because Textual's OptionList
+  cache invalidation is list-wide, updating all active elapsed-time suffixes
+  every second is more expensive than it looks. Lower-risk alternatives are:
+  update runtime suffixes on the 10s auto-refresh cadence, update only the
+  selected row every second, or replace the OptionList row-patch path with a
+  SASE-owned virtualized list renderer that can invalidate a row region without
+  clearing all option caches.
 
 **Expected impact:** removes both the 0.82s and 0.52s recurring tick costs
 on most ticks. The remaining cost (when something actually changed) should
@@ -290,10 +334,13 @@ be only the changed rows.
 
 ### 6. `AgentInfoPanel` Is Not Cached (NEW shape)
 
-`AgentInfoPanel._update_display` builds a fresh `Rich.Text` every call,
-which then drives an 8.1s aggregate render bucket because the widget's
+`AgentInfoPanel._update_display` builds a fresh `Rich.Text` whenever its state
+changes, which then drives an 8.1s aggregate render bucket because the widget's
 `StylesCache.render` re-tokenizes a new `Visual` each time `update()` is
-called.
+called. It is not completely uncached: `update_state()` compares the full input
+tuple and returns if identical. The missed detail is that the full input tuple
+contains the countdown value, and `_on_countdown_tick()` changes that value
+every second while the Agents tab is active.
 
 ```text
 8.112 AgentInfoPanel.render_lines
@@ -316,12 +363,16 @@ even when nothing visible changed.
 
 **Fix:**
 
-- Add a `(highlighted_agent_id, mode, countdown_minute, agent_state_hash)`
-  fingerprint and early-return from `update_state` when unchanged.
-- Cache the built `Text` per fingerprint; only rebuild when the fingerprint
-  changes.
-- Consider whether the countdown granularity actually requires per-second
-  refresh of this panel; many headers refresh on a coarser cadence.
+- Split "stable panel state" from "countdown text". Cache/fingerprint the
+  stable fields `(position, totals, counts, view_mode, grouping_mode,
+  search_query, loading, keymap)` separately from the countdown.
+- Use `self.update(text, layout=False)` when the rendered panel height is
+  fixed. Textual `Static.update()` defaults to `layout=True`; the current
+  implementation may force layout work for a one-line text change.
+- Consider moving the countdown into a tiny child widget or dropping the
+  per-second countdown from the Agents info panel. The rows already expose
+  the time-sensitive information; a 10s auto-refresh indicator can update on
+  a coarser cadence without changing the app's behavior.
 
 **Expected impact:** drops the 8.1s render bucket roughly in proportion to
 how many ticks pass without state change. For an idle minute, this is a
@@ -339,18 +390,32 @@ near-complete elimination of `AgentInfoPanel` cost.
                └─ 0.447 _save_prompt_history  history/prompt.py:162
 ```
 
-The submit path (and the cancel path that shares it) writes prompt history
-JSON synchronously. ~0.4s on prompt bar dismissal/submit is a noticeable
-"freeze" right when the user wants to see the launched agent appear.
+The submit path writes prompt history JSON synchronously before the async
+launch body starts. The exact path is important:
+`_finish_agent_launch(prompt)` unmounts the prompt bar first, and
+`_unmount_prompt_bar()` always calls `_save_bar_text_as_cancelled()`. That
+safety-net path writes the submitted prompt as `cancelled=True` on the UI
+thread. The later launch body writes the same prompt as non-cancelled from the
+worker thread.
+
+~0.4s on prompt bar dismissal/submit is a noticeable "freeze" right when the
+user wants to see the launched agent appear.
 
 **Fix:**
 
-- Move `_save_prompt_history` to `asyncio.to_thread(...)` / `run_worker` —
-  the prompt history file is append-only from the user's perspective and
-  doesn't need to be on disk before the agent launches.
-- If the launch action needs the persisted file before continuing, split
-  the write into a fast metadata write (small) and the body write (large)
-  and only block on the small one.
+- Add a successful-submit path that captures the prompt value, unmounts the
+  prompt bar without the cancelled-history safety-net, and lets the existing
+  launch worker perform the final history write. Keep the cancelled save for
+  actual cancel/dismiss paths.
+- If cancelled saves are moved off-thread, serialize prompt-history mutations
+  through a single queue or executor. `_apply_prompt_mutations()` uses an
+  exclusive `flock`, an atomic temp-file replace, and `fsync`; firing
+  independent background writes can reorder "cancelled" and "non-cancelled"
+  updates or make a cancelled write wait behind the launch write anyway.
+- Move `record_file_references()` off the UI thread along with the prompt
+  history save. `_save_bar_text_as_cancelled()` currently records file
+  references synchronously after the prompt-history mutation, and
+  `record_file_references()` also reads and rewrites a JSON history file.
 
 **Expected impact:** removes the ~0.45s freeze on prompt submit/cancel.
 
@@ -369,14 +434,27 @@ The xprompt argument hint is recomputed on **every** keystroke (the call
 sits in `_on_key`). Aggregate cost is small per keystroke but compounds
 into a noticeable typing-feel hitch when the user types a long prompt.
 
+Source-level refinement: `_get_xprompt_arg_assist_entries()` already caches
+`build_xprompt_assist_entries(project=...)` per project. The remaining
+per-keystroke cost is not only catalog construction; it also calls
+`detect_xprompt_arg_hint_at_cursor()`, which iterates
+`iter_xprompt_references(text)` across the whole prompt text. The cheap
+early-out is currently only `if "#" not in self.text`, which still admits
+long prompts containing an unrelated `#`.
+
 **Fix:**
 
 - Debounce the hint refresh by 50–100ms — typing at human speed will skip
   most intermediate computations.
 - Only invoke `build_xprompt_assist_entries` when the cursor is in an
   xprompt-eligible position (after `#name `) — exit cheaply otherwise.
-- Cache `build_xprompt_assist_entries` output per xprompt name; the
-  catalog rarely changes during a session.
+- Before calling `detect_xprompt_arg_hint_at_cursor()`, inspect only the
+  current line / nearby token around the cursor. If the cursor is not inside
+  a `#name`, `#name:`, or `#name(...)` shape, return without scanning all
+  xprompt references.
+- Keep the existing project-level assist-entry cache; if catalog rebuilds
+  still show up after the cursor-context early-out, widen it to a process
+  cache keyed by project and catalog mtime token.
 
 **Expected impact:** the cost falls roughly to zero between keystrokes; the
 prompt input should feel "snappy" instead of "buffering."
@@ -399,10 +477,17 @@ VCS providers each selection change.
 
 **Fix:**
 
-- Cache `get_vcs_provider(workspace_root)` per process — provider identity
-  for a workspace doesn't change during a session.
-- Move `compute_diff_cache_key` into the worker. The dedupe check can
-  happen inside the worker before doing the diff work.
+- Cache VCS resolution per workspace for the lifetime of the TUI, but include
+  invalidation for `SASE_VCS_PROVIDER` and config changes if the cache is made
+  process-wide. A local `AgentFilePanel`/`AceApp` cache is lower risk because
+  VCS provider identity is effectively stable during one `sase ace` session.
+- Avoid calling `get_vcs_provider()` just to produce the in-flight dedupe key.
+  A cheap pre-worker key can use `(agent.identity, workspace_dir,
+  git_index_signature, ttl_bucket)`. The worker can resolve the provider once,
+  then fill the richer cache key for `get_agent_diff()`.
+- Remove the duplicated key derivation between `_start_background_fetch()` and
+  `get_agent_diff()`. Today both can resolve the workspace/provider for the
+  same selection.
 
 **Expected impact:** removes a ~0.5s stall on every agent-selection change
 that triggers a file-panel refresh.
@@ -450,33 +535,41 @@ refresh.
 `asyncio.create_subprocess_exec` with a fire-and-forget pattern.
 Smallest-surface fix, eliminates a recurring sub-second UI freeze.
 
-### P0 — Cache `AgentInfoPanel` and gate countdown updates
+### P0 — Gate `AgentInfoPanel` countdown layout/repaint work
 
-Fingerprint the inputs, early-return when unchanged, and re-evaluate
-whether the panel needs a per-second refresh. Eliminates the 8.1s render
-bucket on idle ticks.
+Separate stable state from countdown state, stop using `Static.update()`'s
+default `layout=True` for one-line countdown changes, and re-evaluate whether
+the panel needs a per-second countdown at all. The existing exact-state guard
+is bypassed because countdown changes every second.
 
-### P0 — Move `_save_prompt_history` off the UI thread
+### P0 — Avoid the duplicate cancelled prompt-history write on submit
 
-`asyncio.to_thread` the JSON write. Removes a ~0.45s freeze on every
-prompt bar submit/cancel.
+Successful submit should unmount the prompt bar without the cancelled-history
+safety net and let the existing worker launch path write the final
+non-cancelled entry. Actual cancel/dismiss paths should either remain
+synchronous for correctness or move through a single serialized writer queue.
+This removes the ~0.45s submit freeze without introducing history-write races.
 
 ### P1 — Debounce + scope `_refresh_xprompt_arg_hint_from_cursor`
 
 Debounce 50–100ms; bail early when the cursor is not in an xprompt
-context; cache catalog scans. Removes the typing-feel hitch.
+context by inspecting only the nearby cursor token before scanning
+`iter_xprompt_references(text)`. The project-level catalog cache already
+exists, so the next win is narrowing the detection scan.
 
-### P1 — Move `compute_diff_cache_key` + cache `get_vcs_provider`
+### P1 — Make file-panel diff dedupe key cheap on the UI thread
 
-Resolve VCS once per workspace per process. Push the cache-key computation
-into the worker. Removes the per-selection-change ~0.5s stall on file
-panel refresh.
+Use a cheap in-flight key that does not resolve the VCS provider, and cache
+provider resolution per workspace for the TUI session. The worker should do
+the provider resolution once and populate the richer diff cache key.
 
-### P1 — Stop fully rebuilding `AgentList` rows on countdown ticks
+### P1 — Stop flushing `AgentList` caches on countdown ticks
 
-Audit `_patch_agent_runtime_rows` to confirm the per-row patch path does
-not call into `AgentList.refresh()` or invalidate `StylesCache`. If it
-does, switch to a strip-level patch.
+The audit shows the per-row patch path calls Textual
+`OptionList.replace_option_prompt_at_index()`, which clears the whole option
+render cache and line cache. Either lower the runtime suffix refresh cadence,
+update only selected/visible-priority rows, or replace this with a renderer
+that can invalidate row regions without clearing list-wide caches.
 
 ### P1 — `_apply_loaded_agents_prepared` should run notification reconcile in the worker
 
@@ -505,12 +598,18 @@ on a per-`AgentPromptPanel` selection identity.
      session.
    - `_save_prompt_history` no longer appears under
      `on_prompt_input_bar_submitted`.
+   - `Compositor.reflow` no longer shows a recurring `AgentInfoPanel.update`
+     / `Static.update(layout=True)` contribution on countdown-only ticks.
 2. **Targeted Textual benchmark** for keystroke latency in `PromptTextArea`
    (`SASE_TUI_PERF=1`). Measure 95p time between key event and prompt body
    repaint. Target: < 5ms with the debounce P1 fix.
 3. **Microbenchmark `get_vcs_provider` cache hit rate.** Run a synthetic
    selection sweep; cache hit rate should be ≥ 99% after the cache fix.
-4. **Add a `tests/ace/responsiveness/test_no_subprocess_run_on_ui.py`**
+4. **Add an `AgentList` cache-invalidation regression test** around
+   countdown ticks. Monkeypatch or spy on `OptionList._clear_caches()` /
+   `AgentList.refresh()` and assert a pure runtime-suffix tick does not clear
+   list-wide caches once the row-update strategy is fixed.
+5. **Add a `tests/ace/responsiveness/test_no_subprocess_run_on_ui.py`**
    guard that asserts none of `_ring_tmux_bell`, `_save_prompt_history`,
    or `compute_diff_cache_key` call blocking I/O from the asyncio loop
    thread. Use `inspect`/`tracemalloc`-style monkeypatches.
@@ -529,8 +628,10 @@ on a per-`AgentPromptPanel` selection identity.
 
 ## Open Questions
 
-- Why does `AgentList.link_style` cost 1.34s aggregate? It walks ancestors
-  on each call; could it be memoized per frame?
+- After removing countdown-driven cache flushes, does `AgentList.link_style`
+  still cost 1.34s aggregate? If it remains hot after cache invalidation is
+  fixed, investigate per-frame memoization; if it disappears, it was mostly a
+  symptom of list-wide OptionList cache churn.
 - Is the `_CachedSyntaxRenderable` cache scoped to a single
   `_get_syntax` call or to the renderable's lifetime? The 1.17s
   `_CachedSyntaxRenderable.__rich_console__` block in the reflow tree
@@ -541,6 +642,9 @@ on a per-`AgentPromptPanel` selection identity.
 - For the tmux bell: is the bell still needed for every completion, or
   can we coalesce within a window to avoid both the freeze and the
   notification noise?
+- Should prompt-bar unmount support an explicit `save_cancelled=False` submit
+  path, or should saving move out of unmount entirely so submit/cancel choose
+  their persistence behavior before DOM teardown?
 
 ## Cross-References
 
