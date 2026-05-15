@@ -578,6 +578,18 @@
         }
       }
     },
+    "bead": {
+      "type": "object",
+      "description": "Configuration for the bead/issue-tracking subsystem",
+      "additionalProperties": false,
+      "properties": {
+        "push_after_commit": {
+          "type": "boolean",
+          "description": "When true, run `git push` after `sase bead work` commits sdd/beads/issues.jsonl. Push failures only warn; the local commit is preserved.",
+          "default": true
+        }
+      }
+    },
     "xprompt_aliases": {
       "type": "object",
       "description": "Aliases for xprompt references, substituted before any other xprompt processing (e.g., {\"#gh_sase\": \"#gh:sase\"})",

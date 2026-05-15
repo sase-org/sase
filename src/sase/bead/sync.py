@@ -3,11 +3,21 @@
 from __future__ import annotations
 
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 
 class BeadWorkLaunchCommitError(RuntimeError):
     """Raised when the post-launch bead metadata commit fails."""
+
+
+@dataclass(frozen=True)
+class _PushOutcome:
+    """Result of attempting a post-commit ``git push``."""
+
+    pushed: bool
+    skipped_no_remote: bool
+    error: str | None
 
 
 def git_sync(beads_dir: Path) -> None:
@@ -145,3 +155,36 @@ def _format_git_failure(
     if detail:
         return f"git {action} failed: {detail}"
     return f"git {action} failed with exit code {result.returncode}"
+
+
+def push_bead_work_launch(beads_dir: Path) -> _PushOutcome:
+    """Push the just-committed JSONL state to the configured git remote.
+
+    Returns a :class:`_PushOutcome` describing whether the push happened, was
+    skipped because no remote is configured, or failed (with the error text).
+    Never raises — push failures must not undo a successful local commit.
+    """
+    repo_root = _find_git_root(beads_dir)
+    if repo_root is None:
+        return _PushOutcome(pushed=False, skipped_no_remote=True, error=None)
+
+    remotes = subprocess.run(
+        ["git", "remote"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if remotes.returncode != 0 or not remotes.stdout.strip():
+        return _PushOutcome(pushed=False, skipped_no_remote=True, error=None)
+
+    # Inherit stdin/stdout/stderr so credential prompts work for the user.
+    push = subprocess.run(["git", "push"], cwd=repo_root, check=False)
+    if push.returncode == 0:
+        return _PushOutcome(pushed=True, skipped_no_remote=False, error=None)
+
+    return _PushOutcome(
+        pushed=False,
+        skipped_no_remote=False,
+        error=f"git push failed with exit code {push.returncode}",
+    )

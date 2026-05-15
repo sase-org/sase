@@ -292,6 +292,12 @@ telemetry:
 sdd:
   version_controlled: false
 
+bead:
+  # When true, run `git push` after `sase bead work` successfully commits the
+  # sdd/beads/issues.jsonl mutation. Push failures only warn — the local commit
+  # is preserved and the user can push manually later.
+  push_after_commit: true
+
 xprompt_aliases:
   c: commit
   p: propose

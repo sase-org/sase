@@ -8,6 +8,7 @@ from pathlib import Path
 from sase.bead.sync import (
     commit_bead_work_launch,
     git_sync,
+    push_bead_work_launch,
     rebuild_from_jsonl,
 )
 
@@ -300,3 +301,119 @@ def test_rebuild_from_jsonl_noop_when_db_newer(tmp_path):
 
     result = rebuild_from_jsonl(beads_dir)
     assert result is False
+
+
+def test_push_bead_work_launch_skips_when_no_remote(tmp_path):
+    _init_git_repo(tmp_path)
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+
+    outcome = push_bead_work_launch(beads_dir)
+
+    assert outcome.pushed is False
+    assert outcome.skipped_no_remote is True
+    assert outcome.error is None
+
+
+def test_push_bead_work_launch_skips_outside_git_repo(tmp_path):
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+
+    outcome = push_bead_work_launch(beads_dir)
+
+    assert outcome.pushed is False
+    assert outcome.skipped_no_remote is True
+    assert outcome.error is None
+
+
+def test_push_bead_work_launch_pushes_to_remote(tmp_path):
+    bare = tmp_path / "remote.git"
+    subprocess.run(
+        ["git", "init", "--bare", str(bare)],
+        capture_output=True,
+        check=True,
+    )
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_git_repo(repo)
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(bare)],
+        cwd=repo,
+        capture_output=True,
+        check=True,
+    )
+    branch = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    subprocess.run(
+        ["git", "push", "-u", "origin", branch],
+        cwd=repo,
+        capture_output=True,
+        check=True,
+    )
+
+    beads_dir = repo / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+    jsonl = beads_dir / "issues.jsonl"
+    jsonl.write_text('{"id":"test"}\n')
+    subprocess.run(
+        ["git", "add", "sdd/beads/issues.jsonl"],
+        cwd=repo,
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "add jsonl"],
+        cwd=repo,
+        capture_output=True,
+        check=True,
+    )
+
+    outcome = push_bead_work_launch(beads_dir)
+
+    assert outcome.pushed is True
+    assert outcome.skipped_no_remote is False
+    assert outcome.error is None
+
+    local_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    remote_head = subprocess.run(
+        ["git", "rev-parse", f"refs/heads/{branch}"],
+        cwd=bare,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert local_head == remote_head
+
+
+def test_push_bead_work_launch_returns_error_on_failure(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_git_repo(repo)
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(tmp_path / "does-not-exist.git")],
+        cwd=repo,
+        capture_output=True,
+        check=True,
+    )
+
+    beads_dir = repo / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+
+    outcome = push_bead_work_launch(beads_dir)
+
+    assert outcome.pushed is False
+    assert outcome.skipped_no_remote is False
+    assert outcome.error is not None
+    assert "git push failed" in outcome.error

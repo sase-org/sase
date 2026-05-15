@@ -375,6 +375,110 @@ def test_work_changespec_epic_errors_without_project_context(
             assert proj.show(pid).status == Status.OPEN
 
 
+def test_work_invokes_push_when_config_flag_enabled(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.bead.sync import _PushOutcome
+
+    epic_id, _ = seed_diamond(project_dir)
+    push_calls: list[Path] = []
+
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None, segment_extra_env=None: FakeLaunchResult(),
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_bead_work_launch",
+        lambda *args, **kwargs: True,
+    )
+
+    def fake_push(beads_dir: Path) -> _PushOutcome:
+        push_calls.append(beads_dir)
+        return _PushOutcome(pushed=True, skipped_no_remote=False, error=None)
+
+    monkeypatch.setattr("sase.bead.sync.push_bead_work_launch", fake_push)
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {"bead": {"push_after_commit": True}},
+    )
+
+    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+
+    assert push_calls == [project_dir / "sdd/beads"]
+    out = capsys.readouterr().out
+    assert f"Committed sdd/beads/issues.jsonl for epic {epic_id}." in out
+    assert "Pushed to remote." in out
+
+
+def test_work_skips_push_when_config_flag_disabled(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    epic_id, _ = seed_diamond(project_dir)
+
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None, segment_extra_env=None: FakeLaunchResult(),
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_bead_work_launch",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.push_bead_work_launch",
+        lambda beads_dir: pytest.fail("push must not run when flag disabled"),
+    )
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {"bead": {"push_after_commit": False}},
+    )
+
+    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+
+    out = capsys.readouterr().out
+    assert f"Committed sdd/beads/issues.jsonl for epic {epic_id}." in out
+    assert "Pushed to remote." not in out
+
+
+def test_work_warns_when_push_fails(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.bead.sync import _PushOutcome
+
+    epic_id, _ = seed_diamond(project_dir)
+
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None, segment_extra_env=None: FakeLaunchResult(),
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_bead_work_launch",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.push_bead_work_launch",
+        lambda beads_dir: _PushOutcome(
+            pushed=False, skipped_no_remote=False, error="git push failed: nope"
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {"bead": {"push_after_commit": True}},
+    )
+
+    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+
+    captured = capsys.readouterr()
+    assert f"Committed sdd/beads/issues.jsonl for epic {epic_id}." in captured.out
+    assert "Pushed to remote." not in captured.out
+    assert "git push failed: nope" in captured.err
+
+
 def test_work_rolls_back_on_launch_failure(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,

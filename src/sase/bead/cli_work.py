@@ -478,7 +478,12 @@ def _commit_successful_work_launch(
     *,
     kind: str,
 ) -> None:
-    from sase.bead.sync import BeadWorkLaunchCommitError, commit_bead_work_launch
+    from sase.bead.sync import (
+        BeadWorkLaunchCommitError,
+        commit_bead_work_launch,
+        push_bead_work_launch,
+    )
+    from sase.config import load_merged_config
 
     try:
         committed = commit_bead_work_launch(beads_dir, bead_id, title, kind=kind)
@@ -490,8 +495,25 @@ def _commit_successful_work_launch(
         )
         sys.exit(1)
 
-    if committed:
-        print(f"Committed sdd/beads/issues.jsonl for {kind} {bead_id}.")
+    if not committed:
+        return
+
+    push_enabled = bool(
+        load_merged_config().get("bead", {}).get("push_after_commit", True)
+    )
+    suffix = ""
+    if push_enabled:
+        outcome = push_bead_work_launch(beads_dir)
+        if outcome.pushed:
+            suffix = " Pushed to remote."
+        elif outcome.error is not None:
+            print(
+                f"Warning: committed sdd/beads/issues.jsonl for {kind} {bead_id}, "
+                f"but {outcome.error}. Push manually with "
+                f"`cd {beads_dir.parent.parent} && git push`.",
+                file=sys.stderr,
+            )
+    print(f"Committed sdd/beads/issues.jsonl for {kind} {bead_id}.{suffix}")
 
 
 def rollback_work_launch(
