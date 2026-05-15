@@ -6,10 +6,11 @@ import os
 import subprocess
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sase.output import gemini_timer
 
+from ._claude_hooks import claude_hooks_session, resolve_workspace_dir
 from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_and_parse_json_output
 from .base import LLMProvider
@@ -170,6 +171,31 @@ class ClaudeCodeProvider(LLMProvider):
         }
         cycle = 0
 
+        workspace_dir = resolve_workspace_dir()
+        with claude_hooks_session(workspace_dir):
+            return self._invoke_loop(
+                current_prompt=current_prompt,
+                response_content=response_content,
+                total_usage=total_usage,
+                cycle=cycle,
+                model_alias=model_alias,
+                extra_args_env=extra_args_env,
+                timer_context=timer_context,
+                suppress_output=suppress_output,
+            )
+
+    def _invoke_loop(
+        self,
+        *,
+        current_prompt: str,
+        response_content: str,
+        total_usage: dict[str, int],
+        cycle: int,
+        model_alias: str,
+        extra_args_env: str | None,
+        timer_context: Any,
+        suppress_output: bool,
+    ) -> InvokeResult:
         while True:
             session_uuid = str(uuid.uuid4())
             base_args = [
