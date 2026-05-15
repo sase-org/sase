@@ -58,18 +58,19 @@ Requirements:
 uv venv .venv
 source .venv/bin/activate
 just install
+sase core health
 sase ace
 ```
 
 Useful first commands:
 
 ```bash
+sase core health          # verify the required Rust backend before launching agents
 sase ace                  # open the interactive control surface
 sase run "<prompt>"       # launch an agent or workflow
 sase agents status        # inspect running agents
 sase bead onboard         # see the bead issue-tracking quick start
-sase core health          # verify the required Rust backend is loadable
-sase workspace list       # inspect managed workspace checkouts for this project
+sase workspace list       # inspect the current project's numbered workspace view
 ```
 
 ## Operational model
@@ -77,10 +78,12 @@ sase workspace list       # inspect managed workspace checkouts for this project
 SASE keeps durable state outside any one chat session:
 
 - **Rust core** - Ported parsing, launch, notification, agent-scan, cleanup, and bead operations are served by the
-  required `sase_core_rs` extension. Run `sase core health` after install or dependency changes.
-- **Managed workspaces** - Parallel agents run in numbered project checkouts. New claims use workspace `#10` and above;
-  workspace `#0` is the primary checkout. `sase workspace list`, `path`, `repair`, `cleanup`, and `migrate` expose the
-  registry and migration tools.
+  required `sase_core_rs` extension. Run `sase core health` before first use and after dependency changes.
+- **Numbered workspaces** - Parallel agents run in numbered project checkouts. Workspace `#0` is the primary checkout,
+  `#1` through `#9` are reserved, and new claims allocate from `#10` upward.
+- **Workspace roots** - The default layout keeps numbered checkouts beside the primary checkout as `<primary>_<num>/`.
+  Setting `workspace.root` to `xdg-state` or an absolute path moves non-primary checkouts under a project-keyed managed
+  root; `sase workspace list`, `path`, `repair`, `cleanup`, and `migrate` inspect and maintain that view.
 - **Durable artifacts** - Agent metadata, chats, notifications, prompt history, ChangeSpecs, SDD files, and beads are
   stored in predictable project/user directories so ACE, AXE, CLI commands, and external integrations can share state.
 

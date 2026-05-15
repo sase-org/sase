@@ -30,7 +30,7 @@ def register_workspace_parser(subparsers: argparse._SubParsersAction) -> None:
         "-j",
         "--json",
         action="store_true",
-        help="Emit a machine-readable JSON array",
+        help="Emit a machine-readable JSON object",
     )
 
     path_parser = workspace_sub.add_parser(
