@@ -1219,24 +1219,28 @@ When the file or tools panel is empty, the `g`/`G` keys automatically fall back 
 
 ## Agents Tab Tools Panel
 
-The Agents tab tools panel (cycled to via `]`/`[`, between the file and metadata panels) shows a chronological timeline
-of provider tool calls for the selected agent. It replaces the older provider-thinking panel for tool activity.
+The tools panel sits between the file panel and the metadata panel in the Agents-tab cycle (`]` advances forward, `[`
+goes back). It shows a chronological timeline of the LLM tool calls the selected agent has made — file reads, edits,
+bash invocations, web fetches, sub-agent launches, and so on.
 
-The panel reads normalized tool-call entries from the `tool_calls.jsonl` artifact in the agent run directory. Each entry
-renders one line of the timeline:
+Entries are read from the `tool_calls.jsonl` artifact in the agent's run directory. Each call renders as one timeline
+row:
 
-- A status label (`ok`, `fail`, `stop`, `agent`, `unknown`) colored by outcome.
-- The tool name, with an optional compact target (such as a file path) and call duration when known.
-- A bounded detail preview on the next line when the writer recorded one.
+- A status label colored by outcome — `ok` (success), `fail` (error), `stop` (interrupted), `agent` (sub-agent launch),
+  or `unknown` (status not yet known, typically because the post-call record has not arrived).
+- The tool name, optionally followed by a compact target (such as the file path the tool acted on) and the call's
+  duration.
+- A short, length-bounded preview of the call result on the next line, when the collector captured one.
 
-The header shows the total call count, failure count, interrupted count, and the time the panel last refreshed. When the
-panel is reloading in the background after an entry change, the header shows a `(refreshing...)` hint. If the artifact
-is missing the panel reads `No tools artifact available`; when the artifact is present but empty it reads
-`No tool calls recorded`.
+The panel header shows the total call count, the failure count, the interrupted count, and a timestamp for the most
+recent reload. While a background reload is in flight (because the artifact changed on disk), `(refreshing...)` appears
+next to that timestamp. The body shows `No tools artifact available` when the file does not yet exist for this agent and
+`No tool calls recorded` when the file exists but contains zero records.
 
-Tool-call records are emitted by the Claude tool-call hook collector and by stream-derived fallback writers in the LLM
-provider layer. See [LLM Providers — Claude tool-call hooks](llms.md#claude-tool-call-hooks) for the artifact schema and
-provider integration details.
+Records are produced by two writers that share the same on-disk format: the Claude tool-call hook collector (preferred,
+Claude only) and a stream-derived fallback in the LLM provider layer (used for other providers and as a backstop when
+hooks are unavailable). See [LLM Providers — Claude tool-call hooks](llms.md#claude-tool-call-hooks) for the artifact
+schema and the provider integration.
 
 ## Plan Workflows
 

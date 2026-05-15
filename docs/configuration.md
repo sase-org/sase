@@ -691,8 +691,8 @@ bead:
 | ------------------------ | ---- | ------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `bead.push_after_commit` | bool | `true`  | When true, `sase bead work` runs `git push` after committing the `sdd/beads/issues.jsonl` mutation. Push failures only warn. |
 
-Set to `false` for local-only checkouts or pre-push-hook-heavy workflows where the launch commit should not be pushed
-immediately. See [`docs/beads.md`](beads.md#sase-bead-work-id) for the full `sase bead work` flow.
+Set to `false` for local-only checkouts, or when you would rather batch the bead-launch commit with later commits before
+pushing. See [`docs/beads.md`](beads.md#sase-bead-work-id) for the full `sase bead work` flow.
 
 Source: `src/sase/default_config.yml`
 

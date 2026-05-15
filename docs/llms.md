@@ -166,38 +166,48 @@ While waiting for a response, a `gemini_timer("Waiting for Claude")` spinner is 
 
 ### Claude Tool-Call Hooks
 
-`ClaudeCodeProvider.invoke()` registers a SASE-managed `PreToolUse`/`PostToolUse` hook in the workspace's
-`.claude/settings.local.json` for the duration of the run. Each hook entry uses the matcher `*` and runs the
-`sase_claude_tool_hook` console script, which reads the Claude hook JSON payload from stdin and appends a normalized
-schema-v3 record to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl`:
+To record what tools an agent actually invoked (file reads, edits, bash commands, etc.), `ClaudeCodeProvider.invoke()`
+asks Claude Code to call back into SASE every time a tool runs. It does this by writing a pair of `PreToolUse` and
+`PostToolUse` hook entries into the workspace's `.claude/settings.local.json` for the duration of the agent run. Each
+entry matches all tools (`"matcher": "*"`) and invokes the `sase_claude_tool_hook` console script, which reads the
+Claude-supplied JSON payload from stdin and appends one normalized record (schema version 3) to
+`$SASE_ARTIFACTS_DIR/tool_calls.jsonl`:
 
-- `PreToolUse` writes a pending `ToolUse` record with the tool name and redacted input.
-- `PostToolUse` writes a `ToolResult` with derived success/failure/interrupted status, call duration, and a bounded
-  response preview.
+- The `PreToolUse` hook writes a pending entry capturing the tool name and a redacted version of its input.
+- The `PostToolUse` hook writes the matching result entry: success/failure/interrupted status, the call's duration, and
+  a length-bounded preview of the response.
 
-The Tools panel in ACE reads `tool_calls.jsonl` to render the per-agent tool timeline (see
-[Agents Tab Tools Panel](ace.md#agents-tab-tools-panel)).
+The ACE Tools panel reads this same `tool_calls.jsonl` to render the per-agent timeline — see
+[Agents Tab Tools Panel](ace.md#agents-tab-tools-panel).
 
-A `claude_hooks_session()` context manager handles installation and cleanup:
+Installation and cleanup are wrapped in a `claude_hooks_session()` context manager that is careful not to corrupt
+user-managed Claude settings:
 
-- The settings file is written atomically (`tmp + os.replace`) so a killed agent never leaves a half-written file.
-- Each managed hook command carries a `_sase_managed` sentinel; cleanup removes only SASE entries and preserves any
-  user/project hooks the workspace already had (including unrelated events like `Notification`).
-- Home-mode / no-workspace launches (no `SASE_GIT_WORKSPACE_DIR`, `SASE_CD_WORKSPACE_DIR`, or `SASE_ACTIVE_PROJECT_DIR`)
-  skip mutation entirely and emit a `claude_hooks_skipped` diagnostic to `tool_calls_writer_errors.jsonl` so the
-  stream-derived fallback writer remains visible.
-- Malformed existing `.claude/settings.local.json` is left untouched (the run logs a diagnostic and uses the fallback
-  writer).
-- When the file did not pre-exist and only SASE entries were present at exit, the file and an empty `.claude` directory
-  are removed.
+- Writes to `.claude/settings.local.json` go through `tmp + os.replace` so a killed agent cannot leave a half-written
+  file behind.
+- Each SASE-installed hook command carries a `_sase_managed` sentinel value. On exit, cleanup removes only entries
+  carrying that sentinel; any pre-existing user or project hooks (including hooks for unrelated events such as
+  `Notification`) are left untouched.
+- "Home-mode" launches — agents started outside a tracked workspace, identified by the absence of all three of
+  `SASE_GIT_WORKSPACE_DIR`, `SASE_CD_WORKSPACE_DIR`, and `SASE_ACTIVE_PROJECT_DIR` — skip the settings mutation
+  entirely. They emit a `claude_hooks_skipped` diagnostic to `tool_calls_writer_errors.jsonl` so the operator can see
+  why the hook records are missing, and rely on the stream-derived fallback writer (below) to populate the timeline.
+- If `.claude/settings.local.json` exists but is malformed JSON, it is left alone, the run logs a diagnostic, and the
+  fallback writer takes over.
+- If SASE created the file (it did not pre-exist) and only SASE entries remain at exit, both the file and an empty
+  `.claude` directory are removed so the workspace is left clean.
 
-The collector itself is non-blocking by design: malformed JSON, non-object payloads, collector exceptions, missing
-`SASE_ARTIFACTS_DIR`, and unsupported hook event names all result in a best-effort diagnostic (or silent no-op for empty
-stdin) and exit 0, so Claude never surfaces the hook as a tool-call failure. The Tools-panel reader accepts schema v3
-alongside v1/v2, so stream-derived fallback artifacts and hook-derived artifacts both render.
+The collector script itself is intentionally non-blocking: malformed JSON, non-object payloads, exceptions inside the
+collector, a missing `SASE_ARTIFACTS_DIR`, and unrecognized hook event names all produce a best-effort diagnostic (or a
+silent no-op when stdin is empty) and exit 0. This guarantees that a SASE-side bug can never make Claude surface the
+hook as a tool-call failure to the agent.
 
-Source: `src/sase/llm_provider/claude.py`, `src/sase/llm_provider/_tool_calls.py`, `src/sase/scripts/`,
-`src/sase/ace/tui/tools/reader.py`
+The hook-based writer coexists with a stream-derived fallback writer in the LLM provider layer, which parses tool calls
+out of the Claude streaming response. Both writers append to the same artifact, and the Tools-panel reader accepts
+schema versions 1, 2, and 3 — so hook-derived and stream-derived records render side by side.
+
+Source: `src/sase/llm_provider/claude.py`, `src/sase/llm_provider/_claude_hooks.py`,
+`src/sase/llm_provider/_tool_calls.py`, `src/sase/scripts/sase_claude_tool_hook.py`, `src/sase/ace/tui/tools/reader.py`
 
 ## Gemini CLI Integration
 

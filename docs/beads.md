@@ -321,12 +321,15 @@ it does not commit any code produced later by the spawned agents. Epic launches 
 commit fails, the command reports that agents were already launched and exits non-zero so the operator can commit or
 repair the bead state explicitly. Dry runs and stores outside git do not create a commit.
 
-When the commit succeeds and `bead.push_after_commit` is `true` (the default), `sase bead work` also runs `git push` so
-the launched-work record is published to the remote without a manual follow-up. The push inherits stdin/stdout/stderr so
-credential prompts still work, and skips silently when no git remote is configured. Push failures only warn — the local
-commit is preserved and the printed instructions show how to push manually. Disable the auto-push with
-`bead.push_after_commit: false` in `~/.config/sase/sase.yml` for local-only checkouts or workflows where the launch
-commit should not be pushed immediately.
+When that commit succeeds and `bead.push_after_commit` is `true` (the default), `sase bead work` follows it with
+`git push` so the launched-work record reaches the remote without a manual follow-up step. The push inherits the
+caller's stdin/stdout/stderr, so interactive credential prompts still work. If the repository has no remote configured,
+the push is skipped silently — the local commit stands on its own. If `git push` fails (for example because the remote
+rejected the update), the failure is reported as a warning only: the bead-launch commit is preserved on the local branch
+and the warning text includes the manual `git push` invocation to retry.
+
+Set `bead.push_after_commit: false` in `~/.config/sase/sase.yml` to disable the auto-push — useful for local-only
+checkouts, or when you would rather batch the bead-launch commit with later commits before pushing.
 
 ## Rust Backend
 
