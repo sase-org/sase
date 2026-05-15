@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import json
 from pathlib import Path
 
 import pytest
@@ -78,3 +79,105 @@ def test_doctor_reads_jsonl_without_requiring_sqlite(tmp_path: Path) -> None:
 
     assert rust_beads.list_issues(beads_dir)
     assert rust_beads.doctor(beads_dir) == ["WARNING: beads.db missing"]
+
+
+def test_event_store_wins_over_stale_jsonl_projection(tmp_path: Path) -> None:
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+    (beads_dir / "config.json").write_text("{}\n")
+    (beads_dir / "beads.db").write_text("")
+    _write_event_store(beads_dir, [_issue_event("beads-1", "Canonical Epic")])
+    (beads_dir / "issues.jsonl").write_text(
+        json.dumps(
+            _issue_payload("beads-1", "Stale Legacy Epic"), separators=(",", ":")
+        )
+        + "\n"
+    )
+
+    assert rust_beads.show(beads_dir, "beads-1").title == "Canonical Epic"
+    assert (
+        "WARNING: issues.jsonl projection drift from bead events"
+        in rust_beads.doctor(beads_dir)
+    )
+
+
+def test_event_store_reads_without_legacy_projection(tmp_path: Path) -> None:
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+    (beads_dir / "config.json").write_text("{}\n")
+    (beads_dir / "beads.db").write_text("")
+    _write_event_store(
+        beads_dir,
+        [
+            _issue_event("beads-1", "Canonical Epic"),
+            _issue_event("beads-1.1", "Canonical Child", parent_id="beads-1"),
+        ],
+    )
+
+    assert _ids(rust_beads.list_issues(beads_dir)) == ["beads-1", "beads-1.1"]
+    assert _ids(rust_beads.get_epic_children(beads_dir, "beads-1")) == ["beads-1.1"]
+    assert "WARNING: issues.jsonl missing" in rust_beads.doctor(beads_dir)
+
+
+def _write_event_store(beads_dir: Path, events: list[dict[str, object]]) -> None:
+    events_dir = beads_dir / "events"
+    streams_dir = events_dir / "streams"
+    streams_dir.mkdir(parents=True)
+    (events_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "stream_count": 1,
+                "generated_from": "issues.jsonl",
+                "migration_tool": "test",
+            },
+            separators=(",", ":"),
+        )
+    )
+    (streams_dir / "beads-1.jsonl").write_text(
+        "".join(json.dumps(event, separators=(",", ":")) + "\n" for event in events)
+    )
+
+
+def _issue_event(
+    issue_id: str, title: str, *, parent_id: str | None = None
+) -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "event_id": f"beads-1:issue_created:{issue_id}",
+        "timestamp": "2026-01-01T00:00:00Z",
+        "actor": "",
+        "operation": "issue_created",
+        "issue_id": issue_id,
+        "payload": {
+            "kind": "issue_created",
+            "issue": _issue_payload(issue_id, title, parent_id),
+        },
+    }
+
+
+def _issue_payload(
+    issue_id: str, title: str, parent_id: str | None = None
+) -> dict[str, object]:
+    return {
+        "id": issue_id,
+        "title": title,
+        "status": "open",
+        "issue_type": "phase" if parent_id else "plan",
+        "parent_id": parent_id,
+        "owner": "",
+        "assignee": "",
+        "created_at": "2026-01-01T00:00:00Z",
+        "created_by": "",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "closed_at": None,
+        "close_reason": None,
+        "description": "",
+        "notes": "",
+        "design": "",
+        "model": "",
+        "is_ready_to_work": False,
+        "changespec_name": "",
+        "changespec_bug_id": "",
+        "dependencies": [],
+    }
