@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -10,6 +11,14 @@ if TYPE_CHECKING:
 
 from ....changespec import ChangeSpec
 from ...util.trace import tui_trace
+
+
+@dataclass(frozen=True)
+class _PreparedChangeSpecLoad:
+    """ChangeSpec disk load plus worker-built query corpus."""
+
+    all_changespecs: list[ChangeSpec]
+    query_corpus: QueryCorpus | None
 
 
 class ChangeSpecLoadingMixin:
@@ -44,11 +53,59 @@ class ChangeSpecLoadingMixin:
 
         return find_all_changespecs_cached()
 
+    def _prepare_changespec_load_from_disk(self) -> _PreparedChangeSpecLoad:
+        """Return ChangeSpecs and their query corpus from one worker call."""
+        all_changespecs = self._read_changespecs_from_disk()
+        return _PreparedChangeSpecLoad(
+            all_changespecs=all_changespecs,
+            query_corpus=self._compile_query_corpus_for_changespecs(all_changespecs),
+        )
+
+    def _compile_query_corpus_for_changespecs(
+        self, changespecs: list[ChangeSpec]
+    ) -> QueryCorpus:
+        """Compile and strictly validate a corpus for ``changespecs``."""
+        from sase.core.query_corpus_facade import compile_query_corpus
+
+        corpus = compile_query_corpus(changespecs)
+        self._validate_query_corpus_for_changespecs(corpus, changespecs)
+        return corpus
+
+    def _validate_query_corpus_for_changespecs(
+        self, corpus: QueryCorpus, changespecs: list[ChangeSpec]
+    ) -> None:
+        """Raise unless ``corpus`` was built for this exact list object."""
+        source_list_id = id(changespecs)
+        if corpus.source_list_id != source_list_id:
+            raise ValueError(
+                "compiled query corpus source list id does not match the "
+                "current ChangeSpec list; rebuild the corpus before filtering"
+            )
+        if corpus.expected_length != len(changespecs):
+            raise ValueError(
+                "compiled query corpus length does not match the current "
+                "ChangeSpec list; rebuild the corpus before filtering"
+            )
+
+    def _apply_prepared_query_corpus(
+        self, changespecs: list[ChangeSpec], query_corpus: QueryCorpus | None
+    ) -> None:
+        """Install a pre-built corpus before filtering, or clear stale cache."""
+        if query_corpus is None:
+            self._query_corpus = None
+            self._query_corpus_source_list_id = None
+            return
+
+        self._validate_query_corpus_for_changespecs(query_corpus, changespecs)
+        self._query_corpus = query_corpus
+        self._query_corpus_source_list_id = id(changespecs)
+
     def _apply_changespecs(self, all_changespecs: list[ChangeSpec]) -> None:
         """Apply a pre-loaded changespec list to app state.
 
         Must run on the main thread: touches widgets via ``_refresh_display``.
         """
+        self._get_query_corpus_for_changespecs(all_changespecs)
         self._all_changespecs = all_changespecs  # Cache for ancestry lookup
         self.changespecs = self._filter_changespecs(all_changespecs)
 
@@ -131,8 +188,6 @@ class ChangeSpecLoadingMixin:
         self, changespecs: list[ChangeSpec]
     ) -> QueryCorpus:
         """Return the cached Rust query corpus for this exact list object."""
-        from sase.core.query_corpus_facade import compile_query_corpus
-
         source_list_id = id(changespecs)
         cached = getattr(self, "_query_corpus", None)
         cached_source_list_id = getattr(self, "_query_corpus_source_list_id", None)
@@ -144,30 +199,22 @@ class ChangeSpecLoadingMixin:
         ):
             return cached
 
-        corpus = compile_query_corpus(changespecs)
-        if corpus.source_list_id != source_list_id:
-            raise ValueError(
-                "compiled query corpus source list id does not match the "
-                "current ChangeSpec list; rebuild the corpus before filtering"
-            )
-        if corpus.expected_length != len(changespecs):
-            raise ValueError(
-                "compiled query corpus length does not match the current "
-                "ChangeSpec list; rebuild the corpus before filtering"
-            )
+        corpus = self._compile_query_corpus_for_changespecs(changespecs)
         self._query_corpus = corpus
-        self._query_corpus_source_list_id = source_list_id
+        self._query_corpus_source_list_id = id(changespecs)
         return corpus
 
     def _reload_and_reposition(self, current_name: str | None = None) -> None:
         """Reload changespecs and try to stay on the same one."""
-        from ....changespec import find_all_changespecs_cached
-
         if current_name is None:
             current_name = self._snapshot_active_changespec_name()
 
-        all_changespecs = find_all_changespecs_cached()
-        self._apply_reloaded_changespecs(all_changespecs, current_name)
+        prepared = self._prepare_changespec_load_from_disk()
+        self._apply_reloaded_changespecs(
+            prepared.all_changespecs,
+            current_name,
+            query_corpus=prepared.query_corpus,
+        )
 
     def _snapshot_active_changespec_name(self) -> str | None:
         """Return the identity of the currently selected ChangeSpec.
@@ -194,11 +241,9 @@ class ChangeSpecLoadingMixin:
         """
         import asyncio
 
-        from ....changespec import find_all_changespecs_cached
-
         caller_supplied_name = current_name is not None
 
-        all_changespecs = await asyncio.to_thread(find_all_changespecs_cached)
+        prepared = await asyncio.to_thread(self._prepare_changespec_load_from_disk)
 
         # Re-capture current selection AFTER the await — user may have
         # moved with j/k or switched tabs while disk I/O was in flight.
@@ -206,18 +251,28 @@ class ChangeSpecLoadingMixin:
         if not caller_supplied_name:
             current_name = self._snapshot_active_changespec_name()
 
-        self._apply_reloaded_changespecs(all_changespecs, current_name)
+        self._apply_reloaded_changespecs(
+            prepared.all_changespecs,
+            current_name,
+            query_corpus=prepared.query_corpus,
+        )
 
     def _apply_reloaded_changespecs(
         self,
         all_changespecs: list[ChangeSpec],
         current_name: str | None,
+        *,
+        query_corpus: QueryCorpus | None = None,
     ) -> None:
         """Apply a freshly-loaded changespec list and reposition the cursor."""
         from ...util.selection import restore_selection_by_identity
 
         on_changespecs_tab = getattr(self, "current_tab", None) == "changespecs"
 
+        if query_corpus is None:
+            self._get_query_corpus_for_changespecs(all_changespecs)
+        else:
+            self._apply_prepared_query_corpus(all_changespecs, query_corpus)
         self._all_changespecs = all_changespecs  # Cache for ancestry lookup
         new_changespecs = self._filter_changespecs(all_changespecs)
 

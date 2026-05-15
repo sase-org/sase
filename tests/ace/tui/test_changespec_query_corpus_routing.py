@@ -139,6 +139,59 @@ def test_reload_replaces_corpus_for_new_list_identity(
 
 
 @pytest.mark.asyncio
+async def test_async_reload_prepares_corpus_inside_worker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    specs = [
+        make_changespec(name="feature_a"),
+        make_changespec(name="other_b"),
+    ]
+    app = _FakeApp([], query='"feature"')
+    compile_contexts: list[bool] = []
+    worker_active = False
+
+    def compile_query_corpus(changespecs: list[Any]) -> QueryCorpus:
+        compile_contexts.append(worker_active)
+        return QueryCorpus(
+            source_list_id=id(changespecs),
+            expected_length=len(changespecs),
+            rust_handle=_FakeRustCorpus([cs.name for cs in changespecs]),
+        )
+
+    def evaluate_query_many_with_corpus(query: str, corpus: QueryCorpus) -> list[bool]:
+        corpus.validate()
+        return ["feature" in name for name in corpus.rust_handle.names]
+
+    async def to_thread(func: Any, /, *args: Any, **kwargs: Any) -> Any:
+        nonlocal worker_active
+        worker_active = True
+        try:
+            return func(*args, **kwargs)
+        finally:
+            worker_active = False
+
+    monkeypatch.setattr(
+        "sase.ace.changespec.find_all_changespecs_cached",
+        lambda: specs,
+    )
+    monkeypatch.setattr(
+        "sase.core.query_corpus_facade.compile_query_corpus",
+        compile_query_corpus,
+    )
+    monkeypatch.setattr(
+        "sase.core.query_corpus_facade.evaluate_query_many_with_corpus",
+        evaluate_query_many_with_corpus,
+    )
+    monkeypatch.setattr("asyncio.to_thread", to_thread)
+
+    await app._reload_and_reposition_async()
+
+    assert [cs.name for cs in app.changespecs] == ["feature_a"]
+    assert compile_contexts == [True]
+    assert app._query_corpus_source_list_id == id(specs)
+
+
+@pytest.mark.asyncio
 async def test_startup_saved_query_fallback_reuses_loaded_corpus(
     fake_query_corpus: dict[str, list[Any]],
     monkeypatch: pytest.MonkeyPatch,

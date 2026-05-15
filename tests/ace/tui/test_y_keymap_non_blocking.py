@@ -22,12 +22,29 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.ace.tui.actions.changespec import ChangeSpecMixin
+from sase.core.query_corpus_facade import QueryCorpus
 
 
 def _make_cs(name: str) -> MagicMock:
     cs = MagicMock()
     cs.name = name
     return cs
+
+
+class _FakeRustCorpus:
+    def __init__(self, length: int) -> None:
+        self.length = length
+
+    def __len__(self) -> int:
+        return self.length
+
+
+def _fake_query_corpus(changespecs: list[MagicMock]) -> QueryCorpus:
+    return QueryCorpus(
+        source_list_id=id(changespecs),
+        expected_length=len(changespecs),
+        rust_handle=_FakeRustCorpus(len(changespecs)),
+    )
 
 
 class FakeApp(ChangeSpecMixin):
@@ -46,6 +63,8 @@ class FakeApp(ChangeSpecMixin):
         self._hidden_submitted_count = 0
         self._changespecs_loading: bool = False
         self._changespecs_refresh_pending: bool = False
+        self._query_corpus: QueryCorpus | None = None
+        self._query_corpus_source_list_id: int | None = None
         self._scheduled: list[Any] = []
 
     def _refresh_display(self) -> None:
@@ -90,6 +109,10 @@ async def test_reload_does_not_block_event_loop() -> None:
             "_filter_changespecs",
             side_effect=lambda _all: disk_cs,
         ),
+        patch(
+            "sase.core.query_corpus_facade.compile_query_corpus",
+            side_effect=_fake_query_corpus,
+        ),
     ):
         reload_task = asyncio.create_task(app._reload_and_reposition_async())
 
@@ -131,6 +154,10 @@ async def test_run_async_refresh_sets_and_clears_loading_flag() -> None:
             ChangeSpecMixin,
             "_filter_changespecs",
             side_effect=lambda _all: disk_cs,
+        ),
+        patch(
+            "sase.core.query_corpus_facade.compile_query_corpus",
+            side_effect=_fake_query_corpus,
         ),
     ):
         assert not app._changespecs_loading
