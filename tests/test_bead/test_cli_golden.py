@@ -81,7 +81,7 @@ def _init_git_repo(root: Path) -> None:
         capture_output=True,
     )
     subprocess.run(
-        ["git", "add", "sdd/beads/issues.jsonl"],
+        ["git", "add", "sdd/beads"],
         cwd=root,
         check=True,
         capture_output=True,

@@ -299,12 +299,12 @@ class TestGitSyncWorkflow:
         with BeadProject.init(tmp_path) as proj:
             yield proj
 
-    def test_sync_stages_jsonl(self, git_project):
-        """Create issues, sync, verify JSONL staged."""
+    def test_sync_stages_bead_state(self, git_project):
+        """Create issues, sync, verify bead state staged."""
         git_project.create("Test epic", IssueType.PLAN)
         git_project.sync()
 
-        # Check that JSONL is staged but not committed
+        # Check that bead state is staged but not committed.
         result = subprocess.run(
             ["git", "diff", "--cached", "--name-only"],
             cwd=git_project.root_dir,
@@ -313,23 +313,37 @@ class TestGitSyncWorkflow:
             check=True,
         )
         assert "issues.jsonl" in result.stdout
+        assert "events/streams/" in result.stdout
 
     def test_sync_is_clean_after_sync(self, git_project):
-        """After sync, sync_is_clean returns True."""
-        # First sync to get JSONL tracked by git
+        """After sync and commit, sync_is_clean returns True."""
         git_project.sync()
+        subprocess.run(
+            ["git", "commit", "-m", "add bead state"],
+            cwd=git_project.root_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
         assert git_project.sync_is_clean()
 
-        # Create an issue — JSONL changes are now detectable
+        # Create an issue; bead-state changes are now detectable.
         git_project.create("Epic", IssueType.PLAN)
         assert not git_project.sync_is_clean()
 
         git_project.sync()
+        subprocess.run(
+            ["git", "commit", "-m", "update bead state"],
+            cwd=git_project.root_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
         assert git_project.sync_is_clean()
 
     def test_sync_no_op_when_clean(self, git_project):
         """Sync with no changes doesn't create a commit."""
-        # First sync to establish baseline (commits the empty JSONL)
+        # First sync to establish baseline.
         git_project.sync()
         result_before = subprocess.run(
             ["git", "rev-list", "--count", "HEAD"],

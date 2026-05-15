@@ -6,8 +6,9 @@ skill: true
 
 Quick reference for the `sase bead` CLI. Use `sase bead` (not `.venv/bin/sase bead`) for all bead commands.
 
-In version-controlled projects, `sase bead` reads and writes the current checkout's `sdd/beads/issues.jsonl` store. It
-does not merge bead records from numbered sibling workspaces or legacy bead stores.
+In version-controlled projects, `sase bead` reads and writes the current checkout's `sdd/beads/` store. Canonical state
+lives in `sdd/beads/events/**` when present; `issues.jsonl` is a generated compatibility projection. It does not merge
+bead records from numbered sibling workspaces or legacy bead stores.
 
 ## Statuses
 

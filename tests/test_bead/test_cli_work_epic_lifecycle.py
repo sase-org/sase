@@ -80,7 +80,7 @@ def test_work_invokes_push_when_config_flag_enabled(
 
     assert push_calls == [project_dir / "sdd/beads"]
     out = capsys.readouterr().out
-    assert f"Committed sdd/beads/issues.jsonl for epic {epic_id}." in out
+    assert f"Committed bead state for epic {epic_id}." in out
     assert "Pushed to remote." in out
 
 
@@ -111,7 +111,7 @@ def test_work_skips_push_when_config_flag_disabled(
     bead_cli.handle_bead_work(make_args(epic_id, yes=True))
 
     out = capsys.readouterr().out
-    assert f"Committed sdd/beads/issues.jsonl for epic {epic_id}." in out
+    assert f"Committed bead state for epic {epic_id}." in out
     assert "Pushed to remote." not in out
 
 
@@ -146,7 +146,7 @@ def test_work_warns_when_push_fails(
     bead_cli.handle_bead_work(make_args(epic_id, yes=True))
 
     captured = capsys.readouterr()
-    assert f"Committed sdd/beads/issues.jsonl for epic {epic_id}." in captured.out
+    assert f"Committed bead state for epic {epic_id}." in captured.out
     assert "Pushed to remote." not in captured.out
     assert "git push failed: nope" in captured.err
 
@@ -222,7 +222,7 @@ def test_work_commit_failure_reports_after_successful_launch(
     assert "Launched" in captured.out
     assert (
         f"agents launched for epic {epic_id}, but committing "
-        "sdd/beads/issues.jsonl failed: git commit failed"
+        "bead state failed: git commit failed"
     ) in captured.err
 
 

@@ -490,7 +490,7 @@ def _commit_successful_work_launch(
     except BeadWorkLaunchCommitError as exc:
         print(
             f"Error: agents launched for {kind} {bead_id}, but committing "
-            f"sdd/beads/issues.jsonl failed: {exc}",
+            f"bead state failed: {exc}",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -508,12 +508,12 @@ def _commit_successful_work_launch(
             suffix = " Pushed to remote."
         elif outcome.error is not None:
             print(
-                f"Warning: committed sdd/beads/issues.jsonl for {kind} {bead_id}, "
+                f"Warning: committed bead state for {kind} {bead_id}, "
                 f"but {outcome.error}. Push manually with "
                 f"`cd {beads_dir.parent.parent} && git push`.",
                 file=sys.stderr,
             )
-    print(f"Committed sdd/beads/issues.jsonl for {kind} {bead_id}.{suffix}")
+    print(f"Committed bead state for {kind} {bead_id}.{suffix}")
 
 
 def rollback_work_launch(

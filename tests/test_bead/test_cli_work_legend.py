@@ -242,7 +242,7 @@ def test_legend_work_commit_failure_reports_after_successful_launch(
     assert "Launched" in captured.out
     assert (
         f"agents launched for legend {legend_id}, but committing "
-        "sdd/beads/issues.jsonl failed: git commit failed"
+        "bead state failed: git commit failed"
     ) in captured.err
 
 

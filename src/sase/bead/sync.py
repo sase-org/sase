@@ -21,16 +21,14 @@ class _PushOutcome:
 
 
 def git_sync(beads_dir: Path) -> None:
-    """Export JSONL and stage in git (does not commit)."""
-    jsonl_path = beads_dir / "issues.jsonl"
-    if not jsonl_path.exists():
+    """Stage bead state in git (does not commit)."""
+    if not beads_dir.exists():
         return
     repo_root = _find_git_root(beads_dir)
     if repo_root is None:
         return
-    # Stage the JSONL file
     subprocess.run(
-        ["git", "add", str(jsonl_path)],
+        ["git", "add", "--", *_bead_state_pathspecs(beads_dir, repo_root)],
         cwd=repo_root,
         capture_output=True,
         check=False,
@@ -44,28 +42,28 @@ def commit_bead_work_launch(
     *,
     kind: str,
 ) -> bool:
-    """Commit the JSONL bead-state mutation produced by ``sase bead work``.
+    """Commit the bead-state mutation produced by ``sase bead work``.
 
-    Returns False for benign no-op cases: no git repo, no JSONL file, or no
-    staged JSONL change after adding the file.
+    Returns False for benign no-op cases: no git repo, no bead state, or no
+    staged bead-state change after adding the store.
     """
     del title
-    jsonl_path = beads_dir / "issues.jsonl"
-    if not jsonl_path.exists():
+    if not beads_dir.exists():
         return False
     repo_root = _find_git_root(beads_dir)
     if repo_root is None:
         return False
 
-    rel_jsonl = _relative_pathspec(jsonl_path, repo_root)
+    pathspecs = _bead_state_pathspecs(beads_dir, repo_root)
+    rel_beads = pathspecs[0]
     _run_git_or_raise(
-        ["git", "add", "--", rel_jsonl],
+        ["git", "add", "--", *pathspecs],
         cwd=repo_root,
-        action=f"stage {rel_jsonl}",
+        action=f"stage {rel_beads}",
     )
 
     diff_result = subprocess.run(
-        ["git", "diff", "--cached", "--quiet", "--", rel_jsonl],
+        ["git", "diff", "--cached", "--quiet", "--", *pathspecs],
         cwd=repo_root,
         capture_output=True,
         text=True,
@@ -75,17 +73,37 @@ def commit_bead_work_launch(
         return False
     if diff_result.returncode != 1:
         raise BeadWorkLaunchCommitError(
-            _format_git_failure(f"inspect staged changes for {rel_jsonl}", diff_result)
+            _format_git_failure(f"inspect staged changes for {rel_beads}", diff_result)
         )
 
     subject_kind = "legend" if kind == "legend" else "bead"
     message = f"chore: mark {subject_kind} work launched for {bead_id}"
     _run_git_or_raise(
-        ["git", "commit", "-m", message, "--", rel_jsonl],
+        ["git", "commit", "-m", message, "--", *pathspecs],
         cwd=repo_root,
-        action=f"commit {rel_jsonl}",
+        action=f"commit {rel_beads}",
     )
     return True
+
+
+def bead_state_is_clean(beads_dir: Path) -> bool:
+    """Return whether the bead store has no tracked or untracked git changes."""
+    if not beads_dir.exists():
+        return True
+    repo_root = _find_git_root(beads_dir)
+    if repo_root is None:
+        return True
+    pathspecs = _bead_state_pathspecs(beads_dir, repo_root)
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--", *pathspecs],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if status.returncode != 0:
+        return True
+    return not status.stdout.strip()
 
 
 def rebuild_from_jsonl(beads_dir: Path) -> bool:
@@ -133,6 +151,14 @@ def _find_git_root(path: Path) -> Path | None:
 
 def _relative_pathspec(path: Path, repo_root: Path) -> str:
     return path.resolve().relative_to(repo_root.resolve()).as_posix()
+
+
+def _bead_state_pathspecs(beads_dir: Path, repo_root: Path) -> list[str]:
+    rel_beads = _relative_pathspec(beads_dir, repo_root)
+    return [
+        rel_beads,
+        f":(exclude){rel_beads}/beads.db*",
+    ]
 
 
 def _run_git_or_raise(command: list[str], *, cwd: Path, action: str) -> None:

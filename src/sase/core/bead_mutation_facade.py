@@ -177,11 +177,6 @@ def export_jsonl(beads_dir: Path | str) -> dict[str, Any]:
     return dict(binding(str(beads_dir)))
 
 
-def sync_is_clean(beads_dir: Path | str) -> bool:
-    binding = require_rust_binding("bead_sync_is_clean")
-    return bool(binding(str(beads_dir)))
-
-
 def _call_issue_operation(binding: Any, *args: Any) -> dict[str, Any]:
     try:
         return dict(binding(*args))
@@ -216,7 +211,6 @@ __all__ = [
     "mark_ready_to_work",
     "preclaim_epic_work",
     "remove",
-    "sync_is_clean",
     "unmark_ready_to_work",
     "update",
 ]

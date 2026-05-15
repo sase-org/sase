@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 
 from sase.bead.sync import (
+    bead_state_is_clean,
     commit_bead_work_launch,
     git_sync,
     push_bead_work_launch,
@@ -14,27 +15,7 @@ from sase.bead.sync import (
 
 
 def _sync_status(beads_dir: Path) -> bool:
-    jsonl_path = beads_dir / "issues.jsonl"
-    if not jsonl_path.exists():
-        return True
-
-    result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        cwd=beads_dir,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        return True
-    repo_root = Path(result.stdout.strip())
-    diff = subprocess.run(
-        ["git", "diff", "--quiet", str(jsonl_path)],
-        cwd=repo_root,
-        capture_output=True,
-        check=False,
-    )
-    return diff.returncode == 0
+    return bead_state_is_clean(beads_dir)
 
 
 def _init_git_repo(path):
@@ -94,16 +75,39 @@ def test_sync_status_dirty_when_modified(tmp_path):
     assert _sync_status(beads_dir) is False
 
 
-def test_git_sync_stages_jsonl(tmp_path):
+def test_sync_status_dirty_when_event_stream_untracked(tmp_path):
+    _init_git_repo(tmp_path)
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+    jsonl = beads_dir / "issues.jsonl"
+    jsonl.write_text("")
+    subprocess.run(["git", "add", "sdd/beads"], cwd=tmp_path, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "add bead state"],
+        cwd=tmp_path,
+        capture_output=True,
+    )
+
+    stream = beads_dir / "events/streams/test.jsonl"
+    stream.parent.mkdir(parents=True)
+    stream.write_text('{"event_id":"test"}\n')
+
+    assert _sync_status(beads_dir) is False
+
+
+def test_git_sync_stages_bead_state(tmp_path):
     _init_git_repo(tmp_path)
     beads_dir = tmp_path / "sdd/beads"
     beads_dir.mkdir(parents=True)
     jsonl = beads_dir / "issues.jsonl"
     jsonl.write_text('{"id":"test"}\n')
+    stream = beads_dir / "events/streams/test.jsonl"
+    stream.parent.mkdir(parents=True)
+    stream.write_text('{"event_id":"test"}\n')
 
     git_sync(beads_dir)
 
-    # Verify the file was staged but not committed
+    # Verify the bead state was staged but not committed.
     result = subprocess.run(
         ["git", "diff", "--cached", "--name-only"],
         cwd=tmp_path,
@@ -111,6 +115,7 @@ def test_git_sync_stages_jsonl(tmp_path):
         text=True,
     )
     assert "issues.jsonl" in result.stdout
+    assert "events/streams/test.jsonl" in result.stdout
 
 
 def test_git_sync_noop_when_clean(tmp_path):
@@ -135,12 +140,15 @@ def test_git_sync_noop_when_clean(tmp_path):
     assert result.stdout.strip() == ""
 
 
-def test_commit_bead_work_launch_commits_jsonl(tmp_path):
+def test_commit_bead_work_launch_commits_bead_state(tmp_path):
     _init_git_repo(tmp_path)
     beads_dir = tmp_path / "sdd/beads"
     beads_dir.mkdir(parents=True)
     jsonl = beads_dir / "issues.jsonl"
     jsonl.write_text('{"id":"test"}\n')
+    stream = beads_dir / "events/streams/sase-1.jsonl"
+    stream.parent.mkdir(parents=True)
+    stream.write_text('{"event_id":"sase-1:000001"}\n')
 
     committed = commit_bead_work_launch(
         beads_dir,
@@ -165,7 +173,10 @@ def test_commit_bead_work_launch_commits_jsonl(tmp_path):
         text=True,
         check=True,
     )
-    assert files.stdout.strip() == "sdd/beads/issues.jsonl"
+    assert files.stdout.strip().splitlines() == [
+        "sdd/beads/events/streams/sase-1.jsonl",
+        "sdd/beads/issues.jsonl",
+    ]
 
 
 def test_commit_bead_work_launch_noops_outside_git(tmp_path):
@@ -178,7 +189,7 @@ def test_commit_bead_work_launch_noops_outside_git(tmp_path):
     )
 
 
-def test_commit_bead_work_launch_noops_when_jsonl_has_no_change(tmp_path):
+def test_commit_bead_work_launch_noops_when_bead_state_has_no_change(tmp_path):
     _init_git_repo(tmp_path)
     beads_dir = tmp_path / "sdd/beads"
     beads_dir.mkdir(parents=True)

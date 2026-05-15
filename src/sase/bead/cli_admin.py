@@ -23,12 +23,12 @@ def handle_bead_sync(args: argparse.Namespace) -> None:
         if args.status:
             clean = proj.sync_is_clean()
             if clean:
-                print("✓ JSONL is in sync with git")
+                print("✓ Bead state is in sync with git")
             else:
-                print("○ JSONL has uncommitted changes")
+                print("○ Bead state has uncommitted changes")
             return
         proj.sync()
-        print("✓ Synced issues to git")
+        print("✓ Synced bead state to git")
 
 
 def handle_bead_doctor(args: argparse.Namespace) -> None:
@@ -42,7 +42,8 @@ def handle_bead_onboard(args: argparse.Namespace) -> None:
     print("""sase bead — Lightweight git-native issue tracking
 
 Source of truth:
-  Version-controlled projects use this checkout's sdd/beads/issues.jsonl.
+  Version-controlled projects use this checkout's sdd/beads/ event store.
+  issues.jsonl remains a generated compatibility projection.
   Normal reads do not merge numbered sibling workspaces or legacy stores.
 
 Quick Start:
@@ -63,7 +64,7 @@ Quick Start:
   sase bead rm <id>                              Remove an issue (and children)
   sase bead dep add <issue> <depends-on>         Add dependency
   sase bead blocked                              Show blocked issues
-  sase bead sync                                 Commit JSONL to git
+  sase bead sync                                 Stage bead state in git
   sase bead stats                                Project statistics
   sase bead doctor                               Health check
   sase bead work <epic-or-legend>                Launch epic phase agents or legend epic-planning agents""")

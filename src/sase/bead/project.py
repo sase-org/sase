@@ -13,7 +13,7 @@ from sase.bead.config import get_default_config, load_config, save_config
 from sase.bead.ids import IdGenerator, max_top_level_counter
 from sase.bead.jsonl import export_to_jsonl
 from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
-from sase.bead.sync import git_sync, rebuild_from_jsonl
+from sase.bead.sync import bead_state_is_clean, git_sync, rebuild_from_jsonl
 from sase.telemetry.metrics import (
     BEAD_ACTIVE,
     BEAD_OPERATIONS,
@@ -311,15 +311,13 @@ class BeadProject:
         return rust_beads.blocked(self.beads_dir)
 
     def sync(self) -> None:
-        """Export to JSONL and stage in git."""
+        """Export compatibility projection and stage bead state in git."""
         self._export()
         git_sync(self.beads_dir)
 
     def sync_is_clean(self) -> bool:
-        """Check if JSONL has uncommitted changes."""
-        from sase.core import bead_mutation_facade as rust_beads
-
-        return rust_beads.sync_is_clean(self.beads_dir)
+        """Check if canonical bead state has uncommitted changes."""
+        return bead_state_is_clean(self.beads_dir)
 
     def stats(self) -> dict[str, int]:
         """Return counts by status and type."""
@@ -336,7 +334,7 @@ class BeadProject:
             ok_message = "OK: no issues found"
             if messages == [ok_message]:
                 messages = []
-            messages.append("WARNING: issues.jsonl has uncommitted changes")
+            messages.append("WARNING: bead state has uncommitted changes")
         return messages
 
     def get_epic_children(self, epic_id: str) -> list[Issue]:
