@@ -151,8 +151,8 @@ def _sanitize_pytest_environment() -> None:
         os.environ.pop(key, None)
 
 
-def _configure_mode_environment(mode: str) -> None:
-    if mode in {"fast", "cov"}:
+def _configure_mode_environment(invoked_mode: str) -> None:
+    if invoked_mode in {"fast", "cov"}:
         os.environ.setdefault(
             VISUAL_PNG_MAX_DIFF_RATIO_ENV,
             BROAD_TEST_VISUAL_PNG_MAX_DIFF_RATIO,
@@ -170,7 +170,7 @@ def main(argv: list[str] | None = None) -> int:
     ).resolve()
     mode, pytest_args = _resolve_mode_and_args(namespace.mode, namespace.pytest_args)
     pytest_args = _normalize_args(pytest_args, invocation_dir)
-    _configure_mode_environment(mode)
+    _configure_mode_environment(namespace.mode)
     command = _pytest_command(mode, pytest_args)
 
     _sanitize_pytest_environment()
