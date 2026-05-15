@@ -14,6 +14,7 @@ from ._subprocess_artifacts import (
     write_usage_artifact,
 )
 from ._subprocess_stream import append_error_events, stream_json_lines
+from ._tool_calls import append_qwen_tool_call_event
 
 
 def stream_and_parse_qwen_json_output(
@@ -78,6 +79,7 @@ def _process_qwen_json_line(
     except json.JSONDecodeError:
         return
 
+    append_qwen_tool_call_event(event)
     event_type = event.get("type")
 
     if event_type == "assistant":

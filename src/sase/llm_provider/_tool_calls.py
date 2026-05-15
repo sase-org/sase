@@ -29,6 +29,10 @@ from ._tool_call_gemini import (
     append_gemini_tool_call_event,
     normalize_gemini_tool_call_event as _normalize_gemini_tool_call_event,
 )
+from ._tool_call_qwen import (
+    append_qwen_tool_call_event,
+    normalize_qwen_tool_call_event as _normalize_qwen_tool_call_event,
+)
 from ._tool_call_common import (
     HOOK_SCHEMA_VERSION as _HOOK_SCHEMA_VERSION,
     PREVIEW_LIMIT as _PREVIEW_LIMIT,
@@ -57,10 +61,12 @@ __all__ = [
     "_normalize_claude_stream_event",
     "_normalize_codex_tool_call_event",
     "_normalize_gemini_tool_call_event",
+    "_normalize_qwen_tool_call_event",
     "_summarize_tool_input",
     "append_claude_hook_tool_call_event",
     "append_claude_tool_call_event",
     "append_codex_tool_call_event",
     "append_gemini_tool_call_event",
+    "append_qwen_tool_call_event",
     "append_tool_call_collector_diagnostic",
 ]
