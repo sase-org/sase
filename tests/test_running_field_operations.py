@@ -127,14 +127,41 @@ def test_release_workspace_with_workflow_filter() -> None:
         Path(project_file).unlink()
 
 
-def test_get_first_available_workspace_main_claimed() -> None:
-    """Test that next workspace share is returned when main is claimed."""
+def test_get_first_available_workspace_unified_pool_defaults_to_10() -> None:
+    """Default allocator returns ``#10`` even when ``#1`` is claimed."""
     project_file = _create_project_file_with_running(
         running_claims=[WorkspaceClaim(1, "crs", "feature", pid=12345)]
     )
     try:
+        # ``#1`` is reserved; the unified claim pool starts at ``#10``.
         workspace_num = get_first_available_workspace(project_file)
+        assert workspace_num == 10
+    finally:
+        Path(project_file).unlink()
+
+
+def test_get_first_available_workspace_legacy_range_still_works() -> None:
+    """Explicit ``min_workspace`` / ``max_workspace`` preserves legacy ranges."""
+    project_file = _create_project_file_with_running(
+        running_claims=[WorkspaceClaim(1, "crs", "feature", pid=12345)]
+    )
+    try:
+        workspace_num = get_first_available_workspace(
+            project_file, min_workspace=1, max_workspace=99
+        )
         assert workspace_num == 2
+    finally:
+        Path(project_file).unlink()
+
+
+def test_get_first_available_workspace_skips_claimed_unified_pool_slot() -> None:
+    """Occupied ``#10`` allocates ``#11`` from the unified pool."""
+    project_file = _create_project_file_with_running(
+        running_claims=[WorkspaceClaim(10, "crs", "feature", pid=12345)]
+    )
+    try:
+        workspace_num = get_first_available_workspace(project_file)
+        assert workspace_num == 11
     finally:
         Path(project_file).unlink()
 
@@ -332,43 +359,43 @@ def test_claim_workspace_allows_workspace_zero_duplicates() -> None:
 
 
 def test_claim_next_axe_workspace_finds_first_available() -> None:
-    """Test atomic claim picks the first free workspace in axe range."""
+    """Atomic claim picks the first free workspace in the unified pool."""
     project_file = _create_project_file_with_running(
-        running_claims=[WorkspaceClaim(100, "hg-foo", "foo", pid=11111)]
+        running_claims=[WorkspaceClaim(10, "hg-foo", "foo", pid=11111)]
     )
     try:
         workspace_num = claim_next_axe_workspace(
             project_file, "hg-bar", 22222, cl_name="bar"
         )
-        assert workspace_num == 101
+        assert workspace_num == 11
 
         claims = get_claimed_workspaces(project_file)
         assert len(claims) == 2
         claimed_nums = {c.workspace_num for c in claims}
-        assert claimed_nums == {100, 101}
+        assert claimed_nums == {10, 11}
     finally:
         Path(project_file).unlink()
 
 
 def test_claim_next_axe_workspace_empty_running_field() -> None:
-    """Test atomic claim on a file with no existing claims."""
+    """Atomic claim on an empty project allocates ``#10`` from the unified pool."""
     project_file = _create_project_file_with_running()
     try:
         workspace_num = claim_next_axe_workspace(
             project_file, "hg-foo", 12345, cl_name="foo"
         )
-        assert workspace_num == 100
+        assert workspace_num == 10
 
         claims = get_claimed_workspaces(project_file)
         assert len(claims) == 1
-        assert claims[0].workspace_num == 100
+        assert claims[0].workspace_num == 10
         assert claims[0].pid == 12345
     finally:
         Path(project_file).unlink()
 
 
 def test_claim_next_axe_workspace_empty_running_header() -> None:
-    """Test atomic claim on a file with an empty RUNNING field."""
+    """Atomic claim on a file with an empty RUNNING field allocates ``#10``."""
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".sase") as f:
         f.write("RUNNING:\nNAME: Test Feature\nSTATUS: Ready\n")
         project_file = f.name
@@ -376,11 +403,30 @@ def test_claim_next_axe_workspace_empty_running_header() -> None:
         workspace_num = claim_next_axe_workspace(
             project_file, "hg-foo", 12345, cl_name="foo"
         )
-        assert workspace_num == 100
+        assert workspace_num == 10
 
         claims = get_claimed_workspaces(project_file)
         assert len(claims) == 1
-        assert claims[0].workspace_num == 100
+        assert claims[0].workspace_num == 10
+    finally:
+        Path(project_file).unlink()
+
+
+def test_claim_next_axe_workspace_legacy_range_still_works() -> None:
+    """Explicit ``min_workspace`` / ``max_workspace`` preserves legacy ranges."""
+    project_file = _create_project_file_with_running(
+        running_claims=[WorkspaceClaim(100, "hg-foo", "foo", pid=11111)]
+    )
+    try:
+        workspace_num = claim_next_axe_workspace(
+            project_file,
+            "hg-bar",
+            22222,
+            cl_name="bar",
+            min_workspace=100,
+            max_workspace=199,
+        )
+        assert workspace_num == 101
     finally:
         Path(project_file).unlink()
 
@@ -424,8 +470,8 @@ def test_running_field_malformed_claim_rows_are_ignored_for_allocation() -> None
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".sase") as f:
         f.write(
             "RUNNING:\n"
-            "  #100 | not-a-pid | hg-bad | bad\n"
-            "  #101 | 11111 | hg-good | good\n"
+            "  #10 | not-a-pid | hg-bad | bad\n"
+            "  #11 | 11111 | hg-good | good\n"
             "\n\n"
             "NAME: Test Feature\n"
             "STATUS: Ready\n"
@@ -435,9 +481,9 @@ def test_running_field_malformed_claim_rows_are_ignored_for_allocation() -> None
         workspace_num = claim_next_axe_workspace(
             project_file, "hg-new", 22222, cl_name="new"
         )
-        assert workspace_num == 100
+        assert workspace_num == 10
 
         claims = get_claimed_workspaces(project_file)
-        assert {claim.workspace_num for claim in claims} == {100, 101}
+        assert {claim.workspace_num for claim in claims} == {10, 11}
     finally:
         Path(project_file).unlink()

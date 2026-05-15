@@ -149,7 +149,7 @@ def start_stale_hooks(
     """Start stale hooks in background for a specific history entry.
 
     For regular history entries:
-        Claims a workspace >= 100 for this ChangeSpec if not already claimed,
+        Claims a workspace from the unified pool (#10+) for this ChangeSpec if not already claimed,
         runs sase_hg_update, and starts hooks. The workspace remains claimed while
         hooks are running and will be released by _check_hooks when all hooks
         complete (passed/failed/zombie).
@@ -483,7 +483,7 @@ def _start_stale_hooks_shared_workspace(
 ) -> tuple[list[str], list[HookEntry], int]:
     """Start stale hooks using a shared workspace (for regular entries).
 
-    Claims a workspace >= 100 for this ChangeSpec's entry if not already
+    Claims a workspace from the unified pool (#10+) for this ChangeSpec's entry if not already
     claimed. Only reuses a workspace if it's for the SAME entry ID.
     The workspace remains claimed while hooks are running and will be
     released by _check_hooks when all hooks complete (passed/failed/zombie).
@@ -539,7 +539,7 @@ def _start_stale_hooks_shared_workspace(
         workspace_num = existing_workspace
         newly_claimed = False
     else:
-        # Claim a new workspace >= 100
+        # Claim a new workspace from the unified pool (#10+)
         workspace_num = get_first_available_axe_workspace(changespec.file_path)
         newly_claimed = True
 

@@ -39,7 +39,7 @@ def archive_changespec(
     This function:
     1. Validates that the ChangeSpec has a valid CL set
     2. Validates that all children are Archived or Reverted
-    3. Claims a workspace >= 100
+    3. Claims a workspace from the unified pool (#10+)
     4. Checks out the CL with sase_hg_update
     5. Saves the diff to `~/.sase/archived/<new_name>.diff`
     6. Runs `sase_hg_archive <name>` to archive the revision
@@ -90,7 +90,7 @@ def archive_changespec(
 
     project_basename = project_spec_basename(changespec.file_path)
 
-    # Claim a workspace >= 100 for the archive operation
+    # Claim a workspace from the unified pool (#10+) for the archive operation
     workspace_num = get_first_available_axe_workspace(changespec.file_path)
     workflow_name = f"archive-{changespec.name}"
     pid = os.getpid()

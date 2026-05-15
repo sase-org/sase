@@ -2,52 +2,78 @@
 
 from sase.running_field._operations import get_claimed_workspaces
 
+# Unified claim pool. ``#0`` is the primary checkout / deferred placeholder and
+# numbers ``#1``-``#9`` are reserved. Claim-backed workspaces (workflow shares
+# and axe-launched agents alike) allocate from a single unified pool starting
+# at ``#10``.
+RESERVED_MAX_WORKSPACE = 9
+UNIFIED_MIN_WORKSPACE = 10
+UNIFIED_MAX_WORKSPACE = 999
 
-def get_first_available_workspace(project_file: str, max_workspaces: int = 99) -> int:
+
+def get_first_available_workspace(
+    project_file: str,
+    min_workspace: int = UNIFIED_MIN_WORKSPACE,
+    max_workspace: int = UNIFIED_MAX_WORKSPACE,
+) -> int:
     """Find the first available (unclaimed) workspace number.
+
+    Allocates from the unified claim pool (default ``10-999``).  Workspace
+    ``#0`` is the primary checkout / deferred placeholder and ``#1``-``#9``
+    are reserved; callers that need a legacy range can pass explicit
+    ``min_workspace`` / ``max_workspace`` bounds.
 
     Args:
         project_file: Path to the ProjectSpec file
-        max_workspaces: Maximum workspace number to check (1-99)
+        min_workspace: Minimum workspace number to consider (default: 10)
+        max_workspace: Maximum workspace number to consider (default: 999)
 
     Returns:
-        First available workspace number (1 = main, 2+ = shares)
+        First available workspace number in the configured range.
+
+    Raises:
+        RuntimeError: If every workspace in the range is claimed.
     """
     claims = get_claimed_workspaces(project_file)
     claimed_nums = {claim.workspace_num for claim in claims}
 
-    # Find first unclaimed workspace number
-    for n in range(1, max_workspaces + 1):
+    for n in range(min_workspace, max_workspace + 1):
         if n not in claimed_nums:
             return n
 
-    # All workspaces claimed - return 1 as fallback
-    return 1
+    raise RuntimeError(
+        f"All workspaces ({min_workspace}-{max_workspace}) are claimed "
+        f"in {project_file}"
+    )
 
 
 def get_first_available_axe_workspace(
-    project_file: str, min_workspace: int = 100, max_workspace: int = 199
+    project_file: str,
+    min_workspace: int = UNIFIED_MIN_WORKSPACE,
+    max_workspace: int = UNIFIED_MAX_WORKSPACE,
 ) -> int:
     """Find the first available (unclaimed) workspace number for axe hooks.
 
-    Axe hooks use workspace numbers >= 100 to avoid conflicts with regular
-    workflows that use workspaces 1-99.
+    Axe hooks share the unified claim pool (default ``10-999``) with other
+    claim-backed workspaces.  Workspace ``#0`` remains the deferred
+    placeholder and ``#1``-``#9`` are reserved.  Tests and advanced callers
+    may pass explicit ``min_workspace`` / ``max_workspace`` to exercise a
+    legacy range.
 
     Args:
         project_file: Path to the ProjectSpec file
-        min_workspace: Minimum workspace number to consider (default: 100)
-        max_workspace: Maximum workspace number to consider (default: 199)
+        min_workspace: Minimum workspace number to consider (default: 10)
+        max_workspace: Maximum workspace number to consider (default: 999)
 
     Returns:
-        First available workspace number in the axe range (100-199)
+        First available workspace number in the configured range.
 
     Raises:
-        RuntimeError: If every workspace in the axe range is claimed.
+        RuntimeError: If every workspace in the range is claimed.
     """
     claims = get_claimed_workspaces(project_file)
     claimed_nums = {claim.workspace_num for claim in claims}
 
-    # Find first unclaimed workspace number in axe range
     for n in range(min_workspace, max_workspace + 1):
         if n not in claimed_nums:
             return n

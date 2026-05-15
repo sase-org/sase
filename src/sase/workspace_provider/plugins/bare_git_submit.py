@@ -140,7 +140,7 @@ def submit_bare_git(
     if not workspace_dir:
         return (False, "WORKSPACE_DIR is not set for this project")
 
-    # Claim a workspace >= 100 for the submit operation
+    # Claim a workspace from the unified pool (#10+) for the submit operation
     workspace_num = get_first_available_axe_workspace(changespec_file)
     workflow_name = f"submit-{changespec_name}"
     pid = os.getpid()

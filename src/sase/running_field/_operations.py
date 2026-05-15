@@ -377,14 +377,20 @@ def claim_next_axe_workspace(
     cl_name: str | None = None,
     artifacts_timestamp: str | None = None,
     pinned: bool = False,
-    min_workspace: int = 100,
-    max_workspace: int = 199,
+    min_workspace: int | None = None,
+    max_workspace: int | None = None,
 ) -> int:
     """Atomically find and claim the next available axe workspace.
 
     Combines ``get_first_available_axe_workspace`` and ``claim_workspace``
     into a single operation to eliminate the TOCTOU race window between
     reading the available workspace number and claiming it.
+
+    Claim-backed workspaces share the unified pool with workflow shares;
+    the default range is ``10-999`` (``#0`` is the primary checkout /
+    deferred placeholder and ``#1``-``#9`` are reserved).  Explicit
+    ``min_workspace`` / ``max_workspace`` arguments override the default
+    for tests and advanced callers.
 
     Args:
         project_file: Path to the ProjectSpec file.
@@ -393,8 +399,8 @@ def claim_next_axe_workspace(
         cl_name: Optional ChangeSpec name being worked on.
         artifacts_timestamp: Optional timestamp of the artifacts directory.
         pinned: If True, the claim is pinned and won't be cleaned up as stale.
-        min_workspace: Minimum workspace number to consider (default: 100).
-        max_workspace: Maximum workspace number to consider (default: 199).
+        min_workspace: Minimum workspace number to consider (default: 10).
+        max_workspace: Maximum workspace number to consider (default: 999).
 
     Returns:
         The claimed workspace number.
@@ -404,6 +410,16 @@ def claim_next_axe_workspace(
             includes the Rust outcome's ``error`` field when present so
             callers / digests can see why.
     """
+    from sase.running_field._workspace import (
+        UNIFIED_MAX_WORKSPACE,
+        UNIFIED_MIN_WORKSPACE,
+    )
+
+    if min_workspace is None:
+        min_workspace = UNIFIED_MIN_WORKSPACE
+    if max_workspace is None:
+        max_workspace = UNIFIED_MAX_WORKSPACE
+
     max_retries = 2
     for attempt in range(1 + max_retries):
         if not os.path.exists(project_file):
