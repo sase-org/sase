@@ -532,6 +532,12 @@ def start_stale_workflows(
     if changespec.status in ("Reverted", "Submitted", "Archived"):
         return updates, 0, started
 
+    crs_eligible = _crs_workflow_eligible(changespec)
+    fix_hook_eligible = _fix_hook_workflow_eligible(changespec)
+    summarize_hook_eligible = _summarize_hook_workflow_eligible(changespec)
+    if not crs_eligible and not fix_hook_eligible and not summarize_hook_eligible:
+        return updates, 0, started
+
     # Check global concurrency limit before starting any workflows
     # Include runners started this cycle (across all ChangeSpecs) that aren't
     # yet written to disk
@@ -548,7 +554,7 @@ def start_stale_workflows(
     agents_started = 0
 
     # Start CRS workflows for eligible comment entries
-    for entry in _crs_workflow_eligible(changespec):
+    for entry in crs_eligible:
         if agents_started >= available_slots:
             log(
                 f"Reached runner limit ({max_runners}), deferring remaining workflows",
@@ -565,7 +571,7 @@ def start_stale_workflows(
             time.sleep(1)
 
     # Start fix-hook workflows for all eligible failing hooks (non-proposal entries)
-    for hook, entry_id in _fix_hook_workflow_eligible(changespec):
+    for hook, entry_id in fix_hook_eligible:
         if agents_started >= available_slots:
             log(
                 f"Reached runner limit ({max_runners}), deferring remaining workflows",
@@ -582,7 +588,7 @@ def start_stale_workflows(
             time.sleep(1)
 
     # Start summarize-hook workflows for proposal entry failures
-    for hook, entry_id in _summarize_hook_workflow_eligible(changespec):
+    for hook, entry_id in summarize_hook_eligible:
         if agents_started >= available_slots:
             log(
                 f"Reached runner limit ({max_runners}), deferring remaining workflows",

@@ -3,6 +3,7 @@
 import os
 import tempfile
 
+import sase.ace.scheduler.workflows_runner.starter as starter_module
 from sase.ace.changespec import (
     ChangeSpec,
     CommentEntry,
@@ -22,6 +23,7 @@ from sase.ace.scheduler.workflows_runner.starter import (
     _fix_hook_workflow_eligible,
     get_project_basename,
     get_workflow_output_path,
+    start_stale_workflows,
 )
 
 
@@ -81,6 +83,31 @@ def test_fix_hook_workflow_eligible_no_hooks() -> None:
     cs = _make_changespec(hooks=None)
     result = _fix_hook_workflow_eligible(cs)
     assert len(result) == 0
+
+
+def test_start_stale_workflows_no_eligible_work_skips_global_runner_count(
+    monkeypatch,
+) -> None:
+    """No-op workflow ticks should avoid the expensive global runner scan."""
+    cs = _make_changespec(hooks=None, comments=None)
+
+    def fail_count_agent_runners_global() -> int:
+        raise AssertionError("global runner count should not be called")
+
+    monkeypatch.setattr(
+        starter_module,
+        "count_agent_runners_global",
+        fail_count_agent_runners_global,
+    )
+
+    updates, agents_started, started = start_stale_workflows(
+        cs,
+        lambda _message, _style=None: None,
+    )
+
+    assert updates == []
+    assert agents_started == 0
+    assert started == []
 
 
 def testcheck_workflow_completion_file_not_exists() -> None:

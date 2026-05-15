@@ -3,7 +3,9 @@
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
+import sase.scripts.sase_chop_wait_checks as wait_checks_module
 from sase.axe.chop_script_context import ChopScriptContext, write_chop_context
 from sase.scripts.sase_chop_wait_checks import main as wait_checks_main
 
@@ -28,8 +30,8 @@ def _write_context(tmp_path: Path) -> Path:
     return path
 
 
-def _make_waiting_agent(base: Path, *waiting_for: str) -> Path:
-    artifact_dir = base / ".sase/projects/proj/artifacts/ace-run/waiter"
+def _make_waiting_agent(base: Path, *waiting_for: str, suffix: str = "waiter") -> Path:
+    artifact_dir = base / ".sase/projects/proj/artifacts/ace-run" / suffix
     artifact_dir.mkdir(parents=True)
     (artifact_dir / "waiting.json").write_text(
         json.dumps(
@@ -170,6 +172,61 @@ def test_completed_named_agent_success_path_writes_ready(
     out = capsys.readouterr().out
     assert "[wait_checks] Dependencies satisfied for waiter-cl" in out
     assert "wait_checks: projects=1 artifacts=2 waiting=1 ready_written=1" in out
+
+
+def test_multiple_waiting_dependencies_scan_artifacts_once(
+    tmp_path: Path, monkeypatch
+) -> None:
+    first_waiter = _make_waiting_agent(tmp_path, "foo", "wf", suffix="waiter-1")
+    second_waiter = _make_waiting_agent(tmp_path, "foo", suffix="waiter-2")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome="completed",
+    )
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010202",
+        "wf",
+        workflow_name="wf",
+        done=True,
+        outcome="completed",
+    )
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010303",
+        "wf.child",
+        workflow_name="wf",
+        parent_timestamp="20260506010202",
+        done=True,
+        outcome="completed",
+    )
+
+    original_read_json_dict = wait_checks_module._read_json_dict
+    agent_meta_reads = 0
+
+    def counting_read_json_dict(path: Path) -> dict[str, Any] | None:
+        nonlocal agent_meta_reads
+        if path.name == "agent_meta.json":
+            agent_meta_reads += 1
+        return original_read_json_dict(path)
+
+    monkeypatch.setattr(
+        wait_checks_module,
+        "_read_json_dict",
+        counting_read_json_dict,
+    )
+
+    _run_wait_checks(tmp_path, monkeypatch)
+
+    assert (first_waiter / "ready.json").exists()
+    assert (second_waiter / "ready.json").exists()
+    assert agent_meta_reads == 5
 
 
 def test_wait_checks_no_projects_dir_emits_noop_summary(

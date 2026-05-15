@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-14 23:06:01
-status: wip
+status: done
 prompt: sdd/prompts/202605/tui_slowdown.md
 ---
 # Plan: Diagnose and Fix Current ACE TUI Slowdown
