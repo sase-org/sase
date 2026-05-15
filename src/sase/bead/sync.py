@@ -27,8 +27,11 @@ def git_sync(beads_dir: Path) -> None:
     repo_root = _find_git_root(beads_dir)
     if repo_root is None:
         return
+    files = _list_bead_state_changes_silent(beads_dir, repo_root)
+    if not files:
+        return
     subprocess.run(
-        ["git", "add", "--", *_bead_state_pathspecs(beads_dir, repo_root)],
+        ["git", "add", "--", *files],
         cwd=repo_root,
         capture_output=True,
         check=False,
@@ -54,16 +57,19 @@ def commit_bead_work_launch(
     if repo_root is None:
         return False
 
-    pathspecs = _bead_state_pathspecs(beads_dir, repo_root)
-    rel_beads = pathspecs[0]
+    rel_beads = _relative_pathspec(beads_dir, repo_root)
+    files = _list_bead_state_changes(beads_dir, repo_root)
+    if not files:
+        return False
+
     _run_git_or_raise(
-        ["git", "add", "--", *pathspecs],
+        ["git", "add", "--", *files],
         cwd=repo_root,
         action=f"stage {rel_beads}",
     )
 
     diff_result = subprocess.run(
-        ["git", "diff", "--cached", "--quiet", "--", *pathspecs],
+        ["git", "diff", "--cached", "--quiet", "--", *files],
         cwd=repo_root,
         capture_output=True,
         text=True,
@@ -79,7 +85,7 @@ def commit_bead_work_launch(
     subject_kind = "legend" if kind == "legend" else "bead"
     message = f"chore: mark {subject_kind} work launched for {bead_id}"
     _run_git_or_raise(
-        ["git", "commit", "-m", message, "--", *pathspecs],
+        ["git", "commit", "-m", message, "--", *files],
         cwd=repo_root,
         action=f"commit {rel_beads}",
     )
@@ -93,17 +99,11 @@ def bead_state_is_clean(beads_dir: Path) -> bool:
     repo_root = _find_git_root(beads_dir)
     if repo_root is None:
         return True
-    pathspecs = _bead_state_pathspecs(beads_dir, repo_root)
-    status = subprocess.run(
-        ["git", "status", "--porcelain", "--", *pathspecs],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if status.returncode != 0:
+    try:
+        files = _list_bead_state_changes(beads_dir, repo_root)
+    except BeadWorkLaunchCommitError:
         return True
-    return not status.stdout.strip()
+    return not files
 
 
 def rebuild_from_jsonl(beads_dir: Path) -> bool:
@@ -153,12 +153,61 @@ def _relative_pathspec(path: Path, repo_root: Path) -> str:
     return path.resolve().relative_to(repo_root.resolve()).as_posix()
 
 
-def _bead_state_pathspecs(beads_dir: Path, repo_root: Path) -> list[str]:
+def _list_bead_state_changes(beads_dir: Path, repo_root: Path) -> list[str]:
+    """Return the bead-state files (relative to ``repo_root``) with
+    uncommitted changes — modified, untracked, or deleted — excluding any
+    files matched by ``.gitignore`` (so ``beads.db`` and its SQLite sidecars
+    are never returned).
+    """
     rel_beads = _relative_pathspec(beads_dir, repo_root)
-    return [
-        rel_beads,
-        f":(exclude){rel_beads}/beads.db*",
-    ]
+    result = subprocess.run(
+        [
+            "git",
+            "ls-files",
+            "--modified",
+            "--others",
+            "--deleted",
+            "--exclude-standard",
+            "-z",
+            "--",
+            f"{rel_beads}/",
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.decode(errors="replace").strip()
+        action = f"enumerate bead-state changes under {rel_beads}"
+        if detail:
+            message = f"git {action} failed: {detail}"
+        else:
+            message = f"git {action} failed with exit code {result.returncode}"
+        raise BeadWorkLaunchCommitError(message)
+    db_prefix = f"{rel_beads}/beads.db"
+    seen: dict[str, None] = {}
+    for entry in result.stdout.split(b"\x00"):
+        if not entry:
+            continue
+        path = entry.decode()
+        # Belt-and-suspenders: drop SQLite store paths even if .gitignore is
+        # not configured (e.g. in some test setups). Production always
+        # gitignores these, so this matches old pathspec-exclude semantics.
+        tail = path[len(db_prefix) :] if path.startswith(db_prefix) else None
+        if tail is not None and (tail == "" or tail.startswith("-")):
+            continue
+        seen.setdefault(path, None)
+    return list(seen)
+
+
+def _list_bead_state_changes_silent(beads_dir: Path, repo_root: Path) -> list[str]:
+    """Best-effort variant of :func:`_list_bead_state_changes` that swallows
+    subprocess failure, preserving ``git_sync``'s fire-and-forget contract.
+    """
+    try:
+        return _list_bead_state_changes(beads_dir, repo_root)
+    except BeadWorkLaunchCommitError:
+        return []
 
 
 def _run_git_or_raise(command: list[str], *, cwd: Path, action: str) -> None:

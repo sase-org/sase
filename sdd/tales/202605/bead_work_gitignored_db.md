@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-15 13:01:52
-status: wip
+status: done
 prompt: sdd/prompts/202605/bead_work_gitignored_db.md
 ---
 # Fix `sase bead work` failing because `git add` warns on the gitignored `beads.db`
