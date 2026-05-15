@@ -84,39 +84,44 @@ def get_first_available_axe_workspace(
     )
 
 
+def _normalize_legacy_primary(workspace_num: int) -> int:
+    """Map the legacy ``#1`` primary identity to ``#0`` for store lookups.
+
+    Phase 4 reserved ``1-9`` so the only remaining caller passing ``1`` is
+    legacy code that still means "primary checkout".  ``WorkspaceStore``
+    treats ``#0`` as primary in every root policy; without this translation
+    a ``workspace.root: xdg-state`` config would try to materialize a
+    managed ``proj_1/`` clone for a primary lookup.
+    """
+    return 0 if workspace_num == 1 else workspace_num
+
+
 def get_workspace_directory_for_num(
     workspace_num: int, project_basename: str, *, clean: bool = True
 ) -> tuple[str, str | None]:
     """Get the workspace directory path for a given workspace number.
 
-    Calls sase_hg_get_workspace to get the directory path, which will create
-    workspace shares if they don't exist.
-
-    For non-main workspaces (workspace_num > 1), automatically cleans the
-    workspace to revert any uncommitted changes before returning.  This
-    prevents ``checkout`` / ``hg update`` failures caused by leftover dirty
-    state from a previous run.
+    For the primary checkout (``workspace_num`` ``0`` or legacy ``1``)
+    the returned suffix is ``None`` and no cleanup is performed.  For
+    managed checkouts (``workspace_num >= 2``) the resolved directory is
+    cleaned by default so subsequent ``checkout`` / ``update`` calls do
+    not trip over leftover dirty state.
 
     Args:
-        workspace_num: Workspace number (1 = main, 2+ = shares)
+        workspace_num: Workspace number (``0``/``1`` = primary, ``2+`` = managed)
         project_basename: Project name
-        clean: If True (default), clean non-main workspaces before returning.
+        clean: If True (default), clean managed workspaces before returning.
 
     Returns:
         Tuple of (workspace_directory, workspace_suffix)
         - workspace_directory: Full path to workspace directory
-        - workspace_suffix: Suffix like "fig_3" or None for main workspace
-
-    Raises:
-        RuntimeError: If sase_hg_get_workspace command fails
+        - workspace_suffix: Suffix like "fig_3" or None for the primary
     """
     workspace_dir = get_workspace_directory(project_basename, workspace_num)
 
-    if workspace_num == 1:
+    if workspace_num <= 1:
         return (workspace_dir, None)
 
-    # Clean non-main workspaces to avoid checkout conflicts from leftover
-    # dirty state.
     if clean:
         from sase.workflows.commit_utils import clean_workspace
 
@@ -129,12 +134,13 @@ def get_workspace_directory_for_num(
 def get_workspace_directory(project: str, workspace_num: int = 1) -> str:
     """Get the workspace directory path for a project.
 
-    Delegates to workspace provider plugins via the
-    ``ws_get_workspace_directory`` hook.
+    Compatibility wrapper that maps legacy ``workspace_num == 1`` to the
+    new primary identity ``#0`` and delegates to workspace provider
+    plugins via the ``ws_get_workspace_directory`` hook.
 
     Args:
         project: Project name (e.g., "foobar")
-        workspace_num: Workspace number (1 = main, 2+ = shares)
+        workspace_num: Workspace number (``0``/``1`` = primary, ``2+`` = managed)
 
     Returns:
         Full path to workspace directory
@@ -154,6 +160,8 @@ def get_workspace_directory(project: str, workspace_num: int = 1) -> str:
     )
     from sase.workflows.utils import get_project_file_path
 
+    workspace_num = _normalize_legacy_primary(workspace_num)
+
     project_file = get_project_file_path(project)
     workspace_dir = parse_workspace_dir(project_file) or ""
     try:
@@ -165,7 +173,7 @@ def get_workspace_directory(project: str, workspace_num: int = 1) -> str:
         # chops working when provider entry points are temporarily unavailable
         # (e.g. fresh source checkouts without the GitHub plugin installed).
         if workspace_dir and os.path.isdir(workspace_dir):
-            if workspace_num == 1:
+            if workspace_num == 0:
                 return workspace_dir
             if os.path.isdir(os.path.join(workspace_dir, ".git")):
                 return ensure_workspace_checkout(workspace_dir, workspace_num)
