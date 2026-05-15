@@ -17,6 +17,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
@@ -35,6 +36,7 @@ async def test_changespec_initial_png_snapshot(
         await wait_for_startup(page)
         await page.expect_state("tab", "changespecs")
         await page.expect_state("selected.name", "visual_auth")
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -55,6 +57,7 @@ async def test_changespec_selected_row_png_snapshot(
         await page.press("j")
         await page.expect_state("selected.name", "visual_billing")
         page.app._refresh_changespec_detail_only()
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -74,6 +77,7 @@ async def test_query_edit_modal_png_snapshot(
         await page.expect_state("tab", "changespecs")
         await page.press("slash")
         await page.expect_modal("QueryEditModal")
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -93,6 +97,7 @@ async def test_agent_list_png_snapshot(
         await page.press("tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -120,6 +125,7 @@ async def test_agents_selected_row_png_snapshot(
                 break
         else:
             raise AssertionError("j navigation did not move off the initial agent row")
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -195,6 +201,7 @@ async def test_agents_unread_highlight_png_snapshot(
 
         panel = page.app.query_one("#agent-info-panel", AgentInfoPanel)
         assert panel._unread_count == 3, f"expected 3 unread, got {panel._unread_count}"
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,

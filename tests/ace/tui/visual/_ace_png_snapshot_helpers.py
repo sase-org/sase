@@ -5,6 +5,7 @@ The underscore prefix keeps pytest from collecting this module.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
@@ -259,3 +260,26 @@ async def wait_for_startup(page: AcePage) -> None:
             page.app._agents_first_load_done and page.app._axe_first_load_done
         )
     )
+
+
+async def wait_for_visual_idle(page: AcePage, *, timeout: float = 1.0) -> None:
+    """Wait until debounced detail updates and layout paints have settled."""
+    deadline = asyncio.get_event_loop().time() + timeout
+    while True:
+        pending = any(
+            bool(getattr(getattr(page.app, name, None), "is_pending", False))
+            for name in (
+                "_changespec_detail_debouncer",
+                "_agent_detail_debouncer",
+                "_axe_detail_debouncer",
+            )
+        )
+        if not pending:
+            break
+        if asyncio.get_event_loop().time() >= deadline:
+            raise AssertionError("Timed out waiting for ACE visual debouncers")
+        await page.pause()
+        await asyncio.sleep(0.02)
+
+    for _ in range(3):
+        await page.pause()
