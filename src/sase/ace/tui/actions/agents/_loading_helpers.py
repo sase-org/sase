@@ -10,8 +10,6 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType  # noqa: F401
     from ...models.agent_loader import AgentLoadState
-    from ...data_providers import AgentsDataProvider, AgentsViewport
-    from ...provider_contract import AceSnapshot
 
 from ...util.trace import tui_trace
 from ...models.agent_status import DISMISSABLE_STATUSES
@@ -27,7 +25,6 @@ class _AgentDiskLoadResult:
     all_agents: list[Agent]
     dismissed_from_loader: list[Agent]
     load_state: AgentLoadState
-    provider_snapshot: AceSnapshot[Agent] | None = None
 
 
 def is_always_visible(agent: Agent) -> bool:
@@ -82,9 +79,6 @@ def load_agents_from_disk_with_state(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     full_history: bool = False,
-    search_query: str | None = None,
-    viewport: AgentsViewport | None = None,
-    data_provider: AgentsDataProvider | None = None,
 ) -> _AgentDiskLoadResult:
     """Load agents from disk and include the tiered load state."""
 
@@ -93,9 +87,6 @@ def load_agents_from_disk_with_state(
             dismissed_agents,
             changespec_snapshot=changespec_snapshot,
             full_history=full_history,
-            search_query=search_query,
-            viewport=viewport,
-            data_provider=data_provider,
         )
 
 
@@ -104,23 +95,13 @@ def _load_agents_from_disk_impl(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     full_history: bool = False,
-    search_query: str | None = None,
-    viewport: AgentsViewport | None = None,
-    data_provider: AgentsDataProvider | None = None,
 ) -> _AgentDiskLoadResult:
-    from ...data_providers import make_agents_data_provider
+    from ...models.agent_loader import load_tiered_agents
 
-    provider = data_provider or make_agents_data_provider()
-    snapshot = provider.load_agents(
+    all_agents, load_state = load_tiered_agents(
         changespec_snapshot=changespec_snapshot,
         full_history=full_history,
-        search_query=search_query,
-        viewport=viewport,
     )
-    all_agents = snapshot.agents
-    load_state = snapshot.load_state
-    # Exposed on the result for tests and future lazy/detail migration code.
-    provider_snapshot = snapshot.shared_snapshot
 
     # Populate retry fields from retry_state.json for running agents and
     # prior-attempt history (from attempts/<N>/) for all agents.
@@ -178,5 +159,4 @@ def _load_agents_from_disk_impl(
         all_agents=all_agents,
         dismissed_from_loader=dismissed_from_loader,
         load_state=load_state,
-        provider_snapshot=provider_snapshot,
     )

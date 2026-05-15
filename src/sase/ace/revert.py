@@ -22,6 +22,7 @@ from .changespec import (
     ChangeSpec,
     changespec_lock,
     find_all_changespecs,
+    write_changespec_atomic,
 )
 from .hooks.processes import kill_and_persist_all_running_processes
 from .operations import (
@@ -70,22 +71,10 @@ def update_changespec_name_atomic(
                     continue
             updated_lines.append(line)
 
-        from sase.daemon.changespec_writes import (
-            write_changespec_project_file_mutation_locked,
-        )
-
-        write_changespec_project_file_mutation_locked(
-            "changespec.lifecycle_name",
-            project_file=project_file,
-            changespec_name=new_name,
-            updated_content="".join(updated_lines),
-            payload={
-                "field": "name",
-                "old_name": old_name,
-                "new_name": new_name,
-            },
-            commit_message=f"Rename ChangeSpec {old_name} to {new_name}",
-            return_value=None,
+        write_changespec_atomic(
+            project_file,
+            "".join(updated_lines),
+            f"Rename ChangeSpec {old_name} to {new_name}",
         )
 
 

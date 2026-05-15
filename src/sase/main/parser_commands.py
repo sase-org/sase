@@ -32,11 +32,6 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         help="Path to the project .sase file (default: inferred from current workspace)",
     )
-    current_parser.add_argument(
-        "--no-daemon",
-        action="store_true",
-        help="Read ChangeSpecs directly from project files instead of the local daemon",
-    )
 
     # sase changespec search <query> [-f FORMAT]
     search_parser = cs_subparsers.add_parser(
@@ -55,11 +50,6 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
         default="rich",
         help="Output format: 'plain' for simple text, 'rich' for styled panels, "
         "'markdown' for agent-friendly markdown (default: rich)",
-    )
-    search_parser.add_argument(
-        "--no-daemon",
-        action="store_true",
-        help="Read ChangeSpecs directly from project files instead of the local daemon",
     )
 
     # sase changespec sync-deltas -c <cl_name> [-p <project_file>]
@@ -211,10 +201,6 @@ def register_file_history_parser(subparsers: argparse._SubParsersAction) -> None
     fh_subparsers.add_parser(
         "list",
         help="Print the recency-ordered file-reference history as a JSON array",
-    ).add_argument(
-        "--no-daemon",
-        action="store_true",
-        help="Read directly from the file-history store instead of the local daemon",
     )
 
     # sase file-history delete <path>
@@ -377,11 +363,6 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Include dismissed notifications",
     )
-    list_parser.add_argument(
-        "--no-daemon",
-        action="store_true",
-        help="Read notifications directly from the source store",
-    )
 
     show_parser = notify_sub.add_parser(
         "show",
@@ -399,11 +380,6 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
         choices=("markdown", "json"),
         default="markdown",
         help="Output format: 'markdown' (default) or 'json'",
-    )
-    show_parser.add_argument(
-        "--no-daemon",
-        action="store_true",
-        help="Read notifications directly from the source store",
     )
 
 

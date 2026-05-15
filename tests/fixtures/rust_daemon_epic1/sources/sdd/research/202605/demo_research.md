@@ -1,3 +1,0 @@
-# Demo Research
-
-Research fixture.

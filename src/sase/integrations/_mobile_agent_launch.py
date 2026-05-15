@@ -248,15 +248,11 @@ def mobile_launch_response(
         )
         for index, result in enumerate(results)
     ]
-    response = {
+    return {
         "schema_version": MOBILE_AGENT_SCHEMA_VERSION,
         "primary": slots[0] if slots else None,
         "slots": slots,
     }
-    batch = _scheduler_batch_for_results(results)
-    if batch is not None:
-        response["scheduler_batch"] = batch
-    return response
 
 
 def result_to_slot(
@@ -265,18 +261,6 @@ def result_to_slot(
     *,
     planned_name: str | None,
 ) -> dict[str, Any]:
-    batch_id = getattr(result, "scheduler_batch_id", None)
-    if batch_id:
-        status = getattr(result, "scheduler_status", None) or "queued"
-        return {
-            "slot_id": getattr(result, "scheduler_slot_id", None) or slot_id,
-            "name": planned_name,
-            "status": status,
-            "artifact_dir": artifact_dir_for_launch(result),
-            "message": f"queued in batch {batch_id}",
-            "scheduler_batch_id": batch_id,
-            "scheduler_queue_id": getattr(result, "scheduler_queue_id", None),
-        }
     return {
         "slot_id": slot_id,
         "name": planned_name,
@@ -284,21 +268,6 @@ def result_to_slot(
         "artifact_dir": artifact_dir_for_launch(result),
         "message": f"started pid {result.pid}",
     }
-
-
-def _scheduler_batch_for_results(
-    results: list[AgentLaunchResult],
-) -> dict[str, Any] | None:
-    for result in results:
-        batch_id = getattr(result, "scheduler_batch_id", None)
-        if batch_id:
-            return {
-                "batch_id": batch_id,
-                "queue_id": getattr(result, "scheduler_queue_id", None),
-                "status": getattr(result, "scheduler_status", None) or "queued",
-                "handle": getattr(result, "scheduler_handle", None),
-            }
-    return None
 
 
 def artifact_dir_for_launch(result: AgentLaunchResult) -> str | None:

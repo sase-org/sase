@@ -26,10 +26,8 @@ def handle_axe_command(args: argparse.Namespace) -> None:
         _handle_start(args)
     elif axe_sub == "stop":
         _handle_stop()
-    elif axe_sub == "status":
-        _handle_status()
     else:
-        print("Usage: sase axe {chop,lumberjack,maintenance,start,stop,status}")
+        print("Usage: sase axe {chop,lumberjack,maintenance,start,stop}")
         sys.exit(1)
 
 
@@ -169,34 +167,4 @@ def _handle_stop() -> None:
         )
     else:
         console.print("[bold yellow]Axe orchestrator is not running.[/bold yellow]")
-    sys.exit(0)
-
-
-def _handle_status() -> None:
-    """Handle 'sase axe status'."""
-    from sase.axe.process import get_axe_status
-
-    status = get_axe_status()
-    if status is None:
-        print("Axe scheduler is not running.")
-        sys.exit(1)
-
-    print(
-        f"Axe scheduler is {status.get('status', 'running')} "
-        f"(PID {status.get('pid')}, "
-        f"hook runners {status.get('current_hook_runners', 0)}/"
-        f"{status.get('max_hook_runners', 0)}, "
-        f"agent runners {status.get('current_agent_runners', 0)}/"
-        f"{status.get('max_agent_runners', 0)})"
-    )
-    lumberjacks = status.get("lumberjacks")
-    if isinstance(lumberjacks, dict):
-        for name, jack in sorted(lumberjacks.items()):
-            if not isinstance(jack, dict):
-                continue
-            print(
-                f"{name}: {jack.get('status', 'running')} "
-                f"(PID {jack.get('pid')}, cycles={jack.get('cycles_run', 0)}, "
-                f"errors={jack.get('errors_encountered', 0)})"
-            )
     sys.exit(0)

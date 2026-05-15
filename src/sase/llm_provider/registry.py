@@ -16,19 +16,10 @@ import functools
 import importlib.metadata
 import os
 import shutil
-import time
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
 import pluggy
-
-from sase.host.client import call_provider_host, is_host_fallbackable
-from sase.host.routing import (
-    host_required,
-    host_routing_mode,
-    record_shadow_comparison,
-)
-from sase.host.wire import HOST_CAP_LLM_METADATA
 
 from ._hookspec import LLMHookSpec
 from ._plugin_manager import LLMPluginManager
@@ -42,14 +33,6 @@ _PROVIDER_FAMILY_COLORS: dict[str, str] = {
     "codex": "#10A37F",
     "openai": "#10A37F",
 }
-_LLM_METADATA_OPERATION = "llm.metadata"
-_LLM_METADATA_DISABLE_ENV = "SASE_DISABLE_HOST_LLM_METADATA"
-_LLM_METADATA_TIMEOUT_MS = 1_000
-_LLM_METADATA_HOST_FALLBACK_RETRY_S = 30.0
-_llm_metadata_host_cached_payload: dict[str, Any] | None = None
-_llm_metadata_host_cached_call_id: int | None = None
-_llm_metadata_host_fallback_until = 0.0
-_llm_metadata_host_fallback_call_id: int | None = None
 
 
 @functools.cache
@@ -73,7 +56,7 @@ def iter_plugins() -> list[tuple[str, object]]:
     return list(_build_llm_pm().list_name_plugin())
 
 
-def direct_llm_metadata_payload() -> dict[str, Any]:
+def _direct_llm_metadata_payload() -> dict[str, Any]:
     """Collect LLM metadata directly from pluggy providers inside the host."""
 
     providers: dict[str, dict[str, Any]] = {}
@@ -128,94 +111,14 @@ def direct_llm_metadata_payload() -> dict[str, Any]:
     }
 
 
-def llm_metadata_payload() -> dict[str, Any]:
-    """Return routed LLM metadata with direct Python fallback."""
-
-    operation = _LLM_METADATA_OPERATION
-    mode = (
-        "direct"
-        if os.environ.get(_LLM_METADATA_DISABLE_ENV)
-        else host_routing_mode(operation)
-    )
-    if mode == "shadow":
-        direct = direct_llm_metadata_payload()
-        try:
-            response = call_provider_host(
-                family="llm",
-                operation=operation,
-                payload={},
-                required_capability=HOST_CAP_LLM_METADATA,
-                timeout_ms=_LLM_METADATA_TIMEOUT_MS,
-            )
-            host = dict(response.result) if response.status == "ok" else None
-            record_shadow_comparison(operation, direct=direct, host=host)
-        except Exception as error:
-            if not is_host_fallbackable(error):
-                raise
-            record_shadow_comparison(operation, direct=direct, error=error)
-        return direct
-
-    if mode in {"host-preferred", "host-required"}:
-        cached = _llm_metadata_cached_host_payload()
-        if cached is not None:
-            return cached
-        if mode == "host-preferred" and _llm_metadata_host_fallback_active():
-            return direct_llm_metadata_payload()
-        try:
-            response = call_provider_host(
-                family="llm",
-                operation=operation,
-                payload={},
-                required_capability=HOST_CAP_LLM_METADATA,
-                timeout_ms=_LLM_METADATA_TIMEOUT_MS,
-            )
-            if response.status == "ok":
-                payload = dict(response.result)
-                _remember_llm_metadata_host_payload(payload)
-                return payload
-            _remember_llm_metadata_host_fallback()
-        except Exception as error:
-            if host_required(operation) or not is_host_fallbackable(error):
-                raise
-            _remember_llm_metadata_host_fallback()
-    return direct_llm_metadata_payload()
-
-
-def _llm_metadata_cached_host_payload() -> dict[str, Any] | None:
-    if (
-        _llm_metadata_host_cached_call_id == id(call_provider_host)
-        and _llm_metadata_host_cached_payload is not None
-    ):
-        return dict(_llm_metadata_host_cached_payload)
-    return None
-
-
-def _remember_llm_metadata_host_payload(payload: dict[str, Any]) -> None:
-    global _llm_metadata_host_cached_call_id
-    global _llm_metadata_host_cached_payload
-    _llm_metadata_host_cached_call_id = id(call_provider_host)
-    _llm_metadata_host_cached_payload = dict(payload)
-
-
-def _llm_metadata_host_fallback_active() -> bool:
-    return (
-        _llm_metadata_host_fallback_call_id == id(call_provider_host)
-        and time.monotonic() < _llm_metadata_host_fallback_until
-    )
-
-
-def _remember_llm_metadata_host_fallback() -> None:
-    global _llm_metadata_host_fallback_call_id
-    global _llm_metadata_host_fallback_until
-    _llm_metadata_host_fallback_call_id = id(call_provider_host)
-    _llm_metadata_host_fallback_until = (
-        time.monotonic() + _LLM_METADATA_HOST_FALLBACK_RETRY_S
-    )
+def _llm_metadata_payload() -> dict[str, Any]:
+    """Return LLM metadata directly from Python providers."""
+    return _direct_llm_metadata_payload()
 
 
 def model_to_provider_map() -> dict[str, str]:
     """Build a ``{model_name → provider_name}`` map from plugin metadata."""
-    return _str_dict(llm_metadata_payload().get("model_to_provider"))
+    return _str_dict(_llm_metadata_payload().get("model_to_provider"))
 
 
 def provider_short_name_map() -> dict[str, str]:
@@ -225,7 +128,7 @@ def provider_short_name_map() -> dict[str, str]:
     fallback is its entry-point name — preserving today's behavior for
     plugins that haven't been updated.
     """
-    return _str_dict(llm_metadata_payload().get("provider_short_names"))
+    return _str_dict(_llm_metadata_payload().get("provider_short_names"))
 
 
 def model_short_alias_map() -> dict[str, str]:
@@ -235,17 +138,17 @@ def model_short_alias_map() -> dict[str, str]:
     returning a dict of long-form model names to short aliases used in
     multi-model agent name suffixes.  Last writer wins on duplicates.
     """
-    return _str_dict(llm_metadata_payload().get("model_short_aliases"))
+    return _str_dict(_llm_metadata_payload().get("model_short_aliases"))
 
 
 def provider_cli_status_color_map() -> dict[str, str]:
     """Return provider colors from plugin metadata, plus vendor-family defaults."""
-    return _str_dict(llm_metadata_payload().get("provider_cli_status_colors"))
+    return _str_dict(_llm_metadata_payload().get("provider_cli_status_colors"))
 
 
 def _provider_names() -> list[str]:
     """Return all registered provider names (entry-point keys)."""
-    names = llm_metadata_payload().get("provider_names")
+    names = _llm_metadata_payload().get("provider_names")
     if not isinstance(names, list):
         return []
     return [str(name) for name in names]
@@ -388,7 +291,7 @@ def get_default_provider_name() -> str:
     if provider:
         return provider
 
-    candidates = llm_metadata_payload().get("autodetect_candidates")
+    candidates = _llm_metadata_payload().get("autodetect_candidates")
     if not isinstance(candidates, list):
         candidates = []
     for item in candidates:

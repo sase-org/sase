@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from sase.agent.launch_executor_scheduler import try_scheduler_launch_plan
 from sase.agent.launch_executor_types import (
     LaunchExecutionContext,
     LaunchExecutionRecord,
@@ -77,20 +76,6 @@ def execute_launch_plan(
         allocated = [base_timestamp]
     else:
         allocated = allocator.allocate(missing_timestamp_count)
-    timestamp_by_slot = _timestamps_by_slot(plan, allocated)
-
-    scheduler_execution = try_scheduler_launch_plan(
-        plan,
-        context,
-        timestamp_by_slot=timestamp_by_slot,
-        slot_context=slot_context,
-        slot_extra_env=slot_extra_env,
-        slot_local_xprompts_file=slot_local_xprompts_file,
-        extra_env=extra_env,
-        on_slot_executed=on_slot_executed,
-    )
-    if scheduler_execution is not None:
-        return scheduler_execution
 
     allocated_iter = iter(allocated)
 
@@ -122,17 +107,6 @@ def execute_launch_plan(
             on_slot_executed(record)
 
     return LaunchExecutionResult(records=records)
-
-
-def _timestamps_by_slot(
-    plan: LaunchFanoutPlanWire,
-    allocated: list[str],
-) -> dict[int, str]:
-    allocated_iter = iter(allocated)
-    timestamps: dict[int, str] = {}
-    for slot in plan.slots:
-        timestamps[slot.slot_index] = slot.timestamp or next(allocated_iter)
-    return timestamps
 
 
 __all__ = [

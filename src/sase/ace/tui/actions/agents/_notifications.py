@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from ._notification_modal_flow import AgentNotificationModalMixin
 from ._notification_polling import AgentNotificationPollingMixin
-from ._notification_provider_reads import AgentNotificationProviderMixin
+from ._notification_provider import AgentNotificationProviderMixin
 from ._notification_status_overrides import AgentNotificationStatusMixin
 from ._notification_unread_projection import AgentNotificationUnreadMixin
 from ._notification_utils import (

@@ -88,25 +88,6 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
         chop_cfg = ChopConfig(name=chop_name, description="")
         chop_timeout_default = None
 
-    from .scheduler_tasks import scheduler_submit_for_chop
-
-    scheduled = scheduler_submit_for_chop(
-        chop_name=chop_name,
-        lumberjack_name=lumberjack_name,
-        source="oneshot",
-        started_by="cli",
-    )
-    if scheduled.submitted and scheduled.response is not None:
-        handle = scheduled.response.get("handle", {})
-        batch_id = handle.get("batch_id", "unknown")
-        queue_id = handle.get("queue_id", "axe")
-        status = handle.get("status", "queued")
-        print(
-            f"Axe chop '{chop_name}' queued "
-            f"(batch {batch_id}, queue {queue_id}, status {status})"
-        )
-        sys.exit(0)
-
     outcome = run_configured_chop_once(
         lumberjack_name=lumberjack_name,
         chop=chop_cfg,

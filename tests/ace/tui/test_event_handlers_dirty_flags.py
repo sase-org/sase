@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from datetime import datetime
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -16,7 +14,6 @@ from sase.ace.tui.actions.event_handlers import (
     PROMPT_INPUT_DEFER_SECONDS,
     EventHandlersMixin,
 )
-from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.util.nav_gate import NavigationGate
 from sase.ace.tui.widgets.changespec_list import ChangeSpecList
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
@@ -46,14 +43,6 @@ class _FakeApp(EventHandlersMixin):
         self._dirty_axe = False
         self._artifact_change_defer_pending = False
         self._last_full_sanity_refresh = time.monotonic()
-        self._daemon_refresh_event_ids: dict[str, str] = {}
-        self._daemon_read_client: _FakeDaemonEventsClient | None = None
-        self._agents_provider_snapshot = None
-        self._changespec_provider_snapshot = None
-        self._notification_provider_snapshot = None
-        self._agents: list[Agent] = []
-        self._agents_last_identity = None
-        self._agent_load_state = None
         self.deferred_calls: list[tuple[float, Callable[[], Any]]] = []
         self.refresh_calls: list[str] = []
 
@@ -82,70 +71,6 @@ class _FakeApp(EventHandlersMixin):
 
     def _schedule_changespecs_async_refresh(self) -> None:
         self.refresh_calls.append("schedule_changespecs")
-
-    def _apply_loaded_agents(
-        self,
-        all_agents: list[Agent],
-        dismissed_from_loader: list[Agent],
-        on_agents_tab: bool,
-        selected_identity: tuple[AgentType, str, str | None] | None,
-        load_state: Any | None = None,
-    ) -> None:
-        del dismissed_from_loader, on_agents_tab, selected_identity, load_state
-        self._agents = all_agents
-        self.refresh_calls.append("apply_agents_delta")
-
-
-class _FakeDaemonEventsClient:
-    def __init__(self, batches: list[dict[str, Any]] | Exception) -> None:
-        self.batches = batches
-        self.calls: list[dict[str, Any]] = []
-
-    def read_events(
-        self,
-        limit: int,
-        *,
-        after_event_id: str | None = None,
-        since_event_id: str | None = None,
-        snapshot_id: str | None = None,
-        collections: list[str] | None = None,
-        max_events: int = 1,
-    ) -> list[dict[str, Any]]:
-        self.calls.append(
-            {
-                "limit": limit,
-                "after_event_id": after_event_id,
-                "since_event_id": since_event_id,
-                "snapshot_id": snapshot_id,
-                "collections": collections,
-                "max_events": max_events,
-            }
-        )
-        if isinstance(self.batches, Exception):
-            raise self.batches
-        return self.batches
-
-
-def _daemon_snapshot(surface: str, snapshot_id: str = "snap-clean") -> Any:
-    return SimpleNamespace(
-        surface=surface,
-        snapshot_id=snapshot_id,
-        provider=SimpleNamespace(
-            source="daemon",
-            fallback=SimpleNamespace(reason=None),
-        ),
-    )
-
-
-def _agent(raw_suffix: str = "20260514100000") -> Agent:
-    return Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="feature",
-        project_file="/tmp/.sase/projects/demo/demo.sase",
-        status="RUNNING",
-        start_time=datetime(2026, 5, 14, 10, 0, 0),
-        raw_suffix=raw_suffix,
-    )
 
 
 @pytest.mark.asyncio
@@ -180,70 +105,6 @@ async def test_watcher_inactive_runs_full_refresh() -> None:
     assert "axe" in app.refresh_calls
     assert "notifications" in app.refresh_calls
     assert "agents" in app.refresh_calls
-
-
-@pytest.mark.asyncio
-async def test_daemon_backed_clean_auto_refresh_skips_broad_surface_reloads() -> None:
-    app = _FakeApp(watcher_active=False)
-    app.current_tab = "changespecs"
-    app._agents_provider_snapshot = _daemon_snapshot("agents", "snap-agents")
-    app._changespec_provider_snapshot = _daemon_snapshot(
-        "changespecs", "snap-changespecs"
-    )
-    app._notification_provider_snapshot = _daemon_snapshot(
-        "notification_counts", "snap-notifications"
-    )
-    client = _FakeDaemonEventsClient(
-        [{"events": [], "next_event_id": "0002", "heartbeat": {"sequence": 2}}]
-    )
-    app._daemon_read_client = client
-
-    await app._on_auto_refresh()
-
-    assert "axe" in app.refresh_calls
-    assert "notifications" not in app.refresh_calls
-    assert "agents" not in app.refresh_calls
-    assert "changespecs" not in app.refresh_calls
-    assert [call["collections"] for call in client.calls] == [
-        ["notifications"],
-        ["agents", "artifacts"],
-        ["changespecs"],
-    ]
-
-
-@pytest.mark.asyncio
-async def test_daemon_agents_delta_applies_without_broad_agent_reload() -> None:
-    app = _FakeApp(watcher_active=False)
-    app._agents = [_agent()]
-    app._agents_provider_snapshot = _daemon_snapshot("agents", "snap-agents")
-    app._notification_provider_snapshot = _daemon_snapshot(
-        "notification_counts", "snap-notifications"
-    )
-    app._daemon_read_client = _FakeDaemonEventsClient(
-        [
-            {
-                "events": [
-                    {
-                        "payload": {
-                            "delta": {
-                                "collection": "agents",
-                                "operation": "delete",
-                                "handle": "agent:demo:20260514100000",
-                                "fields": {},
-                            }
-                        }
-                    }
-                ],
-                "next_event_id": "0003",
-            }
-        ]
-    )
-
-    await app._on_auto_refresh()
-
-    assert "agents" not in app.refresh_calls
-    assert "apply_agents_delta" in app.refresh_calls
-    assert app._agents == []
 
 
 @pytest.mark.asyncio

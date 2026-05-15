@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
-from sase.daemon.client import LocalDaemonClient
 from sase.notifications.models import Notification, format_relative_time
 from sase.notifications.priority import is_error, is_priority
 from sase.notifications.sort import timestamp_sort_key
@@ -77,7 +75,7 @@ def _query_values(notification: Notification) -> list[str]:
     return values
 
 
-def matches_notification_query(notification: Notification, query: str | None) -> bool:
+def _matches_query(notification: Notification, query: str | None) -> bool:
     if not query:
         return True
     needle = query.casefold()
@@ -92,24 +90,8 @@ def list_notification_infos(
     unread: bool = False,
     include_dismissed: bool = False,
     include_silent: bool = True,
-    args: Any | None = None,
-    client: LocalDaemonClient | None = None,
 ) -> list[NotificationInfo]:
     """Return filtered notification info rows, newest first."""
-    if include_silent and _daemon_requested(args, client):
-        from sase.notifications.daemon_reads import read_notifications
-
-        result = read_notifications(
-            limit=limit,
-            query=query,
-            sender=sender,
-            unread=unread,
-            include_dismissed=include_dismissed,
-            args=args,
-            client=client,
-        )
-        return [_notification_info(notification) for notification in result.value]
-
     notifications = load_notifications(include_dismissed=include_dismissed)
     rows = sorted(notifications, key=timestamp_sort_key, reverse=True)
 
@@ -121,9 +103,7 @@ def list_notification_infos(
         rows = [notification for notification in rows if not notification.silent]
     if query:
         rows = [
-            notification
-            for notification in rows
-            if matches_notification_query(notification, query)
+            notification for notification in rows if _matches_query(notification, query)
         ]
     if limit is not None:
         rows = rows[: max(0, limit)]
@@ -131,19 +111,8 @@ def list_notification_infos(
     return [_notification_info(notification) for notification in rows]
 
 
-def resolve_notification_ref(
-    notification_id: str,
-    *,
-    args: Any | None = None,
-    client: LocalDaemonClient | None = None,
-) -> NotificationInfo | None:
+def resolve_notification_ref(notification_id: str) -> NotificationInfo | None:
     """Return one notification by exact id, including dismissed rows."""
-    if _daemon_requested(args, client):
-        from sase.notifications.daemon_reads import read_notification_detail
-
-        result = read_notification_detail(notification_id, args=args, client=client)
-        return None if result.value is None else _notification_info(result.value)
-
     for notification in load_notifications(include_dismissed=True):
         if notification.id == notification_id:
             return _notification_info(notification)
@@ -170,14 +139,9 @@ def notification_info_to_json(info: NotificationInfo) -> dict[str, object]:
     }
 
 
-def _daemon_requested(args: Any | None, client: LocalDaemonClient | None) -> bool:
-    return client is not None or (args is not None and hasattr(args, "no_daemon"))
-
-
 __all__ = [
     "NotificationInfo",
     "list_notification_infos",
-    "matches_notification_query",
     "notification_info_to_json",
     "resolve_notification_ref",
 ]

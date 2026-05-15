@@ -1,9 +1,0 @@
-{
-  "outcome": "failed",
-  "name": "retry_parent",
-  "error": "transient fixture failure",
-  "retry_chain_root_timestamp": "20260513095000",
-  "retried_as_timestamp": "20260513101000",
-  "retry_error_category": "transient"
-}
-

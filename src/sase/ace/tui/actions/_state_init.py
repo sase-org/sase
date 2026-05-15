@@ -91,7 +91,6 @@ class StateInitMixin:
         self._dirty_axe: bool = True
         self._artifact_change_defer_pending: bool = False
         self._last_full_sanity_refresh: float = 0.0
-        self._daemon_refresh_event_ids: dict[str, str] = {}
 
         # Hint mode state
         self._hint_mode_active: bool = False
@@ -144,10 +143,6 @@ class StateInitMixin:
         # list identity changes (see ``_get_changespec_graph_index``).
         self._changespec_graph_index: Any = None
         self._changespec_graph_index_for_id: int | None = None
-        from ..provider_contract import SelectionGeneration
-
-        self._changespec_detail_generation = SelectionGeneration()
-        self._changespec_row_handles_by_identity: dict[str, Any] = {}
 
         # Leader mode state (for , key sub-commands)
         self._leader_mode_active: bool = False
@@ -377,10 +372,8 @@ class StateInitMixin:
 
         # Debouncer for j/k navigation detail panel updates (agents tab)
         from ..util.debounce import DetailPanelDebouncer
-        from ..provider_contract import SelectionGeneration
 
         self._agent_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]
-        self._agent_detail_selection_generation = SelectionGeneration()
 
         # Axe state
         from sase.axe.state import (

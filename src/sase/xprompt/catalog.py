@@ -7,22 +7,9 @@ Public surface:
 
 from __future__ import annotations
 
-from dataclasses import asdict
 import shutil
 from pathlib import Path
-from typing import Any
 
-from sase.host.client import (
-    ProviderHostCallUnavailable,
-    call_provider_host,
-    is_host_fallbackable,
-)
-from sase.host.routing import (
-    host_required,
-    host_routing_mode,
-    record_shadow_comparison,
-)
-from sase.host.wire import HOST_CAP_XPROMPT_CATALOG
 from sase.xprompt.loader import (
     get_all_workflows,
     get_all_xprompts,
@@ -87,7 +74,6 @@ from ._catalog_structured import (
     structured_inputs as _structured_inputs,
 )
 
-_XPROMPT_CATALOG_TIMEOUT_MS = 5_000
 _CATALOG_SOURCE_DEPENDENCIES = (
     get_all_workflows,
     get_all_xprompts,
@@ -116,55 +102,6 @@ def build_structured_xprompts_catalog(
     limit: int | None = None,
 ) -> StructuredCatalogProjection:
     """Return a mobile-safe structured xprompt catalog projection."""
-    operation = "xprompt.catalog"
-    mode = host_routing_mode(operation)
-    if _catalog_source_dependencies_patched():
-        mode = "direct"
-    if not include_pdf:
-        if mode == "shadow":
-            _sync_catalog_source_dependencies()
-            from ._catalog_structured import build_structured_xprompts_catalog as _build
-
-            direct = _build(
-                project=project,
-                source=source,
-                tag=tag,
-                query=query,
-                include_pdf=False,
-                limit=limit,
-            )
-            try:
-                host = _build_structured_xprompts_catalog_host(
-                    project=project,
-                    source=source,
-                    tag=tag,
-                    query=query,
-                    limit=limit,
-                )
-                record_shadow_comparison(
-                    operation,
-                    direct=asdict(direct),
-                    host=asdict(host),
-                )
-            except Exception as error:
-                if not is_host_fallbackable(error):
-                    raise
-                record_shadow_comparison(operation, direct=asdict(direct), error=error)
-            return direct
-
-        if mode in {"host-preferred", "host-required"}:
-            try:
-                return _build_structured_xprompts_catalog_host(
-                    project=project,
-                    source=source,
-                    tag=tag,
-                    query=query,
-                    limit=limit,
-                )
-            except Exception as error:
-                if host_required(operation) or not is_host_fallbackable(error):
-                    raise
-
     _sync_catalog_source_dependencies()
     from ._catalog_structured import build_structured_xprompts_catalog as _build
 
@@ -176,131 +113,6 @@ def build_structured_xprompts_catalog(
         include_pdf=include_pdf,
         limit=limit,
     )
-
-
-def _build_structured_xprompts_catalog_host(
-    *,
-    project: str | None,
-    source: str | None,
-    tag: str | None,
-    query: str | None,
-    limit: int | None,
-) -> StructuredCatalogProjection:
-    response = call_provider_host(
-        family="xprompt",
-        operation="xprompt.catalog",
-        payload={
-            "project": project,
-            "source": source,
-            "tag": tag,
-            "query": query,
-            "include_pdf": False,
-            "limit": limit,
-        },
-        required_capability=HOST_CAP_XPROMPT_CATALOG,
-        timeout_ms=_XPROMPT_CATALOG_TIMEOUT_MS,
-    )
-    if response.status != "ok":
-        raise ProviderHostCallUnavailable(
-            "host_response_error",
-            "host-routed xprompt catalog returned non-ok status",
-        )
-    result = dict(response.result)
-    projection = result.get("projection")
-    if not isinstance(projection, dict):
-        raise ProviderHostCallUnavailable(
-            "host_protocol_error",
-            "host-routed xprompt catalog response is missing projection",
-        )
-    return _structured_projection_from_wire(projection)
-
-
-def _catalog_source_dependencies_patched() -> bool:
-    return _CATALOG_SOURCE_DEPENDENCIES != (
-        get_all_workflows,
-        get_all_xprompts,
-        get_known_project_workspaces,
-        get_sase_package_default_xprompts_dir,
-        get_sase_package_xprompts_dir,
-        load_project_local_xprompts,
-    )
-
-
-def _structured_projection_from_wire(
-    data: dict[str, Any],
-) -> StructuredCatalogProjection:
-    entries = [
-        StructuredCatalogEntry(
-            name=str(item["name"]),
-            display_label=str(item["display_label"]),
-            insertion=str(item["insertion"]),
-            reference_prefix=str(item["reference_prefix"]),
-            kind=str(item["kind"]),
-            description=_optional_str(item.get("description")),
-            source_bucket=str(item["source_bucket"]),
-            project=_optional_str(item.get("project")),
-            tags=[str(tag) for tag in item.get("tags", [])],
-            input_signature=_optional_str(item.get("input_signature")),
-            inputs=[
-                StructuredCatalogInput(
-                    name=str(input_item["name"]),
-                    type=str(input_item["type"]),
-                    required=bool(input_item["required"]),
-                    default_display=_optional_str(input_item.get("default_display")),
-                    position=int(input_item["position"]),
-                )
-                for input_item in item.get("inputs", [])
-                if isinstance(input_item, dict)
-            ],
-            is_skill=bool(item["is_skill"]),
-            content_preview=_optional_str(item.get("content_preview")),
-            source_path_display=_optional_str(item.get("source_path_display")),
-            definition_path=_optional_str(item.get("definition_path")),
-        )
-        for item in data.get("entries", [])
-        if isinstance(item, dict)
-    ]
-    raw_stats = data.get("stats")
-    stats_raw: dict[str, Any] = raw_stats if isinstance(raw_stats, dict) else {}
-    attachment_raw = data.get("catalog_attachment")
-    attachment = (
-        None
-        if not isinstance(attachment_raw, dict)
-        else StructuredCatalogAttachment(
-            display_name=str(attachment_raw["display_name"]),
-            content_type=_optional_str(attachment_raw.get("content_type")),
-            byte_size=_optional_int(attachment_raw.get("byte_size")),
-            path_display=_optional_str(attachment_raw.get("path_display")),
-            generated=bool(attachment_raw["generated"]),
-        )
-    )
-    return StructuredCatalogProjection(
-        entries=entries,
-        stats=StructuredCatalogStats(
-            total_count=int(stats_raw.get("total_count", 0)),
-            project_count=int(stats_raw.get("project_count", 0)),
-            skill_count=int(stats_raw.get("skill_count", 0)),
-            pdf_requested=bool(stats_raw.get("pdf_requested", False)),
-        ),
-        warnings=[str(item) for item in data.get("warnings", [])],
-        skipped=[
-            StructuredCatalogSkipped(
-                target=_optional_str(item.get("target")),
-                reason=str(item["reason"]),
-            )
-            for item in data.get("skipped", [])
-            if isinstance(item, dict)
-        ],
-        catalog_attachment=attachment,
-    )
-
-
-def _optional_str(value: Any) -> str | None:
-    return None if value is None else str(value)
-
-
-def _optional_int(value: Any) -> int | None:
-    return None if value is None else int(value)
 
 
 def _gather_entries() -> list[CatalogEntry]:

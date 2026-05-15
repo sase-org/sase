@@ -47,35 +47,22 @@ def register_notification(
     )
     if entry is None:
         return
-
-    from sase.notifications.daemon_writes import (
-        register_pending_action,
-    )
-
-    register_pending_action(
-        entry,
-        direct_writer=lambda: _register_notification_direct(entry),
-    )
-
-
-def _register_notification_direct(entry: dict[str, Any]) -> None:
     with _locked_store() as store:
         existing = store["actions"].get(entry["prefix"])
-        next_entry = dict(entry)
         if isinstance(existing, dict):
-            next_entry["created_at_unix"] = existing.get(
-                "created_at_unix", next_entry["created_at_unix"]
+            entry["created_at_unix"] = existing.get(
+                "created_at_unix", entry["created_at_unix"]
             )
             transports = list(existing.get("transports") or [])
-            for transport in next_entry["transports"]:
+            for transport in entry["transports"]:
                 if not any(
                     item.get("transport") == transport["transport"]
                     for item in transports
                     if isinstance(item, dict)
                 ):
                     transports.append(transport)
-            next_entry["transports"] = transports
-        store["actions"][next_entry["prefix"]] = next_entry
+            entry["transports"] = transports
+        store["actions"][entry["prefix"]] = entry
 
 
 def action_state_for_notification(
@@ -94,11 +81,6 @@ def action_state_for_notification(
         None,
     )
     return _state_for_notification(notification, pending, current)
-
-
-def read_pending_action_store(*, include_legacy: bool = True) -> dict[str, Any]:
-    """Return the shared pending-action store for read-only surfaces."""
-    return _load_store(include_legacy=include_legacy)
 
 
 def resolve_prefix(prefix: str, *, include_legacy: bool = True) -> _PrefixResolution:
@@ -122,6 +104,11 @@ def resolve_prefix(prefix: str, *, include_legacy: bool = True) -> _PrefixResolu
     if not matches:
         return _PrefixResolution("", prefix, len(prefix), "missing")
     return _PrefixResolution("", prefix, len(prefix), "ambiguous_prefix")
+
+
+def read_pending_action_store(*, include_legacy: bool = False) -> dict[str, Any]:
+    """Return the current pending-action store."""
+    return _load_store(include_legacy=include_legacy)
 
 
 def _load_store(*, include_legacy: bool = False) -> dict[str, Any]:

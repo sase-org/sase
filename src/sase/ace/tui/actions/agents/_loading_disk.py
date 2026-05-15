@@ -18,7 +18,6 @@ from ._loading_compute import (
 from ._loading_state import AgentLoadingStateMixin
 
 if TYPE_CHECKING:
-    from ...data_providers import AgentsViewport
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_loader import AgentLoadState
@@ -31,81 +30,6 @@ class _ExternalDismissalMergeResult:
     file_signature: tuple[int, int] | None
     on_disk_identities: set[tuple[AgentType, str, str | None]]
     new_external_identities: set[tuple[AgentType, str, str | None]]
-
-
-def _agents_viewport_for_app(app: Any, *, on_agents_tab: bool) -> AgentsViewport:
-    """Return a bounded daemon read window for the current Agents view."""
-    from ...data_providers import AgentsViewport
-
-    if on_agents_tab:
-        current_idx = max(0, int(getattr(app, "current_idx", 0) or 0))
-    else:
-        current_idx = max(0, int(getattr(app, "_agents_last_idx", 0) or 0))
-    size = getattr(app, "size", None)
-    visible_rows = int(getattr(size, "height", 0) or 40)
-    visible_rows = max(10, min(visible_rows, 80))
-    start_row = max(0, current_idx - visible_rows)
-    return AgentsViewport(
-        start_row=start_row,
-        visible_rows=visible_rows,
-        prefetch_rows=visible_rows * 2,
-    )
-
-
-def _agents_loaded_signature(
-    agents: list[Agent],
-    *,
-    dismissed_snapshot: set[tuple[AgentType, str, str | None]],
-    hide_non_run_agents: bool,
-    search_query: str,
-    provider_snapshot: Any,
-) -> tuple[Any, ...]:
-    """Compact row signature used to skip unchanged daemon refresh rebuilds."""
-    provider_key = None
-    if provider_snapshot is not None:
-        provider_key = (
-            provider_snapshot.provider.source,
-            provider_snapshot.snapshot_id,
-            tuple(handle.stable_id for handle in provider_snapshot.row_handles),
-            tuple(provider_snapshot.metadata.get("surfaces") or ()),
-            provider_snapshot.metadata.get("query"),
-            provider_snapshot.metadata.get("requested_limit"),
-        )
-    row_key = tuple(
-        (
-            agent.identity,
-            agent.status,
-            agent.tag,
-            agent.pid,
-            agent.retry_count,
-            agent.retry_status,
-            agent.raw_suffix,
-        )
-        for agent in agents
-    )
-    return (
-        provider_key,
-        row_key,
-        frozenset(dismissed_snapshot),
-        bool(hide_non_run_agents),
-        search_query,
-    )
-
-
-def _can_skip_unchanged_daemon_refresh(
-    app: Any,
-    *,
-    signature: tuple[Any, ...],
-    merge_result: _ExternalDismissalMergeResult | None,
-    provider_snapshot: Any,
-) -> bool:
-    if provider_snapshot is None or provider_snapshot.provider.source != "daemon":
-        return False
-    if not getattr(app, "_agents_first_load_done", False):
-        return False
-    if merge_result is not None and merge_result.new_external_identities:
-        return False
-    return signature == getattr(app, "_agents_last_loaded_signature", None)
 
 
 def _resolve_load_agents_from_disk_with_state() -> Callable[..., Any]:
@@ -207,7 +131,6 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
                 surface artifacts the persistent index may not yet know
                 about.
         """
-        from ...data_providers import agents_daemon_reads_enabled
         from ....changespec import find_all_changespecs_cached
 
         on_agents_tab = self.current_tab == "agents"
@@ -223,24 +146,11 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
 
         self._merge_external_dismissals()
         dismissed_snapshot = set(self._dismissed_agents)
-        changespec_snapshot = (
-            None if agents_daemon_reads_enabled() else find_all_changespecs_cached()
-        )
-        search_query = getattr(self, "_agent_search_query", "") or ""
+        changespec_snapshot = find_all_changespecs_cached()
         load_result = _resolve_load_agents_from_disk_with_state()(
             dismissed_snapshot,
             changespec_snapshot=changespec_snapshot,
-            full_history=full_history or bool(search_query),
-            search_query=search_query,
-            viewport=_agents_viewport_for_app(self, on_agents_tab=on_agents_tab),
-        )
-        self._agents_provider_snapshot = getattr(load_result, "provider_snapshot", None)
-        self._agents_last_loaded_signature = _agents_loaded_signature(
-            load_result.all_agents,
-            dismissed_snapshot=dismissed_snapshot,
-            hide_non_run_agents=bool(self.hide_non_run_agents),
-            search_query=search_query,
-            provider_snapshot=self._agents_provider_snapshot,
+            full_history=full_history or bool(getattr(self, "_agent_search_query", "")),
         )
         from ...repro.capture import record_agents_tab_loader_result
 
@@ -274,7 +184,6 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         """
         import asyncio
 
-        from ...data_providers import agents_daemon_reads_enabled
         from ....changespec import find_all_changespecs_cached
 
         merge_result = await asyncio.to_thread(
@@ -282,30 +191,13 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         )
         self._apply_external_dismissal_merge(merge_result)
         dismissed_snapshot = set(self._dismissed_agents)
-        changespec_snapshot = (
-            None
-            if agents_daemon_reads_enabled()
-            else await asyncio.to_thread(find_all_changespecs_cached)
-        )
-        search_query = getattr(self, "_agent_search_query", "") or ""
+        changespec_snapshot = await asyncio.to_thread(find_all_changespecs_cached)
         disk_start = time.perf_counter()
         load_result = await asyncio.to_thread(
             _resolve_load_agents_from_disk_with_state(),
             dismissed_snapshot,
             changespec_snapshot=changespec_snapshot,
-            full_history=full_history or bool(search_query),
-            search_query=search_query,
-            viewport=_agents_viewport_for_app(
-                self, on_agents_tab=self.current_tab == "agents"
-            ),
-        )
-        self._agents_provider_snapshot = getattr(load_result, "provider_snapshot", None)
-        loaded_signature = _agents_loaded_signature(
-            load_result.all_agents,
-            dismissed_snapshot=dismissed_snapshot,
-            hide_non_run_agents=bool(self.hide_non_run_agents),
-            search_query=search_query,
-            provider_snapshot=self._agents_provider_snapshot,
+            full_history=full_history or bool(getattr(self, "_agent_search_query", "")),
         )
         all_agents = load_result.all_agents
         dismissed_from_loader = load_result.dismissed_from_loader
@@ -319,27 +211,6 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             load_result.load_state.artifact_source,
             load_result.load_state.complete_history,
         )
-        if _can_skip_unchanged_daemon_refresh(
-            self,
-            signature=loaded_signature,
-            merge_result=merge_result,
-            provider_snapshot=self._agents_provider_snapshot,
-        ):
-            from ...util.trace import trace_event
-
-            provider_snapshot = self._agents_provider_snapshot
-            self._agent_load_state = load_result.load_state
-            trace_event(
-                "agents.refresh_no_change",
-                provider_source="daemon",
-                snapshot_id=(
-                    provider_snapshot.snapshot_id
-                    if provider_snapshot is not None
-                    else None
-                ),
-            )
-            return
-        self._agents_last_loaded_signature = loaded_signature
         cleanup_start = time.perf_counter()
         orphaned, cleaned_dirs = await asyncio.to_thread(
             compute_loader_cleanup, dismissed_snapshot, dismissed_from_loader

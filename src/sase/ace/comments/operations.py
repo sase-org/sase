@@ -5,6 +5,7 @@ from ..changespec import (
     changespec_lock,
     is_error_suffix,
     is_running_agent_suffix,
+    write_changespec_atomic,
 )
 
 
@@ -157,31 +158,7 @@ def _write_comments_unlocked(
         if comments
         else f"Remove COMMENTS for {changespec_name}"
     )
-
-    from sase.daemon.changespec_writes import (
-        write_changespec_project_file_mutation_locked,
-    )
-
-    write_changespec_project_file_mutation_locked(
-        "changespec.comments",
-        project_file=project_file,
-        changespec_name=changespec_name,
-        updated_content=updated_content,
-        payload={
-            "section_names": ["comments"],
-            "comments": [
-                {
-                    "reviewer": comment.reviewer,
-                    "file_path": comment.file_path,
-                    "suffix": comment.suffix,
-                    "suffix_type": comment.suffix_type,
-                }
-                for comment in (comments or [])
-            ],
-        },
-        commit_message=commit_msg,
-        return_value=None,
-    )
+    write_changespec_atomic(project_file, updated_content, commit_msg)
 
 
 def update_changespec_comments_field(

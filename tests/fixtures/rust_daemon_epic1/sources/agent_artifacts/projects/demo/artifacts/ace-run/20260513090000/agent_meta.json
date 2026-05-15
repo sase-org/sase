@@ -1,9 +1,0 @@
-{
-  "name": "running_agent",
-  "pid": 9000,
-  "model": "codex/gpt-5.5",
-  "llm_provider": "codex",
-  "workspace_dir": "/tmp/sase-fixture/running",
-  "run_started_at": "2026-05-13T09:00:00Z"
-}
-

@@ -1,9 +1,0 @@
-{
-  "name": "done_agent",
-  "model": "codex/gpt-5.5",
-  "llm_provider": "codex",
-  "workspace_dir": "/tmp/sase-fixture/done",
-  "stopped_at": "2026-05-13T09:25:00Z",
-  "chat_path": "history/chats/202605/demo-run-agent-20260513103000.md"
-}
-

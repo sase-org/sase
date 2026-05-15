@@ -78,7 +78,7 @@ class AgentLoadState:
 
     tier: Literal["tier1", "tier2"]
     complete_history: bool
-    artifact_source: Literal["artifact_index", "source_scan", "daemon_projection"]
+    artifact_source: Literal["artifact_index", "source_scan"]
     used_artifact_index: bool
     index_error: str | None = None
 

@@ -1,6 +1,0 @@
-{
-  "helper_method": "xprompt.catalog",
-  "lsp_method": "textDocument/completion",
-  "project": "demo"
-}
-

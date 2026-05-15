@@ -10,7 +10,6 @@ import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
 
 from sase.core.agent_artifact_helpers import (
     artifact_id,
@@ -228,45 +227,12 @@ def _store_file(
 
 
 def _upsert_index_row(index_path: Path, artifact: AgentArtifact) -> None:
-    def direct_writer() -> None:
-        index_path.parent.mkdir(parents=True, exist_ok=True)
-        with _index_lock(index_path, exclusive=True):
-            rows = _read_index_unlocked(index_path)
-            rows_by_id = {row.id: row for row in rows}
-            rows_by_id[artifact.id] = artifact
-            _write_index_unlocked(index_path, list(rows_by_id.values()))
-
-    try:
-        rows = read_explicit_agent_artifact_index(index_path)
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    with _index_lock(index_path, exclusive=True):
+        rows = _read_index_unlocked(index_path)
         rows_by_id = {row.id: row for row in rows}
         rows_by_id[artifact.id] = artifact
-        next_rows = list(rows_by_id.values())
-        content = _index_content(next_rows)
-
-        from sase.daemon.agent_writes import (
-            atomic_json_export,
-            daemon_agent_write,
-            write_agent_metadata_or_fallback,
-        )
-
-        payload_artifact = _artifact_association_wire(artifact)
-
-        def daemon_writer(client: Any) -> None:
-            daemon_agent_write(
-                client,
-                "agents.artifact_associated",
-                project_id=artifact.project or "global",
-                payload={"artifact": payload_artifact},
-                source_exports=[atomic_json_export(index_path, content)],
-            )
-
-        write_agent_metadata_or_fallback(
-            "agents.artifact_associated",
-            daemon_writer=daemon_writer,
-            direct_writer=direct_writer,
-        )
-    except (OSError, ValueError, json.JSONDecodeError):
-        direct_writer()
+        _write_index_unlocked(index_path, list(rows_by_id.values()))
 
 
 def _read_index_unlocked(index_path: Path) -> list[AgentArtifact]:
@@ -316,38 +282,6 @@ def _write_index_unlocked(index_path: Path, rows: list[AgentArtifact]) -> None:
     except Exception:
         Path(tmp_name).unlink(missing_ok=True)
         raise
-
-
-def _index_content(rows: list[AgentArtifact]) -> str:
-    lines = []
-    for row in rows:
-        lines.append(
-            json.dumps(
-                {
-                    "schema_version": AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
-                    "artifact": agent_artifact_to_dict(row),
-                },
-                sort_keys=True,
-            )
-        )
-    return "\n".join(lines) + ("\n" if lines else "")
-
-
-def _artifact_association_wire(artifact: AgentArtifact) -> dict[str, Any]:
-    project = artifact.project or "global"
-    raw_timestamp = artifact.raw_timestamp or (
-        Path(artifact.agent_artifacts_dir).name
-        if artifact.agent_artifacts_dir
-        else "unknown"
-    )
-    return {
-        "schema_version": 1,
-        "agent_id": f"agent:{project}:{raw_timestamp}",
-        "artifact_path": artifact.path,
-        "artifact_kind": artifact.kind,
-        "display_name": artifact.label,
-        "role": "explicit" if artifact.explicit else "default",
-    }
 
 
 @contextmanager

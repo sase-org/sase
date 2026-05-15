@@ -6,11 +6,6 @@ from sase.notifications.catalog import (
     notification_info_to_json,
     resolve_notification_ref,
 )
-from sase.notifications.daemon_reads import (
-    NotificationPendingActions,
-    read_notification_counts,
-    read_notification_pending_actions,
-)
 from sase.notifications.models import (
     Notification,
     format_relative_time,
@@ -43,7 +38,6 @@ from sase.notifications.store import (
 __all__ = [
     "Notification",
     "NotificationInfo",
-    "NotificationPendingActions",
     "append_notification",
     "dismiss_agent_completion_notifications_matching_agents",
     "dismiss_notifications_matching_agents",
@@ -61,8 +55,6 @@ __all__ = [
     "mark_read",
     "mark_snoozed",
     "notification_info_to_json",
-    "read_notification_counts",
-    "read_notification_pending_actions",
     "read_notification_snapshot",
     "resolve_notification_ref",
     "rewrite_notifications",

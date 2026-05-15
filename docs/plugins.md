@@ -119,30 +119,6 @@ Resource plugins can be disabled via environment variables:
 Any non-empty value enables the disable. The VCS, workspace, and LLM provider registries currently load their provider
 entry points directly and do not consult these resource-plugin disable switches.
 
-## Provider Host Rollout
-
-Provider-host routing lets the local daemon call selected Python provider/plugin host operations through a bounded IPC
-envelope with manifest, capability, timeout, cancellation, and resource-policy diagnostics. The bundled default posture
-is `host-preferred`: use the daemon host-call path when it is running and capable, then fall back to the direct Python
-path.
-
-| Operation               | Default          | Fallback / rollback              |
-| ----------------------- | ---------------- | -------------------------------- |
-| `llm.metadata`          | `host-preferred` | `SASE_PROVIDER_HOST_MODE=direct` |
-| `xprompt.catalog`       | `host-preferred` | `SASE_PROVIDER_HOST_MODE=direct` |
-| `vcs.query`             | `host-preferred` | `SASE_PROVIDER_HOST_MODE=direct` |
-| `workspace.metadata`    | `host-preferred` | `SASE_PROVIDER_HOST_MODE=direct` |
-| `workspace.resolve_ref` | `host-preferred` | `SASE_PROVIDER_HOST_MODE=direct` |
-| `llm.invoke`            | `host-preferred` | `SASE_PROVIDER_HOST_MODE=direct` |
-| `workflow.step`         | `host-preferred` | `SASE_PROVIDER_HOST_MODE=direct` |
-| `vcs.mutation`          | `host-preferred` | `SASE_PROVIDER_HOST_MODE=direct` |
-
-Use `daemon.provider_host.modes.<operation>` or `SASE_PROVIDER_HOST_<OPERATION>_MODE` for one operation. Use
-`SASE_PROVIDER_HOST_MODE=direct` or `SASE_DISABLE_PROVIDER_HOST_ROUTING=1` as global rollback controls for provider-host
-operations. `SASE_NO_DAEMON=1` is the broader escape hatch for daemon-capable reads, writes, and scheduler routing, but
-provider-host metadata/catalog calls should use the provider-host rollback switches above. `sase daemon rollout --json`
-reports the provider-host manifest inventory, resource-policy diagnostics, required M5 gates, and release checklist.
-
 ## Writing a Plugin
 
 A sase plugin is a standard Python package that declares entry points in `pyproject.toml`.

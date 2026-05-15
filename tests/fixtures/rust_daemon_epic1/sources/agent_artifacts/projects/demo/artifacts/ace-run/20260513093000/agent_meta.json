@@ -1,7 +1,0 @@
-{
-  "name": "failed_agent",
-  "model": "gemini/pro",
-  "llm_provider": "gemini",
-  "stopped_at": "2026-05-13T09:35:00Z"
-}
-

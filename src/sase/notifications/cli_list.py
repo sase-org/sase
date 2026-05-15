@@ -24,8 +24,6 @@ def handle_notify_list(args: argparse.Namespace) -> None:
             sender=getattr(args, "sender", None),
             unread=bool(getattr(args, "unread", False)),
             include_dismissed=bool(getattr(args, "all", False)),
-            args=args,
-            client=getattr(args, "daemon_client", None),
         )
     except Exception as exc:
         print(f"sase notify list: cannot read notifications: {exc}", file=sys.stderr)

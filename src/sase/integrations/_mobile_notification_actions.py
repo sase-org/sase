@@ -418,28 +418,11 @@ def _write_json_once(
     response_json: dict[str, Any],
     notification_id: str,
 ) -> None:
-    from sase.xprompt.workflow_daemon_writes import write_action_response_once
-
-    action_kind = {
-        "plan_response.json": "plan_approval",
-        "hitl_response.json": "hitl",
-        "question_response.json": "user_question",
-    }.get(response_path.name, "workflow_response")
-
-    def direct_writer() -> None:
-        try:
-            with response_path.open("x", encoding="utf-8") as f:
-                json.dump(response_json, f, indent=2)
-                f.write("\n")
-        except FileExistsError as exc:
-            raise MobilePlanActionError(
-                "conflict_already_handled", notification_id, "response already exists"
-            ) from exc
-
-    write_action_response_once(
-        response_path,
-        response_json,
-        action_kind=action_kind,
-        notification_id=notification_id,
-        direct_writer=direct_writer,
-    )
+    try:
+        with response_path.open("x", encoding="utf-8") as f:
+            json.dump(response_json, f, indent=2)
+            f.write("\n")
+    except FileExistsError as exc:
+        raise MobilePlanActionError(
+            "conflict_already_handled", notification_id, "response already exists"
+        ) from exc

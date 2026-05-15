@@ -1,6 +1,0 @@
-{
-  "audit_routes": ["/api/v1/notifications", "/api/v1/actions/notif-hi"],
-  "paired": true,
-  "session_id": "mobile-session"
-}
-

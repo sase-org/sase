@@ -23,67 +23,6 @@ mobile_gateway:
   push_retry_limit: 1
   startup_timeout_seconds: 10
 
-daemon:
-  command: ""
-  sase_home: ""
-  run_root: ""
-  socket_path: ""
-  disable_mobile_http: false
-  startup_timeout_seconds: 5
-  rollout:
-    milestones:
-      # M0 covers shadow indexing, rebuild, verify, and diff diagnostics.
-      m0_shadow_indexing: true
-      # M1 covers selected CLI/editor daemon read-through surfaces.
-      m1_read_through: true
-  provider_host:
-    # direct: use existing in-process Python provider/plugin paths
-    # shadow: run host-routed safe reads for comparison, return direct results
-    # host-preferred: use host routing with direct fallback on unavailable/unsupported
-    # host-required: require host routing; intended for tests and diagnostics only
-    default_mode: "host-preferred"
-    shadow_compare: true
-    modes:
-      llm_metadata: "host-preferred"
-      xprompt_catalog: "host-preferred"
-      vcs_query: "host-preferred"
-      workspace_metadata: "host-preferred"
-      workspace_resolve_ref: "host-preferred"
-      llm_invoke: "host-preferred"
-      workflow_step: "host-preferred"
-      vcs_mutation: "host-preferred"
-  scheduler:
-    # direct: use existing Python launch paths
-    # shadow: submit launch batches to the daemon, then still launch directly
-    # daemon: submit launch batches to the daemon and fall back to direct on
-    #         unavailable/unsupported scheduler routing
-    launch_mode: "daemon"
-    # direct: use existing Python lifecycle mutation paths
-    # shadow: enqueue lifecycle mutations to the daemon scheduler, then still
-    #         apply the existing direct side effects
-    # daemon: enqueue lifecycle mutations to the daemon scheduler and keep
-    #         direct fallback available while host execution rolls out
-    lifecycle_mode: "daemon"
-    # direct: use existing Python axe orchestrator/lumberjack paths
-    # daemon: submit axe chops/ticks as daemon scheduler tasks and fall back to
-    #         direct execution on unavailable/unsupported scheduler routing
-    axe_mode: "daemon"
-  reads:
-    enabled: true
-    force_direct: false
-    fallback_diagnostics: true
-    surfaces:
-      changespecs: true
-      notifications: true
-      agents: true
-      beads: true
-      catalogs: true
-      ace_agents: true
-      ace_changespecs: true
-      ace_notifications: true
-      ace_artifacts: true
-      ace_archive_search: true
-
 ace:
   inactive_seconds: 600
   repro_output_dir: ""
@@ -148,7 +87,7 @@ ace:
       edit_panel: "E"
       show_agent_run_log: "V"
       open_agent_artifacts: "A"
-      # Tools panel
+      # Thinking panel
       toggle_thinking: "right_square_bracket"
       toggle_thinking_reverse: "left_square_bracket"
       # Attempt history (agents tab)
@@ -242,7 +181,7 @@ ace:
           toggle_agent_panel_grouping: "g"
           jump_to_next_unread_done_agent: "j"
           jump_to_next_stopped_agent: "J"
-          mark_all_unread_done_agents_read: "u"
+          mark_all_unread_done_agents_read: "U"
           kill_and_edit: "x"
           mark_inactive: "I"
           retry_edit: "r"

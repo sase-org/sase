@@ -11,7 +11,7 @@ from ..provider_contract import AceRowHandle
 def agent_row_handle(agent: Agent) -> AceRowHandle:
     """Return the stable ACE row handle for an agent row."""
 
-    handle = daemon_handle_for_agent(agent)
+    handle = _handle_for_agent(agent)
     return AceRowHandle(
         surface="agents",
         stable_id=handle,
@@ -20,6 +20,6 @@ def agent_row_handle(agent: Agent) -> AceRowHandle:
     )
 
 
-def daemon_handle_for_agent(agent: Agent) -> str:
+def _handle_for_agent(agent: Agent) -> str:
     project = Path(agent.project_file).parent.name if agent.project_file else "unknown"
     return f"agent:{project}:{agent.raw_suffix or ''}"

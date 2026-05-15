@@ -113,33 +113,26 @@ GitHub pull requests, and other provider plugins.
 
 ## Operations And Diagnostics
 
-| Command                          | Purpose                                                                      | Details                                                             |
-| -------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `sase config layers`             | Show the configuration merge chain.                                          | [Configuration](configuration.md)                                   |
-| `sase config show`               | Dump the final merged configuration, optionally filtered by key.             | [Configuration](configuration.md)                                   |
-| `sase config mentor-match`       | Trace mentor profile matching for a ChangeSpec.                              | [Mentors](mentors.md)                                               |
-| `sase core health`               | Check that the required `sase_core_rs` extension is loadable and working.    | [Rust backend](rust_backend.md)                                     |
-| `sase daemon start`              | Start the host-local Rust daemon.                                            | [Local daemon](local_daemon.md)                                     |
-| `sase daemon status`             | Show local daemon ownership, socket, log, and projection paths.              | [Daemon operations](troubleshooting/daemon-operations.md)           |
-| `sase daemon doctor`             | Diagnose daemon health and print exact repair commands.                      | [Daemon operations](troubleshooting/daemon-operations.md)           |
-| `sase daemon rebuild`            | Backfill daemon projections, or replay retained projection events.           | [Daemon operations](troubleshooting/daemon-operations.md)           |
-| `sase daemon verify` / `diff`    | Compare runtime projections against source-store loaders.                    | [Daemon operations](troubleshooting/daemon-operations.md)           |
-| `sase daemon backup` / `restore` | Create live projection snapshots or restore projection-only backups.         | [Daemon operations](troubleshooting/daemon-operations.md)           |
-| `sase daemon scheduler`          | Inspect or cancel daemon scheduler batches.                                  | [Local daemon](local_daemon.md#scheduler-and-provider-host-rollout) |
-| `sase telemetry status`          | Show telemetry configuration and reachability.                               | [Telemetry](telemetry.md)                                           |
-| `sase telemetry list`            | Display the metric catalog.                                                  | [Telemetry](telemetry.md)                                           |
-| `sase telemetry snapshot`        | Fetch current metric values.                                                 | [Telemetry](telemetry.md)                                           |
-| `sase telemetry dashboard`       | Open the live telemetry dashboard.                                           | [Telemetry](telemetry.md)                                           |
-| `sase telemetry health`          | Run subsystem health assessment.                                             | [Telemetry](telemetry.md)                                           |
-| `sase telemetry export-config`   | Export the bundled monitoring stack.                                         | [Telemetry](telemetry.md)                                           |
-| `sase logs`                      | Collect and package agent run logs for a date range.                         | [Configuration CLI flags](configuration.md#sase-logs)               |
-| `sase revive-log`                | Inspect the agent-revival audit log (start / success / failure events).      | [Agent revival audit log](troubleshooting/agent-revival.md)         |
-| `sase artifact create`           | Move an explicit file into persistent agent artifact storage.                | [Agent attachments](agent_images.md)                                |
-| `sase path`                      | Print well-known paths such as schemas and xprompt directories.              | [Configuration CLI flags](configuration.md#sase-path)               |
-| `sase init-git`                  | Initialize a bare-repo-backed git project.                                   | [ProjectSpec](project_spec.md)                                      |
-| `sase mobile gateway start`      | Start the workstation-hosted mobile gateway.                                 | [Mobile gateway](mobile_gateway.md)                                 |
-| `sase mobile agent-bridge`       | Fixed JSON bridge used by the mobile gateway for agent operations.           | [Mobile gateway](mobile_gateway.md)                                 |
-| `sase mobile helper-bridge`      | Fixed JSON bridge used by the mobile gateway for workflow helper operations. | [Mobile gateway](mobile_gateway.md)                                 |
+| Command                        | Purpose                                                                      | Details                                                     |
+| ------------------------------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `sase config layers`           | Show the configuration merge chain.                                          | [Configuration](configuration.md)                           |
+| `sase config show`             | Dump the final merged configuration, optionally filtered by key.             | [Configuration](configuration.md)                           |
+| `sase config mentor-match`     | Trace mentor profile matching for a ChangeSpec.                              | [Mentors](mentors.md)                                       |
+| `sase core health`             | Check that the required `sase_core_rs` extension is loadable and working.    | [Rust backend](rust_backend.md)                             |
+| `sase telemetry status`        | Show telemetry configuration and reachability.                               | [Telemetry](telemetry.md)                                   |
+| `sase telemetry list`          | Display the metric catalog.                                                  | [Telemetry](telemetry.md)                                   |
+| `sase telemetry snapshot`      | Fetch current metric values.                                                 | [Telemetry](telemetry.md)                                   |
+| `sase telemetry dashboard`     | Open the live telemetry dashboard.                                           | [Telemetry](telemetry.md)                                   |
+| `sase telemetry health`        | Run subsystem health assessment.                                             | [Telemetry](telemetry.md)                                   |
+| `sase telemetry export-config` | Export the bundled monitoring stack.                                         | [Telemetry](telemetry.md)                                   |
+| `sase logs`                    | Collect and package agent run logs for a date range.                         | [Configuration CLI flags](configuration.md#sase-logs)       |
+| `sase revive-log`              | Inspect the agent-revival audit log (start / success / failure events).      | [Agent revival audit log](troubleshooting/agent-revival.md) |
+| `sase artifact create`         | Move an explicit file into persistent agent artifact storage.                | [Agent attachments](agent_images.md)                        |
+| `sase path`                    | Print well-known paths such as schemas and xprompt directories.              | [Configuration CLI flags](configuration.md#sase-path)       |
+| `sase init-git`                | Initialize a bare-repo-backed git project.                                   | [ProjectSpec](project_spec.md)                              |
+| `sase mobile gateway start`    | Start the workstation-hosted mobile gateway.                                 | [Mobile gateway](mobile_gateway.md)                         |
+| `sase mobile agent-bridge`     | Fixed JSON bridge used by the mobile gateway for agent operations.           | [Mobile gateway](mobile_gateway.md)                         |
+| `sase mobile helper-bridge`    | Fixed JSON bridge used by the mobile gateway for workflow helper operations. | [Mobile gateway](mobile_gateway.md)                         |
 
 Operational commands are intentionally narrow. Helper bridges expose fixed JSON operations for editor and mobile
 clients; they are not general shell or filesystem APIs.

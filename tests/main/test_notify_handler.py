@@ -71,18 +71,13 @@ def _list_args(**overrides: object) -> argparse.Namespace:
         "sender": None,
         "unread": False,
         "all": False,
-        "no_daemon": True,
     }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
 
 
 def _show_args(**overrides: object) -> argparse.Namespace:
-    defaults: dict[str, object] = {
-        "id": "target",
-        "format": "markdown",
-        "no_daemon": True,
-    }
+    defaults: dict[str, object] = {"id": "target", "format": "markdown"}
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
 
@@ -108,7 +103,6 @@ def test_parser_registers_notify_list_options() -> None:
     assert args.sender == "axe"
     assert args.unread is True
     assert args.all is True
-    assert args.no_daemon is False
 
 
 def test_parser_registers_notify_show_options() -> None:
@@ -117,7 +111,6 @@ def test_parser_registers_notify_show_options() -> None:
     assert args.notify_subcommand == "show"
     assert args.id == "n1"
     assert args.format == "json"
-    assert args.no_daemon is False
 
     with pytest.raises(SystemExit):
         parser.parse_args(["notify", "show"])
@@ -189,7 +182,6 @@ def test_notify_command_dispatches_list(
                 sender=None,
                 unread=False,
                 all=False,
-                no_daemon=True,
             )
         )
 
@@ -374,7 +366,7 @@ def test_notify_skill_recommended_flow_lists_shows_and_reads_axe_digest(
 
     parser = create_parser()
     list_args = parser.parse_args(
-        ["notify", "list", "-j", "-l", "20", "--sender", "axe", "--no-daemon"]
+        ["notify", "list", "-j", "-l", "20", "--sender", "axe"]
     )
     with pytest.raises(SystemExit) as excinfo:
         handle_notify_command(list_args)
@@ -388,9 +380,7 @@ def test_notify_skill_recommended_flow_lists_shows_and_reads_axe_digest(
     assert axe_row["files"] == [str(digest_path)]
     assert axe_row["action_data"]["error_report_path"] == str(digest_path)
 
-    show_args = parser.parse_args(
-        ["notify", "show", "--id", axe_row["id"], "--no-daemon"]
-    )
+    show_args = parser.parse_args(["notify", "show", "--id", axe_row["id"]])
     with pytest.raises(SystemExit) as excinfo:
         handle_notify_command(show_args)
     assert excinfo.value.code == 0
@@ -407,17 +397,7 @@ def test_notify_skill_recommended_flow_lists_shows_and_reads_axe_digest(
     assert "bgcmd hooks failed with exit code 1" in digest_text
 
     all_args = parser.parse_args(
-        [
-            "notify",
-            "list",
-            "-j",
-            "-l",
-            "20",
-            "--sender",
-            "axe",
-            "--all",
-            "--no-daemon",
-        ]
+        ["notify", "list", "-j", "-l", "20", "--sender", "axe", "--all"]
     )
     with pytest.raises(SystemExit) as excinfo:
         handle_notify_command(all_args)

@@ -7,9 +7,7 @@ layer that delegates the actual LLM call to a pluggable provider.
 
 import os
 import subprocess
-import sys
 import time
-from collections.abc import Mapping
 from typing import Any, Literal, cast
 
 from sase.core.time import generate_timestamp
@@ -192,40 +190,28 @@ def invoke_agent(
     provider_label = provider_name or get_default_provider_name()
     t0 = time.monotonic()
     try:
-        if _should_route_llm_invoke_through_host():
-            invoke_payload = _invoke_provider_via_host(
-                prompt=query,
-                model_tier=model_tier,
-                suppress_output=suppress_output,
-                model_override=model_override,
-                provider_name=provider_name,
-            )
-            response_content = invoke_payload["content"]
-            usage = invoke_payload.get("usage")
-        else:
-            provider = get_provider(provider_name)
-            invoke_result = provider.invoke(
-                query,
-                model_tier=model_tier,
-                suppress_output=suppress_output,
-                model_override=model_override,
-            )
-            response_content = invoke_result.content
-            usage = invoke_result.usage
+        provider = get_provider(provider_name)
+        invoke_result = provider.invoke(
+            query,
+            model_tier=model_tier,
+            suppress_output=suppress_output,
+            model_override=model_override,
+        )
+        response_content = invoke_result.content
 
         # Record success metrics
         elapsed = time.monotonic() - t0
         LLM_INVOCATIONS.labels(provider=provider_label, status="ok").inc()
         LLM_INVOCATION_DURATION.labels(provider=provider_label).observe(elapsed)
-        if usage:
+        if invoke_result.usage:
             LLM_INPUT_TOKENS.labels(provider=provider_label).inc(
-                usage.get("input_tokens", 0)
+                invoke_result.usage.get("input_tokens", 0)
             )
             LLM_OUTPUT_TOKENS.labels(provider=provider_label).inc(
-                usage.get("output_tokens", 0)
+                invoke_result.usage.get("output_tokens", 0)
             )
             LLM_CACHE_READ_TOKENS.labels(provider=provider_label).inc(
-                usage.get("cache_read_input_tokens", 0)
+                invoke_result.usage.get("cache_read_input_tokens", 0)
             )
 
         # 8. Postprocess success
@@ -284,114 +270,3 @@ def invoke_agent(
         )
 
         raise LLMInvocationError(error_content) from e
-
-
-def _should_route_llm_invoke_through_host() -> bool:
-    return (
-        os.environ.get("SASE_DAEMON_SCHEDULER_HOST_BRIDGE") == "1"
-        and os.environ.get("SASE_PROVIDER_HOST_DIRECT_CALL") != "1"
-    )
-
-
-def _invoke_provider_via_host(
-    *,
-    prompt: str,
-    model_tier: ModelTier,
-    suppress_output: bool,
-    model_override: str | None,
-    provider_name: str | None,
-) -> dict[str, Any]:
-    from sase.host.client import call_provider_host, is_host_fallbackable
-    from sase.host.wire import HOST_CAP_LLM_INVOKE
-
-    try:
-        response = call_provider_host(
-            family="llm",
-            operation="llm.invoke",
-            payload={
-                "prompt": prompt,
-                "model_tier": model_tier,
-                "suppress_output": suppress_output,
-                "model_override": model_override,
-                "provider_name": provider_name,
-                "cwd": os.getcwd(),
-                "env": dict(os.environ),
-            },
-            required_capability=HOST_CAP_LLM_INVOKE,
-            timeout_ms=300_000,
-        )
-    except Exception as exc:
-        if is_host_fallbackable(exc):
-            return _invoke_provider_direct_payload(
-                prompt=prompt,
-                model_tier=model_tier,
-                suppress_output=suppress_output,
-                model_override=model_override,
-                provider_name=provider_name,
-            )
-        raise
-
-    _emit_host_logs(response.logs)
-    if response.status == "ok":
-        content = response.result.get("content")
-        if not isinstance(content, str):
-            raise LLMInvocationError("Host llm.invoke response did not include content")
-        usage = _int_usage(response.result.get("usage"))
-        return {"content": content, "usage": usage}
-
-    code = response.error.code if response.error is not None else "host_protocol_error"
-    if code in {
-        "host_unavailable",
-        "resource_limit_exceeded",
-        "operation_unsupported",
-        "capability_denied",
-        "host_protocol_error",
-    }:
-        return _invoke_provider_direct_payload(
-            prompt=prompt,
-            model_tier=model_tier,
-            suppress_output=suppress_output,
-            model_override=model_override,
-            provider_name=provider_name,
-        )
-
-    message = response.error.message if response.error is not None else response.status
-    raise LLMInvocationError(message)
-
-
-def _invoke_provider_direct_payload(
-    *,
-    prompt: str,
-    model_tier: ModelTier,
-    suppress_output: bool,
-    model_override: str | None,
-    provider_name: str | None,
-) -> dict[str, Any]:
-    provider = get_provider(provider_name)
-    result = provider.invoke(
-        prompt,
-        model_tier=model_tier,
-        suppress_output=suppress_output,
-        model_override=model_override,
-    )
-    return {"content": result.content, "usage": result.usage}
-
-
-def _int_usage(value: object) -> dict[str, int] | None:
-    if not isinstance(value, Mapping):
-        return None
-    usage: dict[str, int] = {}
-    for key, item in value.items():
-        if isinstance(key, str) and isinstance(item, int):
-            usage[key] = item
-    return usage or None
-
-
-def _emit_host_logs(logs: Any) -> None:
-    for log in logs or ():
-        stream = getattr(log, "stream", None)
-        message = getattr(log, "message", "")
-        if stream == "stderr" and message:
-            sys.stderr.write(str(message))
-            if not str(message).endswith("\n"):
-                sys.stderr.write("\n")

@@ -81,22 +81,8 @@ class PromptBarSubmitMixin:
             "feedback": feedback,
         }
         try:
-            from sase.xprompt.workflow_daemon_writes import (
-                write_action_response_once,
-            )
-
-            def direct_writer() -> None:
-                with open(plan_response_path, "x", encoding="utf-8") as f:
-                    json.dump(response_data, f, indent=2)
-                    f.write("\n")
-
-            write_action_response_once(
-                plan_response_path,
-                response_data,
-                action_kind="plan_approval",
-                notification_id=ctx.notification_id,
-                direct_writer=direct_writer,
-            )
+            with open(plan_response_path, "w", encoding="utf-8") as f:
+                json.dump(response_data, f, indent=2)
             self.notify("Sent plan feedback")  # type: ignore[attr-defined]
         except Exception as e:
             self.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]

@@ -27,7 +27,6 @@ from ._dismiss_cleanup import (
 from ._dismiss_memory import AgentDismissMemoryMixin
 from ._dismiss_persistence import (
     agents_related_to_dismissal,
-    submit_lifecycle_targets,
 )
 from ._dismiss_persistence import (
     persist_cleanup_side_effect_intents,
@@ -281,11 +280,6 @@ def _persist_single_dismiss_transaction(
     """Persist all side effects for one optimistic dismiss operation."""
     from ....dismissed_agents import save_dismissed_agents
 
-    submit_lifecycle_targets(
-        "dismiss",
-        [agent],
-        reason="ace.dismiss.single",
-    )
     if not persist_cleanup_side_effect_intents(
         cleanup_plan,
         agents_with_children_snapshot,
@@ -306,11 +300,6 @@ def _persist_bulk_dismiss_transaction(
     """Persist all side effects for an optimistic batch dismiss operation."""
     from ....dismissed_agents import save_dismissed_agents
 
-    submit_lifecycle_targets(
-        "dismiss",
-        agents,
-        reason="ace.dismiss.bulk",
-    )
     if not persist_cleanup_side_effect_intents(
         cleanup_plan,
         agents_with_children_snapshot,

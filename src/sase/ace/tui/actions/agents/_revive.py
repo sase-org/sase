@@ -331,7 +331,6 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         child_raw_suffixes: set[str] = set()
         stage = "dismissed_set_update"
         try:
-            self._submit_revive_scheduler_targets([agent])
             self._dismissed_agents.discard(agent.identity)
             revived_suffixes: set[str] = set()
             if agent.raw_suffix:
@@ -444,7 +443,6 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         revived_suffixes: set[str] = set()
         stage = "dismissed_set_update"
         try:
-            self._submit_revive_scheduler_targets(valid_agents)
             for agent in valid_agents:
                 self._dismissed_agents.discard(agent.identity)
                 agent_suffixes: set[str] = set()
@@ -549,25 +547,3 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             for agent in revive_candidates:
                 if self._select_revived_agent(agent):
                     break
-
-    @staticmethod
-    def _submit_revive_scheduler_targets(agents: list[Agent]) -> None:
-        """Best-effort scheduler enqueue for revive mutations."""
-        try:
-            from sase.daemon.lifecycle_scheduler import (
-                lifecycle_target_from_agent,
-                submit_lifecycle_batch_if_enabled,
-            )
-
-            submit_lifecycle_batch_if_enabled(
-                [
-                    lifecycle_target_from_agent(
-                        "revive",
-                        agent,
-                        reason="ace.revive",
-                    )
-                    for agent in agents
-                ]
-            )
-        except Exception:
-            pass

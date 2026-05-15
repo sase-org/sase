@@ -71,7 +71,6 @@ sase ace                  # open the interactive control surface
 sase run "<prompt>"       # launch an agent or workflow
 sase agents status        # inspect running agents
 sase bead onboard         # see the bead issue-tracking quick start
-sase daemon status        # inspect the host-local daemon and projection state
 ```
 
 ## Keep reading
@@ -90,7 +89,6 @@ The full documentation lives at **[sase.sh](https://sase.sh/)**. Start with:
 - [Plugins](https://sase.sh/plugins/) ([local](docs/plugins.md))
 - [LLM Providers](https://sase.sh/llms/) ([local](docs/llms.md))
 - [Notifications](https://sase.sh/notifications/) ([local](docs/notifications.md))
-- [Local Daemon](https://sase.sh/local_daemon/) ([local](docs/local_daemon.md))
 - [Agent Attachments](https://sase.sh/agent_images/) ([local](docs/agent_images.md))
 - [Mobile Gateway](https://sase.sh/mobile_gateway/) ([local](docs/mobile_gateway.md))
 - [Telemetry](https://sase.sh/telemetry/) ([local](docs/telemetry.md))

@@ -141,12 +141,6 @@ def main() -> NoReturn:
 
         handle_core_command(args)
 
-    # --- daemon ---
-    if args.command == "daemon":
-        from .daemon_handler import handle_daemon_command
-
-        handle_daemon_command(args)
-
     # --- editor ---
     if args.command == "editor":
         from .editor_handler import handle_editor_command

@@ -1,8 +1,0 @@
-{
-  "pid": 9000,
-  "cl_name": "daemon_active",
-  "model": "codex/gpt-5.5",
-  "llm_provider": "codex",
-  "workspace_dir": "/tmp/sase-fixture/running"
-}
-

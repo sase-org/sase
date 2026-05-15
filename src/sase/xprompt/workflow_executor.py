@@ -170,22 +170,9 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
             "hidden": self.workflow.hidden,
             "agents_launched": self._agents_launched,
         }
-
-        def direct_writer() -> None:
-            os.makedirs(self.artifacts_dir, exist_ok=True)
-            with open(state_path, "w", encoding="utf-8") as f:
-                json.dump(state_dict, f, indent=2)
-
-        from sase.xprompt.workflow_daemon_writes import write_workflow_state
-
-        write_workflow_state(
-            state_path,
-            state_dict,
-            direct_writer=direct_writer,
-            event="run_created"
-            if self.state.current_step_index == 0 and not os.path.exists(state_path)
-            else "run_updated",
-        )
+        os.makedirs(self.artifacts_dir, exist_ok=True)
+        with open(state_path, "w", encoding="utf-8") as f:
+            json.dump(state_dict, f, indent=2)
 
     def _get_output_types(self, step_index: int) -> dict[str, str] | None:
         """Get the output type mapping for a workflow step.
@@ -600,36 +587,3 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         except Exception:
             # Non-critical - just for TUI visibility
             pass
-
-        try:
-            from sase.xprompt.workflow_daemon_writes import (
-                write_workflow_step_transition,
-            )
-
-            write_workflow_step_transition(
-                self.artifacts_dir,
-                workflow_name=self.workflow.name,
-                step_name=step_name,
-                status=step_state.status.value,
-                step_index=step_index,
-                step_type=step_type,
-                step_source=step_source,
-                output=step_state.output,
-                output_types=output_types,
-                error=step_state.error,
-                traceback=step_state.traceback,
-                log_summary=_bounded_step_summary(step_state.output),
-            )
-        except Exception:
-            # Durable daemon step events are advisory while direct workflow
-            # execution remains the source-compatible fallback.
-            pass
-
-
-def _bounded_step_summary(output: Any) -> str | None:
-    if output is None:
-        return None
-    text = json.dumps(output, sort_keys=True, default=str)
-    if len(text) <= 4096:
-        return text
-    return text[:4093] + "..."

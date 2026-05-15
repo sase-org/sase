@@ -9,9 +9,7 @@ from ..provider_contract import (
     AceRowHandle,
     AceSnapshot,
 )
-from ._daemon import DaemonAgentsDataProvider
 from ._direct import DirectAgentsDataProvider
-from ._events import apply_daemon_agent_events
 from ._factory import make_agents_data_provider
 from ._handles import agent_row_handle
 from ._settings import agents_daemon_reads_enabled
@@ -25,10 +23,8 @@ from ._types import (
 
 _AgentEventApplyResult = AgentEventApplyResult
 _AgentsProviderSnapshot = AgentsProviderSnapshot
-_DaemonAgentsDataProvider = DaemonAgentsDataProvider
 _DirectAgentsDataProvider = DirectAgentsDataProvider
 _agent_snapshot = agent_snapshot
-_apply_daemon_agent_events = apply_daemon_agent_events
 
 __all__ = [
     "AceFallbackMetadata",
@@ -40,16 +36,12 @@ __all__ = [
     "AgentsDataProvider",
     "AgentsProviderSnapshot",
     "AgentsViewport",
-    "DaemonAgentsDataProvider",
     "DirectAgentsDataProvider",
     "_AgentEventApplyResult",
     "_AgentsProviderSnapshot",
-    "_DaemonAgentsDataProvider",
     "_DirectAgentsDataProvider",
     "_agent_snapshot",
-    "_apply_daemon_agent_events",
     "agent_row_handle",
     "agents_daemon_reads_enabled",
-    "apply_daemon_agent_events",
     "make_agents_data_provider",
 ]

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -166,19 +165,8 @@ class AgentWorkflowHITLMixin:
                 response_data["feedback"] = result.feedback
 
             try:
-                from sase.xprompt.workflow_daemon_writes import (
-                    write_action_response_once,
-                )
-
-                write_action_response_once(
-                    response_path,
-                    response_data,
-                    action_kind="hitl",
-                    notification_id=None,
-                    direct_writer=lambda: _write_hitl_response_direct(
-                        response_path, response_data
-                    ),
-                )
+                with open(response_path, "w", encoding="utf-8") as f:
+                    json.dump(response_data, f, indent=2, default=str)
                 self.notify(f"Sent {result.action} response")  # type: ignore[attr-defined]
             except Exception as e:
                 self.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
@@ -187,13 +175,3 @@ class AgentWorkflowHITLMixin:
             self.call_later(self._schedule_agents_async_refresh)  # type: ignore[attr-defined]
 
         self.push_screen(WorkflowHITLModal(input_data), on_dismiss)  # type: ignore[attr-defined]
-
-
-def _write_hitl_response_direct(
-    response_path: Path, response_data: dict[str, object]
-) -> None:
-    import json
-
-    with open(response_path, "x", encoding="utf-8") as f:
-        json.dump(response_data, f, indent=2, default=str)
-        f.write("\n")

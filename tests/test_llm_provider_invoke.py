@@ -131,41 +131,6 @@ def test_invoke_agent_resolves_model_alias_for_provider_and_model(
     )
 
 
-@patch("sase.llm_provider._invoke.preprocess_prompt")
-@patch("sase.llm_provider._invoke.postprocess_success")
-def test_daemon_scheduler_invoke_routes_provider_call_through_host(
-    mock_postprocess: MagicMock,
-    mock_preprocess: MagicMock,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed")
-    calls: list[dict[str, object]] = []
-
-    def fake_invoke_provider_via_host(**kwargs: object) -> dict[str, object]:
-        calls.append(dict(kwargs))
-        return {
-            "content": "hosted",
-            "usage": {"input_tokens": 1, "output_tokens": 2},
-        }
-
-    monkeypatch.setattr(
-        "sase.llm_provider._invoke._should_route_llm_invoke_through_host",
-        lambda: True,
-    )
-    monkeypatch.setattr(
-        "sase.llm_provider._invoke._invoke_provider_via_host",
-        fake_invoke_provider_via_host,
-    )
-
-    response = invoke_agent("prompt", agent_type="test", suppress_output=True)
-
-    assert response.content == "hosted"
-    assert calls[0]["prompt"] == "preprocessed"
-    assert calls[0]["model_tier"] == "large"
-    assert calls[0]["suppress_output"] is True
-    mock_postprocess.assert_called_once()
-
-
 @patch("sase.llm_provider._invoke.get_provider")
 @patch("sase.llm_provider._invoke.preprocess_prompt")
 @patch("sase.llm_provider._invoke.postprocess_success")

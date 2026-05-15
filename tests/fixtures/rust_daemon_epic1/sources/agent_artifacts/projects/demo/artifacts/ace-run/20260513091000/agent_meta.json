@@ -1,9 +1,0 @@
-{
-  "name": "hitl_waiting_agent",
-  "pid": 9010,
-  "model": "claude/sonnet",
-  "llm_provider": "claude",
-  "wait_for": ["user"],
-  "wait_duration": 1800.0
-}
-

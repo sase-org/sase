@@ -3,7 +3,7 @@
 import re
 import sys
 
-from sase.ace.changespec.locking import changespec_lock
+from sase.ace.changespec.locking import changespec_lock, write_changespec_atomic
 from sase.core.time import generate_timestamp
 
 
@@ -56,22 +56,10 @@ def add_timestamp_entry_atomic(
 
             lines.insert(insert_idx, entry_line)
 
-            from sase.daemon.changespec_writes import (
-                write_changespec_project_file_mutation_locked,
-            )
-
-            write_changespec_project_file_mutation_locked(
-                "changespec.timestamps",
-                project_file=project_file,
-                changespec_name=cl_name,
-                updated_content="".join(lines),
-                payload={
-                    "section_names": ["timestamps"],
-                    "event_type": event_type,
-                    "detail": detail,
-                },
-                commit_message=f"Add {event_type} timestamp for {cl_name}",
-                return_value=None,
+            write_changespec_atomic(
+                project_file,
+                "".join(lines),
+                f"Add {event_type} timestamp for {cl_name}",
             )
         return True
     except Exception as exc:

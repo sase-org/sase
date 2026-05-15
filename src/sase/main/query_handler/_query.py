@@ -136,7 +136,7 @@ def run_query(
         from sase.agent.launcher import launch_agent_from_cwd
 
         launch_result = launch_agent_from_cwd(query)
-        _print_launch_result(launch_result)
+        print(f"Agent started (PID {launch_result.pid})")
         return
 
     from sase.xprompt._parsing import normalize_default_vcs_workflow
@@ -192,7 +192,7 @@ def run_query(
         from sase.agent.launcher import launch_agent_from_cwd
 
         launch_result = launch_agent_from_cwd(query)
-        _print_launch_result(launch_result)
+        print(f"Agent started (PID {launch_result.pid})")
         return
 
     if multi.frontmatter is not None:
@@ -394,11 +394,3 @@ def run_query(
         # Release workspace when done
         if project_file and workspace_num:
             release_workspace(project_file, workspace_num, "run", cl_name)
-
-
-def _print_launch_result(launch_result: Any) -> None:
-    batch_id = getattr(launch_result, "scheduler_batch_id", None)
-    if batch_id:
-        print(f"Agent batch queued ({batch_id})")
-    else:
-        print(f"Agent started (PID {launch_result.pid})")

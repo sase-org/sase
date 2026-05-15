@@ -130,28 +130,16 @@ def transition_changespec_status_python(
             log_msg += " (validation skipped)"
         logger.info(log_msg)
 
+        from sase.ace.changespec import write_changespec_atomic
+
         assert plan.status_update_target is not None
         updated_content = apply_status_update(
             lines, changespec_name, plan.status_update_target
         )
-
-        from sase.daemon.changespec_writes import (
-            write_changespec_project_file_mutation_locked,
-        )
-
-        write_changespec_project_file_mutation_locked(
-            "changespec.status",
-            project_file=project_file,
-            changespec_name=changespec_name,
-            updated_content=updated_content,
-            payload={
-                "from_status": old_status,
-                "to_status": plan.status_update_target,
-            },
-            commit_message=(
-                f"Update STATUS to {plan.status_update_target} for {changespec_name}"
-            ),
-            return_value=None,
+        write_changespec_atomic(
+            project_file,
+            updated_content,
+            f"Update STATUS to {plan.status_update_target} for {changespec_name}",
         )
 
         if plan.mentor_draft_action == MENTOR_ACTION_SET:

@@ -6,8 +6,6 @@ from ._event_activity import EventActivityMixin
 from ._event_base import TabName
 from ._event_keyboard import EventKeyboardMixin
 from ._event_refresh import (
-    DAEMON_REFRESH_EVENT_BATCH_LIMIT,
-    DAEMON_REFRESH_MAX_EVENTS,
     FULL_SANITY_REFRESH_SECONDS,
     PROMPT_INPUT_DEFER_SECONDS,
     EventRefreshMixin,
@@ -25,8 +23,6 @@ class EventHandlersMixin(
 
 
 __all__ = [
-    "DAEMON_REFRESH_EVENT_BATCH_LIMIT",
-    "DAEMON_REFRESH_MAX_EVENTS",
     "FULL_SANITY_REFRESH_SECONDS",
     "PROMPT_INPUT_DEFER_SECONDS",
     "EventHandlersMixin",

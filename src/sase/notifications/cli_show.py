@@ -19,11 +19,7 @@ def handle_notify_show(args: argparse.Namespace) -> None:
     fmt: str = args.format or "markdown"
 
     try:
-        info = resolve_notification_ref(
-            notification_id,
-            args=args,
-            client=getattr(args, "daemon_client", None),
-        )
+        info = resolve_notification_ref(notification_id)
     except Exception as exc:
         print(f"sase notify show: cannot read notifications: {exc}", file=sys.stderr)
         sys.exit(1)

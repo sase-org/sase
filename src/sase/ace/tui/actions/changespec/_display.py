@@ -16,7 +16,6 @@ from ...models.changespec_graph_index import (
     build_changespec_graph_index,
 )
 from ...models.changespec_groups import ChangeSpecGroupingMode
-from ...provider_contract import AceRowHandle, SelectionGeneration
 from ...util.trace import tui_trace
 
 log = logging.getLogger(__name__)
@@ -68,8 +67,6 @@ class ChangeSpecDisplayMixin:
     _w_search_query_panel: object
     _changespec_graph_index: ChangeSpecGraphIndex | None
     _changespec_graph_index_for_id: int | None
-    _changespec_detail_generation: SelectionGeneration
-    _changespec_row_handles_by_identity: dict[str, AceRowHandle]
 
     def _get_changespec_graph_index(self) -> ChangeSpecGraphIndex:
         """Return the graph index for ``_all_changespecs``, building if stale.
@@ -113,7 +110,6 @@ class ChangeSpecDisplayMixin:
                 return
 
             if self.changespecs:
-                self._changespec_selection_generation().bump()
                 list_widget.update_highlight(self.current_idx)
             self._update_info_panel()
             self._changespec_detail_debouncer.schedule(
@@ -179,9 +175,7 @@ class ChangeSpecDisplayMixin:
         )
 
         if self.changespecs and 0 <= self.current_idx < len(self.changespecs):
-            changespec = self._ensure_changespec_detail_loaded(
-                self.changespecs[self.current_idx]
-            )
+            changespec = self.changespecs[self.current_idx]
             self._apply_detail_panel_update(
                 detail_widget,
                 ancestors_panel,
@@ -256,65 +250,6 @@ class ChangeSpecDisplayMixin:
             footer_widget.update_bindings(  # type: ignore[attr-defined]
                 changespec, mark_count=len(self.marked_indices)
             )
-
-    def _ensure_changespec_detail_loaded(self, changespec: ChangeSpec) -> ChangeSpec:
-        """Promote a daemon summary row to full detail for the selected CL."""
-
-        snapshot = getattr(self, "_changespec_provider_snapshot", None)
-        if (
-            snapshot is None
-            or snapshot.provider.source != "daemon"
-            or not snapshot.provider.capabilities.lazy_details
-            or not getattr(changespec, "_sase_daemon_summary_only", False)
-        ):
-            return changespec
-
-        identity = f"{changespec.project_basename}:{changespec.name}"
-        row_handle = getattr(self, "_changespec_row_handles_by_identity", {}).get(
-            identity
-        )
-        if row_handle is None:
-            return changespec
-
-        generation = self._changespec_selection_generation()
-        request = generation.request(row_handle)
-
-        from ._provider import load_changespec_detail_for_tui
-
-        result = load_changespec_detail_for_tui(
-            row_handle,
-            client=getattr(self, "_daemon_read_client", None),
-            args=getattr(self, "_daemon_read_args", None),
-        )
-        if not generation.accepts(request) or result.value is None:
-            return changespec
-
-        result.value.__dict__["_sase_daemon_summary_only"] = False
-        self._replace_changespec_detail(changespec, result.value)
-        return result.value
-
-    def _replace_changespec_detail(
-        self, summary: ChangeSpec, detail: ChangeSpec
-    ) -> None:
-        """Replace matching summary rows while preserving list identity."""
-
-        summary_identity = (summary.project_basename, summary.name)
-        for attr in ("changespecs", "_all_changespecs"):
-            rows = getattr(self, attr, None)
-            if not isinstance(rows, list):
-                continue
-            for idx, row in enumerate(rows):
-                if (row.project_basename, row.name) == summary_identity:
-                    rows[idx] = detail
-        self._changespec_graph_index = None
-        self._changespec_graph_index_for_id = None
-
-    def _changespec_selection_generation(self) -> SelectionGeneration:
-        generation = getattr(self, "_changespec_detail_generation", None)
-        if generation is None:
-            generation = SelectionGeneration()
-            self._changespec_detail_generation = generation
-        return generation
 
     def _apply_empty_footer_update(self, footer_widget: Any) -> None:
         """Footer update for the empty-list branch (no selected ChangeSpec)."""
@@ -470,9 +405,7 @@ class ChangeSpecDisplayMixin:
         )
 
         if self.changespecs and 0 <= self.current_idx < len(self.changespecs):
-            changespec = self._ensure_changespec_detail_loaded(
-                self.changespecs[self.current_idx]
-            )
+            changespec = self.changespecs[self.current_idx]
             self._apply_detail_panel_update(
                 detail_widget,
                 ancestors_panel,

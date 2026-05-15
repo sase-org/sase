@@ -1,9 +1,0 @@
-{"id":"notif-unread","timestamp":"2026-05-13T09:00:00+00:00","sender":"crs","notes":["Unread notification"],"files":["src/unread.py"],"read":false,"dismissed":false}
-{"id":"notif-read","timestamp":"2026-05-13T09:01:00+00:00","sender":"agent","notes":["Read notification"],"read":true,"dismissed":false}
-{"id":"notif-dismissed","timestamp":"2026-05-13T09:02:00+00:00","sender":"agent","notes":["Dismissed notification"],"read":true,"dismissed":true}
-{"id":"notif-snoozed","timestamp":"2026-05-13T09:03:00+00:00","sender":"question","notes":["Snoozed question"],"action":"UserQuestion","action_data":{"response_dir":"responses/question","session_id":"session-question"},"muted":true,"snooze_until":"2026-05-13T10:03:00+00:00"}
-{"id":"notif-stale","timestamp":"2026-05-12T09:04:00+00:00","sender":"plan","notes":["Stale plan approval"],"action":"PlanApproval","action_data":{"response_dir":"responses/stale-plan","session_id":"session-stale"}}
-{"id":"notif-hitl","timestamp":"2026-05-13T09:05:00+00:00","sender":"hitl","notes":["HITL required"],"files":["artifacts/hitl_request.json"],"action":"HITL","action_data":{"artifacts_dir":"projects/demo/artifacts/ace-run/20260513091000","session_id":"session-hitl"}}
-{"id":"notif-missing-target","timestamp":"2026-05-13T09:06:00+00:00","sender":"question","notes":["Missing response target"],"action":"UserQuestion","action_data":{"session_id":"session-missing"}}
-{not json}
-

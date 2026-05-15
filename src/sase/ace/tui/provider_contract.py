@@ -108,9 +108,8 @@ class AceCountPatch:
     value: int
 
 
-# pyvision: sdd/epics/202605/rust_daemon_epic9_ace_ui_virtualization.md
 @dataclass(frozen=True)
-class AceRowPatch[T]:
+class _AceRowPatch[T]:
     """A row-level delta operation."""
 
     operation: str
@@ -126,7 +125,7 @@ class AceDeltaBatch[T]:
     surface: str
     snapshot_id: str | None
     sequence: int | None
-    row_patches: list[AceRowPatch[T]] = field(default_factory=list)
+    row_patches: list[_AceRowPatch[T]] = field(default_factory=list)
     count_patches: list[AceCountPatch] = field(default_factory=list)
     facet_patches: Mapping[str, Any] = field(default_factory=dict)
     invalidation_reason: str | None = None
@@ -135,35 +134,6 @@ class AceDeltaBatch[T]:
     @property
     def requires_resync(self) -> bool:
         return self.invalidation_reason is not None or self.resync_hint is not None
-
-
-@dataclass(frozen=True)
-class AceDetailRequest:
-    """Lazy detail request guarded by the active selection generation."""
-
-    row_handle: AceRowHandle
-    selection_generation: int
-
-
-class SelectionGeneration:
-    """Monotonic generation used to ignore stale lazy detail responses."""
-
-    def __init__(self) -> None:
-        self._value = 0
-
-    @property
-    def current(self) -> int:
-        return self._value
-
-    def bump(self) -> int:
-        self._value += 1
-        return self._value
-
-    def request(self, row_handle: AceRowHandle) -> AceDetailRequest:
-        return AceDetailRequest(row_handle, self._value)
-
-    def accepts(self, request: AceDetailRequest) -> bool:
-        return request.selection_generation == self._value
 
 
 def make_snapshot[T](
@@ -229,15 +199,12 @@ def trace_provider_snapshot(snapshot: AceSnapshot[Any]) -> None:
 __all__ = [
     "AceCountPatch",
     "AceDeltaBatch",
-    "AceDetailRequest",
     "AceFallbackMetadata",
     "AcePage",
     "AceProviderCapabilities",
     "AceProviderInfo",
     "AceRowHandle",
-    "AceRowPatch",
     "AceSnapshot",
-    "SelectionGeneration",
     "make_snapshot",
     "trace_provider_snapshot",
 ]

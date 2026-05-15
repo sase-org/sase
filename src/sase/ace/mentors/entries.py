@@ -7,6 +7,7 @@ from sase.ace.changespec import (
     changespec_lock,
     parse_commit_entry_id,
     parse_project_file,
+    write_changespec_atomic,
 )
 from sase.ace.mentors.formatting import apply_mentors_update
 from sase.ace.mentors.status import update_changespec_mentors_field
@@ -73,23 +74,10 @@ def add_mentor_entry(
             )
             content = "".join(updated_lines)
 
-            from sase.daemon.changespec_writes import (
-                write_changespec_project_file_mutation_locked,
-            )
-
-            write_changespec_project_file_mutation_locked(
-                "changespec.mentors",
-                project_file=project_file,
-                changespec_name=changespec_name,
-                updated_content=content,
-                payload={
-                    "section_names": ["mentors"],
-                    "operation": "add_entry",
-                    "entry_id": entry_id,
-                    "profile_names": profile_names,
-                },
-                commit_message=f"Add MENTORS entry ({entry_id}) for {changespec_name}",
-                return_value=None,
+            write_changespec_atomic(
+                project_file,
+                content,
+                f"Add MENTORS entry ({entry_id}) for {changespec_name}",
             )
             return True
     except Exception:
@@ -292,29 +280,10 @@ def remove_mentor_data(
             )
             content = "".join(updated_lines)
 
-            from sase.daemon.changespec_writes import (
-                write_changespec_project_file_mutation_locked,
-            )
-
-            write_changespec_project_file_mutation_locked(
-                "changespec.mentors",
-                project_file=project_file,
-                changespec_name=changespec_name,
-                updated_content=content,
-                payload={
-                    "section_names": ["mentors"],
-                    "operation": "remove_data",
-                    "delete_field": delete_field,
-                    "entry_ids_to_delete": sorted(entry_ids_to_delete or []),
-                    "lines_to_delete": {
-                        entry_id: sorted(
-                            [f"{mentor}:{profile}" for mentor, profile in lines]
-                        )
-                        for entry_id, lines in (lines_to_delete or {}).items()
-                    },
-                },
-                commit_message=f"Remove mentor data for {changespec_name}",
-                return_value=None,
+            write_changespec_atomic(
+                project_file,
+                content,
+                f"Remove mentor data for {changespec_name}",
             )
             return True
     except Exception:

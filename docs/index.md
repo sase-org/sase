@@ -173,15 +173,6 @@ title: Structured Agentic Software Engineering
   </article>
 
   <article class="sase-card sase-card--compact">
-  <h3>Operate the daemon</h3>
-
-  <p>Review lifecycle commands, rollout controls, projection repair, backup, and restore behavior.</p>
-
-<a href="local_daemon/">Open local daemon</a>
-
-  </article>
-
-  <article class="sase-card sase-card--compact">
   <h3>Read the launch essay</h3>
 
   <p>Why coding agents need orchestration above individual provider CLIs.</p>

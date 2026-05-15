@@ -131,19 +131,7 @@ def update_changespec_cl_atomic(
 
         updated_content = _apply_cl_update(lines, changespec_name, new_cl, project_file)
 
-        from sase.daemon.changespec_writes import (
-            write_changespec_project_file_mutation_locked,
-        )
-
-        write_changespec_project_file_mutation_locked(
-            "changespec.field",
-            project_file=project_file,
-            changespec_name=changespec_name,
-            updated_content=updated_content,
-            payload={"field": "cl_or_pr", "value": new_cl},
-            commit_message=commit_msg,
-            return_value=None,
-        )
+        write_changespec_atomic(project_file, updated_content, commit_msg)
 
 
 def reset_changespec_cl(project_file: str, changespec_name: str) -> bool:
@@ -290,19 +278,7 @@ def update_changespec_parent_atomic(
 
         updated_content = _apply_parent_update(lines, changespec_name, new_parent)
 
-        from sase.daemon.changespec_writes import (
-            write_changespec_project_file_mutation_locked,
-        )
-
-        write_changespec_project_file_mutation_locked(
-            "changespec.field",
-            project_file=project_file,
-            changespec_name=changespec_name,
-            updated_content=updated_content,
-            payload={"field": "parent", "value": new_parent},
-            commit_message=commit_msg,
-            return_value=None,
-        )
+        write_changespec_atomic(project_file, updated_content, commit_msg)
 
 
 def update_parent_references_atomic(
@@ -492,19 +468,7 @@ def update_changespec_bug_atomic(
 
         updated_content = _apply_bug_update(lines, changespec_name, new_bug)
 
-        from sase.daemon.changespec_writes import (
-            write_changespec_project_file_mutation_locked,
-        )
-
-        write_changespec_project_file_mutation_locked(
-            "changespec.field",
-            project_file=project_file,
-            changespec_name=changespec_name,
-            updated_content=updated_content,
-            payload={"field": "bug", "value": new_bug},
-            commit_message=commit_msg,
-            return_value=None,
-        )
+        write_changespec_atomic(project_file, updated_content, commit_msg)
 
 
 def update_changespec_description_atomic(
@@ -531,20 +495,12 @@ def update_changespec_description_atomic(
                 lines, changespec_name, new_description
             )
 
-            from sase.daemon.changespec_writes import (
-                write_changespec_project_file_mutation_locked,
+            write_changespec_atomic(
+                project_file,
+                updated_content,
+                f"Update DESCRIPTION for {changespec_name}",
             )
-
-            result = write_changespec_project_file_mutation_locked(
-                "changespec.field",
-                project_file=project_file,
-                changespec_name=changespec_name,
-                updated_content=updated_content,
-                payload={"field": "description", "value": new_description},
-                commit_message=f"Update DESCRIPTION for {changespec_name}",
-                return_value=True,
-            )
-            return result.value
+            return True
     except Exception:
         logger.exception("Error updating DESCRIPTION for %s", changespec_name)
         return False

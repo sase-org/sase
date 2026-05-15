@@ -12,7 +12,6 @@ def handle_search_command(args: argparse.Namespace) -> None:
     from sase.ace.changespec import find_all_changespecs
     from sase.ace.query import parse_query
     from sase.core.query_facade import evaluate_query_many
-    from sase.daemon.changespec_reads import read_changespecs_or_fallback
 
     try:
         parse_query(args.query)
@@ -20,11 +19,7 @@ def handle_search_command(args: argparse.Namespace) -> None:
         print(f"Error: Invalid query: {e}")
         sys.exit(1)
 
-    all_changespecs = read_changespecs_or_fallback(
-        "changespec_search",
-        args=args,
-        direct_loader=find_all_changespecs,
-    ).value
+    all_changespecs = find_all_changespecs()
     mask = evaluate_query_many(args.query, all_changespecs)
     matching = [cs for cs, keep in zip(all_changespecs, mask, strict=True) if keep]
 

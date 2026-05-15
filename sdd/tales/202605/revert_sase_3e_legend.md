@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-14 19:20:01
-status: wip
+status: done
 prompt: sdd/prompts/202605/revert_sase_3e_legend.md
 ---
 # Revert sase-3e Legend Work

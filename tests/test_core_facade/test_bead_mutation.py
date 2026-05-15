@@ -238,60 +238,6 @@ def test_preclaim_epic_work_validation_is_all_or_nothing(tmp_path: Path) -> None
         assert project.show(second.id).status == Status.CLOSED
 
 
-def test_mutation_facade_routes_create_through_daemon_when_advertised(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    calls: list[dict] = []
-
-    class FakeDaemonClient:
-        def capabilities(self) -> dict:
-            return {"capabilities": ["beads.write"]}
-
-        def write(self, surface: str, data: dict) -> dict:
-            calls.append({"surface": surface, "data": data})
-            return {
-                "schema_version": 1,
-                "surface": surface,
-                "outcome": {
-                    "schema_version": 1,
-                    "event_seq": 7,
-                    "event_type": "bead.created",
-                    "duplicate": False,
-                    "changed": True,
-                    "resource_handle": "sase-1",
-                    "source_exports": [],
-                    "projection_snapshot": {
-                        "operation": "create",
-                        "changed": True,
-                        "issue_ids": ["sase-1"],
-                        "issue": {
-                            "id": "sase-1",
-                            "title": "Daemon",
-                            "issue_type": "plan",
-                            "status": "open",
-                        },
-                    },
-                },
-                "fallback": {"available": False, "reason": None, "message": None},
-            }
-
-    monkeypatch.setattr("sase.daemon.write_facade.LocalDaemonClient", FakeDaemonClient)
-
-    issue, outcome = rust_beads.create(
-        tmp_path / "sdd/beads",
-        title="Daemon",
-        issue_type=IssueType.PLAN,
-        now="2026-01-01T00:00:00Z",
-    )
-
-    assert issue.id == "sase-1"
-    assert outcome["operation"] == "create"
-    assert calls[0]["surface"] == "beads"
-    assert calls[0]["data"]["project_id"] == tmp_path.name
-    assert calls[0]["data"]["payload"]["operation"] == "create"
-    assert calls[0]["data"]["payload"]["create"]["title"] == "Daemon"
-
-
 def _init_store(root: Path) -> None:
     with BeadProject.init(root):
         pass

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING
 
 from ._dismiss_cleanup import agent_wire_identity, wire_identity_key
 from ._killing_utils import (
@@ -13,29 +13,6 @@ from ._killing_utils import (
 
 if TYPE_CHECKING:
     from ...models import Agent
-
-
-def submit_lifecycle_targets(
-    operation: str,
-    agents: list[Agent],
-    *,
-    reason: str,
-) -> None:
-    """Best-effort scheduler enqueue for lifecycle side-effect workers."""
-    try:
-        from sase.daemon.lifecycle_scheduler import (
-            lifecycle_target_from_agent,
-            submit_lifecycle_batch_if_enabled,
-        )
-
-        submit_lifecycle_batch_if_enabled(
-            [
-                lifecycle_target_from_agent(cast(Any, operation), agent, reason=reason)
-                for agent in agents
-            ]
-        )
-    except Exception:
-        pass
 
 
 def persist_cleanup_side_effect_intents(

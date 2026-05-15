@@ -16,7 +16,6 @@ from sase.core.changespec import (
     changespec_name_to_branch_with_suffix,
     strip_reverted_suffix,
 )
-from sase.daemon.changespec_reads import read_changespecs_or_fallback
 from sase.vcs_provider import VCSProvider, get_vcs_provider
 from sase.workflows.utils import get_project_file_path, get_project_from_workspace
 
@@ -194,20 +193,6 @@ def _find_current_changespec(
     return []
 
 
-def _load_current_changespecs(
-    args: argparse.Namespace,
-    context: _CurrentContext,
-) -> list[ChangeSpec]:
-    """Load candidates for ``changespec current`` through daemon or fallback."""
-    result = read_changespecs_or_fallback(
-        "changespec_list",
-        args=args,
-        project_id=context.project,
-        direct_loader=find_all_changespecs,
-    )
-    return result.value
-
-
 def _file_location(cs: ChangeSpec) -> str:
     """Return a user-facing file:line location."""
     file_path = cs.file_path.replace(str(Path.home()), "~")
@@ -277,11 +262,7 @@ def _handle_current(args: argparse.Namespace) -> int:
         change_url=_get_current_change_url(provider, cwd),
     )
 
-    matches = _find_current_changespec(
-        _load_current_changespecs(args, context),
-        context,
-        provider,
-    )
+    matches = _find_current_changespec(find_all_changespecs(), context, provider)
     if not matches:
         print(
             "[sase changespec current] could not find a ChangeSpec for the current checkout.",
