@@ -122,7 +122,10 @@ def get_workspace_directory(project: str, workspace_num: int = 1) -> str:
         detect_workflow_type,
         get_workspace_directory as ws_get_workspace_directory,
     )
-    from sase.workspace_provider.utils import ensure_git_clone, parse_workspace_dir
+    from sase.workspace_provider.utils import (
+        ensure_workspace_checkout,
+        parse_workspace_dir,
+    )
     from sase.workflows.utils import get_project_file_path
 
     project_file = get_project_file_path(project)
@@ -139,7 +142,7 @@ def get_workspace_directory(project: str, workspace_num: int = 1) -> str:
             if workspace_num == 1:
                 return workspace_dir
             if os.path.isdir(os.path.join(workspace_dir, ".git")):
-                return ensure_git_clone(workspace_dir, workspace_num)
+                return ensure_workspace_checkout(workspace_dir, workspace_num)
         raise RuntimeError(str(e)) from e
     return ws_get_workspace_directory(
         workflow_type, workspace_num, project, workspace_dir

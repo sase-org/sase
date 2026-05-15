@@ -128,10 +128,11 @@ _lint-pyscripts: _setup
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
         BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 src/sase \
-            --epic-symbol 'sase-3p(WorkspacePath)' \
-            --epic-symbol 'sase-3p(WorkspaceStore)' \
             --epic-symbol 'sase-3p(default_state_root)' \
             --epic-symbol 'sase-3p(derive_project_key)' \
+            --epic-symbol 'sase-3p(ensure_git_clone)' \
+            --epic-symbol 'sase-3p(ensure_git_clone_at)' \
+            --epic-symbol 'sase-3p(resolve_workspace_path)' \
             --epic-symbol 'sase-3p(workspace_store_from_merged_config)'
 
 # Auto-fix all code (format + keep-sorted)

@@ -216,7 +216,7 @@ def test_running_field_get_workspace_directory_falls_back_to_workspace_dir(
 def test_running_field_get_workspace_directory_fallback_uses_git_clone(
     tmp_path: Path,
 ) -> None:
-    """Numbered workspaces fall back to ``ensure_git_clone`` for git checkouts."""
+    """Numbered workspaces fall back to ``ensure_workspace_checkout`` for git checkouts."""
     workspace_dir = tmp_path / "checkout"
     workspace_dir.mkdir()
     (workspace_dir / ".git").mkdir()
@@ -236,7 +236,7 @@ def test_running_field_get_workspace_directory_fallback_uses_git_clone(
             side_effect=ValueError("No workspace plugin detected"),
         ),
         patch(
-            "sase.workspace_provider.utils.ensure_git_clone",
+            "sase.workspace_provider.utils.ensure_workspace_checkout",
             return_value="/fake/clones/myproject_3/",
         ) as mock_ensure,
     ):

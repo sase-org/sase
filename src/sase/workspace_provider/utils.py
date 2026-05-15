@@ -7,12 +7,15 @@ will eventually delegate to workspace provider plugins.
 
 import os
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from sase.ace.changespec import (
     changespec_lock,
     write_changespec_atomic,
 )
+from sase.workspace_provider.store import WorkspacePath, WorkspaceStore
 
 
 def get_default_branch(workspace_dir: str) -> str:
@@ -187,52 +190,63 @@ def _get_git_clone_dir(primary_workspace_dir: str, workspace_num: int) -> str:
     return f"{base}_{workspace_num}/"
 
 
-def ensure_git_clone(primary_workspace_dir: str, workspace_num: int) -> str:
-    """Ensure a Git clone workspace exists for the given workspace number.
+def ensure_git_clone_at(
+    primary_workspace_dir: str,
+    workspace_num: int,
+    target_checkout_dir: str,
+) -> str:
+    """Materialize a Git clone at a caller-supplied target directory.
 
-    For workspace 1, verifies the primary directory exists.
-    For workspace 2+, creates an independent clone of the primary workspace
-    if it doesn't already exist. Clones are local (hard-linked objects) and
-    have their origin re-pointed to the real remote URL.
+    The primary checkout (``workspace_num <= 1``) is validated in place
+    and the existing path is returned. Any other workspace number
+    triggers a clone of ``primary_workspace_dir`` into
+    ``target_checkout_dir`` when the target is missing or corrupt.
+
+    Args:
+        primary_workspace_dir: Path to the primary checkout (``#0``/``#1``).
+        workspace_num: Workspace identity. ``0``/``1`` mean primary;
+            everything else materializes a managed clone.
+        target_checkout_dir: Absolute path where the clone should live.
 
     Returns:
-        The clone directory path.
+        The materialized checkout directory.
 
     Raises:
-        RuntimeError: If the directory doesn't exist (num=1) or creation fails.
+        RuntimeError: If the primary directory is missing or the clone fails.
     """
-    clone_dir = _get_git_clone_dir(primary_workspace_dir, workspace_num)
-
-    if workspace_num == 1:
-        if not os.path.isdir(clone_dir):
+    if workspace_num <= 1:
+        if not os.path.isdir(target_checkout_dir.rstrip("/")):
             raise RuntimeError(
-                f"Primary workspace directory does not exist: {clone_dir}"
+                f"Primary workspace directory does not exist: {target_checkout_dir}"
             )
-        return clone_dir
+        return target_checkout_dir
 
-    # workspace_num >= 2: create clone if needed
-    if os.path.isdir(clone_dir):
-        # Validate existing clone with git status
+    if os.path.isdir(target_checkout_dir):
         result = subprocess.run(
             ["git", "status"],
-            cwd=clone_dir,
+            cwd=target_checkout_dir,
             capture_output=True,
             text=True,
             check=False,
         )
         if result.returncode == 0:
-            return clone_dir
-        # Stale/corrupt clone — remove and re-create
+            return target_checkout_dir
         import shutil
 
-        shutil.rmtree(clone_dir.rstrip("/"), ignore_errors=True)
+        shutil.rmtree(target_checkout_dir.rstrip("/"), ignore_errors=True)
 
     if not os.path.isdir(primary_workspace_dir.rstrip("/")):
         raise RuntimeError(
             f"Primary workspace directory does not exist: {primary_workspace_dir}"
         )
 
-    # Get the real remote URL from the primary workspace
+    # Ensure the target's parent directory exists. Adjacent layout always
+    # has the parent in place, but managed roots (xdg-state/absolute) may
+    # need to create intermediate directories on first use.
+    parent = os.path.dirname(target_checkout_dir.rstrip("/"))
+    if parent and not os.path.isdir(parent):
+        os.makedirs(parent, exist_ok=True)
+
     url_result = subprocess.run(
         ["git", "remote", "get-url", "origin"],
         cwd=primary_workspace_dir,
@@ -244,56 +258,116 @@ def ensure_git_clone(primary_workspace_dir: str, workspace_num: int) -> str:
 
     try:
         subprocess.run(
-            ["git", "clone", primary_workspace_dir.rstrip("/"), clone_dir.rstrip("/")],
+            [
+                "git",
+                "clone",
+                primary_workspace_dir.rstrip("/"),
+                target_checkout_dir.rstrip("/"),
+            ],
             capture_output=True,
             text=True,
             check=True,
         )
     except subprocess.CalledProcessError as e:
-        # Race-condition guard: another process may have created the clone
-        if os.path.isdir(clone_dir):
+        if os.path.isdir(target_checkout_dir):
             check = subprocess.run(
                 ["git", "status"],
-                cwd=clone_dir,
+                cwd=target_checkout_dir,
                 capture_output=True,
                 text=True,
                 check=False,
             )
             if check.returncode == 0:
-                return clone_dir
+                return target_checkout_dir
         error_msg = f"git clone failed (exit code {e.returncode})"
         if e.stderr:
             error_msg += f": {e.stderr.strip()}"
         raise RuntimeError(error_msg) from e
 
-    # Re-point origin to the real remote URL
     if real_url:
         subprocess.run(
             ["git", "remote", "set-url", "origin", real_url],
-            cwd=clone_dir,
+            cwd=target_checkout_dir,
             capture_output=True,
             text=True,
             check=False,
         )
 
-    # Sync refs from the real remote
     subprocess.run(
         ["git", "fetch", "--quiet"],
-        cwd=clone_dir,
+        cwd=target_checkout_dir,
         capture_output=True,
         text=True,
         check=False,
     )
 
-    return clone_dir
+    return target_checkout_dir
+
+
+def ensure_git_clone(primary_workspace_dir: str, workspace_num: int) -> str:
+    """Compatibility wrapper preserving the legacy adjacent layout.
+
+    New code should use :func:`ensure_workspace_checkout` (which routes
+    target selection through :class:`~sase.workspace_provider.store.WorkspaceStore`)
+    or :func:`ensure_git_clone_at` when the target is already known.
+    """
+    target_checkout_dir = _get_git_clone_dir(primary_workspace_dir, workspace_num)
+    return ensure_git_clone_at(
+        primary_workspace_dir, workspace_num, target_checkout_dir
+    )
+
+
+def resolve_workspace_path(
+    primary_workspace_dir: str,
+    workspace_num: int,
+    *,
+    config: Mapping[str, Any] | None = None,
+    env: Mapping[str, str] | None = None,
+) -> WorkspacePath:
+    """Resolve a :class:`WorkspacePath` for *workspace_num* via the store.
+
+    Loads the process-wide merged config when *config* is ``None`` so
+    callers can stay agnostic of the configuration layering.  No
+    directories are created — see :func:`ensure_workspace_checkout` for
+    materialization.
+    """
+    if config is None:
+        from sase.config.core import load_merged_config
+
+        config = load_merged_config()
+    store = WorkspaceStore(primary_workspace_dir, config=config, env=env)
+    return store.resolve(workspace_num)
+
+
+def ensure_workspace_checkout(
+    primary_workspace_dir: str,
+    workspace_num: int,
+    *,
+    config: Mapping[str, Any] | None = None,
+    env: Mapping[str, str] | None = None,
+) -> str:
+    """Resolve and materialize the checkout for *workspace_num*.
+
+    Direct callers (git setup, CRS workflow runner, generic workspace
+    fallback) use this helper so the path selection rules live in one
+    place rather than being re-derived as ``primary_<num>`` string
+    concatenations.
+    """
+    path = resolve_workspace_path(
+        primary_workspace_dir, workspace_num, config=config, env=env
+    )
+    return ensure_git_clone_at(primary_workspace_dir, workspace_num, path.checkout_dir)
 
 
 # Re-export Path for convenience (used by callers that need projects_base)
 __all__ = [
     "Path",
     "ensure_git_clone",
+    "ensure_git_clone_at",
+    "ensure_workspace_checkout",
     "get_default_branch",
     "parse_bare_repo_dir",
     "parse_workspace_dir",
+    "resolve_workspace_path",
     "set_workspace_dir",
 ]

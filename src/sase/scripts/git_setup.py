@@ -2,7 +2,7 @@
 
 import os
 
-from sase.workspace_provider.utils import ensure_git_clone
+from sase.workspace_provider.utils import ensure_workspace_checkout
 from sase.workspace_provider.plugins.bare_git_workspace import resolve_git_ref
 from sase.running_field import (
     claim_next_axe_workspace,
@@ -36,7 +36,9 @@ def main(
         workspace_dir = os.environ["SASE_GIT_WORKSPACE_DIR"]
     elif n is not None:
         workspace_num = n
-        workspace_dir = ensure_git_clone(resolved.primary_workspace_dir, workspace_num)
+        workspace_dir = ensure_workspace_checkout(
+            resolved.primary_workspace_dir, workspace_num
+        )
         claim_workspace(
             project_file,
             workspace_num,
@@ -55,7 +57,9 @@ def main(
             pid,
             pinned=not release,
         )
-        workspace_dir = ensure_git_clone(resolved.primary_workspace_dir, workspace_num)
+        workspace_dir = ensure_workspace_checkout(
+            resolved.primary_workspace_dir, workspace_num
+        )
 
     print(f"project_name={project_name}")
     print(f"project_file={project_file}")

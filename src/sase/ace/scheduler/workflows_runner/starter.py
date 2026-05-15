@@ -130,7 +130,7 @@ def _start_crs_workflow(
     """
     from sase.vcs_provider import detect_vcs_family
     from sase.workspace_provider.utils import (
-        ensure_git_clone,
+        ensure_workspace_checkout,
         parse_workspace_dir,
     )
 
@@ -154,7 +154,7 @@ def _start_crs_workflow(
             )
             return None
         try:
-            workspace_dir = ensure_git_clone(primary_dir, workspace_num)
+            workspace_dir = ensure_workspace_checkout(primary_dir, workspace_num)
         except RuntimeError as e:
             log(
                 f"[WS#{workspace_num}] Warning: Failed to get git clone workspace: {e}",
