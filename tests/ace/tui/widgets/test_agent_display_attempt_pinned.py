@@ -51,6 +51,10 @@ def _concat_plain(group: Group) -> str:
             parts.append(r.plain)
         elif isinstance(r, Syntax):
             parts.append(str(r.code))
+        elif hasattr(r, "code"):
+            parts.append(str(r.code))
+        else:
+            parts.append(str(r))
     return "\n".join(parts)
 
 

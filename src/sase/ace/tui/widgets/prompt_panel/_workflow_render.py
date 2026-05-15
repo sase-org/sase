@@ -1,10 +1,11 @@
 """Rich renderable construction for workflow detail display."""
 
-from rich.console import Group
+from rich.console import Group, RenderableType
 from rich.syntax import Syntax
 from rich.text import Text
 
 from ...models.agent import Agent
+from ...util.lazy_syntax import lazy_renderable
 from ._helpers import append_model_field
 from ._workflow_steps import format_workflow_steps_rich
 from ._workflow_types import WorkflowDetailSnapshot
@@ -137,7 +138,7 @@ def build_workflow_detail_renderable(
 
     # Load and format workflow steps from workflow_state.json
     steps_rich = workflow_steps_rich_from_snapshot(snapshot)
-    renderables: list[Text | Syntax] = [header_text]
+    renderables: list[RenderableType] = [header_text]
     if error_tb_syntax:
         renderables.append(error_tb_syntax)
     renderables.append(steps_header)
@@ -156,9 +157,7 @@ def build_workflow_detail_renderable(
         prompt_header.append("AGENT PROMPT\n", style="bold #D7AF5F underline")
         prompt_header.append("\n")
         renderables.append(prompt_header)
-        renderables.append(
-            Syntax(prompt_content, "markdown", theme="monokai", word_wrap=True)
-        )
+        renderables.append(lazy_renderable(prompt_content, "markdown"))
 
     return Group(*renderables)
 

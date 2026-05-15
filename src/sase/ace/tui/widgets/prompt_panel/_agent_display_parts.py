@@ -1,5 +1,6 @@
 """Rendering helpers and header building for agent display."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -161,8 +162,14 @@ def render_phase_divider(label: str, start_time: datetime | None) -> Text:
     return divider
 
 
-def render_agent_reply_content(agent: Agent) -> list:
+def render_agent_reply_content(
+    agent: Agent,
+    render_markdown: Callable[[str], object] | None = None,
+) -> list:
     """Render one agent's reply (chunks, live reply, or response)."""
+    render_markdown = render_markdown or (
+        lambda content: lazy_renderable(content, "markdown")
+    )
     renderables: list = []
     chunks = agent.get_timestamped_reply_chunks()
     if chunks:
@@ -170,19 +177,19 @@ def render_agent_reply_content(agent: Agent) -> list:
             renderables.append(render_timestamp_divider(ts))
             content = chunk_text.strip()
             if content:
-                renderables.append(lazy_renderable(content, "markdown"))
+                renderables.append(render_markdown(content))
         return renderables
     live_reply = agent.get_live_reply_content()
     if live_reply:
-        renderables.append(lazy_renderable(live_reply, "markdown"))
+        renderables.append(render_markdown(live_reply))
         return renderables
     response_content = agent.get_response_content()
     if response_content:
-        renderables.append(lazy_renderable(response_content, "markdown"))
+        renderables.append(render_markdown(response_content))
         return renderables
     chat_response = agent.get_chat_response_content()
     if chat_response:
-        renderables.append(lazy_renderable(chat_response, "markdown"))
+        renderables.append(render_markdown(chat_response))
         return renderables
     # Running Gemini thinking models buffer output until the session ends;
     # show a placeholder so the reply section isn't blank.

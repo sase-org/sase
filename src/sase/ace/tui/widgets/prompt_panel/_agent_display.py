@@ -1,5 +1,6 @@
 """Agent display mixin for the agent prompt panel."""
 
+from collections.abc import Callable
 from datetime import datetime
 
 from rich.console import Group
@@ -7,7 +8,7 @@ from rich.syntax import Syntax
 from rich.text import Text
 
 from ...models.agent import Agent, AgentType, AttemptRecord
-from ...util.lazy_syntax import lazy_renderable
+from ...util.lazy_syntax import LazySyntaxRenderCache, lazy_renderable
 from ...util.trace import tui_trace
 from ._agent_display_parts import (
     DetailHeaderSummary,
@@ -27,7 +28,10 @@ def _should_render_merged(agent: Agent, attempt_view_mode: str) -> bool:
     return attempt_view_mode == "merged" and bool(agent.attempt_history)
 
 
-def _render_merged_attempt_history(agent: Agent) -> list:
+def _render_merged_attempt_history(
+    agent: Agent,
+    render_markdown: Callable[[str], object],
+) -> list:
     """Render prior attempts followed by the current attempt divider.
 
     Emits one divider + reply block for each record in ``agent.attempt_history``
@@ -43,11 +47,11 @@ def _render_merged_attempt_history(agent: Agent) -> list:
                 renderables.append(render_timestamp_divider(ts))
                 content = chunk_text.strip()
                 if content:
-                    renderables.append(lazy_renderable(content, "markdown"))
+                    renderables.append(render_markdown(content))
             continue
         reply = record.get_reply_content()
         if reply and reply.strip():
-            renderables.append(lazy_renderable(reply, "markdown"))
+            renderables.append(render_markdown(reply))
     renderables.append(
         render_attempt_divider(
             None, is_current=True, fallback_model=agent.fallback_model
@@ -72,6 +76,7 @@ class AgentDisplayMixin:
             agent: The Agent to display.
         """
         with tui_trace("widget.prompt_panel.update_display"):
+            self._reset_markdown_render_cache_for_agent(agent)
             self._update_display_impl(agent)
 
     def update_header_only(self, agent: Agent) -> None:
@@ -89,6 +94,29 @@ class AgentDisplayMixin:
                 self.update(Group(header_text, error_tb_syntax))  # type: ignore[attr-defined]
             else:
                 self.update(header_text)  # type: ignore[attr-defined]
+
+    def _markdown_render_cache(self) -> LazySyntaxRenderCache:
+        cache = getattr(self, "_agent_markdown_render_cache", None)
+        if cache is None:
+            cache = LazySyntaxRenderCache(max_entries=24)
+            self._agent_markdown_render_cache = cache
+        return cache
+
+    def _reset_markdown_render_cache_for_agent(self, agent: Agent) -> None:
+        identity = agent.identity
+        previous_identity = getattr(self, "_agent_markdown_render_cache_identity", None)
+        if previous_identity != identity:
+            cache = getattr(self, "_agent_markdown_render_cache", None)
+            if cache is not None:
+                cache.clear()
+            self._agent_markdown_render_cache_identity = identity
+
+    def _render_markdown(self, content: str) -> object:
+        return lazy_renderable(
+            content,
+            "markdown",
+            render_cache=self._markdown_render_cache(),
+        )
 
     def _update_display_impl(self, agent: Agent) -> None:
         # Attempt-pinned view: render the selected prior attempt's full error
@@ -140,7 +168,7 @@ class AgentDisplayMixin:
         # Get and display prompt content
         prompt_content = get_prompt_content(agent)
         if prompt_content:
-            prompt_syntax = lazy_renderable(prompt_content, "markdown")
+            prompt_syntax = self._render_markdown(prompt_content)
 
             # For agents with follow-ups, show consolidated reply
             if agent.followup_agents:
@@ -164,7 +192,9 @@ class AgentDisplayMixin:
                         agent.run_start_time or agent.start_time,
                     )
                 )
-                renderables.extend(render_agent_reply_content(agent))
+                renderables.extend(
+                    render_agent_reply_content(agent, self._render_markdown)
+                )
 
                 # Follow-up phases
                 for followup in agent.followup_agents:
@@ -174,7 +204,9 @@ class AgentDisplayMixin:
                             followup.run_start_time or followup.start_time,
                         )
                     )
-                    renderables.extend(render_agent_reply_content(followup))
+                    renderables.extend(
+                        render_agent_reply_content(followup, self._render_markdown)
+                    )
 
                 self.update(Group(*renderables))  # type: ignore[attr-defined]
             # For completed or failed agents/steps, also show the response
@@ -209,17 +241,27 @@ class AgentDisplayMixin:
                 if chunks:
                     renderables.append(reply_header)
                     if merge_history:
-                        renderables.extend(_render_merged_attempt_history(agent))
+                        renderables.extend(
+                            _render_merged_attempt_history(
+                                agent,
+                                self._render_markdown,
+                            )
+                        )
                     for ts, chunk_text in chunks:
                         renderables.append(render_timestamp_divider(ts))
                         content = chunk_text.strip()
                         if content:
-                            renderables.append(lazy_renderable(content, "markdown"))
+                            renderables.append(self._render_markdown(content))
                 elif response_content:
-                    response_syntax = lazy_renderable(response_content, "markdown")
+                    response_syntax = self._render_markdown(response_content)
                     renderables.append(reply_header)
                     if merge_history:
-                        renderables.extend(_render_merged_attempt_history(agent))
+                        renderables.extend(
+                            _render_merged_attempt_history(
+                                agent,
+                                self._render_markdown,
+                            )
+                        )
                     renderables.append(response_syntax)
                 else:
                     reply_header.append("No response file found.\n", style="dim italic")
@@ -246,19 +288,27 @@ class AgentDisplayMixin:
                 if chunks:
                     renderables_other.append(reply_header)
                     if merge_history:
-                        renderables_other.extend(_render_merged_attempt_history(agent))
+                        renderables_other.extend(
+                            _render_merged_attempt_history(
+                                agent,
+                                self._render_markdown,
+                            )
+                        )
                     for ts, chunk_text in chunks:
                         renderables_other.append(render_timestamp_divider(ts))
                         content = chunk_text.strip()
                         if content:
-                            renderables_other.append(
-                                lazy_renderable(content, "markdown")
-                            )
+                            renderables_other.append(self._render_markdown(content))
                 elif live_reply:
-                    reply_syntax = lazy_renderable(live_reply, "markdown")
+                    reply_syntax = self._render_markdown(live_reply)
                     renderables_other.append(reply_header)
                     if merge_history:
-                        renderables_other.extend(_render_merged_attempt_history(agent))
+                        renderables_other.extend(
+                            _render_merged_attempt_history(
+                                agent,
+                                self._render_markdown,
+                            )
+                        )
                     renderables_other.append(reply_syntax)
                 else:
                     reply_header.append(
@@ -399,7 +449,7 @@ class AgentDisplayMixin:
         renderables.append(prompt_header)
         prompt_content = get_prompt_content(agent)
         if prompt_content:
-            renderables.append(lazy_renderable(prompt_content, "markdown"))
+            renderables.append(self._render_markdown(prompt_content))
         else:
             renderables.append(Text("No prompt file found.\n", style="dim italic"))
 
@@ -420,15 +470,11 @@ class AgentDisplayMixin:
                 renderables.append(render_timestamp_divider(ts))
                 content = chunk_text.strip()
                 if content:
-                    renderables.append(
-                        Syntax(content, "markdown", theme="monokai", word_wrap=True)
-                    )
+                    renderables.append(self._render_markdown(content))
         else:
             reply = record.get_reply_content()
             if reply and reply.strip():
-                renderables.append(
-                    Syntax(reply, "markdown", theme="monokai", word_wrap=True)
-                )
+                renderables.append(self._render_markdown(reply))
             else:
                 renderables.append(
                     Text("(no partial reply captured)\n", style="dim italic")

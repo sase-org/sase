@@ -71,7 +71,10 @@ def test_merged_history_emits_one_block_per_attempt_plus_current() -> None:
     agent = _make_agent(
         attempt_history=[_make_record(1), _make_record(2, status="failed")],
     )
-    out = _render_merged_attempt_history(agent)
+    out = _render_merged_attempt_history(
+        agent,
+        lambda content: content,
+    )
     labels: list[str] = []
     for r in out:
         plain = getattr(r, "plain", None)
