@@ -29,6 +29,8 @@ from ._tool_call_common import (
     HOOK_SCHEMA_VERSION as _HOOK_SCHEMA_VERSION,
     PREVIEW_LIMIT as _PREVIEW_LIMIT,
     SCHEMA_VERSION as _SCHEMA_VERSION,
+    TOOL_CALL_RECORD_OPTIONAL_FIELDS as _TOOL_CALL_RECORD_OPTIONAL_FIELDS,
+    TOOL_CALL_RECORD_REQUIRED_FIELDS as _TOOL_CALL_RECORD_REQUIRED_FIELDS,
     summarize_tool_input as _summarize_tool_input,
 )
 from ._tool_call_io import (
@@ -43,6 +45,8 @@ __all__ = [
     "_HOOK_SCHEMA_VERSION",
     "_PREVIEW_LIMIT",
     "_SCHEMA_VERSION",
+    "_TOOL_CALL_RECORD_OPTIONAL_FIELDS",
+    "_TOOL_CALL_RECORD_REQUIRED_FIELDS",
     "_append_jsonl",
     "_append_writer_diagnostic",
     "_normalize_claude_hook_payload",

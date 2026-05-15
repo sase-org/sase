@@ -5,14 +5,12 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Mapping
-from datetime import UTC, datetime
 from pathlib import Path
-from time import perf_counter
 from typing import Any
 
 from ._tool_call_common import (
-    SCHEMA_VERSION,
-    preview_text,
+    ToolCallDurationTracker,
+    base_stream_tool_call_record,
     string_or_none,
     summarize_tool_input,
     summarize_tool_response,
@@ -23,7 +21,7 @@ from ._tool_call_io import (
     append_writer_diagnostic,
 )
 
-_CODEX_STARTED_AT: dict[str, float] = {}
+_CODEX_DURATIONS = ToolCallDurationTracker()
 _CODEX_FILE_WRITE_KINDS = frozenset({"add", "create", "write"})
 _CODEX_FILE_EDIT_KINDS = frozenset({"delete", "modify", "remove", "update"})
 
@@ -234,20 +232,13 @@ def _base_codex_record(
     tool_name: str | None,
     tool_use_id: str | None,
 ) -> dict[str, Any]:
-    record: dict[str, Any] = {
-        "schema_version": SCHEMA_VERSION,
-        "recorded_at": datetime.now(tz=UTC).isoformat(),
-        "runtime": "codex",
-        "source": "stream",
-        "event": event,
-        "status": status,
-    }
-
-    if tool_name:
-        record["tool_name"] = preview_text(tool_name)
-    if tool_use_id:
-        record["tool_use_id"] = preview_text(tool_use_id)
-    return record
+    return base_stream_tool_call_record(
+        "codex",
+        event,
+        status,
+        tool_name=tool_name,
+        tool_use_id=tool_use_id,
+    )
 
 
 def _codex_tool_use_id(item: Mapping[str, Any]) -> str | None:
@@ -365,18 +356,11 @@ def _is_named_tool_item(item: Mapping[str, Any]) -> bool:
 
 
 def _remember_start_time(tool_use_id: str | None) -> None:
-    if tool_use_id:
-        _CODEX_STARTED_AT[tool_use_id] = perf_counter()
+    _CODEX_DURATIONS.remember_start(tool_use_id)
 
 
 def _record_duration(record: dict[str, Any], tool_use_id: str | None) -> None:
-    if not tool_use_id:
-        return
-    started_at = _CODEX_STARTED_AT.pop(tool_use_id, None)
-    if started_at is None:
-        return
-    duration_ms = int((perf_counter() - started_at) * 1000)
-    record["duration_ms"] = max(duration_ms, 0)
+    _CODEX_DURATIONS.record_duration(record, tool_use_id)
 
 
 def _codex_malformed_event_reason(event: Mapping[str, Any]) -> str | None:

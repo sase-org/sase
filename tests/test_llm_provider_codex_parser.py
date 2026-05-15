@@ -13,6 +13,7 @@ from sase.llm_provider._subprocess import (
     _process_codex_json_line,
     stream_and_parse_codex_json_output,
 )
+from sase.llm_provider._tool_calls import _TOOL_CALL_RECORD_REQUIRED_FIELDS
 
 CODEX_STREAM_FIXTURES = Path(__file__).parent / "fixtures" / "codex_stream"
 
@@ -541,6 +542,11 @@ def test_codex_parser_processes_captured_tool_fixture_with_artifacts(
     )
     assert records[7]["status"] == "failure"
     assert records[7]["tool_response_summary"]["exit_code"] == 7
+    assert all(
+        field in record
+        for record in records
+        for field in _TOOL_CALL_RECORD_REQUIRED_FIELDS
+    )
 
 
 def test_codex_parser_processes_captured_error_fixture() -> None:

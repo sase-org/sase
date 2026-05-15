@@ -5,12 +5,31 @@ from __future__ import annotations
 import os
 import re
 from collections.abc import Mapping
+from datetime import UTC, datetime
+from time import perf_counter
 from typing import Any
 
 _SCHEMA_VERSION = 2
 _HOOK_SCHEMA_VERSION = 3
 _PREVIEW_LIMIT = 512
 _MAX_KEYS = 20
+_TOOL_CALL_RECORD_REQUIRED_FIELDS = (
+    "schema_version",
+    "recorded_at",
+    "runtime",
+    "source",
+    "event",
+    "status",
+)
+_TOOL_CALL_RECORD_OPTIONAL_FIELDS = (
+    "tool_name",
+    "tool_use_id",
+    "tool_input_summary",
+    "tool_response_summary",
+    "duration_ms",
+    "session_id",
+    "cwd",
+)
 _SECRET_ASSIGNMENT_RE = re.compile(
     r"(?P<prefix>(?:^|[\s;])(?:export\s+)?)"
     r"(?P<name>[A-Za-z_][A-Za-z0-9_]*)"
@@ -282,9 +301,69 @@ def _string_or_none(value: Any) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
+def _base_stream_tool_call_record(
+    runtime: str,
+    event: str,
+    status: str,
+    *,
+    source: str = "stream",
+    tool_name: str | None = None,
+    tool_use_id: str | None = None,
+    session_id: str | None = None,
+    cwd: str | None = None,
+) -> dict[str, Any]:
+    """Build the shared stream-backed tool-call artifact envelope.
+
+    Gemini and Qwen stream writers should emit this same required field set so
+    the TUI reader can stay provider-neutral. Tool input/response summaries and
+    optional duration are added by provider normalizers after this envelope is
+    created.
+    """
+    record: dict[str, Any] = {
+        "schema_version": _SCHEMA_VERSION,
+        "recorded_at": datetime.now(tz=UTC).isoformat(),
+        "runtime": runtime,
+        "source": source,
+        "event": event,
+        "status": status,
+    }
+    if tool_name:
+        record["tool_name"] = _preview_text(tool_name)
+    if tool_use_id:
+        record["tool_use_id"] = _preview_text(tool_use_id)
+    if session_id:
+        record["session_id"] = _preview_text(session_id)
+    if cwd:
+        record["cwd"] = _preview_text(cwd)
+    return record
+
+
+class ToolCallDurationTracker:
+    """Track best-effort durations for stream ``ToolUse``/``ToolResult`` pairs."""
+
+    def __init__(self) -> None:
+        self._started_at: dict[str, float] = {}
+
+    def remember_start(self, tool_use_id: str | None) -> None:
+        if tool_use_id:
+            self._started_at[tool_use_id] = perf_counter()
+
+    def record_duration(self, record: dict[str, Any], tool_use_id: str | None) -> None:
+        if not tool_use_id:
+            return
+        started_at = self._started_at.pop(tool_use_id, None)
+        if started_at is None:
+            return
+        duration_ms = int((perf_counter() - started_at) * 1000)
+        record["duration_ms"] = max(duration_ms, 0)
+
+
 SCHEMA_VERSION = _SCHEMA_VERSION
 HOOK_SCHEMA_VERSION = _HOOK_SCHEMA_VERSION
 PREVIEW_LIMIT = _PREVIEW_LIMIT
+TOOL_CALL_RECORD_OPTIONAL_FIELDS = _TOOL_CALL_RECORD_OPTIONAL_FIELDS
+TOOL_CALL_RECORD_REQUIRED_FIELDS = _TOOL_CALL_RECORD_REQUIRED_FIELDS
+base_stream_tool_call_record = _base_stream_tool_call_record
 derive_user_result_status = _derive_user_result_status
 preview_text = _preview_text
 result_envelope_indicates_error = _result_envelope_indicates_error
