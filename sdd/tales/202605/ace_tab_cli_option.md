@@ -1,8 +1,9 @@
 ---
 create_time: 2026-05-15 13:46:58
-status: wip
+status: done
 prompt: sdd/prompts/202605/ace_tab_cli_option.md
 ---
+
 # Plan: Replace auto-tab-focus logic with explicit `--tab` option on `sase ace`
 
 ## Goal

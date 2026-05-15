@@ -18,8 +18,10 @@ from sase.ace.tui.actions.agents._loading import AgentLoadingMixin
 from sase.ace.tui.actions.agents._loading_compute import (
     PreparedApplyData,
     attach_finalize_plan_to_boundary,
-    _compute_finalize_plan,
     prepare_loaded_agents_apply_boundary,
+)
+from sase.ace.tui.actions.agents._loading_compute_finalize import (
+    _compute_finalize_plan,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_content_search import (
