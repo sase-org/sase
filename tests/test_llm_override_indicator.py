@@ -6,6 +6,7 @@ import json
 import time
 
 import pytest
+from rich.text import Text
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.llm_override_indicator import (
@@ -165,3 +166,51 @@ async def test_llm_override_indicator_is_mounted() -> None:
         )
 
     assert isinstance(indicator, LLMOverrideIndicator)
+
+
+def test_init_skips_cold_default_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``__init__`` must not trigger ``resolve_effective_default_provider_model``."""
+
+    def fail() -> tuple[str, str]:
+        raise AssertionError("default resolver should not be called during init")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
+        fail,
+    )
+
+    indicator = LLMOverrideIndicator()
+
+    rendered = indicator._build_initial_content()
+    assert isinstance(rendered, Text)
+    assert rendered.plain == " ... "
+    assert "cyan" in str(rendered.style)
+    assert indicator._cached_default is None
+    assert indicator._cached_default_failed is False
+
+
+async def test_async_default_resolution_updates_cached_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The async resolver path populates the cached default once mounted."""
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
+        lambda: ("claude", "sonnet"),
+    )
+
+    async with AcePage() as page:
+        indicator = page.query_one_widget(
+            "#llm-override-indicator", LLMOverrideIndicator
+        )
+        cached: tuple[str, str] | None = None
+        for _ in range(20):
+            await page.pause()
+            cached = indicator._cached_default
+            if cached is not None:
+                break
+
+    assert cached == ("claude", "sonnet")
+    rendered = indicator._build_initial_content()
+    assert isinstance(rendered, Text)
+    assert rendered.plain == " CLAUDE(sonnet) "

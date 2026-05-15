@@ -111,8 +111,15 @@ def _direct_llm_metadata_payload() -> dict[str, Any]:
     }
 
 
+@functools.cache
 def _llm_metadata_payload() -> dict[str, Any]:
-    """Return LLM metadata directly from Python providers."""
+    """Return LLM metadata, memoized for the process lifetime.
+
+    Matches the :func:`_build_llm_pm` pattern: entry-point discovery and
+    per-plugin metadata collection happen once. Tests that monkeypatch
+    entry points must clear both caches via
+    ``_build_llm_pm.cache_clear()`` and ``_llm_metadata_payload.cache_clear()``.
+    """
     return _direct_llm_metadata_payload()
 
 
