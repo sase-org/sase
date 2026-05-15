@@ -1238,10 +1238,12 @@ next to that timestamp. The body shows `No tools artifact available` when the fi
 `No tool calls recorded` when the file exists but contains zero records.
 
 Records are produced by writers that share one normalized on-disk format. Claude uses the SASE tool-call hook collector
-as the preferred source and keeps its stream-derived parser as a fallback when hooks are unavailable; other providers
-can write equivalent records from their own tool-call surfaces. See
-[LLM Providers — Claude tool-call hooks](llms.md#claude-tool-call-hooks) for the artifact schema and provider
-integration.
+as the preferred source and keeps its stream-derived parser as a fallback when hooks are unavailable. Codex writes
+equivalent rows from its `codex exec --json` stream with `runtime: "codex"` and `source: "stream"`; current Codex
+start/completion events can show pending rows, result previews, failures, interruptions, and durations, while older
+completed-only `function_call` rows remain readable with more limited detail. See
+[LLM Providers — Claude tool-call hooks](llms.md#claude-tool-call-hooks) and
+[LLM Providers — Codex tool-call capture](llms.md#codex-tool-call-capture) for provider integration details.
 
 ## Plan Workflows
 

@@ -291,6 +291,26 @@ hooks, skills, logs, and caches while any config rewrites stay disposable. The s
 Codex subprocess exits. Set `SASE_CODEX_DISABLE_SHADOW_HOME=1` to pass through the inherited environment directly for
 debugging or emergency compatibility.
 
+### Codex Tool-Call Capture
+
+SASE captures Codex tool calls from the `codex exec --json` NDJSON stream; it does not install Codex hooks or mutate
+user Codex configuration for telemetry. When `SASE_ARTIFACTS_DIR` is present, the stream parser appends normalized Codex
+records to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl` for the ACE [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel).
+
+Current fixture coverage is based on Codex CLI `0.130.0`. For stream items that expose both start and completion events
+(`command_execution`, `file_change`, and named tool items), SASE writes `ToolUse` and `ToolResult` rows with
+`runtime: "codex"` and `source: "stream"`. The Tools-panel reader collapses those pairs into one row, preserving pending
+rows while a command is still running and showing result previews, failure/interruption status, and duration when the
+stream exposes enough data to compute it.
+
+Older Codex stream shapes that only expose a completed `function_call` item remain readable as legacy `FunctionCall`
+rows. Those records can show the tool name and compact input target, but they do not invent response summaries,
+durations, or failure details that Codex did not emit.
+
+Codex tool-call summaries use the same bounded and redacted artifact helpers as the other providers. Set
+`SASE_TOOL_LOG_FULL=1` only for explicit debugging sessions when raw tool input or output is needed in the local
+artifact.
+
 ### Timer Display
 
 While waiting for a response, a `gemini_timer("Waiting for Codex")` spinner is shown (unless `suppress_output` is

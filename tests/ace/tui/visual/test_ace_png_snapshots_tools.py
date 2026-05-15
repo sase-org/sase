@@ -1,8 +1,8 @@
 """ACE TUI PNG visual snapshots for the populated Tools panel.
 
-Covers Phase 4 of the Claude hook tool-call epic: a Tools panel with
-realistic hook-derived (schema v3) tool calls, exercising the actual
-Agents-tab panel mode flow rather than only renderable text.
+Covers the actual Agents-tab panel mode flow with a deterministic Codex
+``tool_calls.jsonl`` fixture, so Codex stream-derived timelines stay protected
+by the PNG visual suite.
 """
 
 from __future__ import annotations
@@ -42,57 +42,52 @@ def _tools_agent(artifacts_dir: Path) -> Agent:
         stop_time=datetime(2026, 5, 9, 10, 5, 0),
         raw_suffix="20260509-100000-tools",
         agent_name="tools",
-        llm_provider="claude",
-        model="claude-opus-4-6",
+        llm_provider="codex",
+        model="gpt-5.5",
         artifacts_dir=str(artifacts_dir),
     )
 
 
-def _hook_pair(
+def _codex_pair(
     *,
     tool_use_id: str,
     tool_name: str,
-    pre_recorded_at: str,
-    post_recorded_at: str,
+    started_at: str,
+    completed_at: str,
     status: str,
     tool_input_summary: dict[str, Any],
     tool_response_summary: dict[str, Any],
     duration_ms: int,
 ) -> list[dict[str, Any]]:
-    pre = {
-        "schema_version": 3,
-        "recorded_at": pre_recorded_at,
-        "runtime": "claude",
-        "source": "hook",
-        "hook_event": "PreToolUse",
+    start = {
+        "schema_version": 2,
+        "recorded_at": started_at,
+        "runtime": "codex",
+        "source": "stream",
         "event": "ToolUse",
         "status": "pending",
         "tool_name": tool_name,
         "tool_use_id": tool_use_id,
-        "session_id": "session-visual",
-        "cwd": "/workspace/sase",
         "tool_input_summary": tool_input_summary,
         "tool_response_summary": {},
     }
-    post = {
-        "schema_version": 3,
-        "recorded_at": post_recorded_at,
-        "runtime": "claude",
-        "source": "hook",
-        "hook_event": "PostToolUse",
+    result = {
+        "schema_version": 2,
+        "recorded_at": completed_at,
+        "runtime": "codex",
+        "source": "stream",
         "event": "ToolResult",
         "status": status,
         "tool_name": tool_name,
         "tool_use_id": tool_use_id,
-        "session_id": "session-visual",
         "duration_ms": duration_ms,
         "tool_input_summary": tool_input_summary,
         "tool_response_summary": tool_response_summary,
     }
-    return [pre, post]
+    return [start, result]
 
 
-def _hook_pending(
+def _codex_pending(
     *,
     tool_use_id: str,
     tool_name: str,
@@ -100,78 +95,100 @@ def _hook_pending(
     tool_input_summary: dict[str, Any],
 ) -> dict[str, Any]:
     return {
-        "schema_version": 3,
+        "schema_version": 2,
         "recorded_at": recorded_at,
-        "runtime": "claude",
-        "source": "hook",
-        "hook_event": "PreToolUse",
+        "runtime": "codex",
+        "source": "stream",
         "event": "ToolUse",
         "status": "pending",
         "tool_name": tool_name,
         "tool_use_id": tool_use_id,
-        "session_id": "session-visual",
-        "cwd": "/workspace/sase",
+        "tool_input_summary": tool_input_summary,
+        "tool_response_summary": {},
+    }
+
+
+def _legacy_codex_function_call(
+    *,
+    tool_use_id: str,
+    tool_name: str,
+    recorded_at: str,
+    tool_input_summary: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "schema_version": 2,
+        "recorded_at": recorded_at,
+        "runtime": "codex",
+        "source": "stream",
+        "event": "FunctionCall",
+        "status": "success",
+        "tool_name": tool_name,
+        "tool_use_id": tool_use_id,
         "tool_input_summary": tool_input_summary,
         "tool_response_summary": {},
     }
 
 
 def _populate_tool_calls(artifacts_dir: Path) -> None:
-    """Write a deterministic ``tool_calls.jsonl`` with mixed-status rows."""
+    """Write a deterministic Codex ``tool_calls.jsonl`` with mixed-status rows."""
     records: list[dict[str, Any]] = []
     records.extend(
-        _hook_pair(
-            tool_use_id="toolu_bash_lint",
+        _codex_pair(
+            tool_use_id="call_bash_pwd",
             tool_name="Bash",
-            pre_recorded_at="2026-05-09T14:00:30+00:00",
-            post_recorded_at="2026-05-09T14:00:31+00:00",
+            started_at="2026-05-09T14:00:30+00:00",
+            completed_at="2026-05-09T14:00:31+00:00",
             status="success",
-            tool_input_summary={"command": "just lint"},
+            tool_input_summary={"command": "pwd"},
             tool_response_summary={
                 "exit_code": 0,
-                "stdout_preview": "All checks passed.",
+                "output_preview": "/workspace/sase\n",
             },
             duration_ms=842,
         )
     )
     records.extend(
-        _hook_pair(
-            tool_use_id="toolu_read_panel",
+        _codex_pair(
+            tool_use_id="call_read_reader",
             tool_name="Read",
-            pre_recorded_at="2026-05-09T14:00:45+00:00",
-            post_recorded_at="2026-05-09T14:00:45+00:00",
+            started_at="2026-05-09T14:00:45+00:00",
+            completed_at="2026-05-09T14:00:45+00:00",
             status="success",
-            tool_input_summary={"file_path": "src/sase/ace/tui/widgets/tools_panel.py"},
-            tool_response_summary={
-                "content_preview": "from __future__ import annotations"
-            },
+            tool_input_summary={"file_path": "src/sase/ace/tui/tools/reader.py"},
+            tool_response_summary={"content_preview": "class ToolCallEntry:"},
             duration_ms=37,
         )
     )
     records.extend(
-        _hook_pair(
-            tool_use_id="toolu_edit_fail",
-            tool_name="Edit",
-            pre_recorded_at="2026-05-09T14:01:10+00:00",
-            post_recorded_at="2026-05-09T14:01:10+00:00",
+        _codex_pair(
+            tool_use_id="call_test_fail",
+            tool_name="Bash",
+            started_at="2026-05-09T14:01:10+00:00",
+            completed_at="2026-05-09T14:01:10+00:00",
             status="failure",
-            tool_input_summary={
-                "file_path": "src/sase/missing.py",
-                "edits_count": 1,
-            },
+            tool_input_summary={"command": "pytest tests/missing_test.py"},
             tool_response_summary={
-                "error": "File not found: src/sase/missing.py",
+                "exit_code": 2,
+                "stderr_preview": "file or directory not found: tests/missing_test.py",
                 "is_error": True,
             },
             duration_ms=15,
         )
     )
     records.append(
-        _hook_pending(
-            tool_use_id="toolu_bash_pending",
-            tool_name="Bash",
+        _codex_pending(
+            tool_use_id="call_edit_pending",
+            tool_name="Edit",
             recorded_at="2026-05-09T14:01:30+00:00",
-            tool_input_summary={"command": "just test"},
+            tool_input_summary={"file_path": "docs/llms.md"},
+        )
+    )
+    records.append(
+        _legacy_codex_function_call(
+            tool_use_id="call_legacy_read",
+            tool_name="Read",
+            recorded_at="2026-05-09T14:01:35+00:00",
+            tool_input_summary={"file_path": "README.md"},
         )
     )
 
@@ -254,10 +271,14 @@ async def test_agents_tools_panel_populated_png_snapshot(
         await page.press("right_square_bracket")
         await _wait_for_tools_loaded(page)
         await wait_for_visual_idle(page)
+        panel = page.app.query_one("#agent-tools-panel", AgentToolsPanel)
+        assert panel._last_entries is not None
+        assert {entry.runtime for entry in panel._last_entries} == {"codex"}
+        assert {entry.source for entry in panel._last_entries} == {"stream"}
 
         ace_png_visual.assert_page_png(
             page,
             "agents_tools_panel_populated_120x40",
-            title="ACE agents tools panel populated",
+            title="ACE agents tools panel populated with Codex rows",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
