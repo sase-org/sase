@@ -180,6 +180,7 @@ def test_append_codex_tool_call_event_writes_shell_artifact() -> None:
 
     assert record["runtime"] == "codex"
     assert record["event"] == "FunctionCall"
+    assert record["source"] == "stream"
     assert record["status"] == "success"
     assert record["tool_name"] == "Bash"
     assert record["tool_use_id"] == "call_1"
@@ -258,8 +259,8 @@ def test_normalize_codex_tool_call_event_tolerates_malformed_arguments() -> None
     assert record["tool_input_summary"] == {}
 
 
-def test_normalize_codex_tool_call_event_documents_current_stream_fixture_gap() -> None:
-    """Phase 1 fixture shows Codex stream items that Phase 2 must normalize."""
+def test_normalize_codex_tool_call_event_handles_current_stream_fixtures() -> None:
+    """Codex command/file events normalize into shared ToolUse/ToolResult rows."""
     stream_events = [
         event
         for event in _load_codex_fixture_events("codex-cli-0.130.0-tools.jsonl")
@@ -280,17 +281,114 @@ def test_normalize_codex_tool_call_event_documents_current_stream_fixture_gap() 
         "command_execution",
         "file_change",
     }
-    assert all(record is None for record in normalized_records)
+    records = [record for record in normalized_records if record is not None]
+    assert [record["event"] for record in records] == [
+        "ToolUse",
+        "ToolResult",
+        "ToolUse",
+        "ToolResult",
+        "ToolUse",
+        "ToolResult",
+        "ToolUse",
+        "ToolResult",
+        "ToolUse",
+        "ToolResult",
+    ]
+    assert {record["source"] for record in records} == {"stream"}
+    assert records[0]["tool_name"] == "Bash"
+    assert records[0]["status"] == "pending"
+    assert records[0]["tool_input_summary"]["command"] == "/bin/zsh -lc pwd"
+    assert records[1]["status"] == "success"
+    assert records[1]["tool_response_summary"]["exit_code"] == 0
+    assert records[1]["tool_response_summary"]["output_preview"] == (
+        "/tmp/sase-codex-fixture\n"
+    )
+    assert records[4]["tool_name"] == "Edit"
+    assert records[4]["tool_input_summary"]["file_path"].endswith("sample.txt")
+    assert records[7]["status"] == "failure"
+    assert records[7]["tool_response_summary"]["exit_code"] == 7
+    assert records[7]["tool_response_summary"]["is_error"] is True
 
 
-def test_normalize_codex_tool_call_event_ignores_unknown_item_fixture() -> None:
-    """Unknown synthesized Codex items remain silent until explicitly supported."""
+def test_normalize_codex_tool_call_event_preserves_unknown_named_tools() -> None:
+    """Unknown named Codex items keep their stable provider names."""
     normalized_records = [
         _normalize_codex_tool_call_event(event)
         for event in _load_codex_fixture_events("synthesized-unknown-item.jsonl")
     ]
 
-    assert normalized_records == [None, None]
+    assert len(normalized_records) == 2
+    assert normalized_records[0] is not None
+    assert normalized_records[0]["event"] == "ToolUse"
+    assert normalized_records[0]["tool_name"] == "mcp__demo__lookup"
+    assert normalized_records[0]["tool_input_summary"] == {"input_keys": ["query"]}
+    assert normalized_records[1] is not None
+    assert normalized_records[1]["event"] == "ToolResult"
+    assert normalized_records[1]["tool_name"] == "mcp__demo__lookup"
+    assert normalized_records[1]["tool_response_summary"]["result_preview"] == (
+        "fixture result"
+    )
+
+
+def test_append_codex_tool_call_event_pairs_duration_and_file_changes() -> None:
+    """Writer appends Codex start/result rows and computes paired durations."""
+    events = [
+        {
+            "type": "item.started",
+            "item": {
+                "id": "item_edit",
+                "type": "file_change",
+                "changes": [{"path": "src/sase/foo.py", "kind": "update"}],
+                "status": "in_progress",
+            },
+        },
+        {
+            "type": "item.completed",
+            "item": {
+                "id": "item_edit",
+                "type": "file_change",
+                "changes": [{"path": "src/sase/foo.py", "kind": "update"}],
+                "status": "completed",
+            },
+        },
+    ]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch.dict(os.environ, {"SASE_ARTIFACTS_DIR": tmpdir}):
+            for event in events:
+                append_codex_tool_call_event(event)
+
+        with open(os.path.join(tmpdir, "tool_calls.jsonl"), encoding="utf-8") as f:
+            records = [json.loads(line) for line in f]
+
+    assert [record["event"] for record in records] == ["ToolUse", "ToolResult"]
+    assert records[0]["tool_name"] == "Edit"
+    assert records[0]["tool_input_summary"]["file_path"] == "src/sase/foo.py"
+    assert records[1]["tool_response_summary"]["file_path"] == "src/sase/foo.py"
+    assert records[1]["tool_response_summary"]["success"] is True
+    assert isinstance(records[1]["duration_ms"], int)
+
+
+def test_codex_tool_log_full_includes_raw_input_and_response() -> None:
+    """SASE_TOOL_LOG_FULL remains an explicit raw logging escape hatch."""
+    event = {
+        "type": "item.completed",
+        "item": {
+            "id": "item_1",
+            "type": "command_execution",
+            "command": "echo hi",
+            "aggregated_output": "hi\n",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    }
+
+    with patch.dict(os.environ, {"SASE_TOOL_LOG_FULL": "1"}):
+        record = _normalize_codex_tool_call_event(event)
+
+    assert record is not None
+    assert record["tool_input_summary"]["raw"]["command"] == "echo hi"
+    assert record["tool_response_summary"]["raw"]["output"] == "hi\n"
 
 
 def test_append_codex_tool_call_event_noops_without_artifacts_dir() -> None:
@@ -311,6 +409,23 @@ def test_append_codex_tool_call_event_noops_without_artifacts_dir() -> None:
         )
 
     mock_append.assert_not_called()
+
+
+def test_append_codex_tool_call_event_diagnoses_malformed_item_event() -> None:
+    """Malformed Codex item events get diagnostics without writing tool rows."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch.dict(os.environ, {"SASE_ARTIFACTS_DIR": tmpdir}):
+            append_codex_tool_call_event({"type": "item.started", "item": "bad"})
+
+        assert not os.path.exists(os.path.join(tmpdir, "tool_calls.jsonl"))
+        with open(
+            os.path.join(tmpdir, "tool_calls_writer_errors.jsonl"),
+            encoding="utf-8",
+        ) as f:
+            diagnostic = json.loads(f.readline())
+
+    assert diagnostic["reason"] == "codex_item_event_missing_item"
+    assert diagnostic["event"] == "item.started"
 
 
 def test_tool_call_input_summaries_are_conservative() -> None:

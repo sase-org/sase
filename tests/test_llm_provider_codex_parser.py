@@ -373,10 +373,10 @@ def test_codex_stream_fixture_contract_documents_current_tool_shapes() -> None:
     )
 
 
-def test_codex_parser_processes_captured_tool_fixture_without_artifacts(
+def test_codex_parser_processes_captured_tool_fixture_with_artifacts(
     tmp_path: Path,
 ) -> None:
-    """Current parser extracts text while Phase 2 owns new Codex tool rows."""
+    """Parser extracts text and writes normalized Codex tool rows."""
     assistant_texts: list[str] = []
     error_events: list[str] = []
 
@@ -393,7 +393,17 @@ def test_codex_parser_processes_captured_tool_fixture_without_artifacts(
         'Final file content:\n\n```text\nbeta\n```\n\n`sh -c "exit 7"` failed with exit code `7`.'
     ]
     assert error_events == []
-    assert not (tmp_path / "tool_calls.jsonl").exists()
+    with open(tmp_path / "tool_calls.jsonl", encoding="utf-8") as f:
+        records = [json.loads(line) for line in f if line.strip()]
+
+    assert len(records) == 10
+    assert [record["event"] for record in records[:2]] == ["ToolUse", "ToolResult"]
+    assert records[0]["tool_name"] == "Bash"
+    assert records[1]["tool_response_summary"]["output_preview"] == (
+        "/tmp/sase-codex-fixture\n"
+    )
+    assert records[7]["status"] == "failure"
+    assert records[7]["tool_response_summary"]["exit_code"] == 7
 
 
 def test_codex_parser_processes_captured_error_fixture() -> None:
