@@ -6,7 +6,7 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Static
 
-from ..models.agent import Agent
+from ..models.agent import Agent, AgentType
 from ._agent_detail_panels import (
     AgentDetailPanelMixin,
     DetailPanelMode,
@@ -142,7 +142,32 @@ class AgentDetail(AgentDetailPanelMixin, Static):
 
         prompt_panel.attempt_view_mode = self._attempt_view_mode
         prompt_panel.attempt_pinned_number = attempt_number
-        prompt_panel.update_display(agent)
+        if self._should_render_workflow_detail_async(agent, attempt_number):
+            generation = self._agent_detail_generation
+
+            def is_current(
+                agent_identity: tuple[Any, ...],
+                worker_generation: int,
+                attempt_view_mode: str,
+                attempt_pinned_number: int | None,
+            ) -> bool:
+                return (
+                    self._agent_detail_generation == worker_generation
+                    and self._current_agent is not None
+                    and self._current_agent.identity == agent_identity
+                    and self._attempt_view_mode == attempt_view_mode
+                    and self._current_attempt_number == attempt_pinned_number
+                )
+
+            prompt_panel.start_workflow_detail_render(
+                agent,
+                generation=generation,
+                attempt_view_mode=self._attempt_view_mode,
+                attempt_pinned_number=attempt_number,
+                is_current=is_current,
+            )
+        else:
+            prompt_panel.update_display(agent)
         self._update_panel_indicators()
 
         # Attempt-pinned view: bypass file/tools panels — we can't
@@ -206,6 +231,16 @@ class AgentDetail(AgentDetailPanelMixin, Static):
                 )
             else:
                 self._expand_prompt_only()
+
+    def _should_render_workflow_detail_async(
+        self, agent: Agent, attempt_number: int | None
+    ) -> bool:
+        return (
+            attempt_number is None
+            and agent.agent_type == AgentType.WORKFLOW
+            and not agent.is_workflow_child
+            and not agent.appears_as_agent
+        )
 
     def update_display_with_hints(self, agent: Agent) -> dict[int, str]:
         """Re-render the prompt panel with file path hints.

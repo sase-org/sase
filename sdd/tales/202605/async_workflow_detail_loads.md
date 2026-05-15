@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-14 22:20:52
-status: wip
+status: done
 prompt: sdd/prompts/202605/async_workflow_detail_loads.md
 ---
 # Async Workflow Detail Loads Plan
