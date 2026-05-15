@@ -73,9 +73,11 @@ def _clear_github_actions_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     monkeypatch.delenv("GITHUB_WORKFLOW", raising=False)
     monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+    monkeypatch.delenv("SASE_VISUAL_PNG_MAX_DIFF_RATIO", raising=False)
 
 
 def _set_github_actions_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SASE_VISUAL_PNG_MAX_DIFF_RATIO", raising=False)
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     monkeypatch.setenv("GITHUB_WORKFLOW", "visual-test")
     monkeypatch.setenv("GITHUB_RUN_ID", "123456")
@@ -129,10 +131,53 @@ def test_github_actions_default_allows_one_percent_diff_without_artifacts(
     assert not (tmp_path / "artifacts").exists()
 
 
+def test_env_tolerance_allows_renderer_drift_without_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_github_actions_env(monkeypatch)
+    monkeypatch.setenv("SASE_VISUAL_PNG_MAX_DIFF_RATIO", "0.02")
+    ace_png_visual = _fixture(tmp_path)
+    expected_pixels = [(255, 0, 0, 255)] * 100
+    actual_pixels = expected_pixels.copy()
+    actual_pixels[0] = (0, 0, 255, 255)
+    _write_golden(tmp_path, "env_tolerated.png", _png(*expected_pixels, size=(10, 10)))
+
+    ace_png_visual.assert_png("env_tolerated", _png(*actual_pixels, size=(10, 10)))
+
+    assert not (tmp_path / "artifacts").exists()
+
+
+def test_explicit_strict_tolerance_overrides_env_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_github_actions_env(monkeypatch)
+    monkeypatch.setenv("SASE_VISUAL_PNG_MAX_DIFF_RATIO", "0.02")
+    ace_png_visual = _fixture(tmp_path)
+    expected_pixels = [(255, 0, 0, 255)] * 100
+    actual_pixels = expected_pixels.copy()
+    actual_pixels[0] = (0, 0, 255, 255)
+    _write_golden(
+        tmp_path,
+        "env_explicit_strict.png",
+        _png(*expected_pixels, size=(10, 10)),
+    )
+
+    with pytest.raises(AssertionError, match="explicit"):
+        ace_png_visual.assert_png(
+            "env_explicit_strict",
+            _png(*actual_pixels, size=(10, 10)),
+            max_diff_pixels=0,
+            max_diff_ratio=0.0,
+        )
+
+
 def test_github_actions_marker_requires_workflow_context(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.delenv("SASE_VISUAL_PNG_MAX_DIFF_RATIO", raising=False)
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     monkeypatch.delenv("GITHUB_WORKFLOW", raising=False)
     monkeypatch.delenv("GITHUB_RUN_ID", raising=False)

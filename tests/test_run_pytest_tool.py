@@ -87,6 +87,27 @@ def test_visual_flag_selects_visual_mode() -> None:
     assert args == ["-k", "axe", "tests/ace/tui/visual"]
 
 
+def test_fast_mode_sets_default_visual_png_tolerance(monkeypatch) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.delenv(runner.VISUAL_PNG_MAX_DIFF_RATIO_ENV, raising=False)
+
+    runner._configure_mode_environment("fast")
+
+    assert (
+        runner.os.environ[runner.VISUAL_PNG_MAX_DIFF_RATIO_ENV]
+        == runner.BROAD_TEST_VISUAL_PNG_MAX_DIFF_RATIO
+    )
+
+
+def test_visual_mode_preserves_strict_visual_png_tolerance(monkeypatch) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.delenv(runner.VISUAL_PNG_MAX_DIFF_RATIO_ENV, raising=False)
+
+    runner._configure_mode_environment("visual")
+
+    assert runner.VISUAL_PNG_MAX_DIFF_RATIO_ENV not in runner.os.environ
+
+
 def test_sanitizes_commit_workflow_environment(monkeypatch) -> None:
     runner = _load_run_pytest()
     monkeypatch.setenv("SASE_COMMIT_METHOD", "create_pull_request")

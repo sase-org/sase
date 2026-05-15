@@ -12,6 +12,7 @@ from typing import Any, Protocol
 from PIL import Image
 
 GITHUB_ACTIONS_MAX_DIFF_RATIO = 0.01
+PNG_MAX_DIFF_RATIO_ENV = "SASE_VISUAL_PNG_MAX_DIFF_RATIO"
 
 
 class SvgExporter(Protocol):
@@ -101,9 +102,10 @@ class AcePngSnapshotFixture:
         """Capture *page* as PNG and assert that it matches the golden.
 
         Local runs default to exact pixel equality. GitHub Actions workflow
-        runs default to a small ratio-only tolerance to absorb renderer drift.
-        Explicit ``max_diff_pixels`` or ``max_diff_ratio`` kwargs take
-        precedence over those environment-derived defaults.
+        runs and commands that set ``SASE_VISUAL_PNG_MAX_DIFF_RATIO`` default
+        to a small ratio-only tolerance to absorb renderer drift. Explicit
+        ``max_diff_pixels`` or ``max_diff_ratio`` kwargs take precedence over
+        those environment-derived defaults.
         """
         svg = page.export_svg(title=title, simplify=simplify)
         png_bytes = render_svg_to_png(svg)
@@ -251,6 +253,8 @@ def _resolve_png_diff_tolerance(
             max_diff_ratio=max_diff_ratio,
             source="explicit",
         )
+    if env_tolerance := _resolve_env_png_diff_tolerance():
+        return env_tolerance
     if _running_in_github_actions_workflow():
         return _PngDiffTolerance(
             max_diff_pixels=None,
@@ -261,6 +265,30 @@ def _resolve_png_diff_tolerance(
         max_diff_pixels=0,
         max_diff_ratio=0.0,
         source="local default",
+    )
+
+
+def _resolve_env_png_diff_tolerance() -> _PngDiffTolerance | None:
+    raw_ratio = os.environ.get(PNG_MAX_DIFF_RATIO_ENV)
+    if raw_ratio is None:
+        return None
+
+    try:
+        max_diff_ratio = float(raw_ratio)
+    except ValueError as exc:
+        raise ValueError(
+            f"{PNG_MAX_DIFF_RATIO_ENV} must be a non-negative float, got {raw_ratio!r}"
+        ) from exc
+
+    if max_diff_ratio < 0:
+        raise ValueError(
+            f"{PNG_MAX_DIFF_RATIO_ENV} must be a non-negative float, got {raw_ratio!r}"
+        )
+
+    return _PngDiffTolerance(
+        max_diff_pixels=None,
+        max_diff_ratio=max_diff_ratio,
+        source=f"${PNG_MAX_DIFF_RATIO_ENV}",
     )
 
 
