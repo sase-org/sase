@@ -236,7 +236,7 @@ def test_real_extension_round_trips_store_operations(tmp_path: Path) -> None:
 
     rewrite = facade.rewrite_notifications(path, [_notification("n2")])
     assert rewrite.rewritten is True
-    assert [n.id for n in rewrite.notifications] == ["n2"]
+    assert [n.id for n in rewrite.notifications] == ["n2", "n1"]
 
 
 def test_append_counts_uses_metadata_binding(

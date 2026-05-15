@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-15 16:03:02
-status: wip
+status: done
 prompt: sdd/prompts/202605/notification_rewrite_merge.md
 ---
 # Fix flaky `notification_append_plus_rewrite_counts_concurrency_preserves_valid_rows`
