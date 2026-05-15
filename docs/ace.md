@@ -1227,7 +1227,7 @@ Entries are read from the `tool_calls.jsonl` artifact in the agent's run directo
 row:
 
 - A status label colored by outcome — `ok` (success), `fail` (error), `stop` (interrupted), `agent` (sub-agent launch),
-  or `unknown` (status not yet known, typically because the post-call record has not arrived).
+  or `wait` (the post-call record has not arrived yet).
 - The tool name, optionally followed by a compact target (such as the file path the tool acted on) and the call's
   duration.
 - A short, length-bounded preview of the call result on the next line, when the collector captured one.
@@ -1237,10 +1237,11 @@ recent reload. While a background reload is in flight (because the artifact chan
 next to that timestamp. The body shows `No tools artifact available` when the file does not yet exist for this agent and
 `No tool calls recorded` when the file exists but contains zero records.
 
-Records are produced by two writers that share the same on-disk format: the Claude tool-call hook collector (preferred,
-Claude only) and a stream-derived fallback in the LLM provider layer (used for other providers and as a backstop when
-hooks are unavailable). See [LLM Providers — Claude tool-call hooks](llms.md#claude-tool-call-hooks) for the artifact
-schema and the provider integration.
+Records are produced by writers that share one normalized on-disk format. Claude uses the SASE tool-call hook collector
+as the preferred source and keeps its stream-derived parser as a fallback when hooks are unavailable; other providers
+can write equivalent records from their own tool-call surfaces. See
+[LLM Providers — Claude tool-call hooks](llms.md#claude-tool-call-hooks) for the artifact schema and provider
+integration.
 
 ## Plan Workflows
 

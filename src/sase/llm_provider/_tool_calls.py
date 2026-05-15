@@ -1,13 +1,11 @@
-"""Runtime-neutral tool-call artifact writer for LLM provider streams.
+"""Runtime-neutral tool-call artifact writers.
 
-For Claude, the canonical source of truth for "every tool call this agent made"
-is the in-band ``assistant`` event's ``content[].tool_use`` blocks paired with
-the corresponding ``user`` event's ``content[].tool_result`` blocks (plus the
-top-level ``tool_use_result`` envelope). Hook lifecycle events emitted via
-``--include-hook-events`` only fire for hooks the user has actually registered,
-so they cannot serve as the primary tool-call source — but they are still useful
-as supplemental signal (durations, subagent lifecycle, permission denials) and
-are captured here when present.
+For Claude, SASE-managed runs prefer the ``PreToolUse``/``PostToolUse`` hook
+collector because it receives the structured payload Claude Code passes to hook
+commands and can record schema-v3 rows as tools run. The stream-json parser in
+this module remains as a compatibility writer for old artifacts and as a
+fallback when hook setup is skipped or unavailable. Other providers can append
+the same normalized artifact shape from their own hook or stream surfaces.
 """
 
 from __future__ import annotations

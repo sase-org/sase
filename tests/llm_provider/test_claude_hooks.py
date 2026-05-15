@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
+from datetime import datetime
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -455,3 +458,100 @@ def test_claude_provider_invoke_skips_hooks_in_home_mode(
         and r.get("mode") == "home_mode_or_no_workspace"
         for r in rows
     )
+
+
+def test_simulated_claude_provider_run_writes_hook_first_records(
+    workspace: Path, artifacts_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Provider-installed hooks plus collector output produce readable entries."""
+    from sase.ace.tui.models.agent import Agent, AgentType
+    from sase.ace.tui.tools import read_tool_calls_for_agent
+    from sase.llm_provider.claude import ClaudeCodeProvider
+    from sase.scripts.sase_claude_tool_hook import main as collector_main
+
+    workspace.mkdir()
+    monkeypatch.setenv("SASE_GIT_WORKSPACE_DIR", str(workspace))
+    monkeypatch.delenv("SASE_CD_WORKSPACE_DIR", raising=False)
+    monkeypatch.delenv("SASE_ACTIVE_PROJECT_DIR", raising=False)
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "20260515_010101")
+
+    def run_collector(payload: dict) -> None:
+        with patch("sys.stdin", io.StringIO(json.dumps(payload))):
+            assert collector_main([]) == 0
+
+    def fake_stream(*_args, **_kwargs):
+        data = _read_settings(workspace)
+        for event in SASE_HOOK_EVENTS:
+            bucket = data["hooks"][event]
+            assert any(_sase_command(entry) for entry in bucket)
+
+        base_payload = {
+            "session_id": "session-sim",
+            "transcript_path": str(workspace / ".claude" / "transcript.jsonl"),
+            "cwd": str(workspace),
+            "tool_name": "Bash",
+            "tool_input": {"command": "printf hi"},
+            "tool_use_id": "toolu_simulated",
+        }
+        run_collector({"hook_event_name": "PreToolUse", **base_payload})
+        run_collector(
+            {
+                "hook_event_name": "PostToolUse",
+                **base_payload,
+                "tool_response": {"exit_code": 0, "stdout": "hi", "success": True},
+                "duration_ms": 12,
+            }
+        )
+        return (
+            "response",
+            "",
+            0,
+            {
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+            },
+        )
+
+    with (
+        patch("sase.llm_provider.claude.subprocess.Popen", return_value=MagicMock()),
+        patch(
+            "sase.llm_provider.claude.stream_and_parse_json_output",
+            side_effect=fake_stream,
+        ),
+        patch("sase.llm_provider.claude.gemini_timer"),
+    ):
+        provider = ClaudeCodeProvider()
+        provider.invoke("hi", model_tier="small", suppress_output=True)
+
+    assert not _settings_path(workspace).exists()
+    raw_rows = [
+        json.loads(line)
+        for line in (artifacts_dir / "tool_calls.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert [row["source"] for row in raw_rows] == ["hook", "hook"]
+    assert [row["hook_event"] for row in raw_rows] == ["PreToolUse", "PostToolUse"]
+
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="proj",
+        project_file=str(workspace / "proj.sase"),
+        status="DONE",
+        start_time=datetime(2026, 5, 15, 1, 1, 1),
+        artifacts_dir=str(artifacts_dir),
+        raw_suffix=artifacts_dir.name,
+    )
+    entries = read_tool_calls_for_agent(agent)
+
+    assert entries is not None
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry.source == "hook"
+    assert entry.tool_use_id == "toolu_simulated"
+    assert entry.status == "success"
+    assert entry.duration_ms == 12
+    assert entry.compact_target == "printf hi"

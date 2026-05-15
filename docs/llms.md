@@ -204,7 +204,13 @@ hook as a tool-call failure to the agent.
 
 The hook-based writer coexists with a stream-derived fallback writer in the LLM provider layer, which parses tool calls
 out of the Claude streaming response. Both writers append to the same artifact, and the Tools-panel reader accepts
-schema versions 1, 2, and 3 — so hook-derived and stream-derived records render side by side.
+schema versions 1, 2, and 3. When hook and stream records describe the same `tool_use_id`, the reader keeps the
+hook-derived record and suppresses the duplicate stream-derived row; otherwise, older stream-only artifacts remain
+readable.
+
+The normalized tool-call artifact is still Python/TUI-owned glue rather than a shared `sase-core` contract. Move it into
+`../sase-core` only if another frontend or integration needs to produce or consume exactly the same schema through the
+Rust boundary.
 
 Source: `src/sase/llm_provider/claude.py`, `src/sase/llm_provider/_claude_hooks.py`,
 `src/sase/llm_provider/_tool_calls.py`, `src/sase/scripts/sase_claude_tool_hook.py`, `src/sase/ace/tui/tools/reader.py`
