@@ -202,6 +202,7 @@ class AceApp(
             restart_axe: Whether to restart the axe daemon on startup
         """
         super().__init__()
+        self.title = f"sase ace (PID: {os.getpid()})"
         self._jk_perf = JKPerfTimer() if _perf_enabled() else None
         self._init_app_state(
             query=query,

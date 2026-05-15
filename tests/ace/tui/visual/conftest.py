@@ -53,6 +53,11 @@ def _force_color_for_visual_snapshots(
     # Pin fontconfig to the bundled Fira Code so PNG rasterization is
     # deterministic regardless of host font configuration.
     monkeypatch.setenv("FONTCONFIG_FILE", str(_hermetic_fontconfig))
+    # Pin os.getpid so the "sase ace (PID: …)" header title is byte-stable
+    # across runs. AceApp.__init__ sets self.title = f"sase ace (PID: {os.getpid()})".
+    import os
+
+    monkeypatch.setattr(os, "getpid", lambda: 12345)
 
 
 @pytest.fixture
