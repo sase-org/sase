@@ -193,6 +193,101 @@ The workspace provider and VCS provider are complementary plugin systems:
 
 A single plugin package (e.g., `sase-github`) typically provides both a VCS plugin and a workspace plugin.
 
+## Workspace Directory Layout
+
+SASE resolves every workspace through a per-project store rather than by string-appending `_<num>` to the primary
+checkout path. The store assigns workspaces stable numeric identities and chooses a physical path according to the
+configured root policy.
+
+### Numeric Identity
+
+| Range     | Meaning                                                                                                                                         |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `#0`      | Primary checkout from ProjectSpec `WORKSPACE_DIR`. Also used as the placeholder for deferred launches.                                          |
+| `#1`–`#9` | Reserved. The allocator never hands these out, but legacy tests and call sites that pass them by hand still work via the compatibility wrapper. |
+| `#10`+    | Claim-allocated managed workspaces. New agents allocate from this unified pool starting at `#10`.                                               |
+
+Older releases allocated agent workspaces starting at `#1` and special-cased axe at `#100`. The current allocator uses
+one shared pool for every claim source; `claim_next_axe_workspace()`, `get_first_available_axe_workspace()`, launch
+executor pre-claims, and `axe` deferred claims all start at `#10` unless a caller passes explicit `min_workspace` /
+`max_workspace` bounds.
+
+User-facing checkout suffixes are `<project>_<num>` regardless of root policy. The primary checkout retains its
+`WORKSPACE_DIR` path with no suffix.
+
+### Root Policy
+
+The physical location of managed checkouts is controlled by `workspace.root` (see
+[`docs/configuration.md`](configuration.md#workspace)) and the `SASE_WORKSPACE_ROOT` environment override:
+
+| Value         | Layout                                                                                                                                                                                                    |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `adjacent`    | Legacy `<primary>_<num>/` siblings of the primary checkout. Default; byte-for-byte compatible with previous releases.                                                                                     |
+| `xdg-state`   | Platform state directory: `$XDG_STATE_HOME/sase/workspaces/<project_key>/<num>/` on Linux, `~/Library/Application Support/sase/workspaces/...` on macOS, `%LOCALAPPDATA%\sase\workspaces\...` on Windows. |
+| absolute path | Treat the path as the managed root and create `<project_key>/<num>/` checkouts under it.                                                                                                                  |
+
+`SASE_WORKSPACE_ROOT` overrides `workspace.root` for the process and takes the same forms (absolute path or one of the
+policy keywords). It is the recommended override for ephemeral test runs and CI sandboxes.
+
+The `project_key` namespace under managed roots is derived from a single Git remote slug when available, otherwise from
+the primary-path basename plus a short hash so two projects with the same basename do not collide. An explicit
+`workspace.project_key` in config wins over the heuristic.
+
+Each managed checkout writes a `.sase/checkout.json` marker recording the project name, project key, workspace number,
+primary workspace path, and the registry path. CWD-based project inference (used by `sase bead`, the file panel, and
+similar callers) reads the nearest marker first and only falls back to sibling-pattern scanning for adjacent legacy
+layouts.
+
+### Registry
+
+For managed roots SASE maintains a per-project registry alongside the checkouts. The registry tracks every workspace the
+store owns — including primary `#0` — and records `checkout_dir`, `materialization`, `role`, `pinned`, `created_at`, and
+`last_used_at`. Registry writes are atomic. `sase workspace repair` is the canonical way to reconcile the registry
+against the filesystem after a manual delete or a partially completed migration. Adjacent checkouts may or may not write
+a registry depending on the build; `cleanup` and `repair` treat a missing registry as "nothing managed here" rather than
+an error.
+
+### Adjacent Compatibility And Migration
+
+Existing projects stay on `adjacent` until the user opts in. To move a project under the managed root, run:
+
+```bash
+sase workspace migrate --to xdg-state [--symlink-transition] [--dry-run]
+sase workspace migrate --finalize [--dry-run]
+```
+
+The first form moves every existing `<primary>_<num>` checkout under the managed root and records it in the registry.
+With `--symlink-transition`, the original `<primary>_<num>` path becomes a symlink to the canonical managed checkout so
+legacy tooling that walks `..` for siblings keeps working. Migration refuses to overwrite a real directory at the
+managed destination; pre-existing managed content is reported and skipped. `--dry-run` reports the planned actions
+without touching the filesystem or registry.
+
+Once workflows have adapted to the managed paths, `sase workspace migrate --finalize` removes the leftover transition
+symlinks without touching the canonical checkouts.
+
+### Backup, Container, And Network-Storage Caveats
+
+- **Backups.** With `adjacent`, every numbered checkout sits inside the user's normal source tree and gets captured by
+  Borg/Restic/Syncthing/BTRFS snapshots. Managed roots move execution state out of the primary backup surface; if you
+  want crashed-agent working trees included, add `~/.local/state/sase/workspaces/` (or the platform equivalent) to your
+  backup profile explicitly.
+- **BTRFS / ZFS snapshots.** A snapshot of `~/projects` no longer freezes every workspace atomically once the canonical
+  checkouts live elsewhere. Snapshot the state root alongside the source tree if atomicity matters.
+- **NFS / network home directories.** If `$HOME` is on NFS and your source tree is on local SSD, switching to
+  `xdg-state` can move workspaces to slow storage. Set `workspace.root` to an absolute path on the fast volume, or keep
+  `adjacent`.
+- **Containers / devcontainers / Toolbx / Distrobox.** Tools that bind-mount `~/projects` into a container will not see
+  managed checkouts under `~/.local/state`. Either add a second mount for the managed root or keep
+  `workspace.root: adjacent` for the containerized project.
+- **Recursive search performance.** `rg`, `fd`, IDE workspace-wide search and similar tools fan out N times across
+  adjacent siblings. Managed roots avoid this by default.
+
+### Default Flip Readiness
+
+The default value of `workspace.root` remains `adjacent` for this release. Flipping new projects to `xdg-state` is
+deferred until the sibling-repo workspace resolver (when present) consumes the same `WorkspaceStore`. Users who want the
+managed layout today can set `workspace.root: xdg-state` per project or globally; nothing else needs to change.
+
 ## `sase workspace` CLI
 
 The `sase workspace` command surface inspects and maintains the per-project workspace registry. All subcommands accept

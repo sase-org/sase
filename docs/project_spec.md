@@ -22,7 +22,7 @@ stay before the first ChangeSpec.
 BARE_REPO_DIR: ~/.sase/repos/my_project.git
 WORKSPACE_DIR: ~/projects/git/my_project/
 RUNNING:
-  #2 | 12345 | run | my_project_add_config_parser_1 | 260509_121314
+  #10 | 12345 | run | my_project_add_config_parser_1 | 260509_121314
 
 
 NAME: my_project_add_config_parser_1
@@ -62,7 +62,10 @@ ChangeSpecs may inherit the parent's `BUG:` when SASE creates them through the c
 Project metadata fields are optional and appear before the first `NAME:` line. SASE currently uses these fields:
 
 - **BARE_REPO_DIR**: Path to the local bare git repository for the built-in `#git` workflow.
-- **WORKSPACE_DIR**: Path to workspace clone `#1`, used as the base for numbered clones such as `<workspace>_2/`.
+- **WORKSPACE_DIR**: Path to the primary checkout (workspace `#0`). Managed numbered checkouts are resolved through the
+  per-project workspace store rather than by appending `_<num>` to this path; see
+  [`docs/workspace.md`](workspace.md#workspace-directory-layout) for the directory-layout reference and
+  [`docs/configuration.md`](configuration.md#workspace) for the `workspace.root` knob.
 - **RUNNING**: Active workspace claims written and released by SASE while agents or workflows are running.
 
 `BARE_REPO_DIR` and `WORKSPACE_DIR` are created by `sase init-git` or by first-use `#git:<project>` initialization. They

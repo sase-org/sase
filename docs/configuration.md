@@ -22,6 +22,8 @@ and CLI flags.
   - [chat_install](#chat_install)
   - [mobile_gateway](#mobile_gateway)
   - [sdd](#sdd)
+  - [bead](#bead)
+  - [workspace](#workspace)
   - [telemetry](#telemetry)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
@@ -695,6 +697,38 @@ Set to `false` for local-only checkouts, or when you would rather batch the bead
 pushing. See [`docs/beads.md`](beads.md#sase-bead-work-id) for the full `sase bead work` flow.
 
 Source: `src/sase/default_config.yml`
+
+### workspace
+
+Controls how SASE chooses the physical location of managed workspace checkouts. See
+[`docs/workspace.md`](workspace.md#workspace-directory-layout) for the directory-layout reference and CLI workflows.
+
+```yaml
+workspace:
+  root: adjacent # "adjacent", "xdg-state", or an absolute path
+  project_key: "" # explicit project-key override; empty = derive from git remote / primary path
+  cleanup_ttl_days: 14 # age threshold for `sase workspace cleanup --stale`
+```
+
+| Field                        | Type   | Default      | Description                                                                                                                                                                               |
+| ---------------------------- | ------ | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workspace.root`             | string | `"adjacent"` | Root policy. `"adjacent"` keeps the legacy `<primary>_<num>/` layout; `"xdg-state"` uses the platform state dir; an absolute path is used verbatim. `SASE_WORKSPACE_ROOT` overrides this. |
+| `workspace.project_key`      | string | `""`         | Override the per-project namespace under managed roots. Empty derives a stable key from a single git remote slug or the primary-path basename plus a short hash.                          |
+| `workspace.cleanup_ttl_days` | int    | `14`         | Minimum age (in days) of an unclaimed managed checkout before `sase workspace cleanup --stale` will remove it.                                                                            |
+
+Platform defaults for the `xdg-state` policy:
+
+| Platform | Managed root                                                                       |
+| -------- | ---------------------------------------------------------------------------------- |
+| Linux    | `$XDG_STATE_HOME/sase/workspaces` (falls back to `~/.local/state/sase/workspaces`) |
+| macOS    | `~/Library/Application Support/sase/workspaces`                                    |
+| Windows  | `%LOCALAPPDATA%\sase\workspaces`                                                   |
+
+Numeric identity is the same on every root policy: `#0` is the primary checkout, `#1`–`#9` are reserved, and managed
+claim workspaces start at `#10`. See [`docs/workspace.md`](workspace.md#numeric-identity) for the full identity model
+and backup/container/NFS caveats.
+
+Source: `src/sase/default_config.yml`, `src/sase/workspace_provider/store.py`
 
 ### telemetry
 
