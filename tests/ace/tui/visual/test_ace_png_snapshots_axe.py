@@ -24,6 +24,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
@@ -70,6 +71,7 @@ async def test_axe_selected_row_png_snapshot(
         await page.press("tab")
         await page.expect_state("tab", "axe")
         await page.press("j")
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -217,6 +219,7 @@ async def test_axe_lumberjack_tree_png_snapshot(
         await page.press("tab")
         await page.press("tab")
         await page.expect_state("tab", "axe")
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -237,6 +240,7 @@ async def test_axe_empty_png_snapshot(
         await page.press("tab")
         await page.press("tab")
         await page.expect_state("tab", "axe")
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -282,6 +286,7 @@ async def test_axe_chop_run_info_panel_png_snapshot(
         # output panel reflects the new selection rather than the idx=0
         # lumberjack overview.
         page.app._refresh_axe_display()
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -352,6 +357,7 @@ async def test_axe_lumberjack_error_png_snapshot(
         await page.press("tab")
         await page.press("tab")
         await page.expect_state("tab", "axe")
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -439,6 +445,7 @@ async def test_axe_chop_run_info_panel_running_png_snapshot(
         )
         # Force the chop-run-detail view to render past the debouncer.
         page.app._refresh_axe_display()
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -536,6 +543,7 @@ async def test_axe_long_label_widening_png_snapshot(
 
         footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
         footer.update_axe_bindings(axe_current_view=page.app._axe_current_view)
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -625,6 +633,7 @@ async def test_axe_controlled_chop_output_png_snapshot(
             f"expected ChopItem at idx 1, got {type(selected).__name__}"
         )
         page.app._refresh_axe_display()
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -651,6 +660,7 @@ async def test_axe_constrained_width_no_wrap_png_snapshot(
         await page.press("tab")
         await page.expect_state("tab", "axe")
         await page.expect_screen_not_contains("IDLE")
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
