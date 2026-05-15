@@ -27,11 +27,6 @@ def test_on_mount_is_coroutine() -> None:
     assert inspect.iscoroutinefunction(AceApp.on_mount)
 
 
-def test_try_startup_fallback_async_is_coroutine() -> None:
-    """Fallback path must also be async to keep the event loop free."""
-    assert inspect.iscoroutinefunction(ChangeSpecMixin._try_startup_fallback_async)
-
-
 def test_read_changespecs_from_disk_returns_list() -> None:
     """Pure read helper must return whatever the cached loader does."""
     mixin = ChangeSpecMixin.__new__(ChangeSpecMixin)

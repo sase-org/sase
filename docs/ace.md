@@ -16,16 +16,17 @@ suffixes.
 
 ### CLI Options
 
-| Option                     | Description                                                     |
-| -------------------------- | --------------------------------------------------------------- |
-| `QUERY` (positional)       | Query string for filtering ChangeSpecs                          |
-| `-m`, `--model-tier`       | Override model tier for all LLM providers (`large` or `small`)  |
-| `-M`, `--model-size`       | Deprecated alias for `--model-tier` (`big` or `little`)         |
-| `-p`, `--profile [PATH]`   | Profile the TUI session with pyinstrument; optional output path |
-| `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 10, 0 to disable)    |
-| `-x`, `--no-axe`           | Disable auto-starting the axe daemon on startup                 |
-| `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                  |
-| `-R`, `--restart-axe`      | Restart the axe daemon on startup (shows RESTARTING indicator)  |
+| Option                     | Description                                                                 |
+| -------------------------- | --------------------------------------------------------------------------- |
+| `QUERY` (positional)       | Query string for filtering ChangeSpecs                                      |
+| `-m`, `--model-tier`       | Override model tier for all LLM providers (`large` or `small`)              |
+| `-M`, `--model-size`       | Deprecated alias for `--model-tier` (`big` or `little`)                     |
+| `-p`, `--profile [PATH]`   | Profile the TUI session with pyinstrument; optional output path             |
+| `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 10, 0 to disable)                |
+| `-x`, `--no-axe`           | Disable auto-starting the axe daemon on startup                             |
+| `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                              |
+| `-R`, `--restart-axe`      | Restart the axe daemon on startup (shows RESTARTING indicator)              |
+| `-t`, `--tab`              | Tab to focus on startup (`changespecs`, `agents`, `axe`; default: `agents`) |
 
 When profiling is enabled, ACE writes text output to `PATH` or `$SASE_TMPDIR/ace_profile_<ts>.txt`, prints the shortened
 path on exit, and copies that path when a clipboard tool is available.

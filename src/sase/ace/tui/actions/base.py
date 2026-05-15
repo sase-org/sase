@@ -420,7 +420,7 @@ class BaseActionsMixin:
                 try:
                     parsed = parse_query(query_part)
                     canonical = to_canonical_string(parsed)
-                except QueryParseError as e:
+                except (QueryParseError, ValueError) as e:
                     self.notify(f"Invalid query: {e}", severity="error")  # type: ignore[attr-defined]
                     return
 
@@ -468,7 +468,7 @@ class BaseActionsMixin:
                         self._restore_selection_for_current_query()  # type: ignore[attr-defined]
                         self._save_current_query()  # type: ignore[attr-defined]
                         self.notify("Query updated")  # type: ignore[attr-defined]
-                except QueryParseError as e:
+                except (QueryParseError, ValueError) as e:
                     self.notify(f"Invalid query: {e}", severity="error")  # type: ignore[attr-defined]
 
         self.push_screen(QueryEditModal(current_canonical), on_dismiss)  # type: ignore[attr-defined]

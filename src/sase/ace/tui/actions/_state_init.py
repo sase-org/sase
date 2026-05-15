@@ -25,6 +25,7 @@ from ..util.nav_gate import NavigationGate
 
 if TYPE_CHECKING:
     from ...agent_query import QueryExpr as AgentQueryExpr
+    from ..app import TabName
     from ..models import Agent
     from ..models.agent import AgentType
     from ..models.agent_loader import AgentLoadState
@@ -47,6 +48,7 @@ class StateInitMixin:
         refresh_interval: int,
         auto_start_axe: bool,
         restart_axe: bool,
+        initial_tab: TabName,
     ) -> None:
         """Initialize all instance state for ``AceApp``.
 
@@ -56,6 +58,11 @@ class StateInitMixin:
         """
         self._current_idx = 0
         self._current_attempt_number: int | None = None
+        # Bypass the ``current_tab`` watcher: setting it via descriptor would
+        # try to query widgets that haven't been composed yet. The reactive's
+        # internal storage was initialized to "changespecs" by ``App.__init__``;
+        # overwrite it here so first paint reflects the requested tab.
+        self._reactive_current_tab = initial_tab  # type: ignore[attr-defined]
         self._init_task_queue()  # type: ignore[attr-defined]
         self.theme = "flexoki"
         self._auto_start_axe = auto_start_axe

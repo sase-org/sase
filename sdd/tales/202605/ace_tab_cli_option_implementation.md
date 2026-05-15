@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-15 15:58:22
-status: wip
+status: done
 prompt: sdd/prompts/202605/ace_tab_cli_option_implementation.md
 ---
 # Plan: Implement the `--tab` CLI option on `sase ace`

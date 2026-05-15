@@ -191,30 +191,6 @@ async def test_async_reload_prepares_corpus_inside_worker(
     assert app._query_corpus_source_list_id == id(specs)
 
 
-@pytest.mark.asyncio
-async def test_startup_saved_query_fallback_reuses_loaded_corpus(
-    fake_query_corpus: dict[str, list[Any]],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    specs = [
-        make_changespec(name="feature_a"),
-        make_changespec(name="other_b"),
-    ]
-    app = _FakeApp(specs, query='"nomatch"')
-    app._apply_changespecs(specs)
-
-    monkeypatch.setattr(
-        "sase.ace.saved_queries.load_saved_queries",
-        lambda: {"1": '"feature"'},
-    )
-
-    assert await app._try_startup_fallback_async() is True
-    assert [cs.name for cs in app.changespecs] == ["feature_a"]
-    assert app.query_string == '"feature"'
-    assert app.restored_selection is True
-    assert fake_query_corpus["compile"] == [specs]
-
-
 def test_hide_counts_are_preserved_on_corpus_route(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

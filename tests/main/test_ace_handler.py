@@ -1,9 +1,13 @@
 """Tests for the ``sase ace`` command handler."""
 
+import argparse
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.main import ace_handler
+from sase.main.parser_ace import register_ace_parser
 
 
 class _FixedDatetime:
@@ -63,3 +67,31 @@ def test_profile_output_path_expands_explicit_tilde_path(tmp_path: Path) -> None
 
     assert output_path == str(home / "profile.txt")
     assert (home / "profile.txt").parent.exists()
+
+
+def _parse_ace_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest="subcommand")
+    register_ace_parser(subparsers)
+    return parser.parse_args(["ace", *argv])
+
+
+def test_tab_option_defaults_to_agents() -> None:
+    args = _parse_ace_args([])
+    assert args.tab == "agents"
+
+
+@pytest.mark.parametrize("tab", ["changespecs", "agents", "axe"])
+def test_tab_option_accepts_valid_choices(tab: str) -> None:
+    args = _parse_ace_args(["--tab", tab])
+    assert args.tab == tab
+
+
+def test_tab_option_short_flag() -> None:
+    args = _parse_ace_args(["-t", "changespecs"])
+    assert args.tab == "changespecs"
+
+
+def test_tab_option_rejects_invalid_choice() -> None:
+    with pytest.raises(SystemExit):
+        _parse_ace_args(["--tab", "bogus"])

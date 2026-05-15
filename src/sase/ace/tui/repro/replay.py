@@ -99,9 +99,8 @@ async def replay_agents_tab_bundle(
             query='"sase-repro"',
             size=size,
             changespecs=[] if changespecs is None else changespecs,
+            initial_tab="agents",
         ) as page:
-            if page.state["tab"] != "agents":
-                await page.press("tab")
             await page.expect_state("tab", "agents")
 
             observed_steps: list[ReproLoadStep] = []

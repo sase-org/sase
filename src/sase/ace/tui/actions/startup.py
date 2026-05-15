@@ -131,6 +131,7 @@ class StartupMixin(StateInitMixin):
             footer.set_keymap_registry(self._keymap_registry)
             tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
             tab_bar.set_keymap_registry(self._keymap_registry)
+            tab_bar.update_tab(self.current_tab)  # type: ignore[attr-defined]
             info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)  # type: ignore[attr-defined]
             info_panel.set_keymap_registry(self._keymap_registry)
             try:
@@ -173,12 +174,6 @@ class StartupMixin(StateInitMixin):
             # Load initial changespecs with the startup query
             all_cs = await asyncio.to_thread(self._read_changespecs_from_disk)  # type: ignore[attr-defined]
             self._apply_changespecs(all_cs)  # type: ignore[attr-defined]
-
-            # If no results, try saved queries as fallback; if none work, open
-            # the Agents tab instead
-            if not self.changespecs:  # type: ignore[attr-defined]
-                if not await self._try_startup_fallback_async():  # type: ignore[attr-defined]
-                    self.current_tab = "agents"  # type: ignore[assignment,attr-defined]
 
             last_name = await asyncio.to_thread(self._read_last_selection_name)  # type: ignore[attr-defined]
             self._restore_last_selection(last_name)  # type: ignore[attr-defined]

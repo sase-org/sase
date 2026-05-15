@@ -59,6 +59,13 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Restart the axe daemon on startup (no-op if axe is not running)",
     )
     ace_parser.add_argument(
+        "-t",
+        "--tab",
+        choices=["changespecs", "agents", "axe"],
+        default="agents",
+        help="Tab to focus on startup (default: agents)",
+    )
+    ace_parser.add_argument(
         "-x",
         "--no-axe",
         action="store_true",

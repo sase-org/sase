@@ -618,7 +618,7 @@ def test_action_open_command_palette_unknown_id_is_silent() -> None:
 
 def test_extract_command_context_smoke_against_real_app() -> None:
     """Confirm the extractor works against a real AceApp instance."""
-    app = AceApp(auto_start_axe=False)
+    app = AceApp(auto_start_axe=False, initial_tab="changespecs")
     ctx = extract_command_context(app)
     assert isinstance(ctx, CommandContext)
     assert ctx.tab == "changespecs"

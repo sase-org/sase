@@ -191,6 +191,7 @@ class AceApp(
         refresh_interval: int = 10,
         auto_start_axe: bool = True,
         restart_axe: bool = False,
+        initial_tab: TabName = "agents",
     ) -> None:
         """Initialize the ace TUI app.
 
@@ -200,6 +201,7 @@ class AceApp(
             refresh_interval: Auto-refresh interval in seconds (0 to disable)
             auto_start_axe: Whether to auto-start the axe daemon on startup
             restart_axe: Whether to restart the axe daemon on startup
+            initial_tab: Tab to focus on startup ("changespecs", "agents", or "axe")
         """
         super().__init__()
         self.title = f"sase ace (PID: {os.getpid()})"
@@ -210,6 +212,7 @@ class AceApp(
             refresh_interval=refresh_interval,
             auto_start_axe=auto_start_axe,
             restart_axe=restart_axe,
+            initial_tab=initial_tab,
         )
 
     @property
@@ -244,6 +247,11 @@ class AceApp(
 
     def compose(self) -> ComposeResult:
         """Compose the app layout."""
+        # Apply the requested initial tab as visible; others start hidden.
+        initial_tab = self.current_tab
+        cs_classes = "" if initial_tab == "changespecs" else "hidden"
+        agents_classes = "" if initial_tab == "agents" else "hidden"
+        axe_classes = "" if initial_tab == "axe" else "hidden"
         yield Header()
         with Horizontal(id="top-bar"):
             yield TabBar(id="tab-bar")
@@ -252,8 +260,7 @@ class AceApp(
             yield InactiveIndicator(id="inactive-indicator")
             yield NotificationIndicator(id="notification-indicator")
         with Horizontal(id="main-container"):
-            # ChangeSpecs Tab (default visible)
-            with Horizontal(id="changespecs-view"):
+            with Horizontal(id="changespecs-view", classes=cs_classes):
                 with Vertical(id="list-container"):
                     yield ChangeSpecInfoPanel(id="info-panel")
                     yield ChangeSpecList(id="list-panel")
@@ -262,20 +269,16 @@ class AceApp(
                     yield SearchQueryPanel(id="search-query-panel")
                     with VerticalScroll(id="detail-scroll"):
                         yield ChangeSpecDetail(id="detail-panel")
-            # Agents Tab (hidden by default)
-            with Vertical(id="agents-view", classes="hidden"):
+            with Vertical(id="agents-view", classes=agents_classes):
                 yield AgentInfoPanel(id="agent-info-panel")
                 with Horizontal(id="agents-content"):
                     with Vertical(id="agent-list-container"):
                         yield AgentList(id="agent-list-panel")
                     with Vertical(id="agent-detail-container"):
                         yield AgentDetail(id="agent-detail-panel")
-            # Axe Tab (hidden by default)
-            with Horizontal(id="axe-view", classes="hidden"):
-                # Left panel (bgcmd list) - always visible on AXE tab
+            with Horizontal(id="axe-view", classes=axe_classes):
                 with Vertical(id="bgcmd-list-container"):
                     yield BgCmdList(id="bgcmd-list-panel")
-                # Right panel (dashboard)
                 with Vertical(id="axe-container"):
                     yield AxeInfoPanel(id="axe-info-panel")
                     yield AxeDashboard(id="axe-dashboard")
