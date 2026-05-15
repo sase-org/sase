@@ -1,0 +1,2 @@
+{"type":"item.started","item":{"id":"item_unknown_0","type":"mcp_tool_call","name":"mcp__demo__lookup","arguments":{"query":"fixture"},"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_unknown_0","type":"mcp_tool_call","name":"mcp__demo__lookup","arguments":{"query":"fixture"},"status":"completed","output":{"result":"fixture result"}}}

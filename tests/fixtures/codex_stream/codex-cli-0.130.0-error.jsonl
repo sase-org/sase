@@ -1,0 +1,4 @@
+{"type":"thread.started","thread_id":"thread_fixture_error"}
+{"type":"turn.started"}
+{"type":"error","message":"{\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'codex-mini-latest' model is not supported when using Codex with a ChatGPT account.\"}}"}
+{"type":"turn.failed","error":{"message":"{\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'codex-mini-latest' model is not supported when using Codex with a ChatGPT account.\"}}"}}

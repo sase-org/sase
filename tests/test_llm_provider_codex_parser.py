@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from unittest.mock import patch
 
@@ -12,6 +13,19 @@ from sase.llm_provider._subprocess import (
     _process_codex_json_line,
     stream_and_parse_codex_json_output,
 )
+
+CODEX_STREAM_FIXTURES = Path(__file__).parent / "fixtures" / "codex_stream"
+
+
+def _load_fixture_events(name: str) -> list[dict[str, object]]:
+    return [
+        json.loads(line)
+        for line in (CODEX_STREAM_FIXTURES / name)
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+
 
 # --- codex NDJSON parser tests ---
 
@@ -315,6 +329,108 @@ def test_codex_json_parser_writes_function_call_artifact(
     assert records[0]["tool_use_id"] == "call_1"
     assert records[0]["tool_input_summary"]["file_path"] == "src/app.py"
     assert thinking_records[0]["following_action"] == "Read app.py"
+
+
+def test_codex_stream_fixture_contract_documents_current_tool_shapes() -> None:
+    """codex-cli 0.130.0 emits command/file items, not function_call items."""
+    events = _load_fixture_events("codex-cli-0.130.0-tools.jsonl")
+
+    tool_items: list[Mapping[str, object]] = []
+    for event in events:
+        item = event.get("item")
+        if (
+            event.get("type") in {"item.started", "item.completed"}
+            and isinstance(item, Mapping)
+            and item.get("type") in {"command_execution", "file_change"}
+        ):
+            tool_items.append(item)
+
+    command_items = [
+        item for item in tool_items if item.get("type") == "command_execution"
+    ]
+    file_change_items = [
+        item for item in tool_items if item.get("type") == "file_change"
+    ]
+    completed_commands = [
+        item for item in command_items if item.get("status") in {"completed", "failed"}
+    ]
+
+    assert [event["type"] for event in events[:2]] == ["thread.started", "turn.started"]
+    assert {item["status"] for item in command_items} == {
+        "in_progress",
+        "completed",
+        "failed",
+    }
+    assert {item["status"] for item in file_change_items} == {
+        "in_progress",
+        "completed",
+    }
+    assert [item["exit_code"] for item in completed_commands] == [0, 0, 7, 0]
+    assert not any(
+        isinstance(event.get("item"), Mapping)
+        and event["item"].get("type") == "function_call"
+        for event in events
+    )
+
+
+def test_codex_parser_processes_captured_tool_fixture_without_artifacts(
+    tmp_path: Path,
+) -> None:
+    """Current parser extracts text while Phase 2 owns new Codex tool rows."""
+    assistant_texts: list[str] = []
+    error_events: list[str] = []
+
+    with patch.dict(os.environ, {"SASE_ARTIFACTS_DIR": str(tmp_path)}):
+        for event in _load_fixture_events("codex-cli-0.130.0-tools.jsonl"):
+            _process_codex_json_line(
+                json.dumps(event),
+                assistant_texts,
+                True,
+                error_events,
+            )
+
+    assert assistant_texts == [
+        'Final file content:\n\n```text\nbeta\n```\n\n`sh -c "exit 7"` failed with exit code `7`.'
+    ]
+    assert error_events == []
+    assert not (tmp_path / "tool_calls.jsonl").exists()
+
+
+def test_codex_parser_processes_captured_error_fixture() -> None:
+    """Captured Codex CLI errors are surfaced through both error channels."""
+    assistant_texts: list[str] = []
+    error_events: list[str] = []
+
+    for event in _load_fixture_events("codex-cli-0.130.0-error.jsonl"):
+        _process_codex_json_line(
+            json.dumps(event),
+            assistant_texts,
+            True,
+            error_events,
+        )
+
+    assert assistant_texts == []
+    assert len(error_events) == 2
+    assert error_events[0].startswith("[error] ")
+    assert error_events[1].startswith("[turn.failed] ")
+    assert "codex-mini-latest" in error_events[0]
+
+
+def test_codex_parser_ignores_synthesized_unknown_item_fixture() -> None:
+    """Unknown Codex item shapes are ignored until explicitly normalized."""
+    assistant_texts: list[str] = []
+    error_events: list[str] = []
+
+    for event in _load_fixture_events("synthesized-unknown-item.jsonl"):
+        _process_codex_json_line(
+            json.dumps(event),
+            assistant_texts,
+            True,
+            error_events,
+        )
+
+    assert assistant_texts == []
+    assert error_events == []
 
 
 # --- _format_codex_action tests ---

@@ -4,6 +4,8 @@ import json
 import os
 import subprocess
 import tempfile
+from collections.abc import Mapping
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from sase.llm_provider._subprocess import (
@@ -15,6 +17,18 @@ from sase.llm_provider._tool_calls import (
     _summarize_tool_input,
     append_codex_tool_call_event,
 )
+
+CODEX_STREAM_FIXTURES = Path(__file__).parents[1] / "fixtures" / "codex_stream"
+
+
+def _load_codex_fixture_events(name: str) -> list[dict[str, object]]:
+    return [
+        json.loads(line)
+        for line in (CODEX_STREAM_FIXTURES / name)
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -242,6 +256,41 @@ def test_normalize_codex_tool_call_event_tolerates_malformed_arguments() -> None
     assert record is not None
     assert record["tool_name"] == "Bash"
     assert record["tool_input_summary"] == {}
+
+
+def test_normalize_codex_tool_call_event_documents_current_stream_fixture_gap() -> None:
+    """Phase 1 fixture shows Codex stream items that Phase 2 must normalize."""
+    stream_events = [
+        event
+        for event in _load_codex_fixture_events("codex-cli-0.130.0-tools.jsonl")
+        if event.get("type") in {"item.started", "item.completed"}
+    ]
+
+    observed_item_types: set[object] = set()
+    for event in stream_events:
+        item = event.get("item")
+        if isinstance(item, Mapping):
+            observed_item_types.add(item.get("type"))
+    normalized_records = [
+        _normalize_codex_tool_call_event(event) for event in stream_events
+    ]
+
+    assert observed_item_types == {
+        "agent_message",
+        "command_execution",
+        "file_change",
+    }
+    assert all(record is None for record in normalized_records)
+
+
+def test_normalize_codex_tool_call_event_ignores_unknown_item_fixture() -> None:
+    """Unknown synthesized Codex items remain silent until explicitly supported."""
+    normalized_records = [
+        _normalize_codex_tool_call_event(event)
+        for event in _load_codex_fixture_events("synthesized-unknown-item.jsonl")
+    ]
+
+    assert normalized_records == [None, None]
 
 
 def test_append_codex_tool_call_event_noops_without_artifacts_dir() -> None:
