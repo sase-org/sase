@@ -28,12 +28,12 @@ def strip_ansi(text: str) -> str:
 
 
 def open_live_reply_file() -> IO[str] | None:
-    """Open the live reply file for writing if SASE_ARTIFACTS_DIR is set."""
+    """Open the live reply file for appending if SASE_ARTIFACTS_DIR is set."""
     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
     if not artifacts_dir:
         return None
     path = os.path.join(artifacts_dir, "live_reply.md")
-    return open(path, "w", encoding="utf-8")
+    return open(path, "a", encoding="utf-8")
 
 
 def open_live_reply_timestamps_file() -> IO[str] | None:
@@ -42,7 +42,7 @@ def open_live_reply_timestamps_file() -> IO[str] | None:
     if not artifacts_dir:
         return None
     path = os.path.join(artifacts_dir, "live_reply_timestamps.jsonl")
-    return open(path, "w", encoding="utf-8")
+    return open(path, "a", encoding="utf-8")
 
 
 def open_codex_thinking_file() -> IO[str] | None:
@@ -51,7 +51,7 @@ def open_codex_thinking_file() -> IO[str] | None:
     if not artifacts_dir:
         return None
     path = os.path.join(artifacts_dir, "codex_thinking.jsonl")
-    return open(path, "w", encoding="utf-8")
+    return open(path, "a", encoding="utf-8")
 
 
 def write_usage_artifact(usage_totals: dict[str, int]) -> None:
@@ -90,7 +90,7 @@ def append_stream_text(
     """Append extracted assistant text to memory, artifacts, and console."""
     if live_reply_file:
         write_reply_timestamp(live_reply_file, timestamps_file)
-        if assistant_texts:
+        if assistant_texts or live_reply_file.tell() > 0:
             live_reply_file.write("\n\n")
         live_reply_file.write(text)
         live_reply_file.flush()

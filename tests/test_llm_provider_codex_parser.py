@@ -58,6 +58,74 @@ def test_codex_json_parser_extracts_text() -> None:
     assert "Second response" in text
 
 
+def test_codex_live_reply_artifacts_append_across_parser_cycles(
+    tmp_path: Path,
+) -> None:
+    """Commit fallback parser cycles preserve earlier live-reply artifacts."""
+
+    def run_cycle(message: str, reasoning: str) -> None:
+        ndjson_lines = [
+            json.dumps(
+                {
+                    "type": "item.completed",
+                    "item": {
+                        "type": "reasoning",
+                        "summary": [{"type": "summary_text", "text": reasoning}],
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "type": "item.completed",
+                    "item": {"type": "agent_message", "text": message},
+                }
+            ),
+        ]
+        script = "import sys; " + "; ".join(f"print({line!r})" for line in ndjson_lines)
+        process = subprocess.Popen(
+            [sys.executable, "-c", script],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        text, _stderr, rc = stream_and_parse_codex_json_output(
+            process, suppress_output=True
+        )
+
+        assert rc == 0
+        assert text == message
+
+    with patch.dict(os.environ, {"SASE_ARTIFACTS_DIR": str(tmp_path)}):
+        run_cycle("first turn reply", "first thought")
+        run_cycle("commit fallback reply", "fallback thought")
+
+    reply_path = tmp_path / "live_reply.md"
+    timestamps_path = tmp_path / "live_reply_timestamps.jsonl"
+    thinking_path = tmp_path / "codex_thinking.jsonl"
+
+    assert reply_path.read_text(encoding="utf-8") == (
+        "first turn reply\n\ncommit fallback reply"
+    )
+
+    timestamp_entries = [
+        json.loads(line)
+        for line in timestamps_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert [entry["byte_offset"] for entry in timestamp_entries] == [
+        0,
+        len("first turn reply"),
+    ]
+
+    thinking_entries = [
+        json.loads(line)
+        for line in thinking_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert [entry["text"] for entry in thinking_entries] == [
+        "first thought",
+        "fallback thought",
+    ]
+
+
 def test_codex_json_parser_handles_malformed_lines() -> None:
     """Test that the Codex NDJSON parser gracefully handles non-JSON lines."""
     lines = [

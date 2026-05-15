@@ -142,7 +142,7 @@ def _handle_codex_agent_message(
 
     if live_reply_file:
         write_reply_timestamp(live_reply_file, timestamps_file)
-        if assistant_texts:
+        if assistant_texts or live_reply_file.tell() > 0:
             live_reply_file.write("\n\n")
         live_reply_file.write(text)
         live_reply_file.flush()
