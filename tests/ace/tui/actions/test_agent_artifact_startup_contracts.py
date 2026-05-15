@@ -43,6 +43,7 @@ class FakeReviveApp(AgentRevivalMixin):
         self.notifications: list[str] = []
         self.restored: list[tuple[tuple[AgentType, str, str | None], str | None]] = []
         self.load_count = 0
+        self.scheduled_refreshes: list[bool] = []
 
     def notify(self, message: str, *, severity: str = "information") -> None:
         del severity
@@ -51,6 +52,23 @@ class FakeReviveApp(AgentRevivalMixin):
     def _load_agents(self, *, full_history: bool = False) -> None:
         del full_history
         self.load_count += 1
+
+    def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
+        del prior_pos
+
+    def _schedule_agents_async_refresh(
+        self,
+        *,
+        full_history: bool = False,
+        on_complete: object | None = None,
+    ) -> None:
+        del on_complete
+        self.scheduled_refreshes.append(full_history)
+        self.load_count += 1
+
+    def _select_revived_agent(self, agent: Agent) -> bool:
+        del agent
+        return True
 
     def _refresh_agents_display(self, *, list_changed: bool) -> None:
         del list_changed

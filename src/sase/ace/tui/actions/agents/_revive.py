@@ -388,22 +388,29 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
 
         self.notify(f"Revived agent for {agent.cl_name}")  # type: ignore[attr-defined]
 
-        stage = "reload"
-        try:
-            self._load_agents(full_history=True)  # type: ignore[attr-defined]
+        # Patch visible rows from the cached list while the async load
+        # reconciles dismissed-set removal off-thread, then run the
+        # selection step once the async apply has completed.
+        self._refilter_agents()  # type: ignore[attr-defined]
 
-            if self.current_tab == "agents":
-                stage = "refresh_display"
+        def _on_revive_loaded(agent: Agent = agent, scope: Any = scope) -> None:
+            if self.current_tab != "agents":
+                return
+            try:
                 self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
                 self._select_revived_agent(agent)
-        except Exception as exc:
-            log_revive_failure(
-                stage=stage,
-                agent=agent,
-                error=exc,
-                selection_scope=scope,
-            )
-            return
+            except Exception as exc:
+                log_revive_failure(
+                    stage="refresh_display",
+                    agent=agent,
+                    error=exc,
+                    selection_scope=scope,
+                )
+
+        self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
+            full_history=True,
+            on_complete=_on_revive_loaded,
+        )
 
     def _do_revive_agents(
         self,
@@ -533,17 +540,32 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
 
         self._record_revived_agent_suffixes(succeeded_suffixes)
 
-        # Phase 4: Single notification and refresh
+        # Phase 4: Single notification and async refresh
         count = len(valid_agents)
         self.notify(f"Revived {count} agent{'s' if count != 1 else ''}")  # type: ignore[attr-defined]
-        self._load_agents(full_history=True)  # type: ignore[attr-defined]
-        if self.current_tab == "agents":
+
+        revive_candidates = [
+            agent for agent in valid_agents if not agent.is_workflow_child
+        ]
+        if not revive_candidates:
+            revive_candidates = list(valid_agents)
+
+        # Patch visible rows from the cached list while the async load
+        # reconciles dismissed-set removal off-thread, then run the
+        # selection step once the async apply has completed.
+        self._refilter_agents()  # type: ignore[attr-defined]
+
+        def _on_revive_loaded(
+            candidates: list[Agent] = revive_candidates,
+        ) -> None:
+            if self.current_tab != "agents":
+                return
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
-            revive_candidates = [
-                agent for agent in valid_agents if not agent.is_workflow_child
-            ]
-            if not revive_candidates:
-                revive_candidates = valid_agents
-            for agent in revive_candidates:
-                if self._select_revived_agent(agent):
+            for candidate in candidates:
+                if self._select_revived_agent(candidate):
                     break
+
+        self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
+            full_history=True,
+            on_complete=_on_revive_loaded,
+        )

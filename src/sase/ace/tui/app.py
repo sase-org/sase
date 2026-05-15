@@ -346,13 +346,13 @@ class AceApp(
             # skip here to avoid a redundant synchronous cold load.
             if self._mounting:
                 pass
-            elif getattr(self, "_agents_with_children", None):
-                # Show cached data immediately, then refresh async
+            else:
+                # Show cached data (if any) immediately, then refresh async.
+                # When the cache is empty, ``_refilter_agents`` falls through
+                # to scheduling an async refresh, so the cold-load arm picks
+                # up the same loading-row paint as ``on_mount``.
                 self._refilter_agents()
                 self._schedule_agents_async_refresh()
-            else:
-                # First load ever — must block to populate initial state
-                self._load_agents()
         else:  # axe
             changespecs_view.add_class("hidden")
             agents_view.add_class("hidden")

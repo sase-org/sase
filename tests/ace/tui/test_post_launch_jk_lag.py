@@ -40,6 +40,7 @@ class _FakeRefreshApp(AgentLoadingMixin):
     def __init__(self) -> None:
         self._agents_loading = False
         self._agents_refresh_pending = False
+        self._agents_refresh_pending_callbacks: list[Callable[[], None]] = []
         self._agents_refresh_scheduled = False
         self._scheduled: list[Any] = []
         self._timer_calls: list[tuple[float, Callable[[], Any]]] = []

@@ -57,8 +57,16 @@ class FakeFullApp(AgentDismissingMixin, AgentRevivalMixin):
     async def _refresh_notification_count_async(self) -> None:
         self.notification_refreshes_async += 1
 
-    def _schedule_agents_async_refresh(self) -> None:
+    def _schedule_agents_async_refresh(
+        self,
+        *,
+        full_history: bool = False,
+        on_complete: Callable[[], None] | None = None,
+    ) -> None:
+        del full_history
         self.async_refreshes += 1
+        if on_complete is not None:
+            on_complete()
 
     def _refresh_agents_display(self, *, list_changed: bool) -> None:
         pass

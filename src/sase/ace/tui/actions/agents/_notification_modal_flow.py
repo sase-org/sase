@@ -36,8 +36,12 @@ class AgentNotificationModalMixin:
             and self.hide_non_run_agents  # type: ignore[attr-defined]
             and self._hidden_count > 0  # type: ignore[attr-defined]
         ):
+            # The reveal/restore scan only needs visible-filter changes; the
+            # cached ``_agents_with_children`` already holds the hidden rows,
+            # so the in-memory refilter is enough. Disk reconcile is deferred
+            # to a single async refresh after the scan completes.
             self.hide_non_run_agents = False  # type: ignore[attr-defined]
-            self._load_agents()  # type: ignore[attr-defined]
+            self._refilter_agents()  # type: ignore[attr-defined]
             for i, a in enumerate(self._agents):  # type: ignore[attr-defined]
                 if a.status in ("PLAN", "QUESTION"):
                     self.current_idx = i  # type: ignore[attr-defined]
@@ -45,7 +49,8 @@ class AgentNotificationModalMixin:
                     break
             if agent is None:
                 self.hide_non_run_agents = True  # type: ignore[attr-defined]
-                self._load_agents()  # type: ignore[attr-defined]
+                self._refilter_agents()  # type: ignore[attr-defined]
+            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
 
         if agent is None:
             return

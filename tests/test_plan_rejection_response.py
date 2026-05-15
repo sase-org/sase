@@ -512,7 +512,8 @@ def test_user_question_response_dismisses_notification_and_restores_status(
     mark_dismissed.assert_called_once_with("question-notif")
     assert app._agent_status_overrides[agent.identity] == "PLAN APPROVED"
     assert agent.identity not in app._agent_pre_question_status
-    app._load_agents.assert_called_once()
+    app._refilter_agents.assert_called_once()
+    app._schedule_agents_async_refresh.assert_called_once()
 
 
 def test_open_user_question_modal_from_marker_dismissed_notification(

@@ -15,6 +15,7 @@ class _FakeApp(AgentLoadingMixin):
     def __init__(self) -> None:
         self._agents_loading = False
         self._agents_refresh_pending = False
+        self._agents_refresh_pending_callbacks: list[Callable[[], None]] = []
         self._agents_refresh_scheduled = False
         self._scheduled: list[Any] = []
         self._nav_gate = NavigationGate(window_s=0.25)

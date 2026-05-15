@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable
+
 from ._loading_state import AgentLoadingStateMixin
+
+log = logging.getLogger(__name__)
 
 
 class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
@@ -45,7 +50,12 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         self._agents_refresh_debounce_armed = False
         self._schedule_agents_async_refresh()
 
-    def _schedule_agents_async_refresh(self, *, full_history: bool = False) -> None:
+    def _schedule_agents_async_refresh(
+        self,
+        *,
+        full_history: bool = False,
+        on_complete: Callable[[], None] | None = None,
+    ) -> None:
         """Schedule an async agent reload without blocking.
 
         If a refresh is already in flight, mark a pending follow-up so the
@@ -54,7 +64,13 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         produces at most two full loads (the one already running plus one
         follow-up), and the final UI state reflects whatever was on disk
         after the last trigger.
+
+        ``on_complete``, when supplied, runs on the UI thread after the
+        apply step of the next refresh that actually executes. Callbacks
+        accumulate and fire in FIFO order; a callback only runs once.
         """
+        if on_complete is not None:
+            self._agents_refresh_pending_callbacks.append(on_complete)
         if self._agents_loading:
             self._agents_refresh_pending = True
             if full_history:
@@ -94,6 +110,8 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                 self._agents_refresh_pending_full_history = True
             return
         self._agents_loading = True
+        callbacks = list(self._agents_refresh_pending_callbacks)
+        self._agents_refresh_pending_callbacks.clear()
         try:
             import inspect
 
@@ -104,6 +122,11 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                 await load_agents_async()
         finally:
             self._agents_loading = False
+            for cb in callbacks:
+                try:
+                    cb()
+                except Exception:
+                    log.exception("agents async refresh callback failed")
             # If a refresh was requested while we were running, schedule one
             # more pass so the UI reflects the latest on-disk state.
             if self._agents_refresh_pending:

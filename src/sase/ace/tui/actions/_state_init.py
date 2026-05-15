@@ -211,6 +211,7 @@ class StateInitMixin:
         self._agents_loading: bool = False
         self._agents_refresh_pending: bool = False
         self._agents_refresh_pending_full_history: bool = False
+        self._agents_refresh_pending_callbacks: list[Callable[[], None]] = []
         self._agents_refresh_scheduled: bool = False
         self._agents_refresh_scheduled_full_history: bool = False
         self._agents_refresh_debounce_armed: bool = False

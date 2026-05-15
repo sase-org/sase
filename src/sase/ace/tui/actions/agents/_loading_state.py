@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from ....changespec import ChangeSpec
@@ -87,6 +88,7 @@ class AgentLoadingStateMixin:
     # after the last trigger.
     _agents_refresh_pending: bool
     _agents_refresh_pending_full_history: bool
+    _agents_refresh_pending_callbacks: list[Callable[[], None]]
     _agents_refresh_scheduled: bool
     _agents_refresh_scheduled_full_history: bool
     # Source-aware debounce gate for ``request_agents_refresh``: True while

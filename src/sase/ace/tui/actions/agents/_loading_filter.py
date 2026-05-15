@@ -32,11 +32,15 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         visually below the removed one when the previously selected
         identity is gone (kill / dismiss paths).
 
-        Falls back to ``_load_agents()`` if no full load has run yet.
+        Falls back to scheduling an async load if no full load has run yet —
+        callers that need the post-load list synchronously must await the
+        scheduled refresh via ``_schedule_agents_async_refresh(on_complete=…)``.
         """
-        # Guard: first load hasn't happened yet
-        if not self._agents_with_children:
-            self._load_agents()
+        # Guard: first load hasn't happened yet — kick off an async load and
+        # leave ``_agents`` as-is (empty). Callers that draw the list rely on
+        # the existing loading-row mechanism while the async refresh runs.
+        if not getattr(self, "_agents_with_children", None):
+            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
             return
 
         on_agents_tab = self.current_tab == "agents"

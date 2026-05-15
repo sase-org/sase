@@ -147,5 +147,6 @@ def _restore_pre_question_status(app: object, notification: Notification) -> Non
         else:
             app._agent_status_overrides.pop(identity, None)  # type: ignore[attr-defined]
 
-        app._load_agents()  # type: ignore[attr-defined]
+        app._refilter_agents()  # type: ignore[attr-defined]
+        app._schedule_agents_async_refresh()  # type: ignore[attr-defined]
         break

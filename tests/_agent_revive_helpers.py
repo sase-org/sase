@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -55,6 +56,21 @@ class FakeReviveApp(AgentRevivalMixin):
         self.last_load_full_history = full_history
         if self.loaded_agents is not None:
             self._agents = self.loaded_agents
+
+    def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
+        del prior_pos
+
+    def _schedule_agents_async_refresh(
+        self,
+        *,
+        full_history: bool = False,
+        on_complete: Callable[[], None] | None = None,
+    ) -> None:
+        # Simulate the async load completing synchronously so existing test
+        # assertions about post-load selection / refresh counts still hold.
+        self._load_agents(full_history=full_history)
+        if on_complete is not None:
+            on_complete()
 
     def _refresh_agents_display(self, *, list_changed: bool) -> None:
         if list_changed:

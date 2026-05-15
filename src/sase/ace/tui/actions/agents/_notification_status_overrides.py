@@ -131,7 +131,8 @@ class AgentNotificationStatusMixin:
                     persist_plan_approved(agent, action="legend")
                 else:
                     self._agent_status_overrides[agent.identity] = "RUNNING"  # type: ignore[attr-defined]
-                self._load_agents()  # type: ignore[attr-defined]
+                self._refilter_agents()  # type: ignore[attr-defined]
+                self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
 
             return True
 
@@ -142,7 +143,8 @@ class AgentNotificationStatusMixin:
             if agent is not None:
                 self._agent_status_overrides[agent.identity] = "PLAN APPROVED"  # type: ignore[attr-defined]
                 persist_plan_approved(agent)
-                self._load_agents()  # type: ignore[attr-defined]
+                self._refilter_agents()  # type: ignore[attr-defined]
+                self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
 
             return True
 
@@ -152,7 +154,8 @@ class AgentNotificationStatusMixin:
             agent = find_agent_for_notification(self, notification)
             if agent is not None:
                 self._agent_status_overrides.pop(agent.identity, None)  # type: ignore[attr-defined]
-                self._load_agents()  # type: ignore[attr-defined]
+                self._refilter_agents()  # type: ignore[attr-defined]
+                self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
 
             return True
 

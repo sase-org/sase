@@ -94,7 +94,8 @@ class PromptBarSubmitMixin:
         # Update agent status override to RUNNING
         if ctx.agent_identity is not None:
             self._agent_status_overrides[ctx.agent_identity] = "RUNNING"  # type: ignore[attr-defined]
-            self._load_agents()  # type: ignore[attr-defined]
+            self._refilter_agents()  # type: ignore[attr-defined]
+            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
 
         # Clean up
         self._plan_feedback_context = None
