@@ -883,7 +883,7 @@ Directives use the same argument syntax as xprompt references:
 %name:reviewer               # Short-form
 %n:reviewer                  # Same, using alias
 %name                        # Bare — auto-generates a unique name
-%name:!reviewer              # Force reuse after confirmation and wipe
+%name:!reviewer              # Force reuse by wiping the previous owner
 %wait:agent1                 # Wait for agent1
 %w:agent2                    # Wait for agent2 (alias)
 %wait                        # Bare — waits for the most recently named agent
@@ -922,9 +922,9 @@ for the agent. Bare `%wait` resolves to the most recently named agent (raises an
 
 Agent names are permanent IDs. A name that belongs to any existing agent state cannot be reused by a normal
 `%name:<name>` launch; SASE cancels the launch before spawning an agent, records the prompt as cancelled, and suggests
-the lowest free numeric suffix such as `<name>1`. To deliberately reuse a name, use `%name:!<name>` from the TUI. SASE
-asks for confirmation, wipes the previous owner and its persisted system state, then launches the new agent with that
-name. Non-TUI launch surfaces reject `%name:!<name>` unless they provide an explicit confirmation path.
+the lowest free numeric suffix such as `<name>1`. To deliberately reuse a name, use `%name:!<name>` from the TUI; the
+`!` form is the explicit confirmation to wipe the previous owner and its persisted system state before launching the new
+agent with that name. Non-TUI launch surfaces reject `%name:!<name>` unless they provide an explicit confirmation path.
 
 Named `%wait` dependencies unblock only after the newest matching agent run has a `done.json` outcome of `"completed"`.
 For a multi-agent workflow name, the workflow root and every child agent for that root must complete successfully.

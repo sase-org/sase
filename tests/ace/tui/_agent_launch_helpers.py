@@ -23,6 +23,7 @@ class _FakeApp(AgentLaunchMixin):
     def __init__(self) -> None:
         self.notifications: list[tuple[str, str | None]] = []
         self.scheduled: list[tuple[Any, tuple[Any, ...]]] = []
+        self.pushed_screens: list[tuple[Any, Any]] = []
         self.body_calls: list[str] = []
         self._prompt_context: PromptContext | None = _fake_context()
         self._bulk_changespecs = None
@@ -34,6 +35,9 @@ class _FakeApp(AgentLaunchMixin):
     def call_later(self, fn: Any, *args: Any, **kwargs: Any) -> None:
         del kwargs
         self.scheduled.append((fn, args))
+
+    def push_screen(self, screen: Any, callback: Any = None) -> None:
+        self.pushed_screens.append((screen, callback))
 
     def _unmount_prompt_bar(self) -> None:
         pass

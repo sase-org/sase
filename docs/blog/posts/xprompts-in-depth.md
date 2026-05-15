@@ -87,7 +87,7 @@ stripped before the prompt reaches the model. The ones worth knowing on day one:
 | `%alt`     | Split the prompt into variants with different text              |
 
 Directives compose. `%wait:planner %time:5m` waits for the `planner` agent to land, then adds a five-minute floor before
-launching. `%name:!reviewer` forces reuse of an existing name (with a confirmation gate in the TUI) — useful when
+launching. `%name:!reviewer` forces reuse of an existing name by wiping the previous owner from the TUI — useful when
 retrying a flow that already claimed the name. The [full directive reference](../../xprompt.md#supported-directives)
 lists every directive, alias, and form.
 

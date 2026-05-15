@@ -9,7 +9,6 @@ __all__ = [
     "AgentNameLaunchCollisionError",
     "AgentNameReuseConfirmationRequiredError",
     "force_reuse_owner_names",
-    "launch_prompts_need_force_reuse_confirmation",
     "rewrite_force_reuse_name_directives",
     "validate_launch_name_requests",
     "wipe_names_for_forced_reuse",
@@ -60,13 +59,6 @@ def _explicit_launch_name_requests(prompts: list[str]) -> list[_LaunchNameReques
             _LaunchNameRequest(name=name, force_reuse=force_reuse, prompt_index=i)
         )
     return requests
-
-
-def launch_prompts_need_force_reuse_confirmation(prompts: list[str]) -> bool:
-    """Return whether any prompt contains a forced-reuse name directive."""
-    return any(
-        request.force_reuse for request in _explicit_launch_name_requests(prompts)
-    )
 
 
 def validate_launch_name_requests(
@@ -171,7 +163,7 @@ def force_reuse_owner_names(prompts: list[str]) -> list[str]:
 
 
 def wipe_names_for_forced_reuse(names: list[str]) -> None:
-    """Best-effort removal hook used after TUI confirmation."""
+    """Best-effort removal hook used for explicit force-reuse launches."""
     for name in names:
         from sase.agent.names import wipe_agent_name_for_reuse
 

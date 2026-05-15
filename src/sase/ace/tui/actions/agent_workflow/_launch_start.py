@@ -37,47 +37,21 @@ class AgentLaunchStartMixin:
 
         from sase.agent.launch_validation import (
             force_reuse_owner_names,
-            launch_prompts_need_force_reuse_confirmation,
             rewrite_force_reuse_name_directives,
             wipe_names_for_forced_reuse,
         )
 
-        if launch_prompts_need_force_reuse_confirmation([prompt]):
-            ctx = self._prompt_context
-
-            def _on_confirmed(confirmed: bool | None) -> None:
-                if not confirmed:
-                    from sase.history.prompt import add_or_update_prompt
-
-                    add_or_update_prompt(
-                        prompt,
-                        project_name=ctx.project_name,
-                        branch_or_workspace=ctx.history_sort_key,
-                        cancelled=True,
-                    )
-                    self.notify("Agent launch cancelled")  # type: ignore[attr-defined]
-                    return
-                try:
-                    wipe_names_for_forced_reuse(force_reuse_owner_names([prompt]))
-                except Exception:
-                    log.exception("Forced agent-name reuse wipe failed")
-                    self.notify(  # type: ignore[attr-defined]
-                        "Agent name reuse failed (see log)", severity="error"
-                    )
-                    return
-                self._finish_agent_launch(rewrite_force_reuse_name_directives(prompt))
-
-            from ...modals import ConfirmActionModal
-
-            names = ", ".join(force_reuse_owner_names([prompt]))
-            self.push_screen(  # type: ignore[attr-defined]
-                ConfirmActionModal(
-                    title="Reuse Agent Name",
-                    message=f"Wipe previous owner of agent name: {names}?",
-                ),
-                _on_confirmed,
-            )
-            return
+        force_reuse_names = force_reuse_owner_names([prompt])
+        if force_reuse_names:
+            try:
+                wipe_names_for_forced_reuse(force_reuse_names)
+            except Exception:
+                log.exception("Forced agent-name reuse wipe failed")
+                self.notify(  # type: ignore[attr-defined]
+                    "Agent name reuse failed (see log)", severity="error"
+                )
+                return
+            prompt = rewrite_force_reuse_name_directives(prompt)
 
         # Regenerate timestamp at launch time (not when prompt bar was opened)
         from sase.core.agent_launch_facade import reserve_launch_timestamp_batch

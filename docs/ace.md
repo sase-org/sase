@@ -1068,8 +1068,8 @@ config. Single-runtime spawns omit the suffix.
 
 An explicit `%name:<name>` launch fails before spawning if `<name>` is already reserved. The prompt is saved as a
 cancelled history entry and the error suggests the lowest free numeric suffix, such as `<name>1`. To deliberately reuse
-a reserved name from the TUI, launch with `%name:!<name>`; after confirmation, SASE wipes the previous owner and then
-claims the name for the new agent. Reviving and dismissing agents preserve their stored names.
+a reserved name from the TUI, launch with `%name:!<name>`; the `!` form confirms that SASE should wipe the previous
+owner and then claim the name for the new agent. Reviving and dismissing agents preserve their stored names.
 
 The durable registry lives at `~/.sase/agent_name_registry.json` and is rebuilt from visible artifacts plus dismissed
 bundles when missing or stale. Use `sase agents names migrate-auto` to run the historical auto-name migration that moves

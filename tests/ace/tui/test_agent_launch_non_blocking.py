@@ -103,3 +103,48 @@ def test_finish_agent_launch_schedules_async_body_not_inline_call() -> None:
     # The body itself was NOT called synchronously.
     assert app.body_calls == []
     assert app.notifications == [("Launching agent for test...", None)]
+
+
+def test_finish_agent_launch_force_reuse_wipes_and_schedules_rewritten_prompt() -> None:
+    """``%name:!`` is explicit TUI confirmation and should not push a modal."""
+    app = _FakeApp()
+
+    with (
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["forced-ts"],
+        ),
+        patch("sase.agent.launch_validation.wipe_names_for_forced_reuse") as wipe_names,
+    ):
+        app._finish_agent_launch("%name:!foo\nDo work")
+
+    wipe_names.assert_called_once_with(["foo"])
+    assert app.pushed_screens == []
+    assert len(app.scheduled) == 1
+    fn, args = app.scheduled[0]
+    assert fn == app._run_agent_launch_body_async
+    assert args == ("%name:foo\nDo work",)
+    assert app.body_calls == []
+    assert app.notifications == [("Launching agent for test...", None)]
+    assert app._prompt_context is not None
+    assert app._prompt_context.timestamp == "forced-ts"
+    assert app._prompt_context.workflow_name == "ace(run)-forced-ts"
+
+
+def test_finish_agent_launch_force_reuse_wipe_failure_does_not_schedule() -> None:
+    """Wipe failures surface through notify and leave launch unscheduled."""
+    app = _FakeApp()
+
+    with patch(
+        "sase.agent.launch_validation.wipe_names_for_forced_reuse",
+        side_effect=RuntimeError("boom"),
+    ) as wipe_names:
+        app._finish_agent_launch("%name:!foo\nDo work")
+
+    wipe_names.assert_called_once_with(["foo"])
+    assert app.pushed_screens == []
+    assert app.scheduled == []
+    assert app.body_calls == []
+    assert app.notifications == [
+        ("Agent name reuse failed (see log)", "error"),
+    ]
