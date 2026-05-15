@@ -43,12 +43,16 @@ class _DiscoveryApp(AgentPanelArtifactMixin):
             tuple[Any, ...], asyncio.Task[Any]
         ] = {}
         self.fire_calls = 0
+        self.footer_refresh_calls = 0
 
     def _get_selected_agent(self) -> _DiscoveryAgent | None:
         return self._selected
 
     def _fire_debounced_detail_update(self) -> None:
         self.fire_calls += 1
+
+    def _refresh_agent_footer_bindings_only(self) -> None:
+        self.footer_refresh_calls += 1
 
 
 def _make_page(artifacts: list[Any]) -> Any:
@@ -80,7 +84,7 @@ async def test_cached_agent_artifacts_returns_cached_copy(tmp_path: Path) -> Non
     assert cached is not app._agent_artifact_page_cache[row_key]
 
 
-async def test_schedule_discovery_runs_off_event_loop_and_repaints(
+async def test_schedule_discovery_runs_off_event_loop_and_refreshes_footer(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -101,7 +105,8 @@ async def test_schedule_discovery_runs_off_event_loop_and_repaints(
 
     row_key = app._agent_artifact_cache_key(agent, agent.identity)  # type: ignore[arg-type]
     assert app._agent_artifact_page_cache[row_key] == [artifact]
-    assert app.fire_calls == 1
+    assert app.fire_calls == 0
+    assert app.footer_refresh_calls == 1
     assert row_key not in app._agent_artifact_discovery_inflight
 
 
@@ -166,6 +171,7 @@ async def test_discovery_continuation_skips_stale_selection(
     row_key_a = app._agent_artifact_cache_key(agent_a, agent_a.identity)  # type: ignore[arg-type]
     assert app._agent_artifact_page_cache[row_key_a] == [artifact]
     assert app.fire_calls == 0
+    assert app.footer_refresh_calls == 0
 
 
 async def test_schedule_discovery_noop_for_identity_none(tmp_path: Path) -> None:
@@ -199,7 +205,8 @@ async def test_discovery_swallows_worker_exceptions(
 
     row_key = app._agent_artifact_cache_key(agent, agent.identity)  # type: ignore[arg-type]
     assert app._agent_artifact_page_cache[row_key] == []
-    assert app.fire_calls == 1
+    assert app.fire_calls == 0
+    assert app.footer_refresh_calls == 1
 
 
 async def test_cancel_pending_artifact_discovery_cancels_inflight_tasks(

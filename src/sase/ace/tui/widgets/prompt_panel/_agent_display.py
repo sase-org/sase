@@ -10,6 +10,7 @@ from ...models.agent import Agent, AgentType, AttemptRecord
 from ...util.lazy_syntax import lazy_renderable
 from ...util.trace import tui_trace
 from ._agent_display_parts import (
+    DetailHeaderSummary,
     build_header_text,
     get_phase_label,
     get_prompt_content,
@@ -107,7 +108,10 @@ class AgentDisplayMixin:
             self._update_workflow_display(agent)  # type: ignore[attr-defined]
             return
 
-        header_text, error_tb_syntax = build_header_text(agent)
+        header_text, error_tb_syntax = build_header_text(
+            agent,
+            summary=DetailHeaderSummary(),
+        )
 
         # Check if this is a bash/python workflow step - display differently
         if agent.is_workflow_child and agent.step_type in ("bash", "python"):

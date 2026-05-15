@@ -18,7 +18,7 @@ import pytest
 from rich.text import Text
 
 from sase.ace.tui.widgets.prompt_panel._agent_artifacts import (
-    _agent_artifact_paths,
+    agent_artifact_paths,
     append_agent_artifacts_section,
 )
 from sase.core.agent_artifact_facade import store_default_agent_artifact
@@ -77,7 +77,7 @@ def test_persisted_artifact_displays_workspace_relative_label(
     )
 
     agent = _StubAgent(str(artifacts_dir), workspace_dir=str(workspace))
-    [entry] = _agent_artifact_paths(agent)  # type: ignore[arg-type]
+    [entry] = agent_artifact_paths(agent)  # type: ignore[arg-type]
 
     assert entry.display_path == "sdd/research/diagram.png"
     assert entry.actual_path == str(Path(stored.path).resolve(strict=False))
@@ -118,12 +118,15 @@ def test_missing_persisted_artifact_renders_with_missing_suffix(
     Path(stored.path).unlink()
 
     agent = _StubAgent(str(artifacts_dir), workspace_dir=str(workspace))
-    [entry] = _agent_artifact_paths(agent)  # type: ignore[arg-type]
+    [entry] = agent_artifact_paths(agent)  # type: ignore[arg-type]
 
     assert entry.exists is False
 
     text = Text()
-    append_agent_artifacts_section(text, agent)  # type: ignore[arg-type]
+    append_agent_artifacts_section(
+        text,
+        artifact_paths=agent_artifact_paths(agent),  # type: ignore[arg-type]
+    )
     rendered = text.plain
     assert "(missing)" in rendered
     assert "diagram.png" in rendered

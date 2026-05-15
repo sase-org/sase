@@ -141,18 +141,24 @@ def _parse_unified_diff_deltas(diff_text: str) -> list[DeltaEntry]:
     return sorted(entries, key=lambda e: e.path)
 
 
-def append_agent_deltas_section(
-    text: Text,
-    agent: Agent,
-    *,
-    hint_state: HeaderHintState | None = None,
-) -> None:
-    """Append the selected agent's own DELTAS section when available."""
+def agent_delta_entries(agent: Agent) -> list[DeltaEntry]:
+    """Return the selected agent's own DELTAS entries when available."""
     diff_text = get_agent_diff(agent)
     if not diff_text:
-        return
+        return []
 
     deltas = _parse_unified_diff_deltas(diff_text)
+    return deltas
+
+
+def append_agent_deltas_section(
+    text: Text,
+    *,
+    delta_entries: list[DeltaEntry] | None = None,
+    hint_state: HeaderHintState | None = None,
+) -> None:
+    """Append precomputed DELTAS entries when available."""
+    deltas = delta_entries or []
     if not deltas:
         return
 

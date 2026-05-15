@@ -2,15 +2,18 @@
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from rich.syntax import Syntax
 from rich.text import Text
 
 from sase.agent.agent_artifacts_cache import get_global_cache
+from sase.ace.changespec.models import DeltaEntry
 
 from ...models.agent import Agent, AttemptRecord
 from ...models.agent_bead import format_agent_bead_display
 from ...util.lazy_syntax import lazy_renderable
+from ._agent_artifacts import AgentArtifactPath
 from ._helpers import (
     append_model_field,
     extract_meta_fields,
@@ -28,6 +31,37 @@ class HeaderHintState:
     hint_counter: int
     hint_mappings: dict[int, str]
     workspace_dir: str | None
+
+
+@dataclass(frozen=True)
+class DetailHeaderSummary:
+    """Precomputed data that is too expensive for hot header rendering."""
+
+    embedded_workflows: list[dict[str, Any]] | None = None
+    bead_display: str | None = None
+    delta_entries: list[DeltaEntry] | None = None
+    artifact_paths: list[AgentArtifactPath] | None = None
+
+
+def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
+    """Build expensive header enrichments outside hot selection rendering."""
+    embedded_workflows = None
+    if agent.step_type not in ("bash", "python", "parallel"):
+        embedded_workflows = load_embedded_workflows(agent)
+
+    bead_display = None
+    if agent.agent_name:
+        bead_display = format_agent_bead_display(agent, include_description=True)
+
+    from ._agent_artifacts import agent_artifact_paths
+    from ._agent_deltas import agent_delta_entries
+
+    return DetailHeaderSummary(
+        embedded_workflows=embedded_workflows,
+        bead_display=bead_display,
+        delta_entries=agent_delta_entries(agent),
+        artifact_paths=agent_artifact_paths(agent),
+    )
 
 
 def render_timestamp_divider(iso_timestamp: str) -> Text:
@@ -164,7 +198,11 @@ def render_agent_reply_content(agent: Agent) -> list:
 
 
 def build_header_text(
-    agent: Agent, *, cheap: bool = False, hint_state: HeaderHintState | None = None
+    agent: Agent,
+    *,
+    cheap: bool = False,
+    hint_state: HeaderHintState | None = None,
+    summary: DetailHeaderSummary | None = None,
 ) -> tuple[Text, Syntax | None]:
     """Build the AGENT DETAILS header section with trailing separator.
 
@@ -179,6 +217,9 @@ def build_header_text(
             update fills in the omitted fields.
         hint_state: Optional mutable file-hint state. When provided, path-like
             timestamp details are rendered with selectable hint markers.
+        summary: Optional precomputed/cached header enrichments. Expensive
+            sections are rendered only from this object; the header builder
+            does not do artifact listing, diff discovery, or bead lookup.
 
     Returns:
         Tuple of (header_text, error_traceback_syntax).
@@ -258,8 +299,8 @@ def build_header_text(
     # Embedded Workflows (if available) - only for agent/prompt steps.
     # Skipped on the cheap path: load_embedded_workflows touches disk, and
     # the debounced full update will populate this field shortly after.
-    if not cheap and agent.step_type not in ("bash", "python", "parallel"):
-        embedded_workflows = load_embedded_workflows(agent)
+    if not cheap and summary is not None:
+        embedded_workflows = summary.embedded_workflows
         if embedded_workflows:
             header_text.append("Embedded Workflows: ", style="bold #87D7FF")
             header_text.append(f"{format_embedded_workflows(embedded_workflows)}\n")
@@ -295,7 +336,15 @@ def build_header_text(
     if agent.agent_name:
         header_text.append("Name: ", style="bold #87D7FF")
         header_text.append(f"@{agent.agent_name}\n", style="#FF87D7")
-        bead_display = format_agent_bead_display(agent, include_description=not cheap)
+        if cheap:
+            bead_display = format_agent_bead_display(agent, include_description=False)
+        elif summary is not None:
+            bead_display = summary.bead_display or format_agent_bead_display(
+                agent,
+                include_description=False,
+            )
+        else:
+            bead_display = format_agent_bead_display(agent, include_description=False)
         if bead_display:
             header_text.append("Bead: ", style="bold #87D7FF")
             header_text.append(f"{bead_display}\n", style="bold #FFAF00")
@@ -382,12 +431,20 @@ def build_header_text(
             style="#D7D7FF",
         )
 
-    if not cheap:
+    if not cheap and summary is not None:
         from ._agent_artifacts import append_agent_artifacts_section
         from ._agent_deltas import append_agent_deltas_section
 
-        append_agent_deltas_section(header_text, agent, hint_state=hint_state)
-        append_agent_artifacts_section(header_text, agent, hint_state=hint_state)
+        append_agent_deltas_section(
+            header_text,
+            delta_entries=summary.delta_entries,
+            hint_state=hint_state,
+        )
+        append_agent_artifacts_section(
+            header_text,
+            artifact_paths=summary.artifact_paths,
+            hint_state=hint_state,
+        )
 
     # Meta fields from step output
     if agent.step_output and isinstance(agent.step_output, dict):

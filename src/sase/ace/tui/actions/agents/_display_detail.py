@@ -101,6 +101,15 @@ class DetailMixin:
         else:
             agent_detail.show_empty()
 
+        self._apply_agent_footer_update(agent_detail, footer_widget, current_agent)
+
+    def _apply_agent_footer_update(
+        self,
+        agent_detail: AgentDetail,
+        footer_widget: KeybindingFooter,
+        current_agent: Agent | None,
+    ) -> None:
+        """Refresh Agents-tab footer bindings for the current selection."""
         if getattr(self, "_fold_mode_active", False):
             footer_widget.update_fold_bindings()
         elif getattr(self, "_leader_mode_active", False):
@@ -153,6 +162,24 @@ class DetailMixin:
                 has_agent_artifacts=has_agent_artifacts,
                 artifact_viewer_active=artifact_viewer_active,
             )
+
+    def _refresh_agent_footer_bindings_only(self) -> None:
+        """Refresh footer bindings without rebuilding the agent detail panel."""
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentDetail, KeybindingFooter
+
+        try:
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            footer_widget = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
+        except NoMatches:
+            log.debug("footer-only update skipped: widget tree unavailable")
+            return
+        self._apply_agent_footer_update(
+            agent_detail,
+            footer_widget,
+            self._get_selected_agent(),  # type: ignore[attr-defined]
+        )
 
     def _update_agents_info_panel(self) -> None:
         """Update the agents info panel with current position and countdown."""

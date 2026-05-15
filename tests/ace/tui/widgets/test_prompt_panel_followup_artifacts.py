@@ -12,12 +12,12 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.tui.widgets.prompt_panel._agent_artifacts import _agent_artifact_paths
+from sase.ace.tui.widgets.prompt_panel._agent_artifacts import agent_artifact_paths
 from sase.core.agent_artifact_facade import store_explicit_agent_artifact
 
 
 class _StubAgent:
-    """Minimal Agent surface needed by ``_agent_artifact_paths``."""
+    """Minimal Agent surface needed by ``agent_artifact_paths``."""
 
     def __init__(
         self,
@@ -64,8 +64,8 @@ def test_parent_aggregates_followup_prompt_from_child(
     child = _StubAgent(str(child_dir))
     parent = _StubAgent(str(parent_dir), followup_agents=[child])
 
-    parent_paths = [a.actual_path for a in _agent_artifact_paths(parent)]  # type: ignore[arg-type]
-    child_paths = [a.actual_path for a in _agent_artifact_paths(child)]  # type: ignore[arg-type]
+    parent_paths = [a.actual_path for a in agent_artifact_paths(parent)]  # type: ignore[arg-type]
+    child_paths = [a.actual_path for a in agent_artifact_paths(child)]  # type: ignore[arg-type]
 
     expected_stored = str(Path(stored.path).resolve(strict=False))
     assert expected_stored in parent_paths
@@ -103,7 +103,7 @@ def test_parent_does_not_aggregate_non_followup_child_artifacts(
     child = _StubAgent(str(child_dir))
     parent = _StubAgent(str(parent_dir), followup_agents=[child])
 
-    parent_paths = [a.actual_path for a in _agent_artifact_paths(parent)]  # type: ignore[arg-type]
+    parent_paths = [a.actual_path for a in agent_artifact_paths(parent)]  # type: ignore[arg-type]
 
     expected_followup = str(Path(followup_artifact.path).resolve(strict=False))
     expected_other = str(Path(other_artifact.path).resolve(strict=False))
@@ -121,7 +121,7 @@ def test_parent_with_no_followups_unaffected(
     parent_dir = _make_agent_artifacts_dir(home, "20260510130000")
 
     parent = _StubAgent(str(parent_dir), followup_agents=[])
-    assert _agent_artifact_paths(parent) == []  # type: ignore[arg-type]
+    assert agent_artifact_paths(parent) == []  # type: ignore[arg-type]
 
 
 def test_parent_tolerates_child_with_missing_artifacts_dir(
@@ -150,6 +150,6 @@ def test_parent_tolerates_child_with_missing_artifacts_dir(
     good_child = _StubAgent(str(good_child_dir))
     parent = _StubAgent(str(parent_dir), followup_agents=[bad_child, good_child])
 
-    parent_paths = [a.actual_path for a in _agent_artifact_paths(parent)]  # type: ignore[arg-type]
+    parent_paths = [a.actual_path for a in agent_artifact_paths(parent)]  # type: ignore[arg-type]
     expected_stored = str(Path(stored.path).resolve(strict=False))
     assert expected_stored in parent_paths

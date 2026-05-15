@@ -272,8 +272,7 @@ class AgentPanelArtifactMixin:
 
         No-op when discovery for the agent's current cache row is already
         in flight. The continuation populates the artifact cache and, if the
-        selection is unchanged, re-fires the debounced detail refresh so the
-        footer's artifact binding picks up the discovered state.
+        selection is unchanged, refreshes only the footer binding state.
         """
         if agent is None:
             return
@@ -325,12 +324,12 @@ class AgentPanelArtifactMixin:
             )
             if current_row_key != row_key:
                 return
-            fire = getattr(self, "_fire_debounced_detail_update", None)
-            if callable(fire):
+            refresh_footer = getattr(self, "_refresh_agent_footer_bindings_only", None)
+            if callable(refresh_footer):
                 try:
-                    fire()
+                    refresh_footer()
                 except Exception:
-                    log.debug("post-discovery detail refresh failed", exc_info=True)
+                    log.debug("post-discovery footer refresh failed", exc_info=True)
         finally:
             inflight: dict[tuple[Any, ...], asyncio.Task[Any]] | None = getattr(
                 self, "_agent_artifact_discovery_inflight", None

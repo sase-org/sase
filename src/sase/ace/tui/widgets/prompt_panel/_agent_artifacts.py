@@ -25,7 +25,7 @@ _ARTIFACT_ENTRY_PREFIX = "•"
 
 
 @dataclass(frozen=True)
-class _ArtifactPath:
+class AgentArtifactPath:
     display_path: str
     actual_path: str
     exists: bool = True
@@ -33,12 +33,12 @@ class _ArtifactPath:
 
 def append_agent_artifacts_section(
     text: Text,
-    agent: Agent,
     *,
+    artifact_paths: list[AgentArtifactPath] | None = None,
     hint_state: HeaderHintState | None = None,
 ) -> None:
     """Append the selected agent's ARTIFACTS path list when available."""
-    artifacts = _agent_artifact_paths(agent)
+    artifacts = artifact_paths or []
     if not artifacts:
         return
 
@@ -55,7 +55,7 @@ def append_agent_artifacts_section(
         text.append("\n")
 
 
-def _agent_artifact_paths(agent: Agent) -> list[_ArtifactPath]:
+def agent_artifact_paths(agent: Agent) -> list[AgentArtifactPath]:
     artifacts_dir = agent.get_artifacts_dir()
     if artifacts_dir is None:
         return []
@@ -108,8 +108,8 @@ def _agent_artifact_paths(agent: Agent) -> list[_ArtifactPath]:
 def _dedupe_paths(
     paths: list[tuple[str, str | None, str | None]],
     fallback_workspace_dir: str | None,
-) -> list[_ArtifactPath]:
-    by_actual_path: dict[str, _ArtifactPath] = {}
+) -> list[AgentArtifactPath]:
+    by_actual_path: dict[str, AgentArtifactPath] = {}
     for path, display_source, artifact_workspace_dir in paths:
         workspace_dir = artifact_workspace_dir or fallback_workspace_dir
         actual_path = _resolve_actual_path(path, workspace_dir)
@@ -119,7 +119,7 @@ def _dedupe_paths(
         )
         by_actual_path.setdefault(
             actual_path,
-            _ArtifactPath(
+            AgentArtifactPath(
                 display_path=display_path,
                 actual_path=actual_path,
                 exists=os.path.exists(actual_path),

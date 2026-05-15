@@ -18,7 +18,10 @@ from sase.ace.tui.widgets.prompt_panel._agent_display import AgentDisplayMixin
 from sase.ace.tui.widgets.prompt_panel._agent_display_hints import (
     AgentHintsDisplayMixin,
 )
-from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
+from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
+    build_detail_header_summary,
+    build_header_text,
+)
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -167,7 +170,7 @@ def test_completed_agent_with_diff_path_renders_deltas(tmp_path: Path) -> None:
     )
     agent = _make_agent(diff_path=str(diff_path))
 
-    header, _ = build_header_text(agent)
+    header, _ = build_header_text(agent, summary=build_detail_header_summary(agent))
 
     assert "DELTAS:\n" in header.plain
     assert "~ src/foo.py  +1 ~1" in header.plain
@@ -176,7 +179,7 @@ def test_completed_agent_with_diff_path_renders_deltas(tmp_path: Path) -> None:
 def test_completed_agent_without_diff_path_omits_deltas() -> None:
     agent = _make_agent(diff_path=None)
 
-    header, _ = build_header_text(agent)
+    header, _ = build_header_text(agent, summary=build_detail_header_summary(agent))
 
     assert "DELTAS:" not in header.plain
 

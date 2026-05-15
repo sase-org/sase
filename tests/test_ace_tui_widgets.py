@@ -18,7 +18,11 @@ from sase.ace.tui.widgets.prompt_panel import (
     AgentPromptPanel,
     load_embedded_workflows,
 )
-from sase.ace.tui.widgets.prompt_panel._agent_display_parts import get_prompt_content
+from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
+    build_detail_header_summary,
+    build_header_text,
+    get_prompt_content,
+)
 
 
 # --- _should_show_commits_drawers Tests ---
@@ -437,8 +441,8 @@ def testload_embedded_workflows_no_artifacts_dir() -> None:
     assert result is None
 
 
-def test_embedded_workflows_displayed_in_metadata(tmp_path: Path) -> None:
-    """Verify 'Embedded Workflows:' appears in rendered output."""
+def test_embedded_workflows_displayed_from_header_summary(tmp_path: Path) -> None:
+    """Precomputed header summaries can render embedded workflow metadata."""
     metadata = [
         {"name": "propose", "args": {"note": "blah"}},
         {"name": "cl", "args": {}},
@@ -452,16 +456,32 @@ def test_embedded_workflows_displayed_in_metadata(tmp_path: Path) -> None:
         step_name="main",
     )
 
+    header, _ = build_header_text(
+        agent,
+        summary=build_detail_header_summary(agent),
+    )
+
+    assert "Embedded Workflows:" in header.plain
+    assert "propose(note=blah), cl" in header.plain
+
+
+def test_update_display_omits_embedded_workflows_from_hot_header(
+    tmp_path: Path,
+) -> None:
+    """Normal prompt updates do not read embedded workflow metadata."""
+    metadata_file = tmp_path / "embedded_workflows_main.json"
+    metadata_file.write_text(json.dumps([{"name": "propose", "args": {}}]))
+
+    agent = _make_agent(
+        artifacts_dir=str(tmp_path),
+        parent_workflow="olcr",
+        step_name="main",
+    )
     panel = AgentPromptPanel.__new__(AgentPromptPanel)
 
     with patch.object(panel, "update") as mock_update:
         panel.update_display(agent)
 
-        assert mock_update.called
-        call_args = mock_update.call_args[0]
-        rendered = call_args[0]
-
-        # Extract text content from the rendered output
-        rendered_str = str(rendered)
-        assert "Embedded Workflows:" in rendered_str
-        assert "propose(note=blah), cl" in rendered_str
+    assert mock_update.called
+    rendered = mock_update.call_args[0][0]
+    assert "Embedded Workflows:" not in str(rendered)

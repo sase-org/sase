@@ -10,6 +10,7 @@ import pytest
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_bead import derive_agent_bead_id
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
+    build_detail_header_summary,
     build_header_text,
     get_phase_label,
 )
@@ -165,7 +166,11 @@ class TestAgentBeadMetadata:
             ),
         )
 
-        header, _ = build_header_text(agent, cheap=False)
+        header, _ = build_header_text(
+            agent,
+            cheap=False,
+            summary=build_detail_header_summary(agent),
+        )
 
         assert "Name: @sase-x.3\nBead: sase-x.3 - First line second line\n" in (
             header.plain
@@ -190,7 +195,11 @@ class TestAgentBeadMetadata:
 
         monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", lookup)
 
-        header, _ = build_header_text(agent, cheap=False)
+        header, _ = build_header_text(
+            agent,
+            cheap=False,
+            summary=build_detail_header_summary(agent),
+        )
 
         assert seen_project_names == ["zorg"]
         assert (
@@ -212,7 +221,11 @@ class TestAgentBeadMetadata:
             ),
         )
 
-        header, _ = build_header_text(agent, cheap=False)
+        header, _ = build_header_text(
+            agent,
+            cheap=False,
+            summary=build_detail_header_summary(agent),
+        )
 
         assert "Name: @sase-x.3\nBead: sase-x.3 - Phase title\n" in header.plain
 
@@ -226,7 +239,11 @@ class TestAgentBeadMetadata:
             lambda bead_id, **_: None,
         )
 
-        header, _ = build_header_text(agent, cheap=False)
+        header, _ = build_header_text(
+            agent,
+            cheap=False,
+            summary=build_detail_header_summary(agent),
+        )
 
         assert "Name: @sase-x.3\nBead: sase-x.3\n" in header.plain
 
@@ -261,7 +278,11 @@ class TestAgentBeadMetadata:
             ),
         )
 
-        header, _ = build_header_text(agent, cheap=False)
+        header, _ = build_header_text(
+            agent,
+            cheap=False,
+            summary=build_detail_header_summary(agent),
+        )
 
         assert (
             "Name: @sase-x.land\n"
@@ -284,7 +305,11 @@ class TestAgentBeadMetadata:
             ),
         )
 
-        header, _ = build_header_text(agent, cheap=False)
+        header, _ = build_header_text(
+            agent,
+            cheap=False,
+            summary=build_detail_header_summary(agent),
+        )
 
         assert (
             "Name: @sase-x\n"
@@ -305,7 +330,11 @@ class TestAgentBeadMetadata:
             ),
         )
 
-        header, _ = build_header_text(agent, cheap=False)
+        header, _ = build_header_text(
+            agent,
+            cheap=False,
+            summary=build_detail_header_summary(agent),
+        )
 
         assert (
             "Name: @sase-x.land\nBead: sase-x - Use the explicit plan description\n"
@@ -398,7 +427,11 @@ class TestAgentArtifactMetadata:
             diff_path=str(diff_path),
         )
 
-        header, _ = build_header_text(agent, cheap=False)
+        header, _ = build_header_text(
+            agent,
+            cheap=False,
+            summary=build_detail_header_summary(agent),
+        )
 
         assert header.plain.index("DELTAS:\n") < header.plain.index("ARTIFACTS:\n")
         assert "ARTIFACTS: 2" not in header.plain
@@ -459,7 +492,11 @@ class TestAgentArtifactMetadata:
             workspace_dir=str(workspace),
         )
 
-        header, _ = build_header_text(agent, cheap=False)
+        header, _ = build_header_text(
+            agent,
+            cheap=False,
+            summary=build_detail_header_summary(agent),
+        )
 
         assert "~/.sase/plans/202605/plan.md" in header.plain
         assert "sdd/tales/202605/plan.md" not in header.plain
