@@ -27,6 +27,19 @@ def _load_fixture_events(name: str) -> list[dict[str, object]]:
     ]
 
 
+def _start_fixture_codex_process(
+    events: list[dict[str, object]],
+) -> subprocess.Popen[str]:
+    lines = [json.dumps(event) for event in events]
+    script = f"import sys\nfor line in {lines!r}:\n    print(line, flush=True)\n"
+    return subprocess.Popen(
+        [sys.executable, "-c", script],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
 # --- codex NDJSON parser tests ---
 
 
@@ -138,6 +151,130 @@ def test_codex_live_reply_artifacts_append_across_parser_cycles(
         "first thought",
         "fallback thought",
     ]
+
+
+def test_codex_fixture_subprocess_writes_tools_reply_and_thinking(
+    tmp_path: Path,
+) -> None:
+    """Fixture subprocess smoke: Codex artifacts append without clobbering."""
+    events = [
+        {
+            "type": "item.completed",
+            "item": {
+                "id": "rs_1",
+                "type": "reasoning",
+                "summary": [{"type": "summary_text", "text": "Inspect workspace"}],
+            },
+        },
+        {
+            "type": "item.started",
+            "item": {
+                "id": "cmd_1",
+                "type": "command_execution",
+                "command": "/bin/zsh -lc pwd",
+                "aggregated_output": "",
+                "exit_code": None,
+                "status": "in_progress",
+            },
+        },
+        {
+            "type": "item.completed",
+            "item": {
+                "id": "cmd_1",
+                "type": "command_execution",
+                "command": "/bin/zsh -lc pwd",
+                "aggregated_output": "/tmp/sase-codex-smoke\n",
+                "exit_code": 0,
+                "status": "completed",
+            },
+        },
+        {
+            "type": "item.completed",
+            "item": {
+                "id": "rs_2",
+                "type": "reasoning",
+                "summary": [{"type": "summary_text", "text": "Patch file"}],
+            },
+        },
+        {
+            "type": "item.started",
+            "item": {
+                "id": "edit_1",
+                "type": "file_change",
+                "changes": [{"path": "sample.txt", "kind": "update"}],
+                "status": "in_progress",
+            },
+        },
+        {
+            "type": "item.completed",
+            "item": {
+                "id": "edit_1",
+                "type": "file_change",
+                "changes": [{"path": "sample.txt", "kind": "update"}],
+                "status": "completed",
+            },
+        },
+        {
+            "type": "item.completed",
+            "item": {
+                "id": "msg_1",
+                "type": "agent_message",
+                "text": "Smoke complete",
+            },
+        },
+    ]
+    process = _start_fixture_codex_process(events)
+
+    with patch.dict(os.environ, {"SASE_ARTIFACTS_DIR": str(tmp_path)}):
+        text, stderr, rc = stream_and_parse_codex_json_output(
+            process, suppress_output=True
+        )
+
+    assert (text, stderr, rc) == ("Smoke complete", "", 0)
+    assert (tmp_path / "live_reply.md").read_text(encoding="utf-8") == (
+        "Smoke complete"
+    )
+
+    tool_records = [
+        json.loads(line)
+        for line in (tmp_path / "tool_calls.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert [record["event"] for record in tool_records] == [
+        "ToolUse",
+        "ToolResult",
+        "ToolUse",
+        "ToolResult",
+    ]
+    assert [record["tool_name"] for record in tool_records] == [
+        "Bash",
+        "Bash",
+        "Edit",
+        "Edit",
+    ]
+    assert tool_records[1]["tool_response_summary"]["output_preview"] == (
+        "/tmp/sase-codex-smoke\n"
+    )
+
+    thinking_records = [
+        json.loads(line)
+        for line in (tmp_path / "codex_thinking.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert [record["text"] for record in thinking_records] == [
+        "Inspect workspace",
+        "Patch file",
+    ]
+
+    timestamp_records = [
+        json.loads(line)
+        for line in (tmp_path / "live_reply_timestamps.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert [record["byte_offset"] for record in timestamp_records] == [0]
 
 
 def test_codex_json_parser_handles_malformed_lines() -> None:

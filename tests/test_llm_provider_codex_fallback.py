@@ -1,13 +1,16 @@
 """Tests for CodexProvider commit-stop fallback behavior."""
 
+import json
 import os
 import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.llm_provider._subprocess import stream_and_parse_codex_json_output
 from sase.llm_provider.codex import CodexProvider
 
 SIBLING_HOOK = (
@@ -30,6 +33,50 @@ def _set_sase_session(
 ) -> str:
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", ts)
     return ts
+
+
+def _start_fixture_codex_process(
+    events: list[dict[str, object]],
+) -> subprocess.Popen[str]:
+    lines = [json.dumps(event) for event in events]
+    script = f"import sys\nfor line in {lines!r}:\n    print(line, flush=True)\n"
+    return subprocess.Popen(
+        [sys.executable, "-c", script],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+def _codex_tool_turn_events(tool_id: str, reply: str) -> list[dict[str, object]]:
+    return [
+        {
+            "type": "item.started",
+            "item": {
+                "id": tool_id,
+                "type": "command_execution",
+                "command": f"/bin/zsh -lc 'printf {tool_id}'",
+                "aggregated_output": "",
+                "exit_code": None,
+                "status": "in_progress",
+            },
+        },
+        {
+            "type": "item.completed",
+            "item": {
+                "id": tool_id,
+                "type": "command_execution",
+                "command": f"/bin/zsh -lc 'printf {tool_id}'",
+                "aggregated_output": f"{tool_id}\n",
+                "exit_code": 0,
+                "status": "completed",
+            },
+        },
+        {
+            "type": "item.completed",
+            "item": {"id": f"msg_{tool_id}", "type": "agent_message", "text": reply},
+        },
+    ]
 
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
@@ -272,6 +319,66 @@ def test_codex_fallback_runs_when_dirty_and_no_native_marker(
     assert native_marker.exists()
     assert fallback_marker.exists()
     assert "second-turn-response" in result.content
+
+
+def test_codex_fallback_parser_cycle_appends_tool_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Commit fallback turns append Codex tool rows to the same artifact."""
+    _isolate_fallback_markers(monkeypatch, tmp_path)
+    _set_sase_session(monkeypatch, "260511_130500")
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    monkeypatch.setattr(
+        "sase.llm_provider.codex.build_commit_details",
+        lambda project_dir: (True, ["src/foo.py"], "commit", "details body"),
+    )
+
+    turns = [
+        _codex_tool_turn_events("primary_cmd", "primary reply"),
+        _codex_tool_turn_events("fallback_cmd", "fallback reply"),
+    ]
+    prompts: list[str] = []
+
+    def fake_run_subprocess(
+        args: list[str], prompt: str, suppress_output: bool
+    ) -> tuple[str, str, int]:
+        prompts.append(prompt)
+        process = _start_fixture_codex_process(turns[len(prompts) - 1])
+        return stream_and_parse_codex_json_output(process, suppress_output=True)
+
+    provider = CodexProvider()
+    monkeypatch.setattr(provider, "_run_subprocess", fake_run_subprocess)
+
+    result = provider.invoke("primary prompt", model_tier="large", suppress_output=True)
+
+    assert result.content == "primary reply\n\nfallback reply"
+    assert len(prompts) == 2
+    assert "--- Commit Stop Hook ---" in prompts[1]
+
+    records = [
+        json.loads(line)
+        for line in (artifacts_dir / "tool_calls.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert [record["tool_use_id"] for record in records] == [
+        "primary_cmd",
+        "primary_cmd",
+        "fallback_cmd",
+        "fallback_cmd",
+    ]
+    assert [record["event"] for record in records] == [
+        "ToolUse",
+        "ToolResult",
+        "ToolUse",
+        "ToolResult",
+    ]
+    assert (artifacts_dir / "live_reply.md").read_text(encoding="utf-8") == (
+        "primary reply\n\nfallback reply"
+    )
 
 
 def test_codex_fallback_runs_when_sibling_hook_blocks_clean_worktree(
