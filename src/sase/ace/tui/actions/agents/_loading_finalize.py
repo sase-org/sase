@@ -17,6 +17,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from ._loading_helpers import DISMISSABLE_STATUSES
+from ...util.trace import tui_trace
 
 if TYPE_CHECKING:
     from ....agent_query import QueryExpr
@@ -133,6 +134,7 @@ def finalize_agent_list(
     selected_identity: tuple[AgentType, str, str | None] | None,
     *,
     save_unfiltered: bool,
+    fold_filter_already_applied: bool = False,
     prior_pos: int | None = None,
 ) -> None:
     """Shared post-processing pipeline for agent list finalization.
@@ -154,9 +156,6 @@ def finalize_agent_list(
             ``_restore_focus_after_removal`` so focus lands on the
             agent visually below the removed one.
     """
-    # Apply fold-state filtering for workflow children
-    from ...models import filter_agents_by_fold_state
-
     if save_unfiltered:
         # Save unfiltered list (with children) for bundle/dismiss operations
         # that need to find child steps even when fold state is COLLAPSED.
@@ -164,9 +163,14 @@ def finalize_agent_list(
         app._agent_content_search_source_generation = (
             getattr(app, "_agent_content_search_source_generation", 0) + 1
         )
-    app._agents, app._fold_counts = filter_agents_by_fold_state(
-        app._agents, app._fold_manager
-    )
+    if not fold_filter_already_applied:
+        # Apply fold-state filtering for workflow children.
+        from ...models import filter_agents_by_fold_state
+
+        with tui_trace("agents.fold_filtering", count=len(app._agents)):
+            app._agents, app._fold_counts = filter_agents_by_fold_state(
+                app._agents, app._fold_manager
+            )
 
     # Apply agent search filter via the structured agent query language.
     # The haystack includes metadata fields plus each agent's cached
@@ -302,7 +306,8 @@ def finalize_agent_list(
 
     # Only refresh display if on agents tab
     if on_agents_tab:
-        app._refresh_agents_display(  # type: ignore[attr-defined]
-            list_changed=True,
-            defer_detail=True,
-        )
+        with tui_trace("agents.final_display_refresh", agents=len(app._agents)):
+            app._refresh_agents_display(  # type: ignore[attr-defined]
+                list_changed=True,
+                defer_detail=True,
+            )

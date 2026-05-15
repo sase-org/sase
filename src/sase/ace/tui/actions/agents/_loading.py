@@ -15,9 +15,10 @@ from __future__ import annotations
 from ._loading_apply import AgentLoadingApplyMixin
 from ._loading_compute import (
     _CLEANED_ARTIFACT_DIRS,
-    PreparedApplyData,
     compute_apply_loaded_agents,
     compute_loader_cleanup,
+    PreparedApplyData,
+    PreparedApplySnapshot,
 )
 from ._loading_disk import AgentLoadingDiskMixin
 from ._loading_filter import AgentLoadingFilterMixin
@@ -30,6 +31,7 @@ from ._loading_refresh import AgentLoadingRefreshMixin
 _compute_loader_cleanup = compute_loader_cleanup
 _compute_apply_loaded_agents = compute_apply_loaded_agents
 _PreparedApplyData = PreparedApplyData
+_PreparedApplySnapshot = PreparedApplySnapshot
 
 __all__ = [
     "AgentLoadingMixin",
@@ -38,6 +40,7 @@ __all__ = [
     "_compute_apply_loaded_agents",
     "_compute_loader_cleanup",
     "_PreparedApplyData",
+    "_PreparedApplySnapshot",
     "load_agents_from_disk_with_state",
 ]
 

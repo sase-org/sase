@@ -139,3 +139,7 @@ class FoldStateManager:
             True if any key is at FULLY_EXPANDED level.
         """
         return any(self.get(key) == FoldLevel.FULLY_EXPANDED for key in keys)
+
+    def snapshot(self) -> dict[str, FoldLevel]:
+        """Return a plain copy of the stored fold levels."""
+        return dict(self._states)

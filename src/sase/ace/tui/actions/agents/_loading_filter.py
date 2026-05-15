@@ -161,6 +161,7 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         selected_identity: tuple[AgentType, str, str | None] | None,
         *,
         save_unfiltered: bool,
+        fold_filter_already_applied: bool = False,
         prior_pos: int | None = None,
     ) -> None:
         """Shared post-processing pipeline for agent list finalization.
@@ -175,5 +176,6 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
             on_agents_tab,
             selected_identity,
             save_unfiltered=save_unfiltered,
+            fold_filter_already_applied=fold_filter_already_applied,
             prior_pos=prior_pos,
         )

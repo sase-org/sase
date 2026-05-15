@@ -136,6 +136,7 @@ class AgentLoadingStateMixin:
         selected_identity: tuple[AgentType, str, str | None] | None,
         *,
         save_unfiltered: bool,
+        fold_filter_already_applied: bool = False,
         prior_pos: int | None = None,
     ) -> None:
         raise NotImplementedError

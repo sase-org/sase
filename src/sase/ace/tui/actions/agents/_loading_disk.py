@@ -16,6 +16,7 @@ from ._loading_compute import (
     compute_loader_cleanup,
 )
 from ._loading_state import AgentLoadingStateMixin
+from ...util.trace import tui_trace
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -287,13 +288,18 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         # continuation, which would force this private helper public for
         # no semantic reason.
         prep_worker = compute_apply_loaded_agents
-        prep = await asyncio.to_thread(
-            prep_worker,
-            all_agents,
-            dismissed_from_loader,
-            set(self._dismissed_agents),
-            bool(self.hide_non_run_agents),
-        )
+        with tui_trace(
+            "agents.worker_prep",
+            agents=len(all_agents),
+            dismissed=len(dismissed_from_loader),
+        ):
+            prep = await asyncio.to_thread(
+                prep_worker,
+                all_agents,
+                dismissed_from_loader,
+                set(self._dismissed_agents),
+                bool(self.hide_non_run_agents),
+            )
         await self._prepare_agent_content_search_index_async(prep.filtered_agents)
         log.debug("agents async load: prep=%.3fs", time.perf_counter() - prep_start)
 
@@ -343,12 +349,17 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         else:
             orphaned = set()
 
-        prep = compute_apply_loaded_agents(
-            all_agents,
-            dismissed_from_loader,
-            set(self._dismissed_agents),
-            bool(self.hide_non_run_agents),
-        )
+        with tui_trace(
+            "agents.worker_prep",
+            agents=len(all_agents),
+            dismissed=len(dismissed_from_loader),
+        ):
+            prep = compute_apply_loaded_agents(
+                all_agents,
+                dismissed_from_loader,
+                set(self._dismissed_agents),
+                bool(self.hide_non_run_agents),
+            )
         self._prepare_agent_content_search_index_sync(prep.filtered_agents)
         self._apply_loaded_agents_prepared(
             prep,

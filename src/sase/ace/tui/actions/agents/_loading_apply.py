@@ -4,83 +4,21 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ...models._dedup import dedup_by_pid, dedup_running_vs_workflow
 from ...models.agent import AgentType
-from ._loading_compute import PreparedApplyData
+from ...util.trace import tui_trace
+from ._loading_compute import (
+    PreparedApplyData,
+    PreparedApplySelectionInputs,
+    PreparedApplySnapshot,
+    merge_incomplete_load_after_complete_history,
+    prepare_loaded_agents_apply_boundary,
+)
 from ._loading_helpers import is_always_visible
 from ._loading_state import AgentLoadingStateMixin
 
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent_loader import AgentLoadState
-
-
-def _reattach_children_after_parent_dedup(
-    agents_before_dedup: list[Agent],
-    agents_after_dedup: list[Agent],
-) -> list[Agent]:
-    """Move children from removed same-PID parents to surviving parents."""
-    after_ids = {id(agent) for agent in agents_after_dedup}
-    surviving_parent_by_pid: dict[int, Agent] = {}
-    for agent in agents_after_dedup:
-        if agent.pid is None or agent.raw_suffix is None or agent.is_workflow_child:
-            continue
-        surviving_parent_by_pid.setdefault(agent.pid, agent)
-
-    replacement_suffix_by_removed_suffix: dict[str, str] = {}
-    for agent in agents_before_dedup:
-        if (
-            id(agent) in after_ids
-            or agent.pid is None
-            or agent.raw_suffix is None
-            or agent.is_workflow_child
-        ):
-            continue
-        survivor = surviving_parent_by_pid.get(agent.pid)
-        if (
-            survivor is None
-            or survivor.raw_suffix is None
-            or survivor.raw_suffix == agent.raw_suffix
-        ):
-            continue
-        replacement_suffix_by_removed_suffix[agent.raw_suffix] = survivor.raw_suffix
-
-    if not replacement_suffix_by_removed_suffix:
-        return agents_after_dedup
-
-    reattached_ids: set[int] = set()
-    for agent in agents_after_dedup:
-        if not agent.is_workflow_child or agent.parent_timestamp is None:
-            continue
-        replacement_suffix = replacement_suffix_by_removed_suffix.get(
-            agent.parent_timestamp
-        )
-        if replacement_suffix is None:
-            continue
-        agent.parent_timestamp = replacement_suffix
-        reattached_ids.add(id(agent))
-
-    if not reattached_ids:
-        return agents_after_dedup
-
-    children_by_parent: dict[str, list[Agent]] = {}
-    roots_and_unchanged_children: list[Agent] = []
-    for agent in agents_after_dedup:
-        if id(agent) in reattached_ids and agent.parent_timestamp is not None:
-            children_by_parent.setdefault(agent.parent_timestamp, []).append(agent)
-        else:
-            roots_and_unchanged_children.append(agent)
-
-    regrouped: list[Agent] = []
-    for agent in roots_and_unchanged_children:
-        regrouped.append(agent)
-        if agent.raw_suffix is None:
-            continue
-        regrouped.extend(children_by_parent.pop(agent.raw_suffix, []))
-
-    for remaining_children in children_by_parent.values():
-        regrouped.extend(remaining_children)
-    return regrouped
 
 
 class AgentLoadingApplyMixin(AgentLoadingStateMixin):
@@ -163,145 +101,54 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             agent for agent in prep.filtered_agents if not is_always_visible(agent)
         ]
 
+    def _make_prepared_apply_snapshot(
+        self,
+        *,
+        on_agents_tab: bool,
+        selected_identity: tuple[AgentType, str, str | None] | None,
+        load_state: AgentLoadState | None,
+    ) -> PreparedApplySnapshot:
+        """Capture UI-owned state for the pure prepared-apply boundary."""
+        fold_manager = getattr(self, "_fold_manager", None)
+        snapshot_fold = getattr(fold_manager, "snapshot", None)
+        fold_levels = snapshot_fold() if callable(snapshot_fold) else None
+        prior_visual_row: int | None
+        if on_agents_tab:
+            prior_visual_row = self.current_idx
+        else:
+            prior_visual_row = getattr(self, "_agents_last_idx", None)
+        return PreparedApplySnapshot(
+            cached_agents_with_children=list(
+                getattr(self, "_agents_with_children", [])
+            ),
+            dismissed_agents=set(getattr(self, "_dismissed_agents", set())),
+            agents_seen_complete_history=bool(
+                getattr(self, "_agents_seen_complete_history", False)
+            ),
+            hide_non_run_agents=bool(self.hide_non_run_agents),
+            load_state=load_state,
+            fold_levels=fold_levels,
+            selection=PreparedApplySelectionInputs(
+                on_agents_tab=on_agents_tab,
+                selected_identity=selected_identity,
+                prior_visual_row=prior_visual_row,
+            ),
+        )
+
     def _merge_incomplete_load_after_complete_history(
         self,
         prep: PreparedApplyData,
         load_state: AgentLoadState | None,
     ) -> None:
-        """Treat post-reconcile Tier 1 loads as patches over full history."""
-        if (
-            load_state is None
-            or load_state.complete_history
-            or not getattr(self, "_agents_seen_complete_history", False)
-        ):
-            return
-
-        cached_agents = list(getattr(self, "_agents_with_children", []))
-        if not cached_agents:
-            return
-
-        incoming_by_identity = {agent.identity: agent for agent in prep.filtered_agents}
-        dismissed = set(getattr(self, "_dismissed_agents", set()))
-        dismissed_suffixes = {
-            raw_suffix for _, _, raw_suffix in dismissed if raw_suffix is not None
-        }
-        dismissed_cl_suffixes = {
-            (cl_name, raw_suffix)
-            for _, cl_name, raw_suffix in dismissed
-            if raw_suffix is not None
-        }
-
-        def is_dismissed(agent: Agent) -> bool:
-            if agent.identity in dismissed:
-                return True
-            if agent.raw_suffix is None:
-                return False
-            if agent.status == "RUNNING":
-                return (agent.cl_name, agent.raw_suffix) in dismissed_cl_suffixes or (
-                    agent.cl_name == "unknown"
-                    and agent.raw_suffix in dismissed_suffixes
-                )
-            return agent.raw_suffix in dismissed_suffixes
-
-        merged: list[Agent] = []
-        seen: set[tuple[AgentType, str, str | None]] = set()
-        cached_identities = {agent.identity for agent in cached_agents}
-        cached_parent_by_suffix = {
-            agent.raw_suffix: agent
-            for agent in cached_agents
-            if agent.raw_suffix is not None and not agent.is_workflow_child
-        }
-        cached_parent_suffixes = set(cached_parent_by_suffix)
-        incoming_parent_suffixes = {
-            agent.raw_suffix
-            for agent in prep.filtered_agents
-            if agent.raw_suffix is not None and not agent.is_workflow_child
-        }
-        known_parent_suffixes = cached_parent_suffixes | incoming_parent_suffixes
-        new_roots: list[Agent] = []
-        new_children_by_parent: dict[str, list[Agent]] = {}
-
-        def can_canonical_dedup_running_shadow(agent: Agent) -> bool:
-            """Whether loader-level RUNNING↔WORKFLOW dedup can handle this row."""
-            cached_parent = (
-                cached_parent_by_suffix.get(agent.raw_suffix)
-                if agent.raw_suffix is not None
-                else None
-            )
-            return (
-                agent.agent_type == AgentType.RUNNING
-                and cached_parent is not None
-                and cached_parent.agent_type == AgentType.WORKFLOW
-                and agent.workflow is not None
-                and (
-                    agent.workflow.startswith("ace(run)")
-                    or agent.workflow == "ace-run"
-                    or agent.workflow == "run"
-                )
-            )
-
-        # Newly discovered Tier 1 rows are usually the newest rows. Keep their
-        # relative Tier 1 order while preserving cached parent/child groups.
-        for agent in prep.filtered_agents:
-            if agent.identity in cached_identities or is_dismissed(agent):
-                continue
-            if (
-                agent.parent_timestamp
-                and agent.parent_timestamp in known_parent_suffixes
-            ):
-                new_children_by_parent.setdefault(agent.parent_timestamp, []).append(
-                    agent
-                )
-                continue
-            if (
-                agent.raw_suffix is not None
-                and not agent.is_workflow_child
-                and agent.raw_suffix in cached_parent_suffixes
-                and not can_canonical_dedup_running_shadow(agent)
-            ):
-                continue
-            new_roots.append(agent)
-
-        for agent in new_roots:
-            if agent.identity in seen:
-                continue
-            merged.append(agent)
-            seen.add(agent.identity)
-            if agent.raw_suffix:
-                for child in new_children_by_parent.pop(agent.raw_suffix, []):
-                    if child.identity in seen:
-                        continue
-                    merged.append(child)
-                    seen.add(child.identity)
-
-        for cached in cached_agents:
-            replacement = incoming_by_identity.get(cached.identity, cached)
-            if replacement.identity in seen or is_dismissed(replacement):
-                continue
-            merged.append(replacement)
-            seen.add(replacement.identity)
-            if replacement.raw_suffix:
-                for child in new_children_by_parent.pop(replacement.raw_suffix, []):
-                    if child.identity in seen:
-                        continue
-                    merged.append(child)
-                    seen.add(child.identity)
-
-        before_dedup = list(merged)
-        merged = dedup_running_vs_workflow(merged)
-        merged = dedup_by_pid(merged)
-        merged = _reattach_children_after_parent_dedup(before_dedup, merged)
-
-        always_visible = [agent for agent in merged if is_always_visible(agent)]
-        hideable = [agent for agent in merged if not is_always_visible(agent)]
-        if always_visible and bool(self.hide_non_run_agents) and hideable:
-            prep.filtered_agents = always_visible
-            prep.hidden_count = len(hideable)
-        else:
-            prep.filtered_agents = merged
-            prep.hidden_count = 0
-        prep.has_always_visible = bool(always_visible)
-        prep.hideable_agents = hideable
+        """Compatibility hook for the incomplete Tier 1 merge step."""
+        merge_incomplete_load_after_complete_history(
+            prep,
+            self._make_prepared_apply_snapshot(
+                on_agents_tab=False,
+                selected_identity=None,
+                load_state=load_state,
+            ),
+        )
 
     def _apply_loaded_agents_prepared(
         self,
@@ -323,6 +170,29 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         and panel refresh all happen in :meth:`_finalize_agent_list` on
         this thread.
         """
+        with tui_trace(
+            "agents.apply_loaded_agents_prepared",
+            agents=len(prep.filtered_agents),
+            complete=getattr(load_state, "complete_history", None),
+        ):
+            self._apply_loaded_agents_prepared_inner(
+                prep,
+                on_agents_tab=on_agents_tab,
+                selected_identity=selected_identity,
+                load_state=load_state,
+                persist_dismissed_changes=persist_dismissed_changes,
+            )
+
+    def _apply_loaded_agents_prepared_inner(
+        self,
+        prep: PreparedApplyData,
+        *,
+        on_agents_tab: bool,
+        selected_identity: tuple[AgentType, str, str | None] | None,
+        load_state: AgentLoadState | None = None,
+        persist_dismissed_changes: bool,
+    ) -> None:
+        """Implementation for the traced prepared-apply UI continuation."""
         # Clear the startup loading indicators (spinner on list panels,
         # dim ellipsis on tab label / info panel) on the first completed
         # load. Safe to call every refresh -- flag stays True and the
@@ -354,7 +224,23 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             save_dismissed_agents(self._dismissed_agents)
 
         self._preserve_revived_agents_for_incomplete_load(prep, load_state)
-        self._merge_incomplete_load_after_complete_history(prep, load_state)
+        with tui_trace(
+            "agents.incomplete_load_merge",
+            incoming=len(prep.filtered_agents),
+            cached=len(getattr(self, "_agents_with_children", [])),
+            complete=getattr(load_state, "complete_history", None),
+        ):
+            self._merge_incomplete_load_after_complete_history(prep, load_state)
+        boundary = prepare_loaded_agents_apply_boundary(
+            prep,
+            self._make_prepared_apply_snapshot(
+                on_agents_tab=on_agents_tab,
+                selected_identity=selected_identity,
+                load_state=load_state,
+            ),
+            merge_incomplete=False,
+        )
+        prep = boundary.prep
 
         if load_state is not None and load_state.complete_history:
             self._agents_seen_complete_history = True
@@ -372,10 +258,15 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         self._has_always_visible = prep.has_always_visible
         self._hidden_count = prep.hidden_count
         self._hideable_agents = prep.hideable_agents
-        self._agents = prep.filtered_agents
+        self._agents_with_children = boundary.fold.unfiltered_agents
+        self._agents = boundary.fold.visible_agents
+        self._fold_counts = boundary.fold.fold_counts
 
         self._finalize_agent_list(
-            on_agents_tab, selected_identity, save_unfiltered=True
+            on_agents_tab,
+            selected_identity,
+            save_unfiltered=False,
+            fold_filter_already_applied=True,
         )
         from ...repro.capture import record_agents_tab_app_projection
 

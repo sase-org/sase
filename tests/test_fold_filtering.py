@@ -4,6 +4,9 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
 from sase.ace.tui.models.fold_state import FoldStateManager
 from sase.ace.tui.widgets.agent_list import _compute_fold_annotation
+from sase.ace.tui.actions.agents._loading_compute import (
+    _filter_agents_by_fold_snapshot,
+)
 
 
 def _make_parent(raw_suffix: str, cl_name: str = "test_cl") -> Agent:
@@ -189,6 +192,25 @@ def test_orphan_workflow_child_is_dropped_even_when_expanded() -> None:
 
     assert filtered == []
     assert counts == {}
+
+
+def test_fold_snapshot_matches_live_fold_manager() -> None:
+    """The prepared boundary must not need a live mutable fold manager."""
+    parent = _make_parent("ts1")
+    child1 = _make_child("ts1", "step1")
+    child2 = _make_child("ts1", "step2", is_hidden=True)
+    agents = [parent, child1, child2]
+
+    mgr = FoldStateManager()
+    mgr.expand("ts1")
+
+    expected_agents, expected_counts = filter_agents_by_fold_state(agents, mgr)
+    snapshot_agents, snapshot_counts = _filter_agents_by_fold_snapshot(
+        agents, mgr.snapshot()
+    )
+
+    assert snapshot_agents == expected_agents
+    assert snapshot_counts == expected_counts
 
 
 def test_annotation_suppressed_anonymous_single_prompt() -> None:
