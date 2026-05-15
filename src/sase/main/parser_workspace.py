@@ -120,3 +120,41 @@ def register_workspace_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="dry_run",
         help="Report planned changes without touching the filesystem or registry",
     )
+
+    migrate_parser = workspace_sub.add_parser(
+        "migrate",
+        help="Migrate adjacent workspaces to a managed root or finalize the transition",
+    )
+    migrate_parser.add_argument(
+        "-p",
+        "--project",
+        default=None,
+        help="Project to migrate (default: infer from current directory)",
+    )
+    migrate_parser.add_argument(
+        "-t",
+        "--to",
+        choices=("xdg-state",),
+        default=None,
+        help="Target root policy (currently only 'xdg-state' is supported)",
+    )
+    migrate_parser.add_argument(
+        "-s",
+        "--symlink-transition",
+        action="store_true",
+        dest="symlink_transition",
+        help="Leave a '<primary>_<num>' symlink pointing to each migrated checkout",
+    )
+    migrate_parser.add_argument(
+        "-f",
+        "--finalize",
+        action="store_true",
+        help="Remove transition symlinks left behind by a prior migration",
+    )
+    migrate_parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="Report planned actions without touching the filesystem or registry",
+    )

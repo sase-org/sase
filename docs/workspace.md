@@ -199,16 +199,25 @@ The `sase workspace` command surface inspects and maintains the per-project work
 `-p/--project NAME` to override the project; without it, the project is inferred from the current directory via the
 nearest managed-checkout marker, the workspace provider hook, and finally a scan of `~/.sase/projects/`.
 
-| Command                             | Description                                                                                            |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `sase workspace list [-j/--json]`   | List registered managed checkouts (always includes primary `#0`).                                      |
-| `sase workspace path NUM`           | Print the checkout path for `NUM`. Materializes only when `NUM` already has a claim or registry entry. |
-| `sase workspace open NUM`           | Conservative shim that prints the checkout path; reserved for future editor integration.               |
-| `sase workspace cleanup -s/--stale` | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`. `-n/--dry-run` previews.   |
-| `sase workspace repair [-n]`        | Drop registry entries whose checkout is gone; re-materialize checkouts for live RUNNING claims.        |
+| Command                                                                | Description                                                                                              |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `sase workspace list [-j/--json]`                                      | List registered managed checkouts (always includes primary `#0`).                                        |
+| `sase workspace path NUM`                                              | Print the checkout path for `NUM`. Materializes only when `NUM` already has a claim or registry entry.   |
+| `sase workspace open NUM`                                              | Conservative shim that prints the checkout path; reserved for future editor integration.                 |
+| `sase workspace cleanup -s/--stale`                                    | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`. `-n/--dry-run` previews.     |
+| `sase workspace repair [-n]`                                           | Drop registry entries whose checkout is gone; re-materialize checkouts for live RUNNING claims.          |
+| `sase workspace migrate --to xdg-state [-s/--symlink-transition] [-n]` | Move existing `<primary>_<num>` adjacent checkouts under the managed `xdg-state` root and register them. |
+| `sase workspace migrate --finalize`                                    | Remove `<primary>_<num>` transition symlinks once workflows have adapted to the managed paths.           |
 
 `cleanup` and `repair` skip workspace `#0` (primary) and any workspace number with an active claim in the RUNNING field.
 `cleanup --include-shares` opts workflow-share checkouts into the same cleanup pass.
+
+`migrate --to xdg-state` is opt-in. Existing adjacent checkouts are left in place until the command is invoked. With
+`--symlink-transition` it leaves a `<primary>_<num>` symlink at the original adjacent path so legacy tooling that still
+walks `..` for siblings keeps working; the canonical checkout lives under the managed root. Migration refuses to
+overwrite a real directory at the managed destination — pre-existing managed content is reported and skipped instead of
+clobbered. `cleanup --stale` removes both the canonical managed checkout and its transition symlink. Once workflows are
+adapted, `migrate --finalize` removes the leftover transition symlinks without touching the canonical checkouts.
 
 ## Disabling Plugins
 
