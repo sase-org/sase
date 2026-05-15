@@ -1,22 +1,15 @@
-"""Tests for the ``sase workspace`` parser and project resolution."""
+"""Tests for the ``sase workspace`` parser dispatch."""
 
 from __future__ import annotations
-
-from pathlib import Path
 
 import pytest
 
 from sase.main.parser import create_parser
 from sase.main.workspace_handler import handle_workspace_command
-from tests.main.workspace_handler_helpers import make_args, project_layout
-
-__all__ = ["project_layout"]
+from tests.main.workspace_handler_helpers import make_args
 
 
-# ── parser dispatch ────────────────────────────────────────────────
-
-
-class TestParser:
+class TestWorkspaceParser:
     def test_list_dispatch(self) -> None:
         ns = create_parser().parse_args(["workspace", "list", "-p", "demo", "-j"])
         assert ns.command == "workspace"
@@ -48,28 +41,3 @@ class TestParser:
             handle_workspace_command(args)
         assert exc.value.code == 2
         assert "Usage" in capsys.readouterr().err
-
-
-# ── project resolution ─────────────────────────────────────────────
-
-
-class TestProjectResolution:
-    def test_missing_project_inference_exits(
-        self,
-        tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        # Empty home with no projects directory and stub the inference
-        # to ensure we don't accidentally pick up the dev's real projects.
-        monkeypatch.setenv("HOME", str(tmp_path))
-        monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(
-            "sase.bead.project_name.infer_project_name_from_cwd",
-            lambda cwd=None: None,
-        )
-        args = make_args(workspace_subcommand="list", project=None, json=False)
-        with pytest.raises(SystemExit) as exc:
-            handle_workspace_command(args)
-        assert exc.value.code == 2
-        assert "infer project" in capsys.readouterr().err
