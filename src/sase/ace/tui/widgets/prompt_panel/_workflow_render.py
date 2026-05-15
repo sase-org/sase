@@ -1,0 +1,184 @@
+"""Rich renderable construction for workflow detail display."""
+
+from rich.console import Group
+from rich.syntax import Syntax
+from rich.text import Text
+
+from ...models.agent import Agent
+from ._helpers import append_model_field
+from ._workflow_steps import format_workflow_steps_rich
+from ._workflow_types import WorkflowDetailSnapshot
+
+
+def build_workflow_detail_renderable(
+    agent: Agent, snapshot: WorkflowDetailSnapshot
+) -> Group:
+    """Build the rich workflow-detail renderable from an existing snapshot."""
+    header_text = Text()
+
+    # Header - WORKFLOW DETAILS
+    header_text.append("WORKFLOW DETAILS\n", style="bold #D7AF5F underline")
+    header_text.append("\n")
+
+    # Workflow name (stored in workflow field)
+    header_text.append("Workflow: ", style="bold #87D7FF")
+    header_text.append(f"{agent.workflow or 'unknown'}\n", style="#AF87D7 bold")
+
+    # Extract meta_* overrides from step outputs
+    meta_project = None
+    meta_changespec = None
+    meta_workspace = None
+    meta_fields_data = snapshot.meta_raw
+    if meta_fields_data:
+        meta_project = meta_fields_data.get("meta_project")
+        meta_changespec = meta_fields_data.get("meta_changespec")
+        meta_workspace = meta_fields_data.get("meta_workspace")
+
+    # Project/ChangeSpec with meta_* priority
+    if meta_project:
+        header_text.append("Project: ", style="bold #87D7FF")
+        header_text.append(f"{meta_project}\n", style="#00D7AF")
+    elif meta_changespec:
+        header_text.append("ChangeSpec: ", style="bold #87D7FF")
+        header_text.append(f"{meta_changespec}\n", style="#00D7AF")
+    else:
+        header_text.append("ChangeSpec: ", style="bold #87D7FF")
+        header_text.append(f"{agent.cl_name}\n", style="#00D7AF")
+
+    # Workspace (if available) - check meta_workspace first, then agent field
+    workspace_num = meta_workspace or agent.workspace_num
+    if workspace_num is not None:
+        header_text.append("Workspace: ", style="bold #87D7FF")
+        header_text.append(f"#{workspace_num}\n", style="#5FD7FF")
+
+    # Model (with provider-themed styling)
+    append_model_field(header_text, agent.model, agent.llm_provider)
+
+    # VCS provider
+    if agent.vcs_provider:
+        header_text.append("VCS: ", style="bold #87D7FF")
+        header_text.append(f"{agent.vcs_provider}\n", style="#5FD7AF")
+
+    # Status
+    header_text.append("Status: ", style="bold #87D7FF")
+    status_style = {
+        "RUNNING": "#87D7FF",
+        "WAITING": "#FF87D7",
+        "WAITING INPUT": "#FFAF5F",
+        "DONE": "#5FD75F",
+        "FAILED": "#FF5F5F",
+        "PLAN": "#FF87AF",
+        "PLAN APPROVED": "#00D7AF",
+        "TALE APPROVED": "#00D7AF",
+        "PLAN REJECTED": "#D7AF5F",
+        "EPIC CREATED": "#5FD7AF",
+        "QUESTION": "#FFAF00",
+    }.get(agent.status, "#D7D7FF")
+    header_text.append(f"{agent.status}\n", style=status_style)
+    if agent.activity:
+        header_text.append("Activity: ", style="bold #87D7FF")
+        header_text.append(f"{agent.activity}\n", style="bold #D7AF5F")
+
+    # Timestamp(s)
+    header_text.append("Timestamps: ", style="bold #87D7FF")
+    header_text.append(f"{agent.timestamps_display}\n", style="#D7D7FF")
+
+    # PID (if available)
+    if agent.pid:
+        header_text.append("PID: ", style="bold #87D7FF")
+        header_text.append(f"{agent.pid}\n", style="#FF87D7 bold")
+
+    # Error message (for failed workflows)
+    if agent.error_message:
+        header_text.append("\n")
+        header_text.append("ERROR\n", style="bold #FF5F5F underline")
+        header_text.append(f"{agent.error_message}\n", style="bold #FF5F5F")
+        if agent.output_path:
+            header_text.append("Output: ", style="bold #87D7FF")
+            header_text.append(f"{agent.output_path}\n", style="dim")
+
+    # Compute traceback renderable for ERROR section
+    error_tb_syntax: Syntax | None = None
+    if agent.error_traceback:
+        error_tb_syntax = Syntax(
+            agent.error_traceback,
+            "pytb",
+            theme="monokai",
+            word_wrap=True,
+        )
+
+    # Meta fields aggregated from all step outputs
+    meta_fields = snapshot.meta_fields
+    if meta_fields:
+        header_text.append("\n")
+        for name, value in meta_fields:
+            header_text.append(f"{name}: ", style="bold #87D7FF")
+            header_text.append(f"{value}\n", style="#5FD75F")
+
+    # Inputs (if available)
+    inputs = snapshot.inputs
+    if inputs:
+        header_text.append("\n")
+        header_text.append("INPUTS\n", style="bold #D7AF5F underline")
+        for key, value in inputs.items():
+            header_text.append(f"  {key}: ", style="bold #87D7FF")
+            if isinstance(value, str):
+                header_text.append(f'"{value}"\n', style="#5FD75F")
+            else:
+                header_text.append(f"{value}\n", style="#5FD75F")
+
+    # Separator + WORKFLOW STEPS header
+    steps_header = Text()
+    steps_header.append("\n")
+    steps_header.append("─" * 50 + "\n", style="dim")
+    steps_header.append("\n")
+    steps_header.append("WORKFLOW STEPS\n", style="bold #D7AF5F underline")
+    steps_header.append("\n")
+
+    # Load and format workflow steps from workflow_state.json
+    steps_rich = workflow_steps_rich_from_snapshot(snapshot)
+    renderables: list[Text | Syntax] = [header_text]
+    if error_tb_syntax:
+        renderables.append(error_tb_syntax)
+    renderables.append(steps_header)
+    if steps_rich:
+        renderables.append(steps_rich)
+    else:
+        steps_header.append("No workflow state found.\n", style="dim italic")
+
+    # AGENT PROMPT section - show the prompt that was attempted
+    prompt_content = snapshot.prompt_content
+    if prompt_content:
+        prompt_header = Text()
+        prompt_header.append("\n")
+        prompt_header.append("─" * 50 + "\n", style="dim")
+        prompt_header.append("\n")
+        prompt_header.append("AGENT PROMPT\n", style="bold #D7AF5F underline")
+        prompt_header.append("\n")
+        renderables.append(prompt_header)
+        renderables.append(
+            Syntax(prompt_content, "markdown", theme="monokai", word_wrap=True)
+        )
+
+    return Group(*renderables)
+
+
+def workflow_steps_rich_from_snapshot(
+    snapshot: WorkflowDetailSnapshot,
+) -> Text | None:
+    """Build a rich step-list renderable from an existing snapshot."""
+    steps = snapshot.steps
+    if not steps:
+        if snapshot.error:
+            text = Text()
+            text.append("Error: ", style="bold #FF5F5F")
+            text.append(f"{snapshot.error}\n", style="#FF5F5F")
+            if snapshot.traceback:
+                text.append("\nTraceback:\n", style="bold #FF5F5F")
+                text.append(f"{snapshot.traceback}\n", style="dim")
+            return text
+        return None
+
+    return format_workflow_steps_rich(
+        steps, snapshot.embedded_markers, snapshot.embedded_meta
+    )
