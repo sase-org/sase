@@ -1,16 +1,18 @@
 """Gemini LLM provider implementation."""
 
 import os
-import pty
 import subprocess
-import termios
 import time
 from pathlib import Path
 
 from sase.output import gemini_timer
 
 from ._hookspec import hookimpl
-from ._subprocess import start_interrupt_monitor, stream_process_output
+from ._subprocess import (
+    start_interrupt_monitor,
+    stream_and_parse_gemini_json_output,
+    stream_process_output,  # noqa: F401 - backward-compat re-export
+)
 from .base import LLMProvider
 from .types import InvokeResult, ModelTier
 
@@ -142,6 +144,8 @@ class GeminiProvider(LLMProvider):
 
         base_args = [
             _gemini_bin(),
+            "--output-format",
+            "stream-json",
             "--yolo",
             "--model",
             model,
@@ -153,19 +157,28 @@ class GeminiProvider(LLMProvider):
 
         current_prompt = prompt
         accumulated_response = ""
+        total_usage: dict[str, int] = {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+        }
         cycle = 0
 
         while True:
             if timer_context:
                 with timer_context:
-                    response_content, stderr_content, return_code = (
+                    response_content, stderr_content, return_code, usage = (
                         self._run_subprocess(base_args, current_prompt, suppress_output)
                     )
                     print()
             else:
-                response_content, stderr_content, return_code = self._run_subprocess(
-                    base_args, current_prompt, suppress_output
+                response_content, stderr_content, return_code, usage = (
+                    self._run_subprocess(base_args, current_prompt, suppress_output)
                 )
+
+            for key in total_usage:
+                total_usage[key] += usage.get(key, 0)
 
             # Check for user interrupt before error handling
             if self._pending_interrupt_message is not None:
@@ -173,7 +186,9 @@ class GeminiProvider(LLMProvider):
                 self._pending_interrupt_message = None
                 cycle += 1
                 _log_interrupt(user_msg, cycle)
-                accumulated_response += response_content
+                accumulated_response = (
+                    accumulated_response + "\n\n" + response_content.strip()
+                ).strip()
                 # Gemini has no session persistence — reconstruct context
                 current_prompt = (
                     f"{prompt}\n\n"
@@ -190,8 +205,12 @@ class GeminiProvider(LLMProvider):
                     stderr=stderr_content,
                 )
 
+            accumulated_response = (
+                accumulated_response + "\n\n" + response_content.strip()
+            ).strip()
             return InvokeResult(
-                content=(accumulated_response + response_content).strip()
+                content=accumulated_response,
+                usage=total_usage,
             )
 
     # ------------------------------------------------------------------
@@ -203,12 +222,8 @@ class GeminiProvider(LLMProvider):
         args: list[str],
         prompt: str,
         suppress_output: bool,
-    ) -> tuple[str, str, int]:
+    ) -> tuple[str, str, int, dict[str, int]]:
         """Run the Gemini CLI subprocess.
-
-        Uses a PTY for stdout so that the Gemini CLI uses line-buffered
-        output (instead of block-buffered pipes), enabling real-time
-        streaming into ``live_reply.md`` for the TUI.
 
         Args:
             args: Command-line arguments.
@@ -216,21 +231,8 @@ class GeminiProvider(LLMProvider):
             suppress_output: If True, suppress output.
 
         Returns:
-            Tuple of (stdout_content, stderr_content, return_code).
+            Tuple of (stdout_content, stderr_content, return_code, usage).
         """
-        # Create a PTY pair so Gemini CLI sees a terminal on stdout and
-        # flushes output line-by-line instead of block-buffering.
-        master_fd, slave_fd = pty.openpty()
-
-        # Disable output post-processing (OPOST) to prevent the PTY
-        # line discipline from converting \n → \r\n.
-        try:
-            attrs = termios.tcgetattr(slave_fd)
-            attrs[1] &= ~termios.OPOST
-            termios.tcsetattr(slave_fd, termios.TCSANOW, attrs)
-        except termios.error:
-            pass
-
         env = os.environ.copy()
         env["TERM"] = "dumb"
         env["NO_COLOR"] = "1"
@@ -238,19 +240,11 @@ class GeminiProvider(LLMProvider):
         process = subprocess.Popen(
             args,
             stdin=subprocess.PIPE,
-            stdout=slave_fd,
+            stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             env=env,
         )
-        os.close(slave_fd)  # Parent doesn't need the slave end
-
-        # Wrap the PTY master as a text stream so stream_process_output
-        # can read from it exactly like a regular pipe.
-        pty_stdout = open(  # noqa: SIM115
-            master_fd, encoding="utf-8", closefd=True
-        )
-        process.stdout = pty_stdout  # type: ignore[assignment]
 
         # Write prompt to stdin
         if process.stdin:
@@ -262,11 +256,6 @@ class GeminiProvider(LLMProvider):
             on_interrupt=lambda msg: setattr(self, "_pending_interrupt_message", msg),
         )
 
-        # Stream output in real-time with ANSI stripping (the PTY may
-        # cause Gemini CLI to emit terminal control codes).
-        try:
-            return stream_process_output(
-                process, suppress_output=suppress_output, clean_ansi=True
-            )
-        finally:
-            pty_stdout.close()
+        return stream_and_parse_gemini_json_output(
+            process, suppress_output=suppress_output
+        )

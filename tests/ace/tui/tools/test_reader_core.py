@@ -91,6 +91,40 @@ def test_read_tool_calls_for_agent_collapses_v2_use_result_pairs(
     assert entry.tool_response_summary["stdout_preview"] == "hi\n"
 
 
+def test_read_tool_calls_for_agent_collapses_gemini_stream_pairs(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "ace-run" / "20260514140000"
+    _write_jsonl(
+        artifacts_dir / "tool_calls.jsonl",
+        [
+            _tool_use_record(
+                tool_use_id="gemini-tool-1",
+                tool_name="Bash",
+                runtime="gemini",
+                tool_input_summary={"command": "printf hi"},
+            ),
+            _tool_result_record(
+                tool_use_id="gemini-tool-1",
+                tool_name="Bash",
+                runtime="gemini",
+                tool_response_summary={"preview": "hi\n"},
+            ),
+        ],
+    )
+
+    entries = read_tool_calls_for_agent(_agent(artifacts_dir))
+
+    assert entries is not None
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry.runtime == "gemini"
+    assert entry.display_tool_name == "Bash"
+    assert entry.status == "success"
+    assert entry.compact_target == "printf hi"
+    assert entry.detail == "hi"
+
+
 def test_read_tool_calls_for_agent_keeps_orphan_tool_use_as_pending(
     tmp_path: Path,
 ) -> None:
