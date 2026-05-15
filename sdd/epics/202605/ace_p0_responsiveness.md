@@ -2,6 +2,8 @@
 create_time: 2026-05-15 13:49:50
 status: wip
 prompt: sdd/prompts/202605/ace_p0_responsiveness.md
+bead_id: sase-3q
+tier: epic
 ---
 # ACE P0 Responsiveness Fixes Plan
 
