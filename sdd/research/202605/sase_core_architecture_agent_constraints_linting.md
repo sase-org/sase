@@ -297,8 +297,321 @@ YAML parser maintenance is unsettled, architecture constraints should say:
 7. Add rustdoc warnings and public API diff tooling.
 8. Plan a YAML dependency migration spike with compatibility fixtures.
 
+## Architecture Fitness Tests (Executable Boundary Enforcement)
+
+`AGENTS.md` and Clippy restrictions describe the boundary; only an executable check actually defends it. The Rust
+ecosystem standard for this is `cargo metadata` introspection from an `xtask` crate or a workspace integration test.
+The advantage over comment-based rules: an agent that adds `pyo3` to `sase_core`'s dependencies will get a red CI run,
+not a polite review note.
+
+Concrete pattern: add a `crates/sase_arch_tests` integration crate (or a `tests/architecture.rs` file in a small
+`xtask` binary) that parses `cargo metadata --format-version=1` and asserts:
+
+```rust
+// pseudo-sketch — uses the `cargo_metadata` crate
+#[test]
+fn sase_core_has_no_adapter_dependencies() {
+    let md = cargo_metadata::MetadataCommand::new().exec().unwrap();
+    let banned = ["pyo3", "axum", "hyper", "tower-lsp-server", "lsp-types", "reqwest"];
+    let core = md.packages.iter().find(|p| p.name == "sase_core").unwrap();
+    let resolved = resolve_transitive(&md, &core.id);
+    for pkg in resolved {
+        assert!(
+            !banned.contains(&pkg.name.as_str()),
+            "sase_core must not transitively depend on {}", pkg.name,
+        );
+    }
+}
+
+#[test]
+fn sase_gateway_does_not_re_export_pyo3() {
+    // Read crate manifest and assert no `pyo3` direct dep, etc.
+}
+```
+
+Run this as a regular workspace test so it gates every PR. The `cargo_metadata` crate is the standard programmatic
+interface to Cargo's resolver output:
+https://docs.rs/cargo_metadata/latest/cargo_metadata/
+
+For richer module-level enforcement, `cargo-modules` can produce a textual or DOT module graph that an `xtask` can
+diff against a checked-in expected graph:
+https://github.com/regexident/cargo-modules
+
+This converts "do not let `parser::*` call into `gateway::*`" from a review heuristic into a snapshot test. Treat the
+checked-in graph the same way as `insta` snapshots: changes are visible in PR diffs and require explicit acceptance.
+
+## Feature Layering and "Compiles Without Adapters" Gate
+
+The boundary policy in `AGENTS.md` is only meaningful if `sase_core` actually builds without PyO3, HTTP, or LSP
+features even when the workspace has them. Add explicit CI matrix entries:
+
+```bash
+cargo check -p sase_core --locked --no-default-features
+cargo check -p sase_core --locked --all-features
+cargo check -p sase_core --locked --target x86_64-unknown-linux-gnu
+# Optional once a wasm port is on the roadmap:
+cargo check -p sase_core --locked --target wasm32-unknown-unknown
+```
+
+These four jobs make accidental coupling visible. If `sase_core` ever stops compiling under `--no-default-features`,
+or starts failing for `wasm32`, an agent has implicitly pulled in a platform-specific dependency from a sibling crate.
+
+Use Cargo features at crate boundaries rather than at the workspace level for adapter-only behavior. For example, any
+serde-feature-gated wire helpers belong behind a `serde` feature on the producing crate, not a workspace-wide
+default. The Cargo reference's feature documentation covers default-feature pitfalls and the recommended additive
+pattern: https://doc.rust-lang.org/cargo/reference/features.html
+
+## Workspace Dependency Unification (`cargo-hakari`)
+
+The duplicate `base64`/`bitflags`/`getrandom`/`hashbrown`/`http`/`http-body`/`hyper`/`socket2`/`sync_wrapper`/
+`thiserror` versions reported earlier are the kind of feature-resolution drift that `cargo-hakari` is designed to
+solve. It generates a small synthetic `workspace-hack` crate that depends on the union of features each member uses,
+which forces Cargo's feature unifier to resolve a single version per crate where possible.
+
+Reference: https://docs.rs/cargo-hakari/latest/cargo_hakari/
+
+Recommended adoption stance for `sase-core`:
+
+- Add a `workspace-hack` member after the `reqwest 0.11 -> 0.12` / `hyper 0.14 -> 1` migration is decided. Doing it
+  before that swap will just freeze the wrong unified versions.
+- Gate `cargo hakari generate --diff` in CI so regressions in feature unification are caught at the source.
+- Keep `cargo machete` allowed to ignore the hack crate explicitly; both tools will otherwise fight each other on the
+  hack crate manifest.
+
+This is the architectural mate to the `bans.multiple-versions = "warn" -> deny"` ramp described in the dependency
+policy section.
+
+## Wire-Contract API Constraints
+
+`sase_core`'s public types are simultaneously a Rust library API, a JSON wire format, and a parity contract with
+Python. The Rust attributes that encode that are:
+
+- `#[non_exhaustive]` on every public enum and any public struct whose set of fields may grow. This forces external
+  matchers to use `_ => ...` arms and external constructors to use builders, so adding a new variant or field is not
+  an SemVer break. Rust reference: https://doc.rust-lang.org/reference/attributes/type_system.html
+- `#[must_use]` on builders, parser handles, transactions, and any `Result`-shaped wire return that is easy to drop
+  silently: https://doc.rust-lang.org/reference/attributes/diagnostics.html#the-must_use-attribute
+- `#[serde(deny_unknown_fields)]` should be applied deliberately, not by default: it makes the wire format strict in
+  one direction (Python may not invent fields) but breaks forward compatibility for new Rust producers feeding older
+  Rust consumers. Pick one direction per wire type explicitly. Serde docs:
+  https://serde.rs/container-attrs.html#deny_unknown_fields
+- `#[serde(default)]` and explicit `Option<T>` for newly added fields, so older payloads still parse.
+- `#[deprecated(since = "...", note = "...")]` on items that will be removed at the next compatible release, paired
+  with `cargo-semver-checks` so removal is gated.
+
+These are non-negotiable for a crate whose JSON shape is a contract with Python; the `[lints]` block cannot enforce
+them, so add a short checklist in `AGENTS.md` under "Wire and Parity Rules" naming each attribute.
+
+## Error-Handling Architecture
+
+Mix-ups between library and binary error styles are one of the most common Rust review notes for Python-first
+contributors. Encode the convention once:
+
+- `sase_core`, `sase_core_py`, `sase_gateway`, and `sase_xprompt_lsp` are all library-style for the purposes of error
+  types: each public failure mode should be a `thiserror`-derived enum with explicit variants, not `anyhow::Error`.
+  Reference: https://docs.rs/thiserror/latest/thiserror/
+- `anyhow` is acceptable inside binaries, examples, and tests where call-site ergonomics dominate over caller error
+  inspection. Reference: https://docs.rs/anyhow/latest/anyhow/
+- Add a Clippy disallowed-type entry for `anyhow::Error` in `sase_core` once the boundary is clean:
+  ```toml
+  # clippy.toml (per-crate override is unsupported; gate via crate-level
+  # `#![deny(clippy::disallowed_types)]` plus a workspace clippy.toml entry
+  # tagged with `replacement = "use thiserror enum instead"`).
+  ```
+- Error variants that cross the PyO3 boundary must round-trip cleanly to a Python exception class. Document the
+  mapping in `crates/sase_core_py/src/errors.rs` and add a parity test that asserts each Rust variant produces the
+  expected Python class. PyO3 exception mapping:
+  https://pyo3.rs/main/exception
+- Avoid `Box<dyn std::error::Error>` in public signatures; prefer a concrete enum so callers can match on
+  classifications without downcasts.
+
+## PyO3 0.22 Bound API and Unsafe Boundary Policy
+
+The binding currently pins `pyo3 = "0.22"`. That version has the `Bound<'py, T>` API stable and the older "GIL Ref"
+API (`&'py PyAny`, etc.) deprecated behind a `gil-refs` feature flag, scheduled for removal in 0.23. Reference:
+https://pyo3.rs/main/migration
+
+Architecture rules to encode now (so a future 0.23 bump is mechanical):
+
+- New PyO3 code must use `Bound<'py, T>` and `Py<T>` exclusively; no `&PyAny` patterns. Add this to `AGENTS.md` under
+  "Safety and Dependencies."
+- Do not enable the `gil-refs` feature in `sase_core_py`; let the compiler force migration of any leftover call
+  sites.
+- `Python::with_gil` is preferred over functions taking `Python<'py>` directly except where a function is already
+  inside a `#[pymethods]` impl. This keeps GIL acquisition explicit at the boundary.
+- Any `Python::allow_threads` block must have a comment naming the Rust-side computation that is GIL-safe to release
+  for, plus a test that exercises it under contention.
+- The two existing `unsafe` blocks (`pre_exec`/`setsid` and `libc::kill`) should each have a `// SAFETY:` block
+  citing POSIX semantics and the `libc` invariant. Rust's API Guidelines explicitly call this out:
+  https://rust-lang.github.io/api-guidelines/documentation.html#c-failure
+- Pair `#![deny(unsafe_op_in_unsafe_fn)]` with `#![warn(clippy::undocumented_unsafe_blocks)]` so any new unsafe block
+  without a `// SAFETY:` comment becomes a Clippy warning. Reference:
+  https://rust-lang.github.io/rust-clippy/master/index.html#undocumented_unsafe_blocks
+
+## `rusqlite` and Persistence Boundary
+
+`sase_core` currently depends directly on `rusqlite` with the `bundled` feature. That mixes domain logic with a
+specific storage technology, and bundles SQLite into every consumer crate. For mobile, WASM, or in-memory testing
+clients, this is a friction point.
+
+Options worth recording (decision can be deferred):
+
+- Status quo: keep `rusqlite` in `sase_core` and treat the storage adapter as part of the domain. Document that
+  `sase_core` is opinionated about SQLite as the wire/persistence layer.
+- Trait boundary: define a `BeadStore` / `ChangeSpecStore` trait inside `sase_core` and put the `rusqlite`
+  implementation behind a `sqlite` feature, defaulted on. Other consumers can implement the trait.
+- Adapter crate: move `rusqlite` use into `crates/sase_storage_sqlite`, leaving `sase_core` storage-agnostic. This
+  matches the boundary pattern the existing note recommends for PyO3 and HTTP.
+
+`rusqlite` upstream: https://docs.rs/rusqlite/latest/rusqlite/
+
+The wasm-target check from the feature-layering section is the simplest fitness check that flags this coupling: a
+`wasm32` build will fail until `rusqlite` is feature-gated or moved.
+
+## Local Enforcement Parity (`xtask` and Pre-Commit)
+
+The previous note recommended a `justfile` for local-CI parity. An equivalent that some Rust teams prefer is an
+`xtask` crate, which keeps automation in Rust rather than a separate tool:
+https://github.com/matklad/cargo-xtask
+
+Either is fine; pick one and stick to it. Concrete recipes the workspace needs in addition to the CI list:
+
+- `cargo xtask arch-check` (or `just arch-check`): runs the architecture fitness tests above plus
+  `cargo check -p sase_core --no-default-features`.
+- `cargo xtask docs`: runs `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked`.
+- `cargo xtask py-parity`: builds the wheel into a venv and runs `crates/sase_core_py/tests/python/`.
+
+For pre-commit, prefer `lefthook` over `cargo-husky`. `lefthook` is actively maintained, language-agnostic, and
+trivially shareable across the SASE repos:
+https://lefthook.dev/
+
+A minimal `lefthook.yml` should run `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets --locked
+-- -D warnings`, and the architecture fitness test. Anything heavier (full nextest, cargo-deny advisories) belongs in
+CI only.
+
+## CODEOWNERS as an Architecture Gate
+
+Add `.github/CODEOWNERS` with crate-level ownership:
+
+```text
+crates/sase_core/        @sase-org/core-maintainers
+crates/sase_core_py/     @sase-org/python-bindings
+crates/sase_gateway/     @sase-org/mobile
+crates/sase_xprompt_lsp/ @sase-org/editor-integrations
+AGENTS.md                @sase-org/core-maintainers
+deny.toml                @sase-org/core-maintainers
+clippy.toml              @sase-org/core-maintainers
+Cargo.toml               @sase-org/core-maintainers
+```
+
+This is not a permission system; it is a routing system. Combined with branch-protection rules requiring an owner
+review for the touched paths, it makes "PyO3 work landing in `sase_core`" structurally awkward instead of merely
+discouraged.
+
+GitHub docs: https://docs.github.com/en/repositories/managing-your-repositories-settings-and-features/customizing-your-repository/about-code-owners
+
+## Tracing and Instrumentation Policy
+
+The previous note correctly banned `println!`/`eprintln!`. The positive pairing is an explicit `tracing` convention:
+
+- `sase_core`: emit `tracing` events; never configure a subscriber. The library does not own log output.
+- `sase_core_py`: bridge `tracing` to Python logging via a subscriber set up at module init; document the bridge.
+- `sase_gateway` and `sase_xprompt_lsp`: configure `tracing-subscriber` at startup with `env-filter`; emit one
+  high-cardinality span per request/method.
+- All adapter entry points (HTTP handlers, LSP method handlers, PyO3 `#[pyfunction]` boundaries) should be
+  `#[tracing::instrument(skip(...))]` so failures surface with consistent context.
+
+References:
+- `tracing` crate: https://docs.rs/tracing/latest/tracing/
+- `tracing-subscriber` env-filter: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/
+
+This complements the disallowed-macro list (no `println!`) by giving authors something to write *instead*.
+
+## Concrete Duplicate-Dependency Resolution Path
+
+The duplicate-version warning is a specific symptom: `reqwest 0.11` brings `hyper 0.14`/`http 0.2`, while `axum 0.7`
+uses `hyper 1`/`http 1`. The clean resolution is to move `reqwest` to `0.12`, which uses `hyper 1`/`http 1` and
+`rustls 0.23`. Reference:
+https://github.com/seanmonstar/reqwest/blob/master/CHANGELOG.md
+
+Suggested sequence so the duplicate-deps gate can ramp from `warn` to `deny`:
+
+1. Audit current `reqwest` call sites and TLS configuration.
+2. Bump to `reqwest = "0.12"` with whatever TLS backend SASE prefers (`rustls-tls` is the default for most server
+   deployments).
+3. Re-run `cargo tree -d`. Most other duplicates should resolve as a side effect.
+4. Update `deny.toml` to set `bans.multiple-versions = "deny"`.
+5. Then introduce `cargo-hakari`.
+
 ## Bottom Line
 
 For this repo, architecture will come more from explicit ownership boundaries and narrow policy lints than from stricter
 style lints. The first implementation should make it hard for agents to put PyO3, HTTP, or LSP behavior into the core
 wrongly; then dependency/API tooling can keep the Rust workspace honest as it grows.
+
+The second-pass additions tighten that approach in three ways: a `cargo metadata`-driven architecture fitness test
+makes boundary violations a red CI run instead of a review comment; explicit feature-layering and a `--no-default-
+features` check prevent adapter dependencies from drifting into `sase_core`; and wire-contract attributes
+(`#[non_exhaustive]`, `#[must_use]`, deliberate `serde` attributes) plus a clean `thiserror`/`anyhow` split protect
+the SASE Python parity contract at the type level. PyO3 0.22's `Bound<'py, T>` API and the 0.23 `gil-refs` removal
+are close enough to encode now rather than during the bump.
+
+## Sources
+
+Cargo, Clippy, and rustc:
+
+- Cargo `[workspace.lints]`: https://doc.rust-lang.org/cargo/reference/workspaces.html#the-lints-table
+- Cargo features reference: https://doc.rust-lang.org/cargo/reference/features.html
+- Clippy configuration (`clippy.toml`, MSRV): https://doc.rust-lang.org/stable/clippy/configuration.html
+- Clippy `disallowed_methods`: https://rust-lang.github.io/rust-clippy/stable/index.html#disallowed_methods
+- Clippy `undocumented_unsafe_blocks`:
+  https://rust-lang.github.io/rust-clippy/master/index.html#undocumented_unsafe_blocks
+- `unsafe_code` lint: https://doc.rust-lang.org/stable/nightly-rustc/rustc_lint/builtin/static.UNSAFE_CODE.html
+- `unsafe_op_in_unsafe_fn` (2024 edition): https://doc.rust-lang.org/edition-guide/rust-2024/unsafe-op-in-unsafe-fn.html
+- Rust attribute reference (`#[non_exhaustive]`, `#[must_use]`, `#[deprecated]`):
+  https://doc.rust-lang.org/reference/attributes/type_system.html
+
+Dependency policy, build, and test:
+
+- cargo-deny: https://embarkstudios.github.io/cargo-deny/checks/index.html
+- cargo-deny licenses: https://embarkstudios.github.io/cargo-deny/checks/licenses/cfg.html
+- cargo-machete: https://github.com/bnjbvr/cargo-machete
+- cargo-hakari: https://docs.rs/cargo-hakari/latest/cargo_hakari/
+- cargo-modules: https://github.com/regexident/cargo-modules
+- cargo_metadata crate: https://docs.rs/cargo_metadata/latest/cargo_metadata/
+- cargo-xtask pattern: https://github.com/matklad/cargo-xtask
+- cargo-nextest: https://nexte.st/docs/configuration/
+- cargo-public-api: https://github.com/cargo-public-api/cargo-public-api
+- cargo-semver-checks status: https://rust-lang.github.io/rust-project-goals/2025h2/cargo-semver-checks.html
+
+Errors and serialization:
+
+- thiserror: https://docs.rs/thiserror/latest/thiserror/
+- anyhow: https://docs.rs/anyhow/latest/anyhow/
+- Serde container attributes: https://serde.rs/container-attrs.html#deny_unknown_fields
+- Rust API Guidelines: https://rust-lang.github.io/api-guidelines/checklist.html
+- API Guidelines documentation of failure conditions:
+  https://rust-lang.github.io/api-guidelines/documentation.html#c-failure
+
+PyO3 and FFI:
+
+- PyO3 migration guide (0.21/0.22 `Bound` API): https://pyo3.rs/main/migration
+- PyO3 exceptions: https://pyo3.rs/main/exception
+
+Persistence, HTTP, and tracing:
+
+- rusqlite: https://docs.rs/rusqlite/latest/rusqlite/
+- reqwest CHANGELOG (0.12/hyper 1 migration):
+  https://github.com/seanmonstar/reqwest/blob/master/CHANGELOG.md
+- tracing: https://docs.rs/tracing/latest/tracing/
+- tracing-subscriber: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/
+
+Local and repo enforcement:
+
+- lefthook: https://lefthook.dev/
+- GitHub CODEOWNERS:
+  https://docs.github.com/en/repositories/managing-your-repositories-settings-and-features/customizing-your-repository/about-code-owners
+
+Security baseline:
+
+- RustSec serde_yaml advisory context: https://rustsec.org/advisories/RUSTSEC-2024-0320.html
