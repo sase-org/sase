@@ -2,6 +2,8 @@
 create_time: 2026-05-15 10:50:47
 status: wip
 prompt: sdd/prompts/202605/bead_event_log_migration.md
+bead_id: sase-3n
+tier: epic
 ---
 # Plan: Canonical Bead Event Log Migration
 
