@@ -590,6 +590,29 @@
         }
       }
     },
+    "workspace": {
+      "type": "object",
+      "description": "Workspace directory layout policy (Phase 1+: sase-3p WorkspaceStore).",
+      "additionalProperties": false,
+      "properties": {
+        "root": {
+          "type": "string",
+          "description": "Workspace root policy: 'adjacent' (legacy `primary_<num>/` layout), 'xdg-state' (platform state directory), or an absolute path. The `SASE_WORKSPACE_ROOT` environment variable overrides this when set.",
+          "default": "adjacent"
+        },
+        "project_key": {
+          "type": "string",
+          "description": "Explicit override for the project_key used to namespace managed workspaces. Empty string means derive from the single Git remote (preferred) or the primary path plus a short hash.",
+          "default": ""
+        },
+        "cleanup_ttl_days": {
+          "type": "integer",
+          "description": "Days before unclaimed managed workspaces are eligible for `sase workspace cleanup --stale`.",
+          "default": 14,
+          "minimum": 0
+        }
+      }
+    },
     "xprompt_aliases": {
       "type": "object",
       "description": "Aliases for xprompt references, substituted before any other xprompt processing (e.g., {\"#gh_sase\": \"#gh:sase\"})",
