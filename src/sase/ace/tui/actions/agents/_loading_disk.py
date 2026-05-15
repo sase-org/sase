@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, cast
 from . import _loading_helpers
 from ._loading_compute import (
     _CLEANED_ARTIFACT_DIRS,
+    attach_finalize_plan_to_boundary,
     compute_apply_loaded_agents,
     compute_loader_cleanup,
     prepare_loaded_agents_worker_boundary,
@@ -304,9 +305,19 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
                 worker_snapshot,
             )
         prep = boundary.prep
-        await self._prepare_agent_content_search_index_async(
+        content_index = await self._prepare_agent_content_search_index_async(
             boundary.fold.unfiltered_agents
         )
+        with tui_trace(
+            "agents.finalize_plan",
+            visible=len(boundary.fold.visible_agents),
+        ):
+            boundary = await asyncio.to_thread(
+                attach_finalize_plan_to_boundary,
+                boundary,
+                worker_snapshot,
+                content_index=content_index,
+            )
         log.debug("agents async load: prep=%.3fs", time.perf_counter() - prep_start)
 
         apply_start = time.perf_counter()

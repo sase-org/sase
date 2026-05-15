@@ -6,6 +6,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
+from ._loading_compute import PreparedFinalizePlan
 from ._loading_finalize import finalize_agent_list, get_or_parse_agent_query
 from ._loading_state import AgentLoadingStateMixin
 
@@ -163,6 +164,7 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         save_unfiltered: bool,
         fold_filter_already_applied: bool = False,
         prior_pos: int | None = None,
+        precomputed_plan: PreparedFinalizePlan | None = None,
     ) -> None:
         """Shared post-processing pipeline for agent list finalization.
 
@@ -178,4 +180,5 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
             save_unfiltered=save_unfiltered,
             fold_filter_already_applied=fold_filter_already_applied,
             prior_pos=prior_pos,
+            precomputed_plan=precomputed_plan,
         )

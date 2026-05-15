@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from ...models.agent import AgentType
 from ...util.trace import tui_trace
@@ -11,6 +11,8 @@ from ._loading_compute import (
     PreparedApplyData,
     PreparedApplySelectionInputs,
     PreparedApplySnapshot,
+    PreparedFinalizePlan,
+    make_finalize_stale_token,
     merge_incomplete_load_after_complete_history,
     prepare_loaded_agents_apply_boundary,
 )
@@ -112,14 +114,22 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         load_state: AgentLoadState | None,
     ) -> PreparedApplySnapshot:
         """Capture UI-owned state for the pure prepared-apply boundary."""
+        from ...models.agent_groups import GroupingMode
+
         fold_manager = getattr(self, "_fold_manager", None)
         snapshot_fold = getattr(fold_manager, "snapshot", None)
-        fold_levels = snapshot_fold() if callable(snapshot_fold) else None
+        fold_levels = cast(
+            "dict[str, FoldLevel] | None",
+            snapshot_fold() if callable(snapshot_fold) else None,
+        )
         prior_visual_row: int | None
         if on_agents_tab:
             prior_visual_row = self.current_idx
         else:
             prior_visual_row = getattr(self, "_agents_last_idx", None)
+        grouping_mode = getattr(self, "_grouping_mode", None)
+        if grouping_mode is None:
+            grouping_mode = GroupingMode.STANDARD
         return PreparedApplySnapshot(
             cached_agents_with_children=list(
                 getattr(self, "_agents_with_children", [])
@@ -136,7 +146,38 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 selected_identity=selected_identity,
                 prior_visual_row=prior_visual_row,
             ),
+            agent_search_query=getattr(self, "_agent_search_query", "") or "",
+            agent_query_cache=getattr(self, "_agent_query_cache", None),
+            agent_status_overrides=dict(getattr(self, "_agent_status_overrides", {})),
+            grouping_mode=grouping_mode,
         )
+
+    def _select_finalize_plan(
+        self,
+        precomputed: PreparedFinalizePlan | None,
+        *,
+        on_agents_tab: bool,
+        selected_identity: tuple[AgentType, str, str | None] | None,
+    ) -> PreparedFinalizePlan | None:
+        """Return the worker plan if its stale token still matches UI state.
+
+        The plan is discarded — and the finalize pipeline recomputes the
+        query filter, status overrides, selection math, and group keys on
+        the UI thread — whenever any captured input (selection, fold
+        snapshot, query, status-override set, grouping mode, or hide
+        flag) has drifted since the worker ran.
+        """
+        if precomputed is None:
+            return None
+        current_snapshot = self._make_prepared_apply_snapshot(
+            on_agents_tab=on_agents_tab,
+            selected_identity=selected_identity,
+            load_state=getattr(self, "_agent_load_state", None),
+        )
+        current_token = make_finalize_stale_token(current_snapshot)
+        if current_token == precomputed.stale_token:
+            return precomputed
+        return None
 
     def _merge_incomplete_load_after_complete_history(
         self,
@@ -291,11 +332,17 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         self._agents = boundary.fold.visible_agents
         self._fold_counts = boundary.fold.fold_counts
 
+        finalize_plan = self._select_finalize_plan(
+            boundary.finalize,
+            on_agents_tab=on_agents_tab,
+            selected_identity=selected_identity,
+        )
         self._finalize_agent_list(
             on_agents_tab,
             selected_identity,
             save_unfiltered=False,
             fold_filter_already_applied=True,
+            precomputed_plan=finalize_plan,
         )
         from ...repro.capture import record_agents_tab_app_projection
 

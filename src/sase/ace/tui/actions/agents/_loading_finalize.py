@@ -16,6 +16,7 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from ._loading_compute import PreparedFinalizePlan
 from ._loading_helpers import DISMISSABLE_STATUSES
 from ...util.trace import tui_trace
 
@@ -128,6 +129,93 @@ def get_or_parse_agent_query(app: AgentLoadingMixin) -> QueryExpr | None:
     return parsed
 
 
+def _surface_query_parse_error_from_plan(
+    app: AgentLoadingMixin,
+    plan: PreparedFinalizePlan,
+) -> None:
+    """Mirror the UI-thread parse-error behavior from a precomputed plan."""
+    raw = plan.query.raw_query
+    if not raw:
+        app._agent_query_cache = None
+        app._agent_query_parse_error = None
+        return
+    if plan.query.parse_error is not None:
+        msg = plan.query.parse_error
+        app._agent_query_parse_error = msg
+        app._agent_query_cache = (raw, None)
+        try:
+            app.notify(  # type: ignore[attr-defined]
+                f"Bad query: {msg}", severity="warning"
+            )
+        except Exception:
+            log.warning("agent query parse error: %s", msg)
+        return
+    app._agent_query_parse_error = None
+    app._agent_query_cache = (raw, plan.query.parsed_ast)
+
+
+def _apply_finalize_plan(
+    app: AgentLoadingMixin,
+    on_agents_tab: bool,
+    selected_identity: tuple[AgentType, str, str | None] | None,
+    plan: PreparedFinalizePlan,
+    *,
+    prior_pos: int | None,
+) -> None:
+    """UI-thread half of the precomputed-plan apply path."""
+    _surface_query_parse_error_from_plan(app, plan)
+
+    # Install the post-query agent list and prune the content cache to match.
+    app._agents = list(plan.query.filtered_agents)
+    app._agent_content_search_cache.prune(app._agents)
+
+    # Apply status overrides + clean stale entries based on the worker plan.
+    overrides_by_identity = dict(plan.overrides.overrides_to_apply)
+    for agent in app._agents:
+        override = overrides_by_identity.get(agent.identity)
+        if override is not None:
+            agent.status = override
+    for identity in plan.overrides.cleared_identities:
+        app._agent_status_overrides.pop(identity, None)
+        app._agent_pre_question_status.pop(identity, None)
+
+    saved_idx = plan.selection.restored_idx
+    identity_restored = plan.selection.identity_restored
+
+    if (
+        on_agents_tab
+        and prior_pos is not None
+        and selected_identity is not None
+        and not identity_restored
+    ):
+        app.current_idx = saved_idx
+        app._restore_focus_after_removal(prior_pos)  # type: ignore[attr-defined]
+    else:
+        if app._agents:
+            new_idx = min(saved_idx, len(app._agents) - 1)
+        else:
+            new_idx = 0
+        if on_agents_tab:
+            app.current_idx = new_idx
+        else:
+            app._agents_last_idx = new_idx
+            if app._agents and 0 <= new_idx < len(app._agents):
+                app._agents_last_identity = app._agents[new_idx].identity  # type: ignore[attr-defined]
+            else:
+                app._agents_last_identity = None  # type: ignore[attr-defined]
+
+    _sync_unread_completed_agents(app, on_agents_tab)
+
+    app._group_fold_registry.clear_unknown(plan.group_keys)
+
+    if on_agents_tab:
+        with tui_trace("agents.final_display_refresh", agents=len(app._agents)):
+            app._refresh_agents_display(  # type: ignore[attr-defined]
+                list_changed=True,
+                defer_detail=True,
+            )
+
+
 def finalize_agent_list(
     app: AgentLoadingMixin,
     on_agents_tab: bool,
@@ -136,6 +224,7 @@ def finalize_agent_list(
     save_unfiltered: bool,
     fold_filter_already_applied: bool = False,
     prior_pos: int | None = None,
+    precomputed_plan: PreparedFinalizePlan | None = None,
 ) -> None:
     """Shared post-processing pipeline for agent list finalization.
 
@@ -171,6 +260,16 @@ def finalize_agent_list(
             app._agents, app._fold_counts = filter_agents_by_fold_state(
                 app._agents, app._fold_manager
             )
+
+    if precomputed_plan is not None:
+        _apply_finalize_plan(
+            app,
+            on_agents_tab,
+            selected_identity,
+            precomputed_plan,
+            prior_pos=prior_pos,
+        )
+        return
 
     # Apply agent search filter via the structured agent query language.
     # The haystack includes metadata fields plus each agent's cached

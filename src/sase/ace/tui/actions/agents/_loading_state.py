@@ -11,6 +11,7 @@ from ._loading_compute import (
     PreparedApplyBoundary,
     PreparedApplyData,
     PreparedApplySnapshot,
+    PreparedFinalizePlan,
 )
 from ._loading_helpers import TabName
 
@@ -155,5 +156,6 @@ class AgentLoadingStateMixin:
         save_unfiltered: bool,
         fold_filter_already_applied: bool = False,
         prior_pos: int | None = None,
+        precomputed_plan: PreparedFinalizePlan | None = None,
     ) -> None:
         raise NotImplementedError
