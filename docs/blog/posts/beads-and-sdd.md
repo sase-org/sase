@@ -50,11 +50,11 @@ refreshes the generated READMEs and the directory-map asset. The reference is in
 
 ## Beads Are the Work Unit
 
-A **bead** is a git-portable, SQLite-backed, JSONL-shadowed issue record. Status moves through `open` → `in_progress` →
-`closed`. Beads have dependency edges. Each one can carry a plan reference (the `design` field), a tier (`plan`, `epic`,
-or `legend`), and a model annotation (`-m/--model`). Storage is a SQLite cache plus a `issues.jsonl` text shadow — the
-cache is gitignored, the JSONL is committed. A fresh clone rebuilds the database from JSONL on first access; manual
-JSONL edits are picked up the same way.
+A **bead** is a git-portable issue record backed by a canonical append-only event store. Status moves through `open` →
+`in_progress` → `closed`. Beads have dependency edges. Each one can carry a plan reference (the `design` field), a tier
+(`plan`, `epic`, or `legend`), and a model annotation (`-m/--model`). Storage lives under `sdd/beads/`: `events/**` is
+the source of truth, `issues.jsonl` is a generated compatibility projection, and `beads.db` is a gitignored
+compatibility cache. Fresh clones read the tracked event store directly and can rebuild the mirrors on demand.
 
 Two issue types:
 
@@ -115,13 +115,13 @@ rounds. The promoted plan is what links to the bead; the chat stays as a `CHAT:`
 ## Workspace Behavior
 
 SDD plan artifacts are shared through the normal project workflow, while version-controlled bead state is deliberately
-checkout-local: `sase bead` reads and mutates the `sdd/beads/issues.jsonl` store in the checkout where the command runs.
-An agent running in `myproject_3` sees `myproject_3/sdd/beads/`, not a merged view of `myproject/`, `myproject_2/`, and
+checkout-local: `sase bead` reads and mutates the `sdd/beads/` event store in the checkout where the command runs. An
+agent running in `myproject_3` sees `myproject_3/sdd/beads/`, not a merged view of `myproject/`, `myproject_2/`, and
 `myproject_3/`.
 
 That keeps the source of truth inspectable and unsurprising. When several agents coordinate on the same epic, bead state
 moves between checkouts through the same VCS sync path as code and SDD files, and ID allocation uses the active
-checkout's local `config.json` and `issues.jsonl`.
+checkout's local `config.json` and canonical event state.
 
 ## What To Read Next
 

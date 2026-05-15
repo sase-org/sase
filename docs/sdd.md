@@ -52,10 +52,14 @@ Files are stored in a standalone git repo inside the primary workspace:
     README.md
     {YYYYMM}/
       {note_name}.md        # Research notes and critiques
-  beads/                    # Bead database (SQLite + JSONL)
-    beads.db
-    issues.jsonl
+  beads/                    # Bead store (canonical events + compatibility mirrors)
     config.json
+    events/
+      manifest.json
+      streams/
+        <root-id>.jsonl
+    issues.jsonl
+    beads.db
 ```
 
 SDD auto-commits prompt and planning-artifact files to this local repo after each planning phase. The standalone repo
@@ -86,10 +90,14 @@ Files are stored at the project root and tracked in the project's own git repo:
       README.md
       {YYYYMM}/
         {note_name}.md
-  sdd/beads/              # Bead database (git-tracked)
-    beads.db
-    issues.jsonl
+  sdd/beads/              # Bead store (canonical events + compatibility mirrors)
     config.json
+    events/
+      manifest.json
+      streams/
+        <root-id>.jsonl
+    issues.jsonl
+    beads.db
 ```
 
 In this mode, SDD artifacts are committed alongside code changes via `sase commit`.

@@ -72,9 +72,9 @@ Current sidecar prompt files and target doc embeds match the insertion points ab
 - Separate the issue model from the execution flow: plan beads with tiers (`plan`, `epic`, `legend`), phase children,
   statuses, dependencies, ready/blocked states, and hierarchical IDs belong in one area; `sase bead work` belongs in
   another.
-- Show SQLite as the local query/mutation cache and JSONL as the git-portable export, both owned by Rust-backed bead
-  operations.
-- Show the current checkout's `sdd/beads/issues.jsonl` as the version-controlled source of truth.
+- Show `events/**` as the git-portable source of truth, `issues.jsonl` as a compatibility projection, and `beads.db` as
+  the local compatibility cache, all owned by Rust-backed bead operations.
+- Show the current checkout's `sdd/beads/` event store as the version-controlled source of truth.
 - For epic work, show Kahn waves, pre-claimed phase beads, one agent per phase, waits from dependency edges, and a final
   land agent waiting on every phase agent.
 - Do not reproduce the full command table inside the image.

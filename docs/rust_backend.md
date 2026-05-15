@@ -26,8 +26,8 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   workspace-claim planning/mutation helpers
 - Bead data operations: read queries (`show`, `list`, `ready`, `blocked`, `stats`, `doctor`, epic-child lookups), merged
   multi-workspace reads, mutations (`init`, `create`, `update`, `open`, `close`, `rm`, `dep add`, ready-to-work flags,
-  sync-clean checks, JSONL export), deterministic epic/legend work planning, and the early `sase bead` CLI fast path for
-  common read/write commands
+  sync-clean checks, compatibility projection export), deterministic epic/legend work planning, and the early
+  `sase bead` CLI fast path for common read/write commands
 
 The intentionally Python-owned facade surfaces (host logic, not backend fallbacks) are:
 
@@ -137,8 +137,9 @@ notes, and the contract snapshot path used by future Android work.
 
 ## Bead Backend
 
-The `sase bead` migration is tracked by `sdd/epics/202605/bead_rust_backend_migration.md`. The shipped path is now
-Rust-owned for data operations: JSONL/config parsing, SQLite rebuild/query, mutations, single-store ID allocation,
+The `sase bead` path is Rust-owned for data operations. Canonical bead state lives in append-only event streams under
+`sdd/beads/events/**` when present; `issues.jsonl` is regenerated as a compatibility projection, and `beads.db` is a
+compatibility cache. Event reduction, JSONL/config parsing, cache refresh, mutations, single-store ID allocation,
 deterministic epic work planning, and common CLI output planning all live in `sase-core` and are exposed through
 `sase_core_rs`. Python remains the host layer for path discovery, VCS context, xprompt lookup, confirmation prompts,
 launch/rollback, and telemetry side effects.
@@ -150,11 +151,14 @@ Golden contract fixtures live under `tests/test_bead/golden/`:
 - `jsonl/` pins current and legacy JSONL shapes, corrupt-line tolerance, empty/missing import behavior, hierarchy,
   dependencies, cross-epic blockers, and ChangeSpec metadata.
 - `stores/current/` is a complete deterministic bead store used by the CLI golden tests.
+- Rust parity fixtures in `../sase-core/crates/sase_core/tests/fixtures/bead/` pin legacy JSONL import, deterministic
+  event migration, event-backed reads, and regenerated projection behavior.
 
 Run the focused contract tests with:
 
 ```bash
 pytest tests/test_bead/test_cli_golden.py tests/test_bead/test_jsonl_golden_fixtures.py
+cargo test --workspace bead
 ```
 
 The reproducible bead benchmark harness is:

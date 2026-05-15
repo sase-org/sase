@@ -1,9 +1,10 @@
 # Bead Issue Tracking
 
-Bead is a lightweight, git-native issue tracking system built into sase. It uses Rust-backed SQLite/query/mutation logic
-through the required `sase_core_rs` extension, with JSONL export for git portability (inspired by
-[Fossil](https://fossil-scm.org/)). Issues are organized into plan-like containers and executable child phases. Plan
-beads can represent ordinary plans, executable epics, or legend-level roadmaps through their `tier` metadata.
+Bead is a lightweight, git-native issue tracking system built into sase. It uses Rust-backed event storage,
+query/reduction, and mutation logic through the required `sase_core_rs` extension, with generated JSONL compatibility
+projections for older tooling (inspired by [Fossil](https://fossil-scm.org/)). Issues are organized into plan-like
+containers and executable child phases. Plan beads can represent ordinary plans, executable epics, or legend-level
+roadmaps through their `tier` metadata.
 
 ![Bead issue model, storage sync, and epic wave execution](images/bead-epic-work-infographic.png)
 
@@ -16,7 +17,7 @@ beads can represent ordinary plans, executable epics, or legend-level roadmaps t
   - [Dependencies](#dependencies)
 - [Storage](#storage)
   - [Directory Structure](#directory-structure)
-  - [SQLite + JSONL Dual Storage](#sqlite-jsonl-dual-storage)
+  - [Event Log + Compatibility Projections](#event-log--compatibility-projections)
   - [Sync Mechanism](#sync-mechanism)
 - [CLI Commands](#cli-commands)
 - [Rust Backend](#rust-backend)
@@ -101,35 +102,43 @@ When version-controlled mode is enabled (`sdd.version_controlled` config):
 
 ```
 sdd/beads/
-  beads.db              # SQLite database (gitignored)
-  issues.jsonl          # Git-tracked JSONL export
   config.json           # Configuration (issue prefix, counter, owner)
+  events/
+    manifest.json       # Event-store schema and migration metadata
+    streams/
+      <root-id>.jsonl   # Canonical append-only event stream
+  issues.jsonl          # Generated compatibility projection
+  beads.db              # SQLite compatibility cache (gitignored)
 ```
 
 In non-version-controlled mode, the directory is `.sase/sdd/beads/` with the same structure.
 
-Normal bead commands read and write one store for the active checkout. In version-controlled mode, that source of truth
-is the current checkout's `sdd/beads/issues.jsonl` plus `sdd/beads/config.json`. Legacy stores are migration-only
-concerns; they are not merged into normal `sase bead` reads.
+Normal bead commands read and write one store for the active checkout. In version-controlled mode, canonical bead state
+lives in the current checkout's `sdd/beads/events/**` event store plus `sdd/beads/config.json`. If the event store is
+absent, reads fall back to legacy `issues.jsonl`. Numbered sibling workspaces and legacy stores are not merged into
+normal `sase bead` reads.
 
-### SQLite + JSONL Dual Storage
+### Event Log + Compatibility Projections
 
-Rust owns the bead storage/query/mutation path. SQLite is the local query cache and mutation target; JSONL is the
-git-portable format that can be committed. The two are kept in sync:
+Rust owns the bead storage/query/mutation path. The append-only event streams are the canonical git-portable state.
+`issues.jsonl` remains a generated compatibility projection, and `beads.db` remains a local compatibility cache. They
+are kept in sync:
 
-- **Writes** run through Rust mutation transactions, update SQLite, then export the portable JSONL state.
-- **Reads** run through Rust read APIs, rebuilding SQLite from JSONL first when the cache is missing or stale.
-- **Fresh clones** rebuild the SQLite database automatically from `issues.jsonl` on first access.
+- **Writes** append canonical Rust events first, then regenerate `issues.jsonl` and refresh `beads.db`.
+- **Reads** prefer `events/manifest.json` plus `events/streams/*.jsonl`, falling back to legacy `issues.jsonl` only when
+  no event store is present.
+- **Fresh clones** read directly from the tracked event streams and can rebuild the compatibility mirrors on demand.
 
-The `.gitignore` excludes `beads.db*` files so only `issues.jsonl` and `config.json` are tracked in git.
+The `.gitignore` excludes `beads.db*` files. The event store, `issues.jsonl`, and `config.json` are tracked in git.
 
 ### Sync Mechanism
 
-`sase bead sync` exports the current bead state to `issues.jsonl` and stages that file in git. The JSONL file contains
-one JSON object per line, sorted by issue ID for clean diffs.
+`sase bead sync` regenerates the compatibility projection from the canonical event store and stages the bead state in
+git, including `sdd/beads/events/**`, `issues.jsonl`, and `config.json`. The projection contains one JSON object per
+line, sorted by issue ID for clean diffs.
 
-On project open, if the JSONL file is newer than the database (or the database is missing), the database is
-automatically rebuilt from JSONL. This handles fresh clones and manual JSONL edits transparently.
+When both stores exist, the event store wins. Manual edits to `issues.jsonl` do not change command output unless the
+event store is absent.
 
 ## CLI Commands
 
@@ -222,12 +231,12 @@ Show all issues that have at least one active (non-closed) blocker.
 
 ### `sase bead sync`
 
-Export the current bead state to `issues.jsonl` and stage that file in git. It does not create a commit; the staged
-JSONL is included in the next normal project or SDD commit.
+Regenerate the compatibility projection from the canonical event store and stage bead state in git. It does not create a
+commit; the staged event/projection files are included in the next normal project or SDD commit.
 
-| Flag           | Description                              |
-| -------------- | ---------------------------------------- |
-| `-s, --status` | Check whether JSONL has unstaged changes |
+| Flag           | Description                                   |
+| -------------- | --------------------------------------------- |
+| `-s, --status` | Check whether bead state has unstaged changes |
 
 ### `sase bead stats`
 
@@ -237,8 +246,10 @@ Show project statistics: total, open, in-progress, and closed counts, plus plan 
 
 Run health checks on the beads database. Checks for:
 
-- Missing `config.json`, `issues.jsonl`, or `beads.db`
-- Uncommitted JSONL changes
+- Missing `config.json`, event store, legacy projection, or compatibility cache
+- Projection drift between canonical events and `issues.jsonl`
+- Invalid events or unreduced orphan phase records
+- Uncommitted bead-state changes
 - Orphan children (phases whose parent plan is missing)
 
 If bead commands fail before opening a store, run `sase core health` first. It verifies that the required `sase_core_rs`
@@ -314,9 +325,9 @@ If launching the multi-prompt fails partway through, the launcher SIGTERMs any a
 back the pre-claims and the `is_ready_to_work` flag when this run set it (best-effort), so the epic can be retried
 without leaving zombie agents behind.
 
-After the agents launch successfully, `sase bead work` commits the resulting `sdd/beads/issues.jsonl` mutation when the
-beads directory belongs to a git repository and the JSONL file changed. This commit records the bead launch state only;
-it does not commit any code produced later by the spawned agents. Epic launches use the subject
+After the agents launch successfully, `sase bead work` commits the resulting bead-state mutation when the beads
+directory belongs to a git repository and canonical/projection files changed. This commit records the bead launch state
+only; it does not commit any code produced later by the spawned agents. Epic launches use the subject
 `chore: mark bead work launched for <id>`; legend launches use `chore: mark legend work launched for <id>`. If the git
 commit fails, the command reports that agents were already launched and exits non-zero so the operator can commit or
 repair the bead state explicitly. Dry runs and stores outside git do not create a commit.
@@ -333,11 +344,11 @@ checkouts, or when you would rather batch the bead-launch commit with later comm
 
 ## Rust Backend
 
-The bead data model, JSONL/config codecs, SQLite rebuild/query layer, mutation transactions, ID allocation,
-deterministic work-plan DAG, and common CLI output planning are implemented in `sase-core` and exposed through
-`sase_core_rs`. Python keeps the host logic that belongs in the application layer: locating the active bead store,
-relativizing plan paths, resolving VCS context and xprompts for `sase bead work`, prompting the user, launching agents,
-rolling back failed launches, and incrementing telemetry counters.
+The bead data model, event reducer, JSONL/config codecs, compatibility-cache refresh, mutation transactions, ID
+allocation, deterministic work-plan DAG, and common CLI output planning are implemented in `sase-core` and exposed
+through `sase_core_rs`. Python keeps the host logic that belongs in the application layer: locating the active bead
+store, relativizing plan paths, resolving VCS context and xprompts for `sase bead work`, prompting the user, launching
+agents, rolling back failed launches, and incrementing telemetry counters.
 
 Common `sase bead` commands dispatch through an early CLI fast path before the full top-level parser is built. Help text
 and host-coupled commands still fall through to the normal Python parser/handlers where needed.
@@ -354,13 +365,14 @@ just bead-perf-smoke
 ## Current Checkout Source Of Truth
 
 In version-controlled mode, every `sase bead` read and mutation command uses the current checkout's
-`sdd/beads/issues.jsonl` and `sdd/beads/config.json`. Running the command in `myproject/` reads that checkout's bead
-state; running it in `myproject_2/` reads `myproject_2/sdd/beads/`. The CLI does not merge sibling workspace stores, and
-duplicate IDs in another checkout do not override the active checkout's records.
+`sdd/beads/events/**` event store and `sdd/beads/config.json`, with `issues.jsonl` used only as a fallback when events
+are absent. Running the command in `myproject/` reads that checkout's bead state; running it in `myproject_2/` reads
+`myproject_2/sdd/beads/`. The CLI does not merge sibling workspace stores, and duplicate IDs in another checkout do not
+override the active checkout's records.
 
-ID allocation also uses only the active store's `config.json` and `issues.jsonl`. If a sibling checkout has not pulled
-or merged the latest bead state, it may allocate IDs based on its local state; sync bead changes through the normal VCS
-workflow when several agents are coordinating on the same project.
+ID allocation also uses only the active store's `config.json` and canonical event state. If a sibling checkout has not
+pulled or merged the latest bead state, it may allocate IDs based on its local state; sync bead changes through the
+normal VCS workflow when several agents are coordinating on the same project.
 
 Cross-project helper surfaces, such as mobile/editor bead pickers, may inspect one canonical store per known project,
 but they still do not merge numbered sibling workspaces or legacy bead stores for the same project.
