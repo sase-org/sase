@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -236,6 +237,49 @@ def test_preclaim_epic_work_validation_is_all_or_nothing(tmp_path: Path) -> None
         assert unchanged.status == Status.OPEN
         assert unchanged.assignee == ""
         assert project.show(second.id).status == Status.CLOSED
+
+
+def test_mutation_facade_writes_events_and_repairs_jsonl_projection(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "rust"
+    _init_store(root)
+    epic, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Epic",
+        issue_type=IssueType.PLAN,
+        now="2026-01-01T00:00:00Z",
+    )
+    child, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Child",
+        issue_type=IssueType.PHASE,
+        parent_id=epic.id,
+        now="2026-01-01T00:01:00Z",
+    )
+    rust_beads.update(
+        root / "sdd/beads",
+        child.id,
+        status="in_progress",
+        assignee="agent",
+        now="2026-01-01T00:02:00Z",
+    )
+
+    stream_path = root / f"sdd/beads/events/streams/{epic.id}.jsonl"
+    operations = [
+        json.loads(line)["operation"]
+        for line in stream_path.read_text().splitlines()
+        if line.strip()
+    ]
+    assert operations == ["issue_created", "issue_created", "issue_updated"]
+
+    projection_path = root / "sdd/beads/issues.jsonl"
+    projection_path.write_text("")
+    rust_beads.export_jsonl(root / "sdd/beads")
+    projection = projection_path.read_text()
+    assert f'"id":"{epic.id}"' in projection
+    assert f'"id":"{child.id}"' in projection
+    assert '"assignee":"agent"' in projection
 
 
 def _init_store(root: Path) -> None:

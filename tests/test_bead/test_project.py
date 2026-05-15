@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -307,7 +308,7 @@ def test_doctor_clean(project):
 
 
 def test_doctor_detects_orphan(project):
-    """Create a child whose parent doesn't exist in JSONL."""
+    """Create a legacy JSONL child whose parent doesn't exist."""
     epic = project.create("Epic", IssueType.PLAN)
     child = project.create("Child", IssueType.PHASE, parent_id=epic.id)
 
@@ -321,6 +322,7 @@ def test_doctor_detects_orphan(project):
         )
         + "\n"
     )
+    shutil.rmtree(project.beads_dir / "events")
 
     messages = project.doctor()
     assert any("orphan" in m.lower() for m in messages)
