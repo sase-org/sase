@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-14 22:20:34
-status: wip
+status: done
 prompt: sdd/prompts/202605/async_file_panel_reads.md
 ---
 # Async File Panel Static Reads Plan

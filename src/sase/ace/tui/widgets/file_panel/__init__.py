@@ -12,7 +12,7 @@ from ...models.agent import Agent
 from ...graphics import is_supported_image_path
 from ...util.trace import tui_trace
 from ._diff import DiffCacheKey, compute_diff_cache_key, get_agent_diff
-from ._display import FilePanelDisplayMixin
+from ._display import FilePanelDisplayMixin, StaticReadResult
 from ._messages import (
     FileListChanged,
     FileTrimChanged,
@@ -57,6 +57,11 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         # running, ``_start_background_fetch`` attaches to it instead of
         # cancelling and respawning.
         self._inflight_diff_tasks: dict[DiffCacheKey, Worker[str | None]] = {}
+        # Static-file/diff async reads. ``_static_request_id`` increments on
+        # every schedule so the UI can drop superseded results when the user
+        # navigates between files faster than reads complete.
+        self._static_request_id: int = 0
+        self._static_worker: Worker[StaticReadResult] | None = None
 
     def update_display(self, agent: Agent, stale_threshold_seconds: int = 10) -> None:
         """Update with agent file output.
@@ -407,6 +412,24 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Handle worker state changes."""
+        # Static-read workers carry a StaticReadResult and are dispatched
+        # independently of the diff worker pipeline. Stragglers from
+        # cancelled/superseded reads are caught by the result-type check
+        # even after ``_static_worker`` has moved on.
+        if event.state == WorkerState.SUCCESS:
+            result = event.worker.result
+            if isinstance(result, StaticReadResult):
+                self._handle_static_read_result(result)
+                if event.worker is self._static_worker:
+                    self._static_worker = None
+                return
+        if event.worker is self._static_worker and event.state in (
+            WorkerState.ERROR,
+            WorkerState.CANCELLED,
+        ):
+            self._static_worker = None
+            return
+
         if event.state in (
             WorkerState.SUCCESS,
             WorkerState.ERROR,

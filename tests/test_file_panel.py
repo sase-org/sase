@@ -153,18 +153,13 @@ def test_extract_diff_path_uses_last_path() -> None:
 # --- display_static_file tests ---
 
 
-def test_display_static_file_reads_and_renders(tmp_path: Any) -> None:
-    """Test that display_static_file reads file content and posts visibility message."""
-    diff_file = tmp_path / "test.diff"
-    diff_file.write_text("--- a/foo\n+++ b/foo\n@@ -1 +1 @@\n-old\n+new\n")
-
-    # Create a mock panel that tracks method calls
+def _make_render_panel() -> MagicMock:
+    """Build a MagicMock panel pre-wired for the static-render helpers."""
     panel = MagicMock()
     panel.post_message = MagicMock()
     panel._has_displayed_content = False
     panel._file_list = []
     panel._current_file_index = 0
-    # Trim state vars
     panel._total_line_count = 0
     panel._visible_line_count = 0
     panel._base_trim_size = 0
@@ -173,93 +168,104 @@ def test_display_static_file_reads_and_renders(tmp_path: Any) -> None:
     panel._full_content_lexer = "text"
     panel._content_mode = "none"
     panel._static_header_path = None
+    panel._static_request_id = 0
+    panel._static_worker = None
 
-    # Import and call the method directly using the unbound function
-    from sase.ace.tui.widgets.file_panel import _EXTENSION_TO_LEXER, AgentFilePanel
+    from sase.ace.tui.widgets.file_panel import AgentFilePanel
 
-    # Bind real _post_file_visibility so post_message gets called on the mock
     panel._post_file_visibility = types.MethodType(
         AgentFilePanel._post_file_visibility, panel
     )
-    # Mock _compute_trim_size to return 0 (no container mounted → no trimming)
+    panel._consume_image_cleanup_segments = types.MethodType(
+        AgentFilePanel._consume_image_cleanup_segments, panel
+    )
     panel._compute_trim_size = MagicMock(return_value=0)
-    # Bind real _count_lines
     panel._count_lines = types.MethodType(AgentFilePanel._count_lines, panel)
-    # Mock _post_trim_changed as a no-op
     panel._post_trim_changed = MagicMock()
+    return panel
 
-    # Verify the lexer mapping includes .diff
+
+def test_render_static_file_result_renders_content(tmp_path: Any) -> None:
+    """The render helper produces the path header + syntax block on success."""
+    from sase.ace.tui.widgets.file_panel import _EXTENSION_TO_LEXER, AgentFilePanel
+    from sase.ace.tui.widgets.file_panel._display import StaticReadResult
+
     assert _EXTENSION_TO_LEXER[".diff"] == "diff"
 
-    # Test the method logic by calling it on the mock
-    AgentFilePanel.display_static_file(panel, str(diff_file))
+    diff_file = tmp_path / "test.diff"
+    diff_file.write_text("--- a/foo\n+++ b/foo\n@@ -1 +1 @@\n-old\n+new\n")
 
-    # Verify update was called with a Group containing the path header and syntax
+    panel = _make_render_panel()
+    result = StaticReadResult(
+        request_id=1,
+        mode="file",
+        path=str(diff_file),
+        expanded_path=str(diff_file),
+        status="ok",
+        content=diff_file.read_text(),
+        lexer="diff",
+    )
+
+    AgentFilePanel._render_static_file_result(panel, result)
+
     assert panel.update.called
     from rich.console import Group
+    from rich.syntax import Syntax
+    from rich.text import Text
 
     group = panel.update.call_args[0][0]
     assert isinstance(group, Group)
     renderables = list(group._renderables)
     assert len(renderables) == 3
-    # First element is the path header
-    from rich.text import Text
-
     assert isinstance(renderables[0], Text)
     assert str(renderables[0]) == str(diff_file)
-    # Second element is an empty separator line
     assert isinstance(renderables[1], Text)
     assert str(renderables[1]) == ""
-    # Third element is the Syntax content
-    from rich.syntax import Syntax
-
     assert isinstance(renderables[2], Syntax)
-    # Verify visibility message was posted
     panel.post_message.assert_called()
+    assert panel.post_message.call_args[0][0].has_file is True
 
 
-def test_display_static_file_handles_missing_file(tmp_path: Any) -> None:
-    """Test that display_static_file handles missing files gracefully."""
-    panel = MagicMock()
-    panel.post_message = MagicMock()
-    panel._file_list = []
-    panel._current_file_index = 0
-
+def test_render_static_file_result_handles_missing(tmp_path: Any) -> None:
+    """Missing-file results post has_file=False."""
     from sase.ace.tui.widgets.file_panel import AgentFilePanel
+    from sase.ace.tui.widgets.file_panel._display import StaticReadResult
 
-    panel._post_file_visibility = types.MethodType(
-        AgentFilePanel._post_file_visibility, panel
+    panel = _make_render_panel()
+    missing = tmp_path / "nonexistent.diff"
+    result = StaticReadResult(
+        request_id=1,
+        mode="file",
+        path=str(missing),
+        expanded_path=str(missing),
+        status="missing",
     )
 
-    AgentFilePanel.display_static_file(panel, str(tmp_path / "nonexistent.diff"))
+    AgentFilePanel._render_static_file_result(panel, result)
 
-    # Should post has_file=False
     panel.post_message.assert_called()
-    call_args = panel.post_message.call_args[0][0]
-    assert call_args.has_file is False
+    assert panel.post_message.call_args[0][0].has_file is False
 
 
-def test_display_static_file_handles_empty_file(tmp_path: Any) -> None:
-    """Test that display_static_file handles empty files gracefully."""
-    empty_file = tmp_path / "empty.diff"
-    empty_file.write_text("")
-
-    panel = MagicMock()
-    panel.post_message = MagicMock()
-    panel._file_list = []
-    panel._current_file_index = 0
-
+def test_render_static_file_result_handles_empty(tmp_path: Any) -> None:
+    """Empty-file results post has_file=False."""
     from sase.ace.tui.widgets.file_panel import AgentFilePanel
+    from sase.ace.tui.widgets.file_panel._display import StaticReadResult
 
-    panel._post_file_visibility = types.MethodType(
-        AgentFilePanel._post_file_visibility, panel
+    panel = _make_render_panel()
+    empty = tmp_path / "empty.diff"
+    empty.write_text("")
+    result = StaticReadResult(
+        request_id=1,
+        mode="file",
+        path=str(empty),
+        expanded_path=str(empty),
+        status="empty",
     )
 
-    AgentFilePanel.display_static_file(panel, str(empty_file))
+    AgentFilePanel._render_static_file_result(panel, result)
 
-    # Should post has_file=False
-    call_args = panel.post_message.call_args[0][0]
-    assert call_args.has_file is False
+    assert panel.post_message.call_args[0][0].has_file is False
 
 
 def test_extension_to_lexer_mapping() -> None:
