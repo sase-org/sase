@@ -274,6 +274,114 @@ def test_run_artifact_page_loop_tab_focuses_return_pane_and_stays_open(
         ["clear"],
         _test_icat_command(page),
         ["clear"],
+    ]
+
+
+def test_run_artifact_page_loop_tab_then_navigation_renders_next_page(
+    tmp_path: Path,
+) -> None:
+    pages = [tmp_path / "page-1.png", tmp_path / "page-2.png"]
+    for page in pages:
+        page.write_bytes(b"png")
+    commands: list[list[str]] = []
+    selected: list[str] = []
+    keys = iter(["\t", "j", "q"])
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    def fake_select(pane_id: str) -> ArtifactViewerResult:
+        selected.append(pane_id)
+        return ArtifactViewerResult(True)
+
+    result = run_artifact_page_loop(
+        pages,
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
+        return_pane_id="%1",
+        select_pane=fake_select,
+    )
+
+    assert result.returncode == 0
+    assert selected == ["%1"]
+    assert commands == [
+        ["clear"],
+        _test_icat_command(pages[0]),
+        ["clear"],
+        _test_icat_command(pages[1]),
+        ["clear"],
+    ]
+
+
+def test_run_artifact_page_loop_tab_then_refresh_renders_same_page(
+    tmp_path: Path,
+) -> None:
+    page = tmp_path / "page-1.png"
+    page.write_bytes(b"png")
+    commands: list[list[str]] = []
+    selected: list[str] = []
+    keys = iter(["\t", "r", "q"])
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    def fake_select(pane_id: str) -> ArtifactViewerResult:
+        selected.append(pane_id)
+        return ArtifactViewerResult(True)
+
+    result = run_artifact_page_loop(
+        [page],
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
+        return_pane_id="%1",
+        select_pane=fake_select,
+    )
+
+    assert result.returncode == 0
+    assert selected == ["%1"]
+    assert commands == [
+        ["clear"],
+        _test_icat_command(page),
+        ["clear"],
+        _test_icat_command(page),
+        ["clear"],
+    ]
+
+
+def test_run_artifact_page_loop_repeated_tab_does_not_re_render(
+    tmp_path: Path,
+) -> None:
+    page = tmp_path / "page-1.png"
+    page.write_bytes(b"png")
+    commands: list[list[str]] = []
+    selected: list[str] = []
+    keys = iter(["\t", "\t", "q"])
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    def fake_select(pane_id: str) -> ArtifactViewerResult:
+        selected.append(pane_id)
+        return ArtifactViewerResult(True)
+
+    result = run_artifact_page_loop(
+        [page],
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
+        return_pane_id="%1",
+        select_pane=fake_select,
+    )
+
+    assert result.returncode == 0
+    assert selected == ["%1", "%1"]
+    assert commands == [
+        ["clear"],
         _test_icat_command(page),
         ["clear"],
     ]
@@ -423,6 +531,138 @@ def test_run_artifact_sequence_loop_tab_focuses_return_pane_and_stays_open(
     assert commands == [
         ["clear"],
         _test_icat_command(page),
+        ["clear"],
+    ]
+
+
+def test_run_artifact_sequence_loop_tab_then_navigation_renders_next_page(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    pages = [tmp_path / "page-1.png", tmp_path / "page-2.png"]
+    for page in pages:
+        page.write_bytes(b"png")
+    specs = (ArtifactViewSpec(tmp_path / "first.pdf", "pdf"),)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.render_artifact_pages",
+        lambda *args, **kwargs: ArtifactRenderResult(tuple(pages)),
+    )
+    commands: list[list[str]] = []
+    selected: list[str] = []
+    keys = iter(["\t", "j", "q"])
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    def fake_select(pane_id: str) -> ArtifactViewerResult:
+        selected.append(pane_id)
+        return ArtifactViewerResult(True)
+
+    result = run_artifact_sequence_loop(
+        specs,
+        cache_root=tmp_path / "cache",
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
+        return_pane_id="%1",
+        select_pane=fake_select,
+    )
+
+    assert result.returncode == 0
+    assert selected == ["%1"]
+    assert commands == [
+        ["clear"],
+        _test_icat_command(pages[0]),
+        ["clear"],
+        _test_icat_command(pages[1]),
+        ["clear"],
+    ]
+
+
+def test_run_artifact_sequence_loop_tab_then_refresh_renders_same_page(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    page = tmp_path / "page-1.png"
+    page.write_bytes(b"png")
+    specs = (ArtifactViewSpec(tmp_path / "first.png", "image"),)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.render_artifact_pages",
+        lambda *args, **kwargs: ArtifactRenderResult((page,)),
+    )
+    commands: list[list[str]] = []
+    selected: list[str] = []
+    keys = iter(["\t", "r", "q"])
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    def fake_select(pane_id: str) -> ArtifactViewerResult:
+        selected.append(pane_id)
+        return ArtifactViewerResult(True)
+
+    result = run_artifact_sequence_loop(
+        specs,
+        cache_root=tmp_path / "cache",
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
+        return_pane_id="%1",
+        select_pane=fake_select,
+    )
+
+    assert result.returncode == 0
+    assert selected == ["%1"]
+    assert commands == [
+        ["clear"],
+        _test_icat_command(page),
+        ["clear"],
+        _test_icat_command(page),
+        ["clear"],
+    ]
+
+
+def test_run_artifact_sequence_loop_repeated_tab_does_not_re_render(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    page = tmp_path / "page-1.png"
+    page.write_bytes(b"png")
+    specs = (ArtifactViewSpec(tmp_path / "first.png", "image"),)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.render_artifact_pages",
+        lambda *args, **kwargs: ArtifactRenderResult((page,)),
+    )
+    commands: list[list[str]] = []
+    selected: list[str] = []
+    keys = iter(["\t", "\t", "q"])
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    def fake_select(pane_id: str) -> ArtifactViewerResult:
+        selected.append(pane_id)
+        return ArtifactViewerResult(True)
+
+    result = run_artifact_sequence_loop(
+        specs,
+        cache_root=tmp_path / "cache",
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
+        return_pane_id="%1",
+        select_pane=fake_select,
+    )
+
+    assert result.returncode == 0
+    assert selected == ["%1", "%1"]
+    assert commands == [
         ["clear"],
         _test_icat_command(page),
         ["clear"],

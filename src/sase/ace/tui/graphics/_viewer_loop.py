@@ -108,22 +108,25 @@ def run_artifact_page_loop(
     run = run_command or _run_command
     select = select_pane or _select_tmux_pane
     index = 0
+    needs_render = True
+    return_pane_available = bool(return_pane_id)
     while True:
         current_area = image_area or artifact_image_area(
             reserved_rows=_PAGE_LOOP_RESERVED_ROWS,
             top_rows=0,
         )
-        _clear_terminal(run)
-        result = run(kitten_icat_command(pages[index], current_area))
-        if result.returncode != 0:
-            return _PageLoopResult(returncode=result.returncode)
-        _move_cursor_below_image(current_area)
-        return_pane_available = bool(return_pane_id)
-        print_page_prompt(
-            index=index,
-            page_count=len(pages),
-            return_pane_available=return_pane_available,
-        )
+        if needs_render:
+            _clear_terminal(run)
+            result = run(kitten_icat_command(pages[index], current_area))
+            if result.returncode != 0:
+                return _PageLoopResult(returncode=result.returncode)
+            _move_cursor_below_image(current_area)
+            print_page_prompt(
+                index=index,
+                page_count=len(pages),
+                return_pane_available=return_pane_available,
+            )
+            needs_render = False
         available_keys = page_loop_available_keys(
             index,
             len(pages),
@@ -133,7 +136,6 @@ def run_artifact_page_loop(
             pass
         if key == _RETURN_TO_ACE_KEY and return_pane_id:
             select(return_pane_id)
-            print()
             continue
         next_index = page_index_after_key(index, key, len(pages))
         print()
@@ -141,6 +143,7 @@ def run_artifact_page_loop(
             _clear_terminal(run)
             return _PageLoopResult()
         index = next_index
+        needs_render = True
 
 
 def run_artifact_sequence_loop(
@@ -183,36 +186,40 @@ def run_artifact_sequence_loop(
 
     artifact_index = 0
     page_index = 0
+    needs_render = True
+    return_pane_available = bool(return_pane_id)
+    pages: tuple[Path, ...] = ()
     while True:
         current_area = image_area or artifact_image_area()
-        rendered = pages_for(artifact_index, current_area)
-        if rendered.warnings:
-            return _PageLoopResult(returncode=1, warnings=rendered.warnings)
-        pages = rendered.pages
-        if not pages:
-            return _PageLoopResult(returncode=1)
+        if needs_render:
+            rendered = pages_for(artifact_index, current_area)
+            if rendered.warnings:
+                return _PageLoopResult(returncode=1, warnings=rendered.warnings)
+            pages = rendered.pages
+            if not pages:
+                return _PageLoopResult(returncode=1)
 
-        _clear_terminal(run)
-        _print_artifact_header(
-            specs[artifact_index],
-            page_index=page_index,
-            page_count=len(pages),
-            artifact_index=artifact_index,
-            artifact_count=len(specs),
-        )
-        result = run(kitten_icat_command(pages[page_index], current_area))
-        if result.returncode != 0:
-            return _PageLoopResult(returncode=result.returncode)
-        _move_cursor_below_image(current_area)
-        return_pane_available = bool(return_pane_id)
-        print_page_prompt(
-            index=page_index,
-            page_count=len(pages),
-            artifact_index=artifact_index,
-            artifact_count=len(specs),
-            show_position=False,
-            return_pane_available=return_pane_available,
-        )
+            _clear_terminal(run)
+            _print_artifact_header(
+                specs[artifact_index],
+                page_index=page_index,
+                page_count=len(pages),
+                artifact_index=artifact_index,
+                artifact_count=len(specs),
+            )
+            result = run(kitten_icat_command(pages[page_index], current_area))
+            if result.returncode != 0:
+                return _PageLoopResult(returncode=result.returncode)
+            _move_cursor_below_image(current_area)
+            print_page_prompt(
+                index=page_index,
+                page_count=len(pages),
+                artifact_index=artifact_index,
+                artifact_count=len(specs),
+                show_position=False,
+                return_pane_available=return_pane_available,
+            )
+            needs_render = False
         available_keys = page_loop_available_keys(
             page_index,
             len(pages),
@@ -222,13 +229,14 @@ def run_artifact_sequence_loop(
         )
         while (key := read()) not in available_keys:
             pass
-        print()
         if key == "q":
             _clear_terminal(run)
             return _PageLoopResult()
         if key == _RETURN_TO_ACE_KEY and return_pane_id:
             select(return_pane_id)
             continue
+        print()
+        needs_render = True
         if key in {"j", "k", "r"}:
             next_page_index = page_index_after_key(page_index, key, len(pages))
             if next_page_index is None:
