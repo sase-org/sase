@@ -40,8 +40,9 @@ class AgentNotificationPollingMixin:
 
         # Muted arrivals do not toast/bell. Snooze expirations ring once per
         # batch because read-and-snoozed rows do not re-enter unread.
+        should_ring_bell = False
         if new_notifications:
-            self._ring_tmux_bell()
+            should_ring_bell = True
             for message, severity in format_batch_toasts(new_notifications):
                 self.notify(  # type: ignore[attr-defined]
                     message,
@@ -49,7 +50,7 @@ class AgentNotificationPollingMixin:
                     timeout=8,
                 )
         elif expired_snoozes:
-            self._ring_tmux_bell()
+            should_ring_bell = True
 
         self._last_unread_ids = current_ids  # type: ignore[attr-defined]
 
@@ -68,6 +69,11 @@ class AgentNotificationPollingMixin:
         self._reconcile_unread_from_completion_notifications(
             notifications, exclude_identity=selected_identity
         )
+
+        # Ring the bell last so the tmux subprocess never blocks the event loop
+        # ahead of indicator/toast updates.
+        if should_ring_bell:
+            await self._ring_tmux_bell_async()
 
     def _refresh_notification_count(self: Any) -> None:
         """Reload unread notification count from disk and update the indicator.
@@ -158,6 +164,16 @@ class AgentNotificationPollingMixin:
             return
         indicator.set_counts(counts.priority + counts.errors, counts.rest, counts.muted)
         self._reconcile_unread_from_cached_notifications()
+
+    async def _ring_tmux_bell_async(self: Any) -> None:
+        """Run the tmux bell on a worker thread.
+
+        Keeps `_ring_tmux_bell` as the sync leaf so fake apps and tests can
+        patch a single method without juggling threads.
+        """
+        import asyncio
+
+        await asyncio.to_thread(self._ring_tmux_bell)
 
     def _ring_tmux_bell(self: Any) -> None:
         """Ring tmux bell to notify user of agent completion."""
