@@ -536,8 +536,8 @@ default.
 
 The right-hand edge of each row carries a runtime suffix (`<start-timestamp> · <elapsed>`) right-aligned within the
 panel. Active rows that have actually started include a `🏃‍♂️` marker before the ticking elapsed duration; unread
-completed rows use a `😇` marker in the same suffix slot, or `😈` when the agent finished in the `FAILED` status bucket;
-and user-paused rows (`PLAN`, `QUESTION`, `WAITING INPUT`) use a `✋` marker while waiting for a human response. Pre-run
+completed rows use a `✅` marker in the same suffix slot, or `❌` when the agent finished in a `FAILED` state; and
+user-paused rows (`PLAN`, `QUESTION`, `WAITING INPUT`) use a `✋` marker while waiting for a human response. Pre-run
 `WAITING` rows with no `BEGIN` time hide the suffix so queued waits do not look like live runtime. For finished agents,
 the start-timestamp half is rendered as a humanized `(date_prefix, time)` pair sized to fit the existing 15-cell slot:
 
@@ -795,7 +795,7 @@ These work on all tabs:
 | `,i`                | Open Activity Dashboard modal                                                     |
 | `i`                 | Show notifications inbox                                                          |
 | `I`                 | Pin idle mode (IDLE stays until `I` is pressed again; keypresses don't clear it)  |
-| `Ctrl+G`            | Edit the most recent launchable VCS xprompt in the agent editor                   |
+| `Ctrl+G`            | Open the agent editor pre-filled with the most recent VCS xprompt prefix          |
 | `Ctrl+L`            | Dismiss all currently-visible toast notifications                                 |
 | `Q`                 | Stop axe daemon and quit                                                          |
 | `y`                 | Refresh current tab                                                               |
