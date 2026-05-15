@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from typing import TYPE_CHECKING, Any, cast
 
 from ._loading_finalize import finalize_agent_list, get_or_parse_agent_query
@@ -9,7 +11,10 @@ from ._loading_state import AgentLoadingStateMixin
 
 if TYPE_CHECKING:
     from ....agent_query import QueryExpr
+    from ...models import Agent
     from ...models.agent import AgentType
+
+log = logging.getLogger(__name__)
 
 
 class AgentLoadingFilterMixin(AgentLoadingStateMixin):
@@ -19,7 +24,12 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         """Return the parsed AST for the active agent search query."""
         return get_or_parse_agent_query(cast(Any, self))
 
-    def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
+    def _refilter_agents(
+        self,
+        *,
+        prior_pos: int | None = None,
+        refresh_content_index: bool = True,
+    ) -> None:
         """Lightweight agent refresh that skips disk I/O.
 
         Reuses the cached ``_agents_with_children`` list from the last full
@@ -59,6 +69,90 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
             selected_identity,
             save_unfiltered=False,
             prior_pos=prior_pos,
+        )
+        if refresh_content_index:
+            self._schedule_agent_content_search_index_refresh()
+
+    def _schedule_agent_content_search_index_refresh(self) -> None:
+        """Refresh the prepared content index for cached agents off-thread."""
+        query = getattr(self, "_agent_search_query", "") or ""
+        if not query:
+            self._agent_content_search_index = None
+            self._agent_content_search_refresh_generation = (
+                getattr(self, "_agent_content_search_refresh_generation", 0) + 1
+            )
+            return
+        agents = list(getattr(self, "_agents_with_children", []) or [])
+        if not agents:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+
+        generation = getattr(self, "_agent_content_search_refresh_generation", 0) + 1
+        self._agent_content_search_refresh_generation = generation
+        source_generation = getattr(self, "_agent_content_search_source_generation", 0)
+        source_identities = tuple(agent.identity for agent in agents)
+        fork_cache = getattr(self._agent_content_search_cache, "fork", None)
+        if not callable(fork_cache):
+            return
+        worker_cache = fork_cache()
+        task = loop.create_task(
+            self._run_agent_content_search_index_refresh(
+                worker_cache=worker_cache,
+                agents=agents,
+                query=query,
+                generation=generation,
+                source_generation=source_generation,
+                source_identities=source_identities,
+            )
+        )
+        self._agent_content_search_refresh_task = task  # type: ignore[attr-defined]
+
+    async def _run_agent_content_search_index_refresh(
+        self,
+        *,
+        worker_cache: Any,
+        agents: list[Agent],
+        query: str,
+        generation: int,
+        source_generation: int,
+        source_identities: tuple[tuple[AgentType, str, str | None], ...],
+    ) -> None:
+        """Worker body for cached-agent content index refresh."""
+        try:
+            index = await asyncio.to_thread(worker_cache.build_index, agents)
+        except Exception:
+            log.debug("background agent content index refresh failed", exc_info=True)
+            return
+        if generation != getattr(self, "_agent_content_search_refresh_generation", 0):
+            return
+        if query != (getattr(self, "_agent_search_query", "") or ""):
+            return
+        if source_generation != getattr(
+            self, "_agent_content_search_source_generation", 0
+        ):
+            return
+        current_agents = list(getattr(self, "_agents_with_children", []) or [])
+        if source_identities != tuple(agent.identity for agent in current_agents):
+            return
+
+        self._agent_content_search_cache.merge(worker_cache)
+        self._agent_content_search_index = index
+
+        on_agents_tab = self.current_tab == "agents"
+        selected_identity: tuple[AgentType, str, str | None] | None = None
+        if on_agents_tab and self._agents and 0 <= self.current_idx < len(self._agents):
+            selected_identity = self._agents[self.current_idx].identity
+        elif not on_agents_tab:
+            selected_identity = getattr(self, "_agents_last_identity", None)
+
+        self._agents = current_agents
+        self._finalize_agent_list(
+            on_agents_tab,
+            selected_identity,
+            save_unfiltered=False,
         )
 
     def _finalize_agent_list(

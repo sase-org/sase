@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -13,7 +14,10 @@ if TYPE_CHECKING:
     from ....agent_query import QueryExpr
     from ...models import Agent
     from ...models.agent import AgentType
-    from ...models.agent_content_search import AgentContentSearchCache
+    from ...models.agent_content_search import (
+        AgentContentSearchCache,
+        AgentContentSearchIndex,
+    )
     from ...models.agent_group_fold import AgentGroupFoldRegistry
     from ...models.agent_loader import AgentLoadState
     from ...models.fold_state import FoldStateManager
@@ -69,6 +73,10 @@ class AgentLoadingStateMixin:
     # Agent search/filter query
     _agent_search_query: str
     _agent_content_search_cache: AgentContentSearchCache
+    _agent_content_search_index: AgentContentSearchIndex | None
+    _agent_content_search_source_generation: int
+    _agent_content_search_refresh_generation: int
+    _agent_content_search_refresh_task: asyncio.Task[None] | None
     # Cached (raw_query, parsed_ast) so re-renders re-use the parse. ``None``
     # AST means an empty query (no filter). The cache is invalidated whenever
     # the raw query string changes.

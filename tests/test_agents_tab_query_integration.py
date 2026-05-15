@@ -16,6 +16,10 @@ import pytest
 
 from sase.ace.tui.actions.agents._loading import AgentLoadingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_content_search import (
+    AgentContentSearchCache,
+    AgentContentSearchIndex,
+)
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.fold_state import FoldStateManager
 
@@ -71,6 +75,9 @@ class FakeAgentApp(AgentLoadingMixin):
         ] = {}
         self._agent_search_query = query
         self._agent_content_search_cache = _FakeContentCache()  # type: ignore[assignment]
+        self._agent_content_search_index = None
+        self._agent_content_search_source_generation = 0
+        self._agent_content_search_refresh_generation = 0
         self._agent_query_cache = None
         self._agent_query_parse_error = None
         self._fold_manager = FoldStateManager()
@@ -141,6 +148,79 @@ def test_property_query_filters_correctly() -> None:
     )
 
     assert app._agents == [failed]
+
+
+def test_content_query_uses_prepared_index() -> None:
+    matching = _make_agent(cl_name="a")
+    missing = _make_agent(cl_name="b")
+
+    app = FakeAgentApp(query="text:needle")
+    app._agent_content_search_index = AgentContentSearchIndex(
+        {
+            matching.identity: "worker prepared needle",
+            missing.identity: "other text",
+        }
+    )
+    app._agents = [matching, missing]
+    app._finalize_agent_list(
+        on_agents_tab=False, selected_identity=None, save_unfiltered=True
+    )
+
+    assert app._agents == [matching]
+
+
+def test_missing_content_index_falls_back_to_metadata_only() -> None:
+    agent = _make_agent(cl_name="a")
+    cache = MagicMock()
+    cache.get_haystack.side_effect = AssertionError(
+        "finalizer must not read content files"
+    )
+    cache.prune = MagicMock()
+
+    app = FakeAgentApp(query="text:needle")
+    app._agent_content_search_cache = cache  # type: ignore[assignment]
+    app._agent_content_search_index = None
+    app._agents = [agent]
+    app._finalize_agent_list(
+        on_agents_tab=False, selected_identity=None, save_unfiltered=True
+    )
+
+    assert app._agents == []
+    cache.get_haystack.assert_not_called()
+    cache.prune.assert_called_once_with([])
+
+
+def test_content_matched_parent_keeps_workflow_children_visible() -> None:
+    parent = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="parent_cl",
+        agent_name="content_parent",
+        status="RUNNING",
+    )
+    child = _make_agent(
+        cl_name="child_cl",
+        agent_name="content_parent",
+        status="DONE",
+        parent_workflow="content_parent",
+    )
+    other = _make_agent(cl_name="other", status="DONE")
+
+    app = FakeAgentApp(query="needle")
+    app._agent_content_search_index = AgentContentSearchIndex(
+        {
+            parent.identity: "content needle",
+            child.identity: "",
+            other.identity: "",
+        }
+    )
+    app._agents = [parent, child, other]
+    app._finalize_agent_list(
+        on_agents_tab=False, selected_identity=None, save_unfiltered=True
+    )
+
+    assert parent in app._agents
+    assert child in app._agents
+    assert other not in app._agents
 
 
 # --- Parse-error fallback ----------------------------------------------------
@@ -257,3 +337,50 @@ def test_on_tab_finalizer_defers_selected_agent_file_refresh() -> None:
 
     assert refresh_calls == [{"list_changed": True, "defer_detail": True}]
     assert refresh_file_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_refilter_schedules_background_content_index_refresh(
+    tmp_path: Any,
+) -> None:
+    (tmp_path / "live_reply.md").write_text("BACKGROUND NEEDLE", encoding="utf-8")
+    agent = _make_agent(cl_name="metadata_miss", artifacts_dir=str(tmp_path))
+    app = FakeAgentApp(query="needle")
+    app._agent_content_search_cache = AgentContentSearchCache()
+    app._agents_with_children = [agent]
+    app._agents = [agent]
+
+    app._refilter_agents()
+
+    assert app._agents == []
+    task = app._agent_content_search_refresh_task
+    assert task is not None
+    await task
+
+    assert app._agent_content_search_index is not None
+    assert app._agents == [agent]
+
+
+@pytest.mark.asyncio
+async def test_stale_background_content_index_generation_is_ignored(
+    tmp_path: Any,
+) -> None:
+    (tmp_path / "live_reply.md").write_text("STALE NEEDLE", encoding="utf-8")
+    agent = _make_agent(cl_name="metadata_miss", artifacts_dir=str(tmp_path))
+    app = FakeAgentApp(query="needle")
+    app._agent_content_search_cache = AgentContentSearchCache()
+    app._agents_with_children = [agent]
+    app._agent_content_search_refresh_generation = 2
+    worker_cache = app._agent_content_search_cache.fork()
+
+    await app._run_agent_content_search_index_refresh(
+        worker_cache=worker_cache,
+        agents=[agent],
+        query="needle",
+        generation=1,
+        source_generation=0,
+        source_identities=(agent.identity,),
+    )
+
+    assert app._agent_content_search_index is None
+    assert app._agents == []

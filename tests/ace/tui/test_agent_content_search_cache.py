@@ -8,7 +8,10 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_content_search import AgentContentSearchCache
+from sase.ace.tui.models.agent_content_search import (
+    AgentContentSearchCache,
+    AgentContentSearchIndex,
+)
 
 
 def _make_agent(artifacts_dir: Path, **overrides: object) -> Agent:
@@ -173,6 +176,78 @@ def test_haystack_includes_chat_path_fallback(tmp_path: Path) -> None:
     cache = AgentContentSearchCache()
     haystack = cache.get_haystack(agent)
     assert "chat only content" in haystack
+
+
+def test_build_index_includes_all_agent_content_sources(tmp_path: Path) -> None:
+    from sase.ace.tui.models.agent import AttemptRecord
+
+    chat_path = tmp_path / "chat.md"
+    chat_path.write_text("CHAT FALLBACK", encoding="utf-8")
+    attempt_dir = tmp_path / "attempts" / "01"
+    attempt_dir.mkdir(parents=True)
+    attempt_path = attempt_dir / "live_reply.md"
+    attempt_path.write_text("ATTEMPT REPLY", encoding="utf-8")
+    response_path = tmp_path / "response.md"
+    response_path.write_text("FINAL RESPONSE", encoding="utf-8")
+    (tmp_path / "raw_xprompt.md").write_text("PROMPT BODY", encoding="utf-8")
+    (tmp_path / "live_reply.md").write_text("LIVE REPLY", encoding="utf-8")
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"chat_path": str(chat_path)}), encoding="utf-8"
+    )
+    agent = _make_agent(tmp_path, response_path=str(response_path))
+    agent.attempt_history = [
+        AttemptRecord(
+            attempt_number=1,
+            status="failed",
+            start_epoch=0.0,
+            end_epoch=1.0,
+            model=None,
+            used_fallback=False,
+            error_snippet="",
+            error_full="",
+            live_reply_path=str(attempt_path),
+            timestamps_path=str(attempt_dir / "live_reply_timestamps.jsonl"),
+        )
+    ]
+
+    index = AgentContentSearchCache().build_index([agent])
+    haystack = index.get_haystack(agent)
+
+    assert "prompt body" in haystack
+    assert "live reply" in haystack
+    assert "chat fallback" in haystack
+    assert "final response" in haystack
+    assert "attempt reply" in haystack
+
+
+def test_index_serves_haystacks_without_file_cache_reads(tmp_path: Path) -> None:
+    (tmp_path / "live_reply.md").write_text("INDEXED NEEDLE", encoding="utf-8")
+    agent = _make_agent(tmp_path)
+    cache = AgentContentSearchCache()
+    index = cache.build_index([agent])
+
+    def fail_get_haystack(_agent: Agent) -> str:
+        raise AssertionError("file-backed cache should not be consulted")
+
+    cache.get_haystack = fail_get_haystack  # type: ignore[method-assign]
+
+    assert index.get_haystack(agent) == "indexed needle"
+
+
+def test_cache_fork_populate_and_merge(tmp_path: Path) -> None:
+    (tmp_path / "live_reply.md").write_text("WORKER TEXT", encoding="utf-8")
+    agent = _make_agent(tmp_path)
+    ui_cache = AgentContentSearchCache()
+    worker_cache = ui_cache.fork()
+
+    index = worker_cache.build_index([agent])
+    assert isinstance(index, AgentContentSearchIndex)
+    assert ui_cache._cache == {}
+
+    ui_cache.merge(worker_cache)
+
+    assert str(tmp_path / "live_reply.md") in ui_cache._cache
+    assert "worker text" in index.get_haystack(agent)
 
 
 def test_substring_match_semantics(tmp_path: Path) -> None:

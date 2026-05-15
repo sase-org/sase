@@ -8,9 +8,10 @@ auto-refresh while a query is active does not re-read unchanged files.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import json
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from collections.abc import Iterable
 
 if TYPE_CHECKING:
@@ -20,6 +21,17 @@ if TYPE_CHECKING:
 # KB-sized in practice; this bounds worst-case memory if an agent has a
 # pathologically large transcript.
 _MAX_BYTES_PER_FILE = 512 * 1024
+
+
+@dataclass(frozen=True)
+class AgentContentSearchIndex:
+    """In-memory content haystacks keyed by stable agent identity."""
+
+    _haystacks_by_identity: dict[tuple[Any, str, str | None], str]
+
+    def get_haystack(self, agent: Agent) -> str:
+        """Return the prepared content haystack for *agent*, if present."""
+        return self._haystacks_by_identity.get(agent.identity, "")
 
 
 class AgentContentSearchCache:
@@ -48,6 +60,25 @@ class AgentContentSearchCache:
             if text:
                 parts.append(text)
         return "\n".join(parts)
+
+    def fork(self) -> AgentContentSearchCache:
+        """Return a shallow snapshot safe for worker-thread population."""
+        clone = type(self)()
+        clone._cache = dict(self._cache)
+        clone._meta_cache = dict(self._meta_cache)
+        return clone
+
+    def merge(self, other: AgentContentSearchCache) -> None:
+        """Merge cache state populated by a worker snapshot."""
+        self._cache.update(other._cache)
+        self._meta_cache.update(other._meta_cache)
+
+    def build_index(self, agents: Iterable[Agent]) -> AgentContentSearchIndex:
+        """Build an in-memory content index for *agents* using this cache."""
+        haystacks_by_identity = {
+            agent.identity: self.get_haystack(agent) for agent in agents
+        }
+        return AgentContentSearchIndex(haystacks_by_identity)
 
     def prune(self, active_agents: Iterable[Agent]) -> None:
         """Drop cache entries for paths no longer referenced by any agent."""

@@ -161,6 +161,9 @@ def finalize_agent_list(
         # Save unfiltered list (with children) for bundle/dismiss operations
         # that need to find child steps even when fold state is COLLAPSED.
         app._agents_with_children = list(app._agents)
+        app._agent_content_search_source_generation = (
+            getattr(app, "_agent_content_search_source_generation", 0) + 1
+        )
     app._agents, app._fold_counts = filter_agents_by_fold_state(
         app._agents, app._fold_manager
     )
@@ -174,12 +177,12 @@ def finalize_agent_list(
     if parsed_ast is not None:
         from ....agent_query import evaluate_agent_query
 
-        content_cache = app._agent_content_search_cache
+        content_index = getattr(app, "_agent_content_search_index", None)
         now = datetime.now()
 
         def _matches(agent: Agent) -> bool:
             return evaluate_agent_query(
-                parsed_ast, agent, now=now, content_cache=content_cache
+                parsed_ast, agent, now=now, content_cache=content_index
             )
 
         # Collect identities of matching parents so children stay visible
@@ -202,7 +205,7 @@ def finalize_agent_list(
         ]
         # Release cache entries for agents no longer in the list so
         # memory stays bounded across many refresh cycles.
-        content_cache.prune(app._agents)
+        app._agent_content_search_cache.prune(app._agents)
 
     # Apply status overrides (PLAN/PLAN APPROVED/QUESTION)
     loaded_identities = {a.identity for a in app._agents}

@@ -247,9 +247,16 @@ class StateInitMixin:
 
         # Lazy cache of lowercased prompt/reply content for the `/` filter.
         # Populated only when a search query is active.
-        from ..models.agent_content_search import AgentContentSearchCache
+        from ..models.agent_content_search import (
+            AgentContentSearchCache,
+            AgentContentSearchIndex,
+        )
 
         self._agent_content_search_cache = AgentContentSearchCache()
+        self._agent_content_search_index: AgentContentSearchIndex | None = None
+        self._agent_content_search_source_generation: int = 0
+        self._agent_content_search_refresh_generation: int = 0
+        self._agent_content_search_refresh_task: asyncio.Task[None] | None = None
 
         # Fold state for nested workflow steps
         self._fold_manager = FoldStateManager()

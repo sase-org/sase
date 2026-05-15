@@ -20,6 +20,7 @@ from ._loading_state import AgentLoadingStateMixin
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
+    from ...models.agent_content_search import AgentContentSearchIndex
     from ...models.agent_loader import AgentLoadState
 
 log = logging.getLogger(__name__)
@@ -78,6 +79,38 @@ def _compute_external_dismissal_merge(
 
 class AgentLoadingDiskMixin(AgentLoadingStateMixin):
     """Methods that read agent state from disk and prepare apply snapshots."""
+
+    def _prepare_agent_content_search_index_sync(
+        self,
+        agents: list[Agent],
+    ) -> AgentContentSearchIndex | None:
+        """Build a content index outside finalization for sync load callers."""
+        if not getattr(self, "_agent_search_query", ""):
+            self._agent_content_search_index = None
+            return None
+        worker_cache = self._agent_content_search_cache.fork()
+        index = worker_cache.build_index(agents)
+        self._agent_content_search_cache.merge(worker_cache)
+        self._agent_content_search_index = index
+        return index
+
+    async def _prepare_agent_content_search_index_async(
+        self,
+        agents: list[Agent],
+    ) -> AgentContentSearchIndex | None:
+        """Build a content index in a worker thread for async load callers."""
+        import asyncio
+
+        if not getattr(self, "_agent_search_query", ""):
+            self._agent_content_search_index = None
+            return None
+        worker_cache = self._agent_content_search_cache.fork()
+        index = await asyncio.to_thread(worker_cache.build_index, agents)
+        if not getattr(self, "_agent_search_query", ""):
+            return None
+        self._agent_content_search_cache.merge(worker_cache)
+        self._agent_content_search_index = index
+        return index
 
     def _external_dismissal_merge_result(
         self,
@@ -261,6 +294,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             set(self._dismissed_agents),
             bool(self.hide_non_run_agents),
         )
+        await self._prepare_agent_content_search_index_async(prep.filtered_agents)
         log.debug("agents async load: prep=%.3fs", time.perf_counter() - prep_start)
 
         apply_start = time.perf_counter()
@@ -315,6 +349,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             set(self._dismissed_agents),
             bool(self.hide_non_run_agents),
         )
+        self._prepare_agent_content_search_index_sync(prep.filtered_agents)
         self._apply_loaded_agents_prepared(
             prep,
             on_agents_tab=on_agents_tab,
