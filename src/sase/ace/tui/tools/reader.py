@@ -243,7 +243,7 @@ def _prefer_hook_records(entries: list[ToolCallEntry]) -> list[ToolCallEntry]:
     keep only the hook entries so the timeline is not double-counted.
     """
     hook_ids = {
-        entry.tool_use_id
+        (entry.runtime, entry.tool_use_id)
         for entry in entries
         if entry.source == "hook" and entry.tool_use_id
     }
@@ -252,7 +252,7 @@ def _prefer_hook_records(entries: list[ToolCallEntry]) -> list[ToolCallEntry]:
     return [
         entry
         for entry in entries
-        if entry.tool_use_id not in hook_ids or entry.source == "hook"
+        if (entry.runtime, entry.tool_use_id) not in hook_ids or entry.source == "hook"
     ]
 
 
@@ -265,7 +265,7 @@ def _collapse_tool_use_pairs(
     Other event types (``PostToolUse``, ``SubagentStart``, etc.) pass through
     unchanged. Schema-v1 records are returned as-is for back-compat.
     """
-    starts_by_id: dict[tuple[str, str], int] = {}
+    starts_by_id: dict[tuple[str, str, str], int] = {}
     merged: list[ToolCallEntry | None] = list(entries)
 
     for index, entry in enumerate(entries):
@@ -285,10 +285,10 @@ def _collapse_tool_use_pairs(
     return [entry for entry in merged if entry is not None]
 
 
-def _tool_pair_key(entry: ToolCallEntry) -> tuple[str, str]:
+def _tool_pair_key(entry: ToolCallEntry) -> tuple[str, str, str]:
     """Return the scope in which a provider tool-use id is unique."""
     scope = entry.session_id or entry.artifact_dir or ""
-    return entry.tool_use_id or "", scope
+    return entry.runtime, entry.tool_use_id or "", scope
 
 
 def _merge_use_and_result(start: ToolCallEntry, end: ToolCallEntry) -> ToolCallEntry:
