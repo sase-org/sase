@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING, cast
 
 from ...models.agent import AgentType
@@ -315,15 +316,23 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
 
         if load_state is not None and load_state.complete_history:
             self._agents_seen_complete_history = True
+            self._agents_history_reconcile_pending = False
         self._agent_load_state = load_state
+        # Defer the Tier 2 full-history reconcile: mark it pending rather
+        # than firing it immediately. The reconcile is the dominant
+        # startup span (~2.7 s on an established home dir) and the
+        # produced agents are not visible in the default Agents view
+        # until the user expands a fold / scrolls into history. The
+        # idle-tick trigger (``_maybe_trigger_idle_tier2_reconcile``)
+        # schedules it during a pause; a manual ``y`` refresh also
+        # promotes the next load to ``full_history=True``.
         if (
             load_state is not None
             and load_state.needs_full_history_reconcile
-            and not getattr(self, "_agents_refresh_pending_full_history", False)
-            and not getattr(self, "_agents_refresh_scheduled_full_history", False)
+            and not getattr(self, "_agents_history_reconcile_pending", False)
         ):
-            self._agents_refresh_pending = True
-            self._agents_refresh_pending_full_history = True
+            self._agents_history_reconcile_pending = True
+            self._agents_history_reconcile_armed_mono = time.monotonic()
 
         self._dismissed_agent_objects = trim_dismissed_agent_objects(
             prep.dismissed_agent_objects

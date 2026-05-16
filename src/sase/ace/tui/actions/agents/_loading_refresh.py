@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable
 
 from ._loading_state import AgentLoadingStateMixin
 
 log = logging.getLogger(__name__)
+
+# Seconds of input idleness required before the deferred Tier 2
+# full-history reconcile is scheduled in the background. Picked to land
+# well outside any j/k burst while still completing before the user
+# would typically reach for historic data.
+TIER2_RECONCILE_IDLE_THRESHOLD_S = 30.0
 
 
 class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
@@ -84,6 +91,35 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         self._agents_refresh_scheduled = True
         self._agents_refresh_scheduled_full_history = full_history
         self.call_later(self._run_agents_async_refresh)  # type: ignore[attr-defined]
+
+    def _maybe_trigger_idle_tier2_reconcile(
+        self, *, now_mono: float | None = None
+    ) -> bool:
+        """Schedule the deferred Tier 2 reconcile once the user is idle.
+
+        Returns True iff a refresh was scheduled. The reconcile is the
+        single largest startup span (~2.7 s) and is deferred until input
+        has been quiet for ``TIER2_RECONCILE_IDLE_THRESHOLD_S``; the
+        idle window is measured from the later of the last recorded
+        keypress and the moment the pending flag was armed, so users
+        who never touch input still get the reconcile in the
+        background.
+        """
+        if not getattr(self, "_agents_history_reconcile_pending", False):
+            return False
+        if self._agents_loading or self._agents_refresh_scheduled:
+            return False
+        cur = time.monotonic() if now_mono is None else now_mono
+        last_activity = getattr(self, "_last_activity_time", 0.0)
+        armed_at = getattr(self, "_agents_history_reconcile_armed_mono", 0.0)
+        reference = max(last_activity, armed_at)
+        if reference <= 0.0:
+            return False
+        if cur - reference < TIER2_RECONCILE_IDLE_THRESHOLD_S:
+            return False
+        self._agents_history_reconcile_pending = False
+        self._schedule_agents_async_refresh(full_history=True)
+        return True
 
     async def _run_agents_async_refresh(self) -> None:
         """Run the async agent refresh with loading guard.

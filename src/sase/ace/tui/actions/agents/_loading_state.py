@@ -105,6 +105,12 @@ class AgentLoadingStateMixin:
     _agents_refresh_pending_callbacks: list[Callable[[], None]]
     _agents_refresh_scheduled: bool
     _agents_refresh_scheduled_full_history: bool
+    # Sticky deferred Tier 2 reconcile state. ``_pending`` is True while
+    # the last load reported incomplete history and a full-history pass
+    # has not yet been scheduled; ``_armed_mono`` is the monotonic time
+    # at which the flag was first set, used by the idle-tick trigger.
+    _agents_history_reconcile_pending: bool
+    _agents_history_reconcile_armed_mono: float
     # Source-aware debounce gate for ``request_agents_refresh``: True while
     # a debounce timer is armed so a burst of fan-out spawn callbacks
     # collapses into a single deferred ``_schedule_agents_async_refresh``.

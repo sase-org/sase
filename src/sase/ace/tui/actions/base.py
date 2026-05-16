@@ -366,8 +366,18 @@ class BaseActionsMixin:
         if self.current_tab == "agents":
             # Route through the async path so the UI returns immediately.
             # _apply_loaded_agents triggers _refresh_agent_file after the
-            # background load completes.
-            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+            # background load completes. When the deferred Tier 2
+            # reconcile is still pending (incomplete history), promote
+            # this manual refresh to a full-history pass so ``y`` is an
+            # explicit escape hatch into the full agent set.
+            full_history = bool(
+                getattr(self, "_agents_history_reconcile_pending", False)
+            )
+            if full_history:
+                self._agents_history_reconcile_pending = False
+            self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
+                full_history=full_history,
+            )
         elif self.current_tab == "changespecs":
             self._schedule_changespecs_async_refresh()  # type: ignore[attr-defined]
         else:  # axe

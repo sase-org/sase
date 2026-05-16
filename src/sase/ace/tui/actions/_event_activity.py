@@ -40,6 +40,15 @@ class EventActivityMixin(EventHandlersBase):
                     write_activity_timestamp(activity_wall)
                 self._last_activity_flush = now_mono
         self._check_idle_state(now_mono)
+        # Deferred Tier 2 reconcile: scheduled lazily on input idleness
+        # to keep the ~2.7 s full-history scan out of the startup path
+        # (see _maybe_trigger_idle_tier2_reconcile).
+        try:
+            self._maybe_trigger_idle_tier2_reconcile(  # type: ignore[attr-defined]
+                now_mono=now_mono
+            )
+        except AttributeError:
+            pass
         self._countdown_remaining -= 1
         if self._countdown_remaining < 0:
             self._countdown_remaining = self.refresh_interval
