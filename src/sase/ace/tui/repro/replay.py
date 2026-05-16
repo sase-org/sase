@@ -163,6 +163,9 @@ def _patched_replay_environment(
         patch.object(AceApp, "_start_post_mount_background_loads", lambda _self: None)
     )
     stack.enter_context(
+        patch.object(AceApp, "_fire_startup_tier2_reconcile", lambda _self: None)
+    )
+    stack.enter_context(
         patch("sase.ace.dismissed_agents.load_dismissed_agents", return_value=set())
     )
     stack.enter_context(
