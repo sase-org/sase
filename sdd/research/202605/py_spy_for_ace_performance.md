@@ -1,5 +1,7 @@
 # `py-spy` for Debugging `sase ace` TUI Performance
 
+**Updated:** 2026-05-16. Command examples were checked against `py-spy 0.4.2`.
+
 ## Scope of this document
 
 `py-spy` is already mentioned in prior research as one option among many:
@@ -8,6 +10,8 @@
   comparison (py-spy vs pyinstrument vs Scalene vs viztracer).
 - `sdd/research/202605/ace_progressive_slowdown_debugging.md` §2 Option B
   (time-sliced recording) and §9 (live-attach diagnostics).
+- `sdd/research/202605/ace_live_introspection_tooling.md` — broader live
+  attach workflow with `strace`, in-process diagnostics, and capture bundles.
 
 This file is the **focused, sase-specific** companion: why `py-spy` solves
 problems the current tooling (`sase ace --profile` and `SASE_TUI_PERF=1`)
@@ -34,8 +38,9 @@ Reach for `py-spy` when one of these is true:
    `ace_handler.py`, restarting, or accepting `pyinstrument`'s aggregation. →
    `py-spy record` attached to a running pid.
 4. **You suspect non-Python time** (subprocess waits, native extensions,
-   blocking syscalls). py-spy samples the kernel stack via `--native`,
-   pyinstrument does not.
+   blocking syscalls). py-spy identifies the Python caller and can include
+   native extension frames with `--native`; pair it with `strace` when the
+   question is which syscall or child process is blocking.
 
 Reach for the existing `--profile` flag (pyinstrument) when you want a single
 aggregate report over a known run, or async-aware bucketing that py-spy
@@ -60,6 +65,13 @@ from the interpreter state. Consequences for sase:
 - **No asyncio task labels.** py-spy sees OS thread stacks, not coroutine
   identities. The May 15 captures use `pyinstrument(async_mode="enabled")`
   precisely so they can label coroutine frames; py-spy will not give you that.
+- **Current command surface.** As of `py-spy 0.4.2`, `record` and `top`
+  support `--idle` to include sleeping/I/O-waiting threads; `dump` does not
+  expose `--idle` and should be run as plain `py-spy dump --pid <pid>`.
+- **Privacy boundary.** `py-spy dump --locals` can print prompt text, paths,
+  environment-derived values, and other session data. Do not use it in default
+  capture recipes; reserve it for a targeted follow-up after deciding the extra
+  visibility is worth the exposure.
 
 ## Why this matters specifically for `sase ace`
 
@@ -84,27 +96,40 @@ The existing instrumentation has known shape:
 | "What's slow *right now* in this live session I forgot to instrument?" | `py-spy record --pid`        |
 | "Is it slower at minute 10 than minute 1?" | `py-spy record --format speedscope` (scrub time ranges) |
 | "It's hanging — what's it doing this instant?" | `py-spy dump --pid`          |
-| "Is the time inside Python or in C/syscalls?" | `py-spy record --native`     |
+| "Is time inside Python or a native extension?" | `py-spy record --native`     |
+| "Which syscall or child command is blocking?" | `py-spy dump`, then `strace -p <pid>` |
 
 ## Prerequisites on Linux
 
-`py-spy` uses `ptrace` to read the target. On most Linux distros the kernel
-restricts ptrace to the same uid *and* requires `CAP_SYS_PTRACE` for
-unprivileged attach. Two practical paths:
+`py-spy` reads the target's memory out of process. On Linux, attaching to an
+already-running process by PID is commonly blocked by `kernel.yama.ptrace_scope`
+unless you run as root, grant the binary `CAP_SYS_PTRACE`, or relax the sysctl.
+Launching the process through py-spy (`py-spy record -- python ...`) is less
+restricted, but that loses the main benefit for `sase ace`: attaching to the
+live TUI after it has become slow.
+
+Two practical paths for live attach:
 
 ```bash
 # Option A: run py-spy as root (simplest for one-off debugging)
-sudo py-spy record -o /tmp/ace.svg --pid $(pgrep -f "sase ace")
+sudo py-spy record -o /tmp/ace.svg --pid "$PID"
 
 # Option B: give the py-spy binary the ptrace capability once, then attach as user
-sudo setcap cap_sys_ptrace=eip $(which py-spy)
-py-spy record -o /tmp/ace.svg --pid $(pgrep -f "sase ace")
+sudo setcap cap_sys_ptrace+ep "$(which py-spy)"
+py-spy record -o /tmp/ace.svg --pid "$PID"
 ```
 
-If you cannot get ptrace, add `--nonblocking`. It samples without pausing
-the target so the read can be torn (occasional missing frames) but it works
-without elevated capability. For a TUI being debugged interactively, the
-trade-off is fine.
+`--nonblocking` is not a permissions workaround. It avoids pausing the target
+while py-spy samples, but py-spy still needs permission to read the process.
+Use `--nonblocking` only when the tiny sampling pause is itself a concern, and
+expect occasional partial frames or sampling errors.
+
+If `py-spy` runs inside Docker or a similarly restricted container, the
+container usually needs `SYS_PTRACE`; root inside the container is not enough
+when `process_vm_readv` is blocked by the runtime profile.
+
+If `pipx`, `uv tool`, or `pip` replaces the `py-spy` binary during an upgrade,
+re-run `setcap`; Linux file capabilities are attached to the binary file.
 
 Install (this repo already uses uv-style management; py-spy is a binary, not
 a Python lib):
@@ -115,6 +140,8 @@ pipx install py-spy           # preferred, isolates the binary
 cargo install py-spy          # if you have a Rust toolchain
 # or
 uv tool install py-spy
+# or
+pip install py-spy
 ```
 
 ## Finding the right PID
@@ -123,19 +150,22 @@ uv tool install py-spy
 process under `sase`. Match strictly:
 
 ```bash
-# Most reliable: the actual TUI app
-pgrep -af "python.*sase.*ace"
+# List candidates with full argv
+pgrep -fa "python.*sase.*ace"
 
 # If multiple workspaces are open
-pgrep -af "sase_[0-9]+.*ace"
+pgrep -fa "sase_[0-9]+.*ace"
 
-# Cross-check: pick the one with TTY attached and highest RSS
-ps -o pid,rss,tty,args -C python --sort=-rss | head
+# Pick one PID and cross-check its TTY, cwd, and RSS before attaching
+PID="$(pgrep -nf "python.*sase.*ace")"
+ps -o pid,ppid,stat,etime,rss,tty,args -p "$PID"
+readlink "/proc/$PID/cwd"
 ```
 
 Pick the PID whose argv matches the TUI you're actually using. Attaching to a
 spawned helper subprocess (e.g., a worker launched by `AgentList`) wastes the
-session.
+session. Avoid passing raw `$(pgrep -f ...)` into `py-spy` when more than one
+line may match; `py-spy --pid` expects a single PID.
 
 ## Recipe 1: "It feels frozen right now"
 
@@ -144,7 +174,8 @@ the current toolbox cannot reproduce. The TUI is unresponsive; you want to
 know what call is blocking the event loop *without restarting*:
 
 ```bash
-py-spy dump --pid $(pgrep -f "python.*sase.*ace")
+PID="$(pgrep -nf "python.*sase.*ace")"
+py-spy dump --pid "$PID"
 ```
 
 Output is the current Python stack of every thread. Expected suspects, based
@@ -172,10 +203,12 @@ re-confirm where time actually goes today:
 
 ```bash
 # Attach to a running sase ace and record for 5 minutes of normal use
+PID="$(pgrep -nf "python.*sase.*ace")"
 py-spy record \
-  --pid $(pgrep -f "python.*sase.*ace") \
+  --pid "$PID" \
   --duration 300 \
   --format speedscope \
+  --idle \
   --output /tmp/ace.speedscope
 ```
 
@@ -192,6 +225,9 @@ Open `/tmp/ace.speedscope` at https://speedscope.app/. Three views to consult:
   fix.
 
 Run with `--rate 250` (samples/sec) for higher resolution; default is 100.
+Keep `--idle` in this recipe because a TUI slowdown often includes time spent
+waiting in `poll`, `read`, `wait4`, or terminal I/O, and otherwise py-spy may
+filter out exactly the stack you care about.
 
 ## Recipe 3: Time-sliced flame for progressive slowdown
 
@@ -203,10 +239,12 @@ sketched. Concretely:
 sase ace
 
 # In terminal 2, immediately attach with a long duration
+PID="$(pgrep -nf "python.*sase.*ace")"
 py-spy record \
-  --pid $(pgrep -f "python.*sase.*ace") \
+  --pid "$PID" \
   --duration 1200 \
   --format speedscope \
+  --idle \
   --rate 200 \
   --output /tmp/ace-20min.speedscope
 ```
@@ -220,25 +258,39 @@ your degraders.
 This is the cheapest way to answer the question the §1 heartbeat telemetry
 also targets, *without* writing any code.
 
-## Recipe 4: Native stacks for subprocess / syscall stalls
+## Recipe 4: Separate native-extension time from syscall / subprocess stalls
 
-`_ring_tmux_bell` and the VCS resolution path are dominated by waits in C
-land (subprocess `poll`, `git` invocations). pyinstrument shows the Python
-frame that initiated the call but not the kernel wait. To see kernel-side
-time:
+`--native` is useful for C, C++, Cython, and Rust-extension frames inside the
+Python process. In sase, that mostly means validating whether a hot Python
+caller is spending time across the `sase_core_rs` boundary or another native
+extension. It does **not** profile a child `git`, `tmux`, or shell process as
+kernel time inside the parent.
 
 ```bash
-sudo py-spy record \
+PID="$(pgrep -nf "python.*sase.*ace")"
+py-spy record \
   --native \
-  --pid $(pgrep -f "python.*sase.*ace") \
+  --pid "$PID" \
   --duration 120 \
   --output /tmp/ace-native.svg
 ```
 
-`--native` requires root. The resulting SVG shows native C frames inline with
-Python frames; you can see `read`, `poll`, `wait4` etc. attributed to the
-Python caller. Useful for distinguishing "the Python code is slow" from "we
-are blocked on `git status` for 800 ms."
+The resulting SVG can show native frames inline with Python frames when symbols
+are available. If the normal dump shows `subprocess.run`, `_communicate`,
+`poll`, or `wait4`, switch to `strace` to answer the syscall question:
+
+```bash
+strace -p "$PID" -f -tt -T \
+  -e trace=read,write,openat,poll,ppoll,select,futex,recvfrom,wait4,clone \
+  -s 0
+```
+
+Use this pairing to distinguish three cases:
+
+- Python CPU: wide Python frames in py-spy, no long syscall in strace.
+- Native extension CPU: Python caller plus native frames under `--native`.
+- Blocking child process or syscall: py-spy shows the Python wait site; strace
+  names the syscall duration or child wait.
 
 ## Recipe 5: `py-spy top` for live exploration
 
@@ -246,12 +298,39 @@ When you don't yet have a hypothesis and want a quick "where is time going
 *right now*":
 
 ```bash
-py-spy top --pid $(pgrep -f "python.*sase.*ace")
+PID="$(pgrep -nf "python.*sase.*ace")"
+py-spy top --idle --pid "$PID"
 ```
 
 htop-style live ranking of hot functions, updated every second. Lower
 fidelity than a recording but immediate. Useful before deciding whether a
-full record is worth doing.
+full record is worth doing. Drop `--idle` when you want a CPU-only view, and
+try `--gil` when the question is specifically "which Python thread is holding
+the interpreter?" Be careful with `--gil` for native-extension work because it
+can hide extension time that releases the GIL.
+
+## Recipe 6: Leave a repeatable capture bundle
+
+When an agent is helping debug a live slow session, the useful artifact is not
+just one flame graph. Leave enough context that the next investigation can
+compare process state, open descriptors, and a short profile:
+
+```bash
+PID="$(pgrep -nf "python.*sase.*ace")"
+OUT="$HOME/.sase/perf/ace_live_$(date +%Y%m%d_%H%M%S)_$PID"
+mkdir -p "$OUT"
+
+ps -o pid,ppid,stat,etime,%cpu,%mem,rss,vsz,nlwp,wchan:32,tty,args \
+  -p "$PID" > "$OUT/ps.txt"
+cat "/proc/$PID/status" > "$OUT/proc_status.txt" 2>/dev/null || true
+ls -l "/proc/$PID/fd" > "$OUT/fds.txt" 2>/dev/null || true
+py-spy dump --pid "$PID" > "$OUT/py_spy_dump.txt"
+py-spy record --idle --format speedscope --pid "$PID" --duration 30 \
+  --rate 250 -o "$OUT/profile.speedscope"
+```
+
+Default this bundle to `~/.sase/perf/` rather than `/tmp` when the point is to
+preserve the investigation. Keep `/tmp` for one-off local experiments.
 
 ## Mapping py-spy findings back to current sase hot spots
 
@@ -289,6 +368,9 @@ Be honest about the boundary. py-spy is not the right tool for:
 - **Sub-millisecond per-keystroke costs.** Sampling at 100–250 Hz cannot
   resolve a 0.5 ms call that runs once per keypress. `SASE_TUI_PERF=1` and
   pyinstrument's trace mode are the right tools for that scale.
+- **Slow non-Python children.** `--subprocesses` follows Python child
+  processes. It will not explain why `git`, `tmux`, or a shell helper is slow;
+  use `strace -f` or direct command timing after py-spy points at the wait site.
 
 ## When to use py-spy vs. extend `--profile`
 
@@ -298,8 +380,8 @@ scrubbing covers most of the same use case **without modifying
 `ace_handler.py`**. Suggested heuristic:
 
 - **One-off debugging session, no commit needed**: py-spy. Faster and lower
-  friction. The investigation produces a `/tmp/*.speedscope` file you keep,
-  not source changes.
+  friction. The investigation produces a `*.speedscope` file or
+  `~/.sase/perf/ace_live_*` capture bundle, not source changes.
 - **You want every developer who hits the slowdown to capture the same data
   without learning a new tool**: extend `--profile`. The trade-off is
   maintenance burden in `ace_handler.py` against py-spy's ad-hoc nature.
@@ -325,13 +407,15 @@ cheapest single action with the highest information yield is:
 
 ```bash
 pipx install py-spy  # once
-sudo setcap cap_sys_ptrace=eip $(which py-spy)  # once
+sudo setcap cap_sys_ptrace+ep "$(which py-spy)"  # once
 
 # Then, against a live slow session:
+PID="$(pgrep -nf "python.*sase.*ace")"
 py-spy record \
-  --pid $(pgrep -f "python.*sase.*ace") \
+  --pid "$PID" \
   --duration 60 \
   --format speedscope \
+  --idle \
   --rate 200 \
   --output /tmp/ace.speedscope
 ```
@@ -354,3 +438,8 @@ they don't, you've found new ones.
 - `src/sase/main/ace_handler.py:62` — the existing `--profile` (pyinstrument)
   flag; py-spy is the no-source-change alternative.
 - `src/sase/ace/tui/util/perf.py` — `SASE_TUI_PERF=1` JK timer.
+- Upstream py-spy README and CLI help — `record`, `top`, `dump`, native
+  profiling, subprocess profiling, Linux/macOS/Docker permissions, and
+  `--nonblocking`: <https://github.com/benfred/py-spy>.
+- PyPI release metadata — latest checked version `0.4.2`, released
+  2026-04-24: <https://pypi.org/project/py-spy/>.
