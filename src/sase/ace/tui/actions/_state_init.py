@@ -233,6 +233,10 @@ class StateInitMixin:
         # ``_maybe_trigger_idle_tier2_reconcile``).
         self._agents_history_reconcile_pending: bool = False
         self._agents_history_reconcile_armed_mono: float = 0.0
+        # One-shot startup Tier 2 reconcile guard: armed on the first
+        # incomplete-history apply, fires once after
+        # ``STARTUP_TIER2_RECONCILE_DELAY_S``.
+        self._agents_startup_tier2_scheduled: bool = False
         self._agent_load_state: AgentLoadState | None = None
         self._agents_seen_complete_history: bool = False
         self._agents_repro_capture: Any = None

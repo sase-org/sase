@@ -19,6 +19,7 @@ from ._loading_compute import (
 )
 from ._dismiss_memory import trim_dismissed_agent_objects
 from ._loading_helpers import is_always_visible
+from ._loading_refresh import STARTUP_TIER2_RECONCILE_DELAY_S
 from ._loading_state import AgentLoadingStateMixin
 
 if TYPE_CHECKING:
@@ -333,6 +334,12 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         ):
             self._agents_history_reconcile_pending = True
             self._agents_history_reconcile_armed_mono = time.monotonic()
+            if not getattr(self, "_agents_startup_tier2_scheduled", False):
+                self._agents_startup_tier2_scheduled = True
+                self.set_timer(  # type: ignore[attr-defined]
+                    STARTUP_TIER2_RECONCILE_DELAY_S,
+                    self._fire_startup_tier2_reconcile,  # type: ignore[attr-defined]
+                )
 
         self._dismissed_agent_objects = trim_dismissed_agent_objects(
             prep.dismissed_agent_objects

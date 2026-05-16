@@ -16,6 +16,13 @@ log = logging.getLogger(__name__)
 # would typically reach for historic data.
 TIER2_RECONCILE_IDLE_THRESHOLD_S = 30.0
 
+# Delay (seconds) between the first incomplete-history Tier 1 apply and
+# the one-shot startup Tier 2 reconcile. Long enough for the initial
+# Tier 1 paint to land and for a typical first j/k burst to clear,
+# short enough that users who launch and immediately interact still see
+# the full agent set within ~5 s of launch.
+STARTUP_TIER2_RECONCILE_DELAY_S = 2.0
+
 
 class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
     """Methods that debounce and schedule asynchronous agent refreshes."""
@@ -120,6 +127,25 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         self._agents_history_reconcile_pending = False
         self._schedule_agents_async_refresh(full_history=True)
         return True
+
+    def _fire_startup_tier2_reconcile(self) -> None:
+        """One-shot startup Tier 2 reconcile trigger.
+
+        Fires ~``STARTUP_TIER2_RECONCILE_DELAY_S`` after the first
+        incomplete-history apply so the user sees the full agent set
+        within a few seconds of launching ``sase ace``, while still
+        giving the initial Tier 1 paint a head start on the UI thread.
+        """
+        if not getattr(self, "_agents_history_reconcile_pending", False):
+            return
+        if self._agents_loading or self._agents_refresh_scheduled:
+            # Another path already arranged a reload; either the next
+            # apply will land complete-history or the pending flag will
+            # still be set, in which case the idle / manual paths
+            # cover us.
+            return
+        self._agents_history_reconcile_pending = False
+        self._schedule_agents_async_refresh(full_history=True)
 
     async def _run_agents_async_refresh(self) -> None:
         """Run the async agent refresh with loading guard.

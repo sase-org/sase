@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-16 19:07:50
-status: wip
+status: done
 prompt: sdd/prompts/202605/startup_tier2_reconcile.md
 ---
 # One-shot Startup Tier 2 Full-History Reconcile

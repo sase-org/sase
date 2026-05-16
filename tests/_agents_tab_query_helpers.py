@@ -7,6 +7,7 @@ Textual widgets.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 from unittest.mock import MagicMock
@@ -79,7 +80,13 @@ class FakeAgentApp(AgentLoadingMixin):
         self._grouping_mode = GroupingMode.STANDARD
         self._agents_loading = False
         self._agents_first_load_done = True
+        self._agents_startup_tier2_scheduled = False
+        self.timer_calls: list[tuple[float, Callable[[], Any]]] = []
         self.notify = MagicMock()  # type: ignore[assignment]
+
+    def set_timer(self, delay: float, callback: Callable[[], Any]) -> Any:
+        self.timer_calls.append((delay, callback))
+        return None
 
     # Stubs for methods the finalizer calls when on agents tab — not
     # exercised because our fake stays on changespecs tab.

@@ -18,6 +18,7 @@ import pytest
 
 from sase.ace.tui.actions.agents._loading_refresh import (
     AgentLoadingRefreshMixin,
+    STARTUP_TIER2_RECONCILE_DELAY_S,
     TIER2_RECONCILE_IDLE_THRESHOLD_S,
 )
 from sase.ace.tui.util.nav_gate import NavigationGate
@@ -36,6 +37,7 @@ class _FakeRefreshApp(AgentLoadingRefreshMixin):
         self._agents_refresh_debounce_armed = False
         self._agents_history_reconcile_pending = False
         self._agents_history_reconcile_armed_mono = 0.0
+        self._agents_startup_tier2_scheduled = False
         self._last_activity_time = 0.0
         self._nav_gate = NavigationGate(window_s=0.25)
         self._scheduled: list[Any] = []
@@ -217,3 +219,132 @@ async def test_idle_trigger_routes_through_async_refresh() -> None:
     assert fired is True
     await app._run_agents_async_refresh()
     assert captured == [True]
+
+
+def _make_incomplete_load_state() -> Any:
+    from sase.ace.tui.models.agent_loader import AgentLoadState
+
+    return AgentLoadState(
+        tier="tier1",
+        complete_history=False,
+        artifact_source="artifact_index",
+        used_artifact_index=True,
+    )
+
+
+def _make_complete_load_state() -> Any:
+    from sase.ace.tui.models.agent_loader import AgentLoadState
+
+    return AgentLoadState(
+        tier="tier2",
+        complete_history=True,
+        artifact_source="source_scan",
+        used_artifact_index=False,
+    )
+
+
+def _apply_load(app: Any, load_state: Any) -> None:
+    from sase.ace.tui.actions.agents._loading_compute import PreparedApplyData
+
+    app._apply_loaded_agents_prepared(
+        PreparedApplyData(
+            filtered_agents=[],
+            has_always_visible=False,
+            hidden_count=0,
+            hideable_agents=[],
+            dismissed_agent_objects=[],
+        ),
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=load_state,
+        persist_dismissed_changes=False,
+    )
+
+
+def test_apply_arms_startup_tier2_timer() -> None:
+    """First incomplete-history apply arms the one-shot startup timer."""
+    from tests._agents_tab_query_helpers import FakeAgentApp
+
+    app = FakeAgentApp()
+    app._agents_history_reconcile_pending = False
+    app._agents_startup_tier2_scheduled = False
+
+    _apply_load(app, _make_incomplete_load_state())
+
+    assert app._agents_startup_tier2_scheduled is True
+    assert len(app.timer_calls) == 1
+    delay, callback = app.timer_calls[0]
+    assert delay == STARTUP_TIER2_RECONCILE_DELAY_S
+    assert callback == app._fire_startup_tier2_reconcile
+
+
+def test_apply_does_not_double_arm_startup_tier2_timer() -> None:
+    """Subsequent incomplete-history applies must not re-arm the timer."""
+    from tests._agents_tab_query_helpers import FakeAgentApp
+
+    app = FakeAgentApp()
+    app._agents_history_reconcile_pending = False
+    app._agents_startup_tier2_scheduled = False
+
+    _apply_load(app, _make_incomplete_load_state())
+    # Second incomplete-history apply — e.g. a periodic Tier 1 auto-refresh
+    # that landed before the startup timer fired.
+    app._agents_history_reconcile_pending = False  # cleared by some other path
+    _apply_load(app, _make_incomplete_load_state())
+
+    assert len(app.timer_calls) == 1
+
+
+def test_apply_complete_history_skips_startup_arm() -> None:
+    """If Tier 1 already returned complete history, no timer is armed."""
+    from tests._agents_tab_query_helpers import FakeAgentApp
+
+    app = FakeAgentApp()
+    app._agents_history_reconcile_pending = False
+    app._agents_startup_tier2_scheduled = False
+    app._agents_seen_complete_history = False
+
+    _apply_load(app, _make_complete_load_state())
+
+    assert app._agents_startup_tier2_scheduled is False
+    assert app.timer_calls == []
+    assert app._agents_history_reconcile_pending is False
+
+
+def test_startup_trigger_fires_full_history_refresh() -> None:
+    """The startup trigger schedules a full-history refresh when pending."""
+    app = _FakeRefreshApp()
+    app._agents_history_reconcile_pending = True
+
+    app._fire_startup_tier2_reconcile()
+
+    assert app._agents_history_reconcile_pending is False
+    assert app._agents_refresh_scheduled is True
+    assert app._agents_refresh_scheduled_full_history is True
+    assert len(app._scheduled) == 1
+
+
+def test_startup_trigger_noop_when_flag_clear() -> None:
+    """If the pending flag was cleared (e.g. by the idle path), no schedule."""
+    app = _FakeRefreshApp()
+    app._agents_history_reconcile_pending = False
+
+    app._fire_startup_tier2_reconcile()
+
+    assert app._agents_refresh_scheduled is False
+    assert app._agents_refresh_scheduled_full_history is False
+    assert app._scheduled == []
+
+
+def test_startup_trigger_noop_when_loading() -> None:
+    """In-flight refresh defers to the idle/manual fallback paths."""
+    app = _FakeRefreshApp()
+    app._agents_history_reconcile_pending = True
+    app._agents_loading = True
+
+    app._fire_startup_tier2_reconcile()
+
+    # Pending flag preserved so idle / manual paths can still trigger.
+    assert app._agents_history_reconcile_pending is True
+    assert app._agents_refresh_scheduled is False
+    assert app._scheduled == []
