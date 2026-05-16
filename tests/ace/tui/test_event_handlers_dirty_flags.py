@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from sase.ace.tui.actions._event_refresh import AGENTS_LOAD_MIN_INTERVAL_SECONDS
 from sase.ace.tui.actions.event_handlers import (
     FULL_SANITY_REFRESH_SECONDS,
     PROMPT_INPUT_DEFER_SECONDS,
@@ -44,6 +45,7 @@ class _FakeApp(EventHandlersMixin):
         self._dirty_notifications = False
         self._artifact_change_defer_pending = False
         self._last_full_sanity_refresh = time.monotonic()
+        self._last_agents_load_mono = 0.0
         self.deferred_calls: list[tuple[float, Callable[[], Any]]] = []
         self.refresh_calls: list[str] = []
 
@@ -128,6 +130,79 @@ async def test_sanity_floor_forces_refresh_when_overdue() -> None:
     app._last_full_sanity_refresh = time.monotonic() - FULL_SANITY_REFRESH_SECONDS - 1.0
     await app._on_auto_refresh()
     assert "axe" in app.refresh_calls
+    assert "agents" in app.refresh_calls
+
+
+@pytest.mark.asyncio
+async def test_off_tab_dirty_agents_does_not_load_and_keeps_flag_set() -> None:
+    """Auto-refresh while off the agents tab leaves the loader untouched.
+
+    The dirty flag must persist so the next eligible tick (tab switch or
+    sanity floor) picks up the deferred load.
+    """
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "changespecs"
+    app._dirty_agents = True
+    await app._on_auto_refresh()
+    assert "agents" not in app.refresh_calls
+    assert app._dirty_agents is True
+
+
+@pytest.mark.asyncio
+async def test_off_tab_sanity_tick_still_loads_agents() -> None:
+    """Sanity-floor refresh runs the loader even when off the agents tab."""
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "changespecs"
+    app._dirty_agents = True
+    app._last_full_sanity_refresh = time.monotonic() - FULL_SANITY_REFRESH_SECONDS - 1.0
+    await app._on_auto_refresh()
+    assert "agents" in app.refresh_calls
+    assert app._dirty_agents is False
+
+
+@pytest.mark.asyncio
+async def test_debounce_collapses_back_to_back_agent_loads() -> None:
+    """Two auto-refresh ticks inside the debounce window only load once."""
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "agents"
+    app._dirty_agents = True
+    await app._on_auto_refresh()
+    assert app.refresh_calls.count("agents") == 1
+    # Re-arm the dirty flag (simulating inotify) and tick again well inside
+    # the debounce window.
+    app._dirty_agents = True
+    await app._on_auto_refresh()
+    assert app.refresh_calls.count("agents") == 1
+    # Dirty flag stays set so the next eligible tick will retry.
+    assert app._dirty_agents is True
+
+
+@pytest.mark.asyncio
+async def test_debounce_window_clears_after_interval() -> None:
+    """Once the debounce window elapses, the next tick loads again."""
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "agents"
+    app._dirty_agents = True
+    await app._on_auto_refresh()
+    assert app.refresh_calls.count("agents") == 1
+    # Pretend the previous load happened a full window ago.
+    app._last_agents_load_mono = (
+        time.monotonic() - AGENTS_LOAD_MIN_INTERVAL_SECONDS - 0.1
+    )
+    app._dirty_agents = True
+    await app._on_auto_refresh()
+    assert app.refresh_calls.count("agents") == 2
+
+
+@pytest.mark.asyncio
+async def test_debounce_bypassed_by_sanity_floor() -> None:
+    """A sanity-due tick must run the loader even inside the debounce window."""
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "agents"
+    app._dirty_agents = True
+    app._last_agents_load_mono = time.monotonic()  # debounce active
+    app._last_full_sanity_refresh = time.monotonic() - FULL_SANITY_REFRESH_SECONDS - 1.0
+    await app._on_auto_refresh()
     assert "agents" in app.refresh_calls
 
 

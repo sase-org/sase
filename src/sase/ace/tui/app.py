@@ -356,7 +356,15 @@ class AceApp(
                 # to scheduling an async refresh, so the cold-load arm picks
                 # up the same loading-row paint as ``on_mount``.
                 self._refilter_agents()
-                self._schedule_agents_async_refresh()
+                # Only re-fetch on tab switch when there's pending work to
+                # consume — the auto-refresh path tab-gates the loader, so
+                # switching to a clean agents view should not pay the load
+                # cost. Guard against early-startup tab-watch ticks.
+                if getattr(self, "_dirty_agents", False) and not getattr(
+                    self, "_agents_loading", False
+                ):
+                    if hasattr(self, "_schedule_agents_async_refresh"):
+                        self._schedule_agents_async_refresh()
         else:  # axe
             changespecs_view.add_class("hidden")
             agents_view.add_class("hidden")

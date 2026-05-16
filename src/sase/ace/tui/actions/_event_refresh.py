@@ -13,6 +13,11 @@ from ._event_base import EventHandlersBase
 # net for missed events (NFS, container bind-mount edge cases, etc.).
 FULL_SANITY_REFRESH_SECONDS = 60.0
 PROMPT_INPUT_DEFER_SECONDS = 0.25
+# Minimum spacing between successive ``_load_agents_async`` calls from the
+# auto-refresh tick. The loader is the dominant cost on every refresh, so
+# this floor caps the worst case to one load per window regardless of how
+# often the dirty flag is re-armed by inotify. Sanity refreshes bypass it.
+AGENTS_LOAD_MIN_INTERVAL_SECONDS = 5.0
 
 
 class EventRefreshMixin(EventHandlersBase):
@@ -164,6 +169,20 @@ class EventRefreshMixin(EventHandlersBase):
             self._dirty_axe = False
 
         agents_due = _should_refresh("_dirty_agents")
+        # Tab-gate: when the watcher is the source of truth, only pay
+        # for the (expensive) agent load while the user is actually
+        # looking at the agents tab. The sanity-floor escape hatch
+        # below keeps things converging even if the user lives on a
+        # different tab forever and we missed an inotify event.
+        if agents_due and not sanity_due and self.current_tab != "agents":
+            agents_due = False
+        # Debounce: floor the auto-refresh tick to one load per window
+        # regardless of how often inotify re-arms ``_dirty_agents``.
+        # Leaves the dirty flag set so the next eligible tick retries.
+        if agents_due and not sanity_due:
+            since_last = now_mono - getattr(self, "_last_agents_load_mono", 0.0)
+            if since_last < AGENTS_LOAD_MIN_INTERVAL_SECONDS:
+                agents_due = False
         # Notification polling is its own surface so an idle tick (no
         # new notifications) skips the on-disk snapshot read. The
         # gating mirrors the other surfaces: poll on every tick when
@@ -192,6 +211,7 @@ class EventRefreshMixin(EventHandlersBase):
                 await self._load_agents_async()  # type: ignore[attr-defined]
             finally:
                 self._agents_loading = False
+                self._last_agents_load_mono = time.monotonic()
             self._dirty_agents = False
 
         if self.current_tab == "changespecs" and _should_refresh("_dirty_changespecs"):

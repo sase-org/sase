@@ -101,6 +101,7 @@ class StateInitMixin:
         self._dirty_notifications: bool = True
         self._artifact_change_defer_pending: bool = False
         self._last_full_sanity_refresh: float = 0.0
+        self._last_agents_load_mono: float = 0.0
 
         # Hint mode state
         self._hint_mode_active: bool = False
