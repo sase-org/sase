@@ -44,9 +44,10 @@ an agent to walk over, look at the live process, and report. That capability is
 the gap this document fills.
 
 Critical constraint: `sase ace` is a Textual app on a TTY. Attaching cannot
-disturb the terminal, cannot pause the loop for visible time, and ideally
-shouldn't require root or sudo. All recommended tools below meet those
-constraints.
+disturb the terminal, should not pause the loop for visible time, and ideally
+shouldn't require root or sudo. The default tools below meet that bar in
+development practice; use `py-spy --nonblocking` when even a tiny sampling
+pause is unacceptable.
 
 ---
 
@@ -54,16 +55,19 @@ constraints.
 
 For an agent to debug a live laggy `sase ace`:
 
-1. **First reach: `py-spy dump --pid <PID>`.** No setup, no permission prompts
-   on most distros (CAP_SYS_PTRACE may be needed), zero perturbation. Returns
-   the current stack of every thread. If the main thread is parked deep inside
-   `subprocess.run` / `socket.recv` / `Path.read_text` / a `Syntax._get_syntax`
-   call, you have the answer in one shot.
-2. **Second reach: `py-spy record --format speedscope --pid <PID> --duration
-   30`.** Capture ~30 seconds of stack samples while the user reproduces the
-   lag, open in <https://speedscope.app/>. The time-ordered "left-heavy"
-   speedscope view localises the freeze to a specific call tree without
-   restarting the process.
+1. **First reach: `py-spy dump --idle --pid <PID>`.** No code changes, no
+   restart, and very low perturbation. `--idle` is important for hangs because
+   py-spy otherwise hides threads it believes are sleeping; for a TUI freeze,
+   the "idle" stack may be exactly the blocked `poll`, `read`, or `wait4` you
+   need. If the main thread is parked deep inside `subprocess.run` /
+   `socket.recv` / `Path.read_text` / a `Syntax._get_syntax` call, you have the
+   answer in one shot.
+2. **Second reach: `py-spy record --idle --format speedscope --pid <PID>
+   --duration 30`.** Capture ~30 seconds of stack samples while the user
+   reproduces the lag, open in <https://speedscope.app/>. The time-ordered
+   speedscope views localise the freeze to a specific call tree without
+   restarting the process. Add `--nonblocking` if even short ptrace pauses are
+   unacceptable, knowing that samples may contain occasional partial frames.
 3. **Third reach: `py-spy top --pid <PID>`.** Live `htop`-style view of which
    Python functions are burning CPU right now. Best when the lag is
    *intermittent* and you want to watch it happen.
@@ -74,6 +78,28 @@ For an agent to debug a live laggy `sase ace`:
 5. **For long-lived sessions where the user wants the agent to "just check
    periodically":** combine `py-spy dump` with a structured artifact written
    to `~/.sase/perf/` so the next agent session can see history.
+
+The highest-leverage gap in the previous draft was not a missing profiler; it
+was the lack of a **repeatable agent capture bundle**. A single py-spy command
+answers many hangs, but an agent should always leave a timestamped directory
+with the stack, process metadata, fd census, and, when needed, a short profile:
+
+```bash
+PID="$(pgrep -nf 'sase ace')"
+OUT="$HOME/.sase/perf/ace_live_$(date +%Y%m%d_%H%M%S)_$PID"
+mkdir -p "$OUT"
+
+ps -o pid,ppid,stat,etime,%cpu,%mem,rss,vsz,nlwp,wchan:32,cmd -p "$PID" > "$OUT/ps.txt"
+cat "/proc/$PID/status" > "$OUT/proc_status.txt" 2>/dev/null || true
+ls -l "/proc/$PID/fd" > "$OUT/fds.txt" 2>/dev/null || true
+py-spy dump --idle --pid "$PID" > "$OUT/py_spy_dump.txt"
+py-spy record --idle --format speedscope --pid "$PID" --duration 30 \
+  --rate 250 -o "$OUT/profile.speedscope"
+```
+
+Do not use `py-spy dump --locals` in the default agent workflow. It can expose
+prompt text, paths, tokens, or other user data. Use it only after a targeted
+privacy tradeoff.
 
 The next two sections detail each tool, what it sees and doesn't see, and the
 exact commands an agent should run. The section after that proposes a small
@@ -90,9 +116,9 @@ respond":
 
 | Condition | Where time is spent | Right tool |
 |---|---|---|
-| Main thread parked in a blocking syscall (file read, subprocess.run, socket.recv, tmux Popen) | Kernel, with Python stack frozen in C extension | `py-spy dump` (sees the Python frame holding the syscall) + `strace -p` (sees the syscall) |
+| Main thread parked in a blocking syscall (file read, subprocess.run, socket.recv, tmux Popen) | Kernel, with Python stack frozen in C extension | `py-spy dump --idle` (sees the Python frame holding the syscall) + `strace -p` (sees the syscall) |
 | Main thread in CPU-bound Python (large `Syntax._get_syntax`, `Compositor._render_chops`, render fan-out) | Python interpreter | `py-spy top` / `py-spy record` |
-| Asyncio event loop scheduled work piled up but the loop itself is fine | Coroutines awaiting on each other | `py-spy dump` shows `asyncio.run_until_complete` idle; need in-process introspection (`asyncio.all_tasks()`, `loop._scheduled`) |
+| Asyncio event loop scheduled work piled up but the loop itself is fine | Coroutines awaiting on each other | `py-spy dump --idle` shows `asyncio.run_until_complete` idle; need in-process introspection (`asyncio.all_tasks()`, `loop._scheduled`) |
 | Tons of small per-frame work, no single offender | Spread across many frames | `py-spy record` — the time-ordered view aggregates the spread |
 
 The prior audits (`tui_blocking_audit.md`, `tui_main_thread_blocking_v2.md`)
@@ -116,12 +142,13 @@ Three commands cover every case relevant to TUI lag:
 **Stack dump (instant snapshot, the "what is it doing right now" answer):**
 
 ```bash
-py-spy dump --pid "$(pgrep -nf 'sase ace')"
+py-spy dump --idle --pid "$(pgrep -nf 'sase ace')"
 ```
 
 Output is one stack per thread, with Python frames interleaved with the
-native frames they sit on. The main-thread top frame answers the question
-the user is asking. Typical things to look for:
+native frames only when native sampling is enabled and symbols are available.
+For the first pass, read the Python stack. The main-thread top frame answers
+the question the user is asking. Typical things to look for:
 
 - `subprocess.Popen._communicate` → blocked on subprocess pipe; look up the
   call stack for the caller (e.g. `_ring_tmux_bell`, `compute_diff_cache_key`).
@@ -154,7 +181,7 @@ slow during typing" case where a single dump is too small a sample.
 PID="$(pgrep -nf 'sase ace')"
 mkdir -p ~/.sase/perf
 OUT="$HOME/.sase/perf/ace_live_$(date +%Y%m%d_%H%M%S).speedscope"
-py-spy record --format speedscope --pid "$PID" --duration 30 --rate 250 -o "$OUT"
+py-spy record --idle --format speedscope --pid "$PID" --duration 30 --rate 250 -o "$OUT"
 echo "Open in https://speedscope.app/ — drag $OUT in"
 ```
 
@@ -170,14 +197,19 @@ freezes.
   default), `py-spy` needs `sudo` or `setcap cap_sys_ptrace+ep
   "$(which py-spy)"`. Document this clearly so the user does it once.
 - On macOS, codesigning is required; `py-spy` ships signed builds.
-- `py-spy` does not see C-level work inside Rust extensions (e.g.
-  `sase_core_rs`). It *does* show the Python frame that called into Rust, so
-  you can identify Rust hotspots by their call sites; you just can't see what
-  the Rust code is doing internally. If a Rust hotspot is suspected, use the
-  Rust core's own profiling story (see §3.2).
+- `py-spy --native` can sample native extension frames on supported platforms,
+  but the result depends on symbols and can be noisier. For `sase_core_rs`,
+  expect the normal Python-mode dump to show the Python call site first; use
+  `--native` or `perf` only after that call site points at the Rust boundary.
+- `py-spy --subprocesses` is useful only for Python child processes. It will
+  not explain a slow `tmux`, `git`, or shell command; use `strace` for those.
 - Sampling is statistical — `py-spy top` rate-of-sampling defaults to 100
   Hz, so anything faster than ~10ms can be missed. For TUI freezes that
   matter (≥50 ms), this is fine.
+- `--nonblocking` avoids even brief sampling pauses, but because py-spy reads
+  interpreter memory while the process is moving, the tradeoff is less precise
+  or partial frames. Use it for repeated `record`/`top` captures, not as a
+  reflex for the first `dump`.
 
 ### 1.2 strace (when the freeze is in a syscall py-spy can't name)
 
@@ -280,6 +312,12 @@ async def handle(reader, writer):
         payload["count"] = len(tasks)
         payload["by_name"] = dict(Counter(t.get_name() for t in tasks))
         payload["stacks"] = [_task_top_frame(t) for t in list(tasks)[:20]]
+    elif cmd == "loop":
+        loop = asyncio.get_running_loop()
+        payload["debug"] = loop.get_debug()
+        payload["slow_callback_duration"] = loop.slow_callback_duration
+        payload["ready_count"] = len(getattr(loop, "_ready", ()))
+        payload["scheduled_count"] = len(getattr(loop, "_scheduled", ()))
     elif cmd == "gc":
         payload["counts"] = list(gc.get_count())
         payload["objects"] = len(gc.get_objects())
@@ -287,6 +325,8 @@ async def handle(reader, writer):
     elif cmd == "dom":
         # injected at construction
         payload["widget_count"] = endpoint.app.query("*").__len__()
+        payload["workers"] = _worker_census(endpoint.app)
+        payload["timers"] = _timer_census(endpoint.app)
     elif cmd == "perf":
         payload["timer"] = endpoint.app._jk_perf.summary()
     writer.write((json.dumps(payload) + "\n").encode())
@@ -309,6 +349,7 @@ Client side (the agent calls this):
 PID="$(pgrep -nf 'sase ace')"
 SOCK="$HOME/.sase/perf/ace-debug-$PID.sock"
 printf 'tasks\n' | nc -U "$SOCK"
+printf 'loop\n'  | nc -U "$SOCK"
 printf 'gc\n'    | nc -U "$SOCK"
 ```
 
@@ -317,10 +358,38 @@ proposed): a socket is queryable, returns structured data, and lets the
 agent ask a series of questions without re-triggering the user's terminal
 each time. SIGUSR1 is still a fine backup but is one-shot per signal.
 
-Cost: ~80 lines of code plus an env-gate. Risk: a unix socket left exposed
-needs `0600` permissions and a per-PID name (already in the snippet).
+Cost: ~120 lines of code plus an env-gate. Risk: a unix socket left exposed
+needs `0600` permissions and a per-PID name (already in the snippet). Also add
+a schema version to every payload; agents will otherwise become brittle as the
+diagnostic shape evolves.
 
-### 2.2 In-process pyinstrument toggle
+### 2.2 Asyncio slow-callback logging
+
+The prior draft skipped the best built-in event-loop diagnostic. Python's
+asyncio debug mode logs callbacks that exceed
+`loop.slow_callback_duration`. That maps directly to "a keypress action or
+Textual message handler blocked the loop long enough for `j`/`k` to queue."
+
+Add a dev-only gate during ACE startup:
+
+```python
+def install_asyncio_debug(*, threshold_s: float = 0.05) -> None:
+    if os.environ.get("SASE_ACE_ASYNCIO_DEBUG") != "1":
+        return
+    loop = asyncio.get_running_loop()
+    loop.set_debug(True)
+    loop.slow_callback_duration = threshold_s
+    logging.getLogger("asyncio").setLevel(logging.DEBUG)
+```
+
+Run it from `AceApp.on_mount` or the startup mixin, and route logs to
+`~/.sase/perf/ace_asyncio_debug_<pid>.log` rather than the TUI terminal. Start
+with 50ms for navigation work; raise to 100ms if the log is noisy. This does
+require launching with the env var before the slowdown, but the payoff is high:
+it names the actual slow callback instead of forcing an agent to infer it from
+samples.
+
+### 2.3 In-process pyinstrument toggle
 
 Add a debug action (default unbound; user can bind to a chord) that
 starts/stops a `pyinstrument.Profiler` and writes the output to
@@ -346,10 +415,10 @@ entire session and dilutes the spike. Tier 1's `py-spy record` is the
 external equivalent, but this is faster to invoke from inside the TUI and
 already has `async_mode="enabled"` for free.
 
-Cost: ~40 lines, one keymap, one optional dependency check (pyinstrument is
-already in dev deps).
+Cost: ~40 lines and one keymap. `pyinstrument` is already a runtime dependency
+because `sase ace --profile` uses it today.
 
-### 2.3 Frame-time histogram piggybacking on JKPerfTimer
+### 2.4 Frame-time histogram piggybacking on JKPerfTimer
 
 `src/sase/ace/tui/util/perf.py:49` already records key-to-paint latency for
 `j`/`k`. Extending it to record *every* frame (or every action handler) gives
@@ -363,7 +432,7 @@ and §1. Calling it out here because a live-introspection agent benefits from
 this *retroactive* signal: if the user says "it was slow about a minute ago,"
 the agent reads heartbeat history rather than asking the user to reproduce.
 
-### 2.4 SIGUSR1 dump as a low-tech fallback
+### 2.5 SIGUSR1 dump as a low-tech fallback
 
 If the socket endpoint feels too heavy, the simpler version is a signal
 handler that writes a one-shot dump:
@@ -371,26 +440,42 @@ handler that writes a one-shot dump:
 ```python
 import signal, faulthandler
 
-def _dump(*_):
-    faulthandler.dump_traceback_later(timeout=0, file=open("/tmp/ace.bt", "w"))
-    # plus tracemalloc diff, asyncio.all_tasks(), gc counts
+_fault_file = open(Path.home() / ".sase" / "perf" / f"ace-faulthandler-{os.getpid()}.log", "a")
+faulthandler.register(signal.SIGUSR1, file=_fault_file, all_threads=True, chain=False)
 
-signal.signal(signal.SIGUSR1, _dump)
+# Optional: use a normal Python signal handler for structured data, but do not
+# rely on it when the main thread is blocked in C.
 ```
 
 The agent triggers it with `kill -USR1 $(pgrep -nf 'sase ace')` and reads
-`/tmp/ace.bt`. Compatible with the same set of payloads as §2.1; less
-flexible because each piece of data needs a separate signal or a separate
-dump file. Listed for completeness — for an agent workflow, the socket wins.
+the log. `faulthandler.register` is preferable to a normal
+`signal.signal(..., python_callback)` handler for the traceback itself because
+Python-level signal handlers run later on the main interpreter thread. If the
+main thread is stuck inside a long C call, that "later" may be after the freeze
+has ended. Use the debug socket for structured payloads (`asyncio.all_tasks()`,
+GC counts, cache census); use `faulthandler` for the emergency traceback.
 
-### 2.5 `faulthandler` for the "stuck for >N seconds" case
+### 2.6 `faulthandler` watchdog for the "stuck for >N seconds" case
 
 `faulthandler.dump_traceback_later(timeout=5, repeat=True, file=...)`
-registers a watchdog that dumps the main-thread traceback every N seconds
-the loop has been blocked. Enable behind `SASE_FAULTHANDLER=1` and write to
-`~/.sase/perf/faulthandler.log`. This automatically captures every freeze
-above the threshold *without* needing an agent to be attached at the moment
-it happened.
+registers a wall-clock watchdog thread. By itself it does **not** mean "the
+event loop has been blocked for five seconds"; it means "five seconds elapsed
+since this watchdog was armed." To turn it into an event-loop stall detector,
+re-arm it from the loop on every heartbeat:
+
+```python
+def _arm_loop_stall_watchdog() -> None:
+    faulthandler.cancel_dump_traceback_later()
+    faulthandler.dump_traceback_later(2.0, repeat=False, file=_fault_file)
+
+self.set_interval(0.5, _arm_loop_stall_watchdog)
+```
+
+If the loop keeps turning, the timer is canceled and re-armed before it fires.
+If the loop stops turning for >2s, the watchdog thread dumps the stack. Enable
+behind `SASE_FAULTHANDLER=1` and write to
+`~/.sase/perf/faulthandler_<pid>.log`. Keep the file object open for the
+lifetime of the handler; `faulthandler` stores the file descriptor.
 
 This is a strong complement to the on-demand tooling: an agent can later
 attach, read the log, and report "the TUI was blocked at <timestamp>; here
@@ -412,13 +497,16 @@ answer.
 Attach with:
 
 ```bash
-viztracer --attach_pid "$(pgrep -nf 'sase ace')" --output_file /tmp/ace.json --duration 10
+viztracer --attach "$(pgrep -nf 'sase ace')" --output_file /tmp/ace.json --duration 10
 vizviewer /tmp/ace.json
 ```
 
 The timeline view makes per-frame work visible in a way pyinstrument cannot
 (pyinstrument aggregates; viztracer preserves order). Overhead is 5–10× on
-the traced process, so attach briefly.
+the traced process, so attach briefly. Current VizTracer attach mode also
+requires `viztracer` to be importable in the target process's Python
+environment, which makes it less safe as a default live-agent tool than
+py-spy.
 
 ### 3.2 perf + Rust frames
 
@@ -449,14 +537,32 @@ Comparable to py-spy. Pick one and stick with it.
 For the "RSS keeps growing" case (memory leak surfaced by heartbeat):
 
 ```bash
-memray attach "$(pgrep -nf 'sase ace')"
-# user reproduces the slow path
-memray detach "$(pgrep -nf 'sase ace')"
-memray flamegraph memray-attach-<pid>.bin
+PID="$(pgrep -nf 'sase ace')"
+memray attach -o "/tmp/ace_memray_$PID.bin" --duration 30 "$PID"
+memray flamegraph "/tmp/ace_memray_$PID.bin"
 ```
 
 Heavier than tracemalloc but produces a flamegraph of allocation sites over
-time. Useful when tracemalloc diff isn't enough.
+time. Useful when tracemalloc diff isn't enough. Caveat: unlike py-spy,
+`memray attach` injects code into the target process and requires `memray` to
+be installed in that process's environment. Treat it as a development-machine
+tool, not the first thing an agent should run against a valuable live TUI.
+
+### 3.5 Textual devtools
+
+Textual's own devtools are not a live attach path for an already-running
+`sase ace`; they require launching in development mode:
+
+```bash
+textual console
+textual run --dev -c sase ace
+```
+
+That makes them a **reproduction** tool, not a rescue tool. They are still
+worth adding to the workflow when the profiler points at Textual message
+routing, worker churn, CSS reload/layout, or widget lifecycle behavior. Use
+`textual console -v` only for short runs; verbose event logging can itself
+change the feel of an interactive TUI.
 
 ---
 
@@ -467,8 +573,8 @@ slow, find out why":
 
 1. **Detect the process.** `pgrep -nf 'sase ace'`; if multiple, ask the user
    to pick or use the foreground tty.
-2. **One-shot snapshot.** `py-spy dump --pid <PID>` and inspect the main-thread
-   stack.
+2. **One-shot snapshot.** `py-spy dump --idle --pid <PID>` and inspect the
+   main-thread stack.
 3. **Classify.**
    - If main thread is in a known sync I/O path → cross-reference
      `tui_main_thread_blocking_v2.md` for the corresponding finding (B1–B19);
@@ -479,15 +585,17 @@ slow, find out why":
      check the debug socket (if running) or fall back to strace for the actual
      syscall.
 4. **Confirm with a short record.** If a single dump isn't decisive, run a
-   30-second `py-spy record` and produce a speedscope link or summary.
-5. **Write findings to a SASE artifact** under
-   `~/.sase/perf/ace_live_<ts>/` so the user has a record and the next agent
-   session can build on it.
+   30-second `py-spy record --idle --format speedscope` and produce a
+   speedscope link or summary.
+5. **Write the capture bundle** under `~/.sase/perf/ace_live_<ts>_<pid>/`
+   with `ps.txt`, `proc_status.txt`, `fds.txt`, `py_spy_dump.txt`, and the
+   optional speedscope profile so the next agent session can build on it.
 
 The first three steps require no code changes. Steps 4–5 are pure agent
-behavior. The optional Tier 2 additions (especially the debug socket §2.1 and
-faulthandler §2.5) turn step 3 into a richer classification that includes
-asyncio task census and recent freeze history.
+behavior. The optional Tier 2 additions (especially the debug socket §2.1,
+asyncio slow-callback logging §2.2, and faulthandler watchdog §2.6) turn step 3
+into a richer classification that includes asyncio task census and recent
+freeze history.
 
 ---
 
@@ -495,16 +603,18 @@ asyncio task census and recent freeze history.
 
 | Need | First reach | Setup cost | Code change? |
 |---|---|---|---|
-| "What is the TUI doing right now?" | `py-spy dump` | None (cap once) | No |
+| "What is the TUI doing right now?" | `py-spy dump --idle` | None (cap once) | No |
 | "Why is typing/`j`/`k` slow?" | `py-spy top` while the user mashes keys | None | No |
-| "Capture a 30s freeze for review" | `py-spy record --format speedscope` | None | No |
+| "Capture a 30s freeze for review" | `py-spy record --idle --format speedscope` | None | No |
 | "Is the lag a syscall I can't see?" | `strace -p` filtered | None | No |
 | "Has the process leaked fds?" | `ls /proc/<PID>/fd` | None | No |
 | "What are the asyncio tasks?" | Debug socket (§2.1) | ½ day | Yes |
-| "Get a profile of just this freeze" | In-process toggle (§2.2) | 2 hours | Yes |
-| "When did the last freeze happen?" | Frame-time histogram + heartbeat (§2.3) | 1 day | Yes |
-| "Auto-capture any freeze >5s" | `faulthandler` watchdog (§2.5) | 1 hour | Yes |
+| "Which callback blocked the loop?" | Asyncio slow-callback logging (§2.2) | 1 hour | Yes |
+| "Get a profile of just this freeze" | In-process toggle (§2.3) | 2 hours | Yes |
+| "When did the last freeze happen?" | Frame-time histogram + heartbeat (§2.4) | 1 day | Yes |
+| "Auto-capture any freeze >2s" | `faulthandler` watchdog (§2.6) | 1 hour | Yes |
 | "Where are the bytes accumulating?" | `memray attach` | None (install) | No |
+| "What is Textual doing?" | `textual console` + dev-mode repro (§3.5) | Restart in dev mode | No SASE code |
 
 ---
 
@@ -526,6 +636,9 @@ asyncio task census and recent freeze history.
 - **Don't conflate "py-spy shows X" with "X is the cause".** A sampling
   profiler shows what's on stack *at sample time*; for sub-100ms freezes,
   capture more samples (longer `--duration`) before drawing conclusions.
+- **Don't leave `memray attach`, `viztracer --attach`, or verbose Textual
+  devtools running by default.** They are useful second-line tools, but they
+  import/inject or produce enough overhead to change the symptom.
 
 ---
 
@@ -567,7 +680,21 @@ asyncio task census and recent freeze history.
 - `sdd/research/202604/tui_profiling_strategies.md` — tool-selection
   background.
 - `src/sase/ace/tui/util/perf.py` — existing perf primitive (JKPerfTimer) to
-  extend with frame-time histogram (§2.3).
-- `src/sase/main/ace_handler.py:47` — `--profile` flag wiring; natural home
+  extend with frame-time histogram (§2.4).
+- `src/sase/main/ace_handler.py:62` — `--profile` flag wiring; natural home
   for a future `sase ace debug` subcommand or an `--attach-debug-socket`
   option.
+
+## External Sources Checked
+
+- py-spy README / CLI behavior: <https://github.com/benfred/py-spy>
+- Python asyncio debug and `slow_callback_duration`:
+  <https://docs.python.org/3/library/asyncio-dev.html>
+- Python `faulthandler`: <https://docs.python.org/3/library/faulthandler.html>
+- Python signal handler semantics: <https://docs.python.org/3/library/signal.html>
+- Textual devtools: <https://textual.textualize.io/guide/devtools/>
+- VizTracer remote attach:
+  <https://viztracer.readthedocs.io/en/latest/remote_attach.html>
+- Memray attach: <https://bloomberg.github.io/memray/attach.html>
+- Pyinstrument 5.1 user/API docs:
+  <https://pyinstrument.readthedocs.io/en/stable/guide.html>
