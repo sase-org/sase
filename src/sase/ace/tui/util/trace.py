@@ -104,7 +104,7 @@ def trace_event(event: str, **fields: Any) -> None:
 
 
 @contextmanager
-def tui_trace(span: str, **counters: Any) -> Generator[dict[str, Any], None, None]:
+def tui_trace(span: str, **counters: Any) -> Generator[None, None, None]:
     """Record a scoped phase span when ``SASE_TUI_TRACE=1`` is set.
 
     Use as::
@@ -112,25 +112,15 @@ def tui_trace(span: str, **counters: Any) -> Generator[dict[str, Any], None, Non
         with tui_trace("changespec.refresh_display", count=len(specs)):
             ...
 
-    The context manager yields a mutable counters dict that callers can
-    enrich while the span is open. Late-bound counters take precedence
-    over the constructor kwargs when the record is emitted::
-
-        with tui_trace("agents.load_from_disk") as extra:
-            result = do_load()
-            extra["loaded_agent_count"] = len(result.agents)
-
     Disabled-path overhead is one env lookup (cached by the OS) and a
-    function-call frame; no allocations, no I/O, no time samples beyond
-    a single empty dict yielded for API symmetry.
+    function-call frame; no allocations, no I/O, no time samples.
     """
-    extra: dict[str, Any] = {}
     if not is_enabled():
-        yield extra
+        yield
         return
     started = time.perf_counter()
     try:
-        yield extra
+        yield
     finally:
         duration_ms = (time.perf_counter() - started) * 1000.0
         record: dict[str, Any] = {
@@ -144,5 +134,4 @@ def tui_trace(span: str, **counters: Any) -> Generator[dict[str, Any], None, Non
                 continue
             record.setdefault(key, value)
         record.update(counters)
-        record.update(extra)
         _write(record)

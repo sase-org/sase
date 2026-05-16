@@ -134,25 +134,13 @@ class ReproManifest:
 
 @dataclass(frozen=True)
 class ReproLoadState:
-    """Serialized subset of ``AgentLoadState`` needed for replay.
-
-    The Phase 1 measurement fields default to neutral values so old
-    bundles deserialize without losing the load-state shape.
-    """
+    """Serialized subset of ``AgentLoadState`` needed for replay."""
 
     tier: Literal["tier1", "tier2"]
     complete_history: bool
     artifact_source: Literal["artifact_index", "source_scan"]
     used_artifact_index: bool
     index_error: str | None = None
-    full_history: bool = False
-    agent_search_active: bool = False
-    snapshot_records: int = 0
-    loaded_agent_count: int = 0
-    loaded_workflow_step_count: int = 0
-    artifact_dirs_visited: int | None = None
-    marker_files_parsed: int | None = None
-    prompt_step_markers_parsed: int | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ReproLoadState:
@@ -176,39 +164,6 @@ class ReproLoadState:
             index_error=_optional_str(
                 data.get("index_error"), field_name="index_error"
             ),
-            full_history=_bool(
-                data.get("full_history"),
-                field_name="full_history",
-                default=False,
-            ),
-            agent_search_active=_bool(
-                data.get("agent_search_active"),
-                field_name="agent_search_active",
-                default=False,
-            ),
-            snapshot_records=_optional_int(
-                data.get("snapshot_records"), field_name="snapshot_records"
-            )
-            or 0,
-            loaded_agent_count=_optional_int(
-                data.get("loaded_agent_count"), field_name="loaded_agent_count"
-            )
-            or 0,
-            loaded_workflow_step_count=_optional_int(
-                data.get("loaded_workflow_step_count"),
-                field_name="loaded_workflow_step_count",
-            )
-            or 0,
-            artifact_dirs_visited=_optional_int(
-                data.get("artifact_dirs_visited"), field_name="artifact_dirs_visited"
-            ),
-            marker_files_parsed=_optional_int(
-                data.get("marker_files_parsed"), field_name="marker_files_parsed"
-            ),
-            prompt_step_markers_parsed=_optional_int(
-                data.get("prompt_step_markers_parsed"),
-                field_name="prompt_step_markers_parsed",
-            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -218,14 +173,6 @@ class ReproLoadState:
             "artifact_source": self.artifact_source,
             "used_artifact_index": self.used_artifact_index,
             "index_error": self.index_error,
-            "full_history": self.full_history,
-            "agent_search_active": self.agent_search_active,
-            "snapshot_records": self.snapshot_records,
-            "loaded_agent_count": self.loaded_agent_count,
-            "loaded_workflow_step_count": self.loaded_workflow_step_count,
-            "artifact_dirs_visited": self.artifact_dirs_visited,
-            "marker_files_parsed": self.marker_files_parsed,
-            "prompt_step_markers_parsed": self.prompt_step_markers_parsed,
         }
 
 

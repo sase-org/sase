@@ -79,29 +79,15 @@ def load_agents_from_disk_with_state(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     full_history: bool = False,
-    agent_search_active: bool = False,
 ) -> _AgentDiskLoadResult:
-    """Load agents from disk and include the tiered load state.
+    """Load agents from disk and include the tiered load state."""
 
-    ``agent_search_active`` is a measurement input: when ``True`` the
-    caller had a non-empty Agents-tab search query at the time of the
-    refresh. Today an active search promotes the load to Tier 2 (the
-    historical behavior of ``_load_agents{,_async}`` ORing the flag into
-    ``full_history``); the contract is locked in by
-    ``tests/ace/tui/actions/test_agent_loader_phase1_guardrails.py`` so
-    Phase 3 has to change it deliberately.
-    """
-
-    effective_full_history = full_history or agent_search_active
-    with tui_trace("agents.load_from_disk") as trace_fields:
-        result = _load_agents_from_disk_impl(
+    with tui_trace("agents.load_from_disk"):
+        return _load_agents_from_disk_impl(
             dismissed_agents,
             changespec_snapshot=changespec_snapshot,
-            full_history=effective_full_history,
-            agent_search_active=agent_search_active,
+            full_history=full_history,
         )
-        trace_fields.update(result.load_state.trace_fields())
-        return result
 
 
 def _load_agents_from_disk_impl(
@@ -109,14 +95,12 @@ def _load_agents_from_disk_impl(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     full_history: bool = False,
-    agent_search_active: bool = False,
 ) -> _AgentDiskLoadResult:
     from ...models.agent_loader import load_tiered_agents
 
     all_agents, load_state = load_tiered_agents(
         changespec_snapshot=changespec_snapshot,
         full_history=full_history,
-        agent_search_active=agent_search_active,
     )
 
     # Populate retry fields from retry_state.json for running agents and

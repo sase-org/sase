@@ -183,12 +183,10 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         self._merge_external_dismissals()
         dismissed_snapshot = set(self._dismissed_agents)
         changespec_snapshot = find_all_changespecs_cached()
-        agent_search_active = bool(getattr(self, "_agent_search_query", ""))
         load_result = _resolve_load_agents_from_disk_with_state()(
             dismissed_snapshot,
             changespec_snapshot=changespec_snapshot,
-            full_history=full_history,
-            agent_search_active=agent_search_active,
+            full_history=full_history or bool(getattr(self, "_agent_search_query", "")),
         )
         from ...repro.capture import record_agents_tab_loader_result
 
