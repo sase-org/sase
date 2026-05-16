@@ -44,6 +44,7 @@ def load_state_from_repro(state: ReproLoadState) -> AgentLoadState:
         artifact_dirs_visited=state.artifact_dirs_visited,
         marker_files_parsed=state.marker_files_parsed,
         prompt_step_markers_parsed=state.prompt_step_markers_parsed,
+        index_missing=state.index_missing,
     )
 
 

@@ -227,6 +227,7 @@ class StateInitMixin:
         self._agents_refresh_debounce_armed: bool = False
         self._agent_load_state: AgentLoadState | None = None
         self._agents_seen_complete_history: bool = False
+        self._artifact_index_rebuild_in_flight: bool = False
         self._agents_repro_capture: Any = None
         self._agents_repro_auto_check_enabled: bool = False
         self._agents_repro_auto_capture_burst_active: bool = False

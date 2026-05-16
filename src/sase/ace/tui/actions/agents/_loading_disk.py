@@ -80,8 +80,67 @@ def _compute_external_dismissal_merge(
     )
 
 
+def _run_artifact_index_rebuild() -> None:
+    """Rebuild the persistent agent artifact index from source artifacts.
+
+    Phase 3 of bead ``sase-3r`` (Fast Agents Tab Disk Loading). Called
+    from a worker thread when a normal TUI refresh discovers a missing
+    index — the loader returns a cached/empty snapshot immediately and
+    this worker repopulates the index so the next refresh can use the
+    Tier 1 inbox query. Errors are logged and swallowed so a failed
+    rebuild does not propagate up to the UI thread.
+    """
+
+    from pathlib import Path
+
+    from sase.core.agent_scan_facade import (
+        default_agent_artifact_index_path,
+        rebuild_agent_artifact_index,
+    )
+
+    try:
+        index_path = default_agent_artifact_index_path()
+        projects_root = Path.home() / ".sase" / "projects"
+        rebuild_agent_artifact_index(index_path, projects_root)
+    except Exception:
+        log.exception("artifact-index rebuild worker failed")
+
+
 class AgentLoadingDiskMixin(AgentLoadingStateMixin):
     """Methods that read agent state from disk and prepare apply snapshots."""
+
+    def _schedule_artifact_index_rebuild(self) -> None:
+        """Spawn a one-off worker that rebuilds the persistent artifact index.
+
+        Phase 3 of bead ``sase-3r`` (Fast Agents Tab Disk Loading). The
+        loader hands back an empty Tier 1 snapshot with ``index_missing``
+        set when the sqlite index is absent; this hook spawns a worker
+        that runs :func:`rebuild_agent_artifact_index` off the UI thread
+        and triggers a follow-up refresh on completion. Duplicate calls
+        while a rebuild is already in flight are coalesced.
+        """
+
+        if getattr(self, "_artifact_index_rebuild_in_flight", False):
+            return
+
+        run_worker = getattr(self, "run_worker", None)
+        if not callable(run_worker):
+            return
+
+        self._artifact_index_rebuild_in_flight = True
+
+        async def _runner() -> None:
+            import asyncio
+
+            try:
+                await asyncio.to_thread(_run_artifact_index_rebuild)
+            finally:
+                self._artifact_index_rebuild_in_flight = False
+                schedule = getattr(self, "_schedule_agents_async_refresh", None)
+                if callable(schedule):
+                    schedule()
+
+        run_worker(_runner(), exclusive=False, group="artifact-index-rebuild")
 
     def _prepare_agent_content_search_index_sync(
         self,
@@ -231,11 +290,13 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         dismissed_snapshot = set(self._dismissed_agents)
         changespec_snapshot = await asyncio.to_thread(find_all_changespecs_cached)
         disk_start = time.perf_counter()
+        agent_search_active = bool(getattr(self, "_agent_search_query", ""))
         load_result = await asyncio.to_thread(
             _resolve_load_agents_from_disk_with_state(),
             dismissed_snapshot,
             changespec_snapshot=changespec_snapshot,
-            full_history=full_history or bool(getattr(self, "_agent_search_query", "")),
+            full_history=full_history,
+            agent_search_active=agent_search_active,
         )
         all_agents = load_result.all_agents
         dismissed_from_loader = load_result.dismissed_from_loader

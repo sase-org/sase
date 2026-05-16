@@ -118,6 +118,10 @@ class AgentLoadingStateMixin:
     _agent_load_state: AgentLoadState | None
     _agents_seen_complete_history: bool
     _agents_repro_capture: object | None
+    # Phase 3 of bead ``sase-3r``: True while a one-off artifact-index
+    # rebuild worker is running so duplicate missing-index loads do not
+    # spawn duplicate rebuilds. Cleared by the worker when it completes.
+    _artifact_index_rebuild_in_flight: bool
 
     def _apply_loaded_agents_prepared(
         self,
@@ -146,6 +150,9 @@ class AgentLoadingStateMixin:
         raise NotImplementedError
 
     def _load_agents(self, *, full_history: bool = False) -> None:
+        raise NotImplementedError
+
+    def _schedule_artifact_index_rebuild(self) -> None:
         raise NotImplementedError
 
     def _finalize_agent_list(

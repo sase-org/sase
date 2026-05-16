@@ -395,6 +395,7 @@ def _serialize_load_state(load_state: AgentLoadState | None) -> ReproLoadState:
         artifact_dirs_visited=load_state.artifact_dirs_visited,
         marker_files_parsed=load_state.marker_files_parsed,
         prompt_step_markers_parsed=load_state.prompt_step_markers_parsed,
+        index_missing=load_state.index_missing,
     )
 
 

@@ -314,13 +314,19 @@ def test_load_agents_from_disk_full_history_reconciles_from_source() -> None:
     mock_scan.assert_called_once()
 
 
-def test_load_agents_from_disk_missing_index_uses_bounded_tier1_source_scan(
+def test_load_agents_from_disk_missing_index_returns_empty_no_source_scan(
     tmp_path,
 ) -> None:
-    """Missing artifact indexes do not force a full source scan before first paint."""
+    """Missing artifact indexes return an empty Tier 1 snapshot — no source scan.
+
+    Phase 3 of bead ``sase-3r`` (Fast Agents Tab Disk Loading). The
+    bounded-Tier-1-source-scan fallback for missing indexes is gone:
+    normal Agents-tab refreshes return an empty snapshot flagged with
+    ``index_missing=True``, and the apply layer schedules a one-off
+    rebuild instead.
+    """
 
     index_path = tmp_path / "missing_agent_artifact_index.sqlite"
-    snapshot = _empty_artifact_snapshot()
 
     with (
         patch(
@@ -329,7 +335,6 @@ def test_load_agents_from_disk_missing_index_uses_bounded_tier1_source_scan(
         ),
         patch(
             "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
-            return_value=snapshot,
         ) as mock_scan,
         patch(
             "sase.ace.tui.models.agent_loader.find_all_changespecs",
@@ -365,7 +370,8 @@ def test_load_agents_from_disk_missing_index_uses_bounded_tier1_source_scan(
 
     assert result.load_state.tier == "tier1"
     assert result.load_state.complete_history is False
-    assert result.load_state.artifact_source == "source_scan"
-    options = mock_scan.call_args.args[0]
-    assert options.max_records == 200
-    assert options.newest_first is True
+    assert result.load_state.artifact_source == "artifact_index"
+    assert result.load_state.used_artifact_index is False
+    assert result.load_state.index_missing is True
+    assert result.load_state.snapshot_records == 0
+    mock_scan.assert_not_called()

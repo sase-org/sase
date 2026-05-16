@@ -324,6 +324,8 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         ):
             self._agents_refresh_pending = True
             self._agents_refresh_pending_full_history = True
+        if load_state is not None and load_state.index_missing:
+            self._schedule_artifact_index_rebuild()
 
         self._dismissed_agent_objects = trim_dismissed_agent_objects(
             prep.dismissed_agent_objects
