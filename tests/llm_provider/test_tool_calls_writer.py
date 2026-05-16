@@ -278,11 +278,11 @@ def test_user_event_list_content_blocks_concatenated(artifacts_dir: Path) -> Non
 
 
 # ---------------------------------------------------------------------------
-# system hook-event enrichment
+# system hook events are ignored for new stream-backed writes
 # ---------------------------------------------------------------------------
 
 
-def test_system_hook_response_post_tool_use_emits_record(
+def test_system_hook_response_post_tool_use_is_ignored(
     artifacts_dir: Path,
 ) -> None:
     event = {
@@ -300,14 +300,12 @@ def test_system_hook_response_post_tool_use_emits_record(
     }
     append_claude_tool_call_event(event)
 
-    record = _read_records(artifacts_dir / "tool_calls.jsonl")[0]
-    assert record["event"] == "PostToolUse"
-    assert record["status"] == "success"
-    assert record["duration_ms"] == 123
-    assert record["tool_use_id"] == "toolu_bash"
+    assert not (artifacts_dir / "tool_calls.jsonl").exists()
 
 
-def test_system_hook_response_post_tool_use_failure(artifacts_dir: Path) -> None:
+def test_system_hook_response_post_tool_use_failure_is_ignored(
+    artifacts_dir: Path,
+) -> None:
     event = {
         "type": "system",
         "subtype": "hook_response",
@@ -320,14 +318,7 @@ def test_system_hook_response_post_tool_use_failure(artifacts_dir: Path) -> None
     }
     append_claude_tool_call_event(event)
 
-    record = _read_records(artifacts_dir / "tool_calls.jsonl")[0]
-    assert record["event"] == "PostToolUseFailure"
-    assert record["status"] == "failure"
-    assert (
-        record["tool_response_summary"]["error"]
-        == "Command exited with non-zero status code 4"
-    )
-    assert record["is_interrupt"] is False
+    assert not (artifacts_dir / "tool_calls.jsonl").exists()
 
 
 def test_system_hook_started_for_tool_event_is_ignored(artifacts_dir: Path) -> None:
@@ -342,7 +333,7 @@ def test_system_hook_started_for_tool_event_is_ignored(artifacts_dir: Path) -> N
     assert not (artifacts_dir / "tool_calls.jsonl").exists()
 
 
-def test_system_hook_started_for_subagent_event_is_captured(
+def test_system_hook_started_for_subagent_event_is_ignored(
     artifacts_dir: Path,
 ) -> None:
     event = {
@@ -355,11 +346,7 @@ def test_system_hook_started_for_subagent_event_is_captured(
     }
     append_claude_tool_call_event(event)
 
-    record = _read_records(artifacts_dir / "tool_calls.jsonl")[0]
-    assert record["event"] == "SubagentStart"
-    assert record["status"] == "subagent"
-    assert record["agent_id"] == "agent-1"
-    assert record["agent_type"] == "Explore"
+    assert not (artifacts_dir / "tool_calls.jsonl").exists()
 
 
 def test_system_unknown_hook_event_is_ignored(artifacts_dir: Path) -> None:

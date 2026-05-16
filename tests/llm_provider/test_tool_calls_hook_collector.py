@@ -1,8 +1,7 @@
-"""Tests for the Claude PreToolUse/PostToolUse hook collector (schema v3)."""
+"""Tests for legacy Claude PreToolUse/PostToolUse schema-v3 normalization."""
 
 from __future__ import annotations
 
-import io
 import json
 import os
 import tempfile
@@ -18,7 +17,6 @@ from sase.llm_provider._tool_calls import (
     _PREVIEW_LIMIT,
     append_claude_hook_tool_call_event,
 )
-from sase.scripts.sase_claude_tool_hook import main as collector_main
 
 
 @pytest.fixture
@@ -228,71 +226,6 @@ def test_pre_then_post_records_are_independently_appended(
     assert all(r["tool_use_id"] == "toolu_xyz" for r in records)
     assert records[0]["status"] == "pending"
     assert records[1]["status"] == "success"
-
-
-# ---------------------------------------------------------------------------
-# CLI collector entry point: stdin → record
-# ---------------------------------------------------------------------------
-
-
-def _run_collector(stdin_text: str) -> int:
-    with patch("sys.stdin", io.StringIO(stdin_text)):
-        return collector_main([])
-
-
-def test_collector_processes_valid_pre_payload(artifacts_dir: Path) -> None:
-    payload = _pre_payload()
-    exit_code = _run_collector(json.dumps(payload))
-
-    assert exit_code == 0
-    record = _read_records(artifacts_dir / "tool_calls.jsonl")[0]
-    assert record["hook_event"] == "PreToolUse"
-    assert record["event"] == "ToolUse"
-
-
-def test_collector_malformed_json_exits_zero(artifacts_dir: Path) -> None:
-    exit_code = _run_collector("{not json}")
-
-    assert exit_code == 0
-    assert not (artifacts_dir / "tool_calls.jsonl").exists()
-    diagnostics = _read_records(artifacts_dir / "tool_calls_writer_errors.jsonl")
-    assert diagnostics
-    assert diagnostics[0]["reason"] == "invalid_json"
-
-
-def test_collector_empty_stdin_exits_zero(artifacts_dir: Path) -> None:
-    exit_code = _run_collector("")
-
-    assert exit_code == 0
-    assert not (artifacts_dir / "tool_calls.jsonl").exists()
-    # Empty stdin is treated as no-op, no diagnostic line emitted.
-    assert not (artifacts_dir / "tool_calls_writer_errors.jsonl").exists()
-
-
-def test_collector_non_object_payload_exits_zero(artifacts_dir: Path) -> None:
-    exit_code = _run_collector(json.dumps([1, 2, 3]))
-
-    assert exit_code == 0
-    assert not (artifacts_dir / "tool_calls.jsonl").exists()
-    diagnostics = _read_records(artifacts_dir / "tool_calls_writer_errors.jsonl")
-    assert diagnostics and diagnostics[0]["reason"] == "invalid_json"
-
-
-def test_collector_missing_artifacts_dir_still_exits_zero() -> None:
-    with patch.dict(os.environ, {}, clear=True):
-        exit_code = _run_collector(json.dumps(_pre_payload()))
-    assert exit_code == 0
-
-
-def test_collector_unknown_hook_event_exits_zero(artifacts_dir: Path) -> None:
-    exit_code = _run_collector(
-        json.dumps({"hook_event_name": "SessionStart", "tool_name": "x"})
-    )
-
-    assert exit_code == 0
-    assert not (artifacts_dir / "tool_calls.jsonl").exists()
-    diagnostics = _read_records(artifacts_dir / "tool_calls_writer_errors.jsonl")
-    assert diagnostics
 
 
 # ---------------------------------------------------------------------------

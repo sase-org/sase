@@ -151,17 +151,23 @@ def test_self_heal_skips_second_reload_even_for_missing_dir(tmp_path: Path) -> N
     agent = _make_agent(artifacts_dir=missing_dir)
     app._dismissed_agents = {agent.identity}
 
-    with patch("pathlib.Path.is_dir", return_value=False) as mock_is_dir:
+    checked_paths: list[str] = []
+
+    def fake_is_dir(path: Path) -> bool:
+        checked_paths.append(str(path))
+        return False
+
+    with patch.object(Path, "is_dir", autospec=True, side_effect=fake_is_dir):
         app._apply_loaded_agents(
             [], [agent], on_agents_tab=False, selected_identity=None
         )
-        first_calls = mock_is_dir.call_count
+        first_missing_dir_checks = checked_paths.count(missing_dir)
         app._apply_loaded_agents(
             [], [agent], on_agents_tab=False, selected_identity=None
         )
         # Second reload: no additional is_dir() checks for this artifacts_dir
         # (the orphan-bundle path may still stat the bundles dir).
-        assert mock_is_dir.call_count == first_calls
+        assert checked_paths.count(missing_dir) == first_missing_dir_checks
 
 
 def test_cleanup_does_not_probe_bundles_for_orphaned_identities() -> None:

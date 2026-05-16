@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-16 10:03:20
-status: wip
+status: done
 prompt: sdd/prompts/202605/claude_tools_streaming.md
 ---
 # Plan: Make Claude Tools Panel Data Stream-Backed

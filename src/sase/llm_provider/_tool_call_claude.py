@@ -21,27 +21,27 @@ from ._tool_call_common import (
 )
 from ._tool_call_io import append_jsonl, append_writer_diagnostic
 
-SUPPORTED_CLAUDE_HOOK_EVENTS = frozenset(
-    {"PostToolUse", "PostToolUseFailure", "SubagentStart", "SubagentStop"}
-)
-
-# Hook events consumed by the SASE tool-call hook collector (stdin payload from
-# Claude's PreToolUse/PostToolUse hooks). These produce schema-v3 records.
+# Hook event names from Claude's historical PreToolUse/PostToolUse payloads.
+# These produce schema-v3 records and are retained only for legacy
+# artifacts/tests; new Claude provider runs write Tools panel rows from
+# assistant/user stream-json events.
 HOOK_COLLECTOR_EVENTS = frozenset({"PreToolUse", "PostToolUse"})
 
 
 def append_claude_tool_call_event(event: Mapping[str, Any]) -> None:
     """Best-effort append of a Claude stream-json event to ``tool_calls.jsonl``.
 
-    Handles three event shapes:
+    Handles two stream event shapes:
 
     - ``type: "assistant"`` with ``message.content[].tool_use`` blocks emits a
       ``ToolUse`` (start) record per block.
     - ``type: "user"`` with ``message.content[].tool_result`` blocks emits a
       ``ToolResult`` (end) record per block, drawing structured output from the
       top-level ``tool_use_result`` envelope when present.
-    - ``type: "system"`` with ``subtype: "hook_response"`` and a recognized
-      ``hook_event`` emits a hook-event record for enrichment.
+
+    Claude ``system`` hook events are intentionally ignored here. New SASE runs
+    do not request ``--include-hook-events`` or install Claude tool hooks for
+    Tools panel data.
     """
     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
     if not artifacts_dir:
@@ -59,12 +59,12 @@ def append_claude_tool_call_event(event: Mapping[str, Any]) -> None:
 
 
 def append_claude_hook_tool_call_event(payload: Mapping[str, Any]) -> None:
-    """Best-effort append of a Claude hook payload to ``tool_calls.jsonl``.
+    """Best-effort append of a legacy Claude hook payload to ``tool_calls.jsonl``.
 
     Reads a single ``PreToolUse``/``PostToolUse`` hook event (the JSON object
-    Claude writes to the collector's stdin) and emits a schema-v3 record.
+    Claude historically passed to hook commands) and emits a schema-v3 record.
     Other ``hook_event_name`` values are written to a diagnostic file rather
-    than treated as hard failures so the collector can stay non-blocking.
+    than treated as hard failures so legacy callers remain non-blocking.
     """
     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
     if not artifacts_dir:
@@ -185,9 +185,6 @@ def _normalize_claude_stream_event(
         return _records_from_assistant_event(event)
     if event_type == "user":
         return _records_from_user_event(event)
-    if event_type == "system":
-        record = _record_from_system_hook_event(event)
-        return [record] if record is not None else []
     return []
 
 
@@ -278,75 +275,6 @@ def _records_from_user_event(
     return records
 
 
-def _record_from_system_hook_event(
-    event: Mapping[str, Any],
-) -> dict[str, Any] | None:
-    subtype = event.get("subtype")
-    hook_event = event.get("hook_event")
-    if (
-        not isinstance(hook_event, str)
-        or hook_event not in SUPPORTED_CLAUDE_HOOK_EVENTS
-    ):
-        return None
-
-    is_subagent_event = hook_event in {"SubagentStart", "SubagentStop"}
-    if is_subagent_event:
-        # Use both subtypes for subagent lifecycle; prefer hook_started as the
-        # boundary marker, but accept hook_response too so we don't drop signal.
-        if subtype not in {"hook_started", "hook_response"}:
-            return None
-    else:
-        # For tool-related hooks, hook_started would double-count: only consume
-        # hook_response (which carries the structured outcome).
-        if subtype != "hook_response":
-            return None
-
-    status = _status_for_hook_event(hook_event, event)
-    tool_name = string_or_none(event.get("tool_name"))
-    record = _base_record(
-        hook_event,
-        status,
-        tool_name=tool_name,
-        tool_use_id=string_or_none(event.get("tool_use_id")),
-        session_id=string_or_none(event.get("session_id")),
-        parent_tool_use_id=string_or_none(event.get("parent_tool_use_id")),
-    )
-    record["tool_input_summary"] = summarize_tool_input(
-        tool_name, event.get("tool_input")
-    )
-    record["tool_response_summary"] = summarize_tool_response(
-        tool_name=tool_name,
-        tool_response=event.get("tool_response"),
-        error=event.get("error"),
-    )
-
-    for key in (
-        "transcript_path",
-        "cwd",
-        "permission_mode",
-        "agent_id",
-        "agent_type",
-        "error",
-    ):
-        value = event.get(key)
-        if isinstance(value, str) and value:
-            record[key] = preview_text(value)
-
-    duration = event.get("duration_ms")
-    if isinstance(duration, bool):
-        pass
-    elif isinstance(duration, int):
-        record["duration_ms"] = duration
-    elif isinstance(duration, float):
-        record["duration_ms"] = int(duration)
-
-    is_interrupt = event.get("is_interrupt")
-    if isinstance(is_interrupt, bool):
-        record["is_interrupt"] = is_interrupt
-
-    return record
-
-
 def _base_record(
     event_name: str,
     status: str,
@@ -378,19 +306,6 @@ def _base_record(
     if message_uuid:
         record["message_uuid"] = preview_text(message_uuid)
     return record
-
-
-def _status_for_hook_event(event_name: str, event: Mapping[str, Any]) -> str:
-    if event.get("is_interrupt") is True:
-        return "interrupted"
-    if event_name == "PostToolUseFailure":
-        return "failure"
-    if event_name in {"SubagentStart", "SubagentStop"}:
-        return "subagent"
-    response = event.get("tool_response")
-    if isinstance(response, Mapping) and response.get("success") is False:
-        return "failure"
-    return "success"
 
 
 normalize_claude_hook_payload = _normalize_claude_hook_payload

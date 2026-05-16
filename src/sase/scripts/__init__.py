@@ -162,9 +162,3 @@ def sase_chop_error_digest() -> None:
     from sase.scripts.sase_chop_error_digest import main
 
     main()
-
-
-def sase_claude_tool_hook() -> None:
-    from sase.scripts.sase_claude_tool_hook import main
-
-    raise SystemExit(main())

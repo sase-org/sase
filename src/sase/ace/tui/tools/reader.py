@@ -1,12 +1,11 @@
 """Read normalized tool-call artifacts for TUI display.
 
-Tool-call data is read from SASE-owned per-run artifacts. For Claude these are
-written hook-first by the SASE ``PreToolUse``/``PostToolUse`` collector
-(schema v3) when SASE manages the agent workspace; the existing stream-json
-parser (schema v1/v2) remains as a fallback when hooks aren't installed and
-for back-compat with older artifact runs. When both sources have produced
-records for the same ``tool_use_id``, hook records win — they carry richer
-fields (``cwd``/``transcript_path``/``permission_mode`` and durations).
+Tool-call data is read from SASE-owned per-run artifacts. New provider runs
+write normalized stream-backed rows to ``tool_calls.jsonl`` as the cross-runtime
+contract. Claude schema-v3 hook rows from older runs remain readable for
+backward compatibility. If a historical mixed file contains both stream and
+hook rows for the same ``tool_use_id``, the hook rows are kept as a legacy
+de-duplication rule so old timelines do not double-count one tool call.
 """
 
 from __future__ import annotations
@@ -233,14 +232,11 @@ def derive_tool_call_status(record: Mapping[str, Any]) -> str:
 
 
 def _prefer_hook_records(entries: list[ToolCallEntry]) -> list[ToolCallEntry]:
-    """Drop stream-derived rows when a hook record exists for the same call.
+    """Drop stream rows when an old hook row exists for the same call.
 
-    Hook records (``source == "hook"``, schema v3) carry richer fields than
-    stream-derived rows for the same ``tool_use_id``: the canonical
-    ``cwd``/``transcript_path``/``permission_mode`` strings, an exact
-    ``duration_ms`` for ``PostToolUse``, and Claude's authoritative status
-    derivation. When both sources are present for the same logical tool call,
-    keep only the hook entries so the timeline is not double-counted.
+    New artifacts should not mix Claude stream and hook collection. This rule
+    is retained for historical runs created while Claude hook collection was
+    enabled, where both sources could describe one logical ``tool_use_id``.
     """
     hook_ids = {
         (entry.runtime, entry.tool_use_id)
