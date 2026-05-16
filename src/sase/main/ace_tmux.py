@@ -13,6 +13,14 @@ _AGENTS_SESSION = "sase_ace_agents"
 _WINDOW_PREFIX = "sase_tmux_"
 _MAX_WINDOW_ATTEMPTS = 1000
 
+# Env vars injected into agent-spawned TUI windows so trace/perf JSONL files
+# get populated without the caller having to remember to export them. Caller-
+# provided values (including ``0`` to opt out) are passed through unchanged.
+_PROFILING_ENV_DEFAULTS = {
+    "SASE_TUI_TRACE": "1",
+    "SASE_TUI_PERF": "1",
+}
+
 
 class _TmuxLaunchError(Exception):
     """Raised when launching the TUI in tmux fails."""
@@ -115,6 +123,19 @@ def _build_relaunch_cmd() -> str:
     return "exec " + shlex.join([sys.executable, "-m", "sase", *forwarded])
 
 
+def _profiling_env_args() -> list[str]:
+    """Return ``-e KEY=VAL`` args for ``tmux new-window`` so the spawned TUI
+    runs with profiling instrumentation enabled. Pass-through any value the
+    caller has already set, so ``SASE_TUI_TRACE=0 sase ace --tmux …`` opts
+    out cleanly.
+    """
+    args: list[str] = []
+    for key, default in _PROFILING_ENV_DEFAULTS.items():
+        value = os.environ.get(key, default)
+        args.extend(["-e", f"{key}={value}"])
+    return args
+
+
 def _claim_window(session: str, relaunch_cmd: str) -> tuple[str, int]:
     """Create a uniquely-named ``sase_tmux_<N>`` window in ``session``.
 
@@ -131,6 +152,7 @@ def _claim_window(session: str, relaunch_cmd: str) -> tuple[str, int]:
                 "tmux",
                 "new-window",
                 "-d",
+                *_profiling_env_args(),
                 "-n",
                 window_name,
                 "-t",

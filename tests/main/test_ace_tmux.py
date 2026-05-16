@@ -215,6 +215,68 @@ def test_outside_tmux_creates_session_when_missing(monkeypatch) -> None:
     assert any(c[1] == "new-session" for c in fake.calls)
 
 
+def test_sets_profiling_env_vars_by_default(monkeypatch) -> None:
+    monkeypatch.setenv("TMUX", "/tmp/tmux-1000/default,1,0")
+    monkeypatch.delenv("SASE_TUI_TRACE", raising=False)
+    monkeypatch.delenv("SASE_TUI_PERF", raising=False)
+    fake = _FakeTmux(in_tmux=True)
+    with (
+        patch("sase.main.ace_tmux.shutil.which", return_value="/usr/bin/tmux"),
+        patch("sase.main.ace_tmux.subprocess.run", side_effect=fake),
+        patch.object(sys, "argv", ["sase", "ace"]),
+    ):
+        ace_tmux.launch_ace_in_tmux(_args())
+
+    new_window_call = next(c for c in fake.calls if c[1] == "new-window")
+    # tmux's `-e KEY=VAL` is repeated per env var.
+    e_values = [
+        new_window_call[i + 1] for i, tok in enumerate(new_window_call) if tok == "-e"
+    ]
+    assert "SASE_TUI_TRACE=1" in e_values
+    assert "SASE_TUI_PERF=1" in e_values
+
+
+def test_respects_explicit_profiling_env_var(monkeypatch) -> None:
+    monkeypatch.setenv("TMUX", "/tmp/tmux-1000/default,1,0")
+    monkeypatch.setenv("SASE_TUI_TRACE", "0")
+    monkeypatch.delenv("SASE_TUI_PERF", raising=False)
+    fake = _FakeTmux(in_tmux=True)
+    with (
+        patch("sase.main.ace_tmux.shutil.which", return_value="/usr/bin/tmux"),
+        patch("sase.main.ace_tmux.subprocess.run", side_effect=fake),
+        patch.object(sys, "argv", ["sase", "ace"]),
+    ):
+        ace_tmux.launch_ace_in_tmux(_args())
+
+    new_window_call = next(c for c in fake.calls if c[1] == "new-window")
+    e_values = [
+        new_window_call[i + 1] for i, tok in enumerate(new_window_call) if tok == "-e"
+    ]
+    assert "SASE_TUI_TRACE=0" in e_values
+    assert "SASE_TUI_PERF=1" in e_values
+
+
+def test_profiling_env_args_precede_window_name(monkeypatch) -> None:
+    monkeypatch.setenv("TMUX", "/tmp/tmux-1000/default,1,0")
+    monkeypatch.delenv("SASE_TUI_TRACE", raising=False)
+    monkeypatch.delenv("SASE_TUI_PERF", raising=False)
+    fake = _FakeTmux(in_tmux=True)
+    with (
+        patch("sase.main.ace_tmux.shutil.which", return_value="/usr/bin/tmux"),
+        patch("sase.main.ace_tmux.subprocess.run", side_effect=fake),
+        patch.object(sys, "argv", ["sase", "ace"]),
+    ):
+        ace_tmux.launch_ace_in_tmux(_args())
+
+    new_window_call = next(c for c in fake.calls if c[1] == "new-window")
+    name_idx = new_window_call.index("-n")
+    e_indices = [i for i, tok in enumerate(new_window_call) if tok == "-e"]
+    assert e_indices, "expected at least one -e KEY=VAL pair"
+    # Every -e must precede -n so it applies to the new window, not the
+    # relaunch command's operands.
+    assert max(e_indices) < name_idx
+
+
 def test_exits_with_message_when_tmux_missing(capsys) -> None:
     with (
         patch("sase.main.ace_tmux.shutil.which", return_value=None),

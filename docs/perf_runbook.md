@@ -92,6 +92,9 @@ jq -c . ~/.sase/perf/tui_jk.jsonl | head -20
 
 Override the key-to-paint path with `SASE_TUI_PERF_PATH=/tmp/tui_jk.jsonl`.
 
+Agents that launch the TUI via `sase ace --tmux` get `SASE_TUI_TRACE=1` and `SASE_TUI_PERF=1` injected automatically;
+export the variable to `0` before invoking to opt out.
+
 ## Synthetic-data benchmark harness
 
 The harness lives at `tests/perf/bench_tui_trace.py`. It generates in-memory ChangeSpec and agent fixtures, then drives
