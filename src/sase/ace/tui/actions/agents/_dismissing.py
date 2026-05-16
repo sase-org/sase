@@ -279,6 +279,7 @@ def _persist_single_dismiss_transaction(
 ) -> None:
     """Persist all side effects for one optimistic dismiss operation."""
     from ....dismissed_agents import save_dismissed_agents
+    from sase.core.agent_artifact_index_maintenance import sync_dismissed_visibility
 
     if not persist_cleanup_side_effect_intents(
         cleanup_plan,
@@ -289,6 +290,7 @@ def _persist_single_dismiss_transaction(
             agents_related_to_dismissal(agent, agents_with_children_snapshot)
         )
     save_dismissed_agents(dismissed_snapshot)
+    sync_dismissed_visibility(dismissed_snapshot)
 
 
 def _persist_bulk_dismiss_transaction(
@@ -299,6 +301,7 @@ def _persist_bulk_dismiss_transaction(
 ) -> None:
     """Persist all side effects for an optimistic batch dismiss operation."""
     from ....dismissed_agents import save_dismissed_agents
+    from sase.core.agent_artifact_index_maintenance import sync_dismissed_visibility
 
     if not persist_cleanup_side_effect_intents(
         cleanup_plan,
@@ -313,3 +316,4 @@ def _persist_bulk_dismiss_transaction(
         if related:
             dismiss_notifications_for_agents(related)
     save_dismissed_agents(dismissed_snapshot)
+    sync_dismissed_visibility(dismissed_snapshot)

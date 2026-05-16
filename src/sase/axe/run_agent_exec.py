@@ -22,6 +22,7 @@ from sase.axe.run_agent_helpers import (
     is_workflow_noop,
     read_and_delete_marker,
 )
+from sase.axe.run_agent_markers import upsert_artifact_index_row
 from sase.axe.run_agent_phases import build_done_marker
 from sase.axe.runner_utils import reset_killed, was_killed
 from sase.history.chat import save_chat_history
@@ -486,6 +487,7 @@ def _finalize_loop(
         done_path = os.path.join(state.current_artifacts_dir, "done.json")
         with open(done_path, "w", encoding="utf-8") as f:
             json.dump(done_marker, f, indent=2)
+        upsert_artifact_index_row(state.current_artifacts_dir)
         print(f"Done marker written to: {done_path}")
     else:
         # plan_rejected, killed, or failed_retried (spawn-on-retry handoff)
@@ -531,6 +533,7 @@ def _finalize_loop(
         done_path = os.path.join(state.current_artifacts_dir, "done.json")
         with open(done_path, "w", encoding="utf-8") as f:
             json.dump(done_marker, f, indent=2)
+        upsert_artifact_index_row(state.current_artifacts_dir)
         print(f"Done marker written to: {done_path} (outcome: {state.loop_outcome})")
 
     # For multi-step workflows the root artifacts directory (ctx.artifacts_dir)
@@ -543,6 +546,7 @@ def _finalize_loop(
         root_done_path = os.path.join(ctx.artifacts_dir, "done.json")
         with open(root_done_path, "w", encoding="utf-8") as f:
             json.dump(done_marker, f, indent=2)
+        upsert_artifact_index_row(ctx.artifacts_dir)
 
     return _AgentExecResult(
         success=state.loop_outcome == "completed",

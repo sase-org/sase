@@ -104,7 +104,6 @@ def rebuild_agent_artifact_index(
     return agent_artifact_index_update_from_dict(payload)
 
 
-# pyvision: docs/rust_backend.md
 def upsert_agent_artifact_index_row(
     index_path: Path | str,
     projects_root: Path | str,
@@ -123,7 +122,6 @@ def upsert_agent_artifact_index_row(
     return agent_artifact_index_update_from_dict(payload)
 
 
-# pyvision: docs/rust_backend.md
 def delete_agent_artifact_index_row(
     index_path: Path | str,
     artifact_dir: Path | str,
@@ -197,7 +195,6 @@ def delete_dismissed_agent_visibility(
     return agent_artifact_index_update_from_dict(payload)
 
 
-# pyvision: docs/rust_backend.md
 def replace_dismissed_agent_visibility(
     index_path: Path | str,
     identities: list[DismissedAgentIdentityWire],

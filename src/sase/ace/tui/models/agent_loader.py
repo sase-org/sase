@@ -319,6 +319,17 @@ def _query_artifact_index_for_loader(
             ),
         )
 
+    # Phase 4 of ``sase-3r``: keep the dismissed-agent sidecar in sync with
+    # ~/.sase/dismissed_agents.json before each inbox query. The call is
+    # mtime-signature-gated, so the second-and-subsequent refreshes are a
+    # cheap stat, and any drift introduced by sibling processes or by an
+    # editor writing the legacy file is reconciled before the query reads it.
+    from sase.core.agent_artifact_index_maintenance import (
+        maybe_sync_dismissed_from_file,
+    )
+
+    maybe_sync_dismissed_from_file(index_path=index_path)
+
     query = _tui_inbox_query()
     try:
         snapshot = query_agent_artifact_index(

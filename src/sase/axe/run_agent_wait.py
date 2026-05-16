@@ -7,7 +7,7 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-from sase.axe.run_agent_markers import write_agent_meta
+from sase.axe.run_agent_markers import upsert_artifact_index_row, write_agent_meta
 from sase.axe.runner_utils import was_killed
 
 
@@ -43,6 +43,7 @@ def _record_wait_completed_at(
     merged_meta = {**disk_meta, **agent_meta, "wait_completed_at": wait_completed_at}
     agent_meta.update(merged_meta)
     write_agent_meta(artifacts_dir, merged_meta)
+    upsert_artifact_index_row(artifacts_dir)
     return wait_completed_at
 
 
@@ -83,6 +84,7 @@ def wait_for_dependencies(
             waiting_data["wait_until"] = wait_until
         with open(waiting_path, "w", encoding="utf-8") as f:
             json.dump(waiting_data, f, indent=2)
+        upsert_artifact_index_row(artifacts_dir)
 
         parts = [f"agents: {', '.join(wait_names)}"]
         if duration is not None:
@@ -147,6 +149,7 @@ def wait_for_dependencies(
         }
         with open(waiting_path, "w", encoding="utf-8") as f:
             json.dump(until_waiting_data, f, indent=2)
+        upsert_artifact_index_row(artifacts_dir)
 
         print(f"Waiting until: {wait_until}")
         remaining = remaining_until(wait_until)
@@ -177,6 +180,7 @@ def wait_for_dependencies(
         }
         with open(waiting_path, "w", encoding="utf-8") as f:
             json.dump(dur_waiting_data, f, indent=2)
+        upsert_artifact_index_row(artifacts_dir)
 
         print(f"Waiting for duration: {duration:.0f}s")
         remaining = duration

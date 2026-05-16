@@ -6,6 +6,22 @@ from datetime import datetime
 from typing import Any
 
 
+def upsert_artifact_index_row(artifacts_dir: str) -> None:
+    """Best-effort upsert of *artifacts_dir* into the persistent index.
+
+    Phase 4 of ``sase-3r`` (Fast Agents Tab Disk Loading) keeps the
+    visibility-aware Tier 1 inbox query fresh as launch/running/waiting/
+    done markers land. The adapter swallows every exception, so callers
+    do not need defensive try/except blocks.
+    """
+    try:
+        from sase.core.agent_artifact_index_maintenance import upsert_artifact_dir
+
+        upsert_artifact_dir(artifacts_dir)
+    except Exception:  # noqa: BLE001  defensive — must not break marker writes
+        pass
+
+
 def record_run_started_at(artifacts_dir: str, agent_meta: dict[str, Any]) -> str:
     """Persist the execution-loop start timestamp if it has not been recorded."""
     from datetime import UTC, datetime
@@ -35,6 +51,7 @@ def record_run_started_at(artifacts_dir: str, agent_meta: dict[str, Any]) -> str
     merged_meta = {**disk_meta, **agent_meta, "run_started_at": run_started_at}
     agent_meta.update(merged_meta)
     write_agent_meta(artifacts_dir, merged_meta)
+    upsert_artifact_index_row(artifacts_dir)
     return run_started_at
 
 
@@ -140,6 +157,7 @@ def record_stop_time(
             write_agent_meta(ad, meta_data)
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             pass
+        upsert_artifact_index_row(ad)
 
 
 def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:

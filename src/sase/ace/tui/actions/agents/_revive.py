@@ -314,6 +314,10 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             mark_bundles_revived_by_suffixes,
             save_dismissed_agents,
         )
+        from sase.core.agent_artifact_index_maintenance import (
+            sync_dismissed_visibility,
+            upsert_artifact_dir,
+        )
         from ...models import Agent
         from ...modals import SelectionItem
         from ._revive_log import (
@@ -349,11 +353,14 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
 
             save_dismissed_agents(self._dismissed_agents)
+            sync_dismissed_visibility(self._dismissed_agents)
 
             stage = "artifact_restore"
             # Restore minimal artifact files so load_all_agents() rediscovers
             # the agent.
             self._restore_agent_artifacts(agent)
+            if agent.artifacts_dir:
+                upsert_artifact_dir(agent.artifacts_dir, coalesce=False)
 
             # Also restore child step / follow-up artifacts for workflow parents
             if not agent.is_workflow_child and agent.raw_suffix:
@@ -363,6 +370,10 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
                             dismissed_agent,
                             parent_artifacts_dir=agent.artifacts_dir,
                         )
+                        if dismissed_agent.artifacts_dir:
+                            upsert_artifact_dir(
+                                dismissed_agent.artifacts_dir, coalesce=False
+                            )
 
             stage = "bundle_marking"
             mark_bundles_revived_by_suffixes(revived_suffixes)
@@ -427,6 +438,10 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             mark_bundles_revived_by_suffixes,
             save_dismissed_agents,
         )
+        from sase.core.agent_artifact_index_maintenance import (
+            sync_dismissed_visibility,
+            upsert_artifact_dir,
+        )
         from ...models import Agent as AgentModel
         from ...modals import SelectionItem
         from ._revive_log import (
@@ -472,6 +487,7 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
 
             # Phase 2: Single disk write for dismissed set
             save_dismissed_agents(self._dismissed_agents)
+            sync_dismissed_visibility(self._dismissed_agents)
         except Exception as exc:
             for agent in valid_agents:
                 log_revive_failure(
@@ -495,6 +511,8 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             per_stage = "artifact_restore"
             try:
                 self._restore_agent_artifacts(agent)
+                if agent.artifacts_dir:
+                    upsert_artifact_dir(agent.artifacts_dir, coalesce=False)
                 if not agent.is_workflow_child and agent.raw_suffix:
                     for dismissed_agent in list(self._dismissed_agent_objects):
                         if _is_child_of(dismissed_agent, agent):
@@ -502,6 +520,10 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
                                 dismissed_agent,
                                 parent_artifacts_dir=agent.artifacts_dir,
                             )
+                            if dismissed_agent.artifacts_dir:
+                                upsert_artifact_dir(
+                                    dismissed_agent.artifacts_dir, coalesce=False
+                                )
             except Exception as exc:
                 log_revive_failure(
                     stage=per_stage,
