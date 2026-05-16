@@ -2,7 +2,7 @@
 
 Phase 6 of the TUI perf overhaul adds dedupe + caching at this layer:
 
-- ``compute_diff_cache_key`` derives a stable key from the agent identity,
+- ``_compute_diff_cache_key`` derives a stable key from the agent identity,
   workspace path, VCS provider, a worktree fingerprint (``.git/index``
   mtime/size, when present), and a TTL bucket.
 - A module-level ``_diff_cache`` stores recent results so re-selecting the
@@ -69,7 +69,7 @@ def _resolve_workspace_dir(agent: Agent) -> str | None:
         return None
 
 
-def compute_diff_cache_key(agent: Agent) -> DiffCacheKey | None:
+def _compute_diff_cache_key(agent: Agent) -> DiffCacheKey | None:
     """Build the diff cache key for an agent, or None if not derivable.
 
     The TTL bucket is always included — it is the primary invalidation signal
@@ -97,7 +97,7 @@ def get_agent_diff(agent: Agent) -> str | None:
 
     For completed agents with a diff_path, read the pre-computed diff file.
     For RUNNING agents, use workspace_num to find directory and run live diff,
-    caching by ``compute_diff_cache_key``.
+    caching by ``_compute_diff_cache_key``.
 
     Args:
         agent: The agent to get diff for.
@@ -122,43 +122,26 @@ def get_agent_diff(agent: Agent) -> str | None:
     if agent.status in ("DONE", "FAILED"):
         return None
 
-    try:
-        project_basename = Path(agent.project_file).stem
-        if agent.workspace_num:
-            workspace_dir = get_workspace_directory(
-                project_basename, agent.workspace_num
-            )
-        else:
-            workspace_dir = get_workspace_directory(project_basename, 1)
-
-        try:
-            provider = get_vcs_provider(workspace_dir)
-        except VCSProviderNotFoundError:
-            return None
-
-        provider_name = type(provider).__name__
-        fingerprint = _git_index_signature(workspace_dir)
-        ttl_bucket = int(time.time() // DIFF_CACHE_TTL_SECONDS)
-        key: DiffCacheKey = (
-            agent.identity,
-            workspace_dir,
-            provider_name,
-            fingerprint,
-            ttl_bucket,
-        )
-
-        with _diff_cache_lock:
-            if key in _diff_cache:
-                return _diff_cache[key]
-
-        _, diff_text = provider.diff_with_untracked(workspace_dir, timeout=10)
-        result = diff_text if diff_text else None
-
-        with _diff_cache_lock:
-            _diff_cache[key] = result
-        return result
-
-    except RuntimeError:
+    key = _compute_diff_cache_key(agent)
+    if key is None:
         return None
+
+    with _diff_cache_lock:
+        if key in _diff_cache:
+            return _diff_cache[key]
+
+    workspace_dir = key[1]
+    try:
+        provider = get_vcs_provider(workspace_dir)
+    except VCSProviderNotFoundError:
+        return None
+
+    try:
+        _, diff_text = provider.diff_with_untracked(workspace_dir, timeout=10)
     except Exception:
         return None
+    result = diff_text if diff_text else None
+
+    with _diff_cache_lock:
+        _diff_cache[key] = result
+    return result
