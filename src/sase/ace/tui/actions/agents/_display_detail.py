@@ -61,6 +61,9 @@ class DetailMixin:
         if current_agent is None:
             agent_detail.show_empty()
             return
+        from ._loading_helpers import hydrate_attempt_history_for
+
+        hydrate_attempt_history_for(current_agent)
         agent_detail.update_display_immediate(
             current_agent, attempt_number=self.current_attempt_number
         )
@@ -93,6 +96,9 @@ class DetailMixin:
         """
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if current_agent is not None:
+            from ._loading_helpers import hydrate_attempt_history_for
+
+            hydrate_attempt_history_for(current_agent)
             agent_detail.update_display(
                 current_agent,
                 stale_threshold_seconds=self.refresh_interval,
