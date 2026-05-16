@@ -112,7 +112,7 @@ def test_compute_diff_cache_key_includes_provider_name(tmp_path: Path) -> None:
 
     with patch.object(diff_mod, "get_workspace_directory", return_value=str(workspace)):
         with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
-            key = diff_mod.compute_diff_cache_key(agent)
+            key = diff_mod._compute_diff_cache_key(agent)
 
     assert key is not None
     assert key[1] == str(workspace)
@@ -132,7 +132,7 @@ def test_compute_diff_cache_key_ttl_bucket_present_without_git_index(
 
     with patch.object(diff_mod, "get_workspace_directory", return_value=str(workspace)):
         with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
-            key = diff_mod.compute_diff_cache_key(agent)
+            key = diff_mod._compute_diff_cache_key(agent)
 
     assert key is not None
     assert key[3] is None
@@ -152,4 +152,4 @@ def test_compute_diff_cache_key_returns_none_without_provider(
 
     with patch.object(diff_mod, "get_workspace_directory", return_value=str(workspace)):
         with patch.object(diff_mod, "get_vcs_provider", side_effect=raise_not_found):
-            assert diff_mod.compute_diff_cache_key(agent) is None
+            assert diff_mod._compute_diff_cache_key(agent) is None
