@@ -46,6 +46,12 @@ def _write_profile_output(profiler: Any, profile_arg: str) -> str:
 
 def handle_ace_command(args: argparse.Namespace) -> None:
     """Handle the 'sase ace' command."""
+    if getattr(args, "tmux", False):
+        from sase.main.ace_tmux import launch_ace_in_tmux
+
+        launch_ace_in_tmux(args)
+        sys.exit(0)
+
     from sase.ace.tui import AceApp
     from sase.config.core import set_include_local_config
 

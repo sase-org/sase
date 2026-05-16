@@ -66,6 +66,15 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Tab to focus on startup (default: agents)",
     )
     ace_parser.add_argument(
+        "-T",
+        "--tmux",
+        action="store_true",
+        help="Launch the TUI in a new tmux window named 'sase_tmux_<N>' and "
+        "print its session/window target on stdout. Useful for agents that "
+        "need to drive the TUI via 'tmux send-keys' and observe it via "
+        "'tmux capture-pane'.",
+    )
+    ace_parser.add_argument(
         "-x",
         "--no-axe",
         action="store_true",

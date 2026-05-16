@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-16 15:13:54
-status: wip
+status: done
 prompt: sdd/prompts/202605/ace_tmux_option_1.md
 ---
 # Plan: `sase ace --tmux` Option
