@@ -10,6 +10,7 @@ anything drifted before applying it.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from ._loading_compute_types import (
@@ -101,9 +102,31 @@ def _filter_agents_by_query(
     content_index: AgentContentSearchIndex | None,
 ) -> list[Agent]:
     """Filter *agents* by *parsed_ast*, preserving children of matching parents."""
-    from ._loading_query_filter import filter_agents_by_query
+    from ....agent_query import evaluate_agent_query
 
-    return filter_agents_by_query(agents, parsed_ast, content_index)
+    now = datetime.now()
+
+    def _matches(agent: Agent) -> bool:
+        return evaluate_agent_query(
+            parsed_ast, agent, now=now, content_cache=content_index
+        )
+
+    matching_parent_names: set[str] = set()
+    for agent in agents:
+        if not agent.is_workflow_child and _matches(agent):
+            matching_parent_names.add(agent.agent_name or agent.cl_name)
+
+    return [
+        a
+        for a in agents
+        if (
+            _matches(a)
+            or (
+                a.is_workflow_child
+                and (a.agent_name or a.cl_name) in matching_parent_names
+            )
+        )
+    ]
 
 
 def _compute_query_plan(

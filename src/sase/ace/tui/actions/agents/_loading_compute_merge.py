@@ -84,48 +84,21 @@ def _reattach_children_after_parent_dedup(
     return regrouped
 
 
-def _cached_projection_has_children_for_incoming_parent(
-    cached_agents: list[Agent],
-    incoming_agents: list[Agent],
-) -> bool:
-    """Return True when cached rows are a richer tree for an incoming parent."""
-    cached_children_by_parent: dict[str, int] = {}
-    for agent in cached_agents:
-        if agent.is_workflow_child and agent.parent_timestamp is not None:
-            cached_children_by_parent[agent.parent_timestamp] = (
-                cached_children_by_parent.get(agent.parent_timestamp, 0) + 1
-            )
-    if not cached_children_by_parent:
-        return False
-
-    incoming_parent_suffixes = {
-        agent.raw_suffix
-        for agent in incoming_agents
-        if agent.raw_suffix is not None and not agent.is_workflow_child
-    }
-    return any(
-        suffix in cached_children_by_parent for suffix in incoming_parent_suffixes
-    )
-
-
 def merge_incomplete_load_after_complete_history(
     prep: PreparedApplyData,
     snapshot: PreparedApplySnapshot,
 ) -> PreparedApplyData:
     """Treat post-reconcile Tier 1 loads as patches over full history."""
     load_state = snapshot.load_state
-    if load_state is None or load_state.complete_history:
+    if (
+        load_state is None
+        or load_state.complete_history
+        or not snapshot.agents_seen_complete_history
+    ):
         return prep
 
     cached_agents = list(snapshot.cached_agents_with_children)
     if not cached_agents:
-        return prep
-    if (
-        not snapshot.agents_seen_complete_history
-        and not _cached_projection_has_children_for_incoming_parent(
-            cached_agents, prep.filtered_agents
-        )
-    ):
         return prep
 
     from ...models._dedup import dedup_by_pid, dedup_running_vs_workflow
