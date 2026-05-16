@@ -22,8 +22,8 @@ from .agent_scan_golden import (
 def test_schema_version_pinned() -> None:
     """Bumping the schema is a deliberate, reviewable event."""
     assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 1
-    # Phase 2 of sase-3r introduced the dismissed_agents sidecar table.
-    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 2
+    # Phase 2 of sase-3s tightened the indexed inbox active predicate.
+    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 3
 
 
 def test_artifact_index_wire_helpers() -> None:
@@ -46,7 +46,7 @@ def test_artifact_index_wire_helpers() -> None:
 
     update = agent_artifact_index_update_from_dict(
         {
-            "schema_version": 2,
+            "schema_version": 3,
             "index_path": "/tmp/index.sqlite",
             "projects_root": "/tmp/projects",
             "rows_indexed": 2,
@@ -55,7 +55,7 @@ def test_artifact_index_wire_helpers() -> None:
         }
     )
     assert update == AgentArtifactIndexUpdateWire(
-        schema_version=2,
+        schema_version=3,
         index_path="/tmp/index.sqlite",
         projects_root="/tmp/projects",
         rows_indexed=2,
