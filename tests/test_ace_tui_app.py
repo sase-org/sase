@@ -133,16 +133,18 @@ async def test_unmark_navigates_to_next_spec() -> None:
     async with AcePage() as page:
         # Mark first spec (navigates to second)
         await page.press("m")
-        assert page.state["idx"] == 1
+        await page.expect_state("idx", 1)
 
         # Navigate back to first spec
         await page.press("k")
-        assert page.state["idx"] == 0
+        await page.expect_state("idx", 0)
 
         # Un-mark first spec - should navigate to next (index 1)
         await page.press("m")
-        assert 0 not in page.state["marked"]
-        assert page.state["idx"] == 1
+        await page.wait_for(
+            lambda state: 0 not in state["marked"] and state["idx"] == 1
+        )
+        await page.pause()
 
 
 async def test_mark_single_spec_stays() -> None:
