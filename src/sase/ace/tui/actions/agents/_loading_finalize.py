@@ -209,7 +209,16 @@ def _apply_finalize_plan(
     app._group_fold_registry.clear_unknown(plan.group_keys)
 
     if on_agents_tab:
-        with tui_trace("agents.final_display_refresh", agents=len(app._agents)):
+        with tui_trace(
+            "agents.final_display_refresh",
+            agents=len(app._agents),
+            final_visible_parent_count=sum(
+                1 for agent in app._agents if not agent.is_workflow_child
+            ),
+            final_visible_child_count=sum(
+                1 for agent in app._agents if agent.is_workflow_child
+            ),
+        ):
             app._refresh_agents_display(  # type: ignore[attr-defined]
                 list_changed=True,
                 defer_detail=True,
@@ -256,9 +265,22 @@ def finalize_agent_list(
         # Apply fold-state filtering for workflow children.
         from ...models import filter_agents_by_fold_state
 
-        with tui_trace("agents.fold_filtering", count=len(app._agents)):
+        with tui_trace("agents.fold_filtering", count=len(app._agents)) as trace:
+            unfiltered_agents = list(app._agents)
             app._agents, app._fold_counts = filter_agents_by_fold_state(
                 app._agents, app._fold_manager
+            )
+            trace["unfiltered_parent_count"] = sum(
+                1 for agent in unfiltered_agents if not agent.is_workflow_child
+            )
+            trace["unfiltered_child_count"] = sum(
+                1 for agent in unfiltered_agents if agent.is_workflow_child
+            )
+            trace["final_visible_parent_count"] = sum(
+                1 for agent in app._agents if not agent.is_workflow_child
+            )
+            trace["final_visible_child_count"] = sum(
+                1 for agent in app._agents if agent.is_workflow_child
             )
 
     if precomputed_plan is not None:
@@ -405,7 +427,16 @@ def finalize_agent_list(
 
     # Only refresh display if on agents tab
     if on_agents_tab:
-        with tui_trace("agents.final_display_refresh", agents=len(app._agents)):
+        with tui_trace(
+            "agents.final_display_refresh",
+            agents=len(app._agents),
+            final_visible_parent_count=sum(
+                1 for agent in app._agents if not agent.is_workflow_child
+            ),
+            final_visible_child_count=sum(
+                1 for agent in app._agents if agent.is_workflow_child
+            ),
+        ):
             app._refresh_agents_display(  # type: ignore[attr-defined]
                 list_changed=True,
                 defer_detail=True,

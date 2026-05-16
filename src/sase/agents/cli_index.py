@@ -10,6 +10,7 @@ from rich.console import Console
 
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
+    diagnose_agent_artifact_index_timestamps,
     rebuild_agent_artifact_index,
     verify_agent_artifact_index,
 )
@@ -25,8 +26,11 @@ def handle_agents_index(args: argparse.Namespace) -> None:
     if sub == "verify":
         _handle_agents_index_verify(args)
         return
+    if sub == "diagnose":
+        _handle_agents_index_diagnose(args)
+        return
 
-    Console().print("Usage: sase agents index {rebuild,verify}")
+    Console().print("Usage: sase agents index {rebuild,verify,diagnose}")
     raise SystemExit(1)
 
 
@@ -66,3 +70,25 @@ def _handle_agents_index_verify(args: argparse.Namespace) -> None:
     else:
         Console().print(json.dumps(payload, indent=2, sort_keys=True))
     raise SystemExit(0 if result.ok else 1)
+
+
+def _handle_agents_index_diagnose(args: argparse.Namespace) -> None:
+    """Compare source/index timestamps for a selected agent name pattern."""
+    projects_root = Path(
+        getattr(args, "projects_root", None) or Path.home() / ".sase" / "projects"
+    ).expanduser()
+    index_path = Path(
+        getattr(args, "index_path", None) or default_agent_artifact_index_path()
+    ).expanduser()
+    pattern = args.pattern
+
+    payload = diagnose_agent_artifact_index_timestamps(
+        index_path=index_path,
+        projects_root=projects_root,
+        pattern=pattern,
+    )
+    if getattr(args, "json", False):
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        Console().print(json.dumps(payload, indent=2, sort_keys=True))
+    raise SystemExit(0 if payload["ok"] else 1)
