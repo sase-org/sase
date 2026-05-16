@@ -2,8 +2,6 @@
 create_time: 2026-05-16 12:43:48
 status: wip
 prompt: sdd/prompts/202605/agents_tab_perf_repair.md
-bead_id: sase-3s
-tier: epic
 ---
 # Fix Agents Tab Performance And Correctness
 
