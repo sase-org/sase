@@ -127,6 +127,9 @@ class AgentLoadingStateMixin:
     # rebuild worker is running so duplicate missing-index loads do not
     # spawn duplicate rebuilds. Cleared by the worker when it completes.
     _artifact_index_rebuild_in_flight: bool
+    _artifact_index_upsert_in_flight: set[str]
+    _artifact_index_verify_in_flight: bool
+    _artifact_index_verify_completed: bool
 
     def _apply_loaded_agents_prepared(
         self,
@@ -160,6 +163,17 @@ class AgentLoadingStateMixin:
         raise NotImplementedError
 
     def _schedule_artifact_index_rebuild(self) -> None:
+        raise NotImplementedError
+
+    def _schedule_artifact_index_upsert(
+        self,
+        artifact_dir: str,
+        *,
+        source: str,
+    ) -> None:
+        raise NotImplementedError
+
+    def _schedule_artifact_index_verify_repair(self, *, source: str) -> None:
         raise NotImplementedError
 
     def _finalize_agent_list(

@@ -211,6 +211,61 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             return False
         return bool(getattr(self, "_agents_with_children", []))
 
+    def _schedule_selected_artifact_index_repair(
+        self,
+        prep: PreparedApplyData,
+        *,
+        selected_identity: tuple[AgentType, str, str | None] | None,
+        load_state: AgentLoadState | None,
+    ) -> None:
+        """Upsert a cached selected source artifact missing from Tier 1."""
+        if selected_identity is None or load_state is None:
+            return
+        if getattr(load_state, "complete_history", False):
+            return
+        if getattr(load_state, "tier", None) != "tier1":
+            return
+        if getattr(load_state, "artifact_source", None) != "artifact_index":
+            return
+        if any(agent.identity == selected_identity for agent in prep.filtered_agents):
+            return
+
+        cached_agent = next(
+            (
+                agent
+                for agent in getattr(self, "_agents_with_children", [])
+                if agent.identity == selected_identity
+            ),
+            None,
+        )
+        if cached_agent is None:
+            return
+        artifacts_dir = cached_agent.get_artifacts_dir()
+        if not artifacts_dir:
+            return
+        schedule_upsert = getattr(self, "_schedule_artifact_index_upsert", None)
+        if callable(schedule_upsert):
+            schedule_upsert(
+                artifacts_dir,
+                source="selected_agent_missing_from_tier1",
+            )
+
+    def _schedule_index_verify_repair_if_needed(
+        self,
+        load_state: AgentLoadState | None,
+    ) -> None:
+        if load_state is None:
+            return
+        if getattr(load_state, "complete_history", False):
+            return
+        if getattr(load_state, "tier", None) != "tier1":
+            return
+        if not getattr(load_state, "used_artifact_index", False):
+            return
+        schedule_verify = getattr(self, "_schedule_artifact_index_verify_repair", None)
+        if callable(schedule_verify):
+            schedule_verify(source="tier1_index_load")
+
     def _apply_loaded_agents_prepared(
         self,
         prep: PreparedApplyData,
@@ -302,6 +357,12 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             ):
                 pass
             self._agent_load_state = load_state
+            self._schedule_selected_artifact_index_repair(
+                prep,
+                selected_identity=selected_identity,
+                load_state=load_state,
+            )
+            self._schedule_index_verify_repair_if_needed(load_state)
             if (
                 load_state is not None
                 and load_state.needs_full_history_reconcile
@@ -367,6 +428,12 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             self._agents_refresh_pending_full_history = True
         if load_state is not None and load_state.index_missing:
             self._schedule_artifact_index_rebuild()
+        self._schedule_selected_artifact_index_repair(
+            prep,
+            selected_identity=selected_identity,
+            load_state=load_state,
+        )
+        self._schedule_index_verify_repair_if_needed(load_state)
 
         self._dismissed_agent_objects = trim_dismissed_agent_objects(
             prep.dismissed_agent_objects

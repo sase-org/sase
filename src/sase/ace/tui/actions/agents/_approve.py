@@ -40,6 +40,9 @@ def _persist_plan_auto_approval(
         meta.pop("auto_approve_plan_action", None)
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2)
+    from sase.core.agent_artifact_index_maintenance import upsert_artifact_dir
+
+    upsert_artifact_dir(meta_path.parent, coalesce=False)
 
 
 def _next_auto_approval_state(agent: Agent) -> tuple[bool, str | None, str]:

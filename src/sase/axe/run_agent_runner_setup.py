@@ -104,6 +104,9 @@ def setup_artifacts_directory(
         os.path.join(artifacts_dir, "workflow_state.json"), "w", encoding="utf-8"
     ) as f:
         json.dump(initial_state, f, indent=2)
+    from sase.axe.run_agent_markers import upsert_artifact_index_row
+
+    upsert_artifact_index_row(artifacts_dir)
 
     return project_name, artifacts_timestamp, artifacts_dir
 

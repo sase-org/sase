@@ -671,5 +671,39 @@ def test_incomplete_load_before_complete_history_still_replaces_list() -> None:
     assert app._agents == [current]
 
 
+def test_incomplete_index_load_repairs_missing_selected_cached_artifact(
+    tmp_path: Path,
+) -> None:
+    """A cached selected source row missing from Tier 1 gets a targeted upsert."""
+    app = FakeLoadingApp()
+    artifacts_dir = tmp_path / "sase-selected-artifacts"
+    artifacts_dir.mkdir()
+    selected = _make_agent(
+        cl_name="selected",
+        raw_suffix="20260202120000",
+        artifacts_dir=str(artifacts_dir),
+    )
+    incoming = _make_agent(cl_name="incoming", raw_suffix="20260303120000")
+    app._agents_with_children = [selected]
+    app._agents = [selected]
+
+    upsert_calls: list[tuple[str, str]] = []
+
+    def _schedule_upsert(artifact_dir: str, *, source: str) -> None:
+        upsert_calls.append((artifact_dir, source))
+
+    app._schedule_artifact_index_upsert = _schedule_upsert  # type: ignore[method-assign]
+
+    app._apply_loaded_agents(
+        [incoming],
+        [],
+        on_agents_tab=True,
+        selected_identity=selected.identity,
+        load_state=_INCOMPLETE_INDEX_STATE,
+    )
+
+    assert upsert_calls == [(str(artifacts_dir), "selected_agent_missing_from_tier1")]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

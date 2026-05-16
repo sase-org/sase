@@ -18,6 +18,9 @@ class _RebuildFakeApp(AgentLoadingDiskMixin):
 
     def __init__(self) -> None:
         self._artifact_index_rebuild_in_flight = False
+        self._artifact_index_upsert_in_flight: set[str] = set()
+        self._artifact_index_verify_in_flight = False
+        self._artifact_index_verify_completed = False
         self._scheduled_refreshes: int = 0
         self._workers: list[Any] = []
 
@@ -61,3 +64,23 @@ def test_schedule_rebuild_without_run_worker_is_a_noop() -> None:
     app._schedule_artifact_index_rebuild()
 
     assert app._artifact_index_rebuild_in_flight is False
+
+
+def test_schedule_upsert_spawns_worker_and_coalesces_by_artifact_dir() -> None:
+    app = _RebuildFakeApp()
+
+    app._schedule_artifact_index_upsert("/tmp/artifacts/one", source="test")
+    app._schedule_artifact_index_upsert("/tmp/artifacts/one", source="test")
+
+    assert len(app._workers) == 1
+    assert app._artifact_index_upsert_in_flight == {"/tmp/artifacts/one"}
+
+
+def test_schedule_verify_repair_spawns_once() -> None:
+    app = _RebuildFakeApp()
+
+    app._schedule_artifact_index_verify_repair(source="test")
+    app._schedule_artifact_index_verify_repair(source="test")
+
+    assert len(app._workers) == 1
+    assert app._artifact_index_verify_in_flight is True

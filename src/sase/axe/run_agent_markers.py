@@ -164,3 +164,4 @@ def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(agent_meta, f, indent=2)
+    upsert_artifact_index_row(artifacts_dir)

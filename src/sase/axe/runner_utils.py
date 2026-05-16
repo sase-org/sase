@@ -178,6 +178,9 @@ def write_agent_meta(
     try:
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
+        from sase.axe.run_agent_markers import upsert_artifact_index_row
+
+        upsert_artifact_index_row(artifacts_dir)
     except Exception as e:
         print(f"Warning: Failed to write agent_meta.json: {e}")
 
@@ -311,6 +314,9 @@ def write_done_marker(
     try:
         with open(done_path, "w", encoding="utf-8") as f:
             json.dump(done_data, f, indent=2)
+        from sase.axe.run_agent_markers import upsert_artifact_index_row
+
+        upsert_artifact_index_row(artifacts_dir)
         print(f"Done marker written to: {done_path}")
     except Exception as e:
         print(f"Warning: Failed to write done marker: {e}")

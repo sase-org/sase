@@ -173,6 +173,9 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         os.makedirs(self.artifacts_dir, exist_ok=True)
         with open(state_path, "w", encoding="utf-8") as f:
             json.dump(state_dict, f, indent=2)
+        from sase.axe.run_agent_markers import upsert_artifact_index_row
+
+        upsert_artifact_index_row(self.artifacts_dir)
 
     def _get_output_types(self, step_index: int) -> dict[str, str] | None:
         """Get the output type mapping for a workflow step.
@@ -584,6 +587,9 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         try:
             with open(marker_path, "w", encoding="utf-8") as f:
                 json.dump(marker_data, f, indent=2, default=str)
+            from sase.axe.run_agent_markers import upsert_artifact_index_row
+
+            upsert_artifact_index_row(self.artifacts_dir)
         except Exception:
             # Non-critical - just for TUI visibility
             pass

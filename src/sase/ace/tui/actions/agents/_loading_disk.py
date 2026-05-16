@@ -106,6 +106,34 @@ def _run_artifact_index_rebuild() -> None:
         log.exception("artifact-index rebuild worker failed")
 
 
+def _run_artifact_index_upsert(artifact_dir: str) -> None:
+    """Upsert one source artifact directory into the persistent index."""
+    from sase.core.agent_artifact_index_maintenance import upsert_artifact_dir
+
+    ok = upsert_artifact_dir(artifact_dir, coalesce=False)
+    if not ok:
+        raise RuntimeError(f"artifact-index upsert failed for {artifact_dir}")
+
+
+def _run_artifact_index_verify_repair() -> bool:
+    """Verify the persistent index and rebuild it when source drift is found."""
+    from pathlib import Path
+
+    from sase.core.agent_scan_facade import (
+        default_agent_artifact_index_path,
+        rebuild_agent_artifact_index,
+        verify_agent_artifact_index,
+    )
+
+    index_path = default_agent_artifact_index_path()
+    projects_root = Path.home() / ".sase" / "projects"
+    result = verify_agent_artifact_index(index_path, projects_root)
+    if result.ok:
+        return False
+    rebuild_agent_artifact_index(index_path, projects_root)
+    return True
+
+
 class AgentLoadingDiskMixin(AgentLoadingStateMixin):
     """Methods that read agent state from disk and prepare apply snapshots."""
 
@@ -128,6 +156,12 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             return
 
         self._artifact_index_rebuild_in_flight = True
+        with tui_trace(
+            "agents.artifact_index_repair_scheduled",
+            repair_kind="rebuild",
+            source="missing_index",
+        ):
+            pass
 
         async def _runner() -> None:
             import asyncio
@@ -141,6 +175,98 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
                     schedule()
 
         run_worker(_runner(), exclusive=False, group="artifact-index-rebuild")
+
+    def _schedule_artifact_index_upsert(
+        self,
+        artifact_dir: str,
+        *,
+        source: str,
+    ) -> None:
+        """Repair one known stale/missing artifact-index row off-thread."""
+
+        if not artifact_dir:
+            return
+
+        in_flight = getattr(self, "_artifact_index_upsert_in_flight", None)
+        if in_flight is None:
+            in_flight = set()
+            self._artifact_index_upsert_in_flight = in_flight
+        if artifact_dir in in_flight:
+            return
+
+        run_worker = getattr(self, "run_worker", None)
+        if not callable(run_worker):
+            return
+
+        from ...util.trace import tui_trace
+
+        in_flight.add(artifact_dir)
+        with tui_trace(
+            "agents.artifact_index_repair_scheduled",
+            repair_kind="upsert",
+            source=source,
+            artifact_dir=artifact_dir,
+        ):
+            pass
+
+        async def _runner() -> None:
+            import asyncio
+
+            try:
+                await asyncio.to_thread(_run_artifact_index_upsert, artifact_dir)
+            except Exception:
+                log.exception(
+                    "artifact-index upsert worker failed: artifact_dir=%s",
+                    artifact_dir,
+                )
+            finally:
+                current_in_flight: set[str] = getattr(
+                    self, "_artifact_index_upsert_in_flight", set()
+                )
+                current_in_flight.discard(artifact_dir)
+                schedule = getattr(self, "_schedule_agents_async_refresh", None)
+                if callable(schedule):
+                    schedule()
+
+        run_worker(_runner, exclusive=False, group="artifact-index-upsert")
+
+    def _schedule_artifact_index_verify_repair(self, *, source: str) -> None:
+        """Run one background source/index verification pass for startup drift."""
+
+        if getattr(self, "_artifact_index_verify_completed", False):
+            return
+        if getattr(self, "_artifact_index_verify_in_flight", False):
+            return
+
+        run_worker = getattr(self, "run_worker", None)
+        if not callable(run_worker):
+            return
+
+        self._artifact_index_verify_in_flight = True
+        with tui_trace(
+            "agents.artifact_index_repair_scheduled",
+            repair_kind="verify_repair",
+            source=source,
+        ):
+            pass
+
+        async def _runner() -> None:
+            import asyncio
+
+            repaired = False
+            try:
+                repaired = await asyncio.to_thread(_run_artifact_index_verify_repair)
+            except Exception:
+                log.exception("artifact-index verify/repair worker failed")
+            finally:
+                self._artifact_index_verify_in_flight = False
+                self._artifact_index_verify_completed = True
+                if repaired:
+                    schedule = getattr(self, "_schedule_agents_async_refresh", None)
+                    if callable(schedule):
+                        schedule()
+
+        run_worker(_runner, exclusive=False, group="artifact-index-verify-repair")
 
     def _prepare_agent_content_search_index_sync(
         self,

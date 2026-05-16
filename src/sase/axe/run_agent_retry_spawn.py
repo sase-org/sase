@@ -366,5 +366,8 @@ def mark_parent_retried(
 
     try:
         meta_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        from sase.axe.run_agent_markers import upsert_artifact_index_row
+
+        upsert_artifact_index_row(artifacts_dir)
     except OSError:
         pass

@@ -147,6 +147,11 @@ class AgentWaitResumeMixin:
                 data["waiting_for"] = wait_names
                 with open(waiting_path, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2)
+                from sase.core.agent_artifact_index_maintenance import (
+                    upsert_artifact_dir,
+                )
+
+                upsert_artifact_dir(artifacts_dir, coalesce=False)
             except OSError:
                 self.notify("Failed to update waiting.json", severity="error")  # type: ignore[attr-defined]
                 return
@@ -169,6 +174,11 @@ class AgentWaitResumeMixin:
                         f,
                         indent=2,
                     )
+                from sase.core.agent_artifact_index_maintenance import (
+                    upsert_artifact_dir,
+                )
+
+                upsert_artifact_dir(artifacts_dir, coalesce=False)
             except OSError:
                 self.notify("Failed to write ready.json", severity="error")  # type: ignore[attr-defined]
                 return

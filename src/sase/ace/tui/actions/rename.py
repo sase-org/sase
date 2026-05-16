@@ -295,6 +295,9 @@ class RenameMixin:
             meta["name"] = new_name
             with open(meta_path, "w") as f:
                 json.dump(meta, f, indent=2)
+            from sase.core.agent_artifact_index_maintenance import upsert_artifact_dir
+
+            upsert_artifact_dir(artifacts_dir, coalesce=False)
 
             # Find the current agent by identity (may have been replaced by
             # periodic refresh while the modal was open)
