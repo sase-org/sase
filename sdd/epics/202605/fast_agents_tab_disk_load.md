@@ -1,5 +1,7 @@
 ---
 create_time: 2026-05-16 09:47:13
+bead_id: sase-3r
+tier: epic
 status: wip
 prompt: sdd/prompts/202605/fast_agents_tab_disk_load.md
 ---
