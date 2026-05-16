@@ -1,9 +1,8 @@
 """Functions for loading and aggregating agents from all sources."""
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from pathlib import Path
 import time
-from typing import Literal
 
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
@@ -11,15 +10,27 @@ from sase.core.agent_scan_facade import (
     scan_agent_artifacts,
 )
 from sase.core.agent_scan_wire import (
-    AGENT_SCAN_WIRE_SCHEMA_VERSION,
     AgentArtifactIndexQueryWire,
     AgentArtifactScanOptionsWire,
-    AgentArtifactScanStatsWire,
     AgentArtifactScanWire,
 )
 
 from ...changespec import ChangeSpec, find_all_changespecs
 from ...hooks.processes import is_process_running
+from ._agent_loader_artifacts import (
+    _TUI_SCAN_OPTIONS,  # re-exported for legacy private callers
+    artifact_snapshot_for_tui_load as _artifact_snapshot_for_tui_load_impl,
+    empty_snapshot_for_missing_index as _empty_snapshot_for_missing_index_impl,
+    load_state_with_stats as _load_state_with_stats,
+    load_workflow_children_for_parent as _load_workflow_children_for_parent_impl,
+    projects_root_for_loader as _projects_root_for_loader_impl,
+    query_artifact_index_for_loader as _query_artifact_index_for_loader_impl,
+    scan_artifacts_for_loader as _scan_artifacts_for_loader_impl,
+    tui_inbox_query as _tui_inbox_query_impl,
+)
+from ._agent_loader_sources import load_agents_from_all_sources
+from ._agent_loader_state import AgentLoadResult as _AgentLoadResult
+from ._agent_loader_state import AgentLoadState
 from ._agent_ordering import (
     get_status_priority as _get_status_priority,  # noqa: F401
     sort_and_reorder as _sort_and_reorder,
@@ -59,264 +70,28 @@ from .agent import Agent
 from .workflow import WorkflowEntry
 
 
-_TUI_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
-    include_prompt_step_markers=True,
-    # The TUI reads prompt-step markers (workflow agent steps + meta_*
-    # propagation) but does not render the raw_xprompt.md snippet; skip
-    # the snippet read to keep the scan compact.
-    include_raw_prompt_snippets=False,
-)
-_TIER1_INDEX_SCAN_OPTIONS = replace(
-    _TUI_SCAN_OPTIONS,
-    include_prompt_step_markers=False,
-)
-
-_TIER1_RECENT_COMPLETED_LIMIT = 200
-_TIER1_FALLBACK_SCAN_OPTIONS = replace(
-    _TUI_SCAN_OPTIONS,
-    max_records=_TIER1_RECENT_COMPLETED_LIMIT,
-    newest_first=True,
-)
-
-
 def _empty_snapshot_for_missing_index() -> AgentArtifactScanWire:
-    """Build a deterministic empty snapshot for the missing-index Tier 1 path.
+    """Build a deterministic empty snapshot for the missing-index Tier 1 path."""
 
-    Phase 3 of ``sase-3r`` (Fast Agents Tab Disk Loading) stops the loader
-    from issuing a source-tree scan when the persistent artifact index is
-    absent. The caller-visible loader contract still requires a wire — the
-    snapshot is intentionally empty so artifact-derived agents are skipped
-    until the rebuild worker repopulates the index, while RUNNING-field
-    project entries continue to flow through ``_load_agents_from_all_sources``.
-    """
-
-    return AgentArtifactScanWire(
-        schema_version=AGENT_SCAN_WIRE_SCHEMA_VERSION,
-        projects_root=str(_projects_root_for_loader()),
-        options=_TUI_SCAN_OPTIONS,
-        stats=AgentArtifactScanStatsWire(),
-        records=[],
-    )
-
-
-@dataclass(frozen=True)
-class AgentLoadState:
-    """Artifact-history completeness for one TUI agent load.
-
-    Phase 1 of bead ``sase-3r`` (Fast Agents Tab Disk Loading) widens this
-    contract so future phases can see exactly what the loader did without
-    having to reproduce its branching logic. The added fields are
-    measurement-only and intentionally do not change loader behavior:
-
-    Attributes:
-        tier: ``tier1`` for visibility-bounded refreshes; ``tier2`` for
-            full-history reconciles.
-        complete_history: Whether every artifact-backed agent is present
-            in the result (Tier 2 / explicit full-history loads only).
-        artifact_source: ``artifact_index`` when the snapshot came from
-            the persistent index; ``source_scan`` when it came from the
-            filesystem walk.
-        used_artifact_index: Convenience flag mirroring
-            ``artifact_source == "artifact_index"``.
-        index_error: Stringified exception from the index query that
-            triggered a source-scan fallback, or ``None`` on success.
-        full_history: ``True`` when the caller asked for (or was forced
-            into) a Tier 2 full-history load. Captured separately from
-            ``complete_history`` so Phase 3 can demote "search forces
-            full history" without rewriting every assertion.
-        agent_search_active: ``True`` when the Agents-tab search query
-            was non-empty at the time the loader was invoked. Today this
-            implies ``full_history=True``; the contract test in
-            ``tests/ace/tui/actions/test_agent_loader_phase1_guardrails.py``
-            locks that in so Phase 3 must change it deliberately.
-        snapshot_records: Number of ``AgentArtifactRecordWire`` rows in
-            the underlying scan snapshot.
-        loaded_agent_count: Number of agents the loader returned to the
-            TUI (after dedup and status overrides).
-        loaded_workflow_step_count: Number of workflow agent-step rows
-            returned alongside the loader's agents list.
-        artifact_dirs_visited: Snapshot ``stats.artifact_dirs_visited``
-            when available, else ``None``.
-        marker_files_parsed: Snapshot ``stats.marker_files_parsed`` when
-            available, else ``None``.
-        prompt_step_markers_parsed: Snapshot
-            ``stats.prompt_step_markers_parsed`` when available, else
-            ``None``.
-        index_query_ms: Time spent in the sqlite-backed index query,
-            including wire rehydration, for Tier 1 index loads.
-        source_scan_ms: Time spent scanning source artifact directories
-            for explicit Tier 2 or bounded fallback source scans.
-        snapshot_hydration_ms: Time spent converting the artifact snapshot
-            into Python ``Agent`` models before dedup/sort/fold.
-        model_sort_ms: Time spent in Python filtering/dedup/status
-            overrides/sort before handing rows to the apply boundary.
-        index_row_count: Number of records returned by the index query
-            when the load read sqlite.
-        source_row_count: Number of records returned by a source scan
-            when the load walked source artifacts.
-        index_missing: Phase 3 of ``sase-3r``. ``True`` when the loader
-            could not consult the persistent artifact index because the
-            sqlite file was absent and the snapshot was returned empty
-            instead of doing a fallback source scan. The apply layer uses
-            this to schedule a one-off index rebuild rather than a Tier 2
-            source scan.
-    """
-
-    tier: Literal["tier1", "tier2"]
-    complete_history: bool
-    artifact_source: Literal["artifact_index", "source_scan"]
-    used_artifact_index: bool
-    index_error: str | None = None
-    full_history: bool = False
-    agent_search_active: bool = False
-    snapshot_records: int = 0
-    loaded_agent_count: int = 0
-    loaded_workflow_step_count: int = 0
-    artifact_dirs_visited: int | None = None
-    marker_files_parsed: int | None = None
-    prompt_step_markers_parsed: int | None = None
-    index_query_ms: float | None = None
-    source_scan_ms: float | None = None
-    snapshot_hydration_ms: float | None = None
-    model_sort_ms: float | None = None
-    index_row_count: int | None = None
-    source_row_count: int | None = None
-    index_missing: bool = False
-
-    @property
-    def needs_full_history_reconcile(self) -> bool:
-        """Return whether the caller should schedule a Tier 2 refresh.
-
-        Phase 3 of ``sase-3r`` narrows this to source-scan fallbacks (the
-        bounded-scan path triggered by an index-query error). The
-        visibility-aware Tier 1 inbox query is the answer the caller
-        wants, so successful index reads no longer schedule a Tier 2
-        reconcile. Missing-index loads expose ``index_missing`` for the
-        rebuild path instead.
-        """
-
-        if self.complete_history:
-            return False
-        if self.index_missing:
-            return False
-        return self.artifact_source == "source_scan"
-
-    def trace_fields(self) -> dict[str, object]:
-        """Return a JSON-friendly mapping for ``tui_trace`` enrichment."""
-
-        return {
-            "tier": self.tier,
-            "complete_history": self.complete_history,
-            "artifact_source": self.artifact_source,
-            "used_artifact_index": self.used_artifact_index,
-            "index_error": self.index_error,
-            "full_history": self.full_history,
-            "agent_search_active": self.agent_search_active,
-            "snapshot_records": self.snapshot_records,
-            "loaded_agent_count": self.loaded_agent_count,
-            "loaded_workflow_step_count": self.loaded_workflow_step_count,
-            "artifact_dirs_visited": self.artifact_dirs_visited,
-            "marker_files_parsed": self.marker_files_parsed,
-            "prompt_step_markers_parsed": self.prompt_step_markers_parsed,
-            "index_query_ms": self.index_query_ms,
-            "source_scan_ms": self.source_scan_ms,
-            "snapshot_hydration_ms": self.snapshot_hydration_ms,
-            "model_sort_ms": self.model_sort_ms,
-            "index_row_count": self.index_row_count,
-            "source_row_count": self.source_row_count,
-            "index_missing": self.index_missing,
-        }
-
-
-@dataclass(frozen=True)
-class _AgentLoadResult:
-    """Agents plus metadata about the artifact-history tier used."""
-
-    agents: list[Agent]
-    workflow_agent_steps: list[Agent]
-    state: AgentLoadState
+    return _empty_snapshot_for_missing_index_impl(_projects_root_for_loader)
 
 
 def _scan_artifacts_for_loader(
     options: AgentArtifactScanOptionsWire | None = None,
 ) -> "AgentArtifactScanWire":
-    """Return one fresh artifact-tree snapshot for the TUI loader.
+    """Return one fresh artifact-tree snapshot for the TUI loader."""
 
-    Single-purpose seam between :func:`_load_agents_from_all_sources` and
-    :func:`scan_agent_artifacts` so tests can replace the snapshot with a
-    fixture without having to patch every individual ``_from_snapshot``
-    consumer.
-    """
-    return scan_agent_artifacts(
-        Path.home() / ".sase" / "projects",
-        options or _TUI_SCAN_OPTIONS,
-    )
+    return _scan_artifacts_for_loader_impl(scan_agent_artifacts, options)
 
 
 def _projects_root_for_loader() -> Path:
-    return Path.home() / ".sase" / "projects"
-
-
-def _load_state_with_stats(
-    snapshot: AgentArtifactScanWire,
-    *,
-    tier: Literal["tier1", "tier2"],
-    complete_history: bool,
-    artifact_source: Literal["artifact_index", "source_scan"],
-    used_artifact_index: bool,
-    full_history: bool,
-    agent_search_active: bool,
-    index_error: str | None = None,
-    index_missing: bool = False,
-    index_query_ms: float | None = None,
-    source_scan_ms: float | None = None,
-) -> AgentLoadState:
-    """Build :class:`AgentLoadState` populated with diagnostic snapshot stats."""
-
-    stats = snapshot.stats
-    return AgentLoadState(
-        tier=tier,
-        complete_history=complete_history,
-        artifact_source=artifact_source,
-        used_artifact_index=used_artifact_index,
-        index_error=index_error,
-        full_history=full_history,
-        agent_search_active=agent_search_active,
-        snapshot_records=len(snapshot.records),
-        artifact_dirs_visited=stats.artifact_dirs_visited,
-        marker_files_parsed=stats.marker_files_parsed,
-        prompt_step_markers_parsed=stats.prompt_step_markers_parsed,
-        index_query_ms=index_query_ms,
-        source_scan_ms=source_scan_ms,
-        index_row_count=(
-            len(snapshot.records) if artifact_source == "artifact_index" else None
-        ),
-        source_row_count=(
-            len(snapshot.records) if artifact_source == "source_scan" else None
-        ),
-        index_missing=index_missing,
-    )
+    return _projects_root_for_loader_impl()
 
 
 def _tui_inbox_query() -> AgentArtifactIndexQueryWire:
-    """Return the visibility-aware Tier 1 inbox query for ordinary refreshes.
+    """Return the visibility-aware Tier 1 inbox query for ordinary refreshes."""
 
-    Phase 3 of ``sase-3r`` (Fast Agents Tab Disk Loading) replaces the
-    bounded "active + 200 recent completed" query with a true inbox view:
-    every active/incomplete row plus every completed row whose identity
-    is **not** in the dismissed-agent sidecar. Dismissed completions are
-    filtered server-side so the TUI no longer scans historical artifact
-    directories on every keystroke.
-    """
-
-    return AgentArtifactIndexQueryWire(
-        include_active=True,
-        include_recent_completed=True,
-        include_full_history=False,
-        recent_completed_limit=None,
-        include_hidden=False,
-        include_dismissed=False,
-    )
+    return _tui_inbox_query_impl()
 
 
 def _query_artifact_index_for_loader(
@@ -324,139 +99,32 @@ def _query_artifact_index_for_loader(
     full_history: bool,
     agent_search_active: bool,
 ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None:
-    """Return an index-backed snapshot for the TUI inbox refresh.
+    """Return an index-backed snapshot for the TUI inbox refresh."""
 
-    Behavior under Phase 3 of ``sase-3r``:
-
-    - Explicit ``full_history=True`` requests skip the index entirely so
-      revive/archive/repair flows still get a complete source scan.
-    - Missing index returns an empty snapshot with ``index_missing=True``
-      instead of doing a bounded source-tree scan. The apply layer
-      schedules a one-off rebuild and the cached working set stays
-      visible via the existing watermark merge.
-    - Index-query errors fall back to a bounded source scan as before so
-      a corrupt sqlite file does not blank the list.
-    """
-
-    if full_history:
-        return None
-
-    index_path = default_agent_artifact_index_path()
-    if not index_path.is_file():
-        empty_snapshot = _empty_snapshot_for_missing_index()
-        return (
-            empty_snapshot,
-            _load_state_with_stats(
-                empty_snapshot,
-                tier="tier1",
-                complete_history=False,
-                artifact_source="artifact_index",
-                used_artifact_index=False,
-                full_history=False,
-                agent_search_active=agent_search_active,
-                index_missing=True,
-            ),
-        )
-
-    # Phase 4 of ``sase-3r``: keep the dismissed-agent sidecar in sync with
-    # ~/.sase/dismissed_agents.json before each inbox query. The call is
-    # mtime-signature-gated, so the second-and-subsequent refreshes are a
-    # cheap stat, and any drift introduced by sibling processes or by an
-    # editor writing the legacy file is reconciled before the query reads it.
-    from sase.core.agent_artifact_index_maintenance import (
-        maybe_sync_dismissed_from_file,
-    )
-
-    maybe_sync_dismissed_from_file(index_path=index_path)
-
-    query = _tui_inbox_query()
-    try:
-        from ..util.trace import tui_trace
-
-        started = time.perf_counter()
-        with tui_trace("agents.index_query") as trace_fields:
-            snapshot = query_agent_artifact_index(
-                index_path,
-                _projects_root_for_loader(),
-                query=query,
-                options=_TIER1_INDEX_SCAN_OPTIONS,
-            )
-            trace_fields["index_row_count"] = len(snapshot.records)
-            trace_fields["prompt_step_markers_parsed"] = (
-                snapshot.stats.prompt_step_markers_parsed
-            )
-        index_query_ms = (time.perf_counter() - started) * 1000.0
-    except (ImportError, AttributeError, OSError, ValueError, RuntimeError) as exc:
-        started = time.perf_counter()
-        fallback_snapshot = _scan_artifacts_for_loader(_TIER1_FALLBACK_SCAN_OPTIONS)
-        source_scan_ms = (time.perf_counter() - started) * 1000.0
-        return (
-            fallback_snapshot,
-            _load_state_with_stats(
-                fallback_snapshot,
-                tier="tier1",
-                complete_history=False,
-                artifact_source="source_scan",
-                used_artifact_index=False,
-                index_error=str(exc),
-                full_history=False,
-                agent_search_active=agent_search_active,
-                source_scan_ms=source_scan_ms,
-            ),
-        )
-
-    return (
-        snapshot,
-        _load_state_with_stats(
-            snapshot,
-            tier="tier1",
-            complete_history=False,
-            artifact_source="artifact_index",
-            used_artifact_index=True,
-            full_history=False,
-            agent_search_active=agent_search_active,
-            index_query_ms=index_query_ms,
-        ),
+    return _query_artifact_index_for_loader_impl(
+        full_history=full_history,
+        agent_search_active=agent_search_active,
+        default_agent_artifact_index_path_fn=default_agent_artifact_index_path,
+        query_agent_artifact_index_fn=query_agent_artifact_index,
+        scan_artifacts_for_loader_fn=_scan_artifacts_for_loader,
+        projects_root_for_loader_fn=_projects_root_for_loader,
+        empty_snapshot_for_missing_index_fn=_empty_snapshot_for_missing_index,
+        tui_inbox_query_fn=_tui_inbox_query,
     )
 
 
 def load_workflow_children_for_parent(parent: Agent) -> list[Agent]:
-    """Load prompt-step child rows for one workflow parent from the index.
+    """Load prompt-step child rows for one workflow parent from the index."""
 
-    The normal Tier 1 inbox query intentionally strips ``prompt_steps`` from
-    indexed records so collapsed refreshes do not hydrate every historical
-    child payload. Expanding a parent calls this parent-scoped query to fetch
-    only that workflow's prompt-step records.
-    """
-
-    parent_timestamp = parent.raw_suffix
-    if not parent_timestamp:
-        return []
-
-    index_path = default_agent_artifact_index_path()
-    if not index_path.is_file():
-        return []
-
-    query = AgentArtifactIndexQueryWire(
-        include_active=False,
-        include_recent_completed=False,
-        include_full_history=False,
-        recent_completed_limit=None,
-        include_hidden=True,
-        include_dismissed=True,
-        parent_timestamps=(parent_timestamp,),
+    return _load_workflow_children_for_parent_impl(
+        parent,
+        default_agent_artifact_index_path_fn=default_agent_artifact_index_path,
+        query_agent_artifact_index_fn=query_agent_artifact_index,
+        projects_root_for_loader_fn=_projects_root_for_loader,
+        load_workflow_agent_steps_from_snapshot_fn=(
+            load_workflow_agent_steps_from_snapshot
+        ),
     )
-    try:
-        snapshot = query_agent_artifact_index(
-            index_path,
-            _projects_root_for_loader(),
-            query=query,
-            options=_TUI_SCAN_OPTIONS,
-        )
-    except (ImportError, AttributeError, OSError, ValueError, RuntimeError):
-        return []
-    children, _ = load_workflow_agent_steps_from_snapshot(snapshot)
-    return children
 
 
 def _artifact_snapshot_for_tui_load(
@@ -464,52 +132,19 @@ def _artifact_snapshot_for_tui_load(
     full_history: bool,
     agent_search_active: bool,
 ) -> tuple[AgentArtifactScanWire, AgentLoadState]:
-    """Return the artifact snapshot for a TUI refresh.
+    """Return the artifact snapshot for a TUI refresh."""
 
-    Tier 1 normal refreshes always go through
-    :func:`_query_artifact_index_for_loader`, which returns a
-    visibility-aware inbox snapshot when the index is present, an empty
-    snapshot when the index is absent (flagging ``index_missing`` so the
-    apply layer can rebuild rather than source-scan), or a bounded source
-    scan when the index query raises. Tier 2 reconciles from source-of-
-    truth artifacts so explicit revive/archive/repair paths still see a
-    complete history.
-    """
-
-    if full_history:
-        from ..util.trace import tui_trace
-
-        started = time.perf_counter()
-        with tui_trace("agents.source_scan") as trace_fields:
-            snapshot = _scan_artifacts_for_loader()
-            trace_fields["source_row_count"] = len(snapshot.records)
-            trace_fields["prompt_step_markers_parsed"] = (
-                snapshot.stats.prompt_step_markers_parsed
-            )
-        source_scan_ms = (time.perf_counter() - started) * 1000.0
-        return (
-            snapshot,
-            _load_state_with_stats(
-                snapshot,
-                tier="tier2",
-                complete_history=True,
-                artifact_source="source_scan",
-                used_artifact_index=False,
-                full_history=True,
-                agent_search_active=agent_search_active,
-                source_scan_ms=source_scan_ms,
-            ),
-        )
-
-    indexed = _query_artifact_index_for_loader(
+    return _artifact_snapshot_for_tui_load_impl(
         full_history=full_history,
         agent_search_active=agent_search_active,
+        scan_artifacts_for_loader_fn=_scan_artifacts_for_loader,
+        query_artifact_index_for_loader_fn=lambda full, search: (
+            _query_artifact_index_for_loader(
+                full_history=full,
+                agent_search_active=search,
+            )
+        ),
     )
-    assert indexed is not None, (
-        "_query_artifact_index_for_loader returns a snapshot for every "
-        "non-full-history call after Phase 3 of sase-3r"
-    )
-    return indexed
 
 
 def load_all_workflows() -> list[WorkflowEntry]:
@@ -534,97 +169,27 @@ def _load_agents_from_all_sources(
     changespec_snapshot: list[ChangeSpec] | None = None,
     artifact_snapshot: AgentArtifactScanWire | None = None,
 ) -> tuple[list[Agent], list[Agent]]:
-    """Load agents from all sources and return (agents, workflow_agent_steps).
+    """Load agents from all sources and return (agents, workflow_agent_steps)."""
 
-    Sources:
-    1. RUNNING field in project files (workspace claims)
-    2. done.json marker files (DONE agents)
-    3. running.json markers (home mode agents)
-    4. Workflow agent steps and workflow entries
-    5. HOOKS, MENTORS, COMMENTS fields from ChangeSpecs
-
-    Args:
-        changespec_snapshot: Optional pre-fetched ChangeSpec list. When
-            supplied, the loader skips the in-process ``find_all_changespecs()``
-            call and reuses this snapshot for bug/CL lookups and the
-            HOOKS/MENTORS/COMMENTS sweep.
-    """
-    agents: list[Agent] = []
-
-    # Get all project files
-    project_files = get_all_project_files()
-
-    # Load all ChangeSpecs early to build bug lookup. Caller-supplied
-    # snapshots avoid re-globbing every project spec file when the TUI already
-    # has a fresh cached snapshot in hand.
-    all_changespecs = (
-        changespec_snapshot
-        if changespec_snapshot is not None
-        else find_all_changespecs()
+    return load_agents_from_all_sources(
+        changespec_snapshot=changespec_snapshot,
+        artifact_snapshot=artifact_snapshot,
+        get_all_project_files_fn=get_all_project_files,
+        find_all_changespecs_fn=find_all_changespecs,
+        scan_artifacts_for_loader_fn=lambda: _scan_artifacts_for_loader(),
+        load_agents_from_running_field_fn=load_agents_from_running_field,
+        load_done_agents_from_snapshot_fn=load_done_agents_from_snapshot,
+        load_running_home_agents_from_snapshot_fn=(
+            load_running_home_agents_from_snapshot
+        ),
+        load_workflow_agent_steps_from_snapshot_fn=(
+            load_workflow_agent_steps_from_snapshot
+        ),
+        load_workflow_agents_from_snapshot_fn=load_workflow_agents_from_snapshot,
+        load_agents_from_hooks_fn=load_agents_from_hooks,
+        load_agents_from_mentors_fn=load_agents_from_mentors,
+        load_agents_from_comments_fn=load_agents_from_comments,
     )
-
-    # Build bug URL and CL number lookups by CL name (single pass)
-    bug_by_cl_name: dict[str, str | None] = {}
-    cl_by_cl_name: dict[str, str | None] = {}
-    for cs in all_changespecs:
-        if cs.bug:
-            bug_id = cs.bug.removeprefix("http://b/")
-            bug_by_cl_name[cs.name] = f"http://b/{bug_id}"
-        if cs.cl:
-            cl_by_cl_name[cs.name] = cs.cl
-
-    # 1. Load from RUNNING field (snapshot-independent; reads project spec files).
-    agents.extend(
-        load_agents_from_running_field(project_files, bug_by_cl_name, cl_by_cl_name)
-    )
-
-    # Acquire a single artifact snapshot for every artifact-tree consumer
-    # below. Phase 3F replaces independent walks of done/running/workflow
-    # subtrees with one ``scan_agent_artifacts()`` snapshot so the
-    # filesystem (and, in Rust mode, the FFI conversion) only pays the
-    # walking + JSON parsing cost once per refresh.
-    if artifact_snapshot is None:
-        artifact_snapshot = _scan_artifacts_for_loader()
-
-    # 1a. Load completed (DONE) agents
-    agents.extend(
-        load_done_agents_from_snapshot(artifact_snapshot, bug_by_cl_name, cl_by_cl_name)
-    )
-
-    # 1b. Load running home mode agents (from running.json markers)
-    agents.extend(load_running_home_agents_from_snapshot(artifact_snapshot))
-
-    # 1d. Load workflow agent steps first — also collects meta_* fields
-    # per parent timestamp so load_workflow_agents() can skip redundant
-    # prompt_step_*.json reads.
-    workflow_agent_steps, step_meta_by_parent = load_workflow_agent_steps_from_snapshot(
-        artifact_snapshot
-    )
-
-    # 1c. Load workflow entries as agents (with pre-collected meta fields)
-    agents.extend(
-        load_workflow_agents_from_snapshot(
-            artifact_snapshot,
-            step_meta_by_parent=step_meta_by_parent,
-        )
-    )
-
-    # 2. Load from each ChangeSpec's fields
-    for cs in all_changespecs:
-        stripped_bug_id = cs.bug.removeprefix("http://b/") if cs.bug else None
-        bug = f"http://b/{stripped_bug_id}" if stripped_bug_id else None
-        cl_num = cs.cl
-
-        # HOOKS - fix-hook and summarize agents
-        agents.extend(load_agents_from_hooks(cs, bug, cl_num))
-
-        # MENTORS - mentor agents
-        agents.extend(load_agents_from_mentors(cs, bug, cl_num))
-
-        # COMMENTS - CRS agents
-        agents.extend(load_agents_from_comments(cs, bug, cl_num))
-
-    return agents, workflow_agent_steps
 
 
 def _load_agents_with_load_state(
