@@ -139,6 +139,29 @@ Scenarios per fixture size:
 The per-scenario summary records wall-clock times, then aggregates p50 / p95 / max for every trace span and key-to-paint
 action observed during that scenario.
 
+## Agent artifact index benchmark
+
+`tests/perf/bench_agent_loader_phase6_inbox.py` is the end-to-end Phase 6 benchmark for bead `sase-3r` (Fast Agents Tab
+Disk Loading). It builds a hermetic fixture with a small visible inbox plus many dismissed completed artifacts, then
+times three loader paths against it:
+
+- `inbox_query` — the visibility-aware Tier 1 inbox query (what ordinary `agents.load_from_disk` calls);
+- `inbox_query_no_dismissed_sync` — same query without the dismissal projection synced (exposes the cost the dismissed
+  sidecar saves);
+- `full_history_source_scan` — the explicit Tier 2 reconcile (reference upper-bound, only revive / archive / repair take
+  this path).
+
+Run with:
+
+```bash
+pytest -s -m slow tests/perf/bench_agent_loader_phase6_inbox.py
+# or
+python tests/perf/bench_agent_loader_phase6_inbox.py
+```
+
+See [`docs/ace.md` — Agent Artifact Index](ace.md#agent-artifact-index) for the operational story (index state machine,
+rebuild / verify, lifecycle maintenance hooks).
+
 ## Targets per phase gate
 
 The targets below come from `sdd/research/202604/sase_perf_research.md` and are restated here so each phase agent has a

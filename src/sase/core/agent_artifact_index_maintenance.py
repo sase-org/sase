@@ -121,7 +121,9 @@ def upsert_artifact_dir(
         with _state_lock:
             _last_upsert_time[artifact_dir_str] = now
 
-    root = Path(projects_root) if projects_root is not None else _default_projects_root()
+    root = (
+        Path(projects_root) if projects_root is not None else _default_projects_root()
+    )
     try:
         upsert_agent_artifact_index_row(index, root, artifact_dir_str)
         return True
@@ -177,7 +179,9 @@ def sync_dismissed_visibility(
         replace_dismissed_agent_visibility(index, identities)
         return True
     except Exception as exc:  # noqa: BLE001  best-effort
-        logger.debug("agent_artifact_index sync_dismissed_visibility failed: err=%s", exc)
+        logger.debug(
+            "agent_artifact_index sync_dismissed_visibility failed: err=%s", exc
+        )
         return False
 
 
@@ -198,7 +202,9 @@ def maybe_sync_dismissed_from_file(
     global _last_dismissed_signature
 
     dismissed_path = (
-        Path(dismissed_file) if dismissed_file is not None else _default_dismissed_file()
+        Path(dismissed_file)
+        if dismissed_file is not None
+        else _default_dismissed_file()
     )
     index = _resolve_index_path(index_path)
     if not index.is_file():

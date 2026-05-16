@@ -1686,6 +1686,93 @@ uses the same argument-aware skeletons as xprompt completion, so typed inputs ca
 This is separate from the `ace.snippets` mechanism — it provides quick access to xprompt references rather than
 expanding static templates.
 
+## Agent Artifact Index
+
+The Agents tab keeps ordinary refreshes O(visible rows) by reading from a persistent SQLite index of agent artifacts
+instead of walking the artifact tree. The index lives at:
+
+```text
+~/.sase/agent_artifact_index.sqlite
+```
+
+The visibility-aware "inbox" query (active rows + completed rows not in the dismissed sidecar) is the only path normal
+Agents-tab refreshes take. Source-tree scans are reserved for explicit full-history flows.
+
+### When normal refresh hits the source tree
+
+After bead `sase-3r` (Fast Agents Tab Disk Loading) landed, the loader's behavior on each path is:
+
+| Index state                                      | Loader behavior                                                                                                                                                                                                                                       |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Present and queryable                            | Visibility-aware inbox query against the index. No source-tree walk on `j`/`k`, search, or auto-refresh. `AgentLoadState.artifact_source == "artifact_index"`.                                                                                        |
+| Missing (sqlite file absent)                     | Returns an empty Tier 1 snapshot flagged with `AgentLoadState.index_missing=True`. The apply layer schedules a one-off background rebuild (`_schedule_artifact_index_rebuild`) and requests a follow-up refresh. Cached visible agents stay in place. |
+| Present but the query raises (corrupt / partial) | Falls back to a bounded source scan (`max_records=200`, newest first). `AgentLoadState.index_error` captures the stringified exception so the apply layer can flag `needs_full_history_reconcile`.                                                    |
+| `full_history=True` requested                    | Always scans the full artifact tree. Used by explicit revive, archive search, and doctor/repair flows.                                                                                                                                                |
+
+The `agent_search_active` flag no longer forces a full-history scan — Agents-tab search filters the cached Tier 1 inbox
+in place.
+
+### How the index stays fresh
+
+`sase-3r.4` adds best-effort, coalescing hooks in `sase.core.agent_artifact_index_maintenance` that upsert / delete the
+affected artifact directory whenever a lifecycle marker (`launch`, `running`, `waiting`, `done`) is written and update
+the dismissal sidecar on dismiss / kill / revive. Active agents that rewrite `agent_meta.json` many times per second are
+coalesced into one upsert per artifact directory per second so hot loops do not produce a write storm.
+
+At every inbox query the loader replays `~/.sase/dismissed_agents.json` into the index sidecar via
+`maybe_sync_dismissed_from_file`. This is signature-gated (`(st_mtime_ns, st_size)`), so the second-and-subsequent
+refreshes are a cheap stat; only a real change to the legacy file reissues the sync. Sibling processes that edit the
+legacy file are picked up on the next refresh.
+
+### Rebuilding and verifying the index
+
+The `sase agents index` subcommand is the operator-facing entry point (see
+[`configuration.md`](configuration.md#sase-agents) for the flag reference):
+
+```bash
+sase agents index rebuild                  # Full rebuild from ~/.sase/projects
+sase agents index verify                   # Exits non-zero when the index diverges
+sase agents index rebuild -i /tmp/foo.db   # Build into an alternate path
+sase agents index rebuild -j               # JSON output for tooling
+```
+
+Inside the TUI the apply layer schedules a background rebuild whenever the loader reports `index_missing=True`. Force a
+rebuild after editing the artifact tree out-of-band or restoring artifacts from backup. `verify` walks both the index
+and the artifact tree and exits non-zero when any row is stale, so it doubles as a CI / pre-commit check.
+
+### When full-history source scans still run
+
+Source-tree walks remain authoritative for:
+
+- `sase agents index rebuild` and `verify`
+- Revive / archive search modals that explicitly request the full historical view
+- `doctor` / `repair` flows that reconcile the index against on-disk truth
+- Any caller that passes `full_history=True` to `load_agents_from_disk_with_state`
+
+These paths walk `~/.sase/projects` directly and ignore the index. Ordinary Agents-tab refreshes never enter them.
+
+### Performance targets
+
+The Phase 6 plan in `sdd/epics/202605/fast_agents_tab_disk_load.md` sets the thresholds the index is meant to hit on
+ordinary refresh:
+
+```text
+agents.load_from_disk p95              < 50 ms
+agents.load_from_disk max              < 150 ms (excluding revive / archive / repair)
+Agents-tab j/k key-to-paint p95        < 33 ms
+```
+
+Capture before/after numbers with `SASE_TUI_TRACE=1` (artifact loader spans) and `SASE_TUI_PERF=1` (key-to-paint
+samples); see [`docs/perf_runbook.md`](perf_runbook.md) for the trace catalog and aggregation scripts. The dedicated
+Phase 6 benchmark lives at `tests/perf/bench_agent_loader_phase6_inbox.py` and exercises a fixture with many dismissed
+completed artifacts plus a small visible inbox:
+
+```bash
+pytest -s -m slow tests/perf/bench_agent_loader_phase6_inbox.py
+# or as a script
+python tests/perf/bench_agent_loader_phase6_inbox.py
+```
+
 ## Auto-Refresh
 
 ACE auto-refreshes data at a configurable interval (default: 10 seconds). The remaining time until the next refresh is
