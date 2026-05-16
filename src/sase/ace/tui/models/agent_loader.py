@@ -66,6 +66,10 @@ _TUI_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
     # the snippet read to keep the scan compact.
     include_raw_prompt_snippets=False,
 )
+_TIER1_INDEX_SCAN_OPTIONS = replace(
+    _TUI_SCAN_OPTIONS,
+    include_prompt_step_markers=False,
+)
 
 _TIER1_RECENT_COMPLETED_LIMIT = 200
 _TIER1_FALLBACK_SCAN_OPTIONS = replace(
@@ -375,7 +379,7 @@ def _query_artifact_index_for_loader(
                 index_path,
                 _projects_root_for_loader(),
                 query=query,
-                options=_TUI_SCAN_OPTIONS,
+                options=_TIER1_INDEX_SCAN_OPTIONS,
             )
             trace_fields["index_row_count"] = len(snapshot.records)
             trace_fields["prompt_step_markers_parsed"] = (
@@ -414,6 +418,45 @@ def _query_artifact_index_for_loader(
             index_query_ms=index_query_ms,
         ),
     )
+
+
+def load_workflow_children_for_parent(parent: Agent) -> list[Agent]:
+    """Load prompt-step child rows for one workflow parent from the index.
+
+    The normal Tier 1 inbox query intentionally strips ``prompt_steps`` from
+    indexed records so collapsed refreshes do not hydrate every historical
+    child payload. Expanding a parent calls this parent-scoped query to fetch
+    only that workflow's prompt-step records.
+    """
+
+    parent_timestamp = parent.raw_suffix
+    if not parent_timestamp:
+        return []
+
+    index_path = default_agent_artifact_index_path()
+    if not index_path.is_file():
+        return []
+
+    query = AgentArtifactIndexQueryWire(
+        include_active=False,
+        include_recent_completed=False,
+        include_full_history=False,
+        recent_completed_limit=None,
+        include_hidden=True,
+        include_dismissed=True,
+        parent_timestamps=(parent_timestamp,),
+    )
+    try:
+        snapshot = query_agent_artifact_index(
+            index_path,
+            _projects_root_for_loader(),
+            query=query,
+            options=_TUI_SCAN_OPTIONS,
+        )
+    except (ImportError, AttributeError, OSError, ValueError, RuntimeError):
+        return []
+    children, _ = load_workflow_agent_steps_from_snapshot(snapshot)
+    return children
 
 
 def _artifact_snapshot_for_tui_load(

@@ -16,6 +16,15 @@ from sase.ace.tui.actions.agents._loading_helpers import (
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import AgentLoadState
+from sase.core.agent_scan_wire import (
+    AGENT_SCAN_WIRE_SCHEMA_VERSION,
+    AgentArtifactRecordWire,
+    AgentArtifactScanOptionsWire,
+    AgentArtifactScanStatsWire,
+    AgentArtifactScanWire,
+    PromptStepMarkerWire,
+    WorkflowStateWire,
+)
 from tests._agent_loader_helpers import _empty_artifact_snapshot
 
 
@@ -258,7 +267,76 @@ def test_load_agents_from_disk_uses_artifact_index_for_initial_tier(
     assert result.load_state.used_artifact_index is True
     assert result.load_state.complete_history is False
     mock_query.assert_called_once()
+    assert mock_query.call_args.kwargs["options"].include_prompt_step_markers is False
     mock_scan.assert_not_called()
+
+
+def test_parent_scoped_child_hydration_queries_one_timestamp(tmp_path) -> None:
+    """Expanding a parent fetches only that parent's prompt-step payload."""
+
+    from sase.ace.tui.models.agent_loader import load_workflow_children_for_parent
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    index_path.touch()
+    parent_dir = tmp_path / "projects" / "proj" / "artifacts" / "workflow-build"
+    artifact_dir = parent_dir / "20260601130400"
+    snapshot = AgentArtifactScanWire(
+        schema_version=AGENT_SCAN_WIRE_SCHEMA_VERSION,
+        projects_root=str(tmp_path / "projects"),
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(prompt_step_markers_parsed=1),
+        records=[
+            AgentArtifactRecordWire(
+                project_name="proj",
+                project_dir=str(tmp_path / "projects" / "proj"),
+                project_file=str(tmp_path / "projects" / "proj" / "proj.sase"),
+                workflow_dir_name="workflow-build",
+                artifact_dir=str(artifact_dir),
+                timestamp="20260601130400",
+                workflow_state=WorkflowStateWire(
+                    workflow_name="build",
+                    cl_name="cl_workflow",
+                    status="completed",
+                    appears_as_agent=True,
+                ),
+                prompt_steps=[
+                    PromptStepMarkerWire(
+                        file_name="prompt_step_001_plan.json",
+                        workflow_name="build",
+                        step_name="plan",
+                        status="completed",
+                    )
+                ],
+            )
+        ],
+    )
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="cl_workflow",
+        project_file="/tmp/proj.sase",
+        status="DONE",
+        start_time=None,
+        raw_suffix="20260601130400",
+        workflow="build",
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.default_agent_artifact_index_path",
+            return_value=index_path,
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.query_agent_artifact_index",
+            return_value=snapshot,
+        ) as mock_query,
+    ):
+        children = load_workflow_children_for_parent(parent)
+
+    assert [child.step_name for child in children] == ["plan"]
+    query = mock_query.call_args.kwargs["query"]
+    assert query.parent_timestamps == ("20260601130400",)
+    assert query.include_active is False
+    assert mock_query.call_args.kwargs["options"].include_prompt_step_markers is True
 
 
 def test_load_agents_from_disk_full_history_reconciles_from_source() -> None:
