@@ -20,11 +20,9 @@ def delete_agent_artifacts(artifacts_dir: str | None) -> None:
     """
     if not artifacts_dir:
         return
-    from sase.core.agent_artifact_index_maintenance import delete_artifact_dir
     from sase.core.agent_cleanup_execution import try_delete_agent_artifacts
 
     if try_delete_agent_artifacts(artifacts_dir):
-        delete_artifact_dir(artifacts_dir)
         return
 
     from pathlib import Path
@@ -40,7 +38,6 @@ def delete_agent_artifacts(artifacts_dir: str | None) -> None:
                 f.unlink()
             except OSError:
                 pass
-    delete_artifact_dir(artifacts_dir)
 
 
 def dismiss_notifications_for_agents(agents: Iterable[Agent]) -> int:

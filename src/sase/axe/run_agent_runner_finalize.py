@@ -11,7 +11,6 @@ from datetime import datetime
 from typing import Any
 
 from sase.axe.image_attachments import append_unique_paths
-from sase.axe.run_agent_markers import upsert_artifact_index_row
 from sase.axe.run_agent_phases import build_done_marker, record_stop_time
 from sase.telemetry.metrics import (
     AGENT_ACTIVE,
@@ -73,7 +72,6 @@ def write_error_done_marker(
         done_path = os.path.join(current_artifacts_dir, "done.json")
         with open(done_path, "w", encoding="utf-8") as f:
             json.dump(error_done, f, indent=2)
-        upsert_artifact_index_row(current_artifacts_dir)
     except Exception:
         pass
 

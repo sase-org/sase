@@ -241,9 +241,6 @@ def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(agent_meta, f, indent=2)
-    from sase.axe.run_agent_markers import upsert_artifact_index_row
-
-    upsert_artifact_index_row(artifacts_dir)
 
 
 def bump_spawn_telemetry(
@@ -306,7 +303,4 @@ def write_home_running_marker(
         running_marker["vcs_provider"] = agent_vcs_provider
     with open(running_marker_path, "w", encoding="utf-8") as f:
         json.dump(running_marker, f, indent=2)
-    from sase.axe.run_agent_markers import upsert_artifact_index_row
-
-    upsert_artifact_index_row(artifacts_dir)
     return running_marker_path
