@@ -121,11 +121,15 @@ def test_watcher_dispatches_under_existing_workflow_dir(tmp_path: Path) -> None:
             lambda: marker_dir in set(watcher._watch_paths_by_wd.values()),  # noqa: SLF001
             timeout=3.0,
         )
-        fired.clear()
-        changed.clear()
         marker_path.write_text("{}")
-        assert _wait(fired.is_set, timeout=3.0)
-        assert any(marker_path in paths for paths in changed)
+        # Wait on the specific path rather than ``fired`` alone: a coalesced
+        # dispatch from the preceding mkdir can land after a reset under
+        # runner load and mask a missing marker write event.
+        assert _wait(
+            lambda: any(marker_path in paths for paths in changed),
+            timeout=3.0,
+        )
+        assert fired.is_set()
     finally:
         watcher.stop()
 
@@ -158,11 +162,15 @@ def test_watcher_dispatches_on_new_nested_marker_write(tmp_path: Path) -> None:
             lambda: marker_dir in set(watcher._watch_paths_by_wd.values()),  # noqa: SLF001
             timeout=3.0,
         )
-        fired.clear()
-        changed.clear()
         marker_path.write_text("{}")
-        assert _wait(fired.is_set, timeout=3.0)
-        assert any(marker_path in paths for paths in changed)
+        # Wait on the specific path rather than ``fired`` alone: a coalesced
+        # dispatch from the preceding mkdir can land after a reset under
+        # runner load and mask a missing marker write event.
+        assert _wait(
+            lambda: any(marker_path in paths for paths in changed),
+            timeout=3.0,
+        )
+        assert fired.is_set()
     finally:
         watcher.stop()
 
