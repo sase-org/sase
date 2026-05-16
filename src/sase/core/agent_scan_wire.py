@@ -83,7 +83,6 @@ from sase.core.agent_scan_wire_conversion import (
     agent_artifact_index_update_from_dict,
     agent_scan_wire_from_dict,
     agent_scan_wire_to_json_dict,
-    dismissed_agent_identity_to_dict,
 )
 from sase.core.agent_scan_wire_markers import (
     AgentMetaWire,
@@ -110,7 +109,6 @@ from sase.core.agent_scan_wire_records import (
     AgentArtifactScanOptionsWire,
     AgentArtifactScanStatsWire,
     AgentArtifactScanWire,
-    DismissedAgentIdentityWire,
 )
 
 __all__ = [
@@ -128,7 +126,6 @@ __all__ = [
     "AgentArtifactScanStatsWire",
     "AgentArtifactScanWire",
     "AgentMetaWire",
-    "DismissedAgentIdentityWire",
     "DoneMarkerWire",
     "PendingQuestionMarkerWire",
     "PlanPathMarkerWire",
@@ -141,5 +138,4 @@ __all__ = [
     "agent_artifact_index_update_from_dict",
     "agent_scan_wire_from_dict",
     "agent_scan_wire_to_json_dict",
-    "dismissed_agent_identity_to_dict",
 ]

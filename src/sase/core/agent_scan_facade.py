@@ -30,7 +30,6 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanStatsWire,
     AgentArtifactScanWire,
     AgentMetaWire,
-    DismissedAgentIdentityWire,
     DoneMarkerWire,
     PendingQuestionMarkerWire,
     PlanPathMarkerWire,
@@ -43,7 +42,6 @@ from sase.core.agent_scan_wire import (
     agent_artifact_index_update_from_dict,
     agent_scan_wire_to_json_dict,
     agent_scan_wire_from_dict,
-    dismissed_agent_identity_to_dict,
 )
 from sase.core.rust import require_rust_binding
 
@@ -153,69 +151,6 @@ def query_agent_artifact_index(
     return agent_scan_wire_from_dict(payload)
 
 
-# pyvision: docs/rust_backend.md
-def upsert_dismissed_agent_visibility(
-    index_path: Path | str,
-    identity: DismissedAgentIdentityWire,
-) -> AgentArtifactIndexUpdateWire:
-    """Upsert one dismissed-agent identity into the index sidecar.
-
-    Added in Phase 2 of ``sase-3r`` (Fast Agents Tab Disk Loading). The
-    sidecar lets the visibility-aware inbox query (Phase 3) exclude
-    completed artifact rows whose identity matches a dismissed entry. The
-    update is best-effort: missing or stale Rust bindings raise the usual
-    ``ImportError`` / ``AttributeError``.
-    """
-
-    rust_upsert = require_rust_binding("upsert_dismissed_agent_visibility")
-    payload: dict[str, Any] = rust_upsert(
-        str(index_path),
-        dismissed_agent_identity_to_dict(identity),
-    )
-    return agent_artifact_index_update_from_dict(payload)
-
-
-# pyvision: docs/rust_backend.md
-def delete_dismissed_agent_visibility(
-    index_path: Path | str,
-    agent_type: str,
-    cl_name: str,
-    raw_suffix: str | None = None,
-) -> AgentArtifactIndexUpdateWire:
-    """Remove one dismissed-agent identity from the index sidecar.
-
-    Revives the matching completed artifact rows in future visibility-aware
-    queries. Identities are addressed by exact match on
-    ``(agent_type, cl_name, raw_suffix)``; ``raw_suffix=None`` targets the
-    "whole identity" sentinel row.
-    """
-
-    rust_delete = require_rust_binding("delete_dismissed_agent_visibility")
-    payload: dict[str, Any] = rust_delete(
-        str(index_path), agent_type, cl_name, raw_suffix
-    )
-    return agent_artifact_index_update_from_dict(payload)
-
-
-# pyvision: docs/rust_backend.md
-def replace_dismissed_agent_visibility(
-    index_path: Path | str,
-    identities: list[DismissedAgentIdentityWire],
-) -> AgentArtifactIndexUpdateWire:
-    """Atomically replace the dismissed-agent sidecar contents.
-
-    Mirrors the bulk-sync path the TUI uses when reading the legacy
-    ``~/.sase/dismissed_agents.json`` file at startup.
-    """
-
-    rust_replace = require_rust_binding("replace_dismissed_agent_visibility")
-    payload: dict[str, Any] = rust_replace(
-        str(index_path),
-        [dismissed_agent_identity_to_dict(identity) for identity in identities],
-    )
-    return agent_artifact_index_update_from_dict(payload)
-
-
 def verify_agent_artifact_index(
     index_path: Path | str,
     projects_root: Path | str,
@@ -249,7 +184,6 @@ def verify_agent_artifact_index(
                 include_full_history=True,
                 recent_completed_limit=None,
                 include_hidden=True,
-                include_dismissed=True,
             ),
             opts,
         )
@@ -312,7 +246,6 @@ __all__ = [
     "AgentArtifactScanStatsWire",
     "AgentArtifactScanWire",
     "AgentMetaWire",
-    "DismissedAgentIdentityWire",
     "DoneMarkerWire",
     "PendingQuestionMarkerWire",
     "PlanPathMarkerWire",
@@ -323,12 +256,9 @@ __all__ = [
     "WorkflowStepStateWire",
     "default_agent_artifact_index_path",
     "delete_agent_artifact_index_row",
-    "delete_dismissed_agent_visibility",
     "query_agent_artifact_index",
     "rebuild_agent_artifact_index",
-    "replace_dismissed_agent_visibility",
     "scan_agent_artifacts",
     "upsert_agent_artifact_index_row",
-    "upsert_dismissed_agent_visibility",
     "verify_agent_artifact_index",
 ]

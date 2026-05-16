@@ -24,7 +24,7 @@ from sase.core.agent_scan_wire_markers import (
 )
 
 AGENT_SCAN_WIRE_SCHEMA_VERSION = 1
-AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 2
+AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 1
 
 # Workflow directory categories the Phase 3A scanner walks.
 #
@@ -104,13 +104,6 @@ class AgentArtifactIndexQueryWire:
 
     The default query matches the Tier 1 startup use case: active/incomplete
     rows plus a bounded window of recently completed visible rows.
-
-    ``include_dismissed`` defaults to ``True`` so callers that predate Phase 2
-    of ``sase-3r`` (Fast Agents Tab Disk Loading) see no behavior change. The
-    visibility-aware TUI inbox query of Phase 3 will pass ``False`` to
-    exclude completed rows whose identity appears in the new dismissal
-    sidecar table; active/incomplete rows are never filtered by dismissal
-    state so a still-RUNNING alias of a dismissed completion stays visible.
     """
 
     include_active: bool = True
@@ -118,24 +111,6 @@ class AgentArtifactIndexQueryWire:
     include_full_history: bool = False
     recent_completed_limit: int | None = 200
     include_hidden: bool = False
-    include_dismissed: bool = True
-
-
-@dataclass(frozen=True)
-class DismissedAgentIdentityWire:
-    """One dismissed-agent identity in the artifact-index sidecar table.
-
-    Mirrors ``sase_core::agent_scan::DismissedAgentIdentityWire``. ``raw_suffix``
-    of ``None`` represents the legacy
-    ``~/.sase/dismissed_agents.json`` entry that dismisses every artifact
-    suffix sharing this ``(agent_type, cl_name)`` prefix; a concrete suffix
-    only dismisses artifacts whose ``timestamp`` equals it.
-    """
-
-    agent_type: str
-    cl_name: str
-    raw_suffix: str | None = None
-    dismissed_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -292,7 +267,6 @@ __all__ = [
     "AgentArtifactScanOptionsWire",
     "AgentArtifactScanStatsWire",
     "AgentArtifactScanWire",
-    "DismissedAgentIdentityWire",
     "DONE_WORKFLOW_DIR_NAMES",
     "DONE_WORKFLOW_DIR_PREFIXES",
     "WORKFLOW_STATE_DIR_NAMES",
