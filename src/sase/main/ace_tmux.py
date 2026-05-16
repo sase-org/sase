@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -28,13 +29,13 @@ def launch_ace_in_tmux(args: argparse.Namespace) -> None:
     try:
         _require_tmux_binary()
         session = _resolve_or_create_session()
-        relaunch = _build_relaunch_argv()
-        window_name, target = _claim_window(session, relaunch)
+        relaunch_cmd = _build_relaunch_cmd()
+        window_name, pane_pid = _claim_window(session, relaunch_cmd)
     except _TmuxLaunchError as exc:
         print(f"sase ace --tmux: {exc}", file=sys.stderr)
         sys.exit(2)
 
-    _print_target(session, window_name, target)
+    _print_target(session, window_name, pane_pid)
 
 
 def _require_tmux_binary() -> None:
@@ -89,12 +90,16 @@ def _resolve_or_create_session() -> str:
     return _AGENTS_SESSION
 
 
-def _build_relaunch_argv() -> list[str]:
-    """Return the argv to run inside the new tmux window.
+def _build_relaunch_cmd() -> str:
+    """Return the shell command string to run inside the new tmux window.
 
     Strips ``--tmux``/``-T`` from ``sys.argv`` so we don't recurse, and
     re-invokes the same Python interpreter (preserving the active venv) via
     ``python -m sase ace ...``.
+
+    Returns a single ``/bin/sh -c``-compatible string prefixed with ``exec``
+    so the shell replaces itself with the Python interpreter — that way
+    tmux's ``#{pane_pid}`` reports the live Python PID, not the shell's.
     """
     forwarded: list[str] = []
     for arg in sys.argv[1:]:
@@ -107,16 +112,17 @@ def _build_relaunch_argv() -> list[str]:
     if not forwarded or forwarded[0] != "ace":
         forwarded = ["ace", *forwarded]
 
-    return [sys.executable, "-m", "sase", *forwarded]
+    return "exec " + shlex.join([sys.executable, "-m", "sase", *forwarded])
 
 
-def _claim_window(session: str, relaunch: list[str]) -> tuple[str, str]:
+def _claim_window(session: str, relaunch_cmd: str) -> tuple[str, int]:
     """Create a uniquely-named ``sase_tmux_<N>`` window in ``session``.
 
     Uses tmux's own refusal to create duplicate window names as the
     arbiter, avoiding any TOCTOU race against parallel ``--tmux`` invocations.
 
-    Returns ``(window_name, "session:window_id")``.
+    Returns ``(window_name, pane_pid)`` where ``pane_pid`` is the PID of the
+    process tmux launched in the new window's pane.
     """
     for n in range(1, _MAX_WINDOW_ATTEMPTS + 1):
         window_name = f"{_WINDOW_PREFIX}{n}"
@@ -131,19 +137,28 @@ def _claim_window(session: str, relaunch: list[str]) -> tuple[str, str]:
                 f"{session}:",
                 "-P",
                 "-F",
-                "#{session_name}:#{window_id}",
-                "--",
-                *relaunch,
+                "#{session_name}:#{window_id} #{pane_pid}",
+                relaunch_cmd,
             ],
             capture_output=True,
             text=True,
             check=False,
         )
         if result.returncode == 0:
-            target = result.stdout.strip().splitlines()[-1] if result.stdout else ""
-            if not target:
-                raise _TmuxLaunchError("tmux did not report the new window's target")
-            return window_name, target
+            line = result.stdout.strip().splitlines()[-1] if result.stdout else ""
+            fields = line.split()
+            if len(fields) != 2:
+                raise _TmuxLaunchError(
+                    "tmux did not report the new window's target and pane pid"
+                )
+            pid_str = fields[1]
+            try:
+                pane_pid = int(pid_str)
+            except ValueError as exc:
+                raise _TmuxLaunchError(
+                    f"tmux returned non-integer pane pid: {pid_str!r}"
+                ) from exc
+            return window_name, pane_pid
 
         if _window_name_in_use(session, window_name):
             continue
@@ -169,8 +184,7 @@ def _window_name_in_use(session: str, window_name: str) -> bool:
     return window_name in result.stdout.splitlines()
 
 
-def _print_target(session: str, window_name: str, target: str) -> None:
+def _print_target(session: str, window_name: str, pane_pid: int) -> None:
     print(f"sase_tmux_window={window_name}")
     print(f"sase_tmux_session={session}")
-    print(f"sase_tmux_target={target}")
-    print(f"sase_tmux_pid={os.getpid()}")
+    print(f"sase_tmux_pid={pane_pid}")

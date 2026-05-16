@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import shlex
 import subprocess
 import sys
 from typing import Any
@@ -29,11 +30,14 @@ class _FakeTmux:
         session_name: str = "agent-session-7",
         existing_windows: tuple[str, ...] = (),
         new_window_pattern: str = "{session}:@{n}",
+        pane_pid_base: int = 82316,
     ) -> None:
         self.in_tmux = in_tmux
         self.session_name = session_name
         self.existing_windows = list(existing_windows)
         self.new_window_pattern = new_window_pattern
+        self.pane_pid_base = pane_pid_base
+        self.pane_pid_counter = 0
         self.calls: list[list[str]] = []
 
     def __call__(
@@ -64,7 +68,9 @@ class _FakeTmux:
             session = self.session_name if self.in_tmux else ace_tmux._AGENTS_SESSION
             n = len(self.existing_windows)
             target = self.new_window_pattern.format(session=session, n=n)
-            return _completed(cmd, stdout=target + "\n")
+            self.pane_pid_counter += 1
+            pane_pid = self.pane_pid_base + self.pane_pid_counter
+            return _completed(cmd, stdout=f"{target} {pane_pid}\n")
         raise AssertionError(f"unexpected tmux subcommand: {cmd}")
 
 
@@ -85,8 +91,10 @@ def test_returns_sase_tmux_1_on_fresh_session(capsys, monkeypatch) -> None:
     out = capsys.readouterr().out
     assert "sase_tmux_window=sase_tmux_1" in out
     assert "sase_tmux_session=agent-session-7" in out
-    assert "sase_tmux_target=agent-session-7:@1" in out
-    assert "sase_tmux_pid=" in out
+    assert "sase_tmux_target" not in out
+    # The PID reported must be the fake pane pid (first window → base + 1),
+    # not the parent process's PID. This locks in that we surface the child.
+    assert f"sase_tmux_pid={fake.pane_pid_base + 1}" in out
 
 
 def test_skips_occupied_window_numbers(capsys, monkeypatch) -> None:
@@ -129,10 +137,12 @@ def test_strips_tmux_flags_from_relaunch_argv(monkeypatch) -> None:
         ace_tmux.launch_ace_in_tmux(_args())
 
     new_window_call = next(c for c in fake.calls if c[1] == "new-window")
-    # The relaunch argv lives after '--' in the new-window command.
-    sep_idx = new_window_call.index("--")
-    relaunch = new_window_call[sep_idx + 1 :]
-    assert relaunch == [
+    # The relaunch is now a single shell command string at the end of argv,
+    # prefixed with 'exec ' so tmux's #{pane_pid} reports the Python PID.
+    relaunch_cmd = new_window_call[-1]
+    assert relaunch_cmd.startswith("exec ")
+    parsed = shlex.split(relaunch_cmd[len("exec ") :])
+    assert parsed == [
         sys.executable,
         "-m",
         "sase",
@@ -142,8 +152,8 @@ def test_strips_tmux_flags_from_relaunch_argv(monkeypatch) -> None:
         "agents",
         "--profile",
     ]
-    assert "--tmux" not in relaunch
-    assert "-T" not in relaunch
+    assert "--tmux" not in parsed
+    assert "-T" not in parsed
 
 
 def test_inside_tmux_uses_current_session(monkeypatch) -> None:
