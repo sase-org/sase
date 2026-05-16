@@ -8,7 +8,6 @@ from typing import Any
 import pytest
 
 from sase.core.agent_scan_facade import (
-    diagnose_agent_artifact_index_timestamps,
     scan_agent_artifacts,
     verify_agent_artifact_index,
 )
@@ -100,41 +99,6 @@ def test_verify_agent_artifact_index_reports_missing_index(
     assert result.schema_version == 0
     assert result.indexed_rows == 0
     assert result.missing_rows == 1
-
-
-def test_diagnose_agent_artifact_index_timestamps_reports_pattern_gaps(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    projects_root = tmp_path / "projects"
-    index_path = tmp_path / "agent_artifact_index.sqlite"
-    index_path.touch()
-    source_present = minimal_record(projects_root, "20260516095501", "sase-3r.1")
-    source_missing = minimal_record(projects_root, "20260516095502", "sase-3r.2")
-    unrelated = minimal_record(projects_root, "20260516095503", "other-agent")
-
-    def fake_scan(projects_root_arg: str, options: dict[str, Any]) -> dict[str, Any]:
-        return minimal_snapshot(
-            projects_root_arg, [source_present, source_missing, unrelated]
-        )
-
-    fake = install_fake_scan_module(monkeypatch, fake_scan)
-    fake.query_agent_artifact_index = (  # type: ignore[attr-defined]
-        lambda index_arg, root_arg, query, options: minimal_snapshot(
-            root_arg, [source_present]
-        )
-    )
-
-    result = diagnose_agent_artifact_index_timestamps(
-        index_path,
-        projects_root,
-        "sase-3r",
-    )
-
-    assert result["ok"] is False
-    assert result["matched_source_rows"] == 2
-    assert result["matched_indexed_rows"] == 1
-    assert result["missing_timestamps"] == ["20260516095502"]
-    assert result["extra_timestamps"] == []
 
 
 def test_scan_agent_artifacts_calls_rust_binding(

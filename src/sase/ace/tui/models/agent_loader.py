@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass, replace
 from pathlib import Path
-import time
 from typing import Literal
 
 from sase.core.agent_scan_facade import (
@@ -138,18 +137,6 @@ class AgentLoadState:
         prompt_step_markers_parsed: Snapshot
             ``stats.prompt_step_markers_parsed`` when available, else
             ``None``.
-        index_query_ms: Time spent in the sqlite-backed index query,
-            including wire rehydration, for Tier 1 index loads.
-        source_scan_ms: Time spent scanning source artifact directories
-            for explicit Tier 2 or bounded fallback source scans.
-        snapshot_hydration_ms: Time spent converting the artifact snapshot
-            into Python ``Agent`` models before dedup/sort/fold.
-        model_sort_ms: Time spent in Python filtering/dedup/status
-            overrides/sort before handing rows to the apply boundary.
-        index_row_count: Number of records returned by the index query
-            when the load read sqlite.
-        source_row_count: Number of records returned by a source scan
-            when the load walked source artifacts.
         index_missing: Phase 3 of ``sase-3r``. ``True`` when the loader
             could not consult the persistent artifact index because the
             sqlite file was absent and the snapshot was returned empty
@@ -171,12 +158,6 @@ class AgentLoadState:
     artifact_dirs_visited: int | None = None
     marker_files_parsed: int | None = None
     prompt_step_markers_parsed: int | None = None
-    index_query_ms: float | None = None
-    source_scan_ms: float | None = None
-    snapshot_hydration_ms: float | None = None
-    model_sort_ms: float | None = None
-    index_row_count: int | None = None
-    source_row_count: int | None = None
     index_missing: bool = False
 
     @property
@@ -214,12 +195,6 @@ class AgentLoadState:
             "artifact_dirs_visited": self.artifact_dirs_visited,
             "marker_files_parsed": self.marker_files_parsed,
             "prompt_step_markers_parsed": self.prompt_step_markers_parsed,
-            "index_query_ms": self.index_query_ms,
-            "source_scan_ms": self.source_scan_ms,
-            "snapshot_hydration_ms": self.snapshot_hydration_ms,
-            "model_sort_ms": self.model_sort_ms,
-            "index_row_count": self.index_row_count,
-            "source_row_count": self.source_row_count,
             "index_missing": self.index_missing,
         }
 
@@ -264,8 +239,6 @@ def _load_state_with_stats(
     agent_search_active: bool,
     index_error: str | None = None,
     index_missing: bool = False,
-    index_query_ms: float | None = None,
-    source_scan_ms: float | None = None,
 ) -> AgentLoadState:
     """Build :class:`AgentLoadState` populated with diagnostic snapshot stats."""
 
@@ -282,14 +255,6 @@ def _load_state_with_stats(
         artifact_dirs_visited=stats.artifact_dirs_visited,
         marker_files_parsed=stats.marker_files_parsed,
         prompt_step_markers_parsed=stats.prompt_step_markers_parsed,
-        index_query_ms=index_query_ms,
-        source_scan_ms=source_scan_ms,
-        index_row_count=(
-            len(snapshot.records) if artifact_source == "artifact_index" else None
-        ),
-        source_row_count=(
-            len(snapshot.records) if artifact_source == "source_scan" else None
-        ),
         index_missing=index_missing,
     )
 
@@ -367,25 +332,14 @@ def _query_artifact_index_for_loader(
 
     query = _tui_inbox_query()
     try:
-        from ..util.trace import tui_trace
-
-        started = time.perf_counter()
-        with tui_trace("agents.index_query") as trace_fields:
-            snapshot = query_agent_artifact_index(
-                index_path,
-                _projects_root_for_loader(),
-                query=query,
-                options=_TUI_SCAN_OPTIONS,
-            )
-            trace_fields["index_row_count"] = len(snapshot.records)
-            trace_fields["prompt_step_markers_parsed"] = (
-                snapshot.stats.prompt_step_markers_parsed
-            )
-        index_query_ms = (time.perf_counter() - started) * 1000.0
+        snapshot = query_agent_artifact_index(
+            index_path,
+            _projects_root_for_loader(),
+            query=query,
+            options=_TUI_SCAN_OPTIONS,
+        )
     except (ImportError, AttributeError, OSError, ValueError, RuntimeError) as exc:
-        started = time.perf_counter()
         fallback_snapshot = _scan_artifacts_for_loader(_TIER1_FALLBACK_SCAN_OPTIONS)
-        source_scan_ms = (time.perf_counter() - started) * 1000.0
         return (
             fallback_snapshot,
             _load_state_with_stats(
@@ -397,7 +351,6 @@ def _query_artifact_index_for_loader(
                 index_error=str(exc),
                 full_history=False,
                 agent_search_active=agent_search_active,
-                source_scan_ms=source_scan_ms,
             ),
         )
 
@@ -411,7 +364,6 @@ def _query_artifact_index_for_loader(
             used_artifact_index=True,
             full_history=False,
             agent_search_active=agent_search_active,
-            index_query_ms=index_query_ms,
         ),
     )
 
@@ -434,16 +386,7 @@ def _artifact_snapshot_for_tui_load(
     """
 
     if full_history:
-        from ..util.trace import tui_trace
-
-        started = time.perf_counter()
-        with tui_trace("agents.source_scan") as trace_fields:
-            snapshot = _scan_artifacts_for_loader()
-            trace_fields["source_row_count"] = len(snapshot.records)
-            trace_fields["prompt_step_markers_parsed"] = (
-                snapshot.stats.prompt_step_markers_parsed
-            )
-        source_scan_ms = (time.perf_counter() - started) * 1000.0
+        snapshot = _scan_artifacts_for_loader()
         return (
             snapshot,
             _load_state_with_stats(
@@ -454,7 +397,6 @@ def _artifact_snapshot_for_tui_load(
                 used_artifact_index=False,
                 full_history=True,
                 agent_search_active=agent_search_active,
-                source_scan_ms=source_scan_ms,
             ),
         )
 
@@ -596,24 +538,14 @@ def _load_agents_with_load_state(
         full_history=full_history,
         agent_search_active=agent_search_active,
     )
-    from ..util.trace import tui_trace
-
-    started = time.perf_counter()
-    with tui_trace(
-        "agents.snapshot_model_hydration",
-        snapshot_records=len(artifact_snapshot.records),
-    ) as trace_fields:
-        agents, workflow_agent_steps = _load_agents_from_all_sources(
-            changespec_snapshot=changespec_snapshot,
-            artifact_snapshot=artifact_snapshot,
-        )
-        trace_fields["loaded_parent_candidates"] = len(agents)
-        trace_fields["loaded_child_candidates"] = len(workflow_agent_steps)
-    hydration_ms = (time.perf_counter() - started) * 1000.0
+    agents, workflow_agent_steps = _load_agents_from_all_sources(
+        changespec_snapshot=changespec_snapshot,
+        artifact_snapshot=artifact_snapshot,
+    )
     return _AgentLoadResult(
         agents=agents,
         workflow_agent_steps=workflow_agent_steps,
-        state=replace(state, snapshot_hydration_ms=hydration_ms),
+        state=state,
     )
 
 
@@ -694,34 +626,23 @@ def load_tiered_agents(
     )
     agents = result.agents
 
-    from ..util.trace import tui_trace
-
-    started = time.perf_counter()
     # Filter out agents with dead PIDs (but keep completed agents)
-    with tui_trace(
-        "agents.python_model_pipeline",
-        parent_candidates=len(agents),
-        child_candidates=len(result.workflow_agent_steps),
-    ) as trace_fields:
-        agents = _filter_dead_pids(agents)
+    agents = _filter_dead_pids(agents)
 
-        # Deduplication pipeline
-        agents = dedup_axe_spawned_agents(agents)
-        agents = remove_vcs_workspace_claims(agents)
-        agents = dedup_workflow_entries(agents)
-        agents = dedup_running_vs_workflow(agents)
-        agents = dedup_by_pid(agents)
+    # Deduplication pipeline
+    agents = dedup_axe_spawned_agents(agents)
+    agents = remove_vcs_workspace_claims(agents)
+    agents = dedup_workflow_entries(agents)
+    agents = dedup_running_vs_workflow(agents)
+    agents = dedup_by_pid(agents)
 
-        # Override statuses based on workflow relationships
-        _apply_status_overrides(agents)
+    # Override statuses based on workflow relationships
+    _apply_status_overrides(agents)
 
-        sorted_agents = _sort_and_reorder(agents, result.workflow_agent_steps)
-        trace_fields["sorted_agent_count"] = len(sorted_agents)
-    model_sort_ms = (time.perf_counter() - started) * 1000.0
+    sorted_agents = _sort_and_reorder(agents, result.workflow_agent_steps)
     state = replace(
         result.state,
         loaded_agent_count=len(sorted_agents),
         loaded_workflow_step_count=len(result.workflow_agent_steps),
-        model_sort_ms=model_sort_ms,
     )
     return sorted_agents, state

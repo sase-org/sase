@@ -180,32 +180,6 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Emit a machine-readable JSON object",
     )
-    diagnose_parser = index_sub.add_parser(
-        "diagnose",
-        help="Compare source and indexed agent artifact timestamps for a pattern",
-    )
-    diagnose_parser.add_argument(
-        "pattern",
-        help="Substring or shell-style wildcard matched against name, timestamp, and artifact path",
-    )
-    diagnose_parser.add_argument(
-        "-i",
-        "--index-path",
-        default=None,
-        help="SQLite index path (default: ~/.sase/agent_artifact_index.sqlite)",
-    )
-    diagnose_parser.add_argument(
-        "-p",
-        "--projects-root",
-        default=None,
-        help="Projects artifact root (default: ~/.sase/projects)",
-    )
-    diagnose_parser.add_argument(
-        "-j",
-        "--json",
-        action="store_true",
-        help="Emit a machine-readable JSON object",
-    )
 
     # sase agents names migrate-auto
     names_parser = agents_sub.add_parser(

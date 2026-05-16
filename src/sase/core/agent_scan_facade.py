@@ -16,7 +16,7 @@ counted in :class:`AgentArtifactScanStatsWire`.
 
 from __future__ import annotations
 
-from fnmatch import fnmatchcase
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -149,126 +149,6 @@ def query_agent_artifact_index(
         _options_to_dict(opts),
     )
     return agent_scan_wire_from_dict(payload)
-
-
-def _record_diagnostic_name(record: AgentArtifactRecordWire) -> str:
-    if record.agent_meta is not None and record.agent_meta.name:
-        return record.agent_meta.name
-    if record.done is not None and record.done.name:
-        return record.done.name
-    if record.done is not None and record.done.cl_name:
-        return record.done.cl_name
-    if record.workflow_state is not None and record.workflow_state.cl_name:
-        return record.workflow_state.cl_name
-    if record.workflow_state is not None:
-        return record.workflow_state.workflow_name
-    return ""
-
-
-def _record_matches_diagnostic_pattern(
-    record: AgentArtifactRecordWire,
-    pattern: str,
-) -> bool:
-    candidates = [
-        record.timestamp,
-        record.artifact_dir,
-        record.workflow_dir_name,
-        _record_diagnostic_name(record),
-    ]
-    wildcard = any(ch in pattern for ch in "*?[]")
-    for candidate in candidates:
-        if not candidate:
-            continue
-        if wildcard and fnmatchcase(candidate, pattern):
-            return True
-        if not wildcard and pattern in candidate:
-            return True
-    return False
-
-
-def _diagnostic_rows_for_pattern(
-    snapshot: AgentArtifactScanWire,
-    pattern: str,
-) -> list[dict[str, str]]:
-    return [
-        {
-            "timestamp": record.timestamp,
-            "name": _record_diagnostic_name(record),
-            "workflow_dir_name": record.workflow_dir_name,
-            "artifact_dir": record.artifact_dir,
-        }
-        for record in snapshot.records
-        if _record_matches_diagnostic_pattern(record, pattern)
-    ]
-
-
-def diagnose_agent_artifact_index_timestamps(
-    index_path: Path | str,
-    projects_root: Path | str,
-    pattern: str,
-    options: AgentArtifactScanOptionsWire | None = None,
-) -> dict[str, object]:
-    """Compare source artifact timestamps with indexed timestamps for *pattern*.
-
-    This is a targeted, read-only diagnostic for Agents-tab freshness issues:
-    when a specific agent family such as ``sase-3r`` exists under
-    ``~/.sase/projects`` but is absent from the persistent sqlite index, the
-    returned ``missing_timestamps`` list names the source rows the Tier 1 path
-    cannot currently see.
-    """
-    index = Path(index_path).expanduser()
-    root = Path(projects_root).expanduser()
-    opts = options or AgentArtifactScanOptionsWire()
-    source = scan_agent_artifacts(root, opts)
-    source_rows = _diagnostic_rows_for_pattern(source, pattern)
-
-    indexed_error: str | None = None
-    if index.is_file():
-        try:
-            indexed = query_agent_artifact_index(
-                index,
-                root,
-                AgentArtifactIndexQueryWire(
-                    include_active=False,
-                    include_recent_completed=False,
-                    include_full_history=True,
-                    recent_completed_limit=None,
-                    include_hidden=True,
-                    include_dismissed=True,
-                ),
-                opts,
-            )
-            indexed_rows = _diagnostic_rows_for_pattern(indexed, pattern)
-        except (OSError, RuntimeError, ValueError, ImportError, AttributeError) as exc:
-            indexed_error = str(exc)
-            indexed_rows = []
-    else:
-        indexed_rows = []
-
-    source_timestamps = sorted({row["timestamp"] for row in source_rows})
-    indexed_timestamps = sorted({row["timestamp"] for row in indexed_rows})
-    source_set = set(source_timestamps)
-    indexed_set = set(indexed_timestamps)
-    missing_timestamps = sorted(source_set - indexed_set)
-    extra_timestamps = sorted(indexed_set - source_set)
-
-    return {
-        "ok": not missing_timestamps and not extra_timestamps and indexed_error is None,
-        "pattern": pattern,
-        "index_path": str(index),
-        "projects_root": str(root),
-        "source_rows": len(source.records),
-        "indexed_rows": len(indexed_rows),
-        "matched_source_rows": len(source_rows),
-        "matched_indexed_rows": len(indexed_rows),
-        "source_timestamps": source_timestamps,
-        "indexed_timestamps": indexed_timestamps,
-        "missing_timestamps": missing_timestamps,
-        "extra_timestamps": extra_timestamps,
-        "indexed_error": indexed_error,
-        "source_matches": source_rows,
-        "indexed_matches": indexed_rows,
-    }
 
 
 # pyvision: docs/rust_backend.md
@@ -441,7 +321,6 @@ __all__ = [
     "default_agent_artifact_index_path",
     "delete_agent_artifact_index_row",
     "delete_dismissed_agent_visibility",
-    "diagnose_agent_artifact_index_timestamps",
     "query_agent_artifact_index",
     "rebuild_agent_artifact_index",
     "replace_dismissed_agent_visibility",

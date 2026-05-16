@@ -156,36 +156,3 @@ def test_dispatch_index_verify_json_exits_nonzero_when_stale(
     assert excinfo.value.code == 1
     mock_verify.assert_called_once()
     assert json.loads(capsys.readouterr().out)["missing_rows"] == 1
-
-
-def test_dispatch_index_diagnose_json_exits_nonzero_when_missing(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """`sase agents index diagnose -j` reports pattern-specific gaps."""
-    args = argparse.Namespace(
-        agents_subcommand="index",
-        index_subcommand="diagnose",
-        index_path="/tmp/index.sqlite",
-        projects_root="/tmp/projects",
-        pattern="sase-3r",
-        json=True,
-    )
-
-    with (
-        patch(
-            "sase.agents.cli_index.diagnose_agent_artifact_index_timestamps",
-            return_value={
-                "ok": False,
-                "pattern": "sase-3r",
-                "missing_timestamps": ["20260516095502"],
-            },
-        ) as mock_diagnose,
-        pytest.raises(SystemExit) as excinfo,
-    ):
-        handle_agents_command(args)
-
-    assert excinfo.value.code == 1
-    mock_diagnose.assert_called_once()
-    assert json.loads(capsys.readouterr().out)["missing_timestamps"] == [
-        "20260516095502"
-    ]

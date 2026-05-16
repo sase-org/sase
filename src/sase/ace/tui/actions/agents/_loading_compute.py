@@ -161,21 +161,9 @@ def prepare_loaded_agents_apply_boundary(
         visible_agents = list(unfiltered_agents)
         fold_counts: dict[str, tuple[int, int]] = {}
     else:
-        with tui_trace("agents.fold_filtering", count=len(unfiltered_agents)) as trace:
+        with tui_trace("agents.fold_filtering", count=len(unfiltered_agents)):
             visible_agents, fold_counts = _filter_agents_by_fold_snapshot(
                 unfiltered_agents, snapshot.fold_levels
-            )
-            trace["unfiltered_parent_count"] = sum(
-                1 for agent in unfiltered_agents if not agent.is_workflow_child
-            )
-            trace["unfiltered_child_count"] = sum(
-                1 for agent in unfiltered_agents if agent.is_workflow_child
-            )
-            trace["final_visible_parent_count"] = sum(
-                1 for agent in visible_agents if not agent.is_workflow_child
-            )
-            trace["final_visible_child_count"] = sum(
-                1 for agent in visible_agents if agent.is_workflow_child
             )
 
     return PreparedApplyBoundary(

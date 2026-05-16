@@ -40,14 +40,9 @@ from sase.ace.tui.models.agent_loader import (
 )
 from sase.core.agent_scan_wire import (
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
-    AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
     AgentArtifactScanStatsWire,
     AgentArtifactScanWire,
-    AgentMetaWire,
-    DoneMarkerWire,
-    PromptStepMarkerWire,
-    WorkflowStateWire,
 )
 
 
@@ -115,12 +110,6 @@ def test_agent_load_state_phase1_fields_default_to_neutral_values() -> None:
     assert state.artifact_dirs_visited is None
     assert state.marker_files_parsed is None
     assert state.prompt_step_markers_parsed is None
-    assert state.index_query_ms is None
-    assert state.source_scan_ms is None
-    assert state.snapshot_hydration_ms is None
-    assert state.model_sort_ms is None
-    assert state.index_row_count is None
-    assert state.source_row_count is None
     assert state.index_missing is False
 
 
@@ -140,10 +129,6 @@ def test_trace_fields_contain_every_phase1_measurement_key() -> None:
         artifact_dirs_visited=42,
         marker_files_parsed=99,
         prompt_step_markers_parsed=11,
-        index_query_ms=1.2,
-        snapshot_hydration_ms=2.3,
-        model_sort_ms=3.4,
-        index_row_count=7,
     )
     fields = state.trace_fields()
     assert fields == {
@@ -160,12 +145,6 @@ def test_trace_fields_contain_every_phase1_measurement_key() -> None:
         "artifact_dirs_visited": 42,
         "marker_files_parsed": 99,
         "prompt_step_markers_parsed": 11,
-        "index_query_ms": 1.2,
-        "source_scan_ms": None,
-        "snapshot_hydration_ms": 2.3,
-        "model_sort_ms": 3.4,
-        "index_row_count": 7,
-        "source_row_count": None,
         "index_missing": False,
     }
 
@@ -211,8 +190,6 @@ def test_index_path_load_records_snapshot_stats_and_no_full_history(
     assert state.full_history is False
     assert state.agent_search_active is False
     assert state.snapshot_records == 3
-    assert state.index_row_count == 3
-    assert state.source_row_count is None
     assert state.artifact_dirs_visited == 12
     assert state.marker_files_parsed == 34
     assert state.prompt_step_markers_parsed == 5
@@ -233,8 +210,6 @@ def test_full_history_path_sets_full_history_and_complete_history() -> None:
     assert state.full_history is True
     assert state.complete_history is True
     assert state.snapshot_records == 8
-    assert state.source_row_count == 8
-    assert state.index_row_count is None
     assert state.artifact_dirs_visited == 42
 
 
@@ -514,163 +489,9 @@ def test_load_from_disk_trace_records_phase1_measurement_fields(
         "artifact_dirs_visited",
         "marker_files_parsed",
         "prompt_step_markers_parsed",
-        "index_query_ms",
-        "source_scan_ms",
-        "snapshot_hydration_ms",
-        "model_sort_ms",
-        "index_row_count",
-        "source_row_count",
     ):
         assert key in record, f"trace record missing field {key!r}: {record!r}"
     assert record["tier"] == "tier2"
     assert record["full_history"] is True
     assert record["snapshot_records"] == 3
     assert record["artifact_dirs_visited"] == 11
-
-
-def _contract_record(
-    tmp_path: Path,
-    timestamp: str,
-    *,
-    name: str,
-    done: bool = False,
-    workflow: bool = False,
-    prompt_steps: list[PromptStepMarkerWire] | None = None,
-) -> AgentArtifactRecordWire:
-    project_dir = tmp_path / "projects" / "demo"
-    workflow_dir = "workflow-contract" if workflow else "ace-run"
-    artifact_dir = project_dir / "artifacts" / workflow_dir / timestamp
-    return AgentArtifactRecordWire(
-        project_name="demo",
-        project_dir=str(project_dir),
-        project_file=str(project_dir / "demo.gp"),
-        workflow_dir_name=workflow_dir,
-        artifact_dir=str(artifact_dir),
-        timestamp=timestamp,
-        agent_meta=AgentMetaWire(name=name, cl_name=name),
-        done=DoneMarkerWire(
-            outcome="completed",
-            finished_at=1.0,
-            cl_name=name,
-            project_file=str(project_dir / "demo.gp"),
-            name=name,
-        )
-        if done
-        else None,
-        workflow_state=WorkflowStateWire(
-            workflow_name="workflow-contract",
-            cl_name=name,
-            status="completed",
-            appears_as_agent=False,
-        )
-        if workflow
-        else None,
-        prompt_steps=prompt_steps or [],
-        has_done_marker=done,
-    )
-
-
-def test_tier1_contract_fixture_keeps_visible_parents_and_valid_children(
-    tmp_path: Path,
-) -> None:
-    """The Tier 1 loader contract is a small visible inbox, not old history."""
-
-    from sase.ace.tui.models.agent_loader import load_tiered_agents
-
-    child = PromptStepMarkerWire(
-        file_name="prompt_step_001_code.json",
-        workflow_name="workflow-contract",
-        step_name="code",
-        step_type="agent",
-        step_index=0,
-        total_steps=1,
-        status="completed",
-        artifacts_dir=str(tmp_path / "projects" / "demo" / "child-artifacts"),
-    )
-    visible_phase = _contract_record(
-        tmp_path,
-        "20260516095501",
-        name="sase-3r.1",
-        done=True,
-    )
-    visible_parent = _contract_record(
-        tmp_path,
-        "20260516095502",
-        name="sase-3r",
-        workflow=True,
-        prompt_steps=[child],
-    )
-    indexed_snapshot = AgentArtifactScanWire(
-        schema_version=AGENT_SCAN_WIRE_SCHEMA_VERSION,
-        projects_root=str(tmp_path / "projects"),
-        options=AgentArtifactScanOptionsWire(),
-        stats=AgentArtifactScanStatsWire(
-            artifact_dirs_visited=2,
-            marker_files_parsed=4,
-            prompt_step_markers_parsed=1,
-        ),
-        records=[visible_phase, visible_parent],
-    )
-    stale_sparse = _contract_record(
-        tmp_path,
-        "20200101010101",
-        name="old-sparse-history",
-    )
-    dismissed_completed = _contract_record(
-        tmp_path,
-        "20260516095503",
-        name="dismissed-completed",
-        done=True,
-    )
-    assert stale_sparse.has_done_marker is False
-    assert dismissed_completed.has_done_marker is True
-
-    index_path = tmp_path / "agent_artifact_index.sqlite"
-    index_path.touch()
-    with contextlib.ExitStack() as stack:
-        stack.enter_context(
-            patch(
-                "sase.ace.tui.models.agent_loader.default_agent_artifact_index_path",
-                return_value=index_path,
-            )
-        )
-        stack.enter_context(
-            patch(
-                "sase.ace.tui.models.agent_loader.query_agent_artifact_index",
-                return_value=indexed_snapshot,
-            )
-        )
-        stack.enter_context(
-            patch(
-                "sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]
-            )
-        )
-        stack.enter_context(
-            patch(
-                "sase.ace.tui.models.agent_loader.get_all_project_files",
-                return_value=[],
-            )
-        )
-        stack.enter_context(
-            patch(
-                "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
-                return_value=[],
-            )
-        )
-        agents, state = load_tiered_agents(full_history=False)
-
-    names = {agent.agent_name or agent.cl_name for agent in agents}
-    assert "sase-3r.1" in names
-    assert "sase-3r" in names
-    assert "code" in names
-    assert "old-sparse-history" not in names
-    assert "dismissed-completed" not in names
-    child_rows = [agent for agent in agents if agent.is_workflow_child]
-    assert len(child_rows) == 1
-    assert child_rows[0].parent_timestamp == "20260516095502"
-    assert state.used_artifact_index is True
-    assert state.snapshot_records == 2
-    assert state.index_row_count == 2
-    assert state.loaded_workflow_step_count == 1
-    assert state.loaded_agent_count == 3
-    assert state.snapshot_records < 100
