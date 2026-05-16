@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-16 12:10:20
-status: wip
+status: done
 prompt: sdd/prompts/202605/agents_tab_empty_after_fast_load.md
 ---
 # Diagnose And Fix Empty Agents Tab After Fast Loader

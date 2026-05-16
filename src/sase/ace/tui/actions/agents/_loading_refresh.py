@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 
+from ...util.trace import tui_trace
 from ._loading_state import AgentLoadingStateMixin
 
 log = logging.getLogger(__name__)
@@ -12,6 +13,13 @@ log = logging.getLogger(__name__)
 
 class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
     """Methods that debounce and schedule asynchronous agent refreshes."""
+
+    def _reserve_agents_load_generation(self) -> int:
+        """Reserve a monotonic generation for one logical agent load."""
+        generation = getattr(self, "_agents_load_request_generation", 0) + 1
+        self._agents_load_request_generation = generation
+        self._agents_load_latest_scheduled_generation = generation
+        return generation
 
     def request_agents_refresh(
         self,
@@ -55,6 +63,7 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         *,
         full_history: bool = False,
         on_complete: Callable[[], None] | None = None,
+        _reserved_generation: int | None = None,
     ) -> None:
         """Schedule an async agent reload without blocking.
 
@@ -71,18 +80,22 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         """
         if on_complete is not None:
             self._agents_refresh_pending_callbacks.append(on_complete)
+        generation = _reserved_generation or self._reserve_agents_load_generation()
         if self._agents_loading:
             self._agents_refresh_pending = True
+            self._agents_refresh_pending_generation = generation
             if full_history:
                 self._agents_refresh_pending_full_history = True
             return
         if self._agents_refresh_scheduled:
             self._agents_refresh_pending = True
+            self._agents_refresh_pending_generation = generation
             if full_history:
                 self._agents_refresh_pending_full_history = True
             return
         self._agents_refresh_scheduled = True
         self._agents_refresh_scheduled_full_history = full_history
+        self._agents_refresh_scheduled_generation = generation
         self.call_later(self._run_agents_async_refresh)  # type: ignore[attr-defined]
 
     async def _run_agents_async_refresh(self) -> None:
@@ -102,10 +115,18 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
             self.set_timer(delay, self._run_agents_async_refresh)  # type: ignore[attr-defined]
             return
         full_history = getattr(self, "_agents_refresh_scheduled_full_history", False)
+        generation = getattr(self, "_agents_refresh_scheduled_generation", 0)
+        if generation <= 0:
+            generation = self._reserve_agents_load_generation()
         self._agents_refresh_scheduled = False
         self._agents_refresh_scheduled_full_history = False
+        self._agents_refresh_scheduled_generation = 0
         if self._agents_loading:
             self._agents_refresh_pending = True
+            if getattr(self, "_agents_refresh_pending_generation", 0) <= 0:
+                self._agents_refresh_pending_generation = (
+                    self._reserve_agents_load_generation()
+                )
             if full_history:
                 self._agents_refresh_pending_full_history = True
             return
@@ -116,10 +137,20 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
             import inspect
 
             load_agents_async = self._load_agents_async
-            if "full_history" in inspect.signature(load_agents_async).parameters:
-                await load_agents_async(full_history=full_history)
-            else:
-                await load_agents_async()
+            parameters = inspect.signature(load_agents_async).parameters
+            with tui_trace(
+                "agents.async_refresh",
+                generation=generation,
+                full_history=full_history,
+            ):
+                if "generation" in parameters and "full_history" in parameters:
+                    await load_agents_async(
+                        full_history=full_history, generation=generation
+                    )
+                elif "full_history" in parameters:
+                    await load_agents_async(full_history=full_history)
+                else:
+                    await load_agents_async()
         finally:
             self._agents_loading = False
             for cb in callbacks:
@@ -134,7 +165,12 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                 pending_full_history = getattr(
                     self, "_agents_refresh_pending_full_history", False
                 )
+                pending_generation = getattr(
+                    self, "_agents_refresh_pending_generation", 0
+                )
                 self._agents_refresh_pending_full_history = False
+                self._agents_refresh_pending_generation = 0
                 self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
-                    full_history=pending_full_history
+                    full_history=pending_full_history,
+                    _reserved_generation=pending_generation or None,
                 )

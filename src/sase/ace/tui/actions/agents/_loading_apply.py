@@ -195,6 +195,22 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             ),
         )
 
+    def _should_preserve_empty_incomplete_load(
+        self,
+        prep: PreparedApplyData,
+        load_state: AgentLoadState | None,
+    ) -> bool:
+        """Return True when a low-fidelity empty Tier 1 load would blank rows."""
+        if load_state is None:
+            return False
+        if getattr(load_state, "complete_history", False):
+            return False
+        if getattr(load_state, "tier", None) != "tier1":
+            return False
+        if prep.filtered_agents:
+            return False
+        return bool(getattr(self, "_agents_with_children", []))
+
     def _apply_loaded_agents_prepared(
         self,
         prep: PreparedApplyData,
@@ -276,6 +292,31 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             from ....dismissed_agents import save_dismissed_agents
 
             save_dismissed_agents(self._dismissed_agents)
+
+        if self._should_preserve_empty_incomplete_load(prep, load_state):
+            with tui_trace(
+                "agents.empty_incomplete_load_preserved",
+                cached=len(getattr(self, "_agents_with_children", [])),
+                visible=len(getattr(self, "_agents", [])),
+                index_missing=getattr(load_state, "index_missing", None),
+            ):
+                pass
+            self._agent_load_state = load_state
+            if (
+                load_state is not None
+                and load_state.needs_full_history_reconcile
+                and not getattr(self, "_agents_refresh_pending_full_history", False)
+                and not getattr(self, "_agents_refresh_scheduled_full_history", False)
+            ):
+                self._agents_refresh_pending = True
+                self._agents_refresh_pending_full_history = True
+            if load_state is not None and load_state.index_missing:
+                schedule_rebuild = getattr(
+                    self, "_schedule_artifact_index_rebuild", None
+                )
+                if callable(schedule_rebuild):
+                    schedule_rebuild()
+            return
 
         preserved_revived = self._preserve_revived_agents_for_incomplete_load(
             prep, load_state

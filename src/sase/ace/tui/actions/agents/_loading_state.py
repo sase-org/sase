@@ -105,6 +105,11 @@ class AgentLoadingStateMixin:
     _agents_refresh_pending_callbacks: list[Callable[[], None]]
     _agents_refresh_scheduled: bool
     _agents_refresh_scheduled_full_history: bool
+    _agents_refresh_scheduled_generation: int
+    _agents_refresh_pending_generation: int
+    _agents_load_request_generation: int
+    _agents_load_latest_scheduled_generation: int
+    _agents_load_latest_applied_generation: int
     # Source-aware debounce gate for ``request_agents_refresh``: True while
     # a debounce timer is armed so a burst of fan-out spawn callbacks
     # collapses into a single deferred ``_schedule_agents_async_refresh``.
@@ -146,7 +151,9 @@ class AgentLoadingStateMixin:
     ) -> PreparedApplySnapshot:
         raise NotImplementedError
 
-    async def _load_agents_async(self, *, full_history: bool = False) -> None:
+    async def _load_agents_async(
+        self, *, full_history: bool = False, generation: int | None = None
+    ) -> None:
         raise NotImplementedError
 
     def _load_agents(self, *, full_history: bool = False) -> None:
