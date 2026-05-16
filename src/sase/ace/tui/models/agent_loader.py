@@ -10,10 +10,8 @@ from sase.core.agent_scan_facade import (
     scan_agent_artifacts,
 )
 from sase.core.agent_scan_wire import (
-    AGENT_SCAN_WIRE_SCHEMA_VERSION,
     AgentArtifactIndexQueryWire,
     AgentArtifactScanOptionsWire,
-    AgentArtifactScanStatsWire,
     AgentArtifactScanWire,
 )
 
@@ -74,26 +72,6 @@ _TIER1_FALLBACK_SCAN_OPTIONS = replace(
 )
 
 
-def _empty_snapshot_for_missing_index() -> AgentArtifactScanWire:
-    """Build a deterministic empty snapshot for the missing-index Tier 1 path.
-
-    Phase 3 of ``sase-3r`` (Fast Agents Tab Disk Loading) stops the loader
-    from issuing a source-tree scan when the persistent artifact index is
-    absent. The caller-visible loader contract still requires a wire — the
-    snapshot is intentionally empty so artifact-derived agents are skipped
-    until the rebuild worker repopulates the index, while RUNNING-field
-    project entries continue to flow through ``_load_agents_from_all_sources``.
-    """
-
-    return AgentArtifactScanWire(
-        schema_version=AGENT_SCAN_WIRE_SCHEMA_VERSION,
-        projects_root=str(_projects_root_for_loader()),
-        options=_TUI_SCAN_OPTIONS,
-        stats=AgentArtifactScanStatsWire(),
-        records=[],
-    )
-
-
 @dataclass(frozen=True)
 class AgentLoadState:
     """Artifact-history completeness for one TUI agent load.
@@ -137,12 +115,6 @@ class AgentLoadState:
         prompt_step_markers_parsed: Snapshot
             ``stats.prompt_step_markers_parsed`` when available, else
             ``None``.
-        index_missing: Phase 3 of ``sase-3r``. ``True`` when the loader
-            could not consult the persistent artifact index because the
-            sqlite file was absent and the snapshot was returned empty
-            instead of doing a fallback source scan. The apply layer uses
-            this to schedule a one-off index rebuild rather than a Tier 2
-            source scan.
     """
 
     tier: Literal["tier1", "tier2"]
@@ -158,25 +130,12 @@ class AgentLoadState:
     artifact_dirs_visited: int | None = None
     marker_files_parsed: int | None = None
     prompt_step_markers_parsed: int | None = None
-    index_missing: bool = False
 
     @property
     def needs_full_history_reconcile(self) -> bool:
-        """Return whether the caller should schedule a Tier 2 refresh.
+        """Return whether the caller should schedule a Tier 2 refresh."""
 
-        Phase 3 of ``sase-3r`` narrows this to source-scan fallbacks (the
-        bounded-scan path triggered by an index-query error). The
-        visibility-aware Tier 1 inbox query is the answer the caller
-        wants, so successful index reads no longer schedule a Tier 2
-        reconcile. Missing-index loads expose ``index_missing`` for the
-        rebuild path instead.
-        """
-
-        if self.complete_history:
-            return False
-        if self.index_missing:
-            return False
-        return self.artifact_source == "source_scan"
+        return not self.complete_history
 
     def trace_fields(self) -> dict[str, object]:
         """Return a JSON-friendly mapping for ``tui_trace`` enrichment."""
@@ -195,7 +154,6 @@ class AgentLoadState:
             "artifact_dirs_visited": self.artifact_dirs_visited,
             "marker_files_parsed": self.marker_files_parsed,
             "prompt_step_markers_parsed": self.prompt_step_markers_parsed,
-            "index_missing": self.index_missing,
         }
 
 
@@ -238,7 +196,6 @@ def _load_state_with_stats(
     full_history: bool,
     agent_search_active: bool,
     index_error: str | None = None,
-    index_missing: bool = False,
 ) -> AgentLoadState:
     """Build :class:`AgentLoadState` populated with diagnostic snapshot stats."""
 
@@ -255,28 +212,6 @@ def _load_state_with_stats(
         artifact_dirs_visited=stats.artifact_dirs_visited,
         marker_files_parsed=stats.marker_files_parsed,
         prompt_step_markers_parsed=stats.prompt_step_markers_parsed,
-        index_missing=index_missing,
-    )
-
-
-def _tui_inbox_query() -> AgentArtifactIndexQueryWire:
-    """Return the visibility-aware Tier 1 inbox query for ordinary refreshes.
-
-    Phase 3 of ``sase-3r`` (Fast Agents Tab Disk Loading) replaces the
-    bounded "active + 200 recent completed" query with a true inbox view:
-    every active/incomplete row plus every completed row whose identity
-    is **not** in the dismissed-agent sidecar. Dismissed completions are
-    filtered server-side so the TUI no longer scans historical artifact
-    directories on every keystroke.
-    """
-
-    return AgentArtifactIndexQueryWire(
-        include_active=True,
-        include_recent_completed=True,
-        include_full_history=False,
-        recent_completed_limit=None,
-        include_hidden=False,
-        include_dismissed=False,
     )
 
 
@@ -285,41 +220,22 @@ def _query_artifact_index_for_loader(
     full_history: bool,
     agent_search_active: bool,
 ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None:
-    """Return an index-backed snapshot for the TUI inbox refresh.
-
-    Behavior under Phase 3 of ``sase-3r``:
-
-    - Explicit ``full_history=True`` requests skip the index entirely so
-      revive/archive/repair flows still get a complete source scan.
-    - Missing index returns an empty snapshot with ``index_missing=True``
-      instead of doing a bounded source-tree scan. The apply layer
-      schedules a one-off rebuild and the cached working set stays
-      visible via the existing watermark merge.
-    - Index-query errors fall back to a bounded source scan as before so
-      a corrupt sqlite file does not blank the list.
-    """
+    """Return an index-backed snapshot when the persistent index exists."""
 
     if full_history:
         return None
 
     index_path = default_agent_artifact_index_path()
     if not index_path.is_file():
-        empty_snapshot = _empty_snapshot_for_missing_index()
-        return (
-            empty_snapshot,
-            _load_state_with_stats(
-                empty_snapshot,
-                tier="tier1",
-                complete_history=False,
-                artifact_source="artifact_index",
-                used_artifact_index=False,
-                full_history=False,
-                agent_search_active=agent_search_active,
-                index_missing=True,
-            ),
-        )
+        return None
 
-    query = _tui_inbox_query()
+    query = AgentArtifactIndexQueryWire(
+        include_active=True,
+        include_recent_completed=True,
+        include_full_history=False,
+        recent_completed_limit=_TIER1_RECENT_COMPLETED_LIMIT,
+        include_hidden=False,
+    )
     try:
         snapshot = query_agent_artifact_index(
             index_path,
@@ -364,14 +280,10 @@ def _artifact_snapshot_for_tui_load(
 ) -> tuple[AgentArtifactScanWire, AgentLoadState]:
     """Return the artifact snapshot for a TUI refresh.
 
-    Tier 1 normal refreshes always go through
-    :func:`_query_artifact_index_for_loader`, which returns a
-    visibility-aware inbox snapshot when the index is present, an empty
-    snapshot when the index is absent (flagging ``index_missing`` so the
-    apply layer can rebuild rather than source-scan), or a bounded source
-    scan when the index query raises. Tier 2 reconciles from source-of-
-    truth artifacts so explicit revive/archive/repair paths still see a
-    complete history.
+    Tier 1 uses the persistent artifact index when available. Missing or bad
+    indexes fall back to a bounded source scan so first paint remains capped.
+    Tier 2 always reconciles from source-of-truth artifacts so a stale index
+    cannot keep visible history stale indefinitely.
     """
 
     if full_history:
@@ -393,11 +305,22 @@ def _artifact_snapshot_for_tui_load(
         full_history=full_history,
         agent_search_active=agent_search_active,
     )
-    assert indexed is not None, (
-        "_query_artifact_index_for_loader returns a snapshot for every "
-        "non-full-history call after Phase 3 of sase-3r"
+    if indexed is not None:
+        return indexed
+
+    fallback_snapshot = _scan_artifacts_for_loader(_TIER1_FALLBACK_SCAN_OPTIONS)
+    return (
+        fallback_snapshot,
+        _load_state_with_stats(
+            fallback_snapshot,
+            tier="tier1",
+            complete_history=False,
+            artifact_source="source_scan",
+            used_artifact_index=False,
+            full_history=False,
+            agent_search_active=agent_search_active,
+        ),
     )
-    return indexed
 
 
 def load_all_workflows() -> list[WorkflowEntry]:

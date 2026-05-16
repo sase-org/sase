@@ -153,7 +153,6 @@ class ReproLoadState:
     artifact_dirs_visited: int | None = None
     marker_files_parsed: int | None = None
     prompt_step_markers_parsed: int | None = None
-    index_missing: bool = False
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ReproLoadState:
@@ -210,11 +209,6 @@ class ReproLoadState:
                 data.get("prompt_step_markers_parsed"),
                 field_name="prompt_step_markers_parsed",
             ),
-            index_missing=_bool(
-                data.get("index_missing"),
-                field_name="index_missing",
-                default=False,
-            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -232,7 +226,6 @@ class ReproLoadState:
             "artifact_dirs_visited": self.artifact_dirs_visited,
             "marker_files_parsed": self.marker_files_parsed,
             "prompt_step_markers_parsed": self.prompt_step_markers_parsed,
-            "index_missing": self.index_missing,
         }
 
 

@@ -1,22 +1,19 @@
 """Phase 1 measurement and guardrail tests for ``sase-3r``.
 
-These tests pin down the contract of the tiered agent loader for the
-Phase 1 measurement scaffolding and the Phase 3 visibility-aware inbox
-refactor:
+These tests pin down the *current* contract of the tiered agent loader so
+the Phase 2+ behavior changes have to be deliberate:
 
-* The ``AgentLoadState`` measurement fields (``full_history``,
-  ``agent_search_active``, snapshot stats, loaded row counts,
-  ``index_missing``) are populated by every code path.
-* A non-empty Agents-tab search query no longer promotes the load to
-  Tier 2; the visibility-aware Tier 1 inbox query handles search by
-  filtering the cached working set instead. (Updated in Phase 3 of
-  ``sase-3r``.)
-* A missing artifact index returns an empty Tier 1 snapshot with
-  ``index_missing=True`` so the apply layer can schedule a one-off
-  rebuild — the loader no longer performs a bounded source scan when
-  the index file is absent. (Updated in Phase 3 of ``sase-3r``.)
-* An exception from the index query still falls back to a bounded
-  source scan and reports the exception message in ``index_error``.
+* The new ``AgentLoadState`` measurement fields (``full_history``,
+  ``agent_search_active``, snapshot stats, loaded row counts) are
+  populated by every code path.
+* A non-empty Agents-tab search query forces the loader into the Tier 2
+  full-history path today. Phase 3 will demote that to "filter the
+  cached inbox"; updating this test will be the breaking change that
+  signals the contract has moved.
+* A missing artifact index falls back to a bounded source scan and
+  reports ``index_error=None``.
+* An exception from the index query falls back to a bounded source scan
+  and reports the exception message in ``index_error``.
 * The ``agents.load_from_disk`` ``tui_trace`` span is enriched with the
   same measurement fields as ``AgentLoadState``.
 """
@@ -110,7 +107,6 @@ def test_agent_load_state_phase1_fields_default_to_neutral_values() -> None:
     assert state.artifact_dirs_visited is None
     assert state.marker_files_parsed is None
     assert state.prompt_step_markers_parsed is None
-    assert state.index_missing is False
 
 
 def test_trace_fields_contain_every_phase1_measurement_key() -> None:
@@ -145,7 +141,6 @@ def test_trace_fields_contain_every_phase1_measurement_key() -> None:
         "artifact_dirs_visited": 42,
         "marker_files_parsed": 99,
         "prompt_step_markers_parsed": 11,
-        "index_missing": False,
     }
 
 
@@ -240,37 +235,37 @@ def test_load_tiered_agents_records_loaded_row_counts() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_agent_search_active_no_longer_forces_full_history_loader_contract(
+def test_agent_search_active_currently_forces_full_history_loader_contract(
     tmp_path: Path,
 ) -> None:
-    """An active search query filters the Tier 1 inbox instead of forcing Tier 2.
+    """An active search query promotes the load to Tier 2 today.
 
-    Phase 3 of bead ``sase-3r`` (Fast Agents Tab Disk Loading) demotes the
-    "search forces full history" behavior to "search filters the cached
-    inbox." With a present index and a non-empty Agents-tab search query,
-    the loader stays on the visibility-aware Tier 1 inbox path and never
-    triggers a source-tree scan.
+    Phase 1 contract guard: when ``agent_search_active=True`` but the
+    caller did not explicitly request ``full_history``, the loader still
+    enters the full-history source scan and reports
+    ``state.full_history=True`` and ``state.complete_history=True``.
+
+    Phase 3 of bead ``sase-3r`` will change this so normal search filters
+    the cached inbox instead. When that lands, this test will fail
+    deliberately — update the assertions in lockstep with the loader
+    change to keep the contract visible.
     """
 
-    index_path = tmp_path / "index.sqlite"
-    index_path.touch()
-    indexed_snapshot = _snapshot_with_stats(records=1, artifact_dirs_visited=5)
+    snapshot = _snapshot_with_stats(records=1)
     with contextlib.ExitStack() as stack:
         mock_scan = stack.enter_context(
             patch(
                 "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+                return_value=snapshot,
             )
         )
         mock_query = stack.enter_context(
-            patch(
-                "sase.ace.tui.models.agent_loader.query_agent_artifact_index",
-                return_value=indexed_snapshot,
-            )
+            patch("sase.ace.tui.models.agent_loader.query_agent_artifact_index")
         )
         stack.enter_context(
             patch(
                 "sase.ace.tui.models.agent_loader.default_agent_artifact_index_path",
-                return_value=index_path,
+                return_value=tmp_path / "index.sqlite",
             )
         )
         _enter_empty_sources(stack)
@@ -282,13 +277,21 @@ def test_agent_search_active_no_longer_forces_full_history_loader_contract(
 
     state = result.load_state
     assert state.agent_search_active is True
-    assert state.full_history is False
-    assert state.tier == "tier1"
-    assert state.complete_history is False
-    assert state.artifact_source == "artifact_index"
-    assert state.used_artifact_index is True
-    mock_scan.assert_not_called()
-    mock_query.assert_called_once()
+    # Today: an active search promotes the load to Tier 2.
+    assert state.full_history is True, (
+        "Phase 1 contract: an active Agents-tab search currently forces a "
+        "full-history Tier 2 load. Update this assertion together with the "
+        "Phase 3 change."
+    )
+    assert state.tier == "tier2"
+    assert state.complete_history is True
+    assert state.artifact_source == "source_scan"
+    assert state.used_artifact_index is False
+    mock_query.assert_not_called()
+    mock_scan.assert_called_once()
+    # The Tier 2 scan does not bound records.
+    options = mock_scan.call_args.args[0] if mock_scan.call_args.args else None
+    assert options is None or options.max_records is None
 
 
 def test_full_history_request_takes_priority_over_search_flag() -> None:
@@ -318,19 +321,12 @@ def test_full_history_request_takes_priority_over_search_flag() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_missing_index_returns_empty_snapshot_without_source_scan(
+def test_missing_index_falls_back_to_bounded_source_scan_without_error(
     tmp_path: Path,
 ) -> None:
-    """A missing artifact index returns an empty snapshot — no source scan.
+    """A missing artifact index falls back to a bounded source scan."""
 
-    Phase 3 of bead ``sase-3r`` (Fast Agents Tab Disk Loading). Normal
-    Agents-tab refreshes must not trigger a source-tree walk when the
-    persistent index is absent — the apply layer schedules a one-off
-    rebuild and the cached working set stays visible via the existing
-    incomplete-load merge. The load state surfaces this with
-    ``index_missing=True`` and zero snapshot stats.
-    """
-
+    snapshot = _snapshot_with_stats(records=4, artifact_dirs_visited=7)
     missing_index = tmp_path / "missing_agent_artifact_index.sqlite"
 
     with (
@@ -340,24 +336,26 @@ def test_missing_index_returns_empty_snapshot_without_source_scan(
         ),
         patch(
             "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=snapshot,
         ) as mock_scan,
         patch(
             "sase.ace.tui.models.agent_loader.query_agent_artifact_index",
         ) as mock_query,
     ):
-        snapshot, state = _artifact_snapshot_for_tui_load(
+        _, state = _artifact_snapshot_for_tui_load(
             full_history=False, agent_search_active=False
         )
 
     assert state.tier == "tier1"
     assert state.complete_history is False
-    assert state.artifact_source == "artifact_index"
+    assert state.artifact_source == "source_scan"
     assert state.used_artifact_index is False
     assert state.index_error is None
-    assert state.index_missing is True
-    assert state.snapshot_records == 0
-    assert snapshot.records == []
-    mock_scan.assert_not_called()
+    assert state.snapshot_records == 4
+    assert state.artifact_dirs_visited == 7
+    options = mock_scan.call_args.args[0]
+    assert options.max_records == 200
+    assert options.newest_first is True
     mock_query.assert_not_called()
 
 

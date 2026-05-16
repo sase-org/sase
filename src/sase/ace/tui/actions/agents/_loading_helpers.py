@@ -85,19 +85,19 @@ def load_agents_from_disk_with_state(
 
     ``agent_search_active`` is a measurement input: when ``True`` the
     caller had a non-empty Agents-tab search query at the time of the
-    refresh. Phase 3 of bead ``sase-3r`` (Fast Agents Tab Disk Loading)
-    stops the loader from promoting an active search to Tier 2 — normal
-    Agents-tab search now filters the visibility-aware Tier 1 inbox
-    instead. Callers that genuinely need full-history (explicit revive,
-    archive search, repair) still pass ``full_history=True`` and reach
-    the source-scan path.
+    refresh. Today an active search promotes the load to Tier 2 (the
+    historical behavior of ``_load_agents{,_async}`` ORing the flag into
+    ``full_history``); the contract is locked in by
+    ``tests/ace/tui/actions/test_agent_loader_phase1_guardrails.py`` so
+    Phase 3 has to change it deliberately.
     """
 
+    effective_full_history = full_history or agent_search_active
     with tui_trace("agents.load_from_disk") as trace_fields:
         result = _load_agents_from_disk_impl(
             dismissed_agents,
             changespec_snapshot=changespec_snapshot,
-            full_history=full_history,
+            full_history=effective_full_history,
             agent_search_active=agent_search_active,
         )
         trace_fields.update(result.load_state.trace_fields())
