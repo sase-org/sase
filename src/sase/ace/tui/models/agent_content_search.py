@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import os
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 from collections.abc import Iterable
 
 if TYPE_CHECKING:
@@ -21,25 +21,6 @@ if TYPE_CHECKING:
 # KB-sized in practice; this bounds worst-case memory if an agent has a
 # pathologically large transcript.
 _MAX_BYTES_PER_FILE = 512 * 1024
-
-
-# Phase 5 of bead ``sase-3r`` (Fast Agents Tab Disk Loading) splits the
-# content-search cache into two explicit modes:
-#
-# - ``"inbox"`` (default): used by ordinary Agents-tab filtering. Searches
-#   the visible inbox: prompt + reply + chat for each agent. Attempt
-#   history paths are intentionally excluded so the haystack does not
-#   require per-agent ``attempts/<N>/`` directory walks — the loader
-#   leaves ``attempt_history`` empty for unselected rows.
-#
-# - ``"archive"``: used by explicit historical / dismissed search flows
-#   (revive, archive cleanup). Includes attempt-history paths so older
-#   replies are searchable. Callers in this mode hydrate
-#   ``agent.attempt_history`` (via
-#   :func:`sase.ace.tui.actions.agents._loading_helpers.hydrate_attempt_history_for`
-#   or ``load_agents_from_disk_with_state(..., hydrate_attempt_history=True)``)
-#   before building the index.
-ContentSearchMode = Literal["inbox", "archive"]
 
 
 @dataclass(frozen=True)
@@ -62,27 +43,15 @@ class AgentContentSearchCache:
     filter keeps functioning from metadata-only matches.
     """
 
-    def __init__(self, *, mode: ContentSearchMode = "inbox") -> None:
+    def __init__(self) -> None:
         self._cache: dict[str, tuple[int, str]] = {}
         # chat_path values parsed out of agent_meta.json, keyed by meta_path
         # -> (meta_mtime_ns, resolved_chat_path_or_empty).
         self._meta_cache: dict[str, tuple[int, str]] = {}
-        self._mode: ContentSearchMode = mode
 
-    @property
-    def mode(self) -> ContentSearchMode:
-        """Search scope for this cache. See :data:`ContentSearchMode`."""
-        return self._mode
-
-    def get_haystack(
-        self, agent: Agent, *, mode: ContentSearchMode | None = None
-    ) -> str:
-        """Return the concatenated, lowercased searchable text for an agent.
-
-        ``mode`` overrides the cache's default mode for one call. See
-        :data:`ContentSearchMode` for the semantics of each mode.
-        """
-        paths = self._paths_for(agent, mode=mode or self._mode)
+    def get_haystack(self, agent: Agent) -> str:
+        """Return the concatenated, lowercased searchable text for an agent."""
+        paths = self._paths_for(agent)
         if not paths:
             return ""
         parts: list[str] = []
@@ -94,7 +63,7 @@ class AgentContentSearchCache:
 
     def fork(self) -> AgentContentSearchCache:
         """Return a shallow snapshot safe for worker-thread population."""
-        clone = type(self)(mode=self._mode)
+        clone = type(self)()
         clone._cache = dict(self._cache)
         clone._meta_cache = dict(self._meta_cache)
         return clone
@@ -104,36 +73,15 @@ class AgentContentSearchCache:
         self._cache.update(other._cache)
         self._meta_cache.update(other._meta_cache)
 
-    def build_index(
-        self,
-        agents: Iterable[Agent],
-        *,
-        mode: ContentSearchMode | None = None,
-    ) -> AgentContentSearchIndex:
-        """Build an in-memory content index for *agents* using this cache.
-
-        ``mode`` overrides the cache's default mode for the duration of
-        the build. See :data:`ContentSearchMode` for the contract of each
-        mode — in particular, archive-mode callers are responsible for
-        hydrating ``agent.attempt_history`` themselves before the build.
-        """
-        active_mode: ContentSearchMode = mode or self._mode
+    def build_index(self, agents: Iterable[Agent]) -> AgentContentSearchIndex:
+        """Build an in-memory content index for *agents* using this cache."""
         haystacks_by_identity = {
-            agent.identity: self.get_haystack(agent, mode=active_mode)
-            for agent in agents
+            agent.identity: self.get_haystack(agent) for agent in agents
         }
         return AgentContentSearchIndex(haystacks_by_identity)
 
     def prune(self, active_agents: Iterable[Agent]) -> None:
-        """Drop cache entries for paths no longer referenced by any agent.
-
-        Inbox mode never seeds attempt-history paths into the cache, so
-        the prune sweep keeps any attempt entries left over from a prior
-        archive-mode build alive only while their owning agent is still
-        active. This deliberately does not include attempt paths from
-        agents whose ``attempt_history`` is unloaded — those rows would
-        be re-hydrated explicitly on the archive path.
-        """
+        """Drop cache entries for paths no longer referenced by any agent."""
         active_content: set[str] = set()
         active_meta: set[str] = set()
         for agent in active_agents:
@@ -160,18 +108,8 @@ class AgentContentSearchCache:
 
     # --- Internal helpers ---
 
-    def _paths_for(
-        self, agent: Agent, *, mode: ContentSearchMode = "inbox"
-    ) -> list[str]:
-        """Enumerate the filesystem paths whose content counts for this agent.
-
-        In ``"inbox"`` mode, attempt-history paths are skipped — the
-        default Agents-tab refresh does not hydrate ``attempt_history``
-        (Phase 5 of bead ``sase-3r``), so the haystack would otherwise
-        be silently inconsistent across rows. Callers that want
-        attempts included pass ``mode="archive"`` after hydrating the
-        attempt history explicitly.
-        """
+    def _paths_for(self, agent: Agent) -> list[str]:
+        """Enumerate the filesystem paths whose content counts for this agent."""
         paths: list[str] = []
         artifacts_dir = agent.get_artifacts_dir()
         if artifacts_dir:
@@ -183,10 +121,9 @@ class AgentContentSearchCache:
                 paths.append(chat_path)
         if agent.response_path:
             paths.append(os.path.expanduser(agent.response_path))
-        if mode == "archive":
-            for attempt in agent.attempt_history:
-                if attempt.live_reply_path:
-                    paths.append(attempt.live_reply_path)
+        for attempt in agent.attempt_history:
+            if attempt.live_reply_path:
+                paths.append(attempt.live_reply_path)
         return paths
 
     def _read_lowered(self, path: str) -> str:

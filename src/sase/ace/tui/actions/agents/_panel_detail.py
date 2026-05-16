@@ -176,9 +176,6 @@ class AgentPanelDetailMixin:
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
             return
-        from ._loading_helpers import hydrate_attempt_history_for
-
-        hydrate_attempt_history_for(agent)
         if not agent.attempt_history:
             self.notify(  # type: ignore[attr-defined]
                 "No prior attempts for this agent", severity="warning"

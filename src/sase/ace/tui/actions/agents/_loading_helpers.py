@@ -80,7 +80,6 @@ def load_agents_from_disk_with_state(
     changespec_snapshot: list[ChangeSpec] | None = None,
     full_history: bool = False,
     agent_search_active: bool = False,
-    hydrate_attempt_history: bool | None = None,
 ) -> _AgentDiskLoadResult:
     """Load agents from disk and include the tiered load state.
 
@@ -92,54 +91,17 @@ def load_agents_from_disk_with_state(
     instead. Callers that genuinely need full-history (explicit revive,
     archive search, repair) still pass ``full_history=True`` and reach
     the source-scan path.
-
-    ``hydrate_attempt_history`` controls whether per-agent ``attempt_history``
-    (from ``attempts/<N>/attempt_meta.json``) is populated during the list
-    load. Phase 5 of bead ``sase-3r`` (Fast Agents Tab Disk Loading) makes
-    this lazy by default: normal Agents-tab refreshes skip the attempt
-    directory walk entirely, and the selected detail panel hydrates the
-    selected row on demand via
-    :func:`hydrate_attempt_history_for`. When ``None`` (the default), the
-    flag tracks ``full_history`` so explicit revive/archive/repair paths
-    still hydrate attempts up-front for the content search and bundle
-    flows that consume them.
     """
 
-    if hydrate_attempt_history is None:
-        hydrate_attempt_history = full_history
     with tui_trace("agents.load_from_disk") as trace_fields:
         result = _load_agents_from_disk_impl(
             dismissed_agents,
             changespec_snapshot=changespec_snapshot,
             full_history=full_history,
             agent_search_active=agent_search_active,
-            hydrate_attempt_history=hydrate_attempt_history,
         )
         trace_fields.update(result.load_state.trace_fields())
         return result
-
-
-def hydrate_attempt_history_for(agent: Agent) -> None:
-    """Populate ``agent.attempt_history`` for one agent on demand.
-
-    Phase 5 of bead ``sase-3r`` (Fast Agents Tab Disk Loading) removes
-    the eager per-agent ``attempts/<N>/`` walk from the default list
-    load. Callers that need attempt history for the selected detail
-    panel, the attempt-view toggle, the content-search index in archive
-    mode, or a dismissed-agent bundle use this helper to hydrate the
-    field on demand. The underlying read is cached by signature in
-    :class:`AgentSnapshotCache` so repeated hydration of the same
-    artifact directory is a stat-only round trip.
-    """
-
-    artifacts_dir = agent.get_artifacts_dir()
-    if not artifacts_dir:
-        return
-    from ._snapshot_cache import get_global_snapshot_cache
-
-    agent.attempt_history = get_global_snapshot_cache().attempt_history_for(
-        artifacts_dir
-    )
 
 
 def _load_agents_from_disk_impl(
@@ -148,7 +110,6 @@ def _load_agents_from_disk_impl(
     changespec_snapshot: list[ChangeSpec] | None = None,
     full_history: bool = False,
     agent_search_active: bool = False,
-    hydrate_attempt_history: bool = False,
 ) -> _AgentDiskLoadResult:
     from ...models.agent_loader import load_tiered_agents
 
@@ -159,11 +120,7 @@ def _load_agents_from_disk_impl(
     )
 
     # Populate retry fields from retry_state.json for running agents and
-    # — when explicitly requested — prior-attempt history (from
-    # ``attempts/<N>/``) for all agents. Phase 5 of bead ``sase-3r``
-    # (Fast Agents Tab Disk Loading) keeps the per-agent attempts walk
-    # off the default refresh; the selected detail panel hydrates one
-    # row on demand via :func:`hydrate_attempt_history_for`.
+    # prior-attempt history (from attempts/<N>/) for all agents.
     from sase.ace.agent_tags import load_agent_tags
 
     from ._snapshot_cache import get_global_snapshot_cache
@@ -175,7 +132,7 @@ def _load_agents_from_disk_impl(
         if agent.identity in tags_by_identity:
             agent.tag = tags_by_identity[agent.identity]
         artifacts_dir = agent.get_artifacts_dir()
-        if artifacts_dir and hydrate_attempt_history:
+        if artifacts_dir:
             agent.attempt_history = snapshot_cache.attempt_history_for(artifacts_dir)
 
         if agent.status != "RUNNING":

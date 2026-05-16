@@ -135,16 +135,7 @@ def test_prune_drops_entries_for_missing_agents(tmp_path: Path) -> None:
     assert str(dir_b / "live_reply.md") not in cached_paths
 
 
-def test_haystack_includes_attempt_replies_only_in_archive_mode(
-    tmp_path: Path,
-) -> None:
-    """Phase 5 of ``sase-3r`` splits inbox vs archive search.
-
-    Inbox-mode haystacks deliberately skip ``attempt_history`` files
-    because the default Agents-tab refresh no longer hydrates them.
-    Archive mode (used by explicit historical / dismissed search) still
-    includes attempt-history replies.
-    """
+def test_haystack_includes_attempt_replies(tmp_path: Path) -> None:
     from sase.ace.tui.models.agent import AttemptRecord
 
     attempt_dir = tmp_path / "attempts" / "01"
@@ -169,11 +160,9 @@ def test_haystack_includes_attempt_replies_only_in_archive_mode(
         )
     ]
 
-    inbox_cache = AgentContentSearchCache()
-    assert "prior attempt said foo" not in inbox_cache.get_haystack(agent)
-
-    archive_cache = AgentContentSearchCache(mode="archive")
-    assert "prior attempt said foo" in archive_cache.get_haystack(agent)
+    cache = AgentContentSearchCache()
+    haystack = cache.get_haystack(agent)
+    assert "prior attempt said foo" in haystack
 
 
 def test_haystack_includes_chat_path_fallback(tmp_path: Path) -> None:
@@ -221,22 +210,14 @@ def test_build_index_includes_all_agent_content_sources(tmp_path: Path) -> None:
         )
     ]
 
-    # Phase 5 of ``sase-3r``: attempt-reply content lives in the
-    # archive-mode haystack only. Build separate inbox and archive
-    # indexes to assert each side of the split.
-    inbox_haystack = AgentContentSearchCache().build_index([agent]).get_haystack(agent)
-    archive_haystack = (
-        AgentContentSearchCache()
-        .build_index([agent], mode="archive")
-        .get_haystack(agent)
-    )
+    index = AgentContentSearchCache().build_index([agent])
+    haystack = index.get_haystack(agent)
 
-    for shared in ("prompt body", "live reply", "chat fallback", "final response"):
-        assert shared in inbox_haystack
-        assert shared in archive_haystack
-
-    assert "attempt reply" not in inbox_haystack
-    assert "attempt reply" in archive_haystack
+    assert "prompt body" in haystack
+    assert "live reply" in haystack
+    assert "chat fallback" in haystack
+    assert "final response" in haystack
+    assert "attempt reply" in haystack
 
 
 def test_index_serves_haystacks_without_file_cache_reads(tmp_path: Path) -> None:
