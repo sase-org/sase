@@ -42,7 +42,6 @@ def test_artifact_index_wire_helpers() -> None:
         "include_hidden": True,
         # Default for back-compat with Phase 1 callers.
         "include_dismissed": True,
-        "parent_timestamps": [],
     }
 
     update = agent_artifact_index_update_from_dict(

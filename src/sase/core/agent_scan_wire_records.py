@@ -119,7 +119,6 @@ class AgentArtifactIndexQueryWire:
     recent_completed_limit: int | None = 200
     include_hidden: bool = False
     include_dismissed: bool = True
-    parent_timestamps: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

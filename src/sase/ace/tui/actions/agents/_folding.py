@@ -58,53 +58,6 @@ class AgentFoldingMixin:
         """
         return list(self._fold_counts.keys())
 
-    def _hydrate_workflow_children_for_parent(self, parent: Agent) -> bool:
-        """Fetch missing prompt-step rows for an expanded workflow parent."""
-        parent_key = parent.raw_suffix
-        if not parent_key:
-            return False
-        cached = list(getattr(self, "_agents_with_children", []) or [])
-        if any(
-            agent.is_workflow_child and agent.parent_timestamp == parent_key
-            for agent in cached
-        ):
-            return False
-
-        from ...models.agent_loader import load_workflow_children_for_parent
-        from ...util.trace import tui_trace
-
-        with tui_trace("agents.lazy_child_hydration", parent_timestamp=parent_key):
-            children = load_workflow_children_for_parent(parent)
-        if not children:
-            return False
-
-        existing_identities = {agent.identity for agent in cached}
-        new_children = [
-            child for child in children if child.identity not in existing_identities
-        ]
-        if not new_children:
-            return False
-
-        inserted = False
-        merged: list[Agent] = []
-        for agent in cached:
-            merged.append(agent)
-            if not inserted and agent is parent:
-                merged.extend(new_children)
-                inserted = True
-        if not inserted:
-            for index, agent in enumerate(merged):
-                if agent.identity == parent.identity:
-                    merged[index + 1 : index + 1] = new_children
-                    inserted = True
-                    break
-        if not inserted:
-            merged.extend(new_children)
-
-        self._agents_with_children = merged
-        self._agents = list(merged)
-        return True
-
     def _active_grouping_mode(self) -> GroupingMode:
         """Return the active grouping mode, defaulting to STANDARD.
 
@@ -230,7 +183,6 @@ class AgentFoldingMixin:
                 return
             wf_key = self._get_workflow_key_for_agent(agent)
             if wf_key is not None and self._fold_manager.expand(wf_key):
-                self._hydrate_workflow_children_for_parent(agent)
                 self._refilter_agents()  # type: ignore[attr-defined]
             return
 
@@ -242,7 +194,6 @@ class AgentFoldingMixin:
             return
 
         if self._fold_manager.expand(wf_key):
-            self._hydrate_workflow_children_for_parent(agent)
             self._refilter_agents()  # type: ignore[attr-defined]
 
     def _reanchor_after_banner_expansion(self, expanded_key: GroupKey) -> None:

@@ -81,10 +81,6 @@ def agent_artifact_index_query_to_dict(
         # ``AgentArtifactIndexQueryWire`` without it inherit the
         # dataclass default of ``True`` so existing behavior is preserved.
         "include_dismissed": getattr(query, "include_dismissed", True),
-        # Phase 5 of sase-3s uses this to fetch prompt-step payloads for
-        # one expanded workflow parent without returning every inbox row's
-        # child JSON during the collapsed hot path.
-        "parent_timestamps": list(getattr(query, "parent_timestamps", ())),
     }
 
 
