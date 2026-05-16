@@ -11,7 +11,7 @@ from textual.worker import Worker, WorkerState
 from ...models.agent import Agent
 from ...graphics import is_supported_image_path
 from ...util.trace import tui_trace
-from ._diff import DiffCacheKey, compute_diff_cache_key, get_agent_diff
+from ._diff import get_agent_diff
 from ._display import FilePanelDisplayMixin, StaticReadResult
 from ._messages import (
     FileListChanged,
@@ -27,6 +27,7 @@ from ._trim import FilePanelTrimMixin
 # Sentinel value used in _file_list to represent the auto-refreshing live
 # diff slot (index 0) when extra static files (e.g. plan) are also present.
 _LIVE_DIFF_SENTINEL = "__live_diff__"
+InflightDiffKey = tuple[tuple[object, ...], int | None, str | None, str | None]
 
 
 class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
@@ -53,10 +54,9 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         self._static_header_path: str | None = None
         self._current_image_renderable = None
         # Phase 6: dedupe in-flight diff workers across rapid re-selections of
-        # the same agent. When a worker for the same DiffCacheKey is already
-        # running, ``_start_background_fetch`` attaches to it instead of
-        # cancelling and respawning.
-        self._inflight_diff_tasks: dict[DiffCacheKey, Worker[str | None]] = {}
+        # the same agent. The in-flight key is intentionally cheap to compute
+        # so navigation never performs workspace/provider discovery inline.
+        self._inflight_diff_tasks: dict[InflightDiffKey, Worker[str | None]] = {}
         # Static-file/diff async reads. ``_static_request_id`` increments on
         # every schedule so the UI can drop superseded results when the user
         # navigates between files faster than reads complete.
@@ -367,17 +367,17 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
     def _start_background_fetch(self, agent: Agent) -> None:
         """Start a background fetch, attaching to in-flight workers when possible.
 
-        For agents whose diff cache key is derivable, concurrent re-selects of
-        the same agent on the same worktree share one worker rather than
-        cancel-and-respawn. This avoids redundant ``diff_with_untracked``
-        calls during rapid j/k navigation.
+        Concurrent re-selects of the same agent share one worker rather than
+        cancel-and-respawn. The full diff cache key is intentionally computed
+        inside the worker by ``get_agent_diff``; deriving it here performs
+        workspace/provider discovery on the UI thread and shows up directly in
+        j/k latency.
         """
-        cache_key = compute_diff_cache_key(agent)
-        if cache_key is not None:
-            existing = self._inflight_diff_tasks.get(cache_key)
-            if existing is not None and existing.is_running:
-                self._current_worker = existing
-                return
+        inflight_key = self._inflight_key_for_agent(agent)
+        existing = self._inflight_diff_tasks.get(inflight_key)
+        if existing is not None and existing.is_running:
+            self._current_worker = existing
+            return
 
         if self._current_worker is not None and self._current_worker.is_running:
             self._current_worker.cancel()
@@ -387,8 +387,16 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
 
         worker = self.run_worker(fetch_task, thread=True)
         self._current_worker = worker
-        if cache_key is not None:
-            self._inflight_diff_tasks[cache_key] = worker
+        self._inflight_diff_tasks[inflight_key] = worker
+
+    def _inflight_key_for_agent(self, agent: Agent) -> InflightDiffKey:
+        """Return a cheap no-I/O key for in-flight diff worker reuse."""
+        return (
+            agent.identity,
+            agent.workspace_num,
+            agent.workspace_dir,
+            agent.diff_path,
+        )
 
     def _fetch_file_in_background(self, agent: Agent) -> str | None:
         """Fetch file output in background thread.

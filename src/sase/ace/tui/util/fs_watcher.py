@@ -32,6 +32,8 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 
 log = logging.getLogger(__name__)
+_LIBC_UNSET = object()
+_LIBC: ctypes.CDLL | None | object = _LIBC_UNSET
 
 # inotify constants (from <sys/inotify.h>) — pinned literals so we don't
 # need to introspect kernel headers at import time.
@@ -71,16 +73,23 @@ DEFAULT_COALESCE_S = 0.05
 
 def _libc() -> ctypes.CDLL | None:
     """Return ``libc`` with inotify symbols, or ``None`` when unavailable."""
+    global _LIBC  # noqa: PLW0603
+    if _LIBC is not _LIBC_UNSET:
+        return _LIBC if isinstance(_LIBC, ctypes.CDLL) else None
     if not sys.platform.startswith("linux"):
+        _LIBC = None
         return None
     libc_path = ctypes.util.find_library("c")
     if libc_path is None:
+        _LIBC = None
         return None
     try:
         libc = ctypes.CDLL(libc_path, use_errno=True)
     except OSError:
+        _LIBC = None
         return None
     if not hasattr(libc, "inotify_init1") or not hasattr(libc, "inotify_add_watch"):
+        _LIBC = None
         return None
     libc.inotify_init1.argtypes = [ctypes.c_int]
     libc.inotify_init1.restype = ctypes.c_int
@@ -93,6 +102,7 @@ def _libc() -> ctypes.CDLL | None:
     if hasattr(libc, "inotify_rm_watch"):
         libc.inotify_rm_watch.argtypes = [ctypes.c_int, ctypes.c_int]
         libc.inotify_rm_watch.restype = ctypes.c_int
+    _LIBC = libc
     return libc
 
 
