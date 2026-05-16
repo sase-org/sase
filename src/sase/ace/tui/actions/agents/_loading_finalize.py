@@ -13,7 +13,6 @@ The implementation lives here as a free function so the mixin in
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from ._loading_compute import PreparedFinalizePlan
@@ -300,34 +299,10 @@ def finalize_agent_list(
     # non-fatal: surface a toast and skip filtering for this render.
     parsed_ast = get_or_parse_agent_query(app)
     if parsed_ast is not None:
-        from ....agent_query import evaluate_agent_query
-
         content_index = getattr(app, "_agent_content_search_index", None)
-        now = datetime.now()
+        from ._loading_query_filter import filter_agents_by_query
 
-        def _matches(agent: Agent) -> bool:
-            return evaluate_agent_query(
-                parsed_ast, agent, now=now, content_cache=content_index
-            )
-
-        # Collect identities of matching parents so children stay visible
-        matching_parent_names: set[str] = set()
-        for agent in app._agents:
-            if not agent.is_workflow_child and _matches(agent):
-                matching_parent_names.add(agent.agent_name or agent.cl_name)
-
-        app._agents = [
-            a
-            for a in app._agents
-            if (
-                _matches(a)
-                # Or child of a matching parent (preserve hierarchy)
-                or (
-                    a.is_workflow_child
-                    and (a.agent_name or a.cl_name) in matching_parent_names
-                )
-            )
-        ]
+        app._agents = filter_agents_by_query(app._agents, parsed_ast, content_index)
         # Release cache entries for agents no longer in the list so
         # memory stays bounded across many refresh cycles.
         app._agent_content_search_cache.prune(app._agents)

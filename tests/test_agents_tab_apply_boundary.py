@@ -182,6 +182,50 @@ def test_empty_incomplete_load_preserves_existing_projection() -> None:
     assert app._agents == [agent]
 
 
+def test_incomplete_parent_only_load_preserves_cached_children() -> None:
+    """A partial Tier 1 refresh must not replace a richer cached tree."""
+    parent = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="sase-3r",
+        status="RUNNING",
+        raw_suffix="20260516095501",
+    )
+    child = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="prompt-step",
+        status="DONE",
+        parent_workflow="workflow-sase-3r",
+        parent_timestamp="20260516095501",
+        step_type="agent",
+        raw_suffix="20260516095501",
+    )
+    parent_update = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="sase-3r",
+        status="RUNNING",
+        raw_suffix="20260516095501",
+    )
+    app = FakeAgentApp()
+    app._agents_with_children = [parent, child]
+    app._agents = [parent, child]
+
+    app._apply_loaded_agents_prepared(
+        PreparedApplyData(
+            filtered_agents=[parent_update],
+            has_always_visible=True,
+            hidden_count=0,
+            hideable_agents=[],
+            dismissed_agent_objects=[],
+        ),
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=_INCOMPLETE_INDEX_STATE,
+        persist_dismissed_changes=False,
+    )
+
+    assert app._agents_with_children == [parent_update, child]
+
+
 def test_initial_empty_incomplete_load_can_render_empty() -> None:
     """The preservation guard should not invent rows for a genuinely empty app."""
     app = FakeAgentApp()

@@ -207,7 +207,11 @@ def dedup_workflow_entries(agents: list[Agent]) -> list[Agent]:
     """
     seen_suffixes: dict[str, Agent] = {}
     for agent in agents:
-        if agent.agent_type == AgentType.WORKFLOW and agent.raw_suffix:
+        if (
+            agent.agent_type == AgentType.WORKFLOW
+            and not agent.is_workflow_child
+            and agent.raw_suffix
+        ):
             if agent.raw_suffix in seen_suffixes:
                 existing = seen_suffixes[agent.raw_suffix]
                 # Copy workspace_num from RUNNING field entry
@@ -239,6 +243,7 @@ def dedup_workflow_entries(agents: list[Agent]) -> list[Agent]:
         a
         for a in agents
         if a.agent_type != AgentType.WORKFLOW
+        or a.is_workflow_child
         or a.raw_suffix not in seen_suffixes
         or seen_suffixes.get(a.raw_suffix) is a
     ]
@@ -253,7 +258,11 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
     """
     workflow_by_suffix: dict[str, Agent] = {}
     for agent in agents:
-        if agent.agent_type == AgentType.WORKFLOW and agent.raw_suffix:
+        if (
+            agent.agent_type == AgentType.WORKFLOW
+            and not agent.is_workflow_child
+            and agent.raw_suffix
+        ):
             workflow_by_suffix[agent.raw_suffix] = agent
 
     deduped_agents: list[Agent] = []
@@ -356,6 +365,18 @@ def dedup_by_pid(agents: list[Agent]) -> list[Agent]:
                 _merge_agent_fields(agent, existing)
                 pid_remove_ids.add(id(existing))
                 seen_pids[agent.pid] = agent
+            elif (
+                agent.agent_type == AgentType.WORKFLOW
+                and existing.agent_type == AgentType.WORKFLOW
+                and agent.raw_suffix
+                and existing.raw_suffix
+                and agent.raw_suffix == existing.raw_suffix
+                and agent.is_workflow_child != existing.is_workflow_child
+            ):
+                # Parent workflow rows and prompt-step child rows may share
+                # the same artifact timestamp and process. They are distinct
+                # projection rows and must survive the final PID safety net.
+                pass
             elif (
                 agent.agent_type == AgentType.WORKFLOW
                 and existing.agent_type == AgentType.WORKFLOW

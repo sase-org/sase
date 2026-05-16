@@ -290,6 +290,24 @@ def test_worker_boundary_filters_orphans_and_hidden_only_parents() -> None:
     assert boundary.fold.fold_counts == expected_counts
 
 
+def test_refilter_expand_reveals_children_without_losing_unfiltered_tree() -> None:
+    """A fold expansion reprojects from _agents_with_children, not current rows."""
+    from tests._agents_tab_query_helpers import FakeAgentApp
+
+    parent = _make_parent("20260516095501", cl_name="sase-3r")
+    child = _make_child("20260516095501", "phase-child")
+
+    app = FakeAgentApp()
+    app._agents_with_children = [parent, child]
+    app._agents = [parent]
+
+    app._fold_manager.expand("20260516095501")
+    app._refilter_agents(refresh_content_index=False)
+
+    assert app._agents == [parent, child]
+    assert app._agents_with_children == [parent, child]
+
+
 def test_annotation_suppressed_anonymous_single_prompt() -> None:
     """Test annotation suppressed for collapsed anonymous single-prompt workflow."""
     parent = _make_anonymous_parent("ts1")

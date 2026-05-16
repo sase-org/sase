@@ -53,6 +53,39 @@ def test_matching_parent_keeps_workflow_children_visible() -> None:
     assert other not in app._agents
 
 
+def test_matching_parent_keeps_children_by_parent_timestamp() -> None:
+    """Search preservation uses the same parent key as fold/render projection."""
+    parent = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="sase-3r",
+        agent_name="phase parent",
+        status="RUNNING",
+        raw_suffix="20260516095501",
+    )
+    child = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="prompt step",
+        agent_name="different child name",
+        status="DONE",
+        parent_workflow="workflow-sase-3r",
+        parent_timestamp="20260516095501",
+        step_name="plan",
+        step_type="agent",
+        raw_suffix="20260516095501",
+    )
+    other = _make_agent(cl_name="unrelated", status="DONE")
+
+    app = FakeAgentApp(query="status:running")
+    app._fold_manager.expand("20260516095501")
+    app._agents = [parent, child, other]
+    app._finalize_agent_list(
+        on_agents_tab=False, selected_identity=None, save_unfiltered=True
+    )
+
+    assert app._agents == [parent, child]
+    assert app._agents_with_children == [parent, child, other]
+
+
 def test_property_query_filters_correctly() -> None:
     failed = _make_agent(status="FAILED", cl_name="a")
     running = _make_agent(status="RUNNING", cl_name="b")

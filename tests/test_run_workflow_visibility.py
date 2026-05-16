@@ -11,7 +11,11 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.ace.tui.models._dedup import dedup_running_vs_workflow
+from sase.ace.tui.models._dedup import (
+    dedup_by_pid,
+    dedup_running_vs_workflow,
+    dedup_workflow_entries,
+)
 from sase.ace.tui.models._loaders._workflow_loaders import (
     _iter_workflow_timestamp_dirs,
     load_workflow_agents,
@@ -200,6 +204,89 @@ def test_dedup_running_vs_workflow_no_match_without_suffix() -> None:
 
     # Both should survive — different timestamps
     assert len(result) == 2
+
+
+def test_workflow_dedup_does_not_remove_prompt_step_children() -> None:
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="sase",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        raw_suffix="20260516095501",
+    )
+    duplicate_parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="unknown",
+        project_file="/tmp/test.sase",
+        status="PLAN",
+        start_time=None,
+        raw_suffix="20260516095501",
+    )
+    child = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="sase",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=None,
+        parent_workflow="workflow-sase",
+        parent_timestamp="20260516095501",
+        raw_suffix="20260516095501",
+    )
+
+    result = dedup_workflow_entries([parent, duplicate_parent, child])
+
+    assert result == [parent, child]
+    assert parent.status == "PLAN"
+
+
+def test_running_workflow_dedup_ignores_prompt_step_child_collision() -> None:
+    running = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="sase",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        workflow="run",
+        raw_suffix="20260516095501",
+    )
+    child = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="prompt-step",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=None,
+        parent_workflow="workflow-sase",
+        parent_timestamp="20260516095501",
+        raw_suffix="20260516095501",
+    )
+
+    assert dedup_running_vs_workflow([running, child]) == [running, child]
+
+
+def test_pid_dedup_keeps_parent_and_child_with_same_process() -> None:
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="sase",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        raw_suffix="20260516095501",
+        pid=12345,
+    )
+    child = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="prompt-step",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=None,
+        parent_workflow="workflow-sase",
+        parent_timestamp="20260516095501",
+        raw_suffix="20260516095501",
+        pid=12345,
+    )
+
+    assert dedup_by_pid([parent, child]) == [parent, child]
 
 
 def test_run_query_writes_initial_workflow_state(tmp_path: Path) -> None:
