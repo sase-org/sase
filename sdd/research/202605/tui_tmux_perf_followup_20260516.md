@@ -57,6 +57,28 @@ instrumentation queued for the next commit/push, but it was not yet picked
 up by the running TUI. Loads were therefore attributed by duration matched
 against direct probes (see the table in the next section).
 
+### Independent verification pass
+
+A second pass on the same day repeated the tmux run after reinstalling the
+`sase_10` workspace into its local `.venv` and then falling back to the
+known-running installed TUI for the tmux portion:
+
+- `sase_10` workspace: `39e1bd026`
+- installed TUI used by `/home/bryan/.local/bin/sase`: `~/projects/github/sase-org/sase`
+  at `a832adaca`
+- capture directory: `~/.sase/perf/research_20260516d/`
+- result: 1,188 trace records, 179 j/k samples
+
+The local `.venv` TUI could not be used for the full tmux capture because it
+started without the external workspace-provider plugin set needed for the
+GitHub-backed `~/.sase/projects/sase/sase.gp` entry and exited during
+startup at `get_change_label(...)`. The local workspace still worked for
+direct loader probes, so the verification split was:
+
+- use the installed TUI to validate user-visible tmux timing;
+- use the current workspace `.venv` to validate the tiered loader state and
+  cProfile shape after the new instrumentation landed.
+
 ## Raw signal
 
 ### Top trace spans (`tui_trace.jsonl`, 1,234 records)
@@ -76,6 +98,33 @@ against direct probes (see the table in the next section).
 `agents.load_from_disk` accounts for **~78 % of the total spanned wall time** in this
 session (3,542 ms of ~4,500 ms across the top‑20 spans). Nothing else is in the same
 order of magnitude.
+
+### Second tmux capture (`research_20260516d`, 1,188 records)
+
+The independent run reproduced the same shape with slightly lower absolute times:
+
+| span                                       |   n |   sum (ms) |  mean |     max |
+|--------------------------------------------|----:|-----------:|------:|--------:|
+| **agents.load_from_disk**                  |   3 | **3 404.9**| **1 135.0** | **2 881.9** |
+| agents.refresh_debounced                   |  81 |      201.0 |  2.48 |     4.2 |
+| changespec.refresh_debounced               | 100 |       84.3 |  0.84 |     1.2 |
+| agents.refresh_panel_highlights            |  81 |       83.9 |  1.04 |     2.5 |
+| changespec.refresh_display                 |   5 |       79.3 | 15.86 |    20.0 |
+| agents.worker_prep                         |   3 |       75.4 | 25.12 |    27.0 |
+| widget.agent_detail.update_display_immediate | 80 |      50.7 |  0.63 |     1.2 |
+| agents.update_info_panel                   | 104 |       44.3 |  0.43 |     1.5 |
+
+The three load spans were again:
+
+| # |   t+    |   dur     | attribution |
+|---|--------:|----------:|-------------|
+| 1 |  0.59 s |  300.4 ms | Tier 1 startup |
+| 2 |  3.72 s | **2 881.9 ms** | Tier 2 auto-scheduled reconcile |
+| 3 | 10.66 s |  222.6 ms | Tier 1 refresh after `y` |
+
+The second run strengthens the conclusion: the multi-second outlier recurs at
+the same post-startup offset, while the rest of the UI spans remain
+sub-100 ms in aggregate categories.
 
 ### Three `agents.load_from_disk` occurrences
 
@@ -105,6 +154,21 @@ unconditionally — see "Where the unconditional schedule lives" below.
   first j/k burst, consistent with the Tier 2 reconcile worker contending for CPU/GIL
   with the UI render path.
 
+Second-pass key-to-paint was a bit cleaner on Agents but still had the same
+basic profile:
+
+| action | tab          |   n |  p50 |  p95 |  max | mean |
+|--------|--------------|----:|-----:|-----:|-----:|-----:|
+| next   | agents       |  40 | 17.4 | 29.6 | 46.8 | 18.0 |
+| prev   | agents       |  39 | 18.1 | 27.0 | 27.4 | 18.3 |
+| next   | changespecs  |  50 | 11.1 | 27.3 | 78.0 | 12.4 |
+| prev   | changespecs  |  50 | 11.4 | 18.8 | 27.9 | 11.9 |
+
+This means the recommendation should not lean too hard on any single j/k
+outlier. The robust finding is the load-span distribution: a repeatable
+~2.9 s Tier 2 span appears in both captures, while key-to-paint tails vary
+with what else the terminal/event loop is doing.
+
 ### Direct loader probe (this home dir)
 
 ```
@@ -116,6 +180,22 @@ tier2_b  2491.2ms  tier=tier2 complete=True  src=source_scan    used_idx=False i
 
 The artifact index at `~/.sase/agent_artifact_index.sqlite` exists, works, and is used.
 The Tier 2 cost is intentional source-scan work, not a fallback.
+
+Current-workspace loader probe after `just install` reproduced the tier
+metadata directly:
+
+```
+load_tiered_agents(False)   307.4ms  tier=tier1 complete=False src=artifact_index used_idx=True  n_agents=32
+load_tiered_agents(False)   249.5ms  tier=tier1 complete=False src=artifact_index used_idx=True  n_agents=32
+load_tiered_agents(True)   2834.4ms  tier=tier2 complete=True  src=source_scan    used_idx=False n_agents=158
+load_tiered_agents(True)   2453.0ms  tier=tier2 complete=True  src=source_scan    used_idx=False n_agents=158
+```
+
+The `n_agents` value above is after the current dedup/sort path, not the raw
+wire/post-processing count. The raw Tier 2 snapshot still contains 11,899
+records and `_load_agents_from_all_sources(...)` still builds 3,244 agent
+objects plus 9,122 workflow-step entries before later pruning. The important
+ratio is stable: Tier 2 costs roughly 8-11x Tier 1 on this home directory.
 
 ### Tier 2 cProfile breakdown
 
@@ -142,6 +222,17 @@ So even if the Rust scan were free, the Python post-processing alone is ~0.6 s f
 3,244-agent Tier 2 result — still an order of magnitude above the ~70 ms target for a
 non-blocking startup.
 
+The current-workspace split was similar:
+
+- `_artifact_snapshot_for_tui_load(full_history=True)` ≈ **1.79 s**
+- `_load_agents_from_all_sources(...)` over that snapshot ≈ **0.56 s**
+- cProfile total for `load_tiered_agents(full_history=True)` ≈ **3.25 s**
+- `sase_core_rs.scan_agent_artifacts` ≈ **1.43 s**
+- `_build_workflow_agent_steps_for_record` ≈ **1.03 s** cumulative
+- `enrich_agent_from_meta` ≈ **0.87 s** cumulative
+- `_record_from_dict` over 11,899 records ≈ **0.63 s** cumulative
+- `posix.stat` count remained high: 27,540 calls, ≈ **0.23 s**
+
 ### What the reconcile produces vs. what the UI shows
 
 - Tier 1 produces 407 wire records → 32 visible agents in the default Agents tab view.
@@ -156,7 +247,7 @@ and are not exercised by the navigation samples that follow.
 
 The 2026-05-16 diagnosis was correct: `agents.load_from_disk` dominates, and within that
 span the multi-second outlier is the auto-scheduled Tier 2 reconcile. This follow-up
-adds two things:
+adds three things:
 
 1. **The reconcile cost is structural, not accidental.** ~45 % of it is the Rust scan
    reading every `agent_artifact_dir`/`meta.json`/`done.json`, ~24 % is unavoidable
@@ -168,6 +259,13 @@ adds two things:
    `complete_history is False`, which is `True` whenever the home dir has more than
    `_TIER1_RECENT_COMPLETED_LIMIT = 200` completed agents in the index. On any
    established user's home dir that condition is permanent.
+3. **The current profiling harness still has attribution friction.** The new
+   `AgentLoadState` fields solve load attribution once the running TUI points at the
+   instrumented workspace, but `sase ace --tmux` currently force-passes only
+   `SASE_TUI_TRACE` and `SASE_TUI_PERF`; it does not force-pass `SASE_TUI_TRACE_PATH`
+   or `SASE_TUI_PERF_PATH`. Unless those variables are already in the tmux server
+   environment, captures share the default live files and need explicit snapshot /
+   truncate / restore handling.
 
 ### Where the unconditional schedule lives
 
@@ -238,6 +336,13 @@ Why this is the single most-impactful change available:
   and 71 ms, both during the Tier 2 window). Skipping the reconcile removes those
   follow-on costs too.
 
+Implementation nuance from the verification pass: do not implement the lazy trigger as
+"raise the Tier 1 limit until complete". The current direct probes show Tier 1 is only
+fast because it stays index-backed and bounded. The right state model is "partial
+history is known and acceptable for default navigation", with a one-shot full-history
+load only when a user action crosses the known Tier 1 boundary or when an explicit idle
+policy chooses to prefetch it.
+
 ### Acceptance test sketch
 
 After the change, a fresh tmux capture with the same drive script should show:
@@ -290,6 +395,14 @@ After the change, a fresh tmux capture with the same drive script should show:
   to a different repo. Push or sync those commits before the next capture so future
   traces include the load-state fields and the initial-tab seed directly, removing the
   need for the duration-matching trick used here.
+- If using `sase ace --tmux` with custom output files, either add
+  `SASE_TUI_TRACE_PATH` / `SASE_TUI_PERF_PATH` to the tmux server environment first or
+  extend `_profiling_env_args()` to pass those paths explicitly. Otherwise the launched
+  window writes to `~/.sase/perf/tui_trace.jsonl` and `~/.sase/perf/tui_jk.jsonl`.
+- A bare `just install` of `sase_10` was not enough to run the full TUI against this
+  home directory because the external GitHub workspace provider was not present in that
+  `.venv`; the TUI exited during startup while rendering a GitHub-backed ChangeSpec.
+  Direct loader probes still worked in the local `.venv`.
 - Use `y` for manual refresh; `r` is `run_workflow` and focuses the prompt.
 - The `tui_jk.jsonl` records do not currently include a `t0`-aligned wall timestamp;
   cross-referencing j/k outliers with trace spans requires aligning on the first
@@ -301,3 +414,7 @@ After the change, a fresh tmux capture with the same drive script should show:
 - `~/.sase/perf/research_20260516c/tui_jk.before.jsonl` (pre-session, 142 records)
 - `~/.sase/perf/research_20260516c/tui_trace.session.jsonl` (this session, 1,234 records)
 - `~/.sase/perf/research_20260516c/tui_jk.session.jsonl` (this session, 180 records)
+- `~/.sase/perf/research_20260516d/tui_trace.before_global.jsonl` (pre-second-session snapshot)
+- `~/.sase/perf/research_20260516d/tui_jk.before_global.jsonl` (pre-second-session snapshot)
+- `~/.sase/perf/research_20260516d/tui_trace.session_global.jsonl` (second session, 1,188 records)
+- `~/.sase/perf/research_20260516d/tui_jk.session_global.jsonl` (second session, 179 records)
