@@ -173,6 +173,85 @@ def test_snapshot_workflow_hidden_maps_to_agent_hidden(tmp_path: Path) -> None:
     assert agents[0].hidden is True
 
 
+def test_dismissed_agent_visibility_roundtrip(tmp_path: Path) -> None:
+    """End-to-end: Phase 2 sidecar APIs hide and revive completed rows."""
+
+    from sase.core.agent_scan_facade import (
+        delete_dismissed_agent_visibility,
+        query_agent_artifact_index,
+        rebuild_agent_artifact_index,
+        replace_dismissed_agent_visibility,
+        upsert_dismissed_agent_visibility,
+    )
+    from sase.core.agent_scan_wire import (
+        AgentArtifactIndexQueryWire,
+        DismissedAgentIdentityWire,
+    )
+
+    projects_root = tmp_path / "projects"
+    done_dir = projects_root / "proj" / "artifacts" / "ace-run" / "20260601100000"
+    done_dir.mkdir(parents=True)
+    (done_dir / "done.json").write_text(
+        '{"outcome": "completed", "finished_at": 1782000000.0, '
+        '"name": "old", "cl_name": "cl_alpha"}'
+    )
+    other_dir = projects_root / "proj" / "artifacts" / "ace-run" / "20260601110000"
+    other_dir.mkdir(parents=True)
+    (other_dir / "done.json").write_text(
+        '{"outcome": "completed", "finished_at": 1782010000.0, '
+        '"name": "untouched", "cl_name": "cl_beta"}'
+    )
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    rebuild_agent_artifact_index(index_path, projects_root)
+
+    inbox_query = AgentArtifactIndexQueryWire(
+        include_active=True,
+        include_recent_completed=True,
+        include_full_history=False,
+        recent_completed_limit=None,
+        include_hidden=False,
+        include_dismissed=False,
+    )
+
+    upsert_dismissed_agent_visibility(
+        index_path,
+        DismissedAgentIdentityWire(
+            agent_type="run",
+            cl_name="cl_alpha",
+            raw_suffix="20260601100000",
+            dismissed_at="2026-06-01T12:00:00Z",
+        ),
+    )
+
+    snapshot = query_agent_artifact_index(index_path, projects_root, query=inbox_query)
+    timestamps = {r.timestamp for r in snapshot.records}
+    assert "20260601100000" not in timestamps  # dismissed
+    assert "20260601110000" in timestamps  # untouched
+
+    # Revive: remove the sidecar entry and the row reappears.
+    delete_dismissed_agent_visibility(index_path, "run", "cl_alpha", "20260601100000")
+    snapshot = query_agent_artifact_index(index_path, projects_root, query=inbox_query)
+    timestamps = {r.timestamp for r in snapshot.records}
+    assert "20260601100000" in timestamps
+
+    # Bulk replace: only cl_beta dismissal remains.
+    replace_dismissed_agent_visibility(
+        index_path,
+        [
+            DismissedAgentIdentityWire(
+                agent_type="run",
+                cl_name="cl_beta",
+                raw_suffix="20260601110000",
+            ),
+        ],
+    )
+    snapshot = query_agent_artifact_index(index_path, projects_root, query=inbox_query)
+    timestamps = {r.timestamp for r in snapshot.records}
+    assert "20260601110000" not in timestamps
+    assert "20260601100000" in timestamps
+
+
 def test_scan_agent_artifacts_missing_extension_raises_importerror(
     fixture_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

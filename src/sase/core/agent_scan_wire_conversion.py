@@ -27,6 +27,7 @@ from sase.core.agent_scan_wire_records import (
     AgentArtifactScanOptionsWire,
     AgentArtifactScanStatsWire,
     AgentArtifactScanWire,
+    DismissedAgentIdentityWire,
 )
 
 
@@ -75,6 +76,24 @@ def agent_artifact_index_query_to_dict(
         "include_full_history": query.include_full_history,
         "recent_completed_limit": query.recent_completed_limit,
         "include_hidden": query.include_hidden,
+        # ``include_dismissed`` was added in Phase 2 of sase-3r (Fast Agents
+        # Tab Disk Loading). Older callers that construct an
+        # ``AgentArtifactIndexQueryWire`` without it inherit the
+        # dataclass default of ``True`` so existing behavior is preserved.
+        "include_dismissed": getattr(query, "include_dismissed", True),
+    }
+
+
+def dismissed_agent_identity_to_dict(
+    identity: DismissedAgentIdentityWire,
+) -> dict[str, Any]:
+    """Project a :class:`DismissedAgentIdentityWire` to the Rust JSON shape."""
+
+    return {
+        "agent_type": identity.agent_type,
+        "cl_name": identity.cl_name,
+        "raw_suffix": identity.raw_suffix,
+        "dismissed_at": identity.dismissed_at,
     }
 
 
@@ -177,4 +196,5 @@ __all__ = [
     "agent_artifact_index_update_from_dict",
     "agent_scan_wire_from_dict",
     "agent_scan_wire_to_json_dict",
+    "dismissed_agent_identity_to_dict",
 ]

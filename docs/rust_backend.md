@@ -13,7 +13,9 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   `evaluate_query_many`, and the product persistent-corpus path (`compile_corpus`, `compile_query`, `evaluate_many`)
   used by `sase.core.query_corpus_facade`
 - Agent artifact scan/index operations: `scan_agent_artifacts`, `rebuild_agent_artifact_index`,
-  `upsert_agent_artifact_index_row`, `delete_agent_artifact_index_row`, and `query_agent_artifact_index`
+  `upsert_agent_artifact_index_row`, `delete_agent_artifact_index_row`, `query_agent_artifact_index`, and the Phase 2
+  dismissed-agent sidecar APIs `upsert_dismissed_agent_visibility`, `delete_dismissed_agent_visibility`, and
+  `replace_dismissed_agent_visibility` (consumed by Phase 4 lifecycle wiring in `sase-3r`)
 - Status and status-transition helpers: `read_status_from_lines`, `apply_status_update`, and `plan_status_transition`
 - Git query parsers: `parse_git_name_status_z`, `parse_git_branch_name`, `derive_git_workspace_name`,
   `parse_git_conflicted_files`, and `parse_git_local_changes`
