@@ -5,7 +5,7 @@ import os
 import signal
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 from sase.ace.agent_tags import REVIEW_AGENT_TAG
 from sase.axe.runner_utils import (
@@ -286,6 +286,79 @@ def test_prepare_workspace_update_fails() -> None:
             "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
         )
         assert result is False
+        mock_provider.sync_workspace.assert_not_called()
+
+
+def test_prepare_workspace_default_parent_syncs_after_checkout() -> None:
+    """Test default-parent workspace prep checks out then syncs."""
+    mock_provider = MagicMock()
+    mock_provider.get_default_parent_revision.return_value = "origin/master"
+    mock_provider.checkout.return_value = (True, None)
+    mock_provider.sync_workspace.return_value = (True, None)
+
+    with (
+        patch(
+            "sase.workflows.commit_utils.run_sase_hg_clean", return_value=(True, None)
+        ),
+        patch("sase.axe.runner_utils.get_vcs_provider", return_value=mock_provider),
+    ):
+        result = prepare_workspace(
+            "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
+        )
+
+    assert result is True
+    mock_provider.get_default_parent_revision.assert_called_once_with("/workspace")
+    mock_provider.checkout.assert_called_once_with("origin/master", "/workspace")
+    mock_provider.sync_workspace.assert_called_once_with("/workspace")
+    assert mock_provider.method_calls == [
+        call.get_default_parent_revision("/workspace"),
+        call.checkout("origin/master", "/workspace"),
+        call.sync_workspace("/workspace"),
+    ]
+
+
+def test_prepare_workspace_default_parent_sync_failure_fails() -> None:
+    """Test default-parent workspace prep fails when sync fails."""
+    mock_provider = MagicMock()
+    mock_provider.get_default_parent_revision.return_value = "origin/master"
+    mock_provider.checkout.return_value = (True, None)
+    mock_provider.sync_workspace.return_value = (False, "sync error")
+
+    with (
+        patch(
+            "sase.workflows.commit_utils.run_sase_hg_clean", return_value=(True, None)
+        ),
+        patch("sase.axe.runner_utils.get_vcs_provider", return_value=mock_provider),
+    ):
+        result = prepare_workspace(
+            "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
+        )
+
+    assert result is False
+    mock_provider.checkout.assert_called_once_with("origin/master", "/workspace")
+    mock_provider.sync_workspace.assert_called_once_with("/workspace")
+
+
+def test_prepare_workspace_default_parent_sync_not_implemented_passes() -> None:
+    """Test default-parent workspace prep keeps checkout-only providers working."""
+    mock_provider = MagicMock()
+    mock_provider.get_default_parent_revision.return_value = "p4head"
+    mock_provider.checkout.return_value = (True, None)
+    mock_provider.sync_workspace.side_effect = NotImplementedError
+
+    with (
+        patch(
+            "sase.workflows.commit_utils.run_sase_hg_clean", return_value=(True, None)
+        ),
+        patch("sase.axe.runner_utils.get_vcs_provider", return_value=mock_provider),
+    ):
+        result = prepare_workspace(
+            "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
+        )
+
+    assert result is True
+    mock_provider.checkout.assert_called_once_with("p4head", "/workspace")
+    mock_provider.sync_workspace.assert_called_once_with("/workspace")
 
 
 def test_prepare_workspace_non_sentinel_passes_through() -> None:
@@ -306,3 +379,4 @@ def test_prepare_workspace_non_sentinel_passes_through() -> None:
         # get_default_parent_revision should NOT be called
         mock_provider.get_default_parent_revision.assert_not_called()
         mock_provider.checkout.assert_called_once_with("my_branch", "/workspace")
+        mock_provider.sync_workspace.assert_not_called()

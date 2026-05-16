@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-16 10:20:18
-status: wip
+status: done
 prompt: sdd/prompts/202605/pylimit_split_stale_workspace.md
 ---
 # Plan: Stop `sase_pylimit_split` From Re-Scanning Stale Workspaces

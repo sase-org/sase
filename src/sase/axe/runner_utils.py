@@ -85,7 +85,8 @@ def prepare_workspace(
     from sase.vcs_provider import VCS_DEFAULT_REVISION
 
     provider = get_vcs_provider(workspace_dir)
-    if update_target == VCS_DEFAULT_REVISION:
+    is_default_parent = update_target == VCS_DEFAULT_REVISION
+    if is_default_parent:
         update_target = provider.get_default_parent_revision(workspace_dir)
     elif project_basename:
         update_target = provider.resolve_revision(
@@ -96,6 +97,15 @@ def prepare_workspace(
     if not checkout_ok:
         print(f"sase_hg_update failed: {checkout_err}", file=sys.stderr)
         return False
+
+    if is_default_parent:
+        try:
+            sync_ok, sync_err = provider.sync_workspace(workspace_dir)
+        except NotImplementedError:
+            sync_ok, sync_err = True, None
+        if not sync_ok:
+            print(f"sync_workspace failed: {sync_err}", file=sys.stderr)
+            return False
 
     print("Workspace ready")
     return True
