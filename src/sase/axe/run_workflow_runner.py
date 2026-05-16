@@ -63,9 +63,6 @@ def _write_workflow_state(
     state_path = os.path.join(artifacts_dir, "workflow_state.json")
     with open(state_path, "w", encoding="utf-8") as f:
         json.dump(state_dict, f, indent=2)
-    from sase.axe.run_agent_markers import upsert_artifact_index_row
-
-    upsert_artifact_index_row(artifacts_dir)
 
 
 def main() -> None:

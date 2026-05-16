@@ -34,8 +34,5 @@ def persist_plan_approved(agent: Agent, action: str = "approve") -> None:
     try:
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
-        from sase.core.agent_artifact_index_maintenance import upsert_artifact_dir
-
-        upsert_artifact_dir(artifacts_dir, coalesce=False)
     except OSError:
         pass

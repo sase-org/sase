@@ -420,9 +420,6 @@ def create_followup_artifacts(
         os.path.join(new_artifacts_dir, "workflow_state.json"), "w", encoding="utf-8"
     ) as f:
         json.dump(_initial_state, f, indent=2)
-    from sase.axe.run_agent_markers import upsert_artifact_index_row
-
-    upsert_artifact_index_row(new_artifacts_dir)
 
     return new_artifacts_dir
 

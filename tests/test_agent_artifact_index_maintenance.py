@@ -283,29 +283,6 @@ def test_maybe_sync_dismissed_from_file_missing_file_clears(
     assert fake_rust.dismiss_replaces == [[]]
 
 
-def test_maybe_sync_dismissed_from_file_load_failure_keeps_sidecar(
-    fake_rust: _FakeRust,
-    tmp_path: Path,
-    index_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A bad legacy read must not replace indexed dismissals with empty state."""
-    dismissed_file = tmp_path / "dismissed_agents.json"
-    dismissed_file.write_text(json.dumps([["workflow", "cl", "ts"]]))
-    monkeypatch.setattr(
-        "sase.ace.dismissed_agents_state.load_dismissed_agents",
-        lambda path: (_ for _ in ()).throw(ValueError("bad json")),
-    )
-
-    ok = maintenance.maybe_sync_dismissed_from_file(
-        dismissed_file=dismissed_file,
-        index_path=index_path,
-    )
-
-    assert ok is False
-    assert fake_rust.dismiss_replaces == []
-
-
 def test_maybe_sync_dismissed_from_file_no_index_skips(
     fake_rust: _FakeRust, tmp_path: Path
 ) -> None:

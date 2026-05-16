@@ -138,7 +138,6 @@ def wait_for_dependencies(
                 os.unlink(path)
             except OSError:
                 pass
-        upsert_artifact_index_row(artifacts_dir)
     elif wait_until is not None:
         # --- Absolute-time-only path (no agent-name dependencies) ---
         waiting_path = os.path.join(artifacts_dir, "waiting.json")
@@ -167,7 +166,6 @@ def wait_for_dependencies(
             os.unlink(waiting_path)
         except OSError:
             pass
-        upsert_artifact_index_row(artifacts_dir)
     else:
         # --- Duration-only path (no agent-name dependencies) ---
         assert duration is not None
@@ -199,7 +197,6 @@ def wait_for_dependencies(
             os.unlink(waiting_path)
         except OSError:
             pass
-        upsert_artifact_index_row(artifacts_dir)
 
     if was_killed():
         print("Agent killed while waiting", file=sys.stderr)

@@ -226,11 +226,7 @@ def maybe_sync_dismissed_from_file(
 
     from sase.ace.dismissed_agents_state import load_dismissed_agents
 
-    try:
-        dismissed = load_dismissed_agents(dismissed_path)
-    except Exception as exc:  # noqa: BLE001  do not wipe sidecar on bad legacy file
-        logger.debug("dismissed_agents.json load failed: err=%s", exc)
-        return False
+    dismissed = load_dismissed_agents(dismissed_path)
     ok = sync_dismissed_visibility(dismissed, index_path=index)
     if ok:
         with _state_lock:

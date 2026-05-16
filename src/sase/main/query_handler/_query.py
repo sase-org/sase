@@ -279,9 +279,6 @@ def run_query(
             meta_path = os.path.join(artifacts_dir, "agent_meta.json")
             with open(meta_path, "w", encoding="utf-8") as f:
                 json.dump(agent_meta, f, indent=2)
-            from sase.axe.run_agent_markers import upsert_artifact_index_row
-
-            upsert_artifact_index_row(artifacts_dir)
 
         # Write initial workflow_state.json so the TUI can discover
         # this run immediately (before WorkflowExecutor overwrites it).
@@ -298,9 +295,6 @@ def run_query(
             init_state_path = os.path.join(artifacts_dir, "workflow_state.json")
             with open(init_state_path, "w", encoding="utf-8") as f:
                 json.dump(initial_state, f, indent=2)
-            from sase.axe.run_agent_markers import upsert_artifact_index_row
-
-            upsert_artifact_index_row(artifacts_dir)
 
         # Claim workspace with artifacts timestamp for prompt lookup
         if project_file and workspace_num:
@@ -377,9 +371,6 @@ def run_query(
             done_path = os.path.join(artifacts_dir, "done.json")
             with open(done_path, "w", encoding="utf-8") as f:
                 json.dump(done_marker, f, indent=2)
-            from sase.axe.run_agent_markers import upsert_artifact_index_row
-
-            upsert_artifact_index_row(artifacts_dir)
 
         # Re-raise workflow errors after writing done.json
         if workflow_error:
