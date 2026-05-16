@@ -387,6 +387,14 @@ def _serialize_load_state(load_state: AgentLoadState | None) -> ReproLoadState:
         artifact_source=load_state.artifact_source,
         used_artifact_index=load_state.used_artifact_index,
         index_error=load_state.index_error,
+        full_history=load_state.full_history,
+        agent_search_active=load_state.agent_search_active,
+        snapshot_records=load_state.snapshot_records,
+        loaded_agent_count=load_state.loaded_agent_count,
+        loaded_workflow_step_count=load_state.loaded_workflow_step_count,
+        artifact_dirs_visited=load_state.artifact_dirs_visited,
+        marker_files_parsed=load_state.marker_files_parsed,
+        prompt_step_markers_parsed=load_state.prompt_step_markers_parsed,
     )
 
 

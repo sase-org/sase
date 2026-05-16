@@ -36,6 +36,14 @@ def load_state_from_repro(state: ReproLoadState) -> AgentLoadState:
         artifact_source=state.artifact_source,
         used_artifact_index=state.used_artifact_index,
         index_error=state.index_error,
+        full_history=state.full_history,
+        agent_search_active=state.agent_search_active,
+        snapshot_records=state.snapshot_records,
+        loaded_agent_count=state.loaded_agent_count,
+        loaded_workflow_step_count=state.loaded_workflow_step_count,
+        artifact_dirs_visited=state.artifact_dirs_visited,
+        marker_files_parsed=state.marker_files_parsed,
+        prompt_step_markers_parsed=state.prompt_step_markers_parsed,
     )
 
 

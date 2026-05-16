@@ -74,19 +74,87 @@ _TIER1_FALLBACK_SCAN_OPTIONS = replace(
 
 @dataclass(frozen=True)
 class AgentLoadState:
-    """Artifact-history completeness for one TUI agent load."""
+    """Artifact-history completeness for one TUI agent load.
+
+    Phase 1 of bead ``sase-3r`` (Fast Agents Tab Disk Loading) widens this
+    contract so future phases can see exactly what the loader did without
+    having to reproduce its branching logic. The added fields are
+    measurement-only and intentionally do not change loader behavior:
+
+    Attributes:
+        tier: ``tier1`` for visibility-bounded refreshes; ``tier2`` for
+            full-history reconciles.
+        complete_history: Whether every artifact-backed agent is present
+            in the result (Tier 2 / explicit full-history loads only).
+        artifact_source: ``artifact_index`` when the snapshot came from
+            the persistent index; ``source_scan`` when it came from the
+            filesystem walk.
+        used_artifact_index: Convenience flag mirroring
+            ``artifact_source == "artifact_index"``.
+        index_error: Stringified exception from the index query that
+            triggered a source-scan fallback, or ``None`` on success.
+        full_history: ``True`` when the caller asked for (or was forced
+            into) a Tier 2 full-history load. Captured separately from
+            ``complete_history`` so Phase 3 can demote "search forces
+            full history" without rewriting every assertion.
+        agent_search_active: ``True`` when the Agents-tab search query
+            was non-empty at the time the loader was invoked. Today this
+            implies ``full_history=True``; the contract test in
+            ``tests/ace/tui/actions/test_agent_loader_phase1_guardrails.py``
+            locks that in so Phase 3 must change it deliberately.
+        snapshot_records: Number of ``AgentArtifactRecordWire`` rows in
+            the underlying scan snapshot.
+        loaded_agent_count: Number of agents the loader returned to the
+            TUI (after dedup and status overrides).
+        loaded_workflow_step_count: Number of workflow agent-step rows
+            returned alongside the loader's agents list.
+        artifact_dirs_visited: Snapshot ``stats.artifact_dirs_visited``
+            when available, else ``None``.
+        marker_files_parsed: Snapshot ``stats.marker_files_parsed`` when
+            available, else ``None``.
+        prompt_step_markers_parsed: Snapshot
+            ``stats.prompt_step_markers_parsed`` when available, else
+            ``None``.
+    """
 
     tier: Literal["tier1", "tier2"]
     complete_history: bool
     artifact_source: Literal["artifact_index", "source_scan"]
     used_artifact_index: bool
     index_error: str | None = None
+    full_history: bool = False
+    agent_search_active: bool = False
+    snapshot_records: int = 0
+    loaded_agent_count: int = 0
+    loaded_workflow_step_count: int = 0
+    artifact_dirs_visited: int | None = None
+    marker_files_parsed: int | None = None
+    prompt_step_markers_parsed: int | None = None
 
     @property
     def needs_full_history_reconcile(self) -> bool:
         """Return whether the caller should schedule a Tier 2 refresh."""
 
         return not self.complete_history
+
+    def trace_fields(self) -> dict[str, object]:
+        """Return a JSON-friendly mapping for ``tui_trace`` enrichment."""
+
+        return {
+            "tier": self.tier,
+            "complete_history": self.complete_history,
+            "artifact_source": self.artifact_source,
+            "used_artifact_index": self.used_artifact_index,
+            "index_error": self.index_error,
+            "full_history": self.full_history,
+            "agent_search_active": self.agent_search_active,
+            "snapshot_records": self.snapshot_records,
+            "loaded_agent_count": self.loaded_agent_count,
+            "loaded_workflow_step_count": self.loaded_workflow_step_count,
+            "artifact_dirs_visited": self.artifact_dirs_visited,
+            "marker_files_parsed": self.marker_files_parsed,
+            "prompt_step_markers_parsed": self.prompt_step_markers_parsed,
+        }
 
 
 @dataclass(frozen=True)
@@ -118,9 +186,39 @@ def _projects_root_for_loader() -> Path:
     return Path.home() / ".sase" / "projects"
 
 
+def _load_state_with_stats(
+    snapshot: AgentArtifactScanWire,
+    *,
+    tier: Literal["tier1", "tier2"],
+    complete_history: bool,
+    artifact_source: Literal["artifact_index", "source_scan"],
+    used_artifact_index: bool,
+    full_history: bool,
+    agent_search_active: bool,
+    index_error: str | None = None,
+) -> AgentLoadState:
+    """Build :class:`AgentLoadState` populated with diagnostic snapshot stats."""
+
+    stats = snapshot.stats
+    return AgentLoadState(
+        tier=tier,
+        complete_history=complete_history,
+        artifact_source=artifact_source,
+        used_artifact_index=used_artifact_index,
+        index_error=index_error,
+        full_history=full_history,
+        agent_search_active=agent_search_active,
+        snapshot_records=len(snapshot.records),
+        artifact_dirs_visited=stats.artifact_dirs_visited,
+        marker_files_parsed=stats.marker_files_parsed,
+        prompt_step_markers_parsed=stats.prompt_step_markers_parsed,
+    )
+
+
 def _query_artifact_index_for_loader(
     *,
     full_history: bool,
+    agent_search_active: bool,
 ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None:
     """Return an index-backed snapshot when the persistent index exists."""
 
@@ -146,24 +244,31 @@ def _query_artifact_index_for_loader(
             options=_TUI_SCAN_OPTIONS,
         )
     except (ImportError, AttributeError, OSError, ValueError, RuntimeError) as exc:
+        fallback_snapshot = _scan_artifacts_for_loader(_TIER1_FALLBACK_SCAN_OPTIONS)
         return (
-            _scan_artifacts_for_loader(_TIER1_FALLBACK_SCAN_OPTIONS),
-            AgentLoadState(
+            fallback_snapshot,
+            _load_state_with_stats(
+                fallback_snapshot,
                 tier="tier1",
                 complete_history=False,
                 artifact_source="source_scan",
                 used_artifact_index=False,
                 index_error=str(exc),
+                full_history=False,
+                agent_search_active=agent_search_active,
             ),
         )
 
     return (
         snapshot,
-        AgentLoadState(
+        _load_state_with_stats(
+            snapshot,
             tier="tier1",
             complete_history=False,
             artifact_source="artifact_index",
             used_artifact_index=True,
+            full_history=False,
+            agent_search_active=agent_search_active,
         ),
     )
 
@@ -171,6 +276,7 @@ def _query_artifact_index_for_loader(
 def _artifact_snapshot_for_tui_load(
     *,
     full_history: bool,
+    agent_search_active: bool,
 ) -> tuple[AgentArtifactScanWire, AgentLoadState]:
     """Return the artifact snapshot for a TUI refresh.
 
@@ -181,27 +287,38 @@ def _artifact_snapshot_for_tui_load(
     """
 
     if full_history:
+        snapshot = _scan_artifacts_for_loader()
         return (
-            _scan_artifacts_for_loader(),
-            AgentLoadState(
+            snapshot,
+            _load_state_with_stats(
+                snapshot,
                 tier="tier2",
                 complete_history=True,
                 artifact_source="source_scan",
                 used_artifact_index=False,
+                full_history=True,
+                agent_search_active=agent_search_active,
             ),
         )
 
-    indexed = _query_artifact_index_for_loader(full_history=full_history)
+    indexed = _query_artifact_index_for_loader(
+        full_history=full_history,
+        agent_search_active=agent_search_active,
+    )
     if indexed is not None:
         return indexed
 
+    fallback_snapshot = _scan_artifacts_for_loader(_TIER1_FALLBACK_SCAN_OPTIONS)
     return (
-        _scan_artifacts_for_loader(_TIER1_FALLBACK_SCAN_OPTIONS),
-        AgentLoadState(
+        fallback_snapshot,
+        _load_state_with_stats(
+            fallback_snapshot,
             tier="tier1",
             complete_history=False,
             artifact_source="source_scan",
             used_artifact_index=False,
+            full_history=False,
+            agent_search_active=agent_search_active,
         ),
     )
 
@@ -325,11 +442,13 @@ def _load_agents_with_load_state(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     full_history: bool = False,
+    agent_search_active: bool = False,
 ) -> _AgentLoadResult:
     """Load agents for the TUI and report whether history is complete."""
 
     artifact_snapshot, state = _artifact_snapshot_for_tui_load(
-        full_history=full_history
+        full_history=full_history,
+        agent_search_active=agent_search_active,
     )
     agents, workflow_agent_steps = _load_agents_from_all_sources(
         changespec_snapshot=changespec_snapshot,
@@ -408,12 +527,14 @@ def load_tiered_agents(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     full_history: bool = False,
+    agent_search_active: bool = False,
 ) -> tuple[list[Agent], AgentLoadState]:
     """Load agents through the TUI tiered artifact path."""
 
     result = _load_agents_with_load_state(
         changespec_snapshot=changespec_snapshot,
         full_history=full_history,
+        agent_search_active=agent_search_active,
     )
     agents = result.agents
 
@@ -430,4 +551,10 @@ def load_tiered_agents(
     # Override statuses based on workflow relationships
     _apply_status_overrides(agents)
 
-    return _sort_and_reorder(agents, result.workflow_agent_steps), result.state
+    sorted_agents = _sort_and_reorder(agents, result.workflow_agent_steps)
+    state = replace(
+        result.state,
+        loaded_agent_count=len(sorted_agents),
+        loaded_workflow_step_count=len(result.workflow_agent_steps),
+    )
+    return sorted_agents, state
