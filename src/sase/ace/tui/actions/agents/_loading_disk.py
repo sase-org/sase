@@ -268,9 +268,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             load_state=load_result.load_state,
         )
 
-    async def _load_agents_async(
-        self, *, full_history: bool = False, generation: int | None = None
-    ) -> None:
+    async def _load_agents_async(self, *, full_history: bool = False) -> None:
         """Load agents with disk IO and pure-data filtering off the UI thread.
 
         Phase 2 of the post-launch j/k lag fix: the dismissed-set filter,
@@ -284,15 +282,6 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         import asyncio
 
         from ....changespec import find_all_changespecs_cached
-
-        if generation is None:
-            reserve_generation = getattr(self, "_reserve_agents_load_generation", None)
-            if callable(reserve_generation):
-                generation = reserve_generation()
-            else:
-                generation = getattr(self, "_agents_load_request_generation", 0) + 1
-                self._agents_load_request_generation = generation
-                self._agents_load_latest_scheduled_generation = generation
 
         merge_result = await asyncio.to_thread(
             self._external_dismissal_merge_result, set(self._dismissed_agents)
@@ -395,32 +384,6 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         log.debug("agents async load: prep=%.3fs", time.perf_counter() - prep_start)
 
         apply_start = time.perf_counter()
-        latest_applied_generation = getattr(
-            self, "_agents_load_latest_applied_generation", 0
-        )
-        latest_scheduled_generation = getattr(
-            self, "_agents_load_latest_scheduled_generation", 0
-        )
-        if (
-            generation < latest_applied_generation
-            or generation < latest_scheduled_generation
-        ):
-            with tui_trace(
-                "agents.async_refresh_stale_discard",
-                generation=generation,
-                latest_applied_generation=latest_applied_generation,
-                latest_scheduled_generation=latest_scheduled_generation,
-                agents=len(prep.filtered_agents),
-                complete=getattr(load_result.load_state, "complete_history", None),
-            ):
-                pass
-            log.debug(
-                "agents async load: discard stale generation=%d latest_applied=%d latest_scheduled=%d",
-                generation,
-                latest_applied_generation,
-                latest_scheduled_generation,
-            )
-            return
         # ``orphaned`` was already subtracted from ``self._dismissed_agents``
         # above; pass ``persist_dismissed=True`` so the prep-time deltas
         # (recovered + auto-dismissed) and the cleanup-time orphan removal
@@ -436,10 +399,6 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             incomplete_merge_already_applied=True,
             precomputed_boundary=boundary,
             precomputed_fold_levels=worker_snapshot.fold_levels,
-        )
-        self._agents_load_latest_applied_generation = max(
-            getattr(self, "_agents_load_latest_applied_generation", 0),
-            generation,
         )
         log.debug("agents async load: apply=%.3fs", time.perf_counter() - apply_start)
 

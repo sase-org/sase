@@ -224,12 +224,7 @@ class StateInitMixin:
         self._agents_refresh_pending_callbacks: list[Callable[[], None]] = []
         self._agents_refresh_scheduled: bool = False
         self._agents_refresh_scheduled_full_history: bool = False
-        self._agents_refresh_scheduled_generation: int = 0
-        self._agents_refresh_pending_generation: int = 0
         self._agents_refresh_debounce_armed: bool = False
-        self._agents_load_request_generation: int = 0
-        self._agents_load_latest_scheduled_generation: int = 0
-        self._agents_load_latest_applied_generation: int = 0
         self._agent_load_state: AgentLoadState | None = None
         self._agents_seen_complete_history: bool = False
         self._artifact_index_rebuild_in_flight: bool = False

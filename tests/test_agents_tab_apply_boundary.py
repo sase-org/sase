@@ -7,39 +7,18 @@ refresh, and background content-index refresh scheduling.
 
 from __future__ import annotations
 
-import asyncio
-import threading
 from typing import Any
 
 import pytest
 
-from sase.ace.tui.actions.agents import _loading
 from sase.ace.tui.actions.agents._loading_compute import (
     PreparedApplyData,
     prepare_loaded_agents_apply_boundary,
 )
-from sase.ace.tui.actions.agents._loading_helpers import _AgentDiskLoadResult
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_content_search import AgentContentSearchCache
-from sase.ace.tui.models.agent_loader import AgentLoadState
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
-
-
-_INCOMPLETE_INDEX_STATE = AgentLoadState(
-    tier="tier1",
-    complete_history=False,
-    artifact_source="artifact_index",
-    used_artifact_index=True,
-)
-
-_MISSING_INDEX_STATE = AgentLoadState(
-    tier="tier1",
-    complete_history=False,
-    artifact_source="artifact_index",
-    used_artifact_index=True,
-    index_missing=True,
-)
 
 
 def test_prepared_apply_boundary_matches_apply_projection_for_folded_data() -> None:
@@ -155,100 +134,6 @@ def test_precomputed_fold_boundary_recomputes_when_fold_state_changes() -> None:
     assert app._agents_with_children == agents
     assert app._agents == [parent]
     assert app._fold_counts == {"ts1": (1, 0)}
-
-
-def test_empty_incomplete_load_preserves_existing_projection() -> None:
-    """A zero-row incomplete Tier 1 load must not blank populated rows."""
-    agent = _make_agent(status="RUNNING", cl_name="active")
-    app = FakeAgentApp()
-    app._agents_with_children = [agent]
-    app._agents = [agent]
-
-    app._apply_loaded_agents_prepared(
-        PreparedApplyData(
-            filtered_agents=[],
-            has_always_visible=False,
-            hidden_count=0,
-            hideable_agents=[],
-            dismissed_agent_objects=[],
-        ),
-        on_agents_tab=False,
-        selected_identity=None,
-        load_state=_MISSING_INDEX_STATE,
-        persist_dismissed_changes=False,
-    )
-
-    assert app._agents_with_children == [agent]
-    assert app._agents == [agent]
-
-
-def test_initial_empty_incomplete_load_can_render_empty() -> None:
-    """The preservation guard should not invent rows for a genuinely empty app."""
-    app = FakeAgentApp()
-
-    app._apply_loaded_agents_prepared(
-        PreparedApplyData(
-            filtered_agents=[],
-            has_always_visible=False,
-            hidden_count=0,
-            hideable_agents=[],
-            dismissed_agent_objects=[],
-        ),
-        on_agents_tab=False,
-        selected_identity=None,
-        load_state=_MISSING_INDEX_STATE,
-        persist_dismissed_changes=False,
-    )
-
-    assert app._agents_with_children == []
-    assert app._agents == []
-
-
-@pytest.mark.asyncio
-async def test_stale_async_empty_load_cannot_overwrite_newer_projection(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A late older zero-row async result is discarded after a newer apply."""
-    agent = _make_agent(status="RUNNING", cl_name="newer")
-    app = FakeAgentApp()
-    app._agents_repro_capture = None
-    app._agents_load_request_generation = 2
-    app._agents_load_latest_scheduled_generation = 1
-    app._agents_load_latest_applied_generation = 0
-
-    first_loader_started = asyncio.Event()
-    release_first_loader = threading.Event()
-    call_count = 0
-    call_count_lock = threading.Lock()
-    loop = asyncio.get_running_loop()
-
-    def fake_loader(*_args: Any, **_kwargs: Any) -> _AgentDiskLoadResult:
-        nonlocal call_count
-        with call_count_lock:
-            call_count += 1
-            call_number = call_count
-        if call_number == 1:
-            loop.call_soon_threadsafe(first_loader_started.set)
-            assert release_first_loader.wait(timeout=5)
-            return _AgentDiskLoadResult([], [], _MISSING_INDEX_STATE)
-        return _AgentDiskLoadResult([agent], [], _INCOMPLETE_INDEX_STATE)
-
-    monkeypatch.setattr(_loading, "load_agents_from_disk_with_state", fake_loader)
-    monkeypatch.setattr(
-        app, "_external_dismissal_merge_result", lambda _dismissed: None
-    )
-
-    older_task = asyncio.create_task(app._load_agents_async(generation=1))
-    await asyncio.wait_for(first_loader_started.wait(), timeout=5)
-
-    app._agents_load_latest_scheduled_generation = 2
-    await app._load_agents_async(generation=2)
-    release_first_loader.set()
-    await older_task
-
-    assert app._agents_with_children == [agent]
-    assert app._agents == [agent]
-    assert app._agents_load_latest_applied_generation == 2
 
 
 def test_on_tab_finalizer_defers_selected_agent_file_refresh() -> None:
