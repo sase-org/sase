@@ -104,7 +104,7 @@ def trace_event(event: str, **fields: Any) -> None:
 
 
 @contextmanager
-def tui_trace(span: str, **counters: Any) -> Generator[None, None, None]:
+def tui_trace(span: str, **counters: Any) -> Generator[dict[str, Any], None, None]:
     """Record a scoped phase span when ``SASE_TUI_TRACE=1`` is set.
 
     Use as::
@@ -112,15 +112,29 @@ def tui_trace(span: str, **counters: Any) -> Generator[None, None, None]:
         with tui_trace("changespec.refresh_display", count=len(specs)):
             ...
 
-    Disabled-path overhead is one env lookup (cached by the OS) and a
-    function-call frame; no allocations, no I/O, no time samples.
+    The context manager yields a mutable mapping that callers may write
+    into inside the ``with`` block to attach post-hoc fields known only
+    after the wrapped work runs::
+
+        with tui_trace("agents.load_from_disk") as extra:
+            result = ...
+            extra["tier"] = result.tier
+
+    Fields written into the yielded mapping override any ``**counters``
+    kwarg of the same name (last-writer-wins). The disabled path still
+    yields an empty dict; writes into it are silently dropped.
+
+    Disabled-path overhead is one env lookup (cached by the OS), one
+    small dict allocation, and a function-call frame; no I/O, no time
+    samples.
     """
     if not is_enabled():
-        yield
+        yield {}
         return
     started = time.perf_counter()
+    extra: dict[str, Any] = {}
     try:
-        yield
+        yield extra
     finally:
         duration_ms = (time.perf_counter() - started) * 1000.0
         record: dict[str, Any] = {
@@ -134,4 +148,5 @@ def tui_trace(span: str, **counters: Any) -> Generator[None, None, None]:
                 continue
             record.setdefault(key, value)
         record.update(counters)
+        record.update(extra)
         _write(record)

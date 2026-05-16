@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-16 18:15:24
-status: wip
+status: done
 prompt: sdd/prompts/202605/tui_perf_instrumentation.md
 ---
 # TUI Perf Diagnosis — Instrumentation Improvements (#1, #2)

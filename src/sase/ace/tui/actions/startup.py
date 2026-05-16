@@ -127,6 +127,10 @@ class StartupMixin(StateInitMixin):
 
         self._mounting = True
         try:
+            from ..util.trace import set_trace_context
+
+            set_trace_context(current_tab=self.current_tab)  # type: ignore[attr-defined]
+
             # Wire keymap registry to widgets
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
             footer.set_keymap_registry(self._keymap_registry)

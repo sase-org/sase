@@ -7,8 +7,12 @@ loader does not call ``find_all_changespecs()`` itself.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 from sase.ace.changespec import ChangeSpec
 from sase.ace.tui.actions.agents._loading_helpers import (
@@ -16,6 +20,7 @@ from sase.ace.tui.actions.agents._loading_helpers import (
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import AgentLoadState
+from sase.ace.tui.util import trace
 from tests._agent_loader_helpers import _empty_artifact_snapshot
 
 
@@ -369,3 +374,42 @@ def test_load_agents_from_disk_missing_index_uses_bounded_tier1_source_scan(
     options = mock_scan.call_args.args[0]
     assert options.max_records == 200
     assert options.newest_first is True
+
+
+def test_load_from_disk_span_carries_load_state_fields(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ``agents.load_from_disk`` span records the AgentLoadState fields."""
+
+    log = tmp_path / "trace.jsonl"
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
+    monkeypatch.setenv("SASE_TUI_TRACE_PATH", str(log))
+    trace._context.clear()
+
+    agent = _make_agent("sase-26")
+    load_state = AgentLoadState(
+        tier="tier1",
+        complete_history=False,
+        artifact_source="artifact_index",
+        used_artifact_index=True,
+        index_error=None,
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.load_tiered_agents",
+            return_value=([agent], load_state),
+        ),
+        patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
+    ):
+        load_agents_from_disk_with_state(set())
+
+    rows = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
+    span_rows = [r for r in rows if r.get("span") == "agents.load_from_disk"]
+    assert len(span_rows) == 1
+    row = span_rows[0]
+    assert row["tier"] == "tier1"
+    assert row["artifact_source"] == "artifact_index"
+    assert row["complete_history"] is False
+    assert row["used_artifact_index"] is True
+    assert row["index_error"] is None

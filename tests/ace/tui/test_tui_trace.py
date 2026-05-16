@@ -115,3 +115,53 @@ def test_set_trace_context_none_clears_field() -> None:
     assert trace._context["current_tab"] == "agents"
     trace.set_trace_context(current_tab=None)
     assert "current_tab" not in trace._context
+
+
+def test_yielded_mapping_appends_post_hoc_fields(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Writes into the yielded mapping show up on the emitted record."""
+    log = tmp_path / "trace.jsonl"
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
+    monkeypatch.setenv("SASE_TUI_TRACE_PATH", str(log))
+
+    with trace.tui_trace("phase.demo", count=1) as extra:
+        extra["tier"] = "tier1"
+        extra["used_artifact_index"] = True
+
+    rows = _records(log)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["tier"] == "tier1"
+    assert row["used_artifact_index"] is True
+    assert row["count"] == 1
+
+
+def test_yielded_mapping_overrides_kwargs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Last writer wins: post-hoc writes override kwargs of the same name."""
+    log = tmp_path / "trace.jsonl"
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
+    monkeypatch.setenv("SASE_TUI_TRACE_PATH", str(log))
+
+    with trace.tui_trace("phase.demo", tier="tier2") as extra:
+        extra["tier"] = "tier1"
+
+    rows = _records(log)
+    assert rows[0]["tier"] == "tier1"
+
+
+def test_disabled_path_yields_usable_mapping(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Disabled path still yields a dict; writes don't raise and no file is written."""
+    log = tmp_path / "trace.jsonl"
+    monkeypatch.delenv("SASE_TUI_TRACE", raising=False)
+    monkeypatch.setenv("SASE_TUI_TRACE_PATH", str(log))
+
+    with trace.tui_trace("phase.demo") as extra:
+        extra["tier"] = "tier1"
+        extra["anything"] = 42
+
+    assert not log.exists()

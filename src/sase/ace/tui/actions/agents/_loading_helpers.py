@@ -82,12 +82,19 @@ def load_agents_from_disk_with_state(
 ) -> _AgentDiskLoadResult:
     """Load agents from disk and include the tiered load state."""
 
-    with tui_trace("agents.load_from_disk"):
-        return _load_agents_from_disk_impl(
+    with tui_trace("agents.load_from_disk") as counters:
+        result = _load_agents_from_disk_impl(
             dismissed_agents,
             changespec_snapshot=changespec_snapshot,
             full_history=full_history,
         )
+        state = result.load_state
+        counters["tier"] = state.tier
+        counters["artifact_source"] = state.artifact_source
+        counters["complete_history"] = state.complete_history
+        counters["used_artifact_index"] = state.used_artifact_index
+        counters["index_error"] = state.index_error
+        return result
 
 
 def _load_agents_from_disk_impl(

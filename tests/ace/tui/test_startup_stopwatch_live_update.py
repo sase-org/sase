@@ -27,6 +27,24 @@ def test_on_mount_is_coroutine() -> None:
     assert inspect.iscoroutinefunction(AceApp.on_mount)
 
 
+def test_on_mount_seeds_current_tab_in_trace_context() -> None:
+    """``on_mount`` seeds the trace context with ``current_tab`` up front.
+
+    Without this seed, startup-phase spans (notifications read,
+    changespecs read, the first agents/axe loads) all emit
+    ``current_tab=None`` because ``watch_current_tab`` only fires on
+    later transitions.
+    """
+    src = inspect.getsource(AceApp.on_mount)
+    assert "set_trace_context(current_tab=self.current_tab)" in src
+    # Must be inside the ``self._mounting = True`` block, before the
+    # first widget access, so the seed precedes any span emission.
+    mounting_idx = src.index("self._mounting = True")
+    seed_idx = src.index("set_trace_context(current_tab=self.current_tab)")
+    first_query_idx = src.index("self.query_one")
+    assert mounting_idx < seed_idx < first_query_idx
+
+
 def test_read_changespecs_from_disk_returns_list() -> None:
     """Pure read helper must return whatever the cached loader does."""
     mixin = ChangeSpecMixin.__new__(ChangeSpecMixin)
