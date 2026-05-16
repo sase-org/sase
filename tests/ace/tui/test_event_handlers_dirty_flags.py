@@ -142,6 +142,40 @@ def test_artifact_change_marks_all_surfaces_dirty() -> None:
     assert app.refresh_calls == ["schedule_agents", "schedule_changespecs"]
 
 
+def test_artifact_change_schedules_only_agents_for_artifact_path() -> None:
+    app = _FakeApp(watcher_active=True)
+    path = Path.home() / ".sase" / "projects" / "sase" / "artifacts" / "a" / "done.json"
+
+    app._on_artifact_change((path,))
+
+    assert app._dirty_agents is True
+    assert app._dirty_changespecs is False
+    assert app.refresh_calls == ["schedule_agents"]
+
+
+def test_artifact_change_schedules_only_changespecs_for_project_file() -> None:
+    app = _FakeApp(watcher_active=True)
+    path = Path.home() / ".sase" / "projects" / "sase" / "sase.gp"
+
+    app._on_artifact_change((path,))
+
+    assert app._dirty_changespecs is True
+    assert app._dirty_axe is True
+    assert app._dirty_agents is False
+    assert app.refresh_calls == ["schedule_changespecs"]
+
+
+def test_artifact_change_does_not_schedule_agent_load_for_notifications() -> None:
+    app = _FakeApp(watcher_active=True)
+    path = Path.home() / ".sase" / "notifications" / "notification.json"
+
+    app._on_artifact_change((path,))
+
+    assert app._dirty_notifications is True
+    assert app._dirty_agents is False
+    assert app.refresh_calls == []
+
+
 def test_selection_navigation_does_not_trigger_refresh_work() -> None:
     app = _FakeApp(watcher_active=True)
     app.current_tab = "changespecs"
@@ -200,12 +234,12 @@ def test_artifact_change_defers_refresh_work_during_prompt_input() -> None:
     assert callback == app._on_artifact_change_deferred
 
 
-def test_artifact_change_preserves_deferred_paths_during_prompt_input(
-    tmp_path: Path,
-) -> None:
+def test_artifact_change_preserves_deferred_paths_during_prompt_input() -> None:
     app = _FakeApp(watcher_active=True)
     app._plan_feedback_context = object()
-    changed = (tmp_path / "proj.sase",)
+    changed = (
+        Path.home() / ".sase" / "projects" / "sase" / "artifacts" / "a" / "done.json",
+    )
 
     app._on_artifact_change(changed)
 
@@ -214,7 +248,7 @@ def test_artifact_change_preserves_deferred_paths_during_prompt_input(
     app._plan_feedback_context = None
     app._on_artifact_change_deferred()
 
-    assert app.refresh_calls == ["schedule_agents", "schedule_changespecs"]
+    assert app.refresh_calls == ["schedule_agents"]
 
 
 def test_artifact_change_dedupes_defer_timers_during_prompt_input() -> None:

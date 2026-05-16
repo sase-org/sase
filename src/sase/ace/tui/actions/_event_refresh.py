@@ -67,9 +67,12 @@ class EventRefreshMixin(EventHandlersBase):
         # Existing schedulers already coalesce stampedes via the
         # ``_*_loading`` / ``_*_refresh_pending`` machinery so a flurry of
         # inotify wakeups still triggers at most one in-flight reload plus
-        # one follow-up.
-        self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
-        self._schedule_changespecs_async_refresh()  # type: ignore[attr-defined]
+        # one follow-up. Keep the immediate work scoped to the inferred
+        # surfaces; the timer-driven dirty flags handle notifications/axe.
+        if "agents" in targets:
+            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+        if "changespecs" in targets:
+            self._schedule_changespecs_async_refresh()  # type: ignore[attr-defined]
 
     def _dirty_surfaces_for_paths(
         self, changed_paths: tuple[Path, ...] | None
