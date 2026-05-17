@@ -54,6 +54,25 @@ def test_copy_agent_name_uses_agent_name_when_set() -> None:
     assert app.notifications == [("Copied: Agent Name (explicit_name)", "information")]
 
 
+def test_copy_agent_name_family_root_uses_root_name() -> None:
+    agent = _make_agent(
+        agent_name="explicit_name-plan",
+        agent_family="explicit_name",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    app = FakeApp(agent)
+
+    with patch(
+        "sase.ace.tui.actions.clipboard._agents.copy_to_system_clipboard",
+        return_value=True,
+    ) as mock_copy:
+        app._copy_agent_name()
+
+    mock_copy.assert_called_once_with("explicit_name")
+    assert app.notifications == [("Copied: Agent Name (explicit_name)", "information")]
+
+
 def test_copy_agent_name_falls_back_to_display_name() -> None:
     # No agent_name; workflow top-level entry → display_name == workflow.
     agent = _make_agent(agent_name=None, workflow="my_workflow")

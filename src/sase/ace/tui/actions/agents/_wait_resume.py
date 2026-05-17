@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
-from sase.plan_chain import PLAN_CHAIN_CODER_SUFFIX, canonical_plan_chain_suffix
+from sase.plan_chain import (
+    PLAN_CHAIN_CODER_SUFFIX,
+    agent_family_base,
+    canonical_plan_chain_suffix,
+)
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -22,6 +26,22 @@ _PLAN_HANDOFF_DONE_STATUSES: frozenset[str] = frozenset({"PLAN DONE", "TALE DONE
 def _is_coder_followup_suffix(suffix: str | None) -> bool:
     """Return True for the coder follow-up suffix."""
     return canonical_plan_chain_suffix(suffix) == PLAN_CHAIN_CODER_SUFFIX
+
+
+def _is_agent_family_root(agent: Agent) -> bool:
+    return not agent.is_workflow_child and (
+        agent.plan_chain_root or agent.agent_family_role == "root"
+    )
+
+
+def _agent_prompt_name(agent: Agent) -> str | None:
+    """Return the name wait/resume/copy prompts should use for a row."""
+    if _is_agent_family_root(agent):
+        if agent.agent_family:
+            return agent.agent_family
+        if agent.agent_name:
+            return agent_family_base(agent.agent_name) or agent.agent_name
+    return agent.agent_name
 
 
 def _parse_wait_dependency_names(text: str) -> list[str]:
@@ -227,8 +247,10 @@ class AgentWaitResumeMixin:
         # Running named agents: use resume_by_name with %w to wait for completion
         from ._core import DISMISSABLE_STATUSES
 
-        if agent.status not in DISMISSABLE_STATUSES and agent.agent_name:
-            name = agent.agent_name
+        prompt_name = _agent_prompt_name(agent)
+
+        if agent.status not in DISMISSABLE_STATUSES and prompt_name:
+            name = prompt_name
             prefix = f"#resume:{name} %w:{name} "
 
             vcs_tag = _resolve_vcs_tag(agent, name, self._agents)
@@ -242,7 +264,9 @@ class AgentWaitResumeMixin:
             )
             return
 
-        if agent.status in _PLAN_HANDOFF_DONE_STATUSES:
+        if agent.status in _PLAN_HANDOFF_DONE_STATUSES and not _is_agent_family_root(
+            agent
+        ):
             # Find the coder follow-up agent to resume its conversation
             coder = next(
                 (
@@ -269,11 +293,11 @@ class AgentWaitResumeMixin:
             self.notify("Agent not finished yet", severity="warning")  # type: ignore[attr-defined]
             return
 
-        if not agent.agent_name:
+        if not prompt_name:
             self.notify("No agent name found", severity="warning")  # type: ignore[attr-defined]
             return
 
-        name = agent.agent_name
+        name = prompt_name
         prefix = f"#resume:{name} "
 
         vcs_tag = _resolve_vcs_tag(agent, name, self._agents)
@@ -304,11 +328,11 @@ class AgentWaitResumeMixin:
 
     def _wait_for_single_agent(self, agent: Agent) -> None:
         """Open the prompt input bar with `%w:<name> ` for a single agent."""
-        if not agent.agent_name:
+        name = _agent_prompt_name(agent)
+        if not name:
             self.notify("No agent name found", severity="warning")  # type: ignore[attr-defined]
             return
 
-        name = agent.agent_name
         prefix = f"%w:{name} "
 
         vcs_tag = _resolve_vcs_tag(agent, name, self._agents)
@@ -326,7 +350,7 @@ class AgentWaitResumeMixin:
         marked: list[Agent] = [
             a for a in self._agents_with_children if a.identity in self._marked_agents
         ]
-        named: list[Agent] = [a for a in marked if a.agent_name]
+        named: list[Agent] = [a for a in marked if _agent_prompt_name(a)]
         skipped = len(marked) - len(named)
 
         if not named:
@@ -342,13 +366,14 @@ class AgentWaitResumeMixin:
                 )
             return
 
-        names = [a.agent_name for a in named]
+        names = [_agent_prompt_name(a) for a in named]
         prefix = f"%w:{','.join(n for n in names if n)} "
 
         cursor = self._get_selected_agent()  # type: ignore[attr-defined]
         tag_source = cursor if cursor is not None and cursor in named else named[0]
-        assert tag_source.agent_name is not None
-        vcs_tag = _resolve_vcs_tag(tag_source, tag_source.agent_name, self._agents)
+        tag_source_name = _agent_prompt_name(tag_source)
+        assert tag_source_name is not None
+        vcs_tag = _resolve_vcs_tag(tag_source, tag_source_name, self._agents)
         if vcs_tag:
             prefix = f"{vcs_tag}{prefix}"
 

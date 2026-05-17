@@ -206,6 +206,11 @@ class Agent:
     # Role suffix annotation (e.g., ".plan", ".code", ".q") for follow-up agents
     role_suffix: str | None = None
 
+    # Agent-family metadata for plan/question/feedback/coder handoff flows.
+    agent_family: str | None = None
+    agent_family_role: str | None = None
+    plan_chain_root: bool = False
+
     # User-managed tag (no '@' prefix; at most one per agent).
     # Populated from ``~/.sase/agent_tags.json`` after agents are loaded.
     tag: str | None = None

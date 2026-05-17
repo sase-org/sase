@@ -242,8 +242,9 @@ def test_pid_dedup_preserves_followup_workflow_agents() -> None:
     ):
         result = load_all_agents()
 
-    # Both should survive — they are different phases, not duplicates
-    assert len(result) == 2
+    # Both should survive — they are different phases, not duplicates. The plan
+    # root also gains its logical planner child for family display.
+    assert len(result) == 3
     suffixes = {a.raw_suffix for a in result}
     assert "20260315213215" in suffixes
     assert "20260315214530" in suffixes

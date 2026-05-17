@@ -55,7 +55,7 @@ def test_apply_status_overrides_done_with_completed_feedback_becomes_plan() -> N
     agents = [parent, feedback_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLAN"
+    assert parent.status == "DONE"
 
 
 def test_apply_status_overrides_running_with_unanswered_followup_plan_becomes_plan() -> (

@@ -369,6 +369,39 @@ def test_wait_for_agent_no_marks_uses_single_agent_path() -> None:
     assert call["display_name"] == "wait(alice)"
 
 
+def test_wait_for_agent_family_root_uses_root_name() -> None:
+    a1 = _make_agent(
+        raw_suffix="20240101120000",
+        agent_name="alice-plan",
+        agent_family="alice",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    app = _FakeWaitApp([a1])
+
+    app.action_wait_for_agent()
+
+    assert app.prompt_bar_calls[0]["initial_text"] == "%w:alice "
+    assert app.prompt_bar_calls[0]["display_name"] == "wait(alice)"
+
+
+def test_resume_agent_family_root_uses_root_name() -> None:
+    a1 = _make_agent(
+        raw_suffix="20240101120000",
+        status="DONE",
+        agent_name="alice-plan",
+        agent_family="alice",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    app = _FakeWaitApp([a1])
+
+    app.action_resume_agent()
+
+    assert app.prompt_bar_calls[0]["initial_text"] == "#resume:alice "
+    assert app.prompt_bar_calls[0]["display_name"] == "resume(alice)"
+
+
 def test_wait_for_agent_one_mark_falls_through_to_single_agent() -> None:
     """A single mark behaves identically to single-agent path (cursor irrelevant)."""
     a1 = _make_agent(cl_name="cl_a", raw_suffix="20240101120000", agent_name="alice")

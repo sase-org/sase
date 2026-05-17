@@ -398,7 +398,7 @@ def load_all_agents(
     agents = dedup_by_pid(agents)
 
     # Override statuses based on workflow relationships
-    _apply_status_overrides(agents)
+    _apply_status_overrides(agents, workflow_agent_steps)
 
     # Sort and insert workflow steps
     return _sort_and_reorder(agents, workflow_agent_steps)
@@ -428,6 +428,6 @@ def load_tiered_agents(
     agents = dedup_by_pid(agents)
 
     # Override statuses based on workflow relationships
-    _apply_status_overrides(agents)
+    _apply_status_overrides(agents, result.workflow_agent_steps)
 
     return _sort_and_reorder(agents, result.workflow_agent_steps), result.state

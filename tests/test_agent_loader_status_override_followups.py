@@ -6,6 +6,68 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 
 
+def test_apply_status_overrides_root_awaiting_plan_review_mirrors_planner() -> None:
+    """A family root mirrors the logical planner child while awaiting review."""
+    plan_time = datetime(2026, 5, 17, 9, 0, 0)
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 17, 8, 55, 0),
+        raw_suffix="20260517085500",
+        role_suffix="-plan",
+        agent_name="root",
+        agent_family="root",
+        agent_family_role="root",
+        plan_chain_root=True,
+        plan_times=[plan_time],
+    )
+    agents = [parent]
+
+    _apply_status_overrides(agents)
+
+    assert parent.status == "PLAN"
+    planner = next(a for a in agents if a.parent_timestamp == parent.raw_suffix)
+    assert planner.agent_name == "root-plan"
+    assert planner.status == "PLAN"
+
+
+def test_apply_status_overrides_feedback_child_awaiting_review_mirrors_plan() -> None:
+    """A feedback round that submitted a newer plan becomes the mirrored root status."""
+    feedback_time = datetime(2026, 5, 17, 9, 0, 0)
+    plan_time = datetime(2026, 5, 17, 9, 10, 0)
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 17, 8, 55, 0),
+        raw_suffix="20260517085500",
+        role_suffix="-plan",
+        agent_name="root",
+        agent_family="root",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    feedback_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 17, 9, 5, 0),
+        parent_timestamp="20260517085500",
+        role_suffix="-2",
+        feedback_times=[feedback_time],
+        plan_times=[plan_time],
+    )
+
+    _apply_status_overrides([parent, feedback_child])
+
+    assert feedback_child.status == "PLAN"
+    assert parent.status == "PLAN"
+
+
 def test_apply_status_overrides_plan_rejected_stays_terminal() -> None:
     """A rejected plan is terminal, not another plan awaiting approval."""
     parent = Agent(
@@ -29,7 +91,7 @@ def test_apply_status_overrides_plan_rejected_stays_terminal() -> None:
     agents = [parent, feedback_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLAN REJECTED"
+    assert parent.status == "DONE"
 
 
 def test_apply_status_overrides_done_with_active_code_followup_becomes_plan_approved() -> (
@@ -66,7 +128,7 @@ def test_apply_status_overrides_done_with_active_code_followup_becomes_plan_appr
     agents = [parent, feedback_child, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLAN APPROVED"
+    assert parent.status == "RUNNING"
 
 
 def test_apply_status_overrides_completed_followup_plan_child_stays_done() -> None:
@@ -102,7 +164,7 @@ def test_apply_status_overrides_completed_followup_plan_child_stays_done() -> No
     agents = [parent, followup_planner, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLAN APPROVED"
+    assert parent.status == "RUNNING"
     assert followup_planner.status == "DONE"
 
 
@@ -129,7 +191,7 @@ def test_apply_status_overrides_active_epic_child_sets_epic_approved() -> None:
     agents = [parent, epic_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "EPIC APPROVED"
+    assert parent.status == "RUNNING"
 
 
 def test_apply_status_overrides_active_commit_child_sets_plan_committed() -> None:
@@ -155,7 +217,7 @@ def test_apply_status_overrides_active_commit_child_sets_plan_committed() -> Non
     agents = [parent, commit_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLAN COMMITTED"
+    assert parent.status == "RUNNING"
 
 
 def test_apply_status_overrides_active_code_child_stays_plan_approved() -> None:
@@ -181,7 +243,7 @@ def test_apply_status_overrides_active_code_child_stays_plan_approved() -> None:
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLAN APPROVED"
+    assert parent.status == "RUNNING"
 
 
 def test_apply_status_overrides_completed_epic_child_sets_epic_created() -> None:
@@ -207,7 +269,7 @@ def test_apply_status_overrides_completed_epic_child_sets_epic_created() -> None
     agents = [parent, epic_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "EPIC CREATED"
+    assert parent.status == "DONE"
 
 
 def test_apply_status_overrides_failed_epic_child_stays_plan_done() -> None:
@@ -233,7 +295,7 @@ def test_apply_status_overrides_failed_epic_child_stays_plan_done() -> None:
     agents = [parent, epic_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLAN DONE"
+    assert parent.status == "FAILED"
 
 
 def test_apply_status_overrides_epic_then_code_completed_latest_wins() -> None:
@@ -268,7 +330,7 @@ def test_apply_status_overrides_epic_then_code_completed_latest_wins() -> None:
     agents = [parent, epic_child, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLAN DONE"
+    assert parent.status == "DONE"
 
 
 def test_apply_status_overrides_epic_and_code_active_newest_wins() -> None:
@@ -303,7 +365,7 @@ def test_apply_status_overrides_epic_and_code_active_newest_wins() -> None:
     agents = [parent, code_child, epic_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "EPIC APPROVED"
+    assert parent.status == "RUNNING"
 
 
 def test_apply_status_overrides_done_with_unanswered_question_becomes_question() -> (
@@ -416,7 +478,7 @@ def test_apply_status_overrides_parent_with_answered_question_stays_plan_done() 
     agents = [parent, code_child, q_grandchild]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLAN DONE"
+    assert parent.status == "DONE"
 
 
 def test_apply_status_overrides_parent_with_active_code_after_question_is_plan_approved() -> (
@@ -446,7 +508,7 @@ def test_apply_status_overrides_parent_with_active_code_after_question_is_plan_a
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLAN APPROVED"
+    assert parent.status == "RUNNING"
 
 
 def test_apply_status_overrides_active_code_child_with_tale_plan_action_is_tale_approved() -> (
@@ -475,7 +537,7 @@ def test_apply_status_overrides_active_code_child_with_tale_plan_action_is_tale_
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "TALE APPROVED"
+    assert parent.status == "RUNNING"
 
 
 def test_apply_status_overrides_active_code_child_without_plan_action_is_plan_approved() -> (
@@ -504,7 +566,7 @@ def test_apply_status_overrides_active_code_child_without_plan_action_is_plan_ap
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLAN APPROVED"
+    assert parent.status == "RUNNING"
 
 
 def test_apply_status_overrides_active_code_child_with_parent_status_tale_approved() -> (
@@ -532,7 +594,7 @@ def test_apply_status_overrides_active_code_child_with_parent_status_tale_approv
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "TALE APPROVED"
+    assert parent.status == "RUNNING"
 
 
 def test_apply_status_overrides_questioning_code_with_tale_plan_action_still_becomes_question() -> (
@@ -590,7 +652,7 @@ def test_apply_status_overrides_done_with_tale_plan_action_yields_tale_done() ->
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "TALE DONE"
+    assert parent.status == "DONE"
 
 
 def test_apply_status_overrides_done_tale_with_completed_epic_followup_still_yields_epic_created() -> (
@@ -619,7 +681,7 @@ def test_apply_status_overrides_done_tale_with_completed_epic_followup_still_yie
     agents = [parent, epic_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "EPIC CREATED"
+    assert parent.status == "DONE"
 
 
 def test_apply_status_overrides_done_without_tale_plan_action_still_yields_plan_done() -> (
@@ -648,7 +710,7 @@ def test_apply_status_overrides_done_without_tale_plan_action_still_yields_plan_
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLAN DONE"
+    assert parent.status == "DONE"
 
 
 def test_apply_status_overrides_done_without_questions_stays_done() -> None:

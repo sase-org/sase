@@ -62,8 +62,8 @@ class TestLoaderFollowupPopulation:
             status="RUNNING",
         )
         _apply_status_overrides([parent, coder])
-        assert len(parent.followup_agents) == 1
-        assert parent.followup_agents[0] is coder
+        assert len(parent.followup_agents) == 2
+        assert coder in parent.followup_agents
 
     def test_feedback_attached(self) -> None:
         from sase.ace.tui.models.agent_loader import _apply_status_overrides
@@ -80,8 +80,8 @@ class TestLoaderFollowupPopulation:
             status="DONE",
         )
         _apply_status_overrides([parent, fb])
-        assert len(parent.followup_agents) == 1
-        assert parent.followup_agents[0] is fb
+        assert len(parent.followup_agents) == 2
+        assert fb in parent.followup_agents
 
     def test_sorted_chronologically(self) -> None:
         from sase.ace.tui.models.agent_loader import _apply_status_overrides
@@ -105,8 +105,9 @@ class TestLoaderFollowupPopulation:
             start_time=datetime(2024, 1, 1, 15, 0),
         )
         _apply_status_overrides([parent, coder, fb])
-        assert parent.followup_agents[0] is fb
-        assert parent.followup_agents[1] is coder
+        assert parent.followup_agents[0].role_suffix == "-plan"
+        assert parent.followup_agents[1] is fb
+        assert parent.followup_agents[2] is coder
 
     def test_workflow_child_not_attached(self) -> None:
         from sase.ace.tui.models.agent_loader import _apply_status_overrides
@@ -124,4 +125,5 @@ class TestLoaderFollowupPopulation:
             status="DONE",
         )
         _apply_status_overrides([parent, step])
-        assert parent.followup_agents == []
+        assert len(parent.followup_agents) == 1
+        assert parent.followup_agents[0].role_suffix == "-plan"

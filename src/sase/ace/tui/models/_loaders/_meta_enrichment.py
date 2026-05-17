@@ -143,6 +143,12 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         agent.hidden = True
     if data.get("role_suffix"):
         agent.role_suffix = data["role_suffix"]
+    if data.get("agent_family"):
+        agent.agent_family = data["agent_family"]
+    if data.get("agent_family_role"):
+        agent.agent_family_role = data["agent_family_role"]
+    if data.get("plan_chain_root"):
+        agent.plan_chain_root = True
     if data.get("parent_timestamp") and agent.parent_timestamp is None:
         agent.parent_timestamp = data["parent_timestamp"]
     if data.get("workspace_num") is not None and agent.workspace_num is None:
@@ -387,6 +393,12 @@ def enrich_agent_from_meta_wire(
         agent.hidden = True
     if meta.role_suffix:
         agent.role_suffix = meta.role_suffix
+    if meta.agent_family:
+        agent.agent_family = meta.agent_family
+    if meta.agent_family_role:
+        agent.agent_family_role = meta.agent_family_role
+    if meta.plan_chain_root:
+        agent.plan_chain_root = True
     if meta.parent_timestamp and agent.parent_timestamp is None:
         agent.parent_timestamp = meta.parent_timestamp
     if meta.workspace_num is not None and agent.workspace_num is None:
