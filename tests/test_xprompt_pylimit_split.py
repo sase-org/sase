@@ -167,6 +167,6 @@ def test_step_names_same_stem_with_collision_suffix(
     parsed = parse_multi_prompt(captured[0])
     assert len(parsed.segments) == 2
     assert "%name:pysplit.foo" in parsed.segments[0]
-    assert "%name:pysplit.foo-2" in parsed.segments[1]
+    assert "%name:pysplit.foo_2" in parsed.segments[1]
     assert "#sase/pysplit:src/foo.py" in parsed.segments[0]
     assert "#sase/pysplit:tests/foo.py" in parsed.segments[1]

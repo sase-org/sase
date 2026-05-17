@@ -15,6 +15,7 @@ from typing import Any
 
 from sase.bead import db
 from sase.bead.model import Dependency, Issue
+from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.core.rust import require_rust_binding
 
 if TYPE_CHECKING:
@@ -457,7 +458,10 @@ def _group_directive(bead_id: str) -> str:
 
 
 def _bead_env(bead_id: str) -> dict[str, str]:
-    return {SASE_BEAD_ID_ENV: bead_id}
+    return {
+        SASE_BEAD_ID_ENV: bead_id,
+        INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
+    }
 
 
 def _segment_prefix(

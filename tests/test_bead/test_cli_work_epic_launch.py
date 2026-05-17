@@ -10,6 +10,7 @@ import pytest
 from sase.bead import cli as bead_cli
 from sase.bead.model import BeadTier, IssueType, Status
 from sase.bead.project import BeadProject
+from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 
 from .cli_work_helpers import (
     FakeLaunchResult,
@@ -64,7 +65,8 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     assert f"#bd/land_epic:{epic_id}" in query
     assert captured["extra_env"] is None
     assert captured["segment_extra_env"] == tuple(
-        {"SASE_BEAD_ID": bead_id} for bead_id in [*phase_ids, epic_id]
+        {"SASE_BEAD_ID": bead_id, INTERNAL_AGENT_NAME_BYPASS_ENV: "1"}
+        for bead_id in [*phase_ids, epic_id]
     )
     assert commit_calls == [
         (project_dir / "sdd/beads", epic_id, "Diamond epic", "epic")
@@ -125,9 +127,9 @@ def test_work_linked_legend_epic_uses_legend_tag_and_links(
 
     assert captured["extra_env"] is None
     assert captured["segment_extra_env"] == (
-        {"SASE_BEAD_ID": p1.id},
-        {"SASE_BEAD_ID": p2.id},
-        {"SASE_BEAD_ID": epic.id},
+        {"SASE_BEAD_ID": p1.id, INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
+        {"SASE_BEAD_ID": p2.id, INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
+        {"SASE_BEAD_ID": epic.id, INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
     )
 
 

@@ -57,6 +57,7 @@ def execute_launch_plan(
     extra_env: dict[str, str] | None = None,
     timestamp_allocator: LaunchTimestampBatchAllocator | None = None,
     base_timestamp: str | None = None,
+    allow_hyphenated_names: bool = False,
 ) -> LaunchExecutionResult:
     """Execute a normalized fan-out plan through a host-provided spawn hook."""
     if not plan.slots:
@@ -68,7 +69,10 @@ def execute_launch_plan(
 
     from sase.agent.launch_validation import validate_launch_name_requests
 
-    validate_launch_name_requests([slot.prompt for slot in plan.slots])
+    validate_launch_name_requests(
+        [slot.prompt for slot in plan.slots],
+        allow_hyphenated_names=allow_hyphenated_names,
+    )
 
     allocator = timestamp_allocator or LaunchTimestampBatchAllocator()
     missing_timestamp_count = sum(1 for slot in plan.slots if slot.timestamp is None)

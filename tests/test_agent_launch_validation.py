@@ -12,7 +12,9 @@ from sase.agent.launch_validation import (
     AgentNameLaunchCollisionError,
     AgentNameReuseConfirmationRequiredError,
     AgentNameSyntaxError,
+    INTERNAL_AGENT_NAME_BYPASS_ENV,
     force_reuse_owner_names,
+    internal_agent_name_bypass_enabled,
     rewrite_force_reuse_name_directives,
     validate_user_agent_name,
     validate_launch_name_requests,
@@ -69,6 +71,14 @@ def test_name_directive_rejects_hyphenated_name_before_launch() -> None:
 def test_forced_reuse_name_directive_rejects_hyphen_after_bang_strip() -> None:
     with pytest.raises(AgentNameSyntaxError, match="foo-bar"):
         validate_launch_name_requests(["%name:!foo-bar\nDo work"])
+
+
+def test_internal_bypass_allows_hyphenated_system_names() -> None:
+    validate_launch_name_requests(
+        ["%name:sase-42.3\nDo work"],
+        allow_hyphenated_names=True,
+    )
+    assert internal_agent_name_bypass_enabled({INTERNAL_AGENT_NAME_BYPASS_ENV: "1"})
 
 
 def test_tui_agent_rename_rejects_hyphenated_name(tmp_path: Path) -> None:

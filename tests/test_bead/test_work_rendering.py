@@ -15,6 +15,7 @@ from sase.bead.work import (
     legend_work_segment_env,
     render_multi_prompt,
 )
+from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.xprompt.directives import extract_prompt_directives
 from sase.xprompt.workflow_models import Workflow
 
@@ -137,9 +138,9 @@ class TestRenderEdgeCases:
         plan = _build_epic_work_plan(conn, "e1")
 
         assert epic_work_segment_env(plan) == (
-            {SASE_BEAD_ID_ENV: "p1"},
-            {SASE_BEAD_ID_ENV: "p2"},
-            {SASE_BEAD_ID_ENV: "e1"},
+            {SASE_BEAD_ID_ENV: "p1", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
+            {SASE_BEAD_ID_ENV: "p2", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
+            {SASE_BEAD_ID_ENV: "e1", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
         )
 
     def test_legend_child_epic_env_uses_work_beads_not_display_tag(
@@ -158,8 +159,8 @@ class TestRenderEdgeCases:
 
         assert plan.launch_tag_id == "l1"
         assert epic_work_segment_env(plan) == (
-            {SASE_BEAD_ID_ENV: "p1"},
-            {SASE_BEAD_ID_ENV: "e1"},
+            {SASE_BEAD_ID_ENV: "p1", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
+            {SASE_BEAD_ID_ENV: "e1", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
         )
 
     def test_legend_work_segment_env_uses_legend_bead_id(self) -> None:
@@ -181,9 +182,9 @@ class TestRenderEdgeCases:
         )
 
         assert legend_work_segment_env(plan) == (
-            {SASE_BEAD_ID_ENV: "l1"},
-            {SASE_BEAD_ID_ENV: "l1"},
-            {SASE_BEAD_ID_ENV: "l1"},
+            {SASE_BEAD_ID_ENV: "l1", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
+            {SASE_BEAD_ID_ENV: "l1", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
+            {SASE_BEAD_ID_ENV: "l1", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
         )
 
 

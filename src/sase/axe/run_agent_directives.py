@@ -178,9 +178,14 @@ def extract_directives_and_write_meta(
 
         if agent_name:
             from sase.agent.names import claim_agent_name
-            from sase.agent.launch_validation import validate_user_agent_name
+            from sase.agent.launch_validation import (
+                internal_agent_name_bypass_enabled,
+                validate_user_agent_name,
+            )
 
-            if directives.name_explicit:
+            if directives.name_explicit and not internal_agent_name_bypass_enabled(
+                os.environ
+            ):
                 validate_user_agent_name(agent_name)
 
             claim_agent_name(

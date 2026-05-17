@@ -50,7 +50,7 @@ steps:
               n = 1
               while candidate in claimed or is_name_reserved(candidate):
                   n += 1
-                  candidate = f"{base}-{n}"
+                  candidate = f"{base}_{n}"
               claimed.add(candidate)
               launched_names.append(candidate)
               per_file_prompts.append(

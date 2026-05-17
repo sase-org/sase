@@ -14,6 +14,7 @@ from sase.bead.cli_work import (
 )
 from sase.bead.project import BeadProject
 from sase.bead.work import _LegendEpicAssignment, LegendWorkPlan
+from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 
 from .cli_work_helpers import FakeLaunchResult, make_args, seed_legend
 
@@ -162,7 +163,8 @@ def test_legend_work_live_launch_marks_ready_and_does_not_preclaim_children(
     assert f"#bd/land_legend:{legend_id}" in query
     assert captured["extra_env"] is None
     assert captured["segment_extra_env"] == tuple(
-        {"SASE_BEAD_ID": legend_id} for _ in range(4)
+        {"SASE_BEAD_ID": legend_id, INTERNAL_AGENT_NAME_BYPASS_ENV: "1"}
+        for _ in range(4)
     )
     assert commit_calls == [
         (project_dir / "sdd/beads", legend_id, "Legend roadmap", "legend")

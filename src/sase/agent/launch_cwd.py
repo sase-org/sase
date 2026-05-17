@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from sase.agent.launch_types import AgentLaunchResult
+from sase.agent.launch_validation import internal_agent_name_bypass_enabled
 
 
 @dataclass(frozen=True)
@@ -13,6 +14,17 @@ class _KnownProjectVcsLaunchRef:
     ref: str
     workspace_dir: str
     project_file: str
+
+
+def _internal_agent_name_bypass_for_launch(
+    extra_env: dict[str, str] | None,
+    segment_extra_env: Sequence[dict[str, str] | None] | None = None,
+) -> bool:
+    if internal_agent_name_bypass_enabled(extra_env):
+        return True
+    if segment_extra_env is None:
+        return False
+    return all(internal_agent_name_bypass_enabled(env) for env in segment_extra_env)
 
 
 def resolve_known_project_vcs_launch_ref(
@@ -166,7 +178,13 @@ def launch_agents_from_cwd(
                 validate_launch_name_requests,
             )
 
-            validate_launch_name_requests(expanded_segments)
+            validate_launch_name_requests(
+                expanded_segments,
+                allow_hyphenated_names=_internal_agent_name_bypass_for_launch(
+                    extra_env,
+                    expanded_segment_extra_env,
+                ),
+            )
         except (
             AgentNameLaunchCollisionError,
             AgentNameReuseConfirmationRequiredError,
@@ -196,6 +214,10 @@ def launch_agents_from_cwd(
             vcs_ref=mp_vcs_ref,
             extra_env=extra_env,
             segment_extra_env=expanded_segment_extra_env,
+            allow_hyphenated_names=_internal_agent_name_bypass_for_launch(
+                extra_env,
+                expanded_segment_extra_env,
+            ),
             default_bare_segments_to_home=True,
         )
         return results
@@ -234,7 +256,12 @@ def launch_agents_from_cwd(
         try:
             from sase.agent.launch_validation import validate_launch_name_requests
 
-            validate_launch_name_requests([spec.prompt for spec in repeat_specs])
+            validate_launch_name_requests(
+                [spec.prompt for spec in repeat_specs],
+                allow_hyphenated_names=_internal_agent_name_bypass_for_launch(
+                    extra_env,
+                ),
+            )
         except RuntimeError:
             add_or_update_prompt(query, project_name=project_name, cancelled=True)
             raise
@@ -291,7 +318,12 @@ def launch_agents_from_cwd(
         try:
             from sase.agent.launch_validation import validate_launch_name_requests
 
-            validate_launch_name_requests([slot.prompt for slot in alt_plan.slots])
+            validate_launch_name_requests(
+                [slot.prompt for slot in alt_plan.slots],
+                allow_hyphenated_names=_internal_agent_name_bypass_for_launch(
+                    extra_env,
+                ),
+            )
         except RuntimeError:
             add_or_update_prompt(
                 query,
@@ -317,6 +349,7 @@ def launch_agents_from_cwd(
             is_home_mode=is_home_mode,
             vcs_ref=alt_vcs_ref,
             extra_env=extra_env,
+            allow_hyphenated_names=_internal_agent_name_bypass_for_launch(extra_env),
             default_bare_segments_to_home=True,
         )
         return results
@@ -409,7 +442,10 @@ def launch_agents_from_cwd(
     try:
         from sase.agent.launch_validation import validate_launch_name_requests
 
-        validate_launch_name_requests([query])
+        validate_launch_name_requests(
+            [query],
+            allow_hyphenated_names=_internal_agent_name_bypass_for_launch(extra_env),
+        )
     except RuntimeError:
         add_or_update_prompt(
             query,
@@ -447,6 +483,7 @@ def launch_agents_from_cwd(
         ),
         extra_env=extra_env,
         base_timestamp=timestamp,
+        allow_hyphenated_names=_internal_agent_name_bypass_for_launch(extra_env),
     )
     return execution.results
 

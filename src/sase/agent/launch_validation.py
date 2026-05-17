@@ -4,17 +4,22 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from collections.abc import Mapping
 
 __all__ = [
     "AgentNameLaunchCollisionError",
     "AgentNameSyntaxError",
+    "INTERNAL_AGENT_NAME_BYPASS_ENV",
     "AgentNameReuseConfirmationRequiredError",
     "force_reuse_owner_names",
+    "internal_agent_name_bypass_enabled",
     "rewrite_force_reuse_name_directives",
     "validate_user_agent_name",
     "validate_launch_name_requests",
     "wipe_names_for_forced_reuse",
 ]
+
+INTERNAL_AGENT_NAME_BYPASS_ENV = "SASE_INTERNAL_AGENT_NAME_BYPASS"
 
 
 @dataclass(frozen=True)
@@ -70,6 +75,15 @@ def validate_user_agent_name(name: str) -> None:
         raise AgentNameSyntaxError(name)
 
 
+def internal_agent_name_bypass_enabled(
+    env: Mapping[str, str] | None,
+) -> bool:
+    """Return whether a trusted launcher enabled internal name syntax."""
+    if env is None:
+        return False
+    return env.get(INTERNAL_AGENT_NAME_BYPASS_ENV) == "1"
+
+
 def _explicit_launch_name_requests(prompts: list[str]) -> list[_LaunchNameRequest]:
     """Return explicit ``%name`` requests from already-expanded launch prompts."""
     requests: list[_LaunchNameRequest] = []
@@ -88,14 +102,16 @@ def validate_launch_name_requests(
     prompts: list[str],
     *,
     allow_force_reuse: bool = False,
+    allow_hyphenated_names: bool = False,
 ) -> None:
     """Validate explicit launch names under the global name allocation lock."""
     requests = _explicit_launch_name_requests(prompts)
     if not requests:
         return
 
-    for request in requests:
-        validate_user_agent_name(request.name)
+    if not allow_hyphenated_names:
+        for request in requests:
+            validate_user_agent_name(request.name)
 
     from sase.agent.names import (
         agent_name_allocation_lock,

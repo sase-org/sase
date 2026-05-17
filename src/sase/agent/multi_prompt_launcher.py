@@ -75,6 +75,7 @@ def launch_multi_prompt_agents(
     on_agent_spawned: Callable[[], None] | None = None,
     extra_env: dict[str, str] | None = None,
     segment_extra_env: Sequence[dict[str, str] | None] | None = None,
+    allow_hyphenated_names: bool = False,
     default_bare_segments_to_home: bool = False,
 ) -> list[AgentLaunchResult]:
     """Launch each segment as a separate agent.
@@ -107,6 +108,7 @@ def launch_multi_prompt_agents(
             on_agent_spawned=on_agent_spawned,
             extra_env=extra_env,
             segment_extra_env=segment_extra_env,
+            allow_hyphenated_names=allow_hyphenated_names,
             default_bare_segments_to_home=default_bare_segments_to_home,
             timestamp_allocator=timestamp_allocator,
             results=results,
@@ -130,6 +132,7 @@ def _spawn_segments_into(
     on_agent_spawned: Callable[[], None] | None,
     extra_env: dict[str, str] | None,
     segment_extra_env: Sequence[dict[str, str] | None] | None,
+    allow_hyphenated_names: bool,
     default_bare_segments_to_home: bool,
     timestamp_allocator: LaunchTimestampBatchAllocator,
     results: list[AgentLaunchResult],
@@ -161,7 +164,10 @@ def _spawn_segments_into(
         )
     from sase.agent.launch_validation import validate_launch_name_requests
 
-    validate_launch_name_requests(segments)
+    validate_launch_name_requests(
+        segments,
+        allow_hyphenated_names=allow_hyphenated_names,
+    )
 
     name_allocator = _PlannedNameAllocator()
     previous_agent_name: str | None = None
@@ -313,6 +319,7 @@ def _spawn_segments_into(
                     if on_agent_spawned is None
                     else lambda _record: on_agent_spawned()
                 ),
+                allow_hyphenated_names=allow_hyphenated_names,
             )
 
         results.extend(execution.results)
