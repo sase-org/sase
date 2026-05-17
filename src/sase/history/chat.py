@@ -69,9 +69,9 @@ def _resolve_resume_to_chat_path(xprompt_name: str, argument: str) -> str | None
 
     # resume — resolve via agent name
     try:
-        from sase.agent.names import find_named_agent
+        from sase.agent.names import resolve_resume_agent_name
 
-        agent = find_named_agent(argument, only_done=True)
+        agent = resolve_resume_agent_name(argument)
         if agent is None:
             return None
         import json

@@ -13,12 +13,12 @@ def resolve_wait_chat_paths(wait_names: list[str]) -> list[str]:
     agent failed or crashed before saving a transcript) are skipped with a
     warning; order of the remaining names is preserved, including duplicates.
     """
-    from sase.agent.names import find_named_agent
+    from sase.agent.names import resolve_resume_agent_name
     from sase.output import print_status
 
     resolved: list[str] = []
     for name in wait_names:
-        agent = find_named_agent(name, only_done=True)
+        agent = resolve_resume_agent_name(name)
         if agent is None:
             print_status(
                 f"wait_chats: no done agent found for '{name}' — skipping",

@@ -22,6 +22,9 @@ def make_agent(
     appears_as_agent: bool | None = None,
     parent_timestamp: str | None = None,
     workflow_name: str | None = None,
+    agent_family: str | None = None,
+    role_suffix: str | None = None,
+    response_path: str | None = None,
 ) -> Path:
     """Create a fake agent artifact directory with agent_meta.json."""
     artifact_dir = (
@@ -35,11 +38,17 @@ def make_agent(
         meta["parent_timestamp"] = parent_timestamp
     if workflow_name is not None:
         meta["workflow_name"] = workflow_name
+    if agent_family is not None:
+        meta["agent_family"] = agent_family
+    if role_suffix is not None:
+        meta["role_suffix"] = role_suffix
     (artifact_dir / "agent_meta.json").write_text(json.dumps(meta))
     if done:
         done_data: dict[str, object] = {}
         if outcome:
             done_data["outcome"] = outcome
+        if response_path:
+            done_data["response_path"] = response_path
         (artifact_dir / "done.json").write_text(json.dumps(done_data))
     if appears_as_agent is not None:
         wf_data: dict[str, object] = {

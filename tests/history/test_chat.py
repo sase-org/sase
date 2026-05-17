@@ -7,17 +7,19 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from sase.history.chat import (
-    generate_chat_filename,
-    _get_branch_or_workspace_name,
     _find_resume_refs,
+    _get_branch_or_workspace_name,
+    _load_chat_history,
     _parse_flat_turns,
+    _resolve_resume_to_chat_path,
+    generate_chat_filename,
     get_chat_file_path,
     list_chat_histories,
     load_chat_for_resume,
-    _load_chat_history,
     save_chat_history,
 )
 
+from tests._agent_names_fixtures import make_agent
 from tests.conftest import redirect_sase_home
 
 
@@ -565,16 +567,53 @@ def test_fallback_to_previous_conversation() -> None:
             "## Response\n\nNew response\n",
         )
 
-        with patch(
-            "sase.agent.names.find_named_agent",
-            return_value=None,
-        ):
+        with patch("sase.agent.names.resolve_resume_agent_name", return_value=None):
             result = load_chat_for_resume(chat)
 
     turns = _parse_flat_turns(result)
     assert len(turns) == 2
     assert turns[0][0] == "Old prompt"
     assert turns[1][0] == "New prompt"
+
+
+def test_resume_agent_family_resolves_to_latest_completed_member_chat(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    chat_dir = tmp_path / ".sase" / "chats"
+    chat_dir.mkdir(parents=True)
+    planner_chat = chat_dir / "planner.md"
+    planner_chat.write_text("planner", encoding="utf-8")
+    coder_chat = chat_dir / "coder.md"
+    coder_chat.write_text("coder", encoding="utf-8")
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "family",
+        workflow_name="family",
+        agent_family="family",
+        role_suffix="-plan",
+        done=True,
+        outcome="completed",
+        response_path=str(planner_chat),
+    )
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010202",
+        "family-code",
+        workflow_name="family",
+        agent_family="family",
+        role_suffix="-code",
+        parent_timestamp="20260506010101",
+        done=True,
+        outcome="completed",
+        response_path=str(coder_chat),
+    )
+
+    assert _resolve_resume_to_chat_path("resume", "family") == str(coder_chat)
 
 
 def test_resume_by_chat_expansion() -> None:

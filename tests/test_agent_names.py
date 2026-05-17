@@ -15,6 +15,7 @@ from sase.agent.names import (
     claim_agent_name,
     find_named_agent,
     first_resume_agent_name,
+    resolve_resume_agent_name,
 )
 
 from tests._agent_names_fixtures import DEAD_PID as _DEAD_PID
@@ -233,6 +234,68 @@ class TestResumeAgentNames:
         _make_agent(tmp_path, "proj", "run1", "foo.r1", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
             assert allocate_resume_names("foo", 3) == ["foo.r2", "foo.r3", "foo.r4"]
+
+    def test_resolve_resume_root_uses_latest_completed_family_member(
+        self, tmp_path: Path
+    ) -> None:
+        _make_agent(
+            tmp_path,
+            "proj",
+            "20260506010000",
+            "family",
+            done=True,
+            outcome="completed",
+        )
+        _make_agent(
+            tmp_path,
+            "proj",
+            "20260506010101",
+            "family",
+            workflow_name="family",
+            agent_family="family",
+            role_suffix="-plan",
+            done=True,
+            outcome="completed",
+        )
+        child_dir = _make_agent(
+            tmp_path,
+            "proj",
+            "20260506010202",
+            "family-code",
+            workflow_name="family",
+            agent_family="family",
+            role_suffix="-code",
+            parent_timestamp="20260506010101",
+            done=True,
+            outcome="completed",
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = resolve_resume_agent_name("family")
+
+        assert result is not None
+        assert result.name == "family-code"
+        assert result.artifacts_dir == str(child_dir)
+
+    def test_resolve_resume_child_keeps_exact_reference(self, tmp_path: Path) -> None:
+        child_dir = _make_agent(
+            tmp_path,
+            "proj",
+            "20260506010202",
+            "family-code",
+            workflow_name="family",
+            agent_family="family",
+            role_suffix="-code",
+            parent_timestamp="20260506010101",
+            done=True,
+            outcome="completed",
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = resolve_resume_agent_name("family-code")
+
+        assert result is not None
+        assert result.artifacts_dir == str(child_dir)
 
 
 class TestRetryAgentNames:

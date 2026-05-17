@@ -13,6 +13,11 @@ from pathlib import Path
 from typing import Any
 
 from sase.axe.chop_script_context import read_chop_context
+from sase.plan_chain import (
+    AGENT_FAMILY_FIELD,
+    agent_family_base,
+    is_plan_chain_artifact_meta,
+)
 
 _SUCCESS_OUTCOME = "completed"
 
@@ -25,19 +30,27 @@ class _WaitCandidate:
 
 @dataclass(frozen=True)
 class _ArtifactCandidate:
+    name: str
     timestamp: str
     outcome: str | None
     parent_timestamp: str | None
+
+
+@dataclass(frozen=True)
+class _FamilyCandidate:
+    timestamp: str
+    is_resolved: bool
 
 
 @dataclass
 class _WaitDependencyIndex:
     named: dict[str, _WaitCandidate]
     workflows: dict[str, list[_ArtifactCandidate]]
+    families: dict[str, list[_ArtifactCandidate]]
 
     @classmethod
     def empty(cls) -> "_WaitDependencyIndex":
-        return cls(named={}, workflows={})
+        return cls(named={}, workflows={}, families={})
 
     def add(self, artifact_dir: Path, meta: dict[str, Any]) -> None:
         outcome = _done_outcome(artifact_dir)
@@ -57,13 +70,53 @@ class _WaitDependencyIndex:
         if isinstance(workflow_name, str):
             parent_value = meta.get("parent_timestamp")
             parent_timestamp = parent_value if isinstance(parent_value, str) else None
-            self.workflows.setdefault(workflow_name, []).append(
-                _ArtifactCandidate(
-                    timestamp=timestamp,
-                    outcome=outcome,
-                    parent_timestamp=parent_timestamp,
-                )
+            artifact = _ArtifactCandidate(
+                name=name if isinstance(name, str) else workflow_name,
+                timestamp=timestamp,
+                outcome=outcome,
+                parent_timestamp=parent_timestamp,
             )
+            self.workflows.setdefault(workflow_name, []).append(artifact)
+            family_name = _family_base_from_meta(meta)
+            if family_name is not None:
+                self.families.setdefault(family_name, []).append(artifact)
+
+    def family_candidate(self, name: str) -> _FamilyCandidate | None:
+        family_agents = self.families.get(name)
+        if not family_agents:
+            return None
+
+        roots = [
+            candidate for candidate in family_agents if not candidate.parent_timestamp
+        ]
+        if roots:
+            root = max(roots, key=lambda candidate: candidate.timestamp)
+            generation = [
+                candidate
+                for candidate in family_agents
+                if candidate.timestamp == root.timestamp
+                or candidate.parent_timestamp == root.timestamp
+            ]
+            newest_timestamp = max(
+                (candidate.timestamp for candidate in generation),
+                default=root.timestamp,
+            )
+            return _FamilyCandidate(
+                timestamp=newest_timestamp,
+                is_resolved=all(
+                    candidate.outcome == _SUCCESS_OUTCOME for candidate in generation
+                ),
+            )
+
+        # Legacy recovery path: if only child artifacts remain, judge the known
+        # generation by all retained family members.
+        newest_timestamp = max(candidate.timestamp for candidate in family_agents)
+        return _FamilyCandidate(
+            timestamp=newest_timestamp,
+            is_resolved=all(
+                candidate.outcome == _SUCCESS_OUTCOME for candidate in family_agents
+            ),
+        )
 
     def workflow_candidate(self, name: str) -> _WaitCandidate | None:
         workflow_agents = self.workflows.get(name)
@@ -99,6 +152,7 @@ class _WaitDependencyIndex:
         candidates = [
             candidate
             for candidate in (
+                self.family_candidate(name),
                 self.workflow_candidate(name),
                 self.named.get(name),
             )
@@ -132,6 +186,25 @@ def _done_outcome(artifact_dir: Path) -> str | None:
         return None
     outcome = done_data.get("outcome")
     return outcome if isinstance(outcome, str) else None
+
+
+def _family_base_from_meta(meta: dict[str, Any]) -> str | None:
+    family = meta.get(AGENT_FAMILY_FIELD)
+    if isinstance(family, str) and family:
+        return family
+
+    workflow_name = meta.get("workflow_name")
+    if not isinstance(workflow_name, str) or not workflow_name:
+        return None
+
+    if is_plan_chain_artifact_meta(meta):
+        return workflow_name
+
+    name = meta.get("name")
+    if isinstance(name, str) and agent_family_base(name) == workflow_name:
+        return workflow_name
+
+    return None
 
 
 def main() -> None:

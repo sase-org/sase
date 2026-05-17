@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from sase.agent.names._common import (
@@ -28,9 +29,53 @@ from sase.agent.names._common import (
     is_dismissed_prefixed,
     is_process_alive,
 )
+from sase.plan_chain import (
+    AGENT_FAMILY_FIELD,
+    agent_family_base,
+    is_agent_family_member,
+    is_plan_chain_artifact_meta,
+)
 
 if TYPE_CHECKING:
     from sase.core.agent_scan_wire import AgentArtifactRecordWire
+
+_SUCCESS_OUTCOME = "completed"
+
+
+@dataclass(frozen=True)
+class AgentFamilyMember:
+    """One artifact member of a plan-chain agent family."""
+
+    name: str
+    artifacts_dir: Path
+    timestamp: str
+    outcome: str | None
+    parent_timestamp: str | None
+
+    @property
+    def is_done(self) -> bool:
+        return self.outcome is not None
+
+
+@dataclass(frozen=True)
+class AgentFamily:
+    """Newest known generation of a plan-chain agent family."""
+
+    base_name: str
+    root: AgentFamilyMember | None
+    members: tuple[AgentFamilyMember, ...]
+
+    @property
+    def timestamp(self) -> str:
+        if self.root is not None:
+            return self.root.timestamp
+        return max((member.timestamp for member in self.members), default="")
+
+    @property
+    def newest_member_timestamp(self) -> str:
+        return max(
+            (member.timestamp for member in self.members), default=self.timestamp
+        )
 
 
 def _ace_run_scan_options() -> Any:
@@ -51,6 +96,189 @@ def _ace_run_scan_options() -> Any:
 
 def _projects_root() -> Path:
     return Path.home() / ".sase" / "projects"
+
+
+def _read_json_dict(path: Path) -> dict[str, Any] | None:
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _done_outcome(artifact_dir: Path) -> str | None:
+    done_data = _read_json_dict(artifact_dir / "done.json")
+    if done_data is None:
+        return None
+    outcome = done_data.get("outcome")
+    return outcome if isinstance(outcome, str) else None
+
+
+def _meta_parent_timestamp(meta: dict[str, Any]) -> str | None:
+    value = meta.get("parent_timestamp")
+    return value if isinstance(value, str) and value else None
+
+
+def _family_base_from_meta(meta: dict[str, Any]) -> str | None:
+    family = meta.get(AGENT_FAMILY_FIELD)
+    if isinstance(family, str) and family:
+        return family
+
+    workflow_name = meta.get("workflow_name")
+    if not isinstance(workflow_name, str) or not workflow_name:
+        return None
+
+    if is_plan_chain_artifact_meta(meta):
+        return workflow_name
+
+    name = meta.get("name")
+    if isinstance(name, str) and agent_family_base(name) == workflow_name:
+        return workflow_name
+
+    return None
+
+
+def _iter_family_members(base_name: str) -> list[AgentFamilyMember]:
+    projects_dir = _projects_root()
+    if not projects_dir.exists():
+        return []
+
+    members: list[AgentFamilyMember] = []
+    try:
+        project_iter = projects_dir.iterdir()
+    except OSError:
+        return []
+
+    for project_dir in project_iter:
+        if not project_dir.is_dir():
+            continue
+
+        ace_run_dir = project_dir / "artifacts" / "ace-run"
+        if not ace_run_dir.exists():
+            continue
+
+        try:
+            artifact_iter = ace_run_dir.iterdir()
+        except OSError:
+            continue
+
+        for artifact_dir in artifact_iter:
+            if not artifact_dir.is_dir():
+                continue
+            meta = _read_json_dict(artifact_dir / "agent_meta.json")
+            if meta is None or _family_base_from_meta(meta) != base_name:
+                continue
+
+            name_value = meta.get("name")
+            name = name_value if isinstance(name_value, str) else base_name
+            members.append(
+                AgentFamilyMember(
+                    name=name,
+                    artifacts_dir=artifact_dir,
+                    timestamp=artifact_dir.name,
+                    outcome=_done_outcome(artifact_dir),
+                    parent_timestamp=_meta_parent_timestamp(meta),
+                )
+            )
+
+    return members
+
+
+def find_agent_family(base_name: str) -> AgentFamily | None:
+    """Return the newest known generation for *base_name*.
+
+    Only plan-chain/family metadata is considered. Plain exact agents named
+    ``base_name`` are intentionally excluded so legacy exact-name lookups keep
+    their existing behavior when no family members exist.
+    """
+    if not base_name or is_agent_family_member(base_name):
+        return None
+
+    members = _iter_family_members(base_name)
+    if not members:
+        return None
+
+    roots = [member for member in members if member.parent_timestamp is None]
+    if roots:
+        root = max(roots, key=lambda member: member.timestamp)
+        generation = tuple(
+            sorted(
+                (
+                    member
+                    for member in members
+                    if member.timestamp == root.timestamp
+                    or member.parent_timestamp == root.timestamp
+                ),
+                key=lambda member: member.timestamp,
+            )
+        )
+        return AgentFamily(base_name=base_name, root=root, members=generation)
+
+    # Legacy recovery path: if only child artifacts remain, treat all known
+    # family members as one generation and let timestamp ordering choose the
+    # newest completed handoff member.
+    return AgentFamily(
+        base_name=base_name,
+        root=None,
+        members=tuple(sorted(members, key=lambda member: member.timestamp)),
+    )
+
+
+def is_agent_family_complete(base_name: str) -> bool | None:
+    """Return whether the newest *base_name* family generation completed."""
+    family = find_agent_family(base_name)
+    if family is None:
+        return None
+    if not family.members:
+        return False
+    return all(member.outcome == _SUCCESS_OUTCOME for member in family.members)
+
+
+def most_recent_completed_family_member(base_name: str) -> NamedAgent | None:
+    """Return the newest successful member of the newest *base_name* family."""
+    family = find_agent_family(base_name)
+    if family is None:
+        return None
+
+    completed = [
+        member for member in family.members if member.outcome == _SUCCESS_OUTCOME
+    ]
+    if not completed:
+        return None
+
+    member = max(completed, key=lambda item: item.timestamp)
+    return NamedAgent(
+        name=member.name,
+        artifacts_dir=str(member.artifacts_dir),
+        is_done=True,
+        outcome=member.outcome,
+    )
+
+
+def resolve_resume_agent_name(name: str) -> NamedAgent | None:
+    """Resolve a ``#resume`` target to the artifact that should provide chat.
+
+    Direct child references such as ``foo-code`` and legacy ``foo.code`` remain
+    exact lookups. A root family reference such as ``foo`` resolves to the most
+    recent successful member of the newest family generation, falling back to
+    exact-name behavior when no family exists.
+    """
+    if not is_agent_family_member(name):
+        family_member = most_recent_completed_family_member(name)
+        if family_member is not None:
+            return family_member
+    return find_named_agent(name, only_done=True)
+
+
+def resolve_wait_dependency(name: str) -> bool:
+    """Return whether a wait dependency has completed successfully."""
+    complete = is_agent_family_complete(name)
+    if complete is not None:
+        return complete
+
+    agent = find_named_agent(name, only_done=True)
+    return agent is not None and agent.outcome == _SUCCESS_OUTCOME
 
 
 def _meta_dict(record: AgentArtifactRecordWire) -> dict[str, Any]:

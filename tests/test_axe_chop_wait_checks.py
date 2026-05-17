@@ -152,6 +152,138 @@ def test_successful_workflow_name_dependency_resolves(
     assert ready == {"resolved_deps": ["wf"]}
 
 
+def test_successful_plan_family_dependency_resolves(
+    tmp_path: Path, monkeypatch
+) -> None:
+    waiter_dir = _make_waiting_agent(tmp_path, "planfam")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "planfam",
+        workflow_name="planfam",
+        agent_family="planfam",
+        role_suffix="-plan",
+        done=True,
+        outcome="completed",
+    )
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010202",
+        "planfam-code",
+        workflow_name="planfam",
+        agent_family="planfam",
+        role_suffix="-code",
+        parent_timestamp="20260506010101",
+        done=True,
+        outcome="completed",
+    )
+
+    _run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready == {"resolved_deps": ["planfam"]}
+
+
+def test_failed_latest_plan_family_child_blocks_dependency(
+    tmp_path: Path, monkeypatch
+) -> None:
+    waiter_dir = _make_waiting_agent(tmp_path, "planfam")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "planfam",
+        workflow_name="planfam",
+        agent_family="planfam",
+        role_suffix="-plan",
+        done=True,
+        outcome="completed",
+    )
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010202",
+        "planfam-code",
+        workflow_name="planfam",
+        agent_family="planfam",
+        role_suffix="-code",
+        parent_timestamp="20260506010101",
+        done=True,
+        outcome="failed",
+    )
+
+    _run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter_dir / "ready.json").exists()
+
+
+def test_killed_latest_plan_family_child_blocks_dependency(
+    tmp_path: Path, monkeypatch
+) -> None:
+    waiter_dir = _make_waiting_agent(tmp_path, "planfam")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "planfam",
+        workflow_name="planfam",
+        agent_family="planfam",
+        role_suffix="-plan",
+        done=True,
+        outcome="completed",
+    )
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010202",
+        "planfam-code",
+        workflow_name="planfam",
+        agent_family="planfam",
+        role_suffix="-code",
+        parent_timestamp="20260506010101",
+        done=True,
+        outcome="killed",
+    )
+
+    _run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter_dir / "ready.json").exists()
+
+
+def test_legacy_dot_plan_family_dependency_resolves(
+    tmp_path: Path, monkeypatch
+) -> None:
+    waiter_dir = _make_waiting_agent(tmp_path, "legacy")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260406010101",
+        "legacy.plan",
+        workflow_name="legacy",
+        role_suffix=".plan",
+        done=True,
+        outcome="completed",
+    )
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260406010202",
+        "legacy.code",
+        workflow_name="legacy",
+        role_suffix=".code",
+        parent_timestamp="20260406010101",
+        done=True,
+        outcome="completed",
+    )
+
+    _run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready == {"resolved_deps": ["legacy"]}
+
+
 def test_completed_named_agent_success_path_writes_ready(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
