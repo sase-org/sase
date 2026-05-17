@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
-from sase.plan_chain import PLAN_CHAIN_CODER_SUFFIX
+from sase.plan_chain import PLAN_CHAIN_CODER_SUFFIX, canonical_plan_chain_suffix
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -21,7 +21,7 @@ _PLAN_HANDOFF_DONE_STATUSES: frozenset[str] = frozenset({"PLAN DONE", "TALE DONE
 
 def _is_coder_followup_suffix(suffix: str | None) -> bool:
     """Return True for the coder follow-up suffix."""
-    return suffix == PLAN_CHAIN_CODER_SUFFIX
+    return canonical_plan_chain_suffix(suffix) == PLAN_CHAIN_CODER_SUFFIX
 
 
 def _parse_wait_dependency_names(text: str) -> list[str]:

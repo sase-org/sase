@@ -163,6 +163,28 @@ def test_launch_mobile_text_agents_reports_validation_errors() -> None:
     assert "prompt must be a non-empty string" in stderr.getvalue()
 
 
+def test_launch_mobile_text_agents_rejects_hyphenated_name() -> None:
+    with pytest.raises(Exception, match="cannot contain '-'"):
+        _launch_mobile_text_agents(
+            {
+                "schema_version": 1,
+                "prompt": "Do work",
+                "name": "mobile-demo",
+            }
+        )
+
+
+def test_launch_mobile_text_dry_run_validates_prompt_name() -> None:
+    with pytest.raises(Exception, match="cannot contain '-'"):
+        _launch_mobile_text_agents(
+            {
+                "schema_version": 1,
+                "prompt": "%name:dry-run\nDo work",
+                "dry_run": True,
+            }
+        )
+
+
 def test_launch_mobile_text_dry_run_does_not_spawn(monkeypatch) -> None:
     def fail_launch(_prompt: str) -> list[AgentLaunchResult]:
         raise AssertionError("dry run should not launch")

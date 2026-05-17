@@ -12,6 +12,8 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX, canonical_plan_chain_suffix
+
 if TYPE_CHECKING:
     from ...models import Agent
 
@@ -406,7 +408,10 @@ class ArtifactRestorationMixin:
             "LEGEND APPROVED",
             "QUESTION",
         }
-        if agent.role_suffix == ".plan" or is_plan_like_status:
+        if (
+            canonical_plan_chain_suffix(agent.role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
+            or is_plan_like_status
+        ):
             data["plan"] = True
         if agent.status in {
             "PLAN APPROVED",

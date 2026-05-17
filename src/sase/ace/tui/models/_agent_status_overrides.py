@@ -2,21 +2,29 @@
 
 from datetime import datetime
 
-from sase.plan_chain import PLAN_CHAIN_CODER_SUFFIX
+from sase.plan_chain import (
+    PLAN_CHAIN_CODER_SUFFIX,
+    PLAN_CHAIN_COMMIT_SUFFIX,
+    PLAN_CHAIN_EPIC_SUFFIX,
+    PLAN_CHAIN_LEGEND_SUFFIX,
+    PLAN_CHAIN_PLAN_SUFFIX,
+    canonical_plan_chain_suffix,
+)
 
 from .agent import Agent, AgentType
 
 
 def is_feedback_suffix(suffix: str | None) -> bool:
-    """Check if a role suffix is a plan feedback round (e.g., ".2", ".3")."""
-    if not suffix or not suffix.startswith("."):
+    """Check if a role suffix is a plan feedback round (e.g., "-2", ".2")."""
+    canonical = canonical_plan_chain_suffix(suffix)
+    if not canonical or not canonical.startswith("-"):
         return False
-    return suffix[1:].isdigit()
+    return canonical[1:].isdigit()
 
 
 def is_coder_followup_suffix(suffix: str | None) -> bool:
     """Check if a role suffix is the coder follow-up suffix."""
-    return suffix == PLAN_CHAIN_CODER_SUFFIX
+    return canonical_plan_chain_suffix(suffix) == PLAN_CHAIN_CODER_SUFFIX
 
 
 def _append_unique_timestamps(target: list[datetime], source: list[datetime]) -> None:
@@ -40,7 +48,7 @@ def is_root_plan_workflow(agent: Agent) -> bool:
     """Check if an agent is the top-level plan workflow entry."""
     return (
         agent.agent_type == AgentType.WORKFLOW
-        and agent.role_suffix == ".plan"
+        and canonical_plan_chain_suffix(agent.role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
         and not agent.is_workflow_child
     )
 
@@ -157,6 +165,7 @@ def apply_status_overrides(agents: list[Agent]) -> None:
         ):
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
+                role_suffix = canonical_plan_chain_suffix(agent.role_suffix)
                 # Pick override status based on the follow-up child's role_suffix.
                 # Active children: `.epic`/`.commit` map to EPIC APPROVED /
                 # PLAN COMMITTED; anything else is PLAN APPROVED. Completed
@@ -167,11 +176,11 @@ def apply_status_overrides(agents: list[Agent]) -> None:
                 # Multiple children resolve via last-writer-wins on the
                 # start-time-ordered iteration (newest child wins).
                 if agent.status not in completed_statuses:
-                    if agent.role_suffix == ".epic":
+                    if role_suffix == PLAN_CHAIN_EPIC_SUFFIX:
                         followup_override[agent.parent_timestamp] = "EPIC APPROVED"
-                    elif agent.role_suffix == ".legend":
+                    elif role_suffix == PLAN_CHAIN_LEGEND_SUFFIX:
                         followup_override[agent.parent_timestamp] = "LEGEND APPROVED"
-                    elif agent.role_suffix == ".commit":
+                    elif role_suffix == PLAN_CHAIN_COMMIT_SUFFIX:
                         followup_override[agent.parent_timestamp] = "PLAN COMMITTED"
                     else:
                         followup_override[agent.parent_timestamp] = (
@@ -188,7 +197,7 @@ def apply_status_overrides(agents: list[Agent]) -> None:
                 ):
                     followup_override[agent.parent_timestamp] = "QUESTION"
                 else:
-                    if agent.status == "DONE" and agent.role_suffix == ".epic":
+                    if agent.status == "DONE" and role_suffix == PLAN_CHAIN_EPIC_SUFFIX:
                         completed_followup_override[agent.parent_timestamp] = (
                             "EPIC CREATED"
                         )
@@ -213,7 +222,7 @@ def apply_status_overrides(agents: list[Agent]) -> None:
                 # the metadata panel shows when the coder was launched.
                 if is_coder_followup_suffix(agent.role_suffix):
                     parent.code_time = agent.run_start_time or agent.start_time
-                if agent.role_suffix == ".epic":
+                if role_suffix == PLAN_CHAIN_EPIC_SUFFIX:
                     parent.epic_time = (
                         agent.epic_time or agent.run_start_time or agent.start_time
                     )

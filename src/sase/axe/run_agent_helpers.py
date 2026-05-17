@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 from sase.plan_chain import (
     PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
     PLAN_CHAIN_PLAN_SUFFIX,
+    canonical_plan_chain_suffix,
     is_plan_chain_artifact_meta,
     plan_chain_agent_name,
 )
@@ -191,11 +192,12 @@ def update_meta_field(artifacts_dir: str, key: str, value: Any) -> None:
 
 def update_meta_suffix(artifacts_dir: str, suffix: str) -> None:
     """Read agent_meta.json, set role_suffix, and write it back."""
+    canonical_suffix = canonical_plan_chain_suffix(suffix) or suffix
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     try:
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
-        meta["role_suffix"] = suffix
+        meta["role_suffix"] = canonical_suffix
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
@@ -213,13 +215,14 @@ def promote_to_workflow(
     single-agent run into a multi-agent workflow.  Sets both
     ``name`` and ``workflow_name`` in the agent's ``agent_meta.json``.
     """
+    canonical_suffix = canonical_plan_chain_suffix(role_suffix) or role_suffix
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     try:
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
-        meta["name"] = plan_chain_agent_name(base_name, role_suffix)
+        meta["name"] = plan_chain_agent_name(base_name, canonical_suffix)
         meta["workflow_name"] = base_name
-        meta["role_suffix"] = role_suffix
+        meta["role_suffix"] = canonical_suffix
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
@@ -361,6 +364,7 @@ def create_followup_artifacts(
     from datetime import UTC
 
     new_artifacts_dir = create_artifacts_directory("ace-run", project_name=project_name)
+    canonical_suffix = canonical_plan_chain_suffix(suffix) or suffix
 
     followup_meta: dict[str, Any] = {"pid": os.getpid()}
     for key in (
@@ -379,7 +383,7 @@ def create_followup_artifacts(
         followup_meta["name"] = agent_name_override
     if workflow_name is not None:
         followup_meta["workflow_name"] = workflow_name
-    followup_meta["role_suffix"] = suffix
+    followup_meta["role_suffix"] = canonical_suffix
     followup_meta["parent_timestamp"] = prev_artifacts_timestamp
     if is_plan_chain_artifact_meta(followup_meta):
         followup_meta[PLAN_CHAIN_PARENT_TIMESTAMP_FIELD] = prev_artifacts_timestamp

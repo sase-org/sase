@@ -115,8 +115,13 @@ def mobile_launch_prompt(payload: dict[str, Any]) -> str:
             raise MobileAgentBridgeError(
                 "name cannot be provided when prompt already has a name directive"
             )
+        from sase.agent.launch_validation import validate_user_agent_name
         from ._mobile_agent_common import directive_name
 
+        try:
+            validate_user_agent_name(name)
+        except RuntimeError as exc:
+            raise MobileAgentBridgeError(str(exc)) from exc
         directives.append(f"%name:{directive_name(name)}")
 
     model = optional_str(payload.get("model"))
@@ -221,6 +226,9 @@ def prompt_has_name_directive(prompt: str) -> bool:
 
 
 def dry_run_launch_response(prompt: str) -> dict[str, Any]:
+    from sase.agent.launch_validation import validate_launch_name_requests
+
+    validate_launch_name_requests([prompt])
     slot = {
         "slot_id": "0",
         "name": planned_name_for_prompt(prompt),

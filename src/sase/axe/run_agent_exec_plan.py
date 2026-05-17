@@ -39,8 +39,11 @@ from sase.axe.run_agent_helpers import (
 from sase.axe.runner_utils import reset_killed, was_killed
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
+    PLAN_CHAIN_EPIC_SUFFIX,
+    PLAN_CHAIN_LEGEND_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
     PLAN_CHAIN_QUESTION_SUFFIX,
+    canonical_plan_chain_suffix,
     plan_chain_agent_name,
     plan_chain_feedback_suffix,
 )
@@ -137,8 +140,8 @@ def handle_plan_marker(
     Returns a loop-outcome string to break the loop, or ``None`` to continue.
     """
     normalize_handoff_interruption_state(state.current_artifacts_dir)
-    # Only set the ".plan" suffix on the original workflow entry;
-    # feedback round agents (suffix ".2", ".3", …) keep theirs.
+    # Only set the planner suffix on the original workflow entry;
+    # feedback round agents keep their numeric suffixes.
     if state.feedback_round == 0:
         update_meta_suffix(state.current_artifacts_dir, PLAN_CHAIN_PLAN_SUFFIX)
 
@@ -189,7 +192,7 @@ def handle_plan_marker(
 
     plan_response = format_plan_as_response(plan_result.plan_file)
     _planner_suffix = state.current_role_suffix or PLAN_CHAIN_PLAN_SUFFIX
-    planner_agent = f"{ctx.agent_name}{_planner_suffix}" if ctx.agent_name else None
+    planner_agent = _agent_name_for_suffix(ctx, _planner_suffix)
     _planner_extra = format_extra_sections(state.current_artifacts_dir)
     _planner_chat = save_chat_history(
         prompt=state.current_prompt,
@@ -373,7 +376,9 @@ def handle_plan_marker(
 
         # Epic/legend: spawn a follow-up agent to create the container bead.
         state.current_role_suffix = (
-            ".epic" if plan_result.action == "epic" else ".legend"
+            PLAN_CHAIN_EPIC_SUFFIX
+            if plan_result.action == "epic"
+            else PLAN_CHAIN_LEGEND_SUFFIX
         )
         state.agent_step += 1
         if state.agent_step == 2 and ctx.agent_name:
@@ -384,7 +389,9 @@ def handle_plan_marker(
             state.current_role_suffix,
             convert_timestamp_to_artifacts_format(ctx.timestamp),
             workspace_num=ctx.workspace_num,
-            agent_name_override=f"{ctx.agent_name}{state.current_role_suffix}"
+            agent_name_override=plan_chain_agent_name(
+                ctx.agent_name, state.current_role_suffix
+            )
             if ctx.agent_name
             else None,
             workflow_name=ctx.agent_name,
@@ -500,9 +507,13 @@ def handle_plan_marker(
         resume_prefix = ""
         if ctx.agent_name and os.environ.get("SASE_CODER_INHERIT_PLANNER_CHAT") == "1":
             if state.agent_step == 2:
-                planner_name = f"{ctx.agent_name}.plan"
+                planner_name = plan_chain_agent_name(
+                    ctx.agent_name, PLAN_CHAIN_PLAN_SUFFIX
+                )
             else:
-                planner_name = f"{ctx.agent_name}.{state.agent_step - 1}"
+                planner_name = plan_chain_agent_name(
+                    ctx.agent_name, plan_chain_feedback_suffix(state.agent_step - 2)
+                )
             resume_prefix = f"#resume:{planner_name} "
 
         if plan_result.commit_plan:
@@ -572,9 +583,10 @@ def handle_questions_marker(
     from sase.history.chat import save_chat_history
     from sase.history.chat_extras import format_extra_sections
 
+    previous_suffix = canonical_plan_chain_suffix(previous_role_suffix)
     _q_suffix = (
-        f"{previous_role_suffix}{PLAN_CHAIN_QUESTION_SUFFIX}"
-        if re.match(r"^\.\d+$", previous_role_suffix)
+        f"{previous_suffix}{PLAN_CHAIN_QUESTION_SUFFIX}"
+        if previous_suffix and re.match(r"^-\d+$", previous_suffix)
         else state.current_role_suffix or PLAN_CHAIN_QUESTION_SUFFIX
     )
     _q_agent = f"{ctx.agent_name}{_q_suffix}" if ctx.agent_name else None

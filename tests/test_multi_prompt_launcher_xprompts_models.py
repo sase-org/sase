@@ -194,7 +194,7 @@ def test_launch_multi_prompt_waits_on_last_multi_model_generated_name(
     assert mock_wait.call_count == 0
     assert mock_create_artifacts.call_count == 0
     assert mock_spawn.call_args_list[2].kwargs["prompt"] == (
-        "%wait:ag.cld-sonnet\nReview"
+        "%wait:ag.cld_sonnet\nReview"
     )
 
 
@@ -277,8 +277,8 @@ def test_launch_multi_prompt_model_shorthand_uses_local_xprompt_for_naming(
 
     assert len(results) == 2
     prompts = [c.kwargs["prompt"] for c in mock_spawn.call_args_list]
-    assert prompts[0] == "%name:ag.gem-flash3\n%model:#_flash\nReview"
-    assert prompts[1] == "%name:ag.gem-flash25\n%model:gemini-2.5-flash\nReview"
+    assert prompts[0] == "%name:ag.gem_flash3\n%model:#_flash\nReview"
+    assert prompts[1] == "%name:ag.gem_flash25\n%model:gemini-2.5-flash\nReview"
 
     local_xprompt_files = [
         c.kwargs["local_xprompts_file"] for c in mock_spawn.call_args_list

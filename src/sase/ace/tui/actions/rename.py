@@ -286,10 +286,15 @@ class RenameMixin:
                 with open(meta_path) as f:
                     meta = json.load(f)
             from sase.agent.names import NameCollisionError, claim_agent_name
+            from sase.agent.launch_validation import (
+                AgentNameSyntaxError,
+                validate_user_agent_name,
+            )
 
             try:
+                validate_user_agent_name(new_name)
                 claim_agent_name(new_name, artifacts_dir, explicit=True)
-            except NameCollisionError as exc:
+            except (AgentNameSyntaxError, NameCollisionError) as exc:
                 self.notify(str(exc), severity="error")  # type: ignore[attr-defined]
                 return
             meta["name"] = new_name

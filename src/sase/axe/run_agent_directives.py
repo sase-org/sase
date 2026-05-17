@@ -178,6 +178,10 @@ def extract_directives_and_write_meta(
 
         if agent_name:
             from sase.agent.names import claim_agent_name
+            from sase.agent.launch_validation import validate_user_agent_name
+
+            if directives.name_explicit:
+                validate_user_agent_name(agent_name)
 
             claim_agent_name(
                 agent_name,

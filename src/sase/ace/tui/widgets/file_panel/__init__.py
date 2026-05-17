@@ -8,6 +8,8 @@ from rich.text import Text
 from textual.widgets import Static
 from textual.worker import Worker, WorkerState
 
+from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX, canonical_plan_chain_suffix
+
 from ...models.agent import Agent
 from ...graphics import is_supported_image_path
 from ...util.trace import tui_trace
@@ -297,7 +299,11 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
                 # the plan file.  When a follow-up .code agent has completed
                 # and propagated its diff_path, show the diff instead (index 0)
                 # so the user sees the code changes by default.
-                if agent.role_suffix == ".plan" and not agent.diff_path:
+                if (
+                    canonical_plan_chain_suffix(agent.role_suffix)
+                    == PLAN_CHAIN_PLAN_SUFFIX
+                    and not agent.diff_path
+                ):
                     self._current_file_index = 1
             else:
                 self._file_list = list(agent.extra_files)

@@ -198,8 +198,8 @@ def test_launch_agents_from_cwd_xprompt_expanded_multi_model_fans_out(
     expand.assert_called_once_with("#stub_m Do work")
     launch_multi.assert_called_once()
     assert launch_multi.call_args.kwargs["segments"] == [
-        "%name:ag.cld-opus\n%model:opus\nDo work",
-        "%name:ag.cld-sonnet\n%model:sonnet\nDo work",
+        "%name:ag.cld_opus\n%model:opus\nDo work",
+        "%name:ag.cld_sonnet\n%model:sonnet\nDo work",
     ]
 
 

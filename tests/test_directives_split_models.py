@@ -14,8 +14,8 @@ def test_split_prompt_for_models_two_models() -> None:
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:foo.cld-opus\n%model:opus\nReview this code"
-    assert result[1] == "%name:foo.cld-sonnet\n%model:sonnet\nReview this code"
+    assert result[0] == "%name:foo.cld_opus\n%model:opus\nReview this code"
+    assert result[1] == "%name:foo.cld_sonnet\n%model:sonnet\nReview this code"
 
 
 def test_split_prompt_for_models_three_models() -> None:
@@ -24,9 +24,9 @@ def test_split_prompt_for_models_three_models() -> None:
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 3
-    assert result[0] == "%name:foo.cld-opus\n%model:opus\nDo work"
-    assert result[1] == "%name:foo.cld-sonnet\n%model:sonnet\nDo work"
-    assert result[2] == "%name:foo.cld-haiku\n%model:haiku\nDo work"
+    assert result[0] == "%name:foo.cld_opus\n%model:opus\nDo work"
+    assert result[1] == "%name:foo.cld_sonnet\n%model:sonnet\nDo work"
+    assert result[2] == "%name:foo.cld_haiku\n%model:haiku\nDo work"
 
 
 def test_split_prompt_for_models_single_model_returns_none() -> None:
@@ -50,9 +50,9 @@ def test_split_prompt_for_models_preserves_other_directives() -> None:
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:foo.cld-opus\n%approve\n%model:opus\nReview this code"
+    assert result[0] == "%name:foo.cld_opus\n%approve\n%model:opus\nReview this code"
     assert (
-        result[1] == "%name:foo.cld-sonnet\n%approve\n%model:sonnet\nReview this code"
+        result[1] == "%name:foo.cld_sonnet\n%approve\n%model:sonnet\nReview this code"
     )
 
 
@@ -72,8 +72,8 @@ def test_split_prompt_for_models_spaces_in_args() -> None:
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:foo.cld-opus\n%model:opus\nDo work"
-    assert result[1] == "%name:foo.cld-sonnet\n%model:sonnet\nDo work"
+    assert result[0] == "%name:foo.cld_opus\n%model:opus\nDo work"
+    assert result[1] == "%name:foo.cld_sonnet\n%model:sonnet\nDo work"
 
 
 def test_split_prompt_for_models_after_xprompt_expansion() -> None:
@@ -89,8 +89,8 @@ def test_split_prompt_for_models_after_xprompt_expansion() -> None:
         result = split_prompt_for_models(expanded)
         assert result is not None
         assert len(result) == 2
-        assert result[0] == "%name:foo.cld-opus\n%model:opus\nReview this code"
-        assert result[1] == "%name:foo.cld-sonnet\n%model:sonnet\nReview this code"
+        assert result[0] == "%name:foo.cld_opus\n%model:opus\nReview this code"
+        assert result[1] == "%name:foo.cld_sonnet\n%model:sonnet\nReview this code"
 
 
 def test_split_prompt_for_models_requires_caller_expanded_xprompt_body() -> None:
@@ -112,8 +112,8 @@ def test_split_prompt_for_models_requires_caller_expanded_xprompt_body() -> None
     result = split_prompt_for_models(expanded, extra_xprompts=xprompts)
     assert result is not None
     assert result == [
-        "%name:foo.cld-opus\n%model:opus\nReview this code",
-        "%name:foo.cld-sonnet\n%model:sonnet\nReview this code",
+        "%name:foo.cld_opus\n%model:opus\nReview this code",
+        "%name:foo.cld_sonnet\n%model:sonnet\nReview this code",
     ]
 
 
@@ -135,8 +135,8 @@ def test_split_prompt_for_models_two_scalar_directives() -> None:
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:foo.cld-opus\n%model:opus\nReview this code"
-    assert result[1] == "%name:foo.cld-sonnet\n%model:sonnet\nReview this code"
+    assert result[0] == "%name:foo.cld_opus\n%model:opus\nReview this code"
+    assert result[1] == "%name:foo.cld_sonnet\n%model:sonnet\nReview this code"
 
 
 def test_split_prompt_for_models_alias_mix() -> None:
@@ -145,8 +145,8 @@ def test_split_prompt_for_models_alias_mix() -> None:
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:foo.cld-opus\n%model:opus\nReview this code"
-    assert result[1] == "%name:foo.cld-sonnet\n%model:sonnet\nReview this code"
+    assert result[0] == "%name:foo.cld_opus\n%model:opus\nReview this code"
+    assert result[1] == "%name:foo.cld_sonnet\n%model:sonnet\nReview this code"
 
 
 def test_split_prompt_for_models_scalar_plus_paren() -> None:
@@ -155,9 +155,9 @@ def test_split_prompt_for_models_scalar_plus_paren() -> None:
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 3
-    assert result[0] == "%name:foo.cld-opus\n%model:opus\nReview this code"
-    assert result[1] == "%name:foo.cld-sonnet\n%model:sonnet\nReview this code"
-    assert result[2] == "%name:foo.cld-haiku\n%model:haiku\nReview this code"
+    assert result[0] == "%name:foo.cld_opus\n%model:opus\nReview this code"
+    assert result[1] == "%name:foo.cld_sonnet\n%model:sonnet\nReview this code"
+    assert result[2] == "%name:foo.cld_haiku\n%model:haiku\nReview this code"
 
 
 def test_split_prompt_for_models_identical_dupes_return_none() -> None:
@@ -172,8 +172,8 @@ def test_split_prompt_for_models_interleaved_duplicates() -> None:
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:foo.cld-opus\n%model:opus\nHeader line\nBody"
-    assert result[1] == "%name:foo.cld-sonnet\n%model:sonnet\nHeader line\nBody"
+    assert result[0] == "%name:foo.cld_opus\n%model:opus\nHeader line\nBody"
+    assert result[1] == "%name:foo.cld_sonnet\n%model:sonnet\nHeader line\nBody"
 
 
 def test_split_prompt_for_models_scalar_inside_fenced_block_ignored() -> None:
@@ -190,10 +190,10 @@ def test_split_prompt_for_models_multi_model_with_user_alt_cartesian() -> None:
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 4
-    assert "%name:foo.cld-opus" in result[0] and " x\nReview" in result[0]
-    assert "%name:foo.cld-opus" in result[1] and " y\nReview" in result[1]
-    assert "%name:foo.cld-sonnet" in result[2] and " x\nReview" in result[2]
-    assert "%name:foo.cld-sonnet" in result[3] and " y\nReview" in result[3]
+    assert "%name:foo.cld_opus" in result[0] and " x\nReview" in result[0]
+    assert "%name:foo.cld_opus" in result[1] and " y\nReview" in result[1]
+    assert "%name:foo.cld_sonnet" in result[2] and " x\nReview" in result[2]
+    assert "%name:foo.cld_sonnet" in result[3] and " y\nReview" in result[3]
 
 
 def test_split_prompt_for_models_multi_model_distinct_runtimes() -> None:
@@ -253,8 +253,8 @@ def test_split_prompt_for_models_other_uses_override_snapshot(
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:foo.cld-opus\n%model:other\nReview"
-    assert result[1] == "%name:foo.cld-sonnet\n%model:sonnet\nReview"
+    assert result[0] == "%name:foo.cld_opus\n%model:other\nReview"
+    assert result[1] == "%name:foo.cld_sonnet\n%model:sonnet\nReview"
 
 
 def test_split_prompt_for_models_resume_base(tmp_path: Path) -> None:
@@ -262,8 +262,8 @@ def test_split_prompt_for_models_resume_base(tmp_path: Path) -> None:
     with patch.object(Path, "home", return_value=tmp_path):
         result = split_prompt_for_models("#resume:foo\n%m(opus,sonnet)\nDo work")
     assert result is not None
-    assert result[0] == "%name:foo.r1.cld-opus\n#resume:foo\n%model:opus\nDo work"
-    assert result[1] == "%name:foo.r1.cld-sonnet\n#resume:foo\n%model:sonnet\nDo work"
+    assert result[0] == "%name:foo.r1.cld_opus\n#resume:foo\n%model:opus\nDo work"
+    assert result[1] == "%name:foo.r1.cld_sonnet\n#resume:foo\n%model:sonnet\nDo work"
 
 
 def test_split_prompt_for_models_multi_model_auto_generated_base() -> None:
@@ -303,10 +303,10 @@ def test_split_prompt_for_models_unknown_model_uses_default_provider() -> None:
     # collision suffixing kicks in; otherwise plain runtime labels.
     if default == "claude":
         assert (
-            result[0] == "%name:foo.cld-unknown_model_xyz\n"
+            result[0] == "%name:foo.cld_unknown_model_xyz\n"
             "%model:unknown_model_xyz\nReview"
         )
-        assert result[1] == "%name:foo.cld-opus\n%model:opus\nReview"
+        assert result[1] == "%name:foo.cld_opus\n%model:opus\nReview"
     else:
         assert (
             result[0] == f"%name:foo.{default_short}\n%model:unknown_model_xyz\nReview"
@@ -320,8 +320,8 @@ def test_split_prompt_for_models_gemini_collision_uses_short_alias() -> None:
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == ("%name:o.gem-flash3\n%model:gemini-3-flash-preview\nReview")
-    assert result[1] == ("%name:o.gem-flash25\n%model:gemini-2.5-flash\nReview")
+    assert result[0] == ("%name:o.gem_flash3\n%model:gemini-3-flash-preview\nReview")
+    assert result[1] == ("%name:o.gem_flash25\n%model:gemini-2.5-flash\nReview")
 
 
 def test_split_prompt_for_models_opencode_nested_models_use_short_aliases() -> None:
@@ -335,9 +335,9 @@ def test_split_prompt_for_models_opencode_nested_models_use_short_aliases() -> N
     assert result is not None
     assert len(result) == 2
     assert result[0] == (
-        "%name:o.opc-sonnet45\n%model:opencode/anthropic/claude-sonnet-4-5\nReview"
+        "%name:o.opc_sonnet45\n%model:opencode/anthropic/claude-sonnet-4-5\nReview"
     )
-    assert result[1] == ("%name:o.opc-gpt5m\n%model:opencode/openai/gpt-5-mini\nReview")
+    assert result[1] == ("%name:o.opc_gpt5m\n%model:opencode/openai/gpt-5-mini\nReview")
 
 
 def test_split_prompt_for_models_unknown_nested_model_suffix_is_name_safe() -> None:
@@ -346,7 +346,7 @@ def test_split_prompt_for_models_unknown_nested_model_suffix_is_name_safe() -> N
     result = split_prompt_for_models(prompt)
     assert result is not None
     name_lines = [line for item in result for line in item.splitlines()[:1]]
-    assert name_lines == ["%name:o.opc-acme_foo_bar", "%name:o.opc-acme_baz_qux"]
+    assert name_lines == ["%name:o.opc_acme_foo_bar", "%name:o.opc_acme_baz_qux"]
 
 
 def test_split_prompt_for_models_claude_collision_unchanged() -> None:
@@ -355,8 +355,8 @@ def test_split_prompt_for_models_claude_collision_unchanged() -> None:
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:o.cld-opus\n%model:opus\nReview"
-    assert result[1] == "%name:o.cld-sonnet\n%model:sonnet\nReview"
+    assert result[0] == "%name:o.cld_opus\n%model:opus\nReview"
+    assert result[1] == "%name:o.cld_sonnet\n%model:sonnet\nReview"
 
 
 def test_split_prompt_for_models_no_collision_unchanged() -> None:
@@ -381,8 +381,8 @@ def test_split_prompt_for_models_unknown_model_falls_through() -> None:
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == ("%name:o.gem-flash3\n%model:gemini-3-flash-preview\nReview")
-    assert result[1] == "%name:o.gem-unknown_xyz\n%model:unknown_xyz\nReview"
+    assert result[0] == ("%name:o.gem_flash3\n%model:gemini-3-flash-preview\nReview")
+    assert result[1] == "%name:o.gem_unknown_xyz\n%model:unknown_xyz\nReview"
 
 
 def test_split_prompt_for_models_alias_collision_falls_back_to_raw() -> None:
@@ -401,10 +401,10 @@ def test_split_prompt_for_models_alias_collision_falls_back_to_raw() -> None:
     assert result is not None
     assert len(result) == 2
     assert result[0] == (
-        "%name:o.gem-gemini-3-flash-preview\n%model:gemini-3-flash-preview\nReview"
+        "%name:o.gem_gemini_3_flash_preview\n%model:gemini-3-flash-preview\nReview"
     )
     assert result[1] == (
-        "%name:o.gem-gemini-2.5-flash\n%model:gemini-2.5-flash\nReview"
+        "%name:o.gem_gemini_2.5_flash\n%model:gemini-2.5-flash\nReview"
     )
 
 
@@ -418,8 +418,8 @@ def test_split_prompt_for_models_global_shorthand_name_uses_resolved_alias() -> 
 
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:o.gem-flash3\n%model:#flash\nReview"
-    assert result[1] == "%name:o.gem-flash25\n%model:gemini-2.5-flash\nReview"
+    assert result[0] == "%name:o.gem_flash3\n%model:#flash\nReview"
+    assert result[1] == "%name:o.gem_flash25\n%model:gemini-2.5-flash\nReview"
 
 
 def test_split_prompt_for_models_same_runtime_shorthands_use_resolved_aliases() -> None:
@@ -433,8 +433,8 @@ def test_split_prompt_for_models_same_runtime_shorthands_use_resolved_aliases() 
 
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:ag.gem-flash3\n%model:#flash\nReview"
-    assert result[1] == "%name:ag.gem-pro31p\n%model:#pro\nReview"
+    assert result[0] == "%name:ag.gem_flash3\n%model:#flash\nReview"
+    assert result[1] == "%name:ag.gem_pro31p\n%model:#pro\nReview"
 
 
 def test_split_prompt_for_models_dedupes_raw_and_shorthand_same_model() -> None:
@@ -461,9 +461,9 @@ def test_split_prompt_for_models_unknown_shorthand_name_strips_hash_fallback() -
     assert result is not None
     assert len(result) == 2
     assert result[0] == (
-        "%name:o.gem-unknown_model_alias\n%model:#unknown_model_alias\nReview"
+        "%name:o.gem_unknown_model_alias\n%model:#unknown_model_alias\nReview"
     )
-    assert result[1] == "%name:o.gem-flash3\n%model:gemini-3-flash-preview\nReview"
+    assert result[1] == "%name:o.gem_flash3\n%model:gemini-3-flash-preview\nReview"
 
 
 def test_split_prompt_for_models_pure_alt_gets_planned_names() -> None:
@@ -577,8 +577,8 @@ def test_split_prompt_for_models_alt_with_nested_model_not_double_collected() ->
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:foo.cld-opus\n%model:opus\nReview"
-    assert result[1] == "%name:foo.cld-sonnet\n%model:sonnet\nReview"
+    assert result[0] == "%name:foo.cld_opus\n%model:opus\nReview"
+    assert result[1] == "%name:foo.cld_sonnet\n%model:sonnet\nReview"
 
 
 def test_split_prompt_for_models_with_alt_directive() -> None:
@@ -588,22 +588,22 @@ def test_split_prompt_for_models_with_alt_directive() -> None:
     assert result is not None
     assert len(result) == 4
     assert (
-        "%name:foo.cld-opus" in result[0]
+        "%name:foo.cld_opus" in result[0]
         and "%model:opus" in result[0]
         and "x" in result[0]
     )
     assert (
-        "%name:foo.cld-opus" in result[1]
+        "%name:foo.cld_opus" in result[1]
         and "%model:opus" in result[1]
         and "y" in result[1]
     )
     assert (
-        "%name:foo.cld-sonnet" in result[2]
+        "%name:foo.cld_sonnet" in result[2]
         and "%model:sonnet" in result[2]
         and "x" in result[2]
     )
     assert (
-        "%name:foo.cld-sonnet" in result[3]
+        "%name:foo.cld_sonnet" in result[3]
         and "%model:sonnet" in result[3]
         and "y" in result[3]
     )

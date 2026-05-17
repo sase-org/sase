@@ -617,6 +617,6 @@ def _alt_id_has_named_component(alt_id: str | None) -> bool:
 def _safe_fanout_suffix(alt_id: str | None) -> str | None:
     if not alt_id:
         return None
-    suffix = re.sub(r"[^A-Za-z0-9_.-]+", "_", alt_id.strip())
+    suffix = re.sub(r"[^A-Za-z0-9_.]+", "_", alt_id.strip().replace("-", "_"))
     suffix = re.sub(r"\.+", ".", suffix).strip("._-")
     return suffix or None

@@ -295,8 +295,8 @@ class TestPlanFollowupPromptConstruction:
         """SASE_CODER_INHERIT_PLANNER_CHAT=1 restores the old #resume behavior."""
         monkeypatch.setenv("SASE_CODER_INHERIT_PLANNER_CHAT", "1")
         state = self._run(tmp_path, action="approve", agent_model="opus")
-        assert "#resume:test_agent.plan " in state.current_prompt
-        assert state.current_prompt.startswith("%model:opus\n#resume:test_agent.plan ")
+        assert "#resume:test_agent-plan " in state.current_prompt
+        assert state.current_prompt.startswith("%model:opus\n#resume:test_agent-plan ")
 
     def test_coder_prompt_qa_round_excludes_resume_by_default(self, tmp_path) -> None:
         """Q&A round (agent_step > 2) also drops #resume by default."""

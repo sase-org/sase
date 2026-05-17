@@ -258,8 +258,6 @@ def _finalize_loop(
         plan_chain_suffix = canonical_plan_chain_suffix(state.current_role_suffix)
         if plan_chain_suffix is not None:
             _done_agent_name = plan_chain_agent_name(ctx.agent_name, plan_chain_suffix)
-        elif state.current_role_suffix == ".epic":
-            _done_agent_name = f"{ctx.agent_name}{state.current_role_suffix}"
         else:
             _done_agent_name = f"{ctx.agent_name}.{state.agent_step}"
     else:

@@ -7,9 +7,11 @@ from dataclasses import dataclass
 
 __all__ = [
     "AgentNameLaunchCollisionError",
+    "AgentNameSyntaxError",
     "AgentNameReuseConfirmationRequiredError",
     "force_reuse_owner_names",
     "rewrite_force_reuse_name_directives",
+    "validate_user_agent_name",
     "validate_launch_name_requests",
     "wipe_names_for_forced_reuse",
 ]
@@ -47,6 +49,27 @@ class AgentNameReuseConfirmationRequiredError(_LaunchNameValidationError):
         )
 
 
+class AgentNameSyntaxError(_LaunchNameValidationError):
+    """Raised when a new user-specified agent name is syntactically invalid."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        super().__init__(
+            f"Agent name '{name}' cannot contain '-'; hyphen suffixes are "
+            "reserved for agent-family phases."
+        )
+
+
+def validate_user_agent_name(name: str) -> None:
+    """Validate a new user-specified agent name.
+
+    Historical artifact names are read separately; this is only for explicit
+    user entry points such as ``%name``, mobile launch names, and TUI naming.
+    """
+    if "-" in name:
+        raise AgentNameSyntaxError(name)
+
+
 def _explicit_launch_name_requests(prompts: list[str]) -> list[_LaunchNameRequest]:
     """Return explicit ``%name`` requests from already-expanded launch prompts."""
     requests: list[_LaunchNameRequest] = []
@@ -70,6 +93,9 @@ def validate_launch_name_requests(
     requests = _explicit_launch_name_requests(prompts)
     if not requests:
         return
+
+    for request in requests:
+        validate_user_agent_name(request.name)
 
     from sase.agent.names import (
         agent_name_allocation_lock,
