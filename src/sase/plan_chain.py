@@ -95,20 +95,10 @@ def agent_family_base(name: object) -> str | None:
     return split[0] if split is not None else None
 
 
-def agent_family_suffix(name: object) -> str | None:
+def _agent_family_suffix(name: object) -> str | None:
     """Return the canonical suffix for a known family member name."""
     split = _split_agent_family_name(name)
     return split[1] if split is not None else None
-
-
-def is_agent_family_member(name: object) -> bool:
-    """Return whether *name* has a known agent-family suffix."""
-    return _split_agent_family_name(name) is not None
-
-
-def legacy_plan_chain_suffixes() -> tuple[str, ...]:
-    """Return legacy dot suffixes accepted by plan-chain readers."""
-    return tuple(_LEGACY_SUFFIX_MAP)
 
 
 def agent_family_role_for_suffix(suffix: object) -> str | None:
@@ -156,7 +146,7 @@ def _plan_chain_suffix_from_meta(meta: Mapping[str, object]) -> str | None:
         for candidate in (*_KNOWN_SUFFIXES, *_LEGACY_SUFFIX_MAP):
             if name.endswith(candidate):
                 return canonical_plan_chain_suffix(candidate)
-        suffix = agent_family_suffix(name)
+        suffix = _agent_family_suffix(name)
         if suffix is not None:
             return suffix
 
