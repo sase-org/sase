@@ -12,6 +12,9 @@ PLAN_CHAIN_EPIC_SUFFIX = "-epic"
 PLAN_CHAIN_LEGEND_SUFFIX = "-legend"
 PLAN_CHAIN_COMMIT_SUFFIX = "-commit"
 PLAN_CHAIN_PARENT_TIMESTAMP_FIELD = "plan_chain_parent_timestamp"
+PLAN_CHAIN_ROOT_FIELD = "plan_chain_root"
+AGENT_FAMILY_FIELD = "agent_family"
+AGENT_FAMILY_ROLE_FIELD = "agent_family_role"
 
 _FEEDBACK_SUFFIX_RE = re.compile(r"^[-.](\d+)$")
 _KNOWN_SUFFIXES = {
@@ -106,6 +109,28 @@ def is_agent_family_member(name: object) -> bool:
 def legacy_plan_chain_suffixes() -> tuple[str, ...]:
     """Return legacy dot suffixes accepted by plan-chain readers."""
     return tuple(_LEGACY_SUFFIX_MAP)
+
+
+def agent_family_role_for_suffix(suffix: object) -> str | None:
+    """Return the metadata role for a known plan-chain suffix."""
+    canonical = canonical_plan_chain_suffix(suffix)
+    if canonical is None:
+        return None
+    if canonical == PLAN_CHAIN_PLAN_SUFFIX:
+        return "plan"
+    if canonical == PLAN_CHAIN_QUESTION_SUFFIX:
+        return "q"
+    if canonical == PLAN_CHAIN_CODER_SUFFIX:
+        return "code"
+    if canonical == PLAN_CHAIN_EPIC_SUFFIX:
+        return "epic"
+    if canonical == PLAN_CHAIN_LEGEND_SUFFIX:
+        return "legend"
+    if canonical == PLAN_CHAIN_COMMIT_SUFFIX:
+        return "commit"
+    if _is_plan_chain_feedback_suffix(canonical):
+        return "feedback"
+    return None
 
 
 def _plan_chain_suffix_from_meta(meta: Mapping[str, object]) -> str | None:

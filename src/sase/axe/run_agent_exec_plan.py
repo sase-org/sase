@@ -502,18 +502,11 @@ def handle_plan_marker(
                     model_prefix = ""
         # By default the coder starts with a fresh context window; the plan
         # file itself is the hand-off artifact. Set SASE_CODER_INHERIT_PLANNER_CHAT=1
-        # to restore the old behavior of prepending #resume:<planner_name> so
-        # the coder inherits the planner's full chat transcript.
+        # to prepend #resume:<base>-plan so the coder inherits the planner's
+        # full chat transcript.
         resume_prefix = ""
         if ctx.agent_name and os.environ.get("SASE_CODER_INHERIT_PLANNER_CHAT") == "1":
-            if state.agent_step == 2:
-                planner_name = plan_chain_agent_name(
-                    ctx.agent_name, PLAN_CHAIN_PLAN_SUFFIX
-                )
-            else:
-                planner_name = plan_chain_agent_name(
-                    ctx.agent_name, plan_chain_feedback_suffix(state.agent_step - 2)
-                )
+            planner_name = plan_chain_agent_name(ctx.agent_name, PLAN_CHAIN_PLAN_SUFFIX)
             resume_prefix = f"#resume:{planner_name} "
 
         if plan_result.commit_plan:
@@ -617,15 +610,17 @@ def handle_questions_marker(
             ctx.agent_name,
             role_suffix=PLAN_CHAIN_QUESTION_SUFFIX,
         )
+    followup_suffix = plan_chain_feedback_suffix(state.agent_step - 1)
+    state.current_role_suffix = followup_suffix
     state.current_artifacts_dir = create_followup_artifacts(
         ctx.project_name,
         ctx.agent_meta,
-        state.current_role_suffix,
+        followup_suffix,
         convert_timestamp_to_artifacts_format(ctx.timestamp),
         workspace_num=ctx.workspace_num,
         agent_name_override=plan_chain_agent_name(
             ctx.agent_name,
-            plan_chain_feedback_suffix(state.agent_step - 1),
+            followup_suffix,
         )
         if ctx.agent_name
         else None,

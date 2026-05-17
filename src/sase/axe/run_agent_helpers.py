@@ -20,11 +20,15 @@ from sase.artifacts import create_artifacts_directory
 if TYPE_CHECKING:
     from sase.main.qa_markdown import QARound
 from sase.plan_chain import (
+    AGENT_FAMILY_FIELD,
+    AGENT_FAMILY_ROLE_FIELD,
     PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
     PLAN_CHAIN_PLAN_SUFFIX,
+    PLAN_CHAIN_ROOT_FIELD,
+    agent_family_base,
+    agent_family_role_for_suffix,
     canonical_plan_chain_suffix,
     is_plan_chain_artifact_meta,
-    plan_chain_agent_name,
 )
 
 
@@ -209,19 +213,22 @@ def promote_to_workflow(
     base_name: str,
     role_suffix: str = PLAN_CHAIN_PLAN_SUFFIX,
 ) -> None:
-    """Retroactively rename the initial agent to a named plan-chain phase.
+    """Retroactively mark the initial agent as a plan-chain family root.
 
     Called when the first follow-up agent is created, promoting a
-    single-agent run into a multi-agent workflow.  Sets both
-    ``name`` and ``workflow_name`` in the agent's ``agent_meta.json``.
+    single-agent run into a multi-agent workflow.  The root keeps the
+    user-visible base name; child phases carry suffixed names.
     """
     canonical_suffix = canonical_plan_chain_suffix(role_suffix) or role_suffix
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     try:
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
-        meta["name"] = plan_chain_agent_name(base_name, canonical_suffix)
+        meta["name"] = base_name
         meta["workflow_name"] = base_name
+        meta[PLAN_CHAIN_ROOT_FIELD] = True
+        meta[AGENT_FAMILY_FIELD] = base_name
+        meta[AGENT_FAMILY_ROLE_FIELD] = "root"
         meta["role_suffix"] = canonical_suffix
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
@@ -384,6 +391,20 @@ def create_followup_artifacts(
     if workflow_name is not None:
         followup_meta["workflow_name"] = workflow_name
     followup_meta["role_suffix"] = canonical_suffix
+    family_name = (
+        workflow_name
+        or (
+            str(base_meta[AGENT_FAMILY_FIELD])
+            if base_meta.get(AGENT_FAMILY_FIELD)
+            else None
+        )
+        or agent_family_base(agent_name_override)
+    )
+    if family_name:
+        followup_meta[AGENT_FAMILY_FIELD] = family_name
+    family_role = agent_family_role_for_suffix(canonical_suffix)
+    if family_role:
+        followup_meta[AGENT_FAMILY_ROLE_FIELD] = family_role
     followup_meta["parent_timestamp"] = prev_artifacts_timestamp
     if is_plan_chain_artifact_meta(followup_meta):
         followup_meta[PLAN_CHAIN_PARENT_TIMESTAMP_FIELD] = prev_artifacts_timestamp
@@ -392,15 +413,7 @@ def create_followup_artifacts(
     followup_meta["run_started_at"] = datetime.now(UTC).isoformat()
     if relationships:
         for key, value in relationships.items():
-            if key in {
-                "plan_path",
-                "sdd_prompt_path",
-                "sdd_plan_path",
-                "plan_committed",
-                "feedback_submitted_at",
-                "questions_submitted_at",
-                "changespec_name",
-            } and (value or (key == "plan_committed" and value is not None)):
+            if value or (isinstance(value, bool) and value is not None):
                 followup_meta[key] = value
 
     with open(

@@ -8,6 +8,7 @@ from sase.plan_chain import (
     PLAN_CHAIN_QUESTION_SUFFIX,
     agent_family_base,
     agent_family_phase_name,
+    agent_family_role_for_suffix,
     agent_family_suffix,
     canonical_plan_chain_suffix,
     is_agent_family_member,
@@ -24,6 +25,14 @@ def test_plan_chain_agent_names_use_canonical_suffixes() -> None:
     assert plan_chain_agent_name("agent", PLAN_CHAIN_QUESTION_SUFFIX) == "agent-q"
     assert plan_chain_agent_name("agent", plan_chain_feedback_suffix(1)) == "agent-2"
     assert plan_chain_agent_name("agent", PLAN_CHAIN_CODER_SUFFIX) == "agent-code"
+
+
+def test_agent_family_role_for_suffix_accepts_new_and_legacy_suffixes() -> None:
+    assert agent_family_role_for_suffix("-plan") == "plan"
+    assert agent_family_role_for_suffix(".q") == "q"
+    assert agent_family_role_for_suffix("-2") == "feedback"
+    assert agent_family_role_for_suffix(".code") == "code"
+    assert agent_family_role_for_suffix(".unknown") is None
 
 
 def test_coder_suffix_classifies_as_code() -> None:

@@ -125,6 +125,27 @@ class TestPlanFollowupPromptConstruction:
             state.current_prompt,
             label="Full question prompt",
         )
+        assert state.current_role_suffix == "-2"
+        assert plan_mod.create_followup_artifacts.call_args.args[2] == "-2"
+
+    def test_question_followup_second_round_uses_next_numeric_suffix(
+        self, tmp_path
+    ) -> None:
+        """Question continuations advance through numeric family suffixes."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        state.agent_step = 2
+        state.current_role_suffix = "-2"
+
+        with patch(
+            "sase.axe.run_agent_exec_plan.handle_questions_flow",
+            return_value={"answers": [], "global_note": ""},
+        ):
+            outcome = handle_questions_marker({"questions": []}, ctx, state)
+
+        assert outcome is None
+        assert state.current_role_suffix == "-3"
+        assert plan_mod.create_followup_artifacts.call_args.args[2] == "-3"
 
     def test_multiple_question_rounds_merge_into_one_section(self, tmp_path) -> None:
         """Two question rounds produce one merged Q&A section with continuous numbering."""
@@ -320,6 +341,34 @@ class TestPlanFollowupPromptConstruction:
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
         assert "#resume:" not in state.current_prompt
         assert "@plan.md" in state.current_prompt
+
+    def test_coder_prompt_qa_round_resume_env_uses_planner(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """Chat inheritance after Q&A resumes the planner phase, not the Q&A retry."""
+        monkeypatch.setenv("SASE_CODER_INHERIT_PLANNER_CHAT", "1")
+        ctx = make_ctx(tmp_path, agent_model="opus")
+        state = make_state(tmp_path)
+        state.agent_step = 2
+        state.current_role_suffix = "-2"
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(action="approve", plan_file=plan_file)
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        assert "#resume:test_agent-plan " in state.current_prompt
+        assert "#resume:test_agent-2 " not in state.current_prompt
 
     def test_coder_prompt_no_resume_without_agent_name(self, tmp_path) -> None:
         """No #resume prefix when ctx.agent_name is not set."""

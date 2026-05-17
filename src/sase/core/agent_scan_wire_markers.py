@@ -111,6 +111,9 @@ class AgentMetaWire:
     parent_agent_timestamp: str | None = None
     parent_agent_name: str | None = None
     workflow_name: str | None = None
+    agent_family: str | None = None
+    agent_family_role: str | None = None
+    plan_chain_root: bool = False
     tag: str | None = None
     pid: int | None = None
     model: str | None = None

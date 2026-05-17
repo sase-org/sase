@@ -76,12 +76,14 @@ def test_create_followup_artifacts_persists_plan_committed_flag(tmp_path) -> Non
             relationships={
                 "plan_path": str(tmp_path / "plan.md"),
                 "plan_committed": False,
+                "source_plan_agent_name": "root-plan",
             },
         )
 
     assert result == str(followup)
     meta = json.loads((followup / "agent_meta.json").read_text())
     assert meta["plan_committed"] is False
+    assert meta["source_plan_agent_name"] == "root-plan"
 
 
 def test_store_followup_prompt_artifact_registers_explicit_artifact(
