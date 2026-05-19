@@ -559,6 +559,72 @@ def test_sort_reorder_runtime_children_ignore_step_suffix_collision() -> None:
     assert planner.runtime_children == []
 
 
+def test_sort_and_reorder_keeps_agent_family_children_nested_under_root() -> None:
+    parent_suffix = "20260517085500"
+    parent = agent(
+        agent_type=AgentType.WORKFLOW,
+        status="PLAN DONE",
+        start=datetime(2026, 5, 17, 8, 55, 0),
+        raw_suffix=parent_suffix,
+        cl_name="agent-family",
+        role_suffix="-plan",
+    )
+    parent.workflow = "agent-family"
+    parent.agent_name = "ap5"
+    parent.agent_family = "ap5"
+    parent.agent_family_role = "root"
+    parent.plan_chain_root = True
+
+    planner = workflow_child(
+        step_type="agent",
+        status="DONE",
+        start=datetime(2026, 5, 17, 8, 55, 0),
+        raw_suffix=parent_suffix,
+        cl_name="main",
+        role_suffix="-plan",
+    )
+    planner.parent_timestamp = parent_suffix
+    planner.step_index = 0
+    planner.total_steps = 3
+    planner.agent_name = "ap5-plan"
+
+    bash = workflow_child(
+        step_type="bash",
+        status="DONE",
+        start=datetime(2026, 5, 17, 8, 55, 0),
+        raw_suffix=parent_suffix,
+        cl_name="resolve",
+    )
+    bash.parent_timestamp = parent_suffix
+    bash.step_index = 1
+    bash.total_steps = 3
+
+    python = workflow_child(
+        step_type="python",
+        status="DONE",
+        start=datetime(2026, 5, 17, 8, 55, 0),
+        raw_suffix=parent_suffix,
+        cl_name="summarize",
+    )
+    python.parent_timestamp = parent_suffix
+    python.step_index = 2
+    python.total_steps = 3
+
+    coder = agent(
+        status="PLAN DONE",
+        start=datetime(2026, 5, 17, 9, 10, 0),
+        raw_suffix="20260517091000",
+        cl_name="code",
+        role_suffix="-code",
+    )
+    coder.parent_timestamp = parent_suffix
+    coder.agent_name = "ap5-code"
+
+    ordered = sort_and_reorder([coder, parent], [python, bash, planner])
+
+    assert ordered == [parent, planner, coder, bash, python]
+
+
 def test_runtime_suffix_ticks_workflow_child_agent_step_ticks() -> None:
     result = workflow_child(step_type="agent", status="RUNNING")
     assert runtime_suffix_ticks(result) is True

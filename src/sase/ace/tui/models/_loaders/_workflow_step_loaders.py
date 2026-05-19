@@ -164,7 +164,9 @@ def _load_workflow_agent_steps_for_dir(
             if parent_wf_completed and agent.status == "RUNNING":
                 agent.status = "DONE"
 
-            enrich_agent_from_meta(agent, artifacts_dir_from_marker)
+            enrich_agent_from_meta(
+                agent, artifacts_dir_from_marker, workflow_child=True
+            )
             dir_agents.append(agent)
         except Exception:
             continue

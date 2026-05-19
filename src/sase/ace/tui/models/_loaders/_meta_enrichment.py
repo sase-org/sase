@@ -21,6 +21,11 @@ from sase.core.agent_scan_wire import (
     WaitingMarkerWire,
 )
 from sase.core.time import get_timezone
+from sase.plan_chain import (
+    PLAN_CHAIN_PLAN_SUFFIX,
+    agent_family_phase_name,
+    canonical_plan_chain_suffix,
+)
 
 from ....agent_tags import InvalidTagError, validate_tag_name
 from ._json_cache import load_json_cached
@@ -96,7 +101,55 @@ def _wire_meta_has_wait_directive(meta: AgentMetaWire) -> bool:
     )
 
 
-def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
+def _is_main_workflow_agent_step(agent: Agent) -> bool:
+    return (
+        agent.parent_workflow is not None
+        and agent.step_type == "agent"
+        and agent.parent_step_index is None
+    )
+
+
+def _root_plan_family_name_from_meta(data: dict[str, object]) -> str | None:
+    role_suffix = canonical_plan_chain_suffix(data.get("role_suffix"))
+    is_root_plan = (
+        data.get("plan_chain_root")
+        or data.get("agent_family_role") == "root"
+        or role_suffix == PLAN_CHAIN_PLAN_SUFFIX
+    )
+    if not is_root_plan:
+        return None
+    family = data.get("agent_family")
+    if isinstance(family, str) and family:
+        return family
+    name = data.get("name")
+    if isinstance(name, str) and name:
+        return name
+    return None
+
+
+def _apply_workflow_child_identity_from_meta(
+    agent: Agent,
+    data: dict[str, object],
+) -> None:
+    """Derive concrete family identity for the main agent workflow step."""
+    if not _is_main_workflow_agent_step(agent):
+        return
+    family = _root_plan_family_name_from_meta(data)
+    if family is None:
+        return
+    planner_name = agent_family_phase_name(family, PLAN_CHAIN_PLAN_SUFFIX)
+    agent.agent_name = planner_name
+    agent.agent_family = family
+    agent.agent_family_role = "plan"
+    agent.role_suffix = PLAN_CHAIN_PLAN_SUFFIX
+
+
+def enrich_agent_from_meta(
+    agent: Agent,
+    artifacts_dir: str | None,
+    *,
+    workflow_child: bool = False,
+) -> None:
     """Read agent_meta.json and populate model/vcs_provider fields.
 
     Args:
@@ -123,7 +176,7 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         agent.vcs_provider = data["vcs_provider"]
     if data.get("workspace_dir"):
         agent.workspace_dir = data["workspace_dir"]
-    if data.get("name"):
+    if not workflow_child and data.get("name"):
         agent.agent_name = data["name"]
     meta_tag = _valid_meta_tag(data.get("tag"))
     if meta_tag:
@@ -141,14 +194,16 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         agent.approve = True
     if data.get("hidden"):
         agent.hidden = True
-    if data.get("role_suffix"):
+    if not workflow_child and data.get("role_suffix"):
         agent.role_suffix = data["role_suffix"]
-    if data.get("agent_family"):
+    if not workflow_child and data.get("agent_family"):
         agent.agent_family = data["agent_family"]
-    if data.get("agent_family_role"):
+    if not workflow_child and data.get("agent_family_role"):
         agent.agent_family_role = data["agent_family_role"]
-    if data.get("plan_chain_root"):
+    if not workflow_child and data.get("plan_chain_root"):
         agent.plan_chain_root = True
+    if workflow_child:
+        _apply_workflow_child_identity_from_meta(agent, data)
     if data.get("parent_timestamp") and agent.parent_timestamp is None:
         agent.parent_timestamp = data["parent_timestamp"]
     if data.get("workspace_num") is not None and agent.workspace_num is None:

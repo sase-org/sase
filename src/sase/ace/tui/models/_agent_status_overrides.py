@@ -129,20 +129,40 @@ def _is_family_child(agent: Agent, parent: Agent) -> bool:
     return True
 
 
-def _planner_child_status(parent: Agent) -> str:
+def _has_family_followup_child(parent: Agent, all_agents: list[Agent]) -> bool:
+    if not parent.raw_suffix:
+        return False
+    return any(
+        child is not parent
+        and child.parent_timestamp == parent.raw_suffix
+        and not child.parent_workflow
+        for child in all_agents
+    )
+
+
+def _planner_child_status(
+    parent: Agent,
+    all_agents: list[Agent] | None = None,
+) -> str:
     """Status for the logical planner child derived from a family root."""
     if parent.status in {"STARTING", "WAITING", "RUNNING", "FAILED", "PLAN REJECTED"}:
         return parent.status
     if parent.status == "QUESTION" or _has_unanswered_completed_question(parent):
         return "QUESTION"
     if _is_awaiting_plan_review(parent):
+        if all_agents is not None and _has_family_followup_child(parent, all_agents):
+            return "DONE"
         return "PLAN"
     return "DONE"
 
 
-def _sync_planner_child_from_parent(parent: Agent, child: Agent) -> None:
+def _sync_planner_child_from_parent(
+    parent: Agent,
+    child: Agent,
+    all_agents: list[Agent] | None = None,
+) -> None:
     """Copy root planner metadata onto a concrete or synthetic planner child."""
-    child.status = _planner_child_status(parent)
+    child.status = _planner_child_status(parent, all_agents)
     child.plan_times = list(parent.plan_times)
     child.feedback_times = list(parent.feedback_times)
     child.feedback_plan_paths = dict(parent.feedback_plan_paths)
@@ -182,7 +202,7 @@ def _ensure_synthetic_planner_children(
             agent_type=AgentType.RUNNING,
             cl_name=planner_name,
             project_file=parent.project_file,
-            status=_planner_child_status(parent),
+            status=_planner_child_status(parent, all_agents),
             start_time=parent.run_start_time or parent.start_time,
             run_start_time=parent.run_start_time,
             stop_time=parent.stop_time,
@@ -288,10 +308,11 @@ def apply_status_overrides(
             canonical_plan_chain_suffix(agent.role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
             and agent.parent_workflow
             and agent.parent_timestamp
+            and _is_main_workflow_agent_step(agent)
         ):
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent and is_root_plan_workflow(parent):
-                _sync_planner_child_from_parent(parent, agent)
+                _sync_planner_child_from_parent(parent, agent, all_agents)
         elif (
             is_feedback_suffix(agent.role_suffix)
             and agent.status in {"DONE", "RUNNING"}

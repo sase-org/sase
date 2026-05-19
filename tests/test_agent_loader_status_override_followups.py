@@ -33,6 +33,78 @@ def test_apply_status_overrides_root_awaiting_plan_review_mirrors_planner() -> N
     assert planner.status == "PLAN"
 
 
+def test_apply_status_overrides_ap5_workflow_children_after_code_handoff() -> None:
+    """Planner and embedded workflow children stay terminal after family handoff."""
+    plan_time = datetime(2026, 5, 17, 9, 0, 0)
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="agent-family",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 17, 8, 55, 0),
+        raw_suffix="20260517085500",
+        role_suffix="-plan",
+        agent_name="ap5",
+        agent_family="ap5",
+        agent_family_role="root",
+        plan_chain_root=True,
+        plan_times=[plan_time],
+    )
+    planner_step = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="main",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 17, 8, 55, 0),
+        raw_suffix="20260517085500",
+        parent_workflow="agent-family",
+        parent_timestamp="20260517085500",
+        step_type="agent",
+        step_index=0,
+        total_steps=3,
+        role_suffix="-plan",
+        agent_name="ap5-plan",
+        agent_family="ap5",
+        agent_family_role="plan",
+    )
+    bash_step = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="resolve",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 17, 8, 55, 0),
+        raw_suffix="20260517085500",
+        parent_workflow="agent-family",
+        parent_timestamp="20260517085500",
+        step_type="bash",
+        step_index=1,
+        total_steps=3,
+        role_suffix="-plan",
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="code",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 17, 9, 10, 0),
+        raw_suffix="20260517091000",
+        parent_timestamp="20260517085500",
+        role_suffix="-code",
+        agent_name="ap5-code",
+        agent_family="ap5",
+        agent_family_role="code",
+    )
+    agents = [parent, code_child]
+    workflow_steps = [planner_step, bash_step]
+
+    _apply_status_overrides(agents, workflow_steps)
+
+    assert planner_step.status == "DONE"
+    assert bash_step.status == "DONE"
+    assert code_child.status == "PLAN DONE"
+    assert parent.status == "PLAN DONE"
+
+
 def test_apply_status_overrides_feedback_child_awaiting_review_mirrors_plan() -> None:
     """A feedback round that submitted a newer plan becomes the mirrored root status."""
     feedback_time = datetime(2026, 5, 17, 9, 0, 0)

@@ -358,7 +358,9 @@ def _build_workflow_agent_steps_for_record(
             # than the parent record's artifact_dir. Fall back to the
             # filesystem helper here so the same per-step enrichment
             # behavior is preserved.
-            enrich_agent_from_meta(agent, artifacts_dir_from_marker)
+            enrich_agent_from_meta(
+                agent, artifacts_dir_from_marker, workflow_child=True
+            )
             dir_agents.append(agent)
         except Exception:
             continue

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-19 09:06:01
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_family_workflow_step_status.md
 ---
 # Plan: Agent Family Workflow Step Status Fix
