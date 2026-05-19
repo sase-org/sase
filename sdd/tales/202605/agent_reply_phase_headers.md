@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-19 11:39:53
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_reply_phase_headers.md
 ---
 # Fix Agent Reply Phase Headers After Agent Families

@@ -10,6 +10,15 @@ from rich.text import Text
 
 from sase.agent.agent_artifacts_cache import get_global_cache
 from sase.ace.changespec.models import DeltaEntry
+from sase.plan_chain import (
+    PLAN_CHAIN_CODER_SUFFIX,
+    PLAN_CHAIN_COMMIT_SUFFIX,
+    PLAN_CHAIN_EPIC_SUFFIX,
+    PLAN_CHAIN_LEGEND_SUFFIX,
+    PLAN_CHAIN_PLAN_SUFFIX,
+    PLAN_CHAIN_QUESTION_SUFFIX,
+    canonical_plan_chain_suffix,
+)
 
 from ...models.agent import Agent, AttemptRecord
 from ...models.agent_bead import format_agent_bead_display
@@ -42,6 +51,16 @@ class DetailHeaderSummary:
     bead_display: str | None = None
     delta_entries: list[DeltaEntry] | None = None
     artifact_paths: list[AgentArtifactPath] | None = None
+
+
+_PHASE_LABELS = {
+    PLAN_CHAIN_PLAN_SUFFIX: "PLANNER",
+    PLAN_CHAIN_CODER_SUFFIX: "CODER",
+    PLAN_CHAIN_QUESTION_SUFFIX: "QUESTIONS",
+    PLAN_CHAIN_EPIC_SUFFIX: "EPIC",
+    PLAN_CHAIN_LEGEND_SUFFIX: "LEGEND",
+    PLAN_CHAIN_COMMIT_SUFFIX: "COMMIT",
+}
 
 
 def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
@@ -82,16 +101,10 @@ def render_timestamp_divider(iso_timestamp: str) -> Text:
 
 def get_phase_label(agent: Agent) -> str:
     """Map role_suffix to human-readable phase label."""
-    suffix = agent.role_suffix
-    if suffix == ".plan":
-        return "PLANNER"
-    if suffix == ".code":
-        return "CODER"
-    if suffix == ".q":
-        return "QUESTIONS"
-    if suffix == ".epic":
-        return "EPIC"
-    if suffix and suffix.startswith(".") and suffix[1:].isdigit():
+    suffix = canonical_plan_chain_suffix(agent.role_suffix)
+    if suffix in _PHASE_LABELS:
+        return _PHASE_LABELS[suffix]
+    if suffix and suffix.startswith("-") and suffix[1:].isdigit():
         return f"PLANNER (round {suffix[1:]})"
     return "AGENT"
 
