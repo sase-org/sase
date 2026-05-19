@@ -47,6 +47,29 @@ def test_pending_question_marker_no_op_when_absent(tmp_path: Path) -> None:
     assert agent.status == "RUNNING"
 
 
+def test_question_response_metadata_populates_from_filesystem_meta(
+    tmp_path: Path,
+) -> None:
+    """Question request/response paths are preserved on the Agent model."""
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "pid": 1234,
+                "question_request_path": "/tmp/question_request.json",
+                "question_response_path": "/tmp/question_response.json",
+                "question_session_id": "session-1",
+            }
+        )
+    )
+
+    agent = make_agent(status="RUNNING")
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.question_request_path == "/tmp/question_request.json"
+    assert agent.question_response_path == "/tmp/question_response.json"
+    assert agent.question_session_id == "session-1"
+
+
 def test_pending_question_marker_does_not_override_done(tmp_path: Path) -> None:
     """A stale marker next to a DONE agent must NOT downgrade the status."""
     (tmp_path / "agent_meta.json").write_text(json.dumps({"pid": 1234}))
@@ -105,6 +128,25 @@ def test_pending_question_marker_wire_no_op_when_absent() -> None:
     agent = make_agent(status="RUNNING")
     enrich_agent_from_meta_wire(agent, AgentMetaWire(), None, None)
     assert agent.status == "RUNNING"
+
+
+def test_question_response_metadata_populates_from_wire_meta() -> None:
+    """Snapshot enrichment mirrors filesystem question metadata handling."""
+    agent = make_agent(status="RUNNING")
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(
+            question_request_path="/tmp/question_request.json",
+            question_response_path="/tmp/question_response.json",
+            question_session_id="session-1",
+        ),
+        None,
+        None,
+    )
+
+    assert agent.question_request_path == "/tmp/question_request.json"
+    assert agent.question_response_path == "/tmp/question_response.json"
+    assert agent.question_session_id == "session-1"
 
 
 def test_pending_question_marker_wire_does_not_override_done() -> None:

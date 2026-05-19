@@ -62,6 +62,42 @@ def _is_awaiting_plan_review(agent: Agent) -> bool:
     return not agent.feedback_times or agent.plan_times[-1] > agent.feedback_times[-1]
 
 
+def _has_unanswered_completed_question(
+    agent: Agent,
+    parents_with_followup: set[str] | None = None,
+) -> bool:
+    """Return True when a completed row is still blocked on user input."""
+    if agent.status != "DONE" or not agent.questions_times:
+        return False
+    if agent.question_response_path:
+        return False
+    if parents_with_followup is None:
+        return not agent.followup_agents
+    return bool(agent.raw_suffix) and agent.raw_suffix not in parents_with_followup
+
+
+def _done_handoff_status(parent: Agent, child: Agent) -> str:
+    if (
+        parent.plan_action == "tale"
+        or child.plan_action == "tale"
+        or parent.status in {"TALE APPROVED", "TALE DONE"}
+    ):
+        return "TALE DONE"
+    return "PLAN DONE"
+
+
+def _is_completed_plan_handoff_child(agent: Agent) -> bool:
+    """Return True for completed approved-plan continuation rows."""
+    if agent.status != "DONE":
+        return False
+    role_suffix = canonical_plan_chain_suffix(agent.role_suffix)
+    if role_suffix == PLAN_CHAIN_CODER_SUFFIX:
+        return True
+    if is_feedback_suffix(role_suffix) and agent.question_response_path:
+        return True
+    return False
+
+
 def _agent_family_name(agent: Agent) -> str | None:
     """Return the stable family name for a root or child row."""
     if agent.agent_family:
@@ -97,9 +133,7 @@ def _planner_child_status(parent: Agent) -> str:
     """Status for the logical planner child derived from a family root."""
     if parent.status in {"STARTING", "WAITING", "RUNNING", "FAILED", "PLAN REJECTED"}:
         return parent.status
-    if parent.status == "QUESTION" or (
-        parent.questions_times and not parent.followup_agents
-    ):
+    if parent.status == "QUESTION" or _has_unanswered_completed_question(parent):
         return "QUESTION"
     if _is_awaiting_plan_review(parent):
         return "PLAN"
@@ -113,6 +147,9 @@ def _sync_planner_child_from_parent(parent: Agent, child: Agent) -> None:
     child.feedback_times = list(parent.feedback_times)
     child.feedback_plan_paths = dict(parent.feedback_plan_paths)
     child.questions_times = list(parent.questions_times)
+    child.question_request_path = parent.question_request_path
+    child.question_response_path = parent.question_response_path
+    child.question_session_id = parent.question_session_id
     if parent.response_path and not child.response_path:
         child.response_path = parent.response_path
     if parent.diff_path and not child.diff_path:
@@ -170,6 +207,9 @@ def _ensure_synthetic_planner_children(
         planner.feedback_times = list(parent.feedback_times)
         planner.feedback_plan_paths = dict(parent.feedback_plan_paths)
         planner.questions_times = list(parent.questions_times)
+        planner.question_request_path = parent.question_request_path
+        planner.question_response_path = parent.question_response_path
+        planner.question_session_id = parent.question_session_id
         agents.append(planner)
         all_agents.append(planner)
 
@@ -221,6 +261,12 @@ def apply_status_overrides(
                     _append_unique_timestamps(
                         parent.questions_times, agent.questions_times
                     )
+                if agent.question_request_path:
+                    parent.question_request_path = agent.question_request_path
+                if agent.question_response_path:
+                    parent.question_response_path = agent.question_response_path
+                if agent.question_session_id:
+                    parent.question_session_id = agent.question_session_id
 
     # Active workflow step child -> parent is running a step, not planning.
     for agent in all_agents:
@@ -261,12 +307,7 @@ def apply_status_overrides(
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
                 role_suffix = canonical_plan_chain_suffix(agent.role_suffix)
-                if (
-                    agent.status == "DONE"
-                    and agent.questions_times
-                    and agent.raw_suffix
-                    and agent.raw_suffix not in parents_with_followup
-                ):
+                if _has_unanswered_completed_question(agent, parents_with_followup):
                     agent.status = "QUESTION"
 
                 # Propagate meta_* fields from follow-up child to parent
@@ -299,17 +340,25 @@ def apply_status_overrides(
                     parent.diff_path = agent.diff_path
 
     # Override DONE -> QUESTION for agents whose last question was never answered.
-    # The .q follow-up is created only AFTER a response is received, so its
-    # absence with a recorded questions_submitted_at means polling was killed
-    # before the user answered.
+    # A persisted question_response_path means the row resumed after user input;
+    # pending_question.json remains the active-row signal before completion.
     for agent in all_agents:
-        if (
-            agent.status == "DONE"
-            and agent.questions_times
-            and agent.raw_suffix
-            and agent.raw_suffix not in parents_with_followup
-        ):
+        if _has_unanswered_completed_question(agent, parents_with_followup):
             agent.status = "QUESTION"
+
+    # Completed family handoff rows are terminal plan/tale states rather than
+    # plain DONE. Do this after QUESTION normalization so unanswered rows keep
+    # their blocked status, and before root mirroring so the root sees it.
+    for agent in all_agents:
+        if not (agent.parent_timestamp and not agent.parent_workflow):
+            continue
+        parent = parent_by_suffix.get(agent.parent_timestamp)
+        if (
+            parent
+            and is_root_plan_workflow(parent)
+            and _is_completed_plan_handoff_child(agent)
+        ):
+            agent.status = _done_handoff_status(parent, agent)
 
     # Attach all follow-up agents to their parent's followup_agents list.
     for agent in all_agents:

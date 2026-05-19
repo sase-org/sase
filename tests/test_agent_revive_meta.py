@@ -47,6 +47,9 @@ def test_restore_agent_meta_writes_loader_relevant_fields(tmp_path: Path) -> Non
         plan_times=plan_times,
         feedback_times=feedback_times,
         questions_times=questions_times,
+        question_request_path="/tmp/question_request.json",
+        question_response_path="/tmp/question_response.json",
+        question_session_id="session-1",
         retry_times=retry_times,
         epic_time=epic_time,
     )
@@ -71,6 +74,9 @@ def test_restore_agent_meta_writes_loader_relevant_fields(tmp_path: Path) -> Non
     assert data["epic_started_at"] == epic_time.isoformat()
     assert data["feedback_submitted_at"] == feedback_times[0].isoformat()
     assert data["questions_submitted_at"] == questions_times[0].isoformat()
+    assert data["question_request_path"] == "/tmp/question_request.json"
+    assert data["question_response_path"] == "/tmp/question_response.json"
+    assert data["question_session_id"] == "session-1"
     assert data["retry_started_at"] == [t.isoformat() for t in retry_times]
     assert data["plan"] is True
     assert data["plan_approved"] is True

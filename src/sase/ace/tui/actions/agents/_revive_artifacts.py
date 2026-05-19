@@ -392,6 +392,12 @@ class ArtifactRestorationMixin:
             data["questions_submitted_at"] = (
                 questions_values[0] if len(questions_values) == 1 else questions_values
             )
+        if agent.question_request_path:
+            data["question_request_path"] = agent.question_request_path
+        if agent.question_response_path:
+            data["question_response_path"] = agent.question_response_path
+        if agent.question_session_id:
+            data["question_session_id"] = agent.question_session_id
         if agent.retry_times:
             data["retry_started_at"] = [ts.isoformat() for ts in agent.retry_times]
 

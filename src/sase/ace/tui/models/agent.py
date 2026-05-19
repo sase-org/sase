@@ -254,6 +254,10 @@ class Agent:
     feedback_plan_paths: dict[datetime, str] = field(default_factory=dict)
     # When the agent submitted questions for user review (one per round)
     questions_times: list[datetime] = field(default_factory=list)
+    # Latest question request/response metadata recorded by the question flow.
+    question_request_path: str | None = None
+    question_response_path: str | None = None
+    question_session_id: str | None = None
     # When retry attempts started (one per retry/fallback)
     retry_times: list[datetime] = field(default_factory=list)
 

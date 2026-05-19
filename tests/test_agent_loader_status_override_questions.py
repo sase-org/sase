@@ -51,6 +51,26 @@ def test_apply_status_overrides_done_with_answered_question_stays_done() -> None
     assert parent.status == "DONE"
 
 
+def test_apply_status_overrides_done_with_recorded_question_response_stays_done() -> (
+    None
+):
+    """A DONE row with persisted response metadata is not still awaiting input."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 4, 21, 16, 4, 27),
+        raw_suffix="20260421160427",
+        questions_times=[datetime(2026, 4, 21, 16, 17, 4)],
+        question_response_path="/tmp/question_response.json",
+    )
+    agents = [agent]
+    _apply_status_overrides(agents)
+
+    assert agent.status == "DONE"
+
+
 def test_apply_status_overrides_parent_with_questioning_code_child_becomes_question() -> (
     None
 ):
@@ -116,7 +136,8 @@ def test_apply_status_overrides_parent_with_answered_question_stays_plan_done() 
     agents = [parent, code_child, q_grandchild]
     _apply_status_overrides(agents)
 
-    assert parent.status == "DONE"
+    assert parent.status == "PLAN DONE"
+    assert code_child.status == "PLAN DONE"
 
 
 def test_apply_status_overrides_parent_with_active_code_after_question_is_plan_approved() -> (
@@ -194,3 +215,76 @@ def test_apply_status_overrides_done_without_questions_stays_done() -> None:
     _apply_status_overrides(agents)
 
     assert agent.status == "DONE"
+
+
+def test_apply_status_overrides_numeric_answered_continuation_is_plan_done() -> None:
+    """A completed numeric family continuation with a response path is terminal."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 11, 9, 0, 0),
+        raw_suffix="20260511090000",
+        role_suffix="-plan",
+        agent_name="aj5",
+        agent_family="aj5",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    latest_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 11, 9, 40, 0),
+        raw_suffix="20260511094000",
+        parent_timestamp="20260511090000",
+        role_suffix="-5",
+        agent_name="aj5-5",
+        agent_family="aj5",
+        agent_family_role="feedback",
+        questions_times=[datetime(2026, 5, 11, 9, 30, 0)],
+        question_response_path="/tmp/question_response.json",
+    )
+    agents = [parent, latest_child]
+    _apply_status_overrides(agents)
+
+    assert latest_child.status == "PLAN DONE"
+    assert parent.status == "PLAN DONE"
+
+
+def test_apply_status_overrides_numeric_unanswered_continuation_is_question() -> None:
+    """A completed numeric family continuation without a response remains blocked."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 11, 9, 0, 0),
+        raw_suffix="20260511090000",
+        role_suffix="-plan",
+        agent_name="aj5",
+        agent_family="aj5",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    latest_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 11, 9, 40, 0),
+        raw_suffix="20260511094000",
+        parent_timestamp="20260511090000",
+        role_suffix="-5",
+        agent_name="aj5-5",
+        agent_family="aj5",
+        agent_family_role="feedback",
+        questions_times=[datetime(2026, 5, 11, 9, 30, 0)],
+    )
+    agents = [parent, latest_child]
+    _apply_status_overrides(agents)
+
+    assert latest_child.status == "QUESTION"
+    assert parent.status == "QUESTION"

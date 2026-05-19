@@ -101,6 +101,7 @@ class AgentMetaWire:
     sdd_plan_path: str | None = None
     question_request_path: str | None = None
     question_response_path: str | None = None
+    question_session_id: str | None = None
     epic_bead_id: str | None = None
     phase_bead_id: str | None = None
     legend_bead_id: str | None = None

@@ -216,6 +216,12 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
 
     # Parse questions_submitted_at (when agent submitted questions)
     _append_timestamp_field(data.get("questions_submitted_at"), agent.questions_times)
+    if isinstance(data.get("question_request_path"), str):
+        agent.question_request_path = data["question_request_path"]
+    if isinstance(data.get("question_response_path"), str):
+        agent.question_response_path = data["question_response_path"]
+    if isinstance(data.get("question_session_id"), str):
+        agent.question_session_id = data["question_session_id"]
 
     # Parse retry_started_at (list of timestamps, one per retry/fallback)
     retry_started_at = data.get("retry_started_at")
@@ -442,6 +448,12 @@ def enrich_agent_from_meta_wire(
         for timestamp in feedback_times:
             agent.feedback_plan_paths[timestamp] = meta.plan_path
     _append(meta.questions_submitted_at, agent.questions_times)
+    if meta.question_request_path:
+        agent.question_request_path = meta.question_request_path
+    if meta.question_response_path:
+        agent.question_response_path = meta.question_response_path
+    if meta.question_session_id:
+        agent.question_session_id = meta.question_session_id
     for ts in meta.retry_started_at:
         try:
             agent.retry_times.append(_parse_utc_to_eastern(ts))

@@ -330,7 +330,8 @@ def test_apply_status_overrides_epic_then_code_completed_latest_wins() -> None:
     agents = [parent, epic_child, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "DONE"
+    assert parent.status == "PLAN DONE"
+    assert code_child.status == "PLAN DONE"
 
 
 def test_apply_status_overrides_epic_and_code_active_newest_wins() -> None:

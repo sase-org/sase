@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-19 08:00:23
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_family_status_fix_1.md
 ---
 # Plan: Agent Family Question and Done Status Fix
