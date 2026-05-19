@@ -1,0 +1,75 @@
+---
+plan: sdd/tales/202605/agent_family_status_fix_1.md
+---
+ Our implementation of "agent families" (see the sase-3r epic bead) seems wrong. This agent (see the `sase ace` snapshot below) asked two questions, created a plan that I approved, and then finished successfully. The root agent entry should be marked as "PLAN DONE" instead of "PLAN APPROVED", which should match the last agent step (which should also show "PLAN DONE" instead of "QUESTION"). I have a feeling this may be related to some incorrect logic we have regarding the "QUESTION" status. Can you help me review the original requirements from the sase-3r prompt (see the sdd/prompts/202605/agent_families_2.md file) and fix these issues? Use `sase ace --tmux` to verify your fix (e.g. emulate key presses on the new `sase ace` instance and take tmux pane captures) is correct by ensuring that the "aj5" agent now looks as it should. Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
+
+
+
+### `sase ace` Snapshot
+```
+⭘                                                                                              sase ace (PID: 428036)
+  CLs  │  Agents  │  AXE                                                                                                                                                                    CODEX(gpt-5.5)  ■ IDLE  ✉ 1
+ 10 Agents [1 running · 9 done]   [view: file]   [group: by status (o)]   (auto-refresh in 2s)
+┌─ (untagged) · 9 [R1 D2] ────────────────────────────────────────────────┐┌───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│  ▶ Running ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  1 agent · 1 running    ││                                                                                                                                           │
+│  │  ▸ aj5 ─────────────────────────────────────  1 agent · 1 running    ││  AGENT DETAILS                                                                                                                            │
+│  │  ≡ 🎭 sase (PLAN APPROVED) ×9 −3 @aj5           08:28:25 · 20m34s    ││                                                                                                                                           │
+│  │    └─ 1/1-plan 🎭 main (QUESTION) @aj5          08:06:30 · ✋ 47s    ││  Project: sase                                                                                                                            │
+│  │    └─ 1/1-q 🎭 sase (QUESTION) ◆ @aj5-code    08:09:01 · ✋ 2m11s    ││  Workspace: #11                                                                                                                           │
+│  │    └─ 1/1-plan 🎭 sase (QUESTION) ◆ @aj5-3      08:10:27 · ✋ 48s    ││  Model: CLAUDE(opus)                                                                                                                      │
+│  │    └─ 1/1-q 🎭 sase (QUESTION) ◆ @aj5-code   08:24:47 · ✋ 13m51s    ││  VCS: GitHub                                                                                                                              │
+│  │    └─ 1/1-5 🎭 sase (QUESTION) ◆ @aj5-5       08:28:25 · ✋ 2m56s    ││  PID: 441881                                                                                                                              │
+│  │    └─ 1e/1 🐚 diff (QUESTION) @aj5 ▼#gh                        ✋    ││  Name: @aj5                                                                                                                               │
+│                                                                         ││  Timestamps: START | 2026-05-17 08:05:38                                                                                                  │
+│  ✓ Done ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  2 agents    ││              RUN   | 2026-05-17 08:05:42                                                                                                  │
+│  │  🤖 sase (DONE) ×6 @aip.1.plan              May 16 20:25 · 13m17s    ││              PLAN  | 2026-05-17 08:06:30                                                                                                  │
+│  │  🎭 sase (DONE) ×5 @aaaaa                      May 16 19:59 · 58s    ││              QUEST | 2026-05-17 08:24:47                                                                                                  │
+│                                                                         ││              DONE  | 2026-05-17 08:28:25                                                                                                  │
+│                                                                         ││                                                                                                                                           │
+│                                                                         ││                                                                                                                                           │
+│                                                                         │└──────────────────────────────────────────────────────────── ● files  ● tools ─────────────────────────────────────────────────────────────┘
+│                                                                         │┌───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                         ││                                                                                                                                           │
+│                                                                         ││  /home/bryan/.sase/plans/202605/archive_ci_failures.md                                                                                    │
+│                                                                         ││                                                                                                                                           │
+│                                                                         ││     1 # Plan: Archive Gmail "Run failed: CI" Emails                                                                                       │
+│                                                                         ││     2                                                                                                                                     │
+│                                                                         ││     3 ## Goal                                                                                                                             │
+│                                                                         ││     4                                                                                                                                     │
+│                                                                         ││     5 Archive (remove from the inbox view) every Gmail thread in `bryanbugyi34@gmail.com` whose subject contains                          │
+│                                                                         ││     6 `Run failed: CI`. Archiving in Gmail = removing the `INBOX` system label from the thread; the messages stay in "All                 │
+│                                                                         ││     7 Mail" and remain searchable.                                                                                                        │
+│                                                                         ││     8                                                                                                                                     │
+│                                                                         ││     9 ## Scope & Non-Goals                                                                                                                │
+│                                                                         ││    10                                                                                                                                     │
+│                                                                         ││    11 - **In scope:** Gmail threads currently in the inbox whose subject matches `Run failed: CI`.                                        │
+│                                                                         ││    12 - **Out of scope:**                                                                                                                 │
+│                                                                         ││    13   - Threads already archived (no `INBOX` label) — no action needed; the query filter excludes them.                                 │
+│                                                                         ││    14   - Deletion (Trash). The user said "archive", not delete.                                                                          │
+│                                                                         ││    15   - Filter/automation creation to auto-archive future "Run failed: CI" mail. Not requested.                                         │
+│                                                                         ││    16   - Marking as read. Archiving does not change read/unread state and the user did not ask for it.                                   │
+│                                                                         ││    17                                                                                                                                     │
+│                                                                         ││    18 ## Approach                                                                                                                         │
+│                                                                         ││    19                                                                                                                                     │
+│                                                                         ││    20 Use the Gmail MCP tools that are already loaded in this session:                                                                    │
+│                                                                         ││    21                                                                                                                                     │
+│                                                                         ││    22 - `mcp__claude_ai_Gmail__search_threads` — find matching threads.                                                                   │
+└─────────────────────────────────────────────────────────────────────────┘│    23 - `mcp__claude_ai_Gmail__unlabel_thread` — remove the `INBOX` label (= archive).                                                    │
+                                                                           │    24                                                                                                                                     │
+┌─ #chop · 1 [D1] ────────────────────────────────────────────────────────┐│    25 `sase_gmail` is read-only, so it is not used for the mutations.                                                                     │
+│  ✓ Done ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  1 agent       ││    26                                                                                                                                     │
+│  │  [agent] 🤖 sase/fix_just (DONE) ×6 @aof  May 18 17:22 · 1m16s       ││    27 ### Search query                                                                                                                    │
+└─────────────────────────────────────────────────────────────────────────┘│    28                                                                                                                                     │
+                                                                           │    29 ```                                                                                                                                 │
+┌─ #sase-3r · 6 [D6] ─────────────────────────────────────────────────────┐│    30 subject:"Run failed: CI" in:inbox                                                                                                   │
+│  ✓ Done ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  6 agents            ││    31 ```                                                                                                                                 │
+│  │  ▸ sase-3r ────────────────────────────────────  6 agents            ││    32                                                                                                                                     │
+│  │  ⚡ 🤖 sase (DONE) ×5 ◆ @sase-3r     May 16 21:48 · 8m18s            ││    33 - Quoting `Run failed: CI` forces a phrase match so we don't accidentally match unrelated mail that just happens to                 │
+│  │  ⚡ 🤖 sase (DONE) ×5 ◆ @sase-3r.5  May 16 21:40 · 13m17s            ││    34   contain the words separately.                                                                                                     │
+│  │  ⚡ 🤖 sase (DONE) ×5 ◆ @sase-3r.4  May 16 21:26 · 11m09s            ││    35 - `in:inbox` ensures we only touch threads that are currently in the inbox. Already-archived threads are skipped.                   │
+│  │  ⚡ 🤖 sase (DONE) ×5 ◆ @sase-3r.3  May 16 21:15 · 16m27s            ││                                                                                                                                           │
+│  │  ⚡ 🤖 sase (DONE) ×5 ◆ @sase-3r.2  May 16 20:58 · 11m19s            ││    ▾ 47 more lines below                                                                                                                  │
+│  │  ⚡ 🤖 sase (DONE) ×5 ◆ @sase-3r.1  May 16 20:47 · 22m50s            ││                                                                                                                                           │
+└─────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────── Lines 1-35 of 82 ─────────────────────────────────────────────────────────────┘
+ COPY c chat  E file path  n name  p prompt  s snap                                                                                                                                                            RUNNING
+```
