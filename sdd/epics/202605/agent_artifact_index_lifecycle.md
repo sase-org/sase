@@ -1,6 +1,7 @@
 ---
 bead_id: sase-3s
 tier: epic
+status: done
 ---
 # Plan: Agent Artifact Index Lifecycle For ACE Agents Tab
 
