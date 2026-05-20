@@ -7,6 +7,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     _projects_root_for_artifact_dir,
     delete_agent_artifact_index_artifacts,
     sync_dismissed_agent_artifact_index,
+    update_agent_artifact_index_for_marker_mutation,
     upsert_agent_artifact_index_artifacts,
 )
 from sase.core.agent_scan_wire import AgentArtifactIndexUpdateWire
@@ -124,3 +125,30 @@ def test_upsert_agent_artifact_index_artifacts_derives_root(
             artifact_dir,
         )
     ]
+
+
+def test_marker_mutation_helper_wraps_single_artifact_upsert(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    calls: list[tuple[list[Path | str | None], Path | str | None]] = []
+
+    def fake_upsert(
+        artifact_dirs: list[Path | str | None],
+        *,
+        index_path: Path | str | None = None,
+    ) -> int:
+        calls.append((artifact_dirs, index_path))
+        return 1
+
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle."
+        "upsert_agent_artifact_index_artifacts",
+        fake_upsert,
+    )
+
+    assert update_agent_artifact_index_for_marker_mutation(
+        tmp_path,
+        index_path=tmp_path / "index.sqlite",
+    )
+    assert calls == [([tmp_path], tmp_path / "index.sqlite")]

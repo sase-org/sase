@@ -23,6 +23,9 @@ from sase.axe.run_agent_retry_spawn import (
     RetryHandoff,
 )
 from sase.axe.runner_utils import prepare_workspace
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
 from sase.telemetry import push_metrics
 from sase.telemetry.metrics import (
     AGENT_ACTIVE,
@@ -104,6 +107,7 @@ def setup_artifacts_directory(
         os.path.join(artifacts_dir, "workflow_state.json"), "w", encoding="utf-8"
     ) as f:
         json.dump(initial_state, f, indent=2)
+    update_agent_artifact_index_for_marker_mutation(artifacts_dir)
 
     return project_name, artifacts_timestamp, artifacts_dir
 
@@ -241,6 +245,7 @@ def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(agent_meta, f, indent=2)
+    update_agent_artifact_index_for_marker_mutation(artifacts_dir)
 
 
 def bump_spawn_telemetry(
@@ -303,4 +308,5 @@ def write_home_running_marker(
         running_marker["vcs_provider"] = agent_vcs_provider
     with open(running_marker_path, "w", encoding="utf-8") as f:
         json.dump(running_marker, f, indent=2)
+    update_agent_artifact_index_for_marker_mutation(artifacts_dir)
     return running_marker_path

@@ -121,6 +121,17 @@ def upsert_agent_artifact_index_artifacts(
     return indexed
 
 
+def update_agent_artifact_index_for_marker_mutation(
+    artifact_dir: Path | str | None,
+    *,
+    index_path: Path | str | None = None,
+) -> bool:
+    """Best-effort index refresh after an agent marker file changes."""
+    return (
+        upsert_agent_artifact_index_artifacts([artifact_dir], index_path=index_path) > 0
+    )
+
+
 def _identity_to_wire(identity: AgentIdentityLike) -> AgentCleanupIdentityWire:
     agent_type, cl_name, raw_suffix = identity
     return AgentCleanupIdentityWire(
@@ -133,5 +144,6 @@ def _identity_to_wire(identity: AgentIdentityLike) -> AgentCleanupIdentityWire:
 __all__ = [
     "delete_agent_artifact_index_artifacts",
     "sync_dismissed_agent_artifact_index",
+    "update_agent_artifact_index_for_marker_mutation",
     "upsert_agent_artifact_index_artifacts",
 ]

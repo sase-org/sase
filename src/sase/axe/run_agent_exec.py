@@ -24,6 +24,9 @@ from sase.axe.run_agent_helpers import (
 )
 from sase.axe.run_agent_phases import build_done_marker
 from sase.axe.runner_utils import reset_killed, was_killed
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
 from sase.llm_provider.retry_config import RetryState, get_retry_config
@@ -53,6 +56,18 @@ def _publish_phase_env(artifacts_dir: str) -> None:
     os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
     basename = os.path.basename(artifacts_dir.rstrip("/"))
     os.environ["SASE_AGENT_TIMESTAMP"] = normalize_to_14_digit(basename) or basename
+
+
+def _write_done_marker_and_update_index(
+    artifacts_dir: str,
+    done_marker: dict[str, Any],
+) -> str:
+    """Write ``done.json`` and refresh the artifact index for that directory."""
+    done_path = os.path.join(artifacts_dir, "done.json")
+    with open(done_path, "w", encoding="utf-8") as f:
+        json.dump(done_marker, f, indent=2)
+    update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+    return done_path
 
 
 def _short_pdf_source(source_path: str | None, workspace_dir: str) -> str:
@@ -481,9 +496,10 @@ def _finalize_loop(
             retry_metadata=_retry_meta,
             default_artifacts_persisted=default_artifacts_persisted,
         )
-        done_path = os.path.join(state.current_artifacts_dir, "done.json")
-        with open(done_path, "w", encoding="utf-8") as f:
-            json.dump(done_marker, f, indent=2)
+        done_path = _write_done_marker_and_update_index(
+            state.current_artifacts_dir,
+            done_marker,
+        )
         print(f"Done marker written to: {done_path}")
     else:
         # plan_rejected, killed, or failed_retried (spawn-on-retry handoff)
@@ -526,9 +542,10 @@ def _finalize_loop(
             retry_chain_root_timestamp=retry_chain_root_timestamp,
             retry_error_category=retry_error_category,
         )
-        done_path = os.path.join(state.current_artifacts_dir, "done.json")
-        with open(done_path, "w", encoding="utf-8") as f:
-            json.dump(done_marker, f, indent=2)
+        done_path = _write_done_marker_and_update_index(
+            state.current_artifacts_dir,
+            done_marker,
+        )
         print(f"Done marker written to: {done_path} (outcome: {state.loop_outcome})")
 
     # For multi-step workflows the root artifacts directory (ctx.artifacts_dir)
@@ -538,9 +555,7 @@ def _finalize_loop(
     #   - claim_agent_name skips done artifacts → workflow_name is preserved
     #   - find_named_agent can discover the completed workflow from the root
     if state.current_artifacts_dir != ctx.artifacts_dir:
-        root_done_path = os.path.join(ctx.artifacts_dir, "done.json")
-        with open(root_done_path, "w", encoding="utf-8") as f:
-            json.dump(done_marker, f, indent=2)
+        _write_done_marker_and_update_index(ctx.artifacts_dir, done_marker)
 
     return _AgentExecResult(
         success=state.loop_outcome == "completed",

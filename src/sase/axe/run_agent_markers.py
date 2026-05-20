@@ -5,6 +5,10 @@ import os
 from datetime import datetime
 from typing import Any
 
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
+
 
 def record_run_started_at(artifacts_dir: str, agent_meta: dict[str, Any]) -> str:
     """Persist the execution-loop start timestamp if it has not been recorded."""
@@ -146,3 +150,4 @@ def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(agent_meta, f, indent=2)
+    update_agent_artifact_index_for_marker_mutation(artifacts_dir)
