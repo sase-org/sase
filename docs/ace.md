@@ -459,7 +459,7 @@ Press `o` on the Agents tab to cycle the L0 grouping bucket through three modes.
 | ----------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
 | `STANDARD`  | Project (with optional ChangeSpec sub-level)                       | The "by project" default. Uses the 2-/3-level layout described above.                             |
 | `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`                    | Date bucket at L0, then a date-aware L1 subgroup. Sorted newest-first within each bucket.         |
-| `BY_STATUS` | `Stopped` / `Failed` / `Running` / `Waiting` / `Done` / `Starting` | Bucketed by shared status semantics; name-root and dotted-name subgroups appear only when useful. |
+| `BY_STATUS` | `Stopped` / `Failed` / `Running` / `Waiting` / `Done` / `Starting` | Bucketed by shared status semantics; name-root and name-prefix subgroups appear only when useful. |
 
 In `BY_DATE` mode, ACE chooses one L1 subgroup style from the L0 date bucket: one-hour windows (`09:00`) for `Today` and
 `Yesterday`, calendar-day labels for `This Week`, and Monday-start week ranges for `Earlier`. The time anchor is
@@ -1080,17 +1080,18 @@ older generated names into the permanent namespace; pass `--force` to rerun afte
 
 ### Per-Step Naming for Multi-Agent Workflows
 
-When a plan-family workflow spawns follow-up agents (e.g., plan approval followed by a coder step), the agents receive
-hyphenated phase names derived from the base name. For example, if the initial agent family is named `a`:
+Plan-family workflows have a stable family name plus phase suffixes. The root row keeps the family name and acts as the
+workflow container; generated follow-up rows and phase metadata use canonical hyphen suffixes. For example, if the
+initial agent family is named `a`:
 
-1. The root agent keeps `a`.
-2. The planner phase is `a-plan`.
-3. Feedback rounds become `a-2`, `a-3`, etc.
+1. The root workflow row keeps `a`.
+2. The planner phase uses suffix `-plan` and is displayed as `a-plan` when ACE renders it as a phase child.
+3. Feedback and question-continuation rounds become `a-2`, `a-3`, etc.
 4. Terminal follow-ups use the phase suffix, such as `a-code`, `a-epic`, `a-legend`, or `a-commit`.
 
-The base name (`a`) is reserved for the workflow as a whole, so `%wait:a` or `@a` references resolve correctly. ACE
-still canonicalizes older dotted phase names (`a.plan`, `a.2`, `a.code`, etc.) when reading legacy artifacts, but new
-plan-family metadata uses the hyphenated suffixes.
+The base name (`a`) is reserved for the workflow as a whole, so `%wait:a` or `@a` references resolve to the family root.
+New plan-family metadata stores hyphenated `role_suffix` values (`-plan`, `-2`, `-code`, ...). ACE still canonicalizes
+older dotted suffixes (`.plan`, `.2`, `.code`, etc.) when reading legacy artifacts.
 
 ## Agent Statuses
 
@@ -1118,12 +1119,13 @@ so the "waiting on you" status keeps appearing even after you dismiss the matchi
 The `,n` shortcut (jump to the open question) reads the marker directly when no unread notification is left, so it can
 still reopen the question modal.
 
-`QUESTION` also propagates up agent families. When a follow-up child finishes `DONE` but recorded an unanswered question
-(its `questions_times` list is non-empty and no `question_response_path` was persisted), the parent workflow row
-inherits `QUESTION` so the family still shows as waiting on you. When the question is answered and the response metadata
-is preserved, or when a `-q` follow-up handles the response, the next status pass re-evaluates the parent without the
-override and the row returns to its normal status. If the parent has several active children, the most recently started
-one wins, so a newer `RUNNING` child can overtake the `QUESTION` override on the parent.
+`QUESTION` also propagates up agent families. When a completed row recorded a question (`questions_times` is non-empty)
+but has neither a persisted `question_response_path` nor a later follow-up child, the parent workflow row inherits
+`QUESTION` so the family still shows as waiting on you. Once the user response is persisted, the continued work usually
+appears as the next numeric phase (`-2`, `-3`, ...); `-q` identifies the question phase in metadata and phase labels. On
+the next status pass, the parent is re-evaluated without the stale question override. If the parent has several active
+children, the most recently started one wins, so a newer `RUNNING` child can overtake the `QUESTION` override on the
+parent.
 
 The footer also shows axe daemon status indicators:
 
@@ -1218,8 +1220,8 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   `live_reply_timestamps.jsonl`), the reply is displayed with timestamp dividers between each agent turn. For agents
   with follow-up phases (planner, feedback rounds, coder), the AGENT REPLY section consolidates replies from all phases
   into a single view with purple phase dividers showing each phase's label and start time. Phase labels are derived from
-  canonical plan-family suffixes: `-plan` renders as `PLANNER`, `-code` as `CODER`, `-q` as `QUESTIONS`, `-epic` as
-  `EPIC`, `-legend` as `LEGEND`, `-commit` as `COMMIT`, and numeric feedback suffixes such as `-2` as
+  canonical plan-family `role_suffix` values: `-plan` renders as `PLANNER`, `-code` as `CODER`, `-q` as `QUESTIONS`,
+  `-epic` as `EPIC`, `-legend` as `LEGEND`, `-commit` as `COMMIT`, and numeric feedback suffixes such as `-2` as
   `PLANNER (round 2)`. Legacy dotted suffixes render the same way.
 
 When the file or tools panel is empty, the `g`/`G` keys automatically fall back to scrolling the metadata panel.
@@ -1277,9 +1279,9 @@ watcher (see [Auto-Refresh](#auto-refresh)) and is harmless if no TUI is open.
 Root plan workflows also surface PLAN when a re-proposed plan is still awaiting review. Plan and feedback timestamps
 from feedback-round children (`-2`, `-3`, ...; legacy `.2`, `.3`, ...) propagate onto the root entry, and whenever the
 root's latest plan timestamp is newer than its latest feedback timestamp the override engine restores `PLAN` over a
-`RUNNING` or `DONE` label. This applies only to root plan workflows that have not yet spawned a follow-up (`-code`,
-`-epic`, ...); once a follow-up is launched, the parent moves on to `PLAN APPROVED` (or the matching follow-up status)
-instead.
+`RUNNING` or `DONE` label. This applies only to root plan workflows that have not yet spawned a terminal follow-up
+(`-code`, `-epic`, ...); once a terminal follow-up is launched, the parent moves on to `PLAN APPROVED` (or the matching
+follow-up status) instead.
 
 The Plan Review modal title shows a provider-themed `PROVIDER(model)` badge between the "Plan Review" label and the plan
 filename — orange for Claude, lime for Codex, Google blue for Gemini, neutral muted for other providers. The badge is
@@ -1369,7 +1371,7 @@ When an agent encounters a retryable error (configured via `llm_provider.retry`)
 
 ### Prior Agent Attempts
 
-Every time the axe retry loop retries an agent — context-limit restart, transient provider retry, user-configured retry,
+Every time the axe retry loop retries an agent — context-limit retry, provider/API-error retry, user-configured retry,
 or fallback-model switch — the failed attempt's partial reply, error text, timestamps, and model are snapshotted under
 `<artifacts_dir>/attempts/<N>/`. The AGENT REPLY area in the Agents tab renders these prior attempts inline with styled
 dividers before the current/final attempt, so the full arc of the agent's work stays visible in one scroll.

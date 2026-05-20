@@ -84,9 +84,10 @@ SASE keeps durable state outside any one chat session:
 - **Workspace roots** - The default layout keeps numbered checkouts beside the primary checkout as `<primary>_<num>/`.
   Setting `workspace.root` to `xdg-state` or an absolute path moves non-primary checkouts under a project-keyed managed
   root; `sase workspace list`, `path`, `repair`, `cleanup`, and `migrate` inspect and maintain that view.
-- **Provider retries** - The LLM provider layer can retry matching provider failures, preserve the workspace across
-  retries, and fall back to another model when configured. Claude includes built-in recovery for context-limit and
-  transient API/socket failures; per-provider policy lives under `llm_provider.retry`.
+- **Provider retries** - The LLM provider layer can retry matching provider errors, preserve the workspace across
+  retries, and fall back to another model when configured. Claude adds built-in matching for context-limit,
+  socket-close, and Claude CLI API-error output; per-provider retry counts, waits, and fallback policy live under
+  `llm_provider.retry`.
 - **Durable artifacts** - Agent metadata, chats, notifications, prompt history, ChangeSpecs, SDD files, and beads are
   stored in predictable project/user directories so ACE, AXE, CLI commands, and external integrations can share state.
 

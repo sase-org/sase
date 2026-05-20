@@ -231,10 +231,11 @@ llm_provider:
 | `llm_provider.retry.<provider>.preserve_workspace`  | bool | `false` | Preserve on-disk edits across legacy in-process retry attempts.           |
 | `llm_provider.retry.<provider>.spawn_new_agent`     | bool | `false` | Retry by launching a fresh detached agent that inherits the workspace.    |
 
-User retry config is merged with provider-supplied retry defaults when a provider declares them. For list fields such as
-`error_patterns`, built-in patterns are kept and user patterns are appended with duplicates removed. Claude supplies
-built-in zero-delay, workspace-preserving retries for context-limit and transient API/socket failures in addition to the
-Claude defaults in `default_config.yml`.
+Configured retry policy is merged with provider-supplied retry defaults when a provider declares them. For list fields
+such as `error_patterns`, built-in patterns are kept and configured patterns are appended with duplicates removed.
+Claude's provider hook adds workspace-preserving matching for context-limit, socket-close, and Claude CLI API-error
+output, plus a continuation nudge. Those hook defaults are merged with the bundled Claude policy in
+`default_config.yml`, so the configured wait times and fallback model still apply unless you override them.
 
 Source: `src/sase/llm_provider/retry_config.py`, `src/sase/llm_provider/config.py`
 
