@@ -19,8 +19,12 @@ from sase.ace.tui.actions.agents._loading_helpers import (
     load_agents_from_disk_with_state,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_loader import AgentLoadState
+from sase.ace.tui.models.agent_loader import (
+    AgentLoadState,
+    _artifact_snapshot_for_tui_load,
+)
 from sase.ace.tui.util import trace
+from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from tests._agent_loader_helpers import _empty_artifact_snapshot
 
 
@@ -60,6 +64,18 @@ def _make_agent(tag: str | None) -> Agent:
         status="RUNNING",
         start_time=datetime(2026, 5, 6, 12, 0, 0),
         tag=tag,
+    )
+
+
+def _make_artifact_record(index: int) -> AgentArtifactRecordWire:
+    timestamp = f"20260519{index % 1000000:06d}"
+    return AgentArtifactRecordWire(
+        project_name="proj",
+        project_dir="/tmp/projects/proj",
+        project_file="/tmp/projects/proj/proj.gp",
+        workflow_dir_name="ace-run",
+        artifact_dir=f"/tmp/projects/proj/artifacts/ace-run/{timestamp}",
+        timestamp=timestamp,
     )
 
 
@@ -264,6 +280,47 @@ def test_load_agents_from_disk_uses_artifact_index_for_initial_tier(
     assert result.load_state.complete_history is False
     mock_query.assert_called_once()
     mock_scan.assert_not_called()
+    query = mock_query.call_args.kwargs["query"]
+    assert query.include_active is True
+    assert query.include_recent_completed is True
+    assert query.include_full_history is False
+    assert query.recent_completed_limit == 200
+    assert query.include_hidden is False
+
+
+def test_tier1_large_index_result_does_not_fan_out_to_source_scan(
+    tmp_path: Path,
+) -> None:
+    """Tier 1 keeps filesystem fan-out behind the index query boundary."""
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    index_path.touch()
+    snapshot = _empty_artifact_snapshot()
+    snapshot.records.extend(_make_artifact_record(i) for i in range(10_000))
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.default_agent_artifact_index_path",
+            return_value=index_path,
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.query_agent_artifact_index",
+            return_value=snapshot,
+        ) as mock_query,
+        patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+        ) as mock_scan,
+    ):
+        loaded_snapshot, load_state = _artifact_snapshot_for_tui_load(
+            full_history=False
+        )
+
+    assert loaded_snapshot is snapshot
+    assert len(loaded_snapshot.records) == 10_000
+    assert load_state.artifact_source == "artifact_index"
+    assert load_state.used_artifact_index is True
+    mock_query.assert_called_once()
+    mock_scan.assert_not_called()
 
 
 def test_load_agents_from_disk_full_history_reconciles_from_source() -> None:
@@ -371,6 +428,70 @@ def test_load_agents_from_disk_missing_index_uses_bounded_tier1_source_scan(
     assert result.load_state.tier == "tier1"
     assert result.load_state.complete_history is False
     assert result.load_state.artifact_source == "source_scan"
+    options = mock_scan.call_args.args[0]
+    assert options.max_records == 200
+    assert options.newest_first is True
+
+
+def test_load_agents_from_disk_bad_index_uses_bounded_tier1_source_scan(
+    tmp_path: Path,
+) -> None:
+    """Unreadable or stale indexes fall back without scanning full history."""
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    index_path.touch()
+    snapshot = _empty_artifact_snapshot()
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.default_agent_artifact_index_path",
+            return_value=index_path,
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.query_agent_artifact_index",
+            side_effect=RuntimeError("stale schema"),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=snapshot,
+        ) as mock_scan,
+        patch(
+            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
+            return_value=([], {}),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
+    ):
+        result = load_agents_from_disk_with_state(set())
+
+    assert result.load_state.tier == "tier1"
+    assert result.load_state.complete_history is False
+    assert result.load_state.artifact_source == "source_scan"
+    assert result.load_state.used_artifact_index is False
+    assert result.load_state.index_error == "stale schema"
     options = mock_scan.call_args.args[0]
     assert options.max_records == 200
     assert options.newest_first is True
