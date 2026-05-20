@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-20 18:27:53
-status: wip
+status: done
 prompt: sdd/prompts/202605/tmux_agent_workspace_dir.md
 ---
 # Fix ACE agent tmux workspace resolution

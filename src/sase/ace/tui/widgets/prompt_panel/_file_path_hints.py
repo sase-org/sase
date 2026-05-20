@@ -41,17 +41,20 @@ def resolve_agent_workspace_dir(
     Args:
         workspace_num: Agent's workspace number (None or 0 = no workspace).
         project_file: Path to the project spec file.
+        workspace_dir: Explicit workspace directory fallback, primarily for
+            directory-mode agents without a managed workspace number.
 
     Returns:
         Workspace directory path, or None if unavailable.
     """
+    explicit_dir = None
     if workspace_dir:
         expanded = os.path.expanduser(workspace_dir)
         if os.path.isdir(expanded):
-            return expanded.rstrip("/")
+            explicit_dir = expanded.rstrip("/")
 
     if workspace_num is None or workspace_num <= 0:
-        return None
+        return explicit_dir
 
     from pathlib import Path
 
@@ -74,7 +77,7 @@ def resolve_agent_workspace_dir(
     except Exception:
         pass
 
-    return None
+    return explicit_dir
 
 
 def _resolve_file_path(path: str, workspace_dir: str | None) -> str:

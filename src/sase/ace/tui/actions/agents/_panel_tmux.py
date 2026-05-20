@@ -42,11 +42,23 @@ class AgentPanelTmuxMixin:
         from ...widgets.prompt_panel._file_path_hints import resolve_agent_workspace_dir
 
         workspace_num = 1 if use_primary else agent.effective_workspace_num
-        workspace_dir = resolve_agent_workspace_dir(
-            workspace_num,
-            agent.project_file,
-            agent.workspace_dir if not use_primary else None,
-        )
+        if not use_primary and workspace_num is not None and workspace_num > 0:
+            workspace_dir = resolve_agent_workspace_dir(
+                workspace_num,
+                agent.project_file,
+            )
+            if not workspace_dir and agent.workspace_dir:
+                workspace_dir = resolve_agent_workspace_dir(
+                    None,
+                    agent.project_file,
+                    agent.workspace_dir,
+                )
+        else:
+            workspace_dir = resolve_agent_workspace_dir(
+                workspace_num,
+                agent.project_file,
+                agent.workspace_dir if not use_primary else None,
+            )
         if not workspace_dir:
             self.notify("No workspace directory for agent", severity="warning")  # type: ignore[attr-defined]
             return
