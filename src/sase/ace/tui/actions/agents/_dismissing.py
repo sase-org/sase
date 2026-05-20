@@ -37,6 +37,9 @@ from ._killing_utils import (
     dismiss_notifications_for_agents,
     find_workflow_workspace_from_running_field,
 )
+from sase.core.agent_artifact_index_lifecycle import (
+    sync_dismissed_agent_artifact_index,
+)
 
 log = logging.getLogger(__name__)
 _agent_identity_from_wire = agent_identity_from_wire
@@ -289,6 +292,7 @@ def _persist_single_dismiss_transaction(
             agents_related_to_dismissal(agent, agents_with_children_snapshot)
         )
     save_dismissed_agents(dismissed_snapshot)
+    sync_dismissed_agent_artifact_index(dismissed_snapshot)
 
 
 def _persist_bulk_dismiss_transaction(
@@ -313,3 +317,4 @@ def _persist_bulk_dismiss_transaction(
         if related:
             dismiss_notifications_for_agents(related)
     save_dismissed_agents(dismissed_snapshot)
+    sync_dismissed_agent_artifact_index(dismissed_snapshot)

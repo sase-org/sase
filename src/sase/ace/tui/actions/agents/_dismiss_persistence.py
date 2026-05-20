@@ -10,6 +10,9 @@ from ._killing_utils import (
     dismiss_notifications_for_agents,
     find_workflow_workspace_from_running_field,
 )
+from sase.core.agent_artifact_index_lifecycle import (
+    delete_agent_artifact_index_artifacts,
+)
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -74,8 +77,13 @@ def persist_cleanup_side_effect_intents(
                 intent.cl_name if agent is None else agent.cl_name,
             )
 
-    for intent in getattr(side_effects, "artifact_delete_paths", ()):
-        delete_agent_artifacts(intent.artifacts_dir)
+    artifact_delete_paths = [
+        intent.artifacts_dir
+        for intent in getattr(side_effects, "artifact_delete_paths", ())
+    ]
+    delete_agent_artifact_index_artifacts(artifact_delete_paths)
+    for artifacts_dir in artifact_delete_paths:
+        delete_agent_artifacts(artifacts_dir)
 
     notification_identities = {
         wire_identity_key(intent.identity)
@@ -135,7 +143,7 @@ def persist_dismiss_side_effects(
                     f"workflow({workflow_name})",
                 )
 
-    delete_agent_artifacts(agent.artifacts_dir or agent.get_artifacts_dir())
+    artifact_delete_paths = [agent.artifacts_dir or agent.get_artifacts_dir()]
     if (
         agent.agent_type == AgentType.WORKFLOW
         and not agent.is_workflow_child
@@ -147,7 +155,12 @@ def persist_dismiss_side_effects(
                 and step.parent_timestamp == agent.raw_suffix
                 and step.parent_workflow == agent.workflow
             ):
-                delete_agent_artifacts(step.artifacts_dir or step.get_artifacts_dir())
+                artifact_delete_paths.append(
+                    step.artifacts_dir or step.get_artifacts_dir()
+                )
+    delete_agent_artifact_index_artifacts(artifact_delete_paths)
+    for artifacts_dir in artifact_delete_paths:
+        delete_agent_artifacts(artifacts_dir)
 
 
 def agents_related_to_dismissal(

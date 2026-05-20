@@ -35,11 +35,21 @@ def test_do_revive_agent_removes_suffix_aliases() -> None:
         patch(
             "sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"
         ) as mock_mark,
+        patch(
+            "sase.ace.tui.actions.agents._revive.sync_dismissed_agent_artifact_index"
+        ) as mock_sync_index,
+        patch(
+            "sase.ace.tui.actions.agents._revive.upsert_agent_artifact_index_artifacts"
+        ) as mock_upsert_index,
     ):
         app._do_revive_agent(parent)
 
     assert app._dismissed_agents == {(AgentType.WORKFLOW, "keep_me", "20260202101010")}
     mock_mark.assert_called_once_with({"20260201101010", "child_suffix_1"})
+    mock_sync_index.assert_called_once_with(app._dismissed_agents)
+    mock_upsert_index.assert_called_once_with(
+        [parent.artifacts_dir, parent.artifacts_dir]
+    )
     assert app.load_count == 1
     assert len(app.restored) == 2
     assert app.restored[0] == (parent.identity, None)

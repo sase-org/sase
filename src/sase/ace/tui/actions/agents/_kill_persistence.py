@@ -19,6 +19,10 @@ from ._killing_utils import (
     dismiss_notifications_for_agents,
     find_workflow_workspace_from_running_field,
 )
+from sase.core.agent_artifact_index_lifecycle import (
+    delete_agent_artifact_index_artifacts,
+    sync_dismissed_agent_artifact_index,
+)
 
 KillKind = Literal["running", "hook", "mentor", "crs", "workflow"]
 AgentIdentity = tuple["AgentType", str, str | None]
@@ -95,6 +99,7 @@ def persist_bulk_kill_side_effects(
             [item.agent for item in kill_items] + list(dismissable)
         )
     save_dismissed_agents(dismissed_snapshot)
+    sync_dismissed_agent_artifact_index(dismissed_snapshot)
 
 
 def _persist_running_kill(agent: Agent) -> None:
@@ -240,7 +245,7 @@ def _persist_workflow_kill(
 
     if not agent._from_changespec:
         save_dismissed_bundle(agent)
-    delete_agent_artifacts(agent.artifacts_dir or agent.get_artifacts_dir())
+    artifact_delete_paths = [agent.artifacts_dir or agent.get_artifacts_dir()]
     if not agent.is_workflow_child and agent.raw_suffix:
         for step in agents_with_children_snapshot:
             if (
@@ -250,4 +255,9 @@ def _persist_workflow_kill(
             ):
                 if not step._from_changespec:
                     save_dismissed_bundle(step)
-                delete_agent_artifacts(step.artifacts_dir or step.get_artifacts_dir())
+                artifact_delete_paths.append(
+                    step.artifacts_dir or step.get_artifacts_dir()
+                )
+    delete_agent_artifact_index_artifacts(artifact_delete_paths)
+    for artifacts_dir in artifact_delete_paths:
+        delete_agent_artifacts(artifacts_dir)

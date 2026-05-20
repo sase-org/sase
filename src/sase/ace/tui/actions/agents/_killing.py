@@ -36,6 +36,9 @@ from ._kill_persistence import (
     persist_bulk_kill_side_effects,
     persist_kill_side_effects,
 )
+from sase.core.agent_artifact_index_lifecycle import (
+    sync_dismissed_agent_artifact_index,
+)
 
 log = logging.getLogger(__name__)
 
@@ -531,6 +534,9 @@ class AgentKillingMixin(AgentDismissingMixin):
             from ....dismissed_agents import save_dismissed_agents
 
             await asyncio.to_thread(save_dismissed_agents, dismissed_snapshot)
+            await asyncio.to_thread(
+                sync_dismissed_agent_artifact_index, dismissed_snapshot
+            )
             if not consumed_intents:
                 related = self._agents_related_to_kill(
                     agent, agents_with_children_snapshot

@@ -386,6 +386,10 @@ def test_persist_bulk_kill_side_effects_uses_one_notification_update() -> None:
         ),
         patch("sase.ace.dismissed_agents.save_dismissed_agents"),
         patch(
+            "sase.ace.tui.actions.agents._kill_persistence."
+            "sync_dismissed_agent_artifact_index"
+        ) as mock_sync_index,
+        patch(
             "sase.notifications.store._rust_apply_notification_state_update",
             return_value=outcome,
         ) as mock_update,
@@ -398,6 +402,7 @@ def test_persist_bulk_kill_side_effects_uses_one_notification_update() -> None:
         )
 
     mock_update.assert_called_once()
+    mock_sync_index.assert_called_once_with({running.identity, done.identity})
     update = mock_update.call_args.args[1]
     assert update.kind == "dismiss_matching_agents"
     assert [(agent.cl_name, agent.raw_suffix) for agent in update.agents] == [

@@ -31,6 +31,10 @@ def test_dismiss_persistence_callback_runs_deferred_work(tmp_path) -> None:  # t
             "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
         ) as mock_dismiss_many,
         patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch(
+            "sase.ace.tui.actions.agents._dismissing."
+            "sync_dismissed_agent_artifact_index"
+        ) as mock_sync_index,
     ):
         callback, args = app._scheduled[0]
         asyncio.run(callback(*args))  # type: ignore[misc]
@@ -39,6 +43,7 @@ def test_dismiss_persistence_callback_runs_deferred_work(tmp_path) -> None:  # t
     assert mock_persist_intents.call_args[0][1] == [agent]
     mock_dismiss_many.assert_not_called()
     mock_save.assert_called_once_with({agent.identity})
+    mock_sync_index.assert_called_once_with({agent.identity})
     assert app.notification_refreshes_async == 1
     assert app.notification_refreshes == 0
     assert app.async_refreshes == 0
@@ -166,3 +171,30 @@ def test_do_dismiss_all_persistence_failure_notifies_and_refreshes() -> None:
     assert app.async_refreshes == 1
     assert app.notification_refreshes_async == 0
     assert any(sev == "error" for _, sev in app.notifications)
+
+
+def test_dismiss_side_effects_delete_artifact_index_row(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Marker deletion also removes the stale SQLite index row best-effort."""
+    from sase.ace.tui.actions.agents._dismiss_persistence import (
+        persist_dismiss_side_effects,
+    )
+
+    agent = make_agent(
+        raw_suffix="20240101120000",
+        artifacts_dir=str(tmp_path / "artifacts"),
+    )
+
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_bundle"),
+        patch(
+            "sase.ace.tui.actions.agents._dismiss_persistence."
+            "delete_agent_artifact_index_artifacts"
+        ) as mock_delete_index,
+        patch(
+            "sase.ace.tui.actions.agents._dismiss_persistence.delete_agent_artifacts"
+        ) as mock_delete_artifacts,
+    ):
+        persist_dismiss_side_effects(agent, [agent])
+
+    mock_delete_index.assert_called_once_with([str(tmp_path / "artifacts")])
+    mock_delete_artifacts.assert_called_once_with(str(tmp_path / "artifacts"))

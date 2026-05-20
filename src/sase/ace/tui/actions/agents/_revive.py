@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from ._revive_artifacts import ArtifactRestorationMixin
+from sase.core.agent_artifact_index_lifecycle import (
+    sync_dismissed_agent_artifact_index,
+    upsert_agent_artifact_index_artifacts,
+)
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -49,6 +53,16 @@ def _merge_dismissed_agents(
         merged.append(agent)
         seen.add(agent.identity)
     return merged
+
+
+def _revived_artifact_dir(
+    agent: Agent,
+    *,
+    parent_artifacts_dir: str | None = None,
+) -> str | None:
+    if parent_artifacts_dir:
+        return parent_artifacts_dir
+    return agent.artifacts_dir or agent.get_artifacts_dir()
 
 
 class AgentRevivalMixin(ArtifactRestorationMixin):
@@ -349,11 +363,13 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
 
             save_dismissed_agents(self._dismissed_agents)
+            sync_dismissed_agent_artifact_index(self._dismissed_agents)
 
             stage = "artifact_restore"
             # Restore minimal artifact files so load_all_agents() rediscovers
             # the agent.
             self._restore_agent_artifacts(agent)
+            revived_artifact_dirs = [_revived_artifact_dir(agent)]
 
             # Also restore child step / follow-up artifacts for workflow parents
             if not agent.is_workflow_child and agent.raw_suffix:
@@ -363,6 +379,13 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
                             dismissed_agent,
                             parent_artifacts_dir=agent.artifacts_dir,
                         )
+                        revived_artifact_dirs.append(
+                            _revived_artifact_dir(
+                                dismissed_agent,
+                                parent_artifacts_dir=agent.artifacts_dir,
+                            )
+                        )
+            upsert_agent_artifact_index_artifacts(revived_artifact_dirs)
 
             stage = "bundle_marking"
             mark_bundles_revived_by_suffixes(revived_suffixes)
@@ -472,6 +495,7 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
 
             # Phase 2: Single disk write for dismissed set
             save_dismissed_agents(self._dismissed_agents)
+            sync_dismissed_agent_artifact_index(self._dismissed_agents)
         except Exception as exc:
             for agent in valid_agents:
                 log_revive_failure(
@@ -491,16 +515,24 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         # success leaves an accurate log.
         succeeded: list[Agent] = []
         succeeded_suffixes: set[str] = set()
+        revived_artifact_dirs: list[str | None] = []
         for agent in valid_agents:
             per_stage = "artifact_restore"
             try:
                 self._restore_agent_artifacts(agent)
+                revived_artifact_dirs.append(_revived_artifact_dir(agent))
                 if not agent.is_workflow_child and agent.raw_suffix:
                     for dismissed_agent in list(self._dismissed_agent_objects):
                         if _is_child_of(dismissed_agent, agent):
                             self._restore_agent_artifacts(
                                 dismissed_agent,
                                 parent_artifacts_dir=agent.artifacts_dir,
+                            )
+                            revived_artifact_dirs.append(
+                                _revived_artifact_dir(
+                                    dismissed_agent,
+                                    parent_artifacts_dir=agent.artifacts_dir,
+                                )
                             )
             except Exception as exc:
                 log_revive_failure(
@@ -513,6 +545,8 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
                 continue
             succeeded.append(agent)
             succeeded_suffixes.update(suffixes_map.get(agent.identity, set()))
+
+        upsert_agent_artifact_index_artifacts(revived_artifact_dirs)
 
         try:
             mark_bundles_revived_by_suffixes(succeeded_suffixes)

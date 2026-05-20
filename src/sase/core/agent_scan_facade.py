@@ -18,8 +18,13 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from collections.abc import Sequence
 from typing import Any
 
+from sase.core.agent_cleanup_wire import (
+    AgentCleanupIdentityWire,
+    agent_cleanup_wire_to_json_dict,
+)
 from sase.core.agent_scan_wire import (
     AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
     AgentArtifactIndexQueryWire,
@@ -102,7 +107,6 @@ def rebuild_agent_artifact_index(
     return agent_artifact_index_update_from_dict(payload)
 
 
-# pyvision: docs/rust_backend.md
 def upsert_agent_artifact_index_row(
     index_path: Path | str,
     projects_root: Path | str,
@@ -121,7 +125,6 @@ def upsert_agent_artifact_index_row(
     return agent_artifact_index_update_from_dict(payload)
 
 
-# pyvision: docs/rust_backend.md
 def delete_agent_artifact_index_row(
     index_path: Path | str,
     artifact_dir: Path | str,
@@ -129,6 +132,19 @@ def delete_agent_artifact_index_row(
     """Remove one artifact directory row from the index."""
     rust_delete = require_rust_binding("delete_agent_artifact_index_row")
     payload: dict[str, Any] = rust_delete(str(index_path), str(artifact_dir))
+    return agent_artifact_index_update_from_dict(payload)
+
+
+def replace_agent_artifact_index_dismissed_agents(
+    index_path: Path | str,
+    dismissed: Sequence[AgentCleanupIdentityWire],
+) -> AgentArtifactIndexUpdateWire:
+    """Replace the artifact index's dismissed identity table."""
+    rust_replace = require_rust_binding("replace_agent_artifact_index_dismissed_agents")
+    payload: dict[str, Any] = rust_replace(
+        str(index_path),
+        agent_cleanup_wire_to_json_dict(list(dismissed)),
+    )
     return agent_artifact_index_update_from_dict(payload)
 
 
@@ -258,6 +274,7 @@ __all__ = [
     "delete_agent_artifact_index_row",
     "query_agent_artifact_index",
     "rebuild_agent_artifact_index",
+    "replace_agent_artifact_index_dismissed_agents",
     "scan_agent_artifacts",
     "upsert_agent_artifact_index_row",
     "verify_agent_artifact_index",
