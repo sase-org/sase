@@ -13,6 +13,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactIndexVerifyWire,
 )
 from sase.main.agents_handler import handle_agents_command
+from sase.main.parser import create_parser
 
 
 def test_dispatch_bare_defaults_to_status() -> None:
@@ -122,6 +123,98 @@ def test_dispatch_index_rebuild_json(capsys: pytest.CaptureFixture[str]) -> None
     assert excinfo.value.code == 0
     mock_rebuild.assert_called_once()
     assert json.loads(capsys.readouterr().out) == update
+
+
+def test_parser_registers_index_gc_options() -> None:
+    """`sase agents index gc` accepts the shared index path knobs."""
+    args = create_parser().parse_args(
+        [
+            "agents",
+            "index",
+            "gc",
+            "--index-path",
+            "/tmp/index.sqlite",
+            "--projects-root",
+            "/tmp/projects",
+            "--json",
+        ]
+    )
+
+    assert args.command == "agents"
+    assert args.agents_subcommand == "index"
+    assert args.index_subcommand == "gc"
+    assert args.index_path == "/tmp/index.sqlite"
+    assert args.projects_root == "/tmp/projects"
+    assert args.json is True
+
+
+def test_dispatch_index_gc_json(capsys: pytest.CaptureFixture[str]) -> None:
+    """`sase agents index gc -j` reports reconciliation diagnostics."""
+    args = argparse.Namespace(
+        agents_subcommand="index",
+        index_subcommand="gc",
+        index_path="/tmp/index.sqlite",
+        projects_root="/tmp/projects",
+        json=True,
+    )
+
+    with (
+        patch(
+            "sase.agents.cli_index.verify_agent_artifact_index",
+            return_value=AgentArtifactIndexVerifyWire(
+                ok=False,
+                schema_version=1,
+                index_path="/tmp/index.sqlite",
+                projects_root="/tmp/projects",
+                indexed_rows=3,
+                source_rows=4,
+                stale_rows=2,
+                missing_rows=1,
+                extra_rows=1,
+                corrupt_rows=0,
+            ),
+        ) as mock_verify,
+        patch(
+            "sase.agents.cli_index.rebuild_agent_artifact_index",
+            return_value=AgentArtifactIndexUpdateWire(
+                schema_version=1,
+                index_path="/tmp/index.sqlite",
+                projects_root="/tmp/projects",
+                rows_indexed=4,
+                rows_deleted=0,
+                rows_skipped=0,
+            ),
+        ) as mock_rebuild,
+        patch(
+            "sase.agents.cli_index._load_dismissed_identities_for_gc",
+            return_value=([], 2),
+        ),
+        patch(
+            "sase.agents.cli_index.replace_agent_artifact_index_dismissed_agents",
+            return_value=AgentArtifactIndexUpdateWire(
+                schema_version=1,
+                index_path="/tmp/index.sqlite",
+                projects_root="",
+                rows_indexed=5,
+                rows_deleted=3,
+                rows_skipped=0,
+            ),
+        ) as mock_hide,
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_agents_command(args)
+
+    assert excinfo.value.code == 0
+    mock_verify.assert_called_once()
+    mock_rebuild.assert_called_once()
+    mock_hide.assert_called_once()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["index_path"] == "/tmp/index.sqlite"
+    assert payload["rows_indexed"] == 4
+    assert payload["rows_deleted"] == 1
+    assert payload["rows_hidden"] == 5
+    assert payload["rows_skipped"] == 2
+    assert payload["stale_rows_rewritten"] == 2
 
 
 def test_dispatch_index_verify_json_exits_nonzero_when_stale(
