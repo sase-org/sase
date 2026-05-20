@@ -990,7 +990,7 @@ AgentList > .option-list--option {
 }
 
 AgentList > .option-list--option-highlighted {
-    background: $accent 25%;
+    background: $accent 40%;
     text-style: bold;
     border-left: thick $accent;
     padding: 0 1 0 0;

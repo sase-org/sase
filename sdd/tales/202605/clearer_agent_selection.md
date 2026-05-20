@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-20 18:31:32
-status: wip
+status: done
 prompt: sdd/prompts/202605/clearer_agent_selection.md
 ---
 # Plan: Clearer Selected Agent Entry on the `sase ace` Agents Tab
