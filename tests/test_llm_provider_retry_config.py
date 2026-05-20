@@ -19,6 +19,11 @@ from sase.llm_provider.retry_config import (
 # built-in defaults (e.g. claude's "Prompt is too long" recovery).
 _UNCONFIGURED_PROVIDER = "fake-unconfigured-provider"
 
+_CLAUDE_SOCKET_CLOSE_ERROR = (
+    "API Error: The socket connection was closed unexpectedly. For more "
+    "information, pass verbose: true in the second argument to fetch()"
+)
+
 
 # --- ProviderRetryConfig tests ---
 
@@ -225,10 +230,25 @@ class TestBuiltInDefaults:
         assert config is not None
         assert config.max_retries == 3
         assert "Prompt is too long" in config.error_patterns
+        assert "socket connection was closed unexpectedly" in config.error_patterns
+        assert "API Error" in config.error_patterns
         assert config.wait_times == [0]
         assert config.continuation_prompt is not None
-        assert "context window" in config.continuation_prompt
+        assert "context limit" in config.continuation_prompt
+        assert "transient provider failure" in config.continuation_prompt
+        assert "git status" in config.continuation_prompt
+        assert "git diff" in config.continuation_prompt
         assert config.preserve_workspace is True
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_claude_built_in_matches_socket_close_error(
+        self, mock_config: object
+    ) -> None:
+        """Claude's observed socket-close CLI failure is retried by default."""
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_retry_config("claude")
+        assert config is not None
+        assert is_retryable_error(_CLAUDE_SOCKET_CLOSE_ERROR, config) is True
 
     @patch("sase.llm_provider.retry_config.load_merged_config")
     def test_built_in_returned_when_exception(self, mock_config: object) -> None:
@@ -254,7 +274,12 @@ class TestBuiltInDefaults:
         assert config is not None
         # Built-in pattern appears exactly once (dedup'd) and order preserved:
         # built-in first, then new user patterns.
-        assert config.error_patterns == ["Prompt is too long", "my custom pattern"]
+        assert config.error_patterns == [
+            "Prompt is too long",
+            "socket connection was closed unexpectedly",
+            "API Error",
+            "my custom pattern",
+        ]
 
     @patch("sase.llm_provider.retry_config.load_merged_config")
     def test_user_explicit_max_retries_zero_disables(self, mock_config: object) -> None:

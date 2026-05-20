@@ -93,15 +93,19 @@ class ClaudeCodeProvider(LLMProvider):
     @hookimpl
     def llm_default_retry_config(self) -> ProviderRetryConfig:
         from .retry_config import (
-            _CONTEXT_OVERFLOW_NUDGE,
+            _RETRY_CONTINUATION_NUDGE,
             ProviderRetryConfig,
         )
 
         return ProviderRetryConfig(
             max_retries=3,
-            error_patterns=["Prompt is too long"],
+            error_patterns=[
+                "Prompt is too long",
+                "socket connection was closed unexpectedly",
+                "API Error",
+            ],
             wait_times=[0],
-            continuation_prompt=_CONTEXT_OVERFLOW_NUDGE,
+            continuation_prompt=_RETRY_CONTINUATION_NUDGE,
             preserve_workspace=True,
         )
 

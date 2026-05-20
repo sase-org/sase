@@ -217,7 +217,8 @@ class TestHandleWorkflowErrorContinuation:
             )
 
         assert action == "continue"
-        assert "context window" in state.current_prompt
+        assert "context limit" in state.current_prompt
+        assert "transient provider failure" in state.current_prompt
         assert "Do the work." in state.current_prompt
         # retry_state.json should have been written during the retry cycle.
         assert (tmp_path / "artifacts" / "retry_state.json").exists()

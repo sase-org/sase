@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-20 15:19:31
-status: wip
+status: done
 prompt: sdd/prompts/202605/claude_socket_retry.md
 ---
 # Plan: Retry Claude Socket Closure Failures
