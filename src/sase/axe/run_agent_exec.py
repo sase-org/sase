@@ -1,227 +1,54 @@
-"""Agent execution loop for the run agent runner.
+"""Agent execution loop for the run agent runner."""
 
-Contains the core while-loop that runs workflow steps with retry,
-plan approval, and question-flow handling.
-"""
+from __future__ import annotations
 
-import json
 import os
 import time
-from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
+from sase.axe.run_agent_exec_finalize import finalize_loop as _finalize_loop
+from sase.axe.run_agent_exec_markers import (
+    publish_phase_env as _publish_phase_env,
+    write_done_marker_and_update_index as _write_done_marker_and_update_index,
+)
 from sase.axe.run_agent_exec_plan import (
     get_embedded_workflow_refs as _get_embedded_workflow_refs,
-    handle_plan_marker,
-    handle_questions_marker,
 )
-from sase.main.qa_markdown import QARound
+from sase.axe.run_agent_exec_plan import handle_plan_marker, handle_questions_marker
 from sase.axe.run_agent_exec_retry import RetryTracker, handle_workflow_error
+from sase.axe.run_agent_exec_types import (
+    AgentExecContext,
+    AgentExecResult as _AgentExecResult,
+    LoopState,
+)
 from sase.axe.run_agent_helpers import (
     extract_step_output_and_diff_path,
     is_workflow_noop,
     read_and_delete_marker,
 )
-from sase.axe.run_agent_phases import build_done_marker
 from sase.axe.runner_utils import reset_killed, was_killed
-from sase.core.agent_artifact_index_lifecycle import (
-    update_agent_artifact_index_for_marker_mutation,
-)
+from sase.history.chat import generate_chat_filename, get_chat_file_path
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
-from sase.llm_provider.retry_config import RetryState, get_retry_config
-from sase.plan_chain import (
-    PLAN_CHAIN_CODER_SUFFIX,
-    canonical_plan_chain_suffix,
-    plan_chain_agent_name,
-)
+from sase.llm_provider.retry_config import get_retry_config
 from sase.telemetry.metrics import AGENT_KILLS
 
-
-def _publish_phase_env(artifacts_dir: str) -> None:
-    """Publish env vars that identify the current phase of the agent run.
-
-    Both ``SASE_ARTIFACTS_DIR`` and ``SASE_AGENT_TIMESTAMP`` refer to the
-    *current* phase — followup phases (Q&A, feedback, coder) mint fresh
-    timestamped artifacts directories, and the TUI notification router keys
-    notifications back to the visible agent row via the timestamp. The runner
-    process inherits the original launch timestamp from its parent; we
-    overwrite it per iteration so notifications emitted from a followup carry
-    the followup's timestamp (which matches the row's ``raw_suffix``).
-    ``SASE_AGENT_ROOT_TIMESTAMP`` is set once by ``run_execution_loop`` and is
-    intentionally left unchanged here.
-    """
-    from sase.ace.tui.models._timestamps import normalize_to_14_digit
-
-    os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
-    basename = os.path.basename(artifacts_dir.rstrip("/"))
-    os.environ["SASE_AGENT_TIMESTAMP"] = normalize_to_14_digit(basename) or basename
-
-
-def _write_done_marker_and_update_index(
-    artifacts_dir: str,
-    done_marker: dict[str, Any],
-) -> str:
-    """Write ``done.json`` and refresh the artifact index for that directory."""
-    done_path = os.path.join(artifacts_dir, "done.json")
-    with open(done_path, "w", encoding="utf-8") as f:
-        json.dump(done_marker, f, indent=2)
-    update_agent_artifact_index_for_marker_mutation(artifacts_dir)
-    return done_path
-
-
-def _short_pdf_source(source_path: str | None, workspace_dir: str) -> str:
-    if not source_path:
-        return ""
-    try:
-        return os.path.relpath(source_path, workspace_dir)
-    except ValueError:
-        return source_path
-
-
-def _pdf_activity_from_status(pdf_status: dict[str, Any] | None) -> str | None:
-    if not pdf_status:
-        return None
-    stage = pdf_status.get("stage")
-    total = pdf_status.get("total")
-    index = pdf_status.get("index")
-    generated = pdf_status.get("generated")
-    skipped = pdf_status.get("skipped")
-    source = pdf_status.get("source_path")
-    reason = pdf_status.get("reason")
-
-    if stage in {"source_started", "engine_started"}:
-        prefix = f"PDF {index}/{total}" if index and total else "PDF"
-        return f"{prefix} {source}".strip()
-    if stage == "source_succeeded":
-        prefix = f"PDF done {index}/{total}" if index and total else "PDF done"
-        return f"{prefix} {source}".strip()
-    if stage in {"source_failed", "skipped"}:
-        if reason:
-            return f"PDFs skipped: {reason}"
-        return "PDF skipped"
-    if stage == "completed":
-        if reason:
-            return f"PDFs skipped: {reason}"
-        if generated is not None and total is not None:
-            label = f"PDFs done {generated}/{total}"
-            if skipped:
-                label += f" ({skipped} skipped)"
-            return label
-        return "PDFs done"
-    if stage == "started":
-        return "Preparing PDFs from Markdown..."
-    return None
-
-
-def _update_workflow_pdf_status(
-    artifacts_dir: str,
-    pdf_status: dict[str, Any],
-) -> None:
-    state_path = os.path.join(artifacts_dir, "workflow_state.json")
-    try:
-        with open(state_path, encoding="utf-8") as f:
-            state_data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return
-    if not isinstance(state_data, dict):
-        return
-    state_data["pdf_status"] = pdf_status
-    activity = _pdf_activity_from_status(pdf_status)
-    if activity:
-        state_data["activity"] = activity
-    else:
-        state_data.pop("activity", None)
-    try:
-        with open(state_path, "w", encoding="utf-8") as f:
-            json.dump(state_data, f, indent=2)
-    except OSError:
-        pass
-
-
-def _clear_workflow_pdf_activity(artifacts_dir: str) -> None:
-    state_path = os.path.join(artifacts_dir, "workflow_state.json")
-    try:
-        with open(state_path, encoding="utf-8") as f:
-            state_data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return
-    if not isinstance(state_data, dict):
-        return
-    state_data.pop("activity", None)
-    try:
-        with open(state_path, "w", encoding="utf-8") as f:
-            json.dump(state_data, f, indent=2)
-    except OSError:
-        pass
-
-
-@dataclass
-class AgentExecContext:
-    """Immutable configuration the execution loop needs from the runner."""
-
-    cl_name: str
-    project_file: str
-    workspace_dir: str
-    output_path: str
-    workspace_num: int
-    timestamp: str
-    update_target: str
-    project_name: str
-    is_home_mode: bool
-    artifacts_dir: str
-    artifacts_timestamp: str
-    vcs_tag: str | None
-    agent_name: str | None
-    agent_model: str | None
-    agent_llm_provider: str | None
-    agent_vcs_provider: str | None
-    agent_hidden: bool
-    agent_meta: dict[str, Any]
-    local_xprompts: dict[str, Any]
-    wait_chats: list[str] = field(default_factory=list)
-
-
-@dataclass
-class _AgentExecResult:
-    """Result from the execution loop."""
-
-    success: bool
-    outcome: str = "completed"
-    saved_path: str | None = None
-    diff_path: str | None = None
-    markdown_pdf_paths: list[str] = field(default_factory=list)
-    markdown_source_count: int = 0
-    image_paths: list[str] = field(default_factory=list)
-    current_artifacts_dir: str = ""
-    step_output: dict[str, Any] | None = None
-
-
-@dataclass
-class LoopState:
-    """Mutable state for the execution loop."""
-
-    current_prompt: str
-    current_role_suffix: str
-    current_artifacts_dir: str
-    loop_outcome: str
-    sdd_spec_path: str | None
-    # The bare initial prompt with no accumulated Q&A or feedback
-    # appended. The question-handler and feedback-retry paths rebuild
-    # ``current_prompt`` from scratch by concatenating
-    # ``original_prompt + merge_qa_for_prompt(qa_rounds)`` (+ any
-    # feedback requirements) so the merged Q&A section is rendered in
-    # exactly one place.
-    original_prompt: str
-    qa_rounds: list[QARound] = field(default_factory=list)
-    feedback_bullets: list[str] = field(default_factory=list)
-    feedback_round: int = 0
-    agent_step: int = 1
-    saved_chat_paths: list[tuple[str, str]] = field(default_factory=list)
-    # Snapshot of SASE_AGENT_TIMESTAMP at loop entry — restored in _finalize_loop
-    # so post-loop callers (e.g. commit stop hook dedup keys) keep their
-    # original semantics after we overwrite per-phase via _publish_phase_env.
-    original_agent_timestamp: str | None = None
+__all__ = [
+    "AgentExecContext",
+    "LoopState",
+    "_AgentExecResult",
+    "_finalize_loop",
+    "_get_embedded_workflow_refs",
+    "_publish_phase_env",
+    "_resolve_workflow_project",
+    "_write_done_marker_and_update_index",
+    "extract_step_output_and_diff_path",
+    "format_extra_sections",
+    "is_workflow_noop",
+    "run_execution_loop",
+    "save_chat_history",
+]
 
 
 def _resolve_workflow_project(ctx: AgentExecContext) -> str | None:
@@ -231,380 +58,82 @@ def _resolve_workflow_project(ctx: AgentExecContext) -> str | None:
     return ctx.project_name
 
 
-def _finalize_loop(
-    ctx: AgentExecContext,
-    state: LoopState,
-    tracker: RetryTracker,
-    result: Any,
-) -> _AgentExecResult:
-    """Post-loop cleanup: retry state, done marker, result construction."""
-    # Clean up retry state
-    RetryState.delete_from(ctx.artifacts_dir)
-    if "SASE_MODEL_OVERRIDE" in os.environ:
-        del os.environ["SASE_MODEL_OVERRIDE"]
-
-    # Build retry metadata for done.json
-    _retry_meta: dict[str, Any] | None = None
-    if tracker.retry_count > 0 or tracker.using_fallback:
-        _retry_meta = {
-            "retry_count": tracker.retry_count,
-            "retry_errors": tracker.retry_errors,
-            "used_fallback": tracker.using_fallback,
-        }
-        if tracker.using_fallback and tracker.retry_cfg:
-            _retry_meta["fallback_model"] = tracker.retry_cfg.fallback_model
-
-    # Clean up SASE_ARTIFACTS_DIR and SASE_PLAN env vars
-    os.environ.pop("SASE_ARTIFACTS_DIR", None)
-    os.environ.pop("SASE_PLAN", None)
-    os.environ.pop("SASE_AGENT_ROOT_TIMESTAMP", None)
-    # SASE_AGENT_TIMESTAMP is per-phase (see _publish_phase_env); restore the
-    # value the runner was launched with so post-loop callers (e.g. the commit
-    # stop hook's session-dedup key) keep their original semantics.
-    if state.original_agent_timestamp is None:
-        os.environ.pop("SASE_AGENT_TIMESTAMP", None)
-    else:
-        os.environ["SASE_AGENT_TIMESTAMP"] = state.original_agent_timestamp
-
-    # Compute the final agent name for the done marker.
-    # Multi-agent workflows use the last child name; single-agent keeps original.
-    _done_agent_name: str | None
-    if state.agent_step > 1 and ctx.agent_name:
-        plan_chain_suffix = canonical_plan_chain_suffix(state.current_role_suffix)
-        if plan_chain_suffix is not None:
-            _done_agent_name = plan_chain_agent_name(ctx.agent_name, plan_chain_suffix)
-        else:
-            _done_agent_name = f"{ctx.agent_name}.{state.agent_step}"
-    else:
-        _done_agent_name = ctx.agent_name
-
-    saved_path: str | None = None
-    diff_path: str | None = None
-    markdown_pdf_paths: list[str] = []
-    markdown_source_count = 0
-    image_paths: list[str] = []
-    step_output: dict[str, Any] | None = None
-
-    # Save chat history for ALL outcomes so the file referenced by
-    # SASE_AGENT_CHAT_PATH always exists (even for killed/plan_rejected).
-    if state.loop_outcome == "completed":
-        assert result is not None
-        response_content = result.response_text or ""
-    else:
-        response_content = ""
-
-    extra = format_extra_sections(state.current_artifacts_dir)
-    saved_path = save_chat_history(
-        prompt=state.current_prompt,
-        response=response_content,
-        workflow="ace-run",
-        timestamp=ctx.timestamp,
-        extra_sections=extra,
-        branch_or_workspace=ctx.cl_name,
-    )
-    print(f"\nChat history saved to: {saved_path}")
-
-    if state.loop_outcome == "completed":
-        # Cross-link all chat files in multi-step workflows
-        state.saved_chat_paths.append(
-            (state.current_role_suffix or PLAN_CHAIN_CODER_SUFFIX, saved_path)
-        )
-        if len(state.saved_chat_paths) > 1:
-            from sase.history.chat_links import (
-                append_links_to_chat,
-                build_linked_chats_section,
-            )
-
-            for role, path in state.saved_chat_paths:
-                links_section = build_linked_chats_section(
-                    state.saved_chat_paths, current_role=role
-                )
-                append_links_to_chat(os.path.expanduser(path), links_section)
-
-        # Read plan_path from plan_path.json if written by claude.py
-        plan_path: str | None = None
-        plan_path_file = os.path.join(state.current_artifacts_dir, "plan_path.json")
-        try:
-            with open(plan_path_file, encoding="utf-8") as f:
-                plan_path = json.load(f).get("plan_path")
-        except (FileNotFoundError, json.JSONDecodeError, OSError):
-            pass
-
-        # Extract step_output and diff_path from workflow_state.json
-        step_output, diff_path = extract_step_output_and_diff_path(
-            state.current_artifacts_dir
-        )
-        from sase.attachments.markdown_pdf import (
-            MAX_MARKDOWN_PDF_ATTACHMENTS,
-            MarkdownPdfProgressEvent,
-            render_markdown_pdf_attachments,
-        )
-        from sase.axe.image_attachments import (
-            collect_agent_image_paths,
-            collect_agent_markdown_paths,
-        )
-
-        include_head_commit = bool(
-            step_output
-            and any(
-                step_output.get(key)
-                for key in (
-                    "meta_new_commit",
-                    "meta_pr_url",
-                )
-            )
-        )
-        workspace_dir = getattr(ctx, "workspace_dir", os.getcwd())
-        base_files = [path for path in [saved_path, diff_path] if path]
-        markdown_paths = collect_agent_markdown_paths(
-            workspace_dir,
-            diff_path=diff_path,
-            include_head_commit=include_head_commit,
-            existing_files=base_files,
-            artifacts_dir=state.current_artifacts_dir,
-        )
-        markdown_source_count = len(markdown_paths)
-        print(
-            "Preparing PDFs from Markdown... "
-            f"found {markdown_source_count}, cap {MAX_MARKDOWN_PDF_ATTACHMENTS}"
-        )
-
-        def _handle_pdf_progress(event: MarkdownPdfProgressEvent) -> None:
-            source = _short_pdf_source(event.source_path, workspace_dir)
-            pdf_status = {
-                "stage": event.stage,
-                "source_path": source or event.source_path,
-                "pdf_path": event.pdf_path,
-                "engine": event.engine,
-                "index": event.index,
-                "total": event.total,
-                "generated": event.generated,
-                "skipped": event.skipped,
-                "reason": event.reason,
-                "cap": MAX_MARKDOWN_PDF_ATTACHMENTS,
-                "active": event.stage != "completed",
-            }
-            pdf_status = {k: v for k, v in pdf_status.items() if v is not None}
-            if event.stage == "started":
-                print(
-                    "[PDF] preparing Markdown PDFs "
-                    f"({event.total or 0} source(s), "
-                    f"cap {MAX_MARKDOWN_PDF_ATTACHMENTS})"
-                )
-            elif event.stage == "source_started":
-                print(f"[PDF] {event.index}/{event.total} {source}")
-            elif event.stage == "engine_started":
-                print(
-                    f"[PDF] {event.index}/{event.total} trying {event.engine}: {source}"
-                )
-            elif event.stage == "source_succeeded":
-                print(f"[PDF] {event.index}/{event.total} done: {source}")
-            elif event.stage == "source_failed":
-                print(
-                    f"[PDF] {event.index}/{event.total} failed: {source}"
-                    f" ({event.reason})"
-                )
-            elif event.stage == "skipped":
-                print(
-                    f"[PDF] {event.index}/{event.total} skipped: {source}"
-                    f" ({event.reason})"
-                )
-            elif event.stage == "completed":
-                print(
-                    "[PDF] complete: "
-                    f"{event.generated or 0} generated, {event.skipped or 0} skipped"
-                )
-            _update_workflow_pdf_status(state.current_artifacts_dir, pdf_status)
-
-        if markdown_source_count <= MAX_MARKDOWN_PDF_ATTACHMENTS:
-            markdown_pdf_paths = render_markdown_pdf_attachments(
-                markdown_paths,
-                workspace_dir=workspace_dir,
-                artifacts_dir=state.current_artifacts_dir,
-                progress=_handle_pdf_progress,
-            )
-        else:
-            reason = (
-                f"over attachment limit ({markdown_source_count} > "
-                f"{MAX_MARKDOWN_PDF_ATTACHMENTS})"
-            )
-            print(f"[PDF] skipped Markdown PDF rendering: {reason}")
-            _update_workflow_pdf_status(
-                state.current_artifacts_dir,
-                {
-                    "stage": "completed",
-                    "total": markdown_source_count,
-                    "generated": 0,
-                    "skipped": markdown_source_count,
-                    "reason": reason,
-                    "cap": MAX_MARKDOWN_PDF_ATTACHMENTS,
-                    "active": False,
-                },
-            )
-        _clear_workflow_pdf_activity(state.current_artifacts_dir)
-        image_paths = collect_agent_image_paths(
-            workspace_dir,
-            diff_path=diff_path,
-            include_head_commit=include_head_commit,
-            existing_files=[*base_files, *markdown_pdf_paths],
-        )
-
-        # Persist auto-discovered image artifacts to the global store so they
-        # outlive the ephemeral sase_<N> workspace. See
-        # sdd/tales/202605/persist_default_artifacts.md for context.
-        try:
-            from sase.core.agent_artifact_facade import (
-                persist_default_agent_artifacts,
-            )
-
-            persist_default_agent_artifacts(
-                state.current_artifacts_dir,
-                image_paths=image_paths,
-                workspace_dir=workspace_dir,
-            )
-            default_artifacts_persisted = True
-        except Exception as exc:  # noqa: BLE001
-            print(f"[artifacts] failed to persist default artifacts: {exc}")
-            default_artifacts_persisted = False
-
-        # Detect noop: workflow completed but launched zero agents
-        completed_outcome = (
-            "noop" if is_workflow_noop(state.current_artifacts_dir) else "completed"
-        )
-
-        # Write done marker
-        done_marker = build_done_marker(
-            ctx.cl_name,
-            ctx.project_file,
-            ctx.timestamp,
-            ctx.artifacts_timestamp,
-            ctx.workspace_num,
-            ctx.workspace_dir,
-            ctx.output_path,
-            completed_outcome,
-            agent_name=_done_agent_name,
-            agent_model=ctx.agent_model,
-            agent_llm_provider=ctx.agent_llm_provider,
-            agent_vcs_provider=ctx.agent_vcs_provider,
-            agent_hidden=ctx.agent_hidden,
-            response_path=saved_path,
-            step_output=step_output,
-            diff_path=diff_path,
-            plan_path=plan_path,
-            markdown_pdf_paths=markdown_pdf_paths,
-            image_paths=image_paths,
-            retry_metadata=_retry_meta,
-            default_artifacts_persisted=default_artifacts_persisted,
-        )
-        done_path = _write_done_marker_and_update_index(
-            state.current_artifacts_dir,
-            done_marker,
-        )
-        print(f"Done marker written to: {done_path}")
-    else:
-        # plan_rejected, killed, or failed_retried (spawn-on-retry handoff)
-        # For failed_retried, the failing parent has handed off to a fresh
-        # detached child agent; record outcome="failed" + retry-chain forward
-        # pointers so the loader can render the chain.
-        retried_as_timestamp: str | None = None
-        retry_chain_root_timestamp: str | None = None
-        retry_error_category: str | None = None
-        if state.loop_outcome == "failed_retried":
-            actual_outcome = "failed"
-            try:
-                meta_path = os.path.join(ctx.artifacts_dir, "agent_meta.json")
-                with open(meta_path, encoding="utf-8") as _f:
-                    _meta = json.load(_f)
-                if isinstance(_meta, dict):
-                    retried_as_timestamp = _meta.get("retried_as_timestamp")
-                    retry_chain_root_timestamp = _meta.get("retry_chain_root_timestamp")
-                    retry_error_category = _meta.get("retry_error_category")
-            except (FileNotFoundError, json.JSONDecodeError, OSError):
-                pass
-        else:
-            actual_outcome = state.loop_outcome
-
-        done_marker = build_done_marker(
-            ctx.cl_name,
-            ctx.project_file,
-            ctx.timestamp,
-            ctx.artifacts_timestamp,
-            ctx.workspace_num,
-            ctx.workspace_dir,
-            ctx.output_path,
-            actual_outcome,
-            agent_name=_done_agent_name,
-            agent_model=ctx.agent_model,
-            agent_hidden=ctx.agent_hidden,
-            response_path=saved_path,
-            retry_metadata=_retry_meta,
-            retried_as_timestamp=retried_as_timestamp,
-            retry_chain_root_timestamp=retry_chain_root_timestamp,
-            retry_error_category=retry_error_category,
-        )
-        done_path = _write_done_marker_and_update_index(
-            state.current_artifacts_dir,
-            done_marker,
-        )
-        print(f"Done marker written to: {done_path} (outcome: {state.loop_outcome})")
-
-    # For multi-step workflows the root artifacts directory (ctx.artifacts_dir)
-    # differs from the last step's directory (state.current_artifacts_dir).
-    # Write done.json to the root as well so that:
-    #   - _get_active_agent_names counts the root as done → name stays reserved
-    #   - claim_agent_name skips done artifacts → workflow_name is preserved
-    #   - find_named_agent can discover the completed workflow from the root
-    if state.current_artifacts_dir != ctx.artifacts_dir:
-        _write_done_marker_and_update_index(ctx.artifacts_dir, done_marker)
-
-    return _AgentExecResult(
-        success=state.loop_outcome == "completed",
-        outcome=state.loop_outcome,
-        saved_path=saved_path,
-        diff_path=diff_path,
-        markdown_pdf_paths=markdown_pdf_paths,
-        markdown_source_count=markdown_source_count,
-        image_paths=image_paths,
-        current_artifacts_dir=state.current_artifacts_dir,
-        step_output=step_output,
-    )
-
-
-def run_execution_loop(
-    ctx: AgentExecContext,
-    prompt: str,
-) -> _AgentExecResult:
-    """Run the agent workflow loop with retry, plan approval, and question handling.
-
-    Returns an _AgentExecResult with the outcome.
-    """
-    from sase.xprompt.models import create_anonymous_workflow
-    from sase.xprompt.workflow_runner import (
-        _WORKFLOW_INHERITED_VCS_TAG_ARG,
-        execute_workflow,
-    )
-
-    # Pre-set SASE_AGENT_CHAT_PATH so the commit stop hook (and
-    # create_changespec_for_workflow) can reference the ace-run chat file.
-    # The file won't exist yet — it's written in _finalize_loop — but the
-    # COMMITS entry only stores the path string.
-    from pathlib import Path
-
-    from sase.history.chat import generate_chat_filename, get_chat_file_path
-
+def _publish_predicted_chat_path(ctx: AgentExecContext) -> None:
     chat_basename = generate_chat_filename(
-        workflow="ace-run", branch_or_workspace=ctx.cl_name, timestamp=ctx.timestamp
+        workflow="ace-run",
+        branch_or_workspace=ctx.cl_name,
+        timestamp=ctx.timestamp,
     )
     predicted_chat_path = get_chat_file_path(chat_basename).replace(
         str(Path.home()), "~"
     )
     os.environ["SASE_AGENT_CHAT_PATH"] = predicted_chat_path
+
+
+def _publish_root_timestamp(ctx: AgentExecContext) -> None:
     from sase.ace.tui.models._timestamps import normalize_to_14_digit
 
     root_basename = os.path.basename(ctx.artifacts_dir.rstrip("/"))
     os.environ["SASE_AGENT_ROOT_TIMESTAMP"] = (
         normalize_to_14_digit(root_basename) or root_basename
     )
+
+
+def _build_named_args(ctx: AgentExecContext) -> dict[str, Any]:
+    from sase.xprompt.workflow_runner import _WORKFLOW_INHERITED_VCS_TAG_ARG
+
+    named_args: dict[str, Any] = {
+        "cl_name": ctx.cl_name,
+        "workspace_num": ctx.workspace_num,
+    }
+    repeat_iter_env = os.environ.get("SASE_REPEAT_ITERATION")
+    repeat_total_env = os.environ.get("SASE_REPEAT_TOTAL")
+    if repeat_iter_env is not None and repeat_total_env is not None:
+        try:
+            named_args["n"] = int(repeat_iter_env)
+            named_args["N"] = int(repeat_total_env)
+        except ValueError:
+            pass
+    if ctx.wait_chats:
+        named_args["wait_chats"] = ctx.wait_chats
+    vcs_tag = getattr(ctx, "vcs_tag", None)
+    if vcs_tag:
+        named_args[_WORKFLOW_INHERITED_VCS_TAG_ARG] = vcs_tag
+    return named_args
+
+
+def _handle_killed_iteration(
+    ctx: AgentExecContext,
+    state: LoopState,
+) -> str | None:
+    plan_data = read_and_delete_marker(
+        state.current_artifacts_dir,
+        ".sase_plan_pending",
+    )
+    q_data = read_and_delete_marker(
+        state.current_artifacts_dir,
+        ".sase_questions_pending",
+    )
+
+    if plan_data:
+        return handle_plan_marker(plan_data, ctx, state)
+    if q_data:
+        return handle_questions_marker(q_data, ctx, state)
+
+    AGENT_KILLS.labels(reason="user").inc()
+    return "killed"
+
+
+def run_execution_loop(
+    ctx: AgentExecContext,
+    prompt: str,
+) -> _AgentExecResult:
+    """Run the agent workflow loop with retry, plan approval, and question handling."""
+    from sase.xprompt.models import create_anonymous_workflow
+    from sase.xprompt.workflow_runner import execute_workflow
+
+    _publish_predicted_chat_path(ctx)
+    _publish_root_timestamp(ctx)
 
     tracker = RetryTracker(
         retry_cfg=get_retry_config(ctx.agent_llm_provider)
@@ -630,29 +159,11 @@ def run_execution_loop(
         if ctx.local_xprompts:
             anon_workflow.xprompts = ctx.local_xprompts
 
-        named_args: dict[str, Any] = {
-            "cl_name": ctx.cl_name,
-            "workspace_num": ctx.workspace_num,
-        }
-        _repeat_iter_env = os.environ.get("SASE_REPEAT_ITERATION")
-        _repeat_total_env = os.environ.get("SASE_REPEAT_TOTAL")
-        if _repeat_iter_env is not None and _repeat_total_env is not None:
-            try:
-                named_args["n"] = int(_repeat_iter_env)
-                named_args["N"] = int(_repeat_total_env)
-            except ValueError:
-                pass
-        if ctx.wait_chats:
-            named_args["wait_chats"] = ctx.wait_chats
-        vcs_tag = getattr(ctx, "vcs_tag", None)
-        if vcs_tag:
-            named_args[_WORKFLOW_INHERITED_VCS_TAG_ARG] = vcs_tag
-
         try:
             result = execute_workflow(
                 anon_workflow.name,
                 [],
-                named_args,
+                _build_named_args(ctx),
                 artifacts_dir=state.current_artifacts_dir,
                 silent=True,
                 workflow_obj=anon_workflow,
@@ -663,43 +174,17 @@ def run_execution_loop(
                 action = handle_workflow_error(wf_exc, tracker, ctx, state)
                 if action == "continue":
                     continue
-                elif action == "break":
+                if action == "break":
                     break
-                else:
-                    raise
+                raise
             result = None
 
-        # If the process wasn't killed, this is a normal completion.
-        # When it WAS killed, invoke_agent() may have swallowed the
-        # CalledProcessError and returned an error AIMessage instead
-        # of raising, so we must check for markers in both paths.
         if not was_killed():
-            break  # Normal completion
+            break
 
-        # Check for marker files left by `sase plan` / `sase questions`
-        plan_data = read_and_delete_marker(
-            state.current_artifacts_dir, ".sase_plan_pending"
-        )
-        q_data = read_and_delete_marker(
-            state.current_artifacts_dir, ".sase_questions_pending"
-        )
-
-        if plan_data:
-            outcome = handle_plan_marker(plan_data, ctx, state)
-            if outcome is not None:
-                state.loop_outcome = outcome
-                break
-            continue
-        elif q_data:
-            outcome = handle_questions_marker(q_data, ctx, state)
-            if outcome is not None:
-                state.loop_outcome = outcome
-                break
-            continue
-        else:
-            # Killed by user (no marker)
-            AGENT_KILLS.labels(reason="user").inc()
-            state.loop_outcome = "killed"
+        outcome = _handle_killed_iteration(ctx, state)
+        if outcome is not None:
+            state.loop_outcome = outcome
             break
 
     return _finalize_loop(ctx, state, tracker, result)

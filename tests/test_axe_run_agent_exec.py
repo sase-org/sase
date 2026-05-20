@@ -193,7 +193,10 @@ def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(
     )
 
     with (
-        patch("sase.axe.run_agent_exec.save_chat_history", return_value=str(chat)),
+        patch(
+            "sase.axe.run_agent_exec_finalize.save_chat_history",
+            return_value=str(chat),
+        ),
         patch(
             "sase.attachments.markdown_pdf.render_markdown_pdf",
             side_effect=fake_render_markdown_pdf,
@@ -276,7 +279,10 @@ def test_finalize_loop_renders_markdown_pdfs_at_attachment_limit(
         return dest
 
     with (
-        patch("sase.axe.run_agent_exec.save_chat_history", return_value=str(chat)),
+        patch(
+            "sase.axe.run_agent_exec_finalize.save_chat_history",
+            return_value=str(chat),
+        ),
         patch(
             "sase.axe.image_attachments.collect_agent_markdown_paths",
             return_value=sources,
@@ -314,7 +320,10 @@ def test_finalize_loop_skips_markdown_pdfs_above_attachment_limit(
     sources = _write_markdown_sources(tmp_path, MAX_MARKDOWN_PDF_ATTACHMENTS + 1)
 
     with (
-        patch("sase.axe.run_agent_exec.save_chat_history", return_value=str(chat)),
+        patch(
+            "sase.axe.run_agent_exec_finalize.save_chat_history",
+            return_value=str(chat),
+        ),
         patch(
             "sase.axe.image_attachments.collect_agent_markdown_paths",
             return_value=sources,
@@ -402,7 +411,10 @@ def test_finalize_loop_prints_and_persists_markdown_pdf_progress(
         return dest
 
     with (
-        patch("sase.axe.run_agent_exec.save_chat_history", return_value=str(chat)),
+        patch(
+            "sase.axe.run_agent_exec_finalize.save_chat_history",
+            return_value=str(chat),
+        ),
         patch(
             "sase.axe.image_attachments.collect_agent_markdown_paths",
             return_value=[str(source)],
@@ -455,7 +467,7 @@ def test_finalize_loop_records_markdown_pdf_limit_reason(
 
     with (
         patch(
-            "sase.axe.run_agent_exec.save_chat_history",
+            "sase.axe.run_agent_exec_finalize.save_chat_history",
             return_value=str(tmp_path / "chat.md"),
         ),
         patch(
@@ -615,7 +627,10 @@ def test_finalize_loop_restores_original_agent_timestamp(
     _os.environ["SASE_AGENT_ROOT_TIMESTAMP"] = "20260408120000"
 
     with (
-        patch("sase.axe.run_agent_exec.save_chat_history", return_value=str(chat)),
+        patch(
+            "sase.axe.run_agent_exec_finalize.save_chat_history",
+            return_value=str(chat),
+        ),
         patch(
             "sase.axe.image_attachments.collect_agent_markdown_paths",
             return_value=[],
@@ -661,7 +676,10 @@ def test_finalize_loop_clears_agent_timestamp_when_unset_at_entry(
     _os.environ["SASE_AGENT_ROOT_TIMESTAMP"] = "20260408120000"
 
     with (
-        patch("sase.axe.run_agent_exec.save_chat_history", return_value=str(chat)),
+        patch(
+            "sase.axe.run_agent_exec_finalize.save_chat_history",
+            return_value=str(chat),
+        ),
         patch(
             "sase.axe.image_attachments.collect_agent_markdown_paths",
             return_value=[],

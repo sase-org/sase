@@ -73,7 +73,8 @@ def test_done_marker_write_updates_artifact_index(tmp_path: Path) -> None:
     calls: list[str] = []
 
     with patch(
-        "sase.axe.run_agent_exec.update_agent_artifact_index_for_marker_mutation",
+        "sase.axe.run_agent_exec_markers."
+        "update_agent_artifact_index_for_marker_mutation",
         side_effect=lambda path: calls.append(path),
     ):
         done_path = _write_done_marker_and_update_index(

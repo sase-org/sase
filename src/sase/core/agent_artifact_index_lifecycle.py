@@ -29,7 +29,9 @@ _INDEX_ERRORS = (ImportError, AttributeError, OSError, RuntimeError, ValueError)
 
 def _default_projects_root(sase_home: Path | str | None = None) -> Path:
     """Return the default projects root used by the artifact index."""
-    root = Path(sase_home).expanduser() if sase_home is not None else Path.home() / ".sase"
+    root = (
+        Path(sase_home).expanduser() if sase_home is not None else Path.home() / ".sase"
+    )
     return root / "projects"
 
 
@@ -48,7 +50,11 @@ def sync_dismissed_agent_artifact_index(
     index_path: Path | str | None = None,
 ) -> bool:
     """Best-effort sync of dismissed identities into the SQLite artifact index."""
-    index = Path(index_path).expanduser() if index_path is not None else default_agent_artifact_index_path()
+    index = (
+        Path(index_path).expanduser()
+        if index_path is not None
+        else default_agent_artifact_index_path()
+    )
     if not index.is_file():
         return False
     identities = [_identity_to_wire(identity) for identity in dismissed]
@@ -66,7 +72,11 @@ def delete_agent_artifact_index_artifacts(
     index_path: Path | str | None = None,
 ) -> int:
     """Best-effort delete of artifact rows from the SQLite index."""
-    index = Path(index_path).expanduser() if index_path is not None else default_agent_artifact_index_path()
+    index = (
+        Path(index_path).expanduser()
+        if index_path is not None
+        else default_agent_artifact_index_path()
+    )
     if not index.is_file():
         return 0
 
@@ -75,7 +85,9 @@ def delete_agent_artifact_index_artifacts(
         if artifact_dir is None:
             continue
         try:
-            update = delete_agent_artifact_index_row(index, Path(artifact_dir).expanduser())
+            update = delete_agent_artifact_index_row(
+                index, Path(artifact_dir).expanduser()
+            )
         except _INDEX_ERRORS:
             log.debug(
                 "agent artifact index row delete failed: %s",
@@ -93,7 +105,11 @@ def upsert_agent_artifact_index_artifacts(
     index_path: Path | str | None = None,
 ) -> int:
     """Best-effort upsert of restored or changed artifact rows."""
-    index = Path(index_path).expanduser() if index_path is not None else default_agent_artifact_index_path()
+    index = (
+        Path(index_path).expanduser()
+        if index_path is not None
+        else default_agent_artifact_index_path()
+    )
     indexed = 0
     seen: set[Path] = set()
     for artifact_dir in artifact_dirs:
