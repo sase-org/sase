@@ -796,8 +796,8 @@ llm_provider:
 
 ### Default Configuration
 
-Gemini and Claude have retry defaults (defined in `default_config.yml`); external provider plugins may declare their own
-via the `llm_default_retry_config()` hook.
+Gemini and Claude have retry defaults in `default_config.yml`; provider plugins may also declare built-in defaults via
+the `llm_default_retry_config()` hook.
 
 **Gemini:**
 
@@ -816,13 +816,14 @@ via the `llm_default_retry_config()` hook.
 ### Provider-Supplied Retry Defaults
 
 Providers can also declare retry defaults through the `llm_default_retry_config()` hook. Claude declares a built-in
-context-overflow recovery entry that is merged with the `default_config.yml` Claude retry defaults:
+recovery entry that is merged with the `default_config.yml` Claude retry defaults:
 
-- **error pattern**: `"Prompt is too long"`
+- **error patterns**: `"Prompt is too long"`, `"socket connection was closed unexpectedly"`, and `"API Error"`
 - **max_retries**: 3
 - **wait_times**: `[0]` — zero-delay retry so a fresh session restarts immediately
 - **continuation_prompt**: A short nudge that tells the coder to inspect `git status` / `git diff` before resuming,
-  since prior edits are preserved on disk when the retry wipes only the in-memory context
+  since prior edits are preserved on disk after a context-limit or transient provider failure
+- **preserve_workspace**: `true`
 
 User-supplied `llm_provider.retry.<provider>` config is merged on top of provider-supplied defaults: explicit falsy
 values (`max_retries: 0` to opt out entirely, `continuation_prompt: ""` to disable the nudge) override the built-in via
@@ -830,8 +831,8 @@ key-presence checks. `error_patterns` is a de-duplicated union of built-in and u
 
 On every retry attempt the `continuation_prompt` (if non-empty) is idempotently prepended to `state.current_prompt`
 before the next invocation — the prepend is gated on a `startswith` check so repeated retries don't stack duplicate
-nudges. Workspaces are preserved across built-in context-overflow retries (no workspace wipe), so on-disk edits remain
-available to the restarted session.
+nudges. Workspaces are preserved across Claude's built-in context-limit and transient-provider retries (no workspace
+wipe), so on-disk edits remain available to the restarted session.
 
 ### Retry Flow
 

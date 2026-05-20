@@ -57,16 +57,16 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 ### Navigation
 
-| Key                 | Action                                                                             |
-| ------------------- | ---------------------------------------------------------------------------------- |
-| `j` / `k`           | Move to next / previous visible row (banner at fold `< L2`, CL at the leaf level)  |
-| `<` / `>` / `~`     | Navigate to ancestor / child / sibling CL                                          |
-| `'`                 | Jump to entry by hint character (current tab); hints land on collapsed banners too |
-| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))              |
-| `Ctrl+O` / `Ctrl+K` | Jump back / forward in CL history                                                  |
-| `o` / `O`           | Cycle CL grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`)  |
-| `g` / `G`           | Scroll detail panel to top / bottom                                                |
-| `Ctrl+D` / `Ctrl+U` | Scroll detail panel down / up (half page)                                          |
+| Key                 | Action                                                                              |
+| ------------------- | ----------------------------------------------------------------------------------- |
+| `j` / `k`           | Move to next / previous visible row (banner at fold `< L2`, CL at the leaf level)   |
+| `<` / `>` / `~`     | Navigate to ancestor / child / sibling CL                                           |
+| `'`                 | Jump to entry by hint character (current tab); hints land on collapsed banners too  |
+| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))               |
+| `Ctrl+O` / `Ctrl+K` | Jump back / forward in CL history                                                   |
+| `o` / `O`           | Cycle CL grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`) |
+| `g` / `G`           | Scroll detail panel to top / bottom                                                 |
+| `Ctrl+D` / `Ctrl+U` | Scroll detail panel down / up (half page)                                           |
 
 > **Note:** `o`/`O` ("organize") cycles the L0 grouping bucket forward / reverse on the Agents and CLs tabs (each tab
 > keeps its own in-session mode). On the AXE tab it is a silent no-op. See
@@ -127,19 +127,19 @@ the cursor always sits on a row the user can see.
 
 ### Fold Mode (`z` prefix)
 
-| Key     | Action                                                 |
-| ------- | ------------------------------------------------------ |
-| `z` `c` | Cycle commits section (expand → collapse)              |
+| Key     | Action                                                  |
+| ------- | ------------------------------------------------------- |
+| `z` `c` | Cycle commits section (expand → collapse)               |
 | `z` `d` | Cycle deltas section (folded ↔ unfolded)               |
-| `z` `h` | Cycle hooks section (expand → collapse)                |
-| `z` `m` | Cycle mentors section (expand → collapse)              |
-| `z` `t` | Cycle timestamps section (expand → collapse)           |
+| `z` `h` | Cycle hooks section (expand → collapse)                 |
+| `z` `m` | Cycle mentors section (expand → collapse)               |
+| `z` `t` | Cycle timestamps section (expand → collapse)            |
 | `z` `C` | Toggle commits section (collapsed ↔ fully expanded)    |
 | `z` `D` | Toggle deltas section (folded ↔ unfolded)              |
 | `z` `H` | Toggle hooks section (collapsed ↔ fully expanded)      |
 | `z` `M` | Toggle mentors section (collapsed ↔ fully expanded)    |
 | `z` `T` | Toggle timestamps section (collapsed ↔ fully expanded) |
-| `z` `z` | Cycle all sections                                     |
+| `z` `z` | Cycle all sections                                      |
 | `z` `Z` | Toggle all sections (expand ↔ collapse)                |
 
 COMMITS, HOOKS, MENTORS, and TIMESTAMPS sections each cycle through three fold levels:
@@ -264,7 +264,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `J` / `K`           | Cycle focus across tag side panels (forward / reverse)                                                |
 | `'`                 | Jump to entry by hint character (current tab); on the Agents tab, hints land on collapsed banners too |
 | `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                 |
-| `o` / `O`           | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                          |
+| `o` / `O`           | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                        |
 | `g`                 | Scroll to top (file, tools, or metadata panel)                                                        |
 | `G`                 | Scroll to bottom (file, tools, or metadata panel)                                                     |
 | `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                                                           |
@@ -493,10 +493,10 @@ To keep rows compact, agent statuses and types are rendered as one- or two-chara
 
 | Glyph | Meaning                                              |
 | ----- | ---------------------------------------------------- |
-| `▶`   | RUNNING                                              |
+| `▶`  | RUNNING                                              |
 | `✓`   | DONE                                                 |
 | `✓P`  | PLAN DONE                                            |
-| `▶P`  | PLAN APPROVED                                        |
+| `▶P` | PLAN APPROVED                                        |
 | `★E`  | EPIC CREATED                                         |
 | `✎`   | PLAN                                                 |
 | `✗`   | FAILED                                               |
@@ -1080,15 +1080,17 @@ older generated names into the permanent namespace; pass `--force` to rerun afte
 
 ### Per-Step Naming for Multi-Agent Workflows
 
-When a workflow spawns follow-up agents (e.g., plan approval followed by a coder step), the agents receive dotted names
-derived from the base name. For example, if the initial agent is named `a`:
+When a plan-family workflow spawns follow-up agents (e.g., plan approval followed by a coder step), the agents receive
+hyphenated phase names derived from the base name. For example, if the initial agent family is named `a`:
 
-1. The root agent keeps `a`
-2. The first follow-up agent becomes `a.2`
-3. Subsequent follow-ups become `a.3`, `a.4`, etc.
+1. The root agent keeps `a`.
+2. The planner phase is `a-plan`.
+3. Feedback rounds become `a-2`, `a-3`, etc.
+4. Terminal follow-ups use the phase suffix, such as `a-code`, `a-epic`, `a-legend`, or `a-commit`.
 
-The base name (`a`) is reserved for the workflow as a whole, so `%wait:a` or `@a` references resolve correctly. Single-
-agent workflows (no follow-ups) keep their original name unchanged.
+The base name (`a`) is reserved for the workflow as a whole, so `%wait:a` or `@a` references resolve correctly. ACE
+still canonicalizes older dotted phase names (`a.plan`, `a.2`, `a.code`, etc.) when reading legacy artifacts, but new
+plan-family metadata uses the hyphenated suffixes.
 
 ## Agent Statuses
 
@@ -1104,8 +1106,8 @@ active (the agent is still running or awaiting input) and completed (the agent h
 | **WAITING INPUT**  | Amber/orange | Workflow is paused at a human-in-the-loop (HITL) step              |
 | **PLAN**           | Pink/magenta | Agent has produced a plan and is waiting for user approval         |
 | **PLAN APPROVED**  | Cyan         | Plan was approved; follow-up agent has been spawned                |
-| **EPIC APPROVED**  | Cyan         | Plan was approved as an epic; `.epic` follow-up is running         |
-| **PLAN COMMITTED** | Cyan         | Plan was approved with auto-commit; `.commit` follow-up is running |
+| **EPIC APPROVED**  | Cyan         | Plan was approved as an epic; `-epic` follow-up is running         |
+| **PLAN COMMITTED** | Cyan         | Plan was approved with auto-commit; `-commit` follow-up is running |
 | **QUESTION**       | Amber        | Agent is asking the user a question (via `/sase_questions`)        |
 | **RETRYING**       | Orange       | Agent hit a retryable error and is in a countdown before retrying  |
 
@@ -1117,11 +1119,11 @@ The `,n` shortcut (jump to the open question) reads the marker directly when no 
 still reopen the question modal.
 
 `QUESTION` also propagates up agent families. When a follow-up child finishes `DONE` but recorded an unanswered question
-(its `questions_times` list is non-empty and it never spawned a `.q` follow-up of its own), the parent workflow row
-inherits `QUESTION` so the family still shows as waiting on you. When the question is answered or dismissed — or when
-the child spawns a `.q` follow-up to handle it — the next status pass re-evaluates the parent without the override and
-the row returns to its normal status. If the parent has several active children, the most recently started one wins, so
-a newer `RUNNING` child can overtake the `QUESTION` override on the parent.
+(its `questions_times` list is non-empty and no `question_response_path` was persisted), the parent workflow row
+inherits `QUESTION` so the family still shows as waiting on you. When the question is answered and the response metadata
+is preserved, or when a `-q` follow-up handles the response, the next status pass re-evaluates the parent without the
+override and the row returns to its normal status. If the parent has several active children, the most recently started
+one wins, so a newer `RUNNING` child can overtake the `QUESTION` override on the parent.
 
 The footer also shows axe daemon status indicators:
 
@@ -1145,7 +1147,7 @@ feedback on cold-start latency. A safety timeout forcibly retires the stopwatch 
 | **DONE**         | Green | Agent completed successfully                                                   |
 | **PLAN DONE**    | Green | Plan workflow fully completed (all steps)                                      |
 | **TALE DONE**    | Green | Tale plan workflow fully completed (all follow-ups)                            |
-| **EPIC CREATED** | Green | Plan workflow completed and its latest `.epic` follow-up finished successfully |
+| **EPIC CREATED** | Green | Plan workflow completed and its latest `-epic` follow-up finished successfully |
 | **FAILED**       | Red   | Agent exited with an error                                                     |
 
 Completed agents can be dismissed with `x` on a single row, or through the `X` cleanup panel for focused-panel, global,
@@ -1215,7 +1217,10 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   from the artifacts directory after completion. When per-turn reply timestamps are available (recorded in
   `live_reply_timestamps.jsonl`), the reply is displayed with timestamp dividers between each agent turn. For agents
   with follow-up phases (planner, feedback rounds, coder), the AGENT REPLY section consolidates replies from all phases
-  into a single view with purple phase dividers showing each phase's label and start time
+  into a single view with purple phase dividers showing each phase's label and start time. Phase labels are derived from
+  canonical plan-family suffixes: `-plan` renders as `PLANNER`, `-code` as `CODER`, `-q` as `QUESTIONS`, `-epic` as
+  `EPIC`, `-legend` as `LEGEND`, `-commit` as `COMMIT`, and numeric feedback suffixes such as `-2` as
+  `PLANNER (round 2)`. Legacy dotted suffixes render the same way.
 
 When the file or tools panel is empty, the `g`/`G` keys automatically fall back to scrolling the metadata panel.
 
@@ -1270,10 +1275,11 @@ PLAN status appears without waiting for the next auto-refresh tick. The pulse fi
 watcher (see [Auto-Refresh](#auto-refresh)) and is harmless if no TUI is open.
 
 Root plan workflows also surface PLAN when a re-proposed plan is still awaiting review. Plan and feedback timestamps
-from feedback-round children (`.2`, `.3`, …) propagate onto the root entry, and whenever the root's latest plan
-timestamp is newer than its latest feedback timestamp the override engine restores `PLAN` over a `RUNNING` or `DONE`
-label. This applies only to root plan workflows that have not yet spawned a follow-up (`.code`, `.epic`, …); once a
-follow-up is launched, the parent moves on to `PLAN APPROVED` (or the matching follow-up status) instead.
+from feedback-round children (`-2`, `-3`, ...; legacy `.2`, `.3`, ...) propagate onto the root entry, and whenever the
+root's latest plan timestamp is newer than its latest feedback timestamp the override engine restores `PLAN` over a
+`RUNNING` or `DONE` label. This applies only to root plan workflows that have not yet spawned a follow-up (`-code`,
+`-epic`, ...); once a follow-up is launched, the parent moves on to `PLAN APPROVED` (or the matching follow-up status)
+instead.
 
 The Plan Review modal title shows a provider-themed `PROVIDER(model)` badge between the "Plan Review" label and the plan
 filename — orange for Claude, lime for Codex, Google blue for Gemini, neutral muted for other providers. The badge is
@@ -1363,8 +1369,8 @@ When an agent encounters a retryable error (configured via `llm_provider.retry`)
 
 ### Prior Agent Attempts
 
-Every time the axe retry loop retries an agent — context-overflow restart, user-configured retry, or fallback-model
-switch — the failed attempt's partial reply, error text, timestamps, and model are snapshotted under
+Every time the axe retry loop retries an agent — context-limit restart, transient provider retry, user-configured retry,
+or fallback-model switch — the failed attempt's partial reply, error text, timestamps, and model are snapshotted under
 `<artifacts_dir>/attempts/<N>/`. The AGENT REPLY area in the Agents tab renders these prior attempts inline with styled
 dividers before the current/final attempt, so the full arc of the agent's work stays visible in one scroll.
 

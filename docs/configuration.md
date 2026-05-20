@@ -227,12 +227,14 @@ llm_provider:
 | `llm_provider.retry.<provider>.error_patterns`      | list | `[]`    | Case-insensitive substring patterns matched against error output.         |
 | `llm_provider.retry.<provider>.wait_times`          | list | `[30]`  | Per-retry wait times in seconds. Last value reused if list is shorter.    |
 | `llm_provider.retry.<provider>.fallback_model`      | str  | `null`  | Alternate model to use after exhausting all retries.                      |
-| `llm_provider.retry.<provider>.continuation_prompt` | str  | `null`  | Prompt text appended when continuing after a retryable failure.           |
+| `llm_provider.retry.<provider>.continuation_prompt` | str  | `null`  | Prompt text prepended when continuing after a retryable failure.          |
 | `llm_provider.retry.<provider>.preserve_workspace`  | bool | `false` | Preserve on-disk edits across legacy in-process retry attempts.           |
 | `llm_provider.retry.<provider>.spawn_new_agent`     | bool | `false` | Retry by launching a fresh detached agent that inherits the workspace.    |
 
 User retry config is merged with provider-supplied retry defaults when a provider declares them. For list fields such as
-`error_patterns`, built-in patterns are kept and user patterns are appended with duplicates removed.
+`error_patterns`, built-in patterns are kept and user patterns are appended with duplicates removed. Claude supplies
+built-in zero-delay, workspace-preserving retries for context-limit and transient API/socket failures in addition to the
+Claude defaults in `default_config.yml`.
 
 Source: `src/sase/llm_provider/retry_config.py`, `src/sase/llm_provider/config.py`
 
