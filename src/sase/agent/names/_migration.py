@@ -6,11 +6,16 @@ import json
 import os
 import re
 import tempfile
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from sase.agent.names._common import is_dismissed_prefixed
+from sase.core.agent_artifact_index_lifecycle import (
+    sync_dismissed_agent_artifact_index,
+    upsert_agent_artifact_index_artifacts,
+)
 
 MIGRATION_SCHEMA_VERSION = 1
 MIGRATION_MARKER_FILENAME = "agent_name_auto_migration.json"
@@ -20,6 +25,7 @@ _ARTIFACT_SUFFIX_RE = re.compile(r"^(\d{8})")
 _RUNNER_TIMESTAMP_RE = re.compile(r"^(\d{6})_")
 _JSON_NAME_KEYS = {"name", "workflow_name", "agent_name"}
 _JSON_REF_KEYS = {"wait_for", "waiting_for"}
+_INDEXED_ARTIFACT_MARKER_NAMES = {"agent_meta.json", "done.json", "waiting.json"}
 _NOTIFICATION_ACTION_NAME_KEYS = {
     "agent_name",
     "parent_agent_name",
@@ -56,8 +62,19 @@ def run_historical_auto_name_migration(
     mapping = _collect_legacy_auto_name_mapping()
     changed_files: set[Path] = set()
     if mapping:
-        changed_files.update(_rewrite_artifact_json_files(mapping))
-        changed_files.update(_rewrite_dismissed_bundle_files(mapping))
+        artifact_marker_files = _rewrite_artifact_json_files(mapping)
+        changed_files.update(artifact_marker_files)
+        artifact_index_dirs = _indexed_artifact_dirs_for_changed_files(
+            artifact_marker_files
+        )
+        if artifact_index_dirs:
+            upsert_agent_artifact_index_artifacts(artifact_index_dirs)
+
+        dismissed_bundle_files = _rewrite_dismissed_bundle_files(mapping)
+        changed_files.update(dismissed_bundle_files)
+        if dismissed_bundle_files:
+            sync_dismissed_agent_artifact_index(force=True)
+
         changed_files.update(_rewrite_prompt_artifact_files(mapping))
         changed_files.update(_rewrite_prompt_history(mapping))
         changed_files.update(_rewrite_notifications(mapping))
@@ -265,6 +282,12 @@ def _rewrite_artifact_json_files(mapping: dict[str, str]) -> set[Path]:
                 _write_json_file(path, updated)
                 changed.add(path)
     return changed
+
+
+def _indexed_artifact_dirs_for_changed_files(paths: Iterable[Path]) -> set[Path]:
+    return {
+        path.parent for path in paths if path.name in _INDEXED_ARTIFACT_MARKER_NAMES
+    }
 
 
 def _rewrite_agent_json_payload(

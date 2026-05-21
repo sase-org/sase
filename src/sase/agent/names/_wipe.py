@@ -13,6 +13,9 @@ from typing import Any
 
 from sase.agent.names._common import is_process_alive
 from sase.agent.names._registry import lookup_registered_name, rebuild_name_registry
+from sase.core.agent_artifact_index_lifecycle import (
+    delete_agent_artifact_index_artifacts,
+)
 
 
 @dataclass(frozen=True)
@@ -86,6 +89,7 @@ def wipe_agent_name_for_reuse(
     errors: list[str] = []
     killed = _terminate_live_artifacts(plan, errors)
     removed_artifacts = _remove_artifact_dirs(plan.artifact_dirs, errors)
+    delete_agent_artifact_index_artifacts(removed_artifacts)
     removed_bundles = _remove_bundle_paths(plan.bundle_paths, plan.suffixes, errors)
     dismissed_removed = _remove_dismissed_index_entries(plan.suffixes, errors)
     notifications = _dismiss_related_notifications(plan, errors)

@@ -86,6 +86,21 @@ def test_wipe_done_agent_clears_lookup_registry_and_notifications(
         assert load_notifications(include_dismissed=True)[0].dismissed is True
 
 
+def test_wipe_deletes_artifact_index_rows_for_removed_dirs(tmp_path: Path) -> None:
+    artifacts_dir = _artifact(tmp_path, "20260508120000", "foo", done=True)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        with patch(
+            "sase.agent.names._wipe.delete_agent_artifact_index_artifacts"
+        ) as mock_delete_index:
+            result = wipe_agent_name_for_reuse("foo")
+
+    assert result.artifact_dirs_removed == (str(artifacts_dir.resolve()),)
+    mock_delete_index.assert_called_once()
+    assert set(mock_delete_index.call_args.args[0]) == {artifacts_dir.resolve()}
+
+
 def test_wipe_live_agent_terminates_and_releases_workspace(
     tmp_path: Path,
 ) -> None:

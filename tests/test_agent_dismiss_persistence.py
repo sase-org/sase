@@ -210,6 +210,33 @@ def test_dismiss_side_effects_delete_artifact_index_row(tmp_path) -> None:  # ty
     mock_delete_artifacts.assert_called_once_with(str(tmp_path / "artifacts"))
 
 
+def test_delete_agent_artifacts_deletes_artifact_index_row(  # type: ignore[no-untyped-def]
+    tmp_path,
+) -> None:
+    """Shared marker cleanup deletes the stale SQLite index row itself."""
+    from sase.ace.tui.actions.agents._killing_utils import delete_agent_artifacts
+
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    done_marker = artifacts_dir / "done.json"
+    done_marker.write_text("{}", encoding="utf-8")
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._killing_utils."
+            "delete_agent_artifact_index_artifacts"
+        ) as mock_delete_index,
+        patch(
+            "sase.ace.tui.actions.agents._killing_utils.try_delete_agent_artifacts",
+            return_value=False,
+        ),
+    ):
+        delete_agent_artifacts(str(artifacts_dir))
+
+    mock_delete_index.assert_called_once_with([str(artifacts_dir)])
+    assert not done_marker.exists()
+
+
 def test_bulk_dismiss_fallback_batches_artifact_index_deletes(tmp_path) -> None:  # type: ignore[no-untyped-def]
     """Per-agent fallback should issue a *single* artifact-index delete call."""
     from sase.ace.tui.actions.agents._dismiss_persistence import (

@@ -5,6 +5,11 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
+from sase.core.agent_artifact_index_lifecycle import (
+    delete_agent_artifact_index_artifacts,
+)
+from sase.core.agent_cleanup_execution import try_delete_agent_artifacts
+
 if TYPE_CHECKING:
     from ...models import Agent
 
@@ -20,15 +25,16 @@ def delete_agent_artifacts(artifacts_dir: str | None) -> None:
     """
     if not artifacts_dir:
         return
-    from sase.core.agent_cleanup_execution import try_delete_agent_artifacts
 
     if try_delete_agent_artifacts(artifacts_dir):
+        delete_agent_artifact_index_artifacts([artifacts_dir])
         return
 
     from pathlib import Path
 
     artifacts_path = Path(artifacts_dir)
     if not artifacts_path.is_dir():
+        delete_agent_artifact_index_artifacts([artifacts_dir])
         return
 
     # Delete files that the loaders scan for
@@ -38,6 +44,7 @@ def delete_agent_artifacts(artifacts_dir: str | None) -> None:
                 f.unlink()
             except OSError:
                 pass
+    delete_agent_artifact_index_artifacts([artifacts_dir])
 
 
 def dismiss_notifications_for_agents(agents: Iterable[Agent]) -> int:

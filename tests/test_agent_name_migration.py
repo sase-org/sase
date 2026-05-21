@@ -140,3 +140,30 @@ def test_migration_does_not_prefix_non_auto_user_name(tmp_path: Path) -> None:
         run_historical_auto_name_migration()
 
     assert _read_json(artifact_dir / "agent_meta.json")["name"] == "sase-z"
+
+
+def test_migration_refreshes_artifact_index_and_dismissed_projection(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = _artifact(tmp_path, "20260508120000", {"name": "a"})
+    bundle = tmp_path / ".sase" / "dismissed_bundles" / "202605" / "20260508121000.json"
+    bundle.parent.mkdir(parents=True)
+    bundle.write_text(
+        json.dumps({"agent_name": "b", "workflow_name": "b"}),
+        encoding="utf-8",
+    )
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch(
+            "sase.agent.names._migration.upsert_agent_artifact_index_artifacts"
+        ) as mock_upsert,
+        patch(
+            "sase.agent.names._migration.sync_dismissed_agent_artifact_index"
+        ) as mock_sync,
+    ):
+        run_historical_auto_name_migration()
+
+    mock_upsert.assert_called_once()
+    assert set(mock_upsert.call_args.args[0]) == {artifact_dir}
+    mock_sync.assert_called_once_with(force=True)
