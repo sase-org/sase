@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 from sase.ace.tui.actions.base import BaseActionsMixin
 from sase.ace.tui.actions.agents._wait_resume import (
@@ -105,7 +106,11 @@ def test_apply_wait_overwrites_wait_conditions(tmp_path: Path) -> None:
     agent = _make_waiting_agent()
     app = _FakeWaitResumeApp()
 
-    app._apply_wait(str(tmp_path), agent, "alice, bob,, ")
+    with patch(
+        "sase.ace.tui.actions.agents._wait_resume."
+        "update_agent_artifact_index_for_marker_mutation"
+    ) as update_index:
+        app._apply_wait(str(tmp_path), agent, "alice, bob,, ")
 
     data = json.loads(waiting_path.read_text(encoding="utf-8"))
     assert data == {
@@ -118,13 +123,18 @@ def test_apply_wait_overwrites_wait_conditions(tmp_path: Path) -> None:
     assert agent.wait_until is None
     assert app.notifications == [("Now waiting for: alice, bob", "information")]
     assert app.refresh_calls == 1
+    update_index.assert_called_once_with(str(tmp_path))
 
 
 def test_apply_wait_empty_submission_keeps_run_now_behavior(tmp_path: Path) -> None:
     agent = _make_waiting_agent(waiting_for=["old_dep"], wait_duration=None)
     app = _FakeWaitResumeApp()
 
-    app._apply_wait(str(tmp_path), agent, "")
+    with patch(
+        "sase.ace.tui.actions.agents._wait_resume."
+        "update_agent_artifact_index_for_marker_mutation"
+    ) as update_index:
+        app._apply_wait(str(tmp_path), agent, "")
 
     ready_path = tmp_path / "ready.json"
     assert json.loads(ready_path.read_text(encoding="utf-8")) == {
@@ -133,6 +143,7 @@ def test_apply_wait_empty_submission_keeps_run_now_behavior(tmp_path: Path) -> N
     }
     assert agent.waiting_for == ["old_dep"]
     assert app.notifications == [("Wait: test_cl", "information")]
+    update_index.assert_not_called()
 
 
 class _FakeAgentForkDispatchApp(BaseActionsMixin, HookEditingMixin):

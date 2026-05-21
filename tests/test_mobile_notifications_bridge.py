@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -275,6 +276,52 @@ def test_execute_mobile_plan_action_writes_response_and_side_effects(
         "}\n"
     )
     mark_dismissed.assert_called_once_with("abcdef12-plan")
+
+
+def test_execute_mobile_plan_action_approval_refreshes_artifact_index(
+    tmp_path: Path,
+) -> None:
+    response_dir = tmp_path / "agent" / "plan_approval"
+    response_dir.mkdir(parents=True)
+    (response_dir / "plan_request.json").write_text("{}", encoding="utf-8")
+    (response_dir.parent / "agent_meta.json").write_text(
+        json.dumps({"name": "planner"}),
+        encoding="utf-8",
+    )
+    plan_file = tmp_path / "plan.md"
+    plan_file.write_text("# Plan\n", encoding="utf-8")
+    row = _notification(
+        "abcdef12-plan",
+        "2026-05-06T13:00:00+00:00",
+        action="PlanApproval",
+        files=[str(plan_file)],
+        action_data={"response_dir": str(response_dir)},
+    )
+
+    with (
+        patch(
+            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
+            return_value=_snapshot([row]),
+        ),
+        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
+        patch("sase.notifications.mark_dismissed"),
+        patch(
+            "sase.integrations._mobile_notification_side_effects."
+            "update_agent_artifact_index_for_marker_mutation"
+        ) as update_index,
+    ):
+        resolve.return_value = SimpleNamespace(
+            notification_id="abcdef12-plan",
+            prefix="abcdef12",
+            prefix_len=8,
+            resolution="unique_prefix",
+        )
+        execute_mobile_plan_action("abcdef12", "approve")
+
+    meta = json.loads((response_dir.parent / "agent_meta.json").read_text())
+    assert meta["plan_approved"] is True
+    assert meta["plan_action"] == "approve"
+    update_index.assert_called_once_with(response_dir.parent)
 
 
 def test_execute_mobile_plan_action_rejects_duplicate_response(

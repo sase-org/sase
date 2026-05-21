@@ -24,6 +24,9 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanOptionsWire,
     AgentArtifactScanWire,
 )
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
 from sase.core.time import get_timezone
 
 
@@ -481,6 +484,7 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
         running_json = artifacts_path / "running.json"
         try:
             running_json.unlink(missing_ok=True)
+            update_agent_artifact_index_for_marker_mutation(artifacts_path)
         except OSError:
             pass
     else:

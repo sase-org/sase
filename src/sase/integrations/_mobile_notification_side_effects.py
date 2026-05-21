@@ -7,6 +7,9 @@ import os
 from pathlib import Path
 from typing import Any
 
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
 from sase.integrations._mobile_notification_models import MobileNotificationBridgeRow
 
 
@@ -69,6 +72,7 @@ def _persist_plan_approved_metadata(
     meta["plan_action"] = action
     try:
         meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+        update_agent_artifact_index_for_marker_mutation(meta_path.parent)
     except OSError:
         pass
 

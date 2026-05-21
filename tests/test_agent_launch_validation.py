@@ -126,6 +126,57 @@ def test_tui_agent_rename_rejects_hyphenated_name(tmp_path: Path) -> None:
     assert json.loads(meta_path.read_text(encoding="utf-8")) == {"pid": 123}
 
 
+def test_tui_agent_rename_refreshes_artifact_index(tmp_path: Path) -> None:
+    from sase.ace.tui.actions.rename import RenameMixin
+
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    meta_path = artifacts_dir / "agent_meta.json"
+    meta_path.write_text(json.dumps({"pid": 123}), encoding="utf-8")
+
+    class FakeAgent:
+        identity = ("workflow", "cl", "raw")
+        agent_name = None
+
+        def get_artifacts_dir(self) -> str:
+            return str(artifacts_dir)
+
+    class FakeApp(RenameMixin):
+        def __init__(self) -> None:
+            self._agents = [FakeAgent()]
+            self.notifications: list[tuple[str, str | None]] = []
+            self.refresh_calls = 0
+
+        def _get_selected_agent(self) -> FakeAgent:
+            return self._agents[0]
+
+        def notify(self, message: str, severity: str | None = None) -> None:
+            self.notifications.append((message, severity))
+
+        def push_screen(self, _screen, callback) -> None:
+            callback("agentname")
+
+        def _refresh_agents_display(self, *, list_changed: bool) -> None:
+            self.refresh_calls += 1
+
+    app = FakeApp()
+    with (
+        patch("sase.agent.names.claim_agent_name"),
+        patch(
+            "sase.ace.tui.actions.rename."
+            "update_agent_artifact_index_for_marker_mutation"
+        ) as update_index,
+    ):
+        app._set_agent_name()
+
+    assert json.loads(meta_path.read_text(encoding="utf-8")) == {
+        "pid": 123,
+        "name": "agentname",
+    }
+    update_index.assert_called_once_with(str(artifacts_dir))
+    assert app.refresh_calls == 1
+
+
 def test_launch_agents_from_cwd_cancels_history_and_skips_spawn(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

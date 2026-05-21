@@ -13,6 +13,9 @@ recorded.
 
 from pathlib import Path
 
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
 from sase.core.agent_scan_wire import AgentArtifactScanWire
 from sase.running_field import get_claimed_workspaces
 
@@ -176,9 +179,11 @@ def load_running_home_agents_from_snapshot(
             continue
         pid = running.pid
         if pid is None or not is_process_running(pid):
+            artifact_dir = Path(record.artifact_dir)
             running_file = Path(record.artifact_dir) / "running.json"
             try:
-                running_file.unlink()
+                running_file.unlink(missing_ok=True)
+                update_agent_artifact_index_for_marker_mutation(artifact_dir)
             except OSError:
                 pass
             continue
@@ -240,7 +245,8 @@ def load_running_home_agents() -> list[Agent]:
             if pid is None or not is_process_running(pid):
                 # Process died - clean up the stale marker
                 try:
-                    running_file.unlink()
+                    running_file.unlink(missing_ok=True)
+                    update_agent_artifact_index_for_marker_mutation(artifact_dir)
                 except OSError:
                     pass
                 continue

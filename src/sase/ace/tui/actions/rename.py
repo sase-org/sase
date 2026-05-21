@@ -7,6 +7,9 @@ import os
 from typing import TYPE_CHECKING
 
 from sase.ace.changespec.project_spec_path import project_spec_basename
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
 from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.vcs_provider import get_vcs_provider
 
@@ -300,6 +303,7 @@ class RenameMixin:
             meta["name"] = new_name
             with open(meta_path, "w") as f:
                 json.dump(meta, f, indent=2)
+            update_agent_artifact_index_for_marker_mutation(artifacts_dir)
 
             # Find the current agent by identity (may have been replaced by
             # periodic refresh while the modal was open)

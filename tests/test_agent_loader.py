@@ -1,11 +1,14 @@
 """Tests for load_all_agents agents derived from RUNNING claim entries."""
 
+import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from sase.ace.agent_tags import REVIEW_AGENT_TAG
 from sase.ace.tui.models._loaders._running_loaders import (
     load_agents_from_running_field,
+    load_running_home_agents,
     load_running_home_agents_from_snapshot,
 )
 from sase.ace.tui.models.agent import AgentType
@@ -75,6 +78,93 @@ def test_load_running_home_snapshot_starts_without_run_timestamp() -> None:
 
     assert len(agents) == 1
     assert agents[0].status == "STARTING"
+
+
+def test_load_running_home_snapshot_stale_marker_refreshes_artifact_index(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = (
+        tmp_path
+        / ".sase"
+        / "projects"
+        / "home"
+        / "artifacts"
+        / "ace-run"
+        / "20260512123456"
+    )
+    artifact_dir.mkdir(parents=True)
+    running_file = artifact_dir / "running.json"
+    running_file.write_text(json.dumps({"pid": 1234}), encoding="utf-8")
+    snapshot = AgentArtifactScanWire(
+        schema_version=AGENT_SCAN_WIRE_SCHEMA_VERSION,
+        projects_root=str(tmp_path / ".sase" / "projects"),
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=[
+            AgentArtifactRecordWire(
+                project_name="home",
+                project_dir=str(tmp_path / ".sase" / "projects" / "home"),
+                project_file=str(
+                    tmp_path / ".sase" / "projects" / "home" / "home.sase"
+                ),
+                workflow_dir_name="ace-run",
+                artifact_dir=str(artifact_dir),
+                timestamp="20260512123456",
+                agent_meta=AgentMetaWire(name="home_runner"),
+                running=RunningMarkerWire(pid=1234, cl_name="~"),
+            )
+        ],
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders."
+            "update_agent_artifact_index_for_marker_mutation"
+        ) as update_index,
+    ):
+        agents = load_running_home_agents_from_snapshot(snapshot)
+
+    assert agents == []
+    assert not running_file.exists()
+    update_index.assert_called_once_with(artifact_dir)
+
+
+def test_load_running_home_filesystem_stale_marker_refreshes_artifact_index(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = (
+        tmp_path
+        / ".sase"
+        / "projects"
+        / "home"
+        / "artifacts"
+        / "ace-run"
+        / "20260512123456"
+    )
+    artifact_dir.mkdir(parents=True)
+    running_file = artifact_dir / "running.json"
+    running_file.write_text(json.dumps({"pid": 1234}), encoding="utf-8")
+
+    with (
+        patch("pathlib.Path.home", return_value=tmp_path),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders."
+            "update_agent_artifact_index_for_marker_mutation"
+        ) as update_index,
+    ):
+        agents = load_running_home_agents()
+
+    assert agents == []
+    assert not running_file.exists()
+    update_index.assert_called_once_with(artifact_dir)
 
 
 def test_load_all_agents_with_running_claims() -> None:

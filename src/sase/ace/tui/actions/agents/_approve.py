@@ -6,6 +6,10 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
+
 if TYPE_CHECKING:
     from ...models import Agent
 
@@ -40,6 +44,7 @@ def _persist_plan_auto_approval(
         meta.pop("auto_approve_plan_action", None)
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2)
+    update_agent_artifact_index_for_marker_mutation(meta_path.parent)
 
 
 def _next_auto_approval_state(agent: Agent) -> tuple[bool, str | None, str]:

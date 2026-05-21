@@ -6,6 +6,10 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
+
 if TYPE_CHECKING:
     from ...models import Agent
 
@@ -34,5 +38,6 @@ def persist_plan_approved(agent: Agent, action: str = "approve") -> None:
     try:
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
     except OSError:
         pass

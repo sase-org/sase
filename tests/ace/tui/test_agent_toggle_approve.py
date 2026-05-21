@@ -6,6 +6,7 @@ import asyncio
 import json
 from datetime import datetime
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -91,6 +92,18 @@ def test_persist_plan_auto_approval_epic_clears_legacy_approve(
     assert data["auto_approve_plan_action"] == "epic"
     assert data["other"] == "keep"
     assert "approve" not in data
+
+
+def test_persist_plan_auto_approval_refreshes_artifact_index(tmp_path: Any) -> None:
+    meta_path = tmp_path / "agent_meta.json"
+
+    with patch(
+        "sase.ace.tui.actions.agents._approve."
+        "update_agent_artifact_index_for_marker_mutation"
+    ) as update_index:
+        _persist_plan_auto_approval(meta_path, True, None)
+
+    update_index.assert_called_once_with(tmp_path)
 
 
 def test_action_toggle_approve_optimistic_update(tmp_path: Any) -> None:

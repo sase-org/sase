@@ -9,6 +9,9 @@ from sase.plan_chain import (
     agent_family_base,
     canonical_plan_chain_suffix,
 )
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
 
 from ...models.agent_status import is_resumable_done_status
 
@@ -169,6 +172,7 @@ class AgentWaitResumeMixin:
                 data["waiting_for"] = wait_names
                 with open(waiting_path, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2)
+                update_agent_artifact_index_for_marker_mutation(artifacts_dir)
             except OSError:
                 self.notify("Failed to update waiting.json", severity="error")  # type: ignore[attr-defined]
                 return

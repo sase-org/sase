@@ -125,10 +125,14 @@ def test_kill_named_agent_writes_dismissal_for_home_uses_meta_cl_name(
         _patch_home(tmp_path),
         patch("sase.agent.running.find_named_agent", return_value=found),
         patch("sase.agent.running.os.killpg"),
+        patch(
+            "sase.agent.running.update_agent_artifact_index_for_marker_mutation"
+        ) as update_index,
     ):
         result = kill_named_agent("home_agent")
 
     assert result.success is True
+    update_index.assert_called_once_with(artifacts_dir)
 
     from sase.ace.dismissed_agents import load_dismissed_agents
     from sase.ace.tui.models.agent import AgentType
