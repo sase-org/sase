@@ -475,6 +475,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             bindings.append((k("agent_from_cl"), "run agent (CL)"))
         if current_tab == "agents":
             bindings.append((k("toggle_agent_panel_grouping"), "group panels"))
+            bindings.append((k("full_history_refresh"), "full history refresh"))
             if has_stopped_agent:
                 bindings.append((k("jump_to_next_stopped_agent"), "next stopped"))
             if has_unread_completed_agent:

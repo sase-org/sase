@@ -147,6 +147,13 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["full_history_refresh"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            if self.current_tab == "agents":
+                self.action_refresh_agents_full_history()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["mark_all_unread_done_agents_read"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "agents":

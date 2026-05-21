@@ -19,7 +19,6 @@ from ._loading_compute import (
 )
 from ._dismiss_memory import trim_dismissed_agent_objects
 from ._loading_helpers import is_always_visible
-from ._loading_refresh import STARTUP_TIER2_RECONCILE_DELAY_S
 from ._loading_state import AgentLoadingStateMixin
 
 if TYPE_CHECKING:
@@ -37,6 +36,15 @@ def _agent_index_repair_notice(load_state: AgentLoadState | None) -> str | None:
         f"Agent index repair recommended: {reason}. "
         "Run `sase agents index status --json`, then `sase agents index gc`."
     )
+
+
+def _should_arm_full_history_reconcile(load_state: AgentLoadState | None) -> bool:
+    """Return whether this load state should arm a deferred Tier 2 reconcile."""
+    if load_state is None or not load_state.needs_full_history_reconcile:
+        return False
+    if load_state.repair_recommended:
+        return True
+    return not load_state.complete_visible_inbox and not load_state.used_artifact_index
 
 
 class AgentLoadingApplyMixin(AgentLoadingStateMixin):
@@ -331,27 +339,15 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             self._agents_history_reconcile_pending = False
         self._agent_load_state = load_state
         self._maybe_notify_agent_index_repair(load_state)
-        # Defer the Tier 2 full-history reconcile: mark it pending rather
-        # than firing it immediately. The reconcile is the dominant
-        # startup span (~2.7 s on an established home dir) and the
-        # produced agents are not visible in the default Agents view
-        # until the user expands a fold / scrolls into history. The
-        # idle-tick trigger (``_maybe_trigger_idle_tier2_reconcile``)
-        # schedules it during a pause; a manual ``y`` refresh also
-        # promotes the next load to ``full_history=True``.
-        if (
-            load_state is not None
-            and load_state.needs_full_history_reconcile
-            and not getattr(self, "_agents_history_reconcile_pending", False)
+        # Defer the Tier 2 full-history reconcile only for repair/fallback
+        # states. A healthy Tier 1 load can be archive-incomplete while still
+        # complete for the visible inbox, so ordinary startup/lifecycle
+        # refreshes must not prime the next normal refresh into Tier 2.
+        if _should_arm_full_history_reconcile(load_state) and not getattr(
+            self, "_agents_history_reconcile_pending", False
         ):
             self._agents_history_reconcile_pending = True
             self._agents_history_reconcile_armed_mono = time.monotonic()
-            if not getattr(self, "_agents_startup_tier2_scheduled", False):
-                self._agents_startup_tier2_scheduled = True
-                self.set_timer(  # type: ignore[attr-defined]
-                    STARTUP_TIER2_RECONCILE_DELAY_S,
-                    self._fire_startup_tier2_reconcile,  # type: ignore[attr-defined]
-                )
 
         self._dismissed_agent_objects = trim_dismissed_agent_objects(
             prep.dismissed_agent_objects

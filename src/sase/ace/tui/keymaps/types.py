@@ -397,6 +397,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "toggle_agent_panel_grouping": "g",
             "jump_to_next_unread_done_agent": "j",
             "jump_to_next_stopped_agent": "J",
+            "full_history_refresh": "y",
             "mark_all_unread_done_agents_read": "u",
             "kill_and_edit": "x",
             "mark_inactive": "I",

@@ -2,10 +2,9 @@
 
 The Tier 2 reconcile dominates startup wall time on established home
 dirs (~2.7 s per the 2026-05-16 perf research). It is now deferred:
-the loader still reports incomplete history, but the reconcile is
-only scheduled once the user has been idle for
-``TIER2_RECONCILE_IDLE_THRESHOLD_S`` or explicitly requests a manual
-refresh while the flag is pending.
+the loader reports visible-inbox completeness separately from full archive
+history, normal ``y`` refresh stays Tier 1, and full-history refresh is an
+explicit Agents action.
 """
 
 from __future__ import annotations
@@ -18,7 +17,6 @@ import pytest
 
 from sase.ace.tui.actions.agents._loading_refresh import (
     AgentLoadingRefreshMixin,
-    STARTUP_TIER2_RECONCILE_DELAY_S,
     TIER2_RECONCILE_IDLE_THRESHOLD_S,
 )
 from sase.ace.tui.util.nav_gate import NavigationGate
@@ -52,11 +50,55 @@ class _FakeRefreshApp(AgentLoadingRefreshMixin):
         self._timer_calls.append((delay, callback))
 
 
+class _FakeBaseActionsApp:
+    """Minimal host for BaseActionsMixin refresh actions."""
+
+    def __init__(self) -> None:
+        self.current_tab = "agents"
+        self._agents_history_reconcile_pending = False
+        self.scheduled: list[tuple[bool, str | None]] = []
+        self.notifications: list[str] = []
+
+    def _schedule_agents_async_refresh(
+        self, *, full_history: bool = False, full_history_reason: str | None = None
+    ) -> None:
+        self.scheduled.append((full_history, full_history_reason))
+
+    def notify(self, message: str, **_: Any) -> None:
+        self.notifications.append(message)
+
+
 def test_idle_trigger_skips_when_flag_not_set() -> None:
     app = _FakeRefreshApp()
     fired = app._maybe_trigger_idle_tier2_reconcile(now_mono=10_000.0)
     assert fired is False
     assert app._scheduled == []
+
+
+def test_manual_agents_refresh_stays_tier1_even_when_reconcile_pending() -> None:
+    from sase.ace.tui.actions.base import BaseActionsMixin
+
+    app = _FakeBaseActionsApp()
+    app._agents_history_reconcile_pending = True
+
+    BaseActionsMixin.action_refresh(app)  # type: ignore[arg-type]
+
+    assert app.scheduled == [(False, None)]
+    assert app._agents_history_reconcile_pending is True
+    assert app.notifications == ["Refreshed"]
+
+
+def test_explicit_agents_full_history_refresh_uses_tier2() -> None:
+    from sase.ace.tui.actions.base import BaseActionsMixin
+
+    app = _FakeBaseActionsApp()
+    app._agents_history_reconcile_pending = True
+
+    BaseActionsMixin.action_refresh_agents_full_history(app)  # type: ignore[arg-type]
+
+    assert app.scheduled == [(True, "manual_full_history_refresh")]
+    assert app._agents_history_reconcile_pending is False
+    assert app.notifications == ["Refreshing Agents from full history"]
 
 
 def test_idle_trigger_skips_when_recently_active() -> None:
@@ -120,7 +162,7 @@ def test_idle_trigger_uses_latest_of_activity_and_arm_time() -> None:
 
 
 def test_apply_sets_pending_flag_without_scheduling_refresh() -> None:
-    """An incomplete-history load must not auto-schedule a Tier 2 reload."""
+    """A repair-state load marks reconcile pending without immediate reload."""
     from sase.ace.tui.actions.agents._loading_compute import PreparedApplyData
     from sase.ace.tui.models.agent_loader import AgentLoadState
 
@@ -140,8 +182,10 @@ def test_apply_sets_pending_flag_without_scheduling_refresh() -> None:
         tier="tier1",
         complete_history=False,
         complete_visible_inbox=False,
-        artifact_source="artifact_index",
-        used_artifact_index=True,
+        artifact_source="source_scan",
+        used_artifact_index=False,
+        repair_recommended=True,
+        repair_reason="artifact_index_missing_bounded_fallback",
     )
 
     before = time.monotonic()
@@ -334,38 +378,54 @@ def _apply_load(app: Any, load_state: Any) -> None:
     )
 
 
-def test_apply_arms_startup_tier2_timer() -> None:
-    """First incomplete-history apply arms the one-shot startup timer."""
+def test_apply_repair_state_does_not_arm_startup_tier2_timer() -> None:
+    """Repair diagnostics should not auto-run the startup full scan."""
     from tests._agents_tab_query_helpers import FakeAgentApp
+    from sase.ace.tui.models.agent_loader import AgentLoadState
 
     app = FakeAgentApp()
     app._agents_history_reconcile_pending = False
     app._agents_startup_tier2_scheduled = False
 
-    _apply_load(app, _make_incomplete_load_state())
+    _apply_load(
+        app,
+        AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            complete_visible_inbox=False,
+            artifact_source="source_scan",
+            used_artifact_index=False,
+            repair_recommended=True,
+            repair_reason="artifact_index_missing_bounded_fallback",
+        ),
+    )
 
-    assert app._agents_startup_tier2_scheduled is True
-    assert len(app.timer_calls) == 1
-    delay, callback = app.timer_calls[0]
-    assert delay == STARTUP_TIER2_RECONCILE_DELAY_S
-    assert callback == app._fire_startup_tier2_reconcile
+    assert app._agents_startup_tier2_scheduled is False
+    assert app.timer_calls == []
 
 
-def test_apply_does_not_double_arm_startup_tier2_timer() -> None:
-    """Subsequent incomplete-history applies must not re-arm the timer."""
+def test_apply_incomplete_index_state_does_not_arm_reconcile() -> None:
+    """An index-backed incomplete inbox is reported but not auto-promoted."""
     from tests._agents_tab_query_helpers import FakeAgentApp
+    from sase.ace.tui.models.agent_loader import AgentLoadState
 
     app = FakeAgentApp()
     app._agents_history_reconcile_pending = False
     app._agents_startup_tier2_scheduled = False
 
-    _apply_load(app, _make_incomplete_load_state())
-    # Second incomplete-history apply — e.g. a periodic Tier 1 auto-refresh
-    # that landed before the startup timer fired.
-    app._agents_history_reconcile_pending = False  # cleared by some other path
-    _apply_load(app, _make_incomplete_load_state())
+    _apply_load(
+        app,
+        AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            complete_visible_inbox=False,
+            artifact_source="artifact_index",
+            used_artifact_index=True,
+        ),
+    )
 
-    assert len(app.timer_calls) == 1
+    assert app._agents_history_reconcile_pending is False
+    assert app.timer_calls == []
 
 
 def test_apply_complete_history_skips_startup_arm() -> None:
@@ -384,8 +444,8 @@ def test_apply_complete_history_skips_startup_arm() -> None:
     assert app._agents_history_reconcile_pending is False
 
 
-def test_startup_trigger_fires_full_history_refresh() -> None:
-    """The startup trigger schedules a full-history refresh when pending."""
+def test_startup_trigger_fires_full_history_refresh_for_pending_repair() -> None:
+    """The startup callback remains hard-gated by the pending repair flag."""
     app = _FakeRefreshApp()
     app._agents_history_reconcile_pending = True
 

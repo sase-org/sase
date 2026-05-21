@@ -39,6 +39,7 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self.jump_unread_result = True
         self.jump_stopped_count = 0
         self.jump_stopped_result = True
+        self.full_history_refresh_count = 0
         self.mark_all_unread_count = 0
         self.mark_all_unread_result = 2
         self.prompt_history_calls: list[dict[str, bool]] = []
@@ -70,6 +71,9 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self.jump_stopped_count += 1
         return self.jump_stopped_result
 
+    def action_refresh_agents_full_history(self) -> None:
+        self.full_history_refresh_count += 1
+
     def _mark_all_unread_done_agents_read(self) -> int:
         self.mark_all_unread_count += 1
         return self.mark_all_unread_result
@@ -99,6 +103,7 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
     assert registry.leader_mode.keys["agent_run_log"] == "A"
     assert registry.app.focus_next_agent_panel == "J"
     assert registry.leader_mode.keys["jump_to_next_stopped_agent"] == "J"
+    assert registry.leader_mode.keys["full_history_refresh"] == "y"
     assert registry.leader_mode.keys["mark_all_unread_done_agents_read"] == "u"
 
     bindings = build_app_bindings(registry.app)
@@ -296,6 +301,26 @@ def test_leader_shift_j_noops_on_non_agents_tabs() -> None:
     assert app.mark_all_unread_count == 0
     assert app.jump_stopped_count == 0
     assert app.notifications == []
+    assert app.refresh_count == 1
+
+
+def test_leader_y_refreshes_agents_from_full_history() -> None:
+    app = _FakeApp(current_tab="agents")
+
+    handled = app._handle_leader_key("y")
+
+    assert handled is True
+    assert app.full_history_refresh_count == 1
+    assert app.refresh_count == 1
+
+
+def test_leader_y_noops_on_non_agents_tabs() -> None:
+    app = _FakeApp(current_tab="changespecs")
+
+    handled = app._handle_leader_key("y")
+
+    assert handled is True
+    assert app.full_history_refresh_count == 0
     assert app.refresh_count == 1
 
 

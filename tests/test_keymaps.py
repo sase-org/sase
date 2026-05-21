@@ -414,6 +414,12 @@ def test_leader_mode_includes_jump_to_next_stopped_agent() -> None:
     assert reg.leader_mode.keys["jump_to_next_stopped_agent"] == "J"
 
 
+def test_leader_mode_includes_full_history_refresh() -> None:
+    """LeaderModeKeymaps default includes the explicit ``,y`` full refresh."""
+    reg = load_keymap_registry({})
+    assert reg.leader_mode.keys["full_history_refresh"] == "y"
+
+
 def test_leader_mode_marks_all_unread_done_agents_read_with_u() -> None:
     """LeaderModeKeymaps default binds mark-all-read to ``,u``."""
     reg = load_keymap_registry({})

@@ -366,20 +366,11 @@ class BaseActionsMixin:
         if self.current_tab == "agents":
             # Route through the async path so the UI returns immediately.
             # _apply_loaded_agents triggers _refresh_agent_file after the
-            # background load completes. When the deferred Tier 2
-            # reconcile is still pending (incomplete history), promote
-            # this manual refresh to a full-history pass so ``y`` is an
-            # explicit escape hatch into the full agent set.
-            full_history = bool(
-                getattr(self, "_agents_history_reconcile_pending", False)
-            )
-            if full_history:
-                self._agents_history_reconcile_pending = False
+            # background load completes. Normal refresh is always the
+            # visible-inbox Tier 1 path; full-history scans are exposed
+            # through ``action_refresh_agents_full_history`` instead.
             self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
-                full_history=full_history,
-                full_history_reason="manual_refresh_pending_reconcile"
-                if full_history
-                else None,
+                full_history=False,
             )
         elif self.current_tab == "changespecs":
             self._schedule_changespecs_async_refresh()  # type: ignore[attr-defined]
@@ -389,6 +380,18 @@ class BaseActionsMixin:
             self._schedule_targeted_axe_refresh()  # type: ignore[attr-defined]
             self._schedule_axe_async_refresh()  # type: ignore[attr-defined]
         self.notify("Refreshed")  # type: ignore[attr-defined]
+
+    def action_refresh_agents_full_history(self) -> None:
+        """Explicitly refresh Agents from full artifact history."""
+        if self.current_tab != "agents":
+            self.notify("Full-history refresh is only available on Agents")  # type: ignore[attr-defined]
+            return
+        self._agents_history_reconcile_pending = False
+        self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
+            full_history=True,
+            full_history_reason="manual_full_history_refresh",
+        )
+        self.notify("Refreshing Agents from full history")  # type: ignore[attr-defined]
 
     def action_edit_query(self) -> None:
         """Edit the search query.
