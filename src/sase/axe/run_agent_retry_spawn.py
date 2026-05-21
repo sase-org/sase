@@ -15,6 +15,10 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
+
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
     from sase.axe.run_agent_exec_retry import RetryTracker
@@ -366,5 +370,6 @@ def mark_parent_retried(
 
     try:
         meta_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
     except OSError:
         pass

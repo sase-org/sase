@@ -7,11 +7,14 @@ import time
 from unittest.mock import patch
 
 from sase.axe.run_agent_helpers import (
+    append_meta_list_field,
     create_followup_artifacts,
     handle_questions_flow,
     normalize_handoff_interruption_state,
     promote_to_workflow,
     update_meta_field,
+    update_meta_suffix,
+    update_step_marker_chat_path,
 )
 from sase.plan_chain import PLAN_CHAIN_PARENT_TIMESTAMP_FIELD
 
@@ -33,6 +36,30 @@ def test_update_meta_field_missing_file(tmp_path) -> None:
     update_meta_field(str(tmp_path), "key", "value")
     # No error raised, no file created
     assert not (tmp_path / "agent_meta.json").exists()
+
+
+def test_meta_helpers_update_artifact_index_after_write(tmp_path) -> None:
+    """agent_meta.json helper writes refresh the artifact index."""
+    meta_path = tmp_path / "agent_meta.json"
+    calls: list[str] = []
+
+    with patch(
+        "sase.axe.run_agent_helpers.update_agent_artifact_index_for_marker_mutation",
+        side_effect=lambda path: calls.append(path),
+    ):
+        meta_path.write_text(json.dumps({"pid": 123}), encoding="utf-8")
+        append_meta_list_field(str(tmp_path), "retry_started_at", "ts-1")
+
+        meta_path.write_text(json.dumps({"pid": 123}), encoding="utf-8")
+        update_meta_field(str(tmp_path), "plan_submitted_at", "ts-2")
+
+        meta_path.write_text(json.dumps({"pid": 123}), encoding="utf-8")
+        update_meta_suffix(str(tmp_path), ".code")
+
+        meta_path.write_text(json.dumps({"name": "a", "pid": 123}), encoding="utf-8")
+        promote_to_workflow(str(tmp_path), "a")
+
+    assert calls == [str(tmp_path)] * 4
 
 
 def test_promote_to_workflow_marks_stable_family_root(tmp_path) -> None:
@@ -277,6 +304,108 @@ def test_normalize_handoff_interruption_state_keeps_real_failures(tmp_path) -> N
     assert marker_data["error"] == "API quota exhausted"
 
 
+def test_normalize_handoff_interruption_state_coalesces_index_update(
+    tmp_path,
+) -> None:
+    """State + step marker rewrites produce one artifact-index refresh."""
+    artifacts_dir = tmp_path
+    (artifacts_dir / "workflow_state.json").write_text(
+        json.dumps(
+            {
+                "status": "failed",
+                "error": "LLMInvocationError: exit code -15",
+                "steps": [
+                    {
+                        "status": "failed",
+                        "error": "LLMInvocationError: exit code -15",
+                        "traceback": "tb",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifacts_dir / "prompt_step_main.json").write_text(
+        json.dumps(
+            {
+                "status": "failed",
+                "error": "LLMInvocationError: exit code -15",
+                "traceback": "tb",
+            }
+        ),
+        encoding="utf-8",
+    )
+    calls: list[str] = []
+
+    with patch(
+        "sase.axe.run_agent_helpers.update_agent_artifact_index_for_marker_mutation",
+        side_effect=lambda path: calls.append(path),
+    ):
+        normalize_handoff_interruption_state(str(artifacts_dir))
+
+    assert calls == [str(artifacts_dir)]
+
+
+def test_update_step_marker_chat_path_coalesces_index_update(tmp_path) -> None:
+    """Multiple prompt_step marker edits refresh the index once."""
+    (tmp_path / "prompt_step_one.json").write_text(
+        json.dumps({"step_name": "one"}),
+        encoding="utf-8",
+    )
+    (tmp_path / "prompt_step_two.json").write_text(
+        json.dumps({"step_name": "two", "response_path": None}),
+        encoding="utf-8",
+    )
+    (tmp_path / "prompt_step_embedded__child.json").write_text(
+        json.dumps({"step_name": "child"}),
+        encoding="utf-8",
+    )
+    calls: list[str] = []
+
+    with patch(
+        "sase.axe.run_agent_helpers.update_agent_artifact_index_for_marker_mutation",
+        side_effect=lambda path: calls.append(path),
+    ):
+        update_step_marker_chat_path(str(tmp_path), "/tmp/chat.md")
+
+    assert calls == [str(tmp_path)]
+    assert (
+        json.loads((tmp_path / "prompt_step_one.json").read_text())["response_path"]
+        == "/tmp/chat.md"
+    )
+    assert "response_path" not in json.loads(
+        (tmp_path / "prompt_step_embedded__child.json").read_text()
+    )
+
+
+def test_create_followup_artifacts_updates_artifact_index(tmp_path) -> None:
+    """Follow-up agent meta + workflow marker creation refreshes once."""
+    followup = tmp_path / "followup"
+    followup.mkdir()
+    calls: list[str] = []
+
+    with (
+        patch(
+            "sase.axe.run_agent_helpers.create_artifacts_directory",
+            return_value=str(followup),
+        ),
+        patch(
+            "sase.axe.run_agent_helpers.update_agent_artifact_index_for_marker_mutation",
+            side_effect=lambda path: calls.append(path),
+        ),
+    ):
+        create_followup_artifacts(
+            "proj",
+            {"name": "a", "model": "test"},
+            ".code",
+            "20260326120000",
+        )
+
+    assert calls == [str(followup)]
+    assert (followup / "agent_meta.json").is_file()
+    assert (followup / "workflow_state.json").is_file()
+
+
 def _run_questions_flow(
     artifacts_dir,
     questions,
@@ -361,6 +490,46 @@ def test_pending_question_marker_created_during_poll_and_deleted_on_response(
     assert "submitted_at" in marker_payload
     # Marker is cleaned up after the poll loop exits.
     assert not (tmp_path / "pending_question.json").exists()
+
+
+def test_pending_question_marker_updates_artifact_index_on_create_and_delete(
+    tmp_path, monkeypatch
+):
+    """Question marker writes and cleanup both refresh the artifact index."""
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.is_auto_approve_active",
+        lambda: False,
+    )
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.get_tmux_prefix",
+        lambda: "",
+    )
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.ring_tmux_bell",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.send_desktop_notification",
+        lambda title, body: None,
+    )
+    monkeypatch.setattr(
+        "sase.notifications.senders.notify_user_question",
+        lambda **kwargs: None,
+    )
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "sase.axe.run_agent_helpers.update_agent_artifact_index_for_marker_mutation",
+        lambda path: calls.append(path),
+    )
+
+    result, _marker_payload = _run_questions_flow(
+        tmp_path,
+        [{"question": "do thing?", "options": []}],
+        send_response_after={"answers": [], "global_note": ""},
+    )
+
+    assert result is not None
+    assert calls == [str(tmp_path), str(tmp_path)]
 
 
 def test_questions_flow_passes_agent_root_timestamp(tmp_path, monkeypatch):

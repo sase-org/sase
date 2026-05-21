@@ -47,6 +47,38 @@ def test_successful_wait_records_completion_before_cleanup(tmp_path: Path) -> No
     assert not (tmp_path / "waiting.json").exists()
 
 
+def test_dependency_wait_updates_index_for_waiting_marker_only(
+    tmp_path: Path,
+) -> None:
+    """waiting.json write/removal refreshes; ready.json removal does not."""
+    (tmp_path / "agent_meta.json").write_text(json.dumps({"pid": 123}))
+    (tmp_path / "ready.json").write_text("{}")
+    calls: list[str] = []
+
+    def write_agent_meta(artifacts_dir: str, agent_meta: dict) -> None:
+        (Path(artifacts_dir) / "agent_meta.json").write_text(json.dumps(agent_meta))
+
+    with (
+        patch("sase.axe.run_agent_wait.was_killed", return_value=False),
+        patch("sase.axe.run_agent_wait.write_agent_meta", write_agent_meta),
+        patch(
+            "sase.axe.run_agent_wait.update_agent_artifact_index_for_marker_mutation",
+            side_effect=lambda path: calls.append(path),
+        ),
+    ):
+        wait_for_dependencies(
+            ["dep"],
+            str(tmp_path),
+            "cl",
+            "20260513120000",
+            {"pid": 123},
+        )
+
+    assert calls == [str(tmp_path), str(tmp_path)]
+    assert not (tmp_path / "waiting.json").exists()
+    assert not (tmp_path / "ready.json").exists()
+
+
 def test_killed_wait_does_not_record_completion(tmp_path: Path) -> None:
     """A kill during the wait does not mark the wait as successfully crossed."""
     meta_path = tmp_path / "agent_meta.json"
@@ -68,4 +100,29 @@ def test_killed_wait_does_not_record_completion(tmp_path: Path) -> None:
     assert exc_info.value.code == 143
     data = json.loads(meta_path.read_text(encoding="utf-8"))
     assert "wait_completed_at" not in data
+    assert not (tmp_path / "waiting.json").exists()
+
+
+def test_killed_wait_updates_index_for_write_and_cleanup(tmp_path: Path) -> None:
+    calls: list[str] = []
+
+    with (
+        patch("sase.axe.run_agent_wait.was_killed", return_value=True),
+        patch(
+            "sase.axe.run_agent_wait.update_agent_artifact_index_for_marker_mutation",
+            side_effect=lambda path: calls.append(path),
+        ),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        wait_for_dependencies(
+            [],
+            str(tmp_path),
+            "cl",
+            "20260513120000",
+            {"pid": 123},
+            duration=1,
+        )
+
+    assert exc_info.value.code == 143
+    assert calls == [str(tmp_path), str(tmp_path)]
     assert not (tmp_path / "waiting.json").exists()

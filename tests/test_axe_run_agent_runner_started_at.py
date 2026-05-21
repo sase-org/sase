@@ -123,3 +123,27 @@ class TestRunStartedAtRecording:
         notify.assert_called_once()
         assert notify.call_args.kwargs["current_artifacts_dir"] == artifacts_dir
         assert notify.call_args.kwargs["runtime"] == "4m32s"
+
+    def test_home_mode_running_marker_cleanup_updates_artifact_index(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = str(tmp_path / "artifacts")
+        patches = base_patches(artifacts_dir)
+        setup_index_update = MagicMock()
+        cleanup_index_update = MagicMock()
+        patches[f"{RUNNER}.run_execution_loop"] = MagicMock(
+            return_value=exec_result(artifacts_dir)
+        )
+        patches[
+            "sase.axe.run_agent_runner_setup."
+            "update_agent_artifact_index_for_marker_mutation"
+        ] = setup_index_update
+        patches[f"{RUNNER}.update_agent_artifact_index_for_marker_mutation"] = (
+            cleanup_index_update
+        )
+
+        run_main(patches, tmp_path, is_home_mode=True)
+
+        assert not (Path(artifacts_dir) / "running.json").exists()
+        assert setup_index_update.call_count == 2
+        cleanup_index_update.assert_called_once_with(artifacts_dir)

@@ -9,6 +9,9 @@ from typing import Any
 
 from sase.axe.run_agent_markers import write_agent_meta
 from sase.axe.runner_utils import was_killed
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
 
 
 def remaining_until(wait_until: str) -> float:
@@ -83,6 +86,7 @@ def wait_for_dependencies(
             waiting_data["wait_until"] = wait_until
         with open(waiting_path, "w", encoding="utf-8") as f:
             json.dump(waiting_data, f, indent=2)
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
 
         parts = [f"agents: {', '.join(wait_names)}"]
         if duration is not None:
@@ -134,6 +138,8 @@ def wait_for_dependencies(
         for path in (waiting_path, ready_path):
             try:
                 os.unlink(path)
+                if path == waiting_path:
+                    update_agent_artifact_index_for_marker_mutation(artifacts_dir)
             except OSError:
                 pass
     elif wait_until is not None:
@@ -147,6 +153,7 @@ def wait_for_dependencies(
         }
         with open(waiting_path, "w", encoding="utf-8") as f:
             json.dump(until_waiting_data, f, indent=2)
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
 
         print(f"Waiting until: {wait_until}")
         remaining = remaining_until(wait_until)
@@ -161,6 +168,7 @@ def wait_for_dependencies(
         # Clean up waiting.json.
         try:
             os.unlink(waiting_path)
+            update_agent_artifact_index_for_marker_mutation(artifacts_dir)
         except OSError:
             pass
     else:
@@ -177,6 +185,7 @@ def wait_for_dependencies(
         }
         with open(waiting_path, "w", encoding="utf-8") as f:
             json.dump(dur_waiting_data, f, indent=2)
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
 
         print(f"Waiting for duration: {duration:.0f}s")
         remaining = duration
@@ -191,6 +200,7 @@ def wait_for_dependencies(
         # Clean up waiting.json.
         try:
             os.unlink(waiting_path)
+            update_agent_artifact_index_for_marker_mutation(artifacts_dir)
         except OSError:
             pass
 

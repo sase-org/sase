@@ -16,6 +16,9 @@ from typing import TYPE_CHECKING, Any
 
 from sase.axe.runner_utils import was_killed
 from sase.artifacts import create_artifacts_directory
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
 
 if TYPE_CHECKING:
     from sase.main.qa_markdown import QARound
@@ -177,6 +180,7 @@ def append_meta_list_field(artifacts_dir: str, key: str, value: Any) -> None:
             meta[key] = [value]
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         pass
 
@@ -190,6 +194,7 @@ def update_meta_field(artifacts_dir: str, key: str, value: Any) -> None:
         meta[key] = value
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         pass
 
@@ -204,6 +209,7 @@ def update_meta_suffix(artifacts_dir: str, suffix: str) -> None:
         meta["role_suffix"] = canonical_suffix
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         pass
 
@@ -232,6 +238,7 @@ def promote_to_workflow(
         meta["role_suffix"] = canonical_suffix
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         pass
 
@@ -261,6 +268,7 @@ def normalize_handoff_interruption_state(artifacts_dir: str) -> None:
 
     state_path = Path(artifacts_dir) / "workflow_state.json"
     saw_sigterm_failure = False
+    index_dirty = False
 
     try:
         with open(state_path, encoding="utf-8") as f:
@@ -293,8 +301,11 @@ def normalize_handoff_interruption_state(artifacts_dir: str) -> None:
         if changed:
             with open(state_path, "w", encoding="utf-8") as f:
                 json.dump(state_data, f, indent=2)
+            index_dirty = True
 
     if not saw_sigterm_failure:
+        if index_dirty:
+            update_agent_artifact_index_for_marker_mutation(artifacts_dir)
         return
 
     for marker_path in Path(artifacts_dir).glob("prompt_step_*.json"):
@@ -317,8 +328,12 @@ def normalize_handoff_interruption_state(artifacts_dir: str) -> None:
         try:
             with open(marker_path, "w", encoding="utf-8") as f:
                 json.dump(marker_data, f, indent=2)
+            index_dirty = True
         except OSError:
             continue
+
+    if index_dirty:
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
 
 
 def update_step_marker_chat_path(artifacts_dir: str, chat_path: str) -> None:
@@ -330,6 +345,7 @@ def update_step_marker_chat_path(artifacts_dir: str, chat_path: str) -> None:
 
     Skips embedded workflow markers (filenames containing ``__``).
     """
+    index_dirty = False
     for marker_path in Path(artifacts_dir).glob("prompt_step_*.json"):
         if "__" in marker_path.name:
             continue
@@ -346,8 +362,11 @@ def update_step_marker_chat_path(artifacts_dir: str, chat_path: str) -> None:
         try:
             with open(marker_path, "w", encoding="utf-8") as f:
                 json.dump(marker_data, f, indent=2)
+            index_dirty = True
         except OSError:
             continue
+    if index_dirty:
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
 
 
 def create_followup_artifacts(
@@ -438,6 +457,7 @@ def create_followup_artifacts(
     ) as f:
         json.dump(_initial_state, f, indent=2)
 
+    update_agent_artifact_index_for_marker_mutation(new_artifacts_dir)
     return new_artifacts_dir
 
 
@@ -527,6 +547,7 @@ def handle_questions_flow(
         }
         with open(pending_marker_path, "w", encoding="utf-8") as f:
             json.dump(marker_payload, f, indent=2)
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
     except OSError:
         pass
 
@@ -553,6 +574,7 @@ def handle_questions_flow(
     finally:
         try:
             os.unlink(pending_marker_path)
+            update_agent_artifact_index_for_marker_mutation(artifacts_dir)
         except OSError:
             pass
 

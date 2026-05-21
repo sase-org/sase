@@ -9,6 +9,9 @@ import re
 from pathlib import Path
 
 from sase.core.agent_artifact_facade import store_explicit_agent_artifact
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +26,7 @@ def write_plan_path_artifact(artifacts_dir: str, plan_path: str) -> None:
     try:
         with open(plan_path_file, "w", encoding="utf-8") as f:
             json.dump({"plan_path": plan_path}, f)
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
     except OSError:
         pass
 

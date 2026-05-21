@@ -102,6 +102,7 @@ def update_workflow_pdf_status(
     try:
         with open(state_path, "w", encoding="utf-8") as f:
             json.dump(state_data, f, indent=2)
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
     except OSError:
         pass
 
@@ -119,6 +120,7 @@ def clear_workflow_pdf_activity(artifacts_dir: str) -> None:
     try:
         with open(state_path, "w", encoding="utf-8") as f:
             json.dump(state_data, f, indent=2)
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
     except OSError:
         pass
 

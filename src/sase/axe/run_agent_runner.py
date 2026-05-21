@@ -50,6 +50,9 @@ from sase.axe.runner_utils import (
     was_killed,
     write_error_report,
 )
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
 from sase.telemetry import init_telemetry, register_push_on_exit
 from sase.telemetry.metrics import AGENT_KILLS
 
@@ -394,6 +397,7 @@ def main() -> None:
         if running_marker_path and os.path.exists(running_marker_path):
             try:
                 os.unlink(running_marker_path)
+                update_agent_artifact_index_for_marker_mutation(artifacts_dir)
             except OSError:
                 pass
 

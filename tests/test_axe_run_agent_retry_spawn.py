@@ -311,14 +311,20 @@ class TestMarkParentRetried:
     def test_creates_or_updates_meta(self, tmp_path: Path) -> None:
         meta_path = tmp_path / "agent_meta.json"
         meta_path.write_text(json.dumps({"name": "parent"}))
+        calls: list[str] = []
 
-        mark_parent_retried(
-            artifacts_dir=str(tmp_path),
-            child_artifacts_timestamp="20260424130000",
-            chain_root_timestamp="20260424120000",
-            handoff_path=str(tmp_path / "retry_handoff.json"),
-            error_category="context_overflow",
-        )
+        with patch(
+            "sase.axe.run_agent_retry_spawn."
+            "update_agent_artifact_index_for_marker_mutation",
+            side_effect=lambda path: calls.append(path),
+        ):
+            mark_parent_retried(
+                artifacts_dir=str(tmp_path),
+                child_artifacts_timestamp="20260424130000",
+                chain_root_timestamp="20260424120000",
+                handoff_path=str(tmp_path / "retry_handoff.json"),
+                error_category="context_overflow",
+            )
         data = json.loads(meta_path.read_text())
         assert data["retried_as_timestamp"] == "20260424130000"
         assert data["retry_chain_root_timestamp"] == "20260424120000"
@@ -326,20 +332,29 @@ class TestMarkParentRetried:
         assert data["retry_error_category"] == "context_overflow"
         # Pre-existing fields preserved
         assert data["name"] == "parent"
+        assert calls == [str(tmp_path)]
 
     def test_creates_meta_when_missing(self, tmp_path: Path) -> None:
         # No agent_meta.json — function should create one.
-        mark_parent_retried(
-            artifacts_dir=str(tmp_path),
-            child_artifacts_timestamp="20260424130000",
-            chain_root_timestamp="20260424120000",
-            handoff_path="/tmp/x.json",
-            error_category="other",
-        )
+        calls: list[str] = []
+
+        with patch(
+            "sase.axe.run_agent_retry_spawn."
+            "update_agent_artifact_index_for_marker_mutation",
+            side_effect=lambda path: calls.append(path),
+        ):
+            mark_parent_retried(
+                artifacts_dir=str(tmp_path),
+                child_artifacts_timestamp="20260424130000",
+                chain_root_timestamp="20260424120000",
+                handoff_path="/tmp/x.json",
+                error_category="other",
+            )
         meta_path = tmp_path / "agent_meta.json"
         assert meta_path.exists()
         data = json.loads(meta_path.read_text())
         assert data["retried_as_timestamp"] == "20260424130000"
+        assert calls == [str(tmp_path)]
 
 
 # ---------------------------------------------------------------------------
@@ -364,7 +379,15 @@ class TestHandleWorkflowErrorSpawnMode:
                 "error_category": "context_overflow",
             }
         )
-        with patch("sase.axe.run_agent_retry_spawn.spawn_retry_agent", fake_spawn):
+        index_update = MagicMock()
+        with (
+            patch("sase.axe.run_agent_retry_spawn.spawn_retry_agent", fake_spawn),
+            patch(
+                "sase.axe.run_agent_retry_spawn."
+                "update_agent_artifact_index_for_marker_mutation",
+                index_update,
+            ),
+        ):
             action = handle_workflow_error(
                 Exception("Prompt is too long"),
                 tracker,
@@ -379,6 +402,7 @@ class TestHandleWorkflowErrorSpawnMode:
         meta = json.loads((Path(ctx.artifacts_dir) / "agent_meta.json").read_text())
         assert meta["retried_as_timestamp"] == "20260424140000"
         assert meta["retry_terminal"] is True
+        index_update.assert_called_once_with(ctx.artifacts_dir)
 
     def test_spawn_failure_falls_back_to_in_process(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
