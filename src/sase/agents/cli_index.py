@@ -10,6 +10,9 @@ from typing import Any
 
 from rich.console import Console
 
+from sase.core.agent_artifact_index_lifecycle import (
+    build_dismissed_agent_projection_inputs,
+)
 from sase.core.agent_cleanup_wire import AgentCleanupIdentityWire
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
@@ -242,33 +245,5 @@ def _handle_agents_index_gc(args: argparse.Namespace) -> None:
 
 def _load_dismissed_identities_for_gc() -> tuple[list[AgentCleanupIdentityWire], int]:
     """Load dismissed identities from state and bundle summaries."""
-    from sase.ace.dismissed_agents import (
-        load_dismissed_agents,
-        load_dismissed_bundle_summaries,
-        rebuild_dismissed_bundle_index,
-    )
-
-    indexed, skipped = rebuild_dismissed_bundle_index()
-    del indexed
-    identities = {
-        AgentCleanupIdentityWire(
-            agent_type=str(getattr(agent_type, "value", agent_type)),
-            cl_name=str(cl_name),
-            raw_suffix=None if raw_suffix is None else str(raw_suffix),
-        )
-        for agent_type, cl_name, raw_suffix in load_dismissed_agents()
-    }
-
-    for summary in load_dismissed_bundle_summaries(limit=None):
-        identities.add(_dismissed_summary_identity(summary))
-
-    return sorted(identities), skipped
-
-
-def _dismissed_summary_identity(summary: Any) -> AgentCleanupIdentityWire:
-    """Convert one dismissed bundle summary into an artifact-index identity."""
-    return AgentCleanupIdentityWire(
-        agent_type=str(summary.agent_type),
-        cl_name=str(summary.cl_name or "unknown"),
-        raw_suffix=str(summary.raw_suffix) if summary.raw_suffix else None,
-    )
+    projection = build_dismissed_agent_projection_inputs()
+    return projection.identities, projection.skipped_bundle_rows

@@ -35,6 +35,33 @@ def archive_index_exists(root: Path) -> bool:
     return index_path_for_root(root).is_file()
 
 
+def index_signature(root: Path) -> tuple[int, int, int, int] | None:
+    """Return a cheap signature for the dismissed bundle summary index."""
+
+    db_path = index_path_for_root(root)
+    if not db_path.is_file():
+        return None
+
+    try:
+        stat = db_path.stat()
+        with connection(root, create=False) as conn:
+            version_row = conn.execute(
+                "SELECT value FROM dismissed_bundle_index_meta "
+                "WHERE key = 'schema_version'"
+            ).fetchone()
+            count = conn.execute(
+                "SELECT COUNT(*) FROM dismissed_bundle_summaries"
+            ).fetchone()[0]
+    except (OSError, sqlite3.Error, TypeError, ValueError, IndexError):
+        return None
+
+    try:
+        version = int(version_row["value"]) if version_row is not None else 0
+    except (TypeError, ValueError):
+        version = 0
+    return (version, stat.st_mtime_ns, stat.st_size, int(count))
+
+
 @contextmanager
 def archive_index_connection(root: Path) -> Iterator[sqlite3.Connection]:
     """Open a schema-checked dismissed bundle index connection."""

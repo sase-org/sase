@@ -381,6 +381,9 @@ class StateInitMixin:
             dismissed_agents_file_signature,
             load_dismissed_agents,
         )
+        from sase.core.agent_artifact_index_lifecycle import (
+            sync_dismissed_agent_artifact_index,
+        )
 
         self._last_unread_ids: set[str] = set()
         self._notification_snapshot_cache: Any | None = None
@@ -395,6 +398,7 @@ class StateInitMixin:
         self._dismissed_agents_disk_signature = dismissed_agents_file_signature()
         self._dismissed_agents_disk_identities = set(self._dismissed_agents)
         self._dismissed_agents_disk_signature_initialized = True
+        sync_dismissed_agent_artifact_index(self._dismissed_agents)
         self._dismissed_agent_objects: list[Agent] = []
         self._revived_agent_raw_suffixes: set[str] = set()
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()

@@ -80,6 +80,14 @@ def dismissed_agents_file_signature() -> tuple[int, int] | None:
     return (stat.st_mtime_ns, stat.st_size)
 
 
+def dismissed_bundle_index_signature() -> tuple[int, int, int, int] | None:
+    try:
+        from .dismissed_bundle_index import index_signature
+    except (ImportError, AttributeError):
+        return None
+    return index_signature(_DISMISSED_BUNDLES_DIR)
+
+
 def save_dismissed_agents(
     dismissed: set[tuple[AgentType, str, str | None]],
 ) -> bool:

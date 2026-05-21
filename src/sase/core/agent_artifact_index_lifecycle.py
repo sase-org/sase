@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import logging
+import json
+import sqlite3
 from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -19,12 +23,33 @@ from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
 log = logging.getLogger(__name__)
 
 AgentIdentityLike = tuple[Any, str, str | None]
+DismissedAgentsSignature = tuple[int, int] | None
+DismissedBundleIndexSignature = tuple[int, int, int, int] | None
 
 _LIFECYCLE_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
     include_prompt_step_markers=True,
     include_raw_prompt_snippets=False,
 )
-_INDEX_ERRORS = (ImportError, AttributeError, OSError, RuntimeError, ValueError)
+_INDEX_ERRORS = (
+    ImportError,
+    AttributeError,
+    OSError,
+    RuntimeError,
+    ValueError,
+    sqlite3.Error,
+)
+_DISMISSED_PROJECTION_META_KEY = "dismissed_projection"
+_DISMISSED_PROJECTION_META_VERSION = 1
+
+
+@dataclass(frozen=True)
+class _DismissedProjectionInputs:
+    """Dismissed identities plus the source signatures used to build them."""
+
+    identities: list[AgentCleanupIdentityWire]
+    dismissed_agents_signature: DismissedAgentsSignature
+    dismissed_bundle_index_signature: DismissedBundleIndexSignature
+    skipped_bundle_rows: int = 0
 
 
 def _default_projects_root(sase_home: Path | str | None = None) -> Path:
@@ -45,9 +70,10 @@ def _projects_root_for_artifact_dir(artifact_dir: Path | str) -> Path:
 
 
 def sync_dismissed_agent_artifact_index(
-    dismissed: Iterable[AgentIdentityLike],
+    dismissed: Iterable[AgentIdentityLike] | None = None,
     *,
     index_path: Path | str | None = None,
+    force: bool = False,
 ) -> bool:
     """Best-effort sync of dismissed identities into the SQLite artifact index."""
     index = (
@@ -57,13 +83,63 @@ def sync_dismissed_agent_artifact_index(
     )
     if not index.is_file():
         return False
-    identities = [_identity_to_wire(identity) for identity in dismissed]
+
+    dismissed_agents_signature, dismissed_bundle_index_signature = (
+        _current_projection_source_metadata()
+    )
+    if not force and _projection_metadata_matches(
+        index,
+        dismissed_agents_signature,
+        dismissed_bundle_index_signature,
+    ):
+        return True
+
+    projection = build_dismissed_agent_projection_inputs(dismissed)
     try:
-        replace_agent_artifact_index_dismissed_agents(index, identities)
+        replace_agent_artifact_index_dismissed_agents(index, projection.identities)
+        _write_projection_metadata(index, projection)
     except _INDEX_ERRORS:
         log.debug("agent artifact index dismissed sync failed", exc_info=True)
         return False
     return True
+
+
+def build_dismissed_agent_projection_inputs(
+    dismissed: Iterable[AgentIdentityLike] | None = None,
+) -> _DismissedProjectionInputs:
+    """Build artifact-index dismissed projection rows from state and bundles."""
+
+    from sase.ace.dismissed_agents import (
+        dismissed_agents_file_signature,
+        dismissed_bundle_index_signature,
+        load_dismissed_agents,
+        load_dismissed_bundle_summaries,
+        rebuild_dismissed_bundle_index,
+        verify_dismissed_bundle_index,
+    )
+
+    dismissed_identities = (
+        set(dismissed) if dismissed is not None else load_dismissed_agents()
+    )
+
+    skipped_bundle_rows = 0
+    try:
+        bundle_report = verify_dismissed_bundle_index()
+        if not bool(bundle_report.get("ok", False)):
+            _, skipped_bundle_rows = rebuild_dismissed_bundle_index()
+    except (OSError, RuntimeError, ValueError):
+        log.debug("dismissed bundle index verification failed", exc_info=True)
+
+    identities = {_identity_to_wire(identity) for identity in dismissed_identities}
+    for summary in load_dismissed_bundle_summaries(limit=None):
+        identities.add(_dismissed_summary_identity(summary))
+
+    return _DismissedProjectionInputs(
+        identities=sorted(identities),
+        dismissed_agents_signature=dismissed_agents_file_signature(),
+        dismissed_bundle_index_signature=dismissed_bundle_index_signature(),
+        skipped_bundle_rows=skipped_bundle_rows,
+    )
 
 
 def delete_agent_artifact_index_artifacts(
@@ -157,7 +233,106 @@ def _identity_to_wire(identity: AgentIdentityLike) -> AgentCleanupIdentityWire:
     )
 
 
+def _dismissed_summary_identity(summary: Any) -> AgentCleanupIdentityWire:
+    """Convert one dismissed bundle summary into an artifact-index identity."""
+
+    return AgentCleanupIdentityWire(
+        agent_type=str(summary.agent_type),
+        cl_name=str(summary.cl_name or "unknown"),
+        raw_suffix=str(summary.raw_suffix) if summary.raw_suffix else None,
+    )
+
+
+def _current_projection_source_metadata() -> tuple[
+    DismissedAgentsSignature,
+    DismissedBundleIndexSignature,
+]:
+    """Return cheap source signatures for deciding whether projection changed."""
+
+    from sase.ace.dismissed_agents import (
+        dismissed_agents_file_signature,
+        dismissed_bundle_index_signature,
+        rebuild_dismissed_bundle_index,
+    )
+
+    bundle_signature = dismissed_bundle_index_signature()
+    if bundle_signature is None:
+        try:
+            rebuild_dismissed_bundle_index()
+        except (OSError, RuntimeError, ValueError):
+            log.debug("dismissed bundle index rebuild failed", exc_info=True)
+        bundle_signature = dismissed_bundle_index_signature()
+
+    return dismissed_agents_file_signature(), bundle_signature
+
+
+def _projection_metadata_matches(
+    index_path: Path,
+    dismissed_agents_signature: DismissedAgentsSignature,
+    dismissed_bundle_index_signature: DismissedBundleIndexSignature,
+) -> bool:
+    metadata = _read_projection_metadata(index_path)
+    if metadata is None:
+        return False
+    return (
+        metadata.get("version") == _DISMISSED_PROJECTION_META_VERSION
+        and metadata.get("dismissed_agents_signature")
+        == _json_signature(dismissed_agents_signature)
+        and metadata.get("dismissed_bundle_index_signature")
+        == _json_signature(dismissed_bundle_index_signature)
+    )
+
+
+def _read_projection_metadata(index_path: Path) -> dict[str, object] | None:
+    try:
+        with sqlite3.connect(index_path, timeout=5) as conn:
+            row = conn.execute(
+                "SELECT value FROM meta WHERE key = ?",
+                (_DISMISSED_PROJECTION_META_KEY,),
+            ).fetchone()
+    except sqlite3.Error:
+        return None
+    if row is None:
+        return None
+    try:
+        value = json.loads(str(row[0]))
+    except (TypeError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _write_projection_metadata(
+    index_path: Path,
+    projection: _DismissedProjectionInputs,
+) -> None:
+    payload = {
+        "version": _DISMISSED_PROJECTION_META_VERSION,
+        "dismissed_agents_signature": _json_signature(
+            projection.dismissed_agents_signature
+        ),
+        "dismissed_bundle_index_signature": _json_signature(
+            projection.dismissed_bundle_index_signature
+        ),
+        "projected_identity_count": len(projection.identities),
+        "synced_at": datetime.now(UTC).isoformat(),
+    }
+    with sqlite3.connect(index_path, timeout=5) as conn:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS meta ("
+            "key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)",
+            (_DISMISSED_PROJECTION_META_KEY, json.dumps(payload, sort_keys=True)),
+        )
+
+
+def _json_signature(signature: tuple[int, ...] | None) -> list[int] | None:
+    return list(signature) if signature is not None else None
+
+
 __all__ = [
+    "build_dismissed_agent_projection_inputs",
     "delete_agent_artifact_index_artifacts",
     "sync_dismissed_agent_artifact_index",
     "update_agent_artifact_index_for_marker_mutation",
