@@ -46,7 +46,7 @@ def test_agent_info_panel_loading_clears() -> None:
     panel._visible_agent_count = 5
     panel._loading = False
     plain = _collect_text(panel)
-    assert plain.startswith("5 Agents")
+    assert plain.startswith("▎5 Agents")
     assert "0 stopped" not in plain
     assert "2/5" not in plain
     assert "…" not in plain

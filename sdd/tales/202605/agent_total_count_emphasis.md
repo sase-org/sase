@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-21 18:25:47
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_total_count_emphasis.md
 ---
 # Plan: Make the total agent count in the Agents tab stand out
