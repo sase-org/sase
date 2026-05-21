@@ -46,6 +46,7 @@ class _FakeApp(EventHandlersMixin):
         self._artifact_change_defer_pending = False
         self._last_full_sanity_refresh = time.monotonic()
         self._last_agents_load_mono = 0.0
+        self._poll_agent_completions_result = False
         self.deferred_calls: list[tuple[float, Callable[[], Any]]] = []
         self.refresh_calls: list[str] = []
 
@@ -60,8 +61,9 @@ class _FakeApp(EventHandlersMixin):
     async def _load_axe_status_async(self) -> None:
         self.refresh_calls.append("axe")
 
-    async def _poll_agent_completions(self) -> None:
+    async def _poll_agent_completions(self) -> bool:
         self.refresh_calls.append("notifications")
+        return self._poll_agent_completions_result
 
     async def _load_agents_async(self) -> None:
         self.refresh_calls.append("agents")
@@ -111,6 +113,46 @@ async def test_watcher_active_dirty_notifications_polls_completions() -> None:
     assert "agents" not in app.refresh_calls
     assert "axe" not in app.refresh_calls
     assert app._dirty_notifications is False
+
+
+@pytest.mark.asyncio
+async def test_new_notification_schedules_agents_refresh_on_agents_tab() -> None:
+    """Notification-triggered agent refreshes go through the async scheduler."""
+    app = _FakeApp(watcher_active=True)
+    app._dirty_notifications = True
+    app._poll_agent_completions_result = True
+
+    await app._on_auto_refresh()
+
+    assert app.refresh_calls == ["notifications", "schedule_agents"]
+    assert app._dirty_notifications is False
+    assert app._dirty_agents is False
+
+
+@pytest.mark.asyncio
+async def test_new_notification_does_not_schedule_agents_refresh_off_tab() -> None:
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "changespecs"
+    app._dirty_notifications = True
+    app._poll_agent_completions_result = True
+
+    await app._on_auto_refresh()
+
+    assert app.refresh_calls == ["notifications"]
+
+
+@pytest.mark.asyncio
+async def test_new_notification_does_not_duplicate_due_agents_load() -> None:
+    app = _FakeApp(watcher_active=True)
+    app._dirty_notifications = True
+    app._dirty_agents = True
+    app._poll_agent_completions_result = True
+
+    await app._on_auto_refresh()
+
+    assert app.refresh_calls == ["notifications", "agents"]
+    assert "schedule_agents" not in app.refresh_calls
+    assert app._dirty_agents is False
 
 
 @pytest.mark.asyncio

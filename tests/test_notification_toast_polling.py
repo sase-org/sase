@@ -22,7 +22,8 @@ class TestPollingDelta:
         existing = _make(action="PlanApproval", notes=["already-seen"])
         app._last_unread_ids = {existing.id}
         with _patch_snapshot([existing]):
-            asyncio.run(app._poll_agent_completions())
+            saw_new = asyncio.run(app._poll_agent_completions())
+        assert saw_new is False
         assert app.notify.call_count == 0
         assert app._bell_rung == 0
 
@@ -35,7 +36,8 @@ class TestPollingDelta:
             files=["/p/sase_plan_foo.md"],
         )
         with _patch_snapshot([new_notif]):
-            asyncio.run(app._poll_agent_completions())
+            saw_new = asyncio.run(app._poll_agent_completions())
+        assert saw_new is True
         assert app._bell_rung == 1
         assert app.notify.call_count == 1
         call = app.notify.call_args
@@ -49,7 +51,8 @@ class TestPollingDelta:
         a = _make(action="PlanApproval", notes=["Plan ready for review: a.md"])
         b = _make(action="UserQuestion", notes=["What?"])
         with _patch_snapshot([a, b]):
-            asyncio.run(app._poll_agent_completions())
+            saw_new = asyncio.run(app._poll_agent_completions())
+        assert saw_new is True
         assert app.notify.call_count == 2
 
     def test_five_new_mixed_grouped(self) -> None:
@@ -62,7 +65,8 @@ class TestPollingDelta:
             _make(action="JumpToChangeSpec", notes=["Sync success for x"]),
         ]
         with _patch_snapshot(notifs):
-            asyncio.run(app._poll_agent_completions())
+            saw_new = asyncio.run(app._poll_agent_completions())
+        assert saw_new is True
         # Three severity buckets → three toasts.
         assert app.notify.call_count == 3
 
@@ -70,7 +74,8 @@ class TestPollingDelta:
         app = _FakeApp()
         silent = _make(action="PlanApproval", notes=["silent one"], silent=True)
         with _patch_snapshot([silent]):
-            asyncio.run(app._poll_agent_completions())
+            saw_new = asyncio.run(app._poll_agent_completions())
+        assert saw_new is False
         assert app.notify.call_count == 0
         assert app._bell_rung == 0
 
@@ -78,11 +83,13 @@ class TestPollingDelta:
         app = _FakeApp()
         first = _make(action="UserQuestion", notes=["q1?"])
         with _patch_snapshot([first]):
-            asyncio.run(app._poll_agent_completions())
+            first_poll_saw_new = asyncio.run(app._poll_agent_completions())
+        assert first_poll_saw_new is True
         assert app.notify.call_count == 1
         # Poll again with the same notification — no new toast.
         with _patch_snapshot([first]):
-            asyncio.run(app._poll_agent_completions())
+            second_poll_saw_new = asyncio.run(app._poll_agent_completions())
+        assert second_poll_saw_new is False
         assert app.notify.call_count == 1
 
 
@@ -102,10 +109,11 @@ class TestSnoozeExpiry:
             patch("sase.notifications.load_notifications") as mock_load,
             patch("sase.notifications.expire_due_snoozes") as mock_expire,
         ):
-            asyncio.run(app._poll_agent_completions())
+            saw_new = asyncio.run(app._poll_agent_completions())
 
         mock_load.assert_not_called()
         mock_expire.assert_not_called()
+        assert saw_new is True
         # Row is returned unmuted by the snapshot and lands in the unread bucket.
         assert expired.muted is False
         assert expired.snooze_until is None
@@ -129,9 +137,10 @@ class TestSnoozeExpiry:
             _patch_snapshot([snoozed]),
             patch("sase.notifications.expire_due_snoozes") as mock_expire,
         ):
-            asyncio.run(app._poll_agent_completions())
+            saw_new = asyncio.run(app._poll_agent_completions())
 
         mock_expire.assert_not_called()
+        assert saw_new is False
         assert snoozed.muted is True
         assert snoozed.snooze_until == future
         assert app._indicator_muted == 1
@@ -152,9 +161,10 @@ class TestSnoozeExpiry:
             _patch_snapshot([snoozed_read], expired_ids=[snoozed_read.id]),
             patch("sase.notifications.expire_due_snoozes") as mock_expire,
         ):
-            asyncio.run(app._poll_agent_completions())
+            saw_new = asyncio.run(app._poll_agent_completions())
 
         mock_expire.assert_not_called()
+        assert saw_new is False
         # Row is no longer snoozed, but stays read — so unread bucket is empty.
         assert snoozed_read.muted is False
         assert snoozed_read.snooze_until is None

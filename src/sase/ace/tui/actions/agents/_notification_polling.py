@@ -10,13 +10,18 @@ from ._notification_utils import unread_notification_buckets
 class AgentNotificationPollingMixin:
     """Poll notification state and update notification indicators."""
 
-    async def _poll_agent_completions(self: Any) -> None:
+    async def _poll_agent_completions(self: Any) -> bool:
         """Poll notification store for new unread notifications.
 
         Detects when unread count increases and triggers bell/toast.
         Called on every auto-refresh regardless of current tab. The disk
         parse happens off the main thread so the polling tick doesn't
         block the event loop while the user is settling into the TUI.
+
+        Returns ``True`` when the poll observed newly unread active
+        notifications. Muted arrivals and snooze-expiration-only reminders do
+        not count for refresh scheduling even though they still update the UI
+        and may ring the bell.
         """
         import asyncio
 
@@ -74,6 +79,8 @@ class AgentNotificationPollingMixin:
         # ahead of indicator/toast updates.
         if should_ring_bell:
             await self._ring_tmux_bell_async()
+
+        return bool(new_notifications)
 
     def _refresh_notification_count(self: Any) -> None:
         """Reload unread notification count from disk and update the indicator.

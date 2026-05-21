@@ -188,8 +188,11 @@ class EventRefreshMixin(EventHandlersBase):
         # gating mirrors the other surfaces: poll on every tick when
         # the watcher is inactive, otherwise wait for inotify to set
         # the dirty flag or the sanity-refresh window to elapse.
+        new_agent_notification = False
         if _should_refresh("_dirty_notifications"):
-            await self._poll_agent_completions()  # type: ignore[attr-defined]
+            new_agent_notification = bool(
+                await self._poll_agent_completions()  # type: ignore[attr-defined]
+            )
             self._dirty_notifications = False
 
         # Skip changespec/agent refresh if the user is in a transient input
@@ -204,6 +207,9 @@ class EventRefreshMixin(EventHandlersBase):
         # Skip if a background agent load is already in progress
         if self._agents_loading:
             return
+
+        if new_agent_notification and self.current_tab == "agents" and not agents_due:
+            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
 
         if agents_due:
             self._agents_loading = True
