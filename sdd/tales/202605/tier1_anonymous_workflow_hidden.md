@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-21 13:01:34
-status: wip
+status: done
 prompt: sdd/prompts/202605/tier1_anonymous_workflow_hidden.md
 ---
 # Plan: Stop Treating `is_anonymous` Workflows as Hidden in the Tier 1 Index
