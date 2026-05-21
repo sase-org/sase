@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from collections.abc import Iterable
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -63,6 +65,23 @@ def _revived_artifact_dir(
     if parent_artifacts_dir:
         return parent_artifacts_dir
     return agent.artifacts_dir or agent.get_artifacts_dir()
+
+
+def _schedule_revive_full_history_refresh(
+    app: Any,
+    *,
+    reason: str,
+    on_complete: Callable[[], None],
+) -> None:
+    """Schedule a revive full-history refresh across app/test scheduler shapes."""
+    schedule = app._schedule_agents_async_refresh
+    kwargs: dict[str, Any] = {
+        "full_history": True,
+        "on_complete": on_complete,
+    }
+    if "full_history_reason" in inspect.signature(schedule).parameters:
+        kwargs["full_history_reason"] = reason
+    schedule(**kwargs)
 
 
 class AgentRevivalMixin(ArtifactRestorationMixin):
@@ -430,8 +449,9 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
                     selection_scope=scope,
                 )
 
-        self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
-            full_history=True,
+        _schedule_revive_full_history_refresh(
+            self,
+            reason="revive_agent_archive_refresh",
             on_complete=_on_revive_loaded,
         )
 
@@ -599,7 +619,8 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
                 if self._select_revived_agent(candidate):
                     break
 
-        self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
-            full_history=True,
+        _schedule_revive_full_history_refresh(
+            self,
+            reason="revive_agents_archive_refresh",
             on_complete=_on_revive_loaded,
         )

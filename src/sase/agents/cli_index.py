@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -12,11 +13,15 @@ from rich.console import Console
 from sase.core.agent_cleanup_wire import AgentCleanupIdentityWire
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
+    query_agent_artifact_index,
     rebuild_agent_artifact_index,
     replace_agent_artifact_index_dismissed_agents,
     verify_agent_artifact_index,
 )
-from sase.core.agent_scan_wire import agent_scan_wire_to_json_dict
+from sase.core.agent_scan_wire import (
+    AgentArtifactIndexQueryWire,
+    agent_scan_wire_to_json_dict,
+)
 
 
 def handle_agents_index(args: argparse.Namespace) -> None:
@@ -28,11 +33,14 @@ def handle_agents_index(args: argparse.Namespace) -> None:
     if sub == "rebuild":
         _handle_agents_index_rebuild(args)
         return
+    if sub == "status":
+        _handle_agents_index_status(args)
+        return
     if sub == "verify":
         _handle_agents_index_verify(args)
         return
 
-    Console().print("Usage: sase agents index {gc,rebuild,verify}")
+    Console().print("Usage: sase agents index {gc,rebuild,status,verify}")
     raise SystemExit(1)
 
 
@@ -73,6 +81,129 @@ def _handle_agents_index_verify(args: argparse.Namespace) -> None:
     else:
         Console().print(json.dumps(payload, indent=2, sort_keys=True))
     raise SystemExit(0 if result.ok else 1)
+
+
+def _handle_agents_index_status(args: argparse.Namespace) -> None:
+    """Inspect the normal visible-inbox index path without a source scan."""
+    projects_root, index_path = _agent_index_paths(args)
+
+    payload = _agent_index_status_payload(projects_root, index_path)
+    if getattr(args, "json", False):
+        print(json.dumps(payload, sort_keys=True))
+        return
+
+    if payload["repair_recommended"]:
+        Console().print(
+            "Agent artifact index repair recommended: "
+            f"{payload['repair_reason']} ({index_path})"
+        )
+        Console().print("Run: sase agents index verify")
+        Console().print("Repair: sase agents index gc")
+        return
+
+    Console().print(
+        "Agent artifact index ready for normal refresh: "
+        f"{payload['visible_rows']} visible rows, "
+        f"{payload['dismissed_projection_rows']} dismissed identities ({index_path})"
+    )
+
+
+def _agent_index_status_payload(
+    projects_root: Path, index_path: Path
+) -> dict[str, Any]:
+    """Return lightweight operator diagnostics for the visible-inbox path."""
+    base: dict[str, Any] = {
+        "index_path": str(index_path),
+        "projects_root": str(projects_root),
+        "index_exists": index_path.is_file(),
+        "complete_history": False,
+        "complete_visible_inbox": False,
+        "dismissed_projection_rows": 0,
+        "normal_refresh": "visible-inbox artifact-index query",
+        "repair_command": "sase agents index gc",
+        "repair_reason": None,
+        "repair_recommended": False,
+        "schema_version": 0,
+        "verify_command": "sase agents index verify",
+        "visible_rows": 0,
+    }
+    if not base["index_exists"]:
+        base.update(
+            {
+                "repair_recommended": True,
+                "repair_reason": "artifact_index_missing",
+            }
+        )
+        return base
+
+    base["schema_version"] = _read_index_schema_version(index_path)
+    base["dismissed_projection_rows"] = _count_index_rows(
+        index_path, "dismissed_agents"
+    )
+    try:
+        snapshot = query_agent_artifact_index(
+            index_path,
+            projects_root,
+            query=AgentArtifactIndexQueryWire(
+                include_active=True,
+                include_recent_completed=True,
+                include_full_history=False,
+                active_limit=None,
+                recent_completed_limit=200,
+                include_hidden=False,
+            ),
+        )
+    except (ImportError, AttributeError, OSError, ValueError, RuntimeError) as exc:
+        base.update(
+            {
+                "repair_recommended": True,
+                "repair_reason": f"artifact_index_query_failed: {exc}",
+            }
+        )
+        return base
+
+    soft_errors = snapshot.stats.json_decode_errors + snapshot.stats.os_errors
+    base.update(
+        {
+            "complete_visible_inbox": soft_errors == 0,
+            "repair_recommended": soft_errors > 0,
+            "repair_reason": "artifact_index_query_soft_errors"
+            if soft_errors
+            else None,
+            "visible_rows": len(snapshot.records),
+        }
+    )
+    return base
+
+
+def _read_index_schema_version(index_path: Path) -> int:
+    try:
+        with sqlite3.connect(index_path) as conn:
+            row = conn.execute(
+                "SELECT value FROM meta WHERE key = 'schema_version'"
+            ).fetchone()
+    except sqlite3.Error:
+        return 0
+    if row is None:
+        return 0
+    try:
+        return int(row[0])
+    except (TypeError, ValueError):
+        return 0
+
+
+def _count_index_rows(index_path: Path, table: str) -> int:
+    if table not in {"agent_artifacts", "dismissed_agents"}:
+        raise ValueError(f"unsupported artifact index table: {table}")
+    try:
+        with sqlite3.connect(index_path) as conn:
+            # Table names are validated above; sqlite parameters cannot bind them.
+            row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()  # noqa: S608
+    except sqlite3.Error:
+        return 0
+    if row is None:
+        return 0
+    return int(row[0])
 
 
 def _handle_agents_index_gc(args: argparse.Namespace) -> None:

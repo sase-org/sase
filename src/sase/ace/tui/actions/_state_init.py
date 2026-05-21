@@ -222,9 +222,11 @@ class StateInitMixin:
         self._agents_loading: bool = False
         self._agents_refresh_pending: bool = False
         self._agents_refresh_pending_full_history: bool = False
+        self._agents_refresh_pending_full_history_reason: str | None = None
         self._agents_refresh_pending_callbacks: list[Callable[[], None]] = []
         self._agents_refresh_scheduled: bool = False
         self._agents_refresh_scheduled_full_history: bool = False
+        self._agents_refresh_scheduled_full_history_reason: str | None = None
         self._agents_refresh_debounce_armed: bool = False
         # Deferred Tier 2 reconcile: set when a load arrives with
         # incomplete history. The reconcile is then triggered lazily by an
@@ -238,6 +240,9 @@ class StateInitMixin:
         # ``STARTUP_TIER2_RECONCILE_DELAY_S``.
         self._agents_startup_tier2_scheduled: bool = False
         self._agent_load_state: AgentLoadState | None = None
+        self._agents_index_repair_notice_key: tuple[str | None, str | None] | None = (
+            None
+        )
         self._agents_seen_complete_history: bool = False
         self._agents_repro_capture: Any = None
         self._agents_repro_auto_check_enabled: bool = False

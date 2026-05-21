@@ -306,6 +306,11 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `-`                 | Reset file trim to default                                                                                    |
 | `=`                 | Show all file lines                                                                                           |
 
+Normal Agents-tab refreshes use the persistent visible-inbox artifact index. When ACE detects a missing or unhealthy
+index, it shows a warning with the repair reason; it does not run a full artifact scan automatically just because repair
+is recommended. Use `sase agents index status --json` for a lightweight index check, `sase agents index verify` to
+compare the index with source artifacts, and `sase agents index gc` to rebuild the index and dismissed projection.
+
 ### Wait Modal
 
 Press `w` on the Agents tab to open the WaitModal. Behavior depends on the agent's status:

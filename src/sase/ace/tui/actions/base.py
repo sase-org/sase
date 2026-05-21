@@ -377,6 +377,9 @@ class BaseActionsMixin:
                 self._agents_history_reconcile_pending = False
             self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
                 full_history=full_history,
+                full_history_reason="manual_refresh_pending_reconcile"
+                if full_history
+                else None,
             )
         elif self.current_tab == "changespecs":
             self._schedule_changespecs_async_refresh()  # type: ignore[attr-defined]

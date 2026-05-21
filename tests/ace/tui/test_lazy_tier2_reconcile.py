@@ -31,9 +31,11 @@ class _FakeRefreshApp(AgentLoadingRefreshMixin):
         self._agents_loading = False
         self._agents_refresh_pending = False
         self._agents_refresh_pending_full_history = False
+        self._agents_refresh_pending_full_history_reason = None
         self._agents_refresh_pending_callbacks: list[Callable[[], None]] = []
         self._agents_refresh_scheduled = False
         self._agents_refresh_scheduled_full_history = False
+        self._agents_refresh_scheduled_full_history_reason = None
         self._agents_refresh_debounce_armed = False
         self._agents_history_reconcile_pending = False
         self._agents_history_reconcile_armed_mono = 0.0
@@ -81,6 +83,7 @@ def test_idle_trigger_fires_after_threshold() -> None:
     assert app._agents_history_reconcile_pending is False
     assert app._agents_refresh_scheduled is True
     assert app._agents_refresh_scheduled_full_history is True
+    assert app._agents_refresh_scheduled_full_history_reason == "idle_tier2_reconcile"
     assert len(app._scheduled) == 1
 
 
@@ -271,6 +274,37 @@ def _make_incomplete_load_state() -> Any:
     )
 
 
+def test_repair_notice_only_when_repair_recommended() -> None:
+    """Repair diagnostics surface as an operator-visible notice."""
+    from sase.ace.tui.actions.agents._loading_apply import (
+        _agent_index_repair_notice,
+    )
+    from sase.ace.tui.models.agent_loader import AgentLoadState
+
+    healthy = AgentLoadState(
+        tier="tier1",
+        complete_history=False,
+        complete_visible_inbox=True,
+        artifact_source="artifact_index",
+        used_artifact_index=True,
+    )
+    repair = AgentLoadState(
+        tier="tier1",
+        complete_history=False,
+        complete_visible_inbox=False,
+        artifact_source="source_scan",
+        used_artifact_index=False,
+        repair_recommended=True,
+        repair_reason="artifact_index_missing_bounded_fallback",
+    )
+
+    assert _agent_index_repair_notice(healthy) is None
+    notice = _agent_index_repair_notice(repair)
+    assert notice is not None
+    assert "artifact_index_missing_bounded_fallback" in notice
+    assert "sase agents index gc" in notice
+
+
 def _make_complete_load_state() -> Any:
     from sase.ace.tui.models.agent_loader import AgentLoadState
 
@@ -360,6 +394,9 @@ def test_startup_trigger_fires_full_history_refresh() -> None:
     assert app._agents_history_reconcile_pending is False
     assert app._agents_refresh_scheduled is True
     assert app._agents_refresh_scheduled_full_history is True
+    assert (
+        app._agents_refresh_scheduled_full_history_reason == "startup_tier2_reconcile"
+    )
     assert len(app._scheduled) == 1
 
 

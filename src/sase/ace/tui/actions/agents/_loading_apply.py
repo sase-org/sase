@@ -28,6 +28,17 @@ if TYPE_CHECKING:
     from ...models.fold_state import FoldLevel
 
 
+def _agent_index_repair_notice(load_state: AgentLoadState | None) -> str | None:
+    """Return the operator-facing repair notice for a load state."""
+    if load_state is None or not load_state.repair_recommended:
+        return None
+    reason = load_state.repair_reason or "unknown"
+    return (
+        f"Agent index repair recommended: {reason}. "
+        "Run `sase agents index status --json`, then `sase agents index gc`."
+    )
+
+
 class AgentLoadingApplyMixin(AgentLoadingStateMixin):
     """Methods that merge prepared agent data back into app state."""
 
@@ -319,6 +330,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             self._agents_seen_complete_history = True
             self._agents_history_reconcile_pending = False
         self._agent_load_state = load_state
+        self._maybe_notify_agent_index_repair(load_state)
         # Defer the Tier 2 full-history reconcile: mark it pending rather
         # than firing it immediately. The reconcile is the dominant
         # startup span (~2.7 s on an established home dir) and the
@@ -370,3 +382,20 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             load_state=load_state,
             source="apply",
         )
+
+    def _maybe_notify_agent_index_repair(
+        self, load_state: AgentLoadState | None
+    ) -> None:
+        """Show a one-shot visible repair notice when Tier 1 diagnostics ask."""
+        notice = _agent_index_repair_notice(load_state)
+        if notice is None:
+            self._agents_index_repair_notice_key = None
+            return
+        key = (
+            load_state.repair_reason if load_state is not None else None,
+            load_state.index_error if load_state is not None else None,
+        )
+        if key == getattr(self, "_agents_index_repair_notice_key", None):
+            return
+        self._agents_index_repair_notice_key = key
+        self.notify(notice, severity="warning")  # type: ignore[attr-defined]

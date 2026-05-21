@@ -6,6 +6,7 @@ import logging
 import time
 from collections.abc import Callable
 
+from ...util.trace import tui_trace
 from ._loading_state import AgentLoadingStateMixin
 
 log = logging.getLogger(__name__)
@@ -68,6 +69,7 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         self,
         *,
         full_history: bool = False,
+        full_history_reason: str | None = None,
         on_complete: Callable[[], None] | None = None,
     ) -> None:
         """Schedule an async agent reload without blocking.
@@ -89,14 +91,23 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
             self._agents_refresh_pending = True
             if full_history:
                 self._agents_refresh_pending_full_history = True
+                self._agents_refresh_pending_full_history_reason = (
+                    full_history_reason or "coalesced_full_history_refresh"
+                )
             return
         if self._agents_refresh_scheduled:
             self._agents_refresh_pending = True
             if full_history:
                 self._agents_refresh_pending_full_history = True
+                self._agents_refresh_pending_full_history_reason = (
+                    full_history_reason or "coalesced_full_history_refresh"
+                )
             return
         self._agents_refresh_scheduled = True
         self._agents_refresh_scheduled_full_history = full_history
+        self._agents_refresh_scheduled_full_history_reason = (
+            full_history_reason if full_history else None
+        )
         self.call_later(self._run_agents_async_refresh)  # type: ignore[attr-defined]
 
     def _maybe_trigger_idle_tier2_reconcile(
@@ -125,7 +136,10 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         if cur - reference < TIER2_RECONCILE_IDLE_THRESHOLD_S:
             return False
         self._agents_history_reconcile_pending = False
-        self._schedule_agents_async_refresh(full_history=True)
+        self._schedule_agents_async_refresh(
+            full_history=True,
+            full_history_reason="idle_tier2_reconcile",
+        )
         return True
 
     def _fire_startup_tier2_reconcile(self) -> None:
@@ -145,7 +159,10 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
             # cover us.
             return
         self._agents_history_reconcile_pending = False
-        self._schedule_agents_async_refresh(full_history=True)
+        self._schedule_agents_async_refresh(
+            full_history=True,
+            full_history_reason="startup_tier2_reconcile",
+        )
 
     async def _run_agents_async_refresh(self) -> None:
         """Run the async agent refresh with loading guard.
@@ -164,12 +181,19 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
             self.set_timer(delay, self._run_agents_async_refresh)  # type: ignore[attr-defined]
             return
         full_history = getattr(self, "_agents_refresh_scheduled_full_history", False)
+        full_history_reason = getattr(
+            self, "_agents_refresh_scheduled_full_history_reason", None
+        )
         self._agents_refresh_scheduled = False
         self._agents_refresh_scheduled_full_history = False
+        self._agents_refresh_scheduled_full_history_reason = None
         if self._agents_loading:
             self._agents_refresh_pending = True
             if full_history:
                 self._agents_refresh_pending_full_history = True
+                self._agents_refresh_pending_full_history_reason = (
+                    full_history_reason or "coalesced_full_history_refresh"
+                )
             return
         self._agents_loading = True
         callbacks = list(self._agents_refresh_pending_callbacks)
@@ -179,7 +203,13 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
 
             load_agents_async = self._load_agents_async
             if "full_history" in inspect.signature(load_agents_async).parameters:
-                await load_agents_async(full_history=full_history)
+                if full_history:
+                    reason = full_history_reason or "unspecified_full_history_refresh"
+                    log.info("agents full-history refresh requested: %s", reason)
+                    with tui_trace("agents.full_history_refresh", reason=reason):
+                        await load_agents_async(full_history=True)
+                else:
+                    await load_agents_async(full_history=False)
             else:
                 await load_agents_async()
         finally:
@@ -196,7 +226,12 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                 pending_full_history = getattr(
                     self, "_agents_refresh_pending_full_history", False
                 )
+                pending_full_history_reason = getattr(
+                    self, "_agents_refresh_pending_full_history_reason", None
+                )
                 self._agents_refresh_pending_full_history = False
+                self._agents_refresh_pending_full_history_reason = None
                 self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
-                    full_history=pending_full_history
+                    full_history=pending_full_history,
+                    full_history_reason=pending_full_history_reason,
                 )

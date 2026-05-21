@@ -102,9 +102,11 @@ class AgentLoadingStateMixin:
     # after the last trigger.
     _agents_refresh_pending: bool
     _agents_refresh_pending_full_history: bool
+    _agents_refresh_pending_full_history_reason: str | None
     _agents_refresh_pending_callbacks: list[Callable[[], None]]
     _agents_refresh_scheduled: bool
     _agents_refresh_scheduled_full_history: bool
+    _agents_refresh_scheduled_full_history_reason: str | None
     # Sticky deferred Tier 2 reconcile state. ``_pending`` is True while
     # the last load reported incomplete history and a full-history pass
     # has not yet been scheduled; ``_armed_mono`` is the monotonic time
@@ -126,6 +128,7 @@ class AgentLoadingStateMixin:
     # `_on_auto_refresh` already apply to their refresh triggers.
     _nav_gate: NavigationGate
     _agent_load_state: AgentLoadState | None
+    _agents_index_repair_notice_key: tuple[str | None, str | None] | None
     _agents_seen_complete_history: bool
     _agents_repro_capture: object | None
 
