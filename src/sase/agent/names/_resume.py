@@ -1,4 +1,4 @@
-"""Resume-derived agent-name parsing and allocation."""
+"""Fork-derived agent-name parsing and allocation."""
 
 from __future__ import annotations
 
@@ -81,16 +81,16 @@ def allocate_resume_name(
     *,
     reserved: set[str] | None = None,
 ) -> str:
-    """Return the first available ``<resume_name>.r<N>`` name.
+    """Return the first available ``<resume_name>.f<N>`` name.
 
-    Existing exact resume names and suffixed descendants both reserve the
+    Existing fork names and legacy ``.r<N>`` descendants both reserve the
     numeric slot, so ``foo.r1.claude`` causes the next allocation for ``foo``
-    to skip ``foo.r1``.
+    to skip ``foo.f1``.
     """
     pool = _active_resume_reserved_names(resume_name) if reserved is None else reserved
     n = 1
     while True:
-        candidate = f"{resume_name}.r{n}"
+        candidate = f"{resume_name}.f{n}"
         if candidate not in pool:
             pool.add(candidate)
             return candidate
@@ -127,11 +127,11 @@ def _active_resume_reserved_names(resume_name: str) -> set[str]:
     from sase.agent.names._auto import get_active_agent_names
 
     active = get_active_agent_names()
-    pattern = re.compile(rf"^{re.escape(resume_name)}\.r(\d+)(?:\.|$)")
+    pattern = re.compile(rf"^{re.escape(resume_name)}\.[fr](\d+)(?:\.|$)")
     reserved: set[str] = set()
     for name in active:
         match = pattern.match(name)
         if match is None:
             continue
-        reserved.add(f"{resume_name}.r{match.group(1)}")
+        reserved.add(f"{resume_name}.f{match.group(1)}")
     return reserved

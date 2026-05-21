@@ -26,7 +26,8 @@ def test_keybinding_footer_agent_bindings_none_agent() -> None:
     bindings = footer._compute_agent_bindings(None)
     binding_keys = [b[0] for b in bindings]
 
-    assert "r" not in binding_keys  # No revive chat
+    assert "f" not in binding_keys  # No fork chat
+    assert "r" not in binding_keys
     assert "x" not in binding_keys  # Kill/dismiss only when agent selected
 
 
@@ -48,7 +49,8 @@ def test_keybinding_footer_agent_bindings_running_agent() -> None:
     binding_keys = [b[0] for b in bindings]
 
     assert "x" in binding_keys  # Kill is available
-    assert "r" not in binding_keys  # No revive chat
+    assert "f" not in binding_keys  # No fork chat
+    assert "r" not in binding_keys
 
 
 def test_keybinding_footer_agent_bindings_starting_agent() -> None:
@@ -75,13 +77,14 @@ def test_keybinding_footer_agent_bindings_completed_agent_with_chat() -> None:
 
 
 def test_keybinding_footer_agent_bindings_tale_done_with_chat() -> None:
-    """Terminal tale rows with chats can be resumed."""
+    """Terminal tale rows with chats can be forked."""
     footer = KeybindingFooter()
     agent = _make_agent(status="TALE DONE", response_path="/tmp/chat.md")
 
     bindings = footer._compute_agent_bindings(agent)
 
-    assert ("r", "resume") in bindings
+    assert ("f", "fork") in bindings
+    assert ("r", "resume") not in bindings
 
 
 def test_keybinding_footer_group_focused_overrides_x_label() -> None:

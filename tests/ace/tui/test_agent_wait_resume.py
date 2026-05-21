@@ -1,4 +1,4 @@
-"""Tests for Agents-tab wait/resume actions."""
+"""Tests for Agents-tab wait/fork actions."""
 
 from __future__ import annotations
 
@@ -6,10 +6,12 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from sase.ace.tui.actions.base import BaseActionsMixin
 from sase.ace.tui.actions.agents._wait_resume import (
     AgentWaitResumeMixin,
     _parse_wait_dependency_names,
 )
+from sase.ace.tui.actions.hints._hooks import HookEditingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 
 
@@ -47,7 +49,7 @@ class _FakeWaitResumeApp(AgentWaitResumeMixin):
 
 
 class _FakeResumeActionApp(AgentWaitResumeMixin):
-    """Minimal app implementing what action_resume_agent touches."""
+    """Minimal app implementing what action_fork_agent touches."""
 
     def __init__(self, agents: list[Agent]) -> None:
         self.current_tab = "agents"
@@ -133,7 +135,20 @@ def test_apply_wait_empty_submission_keeps_run_now_behavior(tmp_path: Path) -> N
     assert app.notifications == [("Wait: test_cl", "information")]
 
 
-def test_resume_agent_tale_done_family_root_uses_family_name() -> None:
+class _FakeAgentForkDispatchApp(BaseActionsMixin, HookEditingMixin):
+    """Minimal app for Agents-tab key dispatch assertions."""
+
+    def __init__(self) -> None:
+        self.current_tab = "agents"
+        self.current_idx = 0
+        self.changespecs = [object()]
+        self.fork_calls = 0
+
+    def action_fork_agent(self) -> None:
+        self.fork_calls += 1
+
+
+def test_fork_agent_tale_done_family_root_uses_family_name() -> None:
     agent = _make_waiting_agent(
         status="TALE DONE",
         agent_name="aww-plan",
@@ -143,19 +158,19 @@ def test_resume_agent_tale_done_family_root_uses_family_name() -> None:
     )
     app = _FakeResumeActionApp([agent])
 
-    app.action_resume_agent()
+    app.action_fork_agent()
 
     assert app.notifications == []
     assert app.prompt_bar_calls == [
         {
             "initial_text": "#fork:aww ",
-            "display_name": "resume(aww)",
+            "display_name": "fork(aww)",
             "history_sort_key": "test_cl",
         }
     ]
 
 
-def test_resume_agent_plan_done_family_root_uses_family_name() -> None:
+def test_fork_agent_plan_done_family_root_uses_family_name() -> None:
     agent = _make_waiting_agent(
         status="PLAN DONE",
         agent_name="planner-plan",
@@ -165,7 +180,23 @@ def test_resume_agent_plan_done_family_root_uses_family_name() -> None:
     )
     app = _FakeResumeActionApp([agent])
 
-    app.action_resume_agent()
+    app.action_fork_agent()
 
     assert app.notifications == []
     assert app.prompt_bar_calls[0]["initial_text"] == "#fork:planner "
+
+
+def test_run_workflow_on_agents_does_not_fork() -> None:
+    app = _FakeAgentForkDispatchApp()
+
+    BaseActionsMixin.action_run_workflow(app)
+
+    assert app.fork_calls == 0
+
+
+def test_edit_hooks_on_agents_dispatches_to_fork() -> None:
+    app = _FakeAgentForkDispatchApp()
+
+    HookEditingMixin.action_edit_hooks(app)
+
+    assert app.fork_calls == 1

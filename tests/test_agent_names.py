@@ -221,25 +221,30 @@ class TestResumeAgentNames:
 
     def test_allocates_first_resume_slot(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_name("foo") == "foo.r1"
+            assert allocate_resume_name("foo") == "foo.f1"
 
     def test_allocates_resume_slot_gap(self, tmp_path: Path) -> None:
-        _make_agent(tmp_path, "proj", "run1", "foo.r1", done=True)
-        _make_agent(tmp_path, "proj", "run3", "foo.r3", done=True)
+        _make_agent(tmp_path, "proj", "run1", "foo.f1", done=True)
+        _make_agent(tmp_path, "proj", "run3", "foo.f3", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_name("foo") == "foo.r2"
+            assert allocate_resume_name("foo") == "foo.f2"
 
     def test_suffixed_descendants_reserve_resume_slot(self, tmp_path: Path) -> None:
+        _make_agent(tmp_path, "proj", "run1", "foo.f1.cld", done=True)
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert allocate_resume_name("foo") == "foo.f2"
+
+    def test_legacy_r_descendants_reserve_fork_slot(self, tmp_path: Path) -> None:
         _make_agent(tmp_path, "proj", "run1", "foo.r1.cld", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_name("foo") == "foo.r2"
+            assert allocate_resume_name("foo") == "foo.f2"
 
     def test_allocates_multiple_resume_names_from_one_snapshot(
         self, tmp_path: Path
     ) -> None:
-        _make_agent(tmp_path, "proj", "run1", "foo.r1", done=True)
+        _make_agent(tmp_path, "proj", "run1", "foo.f1", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_names("foo", 3) == ["foo.r2", "foo.r3", "foo.r4"]
+            assert allocate_resume_names("foo", 3) == ["foo.f2", "foo.f3", "foo.f4"]
 
     def test_resolve_resume_root_uses_latest_completed_family_member(
         self, tmp_path: Path

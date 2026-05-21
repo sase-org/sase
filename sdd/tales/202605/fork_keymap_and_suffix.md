@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-21 15:49:41
-status: wip
+status: done
 prompt: sdd/prompts/202605/fork_keymap_and_suffix.md
 ---
 # Plan: Move Agent Forking to `f` and `.f<N>` Names

@@ -14,6 +14,13 @@ class HookEditingMixin(HintMixinBase):
 
     def action_edit_hooks(self) -> None:
         """Edit hooks for the current ChangeSpec."""
+        if getattr(self, "current_tab", None) == "agents":
+            self.action_fork_agent()  # type: ignore[attr-defined]
+            return
+
+        if getattr(self, "current_tab", None) != "changespecs":
+            return
+
         if not self.changespecs:
             return
 

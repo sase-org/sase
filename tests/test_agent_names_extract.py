@@ -105,7 +105,7 @@ class TestExtractDirectivesAutoDismiss:
         assert result["info"].hidden is False
 
     def test_resume_prompt_gets_resume_derived_name(self, tmp_path: Path) -> None:
-        """A raw top-level #fork picks the first available .r slot."""
+        """A raw top-level #fork picks the first available .f slot."""
         with patch.object(Path, "home", return_value=tmp_path):
             result = _run_extract(
                 tmp_path,
@@ -113,8 +113,8 @@ class TestExtractDirectivesAutoDismiss:
                 prompt="expanded prompt",
                 raw_resolved_prompt="#fork:foo do stuff",
             )
-        assert result["info"].name == "foo.r1"
-        assert result["meta"].get("name") == "foo.r1"
+        assert result["info"].name == "foo.f1"
+        assert result["meta"].get("name") == "foo.f1"
 
     def test_planned_name_wins_for_non_explicit_auto_name(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
@@ -146,8 +146,8 @@ class TestExtractDirectivesAutoDismiss:
                 prompt="%name expanded prompt",
                 raw_resolved_prompt="%name #fork:foo do stuff",
             )
-        assert result["info"].name == "foo.r1"
-        assert result["meta"].get("name") == "foo.r1"
+        assert result["info"].name == "foo.f1"
+        assert result["meta"].get("name") == "foo.f1"
 
     def test_auto_dismiss_suppresses_resume_derived_name(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):

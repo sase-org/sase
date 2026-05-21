@@ -262,8 +262,8 @@ def test_split_prompt_for_models_resume_base(tmp_path: Path) -> None:
     with patch.object(Path, "home", return_value=tmp_path):
         result = split_prompt_for_models("#fork:foo\n%m(opus,sonnet)\nDo work")
     assert result is not None
-    assert result[0] == "%name:foo.r1.cld_opus\n#fork:foo\n%model:opus\nDo work"
-    assert result[1] == "%name:foo.r1.cld_sonnet\n#fork:foo\n%model:sonnet\nDo work"
+    assert result[0] == "%name:foo.f1.cld_opus\n#fork:foo\n%model:opus\nDo work"
+    assert result[1] == "%name:foo.f1.cld_sonnet\n#fork:foo\n%model:sonnet\nDo work"
 
 
 def test_split_prompt_for_models_multi_model_auto_generated_base() -> None:
@@ -516,8 +516,8 @@ def test_split_prompt_for_models_pure_alt_resume_base(tmp_path: Path) -> None:
         result = split_prompt_for_models("#fork:foo\n%alt(x,y)\nDo work")
 
     assert result is not None
-    assert result[0] == "%name:foo.r1.1\n#fork:foo\nx\nDo work"
-    assert result[1] == "%name:foo.r1.2\n#fork:foo\ny\nDo work"
+    assert result[0] == "%name:foo.f1.1\n#fork:foo\nx\nDo work"
+    assert result[1] == "%name:foo.f1.2\n#fork:foo\ny\nDo work"
 
 
 def test_split_prompt_for_models_pure_alt_resume_base_skips_existing_slot(
@@ -530,8 +530,8 @@ def test_split_prompt_for_models_pure_alt_resume_base_skips_existing_slot(
         result = split_prompt_for_models("#fork:foo\n%alt(sec=x,perf=y)\nDo work")
 
     assert result is not None
-    assert result[0] == "%name:foo.r2.sec\n#fork:foo\nx\nDo work"
-    assert result[1] == "%name:foo.r2.perf\n#fork:foo\ny\nDo work"
+    assert result[0] == "%name:foo.f2.sec\n#fork:foo\nx\nDo work"
+    assert result[1] == "%name:foo.f2.perf\n#fork:foo\ny\nDo work"
 
 
 def test_split_prompt_for_models_named_model_alt_overrides_model_suffix() -> None:

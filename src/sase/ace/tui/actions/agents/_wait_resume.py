@@ -1,4 +1,4 @@
-"""Agent wait and resume actions for the ace TUI app."""
+"""Agent wait and fork actions for the ace TUI app."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
 
-# Post-plan handoff statuses where a `R` resume should pick up the coder
+# Post-plan handoff statuses where forking should pick up the coder
 # follow-up's chat rather than the planner's. Symmetric with the
 # DISMISSABLE_STATUSES set used by other consumers.
 _PLAN_HANDOFF_DONE_STATUSES: frozenset[str] = frozenset({"PLAN DONE", "TALE DONE"})
@@ -37,7 +37,7 @@ def _is_agent_family_root(agent: Agent) -> bool:
 
 
 def _agent_prompt_name(agent: Agent) -> str | None:
-    """Return the name wait/resume/copy prompts should use for a row."""
+    """Return the name wait/fork/copy prompts should use for a row."""
     if _is_agent_family_root(agent):
         if agent.agent_family:
             return agent.agent_family
@@ -236,8 +236,8 @@ class AgentWaitResumeMixin:
 
         self.push_screen(ConfirmKillModal(agent_description), on_confirm)  # type: ignore[attr-defined]
 
-    def action_resume_agent(self) -> None:
-        """Resume a DONE agent's conversation, or queue resume for a running named agent."""
+    def action_fork_agent(self) -> None:
+        """Fork a DONE agent's chat, or queue a fork for a running named agent."""
         if self.current_tab != "agents":
             return
 
@@ -246,7 +246,7 @@ class AgentWaitResumeMixin:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
-        # Running named agents: use resume_by_name with %w to wait for completion
+        # Running named agents: use #fork with %w to wait for completion.
         from ._core import DISMISSABLE_STATUSES
 
         prompt_name = _agent_prompt_name(agent)
@@ -261,15 +261,15 @@ class AgentWaitResumeMixin:
 
             self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
                 initial_text=prefix,
-                display_name=f"resume({name})",
-                history_sort_key=agent.cl_name or "resume",
+                display_name=f"fork({name})",
+                history_sort_key=agent.cl_name or "fork",
             )
             return
 
         if agent.status in _PLAN_HANDOFF_DONE_STATUSES and not _is_agent_family_root(
             agent
         ):
-            # Find the coder follow-up agent to resume its conversation
+            # Find the coder follow-up agent to fork its conversation.
             coder = next(
                 (
                     f
@@ -286,8 +286,8 @@ class AgentWaitResumeMixin:
                     prefix = f"{vcs_tag}{prefix}"
                 self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
                     initial_text=prefix,
-                    display_name=f"resume({name})",
-                    history_sort_key=agent.cl_name or "resume",
+                    display_name=f"fork({name})",
+                    history_sort_key=agent.cl_name or "fork",
                 )
                 return
 
@@ -308,9 +308,13 @@ class AgentWaitResumeMixin:
 
         self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
             initial_text=prefix,
-            display_name=f"resume({name})",
-            history_sort_key=agent.cl_name or "resume",
+            display_name=f"fork({name})",
+            history_sort_key=agent.cl_name or "fork",
         )
+
+    def action_resume_agent(self) -> None:
+        """Compatibility alias for the former Agents-tab continuation action."""
+        self.action_fork_agent()
 
     def action_wait_for_agent(self) -> None:
         """Populate prompt with VCS workflow and %w directive for the selected agent."""

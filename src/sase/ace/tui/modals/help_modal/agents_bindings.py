@@ -50,7 +50,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.start_last_vcs_xprompt_in_editor), "Edit last VCS xprompt"),
                 (d(a.accept_proposal), "Toggle auto-approve / answer HITL"),
                 (d(a.rename_cl), "Name agent"),
-                (d(a.run_workflow), "Resume chat as agent"),
+                (d(a.edit_hooks), "Fork chat as agent"),
                 (d(a.start_rewind), "Revive dismissed agent"),
                 (d(a.add_tag), "Wait for agent (or marked set)"),
                 (d(a.reword), "Edit wait target / run now"),

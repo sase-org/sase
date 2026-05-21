@@ -81,6 +81,19 @@ def test_edit_hooks_default_binding() -> None:
     """Guard: ``f`` is bound to ``edit_hooks`` (restored after d7b96606)."""
     reg = load_keymap_registry({})
     assert reg.app.edit_hooks == "f"
+    assert reg.app.run_workflow == "r"
+
+
+def test_agents_help_uses_f_for_fork_not_r_for_resume() -> None:
+    reg = load_keymap_registry({})
+    agent_pairs = {
+        (key, label)
+        for _section, bindings in agents_bindings(reg)
+        for key, label in bindings
+    }
+
+    assert ("f", "Fork chat as agent") in agent_pairs
+    assert ("r", "Resume chat as agent") not in agent_pairs
 
 
 def test_help_modal_labels_capital_a_as_agent_artifacts() -> None:

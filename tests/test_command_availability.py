@@ -232,18 +232,25 @@ def test_edit_spec_only_for_done_agent() -> None:
     assert not is_command_available(spec, CommandContext(tab="agents", agent=running))
 
 
-def test_run_workflow_resume_requires_response_path() -> None:
+def test_run_workflow_hidden_on_agents_tab() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.run_workflow"]
+    with_path = _make_agent(status="DONE", response_path="/tmp/r.txt")
+    assert not is_command_available(spec, CommandContext(tab="agents", agent=with_path))
+
+
+def test_edit_hooks_fork_requires_response_path_for_done_agent() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.edit_hooks"]
     no_path = _make_agent(status="DONE", response_path=None)
     with_path = _make_agent(status="DONE", response_path="/tmp/r.txt")
     assert not is_command_available(spec, CommandContext(tab="agents", agent=no_path))
     assert is_command_available(spec, CommandContext(tab="agents", agent=with_path))
 
 
-def test_run_workflow_resume_allows_tale_done_with_response_path() -> None:
+def test_edit_hooks_fork_allows_tale_done_with_response_path() -> None:
     catalog = _catalog_by_id()
-    spec = catalog["app.run_workflow"]
+    spec = catalog["app.edit_hooks"]
     no_path = _make_agent(status="TALE DONE", response_path=None)
     with_path = _make_agent(status="TALE DONE", response_path="/tmp/r.txt")
     assert not is_command_available(spec, CommandContext(tab="agents", agent=no_path))

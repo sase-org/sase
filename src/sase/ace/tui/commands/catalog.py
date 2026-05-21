@@ -41,6 +41,7 @@ if TYPE_CHECKING:
 
 _ALL_TABS: tuple[CommandTab, ...] = ("changespecs", "agents", "axe")
 _CL_ONLY: tuple[CommandTab, ...] = ("changespecs",)
+_CL_AXE: tuple[CommandTab, ...] = ("changespecs", "axe")
 _AGENTS_ONLY: tuple[CommandTab, ...] = ("agents",)
 _AGENTS_AXE: tuple[CommandTab, ...] = ("agents", "axe")
 _CL_AGENTS: tuple[CommandTab, ...] = ("changespecs", "agents")
@@ -92,7 +93,7 @@ _APP_COMMAND_META: tuple[
     # CL Actions
     ("quit", "Quit ace", "Misc", _ALL_TABS, ("exit",)),
     ("change_status", "Change CL status", "CL Actions", _CL_ONLY, ()),
-    ("run_workflow", "Run workflow / resume / re-run", "CL Actions", _ALL_TABS, ()),
+    ("run_workflow", "Run workflow / re-run", "CL Actions", _CL_AXE, ()),
     ("mail", "Mail CL", "CL Actions", _CL_ONLY, ("send",)),
     ("show_diff", "Show diff", "CL Actions", _CL_ONLY, ()),
     ("reword", "Reword CL", "CL Actions", _CL_ONLY, ()),
@@ -101,7 +102,13 @@ _APP_COMMAND_META: tuple[
     ("edit_spec", "Edit spec / chat", "CL Actions", _ALL_TABS, ()),
     ("rename_cl", "Rename CL / agent", "CL Actions", _CL_AGENTS, ()),
     # ChangeSpec edits
-    ("edit_hooks", "Edit hooks file", "ChangeSpec Edits", _CL_ONLY, ()),
+    (
+        "edit_hooks",
+        "Edit hooks / fork agent",
+        "ChangeSpec Edits",
+        _CL_AGENTS,
+        ("fork",),
+    ),
     # Proposals & Sync
     ("accept_proposal", "Accept proposal", "Proposals & Sync", _CL_AGENTS, ()),
     ("rebase", "Rebase CL", "Proposals & Sync", _CL_ONLY, ()),

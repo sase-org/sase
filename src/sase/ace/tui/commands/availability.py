@@ -13,7 +13,7 @@ footer logic and the help modal's tab buckets:
   with a CL number; status-gated ones (mail/rebase/sync) follow the
   same gates as the footer.
 - Agents-tab predicates: kill/dismiss splits by status + group focus
-  + mark count, ``edit_spec``/``run_workflow`` reuse the footer's
+  + mark count, ``edit_spec``/``edit_hooks`` reuse the footer's
   done-vs-running rules, ``toggle_attempt_view`` requires history,
   and so on.
 - Axe-tab predicates: ``run_workflow`` (re-run) requires a done
@@ -31,7 +31,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.commands.types import CommandContext, CommandSpec
-from sase.ace.tui.models.agent_status import is_resumable_done_status
+from sase.ace.tui.models.agent_status import (
+    DISMISSABLE_STATUSES,
+    is_resumable_done_status,
+)
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets.bgcmd_list import AxeItem
@@ -72,7 +75,7 @@ _REQUIRES_NON_TERMINAL_STATUS: frozenset[str] = frozenset(
 _REQUIRES_AGENT: frozenset[str] = frozenset(
     {
         "app.edit_spec",
-        "app.run_workflow",
+        "app.edit_hooks",
         "app.add_agent_tag",
         "app.rename_cl",
         "app.toggle_attempt_view",
@@ -224,15 +227,19 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             "QUESTION",
         }
 
-    # edit_spec / run_workflow only meaningful for done (non-failed) agents.
+    # edit_spec only meaningful for done (non-failed) agents.
     if spec.id == "app.edit_spec":
         if agent is None:
             return False
         return agent.status == "DONE"
 
-    if spec.id == "app.run_workflow":
+    if spec.id == "app.edit_hooks":
         if agent is None:
             return False
+        if agent.status not in DISMISSABLE_STATUSES:
+            return bool(getattr(agent, "agent_name", None)) or bool(
+                getattr(agent, "agent_family", None)
+            )
         return is_resumable_done_status(agent.status) and bool(
             getattr(agent, "response_path", None)
         )

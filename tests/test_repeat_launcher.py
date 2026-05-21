@@ -194,17 +194,17 @@ class TestSpawnRepeatBatch:
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
-        assert [s.name for s in specs] == ["foo.r1", "foo.r2", "foo.r3"]
-        assert specs[0].prompt.startswith("%n:foo.r1\n")
-        assert specs[1].prompt.startswith("%n:foo.r2\n%wait:foo.r1\n")
-        assert specs[2].prompt.startswith("%n:foo.r3\n%wait:foo.r2\n")
+        assert [s.name for s in specs] == ["foo.f1", "foo.f2", "foo.f3"]
+        assert specs[0].prompt.startswith("%n:foo.f1\n")
+        assert specs[1].prompt.startswith("%n:foo.f2\n%wait:foo.f1\n")
+        assert specs[2].prompt.startswith("%n:foo.f3\n%wait:foo.f2\n")
 
     def test_resume_repeat_fills_available_gaps(self, tmp_path: Path) -> None:
         taken = (
             tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / "run1"
         )
         taken.mkdir(parents=True)
-        (taken / "agent_meta.json").write_text(json.dumps({"name": "foo.r1"}))
+        (taken / "agent_meta.json").write_text(json.dumps({"name": "foo.f1"}))
         (taken / "done.json").write_text("{}")
 
         with patch.object(Path, "home", return_value=tmp_path):
@@ -213,7 +213,7 @@ class TestSpawnRepeatBatch:
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
-        assert [s.name for s in specs] == ["foo.r2", "foo.r3"]
+        assert [s.name for s in specs] == ["foo.f2", "foo.f3"]
 
     def test_explicit_repeat_base_wins_over_resume(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):

@@ -138,7 +138,7 @@ class KeybindingBindingsMixin:
                 if agent.status == "DONE":
                     bindings.append((self._kd("edit_spec"), "edit chat"))
                 if agent.response_path:
-                    bindings.append((self._kd("run_workflow"), "resume"))
+                    bindings.append((self._kd("edit_hooks"), "fork"))
         elif agent.status == "WAITING INPUT":
             bindings.append((self._kd("accept_proposal"), "answer"))
             if marked_count == 0:

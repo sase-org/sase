@@ -282,8 +282,8 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `A`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                |
 | `@`                 | Run custom agent                                                                                              |
 | `a`                 | Cycle auto-approve state / answer HITL                                                                        |
+| `f`                 | Fork agent (by name if running, by chat file if completed)                                                    |
 | `n`                 | Name agent                                                                                                    |
-| `r`                 | Resume agent (by name if running, by chat file if completed)                                                  |
 | `v`                 | View files (hint mode)                                                                                        |
 | `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                             |
 | `V`                 | Open the Agent Run Log modal for the focused agent                                                            |
@@ -327,12 +327,12 @@ Press `w` on the Agents tab to open the WaitModal. Behavior depends on the agent
 
 The modal supports readline-style keybindings (`Ctrl+F`/`Ctrl+B`/`Ctrl+A`/`Ctrl+E`) for cursor movement.
 
-### VCS Tag Resolution in Resume/Wait
+### VCS Tag Resolution in Fork/Wait
 
-When resuming or waiting on an agent, VCS tags in the prompt (e.g., `#git(ref)`, `#gh:ref`) are automatically updated to
+When forking or waiting on an agent, VCS tags in the prompt (e.g., `#git(ref)`, `#gh:ref`) are automatically updated to
 point to the correct branch. For non-project agents, the ref is replaced with the agent's CL name (branch). For project
 agents using `#pr`, the ref is replaced with `@<name>` which resolves to the agent's branch. HITL suffixes (`!!`, `??`)
-are stripped during replacement since resume scenarios should not carry over HITL overrides.
+are stripped during replacement since fork scenarios should not carry over HITL overrides.
 
 ### Workflow Visibility
 
@@ -1069,7 +1069,7 @@ guardrails, and current preview behavior.
 
 All agents are automatically assigned a short name (`a`, `b`, ..., `z`, `aa`, ..., `az`, `a0`, ...) when launched
 without an explicit `%name` directive. Names are permanent IDs: a name used by any existing agent state remains reserved
-until that agent is explicitly wiped or deleted. This enables the resume-by-name workflow: press `r` on a running named
+until that agent is explicitly wiped or deleted. This enables the fork-by-name workflow: press `f` on a running named
 agent to queue a follow-up that waits for it to finish and then loads its conversation history.
 
 ### Provider/Model Suffixes

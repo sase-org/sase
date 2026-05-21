@@ -385,7 +385,7 @@ def test_wait_for_agent_family_root_uses_root_name() -> None:
     assert app.prompt_bar_calls[0]["display_name"] == "wait(alice)"
 
 
-def test_resume_agent_family_root_uses_root_name() -> None:
+def test_fork_agent_family_root_uses_root_name() -> None:
     a1 = _make_agent(
         raw_suffix="20240101120000",
         status="DONE",
@@ -396,10 +396,10 @@ def test_resume_agent_family_root_uses_root_name() -> None:
     )
     app = _FakeWaitApp([a1])
 
-    app.action_resume_agent()
+    app.action_fork_agent()
 
     assert app.prompt_bar_calls[0]["initial_text"] == "#fork:alice "
-    assert app.prompt_bar_calls[0]["display_name"] == "resume(alice)"
+    assert app.prompt_bar_calls[0]["display_name"] == "fork(alice)"
 
 
 def test_wait_for_agent_one_mark_falls_through_to_single_agent() -> None:
