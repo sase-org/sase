@@ -32,6 +32,7 @@ xprompt helpers:
 ```yaml
 name: my_workflow # Workflow identifier (optional, defaults to filename)
 tags: vcs, rollover # Semantic role tags (optional)
+hidden: false # Hide the top-level workflow row by default (optional)
 input: # Input parameter definitions (optional)
   ...
 environment: # Environment variables (optional)
@@ -49,6 +50,8 @@ steps: # Ordered list of steps (required)
 | ------------- | -------- | --------------------------------------------------------------------------------------- |
 | `name`        | No       | Workflow identifier used in xprompt references. Defaults to filename without extension. |
 | `tags`        | No       | Semantic role tags. See [XPrompt Tags](xprompt.md#tags) for available tags.             |
+| `hidden`      | No       | Hide the top-level workflow row by default in the ACE Agents tab.                       |
+| `wraps_all`   | No       | Mark a workflow as a pre/post wrapper around embedded workflows.                        |
 | `input`       | No       | Input parameter definitions. See [Input Parameters](#input-parameters).                 |
 | `environment` | No       | Environment variables set before any steps run. See [Environment](#environment).        |
 | `xprompts`    | No       | Workflow-local xprompt definitions available to this workflow's steps.                  |
@@ -241,6 +244,12 @@ outputs) that would clutter the agent list:
     print(json.dumps({"meta_commit_message": "..."}))
   output: { meta_commit_message: text }
 ```
+
+A workflow can also set top-level `hidden: true` to hide the workflow run row by default. Hidden workflow rows still
+execute and still write artifacts. A workflow whose only visible step is an agent step is recorded with
+`appears_as_agent: true`, so ACE displays it as an agent row rather than as a generic workflow row; anonymous `tmp_*`
+workflows with that state are included in the normal Agents-tab visible inbox unless the workflow row is explicitly
+hidden.
 
 ### Parallel Steps
 

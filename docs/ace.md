@@ -310,6 +310,8 @@ Normal Agents-tab refreshes use the persistent visible-inbox artifact index. Whe
 index, it shows a warning with the repair reason; it does not run a full artifact scan automatically just because repair
 is recommended. Use `sase agents index status --json` for a lightweight index check, `sase agents index verify` to
 compare the index with source artifacts, and `sase agents index gc` to rebuild the index and dismissed projection.
+Manual refresh (`y`) and active agent search both stay on the same visible-inbox path. Use the Agents-tab leader command
+`,y` when you explicitly want a full-history refresh from source artifacts.
 
 ### Wait Modal
 
@@ -333,8 +335,10 @@ are stripped during replacement since resume scenarios should not carry over HIT
 Workflows launched via `sase run` are visible in the Agents tab alongside ACE-launched workflows. The TUI scans
 `artifacts/run/*` directories in addition to `workflow-*` and `ace-run` directories, and writes an initial
 `workflow_state.json` before execution so that step data appears immediately rather than showing a bare RUNNING entry.
-Specialized review runners launched by axe (mentor, CRS, fix-hook, and summarize-hook review agents) are also visible
-and are automatically grouped under the `@review` tag, matching the behavior of a `%group:review` prompt launch.
+Anonymous `tmp_*` workflows are included in the normal visible-inbox index when their workflow state has
+`appears_as_agent: true` and does not set `hidden: true`; explicitly hidden workflow rows stay hidden. Specialized
+review runners launched by axe (mentor, CRS, fix-hook, and summarize-hook review agents) are also visible and are
+automatically grouped under the `@review` tag, matching the behavior of a `%group:review` prompt launch.
 
 ### Agent Artifacts
 
@@ -597,6 +601,7 @@ Unread-completed actions operate on terminal rows that are loaded in the tab; `,
 | `,g`       | Toggle between tag-split panels and one merged agent panel                                    |
 | `,j`       | Jump to the next visible unread completed agent, newest first, and mark it read               |
 | `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state  |
+| `,y`       | Refresh the Agents tab from full artifact history                                             |
 | `,u`       | Mark all loaded unread completed agents as read                                               |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                         |
 | `,P`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
@@ -1132,6 +1137,11 @@ the next status pass, the parent is re-evaluated without the stale question over
 children, the most recently started one wins, so a newer `RUNNING` child can overtake the `QUESTION` override on the
 parent.
 
+The keybinding footer renders available conditional actions as non-breaking key/label chips. When the chips do not fit
+on one line, the footer switches to a deterministic grid so narrow terminals and leader-mode action sets do not wrap in
+the middle of a binding. Mode labels such as `LEADER` are pinned on the left, and the axe/status indicator remains
+pinned on the right.
+
 The footer also shows axe daemon status indicators:
 
 | Status         | Color         | Description                                                  |
@@ -1158,7 +1168,8 @@ feedback on cold-start latency. A safety timeout forcibly retires the stopwatch 
 | **FAILED**       | Red   | Agent exited with an error                                                     |
 
 Completed agents can be dismissed with `x` on a single row, or through the `X` cleanup panel for focused-panel, global,
-tag, marked, group, and custom selections.
+tag, marked, group, and custom selections. `DONE`, `PLAN DONE`, and `TALE DONE` rows with a saved response path are
+resumable from the Agents tab.
 
 When a terminal agent becomes unread, ACE marks it with the completed-agent indicator and includes it in the Agents
 header unread count. Selecting that row, jumping to it with `,j`, or toggling it back to read with `U` acknowledges the
@@ -1380,6 +1391,9 @@ Every time the axe retry loop retries an agent — context-limit retry, provider
 or fallback-model switch — the failed attempt's partial reply, error text, timestamps, and model are snapshotted under
 `<artifacts_dir>/attempts/<N>/`. The AGENT REPLY area in the Agents tab renders these prior attempts inline with styled
 dividers before the current/final attempt, so the full arc of the agent's work stays visible in one scroll.
+
+ACE hydrates prior-attempt history lazily. Normal Agents-tab refreshes do not enumerate every `attempts/<N>/` directory;
+the selected detail panel, `D` attempt-view toggle, and content search hydrate the needed attempt records on demand.
 
 Press `D` to collapse the view to the current attempt only; press `D` again to re-expand. The binding only appears in
 the keybinding footer when the selected agent has one or more prior attempts.

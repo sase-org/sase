@@ -69,6 +69,7 @@ sase core health          # verify the required Rust backend before launching ag
 sase ace                  # open the interactive control surface
 sase run "<prompt>"       # launch an agent or workflow
 sase agents status        # inspect running agents
+sase agents index status  # check ACE's fast Agents-tab artifact index
 sase bead onboard         # see the bead issue-tracking quick start
 sase workspace list       # inspect the current project's numbered workspace view
 ```
@@ -90,6 +91,8 @@ SASE keeps durable state outside any one chat session:
   `llm_provider.retry`.
 - **Durable artifacts** - Agent metadata, chats, notifications, prompt history, ChangeSpecs, SDD files, and beads are
   stored in predictable project/user directories so ACE, AXE, CLI commands, and external integrations can share state.
+  ACE's normal Agents-tab refreshes use a persistent visible-inbox artifact index for fast startup; use
+  `sase agents index status`, `verify`, and `gc` when that index reports stale or missing rows.
 
 ## Keep reading
 

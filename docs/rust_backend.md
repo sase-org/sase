@@ -13,7 +13,8 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   `evaluate_query_many`, and the product persistent-corpus path (`compile_corpus`, `compile_query`, `evaluate_many`)
   used by `sase.core.query_corpus_facade`
 - Agent artifact scan/index operations: `scan_agent_artifacts`, `rebuild_agent_artifact_index`,
-  `upsert_agent_artifact_index_row`, `delete_agent_artifact_index_row`, and `query_agent_artifact_index`
+  `upsert_agent_artifact_index_row`, `delete_agent_artifact_index_row`, `query_agent_artifact_index`, and dismissed
+  projection replacement for hiding dismissed identities in indexed visible-inbox queries
 - Status and status-transition helpers: `read_status_from_lines`, `apply_status_update`, and `plan_status_transition`
 - Git query parsers: `parse_git_name_status_z`, `parse_git_branch_name`, `derive_git_workspace_name`,
   `parse_git_conflicted_files`, and `parse_git_local_changes`
@@ -57,7 +58,8 @@ The intentionally Python-owned facade surfaces (host logic, not backend fallback
   planning.
 - Explicit agent artifact storage remains Python-owned because it copies or moves user files into `~/.sase/artifacts/`
   and updates the local JSONL association index under a file lock. Rust owns the separate agent-run artifact scanner and
-  its persistent query index.
+  its persistent query index. Python owns best-effort lifecycle orchestration around that index: syncing dismissed-agent
+  projection inputs before ACE loads, refreshing rows after marker mutations, and dispatching `sase agents index gc`.
 
 ## Why a Rust Backend?
 
