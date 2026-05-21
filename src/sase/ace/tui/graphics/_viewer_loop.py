@@ -52,7 +52,7 @@ def page_index_after_key(current_index: int, key: str, page_count: int) -> int |
     normalized = key.lower()
     if normalized == "q":
         return None
-    if normalized == "r":
+    if normalized in {"r", "z"}:
         return current_index
     if page_count <= 1:
         return current_index
@@ -70,6 +70,7 @@ def page_loop_available_keys(
     artifact_index: int = 0,
     artifact_count: int = 1,
     return_pane_available: bool = False,
+    tmux_zoom_available: bool = False,
 ) -> tuple[str, ...]:
     """Return page-loop keys available for the current page."""
 
@@ -85,6 +86,8 @@ def page_loop_available_keys(
         keys.append("p")
     if page_count > 0:
         keys.append("r")
+        if tmux_zoom_available:
+            keys.append("z")
     keys.append("q")
     return tuple(keys)
 
@@ -98,6 +101,8 @@ def run_artifact_page_loop(
     image_area: ArtifactImageArea | None = None,
     return_pane_id: str | None = None,
     select_pane: Callable[[str], ArtifactViewerResult] | None = None,
+    tmux_zoom_available: bool | None = None,
+    toggle_zoom: Callable[[], ArtifactViewerResult] | None = None,
 ) -> _PageLoopResult:
     """Display rendered pages with ``kitten icat`` and a small key loop."""
 
@@ -107,9 +112,13 @@ def run_artifact_page_loop(
     read = read_key or _read_single_key
     run = run_command or _run_command
     select = select_pane or _select_tmux_pane
+    zoom = toggle_zoom or _toggle_tmux_zoom
     index = 0
     needs_render = True
     return_pane_available = bool(return_pane_id)
+    zoom_available = (
+        _tmux_zoom_available() if tmux_zoom_available is None else tmux_zoom_available
+    )
     while True:
         current_area = image_area or artifact_image_area(
             reserved_rows=_PAGE_LOOP_RESERVED_ROWS,
@@ -125,20 +134,28 @@ def run_artifact_page_loop(
                 index=index,
                 page_count=len(pages),
                 return_pane_available=return_pane_available,
+                tmux_zoom_available=zoom_available,
             )
             needs_render = False
         available_keys = page_loop_available_keys(
             index,
             len(pages),
             return_pane_available=return_pane_available,
+            tmux_zoom_available=zoom_available,
         )
         while (key := read()) not in available_keys:
             pass
         if key == _RETURN_TO_ACE_KEY and return_pane_id:
             select(return_pane_id)
             continue
-        next_index = page_index_after_key(index, key, len(pages))
         print()
+        if key == "z":
+            zoom_result = zoom()
+            if not zoom_result.ok:
+                return _PageLoopResult(returncode=1, warnings=zoom_result.warnings)
+            needs_render = True
+            continue
+        next_index = page_index_after_key(index, key, len(pages))
         if next_index is None:
             _clear_terminal(run)
             return _PageLoopResult()
@@ -156,6 +173,8 @@ def run_artifact_sequence_loop(
     image_area: ArtifactImageArea | None = None,
     return_pane_id: str | None = None,
     select_pane: Callable[[str], ArtifactViewerResult] | None = None,
+    tmux_zoom_available: bool | None = None,
+    toggle_zoom: Callable[[], ArtifactViewerResult] | None = None,
 ) -> _PageLoopResult:
     """Display an artifact sequence with page and document navigation."""
 
@@ -166,6 +185,7 @@ def run_artifact_sequence_loop(
     read = read_key or _read_single_key
     run = run_command or _run_command
     select = select_pane or _select_tmux_pane
+    zoom = toggle_zoom or _toggle_tmux_zoom
     root = Path(cache_root).expanduser()
     page_cache: dict[tuple[int, int, int], tuple[Path, ...]] = {}
 
@@ -188,6 +208,9 @@ def run_artifact_sequence_loop(
     page_index = 0
     needs_render = True
     return_pane_available = bool(return_pane_id)
+    zoom_available = (
+        _tmux_zoom_available() if tmux_zoom_available is None else tmux_zoom_available
+    )
     pages: tuple[Path, ...] = ()
     while True:
         current_area = image_area or artifact_image_area()
@@ -218,6 +241,7 @@ def run_artifact_sequence_loop(
                 artifact_count=len(specs),
                 show_position=False,
                 return_pane_available=return_pane_available,
+                tmux_zoom_available=zoom_available,
             )
             needs_render = False
         available_keys = page_loop_available_keys(
@@ -226,6 +250,7 @@ def run_artifact_sequence_loop(
             artifact_index=artifact_index,
             artifact_count=len(specs),
             return_pane_available=return_pane_available,
+            tmux_zoom_available=zoom_available,
         )
         while (key := read()) not in available_keys:
             pass
@@ -237,7 +262,11 @@ def run_artifact_sequence_loop(
             continue
         print()
         needs_render = True
-        if key in {"j", "k", "r"}:
+        if key == "z":
+            zoom_result = zoom()
+            if not zoom_result.ok:
+                return _PageLoopResult(returncode=1, warnings=zoom_result.warnings)
+        elif key in {"j", "k", "r"}:
             next_page_index = page_index_after_key(page_index, key, len(pages))
             if next_page_index is None:
                 _clear_terminal(run)
@@ -259,6 +288,16 @@ def _select_tmux_pane(pane_id: str) -> ArtifactViewerResult:
     from ._viewer_launch import select_tmux_pane
 
     return select_tmux_pane(pane_id)
+
+
+def _toggle_tmux_zoom() -> ArtifactViewerResult:
+    from ._viewer_launch import toggle_artifact_tmux_pane_zoom
+
+    return toggle_artifact_tmux_pane_zoom()
+
+
+def _tmux_zoom_available() -> bool:
+    return bool(os.environ.get("TMUX") or os.environ.get("TMUX_PANE"))
 
 
 def artifact_image_area(
@@ -385,6 +424,7 @@ def print_page_prompt(
     artifact_count: int = 1,
     show_position: bool = True,
     return_pane_available: bool = False,
+    tmux_zoom_available: bool = False,
 ) -> None:
     labels = {
         "j": "j: next page",
@@ -393,6 +433,7 @@ def print_page_prompt(
         "p": "p: previous artifact",
         _RETURN_TO_ACE_KEY: "<tab>: focus SASE TUI",
         "r": "r: refresh",
+        "z": "z: zoom",
         "q": "q: quit",
     }
     actions = "  ".join(
@@ -403,6 +444,7 @@ def print_page_prompt(
             artifact_index=artifact_index,
             artifact_count=artifact_count,
             return_pane_available=return_pane_available,
+            tmux_zoom_available=tmux_zoom_available,
         )
     )
     prompt = actions

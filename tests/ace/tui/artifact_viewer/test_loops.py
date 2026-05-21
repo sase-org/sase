@@ -35,6 +35,7 @@ def test_artifact_page_index_state_machine() -> None:
     assert page_index_after_key(0, "n", 3) == 0
     assert page_index_after_key(2, "p", 3) == 2
     assert page_index_after_key(1, "r", 3) == 1
+    assert page_index_after_key(1, "z", 3) == 1
     assert page_index_after_key(1, "x", 3) == 1
     assert page_index_after_key(0, "q", 3) is None
     assert page_index_after_key(0, "j", 1) == 0
@@ -75,6 +76,22 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
         "r",
         "q",
     )
+    assert page_loop_available_keys(0, 1, tmux_zoom_available=True) == (
+        "r",
+        "z",
+        "q",
+    )
+    assert page_loop_available_keys(
+        0,
+        1,
+        return_pane_available=True,
+        tmux_zoom_available=True,
+    ) == (
+        "\t",
+        "r",
+        "z",
+        "q",
+    )
     assert page_loop_available_keys(
         1,
         3,
@@ -91,6 +108,11 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
         "q",
     )
     assert "h" not in page_loop_available_keys(
+        0,
+        1,
+        return_pane_available=True,
+    )
+    assert "z" not in page_loop_available_keys(
         0,
         1,
         return_pane_available=True,
@@ -148,6 +170,12 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
     assert (
         _strip_ansi(capsys.readouterr().out)
         == "\nPage 1/1  <tab>: focus SASE TUI  r: refresh  q: quit"
+    )
+
+    _print_page_prompt(index=0, page_count=1, tmux_zoom_available=True)
+    assert (
+        _strip_ansi(capsys.readouterr().out)
+        == "\nPage 1/1  r: refresh  z: zoom  q: quit"
     )
 
     _print_page_prompt(
@@ -238,6 +266,44 @@ def test_run_artifact_page_loop_refreshes_current_page(tmp_path: Path) -> None:
         _test_icat_command(pages[0]),
         ["clear"],
         _test_icat_command(pages[0]),
+        ["clear"],
+    ]
+
+
+def test_run_artifact_page_loop_zoom_redraws_current_page(tmp_path: Path) -> None:
+    pages = [tmp_path / "page-1.png", tmp_path / "page-2.png"]
+    for page in pages:
+        page.write_bytes(b"png")
+    commands: list[list[str]] = []
+    zooms: list[bool] = []
+    keys = iter(["j", "z", "q"])
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    def fake_zoom() -> ArtifactViewerResult:
+        zooms.append(True)
+        return ArtifactViewerResult(True)
+
+    result = run_artifact_page_loop(
+        pages,
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
+        tmux_zoom_available=True,
+        toggle_zoom=fake_zoom,
+    )
+
+    assert result.returncode == 0
+    assert zooms == [True]
+    assert commands == [
+        ["clear"],
+        _test_icat_command(pages[0]),
+        ["clear"],
+        _test_icat_command(pages[1]),
+        ["clear"],
+        _test_icat_command(pages[1]),
         ["clear"],
     ]
 
@@ -622,6 +688,68 @@ def test_run_artifact_sequence_loop_tab_then_refresh_renders_same_page(
         _test_icat_command(page),
         ["clear"],
         _test_icat_command(page),
+        ["clear"],
+    ]
+
+
+def test_run_artifact_sequence_loop_zoom_redraws_current_artifact(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    first_page = tmp_path / "first-1.png"
+    second_page = tmp_path / "second-1.png"
+    for page in (first_page, second_page):
+        page.write_bytes(b"png")
+    specs = (
+        ArtifactViewSpec(tmp_path / "first.md", "markdown"),
+        ArtifactViewSpec(tmp_path / "second.png", "image"),
+    )
+    render_calls: list[tuple[Path, str | None]] = []
+
+    def fake_render_result(path, *, kind=None, cache_dir=None, image_area=None):
+        render_calls.append((Path(path), kind))
+        pages = (first_page,) if kind == "markdown" else (second_page,)
+        return ArtifactRenderResult(pages)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.render_artifact_pages",
+        fake_render_result,
+    )
+    commands: list[list[str]] = []
+    zooms: list[bool] = []
+    keys = iter(["n", "z", "q"])
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    def fake_zoom() -> ArtifactViewerResult:
+        zooms.append(True)
+        return ArtifactViewerResult(True)
+
+    result = run_artifact_sequence_loop(
+        specs,
+        cache_root=tmp_path / "cache",
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
+        tmux_zoom_available=True,
+        toggle_zoom=fake_zoom,
+    )
+
+    assert result.returncode == 0
+    assert zooms == [True]
+    assert render_calls == [
+        (tmp_path / "first.md", "markdown"),
+        (tmp_path / "second.png", "image"),
+    ]
+    assert commands == [
+        ["clear"],
+        _test_icat_command(first_page),
+        ["clear"],
+        _test_icat_command(second_page),
+        ["clear"],
+        _test_icat_command(second_page),
         ["clear"],
     ]
 

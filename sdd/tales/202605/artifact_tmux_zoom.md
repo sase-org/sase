@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-21 17:04:48
-status: wip
+status: done
 prompt: sdd/prompts/202605/artifact_tmux_zoom.md
 ---
 # Plan: Artifact tmux pane zoom key

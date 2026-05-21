@@ -23,6 +23,7 @@ from ._viewer_launch import (
     select_tmux_pane,
     TmuxPaneDecorationResult,
     TmuxPaneDecorationState,
+    toggle_artifact_tmux_pane_zoom,
     view_agent_artifact,
     view_agent_artifact_in_tmux_pane,
     view_agent_artifacts,
@@ -97,6 +98,8 @@ def run_artifact_sequence_loop(
     image_area: ArtifactImageArea | None = None,
     return_pane_id: str | None = None,
     select_pane: Callable[[str], ArtifactViewerResult] | None = None,
+    tmux_zoom_available: bool | None = None,
+    toggle_zoom: Callable[[], ArtifactViewerResult] | None = None,
 ) -> _viewer_loop._PageLoopResult:
     """Display an artifact sequence with page and document navigation."""
 
@@ -111,6 +114,8 @@ def run_artifact_sequence_loop(
             image_area=image_area,
             return_pane_id=return_pane_id,
             select_pane=select_pane,
+            tmux_zoom_available=tmux_zoom_available,
+            toggle_zoom=toggle_zoom,
         )
     finally:
         _viewer_loop.render_artifact_pages = original
@@ -176,6 +181,7 @@ __all__ = [
     "run_artifact_page_loop",
     "run_artifact_sequence_loop",
     "select_tmux_pane",
+    "toggle_artifact_tmux_pane_zoom",
     "validate_artifact_viewer_dependencies",
     "view_agent_artifact",
     "view_agent_artifact_in_tmux_pane",

@@ -15,6 +15,7 @@ from sase.ace.tui.graphics.viewer import (
     is_tmux_session,
     restore_artifact_tmux_pane_decoration,
     select_tmux_pane,
+    toggle_artifact_tmux_pane_zoom,
     view_artifact_file_in_tmux_pane,
     view_artifact_files,
     view_artifact_files_in_tmux_pane,
@@ -270,6 +271,67 @@ def test_tmux_select_pane_helper_surfaces_failure(monkeypatch) -> None:
     assert result.ok is False
     assert result.warning == "tmux select-pane failed with exit code 1: no pane"
     assert result.warnings[0].code == "tmux_select_failed"
+
+
+def test_tmux_zoom_helper_toggles_current_tmux_pane(monkeypatch) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setenv("TMUX_PANE", "%7")
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.shutil.which",
+        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
+    )
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+
+    result = toggle_artifact_tmux_pane_zoom()
+
+    assert result.ok is True
+    assert calls == [["tmux", "resize-pane", "-Z", "-t", "%7"]]
+
+
+def test_tmux_zoom_helper_uses_current_pane_without_tmux_pane_env(
+    monkeypatch,
+) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setenv("TMUX", "/tmp/tmux")
+    monkeypatch.delenv("TMUX_PANE", raising=False)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.shutil.which",
+        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
+    )
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+
+    result = toggle_artifact_tmux_pane_zoom()
+
+    assert result.ok is True
+    assert calls == [["tmux", "resize-pane", "-Z"]]
+
+
+def test_tmux_zoom_helper_surfaces_failure(monkeypatch) -> None:
+    monkeypatch.setenv("TMUX_PANE", "%7")
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.shutil.which",
+        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.subprocess.run",
+        lambda cmd, **kwargs: subprocess.CompletedProcess(cmd, 1, "", "no pane"),
+    )
+
+    result = toggle_artifact_tmux_pane_zoom()
+
+    assert result.ok is False
+    assert result.warning == "tmux resize-pane -Z failed with exit code 1: no pane"
+    assert result.warnings[0].code == "tmux_zoom_failed"
 
 
 def test_tmux_artifact_decoration_snapshots_sets_and_restores(monkeypatch) -> None:

@@ -625,6 +625,46 @@ def select_tmux_pane(pane_id: str) -> ArtifactViewerResult:
     return ArtifactViewerResult(True)
 
 
+def toggle_artifact_tmux_pane_zoom() -> ArtifactViewerResult:
+    """Toggle tmux zoom for the current artifact viewer pane."""
+
+    if not is_tmux_session():
+        warning = ArtifactViewerWarning(
+            "not_in_tmux",
+            "Not running inside tmux",
+            tool="tmux",
+        )
+        return viewer_result_from_warnings((warning,))
+    if shutil.which("tmux") is None:
+        warning = ArtifactViewerWarning(
+            "missing_tmux",
+            "tmux executable not found",
+            tool="tmux",
+        )
+        return viewer_result_from_warnings((warning,))
+
+    tmux_command = ["tmux", "resize-pane", "-Z"]
+    if pane_id := os.environ.get("TMUX_PANE"):
+        tmux_command.extend(["-t", pane_id])
+    result = subprocess.run(
+        tmux_command,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.strip()
+        suffix = f": {stderr}" if stderr else ""
+        warning = ArtifactViewerWarning(
+            "tmux_zoom_failed",
+            f"tmux resize-pane -Z failed with exit code {result.returncode}{suffix}",
+            tool="tmux",
+        )
+        return viewer_result_from_warnings((warning,))
+
+    return ArtifactViewerResult(True)
+
+
 def artifact_viewer_module_command(
     artifacts: str | Path | Sequence[ArtifactViewSpec],
     *,
