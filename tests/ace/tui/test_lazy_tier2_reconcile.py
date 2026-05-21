@@ -4,8 +4,8 @@ The Tier 2 reconcile dominates startup wall time on established home
 dirs (~2.7 s per the 2026-05-16 perf research). It is now deferred:
 the loader still reports incomplete history, but the reconcile is
 only scheduled once the user has been idle for
-``TIER2_RECONCILE_IDLE_THRESHOLD_S`` or explicitly requests a manual
-refresh while the flag is pending.
+``TIER2_RECONCILE_IDLE_THRESHOLD_S`` or the startup reconcile timer
+fires. Manual ``y`` refreshes stay on the index-backed Tier 1 path.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 
+from sase.ace.tui.actions.base import BaseActionsMixin
 from sase.ace.tui.actions.agents._loading_refresh import (
     AgentLoadingRefreshMixin,
     STARTUP_TIER2_RECONCILE_DELAY_S,
@@ -24,10 +25,11 @@ from sase.ace.tui.actions.agents._loading_refresh import (
 from sase.ace.tui.util.nav_gate import NavigationGate
 
 
-class _FakeRefreshApp(AgentLoadingRefreshMixin):
+class _FakeRefreshApp(AgentLoadingRefreshMixin, BaseActionsMixin):
     """Minimal app exposing just the surface the refresh mixin touches."""
 
     def __init__(self) -> None:
+        self.current_tab = "agents"
         self._agents_loading = False
         self._agents_refresh_pending = False
         self._agents_refresh_pending_full_history = False
@@ -43,6 +45,7 @@ class _FakeRefreshApp(AgentLoadingRefreshMixin):
         self._nav_gate = NavigationGate(window_s=0.25)
         self._scheduled: list[Any] = []
         self._timer_calls: list[tuple[float, Callable[[], Any]]] = []
+        self.notifications: list[str] = []
 
     def call_later(self, callback: Any) -> None:
         self._scheduled.append(callback)
@@ -52,6 +55,9 @@ class _FakeRefreshApp(AgentLoadingRefreshMixin):
 
     def _prompt_input_active(self) -> bool:
         return self._prompt_active
+
+    def notify(self, message: str, **_: Any) -> None:
+        self.notifications.append(message)
 
 
 def test_idle_trigger_skips_when_flag_not_set() -> None:
@@ -202,6 +208,34 @@ def test_apply_clears_pending_flag_on_complete_history() -> None:
 
     assert app._agents_history_reconcile_pending is False
     assert app._agents_seen_complete_history is True
+
+
+def test_manual_refresh_stays_on_tier1_when_reconcile_pending() -> None:
+    """The Agents ``y`` refresh must not promote pending reconcile to Tier 2."""
+    app = _FakeRefreshApp()
+    app._agents_history_reconcile_pending = True
+
+    app.action_refresh()
+
+    assert app._agents_history_reconcile_pending is True
+    assert app._agents_refresh_scheduled is True
+    assert app._agents_refresh_scheduled_full_history is False
+    assert len(app._scheduled) == 1
+    assert app.notifications == ["Refreshed"]
+
+
+def test_manual_refresh_schedules_once_without_pending_reconcile() -> None:
+    """The normal Agents ``y`` path remains a single Tier 1 refresh."""
+    app = _FakeRefreshApp()
+    app._agents_history_reconcile_pending = False
+
+    app.action_refresh()
+
+    assert app._agents_history_reconcile_pending is False
+    assert app._agents_refresh_scheduled is True
+    assert app._agents_refresh_scheduled_full_history is False
+    assert len(app._scheduled) == 1
+    assert app.notifications == ["Refreshed"]
 
 
 @pytest.mark.asyncio
@@ -377,14 +411,14 @@ def test_startup_trigger_noop_when_flag_clear() -> None:
 
 
 def test_startup_trigger_noop_when_loading() -> None:
-    """In-flight refresh defers to the idle/manual fallback paths."""
+    """In-flight refresh leaves the idle fallback armed."""
     app = _FakeRefreshApp()
     app._agents_history_reconcile_pending = True
     app._agents_loading = True
 
     app._fire_startup_tier2_reconcile()
 
-    # Pending flag preserved so idle / manual paths can still trigger.
+    # Pending flag preserved so a later idle tick can still trigger.
     assert app._agents_history_reconcile_pending is True
     assert app._agents_refresh_scheduled is False
     assert app._scheduled == []

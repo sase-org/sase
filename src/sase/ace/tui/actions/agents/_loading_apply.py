@@ -325,8 +325,8 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         # produced agents are not visible in the default Agents view
         # until the user expands a fold / scrolls into history. The
         # idle-tick trigger (``_maybe_trigger_idle_tier2_reconcile``)
-        # schedules it during a pause; a manual ``y`` refresh also
-        # promotes the next load to ``full_history=True``.
+        # or startup timer schedules it later; manual ``y`` refreshes stay
+        # on the index-backed Tier 1 path.
         if (
             load_state is not None
             and load_state.needs_full_history_reconcile

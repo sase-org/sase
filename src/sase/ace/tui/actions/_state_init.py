@@ -228,8 +228,8 @@ class StateInitMixin:
         self._agents_refresh_debounce_armed: bool = False
         # Deferred Tier 2 reconcile: set when a load arrives with
         # incomplete history. The reconcile is then triggered lazily by an
-        # idle tick or a manual ``y`` refresh rather than firing
-        # immediately at startup (see ``_loading_apply`` and
+        # idle tick or the startup timer rather than firing immediately
+        # at startup (see ``_loading_apply`` and
         # ``_maybe_trigger_idle_tier2_reconcile``).
         self._agents_history_reconcile_pending: bool = False
         self._agents_history_reconcile_armed_mono: float = 0.0
