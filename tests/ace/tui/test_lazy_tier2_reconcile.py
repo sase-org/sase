@@ -39,7 +39,6 @@ class _FakeRefreshApp(AgentLoadingRefreshMixin):
         self._agents_history_reconcile_armed_mono = 0.0
         self._agents_startup_tier2_scheduled = False
         self._last_activity_time = 0.0
-        self._prompt_active = False
         self._nav_gate = NavigationGate(window_s=0.25)
         self._scheduled: list[Any] = []
         self._timer_calls: list[tuple[float, Callable[[], Any]]] = []
@@ -49,9 +48,6 @@ class _FakeRefreshApp(AgentLoadingRefreshMixin):
 
     def set_timer(self, delay: float, callback: Callable[[], Any]) -> None:
         self._timer_calls.append((delay, callback))
-
-    def _prompt_input_active(self) -> bool:
-        return self._prompt_active
 
 
 def test_idle_trigger_skips_when_flag_not_set() -> None:
@@ -315,13 +311,10 @@ def test_apply_complete_history_skips_startup_arm() -> None:
     assert app._agents_history_reconcile_pending is False
 
 
-def test_startup_trigger_fires_full_history_refresh_after_idle_threshold() -> None:
-    """The startup trigger schedules only once the pending reconcile is idle."""
+def test_startup_trigger_fires_full_history_refresh() -> None:
+    """The startup trigger schedules a full-history refresh when pending."""
     app = _FakeRefreshApp()
-    idle_reference = time.monotonic() - TIER2_RECONCILE_IDLE_THRESHOLD_S - 0.5
     app._agents_history_reconcile_pending = True
-    app._agents_history_reconcile_armed_mono = idle_reference
-    app._last_activity_time = idle_reference
 
     app._fire_startup_tier2_reconcile()
 
@@ -329,39 +322,6 @@ def test_startup_trigger_fires_full_history_refresh_after_idle_threshold() -> No
     assert app._agents_refresh_scheduled is True
     assert app._agents_refresh_scheduled_full_history is True
     assert len(app._scheduled) == 1
-
-
-def test_startup_trigger_noop_when_prompt_input_active() -> None:
-    """Mounted prompt input keeps the startup reconcile pending."""
-    app = _FakeRefreshApp()
-    idle_reference = time.monotonic() - TIER2_RECONCILE_IDLE_THRESHOLD_S - 0.5
-    app._agents_history_reconcile_pending = True
-    app._agents_history_reconcile_armed_mono = idle_reference
-    app._last_activity_time = idle_reference
-    app._prompt_active = True
-
-    app._fire_startup_tier2_reconcile()
-
-    assert app._agents_history_reconcile_pending is True
-    assert app._agents_refresh_scheduled is False
-    assert app._scheduled == []
-
-
-def test_startup_trigger_noop_when_recently_active() -> None:
-    """Recent typing defers startup Tier 2 until the normal idle window."""
-    app = _FakeRefreshApp()
-    now = time.monotonic()
-    app._agents_history_reconcile_pending = True
-    app._agents_history_reconcile_armed_mono = (
-        now - TIER2_RECONCILE_IDLE_THRESHOLD_S - 5.0
-    )
-    app._last_activity_time = now - TIER2_RECONCILE_IDLE_THRESHOLD_S + 1.0
-
-    app._fire_startup_tier2_reconcile()
-
-    assert app._agents_history_reconcile_pending is True
-    assert app._agents_refresh_scheduled is False
-    assert app._scheduled == []
 
 
 def test_startup_trigger_noop_when_flag_clear() -> None:

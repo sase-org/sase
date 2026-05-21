@@ -17,9 +17,10 @@ log = logging.getLogger(__name__)
 TIER2_RECONCILE_IDLE_THRESHOLD_S = 30.0
 
 # Delay (seconds) between the first incomplete-history Tier 1 apply and
-# the one-shot startup Tier 2 reconcile eligibility check. The check still
-# obeys the idle/prompt gates below; it exists so already-idle sessions can
-# converge promptly without bypassing input-latency protections.
+# the one-shot startup Tier 2 reconcile. Long enough for the initial
+# Tier 1 paint to land and for a typical first j/k burst to clear,
+# short enough that users who launch and immediately interact still see
+# the full agent set within ~5 s of launch.
 STARTUP_TIER2_RECONCILE_DELAY_S = 2.0
 
 
@@ -113,9 +114,6 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         """
         if not getattr(self, "_agents_history_reconcile_pending", False):
             return False
-        prompt_input_active = getattr(self, "_prompt_input_active", None)
-        if callable(prompt_input_active) and prompt_input_active():
-            return False
         if self._agents_loading or self._agents_refresh_scheduled:
             return False
         cur = time.monotonic() if now_mono is None else now_mono
@@ -133,12 +131,21 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
     def _fire_startup_tier2_reconcile(self) -> None:
         """One-shot startup Tier 2 reconcile trigger.
 
-        Checks ~``STARTUP_TIER2_RECONCILE_DELAY_S`` after the first
-        incomplete-history apply whether the deferred full-history pass is
-        eligible to run. The same prompt and idle gates used by the idle
-        tick apply here, so startup never bypasses recent typing.
+        Fires ~``STARTUP_TIER2_RECONCILE_DELAY_S`` after the first
+        incomplete-history apply so the user sees the full agent set
+        within a few seconds of launching ``sase ace``, while still
+        giving the initial Tier 1 paint a head start on the UI thread.
         """
-        self._maybe_trigger_idle_tier2_reconcile()
+        if not getattr(self, "_agents_history_reconcile_pending", False):
+            return
+        if self._agents_loading or self._agents_refresh_scheduled:
+            # Another path already arranged a reload; either the next
+            # apply will land complete-history or the pending flag will
+            # still be set, in which case the idle / manual paths
+            # cover us.
+            return
+        self._agents_history_reconcile_pending = False
+        self._schedule_agents_async_refresh(full_history=True)
 
     async def _run_agents_async_refresh(self) -> None:
         """Run the async agent refresh with loading guard.
