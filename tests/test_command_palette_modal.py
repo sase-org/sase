@@ -19,7 +19,7 @@ Covers the modal-level UX requirements from
 from __future__ import annotations
 
 from textual.app import App, ComposeResult
-from textual.widgets import Input, OptionList
+from textual.widgets import Input, OptionList, Static
 
 from sase.ace.tui.commands import (
     CommandExecutor,
@@ -31,6 +31,7 @@ from sase.ace.tui.commands import (
 from sase.ace.tui.commands.types import CommandContext
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.modals.command_palette_modal import (
+    COMMAND_PALETTE_INPUT_HINT,
     CommandPaletteModal,
     _build_row_text,
     _score_match,
@@ -249,6 +250,21 @@ async def test_modal_focuses_input_on_mount() -> None:
 
         filter_input = modal.query_one("#command-palette-filter-input", Input)
         assert filter_input.has_focus
+
+
+async def test_modal_renders_key_filter_hint() -> None:
+    async with _TestApp().run_test() as pilot:
+        modal = CommandPaletteModal(
+            specs=[_spec("app.refresh", "Refresh tab")],
+            tab="changespecs",
+        )
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        hint = modal.query_one("#command-palette-input-hint", Static)
+        assert hint.content == COMMAND_PALETTE_INPUT_HINT
+        assert "key:<key>" in COMMAND_PALETTE_INPUT_HINT
+        assert "key:j" in COMMAND_PALETTE_INPUT_HINT
 
 
 async def test_modal_title_includes_tab_badge() -> None:

@@ -41,6 +41,9 @@ _TAB_BADGE: dict[CommandTab, tuple[str, str]] = {
 _KEY_COL_WIDTH = 10
 _LABEL_COL_WIDTH = 36
 _CATEGORY_COL_WIDTH = 18
+COMMAND_PALETTE_INPUT_HINT = (
+    "Search command text, or use key:<key> for keymaps (key:j, key::, key:,t)"
+)
 
 
 def _score_match(spec: CommandSpec, query: str) -> int:
@@ -219,6 +222,10 @@ class CommandPaletteModal(ModalScreen[CommandPaletteResult]):
             yield FilterInput(
                 placeholder="Type a command...",
                 id="command-palette-filter-input",
+            )
+            yield Static(
+                COMMAND_PALETTE_INPUT_HINT,
+                id="command-palette-input-hint",
             )
             yield OptionList(
                 *self._build_options(self._filtered_specs),

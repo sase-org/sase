@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-21 14:47:59
-status: wip
+status: done
 prompt: sdd/prompts/202605/command_palette_key_hint.md
 ---
 # Command Palette Key Filter Hint Plan
