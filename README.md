@@ -91,8 +91,9 @@ SASE keeps durable state outside any one chat session:
   `llm_provider.retry`.
 - **Durable artifacts** - Agent metadata, chats, notifications, prompt history, ChangeSpecs, SDD files, and beads are
   stored in predictable project/user directories so ACE, AXE, CLI commands, and external integrations can share state.
-  ACE's normal Agents-tab refreshes use a persistent visible-inbox artifact index for fast startup; use
-  `sase agents index status`, `verify`, and `gc` when that index reports stale or missing rows.
+  ACE uses a persistent artifact index for its normal Agents-tab "visible inbox" - active plus recent completed,
+  non-hidden rows - so startup does not scan all history. Use `sase agents index status` for a lightweight health check,
+  `verify` to compare the index with source artifacts, and `gc` to rebuild the index and dismissed projection.
 
 ## Keep reading
 

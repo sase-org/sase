@@ -306,12 +306,16 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `-`                 | Reset file trim to default                                                                                    |
 | `=`                 | Show all file lines                                                                                           |
 
-Normal Agents-tab refreshes use the persistent visible-inbox artifact index. When ACE detects a missing or unhealthy
-index, it shows a warning with the repair reason; it does not run a full artifact scan automatically just because repair
-is recommended. Use `sase agents index status --json` for a lightweight index check, `sase agents index verify` to
-compare the index with source artifacts, and `sase agents index gc` to rebuild the index and dismissed projection.
-Manual refresh (`y`) and active agent search both stay on the same visible-inbox path. Use the Agents-tab leader command
-`,y` when you explicitly want a full-history refresh from source artifacts.
+ACE separates fast visible-inbox loads from full-history scans. The visible inbox is the normal Agents-tab working set:
+active rows plus recent completed, non-hidden rows. Startup, manual refresh (`y`), and active agent search use that path
+through the persistent artifact index when it is available.
+
+If the index is missing or unhealthy, ACE falls back to a bounded source-artifact scan for the first paint and shows a
+repair warning with the reason. That repair state can arm a deferred full-history reconcile after the TUI is idle, but
+normal `y` refreshes still stay on the visible-inbox path. Use `sase agents index status --json` for a lightweight check
+that does not scan source artifacts, `sase agents index verify` to compare the index with source artifacts, and
+`sase agents index gc` to rebuild the index and dismissed projection. Use the Agents-tab leader command `,y` when you
+want an immediate full-history refresh from source artifacts.
 
 ### Wait Modal
 
@@ -336,9 +340,9 @@ Workflows launched via `sase run` are visible in the Agents tab alongside ACE-la
 `artifacts/run/*` directories in addition to `workflow-*` and `ace-run` directories, and writes an initial
 `workflow_state.json` before execution so that step data appears immediately rather than showing a bare RUNNING entry.
 Anonymous `tmp_*` workflows are included in the normal visible-inbox index when their workflow state has
-`appears_as_agent: true` and does not set `hidden: true`; explicitly hidden workflow rows stay hidden. Specialized
-review runners launched by axe (mentor, CRS, fix-hook, and summarize-hook review agents) are also visible and are
-automatically grouped under the `@review` tag, matching the behavior of a `%group:review` prompt launch.
+`appears_as_agent: true` and does not set `hidden: true`; explicitly hidden workflow rows are omitted from the default
+view. Specialized review runners launched by axe (mentor, CRS, fix-hook, and summarize-hook review agents) are also
+visible and are automatically grouped under the `@review` tag, matching the behavior of a `%group:review` prompt launch.
 
 ### Agent Artifacts
 

@@ -32,7 +32,7 @@ xprompt helpers:
 ```yaml
 name: my_workflow # Workflow identifier (optional, defaults to filename)
 tags: vcs, rollover # Semantic role tags (optional)
-hidden: false # Hide the top-level workflow row by default (optional)
+hidden: false # Hide the workflow run row from ACE's default Agents-tab view (optional)
 input: # Input parameter definitions (optional)
   ...
 environment: # Environment variables (optional)
@@ -50,8 +50,8 @@ steps: # Ordered list of steps (required)
 | ------------- | -------- | --------------------------------------------------------------------------------------- |
 | `name`        | No       | Workflow identifier used in xprompt references. Defaults to filename without extension. |
 | `tags`        | No       | Semantic role tags. See [XPrompt Tags](xprompt.md#tags) for available tags.             |
-| `hidden`      | No       | Hide the top-level workflow row by default in the ACE Agents tab.                       |
-| `wraps_all`   | No       | Mark a workflow as a pre/post wrapper around embedded workflows.                        |
+| `hidden`      | No       | Hide the workflow run row from ACE's default Agents-tab view.                           |
+| `wraps_all`   | No       | Legacy wrapper flag; new workflows should prefer `tags: vcs`.                           |
 | `input`       | No       | Input parameter definitions. See [Input Parameters](#input-parameters).                 |
 | `environment` | No       | Environment variables set before any steps run. See [Environment](#environment).        |
 | `xprompts`    | No       | Workflow-local xprompt definitions available to this workflow's steps.                  |
@@ -232,9 +232,9 @@ Python steps run in a subprocess with access to installed packages.
 
 ### Hidden Steps
 
-Any step can be marked `hidden: true` to suppress it from the ACE TUI Agents tab. Hidden steps execute normally but
-don't appear as visible agents. This is useful for internal bookkeeping steps (e.g., report steps that emit metadata
-outputs) that would clutter the agent list:
+Any step can be marked `hidden: true` to omit it from the normal ACE Agents-tab workflow expansion. Hidden steps execute
+normally and still write their outputs, but they are shown only when the workflow row is fully expanded. This is useful
+for internal bookkeeping steps (e.g., report steps that emit metadata outputs) that would clutter the agent list:
 
 ```yaml
 - name: report
@@ -245,11 +245,12 @@ outputs) that would clutter the agent list:
   output: { meta_commit_message: text }
 ```
 
-A workflow can also set top-level `hidden: true` to hide the workflow run row by default. Hidden workflow rows still
-execute and still write artifacts. A workflow whose only visible step is an agent step is recorded with
-`appears_as_agent: true`, so ACE displays it as an agent row rather than as a generic workflow row; anonymous `tmp_*`
-workflows with that state are included in the normal Agents-tab visible inbox unless the workflow row is explicitly
-hidden.
+A workflow can also set top-level `hidden: true` to omit the workflow run row from ACE's default Agents-tab view. The
+workflow still executes and still writes artifacts. `appears_as_agent` is not a YAML field to set directly; it is
+computed from the workflow shape. When the only non-hidden step is an `agent` step, the recorded workflow state gets
+`appears_as_agent: true`, so ACE displays the run as an agent row rather than a generic workflow row. Anonymous `tmp_*`
+workflows with that computed state are included in the normal Agents-tab visible inbox unless the workflow row is
+explicitly hidden.
 
 ### Parallel Steps
 
