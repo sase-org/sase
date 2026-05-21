@@ -15,6 +15,7 @@ from sase.agent.names._common import is_process_alive
 from sase.agent.names._registry import lookup_registered_name, rebuild_name_registry
 from sase.core.agent_artifact_index_lifecycle import (
     delete_agent_artifact_index_artifacts,
+    update_agent_artifact_index_for_marker_mutation,
 )
 
 
@@ -311,6 +312,11 @@ def _release_artifact_workspace(path: Path) -> None:
             running_json.unlink()
         except OSError:
             pass
+        else:
+            try:
+                update_agent_artifact_index_for_marker_mutation(path)
+            except Exception:
+                pass
 
     project_dir = _project_dir_from_artifact(path)
     if project_dir is None or project_dir.name == "home":

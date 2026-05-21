@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.agent.names import (
+    _wipe,
     find_named_agent,
     get_reserved_agent_names,
     rebuild_name_registry,
@@ -99,6 +100,56 @@ def test_wipe_deletes_artifact_index_rows_for_removed_dirs(tmp_path: Path) -> No
     assert result.artifact_dirs_removed == (str(artifacts_dir.resolve()),)
     mock_delete_index.assert_called_once()
     assert set(mock_delete_index.call_args.args[0]) == {artifacts_dir.resolve()}
+
+
+def test_release_artifact_workspace_updates_index_after_running_marker_delete(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = (
+        tmp_path
+        / ".sase"
+        / "projects"
+        / "home"
+        / "artifacts"
+        / "ace-run"
+        / "20260508120000"
+    )
+    artifacts_dir.mkdir(parents=True)
+    running_path = artifacts_dir / "running.json"
+    running_path.write_text(json.dumps({"pid": 1234}), encoding="utf-8")
+
+    with patch(
+        "sase.agent.names._wipe.update_agent_artifact_index_for_marker_mutation"
+    ) as mock_update_index:
+        _wipe._release_artifact_workspace(artifacts_dir)
+
+    assert not running_path.exists()
+    mock_update_index.assert_called_once_with(artifacts_dir)
+
+
+def test_release_artifact_workspace_ignores_index_refresh_failure(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = (
+        tmp_path
+        / ".sase"
+        / "projects"
+        / "home"
+        / "artifacts"
+        / "ace-run"
+        / "20260508120000"
+    )
+    artifacts_dir.mkdir(parents=True)
+    running_path = artifacts_dir / "running.json"
+    running_path.write_text(json.dumps({"pid": 1234}), encoding="utf-8")
+
+    with patch(
+        "sase.agent.names._wipe.update_agent_artifact_index_for_marker_mutation",
+        side_effect=RuntimeError("index unavailable"),
+    ):
+        _wipe._release_artifact_workspace(artifacts_dir)
+
+    assert not running_path.exists()
 
 
 def test_wipe_live_agent_terminates_and_releases_workspace(
