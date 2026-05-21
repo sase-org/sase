@@ -1,0 +1,159 @@
+"""Tests for direct agent row runtime calculation."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+import pytest
+
+from sase.ace.tui.models.agent import compute_row_runtime
+from sase.ace.tui.models.agent_time import runtime_suffix_ticks
+
+from .agent_list_runtime_helpers import (
+    agent,
+    linked_followup_workflow,
+    workflow_child,
+)
+
+
+def test_compute_row_runtime_active_returns_elapsed_only() -> None:
+    start = datetime(2026, 4, 25, 14, 0, 0)
+    now = datetime(2026, 4, 25, 14, 38, 45)
+    ts, elapsed = compute_row_runtime(agent(start=start), now=now)
+    assert ts is None
+    assert elapsed == "38m45s"
+
+
+def test_compute_row_runtime_uses_run_start_when_present() -> None:
+    """A long WAIT period should not inflate runtime."""
+    start = datetime(2026, 4, 25, 13, 0, 0)
+    run_start = datetime(2026, 4, 25, 14, 0, 0)
+    now = datetime(2026, 4, 25, 14, 5, 0)
+    ts, elapsed = compute_row_runtime(agent(start=start, run_start=run_start), now=now)
+    assert ts is None
+    assert elapsed == "5m"
+
+
+def test_compute_row_runtime_running_without_run_start_returns_nones() -> None:
+    start = datetime(2026, 4, 25, 13, 0, 0)
+    now = datetime(2026, 4, 25, 14, 5, 0)
+    ts, elapsed = compute_row_runtime(agent(start=start, run_start=None), now=now)
+    assert ts is None
+    assert elapsed is None
+    assert runtime_suffix_ticks(agent(start=start, run_start=None)) is False
+
+
+def test_compute_row_runtime_starting_returns_nones() -> None:
+    start = datetime(2026, 4, 25, 13, 0, 0)
+    now = datetime(2026, 4, 25, 14, 5, 0)
+    ts, elapsed = compute_row_runtime(
+        agent(status="STARTING", start=start, run_start=None), now=now
+    )
+    assert ts is None
+    assert elapsed is None
+    assert (
+        runtime_suffix_ticks(agent(status="STARTING", start=start, run_start=None))
+        is False
+    )
+
+
+def test_compute_row_runtime_finished_today() -> None:
+    start = datetime(2026, 4, 25, 14, 0, 0)
+    stop = datetime(2026, 4, 25, 20, 17, 3)
+    now = datetime(2026, 4, 25, 21, 0, 0)
+    ts, elapsed = compute_row_runtime(
+        agent(status="DONE", start=start, stop=stop), now=now
+    )
+    assert ts == ("", "20:17:03")
+    assert elapsed == "6h17m"
+
+
+def test_compute_row_runtime_terminal_without_run_start_falls_back_to_start() -> None:
+    start = datetime(2026, 4, 25, 14, 0, 0)
+    stop = datetime(2026, 4, 25, 20, 17, 3)
+    now = datetime(2026, 4, 25, 21, 0, 0)
+    ts, elapsed = compute_row_runtime(
+        agent(status="DONE", start=start, run_start=None, stop=stop), now=now
+    )
+    assert ts == ("", "20:17:03")
+    assert elapsed == "6h17m"
+
+
+def test_compute_row_runtime_finished_yesterday() -> None:
+    start = datetime(2026, 4, 24, 19, 38, 18)
+    stop = datetime(2026, 4, 24, 20, 17, 3)
+    now = datetime(2026, 4, 25, 9, 0, 0)
+    ts, elapsed = compute_row_runtime(
+        agent(status="DONE", start=start, stop=stop), now=now
+    )
+    assert ts == ("Apr 24 ", "20:17")
+    assert elapsed == "38m45s"
+
+
+def test_compute_row_runtime_no_start_returns_nones() -> None:
+    ts, elapsed = compute_row_runtime(agent(start=None), now=datetime.now())
+    assert ts is None
+    assert elapsed is None
+
+
+def test_compute_row_runtime_pure_waiting_returns_nones() -> None:
+    """A WAITING agent that hasn't started yet renders no runtime suffix."""
+    start = datetime(2026, 4, 25, 14, 0, 0)
+    now = datetime(2026, 4, 25, 14, 5, 0)
+    ts, elapsed = compute_row_runtime(
+        agent(status="WAITING", start=start, run_start=None), now=now
+    )
+    assert ts is None
+    assert elapsed is None
+
+
+def test_compute_row_runtime_workflow_agent_step_returns_elapsed() -> None:
+    start = datetime(2026, 4, 25, 14, 0, 0)
+    now = datetime(2026, 4, 25, 14, 2, 5)
+    ts, elapsed = compute_row_runtime(
+        workflow_child(step_type="agent", start=start), now=now
+    )
+    assert ts is None
+    assert elapsed == "2m05s"
+
+
+def test_compute_row_runtime_linked_followup_workflow_returns_elapsed() -> None:
+    start = datetime(2026, 4, 25, 14, 0, 0)
+    now = datetime(2026, 4, 25, 14, 2, 5)
+    ts, elapsed = compute_row_runtime(linked_followup_workflow(start=start), now=now)
+    assert ts is None
+    assert elapsed == "2m05s"
+
+
+def test_compute_row_runtime_prompt_step_done_has_static_suffix() -> None:
+    start = datetime(2026, 4, 25, 14, 0, 0)
+    run_start = datetime(2026, 4, 25, 14, 1, 0)
+    stop = datetime(2026, 4, 25, 14, 2, 30)
+    now = datetime(2026, 4, 25, 14, 3, 0)
+    ts, elapsed = compute_row_runtime(
+        workflow_child(
+            step_type="agent",
+            status="DONE",
+            start=start,
+            run_start=run_start,
+            stop=stop,
+            cl_name="main",
+            parent_appears_as_agent=True,
+        ),
+        now=now,
+    )
+    assert ts == ("", "14:02:30")
+    assert elapsed == "1m30s"
+
+
+@pytest.mark.parametrize("step_type", ["python", "bash"])
+def test_compute_row_runtime_non_agent_workflow_child_returns_nones(
+    step_type: str,
+) -> None:
+    start = datetime(2026, 4, 25, 14, 0, 0)
+    now = datetime(2026, 4, 25, 14, 2, 5)
+    ts, elapsed = compute_row_runtime(
+        workflow_child(step_type=step_type, start=start), now=now
+    )
+    assert ts is None
+    assert elapsed is None
