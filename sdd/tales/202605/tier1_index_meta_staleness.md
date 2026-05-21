@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-21 14:14:17
-status: wip
+status: done
 prompt: sdd/prompts/202605/tier1_index_meta_staleness.md
 ---
 # Fix: Tier 1 Fast Reload Doesn't Pick Up agent_meta.json Timestamp Updates
