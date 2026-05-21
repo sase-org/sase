@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-21 09:02:35
-status: done
+status: wip
 prompt: sdd/prompts/202605/fast_manual_agents_refresh.md
 ---
 # Plan: Make Agents `y` Refresh Use The Active Index Path
