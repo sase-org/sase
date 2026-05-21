@@ -249,17 +249,26 @@ def test_do_dismiss_all_batch_does_not_full_reload() -> None:
 
     app._do_dismiss_all([a1, a2])
 
+    # The in-memory refilter is now deferred to the next tick so the
+    # success toast can paint before the heavy agents-list rebuild blocks
+    # the UI thread.
     assert app.load_count == 0
-    assert app.refilter_count == 1
+    assert app.refilter_count == 0
     assert app.notification_refreshes == 0
     assert a1.identity in app._dismissed_agents
     assert a2.identity in app._dismissed_agents
+    assert len(app._scheduled) == 2
+
+    refilter_callback, refilter_args = app._scheduled[0]
+    assert refilter_callback == app._apply_dismissal_in_memory
+    refilter_callback(*refilter_args)
+    assert app.refilter_count == 1
     assert app._agents_with_children == []
-    assert len(app._scheduled) == 1
-    callback, args = app._scheduled[0]
-    assert callback == app._run_bulk_dismiss_persistence_async
-    assert args[0] == [a1, a2]
-    dismissed_ids = args[1]
+
+    persist_callback, persist_args = app._scheduled[1]
+    assert persist_callback == app._run_bulk_dismiss_persistence_async
+    assert persist_args[0] == [a1, a2]
+    dismissed_ids = persist_args[1]
     assert isinstance(dismissed_ids, set)
     assert {a1.identity, a2.identity}.issubset(dismissed_ids)
 
@@ -280,7 +289,9 @@ def test_bulk_dismiss_transaction_uses_one_notification_update() -> None:
     )
 
     with (
-        patch("sase.ace.tui.actions.agents._dismissing.persist_dismiss_side_effects"),
+        patch(
+            "sase.ace.tui.actions.agents._dismissing.persist_bulk_dismiss_side_effects"
+        ),
         patch("sase.ace.dismissed_agents.save_dismissed_agents"),
         patch(
             "sase.notifications.store._rust_apply_notification_state_update",

@@ -71,6 +71,12 @@ class FakeDismissApp(AgentDismissingMixin):
     def call_later(self, callback: object, *args: object) -> None:
         self._scheduled.append((callback, args))
 
+    def call_after_refresh(self, callback: object, *args: object) -> None:
+        # In tests we don't simulate Textual's refresh tick; fire the
+        # callback synchronously so notify() side effects land in
+        # ``self.notifications`` for assertions.
+        callback(*args)  # type: ignore[operator]
+
 
 def patch_isolated_home(tmp_path: Path):  # type: ignore[no-untyped-def]
     """Point Path.home(), bundles dir, and dismissed.json at *tmp_path*."""

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-21 15:06:07
-status: wip
+status: done
 prompt: sdd/prompts/202605/bulk_dismiss_speedup_and_toast.md
 ---
 # Bulk-Dismiss Speedup + Toast Reliability

@@ -99,51 +99,65 @@ def persist_cleanup_side_effect_intents(
     return True
 
 
-def persist_dismiss_side_effects(
+def _save_dismissed_bundles_for(
     agent: Agent,
     agents_with_children_snapshot: list[Agent],
 ) -> None:
-    """Apply filesystem side effects for one asynchronously dismissed agent."""
-    from ...models.agent import AgentType
     from ....dismissed_agents import save_dismissed_bundle
 
-    if not agent._from_changespec:
-        save_dismissed_bundle(agent)
-        if not agent.is_workflow_child and agent.raw_suffix:
-            for step in agents_with_children_snapshot:
-                if (
-                    step.is_workflow_child
-                    and step.parent_timestamp == agent.raw_suffix
-                    and step.parent_workflow == agent.workflow
-                    and not step._from_changespec
-                ):
-                    save_dismissed_bundle(step)
+    if agent._from_changespec:
+        return
+    save_dismissed_bundle(agent)
+    if agent.is_workflow_child or not agent.raw_suffix:
+        return
+    for step in agents_with_children_snapshot:
+        if (
+            step.is_workflow_child
+            and step.parent_timestamp == agent.raw_suffix
+            and step.parent_workflow == agent.workflow
+            and not step._from_changespec
+        ):
+            save_dismissed_bundle(step)
 
-    if agent.agent_type == AgentType.WORKFLOW:
-        from sase.running_field import release_workspace
 
-        workflow_name = agent.workflow
-        if agent.is_workflow_child and agent.parent_workflow:
-            workflow_name = agent.parent_workflow
-        if workflow_name is not None:
-            workspace_num = agent.workspace_num
-            if workspace_num is None:
-                lookup_cl_name = None
-                if not agent.is_workflow_child and agent.cl_name != "unknown":
-                    lookup_cl_name = agent.cl_name
-                workspace_num = find_workflow_workspace_from_running_field(
-                    agent.project_file,
-                    workflow_name,
-                    lookup_cl_name,
-                )
-            if workspace_num is not None:
-                release_workspace(
-                    agent.project_file,
-                    workspace_num,
-                    f"workflow({workflow_name})",
-                )
+def _release_workspace_for(agent: Agent) -> None:
+    from ...models.agent import AgentType
 
-    artifact_delete_paths = [agent.artifacts_dir or agent.get_artifacts_dir()]
+    if agent.agent_type != AgentType.WORKFLOW:
+        return
+    from sase.running_field import release_workspace
+
+    workflow_name = agent.workflow
+    if agent.is_workflow_child and agent.parent_workflow:
+        workflow_name = agent.parent_workflow
+    if workflow_name is None:
+        return
+    workspace_num = agent.workspace_num
+    if workspace_num is None:
+        lookup_cl_name = None
+        if not agent.is_workflow_child and agent.cl_name != "unknown":
+            lookup_cl_name = agent.cl_name
+        workspace_num = find_workflow_workspace_from_running_field(
+            agent.project_file,
+            workflow_name,
+            lookup_cl_name,
+        )
+    if workspace_num is None:
+        return
+    release_workspace(
+        agent.project_file,
+        workspace_num,
+        f"workflow({workflow_name})",
+    )
+
+
+def _artifact_delete_paths_for(
+    agent: Agent,
+    agents_with_children_snapshot: list[Agent],
+) -> list[str | None]:
+    from ...models.agent import AgentType
+
+    paths: list[str | None] = [agent.artifacts_dir or agent.get_artifacts_dir()]
     if (
         agent.agent_type == AgentType.WORKFLOW
         and not agent.is_workflow_child
@@ -155,9 +169,49 @@ def persist_dismiss_side_effects(
                 and step.parent_timestamp == agent.raw_suffix
                 and step.parent_workflow == agent.workflow
             ):
-                artifact_delete_paths.append(
-                    step.artifacts_dir or step.get_artifacts_dir()
-                )
+                paths.append(step.artifacts_dir or step.get_artifacts_dir())
+    return paths
+
+
+def persist_dismiss_side_effects(
+    agent: Agent,
+    agents_with_children_snapshot: list[Agent],
+) -> None:
+    """Apply filesystem side effects for one asynchronously dismissed agent."""
+    _save_dismissed_bundles_for(agent, agents_with_children_snapshot)
+    _release_workspace_for(agent)
+
+    artifact_delete_paths = _artifact_delete_paths_for(
+        agent, agents_with_children_snapshot
+    )
+    delete_agent_artifact_index_artifacts(artifact_delete_paths)
+    for artifacts_dir in artifact_delete_paths:
+        delete_agent_artifacts(artifacts_dir)
+
+
+def persist_bulk_dismiss_side_effects(
+    agents: list[Agent],
+    agents_with_children_snapshot: list[Agent],
+) -> None:
+    """Batched fallback for bulk dismiss when Rust cleanup intents are absent.
+
+    Saves bundles per agent (still requires per-bundle disk writes), then
+    issues *one* artifact-index delete for all paths in the batch instead of
+    one connection per agent. Filesystem rmtree work runs last so the SQLite
+    index stays consistent if a single rmtree fails.
+    """
+    artifact_delete_paths: list[str | None] = []
+    seen_paths: set[str] = set()
+    for agent in agents:
+        _save_dismissed_bundles_for(agent, agents_with_children_snapshot)
+        _release_workspace_for(agent)
+        for path in _artifact_delete_paths_for(agent, agents_with_children_snapshot):
+            key = str(path) if path is not None else ""
+            if key in seen_paths:
+                continue
+            seen_paths.add(key)
+            artifact_delete_paths.append(path)
+
     delete_agent_artifact_index_artifacts(artifact_delete_paths)
     for artifacts_dir in artifact_delete_paths:
         delete_agent_artifacts(artifacts_dir)

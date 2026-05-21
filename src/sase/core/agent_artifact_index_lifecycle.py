@@ -72,10 +72,20 @@ def _projects_root_for_artifact_dir(artifact_dir: Path | str) -> Path:
 def sync_dismissed_agent_artifact_index(
     dismissed: Iterable[AgentIdentityLike] | None = None,
     *,
+    added: Iterable[AgentIdentityLike] | None = None,
     index_path: Path | str | None = None,
     force: bool = False,
 ) -> bool:
-    """Best-effort sync of dismissed identities into the SQLite artifact index."""
+    """Best-effort sync of dismissed identities into the SQLite artifact index.
+
+    When ``added`` is provided, the caller asserts that ``dismissed`` is the
+    full authoritative set of dismissed identities for this session. The
+    expensive bundle-summary scan and bundle-index verify pass are skipped:
+    the projection is built directly from ``dismissed`` only. The
+    SQLite-side replace is still issued in one transaction so the on-disk
+    rows match the in-memory set; ``added`` is a perf hint, not a
+    correctness shortcut. On signature drift the full path remains.
+    """
     index = (
         Path(index_path).expanduser()
         if index_path is not None
@@ -94,7 +104,14 @@ def sync_dismissed_agent_artifact_index(
     ):
         return True
 
-    projection = build_dismissed_agent_projection_inputs(dismissed)
+    if added is not None and dismissed is not None:
+        projection = _projection_inputs_from_dismissed_only(
+            dismissed,
+            dismissed_agents_signature,
+            dismissed_bundle_index_signature,
+        )
+    else:
+        projection = build_dismissed_agent_projection_inputs(dismissed)
     try:
         replace_agent_artifact_index_dismissed_agents(index, projection.identities)
         _write_projection_metadata(index, projection)
@@ -102,6 +119,25 @@ def sync_dismissed_agent_artifact_index(
         log.debug("agent artifact index dismissed sync failed", exc_info=True)
         return False
     return True
+
+
+def _projection_inputs_from_dismissed_only(
+    dismissed: Iterable[AgentIdentityLike],
+    dismissed_agents_signature: DismissedAgentsSignature,
+    dismissed_bundle_index_signature: DismissedBundleIndexSignature,
+) -> _DismissedProjectionInputs:
+    """Build projection inputs from an authoritative caller-supplied set.
+
+    Skips the on-disk bundle scan that ``build_dismissed_agent_projection_inputs``
+    performs, paying only the cost of converting the caller's identities.
+    """
+    identities = {_identity_to_wire(identity) for identity in dismissed}
+    return _DismissedProjectionInputs(
+        identities=sorted(identities),
+        dismissed_agents_signature=dismissed_agents_signature,
+        dismissed_bundle_index_signature=dismissed_bundle_index_signature,
+        skipped_bundle_rows=0,
+    )
 
 
 def build_dismissed_agent_projection_inputs(

@@ -43,7 +43,7 @@ def test_dismiss_persistence_callback_runs_deferred_work(tmp_path) -> None:  # t
     assert mock_persist_intents.call_args[0][1] == [agent]
     mock_dismiss_many.assert_not_called()
     mock_save.assert_called_once_with({agent.identity})
-    mock_sync_index.assert_called_once_with({agent.identity})
+    mock_sync_index.assert_called_once_with({agent.identity}, added={agent.identity})
     assert app.notification_refreshes_async == 1
     assert app.notification_refreshes == 0
     assert app.async_refreshes == 0
@@ -120,6 +120,15 @@ def test_dismiss_workflow_parent_persistence_uses_pre_removal_snapshot(
     assert app.async_refreshes == 0
 
 
+def _find_bulk_persistence_callback(
+    app: FakeDismissApp,
+) -> tuple[object, tuple[object, ...]]:
+    for callback, args in app._scheduled:
+        if getattr(callback, "__name__", "") == "_run_bulk_dismiss_persistence_async":
+            return callback, args
+    raise AssertionError("bulk dismiss persistence not scheduled")
+
+
 def test_do_dismiss_all_persistence_callback_runs_deferred_work() -> None:
     """Scheduled bulk dismiss callback persists via worker thread."""
     app = FakeDismissApp()
@@ -140,7 +149,7 @@ def test_do_dismiss_all_persistence_callback_runs_deferred_work() -> None:
         ) as mock_dismiss_many,
         patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
     ):
-        callback, args = app._scheduled[0]
+        callback, args = _find_bulk_persistence_callback(app)
         asyncio.run(callback(*args))  # type: ignore[misc]
 
     mock_persist_intents.assert_called_once()
@@ -165,12 +174,13 @@ def test_do_dismiss_all_persistence_failure_notifies_and_refreshes() -> None:
         "sase.ace.tui.actions.agents._dismissing._persist_bulk_dismiss_transaction",
         side_effect=RuntimeError("boom"),
     ):
-        callback, args = app._scheduled[0]
+        callback, args = _find_bulk_persistence_callback(app)
         asyncio.run(callback(*args))  # type: ignore[misc]
 
     assert app.async_refreshes == 1
     assert app.notification_refreshes_async == 0
     assert any(sev == "error" for _, sev in app.notifications)
+    assert any("in memory" in msg for msg, _ in app.notifications)
 
 
 def test_dismiss_side_effects_delete_artifact_index_row(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -198,3 +208,88 @@ def test_dismiss_side_effects_delete_artifact_index_row(tmp_path) -> None:  # ty
 
     mock_delete_index.assert_called_once_with([str(tmp_path / "artifacts")])
     mock_delete_artifacts.assert_called_once_with(str(tmp_path / "artifacts"))
+
+
+def test_bulk_dismiss_fallback_batches_artifact_index_deletes(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Per-agent fallback should issue a *single* artifact-index delete call."""
+    from sase.ace.tui.actions.agents._dismiss_persistence import (
+        persist_bulk_dismiss_side_effects,
+    )
+
+    a1 = make_agent(
+        cl_name="a",
+        raw_suffix="20240101120000",
+        artifacts_dir=str(tmp_path / "a1"),
+    )
+    a2 = make_agent(
+        cl_name="b",
+        raw_suffix="20240101130000",
+        artifacts_dir=str(tmp_path / "a2"),
+    )
+    a3 = make_agent(
+        cl_name="c",
+        raw_suffix="20240101140000",
+        artifacts_dir=str(tmp_path / "a3"),
+    )
+
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_bundle"),
+        patch(
+            "sase.ace.tui.actions.agents._dismiss_persistence."
+            "delete_agent_artifact_index_artifacts"
+        ) as mock_delete_index,
+        patch(
+            "sase.ace.tui.actions.agents._dismiss_persistence.delete_agent_artifacts"
+        ) as mock_delete_artifacts,
+    ):
+        persist_bulk_dismiss_side_effects([a1, a2, a3], [a1, a2, a3])
+
+    mock_delete_index.assert_called_once()
+    assert mock_delete_index.call_args[0][0] == [
+        str(tmp_path / "a1"),
+        str(tmp_path / "a2"),
+        str(tmp_path / "a3"),
+    ]
+    assert mock_delete_artifacts.call_count == 3
+
+
+def test_bulk_dismiss_passes_added_to_artifact_index_sync() -> None:
+    """The bulk persistence runner forwards the new identity delta to the sync."""
+    app = FakeDismissApp()
+    a1 = make_agent(cl_name="a", raw_suffix="20240101120000")
+    a2 = make_agent(cl_name="b", raw_suffix="20240101130000")
+    app._agents_with_children = [a1, a2]
+    app._agents = [a1, a2]
+
+    app._do_dismiss_all([a1, a2])
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._dismissing.persist_cleanup_side_effect_intents",
+            return_value=True,
+        ),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch(
+            "sase.ace.tui.actions.agents._dismissing."
+            "sync_dismissed_agent_artifact_index"
+        ) as mock_sync_index,
+    ):
+        callback, args = _find_bulk_persistence_callback(app)
+        asyncio.run(callback(*args))  # type: ignore[misc]
+
+    mock_sync_index.assert_called_once()
+    kwargs = mock_sync_index.call_args.kwargs
+    assert kwargs["added"] == {a1.identity, a2.identity}
+
+
+def test_do_dismiss_all_emits_toast_via_call_after_refresh() -> None:
+    """The success toast must be routed through call_after_refresh."""
+    app = FakeDismissApp()
+    a1 = make_agent(cl_name="a", raw_suffix="20240101120000")
+    a2 = make_agent(cl_name="b", raw_suffix="20240101130000")
+    app._agents_with_children = [a1, a2]
+    app._agents = [a1, a2]
+
+    app._do_dismiss_all([a1, a2])
+
+    assert any(msg == "Dismissed 2 agents" for msg, _ in app.notifications)

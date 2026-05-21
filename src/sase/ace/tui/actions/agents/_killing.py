@@ -397,12 +397,22 @@ class AgentKillingMixin(AgentDismissingMixin):
 
         killed_count = len(kill_items)
         dismissed_count = len(dismiss_candidates)
-        if killed_count:
-            s = "s" if killed_count != 1 else ""
-            self.notify(f"Killed {killed_count} agent{s}")  # type: ignore[attr-defined]
-        if dismissed_count:
-            s = "s" if dismissed_count != 1 else ""
-            self.notify(f"Dismissed {dismissed_count} agent{s}")  # type: ignore[attr-defined]
+        kill_msg = (
+            f"Killed {killed_count} agent{'s' if killed_count != 1 else ''}"
+            if killed_count
+            else ""
+        )
+        dismiss_msg = (
+            f"dismissed {dismissed_count} agent{'s' if dismissed_count != 1 else ''}"
+            if dismissed_count
+            else ""
+        )
+        if killed_count and dismissed_count:
+            self._notify_after_refresh(f"{kill_msg} and {dismiss_msg}")
+        elif killed_count:
+            self._notify_after_refresh(kill_msg)
+        elif dismissed_count:
+            self._notify_after_refresh(dismiss_msg.capitalize())
 
         if kill_items or dismiss_candidates:
             self.call_later(  # type: ignore[attr-defined]
