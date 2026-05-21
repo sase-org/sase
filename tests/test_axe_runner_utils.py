@@ -107,14 +107,20 @@ def test_all_steps_hidden_visible_completed_step() -> None:
 def test_write_done_marker_can_write_visible_review_agent() -> None:
     """Review agents should complete without forcing hidden rows."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        write_done_marker(
-            tmpdir,
-            cl_name="my_cl",
-            project_file="/tmp/project.sase",
-            timestamp="260506_120000",
-            exit_code=0,
-            hidden=False,
-        )
+        calls: list[str] = []
+        with patch(
+            "sase.core.agent_artifact_index_lifecycle."
+            "update_agent_artifact_index_for_marker_mutation",
+            side_effect=lambda path: calls.append(path),
+        ):
+            write_done_marker(
+                tmpdir,
+                cl_name="my_cl",
+                project_file="/tmp/project.sase",
+                timestamp="260506_120000",
+                exit_code=0,
+                hidden=False,
+            )
 
         with open(os.path.join(tmpdir, "done.json"), encoding="utf-8") as f:
             data = json.load(f)
@@ -122,6 +128,7 @@ def test_write_done_marker_can_write_visible_review_agent() -> None:
         assert data["outcome"] == "completed"
         assert data["artifacts_timestamp"] == "20260506120000"
         assert "hidden" not in data
+        assert calls == [tmpdir]
 
 
 def test_detect_write_and_persist_review_agent_meta(tmp_path: Path) -> None:
@@ -132,6 +139,7 @@ def test_detect_write_and_persist_review_agent_meta(tmp_path: Path) -> None:
 
     mock_provider = MagicMock()
     mock_provider.resolve_model_name.return_value = "test-model"
+    calls: list[str] = []
 
     with (
         patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file),
@@ -145,6 +153,11 @@ def test_detect_write_and_persist_review_agent_meta(tmp_path: Path) -> None:
             return_value="git",
         ),
         patch("sase.workspace_provider.get_display_name", return_value="Git"),
+        patch(
+            "sase.core.agent_artifact_index_lifecycle."
+            "update_agent_artifact_index_for_marker_mutation",
+            side_effect=lambda path: calls.append(path),
+        ),
     ):
         detect_write_and_persist_review_agent_meta(
             str(artifacts_dir),
@@ -164,6 +177,7 @@ def test_detect_write_and_persist_review_agent_meta(tmp_path: Path) -> None:
             "tag": REVIEW_AGENT_TAG,
         }
     ]
+    assert calls == [str(artifacts_dir)]
 
 
 # Tests for finalize_axe_runner
