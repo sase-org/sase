@@ -652,3 +652,100 @@ def test_runtime_suffix_ticks_non_agent_workflow_child_does_not_tick(
 ) -> None:
     result = workflow_child(step_type=step_type, status="RUNNING")
     assert runtime_suffix_ticks(result) is False
+
+
+def test_active_planner_workflow_child_does_not_freeze_at_plan_time() -> None:
+    start = datetime(2026, 5, 21, 14, 49, 20)
+    plan_submit = datetime(2026, 5, 21, 14, 52, 0)
+    now = datetime(2026, 5, 21, 14, 55, 47)
+    child = workflow_child(
+        step_type="agent",
+        status="RUNNING",
+        start=start,
+        run_start=start,
+        plan_times=[plan_submit],
+        cl_name="plan",
+    )
+
+    ts, elapsed = compute_row_runtime(child, now=now)
+
+    assert ts is None
+    assert elapsed == "6m27s"
+    assert runtime_suffix_ticks(child) is True
+
+
+def test_completed_planner_workflow_child_still_freezes_at_plan_time() -> None:
+    start = datetime(2026, 5, 21, 14, 49, 20)
+    run_start = datetime(2026, 5, 21, 14, 49, 30)
+    plan_submit = datetime(2026, 5, 21, 14, 52, 0)
+    now = datetime(2026, 5, 21, 14, 55, 47)
+    child = workflow_child(
+        step_type="agent",
+        status="PLAN DONE",
+        start=start,
+        run_start=run_start,
+        plan_times=[plan_submit],
+        cl_name="plan",
+    )
+
+    ts, elapsed = compute_row_runtime(child, now=now)
+
+    assert ts == ("", "14:52:00")
+    assert elapsed == "2m30s"
+    assert runtime_suffix_ticks(child) is False
+
+
+def test_workflow_coder_child_with_tale_approved_ticks_from_run_start() -> None:
+    start = datetime(2026, 5, 21, 15, 6, 0)
+    run_start = datetime(2026, 5, 21, 15, 6, 24)
+    now = datetime(2026, 5, 21, 15, 7, 54)
+    child = workflow_child(
+        step_type="agent",
+        status="TALE APPROVED",
+        start=start,
+        run_start=run_start,
+        cl_name="code",
+    )
+
+    ts, elapsed = compute_row_runtime(child, now=now)
+
+    assert ts is None
+    assert elapsed == "1m30s"
+    assert runtime_suffix_ticks(child) is True
+
+
+def test_workflow_root_aggregates_active_plan_and_code_children() -> None:
+    plan_start = datetime(2026, 5, 21, 14, 49, 20)
+    plan_submit = datetime(2026, 5, 21, 14, 52, 0)
+    code_start = datetime(2026, 5, 21, 15, 6, 24)
+    now = datetime(2026, 5, 21, 15, 7, 54)
+
+    parent = agent(
+        agent_type=AgentType.WORKFLOW,
+        status="TALE APPROVED",
+        start=plan_start,
+        run_start=plan_start,
+    )
+    planner = workflow_child(
+        step_type="agent",
+        status="RUNNING",
+        start=plan_start,
+        run_start=plan_start,
+        plan_times=[plan_submit],
+        cl_name="plan",
+    )
+    coder = workflow_child(
+        step_type="agent",
+        status="TALE APPROVED",
+        start=code_start,
+        run_start=code_start,
+        raw_suffix="20260521150624",
+        cl_name="code",
+    )
+    parent.runtime_children.extend([planner, coder])
+
+    ts, elapsed = compute_row_runtime(parent, now=now)
+
+    assert ts is None
+    assert elapsed == "20m04s"
+    assert runtime_suffix_ticks(parent) is True
