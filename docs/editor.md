@@ -1,17 +1,23 @@
 # Editor Integration
 
-SASE exposes editor-facing APIs for xprompt authoring, prompt completion, snippet expansion, and jump-to-definition. Use
-the language server when your editor has LSP support; use the helper bridge when an integration wants a simple
-JSON-over-stdin catalog without running an LSP client.
+SASE exposes two editor-facing surfaces for prompt and xprompt editing:
+
+- `sase lsp` is the interactive editor path. Configure your editor to launch it as a stdio language server when you want
+  completions, snippets, hover, diagnostics, code actions, and jump-to-definition while editing a prompt.
+- `sase editor helper-bridge ...` is the integration/debugging path. It reads one JSON request from stdin and writes one
+  JSON response to stdout, so clients can fetch the same catalogs without implementing an LSP client.
 
 ## Language Server
 
-`sase lsp` starts the SASE xprompt language server over stdio:
+`sase lsp` starts the SASE xprompt language server over stdio. Run `--version` or `--help` in a terminal to verify the
+wrapper, then point your editor's LSP configuration at `sase lsp`:
 
 ```bash
-sase lsp
 sase lsp --version
+sase lsp --help
 ```
+
+In editor configuration terms, the command is `sase` and the argument list is `["lsp"]`.
 
 The wrapper resolves the server command in this order:
 
@@ -22,7 +28,9 @@ The wrapper resolves the server command in this order:
    available.
 
 The wrapper also exports installed package xprompt locations, bundled default config, plugin xprompt directories, and
-plugin config paths to the Rust server so completions match the SASE runtime catalog as closely as possible.
+plugin config paths to the Rust server. The server refreshes its catalog when the LSP session starts, keeps a short
+cache for completion requests, and exposes a `sase.xpromptLsp.refreshCatalog` command for clients that surface LSP
+commands.
 
 ## LSP Features
 
@@ -30,8 +38,8 @@ The xprompt language server is focused on prompt and xprompt editing:
 
 | Feature              | Behavior                                                                                                                         |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| XPrompt completion   | Completes `#name`, `#!workflow`, namespaced references, and slash skills from the structured catalog.                            |
-| Argument assistance  | Completes named arguments and values for typed xprompt inputs where the catalog exposes input metadata.                          |
+| XPrompt completion   | Completes `#name`, `#!workflow`, namespaced references, and slash-skill references from the structured catalog.                  |
+| Argument assistance  | Completes named arguments, path inputs, and bool values for typed xprompt inputs where the catalog exposes input metadata.       |
 | Directive completion | Completes SASE prompt directives such as `%model`, `%wait`, and other known directive names.                                     |
 | File completion      | Completes path-like tokens and recent file-history entries for prompt references.                                                |
 | Snippets             | Offers SASE snippets after bare trigger words when the client advertises LSP snippet support.                                    |
@@ -46,7 +54,7 @@ authoritative registry and falls back to native Rust loading only for simple xpr
 
 ## Helper Bridge
 
-Editor integrations that do not need a full LSP session can call fixed helper operations:
+Editor integrations that do not need live LSP behavior can call fixed helper operations directly:
 
 ```bash
 printf '{"schema_version":1,"project":"sase"}\n' | sase editor helper-bridge xprompt-catalog
@@ -64,7 +72,7 @@ file.
 - Valid trigger words only; user snippets override xprompt snippets on collision.
 
 Both helper operations read one JSON object from stdin and write one compact JSON object to stdout. They are fixed
-operations, not a general shell or filesystem bridge.
+catalog operations, not a general shell or filesystem bridge.
 
 ## Authoring Snippets
 
