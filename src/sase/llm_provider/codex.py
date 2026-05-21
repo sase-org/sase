@@ -1,7 +1,5 @@
 """Codex (OpenAI CLI agent) LLM provider implementation."""
 
-import hashlib
-import json
 import os
 import shutil
 import subprocess
@@ -12,11 +10,6 @@ from pathlib import Path
 
 from sase.env_contracts import SASE_ACTIVE_PROJECT_DIR_ENV
 from sase.output import gemini_timer
-from sase.scripts.sase_commit_stop_hook import (
-    build_commit_details,
-    jlog,
-    native_marker_path,
-)
 
 from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_and_parse_codex_json_output
@@ -91,78 +84,6 @@ def _log_interrupt(message: str, cycle: int) -> None:
             f.write("\n")
     except OSError:
         pass
-
-
-def _resolve_fallback_session_id() -> str:
-    sase_ts = os.environ.get("SASE_AGENT_TIMESTAMP")
-    if sase_ts:
-        return sase_ts
-    codex_tid = os.environ.get("CODEX_THREAD_ID")
-    if codex_tid:
-        return f"codex-{codex_tid}"
-    try:
-        tty_path = os.ttyname(0)
-    except OSError:
-        tty_path = ""
-    if tty_path:
-        digest = hashlib.md5(tty_path.encode()).hexdigest()[:12]
-        return f"tty-{digest}"
-    return f"pid-{os.getpid()}"
-
-
-def _fallback_marker_path(session_id: str) -> Path:
-    return (
-        Path(os.environ.get("SASE_TMPDIR", "/tmp"))
-        / f"sase_codex_commit_fallback_done_{session_id}"
-    )
-
-
-def _codex_sibling_hook_details(project_dir: str) -> str | None:
-    """Run the repo-local sibling hook for Codex exec fallback, if available."""
-    if not any(
-        os.environ.get(name)
-        for name in (
-            "CODEX_PROJECT_DIR",
-            SASE_ACTIVE_PROJECT_DIR_ENV,
-            *_WORKSPACE_ENV_VARS,
-        )
-    ):
-        return None
-
-    hook = Path(project_dir) / "tools" / "sase_sibling_commit_stop_hook"
-    if not hook.is_file() or not os.access(hook, os.X_OK):
-        return None
-
-    env = os.environ.copy()
-    env["CODEX_PROJECT_DIR"] = project_dir
-    env.setdefault("CODEX_CI", "1")
-
-    try:
-        result = subprocess.run(
-            [str(hook)],
-            cwd=project_dir,
-            env=env,
-            input="",
-            text=True,
-            capture_output=True,
-            check=False,
-            timeout=300,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if not result.stdout.strip():
-        return result.stderr.strip() if result.returncode == 2 else None
-
-    try:
-        payload = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        return result.stderr.strip() or None
-
-    if payload.get("decision") != "block":
-        return None
-
-    reason = payload.get("reason")
-    return reason if isinstance(reason, str) and reason.strip() else None
 
 
 _WORKSPACE_ENV_VARS: tuple[str, ...] = (
@@ -418,113 +339,7 @@ class CodexProvider(LLMProvider):
             accumulated_response = (
                 accumulated_response + "\n\n" + response_content.strip()
             ).strip()
-            fallback_response = self._maybe_run_commit_fallback_turn(
-                base_args=base_args,
-                original_prompt=prompt,
-                accumulated_response=accumulated_response,
-                suppress_output=suppress_output,
-            )
-            if fallback_response:
-                accumulated_response = (
-                    accumulated_response + "\n\n" + fallback_response.strip()
-                ).strip()
             return InvokeResult(content=accumulated_response)
-
-    def _maybe_run_commit_fallback_turn(
-        self,
-        *,
-        base_args: list[str],
-        original_prompt: str,
-        accumulated_response: str,
-        suppress_output: bool,
-    ) -> str | None:
-        """Run a single in-band commit-stop follow-up turn if needed.
-
-        Returns the second turn's response content when the fallback fired,
-        or ``None`` when it was skipped. Exactly one fallback runs per
-        provider invocation / SASE session.
-        """
-        if os.environ.get("SASE_DISABLE_COMMIT_STOP_HOOK"):
-            jlog("codex_fallback_skip", reason="disabled")
-            return None
-
-        if not os.environ.get("SASE_AGENT_TIMESTAMP"):
-            return None
-
-        session_id = _resolve_fallback_session_id()
-        fallback_marker = _fallback_marker_path(session_id)
-        native_marker = native_marker_path(session_id)
-
-        if fallback_marker.exists():
-            jlog(
-                "codex_fallback_skip",
-                reason="one_shot",
-                session_id=session_id,
-                fallback_marker=str(fallback_marker),
-            )
-            return None
-
-        project_dir = _resolve_codex_project_dir()
-        has_changes, changed_files, _, details = build_commit_details(project_dir)
-        sibling_details = _codex_sibling_hook_details(project_dir)
-        if has_changes and sibling_details:
-            details = (
-                f"{details}\n\n--- Sibling Commit Stop Hook ---\n{sibling_details}"
-            )
-        elif sibling_details:
-            details = sibling_details
-
-        if not has_changes and sibling_details is None:
-            skip_kwargs: dict[str, object] = {
-                "reason": "no_changes",
-                "session_id": session_id,
-                "native_marker_present": native_marker.exists(),
-                "project_dir": project_dir,
-                "cwd": os.getcwd(),
-            }
-            workspace_env = _workspace_env_value()
-            if workspace_env is not None:
-                skip_kwargs["workspace_env"] = workspace_env
-            jlog("codex_fallback_skip", **skip_kwargs)
-            return None
-
-        native_marker_present = native_marker.exists()
-        try:
-            fallback_marker.touch()
-        except OSError:
-            pass
-        if not native_marker_present:
-            try:
-                native_marker.touch()
-            except OSError:
-                pass
-
-        follow_up_prompt = (
-            f"{original_prompt}\n\n"
-            f"--- Work So Far ---\n{accumulated_response}\n\n"
-            f"--- Commit Stop Hook ---\n{details}"
-        )
-
-        jlog(
-            "codex_fallback_block_emitted",
-            session_id=session_id,
-            num_files=len(changed_files),
-            sibling_blocked=sibling_details is not None,
-            native_marker_present=native_marker_present,
-            project_dir=project_dir,
-        )
-
-        response_content, stderr_content, return_code = self._run_subprocess(
-            base_args, follow_up_prompt, suppress_output
-        )
-        if return_code != 0:
-            raise subprocess.CalledProcessError(
-                return_code,
-                base_args,
-                output=response_content,
-                stderr=stderr_content,
-            )
-        return response_content
 
     # ------------------------------------------------------------------
     # Subprocess runner

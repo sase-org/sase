@@ -1,4 +1,4 @@
-"""Codex commit-stop fallback spawn-workspace regression tests."""
+"""Commit finalizer spawn-workspace regression tests."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -6,24 +6,20 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.llm_provider.codex import CodexProvider
-from tests.llm_provider._codex_fallback_helpers import (
-    isolate_fallback_markers,
-    set_sase_session,
-)
+from sase.llm_provider.commit_finalizer import run_commit_finalizer
+from sase.llm_provider.types import InvokeResult
 
 
-def test_codex_fallback_inspects_spawn_workspace_when_parent_env_stale(
+def test_finalizer_inspects_spawn_workspace_when_parent_env_stale(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """End-to-end regression: stale parent env must not redirect the fallback.
+    """Stale parent env must not redirect the child's finalizer.
 
-    Mirrors the sase-39.1 bug: parent's leaked SASE_ACTIVE_PROJECT_DIR pointed
-    at a clean repo, so the child's commit-stop fallback skipped with
-    no_changes. After the spawn-boundary rewrite, the child's env reflects the
-    child's actual workspace; the fallback inspects that workspace and emits a
-    commit block when it's dirty.
+    Mirrors the old Codex fallback regression: the parent's leaked
+    SASE_ACTIVE_PROJECT_DIR pointed at a clean repo, so the child inspected the
+    wrong workspace. The spawn boundary now rewrites the child's canonical
+    active project dir, and the common finalizer consumes that value.
     """
     from sase.running_field import ClaimResult
     from tests._cd_launch_resolution_helpers import patch_cd_git_metadata
@@ -84,8 +80,6 @@ def test_codex_fallback_inspects_spawn_workspace_when_parent_env_stale(
             vcs_ref=("git", "home"),
         )
 
-    # Simulate the spawned child by applying the captured env. The child's
-    # resolver should consult its own env, not the parent's.
     monkeypatch.delenv("CODEX_PROJECT_DIR", raising=False)
     monkeypatch.delenv("SASE_ACTIVE_PROJECT_DIR", raising=False)
     if "SASE_ACTIVE_PROJECT_DIR" in captured_env:
@@ -93,44 +87,36 @@ def test_codex_fallback_inspects_spawn_workspace_when_parent_env_stale(
             "SASE_ACTIVE_PROJECT_DIR", captured_env["SASE_ACTIVE_PROJECT_DIR"]
         )
     assert "CODEX_PROJECT_DIR" not in captured_env
-
-    isolate_fallback_markers(monkeypatch, tmp_path)
-    monkeypatch.delenv("CODEX_PROJECT_DIR", raising=False)
-    if "SASE_ACTIVE_PROJECT_DIR" in captured_env:
-        monkeypatch.setenv(
-            "SASE_ACTIVE_PROJECT_DIR", captured_env["SASE_ACTIVE_PROJECT_DIR"]
-        )
-    set_sase_session(monkeypatch, "260512_183950")
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "260512_183950")
 
     inspected: dict[str, str] = {}
+    calls = 0
 
     def fake_build(project_dir: str) -> tuple[bool, list[str], str, str]:
+        nonlocal calls
+        calls += 1
         inspected["project_dir"] = project_dir
-        return (True, ["src/foo.py"], "commit", "details body")
+        if calls == 1:
+            return (True, ["src/foo.py"], "commit", "details body")
+        return (False, [], "", "")
 
-    monkeypatch.setattr("sase.llm_provider.codex.build_commit_details", fake_build)
-
-    emitted: list[tuple[str, dict[str, object]]] = []
     monkeypatch.setattr(
-        "sase.llm_provider.codex.jlog",
-        lambda event, **kwargs: emitted.append((event, kwargs)),
+        "sase.llm_provider.commit_finalizer.build_commit_details",
+        fake_build,
     )
+    provider = MagicMock()
+    provider.invoke.return_value = InvokeResult(content="follow-up")
 
-    popen_mock = MagicMock(return_value=MagicMock())
-    monkeypatch.setattr("sase.llm_provider.codex.subprocess.Popen", popen_mock)
-    monkeypatch.setattr(
-        "sase.llm_provider.codex.stream_and_parse_codex_json_output",
-        lambda *a, **k: ("follow-up", "", 0),
-    )
-
-    provider = CodexProvider()
-    result = provider._maybe_run_commit_fallback_turn(
-        base_args=["codex"],
+    result = run_commit_finalizer(
+        provider=provider,
         original_prompt="prompt",
-        accumulated_response="response",
+        invoke_result=InvokeResult(content="response"),
+        model_tier="large",
         suppress_output=True,
+        model_override=None,
+        artifacts_dir=str(tmp_path / "artifacts"),
     )
 
     assert inspected["project_dir"] == str(dirty_workspace)
-    assert result is not None
-    assert any(event == "codex_fallback_block_emitted" for event, _ in emitted)
+    assert provider.invoke.call_count == 1
+    assert result.content == "response\n\nfollow-up"

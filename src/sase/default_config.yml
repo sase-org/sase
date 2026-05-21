@@ -273,6 +273,11 @@ llm_provider:
       wait_times: [60, 300, 1800]
       fallback_model: "sonnet"
 
+commit:
+  finalizer:
+    enabled: true
+    max_passes: 2
+
 vcs_provider:
   provider: "auto"
   use_project_pr_prefix: false

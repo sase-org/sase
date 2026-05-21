@@ -29,6 +29,7 @@ from .postprocessing import (
 )
 from .preprocessing import preprocess_prompt
 from sase.xprompt.directives import PromptDirectives
+from .commit_finalizer import run_commit_finalizer
 from .registry import get_default_provider_name, get_provider, resolve_model_provider
 from .types import (
     LLMInvocationError,
@@ -196,6 +197,15 @@ def invoke_agent(
             model_tier=model_tier,
             suppress_output=suppress_output,
             model_override=model_override,
+        )
+        invoke_result = run_commit_finalizer(
+            provider=provider,
+            original_prompt=query,
+            invoke_result=invoke_result,
+            model_tier=model_tier,
+            suppress_output=suppress_output,
+            model_override=model_override,
+            artifacts_dir=artifacts_dir,
         )
         response_content = invoke_result.content
 

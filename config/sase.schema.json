@@ -552,6 +552,31 @@
         }
       }
     },
+    "commit": {
+      "type": "object",
+      "description": "Configuration for SASE commit enforcement.",
+      "additionalProperties": false,
+      "properties": {
+        "finalizer": {
+          "type": "object",
+          "description": "Provider-neutral post-invocation commit finalizer.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Run the commit finalizer after SASE-launched agent turns.",
+              "default": true
+            },
+            "max_passes": {
+              "type": "integer",
+              "description": "Maximum follow-up turns the finalizer may run before failing a still-dirty workspace.",
+              "default": 2,
+              "minimum": 1
+            }
+          }
+        }
+      }
+    },
     "github_orgs": {
       "description": "GitHub organization/user names the user has push access to, used for cloning and PR submission",
       "oneOf": [

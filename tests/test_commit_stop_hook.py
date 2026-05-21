@@ -14,8 +14,8 @@ import sase.scripts.sase_commit_stop_hook as commit_hook
 from sase.scripts.sase_commit_stop_hook import (
     _build_commit_instruction_message,
     _emit_block,
+    _native_marker_path,
     build_commit_details,
-    native_marker_path,
 )
 
 
@@ -158,7 +158,7 @@ def test_gemini_emit_block_includes_details_in_json(capsys: object) -> None:
 def test_native_marker_path_uses_sase_tmpdir(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     """native_marker_path honors SASE_TMPDIR for the dedup marker location."""
     monkeypatch.setenv("SASE_TMPDIR", str(tmp_path))
-    marker = native_marker_path("260511_120000")
+    marker = _native_marker_path("260511_120000")
     assert marker == tmp_path / "sase_commit_hook_done_260511_120000"
 
 
@@ -311,7 +311,7 @@ def test_qwen_stop_hook_active_checks_changes_then_marker_dedups(
     assert first_payload["decision"] == "deny"
     assert "Uncommitted changes detected" in first_payload["reason"]
     assert changed_file_calls == [str(project_dir)]
-    assert native_marker_path("260512_203518").exists()
+    assert _native_marker_path("260512_203518").exists()
 
     second_rc = run_once()
     second = capsys.readouterr()
