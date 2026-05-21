@@ -83,13 +83,12 @@ class FakeLoadingApp(AgentLoadingMixin):
         self._agents_seen_complete_history = False
         self._agents_history_reconcile_pending = False
         self._agents_history_reconcile_armed_mono = 0.0
-        self._agents_startup_tier2_scheduled = False
         # Pretend the first async load already happened so _apply_loaded_agents
         # doesn't try to query widgets that aren't mounted in this fake.
         self._agents_first_load_done = True
 
     def set_timer(self, _delay: float, _callback: object) -> None:
-        """Stub — the apply path arms a one-shot timer; tests don't fire it."""
+        """Stub for apply paths that should not schedule timers here."""
 
     def _finalize_agent_list(self, *args: object, **kwargs: object) -> None:
         """Stub — the real finalizer needs tabbar/panel widgets we don't have."""

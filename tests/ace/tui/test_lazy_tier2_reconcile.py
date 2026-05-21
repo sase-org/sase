@@ -37,7 +37,6 @@ class _FakeRefreshApp(AgentLoadingRefreshMixin):
         self._agents_refresh_debounce_armed = False
         self._agents_history_reconcile_pending = False
         self._agents_history_reconcile_armed_mono = 0.0
-        self._agents_startup_tier2_scheduled = False
         self._last_activity_time = 0.0
         self._nav_gate = NavigationGate(window_s=0.25)
         self._scheduled: list[Any] = []
@@ -306,18 +305,6 @@ async def test_idle_trigger_routes_through_async_refresh() -> None:
     assert captured == [True]
 
 
-def _make_incomplete_load_state() -> Any:
-    from sase.ace.tui.models.agent_loader import AgentLoadState
-
-    return AgentLoadState(
-        tier="tier1",
-        complete_history=False,
-        complete_visible_inbox=False,
-        artifact_source="artifact_index",
-        used_artifact_index=True,
-    )
-
-
 def test_repair_notice_only_when_repair_recommended() -> None:
     """Repair diagnostics surface as an operator-visible notice."""
     from sase.ace.tui.actions.agents._loading_apply import (
@@ -378,14 +365,13 @@ def _apply_load(app: Any, load_state: Any) -> None:
     )
 
 
-def test_apply_repair_state_does_not_arm_startup_tier2_timer() -> None:
-    """Repair diagnostics should not auto-run the startup full scan."""
+def test_apply_repair_state_marks_reconcile_pending_without_timer() -> None:
+    """Repair diagnostics defer full-history repair to idle/manual paths."""
     from tests._agents_tab_query_helpers import FakeAgentApp
     from sase.ace.tui.models.agent_loader import AgentLoadState
 
     app = FakeAgentApp()
     app._agents_history_reconcile_pending = False
-    app._agents_startup_tier2_scheduled = False
 
     _apply_load(
         app,
@@ -400,7 +386,7 @@ def test_apply_repair_state_does_not_arm_startup_tier2_timer() -> None:
         ),
     )
 
-    assert app._agents_startup_tier2_scheduled is False
+    assert app._agents_history_reconcile_pending is True
     assert app.timer_calls == []
 
 
@@ -411,7 +397,6 @@ def test_apply_incomplete_index_state_does_not_arm_reconcile() -> None:
 
     app = FakeAgentApp()
     app._agents_history_reconcile_pending = False
-    app._agents_startup_tier2_scheduled = False
 
     _apply_load(
         app,
@@ -428,59 +413,15 @@ def test_apply_incomplete_index_state_does_not_arm_reconcile() -> None:
     assert app.timer_calls == []
 
 
-def test_apply_complete_history_skips_startup_arm() -> None:
-    """If Tier 1 already returned complete history, no timer is armed."""
+def test_apply_complete_history_does_not_arm_reconcile() -> None:
+    """If a load returned complete history, no reconcile is armed."""
     from tests._agents_tab_query_helpers import FakeAgentApp
 
     app = FakeAgentApp()
     app._agents_history_reconcile_pending = False
-    app._agents_startup_tier2_scheduled = False
     app._agents_seen_complete_history = False
 
     _apply_load(app, _make_complete_load_state())
 
-    assert app._agents_startup_tier2_scheduled is False
     assert app.timer_calls == []
     assert app._agents_history_reconcile_pending is False
-
-
-def test_startup_trigger_fires_full_history_refresh_for_pending_repair() -> None:
-    """The startup callback remains hard-gated by the pending repair flag."""
-    app = _FakeRefreshApp()
-    app._agents_history_reconcile_pending = True
-
-    app._fire_startup_tier2_reconcile()
-
-    assert app._agents_history_reconcile_pending is False
-    assert app._agents_refresh_scheduled is True
-    assert app._agents_refresh_scheduled_full_history is True
-    assert (
-        app._agents_refresh_scheduled_full_history_reason == "startup_tier2_reconcile"
-    )
-    assert len(app._scheduled) == 1
-
-
-def test_startup_trigger_noop_when_flag_clear() -> None:
-    """If the pending flag was cleared (e.g. by the idle path), no schedule."""
-    app = _FakeRefreshApp()
-    app._agents_history_reconcile_pending = False
-
-    app._fire_startup_tier2_reconcile()
-
-    assert app._agents_refresh_scheduled is False
-    assert app._agents_refresh_scheduled_full_history is False
-    assert app._scheduled == []
-
-
-def test_startup_trigger_noop_when_loading() -> None:
-    """In-flight refresh defers to the idle/manual fallback paths."""
-    app = _FakeRefreshApp()
-    app._agents_history_reconcile_pending = True
-    app._agents_loading = True
-
-    app._fire_startup_tier2_reconcile()
-
-    # Pending flag preserved so idle / manual paths can still trigger.
-    assert app._agents_history_reconcile_pending is True
-    assert app._agents_refresh_scheduled is False
-    assert app._scheduled == []

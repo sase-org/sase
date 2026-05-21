@@ -113,10 +113,6 @@ class AgentLoadingStateMixin:
     # at which the flag was first set, used by the idle-tick trigger.
     _agents_history_reconcile_pending: bool
     _agents_history_reconcile_armed_mono: float
-    # One-shot guard for the startup Tier 2 reconcile timer. Set to True
-    # the first time we arm the timer; never cleared during a normal
-    # session so subsequent incomplete-history applies do not double-arm.
-    _agents_startup_tier2_scheduled: bool
     # Source-aware debounce gate for ``request_agents_refresh``: True while
     # a debounce timer is armed so a burst of fan-out spawn callbacks
     # collapses into a single deferred ``_schedule_agents_async_refresh``.
