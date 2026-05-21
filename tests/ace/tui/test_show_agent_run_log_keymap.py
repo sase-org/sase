@@ -359,51 +359,60 @@ def test_leader_ctrl_g_edits_first_prompt_history_entry() -> None:
     assert app.refresh_count == 1
 
 
+def _capture_bindings(
+    footer: KeybindingFooter,
+) -> list[tuple[list[tuple[str, str]], str | None]]:
+    """Replace ``_update_display`` with a recorder for the bindings/mode args."""
+    captured: list[tuple[list[tuple[str, str]], str | None]] = []
+    footer._update_display = MagicMock(  # type: ignore[method-assign]
+        side_effect=lambda bindings, mode_label=None: captured.append(
+            (list(bindings), mode_label)
+        )
+    )
+    return captured
+
+
+def _last_keys(captured: list[tuple[list[tuple[str, str]], str | None]]) -> set[str]:
+    return {k for k, _ in captured[-1][0]}
+
+
+def _last_labels(captured: list[tuple[list[tuple[str, str]], str | None]]) -> set[str]:
+    return {label for _, label in captured[-1][0]}
+
+
 def test_footer_surfaces_agent_run_log_only_on_cls_tab() -> None:
     footer = KeybindingFooter()
-    captured: list[object] = []
-    footer._update_display = MagicMock(  # type: ignore[method-assign]
-        side_effect=lambda text: captured.append(text)
-    )
+    captured = _capture_bindings(footer)
 
     footer.update_leader_bindings(current_tab="changespecs")
-    rendered = str(captured[-1])
-    assert "A" in rendered
-    assert "agent run log" in rendered
+    assert "A" in _last_keys(captured)
+    assert "agent run log" in _last_labels(captured)
 
     for tab in ("agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
-        assert "agent run log" not in str(captured[-1])
+        assert "agent run log" not in _last_labels(captured)
 
 
 def test_footer_surfaces_panel_grouping_only_on_agents_tab() -> None:
     footer = KeybindingFooter()
-    captured: list[object] = []
-    footer._update_display = MagicMock(  # type: ignore[method-assign]
-        side_effect=lambda text: captured.append(text)
-    )
+    captured = _capture_bindings(footer)
 
     footer.update_leader_bindings(current_tab="agents")
-    rendered = str(captured[-1])
-    assert "g" in rendered
-    assert "group panels" in rendered
+    assert "g" in _last_keys(captured)
+    assert "group panels" in _last_labels(captured)
 
     footer.update_leader_bindings(current_tab="changespecs")
-    assert "group panels" not in str(captured[-1])
+    assert "group panels" not in _last_labels(captured)
 
 
 def test_footer_surfaces_repeat_last_on_all_tabs() -> None:
     footer = KeybindingFooter()
-    captured: list[object] = []
-    footer._update_display = MagicMock(  # type: ignore[method-assign]
-        side_effect=lambda text: captured.append(text)
-    )
+    captured = _capture_bindings(footer)
 
     for tab in ("changespecs", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
-        rendered = str(captured[-1])
-        assert "," in rendered
-        assert "repeat" in rendered
+        assert "," in _last_keys(captured)
+        assert "repeat" in _last_labels(captured)
 
 
 def test_footer_surfaces_configured_repeat_last_key() -> None:
@@ -413,50 +422,38 @@ def test_footer_surfaces_configured_repeat_last_key() -> None:
             {"keymaps": {"modes": {"leader_mode": {"keys": {"repeat_last": "R"}}}}}
         )
     )
-    captured: list[object] = []
-    footer._update_display = MagicMock(  # type: ignore[method-assign]
-        side_effect=lambda text: captured.append(text)
-    )
+    captured = _capture_bindings(footer)
 
     footer.update_leader_bindings(current_tab="agents")
 
-    rendered = str(captured[-1])
-    assert "R" in rendered
-    assert "repeat" in rendered
+    assert "R" in _last_keys(captured)
+    assert "repeat" in _last_labels(captured)
 
 
 def test_footer_surfaces_unread_done_jump_only_when_available() -> None:
     footer = KeybindingFooter()
-    captured: list[object] = []
-    footer._update_display = MagicMock(  # type: ignore[method-assign]
-        side_effect=lambda text: captured.append(text)
-    )
+    captured = _capture_bindings(footer)
 
     footer.update_leader_bindings(current_tab="agents", has_unread_completed_agent=True)
-    rendered = str(captured[-1])
-    assert "j" in rendered
-    assert "next unread done" in rendered
-    assert "u" in rendered
-    assert "mark all read" in rendered
+    assert "j" in _last_keys(captured)
+    assert "next unread done" in _last_labels(captured)
+    assert "u" in _last_keys(captured)
+    assert "mark all read" in _last_labels(captured)
 
     footer.update_leader_bindings(
         current_tab="agents", has_unread_completed_agent=False
     )
-    assert "next unread done" not in str(captured[-1])
-    assert "mark all read" not in str(captured[-1])
+    assert "next unread done" not in _last_labels(captured)
+    assert "mark all read" not in _last_labels(captured)
 
 
 def test_footer_surfaces_stopped_jump_only_when_available() -> None:
     footer = KeybindingFooter()
-    captured: list[object] = []
-    footer._update_display = MagicMock(  # type: ignore[method-assign]
-        side_effect=lambda text: captured.append(text)
-    )
+    captured = _capture_bindings(footer)
 
     footer.update_leader_bindings(current_tab="agents", has_stopped_agent=True)
-    rendered = str(captured[-1])
-    assert "J" in rendered
-    assert "next stopped" in rendered
+    assert "J" in _last_keys(captured)
+    assert "next stopped" in _last_labels(captured)
 
     footer.update_leader_bindings(current_tab="agents", has_stopped_agent=False)
-    assert "next stopped" not in str(captured[-1])
+    assert "next stopped" not in _last_labels(captured)

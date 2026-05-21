@@ -181,6 +181,59 @@ def _done_agents() -> list[Agent]:
     ]
 
 
+async def _render_leader_footer(page: AcePage) -> None:
+    """Force the keybinding footer into LEADER mode and let it lay out.
+
+    LEADER mode is the worst case for footer width — ~15 chips on changespecs
+    tab — so it's the right target for grid-overflow snapshots.
+    """
+    from sase.ace.tui.widgets import KeybindingFooter
+
+    footer = page.app.query_one(KeybindingFooter)
+    footer.update_leader_bindings(current_tab="changespecs")
+    await wait_for_visual_idle(page)
+
+
+async def test_footer_leader_overflow_wide_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """LEADER mode at 120x40: chips overflow into a deterministic grid."""
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await _render_leader_footer(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "footer_leader_overflow_120x40",
+            title="ACE footer LEADER grid (wide)",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_footer_leader_overflow_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """LEADER mode at 80x30: narrower width drops more chips into more rows."""
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(
+        query='"visual"', changespecs=changespecs(), size=(80, 30)
+    ) as page:
+        await wait_for_startup(page)
+        await _render_leader_footer(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "footer_leader_overflow_80x30",
+            title="ACE footer LEADER grid (narrow)",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
 async def test_agents_unread_highlight_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

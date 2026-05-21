@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from rich.text import Text
 from textual.app import App, ComposeResult
 
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
@@ -57,7 +56,7 @@ async def test_repeat_bindings_update_skips_static_update() -> None:
         footer._last_status_signature = None
         footer._last_bindings_signature = None
 
-        bindings = Text("k kill", style="bold")
+        bindings = [("k", "kill")]
         footer._update_display(bindings)
         assert footer._last_bindings_signature is not None
 
@@ -74,5 +73,5 @@ async def test_repeat_bindings_update_skips_static_update() -> None:
         content.update = _counting_update  # type: ignore[method-assign]
 
         # Same bindings + same status → both signatures hit, zero updates.
-        footer._update_display(Text("k kill", style="bold"))
+        footer._update_display([("k", "kill")])
         assert calls == 0

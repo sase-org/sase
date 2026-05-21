@@ -2,13 +2,14 @@
 
 Split out of ``keybinding_footer.py`` to keep each module under the 500-line
 budget. This mixin contains the pure functions that turn app/entry state into
-a ``list[tuple[key, label]]`` plus the shared formatter. The host widget
+a ``list[tuple[key, label]]`` plus the shared chip formatters. The host widget
 provides ``self._kd`` (resolves an action name to its footer key display) and
 ``self._axe_running`` (current AXE daemon state).
 """
 
 from typing import TYPE_CHECKING
 
+from rich.cells import cell_len
 from rich.text import Text
 
 from ...changespec import ChangeSpec
@@ -17,6 +18,10 @@ from ...operations import get_available_workflows
 
 if TYPE_CHECKING:
     from ..models.agent import Agent
+
+
+_CHIP_SEPARATOR = " · "
+_GRID_COLUMN_GAP = 2
 
 
 class KeybindingBindingsMixin:
@@ -289,19 +294,18 @@ class KeybindingBindingsMixin:
 
         return bindings
 
-    def _format_bindings(self, bindings: list[tuple[str, str]]) -> Text:
-        """Format bindings for display.
+    # --- Chip / layout helpers ---
 
-        Sorting: symbols first (angle-bracket keys like ``<enter>`` and
-        non-alpha chars like ``.``), then alphabetical (case-insensitive,
-        lowercase before uppercase for the same letter).
-        """
-        text = Text()
+    @staticmethod
+    def _sorted_bindings(
+        bindings: list[tuple[str, str]],
+    ) -> list[tuple[str, str]]:
+        """Apply the footer sort order: symbols first, then alphabetical."""
 
         def _is_symbol(key: str) -> bool:
             return key.startswith("<") or (len(key) == 1 and not key[0].isalpha())
 
-        sorted_bindings = sorted(
+        return sorted(
             bindings,
             key=lambda x: (
                 0 if _is_symbol(x[0]) else 1,
@@ -311,14 +315,48 @@ class KeybindingBindingsMixin:
             ),
         )
 
-        for i, (key, label) in enumerate(sorted_bindings):
+    @staticmethod
+    def _chip_text(key: str, label: str) -> Text:
+        """Single ``key⎵label`` chip — non-breaking unit."""
+        chip = Text(no_wrap=True)
+        chip.append(key, style="bold #00D7AF")
+        chip.append(" ")
+        chip.append(label, style="dim")
+        return chip
+
+    @staticmethod
+    def _chip_plain_width(key: str, label: str) -> int:
+        """Display width of a chip (key + space + label) in terminal cells."""
+        return cell_len(key) + 1 + cell_len(label)
+
+    def _format_bindings_inline(self, bindings: list[tuple[str, str]]) -> Text:
+        """Chips joined with a dim middle-dot separator on a single line."""
+        text = Text(no_wrap=True)
+        sorted_b = self._sorted_bindings(bindings)
+        for i, (key, label) in enumerate(sorted_b):
             if i > 0:
-                text.append("  ")
+                text.append(_CHIP_SEPARATOR, style="dim")
+            text.append_text(self._chip_text(key, label))
+        return text
 
-            # Key in bold cyan
-            text.append(key, style="bold #00D7AF")
-            text.append(" ", style="")
-            # Label in dim
-            text.append(label, style="dim")
-
+    def _format_bindings_grid(
+        self, bindings: list[tuple[str, str]], *, columns: int
+    ) -> Text:
+        """Chips padded to a common cell width and flowed into ``columns``."""
+        sorted_b = self._sorted_bindings(bindings)
+        text = Text(no_wrap=True)
+        if not sorted_b or columns < 1:
+            return text
+        cell_w = max(self._chip_plain_width(k, lbl) for k, lbl in sorted_b)
+        n = len(sorted_b)
+        for i, (key, label) in enumerate(sorted_b):
+            col = i % columns
+            if i > 0 and col == 0:
+                text.append("\n")
+            text.append_text(self._chip_text(key, label))
+            is_last_in_row = col == columns - 1
+            is_last_overall = i == n - 1
+            if not is_last_in_row and not is_last_overall:
+                pad = cell_w - self._chip_plain_width(key, label) + _GRID_COLUMN_GAP
+                text.append(" " * pad)
         return text

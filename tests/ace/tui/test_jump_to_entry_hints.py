@@ -229,30 +229,30 @@ def test_agent_list_hint_marker_rendered() -> None:
 
 def test_jump_footer_shows_apostrophe_first_without_history() -> None:
     footer = KeybindingFooter()
-    rendered: list[str] = []
+    captured: list[tuple[list[tuple[str, str]], str | None]] = []
 
-    def _capture(text: Any) -> None:
-        rendered.append(text.plain)
+    def _capture(bindings: Any, mode_label: Any = None) -> None:
+        captured.append((list(bindings), mode_label))
 
     footer._update_display = _capture  # type: ignore[method-assign]
 
     footer.update_jump_bindings(has_back=False)
 
-    assert rendered == ["JUMP ' first  <esc> cancel"]
+    assert captured == [([("'", "first"), ("<esc>", "cancel")], "JUMP")]
 
 
 def test_jump_footer_shows_apostrophe_back_with_history() -> None:
     footer = KeybindingFooter()
-    rendered: list[str] = []
+    captured: list[tuple[list[tuple[str, str]], str | None]] = []
 
-    def _capture(text: Any) -> None:
-        rendered.append(text.plain)
+    def _capture(bindings: Any, mode_label: Any = None) -> None:
+        captured.append((list(bindings), mode_label))
 
     footer._update_display = _capture  # type: ignore[method-assign]
 
     footer.update_jump_bindings(has_back=True)
 
-    assert rendered == ["JUMP ' back  <esc> cancel"]
+    assert captured == [([("'", "back"), ("<esc>", "cancel")], "JUMP")]
 
 
 def test_jump_all_modal_stores_last_position() -> None:

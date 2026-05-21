@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-21 11:20:05
-status: wip
+status: done
 prompt: sdd/prompts/202605/footer_overflow.md
 ---
 # TUI Footer Overflow Redesign

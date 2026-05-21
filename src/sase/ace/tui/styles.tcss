@@ -107,10 +107,10 @@
 #keybinding-footer {
     dock: bottom;
     height: auto;
-    min-height: 3;
-    max-height: 5;
+    min-height: 1;
     background: $surface;
     padding: 0 1;
+    border-top: hkey $panel-lighten-2;
 }
 
 #keybinding-content {

@@ -166,17 +166,19 @@ def test_help_modal_keybinding_uses_configured_temporary_key() -> None:
 def test_footer_leader_bindings_include_temporary_override() -> None:
     """``update_leader_bindings`` puts ``P temporary model`` in the footer."""
     footer = KeybindingFooter()
-    captured: list[object] = []
+    captured: list[tuple[list[tuple[str, str]], str | None]] = []
     footer._update_display = MagicMock(  # type: ignore[method-assign]
-        side_effect=lambda text: captured.append(text)
+        side_effect=lambda bindings, mode_label=None: captured.append(
+            (list(bindings), mode_label)
+        )
     )
 
     footer.update_leader_bindings(current_tab="changespecs")
 
     assert captured, "footer never updated"
-    rendered = str(captured[-1])
-    assert "P" in rendered
-    assert "temporary model" in rendered
+    bindings, mode_label = captured[-1]
+    assert mode_label == "LEADER"
+    assert any(label == "temporary model" for _, label in bindings)
 
 
 @pytest.mark.parametrize("tab", ["changespecs", "agents", "axe"])
@@ -184,15 +186,17 @@ def test_footer_leader_bindings_present_on_every_tab(tab: str) -> None:
     """The leader chord is universally available — every tab's footer
     surfaces it once leader mode is engaged."""
     footer = KeybindingFooter()
-    captured: list[object] = []
+    captured: list[tuple[list[tuple[str, str]], str | None]] = []
     footer._update_display = MagicMock(  # type: ignore[method-assign]
-        side_effect=lambda text: captured.append(text)
+        side_effect=lambda bindings, mode_label=None: captured.append(
+            (list(bindings), mode_label)
+        )
     )
 
     footer.update_leader_bindings(current_tab=tab)
 
-    rendered = str(captured[-1])
-    assert "temporary model" in rendered
+    bindings, _ = captured[-1]
+    assert any(label == "temporary model" for _, label in bindings)
 
 
 # ---------------------------------------------------------------------------

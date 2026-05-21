@@ -22,6 +22,7 @@ Formatting:
 import time
 from typing import TYPE_CHECKING, Any
 
+from rich.cells import cell_len
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Horizontal
@@ -42,6 +43,11 @@ _STOPWATCH_GLYPH_FRAMES = ("◴", "◷", "◶", "◵")
 _STOPWATCH_BG_NORMAL = "rgb(155,89,182)"
 _STOPWATCH_BG_SLOW = "rgb(214,51,132)"
 _STOPWATCH_FG = "bold white"
+
+_MODE_BADGE_STYLE = "bold black on #FFD700"
+# `padding: 0 1` on the footer + the 1-cell gutter between content and
+# status that Textual leaves between the two flex children.
+_CONTENT_RESERVED_CELLS = 2
 
 
 class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
@@ -69,6 +75,9 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         # repaint zero times.
         self._last_bindings_signature: tuple[Any, ...] | None = None
         self._last_status_signature: tuple[Any, ...] | None = None
+        # Last (bindings, mode_label) tuple so ``on_resize`` can recompute
+        # the layout without callers having to push state again.
+        self._last_layout_inputs: tuple[list[tuple[str, str]], str | None] | None = None
         # Child Static refs cached on mount so each ``_update_display``
         # call avoids a ``query_one`` walk.  ``None`` until ``on_mount``.
         self._content_widget: Static | None = None
@@ -91,6 +100,18 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             0.1, self._on_stopwatch_tick, name="startup-stopwatch"
         )
         self._update_status()
+
+    def on_resize(self) -> None:
+        """Recompute the layout when the footer width changes.
+
+        The bindings/status signature cache absorbs no-op repaints when
+        the rendered output is unchanged (e.g. an inline footer that
+        comfortably fit before still fits after a small resize).
+        """
+        if self._last_layout_inputs is None:
+            return
+        bindings, mode_label = self._last_layout_inputs
+        self._update_display(bindings, mode_label)
 
     def _on_stopwatch_tick(self) -> None:
         """Recompute elapsed time, refresh the status, and enforce the safety timeout."""
@@ -292,16 +313,110 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
 
         return text
 
-    def _update_display(self, bindings_text: Text) -> None:
-        """Update both the bindings content and status indicator.
+    @staticmethod
+    def _render_mode_badge(label: str) -> Text:
+        """Mode prefix rendered as a filled pill badge.
+
+        Pulls the mode word (``LEADER``, ``FOLD``, …) out of the binding flow
+        so it never reads as another binding label, especially after wrap.
+        """
+        badge = Text(no_wrap=True)
+        badge.append(f" {label} ", style=_MODE_BADGE_STYLE)
+        return badge
+
+    def _available_content_width(self) -> int:
+        """Cells available to the bindings column on the current footer width.
+
+        Returns 0 when the widget is not yet mounted / sized — callers
+        treat this as "width unknown" and fall back to inline mode.
+        """
+        content = self._resolve_content_widget()
+        if content is not None and content.size.width > 0:
+            return int(content.size.width)
+        try:
+            footer_width = int(self.size.width)
+        except Exception:
+            footer_width = 0
+        if footer_width <= 0:
+            return 0
+        status_w = cell_len(self._get_status_text().plain)
+        return max(0, footer_width - status_w - _CONTENT_RESERVED_CELLS)
+
+    def _layout(
+        self,
+        bindings: list[tuple[str, str]],
+        mode_label: str | None,
+    ) -> Text:
+        """Decide between inline and grid layouts and return the rendered Text.
+
+        The mode badge anchors the top-left in both layouts. In grid mode it
+        sits on its own row so the chips can flow left-to-right starting at
+        the same column.
+        """
+        sorted_b = self._sorted_bindings(bindings)
+        inline_chips = self._format_bindings_inline(sorted_b)
+        badge: Text | None = self._render_mode_badge(mode_label) if mode_label else None
+
+        available = self._available_content_width()
+
+        # Single-line width = badge + (one space) + inline chips.
+        inline_chips_width = cell_len(inline_chips.plain)
+        badge_width = cell_len(badge.plain) + 1 if badge is not None else 0
+        single_line_width = badge_width + inline_chips_width
+
+        # Inline if width is unknown, fits, or there is nothing to flow.
+        if available <= 0 or single_line_width <= available or not sorted_b:
+            return self._compose_inline(badge, inline_chips)
+
+        # Compute grid columns. If a single chip is wider than the budget,
+        # fall back to inline and let Rich wrap the long chip itself.
+        max_chip = max(self._chip_plain_width(k, lbl) for k, lbl in sorted_b)
+        cell_width = max_chip + 2  # +2 column gap (matches _format_bindings_grid)
+        if cell_width > available:
+            return self._compose_inline(badge, inline_chips)
+        columns = max(1, available // cell_width)
+        grid = self._format_bindings_grid(sorted_b, columns=columns)
+        return self._compose_grid(badge, grid)
+
+    @staticmethod
+    def _compose_inline(badge: Text | None, chips: Text) -> Text:
+        out = Text(no_wrap=True)
+        if badge is not None:
+            out.append_text(badge)
+            out.append(" ")
+        out.append_text(chips)
+        return out
+
+    @staticmethod
+    def _compose_grid(badge: Text | None, grid: Text) -> Text:
+        out = Text(no_wrap=True)
+        if badge is not None:
+            out.append_text(badge)
+            if len(grid.plain) > 0:
+                out.append("\n")
+        out.append_text(grid)
+        return out
+
+    def _update_display(
+        self,
+        bindings: list[tuple[str, str]],
+        mode_label: str | None = None,
+    ) -> None:
+        """Lay out the bindings and refresh the content/status widgets.
 
         Skips the actual ``Static.update`` calls when the signatures of
         the bindings text and the status indicator both match the last
         render — j/k bursts on the same entry repaint zero times.
 
         Args:
-            bindings_text: Formatted text for the keybindings.
+            bindings: ``(key, label)`` pairs to display, unsorted.
+            mode_label: Optional mode word (e.g. ``"LEADER"``) rendered as
+                a pill badge anchoring the layout.
         """
+        # Remember the inputs so ``on_resize`` can re-lay-out without state.
+        self._last_layout_inputs = (list(bindings), mode_label)
+
+        bindings_text = self._layout(bindings, mode_label)
         # ``Text`` carries spans we want to compare too; the rendered
         # ``__rich_console__`` output isn't readily available, so we hash
         # the plain text plus span tuples.
@@ -326,8 +441,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
     def update_bindings(self, changespec: ChangeSpec, *, mark_count: int = 0) -> None:
         """Update bindings based on current ChangeSpec and app state."""
         bindings = self._compute_available_bindings(changespec, mark_count=mark_count)
-        text = self._format_bindings(bindings)
-        self._update_display(text)
+        self._update_display(bindings)
 
     def show_empty(self, *, project_name: str | None = None) -> None:
         """Show empty state bindings.
@@ -335,14 +449,11 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         Args:
             project_name: If set, also show the tmux binding (sole project filter).
         """
-        text = Text()
+        bindings: list[tuple[str, str]] = []
         if project_name:
-            text.append(self._kd("open_tmux"), style="bold #00D7AF")
-            text.append(" tmux", style="dim")
-            text.append("  ")
-        text.append(self._kd("edit_query"), style="bold #00D7AF")
-        text.append(" edit query", style="dim")
-        self._update_display(text)
+            bindings.append((self._kd("open_tmux"), "tmux"))
+        bindings.append((self._kd("edit_query"), "edit query"))
+        self._update_display(bindings)
 
     def update_agent_bindings(
         self,
@@ -367,8 +478,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             has_agent_artifacts=has_agent_artifacts,
             artifact_viewer_active=artifact_viewer_active,
         )
-        text = self._format_bindings(bindings)
-        self._update_display(text)
+        self._update_display(bindings)
 
     def update_axe_bindings(
         self,
@@ -387,8 +497,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             chop_selected=chop_selected,
             chop_selected_running=chop_selected_running,
         )
-        text = self._format_bindings(bindings)
-        self._update_display(text)
+        self._update_display(bindings)
 
     def update_fold_bindings(self) -> None:
         """Update bindings to show fold mode options."""
@@ -414,21 +523,13 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             (k("cycle_all"), "all"),
             (k("toggle_all"), "toggle"),
         ]
-        text = self._format_bindings(bindings)
-        prefix = Text()
-        prefix.append("FOLD ", style="bold #FFD700")
-        prefix.append_text(text)
-        self._update_display(prefix)
+        self._update_display(bindings, mode_label="FOLD")
 
     def update_jump_bindings(self, *, has_back: bool = False) -> None:
         """Update bindings to show entry jump mode options."""
         bindings: list[tuple[str, str]] = [("'", "back" if has_back else "first")]
         bindings.append(("<esc>", "cancel"))
-        text = self._format_bindings(bindings)
-        prefix = Text()
-        prefix.append("JUMP ", style="bold #FFD700")
-        prefix.append_text(text)
-        self._update_display(prefix)
+        self._update_display(bindings, mode_label="JUMP")
 
     def update_leader_bindings(
         self,
@@ -499,12 +600,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         bindings.append((k("activity_info"), "activity"))
         bindings.append((k("temporary_llm_override"), "temporary model"))
         bindings.append((k("mark_inactive"), "mark idle"))
-        text = self._format_bindings(bindings)
-        # Add leader mode indicator prefix
-        prefix = Text()
-        prefix.append("LEADER ", style="bold #FFD700")
-        prefix.append_text(text)
-        self._update_display(prefix)
+        self._update_display(bindings, mode_label="LEADER")
 
     def update_bang_bindings(self) -> None:
         """Update bindings to show bang mode options."""
@@ -520,12 +616,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             (k("run_cmd"), "run cmd"),
             (k("toggle_axe"), "start/stop axe"),
         ]
-        text = self._format_bindings(bindings)
-        # Add bang mode indicator prefix
-        prefix = Text()
-        prefix.append("BANG ", style="bold #FFD700")
-        prefix.append_text(text)
-        self._update_display(prefix)
+        self._update_display(bindings, mode_label="BANG")
 
     def update_custom_mode_bindings(self, mode_name: str) -> None:
         """Update bindings to show custom mode options.
@@ -546,12 +637,8 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             desc = spec.get("description", action_name)
             bindings.append((d(key), desc))
 
-        text = self._format_bindings(bindings)
-        prefix = Text()
         display_name = mode_name.upper().replace("_", " ")
-        prefix.append(f"{display_name} ", style="bold #FFD700")
-        prefix.append_text(text)
-        self._update_display(prefix)
+        self._update_display(bindings, mode_label=display_name)
 
     def update_copy_bindings(self, tab: str, *, file_visible: bool = False) -> None:
         """Update bindings to show copy mode options for the current tab.
@@ -594,8 +681,4 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
                 (k("full"), "full"),
                 (k("snapshot"), "snap"),
             ]
-        text = self._format_bindings(bindings)
-        prefix = Text()
-        prefix.append("COPY ", style="bold #FFD700")
-        prefix.append_text(text)
-        self._update_display(prefix)
+        self._update_display(bindings, mode_label="COPY")
