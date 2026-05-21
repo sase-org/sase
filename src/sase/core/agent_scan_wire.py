@@ -22,6 +22,7 @@ trees rooted under a Python-supplied ``projects_root`` (normally
 - ``done.json``
 - ``running.json``
 - ``waiting.json``
+- ``pending_question.json``
 - ``workflow_state.json``
 - ``plan_path.json``
 - ``prompt_step_*.json``
