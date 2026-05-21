@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-21 15:05:50
-status: wip
+status: done
 prompt: sdd/prompts/202605/fix_just_test_deflake.md
 ---
 # Plan: De-flake `fix_just` Test Failures Before Launching Agents

@@ -17,14 +17,103 @@ from sase.xprompt.workflow_models import StepState, StepStatus, Workflow, Workfl
 _PR_ENV_KEYS = ("SASE_COMMIT_METHOD", "SASE_PR_NAME", "SASE_PR_STATUS")
 
 
+def _load_fix_just_workflow() -> Workflow:
+    workflow_path = Path(__file__).resolve().parents[1] / "xprompts" / "fix_just.yml"
+    workflow = _load_workflow_from_file(workflow_path)
+    assert workflow is not None
+    return workflow
+
+
+def test_fix_just_test_step_confirms_failures_before_reporting_failure() -> None:
+    """The real fix_just workflow retries just test before reporting failure."""
+    workflow = _load_fix_just_workflow()
+
+    test_step = next(step for step in workflow.steps if step.name == "_just_test")
+
+    assert test_step.is_bash_step()
+    assert test_step.bash is not None
+    assert test_step.bash.count("just test") == 2
+    assert test_step.output is not None
+    assert test_step.output.schema["properties"] == {"success": {"type": "bool"}}
+
+
+def test_fix_just_deflaked_test_success_does_not_launch_test_fixer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If the final _just_test result is green, the test repair agent is skipped."""
+    workflow = _load_fix_just_workflow()
+
+    executed_bash_steps: list[str] = []
+    launched_agents: list[str] = []
+
+    def fake_execute_bash_step(
+        self: WorkflowExecutor,
+        step: WorkflowStep,
+        step_state: StepState,
+    ) -> bool:
+        executed_bash_steps.append(step.name)
+        step_state.output = {}
+        self.context[step.name] = {}
+        self.state.context = dict(self.context)
+        return True
+
+    def fake_execute_prompt_step(
+        self: WorkflowExecutor,
+        step: WorkflowStep,
+        step_state: StepState,
+    ) -> bool:
+        launched_agents.append(step.name)
+        step_state.output = {}
+        self.context[step.name] = {}
+        self.state.context = dict(self.context)
+        return True
+
+    monkeypatch.setattr(
+        WorkflowExecutor,
+        "_execute_bash_step",
+        fake_execute_bash_step,
+    )
+    monkeypatch.setattr(
+        WorkflowExecutor,
+        "_execute_prompt_step",
+        fake_execute_prompt_step,
+    )
+
+    executor = WorkflowExecutor(
+        workflow=workflow,
+        args={
+            "_just_fmt_check": {"success": True},
+            "_just_lint": {"success": True},
+            "_just_test": {"success": True},
+        },
+        artifacts_dir=str(tmp_path),
+    )
+
+    assert executor.execute() is True
+
+    decide_output = executor.context["decide_fixers"]
+    assert decide_output["fmt_success"] is True
+    assert decide_output["lint_success"] is True
+    assert decide_output["test_success"] is True
+    assert decide_output["launch_fmt"] is False
+    assert decide_output["launch_linters"] is False
+    assert decide_output["launch_tests"] is False
+    assert executed_bash_steps == ["_just_install"]
+    assert launched_agents == []
+
+    step_statuses = {step.name: step.status for step in executor.state.steps}
+    assert step_statuses["fix_fmt"] is StepStatus.SKIPPED
+    assert step_statuses["fix_linters"] is StepStatus.SKIPPED
+    assert step_statuses["fix_tests"] is StepStatus.SKIPPED
+
+
 def test_fix_just_decide_fixers_renders_bool_step_inputs(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The real fix_just workflow renders typed bools into valid Python."""
-    workflow_path = Path(__file__).resolve().parents[1] / "xprompts" / "fix_just.yml"
-    workflow = _load_workflow_from_file(workflow_path)
-    assert workflow is not None
+    workflow = _load_fix_just_workflow()
 
     executed_bash_steps: list[str] = []
     launched_agents: list[str] = []
@@ -100,9 +189,7 @@ def test_fix_just_agent_steps_expand_pr_xprompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The real fix_just agent steps embed #pr before invoking agents."""
-    workflow_path = Path(__file__).resolve().parents[1] / "xprompts" / "fix_just.yml"
-    workflow = _load_workflow_from_file(workflow_path)
-    assert workflow is not None
+    workflow = _load_fix_just_workflow()
 
     pr_path = (
         Path(__file__).resolve().parents[1] / "src" / "sase" / "xprompts" / "pr.yml"

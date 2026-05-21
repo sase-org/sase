@@ -29,6 +29,8 @@ steps:
     bash: |
       if just test; then
         echo "success=true"
+      elif just test; then
+        echo "success=true"
       else
         echo "success=false"
       fi
