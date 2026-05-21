@@ -7,16 +7,21 @@ refresh, and background content-index refresh scheduling.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 import pytest
 
 from sase.ace.tui.actions.agents._loading_compute import (
     PreparedApplyData,
+    PreparedApplySelectionInputs,
+    PreparedApplySnapshot,
+    merge_incomplete_load_after_complete_history,
     prepare_loaded_agents_apply_boundary,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_content_search import AgentContentSearchCache
+from sase.ace.tui.models.agent_loader import AgentLoadState
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
 
@@ -134,6 +139,83 @@ def test_precomputed_fold_boundary_recomputes_when_fold_state_changes() -> None:
     assert app._agents_with_children == agents
     assert app._agents == [parent]
     assert app._fold_counts == {"ts1": (1, 0)}
+
+
+def test_incomplete_merge_refresh_preserves_child_derived_timestamps() -> None:
+    """Tier-1 patch merge must rebuild parent fields derived from cached children."""
+    parent_ts = "20260521090000"
+    code_ts = "20260521090800"
+    code_started = datetime(2026, 5, 21, 9, 8, 5)
+    cached_parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 21, 9, 0, 0),
+        raw_suffix=parent_ts,
+        role_suffix=".plan",
+    )
+    cached_parent.plan_times = [datetime(2026, 5, 21, 9, 4, 0)]
+    cached_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl.code",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 21, 9, 8, 0),
+        run_start_time=code_started,
+        raw_suffix=code_ts,
+        parent_timestamp=parent_ts,
+        role_suffix=".code",
+    )
+    cached_parent.code_time = code_started
+    cached_parent.runtime_children.append(cached_child)
+
+    fresh_parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 21, 9, 0, 0),
+        raw_suffix=parent_ts,
+        role_suffix=".plan",
+    )
+    fresh_parent.plan_times = list(cached_parent.plan_times)
+    prep = PreparedApplyData(
+        filtered_agents=[fresh_parent],
+        has_always_visible=False,
+        hidden_count=0,
+        hideable_agents=[fresh_parent],
+        dismissed_agent_objects=[],
+    )
+    snapshot = PreparedApplySnapshot(
+        cached_agents_with_children=[cached_parent, cached_child],
+        dismissed_agents=set(),
+        agents_seen_complete_history=True,
+        hide_non_run_agents=False,
+        load_state=AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            artifact_source="artifact_index",
+            used_artifact_index=True,
+        ),
+        fold_levels=None,
+        selection=PreparedApplySelectionInputs(
+            on_agents_tab=False,
+            selected_identity=None,
+            prior_visual_row=None,
+        ),
+    )
+
+    merge_incomplete_load_after_complete_history(prep, snapshot)
+
+    assert prep.filtered_agents[0] is fresh_parent
+    assert prep.filtered_agents.index(cached_child) > prep.filtered_agents.index(
+        fresh_parent
+    )
+    assert fresh_parent.code_time == code_started
+    assert cached_child in fresh_parent.runtime_children
+    assert cached_child in prep.filtered_agents
+    assert "CODE  | 2026-05-21 09:08:05" in fresh_parent.timestamps_display
 
 
 def test_on_tab_finalizer_defers_selected_agent_file_refresh() -> None:

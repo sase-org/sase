@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-21 09:13:15
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_timestamps_refresh.md
 ---
 # Fix Agents Tab Timestamp Loss on Refresh

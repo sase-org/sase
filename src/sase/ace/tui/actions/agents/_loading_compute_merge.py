@@ -84,6 +84,23 @@ def _reattach_children_after_parent_dedup(
     return regrouped
 
 
+def _normalize_relationships_after_merge(agents: list[Agent]) -> list[Agent]:
+    """Rebuild child-derived fields after the Tier-1 patch merge."""
+    from ...models._agent_ordering import sort_and_reorder
+    from ...models._agent_status_overrides import apply_status_overrides
+
+    top_level_and_followups: list[Agent] = []
+    workflow_steps: list[Agent] = []
+    for agent in agents:
+        if agent.parent_workflow:
+            workflow_steps.append(agent)
+        else:
+            top_level_and_followups.append(agent)
+
+    apply_status_overrides(top_level_and_followups, workflow_steps)
+    return sort_and_reorder(top_level_and_followups, workflow_steps)
+
+
 def merge_incomplete_load_after_complete_history(
     prep: PreparedApplyData,
     snapshot: PreparedApplySnapshot,
@@ -209,6 +226,7 @@ def merge_incomplete_load_after_complete_history(
     merged = dedup_running_vs_workflow(merged)
     merged = dedup_by_pid(merged)
     merged = _reattach_children_after_parent_dedup(before_dedup, merged)
+    merged = _normalize_relationships_after_merge(merged)
 
     always_visible = [agent for agent in merged if is_always_visible(agent)]
     hideable = [agent for agent in merged if not is_always_visible(agent)]
