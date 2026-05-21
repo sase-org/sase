@@ -91,6 +91,8 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         if not getattr(self, "_agent_search_query", ""):
             self._agent_content_search_index = None
             return None
+        for agent in agents:
+            _loading_helpers.hydrate_agent_attempt_history(agent)
         worker_cache = self._agent_content_search_cache.fork()
         index = worker_cache.build_index(agents)
         self._agent_content_search_cache.merge(worker_cache)
@@ -107,6 +109,12 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         if not getattr(self, "_agent_search_query", ""):
             self._agent_content_search_index = None
             return None
+
+        def hydrate_attempts() -> None:
+            for agent in agents:
+                _loading_helpers.hydrate_agent_attempt_history(agent)
+
+        await asyncio.to_thread(hydrate_attempts)
         worker_cache = self._agent_content_search_cache.fork()
         index = await asyncio.to_thread(worker_cache.build_index, agents)
         if not getattr(self, "_agent_search_query", ""):

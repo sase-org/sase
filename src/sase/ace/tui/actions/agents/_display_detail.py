@@ -93,6 +93,11 @@ class DetailMixin:
         """
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if current_agent is not None:
+            from ._loading_helpers import hydrate_agent_attempt_history
+
+            changed = hydrate_agent_attempt_history(current_agent)
+            if changed:
+                self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
             agent_detail.update_display(
                 current_agent,
                 stale_threshold_seconds=self.refresh_interval,

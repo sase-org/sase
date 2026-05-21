@@ -53,35 +53,50 @@ class AgentSnapshotCache:
     def attempt_history_for(self, artifacts_dir: str | None) -> list[AttemptRecord]:
         """Return ``load_attempt_history`` cached by attempt_meta.json sigs."""
         from ...models.agent import load_attempt_history
+        from ...util.trace import tui_trace
 
         if not artifacts_dir:
             return []
 
-        attempts_dir = os.path.join(artifacts_dir, "attempts")
-        sig: tuple[tuple[str, int, int], ...]
-        try:
-            entries = sorted(os.listdir(attempts_dir))
-        except OSError:
-            sig = ()
-        else:
-            parts: list[tuple[str, int, int]] = []
-            for entry in entries:
-                meta = os.path.join(attempts_dir, entry, "attempt_meta.json")
-                stat_sig = _stat_signature(meta)
-                if stat_sig is None:
-                    continue
-                parts.append((meta, stat_sig[0], stat_sig[1]))
-            sig = tuple(parts)
+        with tui_trace(
+            "agents.attempt_history_for",
+            artifacts_dir=artifacts_dir,
+        ) as counters:
+            attempts_dir = os.path.join(artifacts_dir, "attempts")
+            sig: tuple[tuple[str, int, int], ...]
+            try:
+                entries = sorted(os.listdir(attempts_dir))
+            except OSError:
+                entries = []
+                sig = ()
+                counters["attempts_dir_missing"] = True
+            else:
+                parts: list[tuple[str, int, int]] = []
+                for entry in entries:
+                    meta = os.path.join(attempts_dir, entry, "attempt_meta.json")
+                    stat_sig = _stat_signature(meta)
+                    if stat_sig is None:
+                        continue
+                    parts.append((meta, stat_sig[0], stat_sig[1]))
+                sig = tuple(parts)
+                counters["attempts_dir_missing"] = False
+            counters["attempts_dir_listed"] = True
+            counters["attempt_dir_entries"] = len(entries)
+            counters["attempt_meta_stats"] = len(sig)
 
-        with self._lock:
-            cached = self._attempt_history.get(artifacts_dir)
-            if cached is not None and cached[0] == sig:
-                return list(cached[1])
+            with self._lock:
+                cached = self._attempt_history.get(artifacts_dir)
+                if cached is not None and cached[0] == sig:
+                    counters["cache_hit"] = True
+                    counters["records"] = len(cached[1])
+                    return list(cached[1])
 
-        records = load_attempt_history(artifacts_dir)
-        with self._lock:
-            self._attempt_history[artifacts_dir] = (sig, records)
-        return list(records)
+            counters["cache_hit"] = False
+            records = load_attempt_history(artifacts_dir)
+            counters["records"] = len(records)
+            with self._lock:
+                self._attempt_history[artifacts_dir] = (sig, records)
+            return list(records)
 
     def retry_state_for(self, artifacts_dir: str) -> RetryState | None:
         """Return ``RetryState.read_from`` cached by retry_state.json sig."""

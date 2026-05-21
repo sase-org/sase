@@ -101,6 +101,30 @@ def load_agents_from_disk_with_state(
         return result
 
 
+def hydrate_agent_attempt_history(agent: Agent) -> bool:
+    """Populate prior-attempt history for one agent on demand.
+
+    The normal Agents-tab refresh path intentionally leaves
+    ``agent.attempt_history`` empty so it does not list/stat
+    ``artifacts/attempts/<N>/`` for every visible row.  Detail panes,
+    attempt-view actions, and content-search workers call this helper when
+    they truly need the attempt records.
+
+    Returns ``True`` when the agent's loaded history changed.
+    """
+    artifacts_dir = agent.get_artifacts_dir()
+    if not artifacts_dir:
+        return False
+
+    from ._snapshot_cache import get_global_snapshot_cache
+
+    records = get_global_snapshot_cache().attempt_history_for(artifacts_dir)
+    if agent.attempt_history == records:
+        return False
+    agent.attempt_history = records
+    return True
+
+
 def _load_agents_from_disk_impl(
     dismissed_agents: set[tuple[AgentType, str, str | None]],
     *,
@@ -114,8 +138,9 @@ def _load_agents_from_disk_impl(
         full_history=full_history,
     )
 
-    # Populate retry fields from retry_state.json for running agents and
-    # prior-attempt history (from attempts/<N>/) for all agents.
+    # Populate retry fields from retry_state.json for running agents.  Prior
+    # attempt history is hydrated lazily by selected detail/search paths; doing
+    # it here would list/stat artifacts/attempts/<N>/ for every row.
     from sase.ace.agent_tags import load_agent_tags
 
     from ._snapshot_cache import get_global_snapshot_cache
@@ -127,8 +152,6 @@ def _load_agents_from_disk_impl(
         if agent.identity in tags_by_identity:
             agent.tag = tags_by_identity[agent.identity]
         artifacts_dir = agent.get_artifacts_dir()
-        if artifacts_dir:
-            agent.attempt_history = snapshot_cache.attempt_history_for(artifacts_dir)
 
         if agent.status != "RUNNING":
             continue
