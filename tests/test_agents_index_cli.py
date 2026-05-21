@@ -87,6 +87,55 @@ def test_index_gc_syncs_dismissed_identities_and_reports_counts(
     assert payload["missing_rows_indexed"] == 1
 
 
+def test_index_gc_rebuilds_after_corrupt_preflight_report(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with (
+        patch(
+            "sase.agents.cli_index.verify_agent_artifact_index",
+            return_value=AgentArtifactIndexVerifyWire(
+                ok=False,
+                schema_version=0,
+                index_path="/tmp/index.sqlite",
+                projects_root="/tmp/projects",
+                indexed_rows=0,
+                source_rows=2,
+                missing_rows=2,
+                corrupt_rows=1,
+            ),
+        ),
+        patch(
+            "sase.agents.cli_index.rebuild_agent_artifact_index",
+            return_value=AgentArtifactIndexUpdateWire(
+                schema_version=1,
+                index_path="/tmp/index.sqlite",
+                projects_root="/tmp/projects",
+                rows_indexed=2,
+            ),
+        ) as mock_rebuild,
+        patch(
+            "sase.agents.cli_index._load_dismissed_identities_for_gc",
+            return_value=([], 0),
+        ),
+        patch(
+            "sase.agents.cli_index.replace_agent_artifact_index_dismissed_agents",
+            return_value=AgentArtifactIndexUpdateWire(
+                schema_version=1,
+                index_path="/tmp/index.sqlite",
+                projects_root="",
+            ),
+        ),
+    ):
+        handle_agents_index(_index_args("gc"))
+
+    mock_rebuild.assert_called_once_with(
+        Path("/tmp/index.sqlite"), Path("/tmp/projects")
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["corrupt_rows"] == 1
+    assert payload["rows_indexed"] == 2
+
+
 def test_index_status_missing_index_recommends_repair(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-21 14:11:50
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_index_gc_corruption.md
 ---
 # Plan: Repair `sase agents index gc` on corrupt artifact index
