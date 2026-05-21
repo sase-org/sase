@@ -32,6 +32,7 @@ nav:
       - Telemetry: telemetry.md
       - Agent Revival Log: troubleshooting/agent-revival.md
   - Integrations:
+      - Editor Integration: editor.md
       - Integration APIs: integrations.md
       - Plugins: plugins.md
       - LLM Providers: llms.md

@@ -88,8 +88,8 @@ digests. ACE starts axe automatically unless launched with `sase ace --no-axe`.
 | `sase xprompt list`         | Emit the structured xprompt catalog as JSON.                          | [XPrompt catalog](xprompt.md#cli-subcommands)                    |
 | `sase xprompt graph`        | Generate a workflow DAG as Mermaid or text.                           | [Workflow graphing](xprompt.md#cli-subcommands)                  |
 | `sase xprompt catalog`      | Render visible xprompts to a formatted PDF catalog.                   | [XPrompt catalog](xprompt.md#cli-subcommands)                    |
-| `sase lsp`                  | Start the xprompt language server over stdio.                         | [Editor LSP](xprompt.md#editor-lsp)                              |
-| `sase editor helper-bridge` | JSON helper operations for editor integrations.                       | [Configuration CLI flags](configuration.md#sase-editor)          |
+| `sase lsp`                  | Start the xprompt language server over stdio.                         | [Editor integration](editor.md#language-server)                  |
+| `sase editor helper-bridge` | JSON helper operations for editor integrations.                       | [Editor helper bridge](editor.md#helper-bridge)                  |
 | `sase file list`            | Emit JSON filesystem completion candidates.                           | [Editor completion commands](configuration.md#sase-file)         |
 | `sase file-history list`    | Emit recently referenced files for editor completion.                 | [Editor completion commands](configuration.md#sase-file-history) |
 | `sase file-history delete`  | Remove one path from the file-reference history.                      | [Editor completion commands](configuration.md#sase-file-history) |

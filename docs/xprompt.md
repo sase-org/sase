@@ -150,6 +150,8 @@ matches ACE's xprompt composition behavior. The Rust server also has a native fa
 xprompts that require complex Jinja or composition it cannot mirror exactly; when the helper is available, its response
 is preferred.
 
+See the [editor integration guide](editor.md) for setup, feature coverage, helper bridge usage, and troubleshooting.
+
 ## Discovery Order
 
 Markdown xprompts are loaded from multiple locations. When two locations define an xprompt with the same name, the

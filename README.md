@@ -45,6 +45,8 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
 - **SDD and Beads** - Spec-driven planning artifacts plus git-portable issue tracking for epics, phases, and
   dependencies.
 - **Plugins** - Provider boundaries for agents, VCS operations, workspaces, notifications, and external integrations.
+- **Editor integration** - An xprompt LSP and JSON helper bridge for completions, snippets, hover, diagnostics, and
+  jump-to-definition in companion editors.
 
 ## Quick start
 
@@ -114,6 +116,7 @@ The full documentation lives at **[sase.sh](https://sase.sh/)**. Start with:
 - [VCS Providers](https://sase.sh/vcs/) ([local](docs/vcs.md))
 - [Integration APIs](https://sase.sh/integrations/) ([local](docs/integrations.md))
 - [Notifications](https://sase.sh/notifications/) ([local](docs/notifications.md))
+- [Editor Integration](https://sase.sh/editor/) ([local](docs/editor.md))
 - [Agent Attachments](https://sase.sh/agent_images/) ([local](docs/agent_images.md))
 - [Mobile Gateway](https://sase.sh/mobile_gateway/) ([local](docs/mobile_gateway.md))
 - [Telemetry](https://sase.sh/telemetry/) ([local](docs/telemetry.md))

@@ -92,6 +92,18 @@ title: Structured Agentic Software Engineering
 <a href="architecture/">Read the architecture map</a>
 
   </article>
+
+  <article class="sase-card">
+  <h3>I want editor completions</h3>
+
+  <p>
+    Use the xprompt LSP and editor helper bridge for prompt completion, snippets, hover, diagnostics, and
+    jump-to-definition.
+  </p>
+
+<a href="editor/">Open editor integration</a>
+
+  </article>
   </div>
 </section>
 

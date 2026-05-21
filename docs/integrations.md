@@ -6,6 +6,9 @@ when they are already part of an existing provider contract. Externally consumed
 `# pyvision: <repo-uri>` pragmas so unused-code tooling validates them against the tracked files of the consuming
 repository.
 
+For editor setup and user-facing behavior, start with the [editor integration guide](editor.md). This page focuses on
+the integration-facing Python and bridge contracts.
+
 ## ChangeSpec XPrompt Tags
 
 `sase.integrations.changespec_tags.list_changespec_xprompt_tags()` returns copyable VCS xprompt references for active
