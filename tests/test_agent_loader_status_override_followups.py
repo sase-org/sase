@@ -200,7 +200,8 @@ def test_apply_status_overrides_done_with_active_code_followup_becomes_plan_appr
     agents = [parent, feedback_child, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "RUNNING"
+    assert parent.status == "PLAN APPROVED"
+    assert code_child.status == "PLAN APPROVED"
 
 
 def test_apply_status_overrides_completed_followup_plan_child_stays_done() -> None:
@@ -236,8 +237,9 @@ def test_apply_status_overrides_completed_followup_plan_child_stays_done() -> No
     agents = [parent, followup_planner, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "RUNNING"
+    assert parent.status == "PLAN APPROVED"
     assert followup_planner.status == "DONE"
+    assert code_child.status == "PLAN APPROVED"
 
 
 def test_apply_status_overrides_active_epic_child_sets_epic_approved() -> None:
@@ -315,7 +317,8 @@ def test_apply_status_overrides_active_code_child_stays_plan_approved() -> None:
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "RUNNING"
+    assert parent.status == "PLAN APPROVED"
+    assert code_child.status == "PLAN APPROVED"
 
 
 def test_apply_status_overrides_completed_epic_child_sets_epic_created() -> None:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-21 14:04:52
-status: wip
+status: done
 prompt: sdd/prompts/202605/tale_approved_status_reconstruction.md
 ---
 # Plan: Preserve Tale Approval Status During Code Handoff

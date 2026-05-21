@@ -86,6 +86,21 @@ def _done_handoff_status(parent: Agent, child: Agent) -> str:
     return "PLAN DONE"
 
 
+def _active_approved_plan_handoff_status(parent: Agent, child: Agent) -> str | None:
+    """Return the visible status for an active approved-plan code handoff."""
+    if child.parent_workflow or child.status != "RUNNING":
+        return None
+    if canonical_plan_chain_suffix(child.role_suffix) != PLAN_CHAIN_CODER_SUFFIX:
+        return None
+    if (
+        parent.plan_action == "tale"
+        or child.plan_action == "tale"
+        or parent.status in {"TALE APPROVED", "TALE DONE"}
+    ):
+        return "TALE APPROVED"
+    return "PLAN APPROVED"
+
+
 def _is_completed_plan_handoff_child(agent: Agent) -> bool:
     """Return True for completed approved-plan continuation rows."""
     if agent.status != "DONE":
@@ -366,6 +381,18 @@ def apply_status_overrides(
     for agent in all_agents:
         if _has_unanswered_completed_question(agent, parents_with_followup):
             agent.status = "QUESTION"
+
+    # Active family code handoff rows display the plan approval state while the
+    # implementation agent runs. Normalize before root mirroring so the family
+    # root reflects PLAN APPROVED / TALE APPROVED instead of raw RUNNING.
+    for agent in all_agents:
+        if not (agent.parent_timestamp and not agent.parent_workflow):
+            continue
+        parent = parent_by_suffix.get(agent.parent_timestamp)
+        if parent and is_root_plan_workflow(parent):
+            handoff_status = _active_approved_plan_handoff_status(parent, agent)
+            if handoff_status:
+                agent.status = handoff_status
 
     # Completed family handoff rows are terminal plan/tale states rather than
     # plain DONE. Do this after QUESTION normalization so unanswered rows keep

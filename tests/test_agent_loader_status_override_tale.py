@@ -32,7 +32,8 @@ def test_apply_status_overrides_active_code_child_with_tale_plan_action_is_tale_
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "RUNNING"
+    assert parent.status == "TALE APPROVED"
+    assert code_child.status == "TALE APPROVED"
 
 
 def test_apply_status_overrides_active_code_child_without_plan_action_is_plan_approved() -> (
@@ -61,7 +62,38 @@ def test_apply_status_overrides_active_code_child_without_plan_action_is_plan_ap
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "RUNNING"
+    assert parent.status == "PLAN APPROVED"
+    assert code_child.status == "PLAN APPROVED"
+
+
+def test_apply_status_overrides_active_code_child_with_tale_child_action_is_tale_approved() -> (
+    None
+):
+    """A RUNNING .code child with plan_action=tale becomes TALE APPROVED."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 11, 9, 0, 0),
+        raw_suffix="20260511090000",
+        role_suffix=".plan",
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 11, 9, 10, 0),
+        parent_timestamp="20260511090000",
+        role_suffix=".code",
+        plan_action="tale",
+    )
+    agents = [parent, code_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "TALE APPROVED"
+    assert code_child.status == "TALE APPROVED"
 
 
 def test_apply_status_overrides_active_code_child_with_parent_status_tale_approved() -> (
@@ -89,7 +121,8 @@ def test_apply_status_overrides_active_code_child_with_parent_status_tale_approv
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "RUNNING"
+    assert parent.status == "TALE APPROVED"
+    assert code_child.status == "TALE APPROVED"
 
 
 def test_apply_status_overrides_done_with_tale_plan_action_yields_tale_done() -> None:
