@@ -105,6 +105,47 @@ def test_run_agent_launch_body_forwards_local_xprompts_to_fanout_worker() -> Non
     assert local_xprompts["_flash"].content == "gemini-3-flash-preview"
 
 
+def test_run_agent_launch_body_multi_agent_xprompt_history_uses_input() -> None:
+    app = _LaunchBodyApp()
+    expanded_segments = ["Generated plan step", "Generated verify step"]
+
+    with (
+        patch(
+            "sase.axe.run_agent_phases.resolve_agent_refs_in_prompt",
+            side_effect=lambda p: (p, None),
+        ),
+        patch("sase.workspace_provider.get_ref_patterns", return_value={}),
+        patch("sase.workspace_provider.get_workflow_names", return_value=set()),
+        patch(
+            "sase.agent.multi_agent_xprompt.expand_multi_agent_xprompts",
+            return_value=expanded_segments,
+        ),
+        patch("sase.history.prompt.add_or_update_prompt") as save_history,
+        patch(
+            "sase.ace.tui.actions.agent_workflow._launch_body."
+            "record_prompt_file_references"
+        ) as record_file_refs,
+    ):
+        app._run_agent_launch_body("#!research_swarm")
+
+    save_history.assert_called_once_with(
+        "#!research_swarm",
+        project_name="test",
+        branch_or_workspace="",
+        allow_short=True,
+    )
+    record_file_refs.assert_called_once_with("#!research_swarm")
+    assert app.launched == []
+    multi_prompt_calls = [
+        (fn, args)
+        for fn, args in app.scheduled
+        if fn == app._launch_multi_prompt_agents
+    ]
+    assert len(multi_prompt_calls) == 1
+    _, args = multi_prompt_calls[0]
+    assert args[0].segments == expanded_segments
+
+
 def test_run_agent_launch_body_direct_single_agent_refreshes_after_success() -> None:
     app = _LaunchBodyApp()
 

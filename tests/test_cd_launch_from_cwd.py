@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -240,6 +241,91 @@ def test_launch_agents_from_cwd_unexpanded_xprompt_stays_single_agent(
     launch_multi.assert_not_called()
     spawn.assert_called_once()
     assert spawn.call_args.kwargs["prompt"] == "#stub_m Do work"
+
+
+def test_launch_agents_from_cwd_multi_agent_xprompt_history_uses_submitted_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_cd_metadata(monkeypatch)
+    from sase.agent.launcher import launch_agents_from_cwd
+    from sase.history import prompt as prompt_history
+    from sase.xprompt.models import XPrompt
+
+    history_path = tmp_path / ".sase" / "prompt_history.json"
+    monkeypatch.setattr(prompt_history, "_PROMPT_HISTORY_FILE", history_path)
+    monkeypatch.setattr(
+        prompt_history, "_get_current_branch_or_workspace", lambda: "main"
+    )
+    monkeypatch.setattr(prompt_history, "generate_timestamp", lambda: "260501_120000")
+    launched = [MagicMock(name="plan"), MagicMock(name="build")]
+    catalog = {"swarm": XPrompt(name="swarm", content="Plan phase\n---\nBuild phase")}
+
+    with (
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=(None, None, None),
+        ),
+        patch(
+            "sase.agent.multi_agent_xprompt.get_all_xprompts",
+            return_value=catalog,
+        ),
+        patch(
+            "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+            return_value=launched,
+        ) as launch_multi,
+    ):
+        result = launch_agents_from_cwd("#!swarm")
+
+    assert result == launched
+    assert launch_multi.call_args.kwargs["segments"] == ["Plan phase", "Build phase"]
+    entries = json.loads(history_path.read_text(encoding="utf-8"))["prompts"]
+    assert [entry["text"] for entry in entries] == ["#!swarm"]
+    assert all("Plan phase" not in entry["text"] for entry in entries)
+
+
+def test_launch_agents_from_cwd_multi_agent_xprompt_cancelled_history_uses_submitted_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_cd_metadata(monkeypatch)
+    from sase.agent.launch_validation import AgentNameSyntaxError
+    from sase.agent.launcher import launch_agents_from_cwd
+    from sase.history import prompt as prompt_history
+    from sase.xprompt.models import XPrompt
+
+    history_path = tmp_path / ".sase" / "prompt_history.json"
+    monkeypatch.setattr(prompt_history, "_PROMPT_HISTORY_FILE", history_path)
+    monkeypatch.setattr(
+        prompt_history, "_get_current_branch_or_workspace", lambda: "main"
+    )
+    monkeypatch.setattr(prompt_history, "generate_timestamp", lambda: "260501_120000")
+    catalog = {
+        "swarm": XPrompt(
+            name="swarm",
+            content="%name:bad-name\nPlan phase\n---\nBuild phase",
+        )
+    }
+
+    with (
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=(None, None, None),
+        ),
+        patch(
+            "sase.agent.multi_agent_xprompt.get_all_xprompts",
+            return_value=catalog,
+        ),
+        patch("sase.agent.multi_prompt_launcher.launch_multi_prompt_agents") as launch,
+    ):
+        with pytest.raises(AgentNameSyntaxError):
+            launch_agents_from_cwd("#!swarm")
+
+    launch.assert_not_called()
+    entries = json.loads(history_path.read_text(encoding="utf-8"))["prompts"]
+    assert [entry["text"] for entry in entries] == ["#!swarm"]
+    assert entries[0]["cancelled"] is True
+    assert "Plan phase" not in entries[0]["text"]
 
 
 def test_launch_agent_from_cwd_known_project_ref_without_provider_is_not_home_wrapped(

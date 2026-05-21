@@ -150,10 +150,11 @@ class AgentLaunchBodyMixin:
                 except RuntimeError as exc:
                     err_msg = str(exc)
                     add_or_update_prompt(
-                        normalized_prompt,
+                        submitted_xprompt,
                         project_name=ctx.project_name,
                         branch_or_workspace=ctx.history_sort_key,
                         cancelled=True,
+                        allow_short=True,
                     )
                     self.call_later(  # type: ignore[attr-defined]
                         lambda: self.notify(err_msg, severity="error")  # type: ignore[attr-defined]
@@ -162,11 +163,12 @@ class AgentLaunchBodyMixin:
                     timer.finish(dispatch="multi_prompt", outcome="cancelled")
                     return
                 add_or_update_prompt(
-                    normalized_prompt,
+                    submitted_xprompt,
                     project_name=ctx.project_name,
                     branch_or_workspace=ctx.history_sort_key,
+                    allow_short=True,
                 )
-                record_prompt_file_references(normalized_prompt)
+                record_prompt_file_references(submitted_xprompt)
             self._prompt_context = None
             timer.finish(dispatch="multi_prompt", segment_count=len(multi.segments))
             self.call_later(  # type: ignore[attr-defined]

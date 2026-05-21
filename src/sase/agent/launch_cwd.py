@@ -91,6 +91,7 @@ def launch_agents_from_cwd(
     from sase.agent.names import ensure_historical_auto_name_migration
 
     ensure_historical_auto_name_migration()
+    submitted_query = query
 
     from sase.ace.tui.actions.agent_workflow._ref_resolution import (
         is_non_workspace_workflow,
@@ -175,6 +176,7 @@ def launch_agents_from_cwd(
             from sase.agent.launch_validation import (
                 AgentNameLaunchCollisionError,
                 AgentNameReuseConfirmationRequiredError,
+                AgentNameSyntaxError,
                 validate_launch_name_requests,
             )
 
@@ -188,21 +190,24 @@ def launch_agents_from_cwd(
         except (
             AgentNameLaunchCollisionError,
             AgentNameReuseConfirmationRequiredError,
+            AgentNameSyntaxError,
         ):
             add_or_update_prompt(
-                normalized_query,
+                submitted_query,
                 project_name=project_name,
                 branch_or_workspace=(
                     mp_cl_name if mp_cl_name != project_name else None
                 ),
                 cancelled=True,
+                allow_short=True,
             )
             raise
 
         add_or_update_prompt(
-            normalized_query,
+            submitted_query,
             project_name=project_name,
             branch_or_workspace=mp_cl_name if mp_cl_name != project_name else None,
+            allow_short=True,
         )
         results = launch_multi_prompt_agents(
             segments=expanded_segments,

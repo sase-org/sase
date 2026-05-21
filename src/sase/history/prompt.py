@@ -201,6 +201,7 @@ def add_or_update_prompt(
     project_name: str | None = None,
     branch_or_workspace: str | None = None,
     cancelled: bool = False,
+    allow_short: bool = False,
 ) -> None:
     """Add a new prompt or update an existing prompt's last_used timestamp.
 
@@ -215,8 +216,11 @@ def add_or_update_prompt(
             If provided, uses this instead of detecting via shell command.
         cancelled: If True, mark this prompt as cancelled (unsent). An existing
             non-cancelled prompt will not be downgraded to cancelled.
+        allow_short: If True, record the prompt even when it is shorter than
+            the normal history threshold. This is used for replayable generated
+            fanout invocations such as a bare multi-agent xprompt trigger.
     """
-    if len(text.split()) < _MIN_PROMPT_WORDS:
+    if not allow_short and len(text.split()) < _MIN_PROMPT_WORDS:
         return
 
     current_timestamp = generate_timestamp()
