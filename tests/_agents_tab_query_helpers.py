@@ -80,7 +80,6 @@ class FakeAgentApp(AgentLoadingMixin):
         self._grouping_mode = GroupingMode.STANDARD
         self._agents_loading = False
         self._agents_first_load_done = True
-        self._agents_startup_tier2_scheduled = False
         self.timer_calls: list[tuple[float, Callable[[], Any]]] = []
         self.notify = MagicMock()  # type: ignore[assignment]
 
