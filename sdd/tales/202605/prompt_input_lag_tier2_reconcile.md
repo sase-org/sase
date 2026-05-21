@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-21 08:57:57
-status: wip
+status: done
 prompt: sdd/prompts/202605/prompt_input_lag_tier2_reconcile.md
 ---
 # Plan: Fix Prompt Input Lag From Startup Tier 2 Agent Reconcile
