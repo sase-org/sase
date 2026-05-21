@@ -241,6 +241,15 @@ def test_run_workflow_resume_requires_response_path() -> None:
     assert is_command_available(spec, CommandContext(tab="agents", agent=with_path))
 
 
+def test_run_workflow_resume_allows_tale_done_with_response_path() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.run_workflow"]
+    no_path = _make_agent(status="TALE DONE", response_path=None)
+    with_path = _make_agent(status="TALE DONE", response_path="/tmp/r.txt")
+    assert not is_command_available(spec, CommandContext(tab="agents", agent=no_path))
+    assert is_command_available(spec, CommandContext(tab="agents", agent=with_path))
+
+
 def test_accept_proposal_on_agents_only_for_active_statuses() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.accept_proposal"]

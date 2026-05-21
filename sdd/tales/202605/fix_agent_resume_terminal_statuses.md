@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-21 12:35:31
-status: wip
+status: done
 prompt: sdd/prompts/202605/fix_agent_resume_terminal_statuses.md
 ---
 # Plan: Fix ACE Agent Resume for Terminal Plan-Chain Statuses

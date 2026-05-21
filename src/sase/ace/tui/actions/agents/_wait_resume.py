@@ -10,6 +10,8 @@ from sase.plan_chain import (
     canonical_plan_chain_suffix,
 )
 
+from ...models.agent_status import is_resumable_done_status
+
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
@@ -289,7 +291,7 @@ class AgentWaitResumeMixin:
                 )
                 return
 
-        if agent.status != "DONE":
+        if not is_resumable_done_status(agent.status):
             self.notify("Agent not finished yet", severity="warning")  # type: ignore[attr-defined]
             return
 

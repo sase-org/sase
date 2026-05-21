@@ -31,6 +31,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.commands.types import CommandContext, CommandSpec
+from sase.ace.tui.models.agent_status import is_resumable_done_status
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets.bgcmd_list import AxeItem
@@ -232,7 +233,9 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id == "app.run_workflow":
         if agent is None:
             return False
-        return agent.status == "DONE" and bool(getattr(agent, "response_path", None))
+        return is_resumable_done_status(agent.status) and bool(
+            getattr(agent, "response_path", None)
+        )
 
     # rename_cl on agents tab → "name" — disabled for done/failed agents.
     if spec.id == "app.rename_cl":

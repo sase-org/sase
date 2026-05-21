@@ -74,6 +74,16 @@ def test_keybinding_footer_agent_bindings_completed_agent_with_chat() -> None:
     assert "e" in binding_keys  # Edit chat is available
 
 
+def test_keybinding_footer_agent_bindings_tale_done_with_chat() -> None:
+    """Terminal tale rows with chats can be resumed."""
+    footer = KeybindingFooter()
+    agent = _make_agent(status="TALE DONE", response_path="/tmp/chat.md")
+
+    bindings = footer._compute_agent_bindings(agent)
+
+    assert ("r", "resume") in bindings
+
+
 def test_keybinding_footer_group_focused_overrides_x_label() -> None:
     """When a group banner is focused (no marks), x reads 'kill/dismiss group'."""
     footer = KeybindingFooter()

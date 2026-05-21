@@ -46,6 +46,42 @@ class _FakeWaitResumeApp(AgentWaitResumeMixin):
         self.refresh_calls += 1
 
 
+class _FakeResumeActionApp(AgentWaitResumeMixin):
+    """Minimal app implementing what action_resume_agent touches."""
+
+    def __init__(self, agents: list[Agent]) -> None:
+        self.current_tab = "agents"
+        self.current_idx = 0
+        self._agents = list(agents)
+        self._agents_with_children = list(agents)
+        self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
+        self.notifications: list[tuple[str, str]] = []
+        self.prompt_bar_calls: list[dict[str, str | None]] = []
+
+    def notify(self, message: str, *, severity: str = "information") -> None:
+        self.notifications.append((message, severity))
+
+    def _get_selected_agent(self) -> Agent | None:
+        if 0 <= self.current_idx < len(self._agents):
+            return self._agents[self.current_idx]
+        return None
+
+    def _show_prompt_input_bar_for_home(
+        self,
+        *,
+        initial_text: str = "",
+        display_name: str | None = None,
+        history_sort_key: str | None = None,
+    ) -> None:
+        self.prompt_bar_calls.append(
+            {
+                "initial_text": initial_text,
+                "display_name": display_name,
+                "history_sort_key": history_sort_key,
+            }
+        )
+
+
 def test_parse_wait_dependency_names_splits_commas() -> None:
     assert _parse_wait_dependency_names("alice, bob,, ") == ["alice", "bob"]
 
@@ -95,3 +131,41 @@ def test_apply_wait_empty_submission_keeps_run_now_behavior(tmp_path: Path) -> N
     }
     assert agent.waiting_for == ["old_dep"]
     assert app.notifications == [("Wait: test_cl", "information")]
+
+
+def test_resume_agent_tale_done_family_root_uses_family_name() -> None:
+    agent = _make_waiting_agent(
+        status="TALE DONE",
+        agent_name="aww-plan",
+        agent_family="aww",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    app = _FakeResumeActionApp([agent])
+
+    app.action_resume_agent()
+
+    assert app.notifications == []
+    assert app.prompt_bar_calls == [
+        {
+            "initial_text": "#resume:aww ",
+            "display_name": "resume(aww)",
+            "history_sort_key": "test_cl",
+        }
+    ]
+
+
+def test_resume_agent_plan_done_family_root_uses_family_name() -> None:
+    agent = _make_waiting_agent(
+        status="PLAN DONE",
+        agent_name="planner-plan",
+        agent_family="planner",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    app = _FakeResumeActionApp([agent])
+
+    app.action_resume_agent()
+
+    assert app.notifications == []
+    assert app.prompt_bar_calls[0]["initial_text"] == "#resume:planner "

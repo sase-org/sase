@@ -15,6 +15,13 @@ DISMISSABLE_STATUSES = {
     "EPIC CREATED",
 }
 
+RESUMABLE_DONE_STATUSES = frozenset({"DONE", "PLAN DONE", "TALE DONE"})
+
+
+def is_resumable_done_status(status: str) -> bool:
+    """Return True for terminal agent rows that can resume a chat."""
+    return status in RESUMABLE_DONE_STATUSES
+
 
 def is_unread_completed_status(status: str) -> bool:
     """Return True for terminal statuses that can be surfaced as unread."""

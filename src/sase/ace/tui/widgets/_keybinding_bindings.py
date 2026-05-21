@@ -15,6 +15,7 @@ from rich.text import Text
 from ...changespec import ChangeSpec
 from ...hooks import get_failed_hooks_file_path
 from ...operations import get_available_workflows
+from ..models.agent_status import is_resumable_done_status
 
 if TYPE_CHECKING:
     from ..models.agent import Agent
@@ -130,11 +131,12 @@ class KeybindingBindingsMixin:
             return bindings
 
         # --- Status-dependent actions ---
-        if agent.status in ("DONE", "FAILED"):
+        if agent.status == "FAILED" or is_resumable_done_status(agent.status):
             if marked_count == 0:
                 bindings.append((x, "dismiss"))
             if agent.status != "FAILED":
-                bindings.append((self._kd("edit_spec"), "edit chat"))
+                if agent.status == "DONE":
+                    bindings.append((self._kd("edit_spec"), "edit chat"))
                 if agent.response_path:
                     bindings.append((self._kd("run_workflow"), "resume"))
         elif agent.status == "WAITING INPUT":
