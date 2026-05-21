@@ -186,7 +186,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         load_result = _resolve_load_agents_from_disk_with_state()(
             dismissed_snapshot,
             changespec_snapshot=changespec_snapshot,
-            full_history=full_history or bool(getattr(self, "_agent_search_query", "")),
+            full_history=full_history,
         )
         from ...repro.capture import record_agents_tab_loader_result
 
@@ -233,7 +233,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             _resolve_load_agents_from_disk_with_state(),
             dismissed_snapshot,
             changespec_snapshot=changespec_snapshot,
-            full_history=full_history or bool(getattr(self, "_agent_search_query", "")),
+            full_history=full_history,
         )
         all_agents = load_result.all_agents
         dismissed_from_loader = load_result.dismissed_from_loader
