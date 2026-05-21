@@ -24,10 +24,13 @@ def test_schema_version_pinned() -> None:
 
 
 def test_artifact_index_wire_helpers() -> None:
+    assert AgentArtifactIndexQueryWire().active_limit is None
+
     query = AgentArtifactIndexQueryWire(
         include_active=True,
         include_recent_completed=False,
         include_full_history=True,
+        active_limit=50,
         recent_completed_limit=None,
         include_hidden=True,
     )
@@ -35,6 +38,7 @@ def test_artifact_index_wire_helpers() -> None:
         "include_active": True,
         "include_recent_completed": False,
         "include_full_history": True,
+        "active_limit": 50,
         "recent_completed_limit": None,
         "include_hidden": True,
     }

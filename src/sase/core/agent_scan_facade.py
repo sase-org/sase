@@ -198,6 +198,7 @@ def verify_agent_artifact_index(
                 include_active=False,
                 include_recent_completed=False,
                 include_full_history=True,
+                active_limit=None,
                 recent_completed_limit=None,
                 include_hidden=True,
             ),

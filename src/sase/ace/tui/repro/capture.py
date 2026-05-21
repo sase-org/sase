@@ -378,15 +378,20 @@ def _serialize_load_state(load_state: AgentLoadState | None) -> ReproLoadState:
         return ReproLoadState(
             tier="tier2",
             complete_history=True,
+            complete_visible_inbox=True,
             artifact_source="source_scan",
             used_artifact_index=False,
         )
     return ReproLoadState(
         tier=load_state.tier,
         complete_history=load_state.complete_history,
+        complete_visible_inbox=load_state.complete_visible_inbox,
         artifact_source=load_state.artifact_source,
         used_artifact_index=load_state.used_artifact_index,
         index_error=load_state.index_error,
+        repair_recommended=load_state.repair_recommended,
+        repair_reason=load_state.repair_reason,
+        truncated=load_state.truncated,
     )
 
 

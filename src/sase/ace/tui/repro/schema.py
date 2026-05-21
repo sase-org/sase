@@ -138,9 +138,13 @@ class ReproLoadState:
 
     tier: Literal["tier1", "tier2"]
     complete_history: bool
+    complete_visible_inbox: bool
     artifact_source: Literal["artifact_index", "source_scan"]
     used_artifact_index: bool
     index_error: str | None = None
+    repair_recommended: bool = False
+    repair_reason: str | None = None
+    truncated: bool = False
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ReproLoadState:
@@ -157,6 +161,10 @@ class ReproLoadState:
             complete_history=_bool(
                 data.get("complete_history"), field_name="complete_history"
             ),
+            complete_visible_inbox=_bool(
+                data.get("complete_visible_inbox", data.get("complete_history")),
+                field_name="complete_visible_inbox",
+            ),
             artifact_source=source,
             used_artifact_index=_bool(
                 data.get("used_artifact_index"), field_name="used_artifact_index"
@@ -164,15 +172,27 @@ class ReproLoadState:
             index_error=_optional_str(
                 data.get("index_error"), field_name="index_error"
             ),
+            repair_recommended=_bool(
+                data.get("repair_recommended", False),
+                field_name="repair_recommended",
+            ),
+            repair_reason=_optional_str(
+                data.get("repair_reason"), field_name="repair_reason"
+            ),
+            truncated=_bool(data.get("truncated", False), field_name="truncated"),
         )
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "tier": self.tier,
             "complete_history": self.complete_history,
+            "complete_visible_inbox": self.complete_visible_inbox,
             "artifact_source": self.artifact_source,
             "used_artifact_index": self.used_artifact_index,
             "index_error": self.index_error,
+            "repair_recommended": self.repair_recommended,
+            "repair_reason": self.repair_reason,
+            "truncated": self.truncated,
         }
 
 

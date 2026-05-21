@@ -102,13 +102,15 @@ class AgentArtifactScanOptionsWire:
 class AgentArtifactIndexQueryWire:
     """Query knobs for the persistent agent artifact index.
 
-    The default query matches the Tier 1 startup use case: active/incomplete
-    rows plus a bounded window of recently completed visible rows.
+    The default query matches the Tier 1 startup use case: all active or
+    otherwise incomplete visible rows plus a bounded window of recently
+    completed visible rows.
     """
 
     include_active: bool = True
     include_recent_completed: bool = True
     include_full_history: bool = False
+    active_limit: int | None = None
     recent_completed_limit: int | None = 200
     include_hidden: bool = False
 

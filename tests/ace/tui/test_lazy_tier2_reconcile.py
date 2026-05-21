@@ -136,6 +136,7 @@ def test_apply_sets_pending_flag_without_scheduling_refresh() -> None:
     load_state = AgentLoadState(
         tier="tier1",
         complete_history=False,
+        complete_visible_inbox=False,
         artifact_source="artifact_index",
         used_artifact_index=True,
     )
@@ -162,6 +163,43 @@ def test_apply_sets_pending_flag_without_scheduling_refresh() -> None:
     assert app._agents_refresh_pending is False
     assert app._agents_refresh_pending_full_history is False
     assert app._agents_refresh_scheduled is False
+
+
+def test_apply_complete_visible_inbox_does_not_arm_history_reconcile() -> None:
+    """Tier 1 can be archive-incomplete while complete for the visible inbox."""
+    from sase.ace.tui.actions.agents._loading_compute import PreparedApplyData
+    from sase.ace.tui.models.agent_loader import AgentLoadState
+
+    from tests._agents_tab_query_helpers import FakeAgentApp
+
+    app = FakeAgentApp()
+    app._agents_history_reconcile_pending = False
+    app._agents_history_reconcile_armed_mono = 0.0
+
+    load_state = AgentLoadState(
+        tier="tier1",
+        complete_history=False,
+        complete_visible_inbox=True,
+        artifact_source="artifact_index",
+        used_artifact_index=True,
+    )
+
+    app._apply_loaded_agents_prepared(
+        PreparedApplyData(
+            filtered_agents=[],
+            has_always_visible=False,
+            hidden_count=0,
+            hideable_agents=[],
+            dismissed_agent_objects=[],
+        ),
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=load_state,
+        persist_dismissed_changes=False,
+    )
+
+    assert app._agents_history_reconcile_pending is False
+    assert app._agents_history_reconcile_armed_mono == 0.0
 
 
 def test_apply_clears_pending_flag_on_complete_history() -> None:
@@ -227,6 +265,7 @@ def _make_incomplete_load_state() -> Any:
     return AgentLoadState(
         tier="tier1",
         complete_history=False,
+        complete_visible_inbox=False,
         artifact_source="artifact_index",
         used_artifact_index=True,
     )

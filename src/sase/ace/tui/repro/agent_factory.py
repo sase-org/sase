@@ -33,9 +33,13 @@ def load_state_from_repro(state: ReproLoadState) -> AgentLoadState:
     return AgentLoadState(
         tier=state.tier,
         complete_history=state.complete_history,
+        complete_visible_inbox=state.complete_visible_inbox,
         artifact_source=state.artifact_source,
         used_artifact_index=state.used_artifact_index,
         index_error=state.index_error,
+        repair_recommended=state.repair_recommended,
+        repair_reason=state.repair_reason,
+        truncated=state.truncated,
     )
 
 

@@ -81,12 +81,18 @@ class AgentLoadState:
     artifact_source: Literal["artifact_index", "source_scan"]
     used_artifact_index: bool
     index_error: str | None = None
+    complete_visible_inbox: bool = True
+    repair_recommended: bool = False
+    repair_reason: str | None = None
+    truncated: bool = False
 
     @property
     def needs_full_history_reconcile(self) -> bool:
         """Return whether the caller should schedule a Tier 2 refresh."""
 
-        return not self.complete_history
+        return (
+            not self.complete_visible_inbox or self.repair_recommended or self.truncated
+        )
 
 
 @dataclass(frozen=True)
@@ -135,6 +141,7 @@ def _query_artifact_index_for_loader(
         include_active=True,
         include_recent_completed=True,
         include_full_history=False,
+        active_limit=None,
         recent_completed_limit=_TIER1_RECENT_COMPLETED_LIMIT,
         include_hidden=False,
     )
@@ -151,9 +158,12 @@ def _query_artifact_index_for_loader(
             AgentLoadState(
                 tier="tier1",
                 complete_history=False,
+                complete_visible_inbox=False,
                 artifact_source="source_scan",
                 used_artifact_index=False,
                 index_error=str(exc),
+                repair_recommended=True,
+                repair_reason="artifact_index_query_failed_bounded_fallback",
             ),
         )
 
@@ -162,6 +172,7 @@ def _query_artifact_index_for_loader(
         AgentLoadState(
             tier="tier1",
             complete_history=False,
+            complete_visible_inbox=True,
             artifact_source="artifact_index",
             used_artifact_index=True,
         ),
@@ -186,6 +197,7 @@ def _artifact_snapshot_for_tui_load(
             AgentLoadState(
                 tier="tier2",
                 complete_history=True,
+                complete_visible_inbox=True,
                 artifact_source="source_scan",
                 used_artifact_index=False,
             ),
@@ -200,8 +212,11 @@ def _artifact_snapshot_for_tui_load(
         AgentLoadState(
             tier="tier1",
             complete_history=False,
+            complete_visible_inbox=False,
             artifact_source="source_scan",
             used_artifact_index=False,
+            repair_recommended=True,
+            repair_reason="artifact_index_missing_bounded_fallback",
         ),
     )
 

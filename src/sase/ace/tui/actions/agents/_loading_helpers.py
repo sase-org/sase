@@ -92,6 +92,10 @@ def load_agents_from_disk_with_state(
         counters["tier"] = state.tier
         counters["artifact_source"] = state.artifact_source
         counters["complete_history"] = state.complete_history
+        counters["complete_visible_inbox"] = state.complete_visible_inbox
+        counters["repair_recommended"] = state.repair_recommended
+        counters["repair_reason"] = state.repair_reason
+        counters["truncated"] = state.truncated
         counters["used_artifact_index"] = state.used_artifact_index
         counters["index_error"] = state.index_error
         return result

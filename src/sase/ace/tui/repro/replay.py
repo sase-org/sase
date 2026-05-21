@@ -229,9 +229,13 @@ def _snapshot_from_page(
         load_state = {
             "tier": app._agent_load_state.tier,
             "complete_history": app._agent_load_state.complete_history,
+            "complete_visible_inbox": app._agent_load_state.complete_visible_inbox,
             "artifact_source": app._agent_load_state.artifact_source,
             "used_artifact_index": app._agent_load_state.used_artifact_index,
             "index_error": app._agent_load_state.index_error,
+            "repair_recommended": app._agent_load_state.repair_recommended,
+            "repair_reason": app._agent_load_state.repair_reason,
+            "truncated": app._agent_load_state.truncated,
         }
     return ReproReplayStepSnapshot(
         step_id=observed.step_id,

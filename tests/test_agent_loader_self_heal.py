@@ -32,6 +32,7 @@ _SOURCE_SCAN_STATE = AgentLoadState(
 _INCOMPLETE_INDEX_STATE = AgentLoadState(
     tier="tier1",
     complete_history=False,
+    complete_visible_inbox=False,
     artifact_source="artifact_index",
     used_artifact_index=True,
 )
@@ -251,6 +252,7 @@ def test_incomplete_load_preserves_visible_revived_agent() -> None:
     incomplete_state = AgentLoadState(
         tier="tier1",
         complete_history=False,
+        complete_visible_inbox=False,
         artifact_source="source_scan",
         used_artifact_index=False,
     )
@@ -285,6 +287,7 @@ def test_incomplete_load_preserves_revived_agent_from_dismissed_objects() -> Non
     incomplete_state = AgentLoadState(
         tier="tier1",
         complete_history=False,
+        complete_visible_inbox=False,
         artifact_source="artifact_index",
         used_artifact_index=True,
     )

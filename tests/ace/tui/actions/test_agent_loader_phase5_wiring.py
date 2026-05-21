@@ -278,12 +278,15 @@ def test_load_agents_from_disk_uses_artifact_index_for_initial_tier(
     assert result.all_agents == []
     assert result.load_state.used_artifact_index is True
     assert result.load_state.complete_history is False
+    assert result.load_state.complete_visible_inbox is True
+    assert result.load_state.needs_full_history_reconcile is False
     mock_query.assert_called_once()
     mock_scan.assert_not_called()
     query = mock_query.call_args.kwargs["query"]
     assert query.include_active is True
     assert query.include_recent_completed is True
     assert query.include_full_history is False
+    assert query.active_limit is None
     assert query.recent_completed_limit == 200
     assert query.include_hidden is False
 
@@ -319,6 +322,9 @@ def test_tier1_large_index_result_does_not_fan_out_to_source_scan(
     assert len(loaded_snapshot.records) == 10_000
     assert load_state.artifact_source == "artifact_index"
     assert load_state.used_artifact_index is True
+    assert load_state.complete_visible_inbox is True
+    assert load_state.complete_history is False
+    assert load_state.needs_full_history_reconcile is False
     mock_query.assert_called_once()
     mock_scan.assert_not_called()
 
@@ -370,6 +376,7 @@ def test_load_agents_from_disk_full_history_reconciles_from_source() -> None:
         result = load_agents_from_disk_with_state(set(), full_history=True)
 
     assert result.load_state.complete_history is True
+    assert result.load_state.complete_visible_inbox is True
     assert result.load_state.artifact_source == "source_scan"
     assert result.load_state.used_artifact_index is False
     mock_query.assert_not_called()
@@ -427,7 +434,10 @@ def test_load_agents_from_disk_missing_index_uses_bounded_tier1_source_scan(
 
     assert result.load_state.tier == "tier1"
     assert result.load_state.complete_history is False
+    assert result.load_state.complete_visible_inbox is False
     assert result.load_state.artifact_source == "source_scan"
+    assert result.load_state.repair_recommended is True
+    assert result.load_state.repair_reason == "artifact_index_missing_bounded_fallback"
     options = mock_scan.call_args.args[0]
     assert options.max_records == 200
     assert options.newest_first is True
@@ -489,9 +499,15 @@ def test_load_agents_from_disk_bad_index_uses_bounded_tier1_source_scan(
 
     assert result.load_state.tier == "tier1"
     assert result.load_state.complete_history is False
+    assert result.load_state.complete_visible_inbox is False
     assert result.load_state.artifact_source == "source_scan"
     assert result.load_state.used_artifact_index is False
     assert result.load_state.index_error == "stale schema"
+    assert result.load_state.repair_recommended is True
+    assert (
+        result.load_state.repair_reason
+        == "artifact_index_query_failed_bounded_fallback"
+    )
     options = mock_scan.call_args.args[0]
     assert options.max_records == 200
     assert options.newest_first is True
@@ -532,5 +548,9 @@ def test_load_from_disk_span_carries_load_state_fields(
     assert row["tier"] == "tier1"
     assert row["artifact_source"] == "artifact_index"
     assert row["complete_history"] is False
+    assert row["complete_visible_inbox"] is True
+    assert row["repair_recommended"] is False
+    assert row["repair_reason"] is None
+    assert row["truncated"] is False
     assert row["used_artifact_index"] is True
     assert row["index_error"] is None
