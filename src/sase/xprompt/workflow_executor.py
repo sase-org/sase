@@ -6,6 +6,9 @@ import time
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
 from sase.xprompt.workflow_executor_loops import LoopMixin
 from sase.xprompt.workflow_executor_parallel import ParallelMixin
 from sase.xprompt.workflow_executor_steps import StepMixin
@@ -173,6 +176,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         os.makedirs(self.artifacts_dir, exist_ok=True)
         with open(state_path, "w", encoding="utf-8") as f:
             json.dump(state_dict, f, indent=2)
+        update_agent_artifact_index_for_marker_mutation(self.artifacts_dir)
 
     def _get_output_types(self, step_index: int) -> dict[str, str] | None:
         """Get the output type mapping for a workflow step.
@@ -584,6 +588,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         try:
             with open(marker_path, "w", encoding="utf-8") as f:
                 json.dump(marker_data, f, indent=2, default=str)
+            update_agent_artifact_index_for_marker_mutation(self.artifacts_dir)
         except Exception:
             # Non-critical - just for TUI visibility
             pass

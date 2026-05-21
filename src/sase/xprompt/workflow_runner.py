@@ -6,6 +6,10 @@ import warnings
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
+
 from ._parsing import (
     XPromptReference,
     parse_workflow_reference,
@@ -329,6 +333,7 @@ def _write_failed_workflow_state(
     state_path = os.path.join(artifacts_dir, "workflow_state.json")
     with open(state_path, "w", encoding="utf-8") as f:
         json.dump(state_dict, f, indent=2)
+    update_agent_artifact_index_for_marker_mutation(artifacts_dir)
 
 
 @dataclass

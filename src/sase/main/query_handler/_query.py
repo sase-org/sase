@@ -6,6 +6,9 @@ import re
 from typing import Any
 
 from sase.artifacts import create_artifacts_directory
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
 from sase.history.chat import save_chat_history
 from sase.running_field import claim_workspace, release_workspace
 
@@ -279,6 +282,7 @@ def run_query(
             meta_path = os.path.join(artifacts_dir, "agent_meta.json")
             with open(meta_path, "w", encoding="utf-8") as f:
                 json.dump(agent_meta, f, indent=2)
+            update_agent_artifact_index_for_marker_mutation(artifacts_dir)
 
         # Write initial workflow_state.json so the TUI can discover
         # this run immediately (before WorkflowExecutor overwrites it).
@@ -295,6 +299,7 @@ def run_query(
             init_state_path = os.path.join(artifacts_dir, "workflow_state.json")
             with open(init_state_path, "w", encoding="utf-8") as f:
                 json.dump(initial_state, f, indent=2)
+            update_agent_artifact_index_for_marker_mutation(artifacts_dir)
 
         # Claim workspace with artifacts timestamp for prompt lookup
         if project_file and workspace_num:
@@ -371,6 +376,7 @@ def run_query(
             done_path = os.path.join(artifacts_dir, "done.json")
             with open(done_path, "w", encoding="utf-8") as f:
                 json.dump(done_marker, f, indent=2)
+            update_agent_artifact_index_for_marker_mutation(artifacts_dir)
 
         # Re-raise workflow errors after writing done.json
         if workflow_error:

@@ -18,6 +18,9 @@ from sase.axe.runner_utils import (
     prepare_workspace,
     was_killed,
 )
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
 from sase.running_field import release_workspace
 
 install_sigterm_handler("workflow")
@@ -63,6 +66,7 @@ def _write_workflow_state(
     state_path = os.path.join(artifacts_dir, "workflow_state.json")
     with open(state_path, "w", encoding="utf-8") as f:
         json.dump(state_dict, f, indent=2)
+    update_agent_artifact_index_for_marker_mutation(artifacts_dir)
 
 
 def main() -> None:

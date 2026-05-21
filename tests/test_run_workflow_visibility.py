@@ -6,18 +6,28 @@ Validates that:
 - synchronous run path writes initial workflow_state.json before execution
 """
 
+import importlib.util
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 from sase.ace.tui.models._dedup import dedup_running_vs_workflow
+from sase.ace.tui.models.agent_loader import load_tiered_agents
 from sase.ace.tui.models._loaders._workflow_loaders import (
     _iter_workflow_timestamp_dirs,
     load_workflow_agents,
     load_workflow_states,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.core.agent_scan_facade import rebuild_agent_artifact_index
+from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
+from sase.core.rust import RUST_EXTENSION_MODULE_NAME
+from sase.xprompt.workflow_executor import WorkflowExecutor
+from sase.xprompt.workflow_models import StepState, StepStatus, Workflow, WorkflowStep
 
 
 def test_iter_workflow_timestamp_dirs_includes_run(tmp_path: Path) -> None:
@@ -130,6 +140,104 @@ def test_load_workflow_agents_maps_state_hidden_to_agent_hidden(
 
     assert len(agents) == 1
     assert agents[0].hidden is True
+
+
+def test_write_workflow_state_refreshes_artifact_index(tmp_path: Path) -> None:
+    """Initial workflow visibility writes refresh the Tier 1 artifact row."""
+    from sase.axe.run_workflow_runner import _write_workflow_state
+
+    with patch(
+        "sase.axe.run_workflow_runner.update_agent_artifact_index_for_marker_mutation"
+    ) as update_index:
+        _write_workflow_state(
+            str(tmp_path),
+            "workflow-demo",
+            "cl_demo",
+            status="running",
+        )
+
+    update_index.assert_called_once_with(str(tmp_path))
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec(RUST_EXTENSION_MODULE_NAME) is None,
+    reason="sase_core_rs is required for Tier 1 loader integration tests.",
+)
+def test_write_workflow_state_is_visible_to_tier1_loader(tmp_path: Path) -> None:
+    """A first workflow_state write is visible without a full-history scan."""
+    from sase.axe.run_workflow_runner import _write_workflow_state
+
+    fake_home = tmp_path / "home"
+    projects_root = fake_home / ".sase" / "projects"
+    artifacts_dir = (
+        projects_root / "proj" / "artifacts" / "workflow-demo" / "20260521170000"
+    )
+    artifacts_dir.mkdir(parents=True)
+
+    index_path = fake_home / ".sase" / "agent_artifact_index.sqlite"
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    rebuild_agent_artifact_index(
+        index_path,
+        projects_root,
+        AgentArtifactScanOptionsWire(),
+    )
+
+    with patch("pathlib.Path.home", return_value=fake_home):
+        _write_workflow_state(
+            str(artifacts_dir),
+            "workflow-demo",
+            "cl_demo",
+            status="running",
+        )
+        agents, load_state = load_tiered_agents(full_history=False)
+
+    assert load_state.tier == "tier1"
+    assert load_state.used_artifact_index is True
+    assert any(
+        agent.workflow == "workflow-demo"
+        and agent.raw_suffix == "20260521170000"
+        and agent.status == "RUNNING"
+        for agent in agents
+    )
+
+
+def test_workflow_executor_state_and_step_markers_refresh_index(
+    tmp_path: Path,
+) -> None:
+    """WorkflowExecutor refreshes the index for state and prompt-step writes."""
+    workflow = Workflow(
+        name="workflow-demo",
+        steps=[WorkflowStep(name="step1", bash="echo ok")],
+    )
+    executor = WorkflowExecutor(workflow=workflow, args={}, artifacts_dir=str(tmp_path))
+
+    with patch(
+        "sase.xprompt.workflow_executor.update_agent_artifact_index_for_marker_mutation"
+    ) as update_index:
+        executor._save_state()
+        executor._save_prompt_step_marker(
+            "step1",
+            StepState(name="step1", status=StepStatus.IN_PROGRESS),
+        )
+
+    assert update_index.call_count == 2
+    update_index.assert_any_call(str(tmp_path))
+
+
+def test_failed_workflow_state_refreshes_artifact_index(tmp_path: Path) -> None:
+    """Validation-failure workflow_state writes update the Tier 1 row."""
+    from sase.xprompt.workflow_runner import _write_failed_workflow_state
+
+    with patch(
+        "sase.xprompt.workflow_runner.update_agent_artifact_index_for_marker_mutation"
+    ) as update_index:
+        _write_failed_workflow_state(
+            "workflow-demo",
+            str(tmp_path),
+            "bad workflow",
+        )
+
+    update_index.assert_called_once_with(str(tmp_path))
 
 
 def test_dedup_running_vs_workflow_merges_plain_run() -> None:
@@ -276,3 +384,80 @@ def test_run_query_writes_initial_workflow_state(tmp_path: Path) -> None:
     assert data["appears_as_agent"] is True
     assert data["steps"] == []
     assert data["workflow_name"] == "run"
+
+
+def test_run_query_refreshes_index_for_inline_markers(tmp_path: Path) -> None:
+    """Inline `sase run` writes refresh meta, initial state, and done markers."""
+    artifacts_dir = str(tmp_path / "20260329170000")
+    os.makedirs(artifacts_dir)
+
+    mock_multi = SimpleNamespace(
+        local_xprompts=None,
+        frontmatter=None,
+        segments=["hello"],
+    )
+    mock_directives = SimpleNamespace(model=None)
+    anon_workflow = SimpleNamespace(name="tmp_inline", xprompts=None)
+    workflow_result = SimpleNamespace(response_text="inline response")
+
+    with (
+        patch(
+            "sase.main.query_handler._query._resolve_vcs_cwd",
+            return_value=None,
+        ),
+        patch(
+            "sase.main.query_handler._query.ensure_project_file_and_get_workspace_num",
+            return_value=("/tmp/proj/proj.sase", 1, "proj"),
+        ),
+        patch(
+            "sase.main.query_handler._query.create_artifacts_directory",
+            return_value=artifacts_dir,
+        ),
+        patch("sase.xprompt.resolve_xprompt_aliases", side_effect=lambda q: q),
+        patch("sase.history.prompt.add_or_update_prompt"),
+        patch("sase.agent.multi_prompt.parse_multi_prompt", return_value=mock_multi),
+        patch(
+            "sase.agent.multi_agent_xprompt.expand_multi_agent_xprompts",
+            side_effect=lambda segments, _local: segments,
+        ),
+        patch("sase.core.time.generate_timestamp", return_value="260329_170000"),
+        patch(
+            "sase.xprompt.directives.extract_prompt_directives",
+            return_value=("hello", mock_directives),
+        ),
+        patch(
+            "sase.llm_provider.temporary_override.resolve_effective_default_provider_model",
+            return_value=("anthropic", "test-model"),
+        ),
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+        patch("sase.main.query_handler._query.claim_workspace"),
+        patch("sase.main.query_handler._query.release_workspace"),
+        patch(
+            "sase.xprompt.models.create_anonymous_workflow",
+            return_value=anon_workflow,
+        ),
+        patch(
+            "sase.xprompt.workflow_runner.execute_workflow",
+            return_value=workflow_result,
+        ),
+        patch(
+            "sase.main.query_handler._query.save_chat_history",
+            return_value="/tmp/chat.md",
+        ),
+        patch(
+            "sase.main.query_handler._query.update_agent_artifact_index_for_marker_mutation"
+        ) as update_index,
+    ):
+        from sase.main.query_handler._query import run_query
+
+        run_query("hello")
+
+    assert update_index.call_count == 3
+    assert [call.args[0] for call in update_index.call_args_list] == [
+        artifacts_dir,
+        artifacts_dir,
+        artifacts_dir,
+    ]
+    assert os.path.exists(os.path.join(artifacts_dir, "agent_meta.json"))
+    assert os.path.exists(os.path.join(artifacts_dir, "workflow_state.json"))
+    assert os.path.exists(os.path.join(artifacts_dir, "done.json"))
