@@ -398,7 +398,7 @@ def test_resume_agent_family_root_uses_root_name() -> None:
 
     app.action_resume_agent()
 
-    assert app.prompt_bar_calls[0]["initial_text"] == "#resume:alice "
+    assert app.prompt_bar_calls[0]["initial_text"] == "#fork:alice "
     assert app.prompt_bar_calls[0]["display_name"] == "resume(alice)"
 
 

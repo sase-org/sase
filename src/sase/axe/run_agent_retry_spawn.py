@@ -216,16 +216,16 @@ def _build_resume_prompt(handoff: RetryHandoff) -> str:
 
     Format::
 
-        #resume:<parent_agent_name>      (only if name was set)
+        #fork:<parent_agent_name>      (only if name was set)
         <continuation_prompt>            (e.g. context-overflow nudge)
         <original_prompt>                (the prompt the parent ran with)
     """
     parts: list[str] = []
     if handoff.agent_name:
-        parts.append(f"#resume:{handoff.agent_name}")
+        parts.append(f"#fork:{handoff.agent_name}")
     elif handoff.chat_path:
         # No stable name — fall back to a chat-path resume directive
-        parts.append(f"#resume_chat:{handoff.chat_path}")
+        parts.append(f"#fork_by_chat:{handoff.chat_path}")
     if handoff.continuation_prompt:
         parts.append(handoff.continuation_prompt)
     parts.append(handoff.original_prompt)

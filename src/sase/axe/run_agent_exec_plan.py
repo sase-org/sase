@@ -502,12 +502,12 @@ def handle_plan_marker(
                     model_prefix = ""
         # By default the coder starts with a fresh context window; the plan
         # file itself is the hand-off artifact. Set SASE_CODER_INHERIT_PLANNER_CHAT=1
-        # to prepend #resume:<base>-plan so the coder inherits the planner's
+        # to prepend #fork:<base>-plan so the coder inherits the planner's
         # full chat transcript.
         resume_prefix = ""
         if ctx.agent_name and os.environ.get("SASE_CODER_INHERIT_PLANNER_CHAT") == "1":
             planner_name = plan_chain_agent_name(ctx.agent_name, PLAN_CHAIN_PLAN_SUFFIX)
-            resume_prefix = f"#resume:{planner_name} "
+            resume_prefix = f"#fork:{planner_name} "
 
         if plan_result.commit_plan:
             coder_plan_ref = _build_saved_plan_ref(

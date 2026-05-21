@@ -279,8 +279,8 @@ def test_expand_research_swarm_style_shorthand_preserves_parentheses() -> None:
         "research_swarm": _xp(
             "research_swarm",
             "{{ prompt }} #research\n---\n"
-            "%w #resume #research/more %m:opus\n---\n"
-            "%w #resume #research/image",
+            "%w #fork #research/more %m:opus\n---\n"
+            "%w #fork #research/image",
             inputs=[InputArg(name="prompt", type=InputType.TEXT)],
         )
     }
@@ -288,8 +288,8 @@ def test_expand_research_swarm_style_shorthand_preserves_parentheses() -> None:
         out = expand_multi_agent_xprompts(["#research_swarm:: find foo (bar)"])
     assert out == [
         "find foo (bar) #research",
-        "%w #resume #research/more %m:opus",
-        "%w #resume #research/image",
+        "%w #fork #research/more %m:opus",
+        "%w #fork #research/image",
     ]
 
 
@@ -316,9 +316,9 @@ def test_expand_inline_same_line_directive_inherits_vcs_to_followups() -> None:
             "swarm",
             "Plan {{ prompt }}\n"
             "---\n"
-            "%w #resume #research/more %m:opus\n"
+            "%w #fork #research/more %m:opus\n"
             "---\n"
-            "%w #resume #research/image",
+            "%w #fork #research/image",
             inputs=[InputArg(name="prompt", type=InputType.TEXT)],
         )
     }
@@ -331,8 +331,8 @@ def test_expand_inline_same_line_directive_inherits_vcs_to_followups() -> None:
         ]
     assert normalized == [
         "%n:abq #gh:sase Plan review the changes",
-        "%w #gh:sase #resume #research/more %m:opus",
-        "%w #gh:sase #resume #research/image",
+        "%w #gh:sase #fork #research/more %m:opus",
+        "%w #gh:sase #fork #research/image",
     ]
     assert "#cd:~" not in "\n".join(normalized)
 
@@ -341,7 +341,7 @@ def test_expand_inline_multiple_same_line_directives_inherit_vcs() -> None:
     catalog = {
         "swarm": _xp(
             "swarm",
-            "Plan {{ prompt }}\n---\n%w #resume #research/more",
+            "Plan {{ prompt }}\n---\n%w #fork #research/more",
             inputs=[InputArg(name="prompt", type=InputType.TEXT)],
         )
     }
@@ -354,7 +354,7 @@ def test_expand_inline_multiple_same_line_directives_inherit_vcs() -> None:
         ]
     assert normalized == [
         "%n:abq %model:opus #gh:sase Plan review the changes",
-        "%w #gh:sase #resume #research/more",
+        "%w #gh:sase #fork #research/more",
     ]
     assert "#cd:~" not in "\n".join(normalized)
 
@@ -365,7 +365,7 @@ def test_expand_inline_same_line_directive_inherits_known_project_underscore_ref
     catalog = {
         "swarm": _xp(
             "swarm",
-            "Plan {{ prompt }}\n---\n%w #resume #research/more",
+            "Plan {{ prompt }}\n---\n%w #fork #research/more",
             inputs=[InputArg(name="prompt", type=InputType.TEXT)],
         )
     }
@@ -388,7 +388,7 @@ def test_expand_inline_same_line_directive_inherits_known_project_underscore_ref
         ]
     assert normalized == [
         "%n:abq #gh_sase Plan review the changes",
-        "%w #gh_sase #resume #research/more",
+        "%w #gh_sase #fork #research/more",
     ]
     assert "#cd:~" not in "\n".join(normalized)
 

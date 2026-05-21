@@ -260,10 +260,10 @@ def test_split_prompt_for_models_other_uses_override_snapshot(
 def test_split_prompt_for_models_resume_base(tmp_path: Path) -> None:
     """Multi-model fan-out without %name uses the resume-derived base."""
     with patch.object(Path, "home", return_value=tmp_path):
-        result = split_prompt_for_models("#resume:foo\n%m(opus,sonnet)\nDo work")
+        result = split_prompt_for_models("#fork:foo\n%m(opus,sonnet)\nDo work")
     assert result is not None
-    assert result[0] == "%name:foo.r1.cld_opus\n#resume:foo\n%model:opus\nDo work"
-    assert result[1] == "%name:foo.r1.cld_sonnet\n#resume:foo\n%model:sonnet\nDo work"
+    assert result[0] == "%name:foo.r1.cld_opus\n#fork:foo\n%model:opus\nDo work"
+    assert result[1] == "%name:foo.r1.cld_sonnet\n#fork:foo\n%model:sonnet\nDo work"
 
 
 def test_split_prompt_for_models_multi_model_auto_generated_base() -> None:
@@ -513,11 +513,11 @@ def test_split_prompt_for_models_pure_alt_auto_base_skips_active_names(
 def test_split_prompt_for_models_pure_alt_resume_base(tmp_path: Path) -> None:
     """Pure %alt fan-out without %name uses one resume-derived base."""
     with patch.object(Path, "home", return_value=tmp_path):
-        result = split_prompt_for_models("#resume:foo\n%alt(x,y)\nDo work")
+        result = split_prompt_for_models("#fork:foo\n%alt(x,y)\nDo work")
 
     assert result is not None
-    assert result[0] == "%name:foo.r1.1\n#resume:foo\nx\nDo work"
-    assert result[1] == "%name:foo.r1.2\n#resume:foo\ny\nDo work"
+    assert result[0] == "%name:foo.r1.1\n#fork:foo\nx\nDo work"
+    assert result[1] == "%name:foo.r1.2\n#fork:foo\ny\nDo work"
 
 
 def test_split_prompt_for_models_pure_alt_resume_base_skips_existing_slot(
@@ -527,11 +527,11 @@ def test_split_prompt_for_models_pure_alt_resume_base_skips_existing_slot(
     _make_agent(tmp_path, "proj", "run-old", "foo.r1.sec", done=True)
 
     with patch.object(Path, "home", return_value=tmp_path):
-        result = split_prompt_for_models("#resume:foo\n%alt(sec=x,perf=y)\nDo work")
+        result = split_prompt_for_models("#fork:foo\n%alt(sec=x,perf=y)\nDo work")
 
     assert result is not None
-    assert result[0] == "%name:foo.r2.sec\n#resume:foo\nx\nDo work"
-    assert result[1] == "%name:foo.r2.perf\n#resume:foo\ny\nDo work"
+    assert result[0] == "%name:foo.r2.sec\n#fork:foo\nx\nDo work"
+    assert result[1] == "%name:foo.r2.perf\n#fork:foo\ny\nDo work"
 
 
 def test_split_prompt_for_models_named_model_alt_overrides_model_suffix() -> None:

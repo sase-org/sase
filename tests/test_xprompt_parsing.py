@@ -562,9 +562,9 @@ def test_inherit_vcs_tag_preserves_leading_directives() -> None:
         _patch_ref_patterns(),
         patch("sase.xprompt.loader.get_known_project_workspaces", return_value=set()),
     ):
-        prompt = "%w #resume #research/more %m:opus"
+        prompt = "%w #fork #research/more %m:opus"
         assert inherit_vcs_workflow_tag(prompt, "#gh:sase ") == (
-            "%w #gh:sase #resume #research/more %m:opus"
+            "%w #gh:sase #fork #research/more %m:opus"
         )
 
 

@@ -397,11 +397,14 @@ def _rewrite_name_value(value: Any, mapping: dict[str, str]) -> Any:
 
 def _rewrite_prompt_references(text: str, mapping: dict[str, str]) -> str:
     if not mapping or (
-        "%w" not in text and "%wait" not in text and "#resume" not in text
+        "%w" not in text
+        and "%wait" not in text
+        and "#fork" not in text
+        and "#resume" not in text
     ):
         return text
 
-    directive = r"(?:%w|%wait|#resume)"
+    directive = r"(?:%w|%wait|#fork|#resume)"
 
     def replace_colon(match: re.Match[str]) -> str:
         prefix = match.group("prefix")

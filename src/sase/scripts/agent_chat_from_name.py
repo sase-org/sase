@@ -1,4 +1,4 @@
-"""Resolve the chat transcript path for ``#resume`` workflows."""
+"""Resolve the chat transcript path for ``#fork`` workflows."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ def _resolve_default_agent_name() -> str:
         exclude_artifacts_dir=os.environ.get("SASE_ARTIFACTS_DIR")
     )
     if not name:
-        raise RuntimeError("No previous named agent found for bare #resume")
+        raise RuntimeError("No previous named agent found for bare #fork")
     return name
 
 

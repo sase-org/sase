@@ -233,7 +233,7 @@ def resolve_chat_ref(
     - ``path``: ``~`` is expanded; the file must exist.
     - ``basename``: resolved via the existing chat-basename lookup
       (sharded location, then legacy top-level, then cross-shard scan).
-    - ``agent``: follows the ``#resume`` fallback order — first
+    - ``agent``: follows the ``#fork`` fallback order — first
       ``done.json["response_path"]`` of the named done agent, then
       ``agent_meta.json["chat_path"]`` of any agent (running or done).
 

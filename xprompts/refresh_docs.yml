@@ -92,7 +92,7 @@ steps:
 
       polish_prompt = textwrap.dedent(f"""
       %name:{name_prefix}.polish
-      #gh:{gh_ref} %g:chop #resume
+      #gh:{gh_ref} %g:chop #fork
 
       Inspect the documentation changes made by the first refresh-docs agent.
       Verify descriptions against the current system behavior rather than assuming they are true.

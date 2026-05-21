@@ -104,8 +104,8 @@ class TestProcessXpromptReferencesDisabledRegions:
         from sase.xprompt.processor import process_xprompt_references
 
         mock_get_xprompts.return_value = {
-            "resume_test": XPrompt(
-                name="resume_test",
+            "fork_test": XPrompt(
+                name="fork_test",
                 content=(
                     "%xprompts_enabled:false\n"
                     "# Previous Conversation\n"
@@ -115,8 +115,8 @@ class TestProcessXpromptReferencesDisabledRegions:
                 ),
             ),
         }
-        # Simulate: unexpanded VCS ref followed by #resume_test
-        prompt = "#unknown_vcs:sase #resume_test"
+        # Simulate: unexpanded VCS ref followed by #fork_test
+        prompt = "#unknown_vcs:sase #fork_test"
         result = process_xprompt_references(prompt)
         # The %xprompts_enabled:false must be at a line start (after \n)
         idx = result.index("%xprompts_enabled:false")

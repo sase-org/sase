@@ -143,7 +143,7 @@ def test_full_lifecycle_dismiss_then_revive_named_agent(tmp_path: Path) -> None:
     """Walk one named agent through dismiss + revive with a live dependent.
 
     ``foo`` completes; ``bar`` waits on ``foo`` and references it via
-    ``%w:foo`` and ``#resume:foo`` in its prompt and ``wait_for`` marker.
+    ``%w:foo`` and ``#fork:foo`` in its prompt and ``wait_for`` marker.
     Dismissal and revival must preserve those names and references.
     """
     completion_day = datetime(2026, 4, 28, 12, 0, 0)
@@ -156,7 +156,7 @@ def test_full_lifecycle_dismiss_then_revive_named_agent(tmp_path: Path) -> None:
         json.dumps({"name": "bar", "wait_for": ["foo"]})
     )
     (bar_dir / "raw_xprompt.md").write_text(
-        "Run after foo:\n%w:foo\n#resume:foo run more\n"
+        "Run after foo:\n%w:foo\n#fork:foo run more\n"
     )
 
     foo = _make_agent(
@@ -200,7 +200,7 @@ def test_full_lifecycle_dismiss_then_revive_named_agent(tmp_path: Path) -> None:
         ]
         prompt_after = (bar_dir / "raw_xprompt.md").read_text()
         assert "%w:foo" in prompt_after
-        assert "#resume:foo" in prompt_after
+        assert "#fork:foo" in prompt_after
 
         post_dismiss = find_named_agent("foo")
         assert post_dismiss is not None
@@ -223,7 +223,7 @@ def test_full_lifecycle_dismiss_then_revive_named_agent(tmp_path: Path) -> None:
         ]
         prompt_revived = (bar_dir / "raw_xprompt.md").read_text()
         assert "%w:foo" in prompt_revived
-        assert "#resume:foo" in prompt_revived
+        assert "#fork:foo" in prompt_revived
     finally:
         for p in patches:
             p.stop()

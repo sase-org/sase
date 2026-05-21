@@ -25,9 +25,9 @@ def test_resume_options_use_native_resume_and_wait_syntax(
         "agent_name": "alpha",
         "kind": "resume",
         "label": "Resume alpha",
-        "prompt_text": "#resume:alpha\n",
+        "prompt_text": "#fork:alpha\n",
         "direct_launch_supported": True,
     }
     assert payload["options"][1]["prompt_text"] == "%wait:alpha\n"
-    assert payload["options"][2]["prompt_text"] == "#resume:`has space`\n"
+    assert payload["options"][2]["prompt_text"] == "#fork:`has space`\n"
     assert payload["options"][3]["prompt_text"] == "%wait:`has space`\n"

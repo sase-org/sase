@@ -127,7 +127,7 @@ class TestFindNamedAgent:
     ) -> None:
         """Dismissal removes done.json but keeps the prefixed agent_meta.json.
 
-        Historical references like ``%w:260428.foo`` and ``#resume:260428.foo``
+        Historical references like ``%w:260428.foo`` and ``#fork:260428.foo``
         must still resolve, so dismissed-prefixed artifacts are treated as
         completed-historical even when their done.json is gone.
         """
@@ -195,23 +195,29 @@ class TestGetMostRecentAgentName:
 
 class TestResumeAgentNames:
     def test_finds_resume_colon_paren_and_backtick(self) -> None:
+        assert first_resume_agent_name("#fork:foo do work") == "foo"
+        assert first_resume_agent_name("#fork(foo) do work") == "foo"
+        assert first_resume_agent_name("#fork:`foo bar` do work") == "foo bar"
+
+    def test_accepts_legacy_resume_references(self) -> None:
         assert first_resume_agent_name("#resume:foo do work") == "foo"
         assert first_resume_agent_name("#resume(foo) do work") == "foo"
         assert first_resume_agent_name("#resume:`foo bar` do work") == "foo bar"
 
-    def test_ignores_resume_by_chat(self) -> None:
+    def test_ignores_fork_by_chat(self) -> None:
+        assert first_resume_agent_name("#fork_by_chat:foo.md") is None
         assert first_resume_agent_name("#resume_by_chat:foo.md") is None
 
     def test_ignores_fenced_and_disabled_regions(self) -> None:
         prompt = (
-            "```\n#resume:fenced\n```\n"
-            "%xprompts_enabled:false\n#resume:disabled\n%xprompts_enabled:true\n"
-            "#resume:real"
+            "```\n#fork:fenced\n```\n"
+            "%xprompts_enabled:false\n#fork:disabled\n%xprompts_enabled:true\n"
+            "#fork:real"
         )
         assert first_resume_agent_name(prompt) == "real"
 
     def test_first_resume_wins(self) -> None:
-        assert first_resume_agent_name("#resume:first then #resume:second") == "first"
+        assert first_resume_agent_name("#fork:first then #fork:second") == "first"
 
     def test_allocates_first_resume_slot(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):

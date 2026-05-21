@@ -17,7 +17,7 @@ from sase.xprompt._parsing import (
 )
 
 _RESUME_REF_RE = re.compile(
-    r"#resume(?![A-Za-z0-9_])"
+    r"#(?:fork|resume)(?![A-Za-z0-9_])"
     r"(?:"
     r":(?P<colon>`[^`]*`|[^\s,)]+)"
     r"|"
@@ -55,13 +55,13 @@ def agent_name_allocation_lock() -> Iterator[None]:
 
 
 def first_resume_agent_name(prompt: str | None) -> str | None:
-    """Return the first top-level ``#resume`` target in *prompt*.
+    """Return the first top-level ``#fork`` or legacy ``#resume`` target.
 
-    ``#resume_by_chat`` is intentionally ignored because its argument is a
-    chat path, not an agent name. Fenced code blocks and disabled xprompt
-    regions are protected before lexical matching.
+    ``#fork_by_chat`` and legacy ``#resume_by_chat`` are intentionally ignored
+    because their arguments are chat paths, not agent names. Fenced code blocks
+    and disabled xprompt regions are protected before lexical matching.
     """
-    if not prompt or "#resume" not in prompt:
+    if not prompt or ("#fork" not in prompt and "#resume" not in prompt):
         return None
 
     fenced: list[str] = []

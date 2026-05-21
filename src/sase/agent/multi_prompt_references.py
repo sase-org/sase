@@ -146,12 +146,12 @@ def rewrite_bare_wait_directives(prompt: str, agent_name: str) -> str:
     return unprotect_fenced_blocks(rewritten, fenced)
 
 
-_BARE_RESUME_RE = re.compile(r"#resume(?![A-Za-z0-9_])")
+_BARE_RESUME_RE = re.compile(r"#fork(?![A-Za-z0-9_])")
 
 
 def has_bare_resume_reference(prompt: str) -> bool:
-    """Return True when *prompt* contains a top-level bare ``#resume``."""
-    if "#resume" not in prompt:
+    """Return True when *prompt* contains a top-level bare ``#fork``."""
+    if "#fork" not in prompt:
         return False
 
     from sase.xprompt._disabled_regions import protect_disabled_regions
@@ -169,8 +169,8 @@ def has_bare_resume_reference(prompt: str) -> bool:
 
 
 def rewrite_bare_resume_references(prompt: str, agent_name: str) -> str:
-    """Rewrite top-level bare ``#resume`` references to *agent_name*."""
-    if "#resume" not in prompt:
+    """Rewrite top-level bare ``#fork`` references to *agent_name*."""
+    if "#fork" not in prompt:
         return prompt
 
     from sase.xprompt._disabled_regions import (
@@ -190,7 +190,7 @@ def rewrite_bare_resume_references(prompt: str, agent_name: str) -> str:
     replacements: list[tuple[int, int, str]] = []
     for match in _BARE_RESUME_RE.finditer(protected):
         if _is_bare_resume_match(protected, match):
-            replacements.append((match.start(), match.end(), f"#resume:{agent_name}"))
+            replacements.append((match.start(), match.end(), f"#fork:{agent_name}"))
 
     rewritten = protected
     for start, end, value in reversed(replacements):

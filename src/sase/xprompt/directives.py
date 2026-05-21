@@ -147,7 +147,7 @@ def extract_prompt_directives(
     fenced_blocks: list[str] = []
     prompt = protect_fenced_blocks(prompt, fenced_blocks)
 
-    # Protect disabled regions so old directives inside #resume
+    # Protect disabled regions so old directives inside #fork
     # expansions are not re-parsed.
     disabled_regions: list[str] = []
     prompt = protect_disabled_regions(prompt, disabled_regions)

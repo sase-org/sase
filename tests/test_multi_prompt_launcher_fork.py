@@ -1,4 +1,4 @@
-"""Tests for multi-prompt bare #resume rewriting."""
+"""Tests for multi-prompt bare #fork rewriting."""
 
 from unittest.mock import MagicMock, patch
 
@@ -36,7 +36,7 @@ def test_launch_multi_prompt_rewrites_bare_resume_to_explicit_previous_name(
     mock_spawn.return_value = MagicMock(pid=1)
 
     launch_multi_prompt_agents(
-        segments=["%name:builder\nBuild", "#resume\nReview"],
+        segments=["%name:builder\nBuild", "#fork\nReview"],
         local_xprompts={},
         cl_name="test",
         project_file="/test.sase",
@@ -47,7 +47,7 @@ def test_launch_multi_prompt_rewrites_bare_resume_to_explicit_previous_name(
 
     assert mock_wait.call_count == 0
     assert mock_create_artifacts.call_count == 0
-    assert mock_spawn.call_args_list[1].kwargs["prompt"] == "#resume:builder\nReview"
+    assert mock_spawn.call_args_list[1].kwargs["prompt"] == "#fork:builder\nReview"
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -75,7 +75,7 @@ def test_launch_multi_prompt_plans_auto_name_for_bare_resume_predecessor(
     mock_spawn.return_value = MagicMock(pid=1)
 
     launch_multi_prompt_agents(
-        segments=["Build", "#resume\nReview"],
+        segments=["Build", "#fork\nReview"],
         local_xprompts={},
         cl_name="test",
         project_file="/test.sase",
@@ -90,7 +90,7 @@ def test_launch_multi_prompt_plans_auto_name_for_bare_resume_predecessor(
         mock_spawn.call_args_list[0].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"]
         == "a"
     )
-    assert mock_spawn.call_args_list[1].kwargs["prompt"] == "#resume:a\nReview"
+    assert mock_spawn.call_args_list[1].kwargs["prompt"] == "#fork:a\nReview"
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -110,12 +110,12 @@ def test_launch_multi_prompt_polls_for_unplanned_resume_predecessor(
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
 ) -> None:
-    """Xprompt predecessors are polled before a following bare #resume launches."""
+    """Xprompt predecessors are polled before a following bare #fork launches."""
     mock_spawn.return_value = MagicMock(pid=1)
     mock_wait.return_value = "polled-builder"
 
     launch_multi_prompt_agents(
-        segments=["#_prep\nBuild", "#resume\nReview"],
+        segments=["#_prep\nBuild", "#fork\nReview"],
         local_xprompts={"_prep": XPrompt(name="_prep", content="Prep")},
         cl_name="test",
         project_file="/test.sase",
@@ -131,7 +131,7 @@ def test_launch_multi_prompt_polls_for_unplanned_resume_predecessor(
     }
     assert mock_wait.call_args.args == ("/artifacts/alpha",)
     assert mock_spawn.call_args_list[1].kwargs["prompt"] == (
-        "#resume:polled-builder\nReview"
+        "#fork:polled-builder\nReview"
     )
 
 
@@ -154,15 +154,15 @@ def test_launch_multi_prompt_leaves_first_segment_bare_resume_unrewritten(
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
 ) -> None:
-    """The first segment keeps the global bare #resume behavior."""
+    """The first segment keeps the global bare #fork behavior."""
     mock_spawn.return_value = MagicMock(pid=1)
 
     with patch(
         "sase.xprompt.processor.process_xprompt_references",
-        return_value="#resume\nContinue",
+        return_value="#fork\nContinue",
     ):
         launch_multi_prompt_agents(
-            segments=["#resume\nContinue", "%name:next\nNext"],
+            segments=["#fork\nContinue", "%name:next\nNext"],
             local_xprompts={},
             cl_name="test",
             project_file="/test.sase",
@@ -171,28 +171,28 @@ def test_launch_multi_prompt_leaves_first_segment_bare_resume_unrewritten(
             vcs_ref=None,
         )
 
-    assert mock_spawn.call_args_list[0].kwargs["prompt"] == "#resume\nContinue"
+    assert mock_spawn.call_args_list[0].kwargs["prompt"] == "#fork\nContinue"
 
 
 def test_bare_resume_rewrite_ignores_explicit_fenced_and_disabled_regions() -> None:
-    """Only top-level bare #resume references are rewritten."""
+    """Only top-level bare #fork references are rewritten."""
     prompt = (
-        "#resume\n"
-        "#resume:explicit\n"
-        "#resume(explicit)\n"
-        "#resume_by_chat:/tmp/chat.md\n"
-        "```\n#resume\n```\n"
-        "%xprompts_enabled:false\n#resume\n%xprompts_enabled:true\n"
+        "#fork\n"
+        "#fork:explicit\n"
+        "#fork(explicit)\n"
+        "#fork_by_chat:/tmp/chat.md\n"
+        "```\n#fork\n```\n"
+        "%xprompts_enabled:false\n#fork\n%xprompts_enabled:true\n"
     )
 
     assert _has_bare_resume_reference(prompt) is True
     assert _rewrite_bare_resume_references(prompt, "builder") == (
-        "#resume:builder\n"
-        "#resume:explicit\n"
-        "#resume(explicit)\n"
-        "#resume_by_chat:/tmp/chat.md\n"
-        "```\n#resume\n```\n"
-        "%xprompts_enabled:false\n#resume\n%xprompts_enabled:true\n"
+        "#fork:builder\n"
+        "#fork:explicit\n"
+        "#fork(explicit)\n"
+        "#fork_by_chat:/tmp/chat.md\n"
+        "```\n#fork\n```\n"
+        "%xprompts_enabled:false\n#fork\n%xprompts_enabled:true\n"
     )
 
 
@@ -222,7 +222,7 @@ def test_launch_multi_prompt_resume_uses_last_alt_generated_name(
     mock_spawn.return_value = MagicMock(pid=1)
 
     launch_multi_prompt_agents(
-        segments=["%n:ag\n%alt(sec=Build security,perf=Build perf)", "#resume\nReview"],
+        segments=["%n:ag\n%alt(sec=Build security,perf=Build perf)", "#fork\nReview"],
         local_xprompts={},
         cl_name="test",
         project_file="/test.sase",
@@ -233,4 +233,4 @@ def test_launch_multi_prompt_resume_uses_last_alt_generated_name(
 
     assert mock_wait.call_count == 0
     assert mock_create_artifacts.call_count == 0
-    assert mock_spawn.call_args_list[2].kwargs["prompt"] == "#resume:ag.perf\nReview"
+    assert mock_spawn.call_args_list[2].kwargs["prompt"] == "#fork:ag.perf\nReview"

@@ -72,7 +72,7 @@ def mobile_agent_resume_options() -> dict[str, Any]:
                     "agent_name": agent.name,
                     "kind": "resume",
                     "label": f"Resume {agent.name}",
-                    "prompt_text": f"#resume:{quoted_name}\n",
+                    "prompt_text": f"#fork:{quoted_name}\n",
                     "direct_launch_supported": True,
                 },
                 {

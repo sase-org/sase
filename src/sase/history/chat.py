@@ -21,10 +21,10 @@ from sase.core.time import generate_timestamp, get_timezone
 from sase.core.shell import run_shell_command
 
 
-# Matches #resume:name, #resume(`name`), #resume(name),
-# #resume_by_chat:path, #resume_by_chat(`path`), #resume_by_chat(path)
+# Matches current #fork / #fork_by_chat refs plus legacy #resume /
+# #resume_by_chat refs preserved in historical chat transcripts.
 _RESUME_REF_RE = re.compile(
-    r"#(resume|resume_by_chat)"  # xprompt name
+    r"#(fork|fork_by_chat|resume|resume_by_chat)"  # xprompt name
     r"(?:"
     r":(`[^`]+`|[^\s,)]+)"  # colon syntax (backtick-quoted or bare)
     r"|"
@@ -34,7 +34,7 @@ _RESUME_REF_RE = re.compile(
 
 
 def _find_resume_refs(text: str) -> list[tuple[str, str, str]]:
-    """Find all #resume references in text.
+    """Find all current or legacy fork references in text.
 
     Returns:
         List of (full_match, xprompt_name, argument) tuples.
@@ -52,22 +52,22 @@ def _find_resume_refs(text: str) -> list[tuple[str, str, str]]:
 
 
 def _resolve_resume_to_chat_path(xprompt_name: str, argument: str) -> str | None:
-    """Resolve a #resume ref to a chat file path.
+    """Resolve a fork/resume ref to a chat file path.
 
-    For ``resume``: looks up the named agent and reads its done.json.
-    For ``resume_by_chat``: returns the argument directly.
+    For ``fork``/``resume``: looks up the named agent and reads its done.json.
+    For ``fork_by_chat``/``resume_by_chat``: returns the argument directly.
 
     Returns:
         Absolute chat file path, or None on any failure.
     """
-    if xprompt_name == "resume_by_chat":
+    if xprompt_name in {"fork_by_chat", "resume_by_chat"}:
         path = os.path.expanduser(argument)
         if not path.endswith(".md"):
             resolved = resolve_chat_file_path(path)
             return resolved
         return path if os.path.exists(path) else None
 
-    # resume — resolve via agent name
+    # fork/resume — resolve via agent name
     try:
         from sase.agent.names import resolve_resume_agent_name
 
@@ -380,8 +380,9 @@ def load_chat_for_resume(
     turns in chronological order, and formats them with bold markers instead
     of heading levels to prevent heading inflation on repeated resumes.
 
-    Recursively expands any ``#resume`` or ``#resume_by_chat`` references
-    found in prompt text, inlining the referenced conversation history.
+    Recursively expands current ``#fork`` / ``#fork_by_chat`` references and
+    legacy ``#resume`` / ``#resume_by_chat`` references found in prompt text,
+    inlining the referenced conversation history.
 
     Args:
         file_ref: Either a basename or full path to the chat history file.
@@ -421,7 +422,7 @@ def load_chat_for_resume(
                 # Fallback: extract from ## Previous Conversation in this file
                 fallback_turns = _extract_previous_conversation_turns(content)
                 expanded_turns.extend(fallback_turns)
-            # Strip the #resume ref from the prompt text
+            # Strip the fork/resume ref from the prompt text
             prompt = prompt.replace(full_match, "").strip()
 
         if prompt or response:

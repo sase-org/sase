@@ -8,8 +8,8 @@ input:
 
 ---
 
-%w %g:research #resume #research/more %m:other
+%w %g:research #fork #research/more %m:other
 
 ---
 
-%w %g:research #resume #research/image %m:gpt-5.5
+%w %g:research #fork #research/image %m:gpt-5.5

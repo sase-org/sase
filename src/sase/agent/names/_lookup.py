@@ -257,7 +257,7 @@ def most_recent_completed_family_member(base_name: str) -> NamedAgent | None:
 
 
 def resolve_resume_agent_name(name: str) -> NamedAgent | None:
-    """Resolve a ``#resume`` target to the artifact that should provide chat.
+    """Resolve a ``#fork`` target to the artifact that should provide chat.
 
     Direct child references such as ``foo-code`` and legacy ``foo.code`` remain
     exact lookups. A root family reference such as ``foo`` resolves to the most
@@ -353,7 +353,7 @@ def find_named_agent(name: str, *, only_done: bool = False) -> NamedAgent | None
         elif is_dismissed_prefixed(name):
             # Dismissal removes done.json but preserves the prefixed
             # agent_meta.json. Treat such artifacts as historical so
-            # `%w:260428.foo` and `#resume:260428.foo` still resolve.
+            # `%w:260428.foo` and `#fork:260428.foo` still resolve.
             is_done = True
             outcome = "dismissed"
 
@@ -568,7 +568,7 @@ def get_most_recent_agent_name(
 
     Args:
         exclude_artifacts_dir: Optional artifact directory to ignore. Used by
-            bare ``#resume`` resolution so a workflow does not select its own
+            bare ``#fork`` resolution so a workflow does not select its own
             just-written metadata as the most recent agent.
 
     Returns the name of the most recently created one, or ``None`` if no named

@@ -303,9 +303,9 @@ class TestPlanFollowupPromptConstruction:
         assert "#foo\ncustom" in state.current_prompt
 
     def test_coder_prompt_excludes_resume_prefix_by_default(self, tmp_path) -> None:
-        """Coder prompt does NOT prepend #resume:<planner_name> by default."""
+        """Coder prompt does NOT prepend #fork:<planner_name> by default."""
         state = self._run(tmp_path, action="approve", agent_model="opus")
-        assert "#resume:" not in state.current_prompt
+        assert "#fork:" not in state.current_prompt
         plan_ref = "@plan.md"
         assert plan_ref in state.current_prompt
         assert state.current_prompt.startswith("%model:opus\n")
@@ -313,14 +313,14 @@ class TestPlanFollowupPromptConstruction:
     def test_coder_prompt_preserves_resume_when_env_set(
         self, tmp_path, monkeypatch
     ) -> None:
-        """SASE_CODER_INHERIT_PLANNER_CHAT=1 restores the old #resume behavior."""
+        """SASE_CODER_INHERIT_PLANNER_CHAT=1 restores the old #fork behavior."""
         monkeypatch.setenv("SASE_CODER_INHERIT_PLANNER_CHAT", "1")
         state = self._run(tmp_path, action="approve", agent_model="opus")
-        assert "#resume:test_agent-plan " in state.current_prompt
-        assert state.current_prompt.startswith("%model:opus\n#resume:test_agent-plan ")
+        assert "#fork:test_agent-plan " in state.current_prompt
+        assert state.current_prompt.startswith("%model:opus\n#fork:test_agent-plan ")
 
     def test_coder_prompt_qa_round_excludes_resume_by_default(self, tmp_path) -> None:
-        """Q&A round (agent_step > 2) also drops #resume by default."""
+        """Q&A round (agent_step > 2) also drops #fork by default."""
         ctx = make_ctx(tmp_path, agent_model="opus")
         state = make_state(tmp_path)
         state.agent_step = 2
@@ -339,7 +339,7 @@ class TestPlanFollowupPromptConstruction:
             ),
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
-        assert "#resume:" not in state.current_prompt
+        assert "#fork:" not in state.current_prompt
         assert "@plan.md" in state.current_prompt
 
     def test_coder_prompt_qa_round_resume_env_uses_planner(
@@ -367,11 +367,11 @@ class TestPlanFollowupPromptConstruction:
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
-        assert "#resume:test_agent-plan " in state.current_prompt
-        assert "#resume:test_agent-2 " not in state.current_prompt
+        assert "#fork:test_agent-plan " in state.current_prompt
+        assert "#fork:test_agent-2 " not in state.current_prompt
 
     def test_coder_prompt_no_resume_without_agent_name(self, tmp_path) -> None:
-        """No #resume prefix when ctx.agent_name is not set."""
+        """No #fork prefix when ctx.agent_name is not set."""
         ctx = make_ctx(tmp_path, agent_model=None)
         ctx = dataclasses.replace(ctx, agent_name=None)
         state = make_state(tmp_path)
@@ -390,4 +390,4 @@ class TestPlanFollowupPromptConstruction:
             ),
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
-        assert "#resume:" not in state.current_prompt
+        assert "#fork:" not in state.current_prompt

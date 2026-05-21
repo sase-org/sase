@@ -105,13 +105,13 @@ class TestExtractDirectivesAutoDismiss:
         assert result["info"].hidden is False
 
     def test_resume_prompt_gets_resume_derived_name(self, tmp_path: Path) -> None:
-        """A raw top-level #resume picks the first available .r slot."""
+        """A raw top-level #fork picks the first available .r slot."""
         with patch.object(Path, "home", return_value=tmp_path):
             result = _run_extract(
                 tmp_path,
                 env_auto_dismiss=False,
                 prompt="expanded prompt",
-                raw_resolved_prompt="#resume:foo do stuff",
+                raw_resolved_prompt="#fork:foo do stuff",
             )
         assert result["info"].name == "foo.r1"
         assert result["meta"].get("name") == "foo.r1"
@@ -133,7 +133,7 @@ class TestExtractDirectivesAutoDismiss:
                 tmp_path,
                 env_auto_dismiss=False,
                 prompt="%name:bar expanded prompt",
-                raw_resolved_prompt="%name:bar #resume:foo do stuff",
+                raw_resolved_prompt="%name:bar #fork:foo do stuff",
             )
         assert result["info"].name == "bar"
         assert result["meta"].get("name") == "bar"
@@ -144,7 +144,7 @@ class TestExtractDirectivesAutoDismiss:
                 tmp_path,
                 env_auto_dismiss=False,
                 prompt="%name expanded prompt",
-                raw_resolved_prompt="%name #resume:foo do stuff",
+                raw_resolved_prompt="%name #fork:foo do stuff",
             )
         assert result["info"].name == "foo.r1"
         assert result["meta"].get("name") == "foo.r1"
@@ -154,7 +154,7 @@ class TestExtractDirectivesAutoDismiss:
             result = _run_extract(
                 tmp_path,
                 env_auto_dismiss=True,
-                raw_resolved_prompt="#resume:foo do stuff",
+                raw_resolved_prompt="#fork:foo do stuff",
             )
         assert result["info"].name is None
         assert "name" not in result["meta"]

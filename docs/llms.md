@@ -1096,13 +1096,14 @@ Dashes and slashes in workflow names are normalized to underscores.
 
 ### Resume Support
 
-The `sase run --resume` flag resumes a previous conversation by agent name. The `#resume` workflow resolves the agent
-name to its artifacts directory, extracts the response path from `done.json`, and delegates to `#resume_by_chat` which
-loads the chat history and prepends it to the new conversation. The `--resume` flag also accepts a history file basename
-or full path for direct chat-file-based resumption via the `#resume_by_chat` workflow.
+The `sase run --resume` flag resumes a previous conversation by agent name. The `#fork` workflow resolves the agent name
+to its artifacts directory, extracts the response path from `done.json`, and delegates to `#fork_by_chat` which loads
+the chat history and prepends it to the new conversation. The `--resume` flag also accepts a history file basename or
+full path for direct chat-file-based resumption via the `#fork_by_chat` workflow.
 
-Resume expansion is recursive: if the loaded chat history itself contains `#resume` or `#resume_by_chat` references,
-those are expanded inline as well. Cycle detection prevents infinite loops when chat histories reference each other.
+Fork expansion is recursive: if the loaded chat history itself contains `#fork` or `#fork_by_chat` references, those are
+expanded inline as well. Legacy `#resume` and `#resume_by_chat` references in old transcripts are still recognized.
+Cycle detection prevents infinite loops when chat histories reference each other.
 
 ## Invocation Lifecycle
 

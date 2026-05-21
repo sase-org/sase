@@ -253,7 +253,7 @@ class AgentWaitResumeMixin:
 
         if agent.status not in DISMISSABLE_STATUSES and prompt_name:
             name = prompt_name
-            prefix = f"#resume:{name} %w:{name} "
+            prefix = f"#fork:{name} %w:{name} "
 
             vcs_tag = _resolve_vcs_tag(agent, name, self._agents)
             if vcs_tag:
@@ -280,7 +280,7 @@ class AgentWaitResumeMixin:
             )
             if coder and coder.agent_name:
                 name = coder.agent_name
-                prefix = f"#resume:{name} "
+                prefix = f"#fork:{name} "
                 vcs_tag = _resolve_vcs_tag(agent, name, self._agents)
                 if vcs_tag:
                     prefix = f"{vcs_tag}{prefix}"
@@ -300,7 +300,7 @@ class AgentWaitResumeMixin:
             return
 
         name = prompt_name
-        prefix = f"#resume:{name} "
+        prefix = f"#fork:{name} "
 
         vcs_tag = _resolve_vcs_tag(agent, name, self._agents)
         if vcs_tag:

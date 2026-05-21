@@ -40,7 +40,7 @@ def test_migrates_artifacts_refs_notifications_and_history(tmp_path: Path) -> No
         encoding="utf-8",
     )
     (dependent / "raw_xprompt.md").write_text(
-        "%w:a\n#resume:b.1 continue\n", encoding="utf-8"
+        "%w:a\n#fork:b.1 continue\n#resume:b.1 legacy continue\n", encoding="utf-8"
     )
     bundle = tmp_path / ".sase" / "dismissed_bundles" / "202605" / "20260508121000.json"
     bundle.parent.mkdir(parents=True)
@@ -54,7 +54,7 @@ def test_migrates_artifacts_refs_notifications_and_history(tmp_path: Path) -> No
             {
                 "prompts": [
                     {
-                        "text": "%wait:a,c\n#resume(b.1) run",
+                        "text": "%wait:a,c\n#fork(b.1) run",
                         "branch_or_workspace": "proj",
                         "timestamp": "260508_121500",
                         "last_used": "260508_121500",
@@ -95,12 +95,12 @@ def test_migrates_artifacts_refs_notifications_and_history(tmp_path: Path) -> No
     }
     assert _read_json(dependent / "waiting.json") == {"waiting_for": ["260508.a"]}
     assert (dependent / "raw_xprompt.md").read_text(encoding="utf-8") == (
-        "%w:260508.a\n#resume:260508.b.1 continue\n"
+        "%w:260508.a\n#fork:260508.b.1 continue\n#resume:260508.b.1 legacy continue\n"
     )
     assert _read_json(bundle)["agent_name"] == "260508.c"
     migrated_history = _read_json(history)["prompts"]  # type: ignore[index]
     assert migrated_history[0]["text"] == (
-        "%wait:260508.a,260508.c\n#resume(260508.b.1) run"
+        "%wait:260508.a,260508.c\n#fork(260508.b.1) run"
     )
     notification_line = notifications.read_text(encoding="utf-8").splitlines()[0]
     assert json.loads(notification_line)["action_data"]["agent_name"] == "260508.a"

@@ -148,7 +148,7 @@ def test_resume_agent_tale_done_family_root_uses_family_name() -> None:
     assert app.notifications == []
     assert app.prompt_bar_calls == [
         {
-            "initial_text": "#resume:aww ",
+            "initial_text": "#fork:aww ",
             "display_name": "resume(aww)",
             "history_sort_key": "test_cl",
         }
@@ -168,4 +168,4 @@ def test_resume_agent_plan_done_family_root_uses_family_name() -> None:
     app.action_resume_agent()
 
     assert app.notifications == []
-    assert app.prompt_bar_calls[0]["initial_text"] == "#resume:planner "
+    assert app.prompt_bar_calls[0]["initial_text"] == "#fork:planner "

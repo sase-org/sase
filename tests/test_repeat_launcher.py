@@ -190,7 +190,7 @@ class TestSpawnRepeatBatch:
     def test_resume_prompt_uses_resume_derived_names(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             specs = spawn_repeat_batch(
-                "%r:3 #resume:foo do X",
+                "%r:3 #fork:foo do X",
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
@@ -209,7 +209,7 @@ class TestSpawnRepeatBatch:
 
         with patch.object(Path, "home", return_value=tmp_path):
             specs = spawn_repeat_batch(
-                "%r:2 #resume:foo do X",
+                "%r:2 #fork:foo do X",
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
@@ -218,7 +218,7 @@ class TestSpawnRepeatBatch:
     def test_explicit_repeat_base_wins_over_resume(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             specs = spawn_repeat_batch(
-                "%r:2 %n:bar #resume:foo do X",
+                "%r:2 %n:bar #fork:foo do X",
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
