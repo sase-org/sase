@@ -8,7 +8,7 @@ from typing import Literal
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.reactive import reactive
-from textual.widgets import Footer, Header
+from textual.widgets import Header
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
@@ -283,7 +283,6 @@ class AceApp(
                     yield AxeInfoPanel(id="axe-info-panel")
                     yield AxeDashboard(id="axe-dashboard")
         yield KeybindingFooter(id="keybinding-footer")
-        yield Footer()
 
     def _jk_perf_begin(self, action: str) -> None:
         """Record a key-to-paint sample start, when SASE_TUI_PERF=1."""
