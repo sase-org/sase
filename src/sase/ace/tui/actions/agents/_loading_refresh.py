@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from collections.abc import Callable
+from pathlib import Path
 
 from ...util.trace import tui_trace
 from ._loading_state import AgentLoadingStateMixin
@@ -163,6 +165,71 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
             full_history=True,
             full_history_reason="startup_tier2_reconcile",
         )
+
+    def _poll_starting_agent_transitions(self) -> None:
+        """Nudge a refresh when a STARTING agent's meta lands on disk.
+
+        The inotify watcher is the intended fast path for the
+        STARTING→RUNNING/WAITING transition, but it races the creation of
+        the per-agent ``artifacts/<workflow>/<timestamp>/`` subtree and is
+        unavailable on some platforms. This poll runs once per countdown
+        tick (cheap; one ``stat`` per STARTING agent) and bounds the
+        worst-case visible time-to-row to ~1 s in that window.
+
+        No-op when no STARTING agent is present, which is the steady
+        state. The cache is keyed by ``agent.identity`` and shrinks back
+        to empty once all STARTING agents have transitioned.
+        """
+        panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
+        starting_indices = panel_index.hidden_starting_indices
+        cache = self._starting_poll_meta_cache
+        if not starting_indices:
+            if cache:
+                cache.clear()
+            return
+
+        live_identities: set[tuple] = set()  # type: ignore[type-arg]
+        nudge = False
+        for i in starting_indices:
+            agent = self._agents[i]
+            identity = agent.identity
+            live_identities.add(identity)
+            artifacts_dir = agent.get_artifacts_dir()
+            if not artifacts_dir:
+                continue
+            meta_path = Path(artifacts_dir) / "agent_meta.json"
+            try:
+                st = os.stat(meta_path)
+                current: tuple[int, int] | None = (st.st_mtime_ns, st.st_size)
+            except FileNotFoundError:
+                current = None
+            except OSError:
+                continue
+            had_entry = identity in cache
+            previous = cache.get(identity)
+            cache[identity] = current
+            if not had_entry:
+                # First observation — record the baseline; only nudge if
+                # the file already exists, since that means the watcher
+                # likely missed the CREATE event and the agent has
+                # already written its meta.
+                if current is not None:
+                    nudge = True
+                continue
+            if previous is None and current is not None:
+                # File appearance — watcher likely missed CREATE.
+                nudge = True
+            elif previous is not None and current is not None and current != previous:
+                # Meta file was modified (likely run_started_at landing).
+                nudge = True
+
+        # Eviction: drop identities no longer STARTING.
+        stale = [identity for identity in cache if identity not in live_identities]
+        for identity in stale:
+            cache.pop(identity, None)
+
+        if nudge:
+            self.request_agents_refresh("starting_poll")
 
     async def _run_agents_async_refresh(self) -> None:
         """Run the async agent refresh with loading guard.

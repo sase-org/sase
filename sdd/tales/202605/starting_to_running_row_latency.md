@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-21 13:52:48
-status: wip
+status: done
 prompt: sdd/prompts/202605/starting_to_running_row_latency.md
 ---
 # Promote STARTING agents to row entries soon after run_started_at lands
