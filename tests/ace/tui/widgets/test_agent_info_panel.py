@@ -72,7 +72,7 @@ def test_agent_count_strip_renders_total_before_agents_label() -> None:
     plain = _collect_text(panel)
 
     assert plain.startswith(
-        "▎12 Agents [2 stopped · 5 running · 2 waiting · 1 failed · 3 unread]"
+        "12 Agents [2 stopped · 5 running · 2 waiting · 1 failed · 3 unread]"
     )
     assert "Agents: 2/12" not in plain
 
@@ -94,7 +94,7 @@ def test_agent_count_strip_reports_starting_separately() -> None:
     plain = _collect_text(panel)
 
     assert plain.startswith(
-        "▎12 Agents [2 stopped · 7 starting · 3 running · "
+        "12 Agents [2 stopped · 7 starting · 3 running · "
         "4 waiting · 5 failed · 1 unread · 6 done]"
     )
 
@@ -190,7 +190,7 @@ def test_agent_count_strip_omits_zero_metric_types() -> None:
     plain = _collect_text(panel)
     counts_prefix = plain.split("   [group:", 1)[0]
 
-    assert plain.startswith("▎9 Agents [3 running · 1 failed · 2 unread]")
+    assert plain.startswith("9 Agents [3 running · 1 failed · 2 unread]")
     assert "stopped" not in counts_prefix
     assert "waiting" not in counts_prefix
     assert " done" not in counts_prefix
@@ -212,7 +212,7 @@ def test_agent_count_strip_omits_metrics_section_when_all_counts_are_zero() -> N
     plain = _collect_text(panel)
     counts_prefix = plain.split("   [group:", 1)[0]
 
-    assert counts_prefix == "▎5 Agents"
+    assert counts_prefix == "5 Agents"
 
 
 def test_grouping_badge_renders_label_after_update() -> None:

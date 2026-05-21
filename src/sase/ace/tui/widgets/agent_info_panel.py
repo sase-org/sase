@@ -12,7 +12,6 @@ class AgentInfoPanel(Static):
     """Top bar showing agent metrics and auto-refresh countdown."""
 
     _TOTAL_COUNT_STYLE = "bold #FFFFFF"
-    _TOTAL_COUNT_ACCENT_STYLE = "bold #5FAFFF"
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the info panel."""
@@ -290,7 +289,6 @@ class AgentInfoPanel(Static):
             text.append(": ", style="bold #87D7FF")
             text.append("…", style="dim italic")
             return text
-        text.append("▎", style=self._TOTAL_COUNT_ACCENT_STYLE)
         text.append(f"{self._visible_agent_count}", style=self._TOTAL_COUNT_STYLE)
         text.append(" Agents", style="bold #87D7FF")
         self._append_metric_strip(text)
