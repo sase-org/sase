@@ -109,33 +109,6 @@ def sibling_repo_metadata_from_env(
     return metadata
 
 
-def append_sibling_repo_prompt_note(
-    prompt: str, resolution: SiblingRepoResolution
-) -> str:
-    """Append a concise workspace-matched sibling-repo note to *prompt*."""
-
-    note = _build_sibling_repo_prompt_note(resolution)
-    if not note:
-        return prompt
-    return f"{prompt.rstrip()}\n\n{note}\n"
-
-
-def _build_sibling_repo_prompt_note(resolution: SiblingRepoResolution) -> str:
-    """Build the agent-facing note for resolved sibling repositories."""
-
-    if not resolution.repos:
-        return ""
-    lines = [
-        "Sibling repos for this project are available in workspace-matched directories:"
-    ]
-    for repo in resolution.repos:
-        lines.append(f"- {repo.name}: {repo.workspace_dir}")
-    lines.append(
-        "When editing a sibling repo, use its workspace-matched directory, not the primary checkout."
-    )
-    return "\n".join(lines)
-
-
 def resolve_sibling_repos_for_project(
     *,
     project_file: str,

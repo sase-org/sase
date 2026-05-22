@@ -28,6 +28,12 @@ class TestWorkspaceParser:
         assert ns.workspace_num == 12
         assert ns.clean is True
 
+    def test_open_print_flag_is_accepted_for_compatibility(self) -> None:
+        ns = create_parser().parse_args(["workspace", "open", "--print", "12"])
+        assert ns.workspace_subcommand == "open"
+        assert ns.workspace_num == 12
+        assert ns.print_path is True
+
     def test_cleanup_options(self) -> None:
         ns = create_parser().parse_args(
             ["workspace", "cleanup", "-s", "-i", "-n", "-p", "demo"]

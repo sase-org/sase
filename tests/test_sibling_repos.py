@@ -7,7 +7,6 @@ from pathlib import Path
 
 from sase.sibling_repos import (
     SIBLING_REPOS_JSON_ENV,
-    append_sibling_repo_prompt_note,
     resolve_sibling_repos_for_project,
 )
 
@@ -124,23 +123,3 @@ def test_missing_primary_paths_are_omitted(tmp_path: Path) -> None:
     assert resolution.repos == ()
     assert "primary path does not exist" in resolution.warnings[0]
     assert resolution.to_env() == {}
-
-
-def test_prompt_note_lists_workspace_matched_directories(tmp_path: Path) -> None:
-    primary = tmp_path / "main"
-    sibling = tmp_path / "core"
-    primary.mkdir()
-    sibling.mkdir()
-    project_file = _project_file(tmp_path / "project.sase", primary)
-    resolution = resolve_sibling_repos_for_project(
-        project_file=str(project_file),
-        workspace_dir=str(primary),
-        workspace_num=8,
-        config={"sibling_repos": [{"name": "core", "path": "../core"}]},
-        materialize=False,
-    )
-
-    prompt = append_sibling_repo_prompt_note("Do work", resolution)
-
-    assert "Sibling repos for this project" in prompt
-    assert f"- core: {tmp_path / 'core_8'}" in prompt

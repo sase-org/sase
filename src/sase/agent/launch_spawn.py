@@ -161,7 +161,6 @@ def spawn_agent_subprocess(
     with timer.stage("sibling_repo_resolution"):
         from sase.sibling_repos import (
             SiblingRepoResolution,
-            append_sibling_repo_prompt_note,
             resolve_sibling_repos_for_project,
         )
 
@@ -174,7 +173,6 @@ def spawn_agent_subprocess(
                 workspace_num=workspace_num,
             )
         )
-        child_prompt = append_sibling_repo_prompt_note(prompt, sibling_resolution)
 
     request = AgentLaunchRequestWire(
         schema_version=AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
@@ -183,7 +181,7 @@ def spawn_agent_subprocess(
         workspace_dir=workspace_dir,
         workspace_num=workspace_num,
         workflow_name=workflow_name,
-        prompt=child_prompt,
+        prompt=prompt,
         timestamp=timestamp,
         update_target=update_target,
         project_name=project_name,
@@ -316,7 +314,7 @@ def spawn_agent_subprocess(
             workflow_name=workflow_name,
             cl_name=cl_name,
             timestamp=timestamp,
-            prompt=child_prompt,
+            prompt=prompt,
             env=subprocess_env,
         )
 

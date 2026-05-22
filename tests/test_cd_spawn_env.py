@@ -260,7 +260,7 @@ def test_spawn_agent_subprocess_readds_prepared_deferred_workspace_env(
     assert captured_env["SASE_AGENT_VCS_WORKFLOW_TYPE"] == "git"
 
 
-def test_spawn_agent_subprocess_exports_sibling_repo_env_and_prompt_note(
+def test_spawn_agent_subprocess_exports_sibling_repo_env_without_prompt_note(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -340,7 +340,7 @@ def test_spawn_agent_subprocess_exports_sibling_repo_env_and_prompt_note(
     )
     assert "SASE_SIBLING_REPO_OLD_DIR" not in captured_env
     assert json.loads(captured_env[SIBLING_REPOS_JSON_ENV])[0]["name"] == "core"
-    assert "- core: " in prompt_file[0].read_text(encoding="utf-8")
+    assert prompt_file[0].read_text(encoding="utf-8") == "#git:home do work"
 
 
 def test_default_git_home_auto_initializes_incomplete_home_project(

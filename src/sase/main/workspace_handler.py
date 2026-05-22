@@ -170,25 +170,6 @@ def _resolve_checkout_path(
     return ctx.store.resolve(workspace_num).checkout_dir.rstrip("/")
 
 
-def _should_materialize(
-    ctx: _ProjectContext,
-    registry: WorkspaceRegistry,
-    workspace_num: int,
-) -> bool:
-    """Decide whether ``path`` should materialize the checkout.
-
-    Primary (``#0``) is always available without a clone.  Other numbers
-    materialize only when a claim or registry entry already exists.
-    """
-    if workspace_num == PRIMARY_WORKSPACE_NUM:
-        return True
-    if str(workspace_num) in registry.workspaces:
-        return True
-    if workspace_num in _claimed_nums(ctx.project_file):
-        return True
-    return False
-
-
 def _handle_path(args: argparse.Namespace) -> int:
     ctx = _resolve_project_context(args.project)
     workspace_num = int(args.workspace_num)
@@ -199,11 +180,9 @@ def _handle_path(args: argparse.Namespace) -> int:
         )
         return 2
 
-    registry = load_or_init_registry(ctx.store)
-    materialize = _should_materialize(ctx, registry, workspace_num)
     try:
-        path = _resolve_checkout_path(ctx, workspace_num, materialize=materialize)
-    except RuntimeError as exc:
+        path = _resolve_checkout_path(ctx, workspace_num, materialize=False)
+    except (RuntimeError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
 
@@ -212,13 +191,7 @@ def _handle_path(args: argparse.Namespace) -> int:
 
 
 def _handle_open(args: argparse.Namespace) -> int:
-    # ``open`` is intentionally conservative: until editor/shell integration
-    # is configured it prints the path the same way ``path`` does.  The
-    # ``--print`` flag is reserved for a future "force print" mode once an
-    # editor integration lands.
-    if getattr(args, "clean", False):
-        return _handle_open_clean(args)
-    return _handle_path(args)
+    return _handle_open_clean(args)
 
 
 def _handle_open_clean(args: argparse.Namespace) -> int:

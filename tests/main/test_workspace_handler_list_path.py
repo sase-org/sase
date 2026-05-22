@@ -95,15 +95,8 @@ class TestPath:
             },
         )
         wp = store.resolve(10)
-        # Pretend the checkout already exists on disk so ``path`` returns
-        # the materialized location without invoking ``git clone``.
         managed_dir = wp.checkout_dir.rstrip("/")
-        os.makedirs(managed_dir, exist_ok=True)
-        # Trick ensure_git_clone_at's "still valid" check into accepting
-        # the directory by writing a .git directory.
-        os.makedirs(os.path.join(managed_dir, ".git"), exist_ok=True)
         with patch("sase.workspace_provider.utils.subprocess.run") as mock_run:
-            mock_run.return_value.returncode = 0
             record_workspace(store, wp, role="claim")
             args = make_args(
                 workspace_subcommand="path",
@@ -115,6 +108,8 @@ class TestPath:
         assert exc.value.code == 0
         out = capsys.readouterr().out.strip()
         assert out == managed_dir
+        assert not os.path.isdir(managed_dir)
+        mock_run.assert_not_called()
 
     def test_path_unregistered_does_not_materialize(
         self,
@@ -135,31 +130,12 @@ class TestPath:
 
 
 class TestOpen:
-    def test_open_without_clean_delegates_to_path(self) -> None:
-        args = make_args(
-            workspace_subcommand="open",
-            project="demo",
-            workspace_num=42,
-            print_path=False,
-            clean=False,
-        )
-        with (
-            patch(
-                "sase.main.workspace_handler._handle_path", return_value=0
-            ) as handle_path,
-            patch("sase.axe.runner_utils.prepare_workspace") as prepare_workspace,
-            pytest.raises(SystemExit) as exc,
-        ):
-            handle_workspace_command(args)
-
-        assert exc.value.code == 0
-        handle_path.assert_called_once_with(args)
-        prepare_workspace.assert_not_called()
-
-    def test_open_clean_materializes_and_prepares(
+    @pytest.mark.parametrize("clean", [False, True])
+    def test_open_materializes_and_prepares_by_default(
         self,
         project_layout: tuple[str, str, Path],
         capsys: pytest.CaptureFixture[str],
+        clean: bool,
     ) -> None:
         project_name, _, primary = project_layout
         checkout = str(primary.parent / "managed" / "primary_42")
@@ -168,7 +144,7 @@ class TestOpen:
             project=project_name,
             workspace_num=42,
             print_path=False,
-            clean=True,
+            clean=clean,
         )
 
         with (
@@ -197,7 +173,7 @@ class TestOpen:
         )
         assert capsys.readouterr().out.strip() == checkout
 
-    def test_open_clean_materialization_failure_returns_1(
+    def test_open_materialization_failure_returns_1(
         self,
         project_layout: tuple[str, str, Path],
         capsys: pytest.CaptureFixture[str],
@@ -227,7 +203,7 @@ class TestOpen:
         assert captured.out == ""
         prepare_workspace.assert_not_called()
 
-    def test_open_clean_preparation_failure_returns_1_without_path(
+    def test_open_preparation_failure_returns_1_without_path(
         self,
         project_layout: tuple[str, str, Path],
         capsys: pytest.CaptureFixture[str],

@@ -252,7 +252,6 @@ def refresh_sibling_repos_for_workspace(
 ) -> str:
     """Refresh sibling-repo env/meta after a workspace claim changes."""
     from sase.sibling_repos import (
-        append_sibling_repo_prompt_note,
         apply_sibling_repo_env,
         resolve_sibling_repos_for_project,
     )
@@ -269,7 +268,7 @@ def refresh_sibling_repos_for_workspace(
     else:
         agent_meta.pop("sibling_repos", None)
     write_agent_meta(artifacts_dir, agent_meta)
-    return append_sibling_repo_prompt_note(prompt, resolution)
+    return prompt
 
 
 def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:

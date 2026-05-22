@@ -80,7 +80,7 @@ def test_setup_artifacts_directory_updates_artifact_index(tmp_path: Path) -> Non
     assert (tmp_path / "workflow_state.json").is_file()
 
 
-def test_refresh_sibling_repos_for_workspace_updates_env_meta_and_prompt(
+def test_refresh_sibling_repos_for_workspace_updates_env_meta_without_prompt_note(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     primary = tmp_path / "sase"
@@ -120,7 +120,7 @@ def test_refresh_sibling_repos_for_workspace_updates_env_meta_and_prompt(
             prompt="Do work",
         )
 
-    assert "- core: " in prompt
+    assert prompt == "Do work"
     assert meta["workspace_dir"] == str(workspace)
     assert meta["sibling_repos"] == resolution.to_jsonable()
     written = json.loads((tmp_path / "agent_meta.json").read_text(encoding="utf-8"))
