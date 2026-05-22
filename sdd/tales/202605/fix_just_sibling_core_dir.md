@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-22 17:25:59
-status: wip
+status: done
 prompt: sdd/prompts/202605/fix_just_sibling_core_dir.md
 ---
 # Plan: Fix `fix_just` install in numbered SASE workspaces

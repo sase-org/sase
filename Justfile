@@ -9,8 +9,9 @@ keep_sorted_bin := venv_bin / "keep-sorted"
 prettier_bin := "node_modules/.bin/prettier"
 
 # Sibling Rust core repo. CI can override this with SASE_CORE_DIR after
-# checking out sase-core inside the Actions workspace.
-sase_core_dir := env_var_or_default("SASE_CORE_DIR", "../sase-core")
+# checking out sase-core inside the Actions workspace. SASE-launched agents
+# provide the workspace-matched sibling checkout via SASE_SIBLING_REPO_CORE_DIR.
+sase_core_dir := env_var_or_default("SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_CORE_DIR", "../sase-core"))
 
 default:
     @just --list
