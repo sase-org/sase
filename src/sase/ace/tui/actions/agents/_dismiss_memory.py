@@ -177,13 +177,13 @@ class AgentDismissMemoryMixin:
         revived_suffixes = getattr(self, "_revived_agent_raw_suffixes", None)
         if revived_suffixes and identity[2] is not None:
             revived_suffixes.discard(identity[2])
-        save_dismissed_agents(self._dismissed_agents)
-        try:
-            sync_dismissed_agent_artifact_index(
-                self._dismissed_agents, added={identity}
-            )
-        except Exception:
-            pass
+        if save_dismissed_agents(self._dismissed_agents):
+            try:
+                sync_dismissed_agent_artifact_index(
+                    self._dismissed_agents, added={identity}
+                )
+            except Exception:
+                pass
 
     def _collect_dismissal_identities(self, agents: list[Agent]) -> set[AgentIdentity]:
         """Return identities hidden immediately after dismissing agents."""

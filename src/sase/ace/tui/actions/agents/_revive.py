@@ -331,11 +331,13 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         }
         if next_dismissed != self._dismissed_agents:
             self._dismissed_agents = next_dismissed
-            save_dismissed_agents(self._dismissed_agents)
-            try:
-                sync_dismissed_agent_artifact_index(self._dismissed_agents, force=True)
-            except Exception:
-                pass
+            if save_dismissed_agents(self._dismissed_agents):
+                try:
+                    sync_dismissed_agent_artifact_index(
+                        self._dismissed_agents, force=True
+                    )
+                except Exception:
+                    pass
         for agent in archive_agents:
             agent._loaded_from_dismissed_bundle = True
         return archive_agents
@@ -385,8 +387,11 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             # Remove all dismissed aliases that share revived suffixes.
             self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
 
-            save_dismissed_agents(self._dismissed_agents)
-            sync_dismissed_agent_artifact_index(self._dismissed_agents)
+            if save_dismissed_agents(self._dismissed_agents):
+                try:
+                    sync_dismissed_agent_artifact_index(self._dismissed_agents)
+                except Exception:
+                    pass
 
             stage = "artifact_restore"
             # Restore minimal artifact files so load_all_agents() rediscovers
@@ -518,8 +523,11 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
 
             # Phase 2: Single disk write for dismissed set
-            save_dismissed_agents(self._dismissed_agents)
-            sync_dismissed_agent_artifact_index(self._dismissed_agents)
+            if save_dismissed_agents(self._dismissed_agents):
+                try:
+                    sync_dismissed_agent_artifact_index(self._dismissed_agents)
+                except Exception:
+                    pass
         except Exception as exc:
             for agent in valid_agents:
                 log_revive_failure(

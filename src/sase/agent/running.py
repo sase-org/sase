@@ -542,8 +542,8 @@ def _record_dismissal(cl_name: str | None, raw_suffix: str) -> None:
         dismissed = load_dismissed_agents()
         if identity not in dismissed:
             dismissed.add(identity)
-            save_dismissed_agents(dismissed)
-            sync_dismissed_agent_artifact_index(dismissed, added={identity})
+            if save_dismissed_agents(dismissed):
+                sync_dismissed_agent_artifact_index(dismissed, added={identity})
     except Exception:
         pass
 

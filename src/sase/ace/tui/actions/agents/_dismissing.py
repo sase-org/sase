@@ -320,8 +320,11 @@ def _persist_single_dismiss_transaction(
         dismiss_notifications_for_agents(
             agents_related_to_dismissal(agent, agents_with_children_snapshot)
         )
-    save_dismissed_agents(dismissed_snapshot)
-    sync_dismissed_agent_artifact_index(dismissed_snapshot, added=added)
+    if save_dismissed_agents(dismissed_snapshot):
+        try:
+            sync_dismissed_agent_artifact_index(dismissed_snapshot, added=added)
+        except Exception:
+            pass
 
 
 def _persist_bulk_dismiss_transaction(
@@ -351,5 +354,8 @@ def _persist_bulk_dismiss_transaction(
                 related.append(rel)
         if related:
             dismiss_notifications_for_agents(related)
-    save_dismissed_agents(dismissed_snapshot)
-    sync_dismissed_agent_artifact_index(dismissed_snapshot, added=added)
+    if save_dismissed_agents(dismissed_snapshot):
+        try:
+            sync_dismissed_agent_artifact_index(dismissed_snapshot, added=added)
+        except Exception:
+            pass

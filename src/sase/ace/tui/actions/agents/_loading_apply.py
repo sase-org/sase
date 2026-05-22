@@ -305,19 +305,19 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         if persist_dismissed_changes:
             from ....dismissed_agents import save_dismissed_agents
 
-            save_dismissed_agents(self._dismissed_agents)
-            try:
-                if dismissed_changes_include_removals:
-                    sync_dismissed_agent_artifact_index(
-                        self._dismissed_agents, force=True
-                    )
-                else:
-                    sync_dismissed_agent_artifact_index(
-                        self._dismissed_agents,
-                        added=added_identities or None,
-                    )
-            except Exception:
-                pass
+            if save_dismissed_agents(self._dismissed_agents):
+                try:
+                    if dismissed_changes_include_removals:
+                        sync_dismissed_agent_artifact_index(
+                            self._dismissed_agents, force=True
+                        )
+                    else:
+                        sync_dismissed_agent_artifact_index(
+                            self._dismissed_agents,
+                            added=added_identities or None,
+                        )
+                except Exception:
+                    pass
 
         preserved_revived = self._preserve_revived_agents_for_incomplete_load(
             prep, load_state

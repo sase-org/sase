@@ -78,8 +78,8 @@ def _auto_dismiss_completed_agent(cl_name: str, artifacts_timestamp: str) -> Non
             (AgentType.WORKFLOW, cl_name, artifacts_timestamp),
         }
         dismissed.update(identities)
-        save_dismissed_agents(dismissed)
-        sync_dismissed_agent_artifact_index(dismissed, added=identities)
+        if save_dismissed_agents(dismissed):
+            sync_dismissed_agent_artifact_index(dismissed, added=identities)
     except Exception:
         pass  # Best effort
 

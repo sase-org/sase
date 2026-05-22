@@ -98,8 +98,11 @@ def persist_bulk_kill_side_effects(
         dismiss_notifications_for_agents(
             [item.agent for item in kill_items] + list(dismissable)
         )
-    save_dismissed_agents(dismissed_snapshot)
-    sync_dismissed_agent_artifact_index(dismissed_snapshot)
+    if save_dismissed_agents(dismissed_snapshot):
+        try:
+            sync_dismissed_agent_artifact_index(dismissed_snapshot)
+        except Exception:
+            pass
 
 
 def _persist_running_kill(agent: Agent) -> None:
