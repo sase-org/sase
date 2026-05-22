@@ -155,9 +155,11 @@ class PromptInputBar(Static):
 
     def _update_height(self) -> None:
         """Auto-grow the bar based on content, up to the full screen height."""
+        if not self.is_mounted:
+            return
         visual_lines = self._get_visual_line_count()
         # Reserve a few rows for the header/tabs at minimum
-        screen_height = self.screen.size.height if self.screen else 50
+        screen_height = self.screen.size.height
         max_height = screen_height - 2
         # +2 for border top and bottom, plus completion panel when visible
         completion_rows = self._completion_line_count if self._completion_visible else 0
