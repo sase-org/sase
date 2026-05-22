@@ -4,7 +4,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX, canonical_plan_chain_suffix
+from sase.plan_chain import (
+    PLAN_CHAIN_CODER_SUFFIX,
+    PLAN_CHAIN_PLAN_SUFFIX,
+    canonical_plan_chain_suffix,
+)
 
 if TYPE_CHECKING:
     from sase.ace.tui.models.agent import Agent
@@ -174,6 +178,18 @@ def _segmented_followup_runtime_interval(
     )
 
 
+def _is_active_approved_followup_coder(agent: "Agent") -> bool:
+    """Return True for a linked code follow-up hidden behind approval status."""
+    return (
+        agent.status in _SEGMENTED_FOLLOWUP_RUNTIME_STATUSES
+        and bool(agent.parent_timestamp)
+        and agent.parent_workflow is None
+        and agent.run_start_time is not None
+        and agent.stop_time is None
+        and canonical_plan_chain_suffix(agent.role_suffix) == PLAN_CHAIN_CODER_SUFFIX
+    )
+
+
 def _leaf_runtime_interval(agent: "Agent", now: datetime) -> _RuntimeInterval | None:
     """Return the row's own runtime interval, excluding aggregate children."""
     if agent.start_time is None:
@@ -198,6 +214,13 @@ def _leaf_runtime_interval(agent: "Agent", now: datetime) -> _RuntimeInterval | 
     )
     if segmented_interval is not None:
         return segmented_interval
+
+    if _is_active_approved_followup_coder(agent):
+        return _RuntimeInterval(
+            elapsed_seconds=(now - effective_start).total_seconds(),
+            terminal_time=None,
+            active=True,
+        )
 
     if (
         agent.status in _SEGMENTED_FOLLOWUP_RUNTIME_STATUSES
@@ -331,6 +354,8 @@ def runtime_suffix_ticks(agent: "Agent", _seen: set[int] | None = None) -> bool:
         and _segmented_followup_plan_time(agent) is not None
     ):
         return agent.status in _SEGMENTED_FOLLOWUP_RUNTIME_STATUSES
+    if _is_active_approved_followup_coder(agent):
+        return True
     if (
         agent.status in _SEGMENTED_FOLLOWUP_RUNTIME_STATUSES
         and agent.parent_workflow is not None

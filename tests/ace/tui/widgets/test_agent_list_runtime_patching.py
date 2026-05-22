@@ -129,6 +129,44 @@ async def test_patch_active_runtime_rows_advances_plan_approved_parent_times() -
 
 
 @pytest.mark.asyncio
+async def test_patch_active_runtime_rows_advances_approved_linked_coder_child() -> None:
+    app = AgentListHarness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        child = agent(
+            status="TALE APPROVED",
+            start=datetime(2026, 5, 22, 18, 38, 12),
+            run_start=datetime(2026, 5, 22, 18, 38, 39),
+            role_suffix="-code",
+            raw_suffix="20260522143839",
+            cl_name="a1y.f1-code",
+        )
+        child.parent_timestamp = "20260522143536"
+        widget.update_list(
+            [child],
+            current_idx=0,
+            marked_agents={child.identity},
+            now=datetime(2026, 5, 22, 18, 41, 5),
+        )
+        await pilot.pause()
+
+        row = agent_row_index(widget, 0)
+        before_count = widget.option_count
+        before = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
+        assert "[✓]" in before
+        assert before.rstrip().endswith("🏃‍♂️ 2m26s")
+
+        patched = widget.patch_active_runtime_rows(datetime(2026, 5, 22, 18, 41, 6))
+        await pilot.pause()
+
+        after = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
+        assert patched == 1
+        assert widget.option_count == before_count
+        assert "[✓]" in after
+        assert after.rstrip().endswith("🏃‍♂️ 2m27s")
+
+
+@pytest.mark.asyncio
 async def test_patch_active_runtime_rows_advances_epic_approved_parent() -> None:
     app = AgentListHarness()
     async with app.run_test() as pilot:

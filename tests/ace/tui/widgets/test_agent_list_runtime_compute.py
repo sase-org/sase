@@ -125,6 +125,32 @@ def test_compute_row_runtime_linked_followup_workflow_returns_elapsed() -> None:
     assert elapsed == "2m05s"
 
 
+@pytest.mark.parametrize("status", ["PLAN APPROVED", "TALE APPROVED"])
+def test_compute_row_runtime_approved_linked_coder_child_returns_elapsed(
+    status: str,
+) -> None:
+    start = datetime(2026, 5, 22, 18, 38, 12)
+    run_start = datetime(2026, 5, 22, 18, 38, 39)
+    child = agent(
+        status=status,
+        start=start,
+        run_start=run_start,
+        role_suffix="-code",
+        raw_suffix="20260522143839",
+        cl_name="a1y.f1-code",
+    )
+    child.parent_timestamp = "20260522143536"
+
+    ts, elapsed = compute_row_runtime(
+        child,
+        now=datetime(2026, 5, 22, 18, 41, 5),
+    )
+
+    assert ts is None
+    assert elapsed == "2m26s"
+    assert runtime_suffix_ticks(child) is True
+
+
 def test_compute_row_runtime_prompt_step_done_has_static_suffix() -> None:
     start = datetime(2026, 4, 25, 14, 0, 0)
     run_start = datetime(2026, 4, 25, 14, 1, 0)

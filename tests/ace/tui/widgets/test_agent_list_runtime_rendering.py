@@ -194,6 +194,28 @@ def test_format_agent_option_plan_approved_active_suffix_has_running_marker() ->
     assert "✋" not in suffix.plain
 
 
+def test_format_agent_option_approved_linked_coder_child_has_running_marker() -> None:
+    row_agent = agent(
+        status="TALE APPROVED",
+        start=datetime(2026, 5, 22, 18, 38, 12),
+        run_start=datetime(2026, 5, 22, 18, 38, 39),
+        role_suffix="-code",
+        raw_suffix="20260522143839",
+        cl_name="a1y.f1-code",
+    )
+    row_agent.parent_timestamp = "20260522143536"
+
+    _, suffix, _ = format_agent_option(
+        row_agent,
+        0,
+        is_selected=True,
+        now=datetime(2026, 5, 22, 18, 41, 5),
+    )
+
+    assert suffix.plain == "🏃‍♂️ 2m26s"
+    assert "✋" not in suffix.plain
+
+
 def test_format_agent_option_unread_terminal_suffix_uses_completed_marker() -> None:
     _, suffix, _ = format_agent_option(
         agent(status="DONE", start=None),
