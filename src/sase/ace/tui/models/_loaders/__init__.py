@@ -21,8 +21,6 @@ from ._workflow_loaders import (
     load_workflow_states,
 )
 from ._workflow_snapshot_loaders import (
-    load_missing_plan_root_parents,
-    load_plan_root_agents_from_snapshot,
     load_workflow_agent_steps_from_snapshot,
     load_workflow_agents_from_snapshot,
     load_workflow_states_from_snapshot,
@@ -38,8 +36,6 @@ __all__ = [
     "load_agents_from_running_field",
     "load_done_agents",
     "load_done_agents_from_snapshot",
-    "load_missing_plan_root_parents",
-    "load_plan_root_agents_from_snapshot",
     "load_running_home_agents",
     "load_running_home_agents_from_snapshot",
     "load_workflow_agent_steps",

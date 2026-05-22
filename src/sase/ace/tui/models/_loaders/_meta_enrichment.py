@@ -23,9 +23,7 @@ from sase.core.agent_scan_wire import (
 from sase.core.time import get_timezone
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
-    agent_family_base,
     agent_family_phase_name,
-    agent_family_role_for_suffix,
     canonical_plan_chain_suffix,
 )
 
@@ -129,49 +127,13 @@ def _root_plan_family_name_from_meta(data: dict[str, object]) -> str | None:
     return None
 
 
-def _family_name_for_phase_meta(data: dict[str, object]) -> str | None:
-    """Best-effort family name for a non-root family phase (coder, epic, ...)."""
-    family = data.get("agent_family")
-    if isinstance(family, str) and family:
-        return family
-    workflow_name = data.get("workflow_name")
-    if isinstance(workflow_name, str) and workflow_name:
-        return workflow_name
-    name = data.get("name")
-    if isinstance(name, str) and name:
-        base = agent_family_base(name)
-        if base:
-            return base
-    return None
-
-
 def _apply_workflow_child_identity_from_meta(
     agent: Agent,
     data: dict[str, object],
 ) -> None:
-    """Derive concrete family identity for the main agent workflow step.
-
-    Plan-chain phases (``-plan``, ``-code``, ``-epic``, ``-legend``,
-    ``-commit``, feedback) all get their identity from ``role_suffix``
-    + ``agent_family`` so the workflow row renders as ``family-<phase>``.
-    """
+    """Derive concrete family identity for the main agent workflow step."""
     if not _is_main_workflow_agent_step(agent):
         return
-
-    role_suffix = canonical_plan_chain_suffix(data.get("role_suffix"))
-    role = agent_family_role_for_suffix(role_suffix)
-
-    if role is not None and role_suffix is not None:
-        # Non-root family phase (coder, epic, legend, commit, feedback step).
-        family = _family_name_for_phase_meta(data)
-        if family is None:
-            return
-        agent.agent_name = agent_family_phase_name(family, role_suffix)
-        agent.agent_family = family
-        agent.agent_family_role = role
-        agent.role_suffix = role_suffix
-        return
-
     family = _root_plan_family_name_from_meta(data)
     if family is None:
         return
