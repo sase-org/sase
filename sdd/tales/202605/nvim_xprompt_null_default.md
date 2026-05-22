@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-22 14:38:26
-status: wip
+status: done
 prompt: sdd/prompts/202605/nvim_xprompt_null_default.md
 ---
 # Fix Neovim xprompt optional null defaults
