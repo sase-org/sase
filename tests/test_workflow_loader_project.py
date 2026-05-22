@@ -7,8 +7,10 @@ from unittest.mock import patch
 from sase.xprompt.workflow_loader import (
     _discover_workflow_files,
     _load_workflow_from_file,
+    _namespace_workflow,
     get_all_workflows,
 )
+from sase.xprompt.models import InputArg
 from sase.xprompt.workflow_models import Workflow
 
 
@@ -84,6 +86,21 @@ steps:
         assert wf.name == "myproj/greet_workflow"
         assert len(wf.inputs) == 1
         assert wf.inputs[0].name == "target"
+
+
+def test_namespace_workflow_preserves_descriptions() -> None:
+    workflow = Workflow(
+        name="review",
+        inputs=[InputArg(name="path", description="Path to review.")],
+        source_path="/project/review.yml",
+        description="Review project files.",
+    )
+
+    namespaced = _namespace_workflow("myproj", workflow)
+
+    assert namespaced.name == "myproj/review"
+    assert namespaced.description == "Review project files."
+    assert namespaced.inputs[0].description == "Path to review."
 
 
 def test_get_all_workflows_without_project_excludes_project_workflows() -> None:

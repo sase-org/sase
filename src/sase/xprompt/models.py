@@ -74,6 +74,7 @@ class InputArg:
             ``None`` means null/pass-through (use callee's default).
         is_step_input: True for implicit step inputs (generated from step outputs).
         output_schema: For step inputs, the output schema to validate against.
+        description: Optional human-readable description of the input.
     """
 
     name: str
@@ -81,6 +82,7 @@ class InputArg:
     default: Any = UNSET
     is_step_input: bool = False
     output_schema: OutputSpec | None = None
+    description: str | None = None
 
     def validate_and_convert(self, value: str) -> Any:
         """Validate and convert a string value to the declared type.
@@ -223,6 +225,7 @@ def xprompt_to_workflow(xprompt: XPrompt) -> Workflow:
         source_path=xprompt.source_path,
         tags=xprompt.tags,
         keywords=xprompt.keywords,
+        description=xprompt.description,
     )
 
 

@@ -117,6 +117,7 @@ def classify_workflow(
             source_path=source,
             tags=workflow.tags,
             keywords=workflow.keywords,
+            description=workflow.description,
         ),
         project=project,
     )
@@ -125,6 +126,7 @@ def classify_workflow(
         workflow=workflow,
         bucket=catalog_entry.bucket,
         project=catalog_entry.project,
+        description=workflow.description,
         content=workflow.get_prompt_part_content(),
     )
 

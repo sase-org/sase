@@ -19,7 +19,7 @@ from sase.xprompt.workflow_models import (
 
 
 def parse_workflow_inputs(
-    input_data: list[dict[str, Any]] | dict[str, str] | None,
+    input_data: list[dict[str, Any]] | dict[str, str | dict[str, Any]] | None,
 ) -> list[InputArg]:
     """Parse input definitions from workflow YAML.
 
@@ -40,7 +40,8 @@ def parse_workflow_inputs(
     if isinstance(input_data, dict):
         return parse_shortform_inputs(input_data)
 
-    # Handle longform list syntax
+    # Handle longform list syntax. Workflow longform inputs historically
+    # treated a missing default as explicit null; preserve that behavior.
     inputs: list[InputArg] = []
     for item in input_data:
         if not isinstance(item, dict) or "name" not in item:
@@ -49,12 +50,15 @@ def parse_workflow_inputs(
         name = str(item["name"])
         type_str = str(item.get("type", "line"))
         default = item.get("default")
+        description_value = item.get("description")
+        description = None if description_value is None else str(description_value)
 
         inputs.append(
             InputArg(
                 name=name,
                 type=parse_input_type(type_str),
                 default=default,
+                description=description,
             )
         )
 

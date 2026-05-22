@@ -6,6 +6,7 @@ from sase.xprompt.loader_parsing import (
     parse_xprompt_entries,
     parse_yaml_front_matter,
 )
+from sase.xprompt.models import UNSET, InputType
 
 # Tests for parse_yaml_front_matter
 
@@ -54,6 +55,51 @@ def test_parse_inputs_skips_invalid_items() -> None:
     assert len(inputs) == 2
     assert inputs[0].name == "valid"
     assert inputs[1].name == "also_valid"
+
+
+def test_parse_inputs_longform_description() -> None:
+    inputs = parse_inputs_from_front_matter(
+        [
+            {
+                "name": "diff_path",
+                "type": "path",
+                "description": "Diff file to review.",
+            }
+        ]
+    )
+
+    assert len(inputs) == 1
+    assert inputs[0].name == "diff_path"
+    assert inputs[0].type is InputType.PATH
+    assert inputs[0].default is UNSET
+    assert inputs[0].description == "Diff file to review."
+
+
+def test_parse_inputs_nested_shortform_description() -> None:
+    inputs = parse_inputs_from_front_matter(
+        {
+            "max_retries": {
+                "type": "int",
+                "default": 3,
+                "description": "Maximum retry attempts.",
+            }
+        }
+    )
+
+    assert len(inputs) == 1
+    assert inputs[0].name == "max_retries"
+    assert inputs[0].type is InputType.INT
+    assert inputs[0].default == 3
+    assert inputs[0].description == "Maximum retry attempts."
+
+
+def test_parse_inputs_simple_shorthand_has_no_description() -> None:
+    inputs = parse_inputs_from_front_matter({"diff_path": "path"})
+
+    assert len(inputs) == 1
+    assert inputs[0].name == "diff_path"
+    assert inputs[0].type is InputType.PATH
+    assert inputs[0].description is None
 
 
 # Tests for _parse_shortform_output

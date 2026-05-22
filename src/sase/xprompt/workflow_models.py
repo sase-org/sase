@@ -145,6 +145,7 @@ class Workflow:
             variable names, values are strings (supporting Jinja2 templates
             rendered against input args). Set once before any steps run and
             persist for the entire agent session.
+        description: Optional human-readable description of the workflow.
     """
 
     name: str
@@ -157,6 +158,7 @@ class Workflow:
     tags: frozenset[XPromptTag] = field(default_factory=frozenset)
     keywords: list[str] = field(default_factory=list)
     environment: dict[str, str] = field(default_factory=dict)
+    description: str | None = None
 
     def has_tag(self, tag: XPromptTag) -> bool:
         """Check if this workflow has the given tag."""

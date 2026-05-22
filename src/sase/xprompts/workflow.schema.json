@@ -5,7 +5,77 @@
   "type": "object",
   "required": ["steps"],
   "additionalProperties": false,
+  "definitions": {
+    "inputDefinitions": {
+      "description": "Input argument definitions (array or object shorthand)",
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "List of input argument definitions",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "The argument name (used for named args like name=value)"
+              },
+              "type": {
+                "type": "string",
+                "description": "The expected type of the argument value",
+                "enum": ["word", "line", "text", "path", "int", "integer", "float", "bool", "boolean", "string"],
+                "default": "line"
+              },
+              "default": {
+                "description": "Default value if argument is not provided (null means required)"
+              },
+              "description": {
+                "type": "string",
+                "description": "Human-readable input description"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "description": "Object shorthand: { argName: type } or { argName: { type, default, description } }",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Type shorthand (e.g., 'text', 'line')",
+                "enum": ["word", "line", "text", "path", "int", "integer", "float", "bool", "boolean", "string"]
+              },
+              {
+                "type": "object",
+                "description": "Full definition with type, default, and description",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "description": "The expected type of the argument value",
+                    "enum": ["word", "line", "text", "path", "int", "integer", "float", "bool", "boolean", "string"]
+                  },
+                  "default": {
+                    "description": "Default value if argument is not provided"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Human-readable input description"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
   "properties": {
+    "description": {
+      "type": "string",
+      "description": "Human-readable workflow description"
+    },
     "tags": {
       "type": "string",
       "description": "Comma-separated tags for the workflow (e.g., 'rollover', 'vcs, rollover')"
@@ -18,16 +88,19 @@
           { "type": "string" },
           {
             "type": "object",
-            "required": ["input", "content"],
+            "required": ["content"],
             "additionalProperties": false,
             "properties": {
               "input": {
-                "type": "object",
-                "description": "Input parameters for the xprompt template"
+                "$ref": "#/definitions/inputDefinitions"
               },
               "content": {
                 "type": "string",
                 "description": "Template content with Jinja2 placeholders"
+              },
+              "description": {
+                "type": "string",
+                "description": "Human-readable xprompt description"
               }
             }
           }
@@ -52,60 +125,7 @@
       }
     },
     "input": {
-      "description": "Input argument definitions (array or object shorthand)",
-      "oneOf": [
-        {
-          "type": "array",
-          "description": "List of input argument definitions",
-          "items": {
-            "type": "object",
-            "required": ["name"],
-            "additionalProperties": false,
-            "properties": {
-              "name": {
-                "type": "string",
-                "description": "The argument name (used for named args like name=value)"
-              },
-              "type": {
-                "type": "string",
-                "description": "The expected type of the argument value",
-                "enum": ["word", "line", "text", "path", "int", "integer", "float", "bool", "boolean", "string"],
-                "default": "line"
-              },
-              "default": {
-                "description": "Default value if argument is not provided (null means required)"
-              }
-            }
-          }
-        },
-        {
-          "type": "object",
-          "description": "Object shorthand: { argName: type } or { argName: { type, default } }",
-          "additionalProperties": {
-            "oneOf": [
-              {
-                "type": "string",
-                "description": "Type shorthand (e.g., 'text', 'line')",
-                "enum": ["word", "line", "text", "path", "int", "integer", "float", "bool", "boolean", "string"]
-              },
-              {
-                "type": "object",
-                "description": "Full definition with type and default",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "description": "The expected type of the argument value",
-                    "enum": ["word", "line", "text", "path", "int", "integer", "float", "bool", "boolean", "string"]
-                  },
-                  "default": {
-                    "description": "Default value if argument is not provided"
-                  }
-                }
-              }
-            ]
-          }
-        }
-      ]
+      "$ref": "#/definitions/inputDefinitions"
     },
     "steps": {
       "type": "array",

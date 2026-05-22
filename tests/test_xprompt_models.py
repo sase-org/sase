@@ -138,6 +138,13 @@ def test_xprompt_to_workflow_preserves_source_path() -> None:
     assert workflow.source_path == "/path/to/test.md"
 
 
+def test_xprompt_to_workflow_preserves_description() -> None:
+    xp = XPrompt(name="test", content="test content", description="Test prompt")
+    workflow = xprompt_to_workflow(xp)
+
+    assert workflow.description == "Test prompt"
+
+
 # Tests for create_anonymous_workflow
 
 

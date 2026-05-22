@@ -125,6 +125,27 @@ def test_structured_catalog_source_filter_keeps_global_entries(
     assert projection.entries[0].source_bucket == "config"
 
 
+def test_structured_catalog_preserves_workflow_description() -> None:
+    workflow = Workflow(
+        name="ship",
+        steps=[WorkflowStep(name="run", agent="Ship it")],
+        source_path="config",
+        description="Ship the selected target.",
+    )
+
+    with (
+        patch("sase.xprompt.catalog.get_all_xprompts", return_value={}),
+        patch(
+            "sase.xprompt.catalog.get_all_workflows", return_value={"ship": workflow}
+        ),
+        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+    ):
+        projection = build_structured_xprompts_catalog()
+
+    assert projection.entries[0].name == "ship"
+    assert projection.entries[0].description == "Ship the selected target."
+
+
 def test_structured_catalog_marks_packaged_skill_xprompts() -> None:
     internal_xprompts = load_xprompts_from_internal()
 

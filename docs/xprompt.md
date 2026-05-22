@@ -196,8 +196,11 @@ closing `---` is the template body.
 ```markdown
 ---
 name: greet
+description: Greet a named user.
 input:
-  user_name: word
+  user_name:
+    type: word
+    description: User name to include in the greeting.
 ---
 
 Hello, {{ user_name }}! Welcome aboard.
@@ -409,9 +412,11 @@ XPrompts can declare typed input parameters in the YAML front matter.
 input:
   - name: diff_path
     type: path
+    description: Diff file to review.
   - name: max_retries
     type: int
     default: 3
+    description: Maximum retry attempts.
 ```
 
 ### Shortform Syntax
@@ -419,8 +424,15 @@ input:
 ```yaml
 input:
   diff_path: path
-  max_retries: { type: int, default: 3 }
+  max_retries:
+    type: int
+    default: 3
+    description: Maximum retry attempts.
 ```
+
+Both forms accept optional one-line `description` fields. Input descriptions do not change argument parsing or compact
+input signatures; rich surfaces such as catalogs, explain output, argument help, and editor documentation can use them
+as human-facing help text.
 
 ### Supported Types
 
@@ -829,7 +841,15 @@ xprompts:
 ```yaml
 xprompts:
   greet:
-    input: { name: word, count: { type: int, default: 1 } }
+    description: Greet a user a configurable number of times.
+    input:
+      name:
+        type: word
+        description: Name to greet.
+      count:
+        type: int
+        default: 1
+        description: Number of greetings to render.
     content: "Hello {{ name }}, count is {{ count }}"
 ```
 
@@ -855,7 +875,15 @@ xprompts:
 
   # Structured format — with typed inputs and/or output
   greet:
-    input: { name: word, count: { type: int, default: 1 } }
+    description: Greet a user a configurable number of times.
+    input:
+      name:
+        type: word
+        description: Name to greet.
+      count:
+        type: int
+        default: 1
+        description: Number of greetings to render.
     content: "Hello {{ name }}, count is {{ count }}"
 ```
 
@@ -1412,6 +1440,20 @@ reference is allowed to participate in a prompt:
 
 Simple markdown xprompts are converted internally to single-step workflows with a `prompt_part` step, so they remain
 inline-capable and continue to use `#name` unless their body contains top-level `---` segment separators.
+
+YAML workflow files can set a top-level `description` and use the same input-description forms as markdown or
+config-defined xprompts:
+
+```yaml
+description: Refresh generated docs and report drift.
+input:
+  docs_dir:
+    type: path
+    description: Documentation root to refresh.
+steps:
+  - name: refresh
+    bash: just docs
+```
 
 Workflow agent steps can embed xprompt references inline:
 

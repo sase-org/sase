@@ -123,6 +123,7 @@ def _namespace_workflow(project: str, wf: Workflow) -> Workflow:
         tags=wf.tags,
         keywords=wf.keywords,
         environment=wf.environment,
+        description=wf.description,
     )
 
 
@@ -142,6 +143,8 @@ def _load_workflow_from_mapping(
     # Parse wraps_all
     wraps_all = bool(data.get("wraps_all", False))
     hidden = bool(data.get("hidden", False))
+    description_value = data.get("description")
+    description = None if description_value is None else str(description_value)
 
     # Parse tags (with wraps_all backward compat)
     from sase.xprompt.tags import XPromptTag
@@ -225,6 +228,7 @@ def _load_workflow_from_mapping(
         hidden=hidden,
         tags=tags,
         environment=environment,
+        description=description,
     )
 
     # Validate variable usage
@@ -399,6 +403,7 @@ def _load_workflows_from_plugins() -> dict[str, Workflow]:
                         tags=workflow.tags,
                         keywords=workflow.keywords,
                         environment=workflow.environment,
+                        description=workflow.description,
                     )
             finally:
                 tmp_path.unlink(missing_ok=True)

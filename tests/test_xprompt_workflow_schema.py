@@ -36,6 +36,34 @@ def test_checked_in_workflows_with_finally_and_artifact_validate() -> None:
     assert _is_valid(_load_xprompt_workflow("json.yml"))
 
 
+def test_workflow_schema_accepts_descriptions() -> None:
+    assert _is_valid(
+        {
+            "description": "Run a described workflow.",
+            "input": [
+                {
+                    "name": "prompt",
+                    "type": "text",
+                    "description": "User request for the workflow.",
+                }
+            ],
+            "xprompts": {
+                "_local": {
+                    "description": "Local helper prompt.",
+                    "input": {
+                        "target": {
+                            "type": "word",
+                            "description": "Target name for the helper.",
+                        }
+                    },
+                    "content": "Review {{ target }}",
+                }
+            },
+            "steps": [{"name": "main", "prompt_part": "#_local"}],
+        }
+    )
+
+
 def test_finally_is_only_allowed_on_top_level_steps() -> None:
     assert _is_valid(
         {

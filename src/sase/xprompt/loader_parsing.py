@@ -99,6 +99,21 @@ def _parse_shortform_input_value(value: str | dict[str, Any]) -> tuple[str, Any]
     return str(value).strip(), UNSET
 
 
+def _parse_shortform_input_metadata(
+    value: str | dict[str, Any],
+) -> tuple[str, Any, str | None]:
+    """Parse shortform input value into (type, default, description)."""
+    if isinstance(value, dict):
+        type_str = str(value.get("type", "line"))
+        default = value.get("default", UNSET)
+        description_value = value.get("description")
+        description = None if description_value is None else str(description_value)
+        return type_str, default, description
+
+    type_str, default = _parse_shortform_input_value(value)
+    return type_str, default, None
+
+
 def parse_shortform_inputs(
     input_dict: Mapping[str, str | dict[str, Any]],
 ) -> list[InputArg]:
@@ -113,12 +128,13 @@ def parse_shortform_inputs(
     """
     inputs: list[InputArg] = []
     for name, value in input_dict.items():
-        type_str, default = _parse_shortform_input_value(value)
+        type_str, default, description = _parse_shortform_input_metadata(value)
         inputs.append(
             InputArg(
                 name=name,
                 type=parse_input_type(type_str),
                 default=default,
+                description=description,
             )
         )
     return inputs
@@ -257,12 +273,15 @@ def parse_inputs_from_front_matter(
         name = str(item["name"])
         type_str = str(item.get("type", "line"))
         default = item.get("default", UNSET)
+        description_value = item.get("description")
+        description = None if description_value is None else str(description_value)
 
         inputs.append(
             InputArg(
                 name=name,
                 type=parse_input_type(type_str),
                 default=default,
+                description=description,
             )
         )
 

@@ -4,6 +4,71 @@
   "description": "Configuration schema for sase.yml files",
   "type": "object",
   "additionalProperties": false,
+  "definitions": {
+    "xpromptInputDefinitions": {
+      "description": "Input argument definitions (array or object shorthand)",
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "List of input argument definitions",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "The argument name (used for named args like name=value)"
+              },
+              "type": {
+                "type": "string",
+                "description": "The expected type of the argument value",
+                "enum": ["word", "line", "text", "path", "int", "integer", "float", "bool", "boolean", "string"],
+                "default": "line"
+              },
+              "default": {
+                "description": "Default value if argument is not provided"
+              },
+              "description": {
+                "type": "string",
+                "description": "Human-readable input description"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "description": "Object shorthand: { argName: type } or { argName: { type, default, description } }",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Type shorthand (e.g., 'text', 'line')",
+                "enum": ["word", "line", "text", "path", "int", "integer", "float", "bool", "boolean", "string"]
+              },
+              {
+                "type": "object",
+                "description": "Full definition with type, default, and description",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "description": "The expected type of the argument value",
+                    "enum": ["word", "line", "text", "path", "int", "integer", "float", "bool", "boolean", "string"]
+                  },
+                  "default": {
+                    "description": "Default value if argument is not provided"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Human-readable input description"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
   "properties": {
     "ace": {
       "type": "object",
@@ -707,8 +772,7 @@
             "additionalProperties": false,
             "properties": {
               "input": {
-                "type": "object",
-                "description": "Input parameters for the xprompt template"
+                "$ref": "#/definitions/xpromptInputDefinitions"
               },
               "content": {
                 "type": "string",

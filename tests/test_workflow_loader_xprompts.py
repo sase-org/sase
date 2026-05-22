@@ -51,6 +51,41 @@ steps:
             validate_workflow(workflow)
 
 
+def test_workflow_and_local_xprompt_descriptions_parse(tmp_path: Path) -> None:
+    workflow_content = """\
+description: Run a described workflow.
+input:
+  - name: prompt
+    type: text
+    description: User request for the workflow.
+xprompts:
+  _local:
+    description: Local helper prompt.
+    input:
+      target:
+        type: word
+        description: Target name for the helper.
+    content: "Review {{ target }}"
+steps:
+  - name: use_it
+    prompt_part: "#_local"
+"""
+    path = tmp_path / "described.yml"
+    path.write_text(workflow_content)
+
+    workflow = _load_workflow_from_file(path)
+
+    assert workflow is not None
+    assert workflow.description == "Run a described workflow."
+    assert len(workflow.inputs) == 1
+    assert workflow.inputs[0].name == "prompt"
+    assert workflow.inputs[0].description == "User request for the workflow."
+    local = workflow.xprompts["_local"]
+    assert local.description == "Local helper prompt."
+    assert local.inputs[0].name == "target"
+    assert local.inputs[0].description == "Target name for the helper."
+
+
 def test_bundled_audit_workflows_validate() -> None:
     """Regression: checked-in audit workflows satisfy validator rules."""
     xprompts_dir = Path(__file__).resolve().parents[1] / "xprompts"
