@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterator
+from contextlib import contextmanager
+import fcntl
 import os
+from pathlib import Path
 import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 
 _AGENTS_SESSION = "sase_ace_agents"
 _WINDOW_PREFIX = "sase_tmux_"
@@ -139,14 +144,22 @@ def _profiling_env_args() -> list[str]:
 def _claim_window(session: str, relaunch_cmd: str) -> tuple[str, int]:
     """Create a uniquely-named ``sase_tmux_<N>`` window in ``session``.
 
-    Uses tmux's own refusal to create duplicate window names as the
-    arbiter, avoiding any TOCTOU race against parallel ``--tmux`` invocations.
+    tmux permits duplicate window names, so SASE claims names under a
+    per-session advisory lock before creating the window.
 
     Returns ``(window_name, pane_pid)`` where ``pane_pid`` is the PID of the
     process tmux launched in the new window's pane.
     """
+    with _tmux_window_claim_lock(session):
+        return _claim_window_unlocked(session, relaunch_cmd)
+
+
+def _claim_window_unlocked(session: str, relaunch_cmd: str) -> tuple[str, int]:
+    existing_windows = set(_list_window_names(session))
     for n in range(1, _MAX_WINDOW_ATTEMPTS + 1):
         window_name = f"{_WINDOW_PREFIX}{n}"
+        if window_name in existing_windows:
+            continue
         result = subprocess.run(
             [
                 "tmux",
@@ -183,6 +196,7 @@ def _claim_window(session: str, relaunch_cmd: str) -> tuple[str, int]:
             return window_name, pane_pid
 
         if _window_name_in_use(session, window_name):
+            existing_windows.add(window_name)
             continue
 
         raise _TmuxLaunchError(
@@ -194,7 +208,24 @@ def _claim_window(session: str, relaunch_cmd: str) -> tuple[str, int]:
     )
 
 
-def _window_name_in_use(session: str, window_name: str) -> bool:
+@contextmanager
+def _tmux_window_claim_lock(session: str) -> Iterator[None]:
+    safe_session = "".join(
+        c if c.isalnum() or c in "._-" else "_" for c in session
+    ).strip("_")
+    if not safe_session:
+        safe_session = "default"
+    uid = getattr(os, "getuid", lambda: 0)()
+    lock_path = Path(tempfile.gettempdir()) / f"sase_ace_tmux_{uid}_{safe_session}.lock"
+    with lock_path.open("a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def _list_window_names(session: str) -> list[str]:
     result = subprocess.run(
         ["tmux", "list-windows", "-t", session, "-F", "#{window_name}"],
         capture_output=True,
@@ -202,8 +233,12 @@ def _window_name_in_use(session: str, window_name: str) -> bool:
         check=False,
     )
     if result.returncode != 0:
-        return False
-    return window_name in result.stdout.splitlines()
+        return []
+    return result.stdout.splitlines()
+
+
+def _window_name_in_use(session: str, window_name: str) -> bool:
+    return window_name in _list_window_names(session)
 
 
 def _print_target(session: str, window_name: str, pane_pid: int) -> None:

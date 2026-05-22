@@ -31,6 +31,7 @@ class _FakeTmux:
         existing_windows: tuple[str, ...] = (),
         new_window_pattern: str = "{session}:@{n}",
         pane_pid_base: int = 82316,
+        reject_duplicate_windows: bool = False,
     ) -> None:
         self.in_tmux = in_tmux
         self.session_name = session_name
@@ -38,6 +39,7 @@ class _FakeTmux:
         self.new_window_pattern = new_window_pattern
         self.pane_pid_base = pane_pid_base
         self.pane_pid_counter = 0
+        self.reject_duplicate_windows = reject_duplicate_windows
         self.calls: list[list[str]] = []
 
     def __call__(
@@ -58,7 +60,7 @@ class _FakeTmux:
         if sub == "new-window":
             assert "-n" in cmd
             window_name = cmd[cmd.index("-n") + 1]
-            if window_name in self.existing_windows:
+            if window_name in self.existing_windows and self.reject_duplicate_windows:
                 return _completed(
                     cmd,
                     returncode=1,
@@ -109,11 +111,11 @@ def test_skips_occupied_window_numbers(capsys, monkeypatch) -> None:
 
     out = capsys.readouterr().out
     assert "sase_tmux_window=sase_tmux_2" in out
-    # We should have tried sase_tmux_1 first and then sase_tmux_2.
+    # Real tmux accepts duplicate window names, so the launcher must skip
+    # occupied names itself instead of relying on a tmux refusal.
     new_window_calls = [c for c in fake.calls if c[1] == "new-window"]
-    assert len(new_window_calls) == 2
-    assert new_window_calls[0][new_window_calls[0].index("-n") + 1] == "sase_tmux_1"
-    assert new_window_calls[1][new_window_calls[1].index("-n") + 1] == "sase_tmux_2"
+    assert len(new_window_calls) == 1
+    assert new_window_calls[0][new_window_calls[0].index("-n") + 1] == "sase_tmux_2"
 
 
 def test_strips_tmux_flags_from_relaunch_argv(monkeypatch) -> None:
