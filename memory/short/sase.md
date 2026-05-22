@@ -1,11 +1,19 @@
-# SASE = Structured Agentic Software Engineering
+# SASE Memory
 
-## Ephemeral `sase_<N>` Workspace Directories
+## Sibling Repositories
 
-SASE runs agents (like you) from ephemeral workspace directories, which are full clones of the sase repo. These
-directories are named `sase_<N>` where `<N>` is some integer. You need to be mindful not to run commands outside of
-these workspace directories, since they have their own isolated virtual environments.
+Configured sibling repositories for this context:
 
-**IMPORTANT**: One consequence of this is that you need to run `just install` before running other commands like
-`just check` (since it is possible we haven't used this workspace directory in a long time and package dependencies may
-have changed).
+- `core`: Shared Rust core backend for SASE domain behavior and cross-frontend APIs.
+- `github`: GitHub VCS and workspace provider plugin for repository, issue, and PR workflows.
+- `telegram`: Telegram integration plugin for chat-driven SASE workflows and notifications.
+- `nvim`: Neovim integration plugin for SASE syntax, completion, and editor support.
+
+When a sibling repository needs changes, agents MUST run:
+
+```bash
+sase workspace open -p <sibling_repo> <workspace_num>
+```
+
+`<workspace_num>` must be the workspace number assigned to the primary repo. Use the path printed by
+`sase workspace open` as the only repository path for sibling edits.

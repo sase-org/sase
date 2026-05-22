@@ -152,9 +152,8 @@ def _render_sase_memory(entries: Iterable[_SiblingMemoryEntry]) -> str:
             "sase workspace open -p <sibling_repo> <workspace_num>",
             "```",
             "",
-            "`<workspace_num>` must be the workspace number assigned to the "
-            "primary repo. Use the path printed by `sase workspace open` as "
-            "the only repository path for sibling edits.",
+            "`<workspace_num>` must be the workspace number assigned to the primary repo. Use the path printed by",
+            "`sase workspace open` as the only repository path for sibling edits.",
             "",
         ]
     )
@@ -168,7 +167,8 @@ def _render_memory_readme() -> str:
         "- `memory/short/` contains always-loaded context referenced from "
         "`AGENTS.md`.\n"
         "- `memory/long/` contains detailed context that must be reachable "
-        "from `AGENTS.md` directly or through another referenced memory file.\n"
+        "from `AGENTS.md` directly or through another\n"
+        "  referenced memory file.\n"
     )
 
 

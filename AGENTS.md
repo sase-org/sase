@@ -19,7 +19,6 @@ that prompt listing individual `.sase/memory/` file paths — one per matched me
 
 ```
 ### DYNAMIC MEMORY
-- @.sase/memory/long-external-repos.md (memory/long/external_repos, matched: `chezmoi`, `plugin`)
 - @.sase/memory/long-generated-skills.md (memory/long/generated_skills, matched: `commit skill`)
 ```
 
@@ -31,10 +30,6 @@ corresponding tier 3 file below — you do NOT need to separately read the tier 
 
 The below files contain detailed reference material. Read them when working in their domain.
 
-**`memory/long/external_repos.md`**  
-Chezmoi repo and maintained sibling repo (`sase-github`, `sase-telegram`, `sase-nvim`, `sase-core`) locations and
-workflows. _Read when cross-repo work is needed._
-
 **`memory/long/generated_skills.md`**  
 Skill file generation pipeline, CLI/skill contract synchronization, commit skills per runtime. _Read when modifying
 skill source files or the commit workflow._
@@ -42,3 +37,7 @@ skill source files or the commit workflow._
 **`memory/long/llm_provider_hooks.md`**  
 Points to documentation on how hooks work for some LLM providers. _Read when working with hooks for a different LLM
 provider (i.e. not the same one you use)._
+
+**`memory/long/tui_jk_baseline.md`**  
+Baseline j/k key-to-paint latency data and reproduction steps. _Read when working on TUI navigation latency or related
+performance instrumentation._
