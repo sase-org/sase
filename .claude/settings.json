@@ -1,15 +1,1 @@
-{
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/tools/sase_sibling_commit_stop_hook",
-            "timeout": 60
-          }
-        ]
-      }
-    ]
-  }
-}
+{}

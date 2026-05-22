@@ -1,4 +1,4 @@
-"""Subprocess tests for the repo-local sibling commit stop hook."""
+"""Compatibility tests for the repo-local sibling commit stop hook."""
 
 from __future__ import annotations
 
@@ -9,9 +9,6 @@ from pathlib import Path
 
 
 HOOK = Path(__file__).resolve().parents[1] / "tools" / "sase_sibling_commit_stop_hook"
-CODEX_FALLBACK_COMMAND = (
-    '"${CODEX_PROJECT_DIR:-$PWD}"/tools/sase_sibling_commit_stop_hook'
-)
 
 
 def _run_hook(
@@ -48,37 +45,6 @@ def _run_hook(
         input=json.dumps(hook_input) if hook_input is not None else None,
         text=True,
         capture_output=True,
-        check=False,
-    )
-
-
-def _run_configured_codex_fallback_command(
-    project_dir: Path,
-    tmp_path: Path,
-    *,
-    timestamp: str = "260425_120000",
-) -> subprocess.CompletedProcess[str]:
-    env = {
-        "HOME": str(tmp_path / "home"),
-        "PATH": os.environ["PATH"],
-        "CODEX_THREAD_ID": "codex-test-thread",
-        "SASE_AGENT_TIMESTAMP": timestamp,
-        "SASE_TMPDIR": str(tmp_path / "sase_tmp"),
-    }
-
-    tools_dir = project_dir / "tools"
-    tools_dir.mkdir()
-    (tools_dir / "sase_sibling_commit_stop_hook").symlink_to(HOOK)
-    Path(env["HOME"]).mkdir(parents=True, exist_ok=True)
-    Path(env["SASE_TMPDIR"]).mkdir(parents=True, exist_ok=True)
-
-    return subprocess.run(
-        CODEX_FALLBACK_COMMAND,
-        cwd=project_dir,
-        env=env,
-        text=True,
-        capture_output=True,
-        shell=True,
         check=False,
     )
 
@@ -158,25 +124,6 @@ def test_codex_json_reason_includes_actionable_sibling_details(
     assert "/sase_git_commit" in payload["reason"]
     assert "git status --short --branch" in payload["reason"]
     assert "git push" in payload["reason"]
-    assert payload["reason"] in result.stderr
-
-
-def test_codex_fallback_command_blocks_without_codex_project_dir(
-    tmp_path: Path,
-) -> None:
-    project_dir = _make_project(tmp_path)
-    _make_dirty_repo(tmp_path / "sase-telegram")
-
-    result = _run_configured_codex_fallback_command(project_dir, tmp_path)
-
-    assert result.returncode == 0
-    payload = json.loads(result.stdout)
-    assert payload["decision"] == "block"
-    assert (
-        "Uncommitted changes detected in sibling repo(s): ../sase-telegram"
-        in payload["reason"]
-    )
-    assert "cd ../sase-telegram" in payload["reason"]
     assert payload["reason"] in result.stderr
 
 

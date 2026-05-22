@@ -7,10 +7,6 @@ from pathlib import Path
 
 import pytest
 
-SIBLING_HOOK = (
-    Path(__file__).resolve().parents[2] / "tools" / "sase_sibling_commit_stop_hook"
-)
-
 
 def isolate_fallback_markers(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Point fallback/native marker files into a tmp dir for the test."""

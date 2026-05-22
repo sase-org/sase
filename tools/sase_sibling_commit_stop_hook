@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Repo-specific stop hook for sibling repositories.
-# Keeps sibling-repo checks out of the generic, installable sase_commit_stop_hook.
+# Compatibility-only repo-specific stop hook for sibling repositories.
+# SASE-owned agent runs now use the provider-neutral commit finalizer; active
+# SASE agent configs should not invoke this hook.
 
 set -u
 

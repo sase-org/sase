@@ -1,3 +1,10 @@
+"""Compatibility-only provider-native commit stop hook.
+
+SASE-owned agent runs now use the provider-neutral commit finalizer in the
+LLM invocation layer. This script remains for older external hook configs and
+for tests that exercise the compatibility wrapper directly.
+"""
+
 from __future__ import annotations
 
 import fcntl
