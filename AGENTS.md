@@ -10,7 +10,7 @@ The following memory files contain core (always loaded) context:
 - @memory/short/glossary.md
 - @memory/short/gotchas.md
 - @memory/short/rust_core_backend_boundary.md
-- @memory/short/workspaces.md
+- @memory/short/sase.md
 
 ## Tier 2 (dynamic) Memory
 
