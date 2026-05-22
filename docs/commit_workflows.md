@@ -12,7 +12,21 @@ abstraction, but differ in what they produce and how they track the result.
 | **Propose** | `#propose` | `create_proposal`     | Saved diff file              | COMMITS entry |
 | **PR**      | `#pr`      | `create_pull_request` | New branch + PR              | ChangeSpec    |
 
-![Shared commit workflow showing xprompt inputs flowing through the stop hook, commit skill, CommitWorkflow stages, VCS dispatch outputs, and conflict resume checkpoint](images/commit-workflow-infographic.png)
+```
+#commit / #propose / #pr
+        |
+        v
+Agent edits files
+        |
+        v
+Provider-neutral commit finalizer
+        |
+        v
+Commit skill (/sase_git_commit, /sase_hg_commit, ...)
+        |
+        v
+sase commit -> CommitWorkflow -> VCS provider -> tracked output
+```
 
 ## How It Works
 
@@ -21,10 +35,14 @@ abstraction, but differ in what they produce and how they track the result.
 The agent receives an xprompt (`#commit`, `#propose`, or `#pr`) which sets the `SASE_COMMIT_METHOD` environment variable
 and injects an instruction telling the agent **not** to create commits directly.
 
-### 2. Stop hook triggers the commit
+### 2. Commit finalizer checks for uncommitted work
 
-When the agent finishes, the **stop hook** (`sase_commit_stop_hook`) detects uncommitted changes and blocks the agent
-with an instruction to use the commit skill for the detected VCS provider, such as `/sase_git_commit` or
+When a SASE-launched agent turn succeeds, the provider-neutral **commit finalizer** runs in the shared LLM invocation
+layer. It checks the main workspace and any configured sibling repositories for uncommitted changes. If everything is
+clean, the agent response is postprocessed normally.
+
+If changes remain, the finalizer runs a bounded follow-up turn with the same provider. The follow-up prompt lists the
+dirty files and instructs the agent to use the commit skill for the detected VCS provider, such as `/sase_git_commit` or
 `/sase_hg_commit` when that provider skill is installed for the current runtime. The skill calls `sase commit` with
 flags, usually using a message file and explicit file pathspecs:
 
@@ -35,10 +53,15 @@ sase commit -M commit_message.md -f src/example.py -t <method>
 The method defaults to `$SASE_COMMIT_METHOD` if the `-t` flag is omitted. If both the environment and `-t/--type` are
 set, they must resolve to the same method unless `SASE_COMMIT_METHOD_ALLOW_OVERRIDE=1` is set.
 
-If `SASE_BEAD_ID` is set, the stop hook first asks the agent to decide whether the uncommitted changes were made in the
+If `SASE_BEAD_ID` is set, the finalizer first asks the agent to decide whether the uncommitted changes were made in the
 current session. For changes the agent did make, it instructs the agent to close and verify the bead before invoking the
 commit skill. This keeps bead lifecycle state ahead of the commit/proposal/PR dispatch while avoiding accidental closure
 for unrelated dirty work.
+
+The finalizer uses the same instruction helper as the legacy compatibility hook, so bead-aware prompts still ask the
+agent to decide whether it made the dirty changes, close and verify the bead when appropriate, and then commit through
+the skill. `commit.finalizer.max_passes` controls how many follow-up turns may run before SASE fails the invocation with
+a clear error and `commit_finalizer_result.json` artifact.
 
 ### CLI Arguments
 
@@ -342,31 +365,39 @@ instructions automatically, so agents know to hand control back to the user rath
 | `SASE_PR_STATUS`                    | Initial PR ChangeSpec status (`draft`, `wip`, `ready`)           |
 | `SASE_BUG_ID`                       | Bug ID for PR metadata                                           |
 | `SASE_VCS_PROVIDER`                 | Override VCS provider detection (see [vcs.md](vcs.md))           |
+| `SASE_SIBLING_REPOS_JSON`           | JSON metadata for configured sibling repos passed to agents      |
+| `SASE_SIBLING_REPO_<NAME>_DIR`      | Workspace-matched path for one configured sibling repo           |
+| `SASE_DISABLE_COMMIT_STOP_HOOK`     | Skip both finalizer and legacy compatibility hook when set       |
 
-## Stop Hook
+## Commit Finalizer and Compatibility Hook
 
-The `sase_commit_stop_hook` (`src/sase/scripts/sase_commit_stop_hook.py`) is the bridge between the agent and the commit
-workflow. It runs as a post-completion hook in supported agent runtimes and adapts its blocking response to the runtime:
-Codex receives structured JSON with `decision=block`; Gemini and Qwen receive structured JSON with `decision=deny`; and
-Claude-compatible hooks receive stderr plus a blocking exit code.
+The normal SASE-owned path is the provider-neutral finalizer in `src/sase/llm_provider/commit_finalizer.py`. It runs
+after a successful provider turn and before success postprocessing. The finalizer is deliberately outside any one
+runtime's native hook system, so Claude, Codex, Gemini, Qwen, OpenCode, and provider plugins share the same behavior.
 
 **Flow:**
 
-1. Detect the project directory from runtime-specific env vars or fall back to the current working directory
-2. Check for uncommitted changes via the VCS provider
-3. If changes exist, resolve the provider-specific commit skill (`SASE_COMMIT_SKILL` override, then VCS detection)
-4. If `SASE_BEAD_ID` is set, tell the agent to close and verify the bead before invoking the commit skill, but only
-   after deciding the changes were made by this session
-5. Emit a blocking instruction telling the agent to use the resolved commit skill
-6. The instruction message includes the commit method type (e.g., "The commit method type is `create_pull_request`") so
-   the agent knows which method to use
-7. For `create_pull_request`, the instruction also includes the PR name (from `SASE_PR_NAME` or a placeholder) and the
-   project prefix if available
+1. Skip when `commit.finalizer.enabled` is false, `SASE_DISABLE_COMMIT_STOP_HOOK=1` is set, or the call is outside a
+   SASE agent session.
+2. Resolve the project directory from provider/workspace environment variables.
+3. Check the main workspace through the VCS provider.
+4. Check configured sibling repos from `SASE_SIBLING_REPOS_JSON`, or from project config when available.
+5. If dirty repos exist, write `commit_finalizer_pass_<N>_prompt.md`, run one follow-up provider turn, and write
+   `commit_finalizer_pass_<N>_response.md`.
+6. Re-check every dirty target. If all are clean, write `commit_finalizer_result.json` with status `finalized` and
+   append the follow-up response to the agent's final response.
+7. If changes remain after `commit.finalizer.max_passes`, write status `failed` and fail the invocation instead of
+   silently accepting dirty work.
 
-The hook writes structured diagnostics to `~/.sase_commit_stop_hook.jsonl`, deduplicates repeated blocks within the same
-agent session, and supports `SASE_DISABLE_COMMIT_STOP_HOOK=1` for an explicit bypass. Gemini's `stop_hook_active`
-payload is treated as a re-entry signal; Qwen also sets Gemini-family fields but fires a Claude-style `Stop` event, so
-Qwen deduplicates only through the per-session marker file to avoid skipping the first real stop payload.
+Configured sibling repos are resolved to workspace-matched directories before agent launch. For example, an agent in
+`sase_10` sees a `../sase-core` sibling as `sase-core_10` when that checkout is available or can be materialized. Repos
+configured with `workspace.strategy: none` are checked at their primary path instead; this is useful for singleton repos
+such as chezmoi.
+
+The `sase_commit_stop_hook` script remains as a compatibility-only provider-native hook for older external settings and
+manual hook installs. Active SASE-launched runs do not require runtime-specific stop-hook configuration. The
+compatibility hook uses the same commit-instruction helpers, writes diagnostics to `~/.sase_commit_stop_hook.jsonl`, and
+still honors `SASE_DISABLE_COMMIT_STOP_HOOK=1`.
 
 ## Diff Storage
 
@@ -383,7 +414,7 @@ Diffs can be re-applied to a workspace with `apply_diff_to_workspace()` from `sa
 ## Design Principles
 
 - **Fail-fast:** If `commit_result.json` is missing when the xprompt post-steps run, the workflow fails explicitly
-  rather than silently retrying. The stop hook is the only path to commit creation.
+  rather than silently retrying. The finalizer and commit skills are the sanctioned path to commit creation.
 - **Single responsibility:** `CommitWorkflow` owns all orchestration (precommit, beads, plans, VCS dispatch, tracking).
   XPrompt steps only read and report results.
 - **Proper proposal semantics:** Proposals save diffs and clean the workspace without creating commits. Bead lifecycle

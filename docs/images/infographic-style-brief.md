@@ -58,8 +58,8 @@ Current sidecar prompt files and target doc embeds match the insertion points ab
 
 ### `docs/commit_workflows.md`
 
-- Show the shared path from `#commit`, `#propose`, or `#pr` through the stop hook, commit skill, `sase commit`, and
-  `CommitWorkflow`.
+- Show the shared path from `#commit`, `#propose`, or `#pr` through the provider-neutral commit finalizer, commit skill,
+  `sase commit`, and `CommitWorkflow`.
 - Keep the three dispatch outputs visually distinct: commit hash plus COMMITS entry, saved diff plus COMMITS entry, and
   PR URL plus ChangeSpec entry.
 - Include bead lifecycle, plan handling, PR tags, parent detection, VCS dispatch, result marker, and tracking as

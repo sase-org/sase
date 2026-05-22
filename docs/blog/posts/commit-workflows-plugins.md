@@ -45,19 +45,20 @@ handling → precommit command → parent CL detection (PR only) → diff captur
 VCS-specific `create_commit` / `create_proposal` / `create_pull_request` hook. Post-dispatch, the workflow writes a
 `commit_result.json` marker for the XPrompt post-steps to read.
 
-## The Stop-Hook Contract
+## The Commit-Finalizer Contract
 
-Agents do not run `git commit` themselves. They make changes; when they finish, the `sase_commit_stop_hook` notices the
-uncommitted state and blocks them with a structured instruction to invoke the matching commit skill (for example
-`/sase_git_commit` for git-based projects, `/sase_hg_commit` for Mercurial). The skill calls `sase commit` with flags —
-usually `-M commit_message.md -f <files> -t <method>`.
+Agents do not run `git commit` directly. They make changes; after a successful SASE-owned agent turn, the shared commit
+finalizer checks the main workspace and configured sibling repos for uncommitted state. If anything is dirty, it sends a
+bounded follow-up prompt to the same provider with a structured instruction to invoke the matching commit skill (for
+example `/sase_git_commit` for git-based projects, `/sase_hg_commit` for Mercurial). The skill calls `sase commit` with
+flags - usually `-M commit_message.md -f <files> -t <method>`.
 
-That stop hook is runtime-uniform. Codex receives a structured JSON response with `decision=block`, Gemini and Qwen
-receive structured JSON with `decision=deny`, and Claude-compatible hooks receive stderr plus a blocking exit code. The
-control flow is the same regardless of which runtime is on the other end: changes exist → block with skill name → skill
-calls `sase commit`. No runtime-specific branching in the agent prompt, no "if Codex then X" anywhere in the workflow.
+That finalizer is runtime-uniform because it lives in the LLM provider orchestration layer, not in a provider-native
+hook. Claude, Codex, Gemini, Qwen, OpenCode, and plugin providers all follow the same control flow: changes exist →
+follow-up with skill name → skill calls `sase commit` → finalizer re-checks the workspaces. No runtime-specific
+branching in the agent prompt, no "if Codex then X" anywhere in the workflow.
 
-If `SASE_BEAD_ID` is set, the stop hook first asks the agent to decide whether the uncommitted changes were made in the
+If `SASE_BEAD_ID` is set, the finalizer first asks the agent to decide whether the uncommitted changes were made in the
 current session. For changes the agent did make, it instructs the agent to close and verify the bead before invoking the
 commit skill. That keeps bead lifecycle state ahead of the commit dispatch while avoiding accidental closure of
 unrelated dirty work.

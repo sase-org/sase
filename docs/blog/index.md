@@ -21,7 +21,7 @@ The [SASE Blog Series](../series/agentic-software-engineering.md) has eleven pos
 6. [\[05\] Beads and SDD — Planning Multi-Agent Work That Actually Lands](posts/beads-and-sdd.md) — tales, epics,
    legends, the bead data model, and how `sase bead work` turns a plan into a fleet.
 7. [\[06\] Commit Workflows — The Pluggable Path From Diff to PR](posts/commit-workflows-plugins.md) — `#commit`,
-   `#propose`, `#pr`, the stop-hook contract, runtime-uniform skills, and the VCS provider boundary.
+   `#propose`, `#pr`, the commit-finalizer contract, runtime-uniform skills, and the VCS provider boundary.
 8. [\[07\] ChangeSpecs in Practice — Review State Outside the Chat](posts/changespecs-in-practice.md) — the `.sase`
    record end to end, commits drawers, mentor execution, HOOKS prefixes, and the ACE keystrokes that drive review.
 9. [\[08\] Driving SASE From Your Phone — Telegram as the Mobile Control Surface](posts/telegram-mobile-agents.md) — the

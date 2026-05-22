@@ -9,9 +9,10 @@ pdf: false
 
 ## Summary
 
-The infographic conveys the rough left-to-right shape of the shared commit workflow (xprompt inputs → stop hook → commit
-skill → `sase commit` → `CommitWorkflow` → three output branches), and the three output cards on the right are correct
-and easy to read. The provider note ("VCS providers: Git, GitHub, Mercurial") and the title are also accurate.
+This is a historical critique of a diagram that predated the provider-neutral commit finalizer. The committed PNG still
+shows the old left-to-right shape (xprompt inputs → stop hook → commit skill → `sase commit` → `CommitWorkflow` → three
+output branches). The current runtime behavior is xprompt inputs → commit finalizer → commit skill → `sase commit` →
+`CommitWorkflow` → three output branches.
 
 The main problems are with the central `CommitWorkflow` band: it omits two stages, drops one of the canonical labels in
 favor of an off-spec synonym, and renders the stages in the wrong relative order. The conflict-resume loop is also drawn
@@ -90,10 +91,9 @@ Grounding against `src/sase/workflows/commit/workflow.py` (`run` method, lines 1
 5. **Missing PR-only "PR name suffixing" stage.** The doc lists this explicitly under PR-only stages, and the code
    computes `_<N>` suffixing in `run` (lines 124–140) before parent detection. Not in the prompt label list either, but
    worth flagging since it's a real PR-only stage that affects the output branch (`PR URL + ChangeSpec`).
-6. **Stop-hook → commit-skill description is under-specified.** The arrow from `Stop hook` straight to `Commit skill`
-   glosses over a real branch in the code: when `SASE_BEAD_ID` is set, the stop hook first asks the agent to
-   close/verify the bead before invoking the commit skill (per `docs/commit_workflows.md` "Stop Hook" section, points
-   4–5). Probably too detailed for the band, but worth a small annotation.
+6. **Legacy stop-hook label is now stale.** The current code runs the provider-neutral commit finalizer after a
+   successful SASE-owned provider turn. The old `Stop hook` label should become `Commit finalizer`, with a small note
+   that legacy provider-native stop hooks remain compatibility-only.
 7. **Output branches are correct but the proposal branch is mislabeled imprecisely.** "Saved diff + COMMITS entry"
    matches the doc and code (proposals append a COMMITS entry per workflow.py `_run_tracking_steps` and the doc's
    "Tracking: Appends a proposal COMMITS entry"). No change needed; flagging only that this was the chip most likely to
@@ -118,8 +118,8 @@ For the next phase (`sase-2s.12 — Regenerate diagram: commit-workflow`):
 6. **Keep** the right-side three-card output branches and the "VCS providers: Git, GitHub, Mercurial" note — both are
    accurate and readable as-is.
 7. **Rename "Bead handling" → "Bead lifecycle"** to match the doc and prompt.
-8. **Optional but helpful:** add a small label on the Stop hook → Commit skill arrow noting "blocks agent + selects
-   skill" so the stop hook's role as a gate is visible at a glance.
+8. **Optional but helpful:** add a small label on the Commit finalizer → Commit skill arrow noting "checks dirty repos +
+   selects skill" so the finalizer's role as a gate is visible at a glance.
 
 These changes bring the diagram back into alignment with both `docs/commit_workflows.md` and the actual
 `CommitWorkflow.run()` implementation, and address the highest-impact clarity gaps.

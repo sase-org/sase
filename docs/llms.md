@@ -8,6 +8,7 @@ a shared orchestration layer that handles preprocessing, invocation, and postpro
 
 - [Overview](#overview)
 - [Provider Architecture](#provider-architecture)
+- [Commit Finalization](#commit-finalization)
 - [Claude Code Integration](#claude-code-integration)
 - [Gemini CLI Integration](#gemini-cli-integration)
 - [Codex CLI Integration](#codex-cli-integration)
@@ -40,29 +41,32 @@ Key design principles:
   lives in the shared orchestration layer.
 - **Registry-based selection**: Providers register themselves by name and are resolved via config or explicit override.
 - **Tier-based model selection**: Callers request a "large" or "small" tier; the provider maps it to a concrete model.
+- **Runtime-uniform commit enforcement**: SASE-owned runs use a shared commit finalizer instead of provider-specific
+  native stop hooks.
 
 ### Source Layout
 
-| File                                       | Purpose                                             |
-| ------------------------------------------ | --------------------------------------------------- |
-| `src/sase/llm_provider/__init__.py`        | Public API exports                                  |
-| `src/sase/llm_provider/base.py`            | `LLMProvider` abstract base class                   |
-| `src/sase/llm_provider/_hookspec.py`       | Pluggy hook specifications (`LLMHookSpec`)          |
-| `src/sase/llm_provider/_plugin_manager.py` | Plugin manager wrapping pluggy (`LLMPluginManager`) |
-| `src/sase/llm_provider/claude.py`          | Claude Code provider implementation                 |
-| `src/sase/llm_provider/codex.py`           | Codex CLI provider implementation                   |
-| `src/sase/llm_provider/gemini.py`          | Gemini CLI provider implementation                  |
-| `src/sase/llm_provider/qwen.py`            | Qwen Code provider implementation                   |
-| `src/sase/llm_provider/opencode.py`        | OpenCode provider implementation                    |
-| `src/sase/llm_provider/registry.py`        | Provider registration and lookup                    |
-| `src/sase/llm_provider/config.py`          | Config file reader (`sase.yml`)                     |
-| `src/sase/llm_provider/types.py`           | `ModelTier`, `InvokeResult`, `LoggingContext` types |
-| `src/sase/llm_provider/_invoke.py`         | `invoke_agent()` orchestrator                       |
-| `src/sase/llm_provider/_subprocess.py`     | Provider stream-parser compatibility exports        |
-| `src/sase/llm_provider/_plan_utils.py`     | Shared plan utilities                               |
-| `src/sase/llm_provider/preprocessing.py`   | Shared prompt preprocessing pipeline                |
-| `src/sase/llm_provider/postprocessing.py`  | Logging, chat history, audio                        |
-| `src/sase/llm_provider/retry_config.py`    | `ProviderRetryConfig` (per-provider retry defaults) |
+| File                                        | Purpose                                             |
+| ------------------------------------------- | --------------------------------------------------- |
+| `src/sase/llm_provider/__init__.py`         | Public API exports                                  |
+| `src/sase/llm_provider/base.py`             | `LLMProvider` abstract base class                   |
+| `src/sase/llm_provider/_hookspec.py`        | Pluggy hook specifications (`LLMHookSpec`)          |
+| `src/sase/llm_provider/_plugin_manager.py`  | Plugin manager wrapping pluggy (`LLMPluginManager`) |
+| `src/sase/llm_provider/claude.py`           | Claude Code provider implementation                 |
+| `src/sase/llm_provider/codex.py`            | Codex CLI provider implementation                   |
+| `src/sase/llm_provider/gemini.py`           | Gemini CLI provider implementation                  |
+| `src/sase/llm_provider/qwen.py`             | Qwen Code provider implementation                   |
+| `src/sase/llm_provider/opencode.py`         | OpenCode provider implementation                    |
+| `src/sase/llm_provider/registry.py`         | Provider registration and lookup                    |
+| `src/sase/llm_provider/config.py`           | Config file reader (`sase.yml`)                     |
+| `src/sase/llm_provider/commit_finalizer.py` | Provider-neutral dirty-workspace finalizer          |
+| `src/sase/llm_provider/types.py`            | `ModelTier`, `InvokeResult`, `LoggingContext` types |
+| `src/sase/llm_provider/_invoke.py`          | `invoke_agent()` orchestrator                       |
+| `src/sase/llm_provider/_subprocess.py`      | Provider stream-parser compatibility exports        |
+| `src/sase/llm_provider/_plan_utils.py`      | Shared plan utilities                               |
+| `src/sase/llm_provider/preprocessing.py`    | Shared prompt preprocessing pipeline                |
+| `src/sase/llm_provider/postprocessing.py`   | Logging, chat history, audio                        |
+| `src/sase/llm_provider/retry_config.py`     | `ProviderRetryConfig` (per-provider retry defaults) |
 
 ## Provider Architecture
 
@@ -127,6 +131,22 @@ provider = get_provider("claude")  # Explicit provider name
    `llm_autodetect_priority()` order and picking the first whose `llm_autodetect_cli_name()` is on `PATH`. Built-in
    priorities: `claude=0`, `codex=10`, `qwen=15`, `opencode=18`, `gemini=30`. External plugins slot in by declaring
    their own priority. Gemini returns no CLI name and is the final always-eligible fallback.
+
+## Commit Finalization
+
+After a provider returns successfully, `invoke_agent()` runs the provider-neutral commit finalizer before success
+postprocessing. The finalizer checks the active project workspace and any configured sibling repositories for
+uncommitted changes. If it finds dirty work, it sends the same provider a bounded follow-up prompt that lists the dirty
+files and instructs the agent to use the appropriate commit skill, such as `/sase_git_commit`.
+
+The finalizer skips when the call is outside a SASE agent session, when `commit.finalizer.enabled` is false, or when
+`SASE_DISABLE_COMMIT_STOP_HOOK=1` is set. On each follow-up pass it writes `commit_finalizer_pass_<N>_prompt.md` and
+`commit_finalizer_pass_<N>_response.md` under `$SASE_ARTIFACTS_DIR`; the final outcome is written to
+`commit_finalizer_result.json`. If the workspace remains dirty after `commit.finalizer.max_passes`, the invocation is
+converted into an `LLMInvocationError` rather than being logged as a successful clean run.
+
+The legacy `sase_commit_stop_hook` still exists for external native hook configs, but SASE-owned agent launches no
+longer depend on provider-specific stop-hook setup.
 
 ## Claude Code Integration
 
@@ -249,6 +269,12 @@ hooks. When `SASE_ARTIFACTS_DIR` is present, the stream parser appends normalize
 pending state while a tool is still running and surfaces result previews, failure/interruption status, and durations
 when the stream exposes them. Malformed or unsupported tool-shaped events are skipped with a diagnostic instead of
 producing a malformed record.
+
+### Skill Deployment
+
+`sase init-skills` writes Gemini skills to both `~/.gemini/skills/` and `~/.gemini/jetski/skills/`. With
+`use_chezmoi: true`, those targets are remapped to the matching chezmoi-managed paths under
+`~/.local/share/chezmoi/home/dot_gemini/`.
 
 ### Timer Display
 
@@ -378,21 +404,13 @@ into records appended to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl` for the ACE
 unsupported tool-shaped events emit a diagnostic instead of producing a malformed record. The Tools-panel reader
 collapses each start/result pair into a single row.
 
-### Stop Hook
+### Commit Finalization
 
-Qwen Code fires the Claude-style `Stop` event after each agent turn (not Gemini's `AfterAgent`). SASE registers
-`sase_commit_stop_hook` for that event in two places:
-
-- The global `~/.qwen/settings.json` (deployed from `~/.local/share/chezmoi/home/dot_qwen/settings.json`) so every Qwen
-  session, regardless of cwd, runs the generic commit stop hook.
-- The repo-local `.qwen/settings.json` in this repo, which additionally runs `tools/sase_sibling_commit_stop_hook` so
-  sibling-repo dirty trees are caught during sase development.
-
-Qwen Code exports both `QWEN_PROJECT_DIR` and `GEMINI_PROJECT_DIR` (it is a Gemini fork). `sase_commit_stop_hook`
-detects Qwen first and labels the run `runtime: "qwen"` in `~/.sase_commit_stop_hook.jsonl`. The block payload uses the
-Gemini-family `{"decision": "deny", "reason": …}` shape, which Qwen Code honors per its hook contract. Qwen may also set
-the Gemini `stop_hook_active` field on the first stop payload, so SASE does not use that field for Qwen deduplication;
-Qwen repeated-block suppression relies on the same per-session marker file used by native stop hooks.
+SASE-owned Qwen runs use the shared provider-neutral commit finalizer described above; active SASE settings do not need
+repo-local or global Qwen stop-hook configuration. The compatibility `sase_commit_stop_hook` can still serve older
+external native hook configs. When invoked manually from such a config, it detects Qwen before Gemini because Qwen Code
+sets both `QWEN_PROJECT_DIR` and `GEMINI_PROJECT_DIR`, and it emits the Gemini-family
+`{"decision": "deny", "reason": ...}` block payload that Qwen honors.
 
 ### Timer Display
 
@@ -1133,7 +1151,12 @@ invoke_agent(prompt, agent_type, model_tier, ...)
 │   ├── Supply prompt via provider transport
 │   └── Stream stdout/stderr in real-time
 │
-├── 11. Postprocess
+├── 11. Run commit finalizer for SASE-owned agent turns
+│   ├── Skip when disabled or outside an agent session
+│   ├── Check main workspace and configured sibling repos
+│   └── Run bounded follow-up provider turns until clean or failed
+│
+├── 12. Postprocess
 │   ├── Success path:
 │   │   ├── Audio notification
 │   │   ├── Log to sase.md

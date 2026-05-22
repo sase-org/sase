@@ -708,6 +708,16 @@ the normal xprompt catalog sources, then run `sase init-skills --force`. When `u
 commits, pushes, and applies the generated files unless passed `--no-commit`, `--no-push`, or `--no-apply`. Do not edit
 deployed SKILL.md files directly.
 
+Provider plugins declare where generated skills should be written. Built-in targets are:
+
+| Provider | Skill target(s)                                                                 |
+| -------- | ------------------------------------------------------------------------------- |
+| Claude   | `~/.claude/skills/<skill>/SKILL.md`                                             |
+| Codex    | `~/.codex/skills/<skill>/SKILL.md`                                              |
+| Gemini   | `~/.gemini/skills/<skill>/SKILL.md`, `~/.gemini/jetski/skills/<skill>/SKILL.md` |
+| Qwen     | `~/.qwen/skills/<skill>/SKILL.md`                                               |
+| OpenCode | `~/.config/opencode/skills/<skill>/SKILL.md`                                    |
+
 ### Bundled Skills
 
 The following skills ship in `src/sase/xprompts/skills/` and are deployed by `sase init-skills`. They are packaged with

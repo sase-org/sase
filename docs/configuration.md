@@ -10,6 +10,8 @@ and CLI flags.
 - [Configuration Sections](#configuration-sections)
   - [ace](#ace)
   - [llm_provider](#llm_provider)
+  - [commit](#commit)
+  - [sibling_repos](#sibling_repos)
   - [vcs_provider](#vcs_provider)
   - [axe](#axe)
   - [mentor_profiles](#mentor_profiles)
@@ -239,6 +241,69 @@ output, plus a continuation nudge. Those hook defaults are merged with the bundl
 `default_config.yml`, so the configured wait times and fallback model still apply unless you override them.
 
 Source: `src/sase/llm_provider/retry_config.py`, `src/sase/llm_provider/config.py`
+
+### commit
+
+Configures commit enforcement around SASE-launched agents. The current commit finalizer is provider-neutral and runs in
+the shared LLM invocation layer after a successful provider turn.
+
+```yaml
+commit:
+  finalizer:
+    enabled: true
+    max_passes: 2
+```
+
+| Field                         | Type | Default | Description                                                                  |
+| ----------------------------- | ---- | ------- | ---------------------------------------------------------------------------- |
+| `commit.finalizer.enabled`    | bool | `true`  | Run the post-invocation commit finalizer for SASE-launched agent turns.      |
+| `commit.finalizer.max_passes` | int  | `2`     | Maximum follow-up turns before a still-dirty workspace fails the invocation. |
+
+When enabled, the finalizer checks the main workspace and configured `sibling_repos` for uncommitted changes. Dirty
+workspaces trigger a follow-up turn that instructs the same provider to use the appropriate commit skill. Each pass
+writes prompt/response artifacts under `$SASE_ARTIFACTS_DIR`, and the final outcome is recorded in
+`commit_finalizer_result.json`.
+
+Set `SASE_DISABLE_COMMIT_STOP_HOOK=1` for a one-off bypass. The environment variable name is historical; it now disables
+both the provider-neutral finalizer and the legacy compatibility stop hook.
+
+Source: `src/sase/llm_provider/commit_finalizer.py`, `src/sase/commit_instructions.py`
+
+### sibling_repos
+
+Declares related repositories that should be visible to launched agents and checked by the commit finalizer. Entries can
+live in user config or a project-local `sase.yml`; local entries are resolved relative to the project's primary
+workspace directory.
+
+```yaml
+sibling_repos:
+  - name: core
+    path: ../sase-core
+  - name: github
+    path: ../sase-github
+  - name: chezmoi
+    path: ~/.local/share/chezmoi
+    workspace:
+      strategy: none
+```
+
+| Field                                | Type   | Default    | Description                                                                                 |
+| ------------------------------------ | ------ | ---------- | ------------------------------------------------------------------------------------------- |
+| `sibling_repos[].name`               | string | required   | Stable alias shown in prompts and used in generated environment variable names.             |
+| `sibling_repos[].path`               | string | required   | Primary checkout path. Relative paths resolve from the project's primary workspace.         |
+| `sibling_repos[].workspace.strategy` | string | `"suffix"` | `suffix` maps workspace `N` to `<primary>_<N>`; `none` always exposes the primary checkout. |
+
+For `suffix` siblings, workspace numbers `0` and `1` use the primary checkout. Higher workspace numbers use
+workspace-matched sibling checkouts such as `sase-core_10`, materializing the checkout when the workspace provider can
+do so. SASE passes the resolved paths into agent prompts and environment variables:
+
+| Variable                               | Description                                       |
+| -------------------------------------- | ------------------------------------------------- |
+| `SASE_SIBLING_REPOS_JSON`              | JSON metadata for all resolved sibling repos.     |
+| `SASE_SIBLING_REPO_<NAME>_DIR`         | Workspace-matched directory for a sibling repo.   |
+| `SASE_SIBLING_REPO_<NAME>_PRIMARY_DIR` | Primary checkout directory for that sibling repo. |
+
+Source: `src/sase/sibling_repos.py`, `src/sase/agent/launch_spawn.py`
 
 ### vcs_provider
 
@@ -816,12 +881,15 @@ a provider prefix; use `opencode models` to list models in your configured envir
 
 ### VCS Provider
 
-| Variable              | Description                                                                                                                                               |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SASE_VCS_PROVIDER`   | Override VCS provider selection (`git`, `hg`, or `auto`).                                                                                                 |
-| `SASE_WORKSPACE_ROOT` | Override the workspace-root base for this process. Use an absolute path; `WorkspaceStore` appends `<project_key>/<project>_<num>/` for managed checkouts. |
-| `SASE_BUG_ID`         | Bug ID for PR workflows. When set and non-zero, injects `BUG=<id>` into PR tags and ChangeSpec.                                                           |
-| `SASE_BEAD_ID`        | Bead ID for commit workflows. When set, `sase commit` automatically tags the commit message.                                                              |
+| Variable                        | Description                                                                                                                                               |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SASE_VCS_PROVIDER`             | Override VCS provider selection (`git`, `hg`, or `auto`).                                                                                                 |
+| `SASE_WORKSPACE_ROOT`           | Override the workspace-root base for this process. Use an absolute path; `WorkspaceStore` appends `<project_key>/<project>_<num>/` for managed checkouts. |
+| `SASE_BUG_ID`                   | Bug ID for PR workflows. When set and non-zero, injects `BUG=<id>` into PR tags and ChangeSpec.                                                           |
+| `SASE_BEAD_ID`                  | Bead ID for commit workflows. When set, `sase commit` automatically tags the commit message.                                                              |
+| `SASE_DISABLE_COMMIT_STOP_HOOK` | Disable commit finalization and legacy commit stop hooks for this process.                                                                                |
+| `SASE_SIBLING_REPOS_JSON`       | Resolved sibling-repo metadata passed to launched agents.                                                                                                 |
+| `SASE_SIBLING_REPO_<NAME>_DIR`  | Workspace-matched directory for one configured sibling repo.                                                                                              |
 
 ### Plugin System
 
