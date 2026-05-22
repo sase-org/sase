@@ -4,6 +4,7 @@ from typing import Any
 
 from rich.text import Text
 from textual.app import ComposeResult
+from textual.dom import NoScreen
 from textual.message import Message
 from textual.widgets import Static, TextArea
 
@@ -159,7 +160,10 @@ class PromptInputBar(Static):
             return
         visual_lines = self._get_visual_line_count()
         # Reserve a few rows for the header/tabs at minimum
-        screen_height = self.screen.size.height
+        try:
+            screen_height = self.screen.size.height
+        except NoScreen:
+            return
         max_height = screen_height - 2
         # +2 for border top and bottom, plus completion panel when visible
         completion_rows = self._completion_line_count if self._completion_visible else 0
