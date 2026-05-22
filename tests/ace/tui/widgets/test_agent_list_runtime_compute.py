@@ -183,3 +183,21 @@ def test_compute_row_runtime_non_agent_workflow_child_returns_nones(
     )
     assert ts is None
     assert elapsed is None
+
+
+def test_compute_row_runtime_standalone_coder_active() -> None:
+    from sase.plan_chain import PLAN_CHAIN_CODER_SUFFIX
+
+    start = datetime(2026, 4, 25, 14, 0, 0)
+    now = datetime(2026, 4, 25, 14, 2, 5)
+    coder = agent(
+        start=start,
+        status="TALE APPROVED",
+        role_suffix=PLAN_CHAIN_CODER_SUFFIX,
+    )
+    # The parent_workflow is None by default in agent()
+
+    ts, elapsed = compute_row_runtime(coder, now=now)
+    assert ts is None
+    assert elapsed == "2m05s"
+    assert runtime_suffix_ticks(coder, set()) is True
