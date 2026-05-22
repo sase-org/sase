@@ -16,13 +16,20 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
 from ._completion_helpers import CompletionTestApp
 
 
-def _input(name: str, type_: str, *, position: int = 0) -> XPromptInputHint:
+def _input(
+    name: str,
+    type_: str,
+    *,
+    position: int = 0,
+    description: str | None = None,
+) -> XPromptInputHint:
     return XPromptInputHint(
         name=name,
         type=type_,
         required=True,
         default_display=None,
         position=position,
+        description=description,
     )
 
 
@@ -45,7 +52,10 @@ def _entry(
 
 async def test_accepting_required_xprompt_shows_arg_hint_panel() -> None:
     entries = [
-        _entry("review", inputs=(_input("path", "path"),)),
+        _entry(
+            "review",
+            inputs=(_input("path", "path", description="File to inspect."),),
+        ),
         _entry("ship"),
     ]
     app = CompletionTestApp()
@@ -66,6 +76,7 @@ async def test_accepting_required_xprompt_shows_arg_hint_panel() -> None:
         assert ta.text == "#review:"
         assert ta._active_xprompt_arg_hint is not None
         assert "path: path" in rendered.plain
+        assert "File to inspect." in rendered.plain
         assert panel.border_title == "xprompt args"
 
 

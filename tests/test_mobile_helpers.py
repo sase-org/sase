@@ -45,6 +45,7 @@ def test_xprompt_catalog_bridge_returns_structured_projection(
                             required=True,
                             default_display=None,
                             position=0,
+                            description="Hook log to repair.",
                         )
                     ],
                     is_skill=False,
@@ -117,6 +118,7 @@ def test_xprompt_catalog_bridge_returns_structured_projection(
                     "required": True,
                     "default_display": None,
                     "position": 0,
+                    "description": "Hook log to repair.",
                 }
             ],
             "is_skill": False,

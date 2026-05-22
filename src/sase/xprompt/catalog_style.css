@@ -370,6 +370,42 @@ h3 { font-size: 12pt; font-weight: 600; }
   letter-spacing: 0.1em;
 }
 
+.input-details {
+  margin: 1mm 0 2.5mm 0;
+  padding: 2mm 2.5mm;
+  border-left: 2px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.input-details-title {
+  color: var(--muted);
+  font-size: 7.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 1mm;
+}
+
+.input-detail {
+  font-size: 8.5pt;
+  margin-bottom: 0.8mm;
+}
+
+.input-detail-name {
+  font-family: "JetBrains Mono", monospace;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.input-detail-type {
+  font-family: "JetBrains Mono", monospace;
+  color: var(--muted);
+  margin: 0 1.5mm;
+}
+
+.input-detail-description {
+  color: var(--muted);
+}
+
 .card-keywords {
   color: var(--muted);
   font-size: 8.5pt;

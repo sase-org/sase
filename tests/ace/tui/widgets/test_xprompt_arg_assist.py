@@ -34,6 +34,7 @@ def _make_xprompt(
     inputs: list[InputArg] | None = None,
     content: str = "body",
     skill: bool | list[str] | None = None,
+    description: str | None = None,
 ) -> XPrompt:
     return XPrompt(
         name=name,
@@ -41,6 +42,7 @@ def _make_xprompt(
         inputs=inputs or [],
         source_path=source_path,
         skill=skill,
+        description=description,
     )
 
 
@@ -86,12 +88,18 @@ def test_assist_adapter_preserves_structured_catalog_fields(tmp_path: Path) -> N
     xp = _make_xprompt(
         "typed",
         skill=True,
+        description="Run typed inputs.",
         inputs=[
             InputArg(name="required_word", type=InputType.WORD, default=UNSET),
             InputArg(name="string_default", type=InputType.LINE, default="secret"),
             InputArg(name="null_default", type=InputType.TEXT, default=None),
             InputArg(name="count", type=InputType.INT, default=3),
-            InputArg(name="enabled", type=InputType.BOOL, default=False),
+            InputArg(
+                name="enabled",
+                type=InputType.BOOL,
+                default=False,
+                description="Whether to enable the operation.",
+            ),
             InputArg(
                 name="step_output",
                 type=InputType.LINE,
@@ -115,6 +123,7 @@ def test_assist_adapter_preserves_structured_catalog_fields(tmp_path: Path) -> N
 
     entry = entries[0]
     assert entry.name == "typed"
+    assert entry.description == "Run typed inputs."
     assert entry.insertion == "#typed"
     assert entry.reference_prefix == "#"
     assert entry.kind == "xprompt"
@@ -134,6 +143,7 @@ def test_assist_adapter_preserves_structured_catalog_fields(tmp_path: Path) -> N
         ("count", "int", False, "3", 3),
         ("enabled", "bool", False, "false", 4),
     ]
+    assert entry.inputs[-1].description == "Whether to enable the operation."
     assert [inp.name for inp in visible_inputs(entry)] == [
         "required_word",
         "string_default",
@@ -285,6 +295,26 @@ def test_input_label_formatting_and_rich_rendering() -> None:
         text.plain
         == "rendered\n     path: path\n     count?: int=2\n     maybe?: line?"
     )
+
+
+def test_append_input_hints_can_render_descriptions() -> None:
+    text = Text("rendered")
+    append_input_hints(
+        text,
+        (
+            XPromptInputHint(
+                name="path",
+                type="path",
+                required=True,
+                default_display=None,
+                position=0,
+                description="File to inspect.",
+            ),
+        ),
+        include_descriptions=True,
+    )
+
+    assert text.plain == "rendered\n     path: path - File to inspect."
 
 
 def test_append_input_args_preserves_modal_style_for_input_args() -> None:

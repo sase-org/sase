@@ -105,6 +105,7 @@ def xprompt_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
                         "required": inp.required,
                         "default_display": inp.default_display,
                         "position": inp.position,
+                        "description": inp.description,
                     }
                     for inp in entry.inputs
                 ],

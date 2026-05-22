@@ -129,6 +129,11 @@ def filter_structured_catalog_entries(
 def structured_entry_matches_query(
     entry: StructuredCatalogSource, tag_values: list[str], query: str
 ) -> bool:
+    input_descriptions = [
+        inp.description
+        for inp in entry.workflow.inputs
+        if not inp.is_step_input and inp.description
+    ]
     haystack = "\n".join(
         part
         for part in (
@@ -136,6 +141,7 @@ def structured_entry_matches_query(
             entry.description or "",
             entry.content,
             " ".join(tag_values),
+            " ".join(input_descriptions),
         )
         if part
     )
@@ -175,6 +181,7 @@ def structured_inputs(inputs: list[InputArg]) -> list[StructuredCatalogInput]:
                 required=inp.default is UNSET,
                 default_display=default_display(inp.default),
                 position=len(rows),
+                description=inp.description,
             )
         )
     return rows

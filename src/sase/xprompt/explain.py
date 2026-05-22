@@ -223,6 +223,7 @@ def _render_step(
 
 def _build_inputs_table(inputs: list[InputArg]) -> Table:
     """Build a Rich Table for workflow inputs."""
+    include_descriptions = any(inp.description for inp in inputs)
     table = Table(
         show_header=True,
         header_style="bold cyan",
@@ -234,6 +235,8 @@ def _build_inputs_table(inputs: list[InputArg]) -> Table:
     table.add_column("Type", style="yellow")
     table.add_column("Required", style="white")
     table.add_column("Default", style="dim")
+    if include_descriptions:
+        table.add_column("Description", style="dim")
 
     for inp in inputs:
         required = "yes" if inp.default is UNSET else ""
@@ -243,7 +246,10 @@ def _build_inputs_table(inputs: list[InputArg]) -> Table:
             default_val = "null"
         else:
             default_val = repr(inp.default)
-        table.add_row(inp.name, inp.type.value, required, default_val)
+        row = [inp.name, inp.type.value, required, default_val]
+        if include_descriptions:
+            row.append(inp.description or "")
+        table.add_row(*row)
 
     return table
 
@@ -265,6 +271,12 @@ def explain_workflow(
 
     # --- Header panel ---
     header_parts: list[RenderableType] = []
+
+    if workflow.description:
+        description_text = Text()
+        description_text.append("Description: ", style="bold")
+        description_text.append(workflow.description, style="white")
+        header_parts.append(description_text)
 
     source_text = Text()
     source_text.append("Source: ", style="bold")

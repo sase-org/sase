@@ -11,6 +11,7 @@ from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.xprompt import get_all_prompts
+from sase.xprompt.models import UNSET, InputArg
 from sase.xprompt.reference_display import (
     workflow_kind_value,
     workflow_reference_insertion,
@@ -125,7 +126,11 @@ class XPromptBrowserModal(
         filter_lower = filter_text.lower()
 
         filtered = (
-            [item for item in self._all_items if filter_lower in item.name.lower()]
+            [
+                item
+                for item in self._all_items
+                if self._item_matches_filter(item, filter_lower)
+            ]
             if filter_lower
             else list(self._all_items)
         )
@@ -180,6 +185,15 @@ class XPromptBrowserModal(
                 ordered.append((cat, groups[cat]))
 
         self._grouped = ordered
+
+    def _item_matches_filter(self, item: BrowserItem, filter_lower: str) -> bool:
+        parts = [item.name, item.workflow.description or ""]
+        parts.extend(
+            inp.description or ""
+            for inp in item.workflow.inputs
+            if not inp.is_step_input
+        )
+        return filter_lower in "\n".join(part for part in parts if part).casefold()
 
     def _get_flat_items(self) -> list[BrowserItem]:
         """Get flat list of items from grouped data (for index lookups)."""
@@ -399,7 +413,7 @@ class XPromptBrowserModal(
 
         workflow = item.workflow
         if workflow.is_simple_xprompt():
-            content = workflow.get_prompt_part_content()
+            content = self._create_simple_preview(workflow)
         else:
             content = self._create_workflow_preview(workflow)
 
@@ -421,16 +435,21 @@ class XPromptBrowserModal(
         meta_text.append("Insertion: ", style="bold")
         meta_text.append(f"{item.insertion}\n")
 
+        if workflow.description:
+            meta_text.append("Description: ", style="bold")
+            meta_text.append(workflow.description)
+            meta_text.append("\n")
+
         if workflow.inputs:
             input_strs = [
-                f"{inp.name} ({inp.type.value})"
+                _input_meta_line(inp)
                 for inp in workflow.inputs
                 if not inp.is_step_input
             ]
             if input_strs:
-                meta_text.append("Inputs: ", style="bold")
-                meta_text.append(", ".join(input_strs))
-                meta_text.append("\n")
+                meta_text.append("Inputs:\n", style="bold")
+                for input_str in input_strs:
+                    meta_text.append(f"  {input_str}\n")
 
         meta_text.append("Editable: ", style="bold")
         meta_text.append(
@@ -440,15 +459,33 @@ class XPromptBrowserModal(
 
         meta.update(meta_text)
 
+    def _create_simple_preview(self, workflow: Workflow) -> str:
+        """Create a preview for a simple xprompt."""
+        content = workflow.get_prompt_part_content()
+        inputs = [inp for inp in workflow.inputs if not inp.is_step_input]
+        has_input_descriptions = any(inp.description for inp in inputs)
+        if not workflow.description and not has_input_descriptions:
+            return content
+
+        lines: list[str] = [f"# XPrompt: {workflow.name}", ""]
+        if workflow.description:
+            lines.extend([workflow.description, ""])
+        if inputs:
+            lines.append("## Inputs")
+            lines.extend(_input_preview_lines(inputs))
+            lines.append("")
+        lines.extend(["## Content", content])
+        return "\n".join(lines)
+
     def _create_workflow_preview(self, workflow: Workflow) -> str:
         """Create a preview string for a workflow."""
         lines: list[str] = [f"# Workflow: {workflow.name}", ""]
+        if workflow.description:
+            lines.extend([workflow.description, ""])
         inputs = [inp for inp in workflow.inputs if not inp.is_step_input]
         if inputs:
             lines.append("## Inputs")
-            for inp in inputs:
-                default_str = f" (default: {inp.default})" if inp.default else ""
-                lines.append(f"- **{inp.name}**: {inp.type.value}{default_str}")
+            lines.extend(_input_preview_lines(inputs))
             lines.append("")
         lines.append("## Steps")
         for i, step in enumerate(workflow.steps, 1):
@@ -491,3 +528,26 @@ class XPromptBrowserModal(
         scroll = self.query_one("#browser-preview-scroll", VerticalScroll)
         height = scroll.scrollable_content_region.height
         scroll.scroll_relative(y=-(height // 2), animate=False)
+
+
+def _input_preview_lines(inputs: list[InputArg]) -> list[str]:
+    lines: list[str] = []
+    for inp in inputs:
+        description_str = f" - {inp.description}" if inp.description else ""
+        lines.append(
+            f"- **{inp.name}**: {inp.type.value}{_default_suffix(inp)}{description_str}"
+        )
+    return lines
+
+
+def _input_meta_line(inp: InputArg) -> str:
+    description_str = f": {inp.description}" if inp.description else ""
+    return f"{inp.name} ({inp.type.value}{_default_suffix(inp)}){description_str}"
+
+
+def _default_suffix(inp: InputArg) -> str:
+    if inp.default is UNSET:
+        return ""
+    if inp.default is None:
+        return " (default: null)"
+    return f" (default: {inp.default})"

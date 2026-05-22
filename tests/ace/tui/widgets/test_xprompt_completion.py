@@ -27,6 +27,7 @@ def _entry(
     kind: str = "xprompt",
     inputs: tuple[XPromptInputHint, ...] = (),
     is_skill: bool = False,
+    description: str | None = None,
 ) -> XPromptAssistEntry:
     return XPromptAssistEntry(
         name=name,
@@ -36,6 +37,7 @@ def _entry(
         input_signature=None,
         inputs=inputs,
         content_preview=None,
+        description=description,
         is_skill=is_skill,
     )
 
@@ -210,6 +212,35 @@ async def test_completion_panel_shows_required_input_names_and_types() -> None:
         panel = bar.query_one("#prompt-completion", Static)
         rendered = panel.render()
         assert "path: path" in rendered.plain
+
+
+async def test_completion_panel_shows_xprompt_description() -> None:
+    entries = [
+        _entry("review", description="Review a selected diff."),
+        _entry("ship"),
+    ]
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#")
+        ta.cursor_location = (0, 1)
+        with (
+            patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda _s: app),
+            ),
+            patch(
+                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+                return_value=entries,
+            ),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+        panel = bar.query_one("#prompt-completion", Static)
+        rendered = panel.render()
+        assert "#review  xprompt  Review a selected diff." in rendered.plain
 
 
 async def test_completion_panel_renders_optional_inputs_distinctly() -> None:

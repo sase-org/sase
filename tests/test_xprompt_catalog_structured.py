@@ -314,7 +314,12 @@ def test_structured_catalog_input_metadata_filters_step_inputs() -> None:
             InputArg(name="string_default", type=InputType.LINE, default="secret"),
             InputArg(name="null_default", type=InputType.TEXT, default=None),
             InputArg(name="count", type=InputType.INT, default=3),
-            InputArg(name="enabled", type=InputType.BOOL, default=False),
+            InputArg(
+                name="enabled",
+                type=InputType.BOOL,
+                default=False,
+                description="Whether the feature is active.",
+            ),
             InputArg(
                 name="step_output",
                 type=InputType.LINE,
@@ -347,6 +352,33 @@ def test_structured_catalog_input_metadata_filters_step_inputs() -> None:
         ("count", "int", False, "3", 3),
         ("enabled", "bool", False, "false", 4),
     ]
+    assert entry.inputs[-1].description == "Whether the feature is active."
+
+
+def test_structured_catalog_query_matches_input_descriptions() -> None:
+    xp = make_xprompt(
+        "repair",
+        source_path="config",
+        inputs=[
+            InputArg(
+                name="log",
+                type=InputType.TEXT,
+                description="Hook failure transcript to diagnose.",
+            )
+        ],
+    )
+
+    with (
+        patch("sase.xprompt.catalog.get_all_xprompts", return_value={"repair": xp}),
+        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
+        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+    ):
+        projection = build_structured_xprompts_catalog(query="failure transcript")
+
+    assert [entry.name for entry in projection.entries] == ["repair"]
+    assert projection.entries[0].inputs[0].description == (
+        "Hook failure transcript to diagnose."
+    )
 
 
 def test_structured_catalog_all_step_inputs_has_no_signature() -> None:

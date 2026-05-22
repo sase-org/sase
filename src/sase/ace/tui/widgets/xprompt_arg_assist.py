@@ -45,6 +45,7 @@ class XPromptInputHint:
     required: bool
     default_display: str | None
     position: int
+    description: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +59,7 @@ class XPromptAssistEntry:
     input_signature: str | None
     inputs: tuple[XPromptInputHint, ...]
     content_preview: str | None
+    description: str | None = None
     is_skill: bool = False
 
 
@@ -99,6 +101,7 @@ def build_xprompt_assist_entries(
     return [
         XPromptAssistEntry(
             name=entry.name,
+            description=entry.description,
             insertion=entry.insertion,
             reference_prefix=entry.reference_prefix,
             kind=entry.kind,
@@ -110,6 +113,7 @@ def build_xprompt_assist_entries(
                     required=inp.required,
                     default_display=inp.default_display,
                     position=inp.position,
+                    description=inp.description,
                 )
                 for inp in entry.inputs
             ),
@@ -133,6 +137,7 @@ def xprompt_assist_entry_from_workflow(
 
     return XPromptAssistEntry(
         name=name,
+        description=workflow.description,
         insertion=workflow_reference_insertion(name, workflow),
         reference_prefix=workflow_reference_prefix(workflow),
         kind=workflow_kind_value(workflow),
@@ -199,6 +204,7 @@ def append_input_hints(
     *,
     include_types: bool = True,
     active_index: int | None = None,
+    include_descriptions: bool = False,
 ) -> None:
     """Append styled user-facing input hints to a Rich Text label."""
     for index, inp in enumerate(inputs):
@@ -213,6 +219,9 @@ def append_input_hints(
         )
         if not inp.required:
             text.append(_default_suffix(inp), style=_DEFAULT_STYLE)
+        if include_descriptions and inp.description:
+            text.append(" - ", style=_DEFAULT_STYLE)
+            text.append(inp.description, style=_DEFAULT_STYLE)
 
 
 def input_hint_from_input_arg(inp: InputArg, position: int) -> XPromptInputHint | None:
@@ -226,6 +235,7 @@ def input_hint_from_input_arg(inp: InputArg, position: int) -> XPromptInputHint 
         required=required,
         default_display=_default_display_from_input_arg(inp),
         position=position,
+        description=inp.description,
     )
 
 

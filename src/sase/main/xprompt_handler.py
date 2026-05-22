@@ -3,6 +3,8 @@
 import argparse
 import sys
 
+from sase.xprompt.models import UNSET, InputArg
+
 
 def handle_xprompt_command(args: argparse.Namespace) -> None:
     """Handle the 'sase xprompt' command."""
@@ -78,8 +80,6 @@ def _handle_list() -> None:
         user_inputs = [inp for inp in wf.inputs if not inp.is_step_input]
         inputs_json = []
         for inp in user_inputs:
-            from sase.xprompt.models import UNSET
-
             required = inp.default is UNSET
             inputs_json.append(
                 {
@@ -93,17 +93,23 @@ def _handle_list() -> None:
                         if inp.default is not None
                         else None
                     ),
+                    "description": inp.description,
                 }
             )
         if is_simple:
             preview = wf.get_prompt_part_content()
         else:
             lines: list[str] = [f"# Workflow: {name}", ""]
+            if wf.description:
+                lines.extend([wf.description, ""])
             if user_inputs:
                 lines.append("## Inputs")
                 for inp in user_inputs:
-                    default_str = f" (default: {inp.default})" if inp.default else ""
-                    lines.append(f"- {inp.name}: {inp.type.value}{default_str}")
+                    default_str = _xprompt_list_default_suffix(inp)
+                    description_str = f" - {inp.description}" if inp.description else ""
+                    lines.append(
+                        f"- {inp.name}: {inp.type.value}{default_str}{description_str}"
+                    )
                 lines.append("")
             lines.append("## Steps")
             for i, step in enumerate(wf.steps, 1):
@@ -134,6 +140,7 @@ def _handle_list() -> None:
                     if name in xprompts and name not in workflow_names
                     else False
                 ),
+                "description": wf.description,
                 "source": wf.source_path,
                 "inputs": inputs_json,
                 "tags": [t.value for t in wf.tags],
@@ -142,6 +149,15 @@ def _handle_list() -> None:
         )
     print(json.dumps(items))
     sys.exit(0)
+
+
+def _xprompt_list_default_suffix(inp: InputArg) -> str:
+    """Return a stable default suffix for list-preview input rows."""
+    if inp.default is UNSET:
+        return ""
+    if inp.default is None:
+        return " (default: null)"
+    return f" (default: {inp.default})"
 
 
 def _handle_graph(args: argparse.Namespace) -> None:

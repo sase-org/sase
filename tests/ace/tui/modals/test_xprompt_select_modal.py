@@ -70,3 +70,32 @@ def test_xprompt_select_payload_includes_assist_entry_for_smart_args() -> None:
     assert sync.suffix == "!sync"
     assert sync.entry is not None
     assert sync.entry.insertion == "#!sync"
+
+
+def test_xprompt_select_filters_and_previews_descriptions() -> None:
+    prompts = {
+        "review": Workflow(
+            name="review",
+            description="Review a selected diff.",
+            inputs=[
+                InputArg(
+                    name="diff",
+                    type=InputType.PATH,
+                    description="Diff file to inspect.",
+                )
+            ],
+            steps=[WorkflowStep(name="prompt", prompt_part="body")],
+        ),
+        "ship": _standalone_workflow("ship"),
+    }
+    with patch(
+        "sase.ace.tui.modals.xprompt_select_modal.get_all_prompts",
+        return_value=prompts,
+    ):
+        modal = XPromptSelectModal()
+
+    assert modal._get_filtered_names("selected diff") == ["review"]
+    assert modal._get_filtered_names("file to inspect") == ["review"]
+    preview = modal._all_items["review"][0]
+    assert "Review a selected diff." in preview
+    assert "Diff file to inspect." in preview

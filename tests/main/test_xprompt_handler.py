@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.main.xprompt_handler import _handle_list
-from sase.xprompt.models import XPrompt
+from sase.xprompt.models import InputArg, InputType, XPrompt
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 
@@ -110,3 +110,36 @@ def test_xprompt_list_marks_only_skill_xprompts(
     assert rows["sase_plan"]["is_skill"] is True
     assert rows["review"]["is_skill"] is False
     assert rows["ship"]["is_skill"] is False
+
+
+def test_xprompt_list_includes_prompt_and_input_descriptions(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    prompts = {
+        "review": Workflow(
+            name="review",
+            description="Review a selected diff.",
+            inputs=[
+                InputArg(
+                    name="diff",
+                    type=InputType.PATH,
+                    description="Diff file to inspect.",
+                )
+            ],
+            steps=[WorkflowStep(name="prompt", prompt_part="body")],
+        )
+    }
+
+    with (
+        patch("sase.xprompt.loader.get_all_prompts", return_value=prompts),
+        patch("sase.xprompt.loader.get_all_xprompts", return_value={}),
+        patch("sase.xprompt.loader.get_all_workflows", return_value={}),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        _handle_list()
+
+    assert exc_info.value.code == 0
+    rows = {row["name"]: row for row in json.loads(capsys.readouterr().out)}
+
+    assert rows["review"]["description"] == "Review a selected diff."
+    assert rows["review"]["inputs"][0]["description"] == "Diff file to inspect."

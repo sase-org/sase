@@ -163,6 +163,7 @@
         {% set xp = entry.xprompt %}
         {% set truncated = xp.content | truncate_content(xp.source_path) %}
         {% set signature = xp.inputs | format_inputs %}
+        {% set described_inputs = xp.inputs | rejectattr('is_step_input') | selectattr('description') | list %}
         <article class="card">
           <header class="card-header">
             <h3 class="card-name">
@@ -186,6 +187,19 @@
               {% if xp.skill %}
                 <span class="badge-skill">skill</span>
               {% endif %}
+            </div>
+          {% endif %}
+
+          {% if described_inputs %}
+            <div class="input-details">
+              <div class="input-details-title">Input details</div>
+              {% for inp in described_inputs %}
+                <div class="input-detail">
+                  <span class="input-detail-name">{{ inp.name }}</span>
+                  <span class="input-detail-type">{{ inp.type.value }}</span>
+                  <span class="input-detail-description">{{ inp.description }}</span>
+                </div>
+              {% endfor %}
             </div>
           {% endif %}
 

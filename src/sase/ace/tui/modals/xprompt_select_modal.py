@@ -12,6 +12,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 from sase.xprompt import get_all_prompts
+from sase.xprompt.models import UNSET, InputArg
 from sase.xprompt.reference_display import (
     workflow_kind_value,
     workflow_reference_prefix,
@@ -97,12 +98,30 @@ class XPromptSelectModal(
             kind = workflow_kind_value(workflow)
             if workflow.is_simple_xprompt():
                 # Simple xprompt - show prompt_part content directly
-                self._all_items[name] = (workflow.get_prompt_part_content(), kind)
+                self._all_items[name] = (self._create_simple_preview(workflow), kind)
             else:
                 # Complex workflow - show structured preview
                 preview = self._create_workflow_preview(workflow)
                 self._all_items[name] = (preview, kind)
         self._filtered_names: list[str] = sorted(self._all_items.keys())
+
+    def _create_simple_preview(self, workflow: Workflow) -> str:
+        """Create a preview for a simple xprompt, adding rich metadata when present."""
+        content = workflow.get_prompt_part_content()
+        inputs = [inp for inp in workflow.inputs if not inp.is_step_input]
+        has_input_descriptions = any(inp.description for inp in inputs)
+        if not workflow.description and not has_input_descriptions:
+            return content
+
+        lines: list[str] = [f"# XPrompt: {workflow.name}", ""]
+        if workflow.description:
+            lines.extend([workflow.description, ""])
+        if inputs:
+            lines.append("## Inputs")
+            lines.extend(_input_preview_lines(inputs))
+            lines.append("")
+        lines.extend(["## Content", content])
+        return "\n".join(lines)
 
     def _create_workflow_preview(self, workflow: Workflow) -> str:
         """Create a preview string for a workflow.
@@ -117,11 +136,14 @@ class XPromptSelectModal(
         lines.append(f"# Workflow: {workflow.name}")
         lines.append("")
 
-        if workflow.inputs:
+        if workflow.description:
+            lines.append(workflow.description)
+            lines.append("")
+
+        inputs = [inp for inp in workflow.inputs if not inp.is_step_input]
+        if inputs:
             lines.append("## Inputs")
-            for inp in workflow.inputs:
-                default_str = f" (default: {inp.default})" if inp.default else ""
-                lines.append(f"- **{inp.name}**: {inp.type.value}{default_str}")
+            lines.extend(_input_preview_lines(inputs))
             lines.append("")
 
         lines.append("## Steps")
@@ -205,7 +227,24 @@ class XPromptSelectModal(
         if not filter_text:
             return all_names
         filter_lower = filter_text.lower()
-        return [name for name in all_names if filter_lower in name.lower()]
+        return [
+            name
+            for name in all_names
+            if filter_lower in self._filter_text_for_name(name).casefold()
+        ]
+
+    def _filter_text_for_name(self, name: str) -> str:
+        workflow = self._prompts.get(name)
+        content, _kind = self._all_items.get(name, ("", ""))
+        parts = [name, content]
+        if workflow is not None:
+            parts.append(workflow.description or "")
+            parts.extend(
+                inp.description or ""
+                for inp in workflow.inputs
+                if not inp.is_step_input
+            )
+        return "\n".join(part for part in parts if part)
 
     def on_mount(self) -> None:
         """Focus the input and show initial preview on mount."""
@@ -305,3 +344,21 @@ class XPromptSelectModal(
             preview.update("")
         except Exception:
             pass
+
+
+def _input_preview_lines(inputs: list[InputArg]) -> list[str]:
+    lines: list[str] = []
+    for inp in inputs:
+        description_str = f" - {inp.description}" if inp.description else ""
+        lines.append(
+            f"- **{inp.name}**: {inp.type.value}{_default_suffix(inp)}{description_str}"
+        )
+    return lines
+
+
+def _default_suffix(inp: InputArg) -> str:
+    if inp.default is UNSET:
+        return ""
+    if inp.default is None:
+        return " (default: null)"
+    return f" (default: {inp.default})"

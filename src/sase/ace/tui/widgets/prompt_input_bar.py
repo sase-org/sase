@@ -287,6 +287,8 @@ class PromptInputBar(Static):
 
         kind = "skill" if entry.is_skill else entry.kind
         content.append(f"  {kind}", style="dim")
+        if entry.description:
+            content.append(f"  {entry.description}", style="dim")
         append_input_hints(content, entry.inputs)
 
     def _append_directive_completion_row(
@@ -339,6 +341,7 @@ class PromptInputBar(Static):
             content,
             hint.entry.inputs,
             active_index=hint.active_input_index,
+            include_descriptions=True,
         )
 
         panel.border_title = "xprompt args"

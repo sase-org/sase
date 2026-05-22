@@ -13,6 +13,7 @@ from sase.xprompt.catalog import (
     _render_html,
     build_xprompts_catalog,
 )
+from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.tags import XPromptTag
 
 from tests._xprompt_catalog_helpers import make_xprompt, seed_entries
@@ -32,6 +33,34 @@ def test_render_html_contains_sections() -> None:
     assert "</span>c\n" in html
     assert "alpha" in html
     assert "Built-in xprompts" in html
+
+
+def test_render_html_contains_input_descriptions() -> None:
+    from sase.xprompt.catalog import _CatalogEntry, _build_document
+
+    entries = [
+        _CatalogEntry(
+            make_xprompt(
+                "review",
+                source_path="config",
+                inputs=[
+                    InputArg(
+                        name="diff",
+                        type=InputType.PATH,
+                        description="Diff file to inspect.",
+                    )
+                ],
+            ),
+            bucket="config",
+            project=None,
+        )
+    ]
+    stats = _compute_stats(entries)
+    document = _build_document(entries, stats)
+    html = _render_html(document)
+
+    assert "Input details" in html
+    assert "Diff file to inspect." in html
 
 
 def test_build_raises_when_no_xprompts() -> None:
