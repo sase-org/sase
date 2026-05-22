@@ -16,6 +16,10 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanWire,
 )
+from sase.plan_chain import (
+    PLAN_CHAIN_PLAN_SUFFIX,
+    canonical_plan_chain_suffix,
+)
 
 from ....hooks.processes import is_process_running
 from .._timestamps import parse_timestamp_14_digit
@@ -233,6 +237,112 @@ def load_workflow_agents_from_snapshot(
     return agents
 
 
+def _scan_dir_for_plan_root(artifact_dir: Path) -> Agent | None:
+    """Construct a plan-chain root Agent from an on-disk artifact dir.
+
+    Used by the loader self-heal pass when a follow-up agent's
+    ``parent_timestamp`` references a planner dir that is missing from the
+    Tier 1 snapshot (e.g. because the dismissed projection filtered it out
+    when its sibling step rows were dismissed). Reads ``agent_meta.json``
+    directly so the parent row can be reconstructed without touching the
+    artifact index.
+    """
+    import json
+
+    meta_path = artifact_dir / "agent_meta.json"
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    role_suffix = canonical_plan_chain_suffix(data.get("role_suffix"))
+    is_root = (
+        bool(data.get("plan_chain_root"))
+        or data.get("agent_family_role") == "root"
+        or role_suffix == PLAN_CHAIN_PLAN_SUFFIX
+    )
+    if not is_root:
+        return None
+
+    pid = data.get("pid") if isinstance(data.get("pid"), int) else None
+    if pid is not None and not is_process_running(pid):
+        display_status = "DONE"
+    else:
+        display_status = "RUNNING"
+
+    timestamp = artifact_dir.name
+    start_time = parse_timestamp_14_digit(timestamp)
+
+    # Best-effort project_file: <projects>/<project>/<project>.gp.
+    project_dir = artifact_dir.parent.parent.parent
+    project_file = str(project_dir / f"{project_dir.name}.gp")
+
+    cl_name_raw = data.get("cl_name") if isinstance(data.get("cl_name"), str) else None
+    workflow_name = (
+        data.get("workflow_name")
+        if isinstance(data.get("workflow_name"), str)
+        else None
+    )
+
+    agent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name=cl_name_raw or "unknown",
+        project_file=project_file,
+        status=display_status,
+        start_time=start_time,
+        workflow=workflow_name,
+        raw_suffix=timestamp,
+        pid=pid,
+        appears_as_agent=True,
+        artifacts_dir=str(artifact_dir),
+        plan_chain_root=True,
+    )
+    enrich_agent_from_meta(agent, str(artifact_dir))
+    return agent
+
+
+def load_missing_plan_root_parents(loaded_agents: list[Agent]) -> list[Agent]:
+    """Self-heal: rehydrate plan-chain roots referenced by orphaned follow-ups.
+
+    When a follow-up agent (``parent_timestamp`` set, no ``parent_workflow``)
+    points at a parent timestamp that is absent from the loaded set, scan
+    the on-disk artifact dir for that parent and emit a plan-chain root
+    Agent so root mirroring can attach the follow-up under it. Idempotent:
+    parents that are already present (by ``raw_suffix``) are skipped.
+    """
+    known_suffixes: set[str] = {
+        agent.raw_suffix
+        for agent in loaded_agents
+        if agent.raw_suffix and not agent.is_workflow_child
+    }
+    parent_lookup: dict[str, Path] = {}
+    for agent in loaded_agents:
+        parent_ts = agent.parent_timestamp
+        if not parent_ts:
+            continue
+        if agent.parent_workflow:
+            continue
+        if parent_ts in known_suffixes or parent_ts in parent_lookup:
+            continue
+        if not agent.artifacts_dir:
+            continue
+        artifact_path = Path(agent.artifacts_dir).expanduser()
+        candidate = artifact_path.parent / parent_ts
+        if candidate.is_dir():
+            parent_lookup[parent_ts] = candidate
+
+    healed: list[Agent] = []
+    for parent_ts, candidate in parent_lookup.items():
+        recovered = _scan_dir_for_plan_root(candidate)
+        if recovered is not None:
+            known_suffixes.add(parent_ts)
+            healed.append(recovered)
+    return healed
+
+
 def _build_workflow_agent_steps_for_record(
     record: AgentArtifactRecordWire,
 ) -> tuple[list[Agent], dict[str, str]]:
@@ -366,6 +476,74 @@ def _build_workflow_agent_steps_for_record(
             continue
 
     return dir_agents, dir_meta
+
+
+def _is_plan_chain_root_meta(meta: Any) -> bool:
+    """Return True when *meta* describes a plan-chain family root."""
+    if meta is None:
+        return False
+    if meta.plan_chain_root:
+        return True
+    if meta.agent_family_role == "root":
+        return True
+    return canonical_plan_chain_suffix(meta.role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
+
+
+def load_plan_root_agents_from_snapshot(
+    snapshot: AgentArtifactScanWire,
+) -> list[Agent]:
+    """Surface plan-chain root agents that lack a ``workflow_state.json``.
+
+    The plan-chain runner SIGTERMs the planner process during plan approval,
+    which can leave the family-root artifact dir with only ``agent_meta.json``
+    on disk (no ``workflow_state.json`` and no ``prompt_step_*.json``). The
+    workflow loader does not emit a WORKFLOW row for these dirs, so root
+    mirroring + planner-child synthesis lose the parent reference and the
+    family rebreaks under the coder follow-up.
+
+    This loader rehydrates an :class:`Agent` for those plan-chain roots
+    directly from ``agent_meta.json`` so :func:`apply_status_overrides`
+    sees the parent in ``parent_by_suffix``. When a workflow-state-backed
+    row also exists for the same suffix, ``dedup_workflow_entries`` keeps
+    the richer workflow row.
+    """
+    agents: list[Agent] = []
+    for record in snapshot.records:
+        if not _is_workflow_state_record(record):
+            continue
+        if record.workflow_state is not None:
+            continue
+        meta = record.agent_meta
+        if not _is_plan_chain_root_meta(meta):
+            continue
+
+        start_time = parse_timestamp_14_digit(record.timestamp)
+        pid = meta.pid if meta is not None else None
+        if pid is not None and not is_process_running(pid):
+            # Dead-PID gate matches the workflow loader's behavior; the
+            # planner runner has already exited.
+            display_status = "DONE"
+        else:
+            display_status = "RUNNING"
+
+        agent = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name=(meta.cl_name if meta is not None and meta.cl_name else "unknown"),
+            project_file=record.project_file,
+            status=display_status,
+            start_time=start_time,
+            workflow=(meta.workflow_name if meta is not None else None),
+            raw_suffix=record.timestamp,
+            pid=pid,
+            appears_as_agent=True,
+            artifacts_dir=record.artifact_dir,
+            plan_chain_root=True,
+        )
+        enrich_agent_from_meta_wire(
+            agent, record.agent_meta, record.waiting, record.pending_question
+        )
+        agents.append(agent)
+    return agents
 
 
 def load_workflow_agent_steps_from_snapshot(

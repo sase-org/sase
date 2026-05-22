@@ -43,6 +43,8 @@ from ._loaders import (
     load_agents_from_running_field,
     load_done_agents,  # noqa: F401  re-exported for fallback/tests
     load_done_agents_from_snapshot,
+    load_missing_plan_root_parents,
+    load_plan_root_agents_from_snapshot,
     load_running_home_agents,  # noqa: F401  re-exported for fallback/tests
     load_running_home_agents_from_snapshot,
     load_workflow_agent_steps,  # noqa: F401  re-exported for fallback/tests
@@ -317,6 +319,19 @@ def _load_agents_from_all_sources(
             step_meta_by_parent=step_meta_by_parent,
         )
     )
+
+    # 1e. Surface plan-chain roots whose artifact dirs only have agent_meta.json.
+    # After `sase plan` SIGTERMs the planner, the family-root dir routinely
+    # lives without `workflow_state.json`; without these rows, root-mirroring
+    # and planner-child sync lose the parent reference, hiding coder follow-ups
+    # under the family.  Deduped against workflow-state-backed rows below.
+    agents.extend(load_plan_root_agents_from_snapshot(artifact_snapshot))
+
+    # 1f. Self-heal: rehydrate any plan-chain root parents that the snapshot
+    # missed entirely (e.g. when the dismissed projection hid the planner dir
+    # because sibling step rows were dismissed). Reads agent_meta.json
+    # directly from the on-disk parent dir referenced by orphaned follow-ups.
+    agents.extend(load_missing_plan_root_parents(agents + workflow_agent_steps))
 
     # 2. Load from each ChangeSpec's fields
     for cs in all_changespecs:
