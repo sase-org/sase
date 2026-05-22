@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-21 20:52:36
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_selected_unread.md
 ---
 # Plan: Selected Agent Rows Become Unread Immediately

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from ...models.agent_status import (
     is_stopped_agent_status,
@@ -84,6 +84,7 @@ class AgentUnreadMixin:
         dismissed_count = dismiss_agent_completion_notifications_matching_agents(
             agent_keys
         )
+        self._remove_agent_completion_notifications_from_cache(target_agents)
         if dismissed_count:
             refresh_count = getattr(self, "_refresh_notification_count", None)
             if callable(refresh_count):
@@ -214,6 +215,62 @@ class AgentUnreadMixin:
             return
         self._manual_unread_ids().discard(agent.identity)
 
+    def _remove_agent_completion_notifications_from_cache(
+        self,
+        agents: list[Agent],
+    ) -> None:
+        """Drop acknowledged completion notifications from the cached snapshot."""
+        snapshot = getattr(self, "_notification_snapshot_cache", None)
+        notifications = getattr(snapshot, "notifications", None)
+        if snapshot is None or notifications is None or not agents:
+            return
+
+        from dataclasses import is_dataclass, replace
+
+        from ._notification_utils import agent_completion_notification_matches_agent
+
+        agent_keys = [(agent.cl_name, agent.raw_suffix) for agent in agents]
+        filtered = []
+        removed_ids: set[str] = set()
+        for notification in notifications:
+            if any(
+                agent_completion_notification_matches_agent(
+                    notification,
+                    cl_name=cl_name,
+                    raw_suffix=raw_suffix,
+                )
+                for cl_name, raw_suffix in agent_keys
+            ):
+                notification_id = getattr(notification, "id", None)
+                if isinstance(notification_id, str):
+                    removed_ids.add(notification_id)
+                continue
+            filtered.append(notification)
+        if len(filtered) == len(notifications):
+            return
+
+        if isinstance(notifications, list):
+            notifications[:] = filtered
+            updated_snapshot = snapshot
+        elif is_dataclass(snapshot):
+            updated_snapshot = replace(cast(Any, snapshot), notifications=filtered)
+        else:
+            try:
+                snapshot.notifications = filtered
+            except Exception:
+                return
+            updated_snapshot = snapshot
+
+        set_cache = getattr(self, "_set_notification_snapshot_cache", None)
+        if callable(set_cache):
+            set_cache(updated_snapshot)
+        else:
+            self._notification_snapshot_cache = updated_snapshot  # type: ignore[attr-defined]
+
+        last_unread_ids = getattr(self, "_last_unread_ids", None)
+        if isinstance(last_unread_ids, set):
+            last_unread_ids.difference_update(removed_ids)
+
     def _clear_agent_unread_and_dismiss_notification(self, agent: Agent) -> bool:
         """Clear unread state for *agent* and dismiss its matching notification.
 
@@ -242,6 +299,7 @@ class AgentUnreadMixin:
         dismissed_count = dismiss_notifications_matching_agents(
             [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
         )
+        self._remove_agent_completion_notifications_from_cache([agent])
         if dismissed_count:
             refresh_count = getattr(self, "_refresh_notification_count", None)
             if callable(refresh_count):

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
 from sase.ace.tui.actions.agents._notifications import (
     _active_completion_agent_keys,
@@ -48,6 +50,16 @@ class _ProjectionApp(AgentsMixinCore):
         self._current_group_key: tuple[str, ...] | None = None
         self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._notification_snapshot_cache = None
+        self.patch_calls: list[Agent] = []
+        self.refresh_calls: list[dict[str, object]] = []
+
+    def _try_patch_agent_row(self, agent: Agent) -> bool:
+        self.patch_calls.append(agent)
+        return True
+
+    def _refresh_agents_display(self, **kwargs: object) -> None:
+        self.refresh_calls.append(kwargs)
 
 
 def test__active_completion_agent_keys_picks_up_jump_to_agent() -> None:
@@ -124,16 +136,21 @@ def test_reconcile_clears_unread_when_notification_missing() -> None:
     assert agent.identity not in app._unread_completed_agent_ids
 
 
-def test_reconcile_excludes_identity_kwarg() -> None:
+def test_cached_reconcile_marks_selected_agent_unread_and_patches_row() -> None:
     agent = make_agent(status="DONE")
     app = _ProjectionApp([agent])
-
-    app._reconcile_unread_from_completion_notifications(
-        [_make_notification(cl_name=agent.cl_name, raw_suffix=agent.raw_suffix)],
-        exclude_identity=agent.identity,
+    app.current_idx = 0
+    app._notification_snapshot_cache = SimpleNamespace(
+        notifications=[
+            _make_notification(cl_name=agent.cl_name, raw_suffix=agent.raw_suffix)
+        ]
     )
 
-    assert agent.identity not in app._unread_completed_agent_ids
+    app._reconcile_unread_from_cached_notifications()
+
+    assert agent.identity in app._unread_completed_agent_ids
+    assert app.patch_calls == [agent]
+    assert app.refresh_calls == []
 
 
 def test_reconcile_preserves_manual_unread_when_no_notification() -> None:

@@ -36,10 +36,10 @@ def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -
     matching completion notification is still active (not dismissed) and
     manual ``U`` marks survive on rows that lack a notification.
 
-    Stale identities (agents no longer visible) are pruned, then the
-    currently selected row is acked (which also dismisses its matching
-    completion notification). Newly-terminal rows are picked up by the
-    notification-projection reconcile step rather than a status transition.
+    Stale identities (agents no longer visible) are pruned. Newly-terminal
+    rows are picked up by the notification-projection reconcile step rather
+    than a status transition; a focused row remains unread until the user
+    intentionally enters it again through a selection/navigation event.
     """
     unread_ids = getattr(app, "_unread_completed_agent_ids", None)
     if unread_ids is None:
@@ -54,23 +54,6 @@ def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -
     unread_ids.intersection_update(visible_ids)
     manual_ids.intersection_update(visible_ids)
 
-    selected_identity = None
-    if (
-        on_agents_tab
-        and getattr(app, "_current_group_key", None) is None
-        and 0 <= app.current_idx < len(app._agents)
-    ):
-        selected_agent = app._agents[app.current_idx]
-        selected_identity = selected_agent.identity
-        if selected_identity not in manual_ids:
-            clear_unread = getattr(
-                app, "_clear_agent_unread_and_dismiss_notification", None
-            )
-            if callable(clear_unread):
-                clear_unread(selected_agent)
-            else:
-                unread_ids.discard(selected_identity)
-
     snapshot = getattr(app, "_notification_snapshot_cache", None)
     if snapshot is None:
         schedule_refresh = getattr(app, "_schedule_notification_snapshot_refresh", None)
@@ -81,7 +64,7 @@ def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -
             app, "_reconcile_unread_from_completion_notifications", None
         )
         if callable(reconcile):
-            reconcile(snapshot.notifications, exclude_identity=selected_identity)
+            reconcile(snapshot.notifications)
 
     app._agent_display_status_by_identity = {  # type: ignore[attr-defined]
         agent.identity: agent.status for agent in app._agents

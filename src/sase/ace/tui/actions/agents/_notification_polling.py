@@ -70,10 +70,9 @@ class AgentNotificationPollingMixin:
         # Muting quiets the indicator; it should not break agent lifecycle state.
         self._apply_notification_status_overrides(unread_active + unread_muted)
 
-        selected_identity = self._selected_agent_identity_for_notification_reconcile()
-        self._reconcile_unread_from_completion_notifications(
-            notifications, exclude_identity=selected_identity
-        )
+        before_unread_agents = set(getattr(self, "_unread_completed_agent_ids", set()))
+        self._reconcile_unread_from_completion_notifications(notifications)
+        self._patch_unread_completed_agent_changes(before_unread_agents)
 
         # Ring the bell last so the tmux subprocess never blocks the event loop
         # ahead of indicator/toast updates.

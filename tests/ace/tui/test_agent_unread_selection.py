@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import Mock
 
@@ -207,6 +208,33 @@ def test_acknowledge_agent_unread_dismisses_matching_notification(
     notification_dismiss.assert_called_once_with(
         [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
     )
+    assert app.notification_count_refresh_calls == 1
+
+
+def test_acknowledge_agent_unread_filters_stale_cached_notification(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.return_value = 1
+    agent = make_agent(status="DONE")
+    app = _SelectionApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+    app._notification_snapshot_cache = SimpleNamespace(
+        notifications=[
+            SimpleNamespace(
+                id="n-agent",
+                sender="user-agent",
+                action="JumpToAgent",
+                action_data={"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix},
+                dismissed=False,
+            )
+        ]
+    )
+
+    assert app._acknowledge_agent_unread(agent)
+    app._reconcile_unread_from_cached_notifications()
+
+    assert agent.identity not in app._unread_completed_agent_ids
+    assert app._notification_snapshot_cache.notifications == []
     assert app.notification_count_refresh_calls == 1
 
 

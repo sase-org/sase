@@ -29,11 +29,7 @@ def active_completion_agent_keys(
     """
     keys: set[tuple[str, str | None]] = set()
     for n in notifications:
-        if n.sender != "user-agent":
-            continue
-        if n.action not in ("JumpToAgent", "ViewErrorReport"):
-            continue
-        if n.dismissed:
+        if not _is_active_agent_completion_notification(n):
             continue
         cl_name = n.action_data.get("cl_name")
         if not cl_name:
@@ -41,6 +37,31 @@ def active_completion_agent_keys(
         raw_suffix = n.action_data.get("raw_suffix") or None
         keys.add((cl_name, raw_suffix))
     return keys
+
+
+def _is_active_agent_completion_notification(notification: Notification) -> bool:
+    """Return True for active agent completion notifications."""
+    if notification.sender != "user-agent":
+        return False
+    if notification.action not in ("JumpToAgent", "ViewErrorReport"):
+        return False
+    return not notification.dismissed
+
+
+def agent_completion_notification_matches_agent(
+    notification: Notification,
+    *,
+    cl_name: str,
+    raw_suffix: str | None,
+) -> bool:
+    """Return True when *notification* targets the supplied agent key."""
+    if not _is_active_agent_completion_notification(notification):
+        return False
+    notification_cl_name = notification.action_data.get("cl_name")
+    if not notification_cl_name or notification_cl_name != cl_name:
+        return False
+    notification_raw_suffix = notification.action_data.get("raw_suffix") or None
+    return notification_raw_suffix is None or notification_raw_suffix == raw_suffix
 
 
 def unread_notification_buckets(

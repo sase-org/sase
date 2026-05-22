@@ -112,7 +112,7 @@ def test_finalizer_does_not_mark_terminal_agent_without_notification(
     assert app._unread_completed_agent_ids == set()
 
 
-def test_finalizer_does_not_mark_currently_selected_agent_unread(
+def test_finalizer_marks_currently_selected_agent_unread_when_notification_active(
     snapshot_notifications: list[object],
 ) -> None:
     agent = make_agent(status="DONE")
@@ -121,10 +121,10 @@ def test_finalizer_does_not_mark_currently_selected_agent_unread(
 
     _sync_unread_completed_agents(app, on_agents_tab=True)  # type: ignore[arg-type]
 
-    assert app._unread_completed_agent_ids == set()
+    assert app._unread_completed_agent_ids == {agent.identity}
 
 
-def test_finalizer_clears_unread_for_saved_selection_on_agents_tab(
+def test_finalizer_clears_unread_when_selected_row_lacks_notification(
     snapshot_notifications: list[object],
 ) -> None:
     agent = make_agent(status="DONE")
@@ -136,22 +136,21 @@ def test_finalizer_clears_unread_for_saved_selection_on_agents_tab(
     assert app._unread_completed_agent_ids == set()
 
 
-def test_finalizer_dismisses_notification_for_saved_selection_on_agents_tab(
+def test_finalizer_does_not_ack_saved_selection_on_agents_tab(
     notification_dismiss: Mock,
     snapshot_notifications: list[object],
 ) -> None:
     notification_dismiss.return_value = 1
     agent = make_agent(status="DONE")
     app = _UnreadFinalizeApp([agent])
+    snapshot_notifications.append(_completion_notification(agent))
     app._unread_completed_agent_ids.add(agent.identity)
 
     _sync_unread_completed_agents(app, on_agents_tab=True)  # type: ignore[arg-type]
 
-    assert app._unread_completed_agent_ids == set()
-    notification_dismiss.assert_called_once_with(
-        [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
-    )
-    assert app.notification_count_refresh_calls == 1
+    assert app._unread_completed_agent_ids == {agent.identity}
+    notification_dismiss.assert_not_called()
+    assert app.notification_count_refresh_calls == 0
 
 
 def test_finalizer_preserves_selected_manually_unread_agent(

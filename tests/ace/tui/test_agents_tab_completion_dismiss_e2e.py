@@ -175,15 +175,14 @@ def test_dismissing_notification_clears_other_row_on_refresh(
     assert _active_completion_ids() == {"n-alpha"}
 
 
-def test_entering_agents_tab_only_dismisses_selected_row(
+def test_entering_agents_tab_does_not_dismiss_selected_row(
     temp_notifications_dir: Path,
 ) -> None:
-    """The finalize sync only clears the selected row, never the rest.
+    """The finalize sync does not treat the selected row as read.
 
-    This is the regression guard for the removed bulk-dismiss behavior:
-    landing on the Agents tab must not silently dismiss every active
-    completion notification — only the currently selected row's matching
-    notification may be cleared.
+    Landing on the Agents tab must not silently dismiss active completion
+    notifications. A focused unread row is acknowledged only when the user
+    intentionally selects/navigates into that row again.
     """
     assert temp_notifications_dir.is_dir()
     first = make_agent(name="alpha", status="DONE", raw_suffix="20260507090000")
@@ -196,10 +195,7 @@ def test_entering_agents_tab_only_dismisses_selected_row(
     append_notification(_completion_notification(third, n_id="n-gamma"))
 
     # Seed the unread set the way a prior refresh tick would: every
-    # completion notification has projected onto its row. The selected
-    # row's notification gets dismissed during finalize because focusing
-    # the row is treated as reading it; the other two rows must remain
-    # untouched.
+    # completion notification has projected onto its row.
     app._unread_completed_agent_ids = {
         first.identity,
         second.identity,
@@ -208,8 +204,12 @@ def test_entering_agents_tab_only_dismisses_selected_row(
 
     _sync_from_store(app, on_agents_tab=True)
 
-    assert app._unread_completed_agent_ids == {second.identity, third.identity}
-    assert _active_completion_ids() == {"n-beta", "n-gamma"}
+    assert app._unread_completed_agent_ids == {
+        first.identity,
+        second.identity,
+        third.identity,
+    }
+    assert _active_completion_ids() == {"n-alpha", "n-beta", "n-gamma"}
 
 
 def test_navigating_within_agents_tab_does_not_bulk_dismiss(
@@ -286,10 +286,16 @@ def test_unrelated_notifications_survive_agents_tab_activity(
 
     _sync_from_store(app, on_agents_tab=True)
 
-    # The agent's own completion notification is dismissed (focused row).
-    # All other notifications must remain in the store.
+    # Finalize does not acknowledge the focused completion row. All
+    # notifications must remain in the store.
     active_ids = {n.id for n in load_notifications()}
-    assert active_ids == {"n-plan", "n-question", "n-mentor", "n-axe"}
+    assert active_ids == {
+        "n-completion",
+        "n-plan",
+        "n-question",
+        "n-mentor",
+        "n-axe",
+    }
 
 
 def test_raw_suffix_disambiguates_same_cl_name(
