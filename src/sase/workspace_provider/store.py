@@ -55,6 +55,28 @@ def _slugify(value: str) -> str:
     return cleaned or "unnamed"
 
 
+def _sanitize_project_key_component(value: str) -> str:
+    """Return a safe project-key path component."""
+    raw = value.strip()
+    if raw in {"", ".", ".."}:
+        raise ValueError(f"Invalid workspace.project_key component: {value!r}")
+
+    cleaned = _SLUG_INVALID_CHARS.sub("_", raw).strip("_")
+    if cleaned in {"", ".", ".."}:
+        raise ValueError(f"Invalid workspace.project_key component: {value!r}")
+    return cleaned
+
+
+def _sanitize_project_key(value: str) -> str:
+    """Sanitize slash-separated project-key components.
+
+    Project keys may intentionally contain ``/`` to create nested roots
+    such as ``sase-org/sase``.  Each component is slugified separately so
+    invalid characters cannot collapse path boundaries.
+    """
+    return "/".join(_sanitize_project_key_component(part) for part in value.split("/"))
+
+
 def _normalize_git_url(url: str) -> str | None:
     """Reduce a git remote URL to a stable ``<host>/<owner>/<repo>`` form."""
     url = url.strip()
@@ -130,19 +152,24 @@ def _derive_project_key(
     Resolution order:
 
     1. ``explicit`` (e.g. ``workspace.project_key``) when non-empty.
-    2. Slugified ``<host>_<owner>_<repo>`` from the single Git remote of
-       the primary workspace.
+    2. Slash-separated ``<owner>/<repo>`` for GitHub remotes, or the
+       legacy slugified ``<host>_<owner>_<repo>`` key for other remotes.
     3. Slugified basename plus a short hash of the absolute primary
        path, so duplicate basenames stay distinct.
     """
     if explicit:
-        return _slugify(explicit)
+        explicit = explicit.strip()
+    if explicit:
+        return _sanitize_project_key(explicit)
 
     urls = _list_git_remote_urls(primary_workspace_dir)
     if len(urls) == 1:
         normalized = _normalize_git_url(urls[0])
         if normalized:
-            return _slugify(normalized.replace("/", "_"))
+            host, sep, path = normalized.partition("/")
+            if sep and host.lower() == "github.com":
+                return _sanitize_project_key(path)
+            return _sanitize_project_key(normalized.replace("/", "_"))
 
     return _project_key_from_path(primary_workspace_dir)
 

@@ -111,19 +111,53 @@ class TestProjectKey:
         )
         assert store.project_key == "explicit-key"
 
-    def test_single_remote_uses_slugified_url(self) -> None:
+    def test_explicit_nested_project_key_sanitizes_components(self) -> None:
+        store = WorkspaceStore(
+            "/tmp/p",
+            config={
+                "workspace": {
+                    "root": "adjacent",
+                    "project_key": "SASE Org/repo name",
+                }
+            },
+        )
+        assert store.project_key == "SASE_Org/repo_name"
+
+    @pytest.mark.parametrize("project_key", ["owner//repo", "owner/../repo"])
+    def test_explicit_project_key_rejects_empty_or_traversal_components(
+        self, project_key: str
+    ) -> None:
+        with pytest.raises(ValueError, match="Invalid workspace.project_key"):
+            WorkspaceStore(
+                "/tmp/p",
+                config={
+                    "workspace": {
+                        "root": "adjacent",
+                        "project_key": project_key,
+                    }
+                },
+            )
+
+    def test_ssh_github_remote_uses_owner_repo_key(self) -> None:
         with patch(
             "sase.workspace_provider.store._list_git_remote_urls",
             return_value=["git@github.com:sase-org/sase.git"],
         ):
-            assert _derive_project_key("/tmp/p") == "github.com_sase-org_sase"
+            assert _derive_project_key("/tmp/p") == "sase-org/sase"
 
-    def test_https_remote_uses_slugified_url(self) -> None:
+    def test_https_github_remote_uses_owner_repo_key(self) -> None:
         with patch(
             "sase.workspace_provider.store._list_git_remote_urls",
             return_value=["https://github.com/sase-org/sase.git"],
         ):
-            assert _derive_project_key("/tmp/p") == "github.com_sase-org_sase"
+            assert _derive_project_key("/tmp/p") == "sase-org/sase"
+
+    def test_non_github_remote_preserves_host_qualified_slug(self) -> None:
+        with patch(
+            "sase.workspace_provider.store._list_git_remote_urls",
+            return_value=["git@gitlab.com:sase-org/sase.git"],
+        ):
+            assert _derive_project_key("/tmp/p") == "gitlab.com_sase-org_sase"
 
     def test_multiple_remotes_fall_back_to_path(self) -> None:
         with patch(
@@ -323,7 +357,7 @@ class TestGitRemoteEnumeration:
             cwd=repo,
             check=True,
         )
-        assert _derive_project_key(str(repo)) == "github.com_sase-org_sase_102"
+        assert _derive_project_key(str(repo)) == "sase-org/sase_102"
 
     def test_non_git_path_falls_back(self, tmp_path: Path) -> None:
         target = tmp_path / "plain"
