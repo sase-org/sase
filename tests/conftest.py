@@ -94,13 +94,18 @@ def _isolate_sase_home(
 
 @pytest.fixture(autouse=True)
 def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Clear all SASE_AGENT_* env vars (plus SASE_ARTIFACTS_DIR) before each test.
+    """Clear ambient SASE agent env vars before each test.
 
-    Prevents agent env vars set by the launcher from leaking into tests and
-    causing side effects like bogus COMMITS entries in real ChangeSpec files.
+    Prevents launcher state from leaking into tests and causing side effects
+    like bogus COMMITS entries in real ChangeSpec files or extra sibling-repo
+    dirty checks from the live agent workspace.
     """
     for key in list(os.environ):
-        if key.startswith("SASE_AGENT_") or key == "SASE_ARTIFACTS_DIR":
+        if (
+            key.startswith("SASE_AGENT_")
+            or key.startswith("SASE_SIBLING_REPO_")
+            or key in {"SASE_ARTIFACTS_DIR", "SASE_SIBLING_REPOS_JSON"}
+        ):
             monkeypatch.delenv(key)
 
 
