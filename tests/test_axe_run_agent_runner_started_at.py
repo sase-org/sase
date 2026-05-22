@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 from tests._axe_run_agent_runner_retry_helpers import (
     AGENT_INFO,
     RUNNER,
+    SETUP,
     base_patches,
     exec_result,
     run_main,
@@ -15,6 +16,62 @@ from tests._axe_run_agent_runner_retry_helpers import (
 
 
 class TestRunStartedAtRecording:
+    def test_agent_meta_is_published_before_workspace_preparation(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = str(tmp_path / "artifacts")
+        workspace_dir = tmp_path / "workspace"
+        workspace_dir.mkdir()
+        patches = base_patches(artifacts_dir)
+        events: list[str] = []
+        meta_path = Path(artifacts_dir) / "agent_meta.json"
+
+        def extract_and_write_meta(
+            _prompt: str,
+            workspace_dir_arg: str,
+            artifacts_dir_arg: str,
+            **_kwargs: Any,
+        ) -> Any:
+            assert artifacts_dir_arg == artifacts_dir
+            assert Path.cwd() == workspace_dir
+            meta = {
+                "pid": 1,
+                "workspace_dir": workspace_dir_arg,
+                "name": "test-agent",
+                "model": "test-model",
+                "llm_provider": "test-provider",
+            }
+            meta_path.write_text(json.dumps(meta))
+            events.append("meta")
+            return AGENT_INFO._replace(meta=meta)
+
+        def prepare_workspace(
+            workspace_dir_arg: str, *_args: Any, **_kwargs: Any
+        ) -> bool:
+            assert workspace_dir_arg == str(workspace_dir)
+            meta = json.loads(meta_path.read_text())
+            assert meta["name"] == "test-agent"
+            assert "run_started_at" not in meta
+            events.append("prepare")
+            return True
+
+        def run_loop(_ctx: Any, _prompt: str) -> Any:
+            events.append("run")
+            return exec_result(artifacts_dir)
+
+        patches[f"{RUNNER}.extract_directives_and_write_meta"] = extract_and_write_meta
+        patches[f"{SETUP}.prepare_workspace"] = prepare_workspace
+        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+
+        run_main(
+            patches,
+            tmp_path,
+            update_target="main",
+            workspace_dir=workspace_dir,
+        )
+
+        assert events == ["meta", "prepare", "run"]
+
     def test_no_wait_runner_records_run_started_at_before_execution(
         self, tmp_path: Path
     ) -> None:

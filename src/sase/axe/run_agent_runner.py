@@ -176,26 +176,9 @@ def main() -> None:
         try:
             deferred_workspace = bool(os.environ.get("SASE_AGENT_DEFERRED_WORKSPACE"))
 
-            # Prepare normal workspaces before running the agent.  Deferred
-            # %wait agents still have only their placeholder workspace here;
-            # their real workspace is claimed and prepared after the wait.
-            if deferred_workspace and not is_home_mode:
-                print(
-                    "=== Skipping workspace prep "
-                    "(deferred workspace; waiting for dependencies) ==="
-                )
-                print()
-            else:
-                prepare_workspace_if_needed(
-                    workspace_dir=workspace_dir,
-                    cl_name=cl_name,
-                    update_target=update_target,
-                    project_name=project_name,
-                    is_home_mode=is_home_mode,
-                    retry_handoff=retry_handoff,
-                )
-
-            # Change to workspace directory
+            # Change to the allocated workspace before prompt-derived metadata
+            # is published. Workspace preparation runs after metadata so launch
+            # surfaces can resolve the claimed agent name while prep is busy.
             os.chdir(workspace_dir)
             os.environ["SASE_ACTIVE_PROJECT_DIR"] = workspace_dir
 
@@ -226,6 +209,25 @@ def main() -> None:
                 agent_meta=agent_meta,
                 artifacts_dir=artifacts_dir,
             )
+
+            # Prepare normal workspaces before running the agent.  Deferred
+            # %wait agents still have only their placeholder workspace here;
+            # their real workspace is claimed and prepared after the wait.
+            if deferred_workspace and not is_home_mode:
+                print(
+                    "=== Skipping workspace prep "
+                    "(deferred workspace; waiting for dependencies) ==="
+                )
+                print()
+            else:
+                prepare_workspace_if_needed(
+                    workspace_dir=workspace_dir,
+                    cl_name=cl_name,
+                    update_target=update_target,
+                    project_name=project_name,
+                    is_home_mode=is_home_mode,
+                    retry_handoff=retry_handoff,
+                )
 
             bump_spawn_telemetry(
                 agent_llm_provider=agent_llm_provider,

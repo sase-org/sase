@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-22 10:46:09
-status: wip
+status: done
 prompt: sdd/prompts/202605/telegram_launch_buttons.md
 ---
 # Plan: Restore Telegram Launch Buttons
