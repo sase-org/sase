@@ -2,6 +2,8 @@
 create_time: 2026-05-22 17:54:48
 status: wip
 prompt: sdd/prompts/202605/init_memory.md
+bead_id: sase-3x
+tier: epic
 ---
 # Plan: `sase init memory`
 
