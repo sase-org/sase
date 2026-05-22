@@ -1,6 +1,8 @@
-# Ephemeral `sase_<N>` Workspace Directories
+# SASE = Structured Agentic Software Engineering
 
-Sase runs agents (like you) from ephemeral workspace directories, which are full clones of the sase repo. These
+## Ephemeral `sase_<N>` Workspace Directories
+
+SASE runs agents (like you) from ephemeral workspace directories, which are full clones of the sase repo. These
 directories are named `sase_<N>` where `<N>` is some integer. You need to be mindful not to run commands outside of
 these workspace directories, since they have their own isolated virtual environments.
 
