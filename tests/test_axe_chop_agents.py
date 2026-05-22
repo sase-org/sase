@@ -11,7 +11,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.agent.launcher import spawn_agent_subprocess
-from sase.running_field import ClaimResult
 from sase.axe.chop_agents import (
     ENV_CHOP_LUMBERJACK,
     ENV_CHOP_NAME,
@@ -22,6 +21,8 @@ from sase.axe.chop_agents import (
     get_live_chop_agent_records,
     prompt_hash,
 )
+from sase.running_field import ClaimResult
+from sase.sibling_repos import SiblingRepoResolution
 
 
 def _spawn_agent_for_env_test(
@@ -193,6 +194,10 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
     monkeypatch.setattr("sase.axe.chop_agents.is_process_running", lambda _pid: True)
+    monkeypatch.setattr(
+        "sase.sibling_repos.resolve_sibling_repos_for_project",
+        lambda **_: SiblingRepoResolution(()),
+    )
 
     result = spawn_agent_subprocess(
         cl_name="proj",
