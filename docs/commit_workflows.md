@@ -22,7 +22,7 @@ Agent edits files
 Provider-neutral commit finalizer
         |
         v
-Commit skill (/sase_git_commit, /sase_hg_commit, ...)
+Commit skill wrapper (/sase_git_commit, /sase_hg_commit, ...)
         |
         v
 sase commit -> CommitWorkflow -> VCS provider -> tracked output
@@ -37,31 +37,38 @@ and injects an instruction telling the agent **not** to create commits directly.
 
 ### 2. Commit finalizer checks for uncommitted work
 
-When a SASE-launched agent turn succeeds, the provider-neutral **commit finalizer** runs in the shared LLM invocation
-layer. It checks the main workspace and any configured sibling repositories for uncommitted changes. If everything is
-clean, the agent response is postprocessed normally.
+When a provider invocation succeeds inside a SASE-launched agent session, the provider-neutral **commit finalizer** runs
+in the shared LLM invocation layer before normal success postprocessing. In practice this means the process has
+`SASE_AGENT_TIMESTAMP` set. The finalizer checks the main workspace for uncommitted changes through the active VCS
+provider, and checks configured sibling repositories as Git worktrees. If everything is clean, the agent response is
+postprocessed normally.
 
-If changes remain, the finalizer runs a bounded follow-up turn with the same provider. The follow-up prompt lists the
-dirty files and instructs the agent to use the commit skill for the detected VCS provider, such as `/sase_git_commit` or
-`/sase_hg_commit` when that provider skill is installed for the current runtime. The skill calls `sase commit` with
-flags, usually using a message file and explicit file pathspecs:
+If changes remain, the finalizer runs a bounded follow-up invocation with the same provider. The follow-up prompt lists
+the dirty files and instructs the agent to use a commit skill such as `/sase_git_commit` or `/sase_hg_commit`. For the
+main workspace, the skill name is selected from the detected VCS provider. For configured sibling repos, the current
+finalizer checks `git status` and emits Git commit-skill instructions that first `cd` into the sibling workspace.
+
+Generated skills normally run an observable wrapper such as `sase_git_commit`, which records skill invocation evidence
+and then delegates to `sase commit`. A typical Git skill invocation omits `--type` because the xprompt already set
+`SASE_COMMIT_METHOD`:
 
 ```bash
-sase commit -M commit_message.md -f src/example.py -t <method>
+sase_git_commit -M commit_message.md -f src/example.py
 ```
 
-The method defaults to `$SASE_COMMIT_METHOD` if the `-t` flag is omitted. If both the environment and `-t/--type` are
-set, they must resolve to the same method unless `SASE_COMMIT_METHOD_ALLOW_OVERRIDE=1` is set.
+The low-level equivalent is `sase commit -M commit_message.md -f src/example.py -t <method>`. The method defaults to
+`$SASE_COMMIT_METHOD` if the `-t` flag is omitted. If both the environment and `-t/--type` are set, they must resolve to
+the same method unless `SASE_COMMIT_METHOD_ALLOW_OVERRIDE=1` is set.
 
 If `SASE_BEAD_ID` is set, the finalizer first asks the agent to decide whether the uncommitted changes were made in the
 current session. For changes the agent did make, it instructs the agent to close and verify the bead before invoking the
 commit skill. This keeps bead lifecycle state ahead of the commit/proposal/PR dispatch while avoiding accidental closure
 for unrelated dirty work.
 
-The finalizer uses the same instruction helper as the legacy compatibility hook, so bead-aware prompts still ask the
-agent to decide whether it made the dirty changes, close and verify the bead when appropriate, and then commit through
-the skill. `commit.finalizer.max_passes` controls how many follow-up turns may run before SASE fails the invocation with
-a clear error and `commit_finalizer_result.json` artifact.
+The finalizer uses the same instruction helper as the legacy compatibility hook, so the bead and method wording stays
+the same across the provider-neutral path and any older provider-native hook configuration.
+`commit.finalizer.max_passes` controls how many follow-up invocations may run before SASE fails the invocation with a
+clear error and, when an artifacts directory is available, a `commit_finalizer_result.json` artifact.
 
 ### CLI Arguments
 
@@ -366,33 +373,36 @@ instructions automatically, so agents know to hand control back to the user rath
 | `SASE_BUG_ID`                       | Bug ID for PR metadata                                           |
 | `SASE_VCS_PROVIDER`                 | Override VCS provider detection (see [vcs.md](vcs.md))           |
 | `SASE_SIBLING_REPOS_JSON`           | JSON metadata for configured sibling repos passed to agents      |
-| `SASE_SIBLING_REPO_<NAME>_DIR`      | Workspace-matched path for one configured sibling repo           |
+| `SASE_SIBLING_REPO_<ENV_NAME>_DIR`  | Workspace-matched path for one configured sibling repo           |
 | `SASE_DISABLE_COMMIT_STOP_HOOK`     | Skip both finalizer and legacy compatibility hook when set       |
 
 ## Commit Finalizer and Compatibility Hook
 
-The normal SASE-owned path is the provider-neutral finalizer in `src/sase/llm_provider/commit_finalizer.py`. It runs
-after a successful provider turn and before success postprocessing. The finalizer is deliberately outside any one
-runtime's native hook system, so Claude, Codex, Gemini, Qwen, OpenCode, and provider plugins share the same behavior.
+For SASE-launched agent sessions, the normal path is the provider-neutral finalizer in
+`src/sase/llm_provider/commit_finalizer.py`. It runs after a successful provider invocation and before success
+postprocessing. The finalizer is deliberately outside any one runtime's native hook system, so Claude, Codex, Gemini,
+Qwen, OpenCode, and provider plugins share the same behavior.
 
 **Flow:**
 
-1. Skip when `commit.finalizer.enabled` is false, `SASE_DISABLE_COMMIT_STOP_HOOK=1` is set, or the call is outside a
-   SASE agent session.
+1. Skip when `commit.finalizer.enabled` is false, `SASE_DISABLE_COMMIT_STOP_HOOK=1` is set, or the process is outside a
+   SASE agent session (`SASE_AGENT_TIMESTAMP` is unset).
 2. Resolve the project directory from provider/workspace environment variables.
-3. Check the main workspace through the VCS provider.
-4. Check configured sibling repos from `SASE_SIBLING_REPOS_JSON`, or from project config when available.
-5. If dirty repos exist, write `commit_finalizer_pass_<N>_prompt.md`, run one follow-up provider turn, and write
-   `commit_finalizer_pass_<N>_response.md`.
-6. Re-check every dirty target. If all are clean, write `commit_finalizer_result.json` with status `finalized` and
-   append the follow-up response to the agent's final response.
-7. If changes remain after `commit.finalizer.max_passes`, write status `failed` and fail the invocation instead of
-   silently accepting dirty work.
+3. Check the main workspace through the VCS provider's diff helpers.
+4. Check configured sibling repos from `SASE_SIBLING_REPOS_JSON`, or from project config when available, with
+   `git status --porcelain`.
+5. If dirty repos exist, run one follow-up provider invocation. When an artifacts directory is available, also write
+   `commit_finalizer_pass_<N>_prompt.md` and `commit_finalizer_pass_<N>_response.md`.
+6. Re-check every dirty target. If all are clean, write `commit_finalizer_result.json` with status `finalized` when
+   artifacts are enabled, and append the follow-up response to the agent's final response.
+7. If changes remain after `commit.finalizer.max_passes`, write status `failed` when artifacts are enabled and fail the
+   invocation instead of silently accepting dirty work.
 
 Configured sibling repos are resolved to workspace-matched directories before agent launch. For example, an agent in
 `sase_10` sees a `../sase-core` sibling as `sase-core_10` when that checkout is available or can be materialized. Repos
 configured with `workspace.strategy: none` are checked at their primary path instead; this is useful for singleton repos
-such as chezmoi.
+such as chezmoi. The current sibling dirty-check path is Git-specific: non-Git sibling paths can still be shown to the
+agent through prompts and environment variables, but the finalizer does not enforce them as dirty targets.
 
 The `sase_commit_stop_hook` script remains as a compatibility-only provider-native hook for older external settings and
 manual hook installs. Active SASE-launched runs do not require runtime-specific stop-hook configuration. The

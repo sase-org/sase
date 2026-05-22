@@ -1189,11 +1189,11 @@ The `unread` count in the Agents header is drawn as black text on a gold pill so
 work" signal stands out from the rest of the colored metrics. It uses the same gold tone as the top-bar notification
 indicator, giving you a single color to scan for.
 
-Switching to the Agents tab dismisses every outstanding agent-completion notification in one shot. While the tab stays
-focused, ordinary navigation (`j`/`k`, marks, folds, and similar) also dismisses any _new_ completion notifications that
-arrive while you're looking at the list — the idea is that if you're on the Agents tab you've already seen the completed
-work. Plan approvals and user questions are never auto-dismissed by this flow; they always require explicit `y` / `n`
-confirmation from their respective modals.
+Switching to the Agents tab does not bulk-dismiss completion notifications. ACE projects active completion notifications
+onto unread rows, then acknowledges rows one at a time when you select or navigate into a terminal unread row. Bulk
+acknowledgement is explicit through `,u`, which marks loaded unread completed agents read. Plan approvals and user
+questions are never auto-dismissed by this flow; they always require explicit `y` / `n` confirmation from their
+respective modals.
 
 ### Agent Revival
 

@@ -7,8 +7,8 @@ pdf: false
 ## Target
 
 - Doc: `docs/commit_workflows.md`
-- Insertion point: after the `## Overview` workflow table and before `## How It Works`
-- Final image: `docs/images/commit-workflow-infographic.png`
+- Candidate insertion point: after the `## Overview` workflow table and before `## How It Works`
+- Candidate image: `docs/images/commit-workflow-infographic.png`
 - Alt text: "Shared commit workflow showing xprompt inputs flowing through the commit finalizer, commit skill,
   CommitWorkflow stages, VCS dispatch outputs, and conflict resume checkpoint"
 
@@ -59,11 +59,16 @@ overlay. Keep the final stage order numbered left-to-right and top-to-bottom:
 9. Result marker
 10. Tracking
 
-## Post-Processing Notes
+## Current Status
 
-The checked-in PNG is 1672x941. It was regenerated with GPT image generation as a mostly text-free architecture
-foundation, then post-processed locally with exact labels and readable stage chips. The overlay fixes the prior critique
-items by:
+The checked-in PNG is stale and is not currently embedded in `docs/commit_workflows.md`. It still labels the
+provider-neutral finalizer as `Stop hook`. Regenerate or locally relabel the image before re-embedding it.
+
+## Required Post-Processing Notes
+
+The target PNG size is 1672x941. Regenerate with GPT image generation as a mostly text-free architecture foundation,
+then post-process locally with exact labels and readable stage chips. The overlay should fix the prior critique items
+by:
 
 - labeling the left stack as `xprompts`;
 - ordering the central stages as bead lifecycle, plan handling, precommit, PR tags, parent detection, diff capture,

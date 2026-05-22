@@ -41,7 +41,7 @@ Key design principles:
   lives in the shared orchestration layer.
 - **Registry-based selection**: Providers register themselves by name and are resolved via config or explicit override.
 - **Tier-based model selection**: Callers request a "large" or "small" tier; the provider maps it to a concrete model.
-- **Runtime-uniform commit enforcement**: SASE-owned runs use a shared commit finalizer instead of provider-specific
+- **Runtime-uniform commit enforcement**: SASE agent sessions use a shared commit finalizer instead of provider-specific
   native stop hooks.
 
 ### Source Layout
@@ -135,17 +135,18 @@ provider = get_provider("claude")  # Explicit provider name
 ## Commit Finalization
 
 After a provider returns successfully, `invoke_agent()` runs the provider-neutral commit finalizer before success
-postprocessing. The finalizer checks the active project workspace and any configured sibling repositories for
-uncommitted changes. If it finds dirty work, it sends the same provider a bounded follow-up prompt that lists the dirty
-files and instructs the agent to use the appropriate commit skill, such as `/sase_git_commit`.
+postprocessing when the process is a SASE agent session (`SASE_AGENT_TIMESTAMP` is set). The finalizer checks the active
+project workspace through the active VCS provider and checks configured sibling repositories as Git worktrees. If it
+finds dirty work, it sends the same provider a bounded follow-up prompt that lists the dirty files and instructs the
+agent to use the appropriate commit skill, such as `/sase_git_commit`.
 
 The finalizer skips when the call is outside a SASE agent session, when `commit.finalizer.enabled` is false, or when
-`SASE_DISABLE_COMMIT_STOP_HOOK=1` is set. On each follow-up pass it writes `commit_finalizer_pass_<N>_prompt.md` and
-`commit_finalizer_pass_<N>_response.md` under `$SASE_ARTIFACTS_DIR`; the final outcome is written to
+`SASE_DISABLE_COMMIT_STOP_HOOK=1` is set. When an artifacts directory is available, each follow-up pass writes
+`commit_finalizer_pass_<N>_prompt.md` and `commit_finalizer_pass_<N>_response.md`; the final outcome is written to
 `commit_finalizer_result.json`. If the workspace remains dirty after `commit.finalizer.max_passes`, the invocation is
 converted into an `LLMInvocationError` rather than being logged as a successful clean run.
 
-The legacy `sase_commit_stop_hook` still exists for external native hook configs, but SASE-owned agent launches no
+The legacy `sase_commit_stop_hook` still exists for external native hook configs, but SASE-launched agent sessions no
 longer depend on provider-specific stop-hook setup.
 
 ## Claude Code Integration
@@ -406,8 +407,8 @@ collapses each start/result pair into a single row.
 
 ### Commit Finalization
 
-SASE-owned Qwen runs use the shared provider-neutral commit finalizer described above; active SASE settings do not need
-repo-local or global Qwen stop-hook configuration. The compatibility `sase_commit_stop_hook` can still serve older
+SASE-launched Qwen runs use the shared provider-neutral commit finalizer described above; active SASE settings do not
+need repo-local or global Qwen stop-hook configuration. The compatibility `sase_commit_stop_hook` can still serve older
 external native hook configs. When invoked manually from such a config, it detects Qwen before Gemini because Qwen Code
 sets both `QWEN_PROJECT_DIR` and `GEMINI_PROJECT_DIR`, and it emits the Gemini-family
 `{"decision": "deny", "reason": ...}` block payload that Qwen honors.
@@ -1151,10 +1152,10 @@ invoke_agent(prompt, agent_type, model_tier, ...)
 │   ├── Supply prompt via provider transport
 │   └── Stream stdout/stderr in real-time
 │
-├── 11. Run commit finalizer for SASE-owned agent turns
+├── 11. Run commit finalizer for SASE agent sessions
 │   ├── Skip when disabled or outside an agent session
-│   ├── Check main workspace and configured sibling repos
-│   └── Run bounded follow-up provider turns until clean or failed
+│   ├── Check main workspace and configured Git sibling repos
+│   └── Run bounded follow-up provider invocations until clean or failed
 │
 ├── 12. Postprocess
 │   ├── Success path:

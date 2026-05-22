@@ -44,8 +44,8 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
 - **ChangeSpecs** - Tracked CL/PR-sized units of work with lifecycle state, commits, comments, mentors, and metadata.
 - **SDD and Beads** - Spec-driven planning artifacts plus git-portable issue tracking for epics, phases, and
   dependencies.
-- **Commit finalizer** - A provider-neutral post-run check that keeps SASE-launched agents from leaving dirty workspaces
-  or configured sibling repos behind.
+- **Commit finalizer** - A provider-neutral post-invocation check that asks SASE-launched agents to commit their dirty
+  work or fails the run when uncommitted changes remain.
 - **Plugins** - Provider boundaries for agents, VCS operations, workspaces, notifications, and external integrations.
 - **Editor integration** - An xprompt LSP and JSON helper bridge for completions, snippets, hover, diagnostics, and
   jump-to-definition in companion editors.
@@ -97,10 +97,11 @@ SASE keeps durable state outside any one chat session:
   workspace-matched directories. SASE passes those paths in the prompt and environment so cross-repo work uses the same
   numbered workspace as the main checkout, while singleton repos such as chezmoi can opt out with
   `workspace.strategy: none`.
-- **Commit finalization** - After a successful SASE-owned agent turn, the provider-neutral finalizer checks the main
-  workspace and configured sibling repos for uncommitted changes. If anything is dirty, it runs a bounded follow-up turn
-  that tells the same agent to use the configured commit skill; if the workspace is still dirty after the configured
-  pass limit, the agent run fails with a clear artifact trail.
+- **Commit finalization** - After a successful provider invocation inside a SASE-launched agent session, the
+  provider-neutral finalizer checks the main workspace and configured Git sibling repos for uncommitted changes. If
+  anything is dirty, it runs a bounded follow-up invocation that tells the same agent to use the configured commit
+  skill; if the workspace is still dirty after the configured pass limit, the agent run fails with a clear artifact
+  trail.
 - **Durable artifacts** - Agent metadata, chats, notifications, prompt history, ChangeSpecs, SDD files, and beads are
   stored in predictable project/user directories so ACE, AXE, CLI commands, and external integrations can share state.
   ACE uses a persistent artifact index for its normal Agents-tab "visible inbox" - active plus recent completed,
