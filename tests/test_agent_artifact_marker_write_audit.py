@@ -1,4 +1,36 @@
-"""Audit direct mutation sites for Tier 1-projected agent marker files."""
+"""Audit mutation and path-passing sites for Tier 1-projected agent markers.
+
+Fail-closed AST audit covering three complementary patterns:
+
+1. ``_REVIEWED_MARKER_MUTATION_CONTEXTS`` — functions that contain a tracked
+   marker filename literal *and* a direct mutation call. Every entry must
+   declare ``lifecycle_calls``, ``batched_by``, ``delegated``, or
+   ``exemption``.
+2. ``_REVIEWED_DIR_OPERATION_CONTEXTS`` — functions that call
+   ``shutil.rmtree``, ``shutil.move``, or ``os.rename``. Whole-directory
+   operations can drop or relocate every marker file at once, so each site
+   must explicitly justify lifecycle coverage or exempt itself with a
+   ``not an artifact directory`` reason.
+3. ``_REVIEWED_PATH_PASSING_CONTEXTS`` — functions that construct
+   ``Path(...) / "<tracked marker>"`` and hand the resulting path to a
+   non-safe callee. The convention catches a two-function pattern where
+   construction lives in function A and mutation in helper B.
+
+Lifecycle helpers live in
+``src/sase/core/agent_artifact_index_lifecycle.py`` and are the only
+authorized way to keep the Tier 1 SQLite index in sync with a marker
+mutation:
+
+- ``update_agent_artifact_index_for_marker_mutation``
+- ``upsert_agent_artifact_index_artifacts``
+- ``delete_agent_artifact_index_artifacts``
+- ``sync_dismissed_agent_artifact_index``
+
+The tracked marker filename patterns are listed in
+``_TRACKED_MARKER_LITERALS`` (``agent_meta.json``, ``done.json``,
+``running.json``, ``waiting.json``, ``pending_question.json``,
+``workflow_state.json``, ``plan_path.json``, and ``prompt_step_``).
+"""
 
 from __future__ import annotations
 
@@ -19,11 +51,19 @@ _TRACKED_MARKER_LITERALS = (
 )
 _MUTATION_CALL_NAMES = {
     "_write_json_file",
+    "copy",
+    "copy2",
+    "copyfile",
+    "copytree",
     "dump",
     "mkstemp",
+    "move",
     "remove",
+    "rename",
     "rmtree",
+    "touch",
     "unlink",
+    "write_bytes",
     "write_text",
 }
 _LIFECYCLE_CALL_NAMES = {
@@ -432,11 +472,34 @@ def _context_call_names(context: str) -> tuple[str, ...]:
     return tuple(name for name in calls if name is not None)
 
 
-def _marker_mutation_contexts() -> dict[str, ContextInfo]:
+def _iter_source_files(root: Path) -> list[Path]:
+    return sorted((root / "src" / "sase").rglob("*.py"))
+
+
+def _build_parent_map(tree: ast.AST) -> dict[ast.AST, ast.AST]:
+    parents: dict[ast.AST, ast.AST] = {}
+    for parent in ast.walk(tree):
+        for child in ast.iter_child_nodes(parent):
+            parents[child] = parent
+    return parents
+
+
+def _enclosing_function(
+    node: ast.AST, parent_map: dict[ast.AST, ast.AST]
+) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
+    cur: ast.AST | None = parent_map.get(node)
+    while cur is not None and not isinstance(cur, _FUNCTION_NODES):
+        cur = parent_map.get(cur)
+    return cur
+
+
+def _marker_mutation_contexts(
+    root: Path = _REPO_ROOT,
+) -> dict[str, ContextInfo]:
     contexts: dict[str, ContextInfo] = {}
-    for path in sorted((_REPO_ROOT / "src" / "sase").rglob("*.py")):
+    for path in _iter_source_files(root):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        rel_path = path.relative_to(_REPO_ROOT).as_posix()
+        rel_path = path.relative_to(root).as_posix()
         for node in ast.walk(tree):
             if not isinstance(node, _FUNCTION_NODES):
                 continue
@@ -450,7 +513,7 @@ def _marker_mutation_contexts() -> dict[str, ContextInfo]:
                 for call in _source_ordered_calls(descendants)
                 if (name := _mutation_call_name(call)) is not None
             )
-            lifecycle_calls = tuple(
+            lifecycle_calls: tuple[str, ...] = tuple(
                 name
                 for call in _source_ordered_calls(descendants)
                 if (name := _lifecycle_call_name(call)) is not None
@@ -519,3 +582,333 @@ def test_reviewed_marker_mutation_sites_declare_lifecycle_coverage() -> None:
 
         if review.exemption:
             assert review.exemption.strip(), context
+
+
+# ---------------------------------------------------------------------------
+# Whole-artifact-directory operations (pattern 3)
+# ---------------------------------------------------------------------------
+
+_DIR_OPERATION_CALL_KINDS: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("shutil", "rmtree"),
+        ("shutil", "move"),
+        ("os", "rename"),
+    }
+)
+
+
+@dataclass(frozen=True)
+class DirOpReview:
+    """Lifecycle coverage shape for a whole-directory operation context."""
+
+    lifecycle_calls: tuple[str, ...] = ()
+    batched_by: tuple[BatchedCoverage, ...] = ()
+    delegated: DelegatedCoverage | None = None
+    exemption: str = ""
+
+
+_REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
+    "src/sase/ace/tui/bgcmd.py:clear_slot": DirOpReview(
+        exemption=(
+            "bgcmd slot directory under the ace TUI workspace, not a tracked "
+            "agent artifact directory."
+        ),
+    ),
+    "src/sase/agent/names/_wipe.py:_remove_artifact_dirs": DirOpReview(
+        batched_by=(
+            BatchedCoverage(
+                caller_context=(
+                    "src/sase/agent/names/_wipe.py:wipe_agent_name_for_reuse"
+                ),
+                helper_call="_remove_artifact_dirs",
+                lifecycle_call=_DELETE_INDEX,
+            ),
+        ),
+    ),
+    "src/sase/axe/run_agent_exec_attempts.py:snapshot_attempt": DirOpReview(
+        exemption=(
+            "Operates on the attempts/<N>.tmp staging directory: shutil.rmtree "
+            "removes a stale tmp dir, shutil.move relocates the live_reply "
+            "byproducts into it, and os.rename promotes it to attempts/<N>/. "
+            "None of these touch the tracked marker layer."
+        ),
+    ),
+    "src/sase/llm_provider/codex.py:_codex_subprocess_env": DirOpReview(
+        exemption="Shadow CODEX_HOME cache, not an agent artifact directory.",
+    ),
+    "src/sase/main/workspace_handler.py:_handle_migrate": DirOpReview(
+        exemption=(
+            "Moves a workspace checkout directory under a managed root, not an "
+            "agent artifact directory."
+        ),
+    ),
+    "src/sase/main/workspace_handler.py:_remove_checkout": DirOpReview(
+        exemption=(
+            "Removes a workspace checkout directory, not an agent artifact directory."
+        ),
+    ),
+    (
+        "src/sase/telemetry/cli_export_config.py:handle_telemetry_export_config"
+    ): DirOpReview(
+        exemption=(
+            "Telemetry export output directory, not an agent artifact directory."
+        ),
+    ),
+    "src/sase/workspace_provider/utils.py:_ensure_git_clone_at": DirOpReview(
+        exemption=(
+            "Workspace checkout directory under a managed root, not an agent "
+            "artifact directory."
+        ),
+    ),
+}
+
+
+def _dir_operation_call_label(call: ast.Call) -> str | None:
+    func = call.func
+    if not isinstance(func, ast.Attribute) or not isinstance(func.value, ast.Name):
+        return None
+    pair = (func.value.id, func.attr)
+    if pair in _DIR_OPERATION_CALL_KINDS:
+        return f"{pair[0]}.{pair[1]}"
+    return None
+
+
+def _artifact_directory_operation_contexts(
+    root: Path = _REPO_ROOT,
+) -> dict[str, tuple[str, ...]]:
+    contexts: dict[str, set[str]] = {}
+    for path in _iter_source_files(root):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        rel_path = path.relative_to(root).as_posix()
+        parent_map = _build_parent_map(tree)
+        for call in ast.walk(tree):
+            if not isinstance(call, ast.Call):
+                continue
+            label = _dir_operation_call_label(call)
+            if label is None:
+                continue
+            enclosing = _enclosing_function(call, parent_map)
+            if enclosing is None:
+                continue
+            contexts.setdefault(f"{rel_path}:{enclosing.name}", set()).add(label)
+    return {key: tuple(sorted(value)) for key, value in contexts.items()}
+
+
+def test_artifact_directory_operation_sites_are_reviewed() -> None:
+    assert set(_artifact_directory_operation_contexts()) == set(
+        _REVIEWED_DIR_OPERATION_CONTEXTS
+    )
+
+
+def test_reviewed_dir_operation_sites_declare_coverage() -> None:
+    for context, review in _REVIEWED_DIR_OPERATION_CONTEXTS.items():
+        kinds = sum(
+            bool(kind)
+            for kind in (
+                review.lifecycle_calls,
+                review.batched_by,
+                review.delegated,
+                review.exemption,
+            )
+        )
+        assert kinds == 1, context
+
+        for coverage in review.batched_by:
+            caller_calls = _context_call_names(coverage.caller_context)
+            assert coverage.helper_call in caller_calls, coverage
+            assert coverage.lifecycle_call in caller_calls, coverage
+
+        if review.delegated is not None:
+            caller_calls = _context_call_names(review.delegated.caller_context)
+            assert review.delegated.helper_call in caller_calls, review.delegated
+
+        if review.exemption:
+            assert review.exemption.strip(), context
+
+
+# ---------------------------------------------------------------------------
+# Path-passing convention (pattern 2)
+# ---------------------------------------------------------------------------
+
+_SAFE_PATH_CALLEES: frozenset[str] = frozenset(
+    {
+        # Path / string coercion
+        "Path",
+        "PurePath",
+        "PurePosixPath",
+        "PureWindowsPath",
+        "str",
+        "fspath",
+        # File I/O (write-mode open is pattern 1's responsibility)
+        "open",
+        # Read-only Path / fs queries
+        "read_text",
+        "read_bytes",
+        "exists",
+        "is_file",
+        "is_dir",
+        "is_symlink",
+        "stat",
+        "lstat",
+        "iterdir",
+        "glob",
+        "rglob",
+        "samefile",
+        # JSON / pickle read
+        "load",
+        "loads",
+        # os.path read helpers
+        "join",
+        "dirname",
+        "basename",
+        "splitext",
+        "isfile",
+        "isdir",
+        "abspath",
+        "realpath",
+        "normpath",
+        "getmtime",
+        "getsize",
+        "getatime",
+        "getctime",
+        # Builtins / coercions
+        "bool",
+        "int",
+        "float",
+        "len",
+        "list",
+        "dict",
+        "tuple",
+        "set",
+        "frozenset",
+        "sorted",
+        "reversed",
+        "any",
+        "all",
+        "max",
+        "min",
+        "sum",
+        # Project read-only helpers
+        "_read_json_object",
+        "read_json_object",
+        "_read_json",
+        "_read_json_dict",
+        "_read_json_string_field",
+        "_read_path_from_json",
+        "marker_signature",
+        "_payload_names_include",
+        "_has_done_marker",
+        "_seed_payload_path",
+        # Logging / formatting (marker filenames appear in warning/log strings)
+        "print",
+        "print_status",
+        "format",
+        # Wire-type constructors over read-only data
+        "AgentArtifactScanOptionsWire",
+        "AgentArtifactScanStatsWire",
+    }
+    | _LIFECYCLE_CALL_NAMES
+)
+
+
+@dataclass(frozen=True)
+class PathPassingReview:
+    """Coverage declaration for a tracked-marker path-passing context."""
+
+    lifecycle_coverage: str = ""
+    exemption: str = ""
+
+
+_REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {}
+
+
+def _arg_carries_marker_construction(arg: ast.expr) -> bool:
+    if isinstance(arg, ast.Constant):
+        return False
+    for node in ast.walk(arg):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if any(m in node.value for m in _TRACKED_MARKER_LITERALS):
+                return True
+    return False
+
+
+def _path_passing_contexts(root: Path = _REPO_ROOT) -> set[str]:
+    found: set[str] = set()
+    for path in _iter_source_files(root):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        rel_path = path.relative_to(root).as_posix()
+        parent_map = _build_parent_map(tree)
+        for call in ast.walk(tree):
+            if not isinstance(call, ast.Call):
+                continue
+            name = _generic_call_name(call)
+            if name is None or name in _SAFE_PATH_CALLEES:
+                continue
+            args: list[ast.expr] = list(call.args) + [kw.value for kw in call.keywords]
+            if not any(_arg_carries_marker_construction(a) for a in args):
+                continue
+            enclosing = _enclosing_function(call, parent_map)
+            if enclosing is None:
+                continue
+            found.add(f"{rel_path}:{enclosing.name}")
+    return found
+
+
+def test_tracked_marker_path_passing_sites_are_reviewed() -> None:
+    assert _path_passing_contexts() == set(_REVIEWED_PATH_PASSING_CONTEXTS)
+
+
+def test_reviewed_path_passing_sites_declare_coverage() -> None:
+    for context, review in _REVIEWED_PATH_PASSING_CONTEXTS.items():
+        kinds = sum(bool(v) for v in (review.lifecycle_coverage, review.exemption))
+        assert kinds == 1, context
+
+
+# ---------------------------------------------------------------------------
+# Synthetic regression test
+# ---------------------------------------------------------------------------
+
+
+def test_audit_catches_planted_violations(tmp_path: Path) -> None:
+    """Plant one violation per pattern and confirm each scanner fires."""
+    fake_src = tmp_path / "src" / "sase" / "fake_audit_module"
+    fake_src.mkdir(parents=True)
+    (fake_src / "__init__.py").write_text("", encoding="utf-8")
+
+    (fake_src / "direct_mutation.py").write_text(
+        '"""Plants a direct tracked-marker mutation via Path.write_bytes."""\n\n'
+        "from pathlib import Path\n\n\n"
+        "def plant_write_bytes(artifact_dir: Path) -> None:\n"
+        '    (artifact_dir / "agent_meta.json").write_bytes(b"{}")\n',
+        encoding="utf-8",
+    )
+    (fake_src / "dir_op.py").write_text(
+        '"""Plants a whole-directory rmtree."""\n\n'
+        "import shutil\n\n\n"
+        "def plant_rmtree(artifact_dir) -> None:\n"
+        "    shutil.rmtree(artifact_dir)\n",
+        encoding="utf-8",
+    )
+    (fake_src / "path_passing.py").write_text(
+        '"""Plants a path-passing site handing a marker path to an unknown helper."""\n\n'
+        "from pathlib import Path\n\n\n"
+        "def plant_path_passing(artifact_dir: Path) -> None:\n"
+        '    unknown_marker_consumer(artifact_dir / "running.json")\n\n\n'
+        "def unknown_marker_consumer(path) -> None:\n"
+        "    pass\n",
+        encoding="utf-8",
+    )
+
+    mutation_contexts = _marker_mutation_contexts(tmp_path)
+    assert (
+        "src/sase/fake_audit_module/direct_mutation.py:plant_write_bytes"
+        in mutation_contexts
+    )
+
+    dir_op_contexts = _artifact_directory_operation_contexts(tmp_path)
+    assert "src/sase/fake_audit_module/dir_op.py:plant_rmtree" in dir_op_contexts
+
+    path_passing = _path_passing_contexts(tmp_path)
+    assert (
+        "src/sase/fake_audit_module/path_passing.py:plant_path_passing" in path_passing
+    )

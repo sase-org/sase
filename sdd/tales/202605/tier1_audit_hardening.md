@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-22 14:29:23
-status: wip
+status: done
 prompt: sdd/prompts/202605/tier1_audit_hardening.md
 ---
 # Tighten the Tier 1 Agent Artifact Index Upkeep Audit
