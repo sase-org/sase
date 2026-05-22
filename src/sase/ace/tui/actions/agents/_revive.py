@@ -332,6 +332,10 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         if next_dismissed != self._dismissed_agents:
             self._dismissed_agents = next_dismissed
             save_dismissed_agents(self._dismissed_agents)
+            try:
+                sync_dismissed_agent_artifact_index(self._dismissed_agents, force=True)
+            except Exception:
+                pass
         for agent in archive_agents:
             agent._loaded_from_dismissed_bundle = True
         return archive_agents

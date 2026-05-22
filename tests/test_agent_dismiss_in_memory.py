@@ -125,6 +125,27 @@ def test_apply_dismissal_clears_revived_visibility_pin() -> None:
     assert app._revived_agent_raw_suffixes == {"20240101130000"}
 
 
+def test_persist_dismissed_agent_syncs_projection() -> None:
+    """Legacy direct dismissed persistence keeps the Tier 1 projection fresh."""
+    app = FakeDismissApp()
+    identity = make_agent(raw_suffix="20240101120000").identity
+    app._revived_agent_raw_suffixes = {"20240101120000"}
+
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch(
+            "sase.ace.tui.actions.agents._dismiss_memory."
+            "sync_dismissed_agent_artifact_index"
+        ) as mock_sync_index,
+    ):
+        app._persist_dismissed_agent(identity)
+
+    assert identity in app._dismissed_agents
+    assert app._revived_agent_raw_suffixes == set()
+    mock_save.assert_called_once_with(app._dismissed_agents)
+    mock_sync_index.assert_called_once_with(app._dismissed_agents, added={identity})
+
+
 def test_dismiss_done_agent_is_optimistic_and_schedules_once(tmp_path) -> None:  # type: ignore[no-untyped-def]
     """_dismiss_done_agent removes the row before persistence callbacks run."""
     app = FakeDismissApp()

@@ -341,6 +341,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             persist_dismissed_changes=bool(orphaned)
             or bool(prep.recovered_bundle_identities)
             or bool(prep.auto_dismissed_identities),
+            dismissed_changes_include_removals=bool(orphaned),
             incomplete_merge_already_applied=True,
             precomputed_boundary=boundary,
             precomputed_fold_levels=worker_snapshot.fold_levels,
@@ -397,4 +398,5 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             persist_dismissed_changes=bool(orphaned)
             or bool(prep.recovered_bundle_identities)
             or bool(prep.auto_dismissed_identities),
+            dismissed_changes_include_removals=bool(orphaned),
         )

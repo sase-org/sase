@@ -7,6 +7,9 @@ from typing import TYPE_CHECKING, cast
 
 from ...models.agent import AgentType
 from ...util.trace import tui_trace
+from sase.core.agent_artifact_index_lifecycle import (
+    sync_dismissed_agent_artifact_index,
+)
 from ._loading_compute import (
     PreparedApplyBoundary,
     PreparedApplyData,
@@ -224,6 +227,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         selected_identity: tuple[AgentType, str, str | None] | None,
         load_state: AgentLoadState | None = None,
         persist_dismissed_changes: bool,
+        dismissed_changes_include_removals: bool = False,
         incomplete_merge_already_applied: bool = False,
         precomputed_boundary: PreparedApplyBoundary | None = None,
         precomputed_fold_levels: dict[str, FoldLevel] | None = None,
@@ -250,6 +254,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 selected_identity=selected_identity,
                 load_state=load_state,
                 persist_dismissed_changes=persist_dismissed_changes,
+                dismissed_changes_include_removals=dismissed_changes_include_removals,
                 incomplete_merge_already_applied=incomplete_merge_already_applied,
                 precomputed_boundary=precomputed_boundary,
                 precomputed_fold_levels=precomputed_fold_levels,
@@ -263,6 +268,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         selected_identity: tuple[AgentType, str, str | None] | None,
         load_state: AgentLoadState | None = None,
         persist_dismissed_changes: bool,
+        dismissed_changes_include_removals: bool = False,
         incomplete_merge_already_applied: bool = False,
         precomputed_boundary: PreparedApplyBoundary | None = None,
         precomputed_fold_levels: dict[str, FoldLevel] | None = None,
@@ -289,6 +295,9 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 pass
             self._maybe_end_startup_stopwatch()  # type: ignore[attr-defined]
 
+        added_identities = (
+            set(prep.recovered_bundle_identities) | prep.auto_dismissed_identities
+        )
         if prep.recovered_bundle_identities:
             self._dismissed_agents.update(prep.recovered_bundle_identities)
         if prep.auto_dismissed_identities:
@@ -297,6 +306,18 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             from ....dismissed_agents import save_dismissed_agents
 
             save_dismissed_agents(self._dismissed_agents)
+            try:
+                if dismissed_changes_include_removals:
+                    sync_dismissed_agent_artifact_index(
+                        self._dismissed_agents, force=True
+                    )
+                else:
+                    sync_dismissed_agent_artifact_index(
+                        self._dismissed_agents,
+                        added=added_identities or None,
+                    )
+            except Exception:
+                pass
 
         preserved_revived = self._preserve_revived_agents_for_incomplete_load(
             prep, load_state

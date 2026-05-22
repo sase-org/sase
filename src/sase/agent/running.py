@@ -25,6 +25,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanWire,
 )
 from sase.core.agent_artifact_index_lifecycle import (
+    sync_dismissed_agent_artifact_index,
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.time import get_timezone
@@ -542,6 +543,7 @@ def _record_dismissal(cl_name: str | None, raw_suffix: str) -> None:
         if identity not in dismissed:
             dismissed.add(identity)
             save_dismissed_agents(dismissed)
+            sync_dismissed_agent_artifact_index(dismissed, added={identity})
     except Exception:
         pass
 

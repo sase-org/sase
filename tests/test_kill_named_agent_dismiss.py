@@ -98,6 +98,7 @@ def test_kill_named_agent_writes_dismissal_for_nonhome_uses_claim_cl_name(
         patch("sase.agent.running.find_named_agent", return_value=found),
         patch("sase.agent.running.os.killpg"),
         patch("sase.running_field.release_workspace"),
+        patch("sase.agent.running.sync_dismissed_agent_artifact_index") as sync_index,
     ):
         result = kill_named_agent("my_agent")
 
@@ -107,7 +108,9 @@ def test_kill_named_agent_writes_dismissal_for_nonhome_uses_claim_cl_name(
     from sase.ace.tui.models.agent import AgentType
 
     dismissed = load_dismissed_agents()
-    assert (AgentType.RUNNING, "feature_x", "20260510130000") in dismissed
+    identity = (AgentType.RUNNING, "feature_x", "20260510130000")
+    assert identity in dismissed
+    sync_index.assert_called_once_with(dismissed, added={identity})
 
 
 def test_kill_named_agent_writes_dismissal_for_home_uses_meta_cl_name(

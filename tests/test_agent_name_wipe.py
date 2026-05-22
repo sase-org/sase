@@ -184,7 +184,10 @@ def test_wipe_dismissed_bundle_only_agent_removes_bundle_and_index(
 
     with patch.object(Path, "home", return_value=tmp_path):
         rebuild_name_registry()
-        result = wipe_agent_name_for_reuse("foo")
+        with patch(
+            "sase.agent.names._wipe.sync_dismissed_agent_artifact_index"
+        ) as sync_index:
+            result = wipe_agent_name_for_reuse("foo")
 
         assert str(bundle_path) in result.bundle_paths_removed
         assert result.dismissed_index_entries_removed == 1
@@ -193,6 +196,7 @@ def test_wipe_dismissed_bundle_only_agent_removes_bundle_and_index(
             ["run", "bar", "bar-ts"]
         ]
         assert "foo" not in get_reserved_agent_names()
+        sync_index.assert_called_once_with(force=True)
 
 
 def test_wipe_workflow_parent_removes_children_and_followups(

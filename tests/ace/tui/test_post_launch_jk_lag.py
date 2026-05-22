@@ -177,9 +177,15 @@ def test_apply_batches_auto_dismiss_into_one_disk_write() -> None:
         _make_hidden_done(f"2026-04-27T1{i}0000.000", cl=f"a{i}") for i in range(5)
     ]
 
-    with patch(
-        "sase.ace.dismissed_agents.save_dismissed_agents", return_value=True
-    ) as mock_save:
+    with (
+        patch(
+            "sase.ace.dismissed_agents.save_dismissed_agents", return_value=True
+        ) as mock_save,
+        patch(
+            "sase.ace.tui.actions.agents._loading_apply."
+            "sync_dismissed_agent_artifact_index"
+        ) as sync_index,
+    ):
         app._apply_loaded_agents(
             list(agents),
             dismissed_from_loader=[],
@@ -193,6 +199,10 @@ def test_apply_batches_auto_dismiss_into_one_disk_write() -> None:
     assert len(app._dismissed_agents) == 5
     # The finalize step ran (apply step delegated to it as expected).
     assert app.finalize_calls == 1
+    sync_index.assert_called_once_with(
+        app._dismissed_agents,
+        added={agent.identity for agent in agents},
+    )
 
 
 def test_apply_skips_save_when_no_dismissed_changes() -> None:

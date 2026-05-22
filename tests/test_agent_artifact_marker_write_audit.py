@@ -116,6 +116,7 @@ class ContextInfo:
 _UPDATE_INDEX = "update_agent_artifact_index_for_marker_mutation"
 _UPSERT_INDEX = "upsert_agent_artifact_index_artifacts"
 _DELETE_INDEX = "delete_agent_artifact_index_artifacts"
+_SYNC_DISMISSED_INDEX = "sync_dismissed_agent_artifact_index"
 
 _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
     "src/sase/ace/tui/actions/agents/_approve.py:_persist_plan_auto_approval": Review(
@@ -582,6 +583,87 @@ def test_reviewed_marker_mutation_sites_declare_lifecycle_coverage() -> None:
 
         if review.exemption:
             assert review.exemption.strip(), context
+
+
+# ---------------------------------------------------------------------------
+# Dismissed-agent persistence sites
+# ---------------------------------------------------------------------------
+
+_REVIEWED_DISMISSED_SAVE_CONTEXTS: dict[str, tuple[str, ...]] = {
+    "src/sase/ace/tui/actions/agents/_dismiss_memory.py:_persist_dismissed_agent": (
+        _SYNC_DISMISSED_INDEX,
+    ),
+    "src/sase/ace/tui/actions/agents/_dismissing.py:_persist_bulk_dismiss_transaction": (
+        _SYNC_DISMISSED_INDEX,
+    ),
+    "src/sase/ace/tui/actions/agents/_dismissing.py:_persist_single_dismiss_transaction": (
+        _SYNC_DISMISSED_INDEX,
+    ),
+    "src/sase/ace/tui/actions/agents/_killing.py:_run_kill_persistence_async": (
+        _SYNC_DISMISSED_INDEX,
+    ),
+    "src/sase/ace/tui/actions/agents/_kill_persistence.py:persist_bulk_kill_side_effects": (
+        _SYNC_DISMISSED_INDEX,
+    ),
+    "src/sase/ace/tui/actions/agents/_loading_apply.py:_apply_loaded_agents_prepared_inner": (
+        _SYNC_DISMISSED_INDEX,
+    ),
+    "src/sase/ace/tui/actions/agents/_revive.py:_do_revive_agent": (
+        _SYNC_DISMISSED_INDEX,
+    ),
+    "src/sase/ace/tui/actions/agents/_revive.py:_do_revive_agents": (
+        _SYNC_DISMISSED_INDEX,
+    ),
+    "src/sase/ace/tui/actions/agents/_revive.py:_load_dismissed_archive": (
+        _SYNC_DISMISSED_INDEX,
+    ),
+    "src/sase/agent/running.py:_record_dismissal": (_SYNC_DISMISSED_INDEX,),
+    "src/sase/axe/run_agent_runner.py:_auto_dismiss_completed_agent": (
+        _SYNC_DISMISSED_INDEX,
+    ),
+}
+
+
+def _function_name_used_by_call(call: ast.Call, name: str) -> bool:
+    if _generic_call_name(call) == name:
+        return True
+    return any(isinstance(arg, ast.Name) and arg.id == name for arg in call.args)
+
+
+def _dismissed_save_contexts(root: Path = _REPO_ROOT) -> dict[str, tuple[str, ...]]:
+    contexts: dict[str, tuple[str, ...]] = {}
+    for path in _iter_source_files(root):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        rel_path = path.relative_to(root).as_posix()
+        for node in ast.walk(tree):
+            if not isinstance(node, _FUNCTION_NODES):
+                continue
+            calls = _source_ordered_calls(_own_descendants(node))
+            if not any(
+                _function_name_used_by_call(call, "save_dismissed_agents")
+                for call in calls
+            ):
+                continue
+            lifecycle_calls = tuple(
+                dict.fromkeys(
+                    name
+                    for name in _LIFECYCLE_CALL_NAMES
+                    if any(_function_name_used_by_call(call, name) for call in calls)
+                )
+            )
+            contexts[f"{rel_path}:{node.name}"] = lifecycle_calls
+    return contexts
+
+
+def test_dismissed_agent_save_sites_are_reviewed() -> None:
+    assert set(_dismissed_save_contexts()) == set(_REVIEWED_DISMISSED_SAVE_CONTEXTS)
+
+
+def test_reviewed_dismissed_agent_save_sites_sync_projection() -> None:
+    contexts = _dismissed_save_contexts()
+    for context, expected_lifecycle_calls in _REVIEWED_DISMISSED_SAVE_CONTEXTS.items():
+        missing = set(expected_lifecycle_calls) - set(contexts[context])
+        assert not missing, f"{context} is missing lifecycle calls: {missing}"
 
 
 # ---------------------------------------------------------------------------

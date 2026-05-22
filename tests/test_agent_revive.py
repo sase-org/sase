@@ -10,6 +10,31 @@ from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from tests._agent_revive_helpers import FakeReviveApp, make_agent
 
 
+def test_load_dismissed_archive_repairs_projection_after_save() -> None:
+    """Archive index repair refreshes the Tier 1 dismissed projection."""
+    app = FakeReviveApp()
+    archived = make_agent(cl_name="archived", raw_suffix="20260201101010")
+    stale = make_agent(cl_name="stale", raw_suffix="20260202101010")
+    app._dismissed_agents = {stale.identity}
+
+    with (
+        patch(
+            "sase.ace.dismissed_agents.load_dismissed_bundles", return_value=[archived]
+        ),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch(
+            "sase.ace.tui.actions.agents._revive.sync_dismissed_agent_artifact_index"
+        ) as mock_sync_index,
+    ):
+        agents = app._load_dismissed_archive()
+
+    assert agents == [archived]
+    assert archived._loaded_from_dismissed_bundle is True
+    assert app._dismissed_agents == {archived.identity}
+    mock_save.assert_called_once_with(app._dismissed_agents)
+    mock_sync_index.assert_called_once_with(app._dismissed_agents, force=True)
+
+
 def test_do_revive_agent_removes_suffix_aliases() -> None:
     """Single revive clears all dismissed aliases for revived suffixes."""
     app = FakeReviveApp()

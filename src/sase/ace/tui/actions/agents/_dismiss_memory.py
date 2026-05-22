@@ -6,6 +6,9 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from ._dismiss_cleanup import AgentIdentity
+from sase.core.agent_artifact_index_lifecycle import (
+    sync_dismissed_agent_artifact_index,
+)
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -175,6 +178,12 @@ class AgentDismissMemoryMixin:
         if revived_suffixes and identity[2] is not None:
             revived_suffixes.discard(identity[2])
         save_dismissed_agents(self._dismissed_agents)
+        try:
+            sync_dismissed_agent_artifact_index(
+                self._dismissed_agents, added={identity}
+            )
+        except Exception:
+            pass
 
     def _collect_dismissal_identities(self, agents: list[Agent]) -> set[AgentIdentity]:
         """Return identities hidden immediately after dismissing agents."""

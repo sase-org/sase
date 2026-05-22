@@ -15,6 +15,7 @@ from sase.agent.names._common import is_process_alive
 from sase.agent.names._registry import lookup_registered_name, rebuild_name_registry
 from sase.core.agent_artifact_index_lifecycle import (
     delete_agent_artifact_index_artifacts,
+    sync_dismissed_agent_artifact_index,
     update_agent_artifact_index_for_marker_mutation,
 )
 
@@ -93,6 +94,11 @@ def wipe_agent_name_for_reuse(
     delete_agent_artifact_index_artifacts(removed_artifacts)
     removed_bundles = _remove_bundle_paths(plan.bundle_paths, plan.suffixes, errors)
     dismissed_removed = _remove_dismissed_index_entries(plan.suffixes, errors)
+    if plan.bundle_paths or dismissed_removed:
+        try:
+            sync_dismissed_agent_artifact_index(force=True)
+        except Exception:
+            pass
     notifications = _dismiss_related_notifications(plan, errors)
 
     registry_names_removed = set(plan.names)

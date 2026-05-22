@@ -52,12 +52,36 @@ from sase.axe.runner_utils import (
     write_error_report,
 )
 from sase.core.agent_artifact_index_lifecycle import (
+    sync_dismissed_agent_artifact_index,
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.telemetry import init_telemetry, register_push_on_exit
 from sase.telemetry.metrics import AGENT_KILLS
 
 install_sigterm_handler("agent", soft=True)
+
+
+def _auto_dismiss_completed_agent(cl_name: str, artifacts_timestamp: str) -> None:
+    """Persist auto-dismiss identities for a completed background run."""
+    try:
+        from sase.ace.dismissed_agents import (
+            load_dismissed_agents,
+            save_dismissed_agents,
+        )
+        from sase.ace.tui.models.agent import AgentType
+
+        dismissed = load_dismissed_agents()
+        # Dismiss both RUNNING and WORKFLOW identities -- dedup may pick
+        # either depending on whether workflow_state.json exists.
+        identities = {
+            (AgentType.RUNNING, cl_name, artifacts_timestamp),
+            (AgentType.WORKFLOW, cl_name, artifacts_timestamp),
+        }
+        dismissed.update(identities)
+        save_dismissed_agents(dismissed)
+        sync_dismissed_agent_artifact_index(dismissed, added=identities)
+    except Exception:
+        pass  # Best effort
 
 
 def main() -> None:
@@ -434,21 +458,7 @@ def main() -> None:
         # Auto-dismiss if launched by a run_every lumberjack chop, so
         # recurring infrastructure agents don't accumulate as "done" entries.
         if os.environ.get("SASE_AGENT_AUTO_DISMISS"):
-            try:
-                from sase.ace.dismissed_agents import (
-                    load_dismissed_agents,
-                    save_dismissed_agents,
-                )
-                from sase.ace.tui.models.agent import AgentType
-
-                dismissed = load_dismissed_agents()
-                # Dismiss both RUNNING and WORKFLOW identities — dedup may
-                # pick either depending on whether workflow_state.json exists.
-                dismissed.add((AgentType.RUNNING, cl_name, artifacts_timestamp))
-                dismissed.add((AgentType.WORKFLOW, cl_name, artifacts_timestamp))
-                save_dismissed_agents(dismissed)
-            except Exception:
-                pass  # Best effort
+            _auto_dismiss_completed_agent(cl_name, artifacts_timestamp)
 
         # Write error report for failed agents (before notification so it
         # can be attached as a file).
