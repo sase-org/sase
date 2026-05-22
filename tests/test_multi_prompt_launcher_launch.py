@@ -187,6 +187,7 @@ def test_launch_multi_prompt_each_gets_own_timestamp(
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.agent.names.get_active_agent_names", return_value=set())
 @patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
@@ -195,6 +196,7 @@ def test_launch_multi_prompt_each_gets_own_timestamp(
 def test_launch_multi_prompt_passes_extra_env_to_each_child(
     mock_ws_dir: MagicMock,
     mock_first_ws: MagicMock,
+    mock_active_names: MagicMock,
     mock_create_artifacts: MagicMock,
     mock_timestamp: MagicMock,
     mock_wait: MagicMock,
@@ -216,14 +218,24 @@ def test_launch_multi_prompt_passes_extra_env_to_each_child(
         extra_env=extra_env,
     )
 
-    assert mock_spawn.call_args_list[0].kwargs["extra_env"] == extra_env
-    assert mock_spawn.call_args_list[1].kwargs["extra_env"] == extra_env
+    # The parent allocates an auto agent name for each slot and injects it
+    # via SASE_AGENT_PLANNED_NAME so AgentLaunchResult.agent_name is set
+    # synchronously. Chop metadata env is still forwarded alongside.
+    call0_env = mock_spawn.call_args_list[0].kwargs["extra_env"]
+    call1_env = mock_spawn.call_args_list[1].kwargs["extra_env"]
+    assert call0_env["SASE_CHOP_LUMBERJACK"] == "hooks"
+    assert call0_env["SASE_CHOP_NAME"] == "split"
+    assert call1_env["SASE_CHOP_LUMBERJACK"] == "hooks"
+    assert call1_env["SASE_CHOP_NAME"] == "split"
+    assert call0_env["SASE_AGENT_PLANNED_NAME"] == "a"
+    assert call1_env["SASE_AGENT_PLANNED_NAME"] == "b"
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.agent.names.get_active_agent_names", return_value=set())
 @patch("sase.running_field.claim_next_axe_workspace", return_value=100)
 @patch("sase.running_field.get_workspace_directory", return_value="/ws/1")
 @patch(
@@ -234,6 +246,7 @@ def test_launch_multi_prompt_merges_segment_extra_env(
     mock_ws_dir: MagicMock,
     mock_wait_ws_dir: MagicMock,
     mock_first_ws: MagicMock,
+    mock_active_names: MagicMock,
     mock_create_artifacts: MagicMock,
     mock_timestamp: MagicMock,
     mock_wait: MagicMock,
@@ -258,13 +271,17 @@ def test_launch_multi_prompt_merges_segment_extra_env(
         ],
     )
 
+    # Parent-side name planning adds SASE_AGENT_PLANNED_NAME per slot:
+    # explicit %name:first for segment 1, auto "a" for segment 2.
     assert mock_spawn.call_args_list[0].kwargs["extra_env"] == {
         "SASE_SHARED": "yes",
         "SASE_BEAD_ID": "sase-x.1",
+        "SASE_AGENT_PLANNED_NAME": "first",
     }
     assert mock_spawn.call_args_list[1].kwargs["extra_env"] == {
         "SASE_SHARED": "yes",
         "SASE_BEAD_ID": "sase-x.2",
+        "SASE_AGENT_PLANNED_NAME": "a",
     }
 
 
@@ -272,6 +289,7 @@ def test_launch_multi_prompt_merges_segment_extra_env(
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.agent.names.get_active_agent_names", return_value=set())
 @patch("sase.running_field.claim_next_axe_workspace", return_value=100)
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
@@ -280,6 +298,7 @@ def test_launch_multi_prompt_merges_segment_extra_env(
 def test_launch_multi_prompt_does_not_infer_bead_env_from_tag(
     mock_ws_dir: MagicMock,
     mock_first_ws: MagicMock,
+    mock_active_names: MagicMock,
     mock_create_artifacts: MagicMock,
     mock_timestamp: MagicMock,
     mock_wait: MagicMock,
@@ -299,4 +318,8 @@ def test_launch_multi_prompt_does_not_infer_bead_env_from_tag(
         vcs_ref=None,
     )
 
-    assert mock_spawn.call_args_list[0].kwargs["extra_env"] is None
+    # SASE_AGENT_PLANNED_NAME is now always set when the name is knowable;
+    # nothing else (no bead env) should be inferred from a display tag.
+    assert mock_spawn.call_args_list[0].kwargs["extra_env"] == {
+        "SASE_AGENT_PLANNED_NAME": "a",
+    }

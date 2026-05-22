@@ -321,6 +321,7 @@ def spawn_agent_subprocess(
         )
 
     timer.finish(outcome="ok", pid=pid)
+    planned_agent_name = (extra_env or {}).get("SASE_AGENT_PLANNED_NAME") or None
     return AgentLaunchResult(
         pid=pid,
         workspace_num=workspace_num,
@@ -331,4 +332,5 @@ def spawn_agent_subprocess(
         workflow_name=workflow_name,
         cl_name=cl_name,
         timestamp=timestamp,
+        agent_name=planned_agent_name,
     )

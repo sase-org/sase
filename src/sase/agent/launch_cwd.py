@@ -27,6 +27,35 @@ def _internal_agent_name_bypass_for_launch(
     return all(internal_agent_name_bypass_enabled(env) for env in segment_extra_env)
 
 
+_PLANNED_AGENT_NAME_ENV = "SASE_AGENT_PLANNED_NAME"
+
+
+def _plan_single_agent_name(
+    query: str, extra_env: dict[str, str] | None
+) -> dict[str, str] | None:
+    """Allocate a parent-side agent name for a single-prompt launch.
+
+    Returns ``extra_env`` augmented with ``SASE_AGENT_PLANNED_NAME`` when the
+    name is safely knowable in the parent (explicit ``%name:`` or
+    unambiguous auto-allocation). Leaves *extra_env* unchanged when the
+    caller already chose a name, or when the prompt's name depends on
+    xprompt expansion that only the child can perform.
+    """
+    if extra_env and _PLANNED_AGENT_NAME_ENV in extra_env:
+        return extra_env
+
+    from sase.agent.multi_prompt_references import PlannedNameAllocator
+
+    allocator = PlannedNameAllocator()
+    planned_name, _ = allocator.planned_name_for_prompt(query)
+    if planned_name is None:
+        return extra_env
+
+    augmented = dict(extra_env or {})
+    augmented[_PLANNED_AGENT_NAME_ENV] = planned_name
+    return augmented
+
+
 def resolve_known_project_vcs_launch_ref(
     prompt: str,
 ) -> _KnownProjectVcsLaunchRef | None:
@@ -469,6 +498,8 @@ def launch_agents_from_cwd(
 
     from sase.agent.launch_executor import LaunchExecutionContext, execute_launch_plan
     from sase.core.agent_launch_facade import plan_fake_fanout
+
+    extra_env = _plan_single_agent_name(query, extra_env)
 
     fixed_workspace = is_home_mode or has_wait or use_preallocated_workspace
     execution = execute_launch_plan(

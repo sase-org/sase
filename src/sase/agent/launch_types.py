@@ -16,3 +16,4 @@ class AgentLaunchResult:
     workflow_name: str = ""
     cl_name: str = ""
     timestamp: str = ""
+    agent_name: str | None = None

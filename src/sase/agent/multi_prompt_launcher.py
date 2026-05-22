@@ -235,16 +235,21 @@ def _spawn_segments_into(
             j = slot.slot_index
             sub_prompt = slot.prompt
             with timer.stage("name_plan", segment_index=i, slot_index=j):
-                if next_segment_needs_name:
-                    planned_name, planned_env_name = (
-                        name_allocator.planned_name_for_prompt(sub_prompt)
-                    )
-                else:
-                    planned_name, planned_env_name = None, None
+                planned_name, planned_env_name = name_allocator.planned_name_for_prompt(
+                    sub_prompt
+                )
                 planned_names[j] = planned_name
+                # Inject SASE_AGENT_PLANNED_NAME whenever a planned name is
+                # known (auto or explicit) so the launch result carries it
+                # synchronously. The child runner ignores the env var when an
+                # explicit %name directive is present, so explicit names are
+                # safe to ship via env too.
+                env_name_to_inject = (
+                    planned_env_name if planned_env_name is not None else planned_name
+                )
                 slot_planned_env[j] = (
-                    {**segment_env, _PLANNED_AGENT_NAME_ENV: planned_env_name}
-                    if planned_env_name is not None
+                    {**segment_env, _PLANNED_AGENT_NAME_ENV: env_name_to_inject}
+                    if env_name_to_inject is not None
                     else dict(segment_env)
                 )
 
