@@ -56,6 +56,11 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         required=True,
     )
 
+    init_subparsers.add_parser(
+        "memory",
+        help="Initialize SASE memory files and provider instruction shims",
+    )
+
     skills_parser = init_subparsers.add_parser(
         "skills",
         help="Generate and deploy agent skill files from xprompt sources",

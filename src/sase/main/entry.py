@@ -179,12 +179,17 @@ def main() -> NoReturn:
 
     # --- init ---
     if args.command == "init":
-        from .init_skills_handler import handle_init_skills_command
+        if args.init_subcommand == "memory":
+            from .init_memory_handler import handle_init_memory_command
 
-        if args.init_subcommand != "skills":
-            parser.error(f"unknown init subcommand: {args.init_subcommand}")
+            handle_init_memory_command(args)
 
-        handle_init_skills_command(args)
+        if args.init_subcommand == "skills":
+            from .init_skills_handler import handle_init_skills_command
+
+            handle_init_skills_command(args)
+
+        parser.error(f"unknown init subcommand: {args.init_subcommand}")
 
     # --- logs ---
     if args.command == "logs":

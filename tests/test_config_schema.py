@@ -63,6 +63,29 @@ def test_config_schema_accepts_xprompt_input_descriptions() -> None:
     assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
 
 
+def test_config_schema_requires_sibling_repo_descriptions() -> None:
+    schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
+    config = {
+        "sibling_repos": [
+            {
+                "name": "core",
+                "path": "../sase-core",
+            }
+        ]
+    }
+
+    errors = sorted(
+        Draft7Validator(schema).iter_errors(config),
+        key=lambda error: list(error.absolute_path),
+    )
+
+    assert any(
+        list(error.absolute_path) == ["sibling_repos", 0]
+        and "'description' is a required property" in error.message
+        for error in errors
+    )
+
+
 def _format_schema_error(error: ValidationError) -> str:
     path = ".".join(str(part) for part in error.absolute_path) or "<root>"
     return f"{path}: {error.message}"

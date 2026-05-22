@@ -661,7 +661,7 @@
       "description": "Related repositories to expose to launched agents as workspace-matched directories.",
       "items": {
         "type": "object",
-        "required": ["name", "path"],
+        "required": ["name", "path", "description"],
         "additionalProperties": false,
         "properties": {
           "name": {
@@ -672,6 +672,11 @@
           "path": {
             "type": "string",
             "description": "Primary checkout path. Relative paths are resolved from the project's primary WORKSPACE_DIR.",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable purpose used when generating agent memory for this sibling repository.",
             "minLength": 1
           },
           "workspace": {

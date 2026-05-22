@@ -280,10 +280,13 @@ the project's primary workspace directory.
 sibling_repos:
   - name: core
     path: ../sase-core
+    description: Shared backend/domain behavior used by SASE frontends.
   - name: github
     path: ../sase-github
+    description: GitHub VCS and workspace provider plugin.
   - name: chezmoi
     path: ~/.local/share/chezmoi
+    description: User dotfiles source managed by chezmoi.
     workspace:
       strategy: none
 ```
@@ -292,6 +295,7 @@ sibling_repos:
 | ------------------------------------ | ------ | ---------- | ------------------------------------------------------------------------------------------------------------ |
 | `sibling_repos[].name`               | string | required   | Stable alias shown in prompts and used in generated environment variable names.                              |
 | `sibling_repos[].path`               | string | required   | Primary checkout path. Relative paths resolve from the project's primary workspace.                          |
+| `sibling_repos[].description`        | string | required   | Human-readable purpose used when generating agent memory for the sibling repository.                         |
 | `sibling_repos[].workspace.strategy` | string | `"suffix"` | `suffix` exposes a workspace-matched checkout for workspace `N`; `none` always exposes the primary checkout. |
 
 For `suffix` siblings, workspace numbers `0` and `1` use the primary checkout. Higher workspace numbers use

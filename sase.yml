@@ -13,12 +13,16 @@ vcs_provider:
 sibling_repos:
   - name: core
     path: ../sase-core
+    description: Shared Rust core backend for SASE domain behavior and cross-frontend APIs.
   - name: github
     path: ../sase-github
+    description: GitHub VCS and workspace provider plugin for repository, issue, and PR workflows.
   - name: telegram
     path: ../sase-telegram
+    description: Telegram integration plugin for chat-driven SASE workflows and notifications.
   - name: nvim
     path: ../sase-nvim
+    description: Neovim integration plugin for SASE syntax, completion, and editor support.
 
 xprompts:
   # keep-sorted start
