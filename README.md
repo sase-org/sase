@@ -76,6 +76,7 @@ sase agents status        # inspect running agents
 sase agents index status  # check ACE's fast Agents-tab artifact index
 sase bead onboard         # see the bead issue-tracking quick start
 sase workspace list       # inspect the current project's numbered workspace view
+sase workspace open 10 -c # materialize, clean, update, and print workspace #10
 ```
 
 ## Operational model
@@ -89,7 +90,8 @@ SASE keeps durable state outside any one chat session:
 - **Workspace roots** - By default, numbered checkouts live under the platform state directory in a project-keyed
   managed root. Set `workspace.root: adjacent` to keep the legacy `<primary>_<num>/` sibling layout, or use an absolute
   path for a custom managed-root base; `sase workspace list`, `path`, `repair`, `cleanup`, and `migrate` inspect and
-  maintain that view.
+  maintain that view. Use `sase workspace open NUM --clean` when you need a specific managed checkout materialized,
+  cleaned, and updated before opening it in another tool.
 - **Provider retries** - The LLM provider layer can retry matching provider errors, preserve the workspace across
   retries, and fall back to another model when configured. Claude adds built-in matching for context-limit,
   socket-close, and Claude CLI API-error output; per-provider retry counts, waits, and fallback policy live under

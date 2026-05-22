@@ -131,7 +131,7 @@ GitHub pull requests, and other provider plugins.
 | `sase path`                    | Print well-known paths such as schemas and xprompt directories.                                         | [Configuration CLI flags](configuration.md#sase-path)       |
 | `sase workspace list`          | List managed workspace checkouts in the registry, including primary `#0`.                               | [Workspace provider](workspace.md)                          |
 | `sase workspace path`          | Print the checkout path for a workspace number.                                                         | [Workspace provider](workspace.md)                          |
-| `sase workspace open`          | Print (currently) the checkout path for a workspace number.                                             | [Workspace provider](workspace.md)                          |
+| `sase workspace open`          | Print a workspace path, or materialize, clean, and update it with `--clean`.                            | [Workspace provider](workspace.md)                          |
 | `sase workspace cleanup`       | Remove stale unclaimed managed checkouts older than the configured TTL.                                 | [Workspace provider](workspace.md)                          |
 | `sase workspace repair`        | Reconcile the workspace registry with the filesystem.                                                   | [Workspace provider](workspace.md)                          |
 | `sase workspace migrate`       | Opt-in move of adjacent checkouts to a managed root, with optional symlink transition and finalization. | [Workspace provider](workspace.md)                          |

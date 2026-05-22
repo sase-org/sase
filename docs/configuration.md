@@ -811,6 +811,10 @@ Existing adjacent checkouts are not moved automatically by the default. Run `sas
 carry legacy `<primary>_<num>/` directories into the managed root, or set `workspace.root: adjacent` explicitly to keep
 the old sibling layout.
 
+`sase workspace open NUM --clean` uses the same root policy when it materializes a checkout. It then backs up
+uncommitted local changes through the normal workspace-preparation path, cleans the checkout with the active VCS
+provider, updates to the provider default revision, and prints the resulting path.
+
 Source: `src/sase/default_config.yml`, `src/sase/workspace_provider/store.py`
 
 ### telemetry
@@ -1122,6 +1126,20 @@ entries where `is_skill` is `true`.
 | `[workflow_name]` | string           | -         | Workflow name to graph. Lists all workflows if omitted. |
 | `-f, --format`    | `mermaid`,`text` | `mermaid` | Output format for the DAG visualization.                |
 
+### `sase init skills`
+
+Generates and deploys agent skill files from xprompt sources marked with the `skill` field. See
+[xprompt.md — Skill Field](xprompt.md#skill-field) for the skill-source contract and provider targets.
+
+| Flag              | Values                                          | Default | Description                                                                                 |
+| ----------------- | ----------------------------------------------- | ------- | ------------------------------------------------------------------------------------------- |
+| `-A, --no-apply`  | flag                                            | -       | With `use_chezmoi`, skip `chezmoi apply` after generated files are committed and pushed.    |
+| `-C, --no-commit` | flag                                            | -       | With `use_chezmoi`, skip the entire git commit, push, and apply sequence.                   |
+| `-f, --force`     | flag                                            | -       | Overwrite existing deployed skill files without confirmation.                               |
+| `-n, --dry-run`   | flag                                            | -       | Show what would be written without writing files.                                           |
+| `-P, --no-push`   | flag                                            | -       | With `use_chezmoi`, commit generated files but skip pull/rebase, push, and `chezmoi apply`. |
+| `-p, --provider`  | `claude`, `gemini`, `codex`, `opencode`, `qwen` | all     | Deploy only for one provider.                                                               |
+
 ### `sase git init`
 
 | Flag              | Values | Default                    | Description                                             |
@@ -1130,6 +1148,33 @@ entries where `is_skill` is `true`.
 | `-b, --bare-dir`  | path   | `~/.sase/repos/<name>.git` | Override bare repo path.                                |
 | `-c, --clone-dir` | path   | `~/projects/git/<name>/`   | Override clone path.                                    |
 | `-e, --existing`  | path   | -                          | Register an existing bare repo instead of creating one. |
+
+### `sase workspace`
+
+Workspace commands inspect and maintain the managed checkout registry for the inferred project, or for the project named
+by `-p/--project`.
+
+| Command                  | Flag / argument            | Values       | Description                                                                                         |
+| ------------------------ | -------------------------- | ------------ | --------------------------------------------------------------------------------------------------- |
+| `sase workspace list`    | `-p, --project`            | project name | Query a project other than the one inferred from the current directory.                             |
+| `sase workspace list`    | `-j, --json`               | flag         | Emit a machine-readable JSON object.                                                                |
+| `sase workspace path`    | `workspace_num`            | integer      | Workspace number to resolve; `0` is the primary checkout and managed claims normally start at `10`. |
+| `sase workspace path`    | `-p, --project`            | project name | Query a project other than the inferred one.                                                        |
+| `sase workspace open`    | `workspace_num`            | integer      | Workspace number to print or prepare.                                                               |
+| `sase workspace open`    | `-p, --project`            | project name | Query a project other than the inferred one.                                                        |
+| `sase workspace open`    | `-P, --print`              | flag         | Explicitly print the path; this is also the current default behavior.                               |
+| `sase workspace open`    | `-c, --clean`              | flag         | Materialize, clean, update, and then print the checkout path.                                       |
+| `sase workspace cleanup` | `-p, --project`            | project name | Clean a project other than the inferred one.                                                        |
+| `sase workspace cleanup` | `-s, --stale`              | flag         | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`.                         |
+| `sase workspace cleanup` | `-i, --include-shares`     | flag         | Also consider workflow-share managed checkouts for removal.                                         |
+| `sase workspace cleanup` | `-n, --dry-run`            | flag         | Report planned removals without touching the filesystem.                                            |
+| `sase workspace repair`  | `-p, --project`            | project name | Repair a project other than the inferred one.                                                       |
+| `sase workspace repair`  | `-n, --dry-run`            | flag         | Report registry/filesystem reconciliation without writing.                                          |
+| `sase workspace migrate` | `-p, --project`            | project name | Migrate a project other than the inferred one.                                                      |
+| `sase workspace migrate` | `-t, --to`                 | `xdg-state`  | Target managed root policy for migration.                                                           |
+| `sase workspace migrate` | `-s, --symlink-transition` | flag         | Leave `<primary>_<num>` symlinks pointing to migrated managed checkouts.                            |
+| `sase workspace migrate` | `-f, --finalize`           | flag         | Remove transition symlinks left behind by a prior migration.                                        |
+| `sase workspace migrate` | `-n, --dry-run`            | flag         | Report planned migration or finalization actions without touching files or the registry.            |
 
 ### `sase bead`
 
