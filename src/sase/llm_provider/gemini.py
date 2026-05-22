@@ -95,6 +95,10 @@ class GeminiProvider(LLMProvider):
         }
 
     @hookimpl
+    def llm_additional_skill_deploy_subpaths(self) -> list[str]:
+        return [".gemini/jetski"]
+
+    @hookimpl
     def llm_autodetect_priority(self) -> int:
         return 30
 

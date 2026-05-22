@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 
 from sase.main import init_skills_handler
-from sase.main.init_skills_handler import _get_target_path, handle_init_skills_command
+from sase.main.init_skills_handler import (
+    _get_target_path,
+    _get_target_paths,
+    handle_init_skills_command,
+)
 from sase.xprompt.loader import get_sase_package_xprompts_dir
 from sase.xprompt.loader_parsing import parse_yaml_front_matter
 from sase.xprompt.models import XPrompt
@@ -95,10 +99,42 @@ def test_git_commit_skill_invokes_observable_wrapper() -> None:
     """The git commit skill should call the wrapper, not raw ``sase commit``."""
     src = get_sase_package_xprompts_dir() / "skills" / "sase_git_commit.md"
     body = src.read_text(encoding="utf-8")
+    assert "Commit changes via the `sase_git_commit` wrapper" in body
+    assert "records skill invocation evidence" in body
     assert "sase_git_commit -M commit_message.md" in body
     assert "sase_git_commit --resume" in body
     assert "sase commit -M commit_message.md" not in body
     assert "sase commit --resume" not in body
+
+
+def test_gemini_skill_generation_writes_default_and_jetski_targets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Gemini skills are written to both configured deployment profiles."""
+    xprompt = XPrompt(
+        name="gemini_only",
+        content="Gemini profile body.\n",
+        description="Gemini profile test skill.",
+        skill=["gemini"],
+    )
+    monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
+    monkeypatch.setattr(
+        init_skills_handler,
+        "get_all_xprompts",
+        lambda project="": {"gemini_only": xprompt},
+    )
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _: None)
+
+    with pytest.raises(SystemExit) as exc:
+        handle_init_skills_command(make_args())
+
+    assert exc.value.code == 0
+    for target in _get_target_paths("gemini", "gemini_only", use_chezmoi=False):
+        assert target.exists(), f"missing generated skill target: {target}"
+        assert "Gemini profile body." in target.read_text(encoding="utf-8")
 
 
 def test_config_defined_skill_is_generated_from_loaded_xprompts(

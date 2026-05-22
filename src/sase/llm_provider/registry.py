@@ -368,6 +368,9 @@ def _provider_metadata(name: str, plugin: object) -> dict[str, Any]:
             _call_optional(plugin, "llm_skill_template_context") or {}
         ),
         "skill_deploy_subpath": _call_optional(plugin, "llm_skill_deploy_subpath"),
+        "additional_skill_deploy_subpaths": _str_list(
+            _call_optional(plugin, "llm_additional_skill_deploy_subpaths")
+        ),
         "cli_status_color": _call_optional(plugin, "llm_cli_status_color"),
         "autodetect_priority": _call_optional(plugin, "llm_autodetect_priority"),
         "autodetect_cli_name": _call_optional(plugin, "llm_autodetect_cli_name"),
@@ -400,6 +403,14 @@ def _str_dict(value: Any) -> dict[str, str]:
     if not isinstance(value, dict):
         return {}
     return {str(key): str(item) for key, item in value.items()}
+
+
+def _str_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list | tuple):
+        return [str(item) for item in value]
+    return []
 
 
 def _config_fingerprint() -> dict[str, Any]:

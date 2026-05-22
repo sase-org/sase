@@ -75,6 +75,9 @@ class LLMHookSpec:
     def llm_skill_deploy_subpath(self) -> str | None: ...
 
     @hookspec(firstresult=True)
+    def llm_additional_skill_deploy_subpaths(self) -> list[str] | None: ...
+
+    @hookspec(firstresult=True)
     def llm_cli_status_color(self) -> str | None: ...
 
     @hookspec(firstresult=True)

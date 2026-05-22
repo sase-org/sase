@@ -34,23 +34,49 @@ def _provider_context(provider: str) -> dict[str, str]:
     return {}
 
 
-def _skill_deploy_subpath(provider: str) -> str:
-    """Return the subdirectory (under ``~/`` or ``CHEZMOI_HOME``) for *provider*.
+def _skill_deploy_subpaths(provider: str) -> list[str]:
+    """Return subdirectories (under ``~/`` or ``CHEZMOI_HOME``) for *provider*.
 
     Plugins may override via :meth:`llm_skill_deploy_subpath`; otherwise
-    the default is ``.{provider}``.
+    the primary default is ``.{provider}``. Plugins may also expose extra
+    deployment locations via :meth:`llm_additional_skill_deploy_subpaths`.
     """
+    primary = f".{provider}"
+    additional: list[str] = []
+
     for name, plugin in iter_plugins():
         if name != provider:
             continue
         method = getattr(plugin, "llm_skill_deploy_subpath", None)
-        if method is None:
-            break
-        subpath = method()
-        if subpath:
-            return subpath
+        if method is not None:
+            subpath = method()
+            if subpath:
+                primary = subpath
+        additional_method = getattr(
+            plugin, "llm_additional_skill_deploy_subpaths", None
+        )
+        if additional_method is not None:
+            subpaths = additional_method() or []
+            if isinstance(subpaths, str):
+                additional = [subpaths]
+            else:
+                additional = list(subpaths)
         break
-    return f".{provider}"
+
+    result: list[str] = []
+    seen: set[str] = set()
+    for subpath in [primary, *additional]:
+        normalized = str(subpath).strip("/")
+        if not normalized or normalized in seen:
+            continue
+        result.append(normalized)
+        seen.add(normalized)
+    return result
+
+
+def _skill_deploy_subpath(provider: str) -> str:
+    """Return the primary skill deployment subdirectory for *provider*."""
+    return _skill_deploy_subpaths(provider)[0]
 
 
 def _get_target_providers(skill_field: bool | list[str]) -> list[str]:
@@ -63,9 +89,8 @@ def _get_target_providers(skill_field: bool | list[str]) -> list[str]:
     return []
 
 
-def _get_target_path(provider: str, skill_name: str, use_chezmoi: bool) -> Path:
-    """Return the deployment path for a skill file."""
-    subpath = _skill_deploy_subpath(provider)
+def _target_path_for_subpath(subpath: str, skill_name: str, use_chezmoi: bool) -> Path:
+    """Return the deployment path for one skill subpath."""
     if use_chezmoi:
         # Only the first path segment is a dotfile under chezmoi; nested
         # directories keep their plain names.
@@ -73,6 +98,23 @@ def _get_target_path(provider: str, skill_name: str, use_chezmoi: bool) -> Path:
         parts[0] = "dot_" + parts[0].removeprefix(".")
         return CHEZMOI_HOME / Path(*parts) / "skills" / skill_name / "SKILL.md"
     return Path.home() / subpath / "skills" / skill_name / "SKILL.md"
+
+
+def _get_target_path(provider: str, skill_name: str, use_chezmoi: bool) -> Path:
+    """Return the primary deployment path for a skill file."""
+    return _target_path_for_subpath(
+        _skill_deploy_subpath(provider), skill_name, use_chezmoi
+    )
+
+
+def _get_target_paths(provider: str, skill_name: str, use_chezmoi: bool) -> list[Path]:
+    """Return every deployment path for a provider skill file."""
+    primary = _get_target_path(provider, skill_name, use_chezmoi)
+    extras = [
+        _target_path_for_subpath(subpath, skill_name, use_chezmoi)
+        for subpath in _skill_deploy_subpaths(provider)[1:]
+    ]
+    return [primary, *extras]
 
 
 def _load_skill_xprompts() -> list[XPrompt]:
@@ -328,29 +370,28 @@ def handle_init_skills_command(args: argparse.Namespace) -> None:
             )
             output = _build_output(name, rendered_desc.strip(), rendered_body)
             output = _format(output)
-            target = _get_target_path(provider, name, use_chezmoi)
+            for target in _get_target_paths(provider, name, use_chezmoi):
+                if dry_run:
+                    print(f"  {target}")
+                    continue
 
-            if dry_run:
+                if target.exists() and not force:
+                    if not is_tty:
+                        print(
+                            f"  Warning: {target} exists, skipping (not a TTY; use -f to force)",
+                            file=sys.stderr,
+                        )
+                        skipped += 1
+                        continue
+                    if not _prompt_overwrite(target, output):
+                        skipped += 1
+                        continue
+
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(output, encoding="utf-8")
                 print(f"  {target}")
-                continue
-
-            if target.exists() and not force:
-                if not is_tty:
-                    print(
-                        f"  Warning: {target} exists, skipping (not a TTY; use -f to force)",
-                        file=sys.stderr,
-                    )
-                    skipped += 1
-                    continue
-                if not _prompt_overwrite(target, output):
-                    skipped += 1
-                    continue
-
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(output, encoding="utf-8")
-            print(f"  {target}")
-            written += 1
-            written_paths.append(target)
+                written += 1
+                written_paths.append(target)
 
     if dry_run:
         print(f"\nDry run: {len(skill_xprompts)} source entries, no files written")
