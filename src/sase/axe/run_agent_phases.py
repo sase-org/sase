@@ -121,6 +121,19 @@ def claim_deferred_workspace(
 
     os.chdir(workspace_dir)
     os.environ["SASE_ACTIVE_PROJECT_DIR"] = workspace_dir
+    from sase.sibling_repos import (
+        apply_sibling_repo_env,
+        resolve_sibling_repos_for_project,
+    )
+
+    apply_sibling_repo_env(
+        os.environ,
+        resolve_sibling_repos_for_project(
+            project_file=project_file,
+            workspace_dir=workspace_dir,
+            workspace_num=workspace_num,
+        ),
+    )
     print(f"Claimed workspace #{workspace_num}: {workspace_dir}")
     return workspace_num, workspace_dir
 

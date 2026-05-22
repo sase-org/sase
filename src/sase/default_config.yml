@@ -1,6 +1,7 @@
 timezone: "America/New_York"
 use_chezmoi: false
 precommit_command: ""
+sibling_repos: []
 
 chat_install:
   command: ""

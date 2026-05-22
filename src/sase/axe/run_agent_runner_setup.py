@@ -241,6 +241,37 @@ def apply_retry_chain_to_meta(
         return agent_meta
 
 
+def refresh_sibling_repos_for_workspace(
+    *,
+    project_file: str,
+    workspace_dir: str,
+    workspace_num: int,
+    artifacts_dir: str,
+    agent_meta: dict[str, Any],
+    prompt: str,
+) -> str:
+    """Refresh sibling-repo env/meta after a workspace claim changes."""
+    from sase.sibling_repos import (
+        append_sibling_repo_prompt_note,
+        apply_sibling_repo_env,
+        resolve_sibling_repos_for_project,
+    )
+
+    resolution = resolve_sibling_repos_for_project(
+        project_file=project_file,
+        workspace_dir=workspace_dir,
+        workspace_num=workspace_num,
+    )
+    apply_sibling_repo_env(os.environ, resolution)
+    agent_meta["workspace_dir"] = workspace_dir
+    if resolution.repos:
+        agent_meta["sibling_repos"] = resolution.to_jsonable()
+    else:
+        agent_meta.pop("sibling_repos", None)
+    write_agent_meta(artifacts_dir, agent_meta)
+    return append_sibling_repo_prompt_note(prompt, resolution)
+
+
 def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     with open(meta_path, "w", encoding="utf-8") as f:

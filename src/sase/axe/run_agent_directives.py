@@ -171,6 +171,9 @@ def extract_directives_and_write_meta(
             agent_meta["plan"] = True
         if directives.tag:
             agent_meta["tag"] = directives.tag
+        sibling_repos = _sibling_repos_from_env()
+        if sibling_repos:
+            agent_meta["sibling_repos"] = sibling_repos
         agent_meta.update(agent_meta_from_chop_env())
         if cl_name:
             agent_meta["changespec_name"] = cl_name
@@ -228,3 +231,9 @@ def extract_directives_and_write_meta(
         meta=agent_meta,
         local_xprompts=multi.local_xprompts,
     )
+
+
+def _sibling_repos_from_env() -> list[dict[str, object]]:
+    from sase.sibling_repos import sibling_repo_metadata_from_env
+
+    return sibling_repo_metadata_from_env()

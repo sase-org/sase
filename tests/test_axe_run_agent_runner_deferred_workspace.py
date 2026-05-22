@@ -92,6 +92,62 @@ class TestDeferredWorkspacePreparation:
 
         assert os.environ["SASE_ACTIVE_PROJECT_DIR"] == str(workspace_dir)
 
+    def test_claim_deferred_workspace_recomputes_sibling_env(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.axe.run_agent_phases import claim_deferred_workspace
+        from sase.sibling_repos import (
+            SIBLING_REPOS_JSON_ENV,
+            resolve_sibling_repos_for_project,
+        )
+
+        workspace_dir = tmp_path / "ws7"
+        primary = tmp_path / "sase"
+        sibling = tmp_path / "sase-core"
+        primary.mkdir()
+        sibling.mkdir()
+        project_file = tmp_path / "project.sase"
+        project_file.write_text(f"WORKSPACE_DIR: {primary}\nNAME: main\n")
+        resolution = resolve_sibling_repos_for_project(
+            project_file=str(project_file),
+            workspace_dir=str(workspace_dir),
+            workspace_num=7,
+            config={"sibling_repos": [{"name": "core", "path": "../sase-core"}]},
+            materialize=False,
+        )
+        monkeypatch.setenv(SIBLING_REPOS_JSON_ENV, "stale")
+
+        with (
+            patch("sase.running_field.release_workspace"),
+            patch(
+                "sase.running_field.get_first_available_axe_workspace",
+                return_value=7,
+            ),
+            patch(
+                "sase.running_field.get_workspace_directory_for_num",
+                return_value=(str(workspace_dir), None),
+            ),
+            patch(
+                "sase.running_field.claim_workspace",
+                return_value=ClaimResult(success=True),
+            ),
+            patch("sase.axe.run_agent_phases.os.chdir"),
+            patch(
+                "sase.sibling_repos.resolve_sibling_repos_for_project",
+                return_value=resolution,
+            ),
+        ):
+            claim_deferred_workspace(
+                str(project_file),
+                "test-project",
+                "test-workflow",
+                "test-cl",
+                "20260316_120000",
+            )
+
+        assert os.environ["SASE_SIBLING_REPO_CORE_DIR"] == str(tmp_path / "sase-core_7")
+        assert json.loads(os.environ[SIBLING_REPOS_JSON_ENV])[0]["name"] == "core"
+
     def test_claim_deferred_workspace_retries_claim_race(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

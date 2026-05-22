@@ -1,5 +1,9 @@
+import json
+import os
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 from sase.axe.run_agent_exec import _write_done_marker_and_update_index
 from sase.axe.run_agent_exec_markers import (
@@ -9,9 +13,11 @@ from sase.axe.run_agent_exec_markers import (
 from sase.axe.run_agent_exec_plan_artifacts import write_plan_path_artifact
 from sase.axe.run_agent_runner_setup import (
     preprocess_prompt_xprompts,
+    refresh_sibling_repos_for_workspace,
     setup_artifacts_directory,
     write_submitted_xprompt_artifact,
 )
+from sase.sibling_repos import SIBLING_REPOS_JSON_ENV, resolve_sibling_repos_for_project
 
 
 def test_write_submitted_xprompt_artifact_preserves_exact_prompt(
@@ -72,6 +78,54 @@ def test_setup_artifacts_directory_updates_artifact_index(tmp_path: Path) -> Non
 
     assert calls == [str(tmp_path)]
     assert (tmp_path / "workflow_state.json").is_file()
+
+
+def test_refresh_sibling_repos_for_workspace_updates_env_meta_and_prompt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    primary = tmp_path / "sase"
+    sibling = tmp_path / "sase-core"
+    workspace = tmp_path / "sase_7"
+    primary.mkdir()
+    sibling.mkdir()
+    workspace.mkdir()
+    project_file = tmp_path / "project.sase"
+    project_file.write_text(f"WORKSPACE_DIR: {primary}\nNAME: main\n")
+    resolution = resolve_sibling_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(workspace),
+        workspace_num=7,
+        config={"sibling_repos": [{"name": "core", "path": "../sase-core"}]},
+        materialize=False,
+    )
+    monkeypatch.setenv(SIBLING_REPOS_JSON_ENV, "stale")
+    meta = {"pid": 123, "workspace_dir": "/placeholder"}
+
+    with (
+        patch(
+            "sase.sibling_repos.resolve_sibling_repos_for_project",
+            return_value=resolution,
+        ),
+        patch(
+            "sase.axe.run_agent_runner_setup."
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+    ):
+        prompt = refresh_sibling_repos_for_workspace(
+            project_file=str(project_file),
+            workspace_dir=str(workspace),
+            workspace_num=7,
+            artifacts_dir=str(tmp_path),
+            agent_meta=meta,
+            prompt="Do work",
+        )
+
+    assert "- core: " in prompt
+    assert meta["workspace_dir"] == str(workspace)
+    assert meta["sibling_repos"] == resolution.to_jsonable()
+    written = json.loads((tmp_path / "agent_meta.json").read_text(encoding="utf-8"))
+    assert written["sibling_repos"][0]["workspace_dir"] == str(tmp_path / "sase-core_7")
+    assert json.loads(os.environ[SIBLING_REPOS_JSON_ENV])[0]["name"] == "core"
 
 
 def test_done_marker_write_updates_artifact_index(tmp_path: Path) -> None:

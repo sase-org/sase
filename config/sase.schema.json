@@ -591,6 +591,41 @@
         }
       ]
     },
+    "sibling_repos": {
+      "type": "array",
+      "description": "Related repositories to expose to launched agents as workspace-matched directories.",
+      "items": {
+        "type": "object",
+        "required": ["name", "path"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Stable alias used in prompts, metadata, and SASE_SIBLING_REPO_<NAME> env vars.",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "description": "Primary checkout path. Relative paths are resolved from the project's primary WORKSPACE_DIR.",
+            "minLength": 1
+          },
+          "workspace": {
+            "type": "object",
+            "description": "Sibling workspace materialization policy.",
+            "additionalProperties": false,
+            "properties": {
+              "strategy": {
+                "type": "string",
+                "description": "Use 'suffix' for primary_<workspace_num> git clones, or 'none' to expose the primary path directly.",
+                "enum": ["suffix", "none"],
+                "default": "suffix"
+              }
+            }
+          }
+        }
+      },
+      "default": []
+    },
     "sdd": {
       "type": "object",
       "description": "Configuration for Structured Design Documents",

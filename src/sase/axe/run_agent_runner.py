@@ -40,6 +40,7 @@ from sase.axe.run_agent_runner_setup import (
     load_retry_handoff_from_env,
     prepare_workspace_if_needed,
     preprocess_prompt_xprompts,
+    refresh_sibling_repos_for_workspace,
     setup_artifacts_directory,
     write_submitted_xprompt_artifact,
     write_home_running_marker,
@@ -289,6 +290,14 @@ def main() -> None:
                         project_name=project_name,
                         is_home_mode=is_home_mode,
                         retry_handoff=retry_handoff,
+                    )
+                    prompt = refresh_sibling_repos_for_workspace(
+                        project_file=project_file,
+                        workspace_dir=workspace_dir,
+                        workspace_num=workspace_num,
+                        artifacts_dir=artifacts_dir,
+                        agent_meta=agent_meta,
+                        prompt=prompt,
                     )
 
             # Resolve @name agent references in VCS tags (e.g., #gh:@a -> #gh:branch_name).

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import patch
@@ -257,6 +258,89 @@ def test_spawn_agent_subprocess_readds_prepared_deferred_workspace_env(
 
     assert captured_env["SASE_AGENT_DEFERRED_WORKSPACE"] == "1"
     assert captured_env["SASE_AGENT_VCS_WORKFLOW_TYPE"] == "git"
+
+
+def test_spawn_agent_subprocess_exports_sibling_repo_env_and_prompt_note(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from sase.agent.launcher import spawn_agent_subprocess
+    from sase.sibling_repos import (
+        SIBLING_REPOS_JSON_ENV,
+        resolve_sibling_repos_for_project,
+    )
+
+    workspace = tmp_path / "child-workspace"
+    primary = tmp_path / "primary"
+    sibling = tmp_path / "sase-core"
+    workspace.mkdir()
+    primary.mkdir()
+    sibling.mkdir()
+    project_file = tmp_path / "home.sase"
+    project_file.write_text(f"WORKSPACE_DIR: {primary}\nNAME: home\n")
+    output = tmp_path / "agent.log"
+    captured_env: dict[str, str] = {}
+    prompt_file: list[Path] = []
+    monkeypatch.setenv(SIBLING_REPOS_JSON_ENV, "stale")
+    monkeypatch.setenv("SASE_SIBLING_REPO_OLD_DIR", "/stale")
+    monkeypatch.setenv("SASE_SIBLING_REPO_OLD_PRIMARY_DIR", "/stale-primary")
+
+    resolution = resolve_sibling_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(workspace),
+        workspace_num=101,
+        config={"sibling_repos": [{"name": "core", "path": "../sase-core"}]},
+        materialize=False,
+    )
+
+    def fake_spawn(
+        prepared: object,
+        *,
+        env: dict[str, str],
+        claim_callback: Callable[[int], bool] | None = None,
+    ) -> int:
+        captured_env.update(env)
+        prompt_file.append(Path(prepared.argv[8]))  # type: ignore[attr-defined]
+        if claim_callback is not None:
+            assert claim_callback(12345) is True
+        return 12345
+
+    with (
+        patch("sase.core.paths.sharded_path", return_value=str(output)),
+        patch(
+            "sase.core.agent_launch_facade.spawn_prepared_agent_process",
+            side_effect=fake_spawn,
+        ),
+        patch(
+            "sase.running_field.claim_workspace",
+            return_value=ClaimResult(success=True),
+        ),
+        patch("sase.axe.chop_agents.record_chop_agent_launch_from_env"),
+        patch(
+            "sase.sibling_repos.resolve_sibling_repos_for_project",
+            return_value=resolution,
+        ),
+    ):
+        spawn_agent_subprocess(
+            cl_name="home",
+            project_file=str(project_file),
+            workspace_dir=str(workspace),
+            workspace_num=101,
+            workflow_name="ace(run)-ts",
+            prompt="#git:home do work",
+            timestamp="20260512190000",
+            project_name="home",
+            is_home_mode=False,
+            vcs_ref=("git", "home"),
+        )
+
+    assert captured_env["SASE_SIBLING_REPO_CORE_DIR"] == str(tmp_path / "sase-core_101")
+    assert captured_env["SASE_SIBLING_REPO_CORE_PRIMARY_DIR"] == str(
+        tmp_path / "sase-core"
+    )
+    assert "SASE_SIBLING_REPO_OLD_DIR" not in captured_env
+    assert json.loads(captured_env[SIBLING_REPOS_JSON_ENV])[0]["name"] == "core"
+    assert "- core: " in prompt_file[0].read_text(encoding="utf-8")
 
 
 def test_default_git_home_auto_initializes_incomplete_home_project(
