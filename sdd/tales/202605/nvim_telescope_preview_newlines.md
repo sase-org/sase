@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-22 14:22:36
-status: wip
+status: done
 prompt: sdd/prompts/202605/nvim_telescope_preview_newlines.md
 ---
 # Fix Neovim Telescope xprompt preview newline crash
