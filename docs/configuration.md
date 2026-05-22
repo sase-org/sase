@@ -288,15 +288,17 @@ sibling_repos:
       strategy: none
 ```
 
-| Field                                | Type   | Default    | Description                                                                                 |
-| ------------------------------------ | ------ | ---------- | ------------------------------------------------------------------------------------------- |
-| `sibling_repos[].name`               | string | required   | Stable alias shown in prompts and used in generated environment variable names.             |
-| `sibling_repos[].path`               | string | required   | Primary checkout path. Relative paths resolve from the project's primary workspace.         |
-| `sibling_repos[].workspace.strategy` | string | `"suffix"` | `suffix` maps workspace `N` to `<primary>_<N>`; `none` always exposes the primary checkout. |
+| Field                                | Type   | Default    | Description                                                                                                  |
+| ------------------------------------ | ------ | ---------- | ------------------------------------------------------------------------------------------------------------ |
+| `sibling_repos[].name`               | string | required   | Stable alias shown in prompts and used in generated environment variable names.                              |
+| `sibling_repos[].path`               | string | required   | Primary checkout path. Relative paths resolve from the project's primary workspace.                          |
+| `sibling_repos[].workspace.strategy` | string | `"suffix"` | `suffix` exposes a workspace-matched checkout for workspace `N`; `none` always exposes the primary checkout. |
 
 For `suffix` siblings, workspace numbers `0` and `1` use the primary checkout. Higher workspace numbers use
-workspace-matched sibling checkouts such as `sase-core_10`, materializing the checkout when the workspace provider can
-do so. SASE passes the resolved paths into agent prompts and environment variables:
+workspace-matched sibling checkouts, materializing the checkout through the same `workspace.root` policy when the
+workspace provider can do so. With explicit `workspace.root: adjacent` that path is a legacy sibling such as
+`sase-core_10`; with the default `xdg-state` it lives under the managed state root. SASE passes the resolved paths into
+agent prompts and environment variables:
 
 | Variable                                   | Description                                       |
 | ------------------------------------------ | ------------------------------------------------- |
@@ -777,16 +779,16 @@ Controls how SASE chooses the physical location of managed workspace checkouts. 
 
 ```yaml
 workspace:
-  root: adjacent # "adjacent", "xdg-state", or an absolute path
+  root: xdg-state # "xdg-state", "adjacent", or an absolute path
   project_key: "" # explicit project-key override; empty = derive from git remote / primary path
   cleanup_ttl_days: 14 # age threshold for `sase workspace cleanup --stale`
 ```
 
-| Field                        | Type   | Default      | Description                                                                                                                                                                                                              |
-| ---------------------------- | ------ | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `workspace.root`             | string | `"adjacent"` | Root policy. `"adjacent"` keeps the legacy `<primary>_<num>/` layout; `"xdg-state"` uses the platform state dir; an absolute path is used as the managed-root base. `SASE_WORKSPACE_ROOT` overrides this base directory. |
-| `workspace.project_key`      | string | `""`         | Override the per-project namespace under managed roots. Empty derives a stable key from a single git remote slug or the primary-path basename plus a short hash.                                                         |
-| `workspace.cleanup_ttl_days` | int    | `14`         | Minimum age (in days) of an unclaimed managed checkout before `sase workspace cleanup --stale` will remove it.                                                                                                           |
+| Field                        | Type   | Default       | Description                                                                                                                                                                                                                                    |
+| ---------------------------- | ------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workspace.root`             | string | `"xdg-state"` | Root policy. `"xdg-state"` uses the platform state dir; `"adjacent"` keeps the legacy `<primary>_<num>/` layout as an explicit opt-in; an absolute path is used as the managed-root base. `SASE_WORKSPACE_ROOT` overrides this base directory. |
+| `workspace.project_key`      | string | `""`          | Override the per-project namespace under managed roots. Empty derives a stable key from a single git remote slug or the primary-path basename plus a short hash.                                                                               |
+| `workspace.cleanup_ttl_days` | int    | `14`          | Minimum age (in days) of an unclaimed managed checkout before `sase workspace cleanup --stale` will remove it.                                                                                                                                 |
 
 Platform defaults for the `xdg-state` policy:
 
@@ -804,6 +806,10 @@ For non-adjacent policies, physical checkouts live under `<managed-root>/<projec
 `workspace.root: /mnt/sase-workspaces` with project key `github.com_org_repo` places workspace `#10` at
 `/mnt/sase-workspaces/github.com_org_repo/<project>_10/`. When `SASE_WORKSPACE_ROOT` is set, it supplies the same
 `<managed-root>` base for the process.
+
+Existing adjacent checkouts are not moved automatically by the default. Run `sase workspace migrate --to xdg-state` to
+carry legacy `<primary>_<num>/` directories into the managed root, or set `workspace.root: adjacent` explicitly to keep
+the old sibling layout.
 
 Source: `src/sase/default_config.yml`, `src/sase/workspace_provider/store.py`
 

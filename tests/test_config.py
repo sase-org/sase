@@ -41,6 +41,20 @@ def test_deep_merge_list_replace_nested() -> None:
 # --- load_merged_config tests ---
 
 
+def test_load_merged_config_default_workspace_root_is_xdg_state(
+    tmp_path: Path,
+) -> None:
+    """Bundled defaults expose the managed state-root policy."""
+    with (
+        patch("sase.config.core.CONFIG_DIR", tmp_path / "empty"),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+        patch("sase.config.core._load_plugin_configs", return_value=[]),
+    ):
+        result = load_merged_config()
+
+    assert result["workspace"]["root"] == "xdg-state"
+
+
 def test_load_merged_config_invalid_yaml_skipped(tmp_path: Path) -> None:
     """Invalid YAML overlay files are skipped."""
     base = tmp_path / "sase.yml"

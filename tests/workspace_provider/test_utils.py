@@ -216,6 +216,32 @@ class TestEnsureWorkspaceCheckout:
         assert result.startswith(str(expected_root))
         assert result.endswith("repo_10/")
 
+    @patch("sase.workspace_provider.utils.subprocess.run")
+    def test_omitted_config_uses_xdg_state_default(
+        self,
+        mock_run: MagicMock,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="https://github.com/u/r.git\n"
+        )
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+        monkeypatch.delenv("SASE_WORKSPACE_ROOT", raising=False)
+        primary = str(tmp_path / "repo") + "/"
+        os.makedirs(primary)
+
+        with (
+            patch("sase.config.core.CONFIG_DIR", tmp_path / "empty_config"),
+            patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+            patch("sase.config.core._load_plugin_configs", return_value=[]),
+        ):
+            result = ensure_workspace_checkout(primary, 10)
+
+        expected_root = tmp_path / "state" / "sase" / "workspaces"
+        assert result.startswith(str(expected_root))
+        assert result.endswith("repo_10/")
+
 
 # ── direct callers route through shared helper ──────────────────────
 

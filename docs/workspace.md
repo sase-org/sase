@@ -220,11 +220,11 @@ User-facing checkout suffixes are `<project>_<num>` regardless of root policy. T
 The physical location of managed checkouts is controlled by `workspace.root` (see
 [`docs/configuration.md`](configuration.md#workspace)) and the `SASE_WORKSPACE_ROOT` environment override:
 
-| Value         | Layout                                                                                                                                                                                                                        |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `adjacent`    | Legacy `<primary>_<num>/` siblings of the primary checkout. Default; byte-for-byte compatible with previous releases.                                                                                                         |
-| `xdg-state`   | Platform state root plus namespace: `$XDG_STATE_HOME/sase/workspaces/<project_key>/<project>_<num>/` on Linux, `~/Library/Application Support/sase/workspaces/...` on macOS, `%LOCALAPPDATA%\sase\workspaces\...` on Windows. |
-| absolute path | Treat the configured path as the managed-root base and create `<project_key>/<project>_<num>/` checkouts under it.                                                                                                            |
+| Value         | Layout                                                                                                                                                                                                                                 |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `xdg-state`   | Default. Platform state root plus namespace: `$XDG_STATE_HOME/sase/workspaces/<project_key>/<project>_<num>/` on Linux, `~/Library/Application Support/sase/workspaces/...` on macOS, `%LOCALAPPDATA%\sase\workspaces\...` on Windows. |
+| `adjacent`    | Legacy `<primary>_<num>/` siblings of the primary checkout. Explicit opt-in; byte-for-byte compatible with previous releases.                                                                                                          |
+| absolute path | Treat the configured path as the managed-root base and create `<project_key>/<project>_<num>/` checkouts under it.                                                                                                                     |
 
 `SASE_WORKSPACE_ROOT` overrides `workspace.root` for the process and is interpreted as an explicit managed root
 directory, with the project namespace appended underneath it. Use an absolute path for predictable behavior. It is the
@@ -250,7 +250,9 @@ registry as "nothing managed here" rather than an error.
 
 ### Adjacent Compatibility And Migration
 
-Existing projects stay on `adjacent` until the user opts in. To move a project under the managed root, run:
+The default `workspace.root` is `xdg-state` for unconfigured installations and projects. Existing adjacent
+`<primary>_<num>/` directories are not moved during ordinary resolution; SASE only creates new managed checkouts under
+the configured root. To carry old adjacent checkouts into the managed root, run:
 
 ```bash
 sase workspace migrate --to xdg-state [--symlink-transition] [--dry-run]
@@ -283,11 +285,16 @@ symlinks without touching the canonical checkouts.
 - **Recursive search performance.** `rg`, `fd`, IDE workspace-wide search and similar tools fan out N times across
   adjacent siblings. Managed roots avoid this by default.
 
-### Default Flip Readiness
+### Post-Default Migration Guidance
 
-The default value of `workspace.root` remains `adjacent` for this release. Flipping new projects to `xdg-state` is
-deferred until the sibling-repo workspace resolver (when present) consumes the same `WorkspaceStore`. Users who want the
-managed layout today can set `workspace.root: xdg-state` per project or globally; nothing else needs to change.
+Users and environments that still rely on sibling checkouts should set `workspace.root: adjacent` explicitly, either in
+the project-local `sase.yml` or globally in `~/.config/sase/sase.yml`. The managed-root default is intentionally
+non-migrating: it prevents silent moves, but a project with old adjacent clones and no explicit config will create new
+non-primary checkouts under the state root after the default change.
+
+Before switching shared CI images, containers, or network-mounted homes to the default, confirm the state root is
+mounted, backed up, and on storage fast enough for agent work. Use an absolute `workspace.root` when the platform state
+directory is not the right operational location.
 
 ## `sase workspace` CLI
 

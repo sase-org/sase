@@ -86,9 +86,10 @@ SASE keeps durable state outside any one chat session:
   required `sase_core_rs` extension. Run `sase core health` before first use and after dependency changes.
 - **Numbered workspaces** - Parallel agents run in numbered project checkouts. Workspace `#0` is the primary checkout,
   `#1` through `#9` are reserved, and new claims allocate from `#10` upward.
-- **Workspace roots** - The default layout keeps numbered checkouts beside the primary checkout as `<primary>_<num>/`.
-  Setting `workspace.root` to `xdg-state` or an absolute path moves non-primary checkouts under a project-keyed managed
-  root; `sase workspace list`, `path`, `repair`, `cleanup`, and `migrate` inspect and maintain that view.
+- **Workspace roots** - By default, numbered checkouts live under the platform state directory in a project-keyed
+  managed root. Set `workspace.root: adjacent` to keep the legacy `<primary>_<num>/` sibling layout, or use an absolute
+  path for a custom managed-root base; `sase workspace list`, `path`, `repair`, `cleanup`, and `migrate` inspect and
+  maintain that view.
 - **Provider retries** - The LLM provider layer can retry matching provider errors, preserve the workspace across
   retries, and fall back to another model when configured. Claude adds built-in matching for context-limit,
   socket-close, and Claude CLI API-error output; per-provider retry counts, waits, and fallback policy live under

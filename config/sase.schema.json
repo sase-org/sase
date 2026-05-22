@@ -657,8 +657,8 @@
       "properties": {
         "root": {
           "type": "string",
-          "description": "Workspace root policy: 'adjacent' (legacy `primary_<num>/` layout), 'xdg-state' (platform state directory), or an absolute path. The `SASE_WORKSPACE_ROOT` environment variable overrides this when set.",
-          "default": "adjacent"
+          "description": "Workspace root policy: 'xdg-state' (default platform state directory), 'adjacent' (legacy opt-in `primary_<num>/` layout), or an absolute path. The `SASE_WORKSPACE_ROOT` environment variable overrides this when set.",
+          "default": "xdg-state"
         },
         "project_key": {
           "type": "string",

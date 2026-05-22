@@ -23,6 +23,7 @@ from typing import Any, Literal
 
 
 WORKSPACE_ROOT_ENV = "SASE_WORKSPACE_ROOT"
+DEFAULT_WORKSPACE_ROOT = "xdg-state"
 
 # Identity for the user's checkout under the WorkspaceStore.  Legacy code
 # still uses ``1`` to mean "primary" — adjacent parity preserves that.
@@ -179,7 +180,7 @@ class _ResolvedRoot:
 def _resolve_root(
     primary_workspace_dir: str,
     *,
-    config_root: str,
+    config_root: object,
     project_key: str,
     env: Mapping[str, str],
 ) -> _ResolvedRoot:
@@ -191,7 +192,8 @@ def _resolve_root(
             root_dir=str(Path(override) / project_key),
         )
 
-    value = (config_root or "adjacent").strip()
+    raw_value = DEFAULT_WORKSPACE_ROOT if config_root is None else str(config_root)
+    value = raw_value.strip() or DEFAULT_WORKSPACE_ROOT
     if value == "adjacent":
         abs_primary = os.path.abspath(primary_workspace_dir.rstrip("/"))
         parent = os.path.dirname(abs_primary) or os.sep
@@ -256,7 +258,7 @@ class WorkspaceStore:
         )
         self._root = _resolve_root(
             primary_workspace_dir,
-            config_root=section.get("root", "adjacent") or "adjacent",
+            config_root=section.get("root"),
             project_key=self._project_key,
             env=self._env,
         )
@@ -352,6 +354,7 @@ def _positive_int(value: Any, default: int) -> int:
 __all__ = [
     "LEGACY_PRIMARY_WORKSPACE_NUM",
     "PRIMARY_WORKSPACE_NUM",
+    "DEFAULT_WORKSPACE_ROOT",
     "WORKSPACE_ROOT_ENV",
     "WorkspacePath",
     "WorkspaceStore",

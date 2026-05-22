@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.workspace_provider.store import (
+    DEFAULT_WORKSPACE_ROOT,
     PRIMARY_WORKSPACE_NUM,
     WORKSPACE_ROOT_ENV,
     WorkspacePath,
@@ -237,10 +238,45 @@ class TestDefaultStateRoot:
 
 
 class TestDefaults:
-    def test_no_config_defaults_to_adjacent(self) -> None:
+    def test_no_config_defaults_to_xdg_state(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+        monkeypatch.delenv(WORKSPACE_ROOT_ENV, raising=False)
         store = WorkspaceStore("/tmp/proj")
-        assert store.root_policy == "adjacent"
+        assert store.root_policy == DEFAULT_WORKSPACE_ROOT
+        assert store.root_dir.startswith(str(tmp_path / "state" / "sase"))
         assert store.cleanup_ttl_days == 14
+
+    def test_missing_workspace_root_defaults_to_xdg_state(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+        monkeypatch.delenv(WORKSPACE_ROOT_ENV, raising=False)
+        store = WorkspaceStore(
+            "/tmp/proj",
+            config={"workspace": {"project_key": "k"}},
+            env={},
+        )
+        assert store.root_policy == "xdg-state"
+        assert store.root_dir == str(tmp_path / "state" / "sase" / "workspaces" / "k")
+
+    @pytest.mark.parametrize("root_value", [None, ""])
+    def test_none_or_empty_workspace_root_defaults_to_xdg_state(
+        self,
+        root_value: str | None,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+        monkeypatch.delenv(WORKSPACE_ROOT_ENV, raising=False)
+        store = WorkspaceStore(
+            "/tmp/proj",
+            config={"workspace": {"root": root_value, "project_key": "k"}},
+            env={},
+        )
+        assert store.root_policy == "xdg-state"
+        assert store.root_dir == str(tmp_path / "state" / "sase" / "workspaces" / "k")
 
     def test_workspace_path_fields(self) -> None:
         store = WorkspaceStore(

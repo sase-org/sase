@@ -301,10 +301,10 @@ sdd:
   version_controlled: false
 
 workspace:
-  # Workspace root policy: "adjacent" (default, legacy `primary_<num>/`
-  # layout), "xdg-state" (platform state dir), or an absolute path.
+  # Workspace root policy: "xdg-state" (default platform state dir),
+  # "adjacent" (legacy opt-in `primary_<num>/` layout), or an absolute path.
   # `SASE_WORKSPACE_ROOT` overrides this when set.
-  root: adjacent
+  root: xdg-state
   # Explicit override for project_key namespacing under managed roots.
   # Empty string means derive from git remote or primary path.
   project_key: ""
