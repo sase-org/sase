@@ -14,6 +14,9 @@ site/
 *.egg
 wheels/
 
+# Node tooling
+node_modules/
+
 # Virtual environments
 .venv/
 venv/

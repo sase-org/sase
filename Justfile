@@ -6,6 +6,7 @@ venv_dir_abs := justfile_directory() / venv_dir
 venv_bin_abs := justfile_directory() / venv_bin
 keep_sorted_version := "v0.8.0"
 keep_sorted_bin := venv_bin / "keep-sorted"
+prettier_bin := "node_modules/.bin/prettier"
 
 # Sibling Rust core repo. CI can override this with SASE_CORE_DIR after
 # checking out sase-core inside the Actions workspace.
@@ -48,6 +49,14 @@ _setup-keep-sorted: _venv
             printf "error: keep-sorted is required. Install it or install Go so this recipe can bootstrap github.com/google/keep-sorted@{{ keep_sorted_version }}.\n" >&2; \
             exit 127; \
         fi; \
+    fi
+
+# Bootstrap repo-local Prettier so Markdown formatting does not depend on a
+# user-global or CI-global npm installation.
+_setup-prettier:
+    @if [ ! -x "{{ prettier_bin }}" ]; then \
+        printf "[setup] Installing repo-local Prettier from package-lock.json.\n"; \
+        npm ci --no-audit --no-fund; \
     fi
 
 # Print a box header for a top-level command (private helper)
@@ -143,9 +152,9 @@ fmt-py: _setup
     {{ venv_bin }}/ruff check --fix src/ tests/
 
 # Auto-format Markdown files
-fmt-md:
+fmt-md: _setup-prettier
     @printf "\n---------- Formatting Markdown with prettier... ----------\n"
-    prettier --write --prose-wrap=always --print-width=120 "**/*.md"
+    {{ prettier_bin }} --write --prose-wrap=always --print-width=120 "**/*.md"
 
 # Auto-fix keep-sorted blocks in YAML files
 fix-keep-sorted: _setup-keep-sorted
@@ -166,9 +175,9 @@ fmt-py-check: _setup
     {{ venv_bin }}/ruff format --check src/ tests/
 
 # Check Markdown formatting (CI mode)
-fmt-md-check:
+fmt-md-check: _setup-prettier
     @printf "\n---------- Checking Markdown formatting with prettier... ----------\n"
-    prettier --check --prose-wrap=always --print-width=120 "**/*.md"
+    {{ prettier_bin }} --check --prose-wrap=always --print-width=120 "**/*.md"
 
 # Fast parallel test run, no coverage (use test-cov to enforce coverage gate).
 # Includes the PNG visual snapshot suite via `_setup-visual`, so the default

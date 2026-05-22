@@ -1,0 +1,7 @@
+{
+  "name": "sase",
+  "private": true,
+  "devDependencies": {
+    "prettier": "3.8.1"
+  }
+}

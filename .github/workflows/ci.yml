@@ -73,8 +73,6 @@ jobs:
           tar -xzf /tmp/just.tar.gz -C /tmp just
           sudo install -m 0755 /tmp/just /usr/local/bin/just
           just --version
-      - name: Install prettier
-        run: npm install -g prettier
       - name: Check Markdown formatting
         run: just fmt-md-check
 
