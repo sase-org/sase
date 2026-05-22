@@ -19,10 +19,6 @@ sibling_repos:
     path: ../sase-telegram
   - name: nvim
     path: ../sase-nvim
-  - name: chezmoi
-    path: ~/.local/share/chezmoi
-    workspace:
-      strategy: none
 
 xprompts:
   # keep-sorted start
