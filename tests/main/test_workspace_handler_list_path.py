@@ -10,6 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.main.workspace_handler import handle_workspace_command
+from sase.vcs_provider import VCS_DEFAULT_REVISION
 from sase.workspace_provider.registry import record_workspace
 from sase.workspace_provider.store import WorkspaceStore
 from tests.main.workspace_handler_helpers import make_args, project_layout
@@ -131,3 +132,125 @@ class TestPath:
         # Resolved path is printed but no clone was performed.
         assert "_42" in out
         assert not os.path.isdir(out)
+
+
+class TestOpen:
+    def test_open_without_clean_delegates_to_path(self) -> None:
+        args = make_args(
+            workspace_subcommand="open",
+            project="demo",
+            workspace_num=42,
+            print_path=False,
+            clean=False,
+        )
+        with (
+            patch(
+                "sase.main.workspace_handler._handle_path", return_value=0
+            ) as handle_path,
+            patch("sase.axe.runner_utils.prepare_workspace") as prepare_workspace,
+            pytest.raises(SystemExit) as exc,
+        ):
+            handle_workspace_command(args)
+
+        assert exc.value.code == 0
+        handle_path.assert_called_once_with(args)
+        prepare_workspace.assert_not_called()
+
+    def test_open_clean_materializes_and_prepares(
+        self,
+        project_layout: tuple[str, str, Path],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        project_name, _, primary = project_layout
+        checkout = str(primary.parent / "managed" / "primary_42")
+        args = make_args(
+            workspace_subcommand="open",
+            project=project_name,
+            workspace_num=42,
+            print_path=False,
+            clean=True,
+        )
+
+        with (
+            patch(
+                "sase.main.workspace_handler._resolve_checkout_path",
+                return_value=checkout,
+            ) as resolve_checkout_path,
+            patch(
+                "sase.axe.runner_utils.prepare_workspace", return_value=True
+            ) as prepare_workspace,
+            pytest.raises(SystemExit) as exc,
+        ):
+            handle_workspace_command(args)
+
+        assert exc.value.code == 0
+        resolve_checkout_path.assert_called_once()
+        call_args = resolve_checkout_path.call_args
+        assert call_args.args[1] == 42
+        assert call_args.kwargs == {"materialize": True}
+        prepare_workspace.assert_called_once_with(
+            checkout,
+            f"{project_name}-workspace-42",
+            VCS_DEFAULT_REVISION,
+            backup_suffix="workspace-open",
+            project_basename=project_name,
+        )
+        assert capsys.readouterr().out.strip() == checkout
+
+    def test_open_clean_materialization_failure_returns_1(
+        self,
+        project_layout: tuple[str, str, Path],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        project_name, _, _ = project_layout
+        args = make_args(
+            workspace_subcommand="open",
+            project=project_name,
+            workspace_num=42,
+            print_path=False,
+            clean=True,
+        )
+
+        with (
+            patch(
+                "sase.main.workspace_handler._resolve_checkout_path",
+                side_effect=RuntimeError("clone failed"),
+            ),
+            patch("sase.axe.runner_utils.prepare_workspace") as prepare_workspace,
+            pytest.raises(SystemExit) as exc,
+        ):
+            handle_workspace_command(args)
+
+        captured = capsys.readouterr()
+        assert exc.value.code == 1
+        assert "clone failed" in captured.err
+        assert captured.out == ""
+        prepare_workspace.assert_not_called()
+
+    def test_open_clean_preparation_failure_returns_1_without_path(
+        self,
+        project_layout: tuple[str, str, Path],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        project_name, _, primary = project_layout
+        checkout = str(primary.parent / "managed" / "primary_42")
+        args = make_args(
+            workspace_subcommand="open",
+            project=project_name,
+            workspace_num=42,
+            print_path=False,
+            clean=True,
+        )
+
+        with (
+            patch(
+                "sase.main.workspace_handler._resolve_checkout_path",
+                return_value=checkout,
+            ),
+            patch("sase.axe.runner_utils.prepare_workspace", return_value=False),
+            pytest.raises(SystemExit) as exc,
+        ):
+            handle_workspace_command(args)
+
+        assert exc.value.code == 1
+        assert capsys.readouterr().out == ""

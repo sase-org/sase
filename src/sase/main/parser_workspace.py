@@ -51,7 +51,7 @@ def register_workspace_parser(subparsers: argparse._SubParsersAction) -> None:
 
     open_parser = workspace_sub.add_parser(
         "open",
-        help="Print or open the workspace checkout (currently just prints)",
+        help="Print or prepare the workspace checkout",
     )
     open_parser.add_argument(
         "workspace_num",
@@ -70,6 +70,12 @@ def register_workspace_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         dest="print_path",
         help="Print the path (current default behavior; reserved for editor mode)",
+    )
+    open_parser.add_argument(
+        "-c",
+        "--clean",
+        action="store_true",
+        help="Materialize, clean, and update the checkout before printing the path",
     )
 
     cleanup_parser = workspace_sub.add_parser(

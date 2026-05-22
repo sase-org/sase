@@ -216,7 +216,42 @@ def _handle_open(args: argparse.Namespace) -> int:
     # is configured it prints the path the same way ``path`` does.  The
     # ``--print`` flag is reserved for a future "force print" mode once an
     # editor integration lands.
+    if getattr(args, "clean", False):
+        return _handle_open_clean(args)
     return _handle_path(args)
+
+
+def _handle_open_clean(args: argparse.Namespace) -> int:
+    ctx = _resolve_project_context(args.project)
+    workspace_num = int(args.workspace_num)
+    if workspace_num < 0:
+        print(
+            f"workspace number must be >= 0, got {workspace_num}",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        path = _resolve_checkout_path(ctx, workspace_num, materialize=True)
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    from sase.axe.runner_utils import prepare_workspace
+    from sase.vcs_provider import VCS_DEFAULT_REVISION
+
+    clean_label = f"{ctx.project_name}-workspace-{workspace_num}"
+    if not prepare_workspace(
+        path,
+        clean_label,
+        VCS_DEFAULT_REVISION,
+        backup_suffix="workspace-open",
+        project_basename=ctx.project_name,
+    ):
+        return 1
+
+    print(path)
+    return 0
 
 
 def _is_stale(

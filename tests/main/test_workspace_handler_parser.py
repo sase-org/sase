@@ -21,6 +21,13 @@ class TestWorkspaceParser:
         with pytest.raises(SystemExit):
             create_parser().parse_args(["workspace", "path"])
 
+    @pytest.mark.parametrize("flag", ["-c", "--clean"])
+    def test_open_clean_flag(self, flag: str) -> None:
+        ns = create_parser().parse_args(["workspace", "open", flag, "12"])
+        assert ns.workspace_subcommand == "open"
+        assert ns.workspace_num == 12
+        assert ns.clean is True
+
     def test_cleanup_options(self) -> None:
         ns = create_parser().parse_args(
             ["workspace", "cleanup", "-s", "-i", "-n", "-p", "demo"]
