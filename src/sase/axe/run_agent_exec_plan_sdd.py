@@ -18,12 +18,15 @@ def commit_sdd_files_for_exec_plan(
     plan_kind: str = "tales",
     logger: logging.Logger,
     subprocess_run: Callable[..., Any],
-) -> None:
+) -> bool:
     """Commit SDD prompt and plan files via ``sase commit`` before launching the epic agent.
 
     The ``#gh`` workflow pre-step runs ``git checkout . && git clean -fd`` which
     wipes uncommitted files.  Committing (and pushing) the SDD files first
     ensures the epic agent can still read them.
+
+    Returns ``True`` when all discovered files are committed, or no files were
+    found. Returns ``False`` when ``sase commit`` reports failure.
     """
     from sase.sdd.files import find_sdd_file
 
@@ -33,7 +36,7 @@ def commit_sdd_files_for_exec_plan(
     plan_found = find_sdd_file(base, plan_kind, fname)
     files = [str(f) for f in (prompt_found, plan_found) if f is not None]
     if not files:
-        return
+        return True
     message = f"chore: Add SDD prompt and plan for {plan_name}"
     # -M / --message-file expects a file path, not a raw string.
     # handle_commit_command deletes the file after reading it.
@@ -58,6 +61,8 @@ def commit_sdd_files_for_exec_plan(
             result.returncode,
             result.stderr,
         )
+        return False
+    return True
 
 
 def build_sdd_plan_ref(

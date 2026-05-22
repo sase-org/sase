@@ -85,7 +85,7 @@ def test_commit_sdd_files_passes_tempfile_to_m() -> None:
             return subprocess.CompletedProcess(cmd, 0)
 
         with patch("sase.axe.run_agent_exec_plan.subprocess.run", side_effect=fake_run):
-            _commit_sdd_files(ws, "my_plan")
+            assert _commit_sdd_files(ws, "my_plan") is True
 
         assert len(captured_msg_content) == 1
         assert captured_msg_content[0] == "chore: Add SDD prompt and plan for my_plan"
@@ -113,7 +113,7 @@ def test_commit_sdd_files_passes_f_flags() -> None:
             return subprocess.CompletedProcess(cmd, 0)
 
         with patch("sase.axe.run_agent_exec_plan.subprocess.run", side_effect=fake_run):
-            _commit_sdd_files(ws, "my_plan")
+            assert _commit_sdd_files(ws, "my_plan") is True
 
         cmd = captured_cmd[0]
         f_values = [cmd[i + 1] for i, v in enumerate(cmd) if v == "-f"]
@@ -143,7 +143,7 @@ def test_commit_sdd_files_finds_canonical_sdd_paths() -> None:
             return subprocess.CompletedProcess(cmd, 0)
 
         with patch("sase.axe.run_agent_exec_plan.subprocess.run", side_effect=fake_run):
-            _commit_sdd_files(ws, "my_epic", plan_kind="epics")
+            assert _commit_sdd_files(ws, "my_epic", plan_kind="epics") is True
 
         f_values = [
             captured_cmd[0][i + 1] for i, v in enumerate(captured_cmd[0]) if v == "-f"
@@ -169,7 +169,7 @@ def test_commit_sdd_files_prompt_only() -> None:
             return subprocess.CompletedProcess(cmd, 0)
 
         with patch("sase.axe.run_agent_exec_plan.subprocess.run", side_effect=fake_run):
-            _commit_sdd_files(ws, "only_prompt")
+            assert _commit_sdd_files(ws, "only_prompt") is True
 
         assert len(captured_cmd) == 1
         cmd = captured_cmd[0]
@@ -182,7 +182,7 @@ def test_commit_sdd_files_noop_no_files() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         mock_run = MagicMock()
         with patch("sase.axe.run_agent_exec_plan.subprocess.run", mock_run):
-            _commit_sdd_files(tmpdir, "nonexistent")
+            assert _commit_sdd_files(tmpdir, "nonexistent") is True
         mock_run.assert_not_called()
 
 
@@ -203,7 +203,7 @@ def test_commit_sdd_files_logs_failure() -> None:
             patch("sase.axe.run_agent_exec_plan.subprocess.run", side_effect=fake_run),
             patch("sase.axe.run_agent_exec_plan.logger") as mock_logger,
         ):
-            _commit_sdd_files(ws, "fail")
+            assert _commit_sdd_files(ws, "fail") is False
 
         mock_logger.warning.assert_called_once()
         assert (

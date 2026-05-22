@@ -181,6 +181,27 @@ class TestRunStartedAtRecording:
         assert notify.call_args.kwargs["current_artifacts_dir"] == artifacts_dir
         assert notify.call_args.kwargs["runtime"] == "4m32s"
 
+    def test_system_exit_from_execution_writes_failure_marker_and_notifies(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = str(tmp_path / "artifacts")
+        patches = base_patches(artifacts_dir)
+        write_error = MagicMock()
+        notify = MagicMock()
+        patches[f"{RUNNER}.run_execution_loop"] = MagicMock(side_effect=SystemExit(1))
+        patches[f"{RUNNER}.write_error_done_marker"] = write_error
+        patches[f"{RUNNER}.send_completion_notification"] = notify
+        patches[f"{RUNNER}.all_steps_hidden"] = MagicMock(return_value=False)
+
+        run_main(patches, tmp_path)
+
+        write_error.assert_called_once()
+        assert write_error.call_args.kwargs["error"] == "SystemExit: 1"
+        assert "SystemExit: 1" in write_error.call_args.kwargs["traceback_str"]
+        notify.assert_called_once()
+        assert notify.call_args.kwargs["success"] is False
+        assert notify.call_args.kwargs["error_summary"] == "SystemExit: 1"
+
     def test_home_mode_running_marker_cleanup_updates_artifact_index(
         self, tmp_path: Path
     ) -> None:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-22 17:24:43
-status: wip
+status: done
 prompt: sdd/prompts/202605/plan_followup_commit_failure_1.md
 ---
 # Fix Approved-Plan Coder Launch Failures

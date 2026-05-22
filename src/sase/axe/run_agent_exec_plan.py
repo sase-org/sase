@@ -77,8 +77,8 @@ def _accepted_plan_action_for_meta(plan_result: Any) -> str:
 
 def _commit_sdd_files(
     workspace_dir: str, plan_name: str, *, plan_kind: str = "tales"
-) -> None:
-    commit_sdd_files_for_exec_plan(
+) -> bool:
+    return commit_sdd_files_for_exec_plan(
         workspace_dir,
         plan_name,
         plan_kind=plan_kind,
@@ -330,13 +330,25 @@ def handle_plan_marker(
         if plan_result.action not in ("epic", "legend")
         else True
     )
+    required_sdd_commit_succeeded = True
     if should_commit and sdd_plan_name:
         if version_controlled:
             plan_kind = _plan_kind_for_action(plan_result.action)
-            _commit_sdd_files(ctx.workspace_dir, sdd_plan_name, plan_kind=plan_kind)
+            required_sdd_commit_succeeded = _commit_sdd_files(
+                ctx.workspace_dir,
+                sdd_plan_name,
+                plan_kind=plan_kind,
+            )
         else:
             commit_sdd_files(sdd_dir, f"Add SDD files for {sdd_plan_name}")
-    plan_committed = bool(should_commit and sdd_plan_path is not None)
+    elif should_commit:
+        required_sdd_commit_succeeded = False
+    plan_committed = bool(
+        should_commit
+        and sdd_plan_path is not None
+        and sdd_plan_path.exists()
+        and required_sdd_commit_succeeded
+    )
     update_meta_field(state.current_artifacts_dir, "plan_committed", plan_committed)
 
     if not plan_result.run_coder and plan_result.action not in ("epic", "legend"):
@@ -419,12 +431,12 @@ def handle_plan_marker(
         _update_coder_model_meta(plan_result, ctx, state)
         if plan_result.action == "epic":
             plan_ref = _build_epic_plan_ref(
-                sdd_plan_path=sdd_plan_path,
+                sdd_plan_path=sdd_plan_path if plan_committed else None,
                 sdd_dir=sdd_dir,
                 workspace_dir=ctx.workspace_dir,
-                sdd_plan_name=sdd_plan_name,
+                sdd_plan_name=sdd_plan_name if plan_committed else None,
                 version_controlled=version_controlled,
-                fallback_plan_file=plan_data["plan_file"],
+                fallback_plan_file=plan_result.plan_file,
             )
             legend_bead_id = _infer_epic_legend_bead_id(
                 sdd_plan_path=sdd_plan_path,
@@ -436,12 +448,12 @@ def handle_plan_marker(
             xprompt_name = "bd/new_epic"
         else:
             plan_ref = _build_sdd_plan_ref(
-                sdd_plan_path=sdd_plan_path,
+                sdd_plan_path=sdd_plan_path if plan_committed else None,
                 sdd_dir=sdd_dir,
                 workspace_dir=ctx.workspace_dir,
-                sdd_plan_name=sdd_plan_name,
+                sdd_plan_name=sdd_plan_name if plan_committed else None,
                 version_controlled=version_controlled,
-                fallback_plan_file=plan_data["plan_file"],
+                fallback_plan_file=plan_result.plan_file,
                 plan_kind="legends",
             )
             xprompt_name = "bd/new_legend"
@@ -455,7 +467,7 @@ def handle_plan_marker(
         # Point SASE_PLAN at the committed in-repo plan file only when the
         # approval committed that file. No-commit approvals must hand off the
         # archived plan because VCS workflow pre-steps may stash local SDD files.
-        if plan_result.commit_plan and sdd_plan_path and sdd_plan_path.exists():
+        if plan_committed and sdd_plan_path:
             os.environ["SASE_PLAN"] = str(sdd_plan_path)
         else:
             os.environ["SASE_PLAN"] = plan_result.plan_file
@@ -509,7 +521,7 @@ def handle_plan_marker(
             planner_name = plan_chain_agent_name(ctx.agent_name, PLAN_CHAIN_PLAN_SUFFIX)
             resume_prefix = f"#fork:{planner_name} "
 
-        if plan_result.commit_plan:
+        if plan_committed:
             coder_plan_ref = _build_saved_plan_ref(
                 sdd_plan_path=sdd_plan_path,
                 sdd_dir=sdd_dir,

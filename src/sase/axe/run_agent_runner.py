@@ -11,6 +11,7 @@ The core execution loop (retry, plan approval, question handling) lives in
 """
 
 import os
+import signal
 import sys
 import time
 from datetime import UTC, datetime
@@ -59,6 +60,16 @@ from sase.telemetry import init_telemetry, register_push_on_exit
 from sase.telemetry.metrics import AGENT_KILLS
 
 install_sigterm_handler("agent", soft=True)
+
+
+def _system_exit_code(exc: SystemExit) -> int | None:
+    """Return the integer exit code for ``SystemExit`` when one is available."""
+    return exc.code if isinstance(exc.code, int) else None
+
+
+def _is_user_kill_exit(exc: SystemExit) -> bool:
+    """Return whether ``SystemExit`` represents an explicit user kill."""
+    return was_killed() or _system_exit_code(exc) == 128 + signal.SIGTERM
 
 
 def _auto_dismiss_completed_agent(cl_name: str, artifacts_timestamp: str) -> None:
@@ -140,6 +151,7 @@ def main() -> None:
     start_time = time.time()
     success = False
     duration = "0s"
+    runtime: str | None = None
     saved_path: str | None = None
     diff_path: str | None = None
     markdown_pdf_paths: list[str] = []
@@ -150,6 +162,7 @@ def main() -> None:
     error_summary: str | None = None
     error_traceback_str: str | None = None
     run_started_at: str | None = None
+    suppress_completion_notification = False
 
     print("Starting agent run")
     print(f"CL: {cl_name}")
@@ -397,6 +410,37 @@ def main() -> None:
                 error=error_summary,
                 traceback_str=error_traceback_str,
             )
+        except SystemExit as e:
+            if _is_user_kill_exit(e):
+                exec_outcome = "killed"
+                suppress_completion_notification = True
+                raise
+
+            print(f"Agent exited before completion: {e}", file=sys.stderr)
+            import traceback
+
+            traceback.print_exc()
+            success = False
+            error_summary = f"{type(e).__qualname__}: {_system_exit_code(e)}"
+            error_traceback_str = traceback.format_exc()
+            AGENT_KILLS.labels(reason="error").inc()
+            write_error_done_marker(
+                current_artifacts_dir=current_artifacts_dir,
+                cl_name=cl_name,
+                project_file=project_file,
+                timestamp=timestamp,
+                artifacts_timestamp=artifacts_timestamp,
+                workspace_num=workspace_num,
+                workspace_dir=workspace_dir,
+                output_path=output_path,
+                agent_name=agent_name,
+                agent_model=agent_model,
+                agent_llm_provider=agent_llm_provider,
+                agent_vcs_provider=agent_vcs_provider,
+                agent_hidden=agent_hidden,
+                error=error_summary,
+                traceback_str=error_traceback_str,
+            )
 
         completion_time = datetime.now(UTC)
         end_time = completion_time.timestamp()
@@ -483,7 +527,11 @@ def main() -> None:
         # The user already knows it died because they killed it from the TUI.
         # Also skip when every step in the workflow was hidden (e.g. for-loops
         # over empty lists) — there's nothing useful to report.
-        if not was_killed() and not all_steps_hidden(current_artifacts_dir):
+        if (
+            not suppress_completion_notification
+            and not was_killed()
+            and not all_steps_hidden(current_artifacts_dir)
+        ):
             send_completion_notification(
                 cl_name=cl_name,
                 artifacts_timestamp=artifacts_timestamp,

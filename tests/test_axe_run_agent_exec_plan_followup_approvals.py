@@ -289,6 +289,112 @@ class TestPlanFollowupApprovals:
         assert "@sdd/tales/202605/scratch_plan.md" not in state.current_prompt
         assert os.environ["SASE_PLAN"] == str(archived_plan)
 
+    def test_coder_prompt_commit_failure_uses_archived_plan_ref(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """Failed SDD commits do not hand coder agents volatile repo SDD refs."""
+        monkeypatch.delenv("SASE_PLAN", raising=False)
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        archived_plan = tmp_path / "archive" / "scratch_plan.md"
+        archived_plan.parent.mkdir()
+        archived_plan.write_text("# Archived Plan")
+        sdd_plan = tmp_path / "sdd" / "tales" / "202605" / "scratch_plan.md"
+        sdd_plan.parent.mkdir(parents=True)
+        sdd_plan.write_text("# Saved Plan")
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=str(archived_plan),
+            commit_plan=True,
+            run_coder=True,
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(
+                    tmp_path / "sdd" / "prompts" / "202605" / "scratch_plan.md",
+                    sdd_plan,
+                ),
+            ),
+            patch(
+                "sase.axe.run_agent_exec_plan._commit_sdd_files",
+                return_value=False,
+            ),
+        ):
+            handle_plan_marker({"plan_file": str(archived_plan)}, ctx, state)
+
+        assert f"@{archived_plan}" in state.current_prompt
+        assert "@sdd/tales/202605/scratch_plan.md" not in state.current_prompt
+        assert os.environ["SASE_PLAN"] == str(archived_plan)
+        relationships = plan_mod.create_followup_artifacts.call_args.kwargs[
+            "relationships"
+        ]
+        assert relationships["plan_committed"] is False
+        assert call(str(tmp_path / "artifacts"), "plan_committed", False) in (
+            plan_mod.update_meta_field.call_args_list
+        )
+
+    @pytest.mark.parametrize(
+        ("action", "plan_kind", "xprompt_name"),
+        [
+            ("epic", "epics", "bd/new_epic"),
+            ("legend", "legends", "bd/new_legend"),
+        ],
+    )
+    def test_epic_legend_commit_failure_uses_archived_plan_ref(
+        self,
+        tmp_path,
+        action: str,
+        plan_kind: str,
+        xprompt_name: str,
+    ) -> None:
+        """Epic/legend handoffs fall back to the archived plan after commit failure."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        archived_plan = tmp_path / "archive" / f"{action}_plan.md"
+        archived_plan.parent.mkdir()
+        archived_plan.write_text("# Archived Plan")
+        sdd_plan = tmp_path / "sdd" / plan_kind / "202605" / f"{action}_plan.md"
+        sdd_plan.parent.mkdir(parents=True)
+        sdd_plan.write_text("# Saved Plan")
+
+        approval = PlanApprovalResult(
+            action=action,
+            plan_file=str(archived_plan),
+            commit_plan=True,
+            run_coder=True,
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(
+                    tmp_path / "sdd" / "prompts" / "202605" / f"{action}_plan.md",
+                    sdd_plan,
+                ),
+            ),
+            patch(
+                "sase.axe.run_agent_exec_plan._commit_sdd_files",
+                return_value=False,
+            ),
+        ):
+            handle_plan_marker({"plan_file": str(archived_plan)}, ctx, state)
+
+        assert f"#{xprompt_name}:{archived_plan}" in state.current_prompt
+        assert f"sdd/{plan_kind}/202605/{action}_plan.md" not in state.current_prompt
+        relationships = plan_mod.create_followup_artifacts.call_args.kwargs[
+            "relationships"
+        ]
+        assert relationships["plan_committed"] is False
+
     def test_coder_meta_updated_when_coder_model_differs(self, tmp_path) -> None:
         """agent_meta.json reflects coder_model when it differs from planner model."""
         ctx = make_ctx(tmp_path, agent_model="gemini-3.1-pro-preview")
