@@ -132,7 +132,7 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
     2. **ChangeSpec name**: search all changespecs for a matching name,
        verify project has ``BARE_REPO_DIR``.
     3. **Missing project shorthand**: initialize a new bare-git project using
-       the same defaults as ``sase init-git <name>``.
+       the same defaults as ``sase git init <name>``.
     4. **Bare repo path** (contains ``/``): derive project name from path
        basename (strip ``.git``), auto-create ``.gp`` with ``BARE_REPO_DIR``
        and ``WORKSPACE_DIR``.

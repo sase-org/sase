@@ -147,19 +147,19 @@ The bundled bare-git provider resolves `#git:<ref>` in four modes:
    `WORKSPACE_DIR`.
 2. A ChangeSpec name found across registered projects.
 3. A missing project shorthand with no slash, which initializes a new bare-git project with the same defaults as
-   `sase init-git <name>` and then resolves it.
+   `sase git init <name>` and then resolves it.
 4. A bare repository path, deriving the project name from the path basename and creating the matching ProjectSpec.
 
 The missing-project shorthand is intended for first use from an xprompt or prompt bar: `#git:new_tool #!workflow`
-creates the bare-git project on demand instead of requiring a separate `sase init-git new_tool` step.
+creates the bare-git project on demand instead of requiring a separate `sase git init new_tool` step.
 
 `#git:home` is special because it is the default for bare prompts. If the `home` ProjectSpec is missing or has not yet
 recorded `BARE_REPO_DIR`, SASE bootstraps a managed empty bare-git project at the default `home` paths. To point
 `#git:home` at an existing home/dotfiles bare repository instead, configure it first with
-`sase init-git home --existing <bare-repo> --clone-dir <checkout-dir>`. Add `#cd:~` to a prompt for a one-off direct
+`sase git init home --existing <bare-repo> --clone-dir <checkout-dir>`. Add `#cd:~` to a prompt for a one-off direct
 home-directory run without VCS.
 
-The `sase init-git` command also supports `--bare-dir` and `--clone-dir` for new bare-git projects. Its defaults are
+The `sase git init` command also supports `--bare-dir` and `--clone-dir` for new bare-git projects. Its defaults are
 `~/.sase/repos/<name>.git` for the bare repo and `~/projects/git/<name>/` for the primary clone.
 
 ## Known-Project VCS Fallback

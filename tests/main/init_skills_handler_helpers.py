@@ -1,4 +1,4 @@
-"""Shared helpers for ``sase init-skills`` handler tests."""
+"""Shared helpers for ``sase init skills`` handler tests."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from sase.xprompt.models import XPrompt
 
 
 def make_args(**overrides: Any) -> argparse.Namespace:
-    """Build an argparse.Namespace with init-skills defaults."""
+    """Build an argparse.Namespace with init skills defaults."""
     defaults: dict[str, Any] = {
         "force": True,
         "dry_run": False,

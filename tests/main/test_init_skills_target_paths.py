@@ -1,4 +1,4 @@
-"""Tests for ``sase init-skills`` generated target paths."""
+"""Tests for ``sase init skills`` generated target paths."""
 
 from __future__ import annotations
 

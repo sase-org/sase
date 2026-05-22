@@ -68,7 +68,7 @@ Project metadata fields are optional and appear before the first `NAME:` line. S
   [`docs/configuration.md`](configuration.md#workspace) for the `workspace.root` knob.
 - **RUNNING**: Active workspace claims written and released by SASE while agents or workflows are running.
 
-`BARE_REPO_DIR` and `WORKSPACE_DIR` are created by `sase init-git` or by first-use `#git:<project>` initialization. They
+`BARE_REPO_DIR` and `WORKSPACE_DIR` are created by `sase git init` or by first-use `#git:<project>` initialization. They
 are parsed only before the first ChangeSpec.
 
 The `RUNNING` section is managed by SASE. Each entry has this shape:

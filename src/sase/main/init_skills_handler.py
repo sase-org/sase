@@ -1,4 +1,4 @@
-"""Handler for the 'sase init-skills' command."""
+"""Handler for the 'sase init skills' command."""
 
 import argparse
 import difflib
@@ -15,6 +15,8 @@ from sase.config.core import CHEZMOI_HOME, get_use_chezmoi
 from sase.llm_provider.registry import iter_plugins
 from sase.xprompt.loader import get_all_xprompts, load_xprompts_from_internal
 from sase.xprompt.models import XPrompt
+
+_COMMAND_LABEL = "init skills"
 
 
 def _all_providers() -> list[str]:
@@ -220,12 +222,15 @@ def _deploy_to_chezmoi(written_paths: list[Path], args: argparse.Namespace) -> i
             check=False,
         )
     except FileNotFoundError:
-        print("init-skills: git not found on PATH, skipping deploy", file=sys.stderr)
+        print(
+            f"{_COMMAND_LABEL}: git not found on PATH, skipping deploy",
+            file=sys.stderr,
+        )
         return 0
 
     if repo_check.returncode != 0:
         print(
-            f"init-skills: {git_root} is not a git repo, skipping deploy",
+            f"{_COMMAND_LABEL}: {git_root} is not a git repo, skipping deploy",
             file=sys.stderr,
         )
         return 0
@@ -246,9 +251,9 @@ def _deploy_to_chezmoi(written_paths: list[Path], args: argparse.Namespace) -> i
         print(f"\nNothing to commit in {git_root} (files identical to HEAD).")
         return 0
 
-    message = "chore: regenerate skills via sase init-skills"
+    message = "chore: regenerate skills via sase init skills"
     if provider_filter:
-        message = f"chore: regenerate {provider_filter} skills via sase init-skills"
+        message = f"chore: regenerate {provider_filter} skills via sase init skills"
 
     print(f"\nCommitting in {git_root}...")
     commit = subprocess.run(
@@ -258,7 +263,10 @@ def _deploy_to_chezmoi(written_paths: list[Path], args: argparse.Namespace) -> i
         check=False,
     )
     if commit.returncode != 0:
-        print(f"init-skills: commit failed: {commit.stderr.strip()}", file=sys.stderr)
+        print(
+            f"{_COMMAND_LABEL}: commit failed: {commit.stderr.strip()}",
+            file=sys.stderr,
+        )
         return 1
     first_line = commit.stdout.strip().splitlines()[0] if commit.stdout.strip() else ""
     if first_line:
@@ -275,7 +283,10 @@ def _deploy_to_chezmoi(written_paths: list[Path], args: argparse.Namespace) -> i
         check=False,
     )
     if pull.returncode != 0:
-        print(f"init-skills: pull failed: {pull.stderr.strip()}", file=sys.stderr)
+        print(
+            f"{_COMMAND_LABEL}: pull failed: {pull.stderr.strip()}",
+            file=sys.stderr,
+        )
         return 1
     if pull.stdout.strip():
         print(f"  {pull.stdout.strip().splitlines()[0]}")
@@ -288,7 +299,10 @@ def _deploy_to_chezmoi(written_paths: list[Path], args: argparse.Namespace) -> i
         check=False,
     )
     if push.returncode != 0:
-        print(f"init-skills: push failed: {push.stderr.strip()}", file=sys.stderr)
+        print(
+            f"{_COMMAND_LABEL}: push failed: {push.stderr.strip()}",
+            file=sys.stderr,
+        )
         return 1
     tail = push.stderr.strip() or push.stdout.strip()
     if tail:
@@ -306,11 +320,11 @@ def _deploy_to_chezmoi(written_paths: list[Path], args: argparse.Namespace) -> i
             check=False,
         )
     except FileNotFoundError:
-        print("init-skills: chezmoi not found on PATH", file=sys.stderr)
+        print(f"{_COMMAND_LABEL}: chezmoi not found on PATH", file=sys.stderr)
         return 0
     if apply.returncode != 0:
         print(
-            f"init-skills: chezmoi apply failed: {apply.stderr.strip()}",
+            f"{_COMMAND_LABEL}: chezmoi apply failed: {apply.stderr.strip()}",
             file=sys.stderr,
         )
         return 1
@@ -319,7 +333,7 @@ def _deploy_to_chezmoi(written_paths: list[Path], args: argparse.Namespace) -> i
 
 
 def handle_init_skills_command(args: argparse.Namespace) -> None:
-    """Handle the 'sase init-skills' command."""
+    """Handle the 'sase init skills' command."""
     use_chezmoi = get_use_chezmoi()
     is_tty = sys.stdin.isatty()
     provider_filter: str | None = getattr(args, "provider", None)
@@ -340,7 +354,7 @@ def handle_init_skills_command(args: argparse.Namespace) -> None:
         if shutil.which("prettier") is None:
             if not prettier_warned:
                 print(
-                    "init-skills: prettier not found on PATH; output may not match "
+                    f"{_COMMAND_LABEL}: prettier not found on PATH; output may not match "
                     "chezmoi CI formatting",
                     file=sys.stderr,
                 )

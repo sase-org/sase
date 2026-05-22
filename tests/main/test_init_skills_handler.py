@@ -1,4 +1,4 @@
-"""Tests for ``sase init-skills`` command dispatch."""
+"""Tests for ``sase init skills`` command dispatch."""
 
 from __future__ import annotations
 

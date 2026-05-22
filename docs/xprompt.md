@@ -214,7 +214,7 @@ Hello, {{ user_name }}! Welcome aboard.
 | `input`       | No       | Input parameter definitions (see [Typed Inputs](#typed-inputs))                |
 | `snippet`     | No       | Opt-in to ACE snippet expansion (see [Snippet Field](#snippet-field) below)    |
 | `description` | No       | Human-readable one-line description of what the xprompt does                   |
-| `skill`       | No       | Marks this xprompt as an agent skill source for `sase init-skills` (see below) |
+| `skill`       | No       | Marks this xprompt as an agent skill source for `sase init skills` (see below) |
 | `keywords`    | No       | Trigger terms that append this xprompt as dynamic memory to matching prompts   |
 
 If no front matter is present, the entire file content is the template body and the filename stem is the name.
@@ -287,7 +287,7 @@ VCS workspace management.
 
 By default, a missing or uninitialized `home` ProjectSpec is bootstrapped as a managed empty bare-git project at the
 default `home` paths. To make bare prompts use an existing home/dotfiles bare repository, configure it first with
-`sase init-git home --existing <bare-repo> --clone-dir <checkout-dir>`. Use `#cd:~` when you want a direct
+`sase git init home --existing <bare-repo> --clone-dir <checkout-dir>`. Use `#cd:~` when you want a direct
 home-directory run without VCS workspace management.
 
 Provider-prefixed refs that point at a known project name are preserved as workspace launches even if the matching
@@ -690,7 +690,7 @@ Source: `src/sase/xprompt/snippet_bridge.py`, `src/sase/xprompt/models.py`
 
 ## Skill Field
 
-XPrompts can be marked as agent skill sources by setting the `skill` field in their front matter. The `sase init-skills`
+XPrompts can be marked as agent skill sources by setting the `skill` field in their front matter. The `sase init skills`
 command reads the loaded xprompt catalog, including bundled skill sources and runtime config overlays, to determine
 which xprompts should be rendered into per-provider SKILL.md files and deployed to agent skill directories.
 
@@ -716,7 +716,7 @@ also marks these entries with `is_skill: true`; ACE and editor clients use that 
 such as `/sase_plan` while keeping ordinary xprompts out of slash completion results.
 
 **Workflow:** Edit packaged skill sources in `src/sase/xprompts/skills/`, or define user/runtime skill xprompts through
-the normal xprompt catalog sources, then run `sase init-skills --force`. When `use_chezmoi` is enabled, `init-skills`
+the normal xprompt catalog sources, then run `sase init skills --force`. When `use_chezmoi` is enabled, `init skills`
 commits, pushes, and applies the generated files unless passed `--no-commit`, `--no-push`, or `--no-apply`. Do not edit
 deployed SKILL.md files directly.
 
@@ -732,7 +732,7 @@ Provider plugins declare where generated skills should be written. Built-in targ
 
 ### Bundled Skills
 
-The following skills ship in `src/sase/xprompts/skills/` and are deployed by `sase init-skills`. They are packaged with
+The following skills ship in `src/sase/xprompts/skills/` and are deployed by `sase init skills`. They are packaged with
 sase, included in `sase xprompt list`, and available to prompt completion clients even when a checkout does not have
 local skill files. Coding agents invoke them as `/sase_<name>`:
 

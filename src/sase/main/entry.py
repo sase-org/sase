@@ -159,11 +159,14 @@ def main() -> NoReturn:
 
         handle_file_history_command(args)
 
-    # --- init-git ---
-    if args.command == "init-git":
+    # --- git ---
+    if args.command == "git":
         from sase.workspace_provider.plugins.bare_git_workspace import (
             init_bare_git_project,
         )
+
+        if args.git_subcommand != "init":
+            parser.error(f"unknown git subcommand: {args.git_subcommand}")
 
         project_file = init_bare_git_project(
             project_name=args.project_name,
@@ -174,9 +177,12 @@ def main() -> NoReturn:
         print(f"Initialized git project: {project_file}")
         sys.exit(0)
 
-    # --- init-skills ---
-    if args.command == "init-skills":
+    # --- init ---
+    if args.command == "init":
         from .init_skills_handler import handle_init_skills_command
+
+        if args.init_subcommand != "skills":
+            parser.error(f"unknown init subcommand: {args.init_subcommand}")
 
         handle_init_skills_command(args)
 

@@ -93,7 +93,7 @@ digests. ACE starts axe automatically unless launched with `sase ace --no-axe`.
 | `sase file list`            | Emit JSON filesystem completion candidates.                           | [Editor completion commands](configuration.md#sase-file)         |
 | `sase file-history list`    | Emit recently referenced files for editor completion.                 | [Editor completion commands](configuration.md#sase-file-history) |
 | `sase file-history delete`  | Remove one path from the file-reference history.                      | [Editor completion commands](configuration.md#sase-file-history) |
-| `sase init-skills`          | Generate and deploy agent skill files from xprompt source templates.  | [Bundled skills](xprompt.md#bundled-skills)                      |
+| `sase init skills`          | Generate and deploy agent skill files from xprompt source templates.  | [Bundled skills](xprompt.md#bundled-skills)                      |
 
 Use `#name(...)` for inline xprompt expansion and `#!workflow(...)` for standalone workflow references. Workspace
 references such as `#cd:<path>`, `#git:<project>`, and plugin-provided references are resolved before the prompt or
@@ -135,7 +135,7 @@ GitHub pull requests, and other provider plugins.
 | `sase workspace cleanup`       | Remove stale unclaimed managed checkouts older than the configured TTL.                                 | [Workspace provider](workspace.md)                          |
 | `sase workspace repair`        | Reconcile the workspace registry with the filesystem.                                                   | [Workspace provider](workspace.md)                          |
 | `sase workspace migrate`       | Opt-in move of adjacent checkouts to a managed root, with optional symlink transition and finalization. | [Workspace provider](workspace.md)                          |
-| `sase init-git`                | Initialize a bare-repo-backed git project.                                                              | [ProjectSpec](project_spec.md)                              |
+| `sase git init`                | Initialize a bare-repo-backed git project.                                                              | [ProjectSpec](project_spec.md)                              |
 | `sase mobile gateway start`    | Start the workstation-hosted mobile gateway.                                                            | [Mobile gateway](mobile_gateway.md)                         |
 | `sase mobile agent-bridge`     | Fixed JSON bridge used by the mobile gateway for agent operations.                                      | [Mobile gateway](mobile_gateway.md)                         |
 | `sase mobile helper-bridge`    | Fixed JSON bridge used by the mobile gateway for workflow helper operations.                            | [Mobile gateway](mobile_gateway.md)                         |

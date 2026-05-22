@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+import pytest
+
 from sase.main.parser import create_parser
 
 
@@ -83,3 +85,47 @@ def test_agents_help_renders_sorted_subcommands() -> None:
 
     assert help_commands == sorted(expected_commands)
     assert "{archive,index,kill,names,show,status,tag}" in agents_parser.format_help()
+
+
+def test_init_and_git_namespace_parsers() -> None:
+    """New init and git namespaces parse their migrated leaf commands."""
+    parser = create_parser()
+
+    init_args = parser.parse_args(
+        ["init", "skills", "--dry-run", "--provider", "codex"]
+    )
+    assert init_args.command == "init"
+    assert init_args.init_subcommand == "skills"
+    assert init_args.dry_run is True
+    assert init_args.provider == "codex"
+
+    git_args = parser.parse_args(
+        [
+            "git",
+            "init",
+            "demo",
+            "--bare-dir",
+            "/tmp/demo.git",
+            "--clone-dir",
+            "/tmp/demo",
+            "--existing",
+            "/tmp/existing.git",
+        ]
+    )
+    assert git_args.command == "git"
+    assert git_args.git_subcommand == "init"
+    assert git_args.project_name == "demo"
+    assert git_args.bare_dir == "/tmp/demo.git"
+    assert git_args.clone_dir == "/tmp/demo"
+    assert git_args.existing == "/tmp/existing.git"
+
+
+def test_legacy_init_commands_are_rejected() -> None:
+    """The migrated legacy top-level commands are no longer accepted."""
+    parser = create_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["init-skills", "--dry-run"])
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["init-git", "demo"])

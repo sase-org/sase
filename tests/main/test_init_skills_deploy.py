@@ -1,4 +1,4 @@
-"""Tests for the ``sase init-skills`` chezmoi auto-deploy path."""
+"""Tests for the ``sase init skills`` chezmoi auto-deploy path."""
 
 from __future__ import annotations
 
@@ -228,3 +228,4 @@ def test_deploy_provider_filter_in_commit_message() -> None:
     assert commit_calls, "No commit call observed"
     msg = commit_calls[0][commit_calls[0].index("-m") + 1]
     assert "claude" in msg
+    assert "sase init skills" in msg

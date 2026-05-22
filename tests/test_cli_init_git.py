@@ -1,4 +1,4 @@
-"""Tests for the `sase init-git` CLI subcommand."""
+"""Tests for the `sase git init` CLI subcommand."""
 
 import shutil
 from unittest.mock import patch
@@ -41,7 +41,8 @@ class TestInitGitHandler:
                 "sys.argv",
                 [
                     "sase",
-                    "init-git",
+                    "git",
+                    "init",
                     "bar",
                     "--bare-dir",
                     "/tmp/bare.git",

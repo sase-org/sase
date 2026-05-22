@@ -1122,7 +1122,7 @@ entries where `is_skill` is `true`.
 | `[workflow_name]` | string           | -         | Workflow name to graph. Lists all workflows if omitted. |
 | `-f, --format`    | `mermaid`,`text` | `mermaid` | Output format for the DAG visualization.                |
 
-### `sase init-git`
+### `sase git init`
 
 | Flag              | Values | Default                    | Description                                             |
 | ----------------- | ------ | -------------------------- | ------------------------------------------------------- |

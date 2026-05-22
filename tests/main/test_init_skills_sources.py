@@ -1,4 +1,4 @@
-"""Tests for shipped ``sase init-skills`` source discovery."""
+"""Tests for shipped ``sase init skills`` source discovery."""
 
 from __future__ import annotations
 
@@ -142,7 +142,7 @@ def test_config_defined_skill_is_generated_from_loaded_xprompts(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Config-overlay xprompts with ``skill`` participate in init-skills."""
+    """Config-overlay xprompts with ``skill`` participate in init skills."""
     xprompt = XPrompt(
         name="sase_gmail",
         content="Use gog for Gmail.\n",

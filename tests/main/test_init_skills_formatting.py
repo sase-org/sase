@@ -1,4 +1,4 @@
-"""Tests for generated ``sase init-skills`` Markdown formatting."""
+"""Tests for generated ``sase init skills`` Markdown formatting."""
 
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ def test_handler_output_passes_prettier_check(
 def test_handler_output_is_idempotent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Running init-skills twice produces byte-identical output the second time."""
+    """Running init skills twice produces byte-identical output the second time."""
     stub_under_wrapped_skill(tmp_path, monkeypatch)
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
