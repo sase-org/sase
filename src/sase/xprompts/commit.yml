@@ -1,3 +1,4 @@
+description: Create a normal commit from completed agent changes.
 tags: rollover, commit
 
 environment:

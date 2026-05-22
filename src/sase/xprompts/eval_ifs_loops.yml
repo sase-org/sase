@@ -1,19 +1,26 @@
+description: Exercise workflow conditionals, loops, repeats, and joins.
+
 input:
   - name: run_conditional
     type: bool
     default: true
+    description: Whether conditional test steps should run.
   - name: items
     type: string
     default: '["alpha", "beta", "gamma"]'
+    description: JSON list of item labels used by loop tests.
   - name: ids
     type: string
     default: '[1, 2, 3]'
+    description: JSON list of ids paired with item labels in loop tests.
   - name: max_retries
     type: int
     default: 3
+    description: Number of simulated retry attempts before success.
   - name: max_polls
     type: int
     default: 5
+    description: Number of simulated polling attempts before completion.
 
 steps:
   # 1. Test if: condition - true case

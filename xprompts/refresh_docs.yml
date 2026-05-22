@@ -1,9 +1,19 @@
+description: Launch documentation refresh agents when a project has enough new commits.
 hidden: true
 
 input:
-  project: { type: line, default: "sase" }
-  gh_ref: { type: line, default: "sase" }
-  threshold: { type: int, default: 100 }
+  project:
+    type: line
+    default: "sase"
+    description: SASE project key whose documentation refresh marker should be checked.
+  gh_ref:
+    type: line
+    default: "sase"
+    description: GitHub ref or workspace selector to pass to the launched docs agents.
+  threshold:
+    type: int
+    default: 100
+    description: Minimum commit count since the marker required before launching a refresh.
 
 steps:
   - name: count_commits

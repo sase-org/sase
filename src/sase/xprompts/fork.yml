@@ -1,5 +1,10 @@
+description: Resume context from a prior agent conversation by name.
+
 input:
-  name: { type: word, default: null }
+  name:
+    type: word
+    default: null
+    description: Optional agent name to resume; omitted means use the default resolver.
 
 steps:
   - name: resolve

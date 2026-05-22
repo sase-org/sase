@@ -1,3 +1,5 @@
+description: Run just checks and launch targeted fixer agents for failing gates.
+
 steps:
   - name: _just_install
     hidden: true

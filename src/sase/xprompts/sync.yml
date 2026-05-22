@@ -1,3 +1,5 @@
+description: Sync the current workspace and launch conflict-resolution help if needed.
+
 steps:
   - name: setup
     hidden: true

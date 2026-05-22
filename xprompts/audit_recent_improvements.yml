@@ -1,9 +1,19 @@
+description: Launch an improvement audit agent when a project has enough new commits.
 hidden: true
 
 input:
-  project: { type: line, default: "sase" }
-  gh_ref: { type: line, default: "sase" }
-  threshold: { type: int, default: 200 }
+  project:
+    type: line
+    default: "sase"
+    description: SASE project key whose recent improvement-audit marker should be checked.
+  gh_ref:
+    type: line
+    default: "sase"
+    description: GitHub ref or workspace selector to pass to the launched audit agent.
+  threshold:
+    type: int
+    default: 200
+    description: Minimum commit count since the marker required before launching an audit.
 
 steps:
   - name: count_recent_improvement_audit_commits

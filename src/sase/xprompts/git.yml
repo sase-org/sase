@@ -1,17 +1,22 @@
+description: Check out a git ref in an isolated workspace and show resulting changes.
 tags: vcs, rollover
 
 input:
   - name: git_ref
     type: word
+    description: Git ref, branch, or ChangeSpec name to check out.
   - name: n
     type: int
     default: null
+    description: Optional workspace number to reuse for the checkout.
   - name: release
     type: bool
     default: true
+    description: Whether to release the workspace claim when the workflow finishes.
   - name: workflow_label
     type: word
     default: null
+    description: Optional label used to identify this workflow claim.
 
 steps:
   - name: setup

@@ -1,6 +1,9 @@
+description: Resume context from a specific chat transcript path.
+
 input:
   - name: path
     type: path
+    description: Chat transcript file to load into the next prompt.
 
 steps:
   - name: load_history
@@ -23,4 +26,3 @@ steps:
 
       %xprompts_enabled:true
       # New Query
-

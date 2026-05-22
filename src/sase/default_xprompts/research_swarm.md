@@ -1,7 +1,9 @@
 ---
+description: Launch a small research swarm for a user-provided topic.
 input:
   - name: prompt
     type: text
+    description: Research topic or question for the swarm to investigate.
 ---
 
 %g:research {{ prompt }} #research

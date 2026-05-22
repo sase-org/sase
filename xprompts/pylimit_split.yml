@@ -1,7 +1,11 @@
+description: Launch split agents for Python files that exceed line-count limits.
 hidden: true
 
 input:
-  limits: { type: text, default: "1000 850 700" }
+  limits:
+    type: text
+    default: "1000 850 700"
+    description: Space-separated line-count thresholds passed to the Python file scanner.
 steps:
   - name: launch_split_agents
     hidden: true

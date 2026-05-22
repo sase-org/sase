@@ -1,9 +1,17 @@
+description: Apply accepted mentor review comments to a CL.
 tags: make_mentor_changes
 
 input:
-  accepted_comments_json: text
-  cl_name: word
-  vcs_type: { type: word, default: "hg" }
+  accepted_comments_json:
+    type: text
+    description: JSON array of accepted mentor comments to apply.
+  cl_name:
+    type: word
+    description: CL or ChangeSpec name where the changes should be applied.
+  vcs_type:
+    type: word
+    default: "hg"
+    description: VCS directive prefix to use for the target CL.
 
 steps:
   - name: render_changes

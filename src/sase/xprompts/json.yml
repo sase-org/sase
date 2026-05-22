@@ -1,7 +1,10 @@
+description: Require the agent response to satisfy a JSON schema.
 tags: rollover
 
 input:
-  schema: text
+  schema:
+    type: text
+    description: JSON schema or shorthand schema expression to enforce.
 steps:
   - name: setup
     hidden: true

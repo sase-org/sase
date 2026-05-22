@@ -1,17 +1,22 @@
 ---
 name: fix_hook
+description: Fix a failing hook command using its captured output file.
 tags: fix_hook
 input:
   - name: hook_command
     type: line
+    description: Hook command that is currently failing.
   - name: output_file
     type: path
+    description: File containing the most recent failing command output.
   - name: cl_name
     type: word
     default: "null"
+    description: Optional ChangeSpec or CL name to attach to the fix workflow.
   - name: vcs_type
     type: word
     default: "hg"
+    description: VCS directive prefix to use when a CL name is provided.
 ---
 
 {% if cl_name != "null" %}#{{ vcs_type }}({{ cl_name }}, workflow_label="fix_hook")

@@ -1,11 +1,24 @@
+description: Run a structured mentor review against a CL.
 tags: mentor
 
 input:
-  role: text
-  focus_areas_json: text
-  cl_name: { type: word, default: "null" }
-  vcs_type: { type: word, default: "hg" }
-  schema: text
+  role:
+    type: text
+    description: Mentor role statement that defines the review perspective.
+  focus_areas_json:
+    type: text
+    description: JSON array of focus areas the mentor should review.
+  cl_name:
+    type: word
+    default: "null"
+    description: Optional CL or ChangeSpec name to include in the review prompt.
+  vcs_type:
+    type: word
+    default: "hg"
+    description: VCS directive prefix to use when a CL name is provided.
+  schema:
+    type: text
+    description: JSON output schema the mentor response must satisfy.
 
 steps:
   - name: render_focus_areas

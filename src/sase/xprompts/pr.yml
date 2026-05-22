@@ -1,14 +1,18 @@
+description: Create or update a pull request from completed agent changes.
 tags: rollover
 
 input:
   - name: name
     type: word
+    description: Pull request or ChangeSpec name to create or update.
   - name: bug_id
     type: int
     default: 0
+    description: Optional bug id to attach to the pull request.
   - name: status
     type: word
     default: "draft"
+    description: Initial pull request status to request.
 
 environment:
   SASE_COMMIT_METHOD: create_pull_request

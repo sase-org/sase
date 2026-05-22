@@ -1,11 +1,14 @@
+description: Switch the agent into a resolved SASE workspace directory.
 tags: vcs
 
 input:
   - name: cd_ref
     type: word
+    description: Workspace, project, or path reference to resolve.
   - name: workflow_label
     type: word
     default: null
+    description: Optional label used to identify this workspace claim.
 
 steps:
   - name: setup

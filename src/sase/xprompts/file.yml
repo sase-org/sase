@@ -1,11 +1,14 @@
+description: Write an agent response to a named markdown artifact file.
 tags: rollover
 
 input:
   - name: name
     type: word
+    description: Short label used to name the generated markdown file.
   - name: output_type
     type: line
     default: "response"
+    description: Human-readable kind of content the agent should write.
 
 steps:
   - name: generate_path

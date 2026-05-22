@@ -1,3 +1,5 @@
+description: Exercise workflow parallel execution behavior.
+
 steps:
   # 1. Basic parallel execution - Two steps that sleep and complete in parallel
   - name: basic_parallel
