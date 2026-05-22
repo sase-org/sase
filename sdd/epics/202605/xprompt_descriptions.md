@@ -1,6 +1,7 @@
 ---
 bead_id: sase-3w
 tier: epic
+status: done
 ---
 # Plan: Optional descriptions for xprompts and xprompt inputs
 
