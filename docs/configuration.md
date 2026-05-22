@@ -293,7 +293,7 @@ sibling_repos:
 
 | Field                                | Type   | Default    | Description                                                                                                  |
 | ------------------------------------ | ------ | ---------- | ------------------------------------------------------------------------------------------------------------ |
-| `sibling_repos[].name`               | string | required   | Stable alias shown in prompts and used in generated environment variable names.                              |
+| `sibling_repos[].name`               | string | required   | Stable alias used in generated environment variable names and memory summaries.                              |
 | `sibling_repos[].path`               | string | required   | Primary checkout path. Relative paths resolve from the project's primary workspace.                          |
 | `sibling_repos[].description`        | string | required   | Human-readable purpose used when generating agent memory for the sibling repository.                         |
 | `sibling_repos[].workspace.strategy` | string | `"suffix"` | `suffix` exposes a workspace-matched checkout for workspace `N`; `none` always exposes the primary checkout. |
@@ -302,7 +302,7 @@ For `suffix` siblings, workspace numbers `0` and `1` use the primary checkout. H
 workspace-matched sibling checkouts, materializing the checkout through the same `workspace.root` policy when the
 workspace provider can do so. With explicit `workspace.root: adjacent` that path is a legacy sibling such as
 `sase-core_10`; with the default `xdg-state` it lives under the managed state root. SASE passes the resolved paths into
-agent prompts and environment variables:
+environment variables and agent metadata:
 
 | Variable                                   | Description                                       |
 | ------------------------------------------ | ------------------------------------------------- |
@@ -815,11 +815,11 @@ Existing adjacent checkouts are not moved automatically by the default. Run `sas
 carry legacy `<primary>_<num>/` directories into the managed root, or set `workspace.root: adjacent` explicitly to keep
 the old sibling layout.
 
-`sase workspace open NUM --clean` is an explicit preparation command for a checkout you plan to use outside a normal
-`sase run` launch. It uses the same root policy when it materializes the checkout, backs up uncommitted local changes
-through the active VCS provider, cleans the checkout, checks out and syncs the provider default parent revision, and
-prints the resulting path. For manual scratch work, choose a claim-range number such as `10`; `#0` is the primary
-checkout and `#1` through `#9` are reserved compatibility numbers.
+`sase workspace open NUM` is an explicit preparation command for a checkout you plan to use outside a normal `sase run`
+launch. It uses the same root policy when it materializes the checkout, backs up uncommitted local changes through the
+active VCS provider, cleans the checkout, checks out and syncs the provider default parent revision, and prints the
+resulting path. For manual scratch work, choose a claim-range number such as `10`; `#0` is the primary checkout and `#1`
+through `#9` are reserved compatibility numbers.
 
 Source: `src/sase/default_config.yml`, `src/sase/workspace_provider/store.py`
 
@@ -1160,27 +1160,27 @@ Generates and deploys agent skill files from xprompt sources marked with the `sk
 Workspace commands inspect and maintain the managed checkout registry for the inferred project, or for the project named
 by `-p/--project`.
 
-| Command                  | Flag / argument            | Values       | Description                                                                                                                            |
-| ------------------------ | -------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase workspace list`    | `-p, --project`            | project name | Query a project other than the one inferred from the current directory.                                                                |
-| `sase workspace list`    | `-j, --json`               | flag         | Emit a machine-readable JSON object.                                                                                                   |
-| `sase workspace path`    | `workspace_num`            | integer      | Workspace number to resolve; `0` is the primary checkout and managed claims normally start at `10`.                                    |
-| `sase workspace path`    | `-p, --project`            | project name | Query a project other than the inferred one.                                                                                           |
-| `sase workspace open`    | `workspace_num`            | integer      | Workspace number to print or prepare.                                                                                                  |
-| `sase workspace open`    | `-p, --project`            | project name | Query a project other than the inferred one.                                                                                           |
-| `sase workspace open`    | `-P, --print`              | flag         | Explicitly print the path; this is also the current default behavior.                                                                  |
-| `sase workspace open`    | `-c, --clean`              | flag         | Materialize if needed, back up local changes through the VCS provider, clean, sync to the default parent revision, and print the path. |
-| `sase workspace cleanup` | `-p, --project`            | project name | Clean a project other than the inferred one.                                                                                           |
-| `sase workspace cleanup` | `-s, --stale`              | flag         | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`.                                                            |
-| `sase workspace cleanup` | `-i, --include-shares`     | flag         | Also consider workflow-share managed checkouts for removal.                                                                            |
-| `sase workspace cleanup` | `-n, --dry-run`            | flag         | Report planned removals without touching the filesystem.                                                                               |
-| `sase workspace repair`  | `-p, --project`            | project name | Repair a project other than the inferred one.                                                                                          |
-| `sase workspace repair`  | `-n, --dry-run`            | flag         | Report registry/filesystem reconciliation without writing.                                                                             |
-| `sase workspace migrate` | `-p, --project`            | project name | Migrate a project other than the inferred one.                                                                                         |
-| `sase workspace migrate` | `-t, --to`                 | `xdg-state`  | Target managed root policy for migration.                                                                                              |
-| `sase workspace migrate` | `-s, --symlink-transition` | flag         | Leave `<primary>_<num>` symlinks pointing to migrated managed checkouts.                                                               |
-| `sase workspace migrate` | `-f, --finalize`           | flag         | Remove transition symlinks left behind by a prior migration.                                                                           |
-| `sase workspace migrate` | `-n, --dry-run`            | flag         | Report planned migration or finalization actions without touching files or the registry.                                               |
+| Command                  | Flag / argument            | Values       | Description                                                                                         |
+| ------------------------ | -------------------------- | ------------ | --------------------------------------------------------------------------------------------------- |
+| `sase workspace list`    | `-p, --project`            | project name | Query a project other than the one inferred from the current directory.                             |
+| `sase workspace list`    | `-j, --json`               | flag         | Emit a machine-readable JSON object.                                                                |
+| `sase workspace path`    | `workspace_num`            | integer      | Workspace number to resolve; `0` is the primary checkout and managed claims normally start at `10`. |
+| `sase workspace path`    | `-p, --project`            | project name | Query a project other than the inferred one.                                                        |
+| `sase workspace open`    | `workspace_num`            | integer      | Workspace number to materialize, prepare, and print.                                                |
+| `sase workspace open`    | `-p, --project`            | project name | Query a project other than the inferred one.                                                        |
+| `sase workspace open`    | `-P, --print`              | flag         | Explicitly print the prepared path; this is also the current default behavior.                      |
+| `sase workspace open`    | `-c, --clean`              | flag         | Compatibility flag for the default prepare/clean/sync behavior.                                     |
+| `sase workspace cleanup` | `-p, --project`            | project name | Clean a project other than the inferred one.                                                        |
+| `sase workspace cleanup` | `-s, --stale`              | flag         | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`.                         |
+| `sase workspace cleanup` | `-i, --include-shares`     | flag         | Also consider workflow-share managed checkouts for removal.                                         |
+| `sase workspace cleanup` | `-n, --dry-run`            | flag         | Report planned removals without touching the filesystem.                                            |
+| `sase workspace repair`  | `-p, --project`            | project name | Repair a project other than the inferred one.                                                       |
+| `sase workspace repair`  | `-n, --dry-run`            | flag         | Report registry/filesystem reconciliation without writing.                                          |
+| `sase workspace migrate` | `-p, --project`            | project name | Migrate a project other than the inferred one.                                                      |
+| `sase workspace migrate` | `-t, --to`                 | `xdg-state`  | Target managed root policy for migration.                                                           |
+| `sase workspace migrate` | `-s, --symlink-transition` | flag         | Leave `<primary>_<num>` symlinks pointing to migrated managed checkouts.                            |
+| `sase workspace migrate` | `-f, --finalize`           | flag         | Remove transition symlinks left behind by a prior migration.                                        |
+| `sase workspace migrate` | `-n, --dry-run`            | flag         | Report planned migration or finalization actions without touching files or the registry.            |
 
 ### `sase bead`
 

@@ -77,7 +77,7 @@ sase agents index status  # check ACE's fast Agents-tab artifact index
 sase bead onboard         # see the bead issue-tracking quick start
 sase workspace list       # inspect the current project's numbered workspace view
 sase workspace path 10    # preview where managed workspace #10 would live
-sase workspace open 10 -c # create/refresh workspace #10, then print its path
+sase workspace open 10    # create/refresh workspace #10, then print its path
 ```
 
 ## Operational model
@@ -91,15 +91,15 @@ SASE keeps durable state outside any one chat session:
 - **Workspace roots** - By default, numbered checkouts live under the platform state directory in a project-keyed
   managed root. Set `workspace.root: adjacent` to keep the legacy `<primary>_<num>/` sibling layout, or use an absolute
   path for a custom managed-root base; `sase workspace list`, `path`, `repair`, `cleanup`, and `migrate` inspect and
-  maintain that view. Normal `sase run` launches prepare their own workspaces; use `sase workspace open 10 --clean` only
-  when you want to prepare a specific checkout for an external shell, editor, or debugging session.
+  maintain that view. Normal `sase run` launches prepare their own workspaces; use `sase workspace open 10` when you
+  want to prepare a specific checkout for an external shell, editor, or debugging session.
 - **Provider retries** - The LLM provider layer can retry matching provider errors, preserve the workspace across
   retries, and fall back to another model when configured. Claude adds built-in matching for context-limit,
   socket-close, and Claude CLI API-error output; per-provider retry counts, waits, and fallback policy live under
   `llm_provider.retry`.
 - **Configured sibling repos** - Project and user config can expose related repositories to launched agents as
-  workspace-matched directories. SASE passes those paths in the prompt and environment so cross-repo work uses the same
-  numbered workspace as the main checkout, while singleton repos such as chezmoi can opt out with
+  workspace-matched directories. SASE records those paths in environment variables and agent metadata so cross-repo work
+  uses the same numbered workspace as the main checkout, while singleton repos such as chezmoi can opt out with
   `workspace.strategy: none`.
 - **Commit finalization** - After a successful provider invocation inside a SASE-launched agent session, the
   provider-neutral finalizer checks the main workspace and configured Git sibling repos for uncommitted changes. If

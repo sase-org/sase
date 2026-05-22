@@ -303,25 +303,25 @@ non-adjacent roots. All subcommands accept `-p/--project NAME` to override the p
 inferred from the current directory via the nearest managed-checkout marker, the workspace provider hook, and finally a
 scan of `~/.sase/projects/`.
 
-| Command                                                                | Description                                                                                                                                                                                                                     |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase workspace list [-j/--json]`                                      | List the registry view for the project, root policy, project key, root path, and primary `#0`.                                                                                                                                  |
-| `sase workspace path NUM`                                              | Print the checkout path for `NUM`; for claimed or registered non-primary workspaces, create the checkout if it is missing.                                                                                                      |
-| `sase workspace open NUM [-c/--clean]`                                 | Print the checkout path. With `--clean`, materialize the checkout if needed, stash or otherwise back up local changes through the VCS provider, clean it, sync it to the provider default parent revision, then print the path. |
-| `sase workspace cleanup -s/--stale`                                    | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`. `-n/--dry-run` previews.                                                                                                                            |
-| `sase workspace repair [-n]`                                           | Drop registry entries whose checkout is gone; re-materialize missing registered checkouts that still have live RUNNING claims.                                                                                                  |
-| `sase workspace migrate --to xdg-state [-s/--symlink-transition] [-n]` | Move existing `<primary>_<num>` adjacent checkouts under the managed `xdg-state` root and register them. Exits non-zero on skipped refusals.                                                                                    |
-| `sase workspace migrate --finalize`                                    | Remove `<primary>_<num>` transition symlinks once workflows have adapted to the managed paths.                                                                                                                                  |
+| Command                                                                | Description                                                                                                                                                                            |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase workspace list [-j/--json]`                                      | List the registry view for the project, root policy, project key, root path, and primary `#0`.                                                                                         |
+| `sase workspace path NUM`                                              | Print the configured checkout path for `NUM` without cloning or preparing it.                                                                                                          |
+| `sase workspace open NUM [-c/--clean]`                                 | Materialize the checkout if needed, stash or otherwise back up local changes through the VCS provider, clean it, sync it to the provider default parent revision, then print the path. |
+| `sase workspace cleanup -s/--stale`                                    | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`. `-n/--dry-run` previews.                                                                                   |
+| `sase workspace repair [-n]`                                           | Drop registry entries whose checkout is gone; re-materialize missing registered checkouts that still have live RUNNING claims.                                                         |
+| `sase workspace migrate --to xdg-state [-s/--symlink-transition] [-n]` | Move existing `<primary>_<num>` adjacent checkouts under the managed `xdg-state` root and register them. Exits non-zero on skipped refusals.                                           |
+| `sase workspace migrate --finalize`                                    | Remove `<primary>_<num>` transition symlinks once workflows have adapted to the managed paths.                                                                                         |
 
-`path` and plain `open` always resolve `#0` to the primary checkout. For other numbers, they only materialize when the
-workspace is already represented by a registry entry or an active RUNNING-field claim; otherwise they print the
-configured path without cloning. Use this form when you only need to inspect the path.
+`path` always resolves `#0` to the primary checkout. For other numbers, it prints the configured path without cloning.
+Use this command when you only need to inspect the path.
 
-`open --clean` is intentionally more forceful. It materializes the requested checkout, backs up uncommitted local
-changes through the normal workspace-preparation path, cleans it, checks out the active VCS provider's default parent
-revision, runs the provider's workspace sync hook when available, and then prints the path. Use a claim-range number
-such as `10` when handing a numbered checkout to an external shell, editor, or debugging tool. `#0` is the primary
-checkout, and `#1` through `#9` are reserved compatibility numbers rather than good choices for new manual checkouts.
+`open` is intentionally more forceful. It materializes the requested checkout, backs up uncommitted local changes
+through the normal workspace-preparation path, cleans it, checks out the active VCS provider's default parent revision,
+runs the provider's workspace sync hook when available, and then prints the path. `--clean` is accepted as a
+compatibility flag for this default behavior. Use a claim-range number such as `10` when handing a numbered checkout to
+an external shell, editor, or debugging tool. `#0` is the primary checkout, and `#1` through `#9` are reserved
+compatibility numbers rather than good choices for new manual checkouts.
 
 `cleanup` and `repair` skip workspace `#0` and any workspace number with an active claim. `cleanup --include-shares`
 opts workflow-share checkouts into the same cleanup pass.

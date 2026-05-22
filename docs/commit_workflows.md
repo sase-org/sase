@@ -401,8 +401,8 @@ Qwen, OpenCode, and provider plugins share the same behavior.
 Configured sibling repos are resolved to workspace-matched directories before agent launch. For example, an agent in
 `sase_10` sees a `../sase-core` sibling as `sase-core_10` when that checkout is available or can be materialized. Repos
 configured with `workspace.strategy: none` are checked at their primary path instead; this is useful for singleton repos
-such as chezmoi. The current sibling dirty-check path is Git-specific: non-Git sibling paths can still be shown to the
-agent through prompts and environment variables, but the finalizer does not enforce them as dirty targets.
+such as chezmoi. The current sibling dirty-check path is Git-specific: non-Git sibling paths can still be exposed to the
+agent through environment variables and metadata, but the finalizer does not enforce them as dirty targets.
 
 The `sase_commit_stop_hook` script remains as a compatibility-only provider-native hook for older external settings and
 manual hook installs. Active SASE-launched runs do not require runtime-specific stop-hook configuration. The
