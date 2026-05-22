@@ -91,6 +91,16 @@ def test_commit_skill_sources_do_not_reference_legacy_bead_flag(
     assert "sase bead list --status=in_progress" not in body
 
 
+def test_git_commit_skill_invokes_observable_wrapper() -> None:
+    """The git commit skill should call the wrapper, not raw ``sase commit``."""
+    src = get_sase_package_xprompts_dir() / "skills" / "sase_git_commit.md"
+    body = src.read_text(encoding="utf-8")
+    assert "sase_git_commit -M commit_message.md" in body
+    assert "sase_git_commit --resume" in body
+    assert "sase commit -M commit_message.md" not in body
+    assert "sase commit --resume" not in body
+
+
 def test_config_defined_skill_is_generated_from_loaded_xprompts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

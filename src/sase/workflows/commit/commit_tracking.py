@@ -225,8 +225,14 @@ def write_result_marker(
     if not artifacts_dir:
         return
 
+    run_id = os.environ.get("SASE_AGENT_TIMESTAMP", "").strip()
+    if not run_id:
+        run_id = os.path.basename(os.path.normpath(artifacts_dir))
+
     marker = {
         "method": method,
+        "run_id": run_id,
+        "cwd": os.getcwd(),
         "result": result,
         "commit_result": result,
         "message": payload.get("message", ""),

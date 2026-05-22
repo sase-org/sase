@@ -1,6 +1,7 @@
 """Tests for CommitWorkflow result markers, PR body, commit entries, and plan handling."""
 
 import json
+import os
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -45,6 +46,8 @@ class TestWriteResultMarker:
             data = json.loads(marker_path.read_text())
             assert data == {
                 "method": "create_commit",
+                "run_id": Path(tmpdir).name,
+                "cwd": os.getcwd(),
                 "result": "abc123",
                 "commit_result": "abc123",
                 "message": "fix: bug",
@@ -80,6 +83,22 @@ class TestWriteResultMarker:
             data = json.loads((Path(tmpdir) / "commit_result.json").read_text())
             assert data["entry_id"] == "entry_42"
             assert data["commit_entry_id"] == "entry_42"
+
+    def test_writes_agent_run_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            payload = {"message": "fix: bug"}
+            with patch.dict(
+                "os.environ",
+                {
+                    "SASE_ARTIFACTS_DIR": tmpdir,
+                    "SASE_AGENT_TIMESTAMP": "20260522112233",
+                },
+            ):
+                write_result_marker("create_commit", payload, None, "abc123", None)
+
+            data = json.loads((Path(tmpdir) / "commit_result.json").read_text())
+            assert data["run_id"] == "20260522112233"
+            assert data["cwd"] == os.getcwd()
 
     def test_does_not_update_agent_meta_with_graph_relationships(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
