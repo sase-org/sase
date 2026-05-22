@@ -13,6 +13,7 @@ from textual.containers import VerticalScroll
 from textual.widgets import Label, Static
 
 from sase.ace.hints import build_editor_args
+from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
 from sase.ace.tui.graphics import (
     ImageRenderContext,
     image_render_context,
@@ -160,6 +161,22 @@ class NotificationAttachmentMixin:
                 notification.files
             )
             self._display_file(notification)
+
+    def action_copy_file_path(self: Any) -> None:
+        """Copy the currently displayed attachment path to the clipboard."""
+        notification = self._get_highlighted_notification()
+        if not notification or not notification.files:
+            self.notify("No file path to copy", severity="warning")
+            return
+
+        if self._current_file_index >= len(notification.files):
+            self._current_file_index = 0
+
+        path = self._shorten_path(notification.files[self._current_file_index])
+        if copy_to_system_clipboard(path):
+            self.notify(f"Copied: {path}")
+        else:
+            self.notify("Failed to copy to clipboard", severity="error")
 
     def action_scroll_file_down(self: Any) -> None:
         """Scroll the file content down by half a page."""
