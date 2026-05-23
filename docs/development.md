@@ -145,6 +145,7 @@ The repository is organized around the CLI entry point, operational subsystems, 
 | `src/sase/xprompt/`            | XPrompt expansion, directives, workflow loading, execution, tracing, explaining, and graphing.         |
 | `src/sase/xprompts/`           | Bundled xprompt templates, workflows, and schemas shipped with the package.                            |
 | `src/sase/workflows/`          | Change lifecycle workflows for commit, mentor, CRS, accept, and rewind operations.                     |
+| `src/sase/memory/`             | Memory inventory, audited read logs, dynamic memory, and proposal write/review flows.                  |
 | `src/sase/core/`               | Python facade and stable wire records for operations served by `sase_core_rs`.                         |
 | `src/sase/bead/`               | Python host layer for bead storage discovery, CLI integration, and epic/legend launch flow.            |
 | `src/sase/sdd/`                | Spec-driven development file and bead integration helpers.                                             |

@@ -146,8 +146,8 @@ The CLs tab in [ACE](../../ace.md) is built around ChangeSpec navigation. The hi
 
 - **Grouping (`o` / `O`)** cycles the L0 bucket through `BY_PROJECT`, `BY_DATE`, and `BY_STATUS`. Sibling workspaces
   (`foobar_1` / `foobar_2`) share an L1 banner inside each L0 bucket.
-- **Tree navigation (`<` / `>` / `~`)** walks ancestor / child / sibling CLs. `Ctrl+O` / `Ctrl+K` jump back and forward
-  in CL history. `` ` `` (backtick) is jump-all across every tab.
+- **Tree navigation (`<` / `>` / `~`)** walks ancestor / child / sibling CLs. `Ctrl+R` / `Ctrl+K` jump back and forward
+  in CL history. `Ctrl+O` is the fast current-tab entry jump, and `` ` `` (backtick) is jump-all across every tab.
 - **CL actions** are mostly one-letter: `a` accept proposal, `C` / `c1`–`c9` checkout, `d` diff, `e` edit, `f` hooks,
   `M` mail, `m` mark, `n` rename, `R` rewind, `s` status, `Y` sync.
 - **Fold modes** (`z` prefix): `z c` cycles COMMITS, `z h` cycles HOOKS, `z m` cycles MENTORS, `z t` cycles TIMESTAMPS;

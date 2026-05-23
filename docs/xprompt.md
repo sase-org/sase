@@ -644,6 +644,10 @@ their stdout. To prevent environment-derived text (e.g. file paths emitted by `$
 spurious matches, every `$(...)` span — including nested parentheses — is masked to spaces before keyword matching runs.
 Escaped `\$(...)` is preserved as literal text and remains eligible for matching.
 
+New long-term memory should go through the reviewed proposal flow: agents create candidates with `sase memory write`,
+and humans approve, edit, or reject them with `sase memory review`. See [Memory](memory.md#propose-memory) for the
+proposal contract and review commands.
+
 ## Snippet Field
 
 XPrompts can opt-in to ACE TUI snippet expansion by setting the `snippet` field in their front matter. When set, the
@@ -970,6 +974,15 @@ Named `%wait` dependencies unblock only after the newest matching agent run has 
 For a multi-agent workflow name, the workflow root and every child agent for that root must complete successfully.
 Failed, killed, crashed, still-running, malformed, or missing `done.json` artifacts do not satisfy the wait; the
 dependent agent stays parked until a later successful run of the same dependency name appears.
+
+When a launch has exactly one explicit `%wait:<name>` dependency and no explicit `%name`, SASE can allocate a derived
+name before spawning the waiting agent: `<name>.w1`, `<name>.w2`, and so on, using the first free slot. Multi-value
+waits, bare `%wait`, and prompts whose name depends on unresolved xprompt expansion do not get a parent-side derived
+name. Repeat launches reuse this rule, then chain later repeat slots with `%wait:<previous-slot-name>`.
+
+If a prompt includes both `#fork`/`#resume` and `%wait`, the fork-derived `.f<N>` name takes precedence over the
+wait-derived `.w<N>` name. The wait still controls launch ordering, but the planned agent name follows the resume/fork
+lineage.
 
 The `%time` directive (alias `%t`) defers launch by a duration or until an absolute wall-clock time:
 

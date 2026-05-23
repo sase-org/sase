@@ -47,8 +47,8 @@ home-level `use_chezmoi` deployment. `sase init memory` remains a compatibility 
 | `sase memory`                         | Alias for `sase memory list`.                                                            |
 | `sase memory list`                    | Inspect loaded, referenced, available, and missing memory files for the current root.    |
 | `sase memory read <path>`             | Print one `memory/long/*.md` file and append an attributable audit event.                |
-| `sase memory write`                   | Propose a long-term memory file for user review.                                         |
-| `sase memory review`                  | List, inspect, approve, edit, or reject memory proposals.                                |
+| `sase memory write`                   | Create an attributable long-term memory proposal for human review.                       |
+| `sase memory review`                  | List, inspect, approve, edit, or reject pending memory proposals.                        |
 | `sase memory log`                     | Summarize audited long-term memory reads.                                                |
 | `sase memory log --include proposals` | Include proposal and review events in the memory audit surface.                          |
 | `sase memory log --path <path>`       | Show a path-level summary and matching individual read events.                           |
@@ -113,6 +113,9 @@ command fail so important agent context is not silently ignored.
 The dashboard includes approximate local token estimates. It reports discoverable long-term sources, but it does not
 generate prompt-dependent `.sase/memory/` files; those are written only during an agent launch when keyword-tagged
 long-term memory matches the prompt.
+
+For day-to-day read/write operations, including audited reads and reviewed long-term memory proposals, see
+[Memory](memory.md).
 
 ## Memory Read Audit Log
 

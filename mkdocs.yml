@@ -13,6 +13,7 @@ nav:
   - Home: index.md
   - The Basics:
       - Initialization: init.md
+      - Memory: memory.md
       - ACE TUI: ace.md
       - AXE Automation: axe.md
       - Spec-Driven Development: sdd.md

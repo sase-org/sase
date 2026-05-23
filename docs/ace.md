@@ -62,8 +62,9 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 | `j` / `k`           | Move to next / previous visible row (banner at fold `< L2`, CL at the leaf level)  |
 | `<` / `>` / `~`     | Navigate to ancestor / child / sibling CL                                          |
 | `'`                 | Jump to entry by hint character (current tab); hints land on collapsed banners too |
+| `Ctrl+O`            | Fast jump: jump back if possible, otherwise jump to the first current-tab hint     |
 | `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))              |
-| `Ctrl+O` / `Ctrl+K` | Jump back / forward in CL history                                                  |
+| `Ctrl+R` / `Ctrl+K` | Jump back / forward in CL history                                                  |
 | `o` / `O`           | Cycle CL grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`)  |
 | `g` / `G`           | Scroll detail panel to top / bottom                                                |
 | `Ctrl+D` / `Ctrl+U` | Scroll detail panel down / up (half page)                                          |
@@ -263,6 +264,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `j` / `k`           | Move to next / previous visible row (banner at fold `< L3`, agent at `L3`)                            |
 | `J` / `K`           | Cycle focus across tag side panels (forward / reverse)                                                |
 | `'`                 | Jump to entry by hint character (current tab); on the Agents tab, hints land on collapsed banners too |
+| `Ctrl+O`            | Fast jump: jump back if possible, otherwise jump to the first current-tab hint                        |
 | `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                 |
 | `o` / `O`           | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                          |
 | `g`                 | Scroll to top (file, tools, or metadata panel)                                                        |
@@ -1020,6 +1022,8 @@ Both jump modals support a jump-back feature for toggling between two entries:
   toggling between two entries across tabs.
 - **Apostrophe jump-back**: Pressing `'` twice (`''`) in the single-tab entry jump mode jumps back to the previously
   jumped-from entry. The footer shows a "JUMP" mode indicator with `' back` when a target exists.
+- **Fast jump**: `Ctrl+O` runs the same current-tab jump-back path without painting hints first; when no jump-back
+  target exists, it selects the first current-tab hint.
 
 The single-tab variant (`'` apostrophe) shows entries only from the current tab with the same hint-character navigation.
 
@@ -1252,6 +1256,9 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   canonical plan-family `role_suffix` values: `-plan` renders as `PLANNER`, `-code` as `CODER`, `-q` as `QUESTIONS`,
   `-epic` as `EPIC`, `-legend` as `LEGEND`, `-commit` as `COMMIT`, and numeric feedback suffixes such as `-2` as
   `PLANNER (round 2)`. Legacy dotted suffixes render the same way.
+- **STEP METADATA**: workflow step outputs with additional `meta_*` keys are grouped under a dedicated header. The
+  special routing keys `meta_project`, `meta_changespec`, and `meta_workspace` are promoted into the normal header
+  fields; other metadata keys are title-cased and shown in this section.
 
 When the file or tools panel is empty, the `g`/`G` keys automatically fall back to scrolling the metadata panel.
 

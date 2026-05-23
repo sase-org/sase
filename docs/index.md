@@ -83,6 +83,18 @@ title: Structured Agentic Software Engineering
   </article>
 
   <article class="sase-card">
+  <h3>I need shared agent memory</h3>
+
+  <p>
+    Use short-term memory for always-loaded instructions, long-term keyworded context for prompt-dependent retrieval,
+    and reviewed proposals for agent-suggested updates.
+  </p>
+
+<a href="memory/">Open memory</a>
+
+  </article>
+
+  <article class="sase-card">
   <h3>I want reusable agent workflows</h3>
 
   <p>
