@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-22 21:58:04
-status: wip
+status: done
 prompt: sdd/prompts/202605/sase_init_onboarding.md
 bead_id: sase-3y
 tier: epic
