@@ -1,6 +1,8 @@
 """Tests for the ace TUI keymap registry."""
 
 from dataclasses import fields
+from pathlib import Path
+from unittest.mock import patch
 
 from sase.ace.tui.keymaps import (
     AppKeymaps,
@@ -468,6 +470,34 @@ def test_leader_mode_marks_all_unread_done_agents_read_with_u() -> None:
     """LeaderModeKeymaps default binds mark-all-read to ``,u``."""
     reg = load_keymap_registry({})
     assert reg.leader_mode.keys["mark_all_unread_done_agents_read"] == "u"
+
+
+def test_merged_default_config_marks_all_unread_done_agents_read_with_u(
+    tmp_path: Path,
+) -> None:
+    """Production-style merged defaults also bind mark-all-read to ``,u``."""
+    from sase.config.core import load_merged_config
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", tmp_path / "empty_config"),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local_config"),
+        patch("sase.config.core._load_plugin_configs", return_value=[]),
+    ):
+        merged = load_merged_config()
+
+    ace_cfg = merged["ace"]
+    assert isinstance(ace_cfg, dict)
+    reg = load_keymap_registry(ace_cfg)
+    assert reg.leader_mode.keys["mark_all_unread_done_agents_read"] == "u"
+    assert reg.app.toggle_agent_unread == "U"
+
+    agent_pairs = {
+        (key, label)
+        for _section, bindings in agents_bindings(reg)
+        for key, label in bindings
+    }
+    assert (",u", "Mark all unread done agents read") in agent_pairs
+    assert (",U", "Mark all unread done agents read") not in agent_pairs
 
 
 def test_leader_mode_includes_prompt_history_edit_first() -> None:
