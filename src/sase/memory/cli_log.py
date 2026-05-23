@@ -20,10 +20,16 @@ from sase.memory.read_log import (
     MemoryReadEvent,
     filter_memory_read_events,
     read_memory_read_events,
+    summarize_memory_reads_by_agent,
     summarize_memory_reads_by_path,
 )
 
 _REASON_PREVIEW_WIDTH = 72
+_ID_ERROR_MATCH_LIMIT = 5
+
+
+class _MemoryLogLookupError(ValueError):
+    """Raised when a requested memory read event cannot be selected."""
 
 
 def handle_memory_log_command(
@@ -35,11 +41,33 @@ def handle_memory_log_command(
     events = read_memory_read_events(project=project_name)
     path_filter = getattr(args, "path", None)
     agent_filter = getattr(args, "agent", None)
+    read_id = getattr(args, "id", None)
     filtered_events = filter_memory_read_events(
         events,
         canonical_path=path_filter,
         agent_name=agent_filter,
     )
+
+    if _normalized_filter(read_id) is not None:
+        try:
+            event = _select_memory_read_event(filtered_events, read_id)
+        except _MemoryLogLookupError as exc:
+            print(f"sase memory log: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+        if getattr(args, "json", False):
+            json.dump(asdict(event), sys.stdout, indent=2, sort_keys=True)
+            sys.stdout.write("\n")
+            return
+
+        _render_memory_log_event(
+            event,
+            console=console,
+            project_name=project_name,
+            path_filter=path_filter,
+            agent_filter=agent_filter,
+        )
+        return
 
     if getattr(args, "json", False):
         payload = _build_memory_log_summary_payload(
@@ -113,7 +141,7 @@ def _build_memory_log_summary_dashboard(
     agent_filter: str | None = None,
 ) -> Group:
     """Build the static Rich dashboard for the memory-read summary."""
-    return Group(
+    panels: list[Panel] = [
         _summary_panel(
             events,
             project_name=project_name,
@@ -125,7 +153,12 @@ def _build_memory_log_summary_dashboard(
             path_filter=path_filter,
             agent_filter=agent_filter,
         ),
-    )
+    ]
+    if _normalized_filter(agent_filter) is not None:
+        panels.append(_agents_panel(events))
+    if _is_drilldown(path_filter=path_filter, agent_filter=agent_filter):
+        panels.append(_events_panel(events))
+    return Group(*panels)
 
 
 def _summary_panel(
@@ -192,6 +225,136 @@ def _paths_panel(
     )
 
 
+def _agents_panel(events: tuple[MemoryReadEvent, ...]) -> Panel:
+    summaries = summarize_memory_reads_by_agent(events)
+    if not summaries:
+        return Panel(
+            Text("No agents match the current filters.", style="dim"),
+            title="Agents (0)",
+            border_style="cyan",
+        )
+
+    table = Table(show_header=True, header_style="bold", box=None, pad_edge=False)
+    table.add_column("Agent")
+    table.add_column("Reads", justify="right", no_wrap=True)
+    table.add_column("Paths", justify="right", no_wrap=True)
+    table.add_column("Last read", no_wrap=True)
+    table.add_column("Last path")
+    table.add_column("Last reason")
+
+    for summary in summaries:
+        table.add_row(
+            summary.agent_name,
+            str(summary.read_count),
+            str(summary.distinct_path_count),
+            summary.last_read_at,
+            summary.last_path,
+            _reason_preview(summary.last_reason),
+        )
+
+    return Panel(
+        table,
+        title=f"Agents ({len(summaries)})",
+        border_style="cyan",
+    )
+
+
+def _events_panel(events: tuple[MemoryReadEvent, ...]) -> Panel:
+    if not events:
+        return Panel(
+            Text(
+                "No individual memory read events match the current filters.",
+                style="dim",
+            ),
+            title="Memory Read Events (0)",
+            border_style="cyan",
+        )
+
+    table = Table(show_header=True, header_style="bold", box=None, pad_edge=False)
+    table.add_column("ID", no_wrap=True)
+    table.add_column("Timestamp", no_wrap=True)
+    table.add_column("Agent", no_wrap=True)
+    table.add_column("Memory path")
+    table.add_column("Reason")
+
+    ordered_events = sorted(
+        events,
+        key=lambda event: (event.timestamp, event.id),
+        reverse=True,
+    )
+    for event in ordered_events:
+        table.add_row(
+            event.id,
+            event.timestamp,
+            event.agent_name,
+            event.canonical_path,
+            _reason_preview(event.reason),
+        )
+
+    return Panel(
+        table,
+        title=f"Memory Read Events ({len(events)})",
+        border_style="cyan",
+    )
+
+
+def _render_memory_log_event(
+    event: MemoryReadEvent,
+    *,
+    console: Console | None = None,
+    project_name: str,
+    path_filter: str | None = None,
+    agent_filter: str | None = None,
+) -> None:
+    """Print the Rich detail view for one memory-read event."""
+    target = console or Console()
+    target.print(
+        _build_memory_log_event_dashboard(
+            event,
+            project_name=project_name,
+            path_filter=path_filter,
+            agent_filter=agent_filter,
+        )
+    )
+
+
+def _build_memory_log_event_dashboard(
+    event: MemoryReadEvent,
+    *,
+    project_name: str,
+    path_filter: str | None = None,
+    agent_filter: str | None = None,
+) -> Group:
+    return Group(
+        _summary_panel(
+            (event,),
+            project_name=project_name,
+            path_filter=path_filter,
+            agent_filter=agent_filter,
+        ),
+        _event_panel(event),
+    )
+
+
+def _event_panel(event: MemoryReadEvent) -> Panel:
+    detail = Table.grid(padding=(0, 2))
+    detail.add_column(style="bold")
+    detail.add_column()
+    detail.add_row("ID", event.id)
+    detail.add_row("Timestamp", event.timestamp)
+    detail.add_row("Project", event.project)
+    detail.add_row("Memory path", event.canonical_path)
+    detail.add_row("Resolved path", event.resolved_path)
+    detail.add_row("Agent", event.agent_name)
+    detail.add_row("Agent source", event.agent_source)
+    detail.add_row("Reason", event.reason)
+    detail.add_row("CWD", event.cwd)
+    detail.add_row("Artifacts dir", event.artifacts_dir or "none")
+    detail.add_row("Byte count", str(event.byte_count))
+    detail.add_row("Frontmatter stripped", str(event.frontmatter_stripped).lower())
+    return Panel(detail, title=f"Memory Read Event {event.id}", border_style="cyan")
+
+
 def _filter_label(path_filter: str | None, agent_filter: str | None) -> str:
     parts: list[str] = []
     path = _normalized_filter(path_filter)
@@ -201,6 +364,41 @@ def _filter_label(path_filter: str | None, agent_filter: str | None) -> str:
     if agent is not None:
         parts.append(f"agent={agent}")
     return ", ".join(parts) if parts else "none"
+
+
+def _is_drilldown(*, path_filter: str | None, agent_filter: str | None) -> bool:
+    return (
+        _normalized_filter(path_filter) is not None
+        or _normalized_filter(agent_filter) is not None
+    )
+
+
+def _select_memory_read_event(
+    events: tuple[MemoryReadEvent, ...],
+    read_id: str | None,
+) -> MemoryReadEvent:
+    normalized = _normalized_filter(read_id)
+    if normalized is None:
+        raise _MemoryLogLookupError("memory read id must not be empty")
+
+    exact_matches = tuple(event for event in events if event.id == normalized)
+    if len(exact_matches) == 1:
+        return exact_matches[0]
+    if len(exact_matches) > 1:
+        raise _MemoryLogLookupError(f"memory read id is not unique: {normalized}")
+
+    prefix_matches = tuple(event for event in events if event.id.startswith(normalized))
+    if len(prefix_matches) == 1:
+        return prefix_matches[0]
+    if not prefix_matches:
+        raise _MemoryLogLookupError(f"unknown memory read id: {normalized}")
+
+    matches = ", ".join(event.id for event in prefix_matches[:_ID_ERROR_MATCH_LIMIT])
+    if len(prefix_matches) > _ID_ERROR_MATCH_LIMIT:
+        matches += ", ..."
+    raise _MemoryLogLookupError(
+        f"memory read id prefix is ambiguous: {normalized} (matches: {matches})"
+    )
 
 
 def _normalized_filter(value: str | None) -> str | None:

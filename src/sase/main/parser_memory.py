@@ -72,10 +72,11 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
 
     log_parser = memory_subparsers.add_parser(
         "log",
-        help="Summarize auditable long-term memory reads",
+        help="Summarize or inspect auditable long-term memory reads",
         description=(
             "Summarize auditable long-term memory reads recorded by "
-            "`sase memory read`, grouped by canonical memory path."
+            "`sase memory read`, or inspect matching read events with "
+            "--path, --agent, or --id."
         ),
     )
     log_parser.add_argument(
@@ -87,6 +88,11 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         "--agent",
         metavar="AGENT_NAME",
         help="Only include reads by the given agent",
+    )
+    log_parser.add_argument(
+        "--id",
+        metavar="READ_ID",
+        help="Show one memory read event by id or unambiguous id prefix",
     )
     log_parser.add_argument(
         "--json",
