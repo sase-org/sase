@@ -515,7 +515,7 @@ class StateInitMixin:
 
         self._saved_queries: dict[str, str] = load_saved_queries()
 
-        # ChangeSpec history stacks for ctrl+o/ctrl+i navigation (session-based)
+        # ChangeSpec history stacks for ctrl+r/ctrl+k navigation (session-based)
         from ..changespec_history import create_empty_stacks as create_cs_history_stacks
 
         self._changespec_history = create_cs_history_stacks()

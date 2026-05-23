@@ -73,6 +73,7 @@ class _InlineJumpApp(AdvancedNavigationMixin, ChangeSpecGroupingNavMixin):
         self._changespec_group_fold_registry = GroupFoldRegistry()
         self._current_changespec_group_key: tuple[str, ...] | None = None
         self.refreshes = 0
+        self.jump_footer_updates = 0
 
     def _refresh_current_tab(self) -> None:
         self.refreshes += 1
@@ -81,7 +82,7 @@ class _InlineJumpApp(AdvancedNavigationMixin, ChangeSpecGroupingNavMixin):
         self.refreshes += 1
 
     def _update_jump_footer(self) -> None:
-        return
+        self.jump_footer_updates += 1
 
 
 class _InlineJumpEventApp(EventHandlersMixin):
@@ -173,6 +174,33 @@ def test_apostrophe_without_history_dispatches_first_changespec_hint() -> None:
     assert app.current_idx == 0
     assert app._entry_jump_last_index["changespecs"] == 2
     assert app._entry_jump_mode_active is False
+
+
+def test_fast_jump_without_history_dispatches_first_changespec_without_footer() -> None:
+    changespecs = [_make_changespec(f"feature_{i:02d}") for i in range(3)]
+    app = _InlineJumpApp(changespecs)
+    app.current_idx = 2
+
+    app.action_jump_to_entry_fast()
+
+    assert app.current_idx == 0
+    assert app._entry_jump_last_index["changespecs"] == 2
+    assert app._entry_jump_mode_active is False
+    assert app.jump_footer_updates == 0
+
+
+def test_fast_jump_with_history_restores_changespec_and_updates_origin() -> None:
+    changespecs = [_make_changespec(f"feature_{i:02d}") for i in range(3)]
+    app = _InlineJumpApp(changespecs)
+    app.current_idx = 2
+    app._entry_jump_last_index["changespecs"] = 1
+
+    app.action_jump_to_entry_fast()
+
+    assert app.current_idx == 1
+    assert app._entry_jump_last_index["changespecs"] == 2
+    assert app._entry_jump_mode_active is False
+    assert app.jump_footer_updates == 0
 
 
 def test_inline_jump_on_key_uses_uppercase_event_character() -> None:

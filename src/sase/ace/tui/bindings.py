@@ -18,6 +18,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("W", "add_tag", "Add Tag", show=False),
     Binding("v", "view_files", "View", show=False),
     Binding("apostrophe", "jump_to_entry", "Jump to Entry", show=False),
+    Binding("ctrl+o", "jump_to_entry_fast", "Fast Jump", show=False),
     Binding("grave_accent", "jump_to_all_entries", "Jump All", show=False),
     Binding("h", "hooks_or_collapse", "Hooks / Collapse", show=False),
     Binding("H", "hooks_or_collapse_all", "Hooks / Collapse All", show=False),
@@ -100,7 +101,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("circumflex_accent", "prev_query", "Prev Query", show=False),
     Binding("underscore", "next_query", "Next Query", show=False),
     # ChangeSpec history navigation (vim-style jumplist)
-    Binding("ctrl+o", "prev_changespec_history", "Prev CL History", show=False),
+    Binding("ctrl+r", "prev_changespec_history", "Prev CL History", show=False),
     Binding("ctrl+k", "next_changespec_history", "Next CL History", show=False),
     # Ancestor/child/sibling navigation
     Binding("<", "start_ancestor_mode", "Ancestor", show=False),

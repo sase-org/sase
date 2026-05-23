@@ -33,6 +33,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Jump back / forward in history",
                 ),
                 (d(a.jump_to_entry), "Jump to entry (' first/back)"),
+                (d(a.jump_to_entry_fast), "Fast jump to entry (first/back)"),
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 (
                     f"{d(a.scroll_detail_down)} / {d(a.scroll_detail_up)}",

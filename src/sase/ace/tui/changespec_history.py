@@ -1,4 +1,4 @@
-"""Session-based ChangeSpec navigation history (ctrl+o / ctrl+k).
+"""Session-based ChangeSpec navigation history (ctrl+r / ctrl+k).
 
 This module provides vim-style jumplist navigation for ChangeSpecs.
 History is stored in memory only (session-based, not persisted to disk).
@@ -94,7 +94,7 @@ def push_to_prev_stack(
 def navigate_prev(
     current_entry: ChangeSpecHistoryEntry, stacks: ChangeSpecHistoryStacks
 ) -> ChangeSpecHistoryEntry | None:
-    """Navigate to previous ChangeSpec (ctrl+o).
+    """Navigate to previous ChangeSpec (ctrl+r).
 
     Args:
         current_entry: The current ChangeSpec entry (to push to next).
@@ -119,7 +119,7 @@ def navigate_prev(
 def navigate_next(
     current_entry: ChangeSpecHistoryEntry, stacks: ChangeSpecHistoryStacks
 ) -> ChangeSpecHistoryEntry | None:
-    """Navigate to next ChangeSpec (ctrl+i).
+    """Navigate to next ChangeSpec (ctrl+k).
 
     Args:
         current_entry: The current ChangeSpec entry (to push to prev).

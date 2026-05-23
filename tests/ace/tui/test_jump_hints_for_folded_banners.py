@@ -43,6 +43,7 @@ class _StubApp(AdvancedNavigationMixin):
         self._entry_jump_last_index: dict[str, int] = {}
         self._entry_jump_last_agents_anchor: Any = None
         self.artifact_viewer_guard_active = False
+        self.jump_footer_updates = 0
         self.notify = MagicMock()
 
     def _guard_agent_navigation_for_artifact_viewer(self) -> bool:
@@ -68,7 +69,7 @@ class _StubApp(AdvancedNavigationMixin):
         return
 
     def _update_jump_footer(self) -> None:
-        return
+        self.jump_footer_updates += 1
 
 
 def _agent(*, project: str, cl: str, name: str, tag: str | None = None) -> Agent:
@@ -268,6 +269,43 @@ def test_apostrophe_without_anchor_dispatches_first_agent_jump_hint() -> None:
     assert app.current_idx == 1
     assert app._entry_jump_last_agents_anchor == ("agent", 1, 0)
     assert app._entry_jump_mode_active is False
+
+
+def test_fast_jump_without_anchor_dispatches_first_agent_jump_hint() -> None:
+    """Fast jump follows no-history ``''`` without painting hint UI."""
+    agents = [
+        _agent(project="alpha", cl="a1", name="a1"),
+        _agent(project="beta", cl="b1", name="b1"),
+    ]
+    app = _StubApp(agents, collapsed=[("alpha",)])
+    app.current_idx = 1
+
+    app.action_jump_to_entry_fast()
+
+    assert app._current_group_key == ("alpha",)
+    assert app.current_idx == 1
+    assert app._entry_jump_last_agents_anchor == ("agent", 1, 0)
+    assert app._entry_jump_mode_active is False
+    assert app.jump_footer_updates == 0
+
+
+def test_fast_jump_restores_agent_banner_anchor_with_panel_focus() -> None:
+    """Fast jump restores saved banner anchors with their owning panel."""
+    agents = [
+        _agent(project="alpha", cl="a1", name="a1"),
+        _agent(project="alpha", cl="a1", name="a2", tag="ws"),
+    ]
+    app = _StubApp(agents)
+    app.current_idx = 0
+    app._entry_jump_last_agents_anchor = ("banner", 1, ("alpha",))
+
+    app.action_jump_to_entry_fast()
+
+    assert app._panel_group.focused_idx == 1
+    assert app._current_group_key == ("alpha",)
+    assert app._entry_jump_last_agents_anchor == ("agent", 0, 0)
+    assert app._entry_jump_mode_active is False
+    assert app.jump_footer_updates == 0
 
 
 def test_stale_agent_back_anchor_falls_through_to_first_hint() -> None:

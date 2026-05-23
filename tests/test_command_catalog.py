@@ -61,6 +61,18 @@ def test_open_command_palette_command_uses_default_alternatives() -> None:
     assert spec.key_display == ": / ;"
 
 
+def test_fast_jump_command_uses_ctrl_o_default() -> None:
+    """The palette exposes Ctrl+O as fast jump, not CL history."""
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+    spec = by_id["app.jump_to_entry_fast"]
+    history = by_id["app.prev_changespec_history"]
+
+    assert spec.label == "Fast jump to entry"
+    assert spec.key_sequence == ("ctrl+o",)
+    assert spec.key_display == "Ctrl+O"
+    assert history.key_sequence == ("ctrl+r",)
+
+
 def test_last_vcs_xprompt_editor_command_is_all_tab_agent_command() -> None:
     """The Ctrl+G MRU editor action is discoverable on every tab."""
     by_id = {c.id: c for c in iter_app_commands(_registry())}

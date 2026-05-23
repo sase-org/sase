@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 16:11:33
-status: wip
+status: done
 prompt: sdd/prompts/202605/ctrl_o_fast_jump.md
 ---
 # Ctrl+O Fast Jump Plan

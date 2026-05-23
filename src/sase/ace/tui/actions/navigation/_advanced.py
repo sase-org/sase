@@ -166,26 +166,45 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self._begin_changespec_jump_mode()
             return
 
-        indices = self._jump_candidate_indices()
-        if not indices:
-            return
-        self._entry_jump_hint_to_index, self._entry_jump_index_to_hint = (
-            build_jump_hint_maps(indices)
-        )
-        if not self._entry_jump_hint_to_index:
+        if not self._prepare_entry_jump_index_maps(self._jump_candidate_indices()):
             return
         self._entry_jump_mode_active = True
         self._update_jump_footer()
         self._refresh_current_tab()  # type: ignore[attr-defined]
 
-    def _begin_changespec_jump_mode(self) -> None:
-        """Allocate hints across visible CLs + collapsed banners (CLs tab, grouped)."""
+    def action_jump_to_entry_fast(self) -> None:
+        """Jump as if ``'`` then ``'`` were pressed, without painting hints."""
+        if self.current_tab == "agents":
+            prepared = self._prepare_agents_jump_maps()
+        elif self.current_tab == "changespecs":
+            prepared = self._prepare_changespec_jump_maps()
+        else:
+            prepared = self._prepare_entry_jump_index_maps(
+                self._jump_candidate_indices()
+            )
+        if not prepared:
+            return
+
+        self._entry_jump_mode_active = True
+        self._handle_entry_jump_key("apostrophe")
+
+    def _prepare_entry_jump_index_maps(self, indices: list[int]) -> bool:
+        """Allocate generic entry hints without entering/rendering jump mode."""
+        if not indices:
+            return False
+        self._entry_jump_hint_to_index, self._entry_jump_index_to_hint = (
+            build_jump_hint_maps(indices)
+        )
+        return bool(self._entry_jump_hint_to_index)
+
+    def _prepare_changespec_jump_maps(self) -> bool:
+        """Allocate CL-row and collapsed-banner hints without rendering them."""
         targets = self._changespec_jump_targets()  # type: ignore[attr-defined]
         if not targets:
-            return
+            return False
         hint_to_target, _ = build_jump_hint_maps(targets)
         if not hint_to_target:
-            return
+            return False
 
         cs_hint_to_idx: dict[str, int] = {}
         cs_idx_to_hint: dict[int, str] = {}
@@ -206,21 +225,27 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         self._entry_jump_index_to_hint = cs_idx_to_hint
         self._entry_jump_hint_to_changespec_banner = banner_hint_to_key
         self._entry_jump_changespec_banner_to_hint = banner_key_to_hint
+        return True
+
+    def _begin_changespec_jump_mode(self) -> None:
+        """Allocate hints across visible CLs + collapsed banners (CLs tab, grouped)."""
+        if not self._prepare_changespec_jump_maps():
+            return
         self._entry_jump_mode_active = True
         self._update_jump_footer()
         self._refresh_current_tab()  # type: ignore[attr-defined]
 
-    def _begin_agents_jump_mode(self) -> None:
-        """Allocate hints across visible agents + collapsed banners (agents tab)."""
+    def _prepare_agents_jump_maps(self) -> bool:
+        """Allocate agent-row and collapsed-banner hints without rendering them."""
         guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
         if callable(guard) and guard():
-            return
+            return False
         targets = self._jump_candidate_targets()
         if not targets:
-            return
+            return False
         hint_to_target, _ = build_jump_hint_maps(targets)
         if not hint_to_target:
-            return
+            return False
 
         agent_hint_to_idx: dict[str, int] = {}
         agent_idx_to_hint: dict[int, str] = {}
@@ -238,6 +263,12 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         self._entry_jump_index_to_hint = agent_idx_to_hint
         self._entry_jump_hint_to_banner = banner_hint_to_target
         self._entry_jump_banner_to_hint = banner_to_hint
+        return True
+
+    def _begin_agents_jump_mode(self) -> None:
+        """Allocate hints across visible agents + collapsed banners (agents tab)."""
+        if not self._prepare_agents_jump_maps():
+            return
         self._entry_jump_mode_active = True
         self._update_jump_footer()
         self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
@@ -576,7 +607,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             )
         )
 
-    # --- ChangeSpec History Navigation (ctrl+o / ctrl+k) ---
+    # --- ChangeSpec History Navigation (ctrl+r / ctrl+k) ---
 
     def _get_current_changespec_history_entry(
         self,
@@ -675,7 +706,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             return False
 
     def action_prev_changespec_history(self) -> None:
-        """Navigate to previous ChangeSpec in history (ctrl+o)."""
+        """Navigate to previous ChangeSpec in history (ctrl+r)."""
         from ...changespec_history import navigate_prev
 
         if self.current_tab != "changespecs":

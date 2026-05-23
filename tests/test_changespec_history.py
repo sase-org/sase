@@ -1,4 +1,4 @@
-"""Tests for ChangeSpec navigation history (ctrl+o / ctrl+i)."""
+"""Tests for ChangeSpec navigation history (ctrl+r / ctrl+k)."""
 
 from sase.ace.tui.changespec_history import (
     MAX_STACK_SIZE,

@@ -28,6 +28,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Cycle focus across tag panels",
                 ),
                 (d(a.jump_to_entry), "Jump entry/head (' first/back)"),
+                (d(a.jump_to_entry_fast), "Fast jump entry/head"),
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 (d(a.start_sibling_mode), "Jump to sibling agent"),
                 (

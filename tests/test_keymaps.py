@@ -40,6 +40,8 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.app.next_changespec == "j"
     assert reg.app.quit == "q"
     assert reg.app.next_tab == "tab"
+    assert reg.app.jump_to_entry_fast == "ctrl+o"
+    assert reg.app.prev_changespec_history == "ctrl+r"
     assert isinstance(reg.fold_mode, FoldModeKeymaps)
     assert isinstance(reg.copy_mode, CopyModeKeymaps)
     assert isinstance(reg.leader_mode, LeaderModeKeymaps)
@@ -293,9 +295,9 @@ def test_non_dict_keymaps_config() -> None:
 
 
 def test_build_app_bindings_count() -> None:
-    """build_app_bindings produces 83 configurable + 10 digit = 93 bindings."""
+    """build_app_bindings produces 84 configurable + 10 digit = 94 bindings."""
     bindings = build_app_bindings(_default_app_keymaps())
-    assert len(bindings) == 93
+    assert len(bindings) == 94
 
 
 def test_build_app_bindings_priority() -> None:
@@ -332,6 +334,16 @@ def test_capital_a_binds_agent_artifacts_and_v_binds_run_log() -> None:
     assert by_action["show_agent_run_log"].key == "V"
     assert by_action["toggle_attempt_view"].key == "D"
     assert by_action["toggle_agent_unread"].key == "U"
+
+
+def test_ctrl_o_binds_fast_jump_not_changespec_history() -> None:
+    """Ctrl+O is reserved for no-UI jump-to-entry dispatch."""
+    bindings = build_app_bindings(_default_app_keymaps())
+    by_action = {b.action: b for b in bindings}
+
+    assert by_action["jump_to_entry_fast"].key == "ctrl+o"
+    assert by_action["prev_changespec_history"].key == "ctrl+r"
+    assert [b.action for b in bindings if b.key == "ctrl+o"] == ["jump_to_entry_fast"]
 
 
 def test_build_app_bindings_preserves_compound_key() -> None:
