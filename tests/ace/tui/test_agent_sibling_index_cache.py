@@ -1,0 +1,168 @@
+"""Integration tests for the cached Agents-tab sibling index."""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
+from datetime import datetime
+
+from sase.ace.tui.actions.agents._display import AgentDisplayMixin
+from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
+from sase.ace.tui.models.agent_groups import GroupingMode
+from sase.ace.tui.models.agent_panels import AgentPanelGroup
+from sase.ace.tui.models.agent_siblings import AgentSiblingRow
+
+
+def _agent(
+    name: str,
+    *,
+    suffix: str,
+    tag: str | None = None,
+    status: str = "RUNNING",
+) -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="demo",
+        project_file="/r/proj/proj.sase",
+        status=status,
+        start_time=datetime(2026, 5, 23, 12, 0, 0),
+        raw_suffix=suffix,
+        agent_name=name,
+        tag=tag,
+    )
+
+
+class _Bare(AgentDisplayMixin):
+    def __init__(self, agents: list[Agent], *, grouped: bool = False) -> None:
+        self._agents = agents
+        self._panel_keys_cache = None
+        self._agent_panel_index_cache = None
+        self._agent_sibling_index_cache = None
+        self._panel_group = AgentPanelGroup.from_agents(
+            agents, merge_tag_panels=grouped
+        )
+        self._group_fold_registry = AgentGroupFoldRegistry()
+        self._grouping_mode = GroupingMode.STANDARD
+        self._agent_panels_grouped = grouped
+        self._marked_agents = set()
+        self._fold_counts = {}
+        self.current_idx = 0
+        self.current_attempt_number = None
+        self._current_group_key = None
+        self._agent_search_query = ""
+        self._unread_completed_agent_ids = set()
+        self._countdown_remaining = 0
+        self.refresh_interval = 0
+        self.visible_walk_count = 0
+
+    def _visible_agent_sibling_rows(self) -> Iterator[AgentSiblingRow]:
+        self.visible_walk_count += 1
+        yield from super()._visible_agent_sibling_rows()
+
+    def _get_selected_agent(self) -> Agent | None:
+        if self._agents and 0 <= self.current_idx < len(self._agents):
+            return self._agents[self.current_idx]
+        return None
+
+
+def test_agent_sibling_index_is_cached_for_repeated_count_reads() -> None:
+    app = _Bare(
+        [
+            _agent("foo.plan", suffix="a"),
+            _agent("foo.code", suffix="b"),
+            _agent("foo.review", suffix="c"),
+        ]
+    )
+
+    assert app._agent_sibling_index().sibling_count(0) == 2
+    for _ in range(25):
+        assert app._agent_sibling_index().sibling_count(1) == 2
+
+    assert app.visible_walk_count == 1
+
+
+def test_agent_sibling_index_cache_clears_with_panel_cache_invalidation() -> None:
+    app = _Bare(
+        [
+            _agent("foo.plan", suffix="a"),
+            _agent("foo.code", suffix="b"),
+        ]
+    )
+
+    first = app._agent_sibling_index()
+    app._invalidate_agent_panel_cache()
+    second = app._agent_sibling_index()
+
+    assert second is not first
+    assert app.visible_walk_count == 2
+
+
+def test_agent_sibling_index_cache_tracks_fold_version() -> None:
+    app = _Bare(
+        [
+            _agent("foo.plan", suffix="a"),
+            _agent("foo.code", suffix="b"),
+            _agent("bar.plan", suffix="c"),
+        ]
+    )
+    assert app._agent_sibling_index().sibling_count(0) == 1
+
+    app._group_fold_registry.collapse(("proj", "demo", "foo"))
+
+    assert app._agent_sibling_index().sibling_count(0) == 0
+    assert app.visible_walk_count == 2
+
+
+def test_agent_sibling_index_walks_panels_in_render_order() -> None:
+    app = _Bare(
+        [
+            _agent("foo.zeta", suffix="z", tag="zeta"),
+            _agent("foo.alpha", suffix="a", tag="alpha"),
+            _agent("foo.untagged", suffix="u", tag=None),
+        ]
+    )
+
+    index = app._agent_sibling_index()
+
+    assert app._panel_group.panel_keys == [None, "alpha", "zeta"]
+    assert index.siblings_for(2) == (1, 0)
+    assert index.siblings_for(1) == (2, 0)
+    assert index.panel_idx_for(2) == 0
+    assert index.panel_idx_for(1) == 1
+    assert index.panel_idx_for(0) == 2
+
+
+def test_agent_sibling_index_omits_starting_rows_from_app_walk() -> None:
+    app = _Bare(
+        [
+            _agent("foo.plan", suffix="a"),
+            _agent("foo.starting", suffix="starting", status="STARTING"),
+            _agent("foo.code", suffix="b"),
+        ]
+    )
+
+    index = app._agent_sibling_index()
+
+    assert index.siblings_for(0) == (2,)
+    assert index.siblings_for(1) == ()
+    assert index.siblings_for(2) == (0,)
+
+
+def test_agent_sibling_index_cache_tracks_panel_mode() -> None:
+    app = _Bare(
+        [
+            _agent("foo.alpha", suffix="a", tag="alpha"),
+            _agent("foo.beta", suffix="b", tag="beta"),
+        ]
+    )
+    split = app._agent_sibling_index()
+
+    app._agent_panels_grouped = True
+    app._panel_group = AgentPanelGroup.from_agents(app._agents, merge_tag_panels=True)
+
+    grouped = app._agent_sibling_index()
+
+    assert grouped is not split
+    assert grouped.panel_idx_for(0) == 0
+    assert grouped.panel_idx_for(1) == 0
+    assert app.visible_walk_count == 2

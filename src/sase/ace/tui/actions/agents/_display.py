@@ -27,6 +27,7 @@ from ._display_detail import DetailMixin
 from ._display_helpers import _MAIN_PANEL_ID, TabName, panel_widget_id
 from ._display_panels import PanelsMixin
 from ._loading import DISMISSABLE_STATUSES
+from ._siblings import AgentSiblingMixin
 
 log = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ _panel_widget_id = panel_widget_id
 __all__ = ["AgentDisplayMixin", "TabName", "_MAIN_PANEL_ID", "_panel_widget_id"]
 
 
-class AgentDisplayMixin(PanelsMixin, DetailMixin):
+class AgentDisplayMixin(AgentSiblingMixin, PanelsMixin, DetailMixin):
     """Mixin providing agent display and refresh methods.
 
     Type hints below declare attributes that are defined at runtime by AceApp.
@@ -82,11 +83,14 @@ class AgentDisplayMixin(PanelsMixin, DetailMixin):
     # single agents-list ref reuses the same panels / non-child indices /
     # completed count across every refresh path.
     _agent_panel_index_cache: tuple[Any, bool, AgentPanelIndex] | None
+    _agent_sibling_index_cache: tuple[Any, ...] | None
 
     def _invalidate_agent_panel_cache(self) -> None:
         """Clear panel-derived caches after in-place agent mutations."""
         if hasattr(self, "_agent_panel_index_cache"):
             self._agent_panel_index_cache = None
+        if hasattr(self, "_agent_sibling_index_cache"):
+            self._agent_sibling_index_cache = None
         if hasattr(self, "_agent_info_metrics_cache"):
             self._agent_info_metrics_cache = None
         if hasattr(self, "_panel_keys_cache"):
