@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from io import StringIO
 from pathlib import Path
 import sys
@@ -11,9 +12,15 @@ import pytest
 from rich.console import Console
 
 from sase.memory.cli_list import _render_memory_inventory
+from sase.memory.cli_log import _render_memory_log_summary, handle_memory_log_command
 from sase.memory.cli_read import handle_memory_read_command
 from sase.memory.inventory import build_memory_inventory
-from sase.memory.read_log import memory_read_log_path, read_memory_read_events
+from sase.memory.read_log import (
+    MemoryReadEvent,
+    append_memory_read_event,
+    memory_read_log_path,
+    read_memory_read_events,
+)
 from sase.main import memory_handler
 from sase.main.parser import create_parser
 
@@ -21,6 +28,32 @@ from sase.main.parser import create_parser
 def _write(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
+
+
+def _memory_read_event(
+    *,
+    read_id: str,
+    canonical_path: str,
+    agent_name: str,
+    timestamp: str,
+    reason: str,
+    project: str = "demo",
+) -> MemoryReadEvent:
+    return MemoryReadEvent(
+        schema_version=1,
+        id=read_id,
+        timestamp=timestamp,
+        project=project,
+        cwd="/tmp/demo",
+        canonical_path=canonical_path,
+        resolved_path=f"/tmp/demo/memory/{canonical_path}",
+        agent_name=agent_name,
+        agent_source="SASE_AGENT_NAME",
+        artifacts_dir=None,
+        reason=reason,
+        byte_count=123,
+        frontmatter_stripped=True,
+    )
 
 
 def test_parser_registers_memory_namespace() -> None:
@@ -49,6 +82,23 @@ def test_parser_registers_memory_namespace() -> None:
     assert read_args.memory_subcommand == "read"
     assert read_args.memory_path == "long/foo.md"
     assert read_args.reason == "Need context"
+
+    log_args = parser.parse_args(
+        [
+            "memory",
+            "log",
+            "--path",
+            "long/generated_skills.md",
+            "--agent",
+            "agent-a",
+            "--json",
+        ]
+    )
+    assert log_args.command == "memory"
+    assert log_args.memory_subcommand == "log"
+    assert log_args.path == "long/generated_skills.md"
+    assert log_args.agent == "agent-a"
+    assert log_args.json is True
 
     default_args = parser.parse_args(["memory"])
     assert default_args.command == "memory"
@@ -142,6 +192,24 @@ def test_bare_memory_defaults_to_list(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(memory_handler, "_handle_memory_list_command", fake_list)
     args = create_parser().parse_args(["memory"])
+
+    with pytest.raises(SystemExit) as exc:
+        memory_handler.handle_memory_command(args)
+
+    assert exc.value.code == 0
+    assert calls == [args]
+
+
+def test_memory_log_dispatches_to_summary_handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[argparse.Namespace] = []
+
+    def fake_log(args: argparse.Namespace) -> None:
+        calls.append(args)
+
+    monkeypatch.setattr(memory_handler, "_handle_memory_log_command", fake_log)
+    args = create_parser().parse_args(["memory", "log", "--agent", "agent-a"])
 
     with pytest.raises(SystemExit) as exc:
         memory_handler.handle_memory_command(args)
@@ -324,3 +392,142 @@ def test_memory_list_dashboard_renders_home_context_paths(tmp_path: Path) -> Non
     assert "~/AGENTS.md" in text
     assert "~/memory/short/home.md" in text
     assert "~/AGENTS.md -> @memory/short/home.md" in text
+
+
+def test_memory_log_summary_renders_grouped_read_stats() -> None:
+    events = (
+        _memory_read_event(
+            read_id="read-a",
+            canonical_path="long/foo.md",
+            agent_name="agent-a",
+            timestamp="2026-05-23T12:00:00+00:00",
+            reason="Need foo context",
+        ),
+        _memory_read_event(
+            read_id="read-b",
+            canonical_path="long/foo.md",
+            agent_name="agent-b",
+            timestamp="2026-05-23T12:01:00+00:00",
+            reason="Need updated foo context",
+        ),
+        _memory_read_event(
+            read_id="read-c",
+            canonical_path="long/bar.md",
+            agent_name="agent-a",
+            timestamp="2026-05-23T12:02:00+00:00",
+            reason="Need bar context",
+        ),
+    )
+    output = StringIO()
+    console = Console(
+        file=output,
+        force_terminal=False,
+        color_system=None,
+        width=160,
+    )
+
+    _render_memory_log_summary(events, console=console, project_name="demo")
+
+    text = output.getvalue()
+    assert "SASE Memory Read Log" in text
+    assert "Read events" in text
+    assert "3" in text
+    assert "Memory Paths (2)" in text
+    assert "long/foo.md" in text
+    assert "long/bar.md" in text
+    assert "agent-b" in text
+    assert "Need updated foo context" in text
+
+
+def test_memory_log_summary_renders_empty_state_for_unknown_filter() -> None:
+    output = StringIO()
+    console = Console(
+        file=output,
+        force_terminal=False,
+        color_system=None,
+        width=120,
+    )
+
+    _render_memory_log_summary(
+        (),
+        console=console,
+        project_name="demo",
+        path_filter="long/missing.md",
+    )
+
+    text = output.getvalue()
+    assert "path=long/missing.md" in text
+    assert "No memory read events match the current filters." in text
+
+
+def test_memory_log_json_output_filters_and_summarizes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = tmp_path.name
+    home = tmp_path / "home"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    append_memory_read_event(
+        _memory_read_event(
+            read_id="read-a",
+            canonical_path="long/foo.md",
+            agent_name="agent-a",
+            timestamp="2026-05-23T12:00:00+00:00",
+            reason="First",
+            project=project,
+        )
+    )
+    append_memory_read_event(
+        _memory_read_event(
+            read_id="read-b",
+            canonical_path="long/foo.md",
+            agent_name="agent-b",
+            timestamp="2026-05-23T12:01:00+00:00",
+            reason="Second",
+            project=project,
+        )
+    )
+    append_memory_read_event(
+        _memory_read_event(
+            read_id="read-c",
+            canonical_path="long/bar.md",
+            agent_name="agent-b",
+            timestamp="2026-05-23T12:02:00+00:00",
+            reason="Third",
+            project=project,
+        )
+    )
+    args = create_parser().parse_args(
+        [
+            "memory",
+            "log",
+            "--path",
+            "long/foo.md",
+            "--agent",
+            "agent-b",
+            "--json",
+        ]
+    )
+
+    handle_memory_log_command(args)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {
+        "filters": {"agent": "agent-b", "path": "long/foo.md"},
+        "project": project,
+        "summary": [
+            {
+                "canonical_path": "long/foo.md",
+                "distinct_agent_count": 1,
+                "last_agent": "agent-b",
+                "last_read_at": "2026-05-23T12:01:00+00:00",
+                "last_reason": "Second",
+                "read_count": 1,
+            }
+        ],
+        "total_agents": 1,
+        "total_memory_paths": 1,
+        "total_reads": 1,
+    }

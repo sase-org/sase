@@ -69,3 +69,27 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         required=True,
         help="Non-empty reason for the audited memory read",
     )
+
+    log_parser = memory_subparsers.add_parser(
+        "log",
+        help="Summarize auditable long-term memory reads",
+        description=(
+            "Summarize auditable long-term memory reads recorded by "
+            "`sase memory read`, grouped by canonical memory path."
+        ),
+    )
+    log_parser.add_argument(
+        "--path",
+        metavar="MEMORY_PATH",
+        help="Only include reads for the given memory-relative path",
+    )
+    log_parser.add_argument(
+        "--agent",
+        metavar="AGENT_NAME",
+        help="Only include reads by the given agent",
+    )
+    log_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit deterministic machine-readable JSON",
+    )

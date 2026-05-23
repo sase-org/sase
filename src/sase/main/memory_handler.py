@@ -13,6 +13,13 @@ def _handle_memory_list_command(args: argparse.Namespace) -> None:
     handle_memory_list_command(args)
 
 
+def _handle_memory_log_command(args: argparse.Namespace) -> None:
+    """Handle the ``sase memory log`` summary."""
+    from sase.memory.cli_log import handle_memory_log_command
+
+    handle_memory_log_command(args)
+
+
 def handle_memory_command(args: argparse.Namespace) -> None:
     """Dispatch to the appropriate ``sase memory`` sub-handler."""
     sub = getattr(args, "memory_subcommand", None) or "list"
@@ -33,5 +40,9 @@ def handle_memory_command(args: argparse.Namespace) -> None:
         handle_memory_read_command(args)
         sys.exit(0)
 
-    print("Usage: sase memory {init,list,read}", file=sys.stderr)
+    if sub == "log":
+        _handle_memory_log_command(args)
+        sys.exit(0)
+
+    print("Usage: sase memory {init,list,read,log}", file=sys.stderr)
     sys.exit(1)
