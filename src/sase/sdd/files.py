@@ -1,12 +1,11 @@
 """SDD file writing, committing, and directory resolution."""
 
 import logging
-import shutil
 import subprocess
 from datetime import datetime
 from importlib import resources
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 _logger = logging.getLogger(__name__)
 
@@ -88,6 +87,16 @@ The `research/` directory stores exploratory findings, prior art, options, criti
 later tales, epics, legends, or implementation work.
 """,
 }
+
+
+class _SddExpectedTextFile(NamedTuple):
+    path: Path
+    content: str
+
+
+class _SddExpectedBytesFile(NamedTuple):
+    path: Path
+    content: bytes
 
 
 def get_yyyymm(dt: datetime | None = None) -> str:
@@ -172,29 +181,66 @@ def _resolve_sdd_asset_path(
     )
 
 
+def expected_sdd_readme(
+    path: str | None = None, *, cwd: Path | None = None
+) -> _SddExpectedTextFile:
+    """Return the canonical top-level SDD README target and content."""
+    return _SddExpectedTextFile(
+        path=_resolve_sdd_readme_path(path, cwd=cwd),
+        content=SDD_README_CONTENT,
+    )
+
+
+def expected_sdd_directory_readmes(
+    path: str | None = None, *, cwd: Path | None = None
+) -> tuple[_SddExpectedTextFile, ...]:
+    """Return canonical SDD directory README targets and contents."""
+    sdd_root = _resolve_sdd_readme_path(path, cwd=cwd).parent
+    return tuple(
+        _SddExpectedTextFile(path=sdd_root / dirname / "README.md", content=content)
+        for dirname, content in SDD_DIRECTORY_README_CONTENT.items()
+    )
+
+
+def _expected_sdd_text_files(
+    path: str | None = None, *, cwd: Path | None = None
+) -> tuple[_SddExpectedTextFile, ...]:
+    """Return all canonical generated SDD text files."""
+    return (
+        expected_sdd_readme(path, cwd=cwd),
+        *expected_sdd_directory_readmes(path, cwd=cwd),
+    )
+
+
+def expected_sdd_directory_map(
+    path: str | None = None, *, cwd: Path | None = None
+) -> _SddExpectedBytesFile:
+    """Return the canonical SDD directory map target and PNG bytes."""
+    return _SddExpectedBytesFile(
+        path=_resolve_sdd_asset_path(path, cwd=cwd),
+        content=_read_sdd_directory_map_bytes(),
+    )
+
+
 def write_sdd_readme(path: str | None = None, *, cwd: Path | None = None) -> Path:
     """Create or refresh the canonical SDD README and return its path."""
-    readme_path = _resolve_sdd_readme_path(path, cwd=cwd)
-    readme_path.parent.mkdir(parents=True, exist_ok=True)
-    readme_path.write_text(SDD_README_CONTENT, encoding="utf-8")
-    _write_sdd_directory_readmes(readme_path.parent)
-    _copy_sdd_directory_map(_resolve_sdd_asset_path(path, cwd=cwd))
-    return readme_path
+    readme = expected_sdd_readme(path, cwd=cwd)
+    for expected_file in _expected_sdd_text_files(path, cwd=cwd):
+        expected_file.path.parent.mkdir(parents=True, exist_ok=True)
+        expected_file.path.write_text(expected_file.content, encoding="utf-8")
+    _write_sdd_directory_map(expected_sdd_directory_map(path, cwd=cwd))
+    return readme.path
 
 
-def _write_sdd_directory_readmes(sdd_root: Path) -> None:
-    for dirname, content in SDD_DIRECTORY_README_CONTENT.items():
-        readme_path = sdd_root / dirname / "README.md"
-        readme_path.parent.mkdir(parents=True, exist_ok=True)
-        readme_path.write_text(content, encoding="utf-8")
+def _write_sdd_directory_map(expected_file: _SddExpectedBytesFile) -> None:
+    expected_file.path.parent.mkdir(parents=True, exist_ok=True)
+    expected_file.path.write_bytes(expected_file.content)
 
 
-def _copy_sdd_directory_map(asset_path: Path) -> None:
-    asset_path.parent.mkdir(parents=True, exist_ok=True)
+def _read_sdd_directory_map_bytes() -> bytes:
     source = resources.files("sase.sdd").joinpath("assets", SDD_DIRECTORY_MAP_FILENAME)
     with resources.as_file(source) as source_path:
-        if source_path.resolve() != asset_path.resolve():
-            shutil.copyfile(source_path, asset_path)
+        return source_path.read_bytes()
 
 
 def _looks_like_sdd_root(path: Path) -> bool:

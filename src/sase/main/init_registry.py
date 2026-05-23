@@ -22,11 +22,19 @@ class InitCommandSpec:
 def iter_init_command_specs() -> tuple[InitCommandSpec, ...]:
     """Return registered onboarding specs in execution order.
 
-    Phase 1 only introduces the registry surface. Later init plan/apply
-    phases register memory, SDD, and skills specs as their read-only planners
-    become available.
+    Init plan/apply phases register memory, SDD, and skills specs as their
+    read-only planners become available.
     """
-    return ()
+    from .sdd_handler import plan_sdd_init, run_sdd_init
+
+    return (
+        InitCommandSpec(
+            name="sdd",
+            label="SDD",
+            plan=plan_sdd_init,
+            run=run_sdd_init,
+        ),
+    )
 
 
 __all__ = ["InitCommandSpec", "iter_init_command_specs"]

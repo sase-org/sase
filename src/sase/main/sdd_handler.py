@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 import sys
 from typing import Any
+
+from .init_plan import InitAction, InitOperation, InitPlan
 
 
 def handle_sdd_command(args: argparse.Namespace) -> None:
@@ -26,11 +29,101 @@ def handle_sdd_command(args: argparse.Namespace) -> None:
 
 
 def _handle_init(args: argparse.Namespace) -> None:
+    sys.exit(run_sdd_init(args))
+
+
+def run_sdd_init(args: argparse.Namespace) -> int:
+    """Create or refresh SDD generated files and return an exit code."""
     from sase.sdd.files import write_sdd_readme
 
     readme_path = write_sdd_readme(getattr(args, "path", None))
     print(readme_path)
-    sys.exit(0)
+    return 0
+
+
+def plan_sdd_init(args: argparse.Namespace) -> InitPlan:
+    """Return a read-only plan for SDD generated files."""
+    from sase.sdd.files import (
+        expected_sdd_directory_map,
+        expected_sdd_directory_readmes,
+        expected_sdd_readme,
+    )
+
+    path = getattr(args, "path", None)
+    actions: list[InitAction] = []
+    expected_text_files = (
+        expected_sdd_readme(path),
+        *expected_sdd_directory_readmes(path),
+    )
+    for expected_file in expected_text_files:
+        operation = _planned_text_operation(expected_file.path, expected_file.content)
+        if operation is not None:
+            actions.append(
+                InitAction(
+                    path=expected_file.path,
+                    operation=operation,
+                    detail=_sdd_detail_for_path(expected_file.path),
+                )
+            )
+
+    expected_map = expected_sdd_directory_map(path)
+    operation = _planned_bytes_operation(expected_map.path, expected_map.content)
+    if operation is not None:
+        actions.append(
+            InitAction(
+                path=expected_map.path,
+                operation=operation,
+                detail="directory map asset",
+            )
+        )
+
+    return InitPlan(
+        command="sdd",
+        label="SDD",
+        summary=_summarize_sdd_actions(actions),
+        actions=tuple(actions),
+    )
+
+
+def _planned_text_operation(path: Path, expected_content: str) -> InitOperation | None:
+    if not path.exists():
+        return "create"
+    try:
+        return (
+            None if path.read_text(encoding="utf-8") == expected_content else "update"
+        )
+    except OSError:
+        return "update"
+    except UnicodeDecodeError:
+        return "update"
+
+
+def _planned_bytes_operation(
+    path: Path, expected_content: bytes
+) -> InitOperation | None:
+    if not path.exists():
+        return "create"
+    try:
+        return None if path.read_bytes() == expected_content else "update"
+    except OSError:
+        return "update"
+
+
+def _sdd_detail_for_path(path: Path) -> str:
+    if path.name == "README.md" and path.parent.name == "sdd":
+        return "top-level README"
+    return "directory README"
+
+
+def _summarize_sdd_actions(actions: list[InitAction]) -> str:
+    if not actions:
+        return "SDD README files and directory map are current"
+    operations = {action.operation for action in actions}
+    if operations == {"create"}:
+        return "create SDD README files and directory map"
+    if operations == {"update"}:
+        return "update SDD README files and directory map"
+    return "refresh SDD README files and directory map"
 
 
 def _handle_validate(args: argparse.Namespace) -> None:

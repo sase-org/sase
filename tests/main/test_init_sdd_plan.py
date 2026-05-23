@@ -1,0 +1,88 @@
+"""Tests for the SDD ``sase init`` planner."""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+from sase.main.init_registry import iter_init_command_specs
+from sase.main.sdd_handler import plan_sdd_init
+from sase.sdd.files import (
+    expected_sdd_directory_map,
+    expected_sdd_directory_readmes,
+    expected_sdd_readme,
+    write_sdd_readme,
+)
+
+
+def _args(path: Path) -> argparse.Namespace:
+    return argparse.Namespace(path=str(path))
+
+
+def _rel_actions(path: Path) -> set[tuple[str, Path]]:
+    plan = plan_sdd_init(_args(path))
+    sdd_root = path / "sdd"
+    return {
+        (action.operation, action.path.relative_to(sdd_root)) for action in plan.actions
+    }
+
+
+def test_sdd_plan_missing_tree_reports_create_actions_without_writing(
+    tmp_path: Path,
+) -> None:
+    plan = plan_sdd_init(_args(tmp_path))
+
+    assert not (tmp_path / "sdd").exists()
+    assert {action.operation for action in plan.actions} == {"create"}
+    assert len(plan.actions) == len(expected_sdd_directory_readmes(str(tmp_path))) + 2
+    assert expected_sdd_readme(str(tmp_path)).path in {
+        action.path for action in plan.actions
+    }
+    assert expected_sdd_directory_map(str(tmp_path)).path in {
+        action.path for action in plan.actions
+    }
+    assert plan.has_changes is True
+
+
+def test_sdd_plan_stale_readmes_report_update_actions(tmp_path: Path) -> None:
+    write_sdd_readme(str(tmp_path))
+    top_readme = expected_sdd_readme(str(tmp_path)).path
+    tales_readme = next(
+        file
+        for file in expected_sdd_directory_readmes(str(tmp_path))
+        if file.path.parent.name == "tales"
+    ).path
+    top_readme.write_text("stale top-level README\n", encoding="utf-8")
+    tales_readme.write_text("stale directory README\n", encoding="utf-8")
+
+    assert _rel_actions(tmp_path) == {
+        ("update", Path("README.md")),
+        ("update", Path("tales/README.md")),
+    }
+
+
+def test_sdd_plan_corrupt_directory_map_reports_update_action(tmp_path: Path) -> None:
+    write_sdd_readme(str(tmp_path))
+    directory_map = expected_sdd_directory_map(str(tmp_path)).path
+    directory_map.write_bytes(b"not a png\n")
+
+    assert _rel_actions(tmp_path) == {
+        ("update", Path("assets/sdd-directory-map.png")),
+    }
+
+
+def test_sdd_plan_identical_outputs_is_empty(tmp_path: Path) -> None:
+    write_sdd_readme(str(tmp_path))
+
+    plan = plan_sdd_init(_args(tmp_path))
+
+    assert plan.actions == ()
+    assert plan.has_changes is False
+    assert "current" in plan.summary
+
+
+def test_sdd_init_registry_includes_sdd_planner() -> None:
+    specs = {spec.name: spec for spec in iter_init_command_specs()}
+
+    assert "sdd" in specs
+    assert specs["sdd"].plan is plan_sdd_init
