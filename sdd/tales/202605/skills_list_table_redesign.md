@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 14:10:03
-status: wip
+status: done
 prompt: sdd/prompts/202605/skills_list_table_redesign.md
 ---
 # Plan: Render `sase skills list` as a beautiful table with rich provider chips

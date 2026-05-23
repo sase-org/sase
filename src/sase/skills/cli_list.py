@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 from rich.console import Console, Group, RenderableType
 from rich.panel import Panel
@@ -17,12 +18,29 @@ from sase.skills.inventory import (
     build_skills_inventory,
 )
 
+__all__ = [
+    "SkillTargetEntry",
+    "handle_skills_list_command",
+]
+
 _STATUS_STYLES: dict[SkillTargetStatus, str] = {
     "current": "green",
     "stale": "yellow",
     "missing": "red",
 }
-_PROVIDER_STYLE = "cyan"
+_STATUS_ICONS: dict[SkillTargetStatus, str] = {
+    "current": "✓",
+    "stale": "⚠",
+    "missing": "✗",
+}
+_PROVIDER_COLORS: dict[str, str] = {
+    "claude": "#cc785c",
+    "gemini": "#4285f4",
+    "codex": "#10a37f",
+    "amp": "magenta",
+    "cursor": "cyan",
+}
+_PROVIDER_ORDER: tuple[str, ...] = ("claude", "gemini", "codex", "amp", "cursor")
 _DRIFT_LIMIT = 12
 
 
@@ -93,38 +111,34 @@ def _sources_table(inventory: SkillsInventory) -> Table | Panel:
 
     table = Table(
         title="Skill Sources",
-        show_header=False,
-        box=None,
         expand=True,
-        pad_edge=False,
         show_lines=True,
+        header_style="bold",
     )
-    table.add_column("Metadata", no_wrap=False, overflow="fold", min_width=18)
-    table.add_column("Details", no_wrap=False, overflow="fold", ratio=1)
+    table.add_column("Skill", no_wrap=False, overflow="fold", min_width=16)
+    table.add_column("Providers", no_wrap=False, overflow="fold", ratio=2, min_width=14)
+    table.add_column("Status", no_wrap=False, overflow="fold", min_width=7)
+    table.add_column(
+        "Description", no_wrap=False, overflow="fold", ratio=3, min_width=20
+    )
 
     for source in inventory.sources:
         table.add_row(
-            _metadata_cell(source),
+            Text(f"/{source.name}", style="bold cyan"),
+            _provider_chips(source.providers),
+            _status_tokens(source),
             _details_cell(source),
         )
     return table
 
 
-def _metadata_cell(source: SkillSourceEntry) -> Group:
-    return Group(
-        Text(f"/{source.name}", style="bold cyan"),
-        _provider_labels(source.providers),
-        _source_status_summary(source),
-    )
-
-
-def _details_cell(source: SkillSourceEntry) -> Group:
+def _details_cell(source: SkillSourceEntry) -> RenderableType:
     description = _normalize_whitespace(source.description) or "-"
     description_text = Text(description)
-    source_text = Text()
-    source_text.append("source: ", style="dim")
-    source_text.append(source.source_path, style="dim")
-    return Group(description_text, Text(""), source_text)
+    footer = _compact_source_path(source.source_path, source.name)
+    if footer is None:
+        return description_text
+    return Group(description_text, footer)
 
 
 def _drift_panel(inventory: SkillsInventory) -> Panel | None:
@@ -172,21 +186,24 @@ def _status_counts(*, current: int, stale: int, missing: int) -> Text:
     return text
 
 
-def _source_status_summary(source: SkillSourceEntry) -> Text:
-    text = Text()
+def _status_tokens(source: SkillSourceEntry) -> Text:
     parts: list[tuple[int, SkillTargetStatus]] = [
         (source.current_count, "current"),
         (source.stale_count, "stale"),
         (source.missing_count, "missing"),
     ]
-    visible_parts = [(count, status) for count, status in parts if count > 0]
-    if not visible_parts:
-        return Text("-", style="dim")
+    visible: list[tuple[int, SkillTargetStatus]] = [
+        (count, status) for count, status in parts if count > 0
+    ]
+    if not visible:
+        return Text("–", style="dim")
 
-    for index, (count, status) in enumerate(visible_parts):
+    text = Text()
+    for index, (count, status) in enumerate(visible):
         if index:
-            text.append(", ", style="dim")
-        _append_count(text, count, status, status)
+            text.append(" ")
+        style = _STATUS_STYLES[status]
+        text.append(f"{_STATUS_ICONS[status]} {count}", style=style)
     return text
 
 
@@ -197,16 +214,54 @@ def _append_count(
     text.append(f" {label}", style=_STATUS_STYLES[status])
 
 
-def _provider_labels(providers: tuple[str, ...]) -> Text:
+def _provider_chips(providers: tuple[str, ...]) -> Text:
     if not providers:
-        return Text("-", style="dim")
+        return Text("–", style="dim")
 
-    labels = Text()
-    first = providers[0]
-    labels.append(first, style=f"bold {_PROVIDER_STYLE}")
-    if len(providers) > 1:
-        labels.append(f" +{len(providers) - 1}", style="dim")
-    return labels
+    seen = set(providers)
+    known = [p for p in _PROVIDER_ORDER if p in seen]
+    unknown = sorted(p for p in providers if p not in _PROVIDER_COLORS)
+    ordered = known + unknown
+
+    text = Text()
+    for index, provider in enumerate(ordered):
+        if index:
+            text.append("  ")
+        color = _PROVIDER_COLORS.get(provider, "white")
+        text.append("●", style=color)
+        text.append(f" {provider}", style=color)
+    return text
+
+
+def _compact_source_path(source_path: str, skill_name: str) -> Text | None:
+    if not source_path or source_path == "-":
+        return None
+
+    if _is_special_prefix_path(source_path):
+        return Text(source_path, style="dim")
+
+    canonical_suffix = f"/xprompts/skills/{skill_name}.md"
+    if source_path.endswith(canonical_suffix) or source_path == canonical_suffix[1:]:
+        return None
+
+    compact = source_path
+    home = str(Path.home())
+    if home and compact.startswith(home):
+        compact = "~" + compact[len(home) :]
+
+    marker = "/xprompts/skills/"
+    if marker in compact:
+        basename = compact.rsplit("/", 1)[-1]
+        compact = f"…/skills/{basename}"
+
+    return Text(compact, style="dim")
+
+
+def _is_special_prefix_path(source_path: str) -> bool:
+    if source_path.startswith(("/", "~", ".")):
+        return False
+    head, _, _ = source_path.partition(":")
+    return bool(head) and head.isidentifier()
 
 
 def _normalize_whitespace(value: str) -> str:

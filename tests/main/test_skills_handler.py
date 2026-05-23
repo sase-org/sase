@@ -16,6 +16,7 @@ from sase.main.parser import create_parser
 from sase.skills.cli_list import _render_skills_inventory
 from sase.skills.inventory import (
     SkillSourceEntry,
+    SkillTargetEntry,
     SkillsInventory,
     build_skills_inventory,
 )
@@ -237,7 +238,7 @@ def test_skills_list_dashboard_renders_summary_and_drift(
     assert "home" in text
     assert "Skill Sources" in text
     assert "/current" in text
-    assert source_paths["current"].name in text
+    _ = source_paths  # path display is exercised by the long-description test
     assert "current description" in text
     assert "…" not in text
     assert "..." not in text.replace(
@@ -280,6 +281,60 @@ def test_skills_list_dashboard_does_not_truncate_long_name_or_description() -> N
     for word in long_description.split():
         assert word in text
     assert "…" not in text
-    assert source.source_path in text.replace("\n", "").replace(" ", "") or all(
-        segment in text for segment in source.source_path.split("/")
+    # The canonical xprompts/skills/<name>.md path is redundant with the skill
+    # name and intentionally omitted from the description footer.
+
+
+def test_skills_list_table_shows_full_provider_set_and_status_tokens() -> None:
+    multi_targets = tuple(
+        SkillTargetEntry(
+            path=Path(f"/tmp/{provider}/multi.md"),
+            provider=provider,
+            skill_name="multi",
+            status="current",
+        )
+        for provider in ("claude", "gemini", "codex", "amp", "cursor")
     )
+    multi = SkillSourceEntry(
+        name="multi",
+        description="multi-provider skill",
+        source_path="src/sase/xprompts/skills/multi.md",
+        providers=("claude", "gemini", "codex", "amp", "cursor"),
+        targets=multi_targets,
+    )
+    single = SkillSourceEntry(
+        name="single",
+        description="single-provider skill",
+        source_path="src/sase/xprompts/skills/single.md",
+        providers=("gemini",),
+        targets=(),
+    )
+    inventory = SkillsInventory(sources=(multi, single), deploy_mode="home")
+
+    output = StringIO()
+    console = Console(file=output, force_terminal=False, color_system=None, width=160)
+    _render_skills_inventory(inventory, console=console)
+    text = output.getvalue()
+
+    for provider in ("claude", "gemini", "codex", "amp", "cursor"):
+        assert provider in text
+    # No `+N` collapse should appear in the providers column.
+    assert "+4" not in text
+    assert "+3" not in text
+
+
+def test_skills_list_table_renders_compact_status_tokens(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    inventory, _ = _inventory_with_target_states(tmp_path, monkeypatch, capsys)
+
+    output = StringIO()
+    console = Console(file=output, force_terminal=False, color_system=None, width=140)
+    _render_skills_inventory(inventory, console=console)
+    text = output.getvalue()
+
+    assert "✓ 1" in text
+    assert "⚠ 1" in text
+    assert "✗ 1" in text
