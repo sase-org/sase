@@ -578,4 +578,34 @@ class TestAgentArtifactMetadata:
         assert mappings[1] == str(sdd_plan)
 
 
+class TestStepMetadataHeader:
+    def test_header_present_when_meta_fields_exist(self) -> None:
+        agent = make_agent(
+            step_output={
+                "meta_commit_message": "fix: align",
+                "meta_new_commit": "96a895335",
+            }
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "STEP METADATA\n" in header.plain
+        assert "Commit Message: fix: align\n" in header.plain
+        assert "New Commit: 96a895335\n" in header.plain
+
+    def test_header_absent_when_no_meta_fields(self) -> None:
+        agent = make_agent(step_output={"status": "ok"})
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "STEP METADATA" not in header.plain
+
+    def test_header_absent_when_no_step_output(self) -> None:
+        agent = make_agent()
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "STEP METADATA" not in header.plain
+
+
 # -- agent list bead badge ----------------------------------------------------

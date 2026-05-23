@@ -94,10 +94,36 @@ def test_workflow_snapshot_render_reads_state_once_and_uses_parsed_data(
     plain = _plain(panel.captured[-1])
     assert "Project: sase" in plain
     assert "Workspace: #7" in plain
+    assert "STEP METADATA" in plain
+    assert plain.index("STEP METADATA") < plain.index("Result: ok")
     assert "Result: ok" in plain
     assert "INPUTS" in plain
     assert 'task: "fix"' in plain
     assert "Step 1/1" in plain
+
+
+def test_workflow_snapshot_omits_step_metadata_header_when_no_meta_fields(
+    tmp_path: Path,
+) -> None:
+    state = {
+        "inputs": {"task": "fix"},
+        "steps": [
+            {
+                "name": "plan",
+                "status": "completed",
+                "output": {"result": "ok"},
+            }
+        ],
+        "step_prompts": [{"name": "plan", "agent": "fallback prompt"}],
+    }
+    (tmp_path / "workflow_state.json").write_text(json.dumps(state), encoding="utf-8")
+    agent = _make_agent(artifacts_dir=str(tmp_path))
+    panel = _Panel()
+
+    panel._update_workflow_display(agent)
+
+    plain = _plain(panel.captured[-1])
+    assert "STEP METADATA" not in plain
     assert "plan" in plain
     assert "fallback prompt" in plain
 

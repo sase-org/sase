@@ -112,6 +112,8 @@ def build_workflow_detail_renderable(
     meta_fields = snapshot.meta_fields
     if meta_fields:
         header_text.append("\n")
+        header_text.append("STEP METADATA\n", style="bold #D7AF5F underline")
+        header_text.append("\n")
         for name, value in meta_fields:
             header_text.append(f"{name}: ", style="bold #87D7FF")
             header_text.append(f"{value}\n", style="#5FD75F")
