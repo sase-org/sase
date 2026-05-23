@@ -165,6 +165,31 @@ sibling_repos:
     assert "sase workspace open -p <sibling_repo> <workspace_num>" not in project_memory
 
 
+def test_init_memory_overwrites_non_utf8_generated_memory_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    broken = project_root / "memory" / "short" / "sase.md"
+    broken.parent.mkdir(parents=True)
+    broken.write_bytes(b"\xff\xfe")
+
+    assert run_handler() == 0
+
+    project_memory = broken.read_text(encoding="utf-8")
+    assert project_memory.startswith(_SASE_MEMORY_HEADER)
+
+
 def test_init_memory_mixed_siblings_render_static_location_and_workspace_open(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

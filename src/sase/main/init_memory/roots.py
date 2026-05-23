@@ -210,7 +210,7 @@ def _write_expected_file(expected: MemoryExpectedFile) -> bool:
             and expected.path.read_text(encoding="utf-8") == expected.content
         ):
             return False
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         pass
     expected.path.parent.mkdir(parents=True, exist_ok=True)
     expected.path.write_text(expected.content, encoding="utf-8")
