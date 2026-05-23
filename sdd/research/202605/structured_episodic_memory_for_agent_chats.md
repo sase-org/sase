@@ -11,6 +11,20 @@ status: research
 > idempotency rules, schema migration, retraction, embeddings trigger conditions, an evaluation harness, a CLI surface
 > per phase, and a comparison table that separates episodes from dreams and memory proposals. The original
 > recommendations stand; the additions close gaps rather than reverse direction.
+>
+> **Revision (2026-05-23, third pass):** Third pass closes remaining gaps without overturning prior conclusions. New
+> material covers: an explicit importance/selection scoring function so the LLM-call budget is deterministic; an
+> inter-episode link vocabulary (`supersedes`, `refutes`, `see_also`, `parent_of`, `forked_from`) so episodes can form
+> an auditable causal graph; a redaction-at-source design that reuses `src/sase/ace/tui/repro/redact.py` and the
+> existing `_PROMPT_INJECTION_PATTERNS` rather than inventing parallel scrubbers; pre-embedding ranking signals
+> (recency decay, success weight, agent-family match, file overlap, repo locality); a concrete backfill plan for the
+> existing ~1,570 chats and ~458 `done.json` records; TUI and mobile surfaces including a `sase ace` "Episodes" tab and
+> Telegram digest format; a comparison row for current commercial memory products (Claude memory tool, ChatGPT memory,
+> Cursor "Memories", Continue/Cline rule files, Letta archival memory); explicit trigger points (post-finalizer hook,
+> retry-chain close, dismissal) and a uniform-runtime constraint; observability metrics the collector and distiller
+> must emit; a forgetting/decay policy; and an anti-patterns list that calls out the failure modes most likely to
+> appear under implementation pressure. None of these reverse the earlier recommendation that episodes are evidence,
+> not instructions; they harden the seams where that line is easy to cross by accident.
 
 ## Question
 
@@ -176,6 +190,38 @@ Use SASE-native structure before text segmentation:
 
 This is better than splitting by token count or calendar window because SASE already knows the work structure.
 
+## Importance Scoring And Episode Selection
+
+Phase 1 must produce an importance score deterministically so Phase 2 can pick which episodes get LLM distillation
+without invoking a model just to decide. The earlier `selection.importance: 0.73` field needs a defined source.
+
+Recommended scoring function, computed from already-indexed metadata only:
+
+```
+importance = clamp01(
+    0.25 * outcome_signal       # +1 retry-chain success after failure, +0.5 first-try success, 0 noop, -0.5 dismissed
+  + 0.15 * artifact_signal      # +1 if diff_path | plan_path | commit, +0.5 if generated artifacts, else 0
+  + 0.15 * scope_signal         # 1.0 if ChangeSpec/bead/sdd_prompt_path present, 0.5 if just project, 0 unscoped
+  + 0.15 * retry_signal         # 1.0 for chains of len>=3 ending in success, 0.5 for len==2, 0 for len==1
+  + 0.10 * duration_signal      # log10(seconds)/4 capped at 1.0 -- short runs are rarely worth distilling
+  + 0.10 * model_signal         # 1.0 if model is Opus/Sonnet-class, 0.5 Haiku, 0 unknown -- a proxy for stake
+  + 0.10 * recency_signal       # exp(-age_days/30); recent failures matter more than ancient ones
+)
+```
+
+Episodes with `importance >= 0.55` enter the distillation queue. Episodes between `0.30` and `0.55` enter only on
+explicit `sase episodes distill --include-medium`. Below `0.30`, the deterministic manifest is enough.
+
+Three hard overrides bypass the score:
+
+1. **User-flagged**: any episode where the user prompt contains `#flag` or a `sase episodes flag ep_...` call.
+2. **Failure-recovery**: any retry chain that ended with success after at least one failure (Reflexion's high-value
+   case).
+3. **Research/postmortem**: episodes whose root prompt path is under `sdd/research/` or `sdd/postmortems/`.
+
+This keeps token spend predictable: at ~60 episodes/day peak with selection rate ~40%, distillation is bounded at
+24/day even if every score were a coin flip. The thresholds are tunable per project via `~/.sase/episodes.yml`.
+
 ## Recommended Storage Model
 
 Add a new episode subsystem, separate from dreams and canonical memory:
@@ -271,6 +317,38 @@ Recommended v1 schema:
 
 The record should allow missing fields. Old transcripts and non-SASE runtimes will not always have clean metadata.
 
+## Inter-Episode Links
+
+Episodes acquire most of their long-term value once they reference each other. Borrow A-MEM's typed-link idea but
+restrict the vocabulary to keep audit cheap. The link block is a top-level array, not buried in `summary`:
+
+```json
+"links": [
+  {"kind": "parent_of",   "episode_id": "ep_abc", "reason": "child workflow step"},
+  {"kind": "forked_from", "episode_id": "ep_def", "reason": "/fork from chat path"},
+  {"kind": "supersedes",  "episode_id": "ep_ghi", "reason": "later attempt fixed earlier regression"},
+  {"kind": "refutes",     "episode_id": "ep_jkl", "reason": "earlier 'lesson' was wrong, see chat L42"},
+  {"kind": "see_also",    "episode_id": "ep_mno", "reason": "same ChangeSpec, adjacent in time"}
+]
+```
+
+Rules:
+
+- **Links are append-only.** Adding a `supersedes` edge does not delete the predecessor; the index just deranks it for
+  default queries. The predecessor stays as evidence.
+- **`refutes` requires a citation.** The episode JSON must carry `refutes_evidence: [{episode_id, chat_path,
+  excerpt_sha256}]`. Without that, the link is rejected at validation. This is the only way an episode is allowed to
+  contradict another.
+- **`supersedes`/`refutes` cascade to memory proposals.** If an episode that produced an approved `mem-*` memory is
+  refuted or superseded, the index flags that memory for human re-review and writes a row to a `memory_invalidations`
+  table. The memory file itself is not edited automatically.
+- **Link creation is local-deterministic where possible.** `parent_of` and `forked_from` come from `agent_meta.json`
+  and `chat_links.py`. `supersedes` is inferred from retry-chain root + outcome flip. `refutes` and `see_also` are
+  the only kinds that may be proposed by an LLM, and only with citations.
+
+The link graph is a useful retrieval signal: `reflect "<query>"` should prefer episodes whose closest neighbors in the
+link graph also score well, breaking ties before recency.
+
 ## Integration With Existing `sase memory` Proposal Pipeline
 
 The `memory_candidates` block in the episode JSON is the **input** to a proposal, not a parallel proposal store. The
@@ -350,6 +428,38 @@ The episode store should expose:
 - Episode JSON files are append-only at the FS level (no in-place edits). Redaction and tombstones are sibling files,
   not mutations, so a backup-restore can recover earlier states.
 
+## Redaction At The Source: Secret And PII Scrubbing
+
+The collector must scrub before any text leaves the immediate evidence layer. Two existing seams should be reused
+rather than duplicated:
+
+1. **`src/sase/ace/tui/repro/redact.py`** already scrubs reproduction captures of paths, tokens, and identifiers. The
+   episode collector should call the same redactor on excerpts before they enter the JSON `summary.*` arrays or are
+   shipped to the distiller. New scrub rules belong in that module so repro captures benefit from the same fixes.
+2. **`src/sase/memory/_proposal_validation.py::_PROMPT_INJECTION_PATTERNS`** already detects classic injection strings.
+   The collector should run those patterns over any excerpt it considers including, and on hit it must:
+   - set `selection.trust = "tool_output"` for the source segment;
+   - drop the segment from `summary.retained_facts` and `memory_candidates`;
+   - record the matching pattern code in `safety.prompt_injection_flags`.
+
+Concrete scrub layers, applied in order:
+
+| Layer | What it catches | Where it runs |
+| --- | --- | --- |
+| Path/identity redactor (existing) | `$HOME`, machine name, workspace number, absolute paths | `redact.py` |
+| Secret regex pack | AWS/GCP/Anthropic/OpenAI/GH keys, JWTs, RSA blocks, `Bearer <token>` | new `episodes/scrub_secrets.py` |
+| PII regex pack | emails (except the configured user email), phone numbers, IP addresses | new `episodes/scrub_pii.py` |
+| Injection screen (existing) | `ignore previous instructions`, `system:`, `</prompt>`, etc. | `_proposal_validation.py` |
+| Length cap | head + tail + retry-delta only, ≤16 KB per episode total | collector |
+
+The secret/PII regex packs should be lifted as-is from well-known sources (`gitleaks`, `trufflehog`, `detect-secrets`)
+rather than hand-written; SASE does not need to invent a new pattern set. A single fixtures file
+`tests/episodes/fixtures/poisoned/` should contain one chat per pattern class so regressions are caught immediately.
+
+Important: scrubbing is for *excerpts*, not for raw chat files. Raw chat redaction is a separate, opt-in flow
+(`sase chats redact <path>`) because removing evidence from the canonical record has stronger implications than
+redacting a projection. The episode collector must treat the raw chat as immutable input.
+
 ## Multi-Machine Sync
 
 Episode storage must follow the per-domain sync rules already sketched in
@@ -417,6 +527,39 @@ When the trigger fires, prefer `sqlite-vec` co-located in the same `index.sqlite
 model (e.g. nomic-embed-text via Ollama) or a cheap API model, and a build step that backfills from JSON. Do not
 introduce a separate vector database; the operational cost is not justified at SASE's data scale.
 
+## Search Ranking Signals Before Embeddings
+
+FTS by itself ranks on lexical overlap. Coding-agent retrieval needs more. The recommended `sase episodes search`
+ranker combines BM25 with five cheap structural signals, all computed at query time from the index:
+
+```
+score = bm25
+      + 0.6 * recency_decay        # exp(-age_days / 60)
+      + 0.4 * outcome_weight       # +1 success, +0.7 noop, +0.3 failure, 0 unknown
+      + 0.4 * importance           # cached from selection.importance
+      + 0.3 * scope_match          # 1 if query mentions same ChangeSpec / bead / file / repo
+      + 0.2 * agent_family_match   # 1 if query mentions the same agent family
+```
+
+Rationale per signal:
+
+- **recency_decay (60-day half-life)**: coding-agent context rots faster than general knowledge. A six-month-old
+  episode about the same file is usually less useful than a one-week-old episode about a neighboring file.
+- **outcome_weight**: a successful retry chain is a better template than a failed one for "what should I try?", but
+  failures should not be excluded — they are essential for "what did we try and rule out?". A small positive weight
+  on failure (`0.3`) keeps them in the top-k without dominating.
+- **importance**: re-uses the deterministic Phase-1 score; no extra cost.
+- **scope_match**: extracted from the query at search time by matching against known ChangeSpec names, bead IDs, and
+  repo-relative file paths (cheap because those identifiers have rigid shapes).
+- **agent_family_match**: a fix-family episode is usually a better match for a fix-family query than a research-family
+  one, even when the words overlap.
+
+When embeddings are added later, they replace `bm25` as the lexical term; the structural signals stay. This makes the
+upgrade additive and revertible (drop the `sqlite-vec` extension load, and ranking falls back to FTS+structural).
+
+The TUI's "Episodes" tab (described below) should expose the contribution of each signal as a debug overlay (`E`
+keymap) so ranking regressions are diagnosable without a full eval rerun.
+
 ## Evaluation Harness
 
 Borrow the LongMemEval task families and ground them in SASE-shaped fixtures. The harness should live at
@@ -437,6 +580,39 @@ The poisoned-transcript fixture in particular should be a checked-in markdown fi
 exactly the patterns already in `_PROMPT_INJECTION_PATTERNS` plus a few less-obvious paraphrases — and the test
 asserts both that no `mem-*` proposal is created and that the episode record carries a `selection.trust=tool_output`
 classification.
+
+## Backfill Plan For The Existing Corpus
+
+The local SASE state already contains 1,570 chat markdown files, 458 `done.json`s, 1,146 `agent_meta.json`s, and 740
+dismissed bundles. A naïve "distill them all" backfill is the wrong shape; a tiered backfill is right.
+
+Recommended ordering:
+
+1. **Tier A — index only, no LLM.** Run `sase episodes collect --all` against the artifact index and the chat
+   catalog. Goal: every chat with usable metadata gets a deterministic episode record with `importance`, links, and
+   sources populated. Expected output: ~300–400 episodes after retry-chain and workflow collapse. Cost: zero LLM
+   tokens, sub-minute on a warm SQLite index.
+2. **Tier B — distill top decile.** Run `sase episodes distill --pending --importance-min 0.7 --limit 50` to spend
+   tokens on the clearly-valuable episodes first. Manually spot-check 10 of those to validate the prompt before
+   widening the queue.
+3. **Tier C — widen to retry chains + research/postmortem.** Distill anything matching the hard overrides regardless
+   of score. Expected total: ~80–120 distilled episodes after Tier B + C combined.
+4. **Tier D — opt-in widening.** Leave the remaining ~70% of episodes as deterministic-only records. They are still
+   searchable and citable; they just lack an LLM-written summary. The collector can revisit them later if
+   `sase episodes search` precision falls.
+
+Pre-backfill guards:
+
+- Run the secret/PII scrub on a 10-chat sample before any distillation. If the scrubber finds matches, fix the
+  patterns before running at full scale.
+- Cap the backfill rate (e.g. `--max-rps 0.5`) so a runaway loop does not produce thousands of proposals overnight.
+- Backfill produces episodes only; it does **not** auto-create `mem-*` proposals. Proposal creation is gated by
+  `sase episodes promote-candidates --since 1d` so a human can pace the review queue.
+
+Dismissed-bundle backfill is opt-in via `--include-dismissed`. Many dismissed bundles are legitimate work that was
+manually hidden from the TUI but still valuable as evidence; some are noise. The collector should mark every such
+episode `episode_kind: "agent_run"` with a `selection.reasons` entry of `"dismissed_recovered"` so the source is
+obvious in `show`.
 
 ## Concrete CLI Surface
 
@@ -470,6 +646,40 @@ sase episodes drop --source PATH
 Every read verb supports `--json` for scripting and dynamic-memory integration. No verb writes to `memory/short`
 or `memory/long` directly; promotion always passes through `sase memory review`.
 
+## TUI And Mobile Surfaces
+
+CLI is enough for v1, but the value of episodes shows up at review time, and review is mostly visual.
+
+**`sase ace` TUI: "Episodes" tab.** Add a fourth tab next to Agents, Chats, and Memory. Rows show `episode_id`,
+title, project, workstream, outcome glyph, agent family, `importance`, distilled-yes/no, and pending-proposal count.
+Keymaps:
+
+- `Enter`: open the episode markdown projection in the right pane.
+- `o`: open the underlying chat in the existing Chats tab.
+- `c`: open the candidate proposals (if any) in the existing Memory tab.
+- `l`: jump to the linked predecessor (`supersedes`/`forked_from`/`parent_of`).
+- `/`: open a search palette using the same FTS+structural ranker as `sase episodes search`.
+- `E`: toggle the ranking-signal debug overlay described earlier.
+- `R`: redact the highlighted field (calls `sase episodes redact`).
+
+The Episodes tab is presentation-only and stays in Python, per the Rust-core boundary. The data it renders comes from
+the new `agent_episodes` crate's stable wire format.
+
+**Mobile / web surfaces.** Use the same wire format for the future mobile app and the `textual-serve` web shell.
+Episodes are smaller than chats, and their structure is fixed, so they render well on small screens. A mobile
+"timeline" view should list episodes in reverse-chronological order, grouped by ChangeSpec or bead, with the title
+plus a 1-line outcome line — no excerpt scrolling required.
+
+**Telegram digest (via `sase-telegram`).** A daily/weekly `sase episodes digest --telegram` command produces a
+Markdown-V2 message with: top 5 episodes by importance, count of failed-then-succeeded retry chains, count of pending
+memory proposals, and a deep-link path per episode. The message body is bounded at 4096 characters; episodes beyond
+the cap roll into a "+N more" line. The Telegram bridge sends but does not store; the canonical record stays under
+`~/.sase/episodes/`.
+
+**Neovim (`sase-nvim`).** A `:SaseEpisodes <pattern>` command opens a quickfix list scoped to the current file or
+ChangeSpec. This is mostly a thin wrapper around `sase episodes search -j --file <path>`, but it makes the "what did
+I or another agent do here last time?" question answerable from the editor without context-switching.
+
 ## Comparison: Episodes vs Dreams vs Memory Proposals
 
 These three subsystems are easy to conflate but serve different jobs:
@@ -488,7 +698,63 @@ These three subsystems are easy to conflate but serve different jobs:
 The pipeline is one-way: episodes feed dreams, episodes propose memory candidates, dreams cite episodes, and memory
 proposals cite episodes. Nothing else writes to `memory/long` automatically.
 
+## Comparison With Current Commercial Memory Products
+
+The commercial landscape as of 2026 helps locate SASE's design. None of these products targets the "audit completed
+agent runs in a coding workspace" niche directly; each makes a different tradeoff that SASE should learn from but not
+copy.
+
+| Product | Unit of memory | Promotion | Provenance | Why SASE differs |
+| --- | --- | --- | --- | --- |
+| ChatGPT memory (OpenAI) | Free-text facts about the user | Automatic, with a "Saved" notice | Weak: shown in a settings page, not cited inline | SASE needs per-episode citation back to chats/artifacts; account-level facts are the wrong unit |
+| Claude memory tool (Anthropic API) | Developer-defined documents stored via a tool call | Tool-mediated, app controls writes | Whatever the app records | Closest in spirit to SASE's `memory/long` writes via review; SASE's contribution is the *episode layer below it* |
+| Cursor "Memories" | Editor-scoped rules learned from interactions | Auto-proposed; user accepts/rejects in UI | Linked to the originating chat | Cursor proposes rules but does not expose episode evidence; SASE's review surface stays the same place a human would audit |
+| Continue / Cline rule files | Pinned markdown files in the repo | Manual edit only | The file itself | No episode layer; SASE adds one without disturbing the rule-file model |
+| Aider conventions | Static markdown loaded into the prompt | Manual | Filename | Same shape as `memory/long`; SASE differs by having an episode index below it |
+| Letta archival memory | Vector-indexed text blocks with explicit `archival_insert` | Agent-mediated, no review by default | Insertion timestamp | SASE rejects "agent-mediated insert without review" for `memory/long`; episodes are SASE's substitute for ad-hoc archival writes |
+| Zep / Graphiti | Bi-temporal knowledge graph over conversations | Automatic edge creation | Strong: nodes carry valid/transaction time | Useful schema lesson (bi-temporal fields) but SQLite + JSON is enough for SASE volume; a graph DB is not justified |
+| mem0 | Extract/update/retrieve loop with conflict resolution | Automatic merge | Per-claim source | SASE's `supersedes`/`refutes` link kinds capture the conflict-resolution idea without silent in-place mutation |
+| Generative Agents memory stream | Time-stamped observations + reflections | Importance score + retrieval | Embedded in stream | SASE borrows the importance score, drops the always-on retrieval injection |
+
+Two takeaways:
+
+1. The market direction is toward *some* automatic memory, but every product that exposes it conservatively (Cursor's
+   accept/reject, Claude's tool-mediated writes) does better than products that promote silently. SASE's review-gated
+   promotion path matches the safer pattern.
+2. No current product publishes an "episode card" with full evidence links. That is the SASE-specific niche: a record
+   that future agents (and humans during postmortem) can cite without trusting it as instruction.
+
 ## Implementation Strategy
+
+### Trigger Points And Hook Integration
+
+The collector should not poll on a schedule. SASE already emits the events it needs:
+
+- **Post-finalizer**: `src/sase/axe/run_agent_exec_finalize.py` is the single place where `done.json` becomes complete.
+  Add a best-effort, non-blocking call to `episodes.collect_for_artifact(artifact_dir)` at the end of that function.
+  Failure must not affect the agent's user-visible outcome; log to `~/.sase/episodes/collector.log` and continue.
+- **Retry-chain close**: when `retry_chain_root_timestamp` gains a successful terminal member, re-collect the chain
+  (the episode ID changes when the chain extends, per the idempotency rules). This is detectable at finalize time.
+- **Dismissal**: `~/.sase/dismissed_bundles/` writes are an explicit user action. Subscribe via a filesystem watcher
+  or, simpler, re-scan on the next collector invocation; either way, never lose the evidence.
+- **Manual**: `sase episodes collect [--since|--all|--artifact-dir]` for backfill and reruns.
+
+The post-finalizer hook is the only one that needs to be online during normal use. Everything else is recoverable on
+the next `collect` call. This keeps the agent critical path unaffected.
+
+### Cross-Runtime Parity
+
+By the "Uniform Agent Runtimes" rule in `memory/short/gotchas.md`, the collector must not branch on runtime. Claude,
+Codex, Gemini, Qwen, and any future runtime produce the same `done.json` and `agent_meta.json`. The episode collector
+reads those, not runtime-specific transcript dialects. Two practical consequences:
+
+1. Distillation prompts should be runtime-neutral. The prompt should describe the *input shape* (structured metadata
+   + bounded excerpts) without mentioning a specific runtime's transcript format.
+2. The eval harness must include at least one fixture per supported runtime so a runtime-specific regression is
+   caught immediately. Fixtures should live under `tests/episodes/fixtures/runtimes/{claude,codex,gemini,qwen}/`.
+
+If a runtime produces malformed `agent_meta.json` (older Codex versions, for example), the deterministic collector
+still produces an episode — fields just go missing — rather than failing or branching on runtime.
 
 ### Phase 1: Deterministic Episode Collector
 
@@ -554,6 +820,77 @@ Minimum gates:
 - add poisoned-transcript fixtures that attempt to inject durable instructions;
 - require citations for every candidate memory;
 - provide a retraction query by `episode_id` and source path.
+
+## Observability And Metrics
+
+The collector and distiller must publish enough state that a regression is debuggable without re-running them. Append
+JSONL rows to `~/.sase/episodes/metrics/YYYYMM.jsonl` for every run with the following fields:
+
+```json
+{"ts": "...", "phase": "collect|distill|reindex",
+ "episodes_seen": 0, "episodes_written": 0, "episodes_skipped_idempotent": 0,
+ "candidates_produced": 0, "candidates_rejected_injection": 0, "candidates_rejected_low_confidence": 0,
+ "llm_calls": 0, "input_tokens": 0, "output_tokens": 0, "wall_seconds": 0.0,
+ "errors": [{"path": "...", "kind": "...", "message": "..."}]}
+```
+
+A small `sase episodes stats --since 30d` command should aggregate these. Key alarms worth surfacing:
+
+- distillation rejection rate (poison-screen hits / candidates) — sustained spikes mean a new injection pattern is in
+  the wild;
+- LLM output JSON-validation failure rate — sustained spikes mean the distillation prompt drifted;
+- p95 collector wall time — sustained growth means the artifact index needs maintenance;
+- candidate-to-promoted ratio — if approval rate falls below ~30%, the selection threshold is too generous.
+
+These metrics are local-only; they should not be synced. Each machine's view is independent.
+
+## Forgetting And Decay Policy
+
+Episodes are append-only on disk, but they are not equally visible forever. The index applies three decay rules:
+
+1. **Visibility decay**: default queries (`list`, `search`, `reflect`) attenuate episodes older than 180 days by 50%
+   in the ranker. `--include-old` disables the attenuation. Nothing is deleted.
+2. **Superseded archival**: episodes with at least one inbound `supersedes` edge drop out of default queries entirely
+   but remain reachable via `show` and `--include-superseded`.
+3. **Tombstone semantics**: dropped sources (via `sase episodes drop`) leave a `.tombstone.json` so the same episode
+   cannot be re-collected later; the tombstone is the forgetting record.
+
+Hard deletion is reserved for retraction and is always explicit. Nothing decays to deletion silently. This matters
+because the episode store will eventually be the longest-lived artifact in SASE, and silent decay would make
+postmortems impossible.
+
+The decay coefficients should be tunable via `~/.sase/episodes.yml` so different projects can move faster or slower
+based on how quickly their code churns.
+
+## Anti-Patterns
+
+The following are the failure modes most likely to appear under implementation pressure. Naming them up front:
+
+1. **"Just inject the top episode into every prompt."** This collapses the episodic/semantic boundary. Top-k episode
+   injection should require an explicit `#episodes:<query>` directive, never an always-on prefix.
+2. **"Write the lesson straight to `memory/long`."** This bypasses `sase memory review`. The collector must always
+   round-trip through `create_memory_proposal()` so prompt-injection screens and human review apply.
+3. **"Distill everything; we'll filter later."** This makes token spend grow with corpus size, and creates a review
+   backlog that drowns useful signal. The importance scorer exists to prevent this.
+4. **"Vector search first; FTS later."** This inverts the right ordering. FTS + structural ranker shipped first is
+   cheap and debuggable; embeddings retro-fit cleanly when the trigger conditions hit.
+5. **"Use full transcripts as distillation input."** This wastes tokens, multiplies prompt-injection surface, and
+   defeats the redaction budget. Use head + tail + retry-delta only, capped at 16 KB.
+6. **"Mutate episodes in place when we learn more."** This destroys audit. New information becomes a new episode
+   linked via `supersedes`/`refutes`; the predecessor stays untouched.
+7. **"Sync the SQLite index across machines."** Binary index sync invites corruption. Sync JSON only and rebuild.
+8. **"One episode per chat file."** Retry chains, parent/child workflows, and forks would produce duplicate or
+   conflicting episodes. The boundary rule (retry-chain root, workflow root, then transcript fallback) exists
+   precisely to avoid this.
+9. **"Branch on runtime."** Violates the uniform-runtime rule. All runtimes produce the same `done.json` schema;
+   episodes never need a runtime switch.
+10. **"Hide dismissed runs entirely."** Dismissal is a UI hint, not evidence deletion. The collector must still see
+    dismissed bundles (opt-in via `--include-dismissed` in v1, default on in v2).
+11. **"Auto-cleanup old episodes after N days."** The decay policy attenuates visibility; it does not delete. Deletion
+    is always explicit. Auto-cleanup would conflict with multi-machine sync semantics.
+12. **"Add an LLM judge for poison screening."** The deterministic `_PROMPT_INJECTION_PATTERNS` set is sufficient,
+    cheap, and auditable. Adding an LLM judge introduces a new attack surface (the judge prompt) and a new failure
+    mode (silent flakiness).
 
 ## Is It Worth Doing?
 
