@@ -15,12 +15,13 @@ Configured sibling repositories for this context:
 - `sase-telegram`: Telegram integration plugin for chat-driven SASE workflows and notifications.
 - `sase-nvim`: Neovim integration plugin for SASE syntax, completion, and editor support.
 
-When you need to make changes to files in a sibling repository or need to review sibling repository code, agents MUST
-run:
+When you need to make changes to files in a numbered-workspace sibling repository or need to review numbered-workspace
+sibling repository code, agents MUST run:
 
 ```bash
 sase workspace open -p <sibling_repo> <workspace_num>
 ```
 
 `<workspace_num>` must be the workspace number assigned to the primary repo (check what directory you were started in to
-figure this out). Use the path printed by `sase workspace open` as the only repository path for sibling reads/writes.
+figure this out). Use the path printed by `sase workspace open` as the only repository path for numbered-workspace
+sibling reads/writes.
