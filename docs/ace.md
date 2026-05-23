@@ -295,7 +295,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `x`                 | Kill / dismiss agent, every marked agent, or every agent in the focused group                                 |
 | `X`                 | Open the cleanup panel for panel, global, tag, marked, group, or custom cleanup                               |
 | `Enter` / `L`       | Jump to CL (for agents with `meta_new_cl`/`meta_new_pr`)                                                      |
-| `e`                 | Edit chat in editor                                                                                           |
+| `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                |
 | `E`                 | Edit panel content in editor                                                                                  |
 | `t`                 | Open tmux window in the focused agent's claimed workspace                                                     |
 | `T`                 | Open tmux window in the agent's primary (workspace 1) directory                                               |
@@ -316,6 +316,10 @@ normal `y` refreshes still stay on the visible-inbox path. Use `sase agents inde
 that does not scan source artifacts, `sase agents index verify` to compare the index with source artifacts, and
 `sase agents index gc` to rebuild the index and dismissed projection. Use the Agents-tab leader command `,y` when you
 want an immediate full-history refresh from source artifacts.
+
+When one or more agents are marked, `e` edits the marked set instead of only the focused row. ACE opens the editable
+completed transcripts in visible row order, deduplicates repeated paths, skips running or transcript-less rows, and
+reports how many marked rows were skipped. Marks remain in place after the editor exits.
 
 ### Wait Modal
 

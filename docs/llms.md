@@ -1093,7 +1093,7 @@ Dashes and slashes in workflow names are normalized to underscores.
 ```markdown
 # Chat History - <workflow> (<agent>)
 
-**Timestamp:** <display_timestamp>
+**Timestamp:** <display_timestamp> **MODEL:** <provider>/<model> **AGENT:** <sase_agent_name>
 
 ## Previous Conversation
 
@@ -1109,6 +1109,9 @@ Dashes and slashes in workflow names are normalized to underscores.
 
 <response text>
 ```
+
+The `MODEL` and `AGENT` fields are omitted when the invocation did not provide that metadata. When both provider and
+model are known, the model is rendered as `<provider>/<model>` unless the model already includes that prefix.
 
 ### Resume Support
 
