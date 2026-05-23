@@ -263,7 +263,7 @@ def test_memory_review_edit_uses_fake_editor_then_approves(
     )
 
 
-def test_memory_review_bare_command_prints_phase_two_hint(
+def test_memory_review_bare_command_falls_back_to_pending_list_on_non_tty(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     args = create_parser().parse_args(["memory", "review"])
@@ -271,5 +271,24 @@ def test_memory_review_bare_command_prints_phase_two_hint(
     handle_memory_review_command(args)
 
     captured = capsys.readouterr()
-    assert "Interactive memory review is not implemented yet" in captured.out
+    assert "Non-interactive terminal detected" in captured.out
     assert "review --list" in captured.out
+    assert "No memory proposals match" in captured.out
+
+
+def test_memory_review_bare_command_launches_tui_on_tty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[None] = []
+
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(
+        "sase.memory.cli_review._launch_interactive_review",
+        lambda: calls.append(None),
+    )
+    args = create_parser().parse_args(["memory", "review"])
+
+    handle_memory_review_command(args)
+
+    assert calls == [None]

@@ -36,7 +36,7 @@ def handle_memory_review_command(args: argparse.Namespace) -> None:
         _validate_review_args(args)
         action = _selected_action(args)
         if action is None:
-            _print_interactive_not_implemented()
+            _handle_interactive_or_static_list(args)
             return
         if action == "list":
             _handle_list(args)
@@ -79,6 +79,12 @@ def _validate_review_args(args: argparse.Namespace) -> None:
             raise MemoryProposalReviewError(
                 "pass --show, --approve, --edit, or --reject with a proposal id"
             )
+        if args.reason:
+            raise MemoryProposalReviewError("--reason is only valid with --reject")
+        if args.target:
+            raise MemoryProposalReviewError("--target is only valid with approval")
+        if args.edited_file:
+            raise MemoryProposalReviewError("--edited-file is only valid with approval")
         return
     if action == "list":
         if args.proposal_id:
@@ -190,22 +196,31 @@ def _handle_approve(args: argparse.Namespace) -> None:
 
 
 def _handle_edit(args: argparse.Namespace) -> None:
+    result = edit_memory_proposal_via_editor(args.proposal_id, target=args.target)
+    _print_or_emit_approval(result, json_output=args.json)
+
+
+def edit_memory_proposal_via_editor(
+    proposal_id: str,
+    *,
+    target: str | None = None,
+) -> MemoryProposalReviewResult:
+    """Open the proposal in ``$VISUAL``/``$EDITOR`` and approve edited content."""
     editor = _editor_command()
     if editor is None:
         raise MemoryProposalReviewError("$VISUAL or $EDITOR must be set for --edit")
     reviewer = require_proposal_reviewer()
     reviewed_path = prepare_memory_proposal_edit(
-        args.proposal_id,
+        proposal_id,
         reviewer=reviewer,
     )
     _run_editor(editor, reviewed_path)
-    result = approve_memory_proposal(
-        args.proposal_id,
-        target=args.target,
+    return approve_memory_proposal(
+        proposal_id,
+        target=target,
         edited_file=reviewed_path,
         reviewer=reviewer,
     )
-    _print_or_emit_approval(result, json_output=args.json)
 
 
 def _print_or_emit_approval(
@@ -300,8 +315,26 @@ def _read_optional_text(path: Path) -> str | None:
         return None
 
 
-def _print_interactive_not_implemented() -> None:
-    print(
-        "Interactive memory review is not implemented yet. "
-        "Use `sase memory review --list` for the non-interactive inbox."
-    )
+def _handle_interactive_or_static_list(args: argparse.Namespace) -> None:
+    if _should_launch_interactive_review(args):
+        _launch_interactive_review()
+        return
+
+    if not args.json:
+        print(
+            "Non-interactive terminal detected; showing pending proposals. "
+            "Use `sase memory review --list` for explicit list mode."
+        )
+    _handle_list(args)
+
+
+def _should_launch_interactive_review(args: argparse.Namespace) -> bool:
+    if args.json or args.all:
+        return False
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _launch_interactive_review() -> None:
+    from sase.memory.review_tui import MemoryReviewTuiApp
+
+    MemoryReviewTuiApp().run()

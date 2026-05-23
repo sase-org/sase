@@ -179,8 +179,8 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "List, inspect, approve, edit, or reject pending long-term memory "
-            "proposals. Phase 2 is non-interactive; a bare command prints a "
-            "hint to use --list."
+            "proposals. On a TTY, a bare command launches the interactive "
+            "review app; otherwise it prints the pending proposal list."
         ),
         epilog=(
             "examples:\n"
