@@ -69,7 +69,7 @@ class _Bare(AgentDisplayMixin):
 def test_agent_sibling_index_is_cached_for_repeated_count_reads() -> None:
     app = _Bare(
         [
-            _agent("foo.plan", suffix="a"),
+            _agent("foo", suffix="a"),
             _agent("foo.code", suffix="b"),
             _agent("foo.review", suffix="c"),
         ]

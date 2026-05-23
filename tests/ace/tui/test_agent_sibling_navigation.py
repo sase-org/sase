@@ -183,8 +183,30 @@ def test_agent_sibling_navigation_direct_jumps_to_single_sibling() -> None:
     assert app._agent_detail_debouncer.scheduled == 1
 
 
+def test_agent_sibling_navigation_direct_jumps_from_descendant_to_root() -> None:
+    agents = [_agent("foo.bar"), _agent("foo")]
+    app = _SiblingApp(agents)
+
+    app.action_start_sibling_mode()
+
+    assert app.current_idx == 1
+    assert app.armed_departures == [agents[0]]
+    assert app.acknowledged == [agents[1]]
+
+
+def test_agent_sibling_navigation_direct_jumps_from_root_to_descendant() -> None:
+    agents = [_agent("foo"), _agent("foo.bar")]
+    app = _SiblingApp(agents)
+
+    app.action_start_sibling_mode()
+
+    assert app.current_idx == 1
+    assert app.armed_departures == [agents[0]]
+    assert app.acknowledged == [agents[1]]
+
+
 def test_agent_sibling_navigation_opens_modal_for_multiple_siblings() -> None:
-    agents = [_agent("foo.plan"), _agent("foo.code"), _agent("foo.review")]
+    agents = [_agent("foo.plan"), _agent("foo"), _agent("foo.review")]
     app = _SiblingApp(agents)
 
     app.action_start_sibling_mode()
@@ -194,6 +216,8 @@ def test_agent_sibling_navigation_opens_modal_for_multiple_siblings() -> None:
     modal = app.pushed_screens[0]
     assert isinstance(modal, AgentSiblingModal)
     assert [choice.global_idx for choice in modal._choices] == [1, 2]
+    assert [choice.agent_name for choice in modal._choices] == ["foo", "foo.review"]
+    assert modal._family_label == "foo family"
 
     app.pushed_callbacks[0](2)
 

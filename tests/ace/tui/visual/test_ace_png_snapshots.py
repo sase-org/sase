@@ -314,7 +314,7 @@ async def test_agent_sibling_modal_narrow_png_snapshot(
         assert modal.__class__.__name__ == "AgentSiblingModal"
         choices = vars(modal)["_choices"]
         assert [choice.global_idx for choice in choices] == [1, 2]
-        _assert_page_svg_contains(page, "Sibling Agents: visual.*")
+        _assert_page_svg_contains(page, "Sibling Agents: visual family")
         _assert_page_svg_contains(page, "visual.code.implementation.with...")
 
         ace_png_visual.assert_page_png(

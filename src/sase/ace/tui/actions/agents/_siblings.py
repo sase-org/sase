@@ -286,7 +286,7 @@ class AgentSiblingMixin:
         """Return the display family label used by the chooser title."""
         name = agent.agent_name or ""
         family = name.split(".", 1)[0] if "." in name else name
-        return f"{family}.*" if family else "*"
+        return f"{family} family" if family else "agent family"
 
     def _agent_sibling_panel_label(self, panel_idx: int | None) -> str:
         """Return a compact label for the tag panel containing a sibling."""

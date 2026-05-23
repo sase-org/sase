@@ -12,12 +12,15 @@ def agent_sibling_family(agent: Agent) -> str | None:
     """Return the case-folded sibling family key for ``agent``.
 
     Sibling navigation is based only on the explicit ``Agent.agent_name``.
-    Dotless names and names with an empty first or second segment do not have a
-    sibling family.
+    Bare root names and dotted descendants share the same family key. Names
+    with an empty first or dotted remainder segment do not have a sibling
+    family.
     """
     name = agent.agent_name
-    if not name or "." not in name:
+    if not name:
         return None
+    if "." not in name:
+        return name.casefold()
     family, rest = name.split(".", 1)
     if not family or not rest:
         return None

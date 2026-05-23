@@ -49,19 +49,24 @@ def test_agent_sibling_family_uses_first_dotted_segment() -> None:
     assert agent_sibling_family(_agent("foo.bar.baz")) == "foo"
 
 
-def test_agent_sibling_family_rejects_dotless_or_empty_segments() -> None:
-    assert agent_sibling_family(_agent("foo")) is None
+def test_agent_sibling_family_includes_dotless_root_names() -> None:
+    assert agent_sibling_family(_agent("foo")) == "foo"
+
+
+def test_agent_sibling_family_rejects_empty_or_malformed_names() -> None:
+    assert agent_sibling_family(_agent("")) is None
     assert agent_sibling_family(_agent(".bar")) is None
     assert agent_sibling_family(_agent("foo.")) is None
     assert agent_sibling_family(_agent(None)) is None
 
 
 def test_agent_sibling_family_matches_case_insensitively() -> None:
+    assert agent_sibling_family(_agent("Foo")) == "foo"
     assert agent_sibling_family(_agent("Foo.plan")) == "foo"
     assert agent_sibling_family(_agent("foo.code")) == "foo"
 
 
-def test_sibling_index_excludes_current_agent_and_dotless_names() -> None:
+def test_sibling_index_includes_bare_root_names() -> None:
     rows = [
         AgentSiblingRow(0, 0, _agent("foo.plan")),
         AgentSiblingRow(1, 0, _agent("foo.code")),
@@ -72,11 +77,29 @@ def test_sibling_index_excludes_current_agent_and_dotless_names() -> None:
 
     index = AgentSiblingIndex.from_visible_rows(rows)
 
-    assert index.siblings_for(0) == (1, 2)
-    assert index.siblings_for(1) == (0, 2)
-    assert index.sibling_count(2) == 2
+    assert index.siblings_for(0) == (1, 2, 4)
+    assert index.siblings_for(1) == (0, 2, 4)
+    assert index.siblings_for(2) == (0, 1, 4)
     assert index.siblings_for(3) == ()
-    assert index.siblings_for(4) == ()
+    assert index.siblings_for(4) == (0, 1, 2)
+
+
+def test_sibling_index_treats_duplicate_root_rows_as_siblings() -> None:
+    rows = [
+        AgentSiblingRow(0, 0, _agent("foo")),
+        AgentSiblingRow(1, 0, _agent("foo")),
+    ]
+
+    index = AgentSiblingIndex.from_visible_rows(rows)
+
+    assert index.siblings_for(0) == (1,)
+    assert index.siblings_for(1) == (0,)
+
+
+def test_sibling_index_excludes_dotless_singletons() -> None:
+    index = AgentSiblingIndex.from_visible_rows([AgentSiblingRow(0, 0, _agent("foo"))])
+
+    assert index.siblings_for(0) == ()
 
 
 def test_sibling_index_matches_case_insensitively() -> None:

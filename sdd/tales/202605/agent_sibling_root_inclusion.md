@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 15:40:22
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_sibling_root_inclusion.md
 ---
 # Plan: Include Bare Root Agents In Agent Sibling Families
