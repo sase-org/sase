@@ -50,8 +50,8 @@ title: Structured Agentic Software Engineering
   <h3>I am setting up a repo</h3>
 
   <p>
-    Use initialization commands to create agent memory, generated SDD guide files, and provider skill files before
-    handing work to agents.
+    Run explicit initialization subcommands to write agent memory, refresh generated SDD guide files, and preview or
+    deploy optional provider skill files before handing work to agents.
   </p>
 
 <a href="init/">Open initialization</a>

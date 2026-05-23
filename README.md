@@ -70,8 +70,9 @@ Useful first commands:
 
 ```bash
 sase core health          # verify the required Rust backend before launching agents
-sase init memory --no-commit  # refresh memory files while skipping project commit/push
-sase init sdd             # create/refresh SDD README files and directory map assets
+sase init memory --no-commit  # write memory files; skip only the project commit/push
+sase init sdd             # create/refresh generated SDD guides and directory map
+sase init skills --dry-run    # preview provider skill files before deploying them
 sase ace                  # open the interactive control surface
 sase run "<prompt>"       # launch an agent or workflow
 sase agents status        # inspect running agents

@@ -1,31 +1,36 @@
 # Initialization
 
-SASE initialization commands create or refresh the durable files that agents and companion tools rely on. The stable
-entry points today are explicit subcommands:
+SASE initialization commands create or refresh durable files that agents and companion tools rely on. For current setup,
+run the explicit subcommands instead of bare `sase init`:
 
 ```bash
-sase init memory
+sase init memory --no-commit
 sase init sdd
-sase init skills
+sase init skills --dry-run
 ```
 
-Bare `sase init` is the onboarding coordinator for these resources. It accepts `--check` and `--yes`, prints a summary
-of registered initialization planners, and will run needed planners when they are registered. In the current release the
-planner registry is still empty, so bare `sase init` exits with a message telling you to run explicit subcommands.
+`sase init memory --no-commit` is usually the safest first run because it writes the generated files but skips the
+project git commit/pull/push path. It is not a dry run: it can still write project files, write home memory, and follow
+home-level `use_chezmoi` deployment.
+
+Bare `sase init` is coordinator plumbing for a future umbrella setup flow. It accepts `--check` and `--yes`, but the
+current release has no registered planners, so `sase init`, `sase init --check`, and `sase init --yes` all report that
+no init planners are registered and exit non-zero.
 
 ## Commands
 
-| Command                      | Purpose                                                                                  |
-| ---------------------------- | ---------------------------------------------------------------------------------------- |
-| `sase init`                  | Run the onboarding coordinator. Currently reports that no planners are registered.       |
-| `sase init --check`          | Report initialization drift without writing files once planners are available.           |
-| `sase init --yes`            | Apply every needed registered initializer without prompting once planners are available. |
-| `sase init memory`           | Create or refresh SASE memory roots and provider instruction shims.                      |
-| `sase init memory -C`        | Write memory files but skip the project git commit/push sequence.                        |
-| `sase init sdd`              | Alias for `sase sdd init`; refreshes generated SDD README files and the directory map.   |
-| `sase init skills`           | Generate and deploy agent skill files from xprompt sources marked with `skill`.          |
-| `sase init skills --dry-run` | Show planned skill writes without writing files.                                         |
-| `sase init skills --force`   | Overwrite existing deployed skill files without confirmation.                            |
+| Command                          | Purpose                                                                                |
+| -------------------------------- | -------------------------------------------------------------------------------------- |
+| `sase init`                      | Current coordinator stub; reports that no planners are registered and exits non-zero.  |
+| `sase init --check`              | Parsed today, but no drift checks run until planners are registered.                   |
+| `sase init --yes`                | Parsed today, but no initializers run until planners are registered.                   |
+| `sase init memory`               | Create or refresh project/home memory roots and provider instruction shims.            |
+| `sase init memory -C`            | Write memory files but skip the project git commit/pull/push path.                     |
+| `sase init sdd`                  | Alias for `sase sdd init`; refreshes generated SDD README files and the directory map. |
+| `sase init skills`               | Generate skill files; existing files require confirmation or `--force`.                |
+| `sase init skills --dry-run`     | Preview generated skill target paths without writing files.                            |
+| `sase init skills --force`       | Generate and overwrite deployed skill files without confirmation.                      |
+| `sase init skills -p <provider>` | Deploy only one provider's generated skill files.                                      |
 
 ## Memory Initialization
 
@@ -36,6 +41,9 @@ planner registry is still empty, so bare `sase init` exits with a message tellin
 - A minimal `AGENTS.md` when one does not already exist.
 - Provider shims `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md` containing `@AGENTS.md`.
 
+When `use_chezmoi: true`, the home files are written to the chezmoi source tree. The command can then commit those home
+changes and run `chezmoi apply --force`; `--no-commit` does not disable that home deployment path.
+
 The generated `memory/short/sase.md` summarizes workspace naming and sibling repositories. Project memory reads sibling
 repo descriptions from the project-local `./sase.yml`; home memory reads them from the global config
 `~/.config/sase/sase.yml`, or from the chezmoi-managed config path when `use_chezmoi: true`.
@@ -43,14 +51,14 @@ repo descriptions from the project-local `./sase.yml`; home memory reads them fr
 Every configured `sibling_repos` entry must have a non-empty `description`. Initialization fails instead of generating
 ambiguous memory when a description is missing.
 
-By default, project memory initialization runs the configured precommit command, stages generated project-memory files,
-commits them with `chore: run sase init memory`, pulls with rebase, and pushes. Use `sase init memory --no-commit` when
-you want to review generated project files before committing. That flag only skips the project deploy path; home memory
+By default, project memory initialization runs the configured precommit command, stages generated project files, commits
+them with `chore: run sase init memory`, pulls with rebase, and pushes. Use `sase init memory --no-commit` when you want
+to review generated project files before committing. That flag only skips the project deploy path; home memory
 deployment still follows `use_chezmoi` when it is enabled.
 
 Memory validation is reachability-based: Markdown files under `memory/short/` and `memory/long/` must be reachable from
-`AGENTS.md` directly or through transitive `@memory/...` references. Unreferenced memory files make the command fail so
-important agent context is not silently ignored.
+`AGENTS.md` directly or through transitive `@memory/...` or `memory/...` references. Unreferenced memory files make the
+command fail so important agent context is not silently ignored.
 
 ## SDD Initialization
 
@@ -67,16 +75,18 @@ short project-local guides and are safe to overwrite.
 
 ## Skill Initialization
 
-`sase init skills` deploys xprompts marked with `skill` front matter to provider-specific skill directories. Run a dry
-run first when adding or changing skill sources:
+`sase init skills` renders loaded xprompts marked with a `skill` frontmatter field into provider-specific `SKILL.md`
+files. Sources include bundled skill xprompts and user/runtime xprompt catalog entries. Run a dry run first when adding
+or changing skill sources:
 
 ```bash
 sase init skills --dry-run
 sase init skills --force
 ```
 
+Without `use_chezmoi`, generated skill files are written directly under the provider's home-directory skill targets.
 When `use_chezmoi: true`, skill initialization writes through the chezmoi-managed home tree and can commit, push, and
-apply those dotfile changes. The `--no-commit`, `--no-push`, and `--no-apply` flags let you stop before each of those
-steps.
+apply those dotfile changes. The `--no-commit`, `--no-push`, and `--no-apply` flags only affect that chezmoi deployment
+sequence.
 
 See [XPrompt Skill Field](xprompt.md#skill-field) for the skill-source contract and bundled skill list.

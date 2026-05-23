@@ -1134,23 +1134,24 @@ entries where `is_skill` is `true`.
 
 ### `sase init`
 
-Bare `sase init` is the onboarding coordinator for SASE-managed resources. It accepts drift-check and unattended-run
-flags, then dispatches registered initialization planners. In the current release no planners are registered yet, so
-bare `sase init` reports that explicit subcommands should be used.
+Bare `sase init` is the future onboarding coordinator for SASE-managed resources. The command accepts drift-check and
+unattended-run flags, but the current release has no registered planners, so bare `sase init`, `sase init --check`, and
+`sase init --yes` all print a "No init planners are registered yet" message and exit non-zero. Run the explicit
+subcommands below for setup today.
 
-| Flag        | Values | Default | Description                                                |
-| ----------- | ------ | ------- | ---------------------------------------------------------- |
-| `--check`   | flag   | -       | Report initialization drift without writing files.         |
-| `-y, --yes` | flag   | -       | Run every needed registered initializer without prompting. |
+| Flag        | Values | Default | Description                                                                   |
+| ----------- | ------ | ------- | ----------------------------------------------------------------------------- |
+| `--check`   | flag   | -       | Reserved for registered planners; currently no planner work is checked.       |
+| `-y, --yes` | flag   | -       | Reserved for registered planners; currently no initializer runs are launched. |
 
 ### `sase init memory`
 
-Creates or refreshes SASE memory files, `AGENTS.md` when absent, and provider instruction shims. By default it runs the
-project git commit/pull/push sequence for generated project-memory changes.
+Creates or refreshes project and home memory roots, `AGENTS.md` when absent, and provider instruction shims. By default
+it also tries to commit, rebase-pull, and push generated project-side files.
 
-| Flag              | Values | Default | Description                                                                             |
-| ----------------- | ------ | ------- | --------------------------------------------------------------------------------------- |
-| `-C, --no-commit` | flag   | -       | Skip the project git commit/push sequence; home deployment still follows `use_chezmoi`. |
+| Flag              | Values | Default | Description                                                                                             |
+| ----------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |
+| `-C, --no-commit` | flag   | -       | Write files, but skip only the project git commit/pull/push path; home deployment still follows config. |
 
 ### `sase init sdd`
 
@@ -1164,7 +1165,8 @@ map asset.
 ### `sase init skills`
 
 Generates and deploys agent skill files from xprompt sources marked with the `skill` field. See
-[xprompt.md — Skill Field](xprompt.md#skill-field) for the skill-source contract and provider targets.
+[xprompt.md — Skill Field](xprompt.md#skill-field) for the skill-source contract and provider targets. Existing files
+are skipped in non-interactive runs unless `--force` is passed; interactive runs prompt before overwriting.
 
 | Flag              | Values                                          | Default | Description                                                                                 |
 | ----------------- | ----------------------------------------------- | ------- | ------------------------------------------------------------------------------------------- |
