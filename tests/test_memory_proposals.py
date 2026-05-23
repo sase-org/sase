@@ -12,12 +12,18 @@ from sase.memory.proposals import (
     MemoryProposalAuthorError,
     MemoryProposalBodyError,
     MemoryProposalEvidenceError,
+    MemoryProposalError,
+    MemoryProposalReviewError,
     MemoryProposalTargetError,
     ProposalAuthor,
+    ProposalReviewer,
+    approve_memory_proposal,
     create_memory_proposal,
     parse_memory_proposal_evidence,
     read_memory_proposal_events,
     read_memory_proposals,
+    reject_memory_proposal,
+    resolve_memory_proposal_id,
     validate_memory_proposal_target,
 )
 
@@ -209,3 +215,200 @@ def test_create_memory_proposal_records_large_body_warning(tmp_path: Path) -> No
     )
 
     assert result.state.warnings[0].code == "large_body"
+
+
+def test_resolve_memory_proposal_id_exact_unknown_and_ambiguous_prefix(
+    tmp_path: Path,
+) -> None:
+    common = {
+        "title": "Memory",
+        "body": "Body\n",
+        "evidence_values": ["chat:abc"],
+        "target": "long/memory.md",
+        "author": ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
+        "project": "demo",
+        "cwd": tmp_path,
+    }
+    first = create_memory_proposal(
+        proposal_id="mem-20260523-120000-11111111",
+        ledger_path=tmp_path / "state-a" / "memory_proposals.jsonl",
+        **common,
+    ).state
+    second = create_memory_proposal(
+        proposal_id="mem-20260523-120000-22222222",
+        ledger_path=tmp_path / "state-b" / "memory_proposals.jsonl",
+        **common,
+    ).state
+
+    assert resolve_memory_proposal_id(first.proposal_id, (first, second)) == first
+    assert (
+        resolve_memory_proposal_id("mem-20260523-120000-2", (first, second)) == second
+    )
+    with pytest.raises(MemoryProposalError, match="unknown"):
+        resolve_memory_proposal_id("missing", (first, second))
+    with pytest.raises(MemoryProposalError, match="ambiguous"):
+        resolve_memory_proposal_id("mem-20260523-120000", (first, second))
+
+
+def test_reject_memory_proposal_records_reviewer_and_reason(tmp_path: Path) -> None:
+    ledger_path = tmp_path / "state" / "memory_proposals.jsonl"
+    proposal = create_memory_proposal(
+        title="Memory",
+        body="Body\n",
+        evidence_values=["chat:abc"],
+        target="long/memory.md",
+        author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
+        project="demo",
+        cwd=tmp_path,
+        now=datetime(2026, 5, 23, 12, 0, tzinfo=UTC),
+        proposal_id="mem-20260523-120000-33333333",
+        ledger_path=ledger_path,
+    ).state
+
+    result = reject_memory_proposal(
+        proposal.proposal_id,
+        reason=" Not durable ",
+        reviewer=ProposalReviewer("bryan", "host-a"),
+        cwd=tmp_path,
+        now=datetime(2026, 5, 23, 13, 0, tzinfo=UTC),
+        ledger_path=ledger_path,
+    )
+
+    assert result.event.event_type == "rejected"
+    assert result.state.status == "rejected"
+    assert result.state.reviewer_user == "bryan"
+    assert result.state.reviewer_hostname == "host-a"
+    assert result.state.review_reason == "Not durable"
+    assert len(read_memory_proposal_events(ledger_path=ledger_path)) == 2
+
+
+def test_approve_memory_proposal_writes_canonical_file_and_event(
+    tmp_path: Path,
+) -> None:
+    ledger_path = tmp_path / "state" / "memory_proposals.jsonl"
+    proposal = create_memory_proposal(
+        title="Memory",
+        body="Body\n",
+        evidence_values=["chat:abc"],
+        target="long/memory.md",
+        keywords=["memory", "review"],
+        author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
+        project="demo",
+        cwd=tmp_path,
+        now=datetime(2026, 5, 23, 12, 0, tzinfo=UTC),
+        proposal_id="mem-20260523-120000-44444444",
+        ledger_path=ledger_path,
+    ).state
+
+    result = approve_memory_proposal(
+        proposal.proposal_id,
+        reviewer=ProposalReviewer("bryan", "host-a"),
+        cwd=tmp_path,
+        now=datetime(2026, 5, 23, 13, 0, tzinfo=UTC),
+        ledger_path=ledger_path,
+    )
+
+    canonical_path = tmp_path / "memory" / "long" / "memory.md"
+    assert result.event.event_type == "approved"
+    assert result.state.status == "approved"
+    assert result.canonical_path == canonical_path
+    assert canonical_path.read_text(encoding="utf-8") == (
+        "---\n"
+        'keywords:\n  - "memory"\n  - "review"\n'
+        f"source_candidate: {proposal.proposal_id}\n"
+        "---\n\n"
+        "Body\n"
+    )
+    assert read_memory_proposals(ledger_path=ledger_path)[0].canonical_path == str(
+        canonical_path
+    )
+
+
+def test_approve_memory_proposal_refuses_existing_target(tmp_path: Path) -> None:
+    ledger_path = tmp_path / "state" / "memory_proposals.jsonl"
+    _write(tmp_path / "memory" / "long" / "memory.md", "existing\n")
+    proposal = create_memory_proposal(
+        title="Memory",
+        body="Body\n",
+        evidence_values=["chat:abc"],
+        target="long/memory.md",
+        author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
+        project="demo",
+        cwd=tmp_path,
+        proposal_id="mem-20260523-120000-55555555",
+        ledger_path=ledger_path,
+    ).state
+
+    with pytest.raises(MemoryProposalTargetError, match="already exists"):
+        approve_memory_proposal(
+            proposal.proposal_id,
+            reviewer=ProposalReviewer("bryan", "host-a"),
+            cwd=tmp_path,
+            ledger_path=ledger_path,
+        )
+
+    assert read_memory_proposals(ledger_path=ledger_path)[0].status == "pending"
+
+
+def test_approve_memory_proposal_with_edited_file_records_edits(
+    tmp_path: Path,
+) -> None:
+    ledger_path = tmp_path / "state" / "memory_proposals.jsonl"
+    proposal = create_memory_proposal(
+        title="Memory",
+        body="Draft body\n",
+        evidence_values=["chat:abc"],
+        target="long/memory.md",
+        author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
+        project="demo",
+        cwd=tmp_path,
+        proposal_id="mem-20260523-120000-66666666",
+        ledger_path=ledger_path,
+    ).state
+    edited_file = tmp_path / "edited.md"
+    edited_file.write_text("Edited body\n", encoding="utf-8")
+
+    result = approve_memory_proposal(
+        proposal.proposal_id,
+        edited_file=edited_file,
+        reviewer=ProposalReviewer("bryan", "host-a"),
+        cwd=tmp_path,
+        ledger_path=ledger_path,
+    )
+
+    reviewed_path = (
+        tmp_path / "state" / "memory_proposals" / proposal.proposal_id / "reviewed.md"
+    )
+    assert result.event.event_type == "approved_with_edits"
+    assert result.state.status == "approved_with_edits"
+    assert result.reviewed_path == reviewed_path
+    assert reviewed_path.read_text(encoding="utf-8") == "Edited body\n"
+    assert "Edited body\n" in (tmp_path / "memory" / "long" / "memory.md").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_reviewer_identity_rejects_agent_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger_path = tmp_path / "state" / "memory_proposals.jsonl"
+    proposal = create_memory_proposal(
+        title="Memory",
+        body="Body\n",
+        evidence_values=["chat:abc"],
+        target="long/memory.md",
+        author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
+        project="demo",
+        cwd=tmp_path,
+        proposal_id="mem-20260523-120000-77777777",
+        ledger_path=ledger_path,
+    ).state
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
+
+    with pytest.raises(MemoryProposalReviewError, match="agents cannot"):
+        approve_memory_proposal(
+            proposal.proposal_id,
+            cwd=tmp_path,
+            ledger_path=ledger_path,
+        )

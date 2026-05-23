@@ -20,6 +20,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             '  sase memory write --title "Generated skills" --slug '
             "generated_skills --evidence sdd/research/skills.md --body "
             '"Durable memory body"\n'
+            "  sase memory review --list\n"
             "  sase memory log\n"
             "  sase memory log --path long/generated_skills.md\n"
             "  sase memory log --id <read-id>"
@@ -167,6 +168,80 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Explicit proposal author for tests and demos when no agent identity exists",
     )
     write_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit deterministic machine-readable JSON",
+    )
+
+    review_parser = memory_subparsers.add_parser(
+        "review",
+        help="Review pending long-term memory proposals",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "List, inspect, approve, edit, or reject pending long-term memory "
+            "proposals. Phase 2 is non-interactive; a bare command prints a "
+            "hint to use --list."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase memory review --list\n"
+            "  sase memory review mem-20260523-142233-a1b2c3d4 --show\n"
+            "  sase memory review mem-20260523-142233-a1b2c3d4 --approve\n"
+            "  sase memory review mem-20260523-142233-a1b2c3d4 --reject "
+            '--reason "Too speculative"'
+        ),
+    )
+    review_parser.add_argument(
+        "proposal_id",
+        nargs="?",
+        help="Proposal id or unambiguous id prefix",
+    )
+    review_action_group = review_parser.add_mutually_exclusive_group()
+    review_action_group.add_argument(
+        "--list",
+        action="store_true",
+        help="List pending proposals, or all proposals with --all",
+    )
+    review_action_group.add_argument(
+        "--show",
+        action="store_true",
+        help="Show full proposal detail",
+    )
+    review_action_group.add_argument(
+        "--approve",
+        action="store_true",
+        help="Approve the proposal and write its canonical memory file",
+    )
+    review_action_group.add_argument(
+        "--edit",
+        action="store_true",
+        help="Open $VISUAL/$EDITOR on reviewed.md, then approve the result",
+    )
+    review_action_group.add_argument(
+        "--reject",
+        action="store_true",
+        help="Reject the proposal; requires --reason",
+    )
+    review_parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Include approved and rejected proposals with --list",
+    )
+    review_parser.add_argument(
+        "--target",
+        metavar="long/<slug>.md",
+        help="Override the canonical approval target",
+    )
+    review_parser.add_argument(
+        "--edited-file",
+        metavar="PATH",
+        help="Approve using edited body content from PATH",
+    )
+    review_parser.add_argument(
+        "--reason",
+        help="Non-empty rejection reason",
+    )
+    review_parser.add_argument(
         "--json",
         action="store_true",
         help="Emit deterministic machine-readable JSON",

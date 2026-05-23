@@ -72,6 +72,31 @@ def test_parser_registers_memory_namespace() -> None:
     assert write_args.allow_large is True
     assert write_args.json is True
 
+    review_list_args = parser.parse_args(["memory", "review", "--list", "--json"])
+    assert review_list_args.command == "memory"
+    assert review_list_args.memory_subcommand == "review"
+    assert review_list_args.list is True
+    assert review_list_args.json is True
+
+    review_approve_args = parser.parse_args(
+        [
+            "memory",
+            "review",
+            "mem-20260523-120000-1234abcd",
+            "--approve",
+            "--target",
+            "long/reviewed.md",
+            "--edited-file",
+            "reviewed.md",
+        ]
+    )
+    assert review_approve_args.command == "memory"
+    assert review_approve_args.memory_subcommand == "review"
+    assert review_approve_args.proposal_id == "mem-20260523-120000-1234abcd"
+    assert review_approve_args.approve is True
+    assert review_approve_args.target == "long/reviewed.md"
+    assert review_approve_args.edited_file == "reviewed.md"
+
     log_args = parser.parse_args(
         [
             "memory",
@@ -195,6 +220,27 @@ def test_memory_write_dispatches_to_write_handler(
             "Body",
         ]
     )
+
+    with pytest.raises(SystemExit) as exc:
+        memory_handler.handle_memory_command(args)
+
+    assert exc.value.code == 0
+    assert calls == [args]
+
+
+def test_memory_review_dispatches_to_review_handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[argparse.Namespace] = []
+
+    def fake_review(args: argparse.Namespace) -> None:
+        calls.append(args)
+
+    monkeypatch.setattr(
+        "sase.memory.cli_review.handle_memory_review_command",
+        fake_review,
+    )
+    args = create_parser().parse_args(["memory", "review", "--list"])
 
     with pytest.raises(SystemExit) as exc:
         memory_handler.handle_memory_command(args)
