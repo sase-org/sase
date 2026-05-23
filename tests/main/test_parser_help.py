@@ -94,6 +94,12 @@ def test_init_and_git_namespace_parsers() -> None:
     memory_args = parser.parse_args(["init", "memory"])
     assert memory_args.command == "init"
     assert memory_args.init_subcommand == "memory"
+    assert memory_args.no_commit is False
+
+    memory_no_commit_args = parser.parse_args(["init", "memory", "--no-commit"])
+    assert memory_no_commit_args.command == "init"
+    assert memory_no_commit_args.init_subcommand == "memory"
+    assert memory_no_commit_args.no_commit is True
 
     init_args = parser.parse_args(
         ["init", "skills", "--dry-run", "--provider", "codex"]

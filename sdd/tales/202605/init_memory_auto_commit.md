@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-22 20:39:51
-status: wip
+status: done
 prompt: sdd/prompts/202605/init_memory_auto_commit.md
 ---
 # Plan: `sase init memory` Workspace Hint and Auto-Commit

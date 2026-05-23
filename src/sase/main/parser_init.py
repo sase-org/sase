@@ -56,9 +56,15 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         required=True,
     )
 
-    init_subparsers.add_parser(
+    memory_parser = init_subparsers.add_parser(
         "memory",
         help="Initialize SASE memory files and provider instruction shims",
+    )
+    memory_parser.add_argument(
+        "-C",
+        "--no-commit",
+        action="store_true",
+        help="Skip the project git commit/push sequence",
     )
 
     skills_parser = init_subparsers.add_parser(
