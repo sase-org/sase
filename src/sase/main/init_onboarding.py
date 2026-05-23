@@ -11,6 +11,7 @@ from typing import TextIO
 
 from rich.console import Console
 
+from ._init_chezmoi_deploy import defer_chezmoi_deploy, deploy_deferred_chezmoi
 from .init_plan import InitAction, InitPlan
 from .init_registry import InitCommandSpec, iter_init_command_specs
 
@@ -201,23 +202,28 @@ def run_init_onboarding(
         return 1
 
     spec_by_name = {spec.name: spec for spec in active_specs}
-    for plan in plans:
-        if not plan.has_changes or not plan.runnable:
-            continue
-        spec = spec_by_name[plan.command]
-        should_run = getattr(args, "yes", False) or _prompt_for_plan(
-            plan, input_func=input_func
-        )
-        if not should_run:
-            continue
-        exit_code = spec.run(_apply_args(args, spec))
-        if exit_code != 0:
-            out_console.print()
-            out_console.print(
-                f"init {plan.command} failed with exit code {exit_code}.",
-                style="red",
+    with defer_chezmoi_deploy() as deferred_chezmoi:
+        for plan in plans:
+            if not plan.has_changes or not plan.runnable:
+                continue
+            spec = spec_by_name[plan.command]
+            should_run = getattr(args, "yes", False) or _prompt_for_plan(
+                plan, input_func=input_func
             )
-            return exit_code
+            if not should_run:
+                continue
+            exit_code = spec.run(_apply_args(args, spec))
+            if exit_code != 0:
+                out_console.print()
+                out_console.print(
+                    f"init {plan.command} failed with exit code {exit_code}.",
+                    style="red",
+                )
+                return exit_code
+
+        deploy_exit_code = deploy_deferred_chezmoi(deferred_chezmoi)
+        if deploy_exit_code != 0:
+            return deploy_exit_code
 
     return 0
 

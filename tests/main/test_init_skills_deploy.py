@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.main import init_skills_handler
+from sase.main import _init_chezmoi_deploy
 from sase.main.init_skills_handler import _deploy_to_chezmoi
 from tests.main.init_skills_handler_helpers import git_cmd_handler, make_args
 
@@ -19,7 +19,7 @@ def test_deploy_happy_path_runs_full_sequence() -> None:
     paths = [Path("/home/x/chezmoi/home/dot_claude/skills/foo/SKILL.md")]
 
     with patch.object(
-        init_skills_handler.subprocess,
+        _init_chezmoi_deploy.subprocess,
         "run",
         side_effect=git_cmd_handler(),
     ) as mock_run:
@@ -35,7 +35,7 @@ def test_deploy_no_commit_skips_everything() -> None:
     """--no-commit: handler returns immediately without running anything."""
     args = make_args(no_commit=True)
 
-    with patch.object(init_skills_handler.subprocess, "run") as mock_run:
+    with patch.object(_init_chezmoi_deploy.subprocess, "run") as mock_run:
         rc = _deploy_to_chezmoi([Path("/x/a")], args)
 
     assert rc == 0
@@ -47,7 +47,7 @@ def test_deploy_no_push_stops_after_commit() -> None:
     args = make_args(no_push=True)
 
     with patch.object(
-        init_skills_handler.subprocess,
+        _init_chezmoi_deploy.subprocess,
         "run",
         side_effect=git_cmd_handler(),
     ) as mock_run:
@@ -66,7 +66,7 @@ def test_deploy_no_apply_stops_after_push() -> None:
     args = make_args(no_apply=True)
 
     with patch.object(
-        init_skills_handler.subprocess,
+        _init_chezmoi_deploy.subprocess,
         "run",
         side_effect=git_cmd_handler(),
     ) as mock_run:
@@ -83,7 +83,7 @@ def test_deploy_nothing_staged_skips_commit_and_later_steps() -> None:
     args = make_args()
 
     with patch.object(
-        init_skills_handler.subprocess,
+        _init_chezmoi_deploy.subprocess,
         "run",
         side_effect=git_cmd_handler(nothing_staged=True),
     ) as mock_run:
@@ -103,7 +103,7 @@ def test_deploy_not_a_git_repo_skips_gracefully(
     args = make_args()
 
     with patch.object(
-        init_skills_handler.subprocess,
+        _init_chezmoi_deploy.subprocess,
         "run",
         side_effect=git_cmd_handler(repo_check_rc=1),
     ) as mock_run:
@@ -124,7 +124,7 @@ def test_deploy_git_missing_skips_gracefully(
     args = make_args()
 
     with patch.object(
-        init_skills_handler.subprocess,
+        _init_chezmoi_deploy.subprocess,
         "run",
         side_effect=git_cmd_handler(repo_check_raises=FileNotFoundError),
     ):
@@ -141,7 +141,7 @@ def test_deploy_push_failure_returns_nonzero_and_skips_apply(
     args = make_args()
 
     with patch.object(
-        init_skills_handler.subprocess,
+        _init_chezmoi_deploy.subprocess,
         "run",
         side_effect=git_cmd_handler(push_rc=1),
     ) as mock_run:
@@ -160,7 +160,7 @@ def test_deploy_pull_failure_returns_nonzero_and_skips_push(
     args = make_args()
 
     with patch.object(
-        init_skills_handler.subprocess,
+        _init_chezmoi_deploy.subprocess,
         "run",
         side_effect=git_cmd_handler(pull_rc=1),
     ) as mock_run:
@@ -180,7 +180,7 @@ def test_deploy_chezmoi_missing_warns_but_succeeds(
     args = make_args()
 
     with patch.object(
-        init_skills_handler.subprocess,
+        _init_chezmoi_deploy.subprocess,
         "run",
         side_effect=git_cmd_handler(apply_raises=FileNotFoundError),
     ):
@@ -197,7 +197,7 @@ def test_deploy_chezmoi_apply_failure_returns_nonzero(
     args = make_args()
 
     with patch.object(
-        init_skills_handler.subprocess,
+        _init_chezmoi_deploy.subprocess,
         "run",
         side_effect=git_cmd_handler(apply_rc=1),
     ):
@@ -221,7 +221,7 @@ def test_deploy_provider_filter_in_commit_message() -> None:
             return MagicMock(returncode=1, stdout="", stderr="")
         return MagicMock(returncode=0, stdout="", stderr="")
 
-    with patch.object(init_skills_handler.subprocess, "run", side_effect=handler):
+    with patch.object(_init_chezmoi_deploy.subprocess, "run", side_effect=handler):
         _deploy_to_chezmoi([Path("/x/a")], args)
 
     commit_calls = [c for c in captured if "commit" in c and "-m" in c]

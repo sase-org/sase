@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.main import init_skills_handler
+from sase.main._init_chezmoi_deploy import defer_chezmoi_deploy
 from sase.main.init_skills_handler import handle_init_skills_command
 from sase.xprompt.models import XPrompt
 from tests.main.init_skills_handler_helpers import make_args, stub_skill_source
@@ -91,6 +92,29 @@ def test_handler_use_chezmoi_triggers_deploy(
     passed_paths = deploy_mock.call_args.args[0]
     assert len(passed_paths) == 1
     assert passed_paths[0].name == "SKILL.md"
+
+
+def test_handler_deferred_chezmoi_collects_paths_without_deploy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bare init deferral records written paths and skips per-handler deploy."""
+    stub_skill_source(tmp_path, monkeypatch)
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
+
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", chezmoi_home)
+
+    deploy_mock = MagicMock(return_value=0)
+    monkeypatch.setattr(init_skills_handler, "_deploy_to_chezmoi", deploy_mock)
+
+    with defer_chezmoi_deploy() as deferred:
+        with pytest.raises(SystemExit) as exc:
+            handle_init_skills_command(make_args())
+
+    assert exc.value.code == 0
+    deploy_mock.assert_not_called()
+    assert len(deferred.paths) == 1
+    assert deferred.paths[0].name == "SKILL.md"
 
 
 def test_handler_propagates_deploy_exit_code(

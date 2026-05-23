@@ -5,7 +5,6 @@ from dataclasses import dataclass
 import difflib
 import re
 import shutil
-import subprocess
 import sys
 import textwrap
 from pathlib import Path
@@ -14,6 +13,11 @@ import jinja2
 
 from sase.config.core import CHEZMOI_HOME, get_use_chezmoi
 from sase.llm_provider.registry import iter_plugins
+from sase.main._init_chezmoi_deploy import (
+    ChezmoiDeployBehavior,
+    defer_chezmoi_paths,
+    deploy_to_chezmoi,
+)
 from sase.main.init_plan import InitAction, InitOperation, InitPlan
 from sase.xprompt.loader import get_all_xprompts, load_xprompts_from_internal
 from sase.xprompt.models import XPrompt
@@ -313,127 +317,25 @@ def _deploy_to_chezmoi(written_paths: list[Path], args: argparse.Namespace) -> i
     no_apply: bool = getattr(args, "no_apply", False)
     provider_filter: str | None = getattr(args, "provider", None)
 
-    if no_commit:
-        return 0
-
-    git_root = CHEZMOI_HOME.parent
-
-    try:
-        repo_check = subprocess.run(
-            ["git", "-C", str(git_root), "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except FileNotFoundError:
-        print(
-            f"{_COMMAND_LABEL}: git not found on PATH, skipping deploy",
-            file=sys.stderr,
-        )
-        return 0
-
-    if repo_check.returncode != 0:
-        print(
-            f"{_COMMAND_LABEL}: {git_root} is not a git repo, skipping deploy",
-            file=sys.stderr,
-        )
-        return 0
-
-    for path in written_paths:
-        subprocess.run(
-            ["git", "-C", str(git_root), "add", "--", str(path)],
-            capture_output=True,
-            check=False,
-        )
-
-    staged = subprocess.run(
-        ["git", "-C", str(git_root), "diff", "--cached", "--quiet"],
-        capture_output=True,
-        check=False,
-    )
-    if staged.returncode == 0:
-        print(f"\nNothing to commit in {git_root} (files identical to HEAD).")
-        return 0
-
     message = "chore: regenerate skills via sase init skills"
     if provider_filter:
         message = f"chore: regenerate {provider_filter} skills via sase init skills"
 
-    print(f"\nCommitting in {git_root}...")
-    commit = subprocess.run(
-        ["git", "-C", str(git_root), "commit", "-m", message],
-        capture_output=True,
-        text=True,
-        check=False,
+    return deploy_to_chezmoi(
+        written_paths,
+        ChezmoiDeployBehavior(
+            command_label=_COMMAND_LABEL,
+            commit_message=message,
+            chezmoi_home=CHEZMOI_HOME,
+            no_commit=no_commit,
+            no_push=no_push,
+            no_apply=no_apply,
+            git_failure_is_error=False,
+            chezmoi_missing_is_error=False,
+            git_missing_suffix=", skipping deploy",
+            not_repo_suffix=", skipping deploy",
+        ),
     )
-    if commit.returncode != 0:
-        print(
-            f"{_COMMAND_LABEL}: commit failed: {commit.stderr.strip()}",
-            file=sys.stderr,
-        )
-        return 1
-    first_line = commit.stdout.strip().splitlines()[0] if commit.stdout.strip() else ""
-    if first_line:
-        print(f"  {first_line}")
-
-    if no_push:
-        return 0
-
-    print("Pulling...")
-    pull = subprocess.run(
-        ["git", "-C", str(git_root), "pull", "--rebase"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if pull.returncode != 0:
-        print(
-            f"{_COMMAND_LABEL}: pull failed: {pull.stderr.strip()}",
-            file=sys.stderr,
-        )
-        return 1
-    if pull.stdout.strip():
-        print(f"  {pull.stdout.strip().splitlines()[0]}")
-
-    print("Pushing...")
-    push = subprocess.run(
-        ["git", "-C", str(git_root), "push"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if push.returncode != 0:
-        print(
-            f"{_COMMAND_LABEL}: push failed: {push.stderr.strip()}",
-            file=sys.stderr,
-        )
-        return 1
-    tail = push.stderr.strip() or push.stdout.strip()
-    if tail:
-        print(f"  {tail.splitlines()[-1]}")
-
-    if no_apply:
-        return 0
-
-    print("Applying chezmoi...")
-    try:
-        apply = subprocess.run(
-            ["chezmoi", "apply"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except FileNotFoundError:
-        print(f"{_COMMAND_LABEL}: chezmoi not found on PATH", file=sys.stderr)
-        return 0
-    if apply.returncode != 0:
-        print(
-            f"{_COMMAND_LABEL}: chezmoi apply failed: {apply.stderr.strip()}",
-            file=sys.stderr,
-        )
-        return 1
-    print("  Done.")
-    return 0
 
 
 def plan_init_skills(args: argparse.Namespace) -> InitPlan:
@@ -530,7 +432,10 @@ def run_init_skills(args: argparse.Namespace) -> int:
 
     exit_code = 0
     if use_chezmoi and not dry_run and written > 0:
-        exit_code = _deploy_to_chezmoi(written_paths, args)
+        if defer_chezmoi_paths(written_paths, chezmoi_home=CHEZMOI_HOME):
+            exit_code = 0
+        else:
+            exit_code = _deploy_to_chezmoi(written_paths, args)
 
     return exit_code
 

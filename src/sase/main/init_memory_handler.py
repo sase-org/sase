@@ -12,6 +12,11 @@ import sys
 from sase.config.core import CHEZMOI_HOME, CONFIG_DIR, get_use_chezmoi
 from sase.workflows.commit.precommit_hooks import run_precommit
 
+from ._init_chezmoi_deploy import (
+    ChezmoiDeployBehavior,
+    defer_chezmoi_paths,
+    deploy_to_chezmoi,
+)
 from .init_plan import InitAction, InitPlan
 from .init_memory.config import (
     project_config_path as _project_config_path,
@@ -222,81 +227,22 @@ def _deploy_to_project_repo(
 
 
 def _deploy_to_chezmoi(written_paths: Iterable[Path]) -> int:
-    paths = tuple(written_paths)
-    if not paths:
-        return 0
-
-    git_root = CHEZMOI_HOME.parent
-    repo_check = subprocess.run(
-        ["git", "-C", str(git_root), "rev-parse", "--show-toplevel"],
-        capture_output=True,
-        text=True,
-        check=False,
+    return deploy_to_chezmoi(
+        written_paths,
+        ChezmoiDeployBehavior(
+            command_label=COMMAND_LABEL,
+            commit_message="chore: initialize sase memory",
+            chezmoi_home=CHEZMOI_HOME,
+            pull_push=False,
+            apply_force=True,
+            apply_when_nothing_staged=True,
+            commit_failed_label="chezmoi commit failed",
+            print_committing=False,
+            print_nothing_to_commit=False,
+            print_applying=False,
+            print_apply_done=False,
+        ),
     )
-    if repo_check.returncode != 0:
-        print(
-            f"{COMMAND_LABEL}: {git_root} is not a git repo",
-            file=sys.stderr,
-        )
-        return 1
-
-    for path in paths:
-        subprocess.run(
-            ["git", "-C", str(git_root), "add", "--", str(path)],
-            capture_output=True,
-            check=False,
-        )
-
-    staged = subprocess.run(
-        ["git", "-C", str(git_root), "diff", "--cached", "--quiet"],
-        capture_output=True,
-        check=False,
-    )
-    if staged.returncode != 0:
-        commit = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(git_root),
-                "commit",
-                "-m",
-                "chore: initialize sase memory",
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if commit.returncode != 0:
-            print(
-                f"{COMMAND_LABEL}: chezmoi commit failed: {commit.stderr.strip()}",
-                file=sys.stderr,
-            )
-            return 1
-        first_line = (
-            commit.stdout.strip().splitlines()[0] if commit.stdout.strip() else ""
-        )
-        if first_line:
-            print(f"  {first_line}")
-
-    try:
-        apply_result = subprocess.run(
-            ["chezmoi", "apply", "--force"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except FileNotFoundError:
-        print(f"{COMMAND_LABEL}: chezmoi not found on PATH", file=sys.stderr)
-        return 1
-
-    if apply_result.returncode != 0:
-        print(
-            f"{COMMAND_LABEL}: chezmoi apply --force failed: "
-            f"{apply_result.stderr.strip()}",
-            file=sys.stderr,
-        )
-        return 1
-    return 0
 
 
 def _memory_root_plans(inputs: _MemoryInitInputs) -> tuple[_MemoryRootPlan, ...]:
@@ -410,7 +356,14 @@ def run_init_memory(args: argparse.Namespace) -> int:
         exit_code = project_exit_code
 
     if inputs.use_chezmoi:
-        chezmoi_exit_code = _deploy_to_chezmoi(home_result.written_paths)
+        if defer_chezmoi_paths(
+            home_result.written_paths,
+            apply_force=True,
+            chezmoi_home=CHEZMOI_HOME,
+        ):
+            chezmoi_exit_code = 0
+        else:
+            chezmoi_exit_code = _deploy_to_chezmoi(home_result.written_paths)
         if chezmoi_exit_code != 0:
             exit_code = chezmoi_exit_code
     return exit_code
