@@ -193,6 +193,20 @@ def _sync_planner_child_from_parent(
         child.extra_files = list(parent.extra_files)
 
 
+def _copy_missing_display_metadata(parent: Agent, child: Agent) -> None:
+    """Backfill root display/runtime metadata from a mirrored child."""
+    if parent.model is None and child.model is not None:
+        parent.model = child.model
+    if parent.llm_provider is None and child.llm_provider is not None:
+        parent.llm_provider = child.llm_provider
+    if parent.vcs_provider is None and child.vcs_provider is not None:
+        parent.vcs_provider = child.vcs_provider
+    if parent.workspace_num is None and child.workspace_num is not None:
+        parent.workspace_num = child.workspace_num
+    if parent.workspace_dir is None and child.workspace_dir is not None:
+        parent.workspace_dir = child.workspace_dir
+
+
 def _ensure_synthetic_planner_children(
     agents: list[Agent],
     all_agents: list[Agent],
@@ -435,6 +449,7 @@ def apply_status_overrides(
             continue
         newest = max(children, key=_child_launch_time)
         parent.status = newest.status
+        _copy_missing_display_metadata(parent, newest)
 
     # Spawn-on-retry: build the retry-chain linkage. Each retry child has a
     # backward pointer (retry_of_timestamp) to its immediate parent; we

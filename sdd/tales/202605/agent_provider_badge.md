@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 11:54:58
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_provider_badge.md
 ---
 # Agent Provider Badge Metadata Plan

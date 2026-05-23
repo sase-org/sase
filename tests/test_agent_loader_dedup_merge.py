@@ -185,6 +185,7 @@ def test_running_workflow_dedup_ace_run() -> None:
         response_path="/tmp/response.txt",
         diff_path="/tmp/diff.patch",
         model="gemini-2.5-pro",
+        llm_provider="gemini",
         vcs_provider="GitHub",
     )
 
@@ -248,6 +249,7 @@ def test_running_workflow_dedup_ace_run() -> None:
     assert result[0].response_path == "/tmp/response.txt"
     assert result[0].diff_path == "/tmp/diff.patch"
     assert result[0].model == "gemini-2.5-pro"
+    assert result[0].llm_provider == "gemini"
     assert result[0].vcs_provider == "GitHub"
     # PID should come from the WORKFLOW agent
     assert result[0].pid == 55555

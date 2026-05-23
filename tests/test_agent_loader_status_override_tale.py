@@ -4,6 +4,7 @@ from datetime import datetime
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 
 
 def test_apply_status_overrides_active_code_child_with_tale_plan_action_is_tale_approved() -> (
@@ -210,3 +211,103 @@ def test_apply_status_overrides_done_without_tale_plan_action_still_yields_plan_
 
     assert parent.status == "PLAN DONE"
     assert code_child.status == "PLAN DONE"
+
+
+def test_apply_status_overrides_active_tale_code_child_backfills_root_badge_metadata() -> (
+    None
+):
+    """A root plan row without provider metadata inherits it from active code."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="a5n",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 23, 11, 43, 3),
+        workflow="ace-run",
+        raw_suffix="20260523114303",
+        role_suffix="-plan",
+        appears_as_agent=True,
+        agent_name="a5n",
+        agent_family="a5n",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="a5n-code",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 23, 11, 46, 30),
+        raw_suffix="20260523114630",
+        parent_timestamp="20260523114303",
+        role_suffix="-code",
+        agent_name="a5n-code",
+        agent_family="a5n",
+        agent_family_role="code",
+        plan_action="tale",
+        model="gpt-5.5",
+        llm_provider="codex",
+        vcs_provider="GitHub",
+        workspace_num=13,
+        workspace_dir="/tmp/sase_13",
+    )
+    agents = [parent, code_child]
+
+    _apply_status_overrides(agents)
+
+    assert parent.status == "TALE APPROVED"
+    assert parent.model == "gpt-5.5"
+    assert parent.llm_provider == "codex"
+    assert parent.vcs_provider == "GitHub"
+    assert parent.workspace_num == 13
+    assert parent.workspace_dir == "/tmp/sase_13"
+
+    left, _, _ = format_agent_option(parent, 0, is_selected=False)
+    assert "🤖 a5n (TALE APPROVED)" in left.plain
+
+
+def test_apply_status_overrides_child_metadata_does_not_overwrite_root_metadata() -> (
+    None
+):
+    """Mirroring status fills only missing root metadata."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="mixed",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 23, 11, 43, 3),
+        raw_suffix="20260523114303",
+        role_suffix="-plan",
+        agent_name="mixed",
+        agent_family="mixed",
+        agent_family_role="root",
+        plan_chain_root=True,
+        model="root-model",
+        llm_provider="claude",
+        vcs_provider="Mercurial",
+        workspace_num=7,
+        workspace_dir="/tmp/root",
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="mixed-code",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 23, 11, 46, 30),
+        parent_timestamp="20260523114303",
+        role_suffix="-code",
+        model="gpt-5.5",
+        llm_provider="codex",
+        vcs_provider="GitHub",
+        workspace_num=13,
+        workspace_dir="/tmp/sase_13",
+    )
+
+    _apply_status_overrides([parent, code_child])
+
+    assert parent.status == "PLAN APPROVED"
+    assert parent.model == "root-model"
+    assert parent.llm_provider == "claude"
+    assert parent.vcs_provider == "Mercurial"
+    assert parent.workspace_num == 7
+    assert parent.workspace_dir == "/tmp/root"

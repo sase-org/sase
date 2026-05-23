@@ -285,6 +285,8 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
                 matched.cl_num = agent.cl_num
             if matched.model is None and agent.model is not None:
                 matched.model = agent.model
+            if matched.llm_provider is None and agent.llm_provider is not None:
+                matched.llm_provider = agent.llm_provider
             if matched.vcs_provider is None and agent.vcs_provider is not None:
                 matched.vcs_provider = agent.vcs_provider
             if matched.error_message is None and agent.error_message is not None:
