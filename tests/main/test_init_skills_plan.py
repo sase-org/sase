@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from io import StringIO
 from pathlib import Path
+import subprocess
 from unittest.mock import MagicMock
 
 import pytest
@@ -61,6 +62,7 @@ def test_plan_missing_target_reports_create_without_writing(
         ("create", target)
     ]
     assert "create 1 provider skill file" == plan.summary
+    assert plan.warnings == (init_skills_handler._PRETTIER_WARNING,)
     assert not target.exists()
     assert not target.parent.exists()
 
@@ -124,13 +126,11 @@ def test_prettier_present_plan_and_apply_bytes_match(
         lambda _: "/usr/bin/prettier",
     )
 
-    from sase.gemini_wrapper import file_references
-
     marker = "<!-- formatted by test -->\n"
     monkeypatch.setattr(
-        file_references,
-        "format_with_prettier",
-        lambda text: text + marker,
+        init_skills_handler,
+        "_format_unique_skill_outputs_batch",
+        lambda outputs: [text + marker for text in outputs],
     )
     target = _get_target_path("claude", "foo", use_chezmoi=False)
 
@@ -139,6 +139,82 @@ def test_prettier_present_plan_and_apply_bytes_match(
 
     assert target.read_text(encoding="utf-8").endswith(marker)
     assert plan_init_skills(make_args(provider="claude")).actions == ()
+
+
+def test_duplicate_raw_outputs_are_formatted_once_and_reused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    xprompt = init_skills_handler.XPrompt(
+        name="foo",
+        content="body\n",
+        description="a test skill",
+        skill=["claude"],
+    )
+    target_paths = [
+        tmp_path / "one" / "SKILL.md",
+        tmp_path / "two" / "SKILL.md",
+    ]
+    monkeypatch.setattr(
+        init_skills_handler,
+        "_get_target_paths",
+        lambda provider, skill_name, use_chezmoi: target_paths,
+    )
+    calls: list[tuple[str, ...]] = []
+
+    def fake_batch(outputs: list[str]) -> list[str]:
+        calls.append(tuple(outputs))
+        return [outputs[0] + "formatted\n"]
+
+    monkeypatch.setattr(
+        init_skills_handler,
+        "_format_unique_skill_outputs_batch",
+        fake_batch,
+    )
+
+    targets = init_skills_handler.render_skill_targets(
+        [xprompt],
+        provider_filter="claude",
+        use_chezmoi=False,
+        use_prettier=True,
+    )
+
+    assert len(targets) == 2
+    assert [target.path for target in targets] == target_paths
+    assert len(calls) == 1
+    assert len(calls[0]) == 1
+    assert targets[0].content == targets[1].content
+    assert targets[0].content.endswith("formatted\n")
+
+
+def test_batch_formatter_failure_falls_back_per_unique_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.gemini_wrapper import file_references
+
+    def fail_batch(outputs: list[str]) -> list[str]:
+        raise subprocess.CalledProcessError(1, ["prettier"])
+
+    single_calls: list[str] = []
+
+    def fake_single(text: str) -> str:
+        single_calls.append(text)
+        return f"single:{text}"
+
+    monkeypatch.setattr(
+        init_skills_handler,
+        "_format_unique_skill_outputs_batch",
+        fail_batch,
+    )
+    monkeypatch.setattr(file_references, "format_with_prettier", fake_single)
+
+    formatted = init_skills_handler._format_skill_outputs(
+        ["same\n", "same\n", "other\n"],
+        use_prettier=True,
+    )
+
+    assert formatted == ["single:same\n", "single:same\n", "single:other\n"]
+    assert single_calls == ["same\n", "other\n"]
 
 
 def test_non_tty_explicit_init_skills_skips_existing_without_force(

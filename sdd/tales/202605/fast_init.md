@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 13:44:21
-status: wip
+status: done
 prompt: sdd/prompts/202605/fast_init.md
 ---
 # Make `sase init` Faster Without Behavior Changes

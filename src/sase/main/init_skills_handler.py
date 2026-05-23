@@ -1,11 +1,14 @@
 """Handler for the 'sase init skills' command."""
 
 import argparse
+from collections.abc import Sequence
 from dataclasses import dataclass
 import difflib
 import re
 import shutil
+import subprocess
 import sys
+import tempfile
 import textwrap
 from pathlib import Path
 
@@ -27,6 +30,12 @@ _PRETTIER_WARNING = (
     f"{_COMMAND_LABEL}: prettier not found on PATH; output may not match "
     "chezmoi CI formatting"
 )
+_PRETTIER_FORMAT_ARGS = [
+    "prettier",
+    "--prose-wrap=always",
+    "--print-width=120",
+    "--parser=markdown",
+]
 
 
 @dataclass(frozen=True)
@@ -40,6 +49,16 @@ class RenderedSkillTarget:
 
 
 _RenderedSkillTarget = RenderedSkillTarget
+
+
+@dataclass(frozen=True)
+class _RawRenderedSkillTarget:
+    """One generated skill file target before Markdown formatting."""
+
+    path: Path
+    content: str
+    provider: str
+    skill_name: str
 
 
 def _all_providers() -> list[str]:
@@ -210,6 +229,13 @@ def _prettier_available() -> bool:
     return shutil.which("prettier") is not None
 
 
+def _unescape_prettier_underscores(text: str) -> str:
+    """Apply the post-Prettier underscore unescaping used by existing formatting."""
+    while r"\_" in text:
+        text = text.replace(r"\_", "_")
+    return text
+
+
 def _format_skill_output(output: str, *, use_prettier: bool) -> str:
     """Format generated skill Markdown with the same path used by apply."""
     if not use_prettier:
@@ -220,6 +246,60 @@ def _format_skill_output(output: str, *, use_prettier: bool) -> str:
     return format_with_prettier(output)
 
 
+def _format_unique_skill_outputs_batch(outputs: Sequence[str]) -> list[str]:
+    """Format unique generated skill Markdown bodies with one Prettier command."""
+    if not outputs:
+        return []
+
+    with tempfile.TemporaryDirectory(prefix="sase-init-skills-") as temp_dir:
+        temp_path = Path(temp_dir)
+        paths: list[Path] = []
+        for index, output in enumerate(outputs):
+            path = temp_path / f"skill-{index}.md"
+            path.write_text(output, encoding="utf-8")
+            paths.append(path)
+
+        subprocess.run(
+            [
+                _PRETTIER_FORMAT_ARGS[0],
+                "--write",
+                *_PRETTIER_FORMAT_ARGS[1:],
+                *(str(path) for path in paths),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return [
+            _unescape_prettier_underscores(path.read_text(encoding="utf-8"))
+            for path in paths
+        ]
+
+
+def _format_skill_outputs(outputs: Sequence[str], *, use_prettier: bool) -> list[str]:
+    """Format generated skill Markdown once per unique raw output."""
+    raw_outputs = list(outputs)
+    if not use_prettier or not raw_outputs:
+        return raw_outputs
+
+    unique_outputs: list[str] = []
+    unique_indexes: dict[str, int] = {}
+    for output in raw_outputs:
+        if output in unique_indexes:
+            continue
+        unique_indexes[output] = len(unique_outputs)
+        unique_outputs.append(output)
+
+    try:
+        formatted_unique_outputs = _format_unique_skill_outputs_batch(unique_outputs)
+    except (OSError, subprocess.CalledProcessError):
+        formatted_unique_outputs = [
+            _format_skill_output(output, use_prettier=True) for output in unique_outputs
+        ]
+
+    return [formatted_unique_outputs[unique_indexes[output]] for output in raw_outputs]
+
+
 def _render_skill_targets(
     skill_xprompts: list[XPrompt],
     *,
@@ -228,7 +308,7 @@ def _render_skill_targets(
     use_prettier: bool,
 ) -> list[RenderedSkillTarget]:
     """Render every selected skill/provider target without writing files."""
-    targets: list[RenderedSkillTarget] = []
+    raw_targets: list[_RawRenderedSkillTarget] = []
 
     for xprompt in skill_xprompts:
         name = xprompt.name
@@ -247,10 +327,9 @@ def _render_skill_targets(
                 xprompt.content, description, context
             )
             output = _build_output(name, rendered_desc.strip(), rendered_body)
-            output = _format_skill_output(output, use_prettier=use_prettier)
             for target in _get_target_paths(provider, name, use_chezmoi):
-                targets.append(
-                    RenderedSkillTarget(
+                raw_targets.append(
+                    _RawRenderedSkillTarget(
                         path=target,
                         content=output,
                         provider=provider,
@@ -258,7 +337,19 @@ def _render_skill_targets(
                     )
                 )
 
-    return targets
+    formatted_outputs = _format_skill_outputs(
+        [target.content for target in raw_targets],
+        use_prettier=use_prettier,
+    )
+    return [
+        RenderedSkillTarget(
+            path=target.path,
+            content=content,
+            provider=target.provider,
+            skill_name=target.skill_name,
+        )
+        for target, content in zip(raw_targets, formatted_outputs, strict=True)
+    ]
 
 
 def render_skill_targets(
