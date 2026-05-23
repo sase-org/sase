@@ -1,0 +1,309 @@
+"""Review flow for pending memory proposals."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+import fcntl
+import hashlib
+import json
+from pathlib import Path
+
+from sase.memory._proposal_identity import require_proposal_reviewer
+from sase.memory._proposal_ledger import (
+    append_event_to_ledger_unlocked,
+    read_memory_proposal_events_unlocked,
+    memory_proposal_ledger_path,
+    memory_proposal_lock_path,
+    read_memory_proposals,
+    reduce_memory_proposal_events,
+    resolve_memory_proposal_id,
+)
+from sase.memory._proposal_models import (
+    MEMORY_PROPOSAL_SCHEMA_VERSION,
+    MemoryProposalBodyError,
+    MemoryProposalReviewError,
+    MemoryProposalReviewResult,
+    MemoryProposalState,
+    MemoryProposalTargetError,
+    ProposalReviewer,
+    ProposalWarning,
+    MemoryProposalReviewEvent,
+)
+from sase.memory._proposal_validation import (
+    proposal_event_timestamp,
+    validate_proposal_body,
+    validate_memory_proposal_target,
+)
+from sase.memory.locks import locked_file
+
+
+def reject_memory_proposal(
+    proposal_ref: str,
+    *,
+    reason: str,
+    reviewer: ProposalReviewer | None = None,
+    project: str | None = None,
+    cwd: Path | None = None,
+    now: datetime | None = None,
+    ledger_path: Path | None = None,
+) -> MemoryProposalReviewResult:
+    """Reject a pending memory proposal and append a review event."""
+    normalized_reason = reason.strip()
+    if not normalized_reason:
+        raise MemoryProposalReviewError("memory proposal rejection reason is required")
+    proposal_reviewer = reviewer or require_proposal_reviewer()
+    cwd_path = (cwd or Path.cwd()).resolve(strict=False)
+    final_ledger_path = ledger_path or memory_proposal_ledger_path(
+        project, cwd=cwd_path
+    )
+    event: MemoryProposalReviewEvent
+    state: MemoryProposalState
+    with locked_file(
+        memory_proposal_lock_path(ledger_path=final_ledger_path), fcntl.LOCK_EX
+    ):
+        events = read_memory_proposal_events_unlocked(final_ledger_path)
+        state = resolve_memory_proposal_id(
+            proposal_ref, reduce_memory_proposal_events(events)
+        )
+        _ensure_pending_review(state)
+        event = MemoryProposalReviewEvent(
+            schema_version=MEMORY_PROPOSAL_SCHEMA_VERSION,
+            event_type="rejected",
+            proposal_id=state.proposal_id,
+            timestamp=proposal_event_timestamp(now or datetime.now(tz=UTC)),
+            project=state.project,
+            cwd=str(cwd_path),
+            reviewer_user=proposal_reviewer.user,
+            reviewer_hostname=proposal_reviewer.hostname,
+            target_path=state.target_path,
+            canonical_path=None,
+            reviewed_body_path=None,
+            body_sha256=None,
+            body_byte_count=None,
+            reason=normalized_reason,
+        )
+        append_event_to_ledger_unlocked(event, final_ledger_path)
+        state = resolve_memory_proposal_id(
+            state.proposal_id, reduce_memory_proposal_events((*events, event))
+        )
+
+    return MemoryProposalReviewResult(
+        event=event,
+        state=state,
+        ledger_path=final_ledger_path,
+        canonical_path=None,
+        reviewed_path=None,
+        warnings=(),
+    )
+
+
+def approve_memory_proposal(
+    proposal_ref: str,
+    *,
+    target: str | None = None,
+    edited_file: Path | str | None = None,
+    reviewer: ProposalReviewer | None = None,
+    project: str | None = None,
+    cwd: Path | None = None,
+    now: datetime | None = None,
+    ledger_path: Path | None = None,
+) -> MemoryProposalReviewResult:
+    """Approve a pending proposal and create its canonical long-memory file."""
+    proposal_reviewer = reviewer or require_proposal_reviewer()
+    cwd_path = (cwd or Path.cwd()).resolve(strict=False)
+    final_ledger_path = ledger_path or memory_proposal_ledger_path(
+        project, cwd=cwd_path
+    )
+    event: MemoryProposalReviewEvent
+    state: MemoryProposalState
+    canonical_path: Path
+    reviewed_path: Path | None
+    with locked_file(
+        memory_proposal_lock_path(ledger_path=final_ledger_path), fcntl.LOCK_EX
+    ):
+        events = read_memory_proposal_events_unlocked(final_ledger_path)
+        state = resolve_memory_proposal_id(
+            proposal_ref, reduce_memory_proposal_events(events)
+        )
+        _ensure_pending_review(state)
+        target_path = (
+            validate_memory_proposal_target(target)
+            if target is not None
+            else state.target_path
+        )
+        canonical_path = cwd_path / "memory" / target_path
+        body, reviewed_path = _approval_body_and_reviewed_path(
+            state,
+            edited_file=edited_file,
+        )
+        body_bytes = validate_proposal_body(body)
+        body_sha256 = hashlib.sha256(body_bytes).hexdigest()
+        canonical_body = _canonical_memory_content(
+            proposal_id=state.proposal_id,
+            keywords=state.keywords,
+            body=body,
+        )
+        canonical_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with canonical_path.open("x", encoding="utf-8") as output_file:
+                output_file.write(canonical_body)
+        except FileExistsError as exc:
+            raise MemoryProposalTargetError(
+                f"memory proposal target already exists: {target_path}"
+            ) from exc
+
+        event = MemoryProposalReviewEvent(
+            schema_version=MEMORY_PROPOSAL_SCHEMA_VERSION,
+            event_type="approved_with_edits" if edited_file is not None else "approved",
+            proposal_id=state.proposal_id,
+            timestamp=proposal_event_timestamp(now or datetime.now(tz=UTC)),
+            project=state.project,
+            cwd=str(cwd_path),
+            reviewer_user=proposal_reviewer.user,
+            reviewer_hostname=proposal_reviewer.hostname,
+            target_path=target_path,
+            canonical_path=str(canonical_path),
+            reviewed_body_path=str(reviewed_path)
+            if reviewed_path is not None
+            else None,
+            body_sha256=body_sha256,
+            body_byte_count=len(body_bytes),
+            reason=None,
+        )
+        append_event_to_ledger_unlocked(event, final_ledger_path)
+        state = resolve_memory_proposal_id(
+            state.proposal_id, reduce_memory_proposal_events((*events, event))
+        )
+
+    warnings = _approval_reachability_warnings(
+        state,
+        canonical_path=canonical_path,
+        cwd=cwd_path,
+    )
+    return MemoryProposalReviewResult(
+        event=event,
+        state=state,
+        ledger_path=final_ledger_path,
+        canonical_path=canonical_path,
+        reviewed_path=reviewed_path,
+        warnings=warnings,
+    )
+
+
+def prepare_memory_proposal_edit(
+    proposal_ref: str,
+    *,
+    reviewer: ProposalReviewer | None = None,
+    project: str | None = None,
+    cwd: Path | None = None,
+    ledger_path: Path | None = None,
+) -> Path:
+    """Copy a proposal draft to ``reviewed.md`` before opening an editor."""
+    if reviewer is None:
+        require_proposal_reviewer()
+    cwd_path = (cwd or Path.cwd()).resolve(strict=False)
+    final_ledger_path = ledger_path or memory_proposal_ledger_path(
+        project, cwd=cwd_path
+    )
+    state = resolve_memory_proposal_id(
+        proposal_ref, read_memory_proposals(ledger_path=final_ledger_path)
+    )
+    _ensure_pending_review(state)
+    body = _read_required_text(Path(state.body_path), label="proposal draft")
+    reviewed_path = _reviewed_body_path(state)
+    reviewed_path.parent.mkdir(parents=True, exist_ok=True)
+    reviewed_path.write_text(body, encoding="utf-8")
+    return reviewed_path
+
+
+def _ensure_pending_review(state: MemoryProposalState) -> None:
+    if state.status != "pending":
+        raise MemoryProposalReviewError(
+            f"memory proposal {state.proposal_id} is {state.status}; "
+            "only pending proposals can be reviewed"
+        )
+
+
+def _approval_body_and_reviewed_path(
+    state: MemoryProposalState, *, edited_file: Path | str | None
+) -> tuple[str, Path | None]:
+    if edited_file is None:
+        return _read_required_text(Path(state.body_path), label="proposal draft"), None
+
+    edited_path = Path(edited_file)
+    body = _read_required_text(edited_path, label="edited proposal body")
+    reviewed_path = _reviewed_body_path(state)
+    if edited_path.resolve(strict=False) != reviewed_path.resolve(strict=False):
+        reviewed_path.parent.mkdir(parents=True, exist_ok=True)
+        reviewed_path.write_text(body, encoding="utf-8")
+    return body, reviewed_path
+
+
+def _reviewed_body_path(state: MemoryProposalState) -> Path:
+    return Path(state.body_path).with_name("reviewed.md")
+
+
+def _read_required_text(path: Path, *, label: str) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise MemoryProposalBodyError(f"failed to read {label}: {path}") from exc
+    except UnicodeError as exc:
+        raise MemoryProposalBodyError(
+            f"failed to decode {label} as UTF-8: {path}"
+        ) from exc
+
+
+def _canonical_memory_content(
+    *, proposal_id: str, keywords: tuple[str, ...], body: str
+) -> str:
+    lines = ["---"]
+    if keywords:
+        lines.append("keywords:")
+        lines.extend(
+            f"  - {json.dumps(keyword, ensure_ascii=True)}" for keyword in keywords
+        )
+    lines.append(f"source_candidate: {proposal_id}")
+    lines.append("---")
+    content = "\n".join(lines) + "\n\n" + body
+    if not content.endswith("\n"):
+        content += "\n"
+    return content
+
+
+def _approval_reachability_warnings(
+    state: MemoryProposalState, *, canonical_path: Path, cwd: Path
+) -> tuple[ProposalWarning, ...]:
+    warnings: list[ProposalWarning] = []
+    if not state.keywords:
+        warnings.append(
+            ProposalWarning(
+                code="reachability.missing_keywords",
+                message=(
+                    "approved memory has no keywords frontmatter; dynamic memory "
+                    "auto-discovery will skip it"
+                ),
+            )
+        )
+
+    try:
+        from sase.memory.inventory import build_memory_inventory
+
+        inventory = build_memory_inventory(cwd)
+        entry = inventory.entry_for(f"memory/{state.target_path}")
+    except Exception:
+        return tuple(warnings)
+
+    if entry.path.resolve(strict=False) != canonical_path.resolve(strict=False):
+        return tuple(warnings)
+    if entry.status == "available" and not state.keywords:
+        warnings.append(
+            ProposalWarning(
+                code="reachability.available_only",
+                message=(
+                    "approved memory is available but not loaded by an @ reference "
+                    "and is not dynamically discoverable"
+                ),
+            )
+        )
+    return tuple(warnings)
