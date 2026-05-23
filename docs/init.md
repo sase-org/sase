@@ -5,7 +5,7 @@ checks the current project and home setup first, then either reports that everyt
 initializers that need attention:
 
 ```bash
-sase init --check  # report drift without writing
+sase init -c       # report drift without writing
 sase init          # prompt before each needed initializer
 sase init --yes    # run every needed initializer in order
 ```
@@ -32,7 +32,7 @@ home-level `use_chezmoi` deployment. `sase init memory` remains a compatibility 
 | Command                          | Purpose                                                                                  |
 | -------------------------------- | ---------------------------------------------------------------------------------------- |
 | `sase init`                      | Check memory, SDD, and skills; prompt once per needed initializer in interactive shells. |
-| `sase init --check`              | Report initialization drift without writing and exit non-zero when changes are needed.   |
+| `sase init -c, --check`          | Report initialization drift without writing and exit non-zero when changes are needed.   |
 | `sase init --yes`                | Run every needed initializer in memory, SDD, skills order without prompting.             |
 | `sase memory`                    | Alias for `sase memory list`.                                                            |
 | `sase memory list`               | Inspect loaded, referenced, available, and missing memory files for the current root.    |

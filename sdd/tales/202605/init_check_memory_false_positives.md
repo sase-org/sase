@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 10:42:11
-status: wip
+status: done
 prompt: sdd/prompts/202605/init_check_memory_false_positives.md
 ---
 # Plan: Fix `sase init --check` Memory False Positives

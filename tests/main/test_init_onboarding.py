@@ -98,6 +98,10 @@ def test_parser_accepts_bare_init_modes() -> None:
     assert check_args.init_subcommand is None
     assert check_args.check is True
 
+    short_check_args = parser.parse_args(["init", "-c"])
+    assert short_check_args.init_subcommand is None
+    assert short_check_args.check is True
+
 
 def test_init_help_lists_existing_subcommands(
     capsys: pytest.CaptureFixture[str],
@@ -112,6 +116,7 @@ def test_init_help_lists_existing_subcommands(
     assert "memory" in out
     assert "sdd" in out
     assert "skills" in out
+    assert "-c, --check" in out
     assert "Advanced deploy controls live on explicit subcommands" in out
 
 

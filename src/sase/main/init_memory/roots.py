@@ -10,6 +10,7 @@ from .constants import (
     PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_FILES,
 )
+from .formatting import format_generated_memory_markdown
 from .inventory import unreferenced_memory_files
 from .models import (
     MemoryExpectedFile,
@@ -133,12 +134,14 @@ def _render_expected_memory_files(
     expected: list[MemoryExpectedFile] = [
         MemoryExpectedFile(
             path=root / "memory" / "short" / "sase.md",
-            content=_render_sase_memory(sibling_entries, project_name=project_name),
+            content=format_generated_memory_markdown(
+                _render_sase_memory(sibling_entries, project_name=project_name)
+            ),
             detail="generated SASE memory",
         ),
         MemoryExpectedFile(
             path=root / "memory" / "README.md",
-            content=_render_memory_readme(),
+            content=format_generated_memory_markdown(_render_memory_readme()),
             detail="memory README",
         ),
         MemoryExpectedFile(

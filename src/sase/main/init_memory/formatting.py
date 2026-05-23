@@ -1,0 +1,107 @@
+"""Markdown formatting for generated memory files."""
+
+from __future__ import annotations
+
+import textwrap
+
+_MARKDOWN_WRAP_WIDTH = 120
+_FENCE_MARKERS = ("```", "~~~")
+
+
+def _is_fence_line(line: str) -> bool:
+    stripped = line.lstrip()
+    return any(stripped.startswith(marker) for marker in _FENCE_MARKERS)
+
+
+def _is_heading(line: str) -> bool:
+    stripped = line.lstrip()
+    return stripped.startswith("#")
+
+
+def _is_list_item(line: str) -> bool:
+    return line.startswith("- ")
+
+
+def _wrap_text(
+    text: str, *, initial_indent: str = "", subsequent_indent: str = ""
+) -> list[str]:
+    normalized = " ".join(text.split())
+    if not normalized:
+        return []
+    wrapper = textwrap.TextWrapper(
+        width=_MARKDOWN_WRAP_WIDTH,
+        initial_indent=initial_indent,
+        subsequent_indent=subsequent_indent,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+    return wrapper.wrap(normalized)
+
+
+def _starts_block(line: str) -> bool:
+    return _is_heading(line) or _is_fence_line(line) or _is_list_item(line)
+
+
+def format_generated_memory_markdown(content: str) -> str:
+    """Format generated memory Markdown without invoking external tools."""
+    source_lines = content.splitlines()
+    formatted: list[str] = []
+    index = 0
+
+    while index < len(source_lines):
+        line = source_lines[index].rstrip()
+
+        if not line.strip():
+            if formatted and formatted[-1] != "":
+                formatted.append("")
+            index += 1
+            continue
+
+        if _is_fence_line(line):
+            marker = line.lstrip()[:3]
+            formatted.append(line)
+            index += 1
+            while index < len(source_lines):
+                fenced_line = source_lines[index].rstrip()
+                formatted.append(fenced_line)
+                index += 1
+                if fenced_line.lstrip().startswith(marker):
+                    break
+            continue
+
+        if _is_heading(line):
+            formatted.append(line)
+            index += 1
+            continue
+
+        if _is_list_item(line):
+            paragraph_parts = [line[2:].strip()]
+            index += 1
+            while index < len(source_lines):
+                next_line = source_lines[index].rstrip()
+                if not next_line.strip() or _starts_block(next_line):
+                    break
+                paragraph_parts.append(next_line.strip())
+                index += 1
+            formatted.extend(
+                _wrap_text(
+                    " ".join(paragraph_parts),
+                    initial_indent="- ",
+                    subsequent_indent="  ",
+                )
+            )
+            continue
+
+        paragraph_parts = [line.strip()]
+        index += 1
+        while index < len(source_lines):
+            next_line = source_lines[index].rstrip()
+            if not next_line.strip() or _starts_block(next_line):
+                break
+            paragraph_parts.append(next_line.strip())
+            index += 1
+        formatted.extend(_wrap_text(" ".join(paragraph_parts)))
+
+    while formatted and formatted[-1] == "":
+        formatted.pop()
+    return "\n".join(formatted) + "\n"

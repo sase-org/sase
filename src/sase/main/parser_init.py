@@ -61,6 +61,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
     init_parser.add_argument(
+        "-c",
         "--check",
         action="store_true",
         help="Report initialization drift without writing files or running initializers",

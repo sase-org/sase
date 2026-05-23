@@ -1141,10 +1141,10 @@ Non-interactive runs never prompt; they print the drift summary and ask the call
 Advanced deploy controls stay on explicit subcommands such as `sase init memory --no-commit` and
 `sase init skills --no-push`.
 
-| Flag        | Values | Default | Description                                                                          |
-| ----------- | ------ | ------- | ------------------------------------------------------------------------------------ |
-| `--check`   | flag   | -       | Report initialization drift without writing; exits non-zero when changes are needed. |
-| `-y, --yes` | flag   | -       | Run every needed initializer in memory, SDD, skills order without prompting.         |
+| Flag          | Values | Default | Description                                                                          |
+| ------------- | ------ | ------- | ------------------------------------------------------------------------------------ |
+| `-c, --check` | flag   | -       | Report initialization drift without writing; exits non-zero when changes are needed. |
+| `-y, --yes`   | flag   | -       | Run every needed initializer in memory, SDD, skills order without prompting.         |
 
 ### `sase memory`
 
