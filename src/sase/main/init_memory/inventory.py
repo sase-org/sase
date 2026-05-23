@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 import sys
 
@@ -13,8 +14,10 @@ from .constants import COMMAND_LABEL
 from .models import MemoryRootResult
 
 
-def unreferenced_memory_files(root: Path) -> tuple[Path, ...]:
-    return unreferenced_memory_files_for_init(root)
+def unreferenced_memory_files(
+    root: Path, *, overlay: Mapping[Path, str] | None = None
+) -> tuple[Path, ...]:
+    return unreferenced_memory_files_for_init(root, overlay=overlay)
 
 
 def print_validation_errors(results: tuple[MemoryRootResult, ...]) -> None:

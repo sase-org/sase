@@ -11,7 +11,13 @@ from .constants import (
     PROVIDER_SHIM_FILES,
 )
 from .inventory import unreferenced_memory_files
-from .models import MemoryRootResult, SiblingMemoryEntry
+from .models import (
+    MemoryExpectedFile,
+    MemoryFileChange,
+    MemoryRootPlan,
+    MemoryRootResult,
+    SiblingMemoryEntry,
+)
 
 
 def _extend_workspace_section(lines: list[str], project_name: str) -> None:
@@ -88,32 +94,157 @@ def _render_memory_readme() -> str:
     )
 
 
-def _write_text_if_changed(path: Path, content: str) -> bool:
+def _render_expected_memory_files(
+    root: Path,
+    sibling_entries: Iterable[SiblingMemoryEntry],
+    *,
+    project_name: str | None = None,
+) -> tuple[MemoryExpectedFile, ...]:
+    expected: list[MemoryExpectedFile] = [
+        MemoryExpectedFile(
+            path=root / "memory" / "short" / "sase.md",
+            content=_render_sase_memory(sibling_entries, project_name=project_name),
+            detail="generated SASE memory",
+        ),
+        MemoryExpectedFile(
+            path=root / "memory" / "README.md",
+            content=_render_memory_readme(),
+            detail="memory README",
+        ),
+        MemoryExpectedFile(
+            path=root / "AGENTS.md",
+            content=MINIMAL_AGENTS_CONTENT,
+            detail="agent instruction file",
+            write_policy="create_if_missing",
+        ),
+    ]
+    expected.extend(
+        MemoryExpectedFile(
+            path=root / filename,
+            content=PROVIDER_SHIM_CONTENT,
+            detail="provider instruction shim",
+            stale_operation="overwrite",
+        )
+        for filename in PROVIDER_SHIM_FILES
+    )
+    return tuple(expected)
+
+
+def _compare_expected_memory_files(
+    expected_files: Iterable[MemoryExpectedFile],
+) -> tuple[MemoryFileChange, ...]:
+    changes: list[MemoryFileChange] = []
+    for expected in expected_files:
+        if not expected.path.exists():
+            changes.append(
+                MemoryFileChange(
+                    path=expected.path,
+                    operation="create",
+                    detail=expected.detail,
+                )
+            )
+            continue
+        if expected.write_policy == "create_if_missing":
+            continue
+        try:
+            current = expected.path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            changes.append(
+                MemoryFileChange(
+                    path=expected.path,
+                    operation=expected.stale_operation,
+                    detail=expected.detail,
+                )
+            )
+            continue
+        if current != expected.content:
+            changes.append(
+                MemoryFileChange(
+                    path=expected.path,
+                    operation=expected.stale_operation,
+                    detail=expected.detail,
+                )
+            )
+    return tuple(changes)
+
+
+def _write_expected_file(expected: MemoryExpectedFile) -> bool:
+    if expected.write_policy == "create_if_missing" and expected.path.exists():
+        return False
     try:
-        if path.exists() and path.read_text(encoding="utf-8") == content:
+        if (
+            expected.path.exists()
+            and expected.path.read_text(encoding="utf-8") == expected.content
+        ):
             return False
     except OSError:
         pass
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    expected.path.parent.mkdir(parents=True, exist_ok=True)
+    expected.path.write_text(expected.content, encoding="utf-8")
     return True
 
 
-def _ensure_agents_file(root: Path) -> Path | None:
-    agents_path = root / "AGENTS.md"
-    if agents_path.exists():
-        return None
-    agents_path.write_text(MINIMAL_AGENTS_CONTENT, encoding="utf-8")
-    return agents_path
-
-
-def _ensure_provider_shims(root: Path) -> list[Path]:
+def _apply_expected_memory_files(
+    expected_files: Iterable[MemoryExpectedFile],
+) -> tuple[Path, ...]:
     written: list[Path] = []
-    for filename in PROVIDER_SHIM_FILES:
-        path = root / filename
-        if _write_text_if_changed(path, PROVIDER_SHIM_CONTENT):
-            written.append(path)
-    return written
+    for expected in expected_files:
+        if _write_expected_file(expected):
+            written.append(expected.path)
+    return tuple(written)
+
+
+def _is_memory_markdown_path(root: Path, path: Path) -> bool:
+    root_resolved = root.resolve(strict=False)
+    try:
+        relative = path.resolve(strict=False).relative_to(root_resolved)
+    except ValueError:
+        return False
+    return (
+        len(relative.parts) >= 3
+        and relative.parts[0] == "memory"
+        and relative.parts[1] in {"short", "long"}
+        and path.suffix == ".md"
+    )
+
+
+def _validation_overlay_for_expected_files(
+    root: Path,
+    expected_files: Iterable[MemoryExpectedFile],
+) -> dict[Path, str]:
+    overlay: dict[Path, str] = {}
+    agents_path = (root / "AGENTS.md").resolve(strict=False)
+    for expected in expected_files:
+        resolved = expected.path.resolve(strict=False)
+        if _is_memory_markdown_path(root, expected.path):
+            overlay[resolved] = expected.content
+            continue
+        if (
+            resolved == agents_path
+            and expected.write_policy == "create_if_missing"
+            and not expected.path.exists()
+        ):
+            overlay[resolved] = expected.content
+    return overlay
+
+
+def plan_memory_root(
+    root: Path,
+    sibling_entries: Iterable[SiblingMemoryEntry],
+    *,
+    project_name: str | None = None,
+) -> MemoryRootPlan:
+    expected_files = _render_expected_memory_files(
+        root,
+        sibling_entries,
+        project_name=project_name,
+    )
+    overlay = _validation_overlay_for_expected_files(root, expected_files)
+    return MemoryRootPlan(
+        root=root,
+        changes=_compare_expected_memory_files(expected_files),
+        unreferenced=unreferenced_memory_files(root, overlay=overlay),
+    )
 
 
 def initialize_memory_root(
@@ -122,29 +253,17 @@ def initialize_memory_root(
     *,
     project_name: str | None = None,
 ) -> MemoryRootResult:
-    written: list[Path] = []
+    expected_files = _render_expected_memory_files(
+        root,
+        sibling_entries,
+        project_name=project_name,
+    )
+    written = _apply_expected_memory_files(expected_files)
 
-    (root / "memory" / "short").mkdir(parents=True, exist_ok=True)
     (root / "memory" / "long").mkdir(parents=True, exist_ok=True)
-
-    memory_path = root / "memory" / "short" / "sase.md"
-    if _write_text_if_changed(
-        memory_path,
-        _render_sase_memory(sibling_entries, project_name=project_name),
-    ):
-        written.append(memory_path)
-
-    readme_path = root / "memory" / "README.md"
-    if _write_text_if_changed(readme_path, _render_memory_readme()):
-        written.append(readme_path)
-
-    agents_path = _ensure_agents_file(root)
-    if agents_path is not None:
-        written.append(agents_path)
-    written.extend(_ensure_provider_shims(root))
 
     return MemoryRootResult(
         root=root,
-        written_paths=tuple(written),
+        written_paths=written,
         unreferenced=unreferenced_memory_files(root),
     )

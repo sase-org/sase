@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 import subprocess
 import sys
@@ -11,6 +12,7 @@ import sys
 from sase.config.core import CHEZMOI_HOME, CONFIG_DIR, get_use_chezmoi
 from sase.workflows.commit.precommit_hooks import run_precommit
 
+from .init_plan import InitAction, InitPlan
 from .init_memory.config import (
     project_config_path as _project_config_path,
     project_memory_name as _project_memory_name,
@@ -18,8 +20,26 @@ from .init_memory.config import (
 )
 from .init_memory.constants import COMMAND_LABEL, PROJECT_COMMIT_MESSAGE
 from .init_memory.inventory import print_validation_errors as _print_validation_errors
-from .init_memory.models import MemoryRootResult as _MemoryRootResult
+from .init_memory.models import (
+    MemoryRootPlan as _MemoryRootPlan,
+    MemoryRootResult as _MemoryRootResult,
+    SiblingMemoryEntry as _SiblingMemoryEntry,
+)
 from .init_memory.roots import initialize_memory_root as _initialize_memory_root
+from .init_memory.roots import plan_memory_root as _plan_memory_root
+
+
+@dataclass(frozen=True)
+class _MemoryInitInputs:
+    use_chezmoi: bool
+    no_commit: bool
+    global_config: Path
+    project_root: Path
+    home_root: Path
+    project_name: str | None
+    project_entries: tuple[_SiblingMemoryEntry, ...]
+    home_entries: tuple[_SiblingMemoryEntry, ...]
+    config_errors: tuple[str, ...]
 
 
 def _home_root_path(use_chezmoi: bool) -> Path:
@@ -56,6 +76,33 @@ def _unique_paths(paths: Iterable[Path]) -> tuple[Path, ...]:
         unique.append(path)
         seen.add(key)
     return tuple(unique)
+
+
+def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
+    use_chezmoi = get_use_chezmoi()
+    project_config = _project_config_path()
+    global_config = _global_config_path(use_chezmoi)
+
+    project_entries, project_errors = _sibling_entries_from_config(
+        project_config, label="project"
+    )
+    home_entries, home_errors = _sibling_entries_from_config(
+        global_config, label="home"
+    )
+    config_errors = (*project_errors, *home_errors)
+    project_root = Path.cwd()
+    project_name = None if config_errors else _project_memory_name(project_root)
+    return _MemoryInitInputs(
+        use_chezmoi=use_chezmoi,
+        no_commit=bool(getattr(args, "no_commit", False)),
+        global_config=global_config,
+        project_root=project_root,
+        home_root=_home_root_path(use_chezmoi),
+        project_name=project_name,
+        project_entries=project_entries,
+        home_entries=home_entries,
+        config_errors=config_errors,
+    )
 
 
 def _deploy_to_project_repo(
@@ -252,52 +299,126 @@ def _deploy_to_chezmoi(written_paths: Iterable[Path]) -> int:
     return 0
 
 
-def handle_memory_init_command(args: argparse.Namespace) -> None:
-    """Handle the ``sase memory init`` command."""
-    use_chezmoi = get_use_chezmoi()
-    no_commit: bool = getattr(args, "no_commit", False)
-    project_config = _project_config_path()
-    global_config = _global_config_path(use_chezmoi)
-
-    project_entries, project_errors = _sibling_entries_from_config(
-        project_config, label="project"
+def _memory_root_plans(inputs: _MemoryInitInputs) -> tuple[_MemoryRootPlan, ...]:
+    project_plan = _plan_memory_root(
+        inputs.project_root,
+        inputs.project_entries,
+        project_name=inputs.project_name,
     )
-    home_entries, home_errors = _sibling_entries_from_config(
-        global_config, label="home"
-    )
-    config_errors = (*project_errors, *home_errors)
-    if config_errors:
-        _print_config_errors(config_errors)
-        sys.exit(1)
+    home_plan = _plan_memory_root(inputs.home_root, inputs.home_entries)
+    return (project_plan, home_plan)
 
-    project_root = Path.cwd()
+
+def _format_unreferenced_path(root: Path, path: Path) -> str:
+    try:
+        return str(path.relative_to(root.resolve(strict=False)))
+    except ValueError:
+        return str(path)
+
+
+def _memory_plan_blockers(
+    root_plans: Iterable[_MemoryRootPlan],
+) -> tuple[str, ...]:
+    blockers: list[str] = []
+    for root_plan in root_plans:
+        for path in root_plan.unreferenced:
+            display = _format_unreferenced_path(root_plan.root, path)
+            blockers.append(f"{root_plan.root}: unreferenced memory file {display}")
+    return tuple(blockers)
+
+
+def _summarize_memory_actions(actions: tuple[InitAction, ...]) -> str:
+    if not actions:
+        return "memory files are current"
+    operations = {action.operation for action in actions}
+    if len(actions) == 1:
+        action = actions[0]
+        return f"{action.operation} {action.detail}"
+    if operations == {"create"}:
+        verb = "create"
+    elif operations == {"update"}:
+        verb = "update"
+    elif operations == {"overwrite"}:
+        verb = "overwrite"
+    else:
+        verb = "refresh"
+    return f"{verb} {len(actions)} memory files and provider shims"
+
+
+def plan_init_memory(args: argparse.Namespace) -> InitPlan:
+    """Return a read-only plan for generated memory files."""
+    inputs = _load_memory_inputs(args)
+    if inputs.config_errors:
+        return InitPlan(
+            command="memory",
+            label="Memory",
+            summary="cannot generate memory until configuration is fixed",
+            actions=(),
+            blockers=inputs.config_errors,
+        )
+
+    root_plans = _memory_root_plans(inputs)
+    actions = tuple(
+        InitAction(
+            path=change.path,
+            operation=change.operation,
+            detail=change.detail,
+        )
+        for root_plan in root_plans
+        for change in root_plan.changes
+    )
+    blockers = _memory_plan_blockers(root_plans)
+    return InitPlan(
+        command="memory",
+        label="Memory",
+        summary=_summarize_memory_actions(actions),
+        actions=actions,
+        blockers=blockers,
+    )
+
+
+def run_init_memory(args: argparse.Namespace) -> int:
+    """Apply ``sase init memory`` and return a process exit code."""
+    inputs = _load_memory_inputs(args)
+    if inputs.config_errors:
+        _print_config_errors(inputs.config_errors)
+        return 1
+
     project_result = _initialize_memory_root(
-        project_root,
-        project_entries,
-        project_name=_project_memory_name(project_root),
+        inputs.project_root,
+        inputs.project_entries,
+        project_name=inputs.project_name,
     )
-    home_result = _initialize_memory_root(_home_root_path(use_chezmoi), home_entries)
+    home_result = _initialize_memory_root(inputs.home_root, inputs.home_entries)
     results = (project_result, home_result)
 
     if any(result.unreferenced for result in results):
         _print_validation_errors(results)
-        sys.exit(1)
+        return 1
 
     print(f"{COMMAND_LABEL}: initialized memory")
     print(f"  project memory target: {Path.cwd() / 'memory' / 'short' / 'sase.md'}")
-    print(f"  home memory target: {_home_memory_path(use_chezmoi)}")
-    print(f"  global config source: {global_config}")
+    print(f"  home memory target: {_home_memory_path(inputs.use_chezmoi)}")
+    print(f"  global config source: {inputs.global_config}")
 
     exit_code = 0
-    project_exit_code = _deploy_to_project_repo(project_result, no_commit=no_commit)
+    project_exit_code = _deploy_to_project_repo(
+        project_result,
+        no_commit=inputs.no_commit,
+    )
     if project_exit_code != 0:
         exit_code = project_exit_code
 
-    if use_chezmoi:
+    if inputs.use_chezmoi:
         chezmoi_exit_code = _deploy_to_chezmoi(home_result.written_paths)
         if chezmoi_exit_code != 0:
             exit_code = chezmoi_exit_code
-    sys.exit(exit_code)
+    return exit_code
+
+
+def handle_memory_init_command(args: argparse.Namespace) -> None:
+    """Handle the ``sase memory init`` command."""
+    sys.exit(run_init_memory(args))
 
 
 def handle_init_memory_command(args: argparse.Namespace) -> None:

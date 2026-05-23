@@ -8,6 +8,7 @@ legacy init-memory reachability checks.
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Mapping
 from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
@@ -104,6 +105,26 @@ class _ResolvedReference:
     exists: bool
 
 
+def _normalize_overlay(overlay: Mapping[Path, str] | None) -> dict[Path, str]:
+    if overlay is None:
+        return {}
+    return {path.resolve(strict=False): content for path, content in overlay.items()}
+
+
+def _path_exists(path: Path, overlay: Mapping[Path, str]) -> bool:
+    return path.resolve(strict=False) in overlay or path.is_file()
+
+
+def _read_text(path: Path, overlay: Mapping[Path, str]) -> str | None:
+    resolved = path.resolve(strict=False)
+    if resolved in overlay:
+        return overlay[resolved]
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
 def _clean_token(token: str) -> str:
     return token.rstrip(_TRAILING_TOKEN_PUNCTUATION)
 
@@ -148,8 +169,11 @@ def _parse_references(text: str) -> tuple[_ParsedMemoryReference, ...]:
     )
 
 
-def _iter_memory_files(root: Path) -> tuple[Path, ...]:
+def _iter_memory_files(
+    root: Path, *, overlay: Mapping[Path, str] | None = None
+) -> tuple[Path, ...]:
     root_resolved = root.resolve(strict=False)
+    overlay_files = _normalize_overlay(overlay)
     memory_root = root_resolved / "memory"
     results: list[Path] = []
     for tier in ("short", "long"):
@@ -161,6 +185,11 @@ def _iter_memory_files(root: Path) -> tuple[Path, ...]:
             for path in tier_root.rglob("*.md")
             if path.is_file()
         )
+    results.extend(
+        path
+        for path in overlay_files
+        if _inside_root(root_resolved, path) and _is_memory_path(root_resolved, path)
+    )
     return tuple(sorted(set(results), key=lambda path: path.as_posix()))
 
 
@@ -212,12 +241,17 @@ def _relative_path(root: Path, path: Path) -> str:
 
 
 def _resolve_reference(
-    root: Path, source: Path, token: str
+    root: Path,
+    source: Path,
+    token: str,
+    *,
+    overlay: Mapping[Path, str] | None = None,
 ) -> _ResolvedReference | None:
     """Resolve ``token`` using the legacy init-memory root containment rules."""
     if token.startswith(("http://", "https://")):
         return None
 
+    overlay_files = _normalize_overlay(overlay)
     root_resolved = root.resolve(strict=False)
     source_resolved = source.resolve(strict=False)
     in_root_candidates: list[Path] = []
@@ -225,7 +259,7 @@ def _resolve_reference(
         resolved = candidate.resolve(strict=False)
         if not _inside_root(root_resolved, resolved):
             continue
-        if resolved.is_file():
+        if _path_exists(resolved, overlay_files):
             return _ResolvedReference(target=resolved, exists=True)
         in_root_candidates.append(resolved)
 
@@ -235,16 +269,24 @@ def _resolve_reference(
 
 
 def _references_from_file(
-    root: Path, source: Path
+    root: Path,
+    source: Path,
+    *,
+    overlay: Mapping[Path, str] | None = None,
 ) -> tuple[tuple[_ParsedMemoryReference, _ResolvedReference], ...]:
-    try:
-        text = source.read_text(encoding="utf-8")
-    except OSError:
+    overlay_files = _normalize_overlay(overlay)
+    text = _read_text(source, overlay_files)
+    if text is None:
         return ()
 
     resolved: list[tuple[_ParsedMemoryReference, _ResolvedReference]] = []
     for parsed in _parse_references(text):
-        target = _resolve_reference(root, source, parsed.token)
+        target = _resolve_reference(
+            root,
+            source,
+            parsed.token,
+            overlay=overlay_files,
+        )
         if target is None:
             continue
         resolved.append((parsed, target))
@@ -369,23 +411,30 @@ def build_memory_inventory(root: Path | None = None) -> MemoryInventory:
     )
 
 
-def _reachable_memory_files_for_init(root: Path) -> tuple[Path, ...]:
+def _reachable_memory_files_for_init(
+    root: Path, *, overlay: Mapping[Path, str] | None = None
+) -> tuple[Path, ...]:
     """Return legacy init-memory reachability from ``AGENTS.md``.
 
     This intentionally follows both ``@`` and plain memory path references so
     existing ``sase init memory`` validation remains backward-compatible.
     """
     root_resolved = root.resolve(strict=False)
+    overlay_files = _normalize_overlay(overlay)
     agents_path = (root_resolved / "AGENTS.md").resolve(strict=False)
-    if not agents_path.exists():
+    if not _path_exists(agents_path, overlay_files):
         return ()
 
-    memory_files = set(_iter_memory_files(root_resolved))
+    memory_files = set(_iter_memory_files(root_resolved, overlay=overlay_files))
     reachable: set[Path] = set()
     visited: set[Path] = {agents_path}
     queue: deque[Path] = deque(
         resolved.target
-        for _, resolved in _references_from_file(root_resolved, agents_path)
+        for _, resolved in _references_from_file(
+            root_resolved,
+            agents_path,
+            overlay=overlay_files,
+        )
         if resolved.exists
     )
 
@@ -398,14 +447,21 @@ def _reachable_memory_files_for_init(root: Path) -> tuple[Path, ...]:
             reachable.add(path)
         queue.extend(
             resolved.target
-            for _, resolved in _references_from_file(root_resolved, path)
+            for _, resolved in _references_from_file(
+                root_resolved,
+                path,
+                overlay=overlay_files,
+            )
             if resolved.exists
         )
 
     return tuple(sorted(reachable, key=lambda path: path.as_posix()))
 
 
-def unreferenced_memory_files_for_init(root: Path) -> tuple[Path, ...]:
-    memory_files = set(_iter_memory_files(root))
-    reachable = set(_reachable_memory_files_for_init(root))
+def unreferenced_memory_files_for_init(
+    root: Path, *, overlay: Mapping[Path, str] | None = None
+) -> tuple[Path, ...]:
+    overlay_files = _normalize_overlay(overlay)
+    memory_files = set(_iter_memory_files(root, overlay=overlay_files))
+    reachable = set(_reachable_memory_files_for_init(root, overlay=overlay_files))
     return tuple(sorted(memory_files - reachable, key=lambda path: path.as_posix()))

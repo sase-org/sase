@@ -100,8 +100,12 @@ def test_build_commit_details_clean_returns_empty() -> None:
     assert details == ""
 
 
-def test_build_commit_details_matches_finalizer_message() -> None:
+def test_build_commit_details_matches_finalizer_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Public helper emits the instruction consumed by the finalizer."""
+    monkeypatch.delenv("SASE_BEAD_ID", raising=False)
+
     has, files, instr, details = build_commit_details(
         "/some/dir",
         commit_method="create_commit",
@@ -121,8 +125,12 @@ def test_build_commit_details_matches_finalizer_message() -> None:
     )
 
 
-def test_build_commit_details_appends_name_instruction() -> None:
+def test_build_commit_details_appends_name_instruction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """PR name guidance is appended to the finalizer commit instruction."""
+    monkeypatch.delenv("SASE_BEAD_ID", raising=False)
+
     has, files, instr, details = build_commit_details(
         "/some/dir",
         commit_method="create_pull_request",
