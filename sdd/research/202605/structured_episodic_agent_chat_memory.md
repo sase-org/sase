@@ -65,6 +65,32 @@ A 2026 survey describes agent memory as a write-manage-read loop and identifies 
 
 Letta's current docs distinguish archival memory from conversation search: archival memory is intentional long-term storage, while conversation search recalls what was said in past messages. That is a useful distinction for SASE: structured episodes should start closer to conversation search plus metadata, not as always-visible core memory. Source: <https://docs.letta.com/guides/core-concepts/memory/archival-memory>
 
+### Additional Prior Art (2024–2026)
+
+These weren't covered above and each maps to a concrete SASE design decision.
+
+**Raw episode vs synthesized lesson** — A-MEM (Zettelkasten-style auto-linking; arXiv:2502.12110), ExpeL (AAAI 2024; trajectory pool + extracted insights as separate tables; arXiv:2308.10144), MemoryBank (raw dialog + summarized memories at separate tiers; arXiv:2305.10250), RAISE (dual scratchpad + retrieved-examples bolted onto ReAct; arXiv:2401.02777). The pattern is consistent: store raw experience, derive a separate "lesson" layer that can be regenerated and challenged.
+
+**Memory update / contradiction handling** — Mem0 (LLM emits explicit ADD/UPDATE/DELETE/NOOP against semantically-similar existing memories; +26% over OpenAI memory on LOCOMO; arXiv:2504.19413). Zep/Graphiti use a bi-temporal knowledge graph: facts get `t_valid` and `t_invalid` rather than being overwritten, preserving history (arXiv:2501.13956; <https://blog.getzep.com/zep-a-temporal-knowledge-graph-architecture-for-agent-memory/>).
+
+**Forgetting / decay** — MemoryBank operationalizes an Ebbinghaus-style decay `R = e^(-t/S)` with strength `S` boosted on each recall. Reflective Memory Management (arXiv:2503.08026) uses usage-based retention with periodic LLM reflection to prune and merge.
+
+**Coding-agent benchmarks** — SWE-Bench-CL repackages SWE-Bench Verified into chronological streams to measure knowledge transfer and catastrophic forgetting (arXiv:2507.00014). MemGovern reports +4.65% on SWE-bench from a curated experience-card store (arXiv:2601.06789). These let episode-memory wins be measured rather than asserted.
+
+**Memory poisoning** — OWASP GenAI Top-10 2025 LLM01 covers indirect injection through retrieved content (<https://genai.owasp.org/llmrisk/llm01-prompt-injection/>). NIST AI 100-2 (March 2025) explicitly enumerates agent memory poisoning. AgentPoison (NeurIPS 2024, arXiv:2407.12784) and MINJA (arXiv:2503.03704; >95% success against ReAct agents via query-only injection) demonstrate the attack class. Unit 42 documented an end-to-end indirect-injection write through long-term memory across sessions (<https://unit42.paloaltonetworks.com/indirect-prompt-injection-poisons-ai-longterm-memory/>).
+
+**Embeddings for code+chat** — voyage-code-3 (+13.8% over text-embedding-3-large across 32 code-retrieval datasets, Matryoshka + int8/binary; <https://blog.voyageai.com/2024/12/04/voyage-code-3/>) and BGE-M3 (open weights, dense+sparse+ColBERT in one model) are the practical 2025–2026 picks for short technical text.
+
+**Hybrid retrieval on SQLite** — sqlite-vec author Alex Garcia documents an FTS5+vec recipe with reciprocal-rank fusion that beats either alone for sub-100K-document corpora (<https://alexgarcia.xyz/blog/2024/sqlite-vec-hybrid-search/index.html>; Simon Willison summary: <https://simonwillison.net/2024/Oct/4/hybrid-full-text-search-and-vector-search-with-sqlite/>). The relevant point for SASE: episode corpora will sit in the thousands for a long time, so FTS5-first is rational and a vec column can be added without changing the storage layer.
+
+**Production schemas** — concrete fields stored per memory in shipping systems:
+
+- Mem0: `{id, memory (markdown), hash, user_id|agent_id|app_id|run_id, metadata (≤2KB JSON), categories, created_at, updated_at, embedding}` (<https://docs.mem0.ai/core-concepts/memory-types>).
+- Letta archival passage: `{id, text, embedding, timestamp, metadata}`, surfaced via `archival_memory_insert` / `archival_memory_search` tools.
+- Zep/Graphiti edge: `{source_node, target_node, fact, t_valid, t_invalid, created_at, episodes[]}` bi-temporal model (<https://github.com/getzep/graphiti>).
+
+Common across all three: a stable id, a short human-readable text payload, owner/scope keys, a timestamp pair, and a small metadata bag. SASE's schema should not be wider than this without justification.
+
 ## Existing SASE Surfaces
 
 Current local code has most of the raw material:
@@ -80,6 +106,15 @@ Current local code has most of the raw material:
 - `sase-core` already owns shared agent artifact scanning/indexing. `crates/sase_core/src/agent_scan/index.rs` uses SQLite as a materialized view over artifact directories while keeping the artifact tree as source of truth.
 
 This suggests a natural shape: episode generation belongs near chat finalization/backfill in Python, while durable schema/index/query logic should move into `sase-core` if it will be shared by TUI, CLI, mobile gateway, and editor integrations.
+
+### Concrete attachment points in current code
+
+- `src/sase/axe/run_agent_exec_finalize.py:380` (`_save_chat_history`) and `:432` (`write_done_marker_and_update_index`) are the natural enqueue points. There is no formal post-finalize hook framework today, so episode generation either runs inline after `write_done_marker_and_update_index` or is enqueued for a background worker fed by `done.json` mtime.
+- `done.json` already carries `response_path`, `step_output`, `diff_path`, `plan_path`, `markdown_pdf_paths`, `image_paths`, `default_artifacts_persisted`, and `retry_metadata` (`retry_count`, `retry_errors`, `used_fallback`, `fallback_model`, `retried_as_timestamp`, `retry_chain_root_timestamp`, `retry_error_category`) — every field an episode would need for outcome/retry/artifact provenance is already on disk.
+- `agent_meta.json` carries `pid`, `workspace_dir`, `name`, `model`, `llm_provider`, `vcs_provider`, `tag`, `sibling_repos`, `run_started_at`, `stopped_at` — enough for agent identity and family scoping without re-parsing the transcript.
+- `src/sase/history/chat_catalog.py` already does bounded transcript reads (first 64 KiB) and section snippet extraction — reuse it for deterministic episode fields rather than re-implementing markdown slicing.
+- `src/sase/memory/proposals.py:32` defines `EvidenceKind = Literal["path", "chat", "url", "note"]`. Both `path` (the episode JSON sidecar) and `chat` (with `chat_id`) are already accepted as proposal evidence, so the bridge from episode to human-reviewed long-term memory exists without schema changes.
+- No token/cost telemetry is recorded today. Episode generation is a natural place to introduce a `usage` subobject — but only when the runtime actually surfaces token counts; do not fabricate them.
 
 ## Critique: Reasons Not To Do It
 
@@ -131,6 +166,26 @@ Use a versioned JSON object. Keep the generated text compact and evidence-linked
     "model": "codex/gpt-5.5",
     "llm_provider": "codex"
   },
+  "lineage": {
+    "parent_episode_id": null,
+    "root_episode_id": "ep_<root>",
+    "retry_of_episode_id": null,
+    "retry_chain_root_timestamp": null,
+    "sibling_episode_ids": []
+  },
+  "temporal": {
+    "t_valid": "2026-05-23T00:00:00Z",
+    "t_invalid": null,
+    "last_recalled_at": null,
+    "recall_count": 0,
+    "strength": 1.0
+  },
+  "usage": {
+    "tokens_in": null,
+    "tokens_out": null,
+    "model_cost_usd": null,
+    "wall_seconds": null
+  },
   "task": {
     "title": "Fix prompt history for multi-agent xprompts",
     "goal": "Make original multi-prompt history persist instead of fanout children.",
@@ -168,12 +223,71 @@ Use a versioned JSON object. Keep the generated text compact and evidence-linked
   "safety": {
     "generated_by": "sase-episode-extractor@1",
     "prompt_injection_flags": [],
-    "contains_generated_claims": true
+    "contains_generated_claims": true,
+    "private": false,
+    "redactions": []
   }
 }
 ```
 
 Key rule: the episode can summarize and classify, but it must not replace the transcript. Every important claim needs a path back to the source chat or artifact.
+
+The added blocks have explicit purposes. `lineage` lets a parent agent's episode reach its fanout children and retry chain without a side table — both are already present in `agent_meta.json` (`sibling_repos`) and `done.json` (`retry_chain_root_timestamp`, `retried_as_timestamp`). `temporal` borrows Zep's `t_valid`/`t_invalid` and MemoryBank's recall counter so consolidation and decay can run later without a schema break. `usage` is nullable on purpose — agents that don't surface token counts should leave it null rather than guess. `safety.private` is a hard opt-out for retrieval ("this run touched a credential / a personal artifact, do not surface").
+
+## Memory Update Semantics
+
+The risky failure mode is not "we summarized a chat badly." It is "we wrote a confident lesson that contradicts what we already knew." Episodes-as-evidence sidesteps this for now, but the moment SASE starts retrieving episodes into prompts, the system needs an explicit policy for contradictions and near-duplicates.
+
+Two patterns from production memory systems are worth copying:
+
+- **Mem0-style explicit transitions.** When a new episode arrives, retrieve the top-k most similar existing episodes and ask an LLM to emit one of `ADD`, `UPDATE`, `DELETE`, `NOOP` per neighbor, with a short rationale. Updates and deletes must cite the new episode's `episode_id` as the cause. This keeps the merge logic auditable and reversible from the sidecar trail.
+- **Zep-style bi-temporal invalidation.** Never delete in place. When a fact in an old episode is contradicted, write the new episode and set the old one's `temporal.t_invalid` to the new episode's `generated_at`. Retrieval defaults to `t_invalid is null`, but history queries can still see superseded episodes.
+
+Recommendation for SASE phase 1: defer consolidation entirely. Phase 2: add `t_invalid` plumbing and Mem0-style transition prompts behind a feature flag, gated on episodes being retrieved into prompts at all.
+
+## Forgetting & Decay
+
+SASE chats accumulate under `~/.sase/chats/YYYYMM/` with no current GC. Episodes will inherit that growth. Three policies, from cheap to ambitious:
+
+1. **Time-windowed FTS rebuild.** The SQLite index can default to the last N months and require an explicit flag to search older episodes. The sidecar JSON is never deleted; just less reachable.
+2. **Recency + recall weighting.** Score episodes at retrieval time by a recency factor times a recall counter (incremented when an episode is actually used). This is cheap, transparent, and survives index rebuilds.
+3. **Ebbinghaus-style strength.** MemoryBank's `R = e^(-t/S)` with `S` boosted on each recall is the most-cited version. It is overkill for an evidence store; only adopt it if episodes start feeding prompts directly.
+
+Whatever is chosen, the policy must be a query-time scoring layer, not a destructive prune. The sidecar tree is cheap to store and expensive to regenerate.
+
+## Security: Memory Poisoning and Indirect Prompt Injection
+
+Chat transcripts contain user prompts, tool outputs, fetched web content, and pasted error logs. All of these can carry adversarial instructions. The risk class is well-documented: OWASP GenAI Top-10 2025 LLM01 (indirect injection), NIST AI 100-2 (agent memory poisoning as a named threat), AgentPoison (arXiv:2407.12784), MINJA (arXiv:2503.03704; query-only injection succeeds >95% of the time against ReAct agents), and Unit 42's documented end-to-end persistence of an injection through long-term memory.
+
+`src/sase/memory/proposals.py:39` already flags a small set of prompt-injection patterns on proposal bodies. Episode generation should extend the same checks to:
+
+- the raw transcript before it is fed to the extractor LLM (mark `safety.prompt_injection_flags`, do not refuse to generate);
+- the generated episode body before it is written to disk (refuse the write if generated text contains exfiltration-style imperatives that did not appear in the source);
+- the retrieval path (an injected episode is dangerous only when it is read back into a prompt — so retrieval should display source paths and never auto-quote episode body into another agent's context without provenance markers).
+
+The hard rule: episodes never get promoted into `memory/long/*.md` without going through `sase memory write` and a human review. That gate is the actual defense; injection flags are a defense-in-depth signal, not authorization.
+
+## Multi-Agent and Retry Episodes
+
+`agent_meta.json` carries `sibling_repos` and `tag`; `done.json` carries `retried_as_timestamp` and `retry_chain_root_timestamp`. The fanout/family relationships are in the glossary (root vs child agents, agent family by name prefix). Episodes need to honor these:
+
+- **Fanout children.** One episode per concrete agent run, with `lineage.parent_episode_id` set to the root agent's episode. The root agent gets its own episode covering the dispatch and aggregation, not a synthesized super-episode that hides the children's evidence.
+- **Retry chains.** One episode per attempt, with `lineage.retry_of_episode_id` linking to the previous attempt and `retry_chain_root_timestamp` mirrored from `done.json`. Retrieval defaults can hide superseded retries (the chain root carries the surfaceable summary) but the per-attempt episodes remain queryable for failure-pattern analysis.
+- **Workflow steps.** Treat each step that produces its own chat as a separate episode under the workflow root. Steps that are pure scripted python/bash do not need episodes — their artifacts already speak for themselves.
+
+This is consistent with the boundary memory note: shared family/retry relationships belong in `sase-core` (other frontends must see the same lineage), while the Python side owns the extractor and the orchestration around `finalize_loop`.
+
+## Embeddings and Hybrid Search
+
+Start with SQLite FTS5. The corpus will sit in the low thousands of episodes for a long time, FTS5 is built into Python's stdlib `sqlite3` and into `rusqlite` on the core side, and lexical recall on agent-generated structured text is already strong. The ZeroClaw benchmark and Garcia's sqlite-vec hybrid recipe both confirm that lexical-only is competitive at this corpus size.
+
+Add a `vec` column only when one of these triggers fires:
+
+- corpus crosses ~5K episodes and lexical recall starts missing paraphrases;
+- retrieval is feeding prompt context directly (not just CLI/TUI display);
+- evaluation shows concrete misses that hybrid retrieval fixes.
+
+When that happens, the practical model picks as of 2026 are voyage-code-3 (paid, +13.8% over `text-embedding-3-large` on 32 code-retrieval datasets, Matryoshka + int8/binary storage) and BGE-M3 (open weights, dense+sparse+ColBERT in one model). Either one fits in sqlite-vec without architectural change. Do not commit to an embedding column in the v1 schema — it belongs in the index, not the canonical sidecar.
 
 ## Storage Recommendation
 
@@ -266,11 +380,14 @@ Suggested checks:
 
 Build a small, source-linked episodic memory layer:
 
-1. Define `EpisodeWire` schema in `sase-core`.
-2. Store canonical per-chat JSON sidecars under `~/.sase/projects/<project>/episodes/YYYYMM/`.
-3. Add a rebuildable SQLite FTS index under `~/.sase/projects/<project>/episodes.sqlite`.
-4. Generate episodes in the background after chat finalization and through an explicit backfill CLI.
-5. Keep retrieval explicit at first through `sase episodes` and an agent skill.
-6. Use generated episodes only as evidence for existing human-reviewed long-term memory proposals.
+1. Define `EpisodeWire` schema in `sase-core`, including `lineage`, `temporal`, `usage`, and `safety.private`. Reserve `temporal.t_invalid` and `recall_count` now even if unused in phase 1; adding them later is a wire break.
+2. Store canonical per-chat JSON sidecars under `~/.sase/projects/<project>/episodes/YYYYMM/`. Never delete; supersede via `t_invalid`.
+3. Add a rebuildable SQLite FTS5 index under `~/.sase/projects/<project>/episodes.sqlite`. Defer embeddings and `sqlite-vec` until a concrete retrieval-quality gap shows up.
+4. Generate episodes in the background after `write_done_marker_and_update_index` in `src/sase/axe/run_agent_exec_finalize.py`, plus an explicit `sase episodes build` backfill. Generation must never block chat finalization; on extractor failure, write a deterministic-only partial episode with `confidence: "low"`.
+5. Honor multi-agent and retry lineage: one episode per concrete run, parent/retry pointers in `lineage`, mirroring fields already in `agent_meta.json` and `done.json`.
+6. Keep retrieval explicit at first through `sase episodes` and an agent skill. Do not auto-inject episode bodies into prompts. If a later phase does inject, gate it on tag/keyword match, a small payload budget, and Mem0-style ADD/UPDATE/DELETE/NOOP consolidation on write.
+7. Run the existing prompt-injection patterns from `src/sase/memory/proposals.py:39` on both the source transcript and the generated body. Flag, don't refuse, on the source side; refuse the write on the generated side if it introduces unsupported imperatives.
+8. Use generated episodes only as evidence for existing human-reviewed long-term memory proposals (`sase memory write` already accepts `chat` and `path` evidence — no schema change needed).
+9. Measure with a SWE-Bench-CL-shaped evaluation: take real follow-up SASE prompts, compare retrieved episodes to a human pick, and track whether prompts informed by episodes change agent behavior. "Nice summaries" is not the metric.
 
-This is the highest-value version because it makes prior agent work discoverable without weakening SASE's current memory safety model.
+This is the highest-value version because it makes prior agent work discoverable without weakening SASE's current memory safety model, and it leaves room for consolidation, decay, and hybrid retrieval to land later without a schema migration.
