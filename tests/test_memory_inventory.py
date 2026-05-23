@@ -4,7 +4,6 @@ from pathlib import Path
 
 from sase.memory.inventory import (
     INSTRUCTION_ROOT_FILENAMES,
-    MemoryStats,
     build_memory_inventory,
     unreferenced_memory_files_for_init,
 )
@@ -70,7 +69,8 @@ def test_duplicate_instruction_roots_count_loaded_memory_once(
         "AGENTS.md",
     )
     assert inventory.loaded_count == 1
-    assert inventory.loaded_stats == MemoryStats(line_count=1, approx_token_count=2)
+    assert inventory.loaded_stats.line_count == 1
+    assert inventory.loaded_stats.approx_token_count == 2
 
 
 def test_inventory_reports_missing_referenced_memory_files(tmp_path: Path) -> None:

@@ -46,7 +46,7 @@ class _ParsedMemoryReference:
 
 
 @dataclass(frozen=True)
-class MemoryStats:
+class _MemoryStats:
     line_count: int
     approx_token_count: int
 
@@ -65,7 +65,7 @@ class MemoryFileEntry:
     path: Path
     relative_path: str
     status: MemoryEntryStatus
-    stats: MemoryStats | None
+    stats: _MemoryStats | None
     references: tuple[MemoryReference, ...]
 
 
@@ -74,7 +74,7 @@ class MemoryInventory:
     root: Path
     instruction_roots: tuple[Path, ...]
     entries: tuple[MemoryFileEntry, ...]
-    loaded_stats: MemoryStats
+    loaded_stats: _MemoryStats
 
     @property
     def loaded_count(self) -> int:
@@ -293,14 +293,14 @@ def _references_from_file(
     return tuple(resolved)
 
 
-def _stats_for_text(text: str) -> MemoryStats:
-    return MemoryStats(
+def _stats_for_text(text: str) -> _MemoryStats:
+    return _MemoryStats(
         line_count=len(text.splitlines()),
         approx_token_count=ceil(len(text) / 4) if text else 0,
     )
 
 
-def _stats_for_file(path: Path) -> MemoryStats | None:
+def _stats_for_file(path: Path) -> _MemoryStats | None:
     try:
         return _stats_for_text(path.read_text(encoding="utf-8"))
     except OSError:
@@ -404,7 +404,7 @@ def build_memory_inventory(root: Path | None = None) -> MemoryInventory:
         root=root_resolved,
         instruction_roots=_instruction_roots(root_resolved),
         entries=tuple(entries),
-        loaded_stats=MemoryStats(
+        loaded_stats=_MemoryStats(
             line_count=loaded_line_count,
             approx_token_count=loaded_token_count,
         ),
