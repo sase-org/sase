@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 16:44:08
-status: wip
+status: done
 prompt: sdd/prompts/202605/telegram_fork_buttons.md
 ---
 # Plan: Migrate Telegram Follow-Up Prompts From Resume to Fork
