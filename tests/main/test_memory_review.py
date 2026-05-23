@@ -37,6 +37,7 @@ def _create_proposal(
 def _allow_human_review(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
     monkeypatch.delenv("SASE_AGENT", raising=False)
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
 
 
 def test_memory_review_list_json_defaults_to_pending(

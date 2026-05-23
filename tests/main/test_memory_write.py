@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
+import sys
 from typing import Any
 
 import pytest
@@ -152,6 +154,40 @@ def test_memory_write_manual_author_is_visible_test_escape_hatch(
     payload = json.loads(capsys.readouterr().out)
     assert payload["proposal"]["author_name"] == "demo-user"
     assert payload["proposal"]["author_source"] == "manual"
+
+
+def test_memory_write_file_dash_reads_body_from_stdin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setattr(sys, "stdin", io.StringIO("Body from stdin\n"))
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
+    args = create_parser().parse_args(
+        [
+            "memory",
+            "write",
+            "--title",
+            "Memory",
+            "--target",
+            "long/memory.md",
+            "--evidence",
+            "chat:abc",
+            "--file",
+            "-",
+            "--json",
+        ]
+    )
+
+    handle_memory_write_command(args)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert Path(payload["draft_path"]).read_text(encoding="utf-8") == (
+        "Body from stdin\n"
+    )
 
 
 def test_memory_write_notify_attempts_notification(

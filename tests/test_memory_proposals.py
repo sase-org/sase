@@ -23,6 +23,7 @@ from sase.memory.proposals import (
     read_memory_proposal_events,
     read_memory_proposals,
     reject_memory_proposal,
+    require_proposal_reviewer,
     resolve_memory_proposal_id,
     validate_memory_proposal_target,
 )
@@ -412,3 +413,17 @@ def test_reviewer_identity_rejects_agent_environment(
             cwd=tmp_path,
             ledger_path=ledger_path,
         )
+
+
+def test_reviewer_identity_rejects_agent_meta_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    _write(artifacts_dir / "agent_meta.json", json.dumps({"name": "agent-from-meta"}))
+    monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
+    monkeypatch.delenv("SASE_AGENT", raising=False)
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+
+    with pytest.raises(MemoryProposalReviewError, match="agents cannot"):
+        require_proposal_reviewer()

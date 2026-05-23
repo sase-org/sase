@@ -16,6 +16,7 @@ from sase.memory.proposals.models import (
 from sase.memory.read_log import (
     AgentIdentity,
     AgentIdentityError,
+    discover_agent_identity,
     require_agent_identity,
 )
 
@@ -57,7 +58,7 @@ def require_proposal_reviewer(
 ) -> ProposalReviewer:
     """Return the current human reviewer or raise for agent environments."""
     environment = os.environ if env is None else env
-    if environment.get("SASE_AGENT_NAME") or environment.get("SASE_AGENT"):
+    if discover_agent_identity(environment) is not None:
         raise MemoryProposalReviewError(
             "memory proposal review must be performed by a human reviewer; "
             "agents cannot approve or reject proposals"

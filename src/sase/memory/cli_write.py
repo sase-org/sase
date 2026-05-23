@@ -55,8 +55,23 @@ def _read_body(args: argparse.Namespace) -> str:
     if args.body is not None:
         return args.body
     if args.file is not None:
-        return Path(args.file).read_text(encoding="utf-8")
+        if args.file == "-":
+            return _read_stdin_body()
+        try:
+            return Path(args.file).read_text(encoding="utf-8")
+        except OSError as exc:
+            raise MemoryProposalError(
+                f"failed to read proposal body file: {args.file}"
+            ) from exc
+        except UnicodeError as exc:
+            raise MemoryProposalError(
+                f"failed to decode proposal body file as UTF-8: {args.file}"
+            ) from exc
 
+    return _read_stdin_body()
+
+
+def _read_stdin_body() -> str:
     stdin = sys.stdin
     is_tty = getattr(stdin, "isatty", lambda: True)
     if is_tty():

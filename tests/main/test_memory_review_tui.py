@@ -48,6 +48,7 @@ def _setup_review_state(
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
     monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
     monkeypatch.delenv("SASE_AGENT", raising=False)
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
 
 
 def _detail_plain(app: MemoryReviewTuiApp) -> str:
