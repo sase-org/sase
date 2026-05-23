@@ -1,0 +1,182 @@
+"""Agent metadata and follow-up artifact helpers."""
+
+from __future__ import annotations
+
+import json
+import os
+from datetime import UTC, datetime
+from typing import Any
+
+from sase.artifacts import create_artifacts_directory
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
+from sase.plan_chain import (
+    AGENT_FAMILY_FIELD,
+    AGENT_FAMILY_ROLE_FIELD,
+    PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
+    PLAN_CHAIN_ROOT_FIELD,
+    agent_family_base,
+    agent_family_role_for_suffix,
+    canonical_plan_chain_suffix,
+    is_plan_chain_artifact_meta,
+)
+
+
+def append_meta_list_field(artifacts_dir: str, key: str, value: Any) -> None:
+    """Read agent_meta.json, append *value* to the list at *key*, and write back."""
+    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+        existing = meta.get(key)
+        if isinstance(existing, list):
+            existing.append(value)
+        else:
+            meta[key] = [value]
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2)
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+
+
+def update_meta_field(artifacts_dir: str, key: str, value: Any) -> None:
+    """Read agent_meta.json, set a single key, and write it back."""
+    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+        meta[key] = value
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2)
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+
+
+def update_meta_suffix(artifacts_dir: str, suffix: str) -> None:
+    """Read agent_meta.json, set role_suffix, and write it back."""
+    canonical_suffix = canonical_plan_chain_suffix(suffix) or suffix
+    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+        meta["role_suffix"] = canonical_suffix
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2)
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+
+
+def promote_to_workflow(
+    artifacts_dir: str,
+    base_name: str,
+    role_suffix: str,
+) -> None:
+    """Retroactively mark the initial agent as a plan-chain family root."""
+    canonical_suffix = canonical_plan_chain_suffix(role_suffix) or role_suffix
+    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+        meta["name"] = base_name
+        meta["workflow_name"] = base_name
+        meta[PLAN_CHAIN_ROOT_FIELD] = True
+        meta[AGENT_FAMILY_FIELD] = base_name
+        meta[AGENT_FAMILY_ROLE_FIELD] = "root"
+        meta["role_suffix"] = canonical_suffix
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2)
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+
+
+def create_followup_artifacts(
+    project_name: str,
+    base_meta: dict[str, Any],
+    suffix: str,
+    prev_artifacts_timestamp: str,
+    *,
+    workspace_num: int | None = None,
+    agent_name_override: str | None = None,
+    workflow_name: str | None = None,
+    relationships: dict[str, Any] | None = None,
+) -> str:
+    """Create a new timestamped artifacts directory for a follow-up agent.
+
+    Inherits metadata fields from the previous agent's meta and adds
+    role_suffix and parent_timestamp.
+    """
+    new_artifacts_dir = create_artifacts_directory("ace-run", project_name=project_name)
+    canonical_suffix = canonical_plan_chain_suffix(suffix) or suffix
+
+    followup_meta: dict[str, Any] = {"pid": os.getpid()}
+    for key in (
+        "model",
+        "llm_provider",
+        "vcs_provider",
+        "name",
+        "approve",
+        "changespec_name",
+        "cl_name",
+        "bead_id",
+    ):
+        if base_meta.get(key):
+            followup_meta[key] = base_meta[key]
+    if agent_name_override is not None:
+        followup_meta["name"] = agent_name_override
+    if workflow_name is not None:
+        followup_meta["workflow_name"] = workflow_name
+    followup_meta["role_suffix"] = canonical_suffix
+    family_name = (
+        workflow_name
+        or (
+            str(base_meta[AGENT_FAMILY_FIELD])
+            if base_meta.get(AGENT_FAMILY_FIELD)
+            else None
+        )
+        or agent_family_base(agent_name_override)
+    )
+    if family_name:
+        followup_meta[AGENT_FAMILY_FIELD] = family_name
+    family_role = agent_family_role_for_suffix(canonical_suffix)
+    if family_role:
+        followup_meta[AGENT_FAMILY_ROLE_FIELD] = family_role
+    followup_meta["parent_timestamp"] = prev_artifacts_timestamp
+    if is_plan_chain_artifact_meta(followup_meta):
+        followup_meta[PLAN_CHAIN_PARENT_TIMESTAMP_FIELD] = prev_artifacts_timestamp
+    if workspace_num is not None:
+        followup_meta["workspace_num"] = workspace_num
+    followup_meta["run_started_at"] = datetime.now(UTC).isoformat()
+    if relationships:
+        for key, value in relationships.items():
+            if value or (isinstance(value, bool) and value is not None):
+                followup_meta[key] = value
+
+    with open(
+        os.path.join(new_artifacts_dir, "agent_meta.json"), "w", encoding="utf-8"
+    ) as f:
+        json.dump(followup_meta, f, indent=2)
+
+    # Write initial workflow_state.json so the TUI can merge follow-up agents
+    # as WORKFLOW entries immediately, before WorkflowExecutor overwrites it.
+    initial_state: dict[str, object] = {
+        "workflow_name": "run",
+        "status": "running",
+        "current_step_index": 0,
+        "steps": [],
+        "context": {"cl_name": followup_meta.get("name", "")},
+        "artifacts_dir": new_artifacts_dir,
+        "pid": os.getpid(),
+        "appears_as_agent": True,
+    }
+    with open(
+        os.path.join(new_artifacts_dir, "workflow_state.json"), "w", encoding="utf-8"
+    ) as f:
+        json.dump(initial_state, f, indent=2)
+
+    update_agent_artifact_index_for_marker_mutation(new_artifacts_dir)
+    return new_artifacts_dir

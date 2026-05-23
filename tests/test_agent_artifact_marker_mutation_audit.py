@@ -148,39 +148,39 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/axe/run_agent_helpers.py:append_meta_list_field": Review(
+    "src/sase/axe/run_agent_helpers_artifacts.py:append_meta_list_field": Review(
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/axe/run_agent_helpers.py:update_meta_field": Review(
+    "src/sase/axe/run_agent_helpers_artifacts.py:update_meta_field": Review(
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/axe/run_agent_helpers.py:update_meta_suffix": Review(
+    "src/sase/axe/run_agent_helpers_artifacts.py:update_meta_suffix": Review(
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/axe/run_agent_helpers.py:promote_to_workflow": Review(
+    "src/sase/axe/run_agent_helpers_artifacts.py:promote_to_workflow": Review(
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/axe/run_agent_helpers.py:normalize_handoff_interruption_state": Review(
+    "src/sase/axe/run_agent_helpers_handoff.py:normalize_handoff_interruption_state": Review(
         mutation_calls=("open", "dump", "open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/axe/run_agent_helpers.py:finalize_handoff_artifacts_as_completed": Review(
+    "src/sase/axe/run_agent_helpers_handoff.py:finalize_handoff_artifacts_as_completed": Review(
         mutation_calls=("open", "dump", "open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/axe/run_agent_helpers.py:update_step_marker_chat_path": Review(
+    "src/sase/axe/run_agent_helpers_handoff.py:update_step_marker_chat_path": Review(
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/axe/run_agent_helpers.py:create_followup_artifacts": Review(
+    "src/sase/axe/run_agent_helpers_artifacts.py:create_followup_artifacts": Review(
         mutation_calls=("open", "dump", "open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/axe/run_agent_helpers.py:handle_questions_flow": Review(
+    "src/sase/axe/run_agent_helpers_questions.py:handle_questions_flow": Review(
         mutation_calls=("open", "dump", "open", "dump", "unlink"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),

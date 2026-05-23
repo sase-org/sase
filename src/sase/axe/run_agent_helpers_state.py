@@ -1,0 +1,145 @@
+"""Workflow-state helpers for the agent runner."""
+
+from __future__ import annotations
+
+import json
+import os
+from typing import Any
+
+
+def is_workflow_noop(artifacts_dir: str) -> bool:
+    """Check if a completed workflow launched zero agents.
+
+    Reads agents_launched from workflow_state.json. A workflow that completed
+    successfully but never invoked an LLM agent (e.g. a for-loop with an empty
+    list) is considered a noop.
+    """
+    state_path = os.path.join(artifacts_dir, "workflow_state.json")
+    try:
+        with open(state_path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return False
+    return data.get("agents_launched", -1) == 0
+
+
+def read_commit_result_metadata(artifacts_dir: str | None) -> dict[str, str]:
+    """Read commit_result.json and return workflow metadata fields."""
+    if not artifacts_dir:
+        return {}
+
+    commit_result_path = os.path.join(artifacts_dir, "commit_result.json")
+    try:
+        with open(commit_result_path, encoding="utf-8") as f:
+            commit_result = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+
+    if not isinstance(commit_result, dict):
+        return {}
+
+    def _text(value: Any) -> str | None:
+        return value if isinstance(value, str) and value else None
+
+    metadata: dict[str, str] = {}
+    if message := _text(commit_result.get("message")):
+        metadata["meta_commit_message"] = message
+    if result := _text(commit_result.get("result")):
+        metadata["meta_new_commit"] = result
+    if changespec := (
+        _text(commit_result.get("changespec_name")) or _text(commit_result.get("name"))
+    ):
+        metadata["meta_changespec"] = changespec
+    if diff_path := _text(commit_result.get("diff_path")):
+        metadata["diff_path"] = diff_path
+    return metadata
+
+
+def extract_step_output_and_diff_path(
+    artifacts_dir: str,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Extract step_output and diff_path from workflow_state.json.
+
+    Reads the workflow state written by execute_workflow() and extracts:
+    - step_output: the last completed step's output dict
+    - diff_path: path value from output_types with field_type=="path",
+      or fallback to direct diff_path key in step outputs
+    """
+    commit_metadata = read_commit_result_metadata(artifacts_dir)
+    commit_step_metadata = {
+        key: value for key, value in commit_metadata.items() if key != "diff_path"
+    }
+
+    state_path = os.path.join(artifacts_dir, "workflow_state.json")
+    try:
+        with open(state_path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        commit_diff_path = commit_metadata.get("diff_path")
+        if commit_diff_path:
+            commit_diff_path = os.path.expanduser(commit_diff_path)
+        return commit_step_metadata or None, commit_diff_path
+
+    if not isinstance(data, dict):
+        commit_diff_path = commit_metadata.get("diff_path")
+        if commit_diff_path:
+            commit_diff_path = os.path.expanduser(commit_diff_path)
+        return commit_step_metadata or None, commit_diff_path
+
+    step_output: dict[str, Any] | None = None
+    for step_data in reversed(data.get("steps", [])):
+        output = step_data.get("output")
+        if output and isinstance(output, dict):
+            step_output = output
+            break
+
+    # Search backward through all steps for embedded workflows where the
+    # diff-producing step is not the last step.
+    diff_path: str | None = None
+    steps_list = data.get("steps", [])
+    for step_data in reversed(steps_list):
+        step_out = step_data.get("output")
+        if isinstance(step_out, dict) and step_out.get("diff_path"):
+            diff_path = str(step_out["diff_path"])
+            break
+
+    if not diff_path and steps_list:
+        last_step = steps_list[-1]
+        output_types = last_step.get("output_types") or {}
+        step_out = last_step.get("output")
+        if output_types and isinstance(step_out, dict):
+            for field_name, field_type in output_types.items():
+                if field_type == "path":
+                    path_value = step_out.get(field_name)
+                    if path_value:
+                        diff_path = str(path_value)
+                        break
+
+    if commit_step_metadata:
+        if step_output is None:
+            step_output = commit_step_metadata
+        else:
+            step_output.update(commit_step_metadata)
+
+    if not diff_path and commit_metadata.get("diff_path"):
+        diff_path = commit_metadata["diff_path"]
+
+    if diff_path:
+        diff_path = os.path.expanduser(diff_path)
+
+    return step_output, diff_path
+
+
+def read_and_delete_marker(artifacts_dir: str, filename: str) -> dict[str, Any] | None:
+    """Read a JSON marker file, delete it, and return parsed data.
+
+    Returns None if the file doesn't exist or can't be parsed.
+    """
+    path = os.path.join(artifacts_dir, filename)
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        os.unlink(path)
+        return data
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
