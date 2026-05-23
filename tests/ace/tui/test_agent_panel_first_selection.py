@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock
+
+import pytest
 
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.actions.agents._display_panels import PanelsMixin
 from sase.ace.tui.actions.agents._panels import AgentPanelsMixin
+from sase.ace.tui.actions.agents._unread import AgentUnreadMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
@@ -166,17 +169,44 @@ def _agent(
     project: str,
     cl: str,
     name: str,
+    status: str = "RUNNING",
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl,
         project_file=f"/r/{project}/proj.sase",
-        status="RUNNING",
+        status=status,
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name=name,
         tag=tag,
         raw_suffix=name,
     )
+
+
+class _UnreadPanelSwitchApp(AgentUnreadMixin, _StubApp):
+    def __init__(self, agents: list[Agent], *, focused_key: str | None) -> None:
+        super().__init__(agents, focused_key=focused_key)
+        self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._agent_info_metrics_cache: tuple[Any, ...] | None = None
+        self.patch_calls: list[Agent] = []
+        self.notification_count_refresh_calls = 0
+
+    def _try_patch_agent_row(self, agent: Agent) -> bool:
+        self.patch_calls.append(agent)
+        return True
+
+    def _refresh_notification_count(self) -> None:
+        self.notification_count_refresh_calls += 1
+
+
+@pytest.fixture
+def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    dismiss = Mock(return_value=0)
+    monkeypatch.setattr(
+        "sase.notifications.dismiss_notifications_matching_agents", dismiss
+    )
+    return dismiss
 
 
 def test_focus_next_agent_panel_selects_first_rendered_agent_not_first_raw() -> None:
@@ -197,6 +227,34 @@ def test_focus_next_agent_panel_selects_first_rendered_agent_not_first_raw() -> 
     assert app._current_group_key is None
     assert app.current_attempt_number is None
     assert app.refresh_calls == [False]
+
+
+def test_focus_next_agent_panel_acknowledges_unread_agent_row(
+    notification_dismiss: Mock,
+) -> None:
+    agents = [
+        _agent(tag=None, project="home", cl="home", name="untagged"),
+        _agent(
+            tag="alpha",
+            project="alpha",
+            cl="a",
+            name="done-agent",
+            status="DONE",
+        ),
+    ]
+    app = _UnreadPanelSwitchApp(agents, focused_key=None)
+    unread_agent = agents[1]
+    app._unread_completed_agent_ids.add(unread_agent.identity)
+
+    app.action_focus_next_agent_panel()
+
+    assert app._panel_group.focused_key == "alpha"
+    assert app.current_idx == 1
+    assert unread_agent.identity not in app._unread_completed_agent_ids
+    assert app.patch_calls == [unread_agent]
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": unread_agent.cl_name, "raw_suffix": unread_agent.raw_suffix}]
+    )
 
 
 def test_focus_next_agent_panel_guard_keeps_panel_and_selection() -> None:
@@ -239,6 +297,35 @@ def test_focus_prev_agent_panel_selects_last_rendered_agent_not_last_raw() -> No
     assert app.current_attempt_number is None
 
 
+def test_focus_prev_agent_panel_acknowledges_unread_agent_row(
+    notification_dismiss: Mock,
+) -> None:
+    agents = [
+        _agent(
+            tag=None,
+            project="home",
+            cl="home",
+            name="done-agent",
+            status="DONE",
+        ),
+        _agent(tag="alpha", project="alpha", cl="a", name="tagged"),
+    ]
+    app = _UnreadPanelSwitchApp(agents, focused_key="alpha")
+    app.current_idx = 1
+    unread_agent = agents[0]
+    app._unread_completed_agent_ids.add(unread_agent.identity)
+
+    app.action_focus_prev_agent_panel()
+
+    assert app._panel_group.focused_key is None
+    assert app.current_idx == 0
+    assert unread_agent.identity not in app._unread_completed_agent_ids
+    assert app.patch_calls == [unread_agent]
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": unread_agent.cl_name, "raw_suffix": unread_agent.raw_suffix}]
+    )
+
+
 def test_panel_switch_can_land_on_first_collapsed_banner() -> None:
     agents = [
         _agent(tag=None, project="home", cl="home", name="untagged"),
@@ -256,6 +343,36 @@ def test_panel_switch_can_land_on_first_collapsed_banner() -> None:
     assert app.current_idx == 2
     assert app._agents[app.current_idx].agent_name == "banner-agent"
     assert app.current_attempt_number is None
+
+
+def test_panel_switch_collapsed_banner_does_not_acknowledge_unread_agent(
+    notification_dismiss: Mock,
+) -> None:
+    agents = [
+        _agent(tag=None, project="home", cl="home", name="untagged"),
+        _agent(tag="alpha", project="zeta", cl="z", name="raw-first"),
+        _agent(
+            tag="alpha",
+            project="alpha",
+            cl="a",
+            name="banner-agent",
+            status="DONE",
+        ),
+        _agent(tag="alpha", project="beta", cl="b", name="render-second"),
+    ]
+    app = _UnreadPanelSwitchApp(agents, focused_key=None)
+    app._group_fold_registry.collapse(("alpha",))
+    unread_agent = agents[2]
+    app._unread_completed_agent_ids.add(unread_agent.identity)
+
+    app.action_focus_next_agent_panel()
+
+    assert app._panel_group.focused_key == "alpha"
+    assert app._current_group_key == ("alpha",)
+    assert app.current_idx == 2
+    assert unread_agent.identity in app._unread_completed_agent_ids
+    assert app.patch_calls == []
+    notification_dismiss.assert_not_called()
 
 
 def test_prev_panel_switch_can_land_on_last_collapsed_banner() -> None:
@@ -277,6 +394,39 @@ def test_prev_panel_switch_can_land_on_last_collapsed_banner() -> None:
     assert app.current_idx == 1
     assert app._agents[app.current_idx].agent_name == "banner-agent"
     assert app.current_attempt_number is None
+
+
+def test_panel_switch_arms_manual_unread_departure_before_return_selection(
+    notification_dismiss: Mock,
+) -> None:
+    agents = [
+        _agent(
+            tag=None,
+            project="home",
+            cl="home",
+            name="manual-unread",
+            status="DONE",
+        ),
+        _agent(tag="alpha", project="alpha", cl="a", name="tagged"),
+    ]
+    app = _UnreadPanelSwitchApp(agents, focused_key=None)
+    app._current_group_key = None
+    manual_agent = agents[0]
+    app._unread_completed_agent_ids.add(manual_agent.identity)
+    app._manual_unread_agent_ids.add(manual_agent.identity)
+
+    app.action_focus_next_agent_panel()
+
+    assert manual_agent.identity in app._unread_completed_agent_ids
+    assert manual_agent.identity not in app._manual_unread_agent_ids
+
+    app.action_focus_prev_agent_panel()
+
+    assert manual_agent.identity not in app._unread_completed_agent_ids
+    assert app.patch_calls == [manual_agent]
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": manual_agent.cl_name, "raw_suffix": manual_agent.raw_suffix}]
+    )
 
 
 def test_optimized_panel_switch_clears_old_panel_highlight() -> None:

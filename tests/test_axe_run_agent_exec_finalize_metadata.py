@@ -6,11 +6,18 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 from sase.axe.run_agent_exec import LoopState, _finalize_loop
 from sase.axe.run_agent_exec_retry import RetryTracker
 from sase.llm_provider.retry_config import ProviderRetryConfig
 
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
+
+
+@pytest.fixture(autouse=True)
+def clean_model_override_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SASE_MODEL_OVERRIDE", raising=False)
 
 
 def test_finalize_loop_passes_transcript_metadata_to_chat_history(

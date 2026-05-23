@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 15:30:00
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_panel_jk_unread.md
 ---
 # Plan: Acknowledge unread agents on Agents-tab `J`/`K` panel switches

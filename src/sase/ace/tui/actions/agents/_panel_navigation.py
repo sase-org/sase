@@ -76,6 +76,13 @@ class AgentPanelNavigationMixin:
         if self._guard_agent_navigation_for_artifact_viewer():  # type: ignore[attr-defined]
             return
         old_focused_idx = self._panel_group.focused_idx
+        old_idx = self.current_idx
+        old_group_key = self._current_group_key
+        old_agent = (
+            self._agents[old_idx]
+            if old_group_key is None and 0 <= old_idx < len(self._agents)
+            else None
+        )
         if forward:
             changed = self._panel_group.focus_next()
         else:
@@ -85,8 +92,10 @@ class AgentPanelNavigationMixin:
 
         self.current_attempt_number = None  # type: ignore[attr-defined]
         stops = self._panel_navigation_stops()  # type: ignore[attr-defined]
+        destination: tuple[str, int | tuple[str, ...]] | None = None
         if stops:
-            self._focus_panel_navigation_stop(stops[0] if forward else stops[-1])
+            destination = stops[0] if forward else stops[-1]
+            self._focus_panel_navigation_stop(destination)
         else:
             self._current_group_key = None  # type: ignore[attr-defined]
             keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
@@ -94,6 +103,23 @@ class AgentPanelNavigationMixin:
                 keys_per_agent,
                 self._panel_group.focused_key,
             )
+            if 0 <= self.current_idx < len(self._agents):
+                destination = ("agent", self.current_idx)
+
+        if old_agent is not None and destination != ("agent", old_idx):
+            arm_manual = getattr(self, "_arm_manual_unread_after_departure", None)
+            if callable(arm_manual):
+                arm_manual(old_agent)
+
+        if destination is not None:
+            kind, payload = destination
+            if kind == "agent":
+                assert isinstance(payload, int)
+                if 0 <= payload < len(self._agents):
+                    ack_unread = getattr(self, "_acknowledge_agent_unread", None)
+                    if callable(ack_unread):
+                        ack_unread(self._agents[payload])
+
         refresh_focused_panel = getattr(self, "_refresh_focused_agent_panel", None)
         if callable(refresh_focused_panel):
             refresh_focused_panel(old_focused_idx=old_focused_idx)
