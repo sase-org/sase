@@ -6,6 +6,8 @@ SASE_AGENT_AUTO_DISMISS) forward ``silent=True`` to
 count for runs the user never asked to see.
 """
 
+import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -72,6 +74,37 @@ def test_success_completion_notification_includes_runtime(base_kwargs):
 
     action_data = mock_notify.call_args.kwargs["action_data"]
     assert action_data["runtime"] == "4m32s"
+
+
+def test_completion_notification_uses_full_commit_result_message(base_kwargs):
+    full_message = "feat: add report\n\nInclude full commit body."
+    artifacts_dir = Path(base_kwargs["current_artifacts_dir"])
+    artifacts_dir.mkdir()
+    (artifacts_dir / "commit_result.json").write_text(
+        json.dumps({"message": full_message, "result": "abc123"})
+    )
+    base_kwargs["step_output"] = {"meta_commit_message": "feat: add report"}
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    action_data = mock_notify.call_args.kwargs["action_data"]
+    assert action_data["commit_message"] == full_message
+
+
+def test_completion_notification_reads_commit_result_without_step_output(base_kwargs):
+    full_message = "fix: recover after failure\n\nCommit happened before failure."
+    artifacts_dir = Path(base_kwargs["current_artifacts_dir"])
+    artifacts_dir.mkdir()
+    (artifacts_dir / "commit_result.json").write_text(
+        json.dumps({"message": full_message, "result": "abc123"})
+    )
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    action_data = mock_notify.call_args.kwargs["action_data"]
+    assert action_data["commit_message"] == full_message
 
 
 def test_hidden_agent_failure_still_silent(base_kwargs):

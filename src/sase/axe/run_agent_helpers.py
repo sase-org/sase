@@ -57,6 +57,38 @@ def is_workflow_noop(artifacts_dir: str) -> bool:
     return data.get("agents_launched", -1) == 0
 
 
+def read_commit_result_metadata(artifacts_dir: str | None) -> dict[str, str]:
+    """Read commit_result.json and return workflow metadata fields."""
+    if not artifacts_dir:
+        return {}
+
+    commit_result_path = os.path.join(artifacts_dir, "commit_result.json")
+    try:
+        with open(commit_result_path, encoding="utf-8") as f:
+            commit_result = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+
+    if not isinstance(commit_result, dict):
+        return {}
+
+    def _text(value: Any) -> str | None:
+        return value if isinstance(value, str) and value else None
+
+    metadata: dict[str, str] = {}
+    if message := _text(commit_result.get("message")):
+        metadata["meta_commit_message"] = message
+    if result := _text(commit_result.get("result")):
+        metadata["meta_new_commit"] = result
+    if changespec := (
+        _text(commit_result.get("changespec_name")) or _text(commit_result.get("name"))
+    ):
+        metadata["meta_changespec"] = changespec
+    if diff_path := _text(commit_result.get("diff_path")):
+        metadata["diff_path"] = diff_path
+    return metadata
+
+
 def extract_step_output_and_diff_path(
     artifacts_dir: str,
 ) -> tuple[dict[str, Any] | None, str | None]:
@@ -73,12 +105,26 @@ def extract_step_output_and_diff_path(
     Returns:
         Tuple of (step_output, diff_path).
     """
+    commit_metadata = read_commit_result_metadata(artifacts_dir)
+    commit_step_metadata = {
+        key: value for key, value in commit_metadata.items() if key != "diff_path"
+    }
+
     state_path = os.path.join(artifacts_dir, "workflow_state.json")
     try:
         with open(state_path, encoding="utf-8") as f:
             data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return None, None
+        commit_diff_path = commit_metadata.get("diff_path")
+        if commit_diff_path:
+            commit_diff_path = os.path.expanduser(commit_diff_path)
+        return commit_step_metadata or None, commit_diff_path
+
+    if not isinstance(data, dict):
+        commit_diff_path = commit_metadata.get("diff_path")
+        if commit_diff_path:
+            commit_diff_path = os.path.expanduser(commit_diff_path)
+        return commit_step_metadata or None, commit_diff_path
 
     # Extract step_output: last step with a dict output
     step_output: dict[str, Any] | None = None
@@ -113,41 +159,21 @@ def extract_step_output_and_diff_path(
                         diff_path = str(path_value)
                         break
 
-    # Expand tilde in diff_path to prevent path corruption when absolutized
+    # commit_result.json is written by the commit workflow and carries the
+    # full commit body; workflow text outputs may already be shortened.
+    if commit_step_metadata:
+        if step_output is None:
+            step_output = commit_step_metadata
+        else:
+            step_output.update(commit_step_metadata)
+
+    # Safety net: extract diff_path from commit_result.json when no workflow
+    # step provided one (e.g. hg.yml before it had a dedicated diff step).
+    if not diff_path and commit_metadata.get("diff_path"):
+        diff_path = commit_metadata["diff_path"]
+
     if diff_path:
         diff_path = os.path.expanduser(diff_path)
-
-    # Fallback: if step_output has no commit metadata, try reading
-    # commit_result.json directly. This covers the case where the agent
-    # committed via a commit skill but `#commit` was not in the xprompt
-    # (so no report post-step ran to surface the metadata).
-    if not (step_output or {}).get("meta_commit_message"):
-        commit_result_path = os.path.join(artifacts_dir, "commit_result.json")
-        try:
-            with open(commit_result_path, encoding="utf-8") as f:
-                cr = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError, OSError):
-            cr = None
-        if isinstance(cr, dict):
-            merged: dict[str, str] = {}
-            if cr.get("message"):
-                merged["meta_commit_message"] = cr["message"]
-            if cr.get("result"):
-                merged["meta_new_commit"] = cr["result"]
-            cs = cr.get("changespec_name") or cr.get("name")
-            if cs:
-                merged["meta_changespec"] = cs
-            if merged:
-                if step_output is None:
-                    step_output = merged
-                else:
-                    step_output.update(merged)
-
-            # Safety net: extract diff_path from commit_result.json when
-            # no workflow step provided one (e.g. hg.yml before it had a
-            # dedicated diff step).
-            if not diff_path and cr.get("diff_path"):
-                diff_path = str(cr["diff_path"])
 
     return step_output, diff_path
 

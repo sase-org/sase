@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Any
 
 from sase.axe.image_attachments import append_unique_paths
+from sase.axe.run_agent_helpers import read_commit_result_metadata
 from sase.axe.run_agent_phases import build_done_marker, record_stop_time
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
@@ -153,6 +154,19 @@ def _completion_explicit_artifact_paths(current_artifacts_dir: str | None) -> li
     return paths
 
 
+def _commit_message_for_notification(
+    step_output: dict[str, Any] | None, current_artifacts_dir: str | None
+) -> str | None:
+    step_message = (step_output or {}).get("meta_commit_message")
+    if not isinstance(step_message, str) or not step_message:
+        step_message = None
+
+    commit_message = read_commit_result_metadata(current_artifacts_dir).get(
+        "meta_commit_message"
+    )
+    return commit_message or step_message
+
+
 def send_completion_notification(
     *,
     cl_name: str,
@@ -218,7 +232,9 @@ def send_completion_notification(
 
     # For failures with an error report, use ViewErrorReport action
     # so <enter> opens the report in $EDITOR. Otherwise JumpToAgent.
-    commit_message = (step_output or {}).get("meta_commit_message")
+    commit_message = _commit_message_for_notification(
+        step_output, current_artifacts_dir
+    )
     pr_url = (step_output or {}).get("meta_pr_url")
     bead_display = format_agent_bead_display_for_name(
         agent_name, include_description=True

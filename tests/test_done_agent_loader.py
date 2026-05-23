@@ -30,6 +30,71 @@ def test_extract_step_output_from_workflow_state(tmp_path: Path) -> None:
     assert diff_path is None
 
 
+def test_extract_step_output_preserves_multiline_commit_result_message(
+    tmp_path: Path,
+) -> None:
+    state_data = {
+        "workflow_name": "test",
+        "status": "completed",
+        "steps": [
+            {
+                "name": "step1",
+                "status": "completed",
+                "output": {"result": "ok"},
+            }
+        ],
+    }
+    full_message = "feat: add report\n\nInclude body details.\n\n- keep blanks"
+    (tmp_path / "workflow_state.json").write_text(json.dumps(state_data))
+    (tmp_path / "commit_result.json").write_text(
+        json.dumps(
+            {
+                "message": full_message,
+                "result": "abc123",
+                "changespec_name": "sase-full-message",
+            }
+        )
+    )
+
+    step_output, diff_path = extract_step_output_and_diff_path(str(tmp_path))
+
+    assert step_output is not None
+    assert step_output["meta_commit_message"] == full_message
+    assert step_output["meta_new_commit"] == "abc123"
+    assert step_output["meta_changespec"] == "sase-full-message"
+    assert diff_path is None
+
+
+def test_extract_step_output_prefers_commit_result_message_over_workflow_subject(
+    tmp_path: Path,
+) -> None:
+    state_data = {
+        "workflow_name": "test",
+        "status": "completed",
+        "steps": [
+            {
+                "name": "report",
+                "status": "completed",
+                "output": {
+                    "meta_commit_message": "feat: add report",
+                    "meta_pr_url": "https://github.com/org/repo/pull/7",
+                },
+            }
+        ],
+    }
+    full_message = "feat: add report\n\nThis is the full commit body."
+    (tmp_path / "workflow_state.json").write_text(json.dumps(state_data))
+    (tmp_path / "commit_result.json").write_text(
+        json.dumps({"message": full_message, "result": "abc123"})
+    )
+
+    step_output, _diff_path = extract_step_output_and_diff_path(str(tmp_path))
+
+    assert step_output is not None
+    assert step_output["meta_commit_message"] == full_message
+    assert step_output["meta_pr_url"] == "https://github.com/org/repo/pull/7"
+
+
 def test_extract_diff_path_last_step_multiple_paths_first_wins(
     tmp_path: Path,
 ) -> None:

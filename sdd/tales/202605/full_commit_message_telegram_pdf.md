@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 13:57:47
-status: wip
+status: done
 prompt: sdd/prompts/202605/full_commit_message_telegram_pdf.md
 ---
 # Plan: Full Commit Messages in Telegram Completion PDFs
