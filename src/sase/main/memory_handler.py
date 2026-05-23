@@ -7,12 +7,10 @@ import sys
 
 
 def _handle_memory_list_command(args: argparse.Namespace) -> None:
-    """Placeholder for the Phase 3 ``sase memory list`` dashboard."""
-    print(
-        "sase memory list: dashboard implementation is not available yet",
-        file=sys.stderr,
-    )
-    sys.exit(1)
+    """Handle the ``sase memory list`` dashboard."""
+    from sase.memory.cli_list import handle_memory_list_command
+
+    handle_memory_list_command(args)
 
 
 def handle_memory_command(args: argparse.Namespace) -> None:
