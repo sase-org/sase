@@ -1,5 +1,6 @@
 ---
 tier: epic
+bead_id: sase-3z
 prompt: sdd/prompts/202605/memory_command_1.md
 ---
 
