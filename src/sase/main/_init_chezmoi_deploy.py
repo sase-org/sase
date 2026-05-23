@@ -113,15 +113,24 @@ def deploy_to_chezmoi(
         return 1 if behavior.git_failure_is_error else 0
 
     for path in paths:
-        subprocess.run(
+        add = subprocess.run(
             ["git", "-C", str(git_root), "add", "--", str(path)],
             capture_output=True,
+            text=True,
             check=False,
         )
+        if add.returncode != 0:
+            print(
+                f"{behavior.command_label}: git add failed for {path}: "
+                f"{add.stderr.strip()}",
+                file=sys.stderr,
+            )
+            return 1
 
     staged = subprocess.run(
         ["git", "-C", str(git_root), "diff", "--cached", "--quiet"],
         capture_output=True,
+        text=True,
         check=False,
     )
     committed = False
@@ -130,6 +139,13 @@ def deploy_to_chezmoi(
             print(f"\nNothing to commit in {git_root} (files identical to HEAD).")
         if not behavior.apply_when_nothing_staged:
             return 0
+    elif staged.returncode != 1:
+        print(
+            f"{behavior.command_label}: staged diff check failed: "
+            f"{staged.stderr.strip()}",
+            file=sys.stderr,
+        )
+        return 1
     else:
         if behavior.print_committing:
             print(f"\nCommitting in {git_root}...")

@@ -30,6 +30,8 @@ def make_args(**overrides: Any) -> argparse.Namespace:
 def git_cmd_handler(
     *,
     nothing_staged: bool = False,
+    add_rc: int = 0,
+    diff_rc: int | None = None,
     commit_rc: int = 0,
     pull_rc: int = 0,
     push_rc: int = 0,
@@ -55,10 +57,17 @@ def git_cmd_handler(
                     stderr="" if repo_check_rc == 0 else "not a git repo",
                 )
             if "add" in cmd:
-                return MagicMock(returncode=0, stdout="", stderr="")
-            if "diff" in cmd and "--cached" in cmd:
                 return MagicMock(
-                    returncode=0 if nothing_staged else 1, stdout="", stderr=""
+                    returncode=add_rc,
+                    stdout="",
+                    stderr="add failed" if add_rc else "",
+                )
+            if "diff" in cmd and "--cached" in cmd:
+                rc = diff_rc if diff_rc is not None else 0 if nothing_staged else 1
+                return MagicMock(
+                    returncode=rc,
+                    stdout="",
+                    stderr="diff failed" if rc not in (0, 1) else "",
                 )
             if "commit" in cmd:
                 return MagicMock(
