@@ -94,6 +94,72 @@ sibling_repos:
             assert (root / filename).read_text() == "@AGENTS.md\n"
 
 
+def test_init_memory_project_memory_includes_workspace_section(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    _patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+
+    assert _run_handler() == 0
+
+    project_memory = (project_root / "memory" / "short" / "sase.md").read_text()
+    home_memory = (home_root / "memory" / "short" / "sase.md").read_text()
+    assert project_memory.startswith("# SASE = Structured Agentic Software Engineering")
+    assert "## Ephemeral `project_<N>` Workspace Directories" in project_memory
+    assert "full clones of the project repo" in project_memory
+    assert "directories are named `project_<N>`" in project_memory
+    assert "{{ project }}" not in project_memory
+    assert "Ephemeral" not in home_memory
+    assert home_memory.startswith("# SASE Memory")
+
+
+def test_init_memory_project_memory_uses_managed_checkout_marker_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project_10"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    _patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    _write(
+        project_root / ".sase" / "checkout.json",
+        """
+{
+  "project_key": "org/project",
+  "project_name": "project",
+  "workspace_num": 10,
+  "primary_workspace_dir": "/work/project",
+  "registry_path": "/work/registry.json",
+  "schema_version": 1
+}
+""",
+    )
+
+    assert _run_handler() == 0
+
+    project_memory = (project_root / "memory" / "short" / "sase.md").read_text()
+    assert "## Ephemeral `project_<N>` Workspace Directories" in project_memory
+    assert "full clones of the project repo" in project_memory
+    assert "project_10_<N>" not in project_memory
+
+
 def test_init_memory_reports_missing_sibling_descriptions(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

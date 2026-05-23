@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-22 20:18:56
-status: wip
+status: done
 prompt: sdd/prompts/202605/init_memory_workspace_section.md
 ---
 # Plan: Project Workspace Section in `sase init memory`

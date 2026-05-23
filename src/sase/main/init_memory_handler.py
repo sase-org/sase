@@ -23,6 +23,7 @@ _AT_REF_RE = re.compile(r"(?:^|(?<=\s)|(?<=[\"'`(]))@([^\s,;:()[\]{}\"'`]+)")
 _MEMORY_PATH_RE = re.compile(
     r"(?<![\w./-])(memory/(?:short|long)/[^\s,;:()[\]{}\"'`]+?\.md)"
 )
+_WORKSPACE_SUFFIX_RE = re.compile(r"_\d+$")
 
 
 @dataclass(frozen=True)
@@ -59,6 +60,84 @@ def _global_config_path(use_chezmoi: bool) -> Path:
 
 def _project_config_path() -> Path:
     return Path.cwd() / "sase.yml"
+
+
+def _project_name_from_checkout_marker(root: Path) -> str | None:
+    try:
+        from sase.workspace_provider.marker import find_marker_from_cwd
+
+        found = find_marker_from_cwd(str(root))
+    except Exception:
+        return None
+    if found is None:
+        return None
+    _, marker = found
+    project_name = marker.project_name.strip()
+    return project_name or None
+
+
+def _project_name_from_git_url(remote_url: str | None) -> str | None:
+    if remote_url is None:
+        return None
+    url = remote_url.strip().rstrip("/")
+    if not url:
+        return None
+    name = url.rsplit("/", 1)[-1].rsplit(":", 1)[-1]
+    if name.endswith(".git"):
+        name = name[:-4]
+    return name or None
+
+
+def _fallback_project_name(name: str) -> str | None:
+    name = name.strip()
+    if not name:
+        return None
+    stripped = _WORKSPACE_SUFFIX_RE.sub("", name)
+    return stripped or name
+
+
+def _run_git_stdout(root: Path, *args: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), *args],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    text = result.stdout.strip()
+    return text or None
+
+
+def _project_name_from_git_remote(root: Path) -> str | None:
+    remote_url = _run_git_stdout(root, "config", "--get", "remote.origin.url")
+    return _project_name_from_git_url(remote_url)
+
+
+def _project_name_from_git_root(root: Path) -> str | None:
+    git_root = _run_git_stdout(root, "rev-parse", "--show-toplevel")
+    if git_root is None:
+        return None
+    return _fallback_project_name(Path(git_root).name)
+
+
+def _project_memory_name(root: Path) -> str:
+    marker_project = _project_name_from_checkout_marker(root)
+    if marker_project is not None:
+        return marker_project
+
+    git_remote_project = _project_name_from_git_remote(root)
+    if git_remote_project is not None:
+        return git_remote_project
+
+    git_root_project = _project_name_from_git_root(root)
+    if git_root_project is not None:
+        return git_root_project
+
+    return _fallback_project_name(root.name) or root.name
 
 
 def _load_yaml_mapping(path: Path) -> tuple[Mapping[str, Any], str | None]:
@@ -127,13 +206,29 @@ def _sibling_entries_from_config(
     return tuple(entries), tuple(errors)
 
 
-def _render_sase_memory(entries: Iterable[_SiblingMemoryEntry]) -> str:
-    lines = [
-        "# SASE Memory",
-        "",
-        "## Sibling Repositories",
-        "",
-    ]
+def _extend_workspace_section(lines: list[str], project_name: str) -> None:
+    lines.extend(
+        [
+            f"## Ephemeral `{project_name}_<N>` Workspace Directories",
+            "",
+            "SASE runs agents (like you) from ephemeral workspace directories, which are full clones of the "
+            f"{project_name} repo. These",
+            f"directories are named `{project_name}_<N>` where `<N>` is some integer. You need to be mindful not to run commands",
+            "outside of these workspace directories, since they have their own isolated virtual environments.",
+            "",
+        ]
+    )
+
+
+def _extend_sibling_repository_section(
+    lines: list[str], entries: Iterable[_SiblingMemoryEntry]
+) -> None:
+    lines.extend(
+        [
+            "## Sibling Repositories",
+            "",
+        ]
+    )
     entries = tuple(entries)
     if entries:
         lines.append("Configured sibling repositories for this context:")
@@ -157,6 +252,18 @@ def _render_sase_memory(entries: Iterable[_SiblingMemoryEntry]) -> str:
             "",
         ]
     )
+
+
+def _render_sase_memory(
+    entries: Iterable[_SiblingMemoryEntry], *, project_name: str | None = None
+) -> str:
+    if project_name is None:
+        lines = ["# SASE Memory", ""]
+    else:
+        lines = ["# SASE = Structured Agentic Software Engineering", ""]
+        _extend_workspace_section(lines, project_name)
+
+    _extend_sibling_repository_section(lines, entries)
     return "\n".join(lines)
 
 
@@ -201,7 +308,10 @@ def _ensure_provider_shims(root: Path) -> list[Path]:
 
 
 def _initialize_memory_root(
-    root: Path, sibling_entries: Iterable[_SiblingMemoryEntry]
+    root: Path,
+    sibling_entries: Iterable[_SiblingMemoryEntry],
+    *,
+    project_name: str | None = None,
 ) -> _MemoryRootResult:
     written: list[Path] = []
 
@@ -209,7 +319,10 @@ def _initialize_memory_root(
     (root / "memory" / "long").mkdir(parents=True, exist_ok=True)
 
     memory_path = root / "memory" / "short" / "sase.md"
-    if _write_text_if_changed(memory_path, _render_sase_memory(sibling_entries)):
+    if _write_text_if_changed(
+        memory_path,
+        _render_sase_memory(sibling_entries, project_name=project_name),
+    ):
         written.append(memory_path)
 
     readme_path = root / "memory" / "README.md"
@@ -445,7 +558,12 @@ def handle_init_memory_command(args: argparse.Namespace) -> None:
         _print_config_errors(config_errors)
         sys.exit(1)
 
-    project_result = _initialize_memory_root(Path.cwd(), project_entries)
+    project_root = Path.cwd()
+    project_result = _initialize_memory_root(
+        project_root,
+        project_entries,
+        project_name=_project_memory_name(project_root),
+    )
     home_result = _initialize_memory_root(_home_root_path(use_chezmoi), home_entries)
     results = (project_result, home_result)
 
