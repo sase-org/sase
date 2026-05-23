@@ -14,7 +14,11 @@ from sase.main import init_skills_handler, skills_handler
 from sase.main.init_skills_handler import _get_target_path, run_init_skills
 from sase.main.parser import create_parser
 from sase.skills.cli_list import _render_skills_inventory
-from sase.skills.inventory import build_skills_inventory
+from sase.skills.inventory import (
+    SkillSourceEntry,
+    SkillsInventory,
+    build_skills_inventory,
+)
 from sase.xprompt.models import XPrompt
 from tests.main.init_skills_handler_helpers import make_args
 
@@ -235,8 +239,47 @@ def test_skills_list_dashboard_renders_summary_and_drift(
     assert "/current" in text
     assert source_paths["current"].name in text
     assert "current description" in text
+    assert "…" not in text
+    assert "..." not in text.replace(
+        "sase skills init --force refreshes generated skill files.", ""
+    ).replace("sase init skills remains an alias-compatible initializer.", "")
     assert "Drift" in text
     assert "claude/missing" in text
     assert "claude/stale" in text
     assert "sase skills init --force refreshes generated skill files" in text
     assert "sase init skills remains an alias-compatible initializer" in text
+
+
+def test_skills_list_dashboard_does_not_truncate_long_name_or_description() -> None:
+    long_name = "a_very_long_skill_name_for_testing"
+    long_description = (
+        "Sentence one provides background context. "
+        "Sentence two adds an additional clarification about usage. "
+        "Sentence three explains an edge case that the reader needs to know about. "
+        "Sentence four reinforces the guidance with an explicit example. "
+        "Sentence five reminds the caller about the dangers of misuse and concludes."
+    )
+    assert len(long_description) > 200
+    assert len(long_name) > 18
+
+    source = SkillSourceEntry(
+        name=long_name,
+        description=long_description,
+        source_path="src/sase/xprompts/skills/a_very_long_skill_name_for_testing.md",
+        providers=("claude",),
+        targets=(),
+    )
+    inventory = SkillsInventory(sources=(source,), deploy_mode="home")
+
+    output = StringIO()
+    console = Console(file=output, force_terminal=False, color_system=None, width=120)
+    _render_skills_inventory(inventory, console=console)
+    text = output.getvalue()
+
+    assert f"/{long_name}" in text
+    for word in long_description.split():
+        assert word in text
+    assert "…" not in text
+    assert source.source_path in text.replace("\n", "").replace(" ", "") or all(
+        segment in text for segment in source.source_path.split("/")
+    )

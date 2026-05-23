@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 13:58:13
-status: wip
+status: done
 prompt: sdd/prompts/202605/skills_list_full_descriptions.md
 ---
 # Plan: Make `sase skills list` show full names and wrapped descriptions

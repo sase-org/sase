@@ -6,7 +6,6 @@ import argparse
 
 from rich.console import Console, Group, RenderableType
 from rich.panel import Panel
-from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
@@ -94,29 +93,38 @@ def _sources_table(inventory: SkillsInventory) -> Table | Panel:
 
     table = Table(
         title="Skill Sources",
-        show_header=True,
-        header_style="bold",
+        show_header=False,
         box=None,
         expand=True,
         pad_edge=False,
+        show_lines=True,
     )
-    table.add_column("Skill", no_wrap=True, overflow="ellipsis", width=18)
-    table.add_column("Providers", no_wrap=True, overflow="ellipsis", width=11)
-    table.add_column("Status", no_wrap=True, overflow="ellipsis", width=9)
-    table.add_column("Source", no_wrap=True, overflow="ellipsis", width=18)
-    table.add_column(
-        "Description", no_wrap=True, overflow="ellipsis", min_width=16, ratio=1
-    )
+    table.add_column("Metadata", no_wrap=False, overflow="fold", min_width=18)
+    table.add_column("Details", no_wrap=False, overflow="fold", ratio=1)
 
     for source in inventory.sources:
         table.add_row(
-            Text(f"/{source.name}", style="bold cyan"),
-            _provider_labels(source.providers),
-            _source_status_summary(source),
-            Text(_compact_path(source.source_path, limit=18), style="dim"),
-            _description_cell(source.description),
+            _metadata_cell(source),
+            _details_cell(source),
         )
     return table
+
+
+def _metadata_cell(source: SkillSourceEntry) -> Group:
+    return Group(
+        Text(f"/{source.name}", style="bold cyan"),
+        _provider_labels(source.providers),
+        _source_status_summary(source),
+    )
+
+
+def _details_cell(source: SkillSourceEntry) -> Group:
+    description = _normalize_whitespace(source.description) or "-"
+    description_text = Text(description)
+    source_text = Text()
+    source_text.append("source: ", style="dim")
+    source_text.append(source.source_path, style="dim")
+    return Group(description_text, Text(""), source_text)
 
 
 def _drift_panel(inventory: SkillsInventory) -> Panel | None:
@@ -201,36 +209,5 @@ def _provider_labels(providers: tuple[str, ...]) -> Text:
     return labels
 
 
-def _description_cell(description: str) -> Text | Syntax:
-    if not description:
-        return Text("-", style="dim")
-    preview = _one_line(description)
-    if any(marker in preview for marker in ("`", "*", "[")):
-        return Syntax(
-            preview,
-            "markdown",
-            theme="ansi_dark",
-            background_color="default",
-            word_wrap=False,
-        )
-    return Text(preview)
-
-
-def _one_line(value: str, *, limit: int = 120) -> str:
-    collapsed = " ".join(value.strip().split())
-    if len(collapsed) <= limit:
-        return collapsed
-    return collapsed[: limit - 3].rstrip() + "..."
-
-
-def _compact_path(value: str, *, limit: int = 120) -> str:
-    collapsed = " ".join(value.strip().split())
-    if len(collapsed) <= limit:
-        return collapsed
-
-    tail = collapsed.rsplit("/", maxsplit=1)[-1]
-    compact = f".../{tail}"
-    if len(compact) <= limit:
-        return compact
-    prefix = ".../"
-    return prefix + _one_line(tail, limit=limit - len(prefix))
+def _normalize_whitespace(value: str) -> str:
+    return " ".join(value.strip().split())
