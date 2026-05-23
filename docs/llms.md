@@ -146,8 +146,8 @@ The finalizer skips when the call is outside a SASE agent session, when `commit.
 `commit_finalizer_result.json`. If the workspace remains dirty after `commit.finalizer.max_passes`, the invocation is
 converted into an `LLMInvocationError` rather than being logged as a successful clean run.
 
-The legacy `sase_commit_stop_hook` still exists for external native hook configs, but SASE-launched agent sessions no
-longer depend on provider-specific stop-hook setup.
+The older provider-native commit hook scripts are no longer shipped; SASE-launched agent sessions rely on the shared
+finalizer path.
 
 ## Claude Code Integration
 
@@ -408,10 +408,7 @@ collapses each start/result pair into a single row.
 ### Commit Finalization
 
 SASE-launched Qwen runs use the shared provider-neutral commit finalizer described above; active SASE settings do not
-need repo-local or global Qwen stop-hook configuration. The compatibility `sase_commit_stop_hook` can still serve older
-external native hook configs. When invoked manually from such a config, it detects Qwen before Gemini because Qwen Code
-sets both `QWEN_PROJECT_DIR` and `GEMINI_PROJECT_DIR`, and it emits the Gemini-family
-`{"decision": "deny", "reason": ...}` block payload that Qwen honors.
+need repo-local or global Qwen commit-hook configuration.
 
 ### Timer Display
 

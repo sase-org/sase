@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-22 21:10:16
-status: wip
+status: done
 prompt: sdd/prompts/202605/remove_commit_stop_hooks.md
 ---
 # Remove Obsolete Commit Stop Hook Scripts

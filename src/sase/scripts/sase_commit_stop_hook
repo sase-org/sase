@@ -1,4 +1,0 @@
-#!/bin/bash
-
-# Backward-compatible wrapper around the Python implementation.
-exec python3 -m sase.scripts.sase_commit_stop_hook "$@"

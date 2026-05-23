@@ -291,9 +291,5 @@ def collect_event_log(start: datetime, end: datetime) -> list[str]:
     return _collect_jsonl_by_timestamp("~/.sase/logs/events.jsonl", start, end)
 
 
-def collect_commit_stop_hook_log(start: datetime, end: datetime) -> list[str]:
-    return _collect_jsonl_by_iso_timestamp("~/.sase_commit_stop_hook.jsonl", start, end)
-
-
 def collect_git_commit_log(start: datetime, end: datetime) -> list[str]:
     return _collect_jsonl_by_iso_timestamp("~/.sase_git_commit.jsonl", start, end)

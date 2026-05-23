@@ -278,7 +278,7 @@ def test_fix_just_agent_steps_expand_pr_xprompt(
     for prompt in captured_prompts.values():
         assert "#pr(" not in prompt
         assert "should make the necessary file changes" in prompt
-        assert "post-completion hook instructs you to commit" in prompt
+        assert "post-completion finalizer instructs you to commit" in prompt
 
     assert "`just lint` command" in captured_prompts["fix_linters"]
     assert "`just test` command" in captured_prompts["fix_tests"]

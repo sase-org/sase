@@ -42,15 +42,6 @@ said, there are a few exceptions:
   `--exclude-decorator <name>` option. This can be repeated for multiple decorator names. The decorator is matched by
   its simple name (e.g. `--exclude-decorator hook` matches `@hook`, `@hook(...)`, and `@hook.sub`).
 
-## `sase_commit_stop_hook`
-
-This hook moved to `src/sase/scripts/sase_commit_stop_hook` so it can be installed on `PATH` as `sase_commit_stop_hook`.
-
-## `sase_sibling_commit_stop_hook`
-
-Repo-specific stop hook that checks sibling repos (`../sase-*` and `~/.local/share/chezmoi`) for uncommitted changes and
-blocks commit workflows until those sibling repos are committed.
-
 ## `sase_bead`
 
 Thin wrapper that delegates to `sase bead`. Exists for compatibility with tools (like `pyvision`) that expect

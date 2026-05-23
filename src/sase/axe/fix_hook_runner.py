@@ -179,9 +179,8 @@ def main() -> int:
             prompt, artifacts_dir
         )
 
-        # Set SASE_ARTIFACTS_DIR before invoking the agent so that the
-        # commit_stop_hook path (agent commits during response) can write
-        # commit_result.json to the correct location.
+        # Set SASE_ARTIFACTS_DIR before invoking the agent so commit-skill
+        # wrappers can write commit_result.json to the correct location.
         os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
 
         # Run the agent

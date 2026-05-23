@@ -30,8 +30,8 @@ def build_commit_details(
     ``details`` is the full block (file list + instruction). When the worktree
     is clean, both strings are empty.
     """
-    changed_files_fn = get_changed_files or get_changed_files_for_commit
-    commit_skill_fn = resolve_commit_skill or resolve_commit_skill_name
+    changed_files_fn = get_changed_files or _get_changed_files_for_commit
+    commit_skill_fn = resolve_commit_skill or _resolve_commit_skill_name
     name_instruction_fn = build_name_instruction or build_name_instruction_text
 
     has_changes, changed_files = changed_files_fn(project_dir)
@@ -58,7 +58,7 @@ def build_commit_details(
     return (True, changed_files, commit_instruction, details)
 
 
-def normalize_provider_token(provider: str | None) -> str:
+def _normalize_provider_token(provider: str | None) -> str:
     raw = (provider or "").strip().lower()
     if raw in {"", "auto"}:
         return "git"
@@ -108,7 +108,7 @@ def build_commit_instruction_message(
     method = commit_method or "create_commit"
     resolved_bead_id = (bead_id or "").strip()
     parts = [
-        "A post-completion hook has detected uncommitted changes.",
+        "A post-completion finalizer has detected uncommitted changes.",
         "First decide whether the listed uncommitted changes were made by you in this session.",
         "If you did NOT make these changes, ignore this warning for the session; it will not appear again.",
     ]
@@ -140,7 +140,7 @@ def build_commit_instruction_message(
     return " ".join(parts)
 
 
-def resolve_commit_skill_name(project_dir: str) -> str:
+def _resolve_commit_skill_name(project_dir: str) -> str:
     explicit = os.environ.get("SASE_COMMIT_SKILL")
     if explicit:
         return explicit
@@ -148,11 +148,11 @@ def resolve_commit_skill_name(project_dir: str) -> str:
     provider = os.environ.get("SASE_VCS_PROVIDER")
     if not provider or provider == "auto":
         provider = detect_vcs(project_dir)
-    provider_token = normalize_provider_token(provider)
+    provider_token = _normalize_provider_token(provider)
     return f"/sase_{provider_token}_commit"
 
 
-def normalize_diff_path(path: str) -> str | None:
+def _normalize_diff_path(path: str) -> str | None:
     p = path.strip()
     if not p or p == "/dev/null":
         return None
@@ -161,39 +161,39 @@ def normalize_diff_path(path: str) -> str | None:
     return p or None
 
 
-def changed_files_from_diff(diff_text: str) -> list[str]:
+def _changed_files_from_diff(diff_text: str) -> list[str]:
     files: set[str] = set()
 
     for line in diff_text.splitlines():
         if line.startswith("diff --git "):
             parts = line.split()
             if len(parts) >= 4:
-                candidate = normalize_diff_path(parts[3])
+                candidate = _normalize_diff_path(parts[3])
                 if candidate:
                     files.add(candidate)
             continue
 
         if line.startswith("rename to "):
-            candidate = normalize_diff_path(line.removeprefix("rename to "))
+            candidate = _normalize_diff_path(line.removeprefix("rename to "))
             if candidate:
                 files.add(candidate)
             continue
 
         if line.startswith("+++ "):
-            candidate = normalize_diff_path(line.removeprefix("+++ "))
+            candidate = _normalize_diff_path(line.removeprefix("+++ "))
             if candidate:
                 files.add(candidate)
             continue
 
         if line.startswith("Index: "):
-            candidate = normalize_diff_path(line.removeprefix("Index: "))
+            candidate = _normalize_diff_path(line.removeprefix("Index: "))
             if candidate:
                 files.add(candidate)
 
     return sorted(files)
 
 
-def get_changed_files_for_commit(project_dir: str) -> tuple[bool, list[str]]:
+def _get_changed_files_for_commit(project_dir: str) -> tuple[bool, list[str]]:
     try:
         provider = get_vcs_provider(project_dir)
     except Exception:
@@ -211,7 +211,7 @@ def get_changed_files_for_commit(project_dir: str) -> tuple[bool, list[str]]:
     except Exception:
         diff_text = None
 
-    changed_files = changed_files_from_diff(diff_text or "")
+    changed_files = _changed_files_from_diff(diff_text or "")
     if changed_files:
         return (True, changed_files)
 

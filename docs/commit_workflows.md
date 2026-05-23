@@ -65,10 +65,10 @@ current session. For changes the agent did make, it instructs the agent to close
 commit skill. This keeps bead lifecycle state ahead of the commit/proposal/PR dispatch while avoiding accidental closure
 for unrelated dirty work.
 
-The finalizer uses the same instruction helper as the legacy compatibility hook, so the bead and method wording stays
-the same across the provider-neutral path and any older provider-native hook configuration.
-`commit.finalizer.max_passes` controls how many follow-up invocations may run before SASE fails the invocation with a
-clear error and, when an artifacts directory is available, a `commit_finalizer_result.json` artifact.
+The finalizer uses the shared instruction helpers in `sase.commit_instructions`, so the bead and method wording stays
+consistent between main-workspace and sibling-repository commit guidance. `commit.finalizer.max_passes` controls how
+many follow-up invocations may run before SASE fails the invocation with a clear error and, when an artifacts directory
+is available, a `commit_finalizer_result.json` artifact.
 
 ### CLI Arguments
 
@@ -374,9 +374,9 @@ instructions automatically, so agents know to hand control back to the user rath
 | `SASE_VCS_PROVIDER`                 | Override VCS provider detection (see [vcs.md](vcs.md))           |
 | `SASE_SIBLING_REPOS_JSON`           | JSON metadata for configured sibling repos passed to agents      |
 | `SASE_SIBLING_REPO_<ENV_NAME>_DIR`  | Workspace-matched path for one configured sibling repo           |
-| `SASE_DISABLE_COMMIT_STOP_HOOK`     | Skip both finalizer and legacy compatibility hook when set       |
+| `SASE_DISABLE_COMMIT_STOP_HOOK`     | Skip the commit finalizer when set                               |
 
-## Commit Finalizer and Compatibility Hook
+## Commit Finalizer
 
 For SASE-launched agent sessions, the normal path is the provider-neutral finalizer in
 `src/sase/llm_provider/commit_finalizer.py`. It runs after a successful provider invocation and before success
@@ -404,10 +404,8 @@ configured with `workspace.strategy: none` are checked at their primary path ins
 such as chezmoi. The current sibling dirty-check path is Git-specific: non-Git sibling paths can still be exposed to the
 agent through environment variables and metadata, but the finalizer does not enforce them as dirty targets.
 
-The `sase_commit_stop_hook` script remains as a compatibility-only provider-native hook for older external settings and
-manual hook installs. Active SASE-launched runs do not require runtime-specific stop-hook configuration. The
-compatibility hook uses the same commit-instruction helpers, writes diagnostics to `~/.sase_commit_stop_hook.jsonl`, and
-still honors `SASE_DISABLE_COMMIT_STOP_HOOK=1`.
+The obsolete provider-native commit hook scripts are no longer shipped. Active SASE-launched runs rely on the
+provider-neutral finalizer instead of runtime-specific commit hook configuration.
 
 ## Diff Storage
 

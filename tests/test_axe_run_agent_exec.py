@@ -600,10 +600,7 @@ def test_run_execution_loop_publishes_phase_timestamp(
 def test_finalize_loop_restores_original_agent_timestamp(
     tmp_path: Path, monkeypatch
 ) -> None:
-    """_finalize_loop restores SASE_AGENT_TIMESTAMP to its pre-loop value so
-    post-loop callers (e.g. commit stop hook session-dedup keys) keep their
-    original semantics.
-    """
+    """_finalize_loop restores SASE_AGENT_TIMESTAMP to its pre-loop value."""
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "260408_120000")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", "/should/be/cleared")
     monkeypatch.setenv("SASE_AGENT_ROOT_TIMESTAMP", "20260408120000")

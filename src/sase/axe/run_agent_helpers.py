@@ -118,8 +118,8 @@ def extract_step_output_and_diff_path(
         diff_path = os.path.expanduser(diff_path)
 
     # Fallback: if step_output has no commit metadata, try reading
-    # commit_result.json directly.  This covers the case where the agent
-    # committed via the stop hook but `#commit` was not in the xprompt
+    # commit_result.json directly. This covers the case where the agent
+    # committed via a commit skill but `#commit` was not in the xprompt
     # (so no report post-step ran to surface the metadata).
     if not (step_output or {}).get("meta_commit_message"):
         commit_result_path = os.path.join(artifacts_dir, "commit_result.json")
