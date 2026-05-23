@@ -30,6 +30,16 @@ def test_parser_registers_validate_command() -> None:
     args = parser.parse_args(["validate"])
 
     assert args.command == "validate"
+    assert args.project is False
+
+
+def test_parser_registers_project_validation_mode() -> None:
+    parser = create_parser()
+
+    args = parser.parse_args(["validate", "--project"])
+
+    assert args.command == "validate"
+    assert args.project is True
 
 
 def test_validate_suppresses_successful_child_output(
@@ -63,6 +73,38 @@ def test_validate_suppresses_successful_child_output(
     captured = capsys.readouterr()
     assert captured.out == (
         "SASE validation\n  ok     init --check\n  ok     sdd validate\n"
+    )
+    assert captured.err == ""
+
+
+def test_project_validate_runs_only_repository_local_checks(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(
+        command: list[str],
+        *,
+        capture_output: bool,
+        text: bool,
+        check: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return _completed(command, 0, stdout="success stdout\n", stderr="success err\n")
+
+    monkeypatch.setattr(validate_handler.subprocess, "run", fake_run)
+
+    exit_code = _run_validate_command(project_only=True)
+
+    assert exit_code == 0
+    assert calls == [
+        [sys.executable, "-m", "sase", "init", "sdd", "--check"],
+        [sys.executable, "-m", "sase", "sdd", "validate"],
+    ]
+    captured = capsys.readouterr()
+    assert captured.out == (
+        "SASE validation\n  ok     init sdd --check\n  ok     sdd validate\n"
     )
     assert captured.err == ""
 

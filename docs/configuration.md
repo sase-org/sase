@@ -1346,6 +1346,8 @@ prints one status line per check, and exits non-zero if any check fails. Because
 memory and skill deployment surfaces, this command can fail on user/home initialization drift even when repository-local
 SDD validation passes.
 
+Use `sase validate --project` to run only repository-local checks: `sase init sdd --check` and `sase sdd validate`.
+
 ### `sase telemetry`
 
 | Flag         | Values                                                               | Default    | Description          |

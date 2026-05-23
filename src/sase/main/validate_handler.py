@@ -28,16 +28,21 @@ _CHECKS = (
     _ValidationCheck("sdd validate", ("sdd", "validate")),
 )
 
+_PROJECT_CHECKS = (
+    _ValidationCheck("init sdd --check", ("init", "sdd", "--check")),
+    _ValidationCheck("sdd validate", ("sdd", "validate")),
+)
+
 
 def handle_validate_command(args: argparse.Namespace) -> NoReturn:
     """Run validation checks and exit with the aggregate status."""
-    del args
-    sys.exit(_run_validate_command())
+    sys.exit(_run_validate_command(project_only=args.project))
 
 
-def _run_validate_command() -> int:
+def _run_validate_command(*, project_only: bool = False) -> int:
     """Run every SASE validation check and return a process exit code."""
-    results = [_run_check(check) for check in _CHECKS]
+    checks = _PROJECT_CHECKS if project_only else _CHECKS
+    results = [_run_check(check) for check in checks]
     _print_results(results)
     return 0 if all(result.returncode == 0 for result in results) else 1
 

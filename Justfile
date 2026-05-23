@@ -273,9 +273,9 @@ docs-deploy-artifact-check:
     test -f site/series/agentic-software-engineering/index.html
     ! grep -Fq 'href="blog/why-coding-agents-need-orchestration/"' site/index.html
 
-# Validate SASE initialization and SDD prompt/plan frontmatter links.
+# Validate repository-local SASE initialization and SDD prompt/plan frontmatter links.
 validate: _setup
-    {{ venv_bin }}/sase validate
+    {{ venv_bin }}/sase validate --project
 
 # Report the status of the last fully-completed GitHub Actions workflow set.
 [positional-arguments]
