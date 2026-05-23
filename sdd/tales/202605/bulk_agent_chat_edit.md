@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 11:45:29
-status: wip
+status: done
 prompt: sdd/prompts/202605/bulk_agent_chat_edit.md
 ---
 # Bulk Edit Marked Agent Chats

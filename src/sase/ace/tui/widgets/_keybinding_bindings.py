@@ -104,6 +104,9 @@ class KeybindingBindingsMixin:
         if marked_count > 0:
             bindings.append((x, f"kill/dismiss ({marked_count} marked)"))
             bindings.append((self._kd("clear_marks"), f"unmark ({marked_count})"))
+            bindings.append(
+                (self._kd("edit_spec"), f"edit chats ({marked_count} marked)")
+            )
         elif group_focused:
             # Phase 5: a focused group banner re-routes ``x`` to bulk-kill
             # every agent in the group.  Surfaces the affordance so users
@@ -135,7 +138,7 @@ class KeybindingBindingsMixin:
             if marked_count == 0:
                 bindings.append((x, "dismiss"))
             if agent.status != "FAILED":
-                if agent.status == "DONE":
+                if marked_count == 0 and is_resumable_done_status(agent.status):
                     bindings.append((self._kd("edit_spec"), "edit chat"))
                 if agent.response_path:
                     bindings.append((self._kd("edit_hooks"), "fork"))

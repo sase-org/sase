@@ -220,16 +220,24 @@ def test_kill_agent_hidden_when_no_agent_no_group_no_marks() -> None:
     assert not is_command_available(spec, ctx)
 
 
-def test_edit_spec_only_for_done_agent() -> None:
+def test_edit_spec_for_resumable_done_agent_or_marks() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.edit_spec"]
     done = _make_agent(status="DONE")
+    plan_done = _make_agent(status="PLAN DONE")
+    tale_done = _make_agent(status="TALE DONE")
     failed = _make_agent(status="FAILED")
     running = _make_agent(status="RUNNING")
     assert is_command_available(spec, CommandContext(tab="agents", agent=done))
+    assert is_command_available(spec, CommandContext(tab="agents", agent=plan_done))
+    assert is_command_available(spec, CommandContext(tab="agents", agent=tale_done))
     # FAILED agents don't get edit_chat (per footer logic)
     assert not is_command_available(spec, CommandContext(tab="agents", agent=failed))
     assert not is_command_available(spec, CommandContext(tab="agents", agent=running))
+    assert is_command_available(
+        spec, CommandContext(tab="agents", agent=running, mark_count=2)
+    )
+    assert is_command_available(spec, CommandContext(tab="agents", mark_count=2))
 
 
 def test_run_workflow_hidden_on_agents_tab() -> None:

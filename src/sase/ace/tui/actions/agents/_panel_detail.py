@@ -2,13 +2,24 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+from typing import TYPE_CHECKING
+
+from ...models.agent_status import is_resumable_done_status
 from ._panel_types import TabName
+
+if TYPE_CHECKING:
+    from ...models import Agent
+    from ...models.agent import AgentType
 
 
 class AgentPanelDetailMixin:
     """Mixin providing detail-panel file, chat, and tools actions."""
 
     current_tab: TabName
+    _agents_with_children: list[Agent]
+    _marked_agents: set[tuple[AgentType, str, str | None]]
 
     def action_show_diff(self) -> None:
         """Show diff - behavior depends on current tab."""
@@ -43,8 +54,9 @@ class AgentPanelDetailMixin:
 
     def _open_agent_chat(self) -> None:
         """Open the agent's chat file in $EDITOR."""
-        import os
-        import subprocess
+        if self._marked_agents:
+            self._open_marked_agent_chats()
+            return
 
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
@@ -52,7 +64,7 @@ class AgentPanelDetailMixin:
             return
 
         # Only available for completed agents
-        if agent.status not in ("DONE",):
+        if not is_resumable_done_status(agent.status):
             self.notify("Agent not finished yet", severity="warning")  # type: ignore[attr-defined]
             return
 
@@ -60,11 +72,53 @@ class AgentPanelDetailMixin:
             self.notify("No chat file found", severity="warning")  # type: ignore[attr-defined]
             return
 
-        editor = os.environ.get("EDITOR") or "nvim"
-        file_path = os.path.expanduser(agent.response_path)
+        self._open_agent_chat_paths([os.path.expanduser(agent.response_path)])
 
+    def _open_marked_agent_chats(self) -> None:
+        """Open every editable chat transcript in the marked agent set."""
+        chat_paths, marked_count, skipped = self._collect_marked_agent_chat_paths()
+        if marked_count == 0:
+            self.notify("No marked agents remain", severity="warning")  # type: ignore[attr-defined]
+            return
+        if not chat_paths:
+            self.notify("No chat files found in marked agents", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        self._open_agent_chat_paths(chat_paths)
+        if skipped:
+            label = "agent" if skipped == 1 else "agents"
+            self.notify(  # type: ignore[attr-defined]
+                f"Skipped {skipped} marked {label} without a chat file",
+                severity="warning",
+            )
+
+    def _collect_marked_agent_chat_paths(self) -> tuple[list[str], int, int]:
+        """Return deduplicated chat paths, live marked count, and skip count."""
+        chat_paths: list[str] = []
+        seen_paths: set[str] = set()
+        marked_count = 0
+        skipped = 0
+
+        for agent in self._agents_with_children:
+            if agent.identity not in self._marked_agents:
+                continue
+            marked_count += 1
+            if not is_resumable_done_status(agent.status) or not agent.response_path:
+                skipped += 1
+                continue
+            expanded_path = os.path.expanduser(agent.response_path)
+            if expanded_path in seen_paths:
+                continue
+            seen_paths.add(expanded_path)
+            chat_paths.append(expanded_path)
+
+        return chat_paths, marked_count, skipped
+
+    def _open_agent_chat_paths(self, chat_paths: list[str]) -> None:
+        """Open one or more chat paths in a single editor invocation."""
+        editor = os.environ.get("EDITOR") or "nvim"
         with self.suspend():  # type: ignore[attr-defined]
-            subprocess.run([editor, file_path], check=False)
+            subprocess.run([editor, *chat_paths], check=False)
 
     def action_next_agent_file(self) -> None:
         """Cycle to the next file / next (older) chop run."""

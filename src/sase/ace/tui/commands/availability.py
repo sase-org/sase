@@ -227,11 +227,14 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             "QUESTION",
         }
 
-    # edit_spec only meaningful for done (non-failed) agents.
+    # edit_spec targets marks when any exist; the action validates the
+    # marked set precisely and warns when no chat transcript is usable.
     if spec.id == "app.edit_spec":
+        if ctx.mark_count > 0:
+            return True
         if agent is None:
             return False
-        return agent.status == "DONE"
+        return is_resumable_done_status(agent.status)
 
     if spec.id == "app.edit_hooks":
         if agent is None:

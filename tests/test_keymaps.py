@@ -94,6 +94,8 @@ def test_agents_help_uses_f_for_fork_not_r_for_resume() -> None:
 
     assert ("f", "Fork chat as agent") in agent_pairs
     assert ("r", "Resume chat as agent") not in agent_pairs
+    assert ("e", "Edit chat(s) in editor") in agent_pairs
+    assert ("e", "Edit chat in editor") not in agent_pairs
 
 
 def test_help_modal_labels_capital_a_as_agent_artifacts() -> None:

@@ -104,6 +104,17 @@ def test_keybinding_footer_marks_take_priority_over_group_label() -> None:
     assert any(label == "kill/dismiss (2 marked)" for _, label in bindings)
 
 
+def test_keybinding_footer_marked_agents_advertise_bulk_chat_edit() -> None:
+    """Marked agent sets expose e as a bulk chat edit action."""
+    footer = KeybindingFooter()
+    agent = _make_agent(status="RUNNING")
+
+    bindings = footer._compute_agent_bindings(agent, marked_count=3)
+
+    assert ("e", "edit chats (3 marked)") in bindings
+    assert ("e", "edit chat") not in bindings
+
+
 def test_keybinding_footer_attempt_view_only_when_history_present() -> None:
     """D appears only when the agent has prior attempt records."""
     footer = KeybindingFooter()
