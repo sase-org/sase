@@ -103,6 +103,45 @@ def test_parser_accepts_bare_init_modes() -> None:
     assert short_check_args.check is True
 
 
+def test_parser_accepts_scoped_init_check_modes() -> None:
+    parser = create_parser()
+
+    sdd_short_args = parser.parse_args(["sdd", "init", "-c"])
+    assert sdd_short_args.command == "sdd"
+    assert sdd_short_args.sdd_subcommand == "init"
+    assert sdd_short_args.check is True
+
+    sdd_long_args = parser.parse_args(["sdd", "init", "--check"])
+    assert sdd_long_args.check is True
+
+    memory_short_args = parser.parse_args(["memory", "init", "-c"])
+    assert memory_short_args.command == "memory"
+    assert memory_short_args.memory_subcommand == "init"
+    assert memory_short_args.check is True
+    assert memory_short_args.no_commit is False
+
+    memory_long_args = parser.parse_args(["memory", "init", "--check"])
+    assert memory_long_args.check is True
+
+    init_sdd_args = parser.parse_args(["init", "sdd", "--check"])
+    assert init_sdd_args.command == "init"
+    assert init_sdd_args.init_subcommand == "sdd"
+    assert init_sdd_args.check is True
+
+    init_memory_args = parser.parse_args(["init", "memory", "--check"])
+    assert init_memory_args.command == "init"
+    assert init_memory_args.init_subcommand == "memory"
+    assert init_memory_args.check is True
+
+    parent_sdd_args = parser.parse_args(["init", "--check", "sdd"])
+    assert parent_sdd_args.init_subcommand == "sdd"
+    assert parent_sdd_args.check is True
+
+    parent_memory_args = parser.parse_args(["init", "--check", "memory"])
+    assert parent_memory_args.init_subcommand == "memory"
+    assert parent_memory_args.check is True
+
+
 def test_init_help_lists_existing_subcommands(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -601,3 +640,59 @@ def test_cli_main_dispatches_bare_init(
         "SASE is initialized. No init subcommands need to run."
         in capsys.readouterr().out
     )
+
+
+def test_init_check_memory_alias_does_not_apply(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.main import entry, init_memory_handler
+
+    def _fail_apply(*args: object, **kwargs: object) -> object:
+        raise AssertionError("memory check mode must not apply generated files")
+
+    monkeypatch.setattr(sys, "argv", ["sase", "init", "--check", "memory"])
+    monkeypatch.setattr(
+        init_memory_handler,
+        "plan_init_memory",
+        lambda args: _plan(
+            "memory",
+            actions=(_changed_action("memory/short/sase.md"),),
+            summary="create memory files",
+        ),
+    )
+    monkeypatch.setattr(init_memory_handler, "_initialize_memory_root", _fail_apply)
+
+    with pytest.raises(SystemExit) as exc:
+        entry.main()
+
+    assert exc.value.code == 1
+    assert "create memory files" in capsys.readouterr().out
+
+
+def test_init_check_sdd_alias_does_not_apply(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.main import entry, sdd_handler
+
+    def _fail_apply(*args: object, **kwargs: object) -> object:
+        raise AssertionError("SDD check mode must not apply generated files")
+
+    monkeypatch.setattr(sys, "argv", ["sase", "init", "--check", "sdd"])
+    monkeypatch.setattr(
+        sdd_handler,
+        "plan_sdd_init",
+        lambda args: _plan(
+            "sdd",
+            actions=(_changed_action("sdd/README.md"),),
+            summary="create SDD README files",
+        ),
+    )
+    monkeypatch.setattr("sase.sdd.files.write_sdd_readme", _fail_apply)
+
+    with pytest.raises(SystemExit) as exc:
+        entry.main()
+
+    assert exc.value.code == 1
+    assert "create SDD README files" in capsys.readouterr().out

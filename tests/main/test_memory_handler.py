@@ -28,6 +28,13 @@ def test_parser_registers_memory_namespace() -> None:
     assert init_args.command == "memory"
     assert init_args.memory_subcommand == "init"
     assert init_args.no_commit is True
+    assert init_args.check is False
+
+    check_args = parser.parse_args(["memory", "init", "--check"])
+    assert check_args.command == "memory"
+    assert check_args.memory_subcommand == "init"
+    assert check_args.check is True
+    assert check_args.no_commit is False
 
     list_args = parser.parse_args(["memory", "list"])
     assert list_args.command == "memory"

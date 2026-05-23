@@ -56,6 +56,11 @@ def test_parser_registers_sdd_subcommands() -> None:
     assert args.command == "sdd"
     assert args.sdd_subcommand == "init"
     assert args.path == "sdd"
+    assert args.check is False
+
+    args = parser.parse_args(["sdd", "init", "--check"])
+    assert args.sdd_subcommand == "init"
+    assert args.check is True
 
     args = parser.parse_args(
         ["sdd", "validate", "-p", "sdd", "-j", "-q", "--strict", "-W"]
@@ -115,6 +120,39 @@ def test_init_creates_readme_for_project_root(
     assert "exploratory findings" in directory_readmes["research"].read_text(
         encoding="utf-8"
     )
+
+
+def test_init_check_reports_missing_sdd_without_writing(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(_args(sdd_subcommand="init", path=str(tmp_path), check=True))
+
+    assert excinfo.value.code == 1
+    assert not (tmp_path / "sdd").exists()
+    out = capsys.readouterr().out
+    assert "SASE initialization check" in out
+    assert "Needs attention:" in out
+    assert "init sdd" in out
+    assert "create SDD README files and directory map" in out
+
+
+def test_init_check_current_sdd_exits_zero(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.sdd.files import write_sdd_readme
+
+    write_sdd_readme(str(tmp_path))
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(_args(sdd_subcommand="init", path=str(tmp_path), check=True))
+
+    assert excinfo.value.code == 0
+    out = capsys.readouterr().out
+    assert "SASE is initialized. No init subcommands need to run." in out
+    assert "Checked: sdd." in out
 
 
 def test_init_sdd_alias_dispatches_to_sdd_init(

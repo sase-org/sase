@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 11:46:16
-status: wip
+status: done
 prompt: sdd/prompts/202605/scoped_init_check.md
 ---
 # Scoped Init Check Plan

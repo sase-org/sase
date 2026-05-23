@@ -327,6 +327,22 @@ def plan_init_memory(args: argparse.Namespace) -> InitPlan:
 
 def run_init_memory(args: argparse.Namespace) -> int:
     """Apply ``sase memory init`` and return a process exit code."""
+    if getattr(args, "check", False):
+        from .init_onboarding import run_init_check
+        from .init_registry import InitCommandSpec
+
+        return run_init_check(
+            args,
+            specs=(
+                InitCommandSpec(
+                    name="memory",
+                    label="Memory",
+                    plan=plan_init_memory,
+                    run=run_init_memory,
+                ),
+            ),
+        )
+
     inputs = _load_memory_inputs(args)
     if inputs.config_errors:
         _print_config_errors(inputs.config_errors)

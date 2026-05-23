@@ -34,6 +34,22 @@ def _handle_init(args: argparse.Namespace) -> None:
 
 def run_sdd_init(args: argparse.Namespace) -> int:
     """Create or refresh SDD generated files and return an exit code."""
+    if getattr(args, "check", False):
+        from .init_onboarding import run_init_check
+        from .init_registry import InitCommandSpec
+
+        return run_init_check(
+            args,
+            specs=(
+                InitCommandSpec(
+                    name="sdd",
+                    label="SDD",
+                    plan=plan_sdd_init,
+                    run=run_sdd_init,
+                ),
+            ),
+        )
+
     from sase.sdd.files import write_sdd_readme
 
     readme_path = write_sdd_readme(getattr(args, "path", None))

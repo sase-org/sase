@@ -87,6 +87,13 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
     memory_parser.add_argument(
+        "-c",
+        "--check",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Report memory initialization drift without writing files",
+    )
+    memory_parser.add_argument(
         "-C",
         "--no-commit",
         action="store_true",
@@ -96,6 +103,13 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
     sdd_parser = init_subparsers.add_parser(
         "sdd",
         help="Create or refresh SDD README files and directory map assets",
+    )
+    sdd_parser.add_argument(
+        "-c",
+        "--check",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Report SDD initialization drift without writing files",
     )
     add_sdd_path_arg(sdd_parser)
 

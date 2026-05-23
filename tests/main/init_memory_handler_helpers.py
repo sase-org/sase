@@ -17,14 +17,16 @@ def write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
-def run_handler(*, no_commit: bool = True) -> int:
+def run_handler(*, no_commit: bool = True, check: bool = False) -> int:
     with pytest.raises(SystemExit) as exc:
-        handle_init_memory_command(argparse.Namespace(no_commit=no_commit))
+        handle_init_memory_command(argparse.Namespace(no_commit=no_commit, check=check))
     return int(exc.value.code)
 
 
-def run_memory(*, no_commit: bool = True) -> int:
-    return init_memory_handler.run_init_memory(argparse.Namespace(no_commit=no_commit))
+def run_memory(*, no_commit: bool = True, check: bool = False) -> int:
+    return init_memory_handler.run_init_memory(
+        argparse.Namespace(no_commit=no_commit, check=check)
+    )
 
 
 def plan_memory(*, no_commit: bool = True) -> InitPlan:

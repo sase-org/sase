@@ -46,6 +46,33 @@ def test_memory_plan_missing_tree_reports_create_actions_without_writing(
     assert not (home_root / "memory").exists()
 
 
+def test_memory_check_missing_tree_reports_drift_without_writing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+
+    assert run_memory(check=True) == 1
+
+    assert not (project_root / "memory").exists()
+    assert not (home_root / "memory").exists()
+    out = capsys.readouterr().out
+    assert "SASE initialization check" in out
+    assert "Needs attention:" in out
+    assert "init memory" in out
+
+
 def test_memory_plan_identical_generated_memory_is_empty(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -69,6 +96,33 @@ def test_memory_plan_identical_generated_memory_is_empty(
     assert plan.actions == ()
     assert plan.blockers == ()
     assert "current" in plan.summary
+
+
+def test_memory_check_current_generated_memory_exits_zero(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+
+    assert run_memory() == 0
+    capsys.readouterr()
+
+    assert run_memory(check=True) == 0
+
+    out = capsys.readouterr().out
+    assert "SASE is initialized. No init subcommands need to run." in out
+    assert "Checked: memory." in out
 
 
 def test_memory_plan_stale_provider_shim_reports_overwrite(
@@ -154,6 +208,40 @@ sibling_repos:
 
     assert plan.actions == ()
     assert any("cannot generate project memory" in blocker for blocker in plan.blockers)
+    assert not (project_root / "memory").exists()
+
+
+def test_memory_check_blockers_render_through_shared_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        """
+sibling_repos:
+  - name: core
+    path: ../sase-core
+""",
+    )
+
+    assert run_memory(check=True) == 1
+
+    captured = capsys.readouterr()
+    assert "Blockers:" in captured.out
+    assert "cannot generate project memory" in captured.out
+    assert captured.err == ""
     assert not (project_root / "memory").exists()
 
 

@@ -159,6 +159,51 @@ def _plan_specs(
     return tuple(spec.plan(args) for spec in specs)
 
 
+def _plan_check_status(plans: Sequence[InitPlan]) -> tuple[bool, bool, bool]:
+    has_changes = any(plan.has_changes for plan in plans)
+    has_blockers = any(not plan.runnable for plan in plans)
+    has_warnings = any(plan.warnings for plan in plans)
+    return has_changes, has_blockers, has_warnings
+
+
+def _render_check_summary(
+    console: Console,
+    specs: Sequence[InitCommandSpec],
+    plans: Sequence[InitPlan],
+) -> tuple[bool, bool, bool]:
+    has_changes, has_blockers, has_warnings = _plan_check_status(plans)
+    if not has_changes and not has_blockers and not has_warnings:
+        _render_noop(console, specs)
+    else:
+        _render_plans(console, plans)
+    return has_changes, has_blockers, has_warnings
+
+
+def run_init_check(
+    args: argparse.Namespace,
+    *,
+    specs: Sequence[InitCommandSpec],
+    console: Console | None = None,
+) -> int:
+    """Run a read-only initialization check and return a process exit code."""
+    active_specs = tuple(specs)
+    out_console = console or _console_for(sys.stdout)
+
+    if not active_specs:
+        _render_no_specs(out_console)
+        return 1
+
+    plans = _plan_specs(args, active_specs)
+    has_changes, has_blockers, _has_warnings = _render_check_summary(
+        out_console,
+        active_specs,
+        plans,
+    )
+    if has_blockers:
+        return 1
+    return 1 if has_changes else 0
+
+
 def run_init_onboarding(
     args: argparse.Namespace,
     *,
@@ -177,15 +222,11 @@ def run_init_onboarding(
         return 1
 
     plans = _plan_specs(args, active_specs)
-    has_changes = any(plan.has_changes for plan in plans)
-    has_blockers = any(not plan.runnable for plan in plans)
-    has_warnings = any(plan.warnings for plan in plans)
-
-    if not has_changes and not has_blockers and not has_warnings:
-        _render_noop(out_console, active_specs)
-        return 0
-
-    _render_plans(out_console, plans)
+    has_changes, has_blockers, _has_warnings = _render_check_summary(
+        out_console,
+        active_specs,
+        plans,
+    )
 
     if has_blockers:
         return 1
@@ -231,5 +272,6 @@ def run_init_onboarding(
 __all__ = [
     "InitAction",
     "InitPlan",
+    "run_init_check",
     "run_init_onboarding",
 ]
