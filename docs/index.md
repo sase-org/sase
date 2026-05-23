@@ -47,6 +47,18 @@ title: Structured Agentic Software Engineering
 
   <div class="sase-card-grid sase-card-grid--four">
   <article class="sase-card">
+  <h3>I am setting up a repo</h3>
+
+  <p>
+    Use initialization commands to create agent memory, generated SDD guide files, and provider skill files before
+    handing work to agents.
+  </p>
+
+<a href="init/">Open initialization</a>
+
+  </article>
+
+  <article class="sase-card">
   <h3>I want a TUI for agent work</h3>
 
   <p>

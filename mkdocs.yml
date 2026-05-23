@@ -12,6 +12,7 @@ use_directory_urls: true
 nav:
   - Home: index.md
   - The Basics:
+      - Initialization: init.md
       - ACE TUI: ace.md
       - AXE Automation: axe.md
       - Spec-Driven Development: sdd.md

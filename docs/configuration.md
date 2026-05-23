@@ -1132,6 +1132,26 @@ entries where `is_skill` is `true`.
 | `[workflow_name]` | string           | -         | Workflow name to graph. Lists all workflows if omitted. |
 | `-f, --format`    | `mermaid`,`text` | `mermaid` | Output format for the DAG visualization.                |
 
+### `sase init`
+
+Bare `sase init` is the onboarding coordinator for SASE-managed resources. It accepts drift-check and unattended-run
+flags, then dispatches registered initialization planners. In the current release no planners are registered yet, so
+bare `sase init` reports that explicit subcommands should be used.
+
+| Flag        | Values | Default | Description                                                |
+| ----------- | ------ | ------- | ---------------------------------------------------------- |
+| `--check`   | flag   | -       | Report initialization drift without writing files.         |
+| `-y, --yes` | flag   | -       | Run every needed registered initializer without prompting. |
+
+### `sase init memory`
+
+Creates or refreshes SASE memory files, `AGENTS.md` when absent, and provider instruction shims. By default it runs the
+project git commit/pull/push sequence for generated project-memory changes.
+
+| Flag              | Values | Default | Description                                                                             |
+| ----------------- | ------ | ------- | --------------------------------------------------------------------------------------- |
+| `-C, --no-commit` | flag   | -       | Skip the project git commit/push sequence; home deployment still follows `use_chezmoi`. |
+
 ### `sase init sdd`
 
 `sase init sdd` is an alias for `sase sdd init`. It creates or refreshes generated SDD README files and the directory
@@ -1283,13 +1303,13 @@ by `-p/--project`.
 `sase sdd` manages SDD prompt/artifact documentation and frontmatter links. Every subcommand accepts `-p/--path`, which
 may point at an SDD root or at a project root containing `sdd/`. `sase init sdd` is an alias for `sase sdd init`.
 
-| Subcommand     | Flags                                              | Description                                                                             |
-| -------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `init`         | `-p/--path`                                        | Create or refresh `sdd/README.md`, tier READMEs, and the directory map asset            |
-| `list`         | `-p/--path`, `-k/--kind`, `-j/--json`              | List SDD markdown files; kind is `prompts`, `tales`, `epics`, `legends`, or `all`       |
-| `links`        | `-p/--path`, `-j/--json`                           | List prompt/artifact frontmatter links and bidirectional status                         |
-| `validate`     | `-p/--path`, `-j/--json`, `-q/--quiet`, `--strict` | Validate SDD frontmatter links; strict mode turns unpaired historical files into errors |
-| `repair-links` | `-p/--path`, `-w/--write`                          | Infer unambiguous prompt/artifact pairs and optionally write link fixes                 |
+| Subcommand     | Flags                                                                    | Description                                                                             |
+| -------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `init`         | `-p/--path`                                                              | Create or refresh `sdd/README.md`, tier READMEs, and the directory map asset            |
+| `list`         | `-p/--path`, `-k/--kind`, `-j/--json`                                    | List SDD markdown files; kind is `prompts`, `tales`, `epics`, `legends`, or `all`       |
+| `links`        | `-p/--path`, `-j/--json`                                                 | List prompt/artifact frontmatter links and bidirectional status                         |
+| `validate`     | `-p/--path`, `-j/--json`, `-q/--quiet`, `--strict`, `-W/--show-warnings` | Validate SDD frontmatter links; strict mode turns unpaired historical files into errors |
+| `repair-links` | `-p/--path`, `-w/--write`                                                | Infer unambiguous prompt/artifact pairs and optionally write link fixes                 |
 
 ### `sase telemetry`
 

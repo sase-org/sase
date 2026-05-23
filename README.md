@@ -70,6 +70,8 @@ Useful first commands:
 
 ```bash
 sase core health          # verify the required Rust backend before launching agents
+sase init memory --no-commit  # refresh memory files while skipping project commit/push
+sase init sdd             # create/refresh SDD README files and directory map assets
 sase ace                  # open the interactive control surface
 sase run "<prompt>"       # launch an agent or workflow
 sase agents status        # inspect running agents
@@ -117,6 +119,7 @@ SASE keeps durable state outside any one chat session:
 The full documentation lives at **[sase.sh](https://sase.sh/)**. Start with:
 
 - [ACE TUI](https://sase.sh/ace/) ([local](docs/ace.md))
+- [Initialization](https://sase.sh/init/) ([local](docs/init.md))
 - [AXE Automation](https://sase.sh/axe/) ([local](docs/axe.md))
 - [Spec-Driven Development](https://sase.sh/sdd/) ([local](docs/sdd.md))
 - [XPrompts](https://sase.sh/xprompt/) ([local](docs/xprompt.md))

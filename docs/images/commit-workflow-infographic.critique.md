@@ -93,7 +93,7 @@ Grounding against `src/sase/workflows/commit/workflow.py` (`run` method, lines 1
    worth flagging since it's a real PR-only stage that affects the output branch (`PR URL + ChangeSpec`).
 6. **Legacy stop-hook label is now stale.** The current code runs the provider-neutral commit finalizer after a
    successful provider invocation inside a SASE agent session. The old `Stop hook` label should become
-   `Commit finalizer`, with a small note that legacy provider-native stop hooks remain compatibility-only.
+   `Commit finalizer`, with no provider-native stop-hook compatibility path implied.
 7. **Output branches are correct but the proposal branch is mislabeled imprecisely.** "Saved diff + COMMITS entry"
    matches the doc and code (proposals append a COMMITS entry per workflow.py `_run_tracking_steps` and the doc's
    "Tracking: Appends a proposal COMMITS entry"). No change needed; flagging only that this was the chip most likely to
