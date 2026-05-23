@@ -55,7 +55,7 @@ def _extend_sibling_repository_section(
     lines.extend(
         [
             "",
-            "When a sibling repository needs changes, agents MUST run:",
+            "When you need to make changes to files in a sibling repository or need to review sibling repository code, agents MUST run:",
             "",
             "```bash",
             "sase workspace open -p <sibling_repo> <workspace_num>",
@@ -63,7 +63,7 @@ def _extend_sibling_repository_section(
             "",
             "`<workspace_num>` must be the workspace number assigned to the primary repo "
             "(check what directory you were started in to figure this out). Use the path printed by",
-            "`sase workspace open` as the only repository path for sibling edits.",
+            "`sase workspace open` as the only repository path for sibling reads/writes.",
             "",
         ]
     )

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 10:11:34
-status: wip
+status: done
 prompt: sdd/prompts/202605/init_memory_sibling_reads_writes.md
 ---
 # Plan: Clarify Sibling Repository Memory Wording

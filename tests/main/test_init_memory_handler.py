@@ -284,6 +284,16 @@ sibling_repos:
     assert "`core`: Local Rust core." not in home_memory
     assert "/global/github" not in home_memory
 
+    sibling_trigger = (
+        "When you need to make changes to files in a sibling repository or need "
+        "to review sibling repository code, agents MUST run:"
+    )
+    for memory in (project_memory, home_memory):
+        assert sibling_trigger in memory
+        assert "sibling reads/writes" in memory
+        assert "When a sibling repository needs changes, agents MUST run:" not in memory
+        assert "sibling edits" not in memory
+
     for root in (project_root, home_root):
         assert (root / "memory" / "long").is_dir()
         assert (root / "memory" / "README.md").is_file()
