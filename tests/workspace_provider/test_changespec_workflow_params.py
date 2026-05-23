@@ -334,6 +334,60 @@ def test_create_changespec_for_workflow_passes_plan(
         assert commit_tuple[5] == "~/.sase/plans/my_plan.md"
 
 
+def test_create_changespec_for_workflow_uses_repo_relative_plan(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Absolute in-repo SASE_PLAN is stored as a repo-relative plan_path."""
+    repo_dir = tmp_path / "repo"
+    plan_file = repo_dir / "sdd" / "tales" / "202605" / "my_plan.md"
+    plan_file.parent.mkdir(parents=True)
+    plan_file.write_text("# Plan\n", encoding="utf-8")
+
+    monkeypatch.chdir(repo_dir)
+    monkeypatch.delenv("SASE_AGENT_CHAT_PATH", raising=False)
+    monkeypatch.setenv("SASE_PLAN", str(plan_file))
+    with (
+        patch(
+            "sase.workspace_provider.changespec._get_commits_ahead",
+            return_value=["feat: add thing"],
+        ),
+        patch(
+            "sase.workspace_provider.changespec.generate_timestamp",
+            return_value="260101_120000",
+        ),
+        patch(
+            "sase.workspace_provider.changespec.save_chat_history",
+            return_value="~/chats/f.md",
+        ),
+        patch(
+            "sase.workspace_provider.changespec._save_committed_diff",
+            return_value="~/diffs/f.diff",
+        ),
+        patch(
+            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            return_value=[],
+        ),
+        patch("sase.workspace_provider.changespec.get_change_label", return_value="PR"),
+        patch(
+            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            return_value="proj_plan_3",
+        ) as mock_add,
+        patch("sase.workspace_provider.changespec.subprocess.run"),
+    ):
+        result = create_changespec_for_workflow(
+            project_name="proj",
+            project_file="/fake/proj.sase",
+            checkout_target="origin/main",
+            branch_name="swift-falcon",
+            prompt="do stuff",
+            response="done",
+            workflow_name="gh",
+        )
+        assert result == "proj_plan_3"
+        initial_commits = mock_add.call_args.kwargs["initial_commits"]
+        assert initial_commits[0][5] == "sdd/tales/202605/my_plan.md"
+
+
 def test_create_changespec_for_workflow_plan_outside_home(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-22 23:12:20
-status: wip
+status: done
 prompt: sdd/prompts/202605/plan_tag_relative_paths.md
 ---
 # Plan: Keep Plan References Repo-Relative

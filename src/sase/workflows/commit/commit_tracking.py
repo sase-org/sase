@@ -8,6 +8,7 @@ import re
 from typing import TYPE_CHECKING
 
 from sase.output import print_status
+from sase.workflows.commit.plan_paths import format_sase_plan_reference
 
 if TYPE_CHECKING:
     from sase.vcs_provider._base import VCSProvider
@@ -174,14 +175,11 @@ def append_commits_entry(
 
     chat_path = os.environ.get("SASE_AGENT_CHAT_PATH")
 
-    # Compute display path for plan (replace $HOME with ~)
+    # Compute display path for plan.
     plan_display: str | None = None
     raw_plan = os.environ.get("SASE_PLAN", "")
     if raw_plan:
-        home = os.path.expanduser("~")
-        plan_display = (
-            raw_plan.replace(home, "~") if raw_plan.startswith(home) else raw_plan
-        )
+        plan_display = format_sase_plan_reference(raw_plan, repo_root=os.getcwd())
 
     from sase.workflows.commit_utils.entries import (
         add_commit_entry_with_id,

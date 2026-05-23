@@ -10,6 +10,10 @@ import subprocess
 from sase.bead.project import BEADS_DIRNAME
 from sase.config.core import load_merged_config
 from sase.output import print_status
+from sase.workflows.commit.plan_paths import (
+    format_sase_plan_reference,
+    is_sase_plan_in_repo,
+)
 
 
 def _extract_yyyymm_from_plan(plan_path: str) -> str | None:
@@ -152,7 +156,7 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
 
     # Determine repo root
     repo_root = _get_repo_root(cwd)
-    in_repo = bool(repo_root) and plan_path.startswith(repo_root + "/")
+    in_repo = is_sase_plan_in_repo(plan_path, repo_root)
 
     # If plan file doesn't exist at the expected path, try the ~/.sase/plans/ archive
     if not os.path.isfile(plan_path):
@@ -204,20 +208,14 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         with open(plan_path, "w", encoding="utf-8") as f:
             f.write(plan_content)
 
-    # Compute repo-root-relative path
-    if repo_root and plan_path.startswith(repo_root + "/"):
-        plan_rel = plan_path[len(repo_root) + 1 :]
-    else:
-        plan_rel = (
-            os.path.relpath(plan_path, repo_root)
-            if repo_root
-            else os.path.basename(plan_path)
-        )
+    plan_ref = format_sase_plan_reference(plan_path, repo_root=repo_root)
+    if plan_ref is None:
+        plan_ref = os.path.basename(plan_path)
 
     # Append PLAN= to commit message (only for version-controlled projects)
     if version_controlled:
         message = payload.get("message", "")
-        payload["message"] = f"{message}\n\nPLAN={plan_rel}"
+        payload["message"] = f"{message}\n\nPLAN={plan_ref}"
 
     # Mark plan as done
     subprocess.run(

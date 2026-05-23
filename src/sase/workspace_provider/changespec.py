@@ -14,6 +14,7 @@ from sase.core.paths import (
     shorten_path,
 )
 from sase.core.time import generate_timestamp
+from sase.workflows.commit.plan_paths import format_sase_plan_reference
 from sase.workflows.utils import get_initial_hooks_for_changespec
 
 _CONVENTIONAL_PREFIXES = re.compile(
@@ -187,14 +188,11 @@ def create_changespec_for_workflow(
     hooks = get_initial_hooks_for_changespec(verbose=False)
     cl_label = get_change_label(project_file)
 
-    # Compute display path for plan (replace $HOME with ~)
+    # Compute display path for plan.
     plan_display: str | None = None
     raw_plan = os.environ.get("SASE_PLAN", "")
     if raw_plan:
-        home = os.path.expanduser("~")
-        plan_display = (
-            raw_plan.replace(home, "~") if raw_plan.startswith(home) else raw_plan
-        )
+        plan_display = format_sase_plan_reference(raw_plan, repo_root=os.getcwd())
 
     initial_commit: tuple = (1, "[run] Initial Commit", chat_path, diff_path)
     if plan_display:

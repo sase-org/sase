@@ -475,6 +475,36 @@ def test_append_commits_entry_includes_diff_path(tmp_path: Path) -> None:
     assert f"DIFF: {diff_file}" in content
 
 
+def test_append_commits_entry_uses_repo_relative_plan_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Absolute in-repo SASE_PLAN is recorded as a repo-relative drawer path."""
+    repo_dir = tmp_path / "repo"
+    plan_file = repo_dir / "sdd" / "tales" / "202605" / "my_plan.md"
+    plan_file.parent.mkdir(parents=True)
+    plan_file.write_text("# Plan\n", encoding="utf-8")
+    monkeypatch.chdir(repo_dir)
+    monkeypatch.setenv("SASE_PLAN", str(plan_file))
+
+    project_file = tmp_path / "proj.sase"
+    project_file.write_text(
+        "NAME: my_branch\nDESCRIPTION:\n  desc\nCOMMITS:\nSTATUS: Pending\n"
+    )
+
+    entry_id = append_commits_entry(
+        str(project_file),
+        "my_branch",
+        {"message": "with plan"},
+        "create_commit",
+        None,
+    )
+
+    assert entry_id == "1"
+    content = project_file.read_text()
+    assert "      | PLAN: sdd/tales/202605/my_plan.md" in content
+    assert str(repo_dir) not in content
+
+
 # --- capture_pre_commit_diff fallback ---
 
 

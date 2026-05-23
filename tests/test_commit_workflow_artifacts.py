@@ -265,6 +265,28 @@ class TestHandleSasePlan:
         assert dest.exists()
         assert "PLAN=sdd/tales/202603/my_plan.md" in payload["message"]
 
+    def test_vc_true_in_repo_absolute_plan_uses_repo_relative_tag(
+        self, tmp_path: Path
+    ) -> None:
+        """version_controlled=True: existing in-repo plans are tagged repo-relative."""
+        repo_dir = tmp_path / "repo"
+        plan_file = repo_dir / "sdd" / "tales" / "202605" / "my_plan.md"
+        plan_file.parent.mkdir(parents=True)
+        plan_file.write_text("---\nstatus: wip\n---\n# Plan\n", encoding="utf-8")
+
+        payload: dict = {"message": "fix: bug"}
+
+        with (
+            patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
+            patch(_SDD_CONFIG_TARGET, return_value=True),
+            patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
+        ):
+            handle_sase_plan(payload, str(repo_dir))
+
+        assert payload["_plan_path"] == str(plan_file)
+        assert "PLAN=sdd/tales/202605/my_plan.md" in payload["message"]
+        assert str(repo_dir) not in payload["message"]
+
     def test_vc_false_does_not_copy_plan(self, tmp_path: Path) -> None:
         """version_controlled=False: plan NOT copied, no _plan_path, no PLAN= tag."""
         plan_file = tmp_path / "my_plan.md"
