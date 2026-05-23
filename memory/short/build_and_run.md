@@ -15,6 +15,10 @@ just test-cov      # pytest with coverage + 50% gate (used by CI); also runs
 If you made file changes in this repo (the sase repo), make sure to run the `just check` command before terminating /
 replying to the user. See the below subsection for exceptions to this rule.
 
+**IMPORTANT**: One consequence of sase's ephemeral workspace directories (see the sase.md file in this directory) is
+that you need to run `just install` before running other commands like `just check` (since it is possible we haven't
+used this workspace directory in a long time and package dependencies may have changed).
+
 #### Exceptions
 
 There is no point in running the `just check` command if the only file changes you made fall into one of the following
