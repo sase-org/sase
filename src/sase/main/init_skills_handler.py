@@ -1,6 +1,7 @@
 """Handler for the 'sase init skills' command."""
 
 import argparse
+from dataclasses import dataclass
 import difflib
 import re
 import shutil
@@ -13,10 +14,25 @@ import jinja2
 
 from sase.config.core import CHEZMOI_HOME, get_use_chezmoi
 from sase.llm_provider.registry import iter_plugins
+from sase.main.init_plan import InitAction, InitOperation, InitPlan
 from sase.xprompt.loader import get_all_xprompts, load_xprompts_from_internal
 from sase.xprompt.models import XPrompt
 
 _COMMAND_LABEL = "init skills"
+_PRETTIER_WARNING = (
+    f"{_COMMAND_LABEL}: prettier not found on PATH; output may not match "
+    "chezmoi CI formatting"
+)
+
+
+@dataclass(frozen=True)
+class _RenderedSkillTarget:
+    """One generated skill file target."""
+
+    path: Path
+    content: str
+    provider: str
+    skill_name: str
 
 
 def _all_providers() -> list[str]:
@@ -165,6 +181,94 @@ def _build_output(name: str, description: str, body: str) -> str:
     if not content.endswith("\n"):
         content += "\n"
     return content
+
+
+def _prettier_available() -> bool:
+    """Return whether generated Markdown can be formatted with prettier."""
+    return shutil.which("prettier") is not None
+
+
+def _format_skill_output(output: str, *, use_prettier: bool) -> str:
+    """Format generated skill Markdown with the same path used by apply."""
+    if not use_prettier:
+        return output
+
+    from sase.gemini_wrapper.file_references import format_with_prettier
+
+    return format_with_prettier(output)
+
+
+def _render_skill_targets(
+    skill_xprompts: list[XPrompt],
+    *,
+    provider_filter: str | None,
+    use_chezmoi: bool,
+    use_prettier: bool,
+) -> list[_RenderedSkillTarget]:
+    """Render every selected skill/provider target without writing files."""
+    targets: list[_RenderedSkillTarget] = []
+
+    for xprompt in skill_xprompts:
+        name = xprompt.name
+        description = xprompt.description or ""
+        skill_field = xprompt.skill
+        if not skill_field:
+            continue
+
+        target_providers = _get_target_providers(skill_field)
+        if provider_filter:
+            target_providers = [p for p in target_providers if p == provider_filter]
+
+        for provider in target_providers:
+            context = _provider_context(provider)
+            rendered_body, rendered_desc = _render_skill(
+                xprompt.content, description, context
+            )
+            output = _build_output(name, rendered_desc.strip(), rendered_body)
+            output = _format_skill_output(output, use_prettier=use_prettier)
+            for target in _get_target_paths(provider, name, use_chezmoi):
+                targets.append(
+                    _RenderedSkillTarget(
+                        path=target,
+                        content=output,
+                        provider=provider,
+                        skill_name=name,
+                    )
+                )
+
+    return targets
+
+
+def _planned_skill_operation(
+    target: _RenderedSkillTarget,
+) -> tuple[InitOperation, str] | None:
+    """Return planned operation/detail for a skill target, or ``None``."""
+    detail = f"{target.provider}/{target.skill_name}"
+    if not target.path.exists():
+        return "create", detail
+    try:
+        existing = target.path.read_text(encoding="utf-8")
+    except OSError:
+        return "overwrite", detail
+    except UnicodeDecodeError:
+        return "overwrite", detail
+    if existing == target.content:
+        return None
+    return "overwrite", detail
+
+
+def _summarize_skill_actions(actions: tuple[InitAction, ...]) -> str:
+    """Return a compact summary for generated skill actions."""
+    if not actions:
+        return "provider skill files are current"
+    operations = {action.operation for action in actions}
+    count = len(actions)
+    noun = "provider skill file" if count == 1 else "provider skill files"
+    if operations == {"create"}:
+        return f"create {count} {noun}"
+    if operations == {"overwrite"}:
+        return f"overwrite {count} {noun}"
+    return f"refresh {count} {noun}"
 
 
 def _prompt_overwrite(target: Path, new_content: str) -> bool:
@@ -332,8 +436,45 @@ def _deploy_to_chezmoi(written_paths: list[Path], args: argparse.Namespace) -> i
     return 0
 
 
-def handle_init_skills_command(args: argparse.Namespace) -> None:
-    """Handle the 'sase init skills' command."""
+def plan_init_skills(args: argparse.Namespace) -> InitPlan:
+    """Return a read-only plan for generated provider skill files."""
+    use_chezmoi = get_use_chezmoi()
+    provider_filter: str | None = getattr(args, "provider", None)
+    skill_xprompts = _load_skill_xprompts()
+    use_prettier = _prettier_available()
+    targets = _render_skill_targets(
+        skill_xprompts,
+        provider_filter=provider_filter,
+        use_chezmoi=use_chezmoi,
+        use_prettier=use_prettier,
+    )
+
+    actions: list[InitAction] = []
+    for target in targets:
+        planned = _planned_skill_operation(target)
+        if planned is None:
+            continue
+        operation, detail = planned
+        actions.append(
+            InitAction(
+                path=target.path,
+                operation=operation,
+                detail=detail,
+            )
+        )
+
+    warnings = (_PRETTIER_WARNING,) if targets and not use_prettier else ()
+    return InitPlan(
+        command="skills",
+        label="Skills",
+        summary=_summarize_skill_actions(tuple(actions)),
+        actions=tuple(actions),
+        warnings=warnings,
+    )
+
+
+def run_init_skills(args: argparse.Namespace) -> int:
+    """Apply ``sase init skills`` and return a process exit code."""
     use_chezmoi = get_use_chezmoi()
     is_tty = sys.stdin.isatty()
     provider_filter: str | None = getattr(args, "provider", None)
@@ -343,69 +484,44 @@ def handle_init_skills_command(args: argparse.Namespace) -> None:
     skill_xprompts = _load_skill_xprompts()
     if not skill_xprompts:
         print("No skill source entries found.")
-        sys.exit(0)
+        return 0
 
-    from sase.gemini_wrapper.file_references import format_with_prettier
-
-    prettier_warned = False
-
-    def _format(text: str) -> str:
-        nonlocal prettier_warned
-        if shutil.which("prettier") is None:
-            if not prettier_warned:
-                print(
-                    f"{_COMMAND_LABEL}: prettier not found on PATH; output may not match "
-                    "chezmoi CI formatting",
-                    file=sys.stderr,
-                )
-                prettier_warned = True
-            return text
-        return format_with_prettier(text)
+    use_prettier = _prettier_available()
+    targets = _render_skill_targets(
+        skill_xprompts,
+        provider_filter=provider_filter,
+        use_chezmoi=use_chezmoi,
+        use_prettier=use_prettier,
+    )
+    if targets and not use_prettier:
+        print(_PRETTIER_WARNING, file=sys.stderr)
 
     written = 0
     skipped = 0
     written_paths: list[Path] = []
 
-    for xprompt in skill_xprompts:
-        name = xprompt.name
-        description = xprompt.description or ""
-        skill_field = xprompt.skill
-        if not skill_field:
+    for target in targets:
+        if dry_run:
+            print(f"  {target.path}")
             continue
 
-        target_providers = _get_target_providers(skill_field)
-        if provider_filter:
-            target_providers = [p for p in target_providers if p == provider_filter]
+        if target.path.exists() and not force:
+            if not is_tty:
+                print(
+                    f"  Warning: {target.path} exists, skipping (not a TTY; use -f to force)",
+                    file=sys.stderr,
+                )
+                skipped += 1
+                continue
+            if not _prompt_overwrite(target.path, target.content):
+                skipped += 1
+                continue
 
-        for provider in target_providers:
-            context = _provider_context(provider)
-            rendered_body, rendered_desc = _render_skill(
-                xprompt.content, description, context
-            )
-            output = _build_output(name, rendered_desc.strip(), rendered_body)
-            output = _format(output)
-            for target in _get_target_paths(provider, name, use_chezmoi):
-                if dry_run:
-                    print(f"  {target}")
-                    continue
-
-                if target.exists() and not force:
-                    if not is_tty:
-                        print(
-                            f"  Warning: {target} exists, skipping (not a TTY; use -f to force)",
-                            file=sys.stderr,
-                        )
-                        skipped += 1
-                        continue
-                    if not _prompt_overwrite(target, output):
-                        skipped += 1
-                        continue
-
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(output, encoding="utf-8")
-                print(f"  {target}")
-                written += 1
-                written_paths.append(target)
+        target.path.parent.mkdir(parents=True, exist_ok=True)
+        target.path.write_text(target.content, encoding="utf-8")
+        print(f"  {target.path}")
+        written += 1
+        written_paths.append(target.path)
 
     if dry_run:
         print(f"\nDry run: {len(skill_xprompts)} source entries, no files written")
@@ -416,4 +532,9 @@ def handle_init_skills_command(args: argparse.Namespace) -> None:
     if use_chezmoi and not dry_run and written > 0:
         exit_code = _deploy_to_chezmoi(written_paths, args)
 
-    sys.exit(exit_code)
+    return exit_code
+
+
+def handle_init_skills_command(args: argparse.Namespace) -> None:
+    """Compatibility wrapper for ``sase init skills``."""
+    sys.exit(run_init_skills(args))

@@ -25,6 +25,7 @@ def iter_init_command_specs() -> tuple[InitCommandSpec, ...]:
     Init plan/apply phases register memory, SDD, and skills specs as their
     read-only planners become available.
     """
+    from .init_skills_handler import plan_init_skills, run_init_skills
     from .init_memory_handler import plan_init_memory, run_init_memory
     from .sdd_handler import plan_sdd_init, run_sdd_init
 
@@ -40,6 +41,12 @@ def iter_init_command_specs() -> tuple[InitCommandSpec, ...]:
             label="SDD",
             plan=plan_sdd_init,
             run=run_sdd_init,
+        ),
+        InitCommandSpec(
+            name="skills",
+            label="Skills",
+            plan=plan_init_skills,
+            run=run_init_skills,
         ),
     )
 
