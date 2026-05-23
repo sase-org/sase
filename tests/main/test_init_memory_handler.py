@@ -63,8 +63,9 @@ sibling_repos:
     assert "/global/github" not in home_memory
 
     sibling_trigger = (
-        "When you need to make changes to files in a sibling repository or need "
-        "to review sibling repository code, agents MUST run:"
+        "When you need to make changes to files in a numbered-workspace sibling "
+        "repository or need to review numbered-workspace sibling repository code, "
+        "agents MUST run:"
     )
     for memory in (project_memory, home_memory):
         assert sibling_trigger in memory
@@ -84,6 +85,145 @@ sibling_repos:
         assert "@memory/short/sase.md" in (root / "AGENTS.md").read_text()
         for filename in ("CLAUDE.md", "GEMINI.md", "QWEN.md", "OPENCODE.md"):
             assert (root / filename).read_text() == "@AGENTS.md\n"
+
+
+def test_init_memory_static_siblings_use_paths_without_workspace_open(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    static_one = tmp_path / "static-one"
+    static_two = tmp_path / "static-two"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    monkeypatch.setenv("STATIC_ONE", str(static_one))
+    write(
+        project_root / "sase.yml",
+        """
+sibling_repos:
+  - name: dotfiles
+    path: $STATIC_ONE
+    description: User dotfiles source.
+    workspace:
+      strategy: none
+  - name: notes
+    path: ../static-two
+    description: Static notes checkout.
+    workspace:
+      strategy: none
+""",
+    )
+
+    assert run_handler() == 0
+
+    project_memory = (project_root / "memory" / "short" / "sase.md").read_text()
+    assert (
+        "Static-path sibling repositories (`workspace.strategy: none`)"
+        in project_memory
+    )
+    assert f"- `dotfiles`: `{static_one.resolve(strict=False)}`" in project_memory
+    assert f"- `notes`: `{static_two.resolve(strict=False)}`" in project_memory
+    assert "sase workspace open -p <sibling_repo> <workspace_num>" not in project_memory
+
+
+def test_init_memory_mixed_siblings_render_static_paths_and_workspace_open(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    static_path = tmp_path / "dotfiles"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        """
+sibling_repos:
+  - name: core
+    path: ../sase-core
+    description: Numbered Rust core checkout.
+  - name: dotfiles
+    path: ../dotfiles
+    description: Static dotfiles source.
+    workspace:
+      strategy: none
+""",
+    )
+
+    assert run_handler() == 0
+
+    project_memory = (project_root / "memory" / "short" / "sase.md").read_text()
+    assert f"- `dotfiles`: `{static_path.resolve(strict=False)}`" in project_memory
+    assert "numbered-workspace sibling repository" in project_memory
+    assert "sase workspace open -p <sibling_repo> <workspace_num>" in project_memory
+    assert "numbered-workspace sibling reads/writes" in project_memory
+
+
+def test_init_memory_static_relative_paths_use_managed_primary_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary_root = tmp_path / "primary" / "project"
+    project_root = tmp_path / "managed" / "project_10"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    static_path = tmp_path / "primary" / "shared"
+    numbered_relative_path = tmp_path / "managed" / "shared"
+    primary_root.mkdir(parents=True)
+    project_root.mkdir(parents=True)
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / ".sase" / "checkout.json",
+        f"""
+{{
+  "project_key": "org/project",
+  "project_name": "project",
+  "workspace_num": 10,
+  "primary_workspace_dir": "{primary_root}",
+  "registry_path": "/work/registry.json",
+  "schema_version": 1
+}}
+""",
+    )
+    write(
+        project_root / "sase.yml",
+        """
+sibling_repos:
+  - name: shared
+    path: ../shared
+    description: Static shared checkout.
+    workspace:
+      strategy: none
+""",
+    )
+
+    assert run_handler() == 0
+
+    project_memory = (project_root / "memory" / "short" / "sase.md").read_text()
+    assert f"- `shared`: `{static_path.resolve(strict=False)}`" in project_memory
+    assert str(numbered_relative_path.resolve(strict=False)) not in project_memory
+    assert "sase workspace open -p <sibling_repo> <workspace_num>" not in project_memory
 
 
 def test_init_memory_project_memory_includes_workspace_section(
@@ -110,10 +250,8 @@ def test_init_memory_project_memory_includes_workspace_section(
     assert "## Ephemeral `project_<N>` Workspace Directories" in project_memory
     assert "full clones of the project repo" in project_memory
     assert "directories are named `project_<N>`" in project_memory
-    assert (
-        "assigned to the primary repo (check what directory you were started in "
-        "to figure this out)"
-    ) in project_memory
+    assert "sase workspace open -p <sibling_repo> <workspace_num>" not in project_memory
+    assert "sase workspace open -p <sibling_repo> <workspace_num>" not in home_memory
     assert "{{ project }}" not in project_memory
     assert "Ephemeral" not in home_memory
     assert home_memory.startswith("# SASE Memory")

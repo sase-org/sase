@@ -19,6 +19,7 @@ from ._init_chezmoi_deploy import (
 )
 from .init_plan import InitAction, InitPlan
 from .init_memory.config import (
+    primary_workspace_root_for_memory as _primary_workspace_root_for_memory,
     project_config_path as _project_config_path,
     project_memory_name as _project_memory_name,
     sibling_entries_from_config as _sibling_entries_from_config,
@@ -85,17 +86,18 @@ def _unique_paths(paths: Iterable[Path]) -> tuple[Path, ...]:
 
 def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
     use_chezmoi = get_use_chezmoi()
+    project_root = Path.cwd()
+    primary_root = _primary_workspace_root_for_memory(project_root)
     project_config = _project_config_path()
     global_config = _global_config_path(use_chezmoi)
 
     project_entries, project_errors = _sibling_entries_from_config(
-        project_config, label="project"
+        project_config, label="project", primary_root=primary_root
     )
     home_entries, home_errors = _sibling_entries_from_config(
-        global_config, label="home"
+        global_config, label="home", primary_root=primary_root
     )
     config_errors = (*project_errors, *home_errors)
-    project_root = Path.cwd()
     project_name = None if config_errors else _project_memory_name(project_root)
     return _MemoryInitInputs(
         use_chezmoi=use_chezmoi,

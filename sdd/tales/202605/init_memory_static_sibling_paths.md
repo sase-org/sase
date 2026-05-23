@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 10:23:29
-status: wip
+status: done
 prompt: sdd/prompts/202605/init_memory_static_sibling_paths.md
 ---
 # Plan: Conditional Sibling Workspace Instructions in `sase init memory`

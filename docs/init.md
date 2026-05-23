@@ -62,7 +62,10 @@ changes and run `chezmoi apply --force`; `--no-commit` does not disable that hom
 
 The generated `memory/short/sase.md` summarizes workspace naming and sibling repositories. Project memory reads sibling
 repo descriptions from the project-local `./sase.yml`; home memory reads them from the global config
-`~/.config/sase/sase.yml`, or from the chezmoi-managed config path when `use_chezmoi: true`.
+`~/.config/sase/sase.yml`, or from the chezmoi-managed config path when `use_chezmoi: true`. Generated memory
+distinguishes static-path siblings (`workspace.strategy: none`) from numbered-workspace siblings, lists the direct path
+for static siblings, and includes `sase workspace open` instructions only when at least one configured sibling uses
+numbered workspace resolution.
 
 Every configured `sibling_repos` entry must have a non-empty `description`. Initialization fails instead of generating
 ambiguous memory when a description is missing.

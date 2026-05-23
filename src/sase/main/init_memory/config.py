@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import os
 from pathlib import Path
 import re
 import subprocess
-from typing import Any
+from typing import Any, cast
 
 import yaml  # type: ignore[import-untyped]
 
 from .constants import COMMAND_LABEL
-from .models import SiblingMemoryEntry
+from .models import SiblingMemoryEntry, WorkspaceStrategy
 
 _WORKSPACE_SUFFIX_RE = re.compile(r"_\d+$")
+_VALID_WORKSPACE_STRATEGIES = {"suffix", "none"}
 
 
 def project_config_path() -> Path:
@@ -21,17 +23,21 @@ def project_config_path() -> Path:
 
 
 def _project_name_from_checkout_marker(root: Path) -> str | None:
-    try:
-        from sase.workspace_provider.marker import find_marker_from_cwd
-
-        found = find_marker_from_cwd(str(root))
-    except Exception:
-        return None
+    found = _checkout_marker_from_root(root)
     if found is None:
         return None
     _, marker = found
     project_name = marker.project_name.strip()
     return project_name or None
+
+
+def _checkout_marker_from_root(root: Path) -> Any | None:
+    try:
+        from sase.workspace_provider.marker import find_marker_from_cwd
+
+        return find_marker_from_cwd(str(root))
+    except Exception:
+        return None
 
 
 def _project_name_from_git_url(remote_url: str | None) -> str | None:
@@ -98,6 +104,41 @@ def project_memory_name(root: Path) -> str:
     return _fallback_project_name(root.name) or root.name
 
 
+def _primary_workspace_from_checkout_marker(root: Path) -> Path | None:
+    found = _checkout_marker_from_root(root)
+    if found is None:
+        return None
+    _, marker = found
+    primary = marker.primary_workspace_dir.strip()
+    if not primary:
+        return None
+    expanded = os.path.expandvars(os.path.expanduser(primary))
+    return Path(expanded).resolve(strict=False)
+
+
+def _primary_workspace_from_adjacent_suffix(root: Path) -> Path | None:
+    resolved = root.resolve(strict=False)
+    stripped_name = _WORKSPACE_SUFFIX_RE.sub("", resolved.name)
+    if stripped_name == resolved.name or not stripped_name:
+        return None
+    candidate = resolved.with_name(stripped_name)
+    if not candidate.is_dir():
+        return None
+    return candidate.resolve(strict=False)
+
+
+def primary_workspace_root_for_memory(root: Path) -> Path:
+    marker_primary = _primary_workspace_from_checkout_marker(root)
+    if marker_primary is not None:
+        return marker_primary
+
+    adjacent_primary = _primary_workspace_from_adjacent_suffix(root)
+    if adjacent_primary is not None:
+        return adjacent_primary
+
+    return root.resolve(strict=False)
+
+
 def _load_yaml_mapping(path: Path) -> tuple[Mapping[str, Any], str | None]:
     if not path.exists():
         return {}, None
@@ -114,8 +155,27 @@ def _load_yaml_mapping(path: Path) -> tuple[Mapping[str, Any], str | None]:
     return data, None
 
 
+def _workspace_strategy(item: Mapping[str, Any]) -> WorkspaceStrategy | None:
+    workspace = item.get("workspace", {})
+    if not isinstance(workspace, Mapping):
+        workspace = {}
+    raw = workspace.get("strategy", "suffix")
+    strategy = str(raw or "suffix")
+    if strategy not in _VALID_WORKSPACE_STRATEGIES:
+        return None
+    return cast(WorkspaceStrategy, strategy)
+
+
+def _resolve_memory_static_path(path: str, *, relative_to: Path) -> str:
+    expanded = os.path.expandvars(os.path.expanduser(path))
+    candidate = Path(expanded)
+    if not candidate.is_absolute():
+        candidate = relative_to / candidate
+    return str(candidate.resolve(strict=False))
+
+
 def sibling_entries_from_config(
-    config_path: Path, *, label: str
+    config_path: Path, *, label: str, primary_root: Path | None = None
 ) -> tuple[tuple[SiblingMemoryEntry, ...], tuple[str, ...]]:
     config, load_error = _load_yaml_mapping(config_path)
     if load_error is not None:
@@ -129,6 +189,11 @@ def sibling_entries_from_config(
 
     entries: list[SiblingMemoryEntry] = []
     errors: list[str] = []
+    relative_root = (
+        primary_workspace_root_for_memory(Path.cwd())
+        if primary_root is None
+        else primary_root.resolve(strict=False)
+    )
     for index, item in enumerate(raw):
         prefix = f"{config_path}: sibling_repos[{index}]"
         if not isinstance(item, Mapping):
@@ -148,10 +213,34 @@ def sibling_entries_from_config(
             )
             continue
 
+        raw_path = item.get("path")
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            errors.append(
+                f"{prefix} ({name.strip()!r}) is missing required string field 'path'"
+            )
+            continue
+
+        strategy = _workspace_strategy(item)
+        if strategy is None:
+            errors.append(
+                f"{prefix} ({name.strip()!r}) has unsupported workspace.strategy"
+            )
+            continue
+
+        path = raw_path.strip()
+        static_path = (
+            _resolve_memory_static_path(path, relative_to=relative_root)
+            if strategy == "none"
+            else None
+        )
+
         entries.append(
             SiblingMemoryEntry(
                 name=name.strip(),
                 description=" ".join(description.strip().split()),
+                path=path,
+                workspace_strategy=strategy,
+                static_path=static_path,
             )
         )
 
@@ -159,6 +248,6 @@ def sibling_entries_from_config(
         errors.insert(
             0,
             f"{COMMAND_LABEL}: cannot generate {label} memory until "
-            "sibling repo descriptions are complete",
+            "sibling repo configuration is complete",
         )
     return tuple(entries), tuple(errors)

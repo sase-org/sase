@@ -8,12 +8,16 @@ from typing import Literal
 
 MemoryChangeOperation = Literal["create", "update", "overwrite"]
 MemoryWritePolicy = Literal["overwrite", "create_if_missing"]
+WorkspaceStrategy = Literal["suffix", "none"]
 
 
 @dataclass(frozen=True)
 class SiblingMemoryEntry:
     name: str
     description: str
+    path: str
+    workspace_strategy: WorkspaceStrategy
+    static_path: str | None = None
 
 
 @dataclass(frozen=True)

@@ -51,22 +51,46 @@ def _extend_sibling_repository_section(
             lines.append(f"- `{entry.name}`: {entry.description}")
     else:
         lines.append("No sibling repositories are configured for this context.")
+        lines.append("")
+        return
 
-    lines.extend(
-        [
-            "",
-            "When you need to make changes to files in a sibling repository or need to review sibling repository code, agents MUST run:",
-            "",
-            "```bash",
-            "sase workspace open -p <sibling_repo> <workspace_num>",
-            "```",
-            "",
-            "`<workspace_num>` must be the workspace number assigned to the primary repo "
-            "(check what directory you were started in to figure this out). Use the path printed by",
-            "`sase workspace open` as the only repository path for sibling reads/writes.",
-            "",
-        ]
+    static_entries = tuple(
+        entry for entry in entries if entry.workspace_strategy == "none"
     )
+    numbered_entries = tuple(
+        entry for entry in entries if entry.workspace_strategy != "none"
+    )
+
+    if static_entries:
+        lines.extend(
+            [
+                "",
+                "Static-path sibling repositories (`workspace.strategy: none`) should be accessed directly at these paths:",
+                "",
+            ]
+        )
+        for entry in static_entries:
+            static_path = entry.static_path or entry.path
+            lines.append(f"- `{entry.name}`: `{static_path}`")
+
+    if numbered_entries:
+        lines.extend(
+            [
+                "",
+                "When you need to make changes to files in a numbered-workspace sibling repository or need to review numbered-workspace sibling repository code, agents MUST run:",
+                "",
+                "```bash",
+                "sase workspace open -p <sibling_repo> <workspace_num>",
+                "```",
+                "",
+                "`<workspace_num>` must be the workspace number assigned to the primary repo "
+                "(check what directory you were started in to figure this out). Use the path printed by",
+                "`sase workspace open` as the only repository path for numbered-workspace sibling reads/writes.",
+                "",
+            ]
+        )
+    else:
+        lines.append("")
 
 
 def _render_sase_memory(

@@ -1159,7 +1159,8 @@ With no subcommand, `sase memory` defaults to `sase memory list`.
 
 Creates or refreshes project and home memory roots, `AGENTS.md` when absent, and provider instruction shims. By default
 it also tries to commit, rebase-pull, and push generated project-side files. `sase init memory` is a compatibility alias
-for this command.
+for this command. Generated sibling-repository memory lists direct paths for `workspace.strategy: none` siblings and
+only includes `sase workspace open` guidance when a configured sibling uses numbered workspace resolution.
 
 | Flag              | Values | Default | Description                                                                                             |
 | ----------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |
