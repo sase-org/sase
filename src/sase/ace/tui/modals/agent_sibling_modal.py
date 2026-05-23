@@ -76,12 +76,6 @@ def _agent_sibling_option_text(
         _short_text(choice.agent_name, max_len=_MAX_AGENT_NAME_LEN),
         style="bold #00D7AF",
     )
-    if choice.display_name and choice.display_name != choice.agent_name:
-        text.append("  ")
-        text.append(
-            _short_text(choice.display_name, max_len=_MAX_DISPLAY_NAME_LEN),
-            style="dim #87D7FF",
-        )
     text.append("  ")
     text.append(choice.status, style=_status_style(choice.status))
     text.append("  ")
@@ -94,6 +88,12 @@ def _agent_sibling_option_text(
         text.append(
             _short_text(choice.time_hint, max_len=_MAX_TIME_HINT_LEN),
             style="dim",
+        )
+    if choice.display_name and choice.display_name != choice.agent_name:
+        text.append("  ")
+        text.append(
+            _short_text(choice.display_name, max_len=_MAX_DISPLAY_NAME_LEN),
+            style="dim #87D7FF",
         )
     return text
 
@@ -134,7 +134,7 @@ class AgentSiblingModal(
         return f"Sibling Agents: {self._family_label}  [{count} sibling{plural}]"
 
     def _hint_text(self) -> str:
-        return "enter: jump    a-z: quick select    j/k: move    q/esc: close"
+        return "enter jump  a-z select  j/k move  q/esc close"
 
     def _create_options(self) -> list[Option]:
         options: list[Option] = []

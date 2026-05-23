@@ -96,6 +96,46 @@ def agents() -> list[Agent]:
     ]
 
 
+def sibling_agents() -> list[Agent]:
+    started = datetime(2026, 5, 23, 13, 0, 0)
+    return [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-plan-review-with-a-long-display-name",
+            project_file="/workspace/sase/visual_project.sase",
+            status="RUNNING",
+            start_time=started,
+            raw_suffix="20260523-130000-plan",
+            agent_name="visual.plan.review.contract.snapshot",
+            llm_provider="codex",
+            model="gpt-5",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-code-implementation-with-extra-context",
+            project_file="/workspace/sase/visual_project.sase",
+            status="DONE",
+            start_time=datetime(2026, 5, 23, 13, 8, 0),
+            stop_time=datetime(2026, 5, 23, 13, 12, 30),
+            raw_suffix="20260523-130800-code",
+            agent_name="visual.code.implementation.with.narrow.row",
+            tag="review",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-verification-pass-with-extra-context",
+            project_file="/workspace/sase/visual_project.sase",
+            status="FAILED",
+            start_time=datetime(2026, 5, 23, 13, 16, 0),
+            stop_time=datetime(2026, 5, 23, 13, 17, 5),
+            raw_suffix="20260523-131600-verify",
+            agent_name="visual.verify.performance.and.polish",
+            tag="verification",
+            error_message="fixture failure for modal row styling",
+        ),
+    ]
+
+
 def axe_collected_data(
     *,
     bgcmd_slots: list[tuple[int, Any]] | None = None,

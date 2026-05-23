@@ -16,6 +16,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     agents,
     changespecs,
     patch_startup_loaders,
+    sibling_agents,
     wait_for_startup,
     wait_for_visual_idle,
 )
@@ -24,6 +25,12 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
+
+
+def _assert_page_svg_contains(page: AcePage, text: str) -> None:
+    svg = page.export_svg(title="ACE visual assertion")
+    svg_plain = svg.replace("&#160;", " ")
+    assert text in svg_plain
 
 
 async def test_changespec_initial_png_snapshot(
@@ -260,5 +267,59 @@ async def test_agents_unread_highlight_png_snapshot(
             page,
             "agents_unread_highlight_120x40",
             title="ACE agents unread highlight",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_agents_sibling_badge_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=sibling_agents())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+        await wait_for_visual_idle(page)
+        assert page.app._agent_sibling_index().sibling_count(page.app.current_idx) == 2
+        _assert_page_svg_contains(page, "siblings: ")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_sibling_badge_120x40",
+            title="ACE agents sibling badge",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_agent_sibling_modal_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=sibling_agents())
+
+    async with AcePage(
+        query='"visual"', changespecs=changespecs(), size=(60, 30)
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+        page.app.action_start_sibling_mode()
+        await page.expect_modal("AgentSiblingModal")
+        await wait_for_visual_idle(page)
+        modal = page.app.screen_stack[-1]
+        assert modal.__class__.__name__ == "AgentSiblingModal"
+        choices = vars(modal)["_choices"]
+        assert [choice.global_idx for choice in choices] == [1, 2]
+        _assert_page_svg_contains(page, "Sibling Agents: visual.*")
+        _assert_page_svg_contains(page, "visual.code.implementation.with...")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agent_sibling_modal_60x30",
+            title="ACE agent sibling modal narrow",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
