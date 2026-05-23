@@ -39,6 +39,7 @@ agents from the TUI.
 | `sase changespec search`                     | Search and filter ChangeSpecs with the query language.                    | [Query language](query_language.md)             |
 | `sase changespec sync-deltas`                | Recompute the `DELTAS` field for a ChangeSpec from VCS state.             | [ChangeSpecs](change_spec.md)                   |
 | `sase sdd init`                              | Create or refresh SDD README files and directory map assets.              | [SDD](sdd.md)                                   |
+| `sase init sdd`                              | Alias for `sase sdd init`.                                                | [SDD](sdd.md)                                   |
 | `sase sdd list`                              | List SDD prompt, tale, epic, legend, or all Markdown artifacts.           | [SDD](sdd.md)                                   |
 | `sase sdd links`                             | Inspect prompt/artifact frontmatter links.                                | [SDD](sdd.md)                                   |
 | `sase sdd validate`                          | Validate SDD frontmatter links.                                           | [SDD](sdd.md)                                   |

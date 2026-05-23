@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -114,6 +115,31 @@ def test_init_creates_readme_for_project_root(
     assert "exploratory findings" in directory_readmes["research"].read_text(
         encoding="utf-8"
     )
+
+
+def test_init_sdd_alias_dispatches_to_sdd_init(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.main.entry import main
+
+    calls: list[str | None] = []
+    readme_path = tmp_path / "sdd" / "README.md"
+
+    def fake_write_sdd_readme(path: str | None = None) -> Path:
+        calls.append(path)
+        return readme_path
+
+    monkeypatch.setattr(sys, "argv", ["sase", "init", "sdd", "-p", str(tmp_path)])
+    monkeypatch.setattr("sase.sdd.files.write_sdd_readme", fake_write_sdd_readme)
+
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+
+    assert excinfo.value.code == 0
+    assert calls == [str(tmp_path)]
+    assert str(readme_path) in capsys.readouterr().out
 
 
 def test_init_overwrites_stale_readme_and_asset_idempotently(tmp_path: Path) -> None:

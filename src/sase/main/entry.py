@@ -184,6 +184,12 @@ def main() -> NoReturn:
 
             handle_init_memory_command(args)
 
+        if args.init_subcommand == "sdd":
+            from .sdd_handler import handle_sdd_command
+
+            args.sdd_subcommand = "init"
+            handle_sdd_command(args)
+
         if args.init_subcommand == "skills":
             from .init_skills_handler import handle_init_skills_command
 

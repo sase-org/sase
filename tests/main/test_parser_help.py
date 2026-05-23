@@ -101,6 +101,11 @@ def test_init_and_git_namespace_parsers() -> None:
     assert memory_no_commit_args.init_subcommand == "memory"
     assert memory_no_commit_args.no_commit is True
 
+    sdd_args = parser.parse_args(["init", "sdd", "-p", "sdd"])
+    assert sdd_args.command == "init"
+    assert sdd_args.init_subcommand == "sdd"
+    assert sdd_args.path == "sdd"
+
     init_args = parser.parse_args(
         ["init", "skills", "--dry-run", "--provider", "codex"]
     )

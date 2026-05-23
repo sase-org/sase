@@ -198,6 +198,7 @@ The `sase sdd` command group manages generated SDD documentation and frontmatter
 | Command                 | Purpose                                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------------------------------- |
 | `sase sdd init`         | Create or refresh `sdd/README.md`, tier READMEs, and `sdd/assets/sdd-directory-map.png`                 |
+| `sase init sdd`         | Alias for `sase sdd init`; accepts the same `-p/--path` option                                          |
 | `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, `legends`, or `all`        |
 | `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact                      |
 | `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, `--strict`, and `-W/--show-warnings` tune output |

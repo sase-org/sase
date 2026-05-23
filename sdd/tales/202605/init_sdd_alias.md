@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-22 20:53:36
-status: wip
+status: done
 prompt: sdd/prompts/202605/init_sdd_alias.md
 ---
 # Plan: Add `sase init sdd` Alias

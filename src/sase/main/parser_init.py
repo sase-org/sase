@@ -2,6 +2,8 @@
 
 import argparse
 
+from sase.main.parser_sdd import add_sdd_path_arg
+
 
 def register_git_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'git' command group."""
@@ -66,6 +68,12 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Skip the project git commit/push sequence",
     )
+
+    sdd_parser = init_subparsers.add_parser(
+        "sdd",
+        help="Create or refresh SDD README files and directory map assets",
+    )
+    add_sdd_path_arg(sdd_parser)
 
     skills_parser = init_subparsers.add_parser(
         "skills",

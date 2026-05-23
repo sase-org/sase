@@ -1132,6 +1132,15 @@ entries where `is_skill` is `true`.
 | `[workflow_name]` | string           | -         | Workflow name to graph. Lists all workflows if omitted. |
 | `-f, --format`    | `mermaid`,`text` | `mermaid` | Output format for the DAG visualization.                |
 
+### `sase init sdd`
+
+`sase init sdd` is an alias for `sase sdd init`. It creates or refreshes generated SDD README files and the directory
+map asset.
+
+| Flag         | Values | Default                  | Description                    |
+| ------------ | ------ | ------------------------ | ------------------------------ |
+| `-p, --path` | path   | `./sdd` or `./.sase/sdd` | SDD root or project root path. |
+
 ### `sase init skills`
 
 Generates and deploys agent skill files from xprompt sources marked with the `skill` field. See
@@ -1272,7 +1281,7 @@ by `-p/--project`.
 ### `sase sdd`
 
 `sase sdd` manages SDD prompt/artifact documentation and frontmatter links. Every subcommand accepts `-p/--path`, which
-may point at an SDD root or at a project root containing `sdd/`.
+may point at an SDD root or at a project root containing `sdd/`. `sase init sdd` is an alias for `sase sdd init`.
 
 | Subcommand     | Flags                                              | Description                                                                             |
 | -------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------- |
