@@ -6,6 +6,8 @@ from collections.abc import Mapping
 from . import _parsing_args as _args
 from . import _parsing_shorthand as _shorthand
 from ._parsing_args import (
+    decode_xprompt_arg_value,
+    decode_xprompt_args,
     escape_for_xprompt,
     find_matching_paren_for_args,
     parse_args,
@@ -598,6 +600,8 @@ __all__ = [
     "_parse_named_arg",
     "_preprocess_paren_shorthand",
     "_process_text_block",
+    "decode_xprompt_arg_value",
+    "decode_xprompt_args",
     "escape_for_xprompt",
     "extract_project_from_vcs_tag",
     "extract_known_project_vcs_ref",

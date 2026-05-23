@@ -120,6 +120,24 @@ class TestExpandEmbeddedInjectsEnv:
         assert os.environ.get("MY_VAR") == "some_value"
         os.environ.pop("MY_VAR", None)
 
+    def test_embedded_workflow_colon_arg_decodes_plus_space_substitution(self) -> None:
+        """Embedded workflow prompt_part rendering receives decoded colon args."""
+        from sase.xprompt.models import InputArg, InputType
+
+        wf = Workflow(
+            name="mywf",
+            inputs=[InputArg(name="root", type=InputType.PATH)],
+            steps=[WorkflowStep(name="main", prompt_part="{{ root }}")],
+        )
+        executor = _FakeExecutor()
+
+        with patch(_LOADER_PATH, return_value={"mywf": wf}):
+            expanded, _, _ = executor._expand_embedded_workflows_in_prompt(
+                "#mywf:/Users/me/Library/Application+Support/sase"
+            )
+
+        assert expanded == "/Users/me/Library/Application Support/sase"
+
     def test_multiple_env_vars_injected(self) -> None:
         """Multiple environment variables are all injected."""
         wf = _make_workflow_with_env("mywf", {"VAR_A": "alpha", "VAR_B": "beta"})

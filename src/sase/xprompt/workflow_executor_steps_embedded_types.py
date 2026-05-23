@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from sase.xprompt._parsing import XPromptReference, XPromptReferenceArgKind
+from sase.xprompt._parsing_args import decode_xprompt_args
 from sase.xprompt.models import OutputSpec
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
@@ -20,7 +21,7 @@ _DISABLED_REGION_START_RE = re.compile(r"[ \t]*%xprompts_enabled:false")
 _WORKFLOW_REF_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
     r"#!?([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
-    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,/-]*[a-zA-Z0-9_~/-])|(\+))?"  # Supports backtick-delimited colon args
+    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,+/-]*[a-zA-Z0-9_~+/-])|(\+))?"  # Supports backtick-delimited colon args
 )
 
 
@@ -60,8 +61,8 @@ def parse_workflow_reference_args(
     if ref.arg_kind is XPromptReferenceArgKind.COLON:
         colon_arg = ref.argument_source[1:]
         if colon_arg.startswith("`") and colon_arg.endswith("`"):
-            return [colon_arg[1:-1]], {}
-        return colon_arg.split(","), {}
+            return decode_xprompt_args([colon_arg[1:-1]], {})
+        return decode_xprompt_args(colon_arg.split(","), {})
     return ref.parse_arguments()
 
 

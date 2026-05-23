@@ -6,6 +6,7 @@ from sase.xprompt._jinja import validate_and_convert_args
 from sase.xprompt.models import UNSET, InputArg, InputType, XPrompt
 from sase.xprompt.processor import (
     _resolve_command_substitution_in_args,
+    process_xprompt_references,
 )
 from sase.xprompt.workflow_models import Workflow
 
@@ -54,6 +55,24 @@ def _build_simple_xprompt_render_ctx(
                 "null" if input_arg.default is None else str(input_arg.default)
             )
     return render_ctx
+
+
+def test_process_xprompt_colon_arg_decodes_plus_space_substitution() -> None:
+    """Normal xprompt expansion decodes plus substitution before validation."""
+    xprompt = XPrompt(
+        name="path_info",
+        content="Path: {{ root }}",
+        inputs=[InputArg(name="root", type=InputType.PATH)],
+    )
+
+    with patch(
+        "sase.xprompt.processor.get_all_xprompts", return_value={"path_info": xprompt}
+    ):
+        result = process_xprompt_references(
+            "#path_info:/Users/me/Library/Application+Support/sase"
+        )
+
+    assert result == "Path: /Users/me/Library/Application Support/sase"
 
 
 # --- Command substitution resolution tests ---

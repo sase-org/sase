@@ -380,6 +380,30 @@ def test_flatten_anonymous_workflow_slow_path_with_args(
 
 
 @patch("sase.xprompt.loader.get_all_prompts")
+def test_flatten_anonymous_workflow_decodes_plus_space_substitution(
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """Standalone workflow flattening decodes plus substitution in path args."""
+    target_wf = Workflow(
+        name="deploy",
+        inputs=[InputArg(name="root", type=InputType.PATH)],
+        steps=[WorkflowStep(name="build", bash="make build")],
+    )
+    mock_get_all_prompts.return_value = {"deploy": target_wf}
+    workflow = _make_anonymous_workflow(
+        "#!deploy:/Users/me/Library/Application+Support/sase"
+    )
+
+    result = _flatten_anonymous_workflow(workflow)
+
+    assert result is not None
+    ref_wf, pos_args, named_args = result
+    assert ref_wf.name == "deploy"
+    assert pos_args == ["/Users/me/Library/Application Support/sase"]
+    assert named_args == {}
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
 def test_flatten_anonymous_workflow_preserves_wrapper_model_directive(
     mock_get_all_prompts: MagicMock,
 ) -> None:

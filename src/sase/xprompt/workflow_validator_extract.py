@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass
 
 from sase.xprompt._parsing import iter_xprompt_references
+from sase.xprompt._parsing_args import decode_xprompt_args
 from sase.xprompt.models import UNSET, XPrompt
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
@@ -111,7 +112,9 @@ def extract_xprompt_calls(content: str) -> list[_XPromptCall]:
             and len(positional_args) == 1
             and "," in positional_args[0]
         ):
-            positional_args = positional_args[0].split(",")
+            positional_args, named_args = decode_xprompt_args(
+                positional_args[0].split(","), named_args
+            )
 
         calls.append(
             _XPromptCall(

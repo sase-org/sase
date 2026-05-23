@@ -193,6 +193,24 @@ def test_expand_with_positional_args() -> None:
     ]
 
 
+def test_expand_with_colon_arg_decodes_plus_space_substitution() -> None:
+    catalog = {
+        "two": _xp(
+            "two",
+            "Plan {{ root }}.\n---\nUse {{ root }}.",
+            inputs=[InputArg(name="root", type=InputType.PATH)],
+        )
+    }
+    with _patch_catalog(catalog):
+        out = expand_multi_agent_xprompts(
+            ["#!two:/Users/me/Library/Application+Support/sase"]
+        )
+    assert out == [
+        "Plan /Users/me/Library/Application Support/sase.",
+        "Use /Users/me/Library/Application Support/sase.",
+    ]
+
+
 def test_expand_with_named_args() -> None:
     catalog = {
         "two": _xp(

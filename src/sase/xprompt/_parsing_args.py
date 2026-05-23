@@ -1,6 +1,25 @@
 """Argument parsing helpers for xprompt and workflow references."""
 
 
+def decode_xprompt_arg_value(value: str) -> str:
+    """Decode prompt-token substitutions in an xprompt argument value.
+
+    Bare colon arguments are whitespace-delimited, so ``+`` is accepted as the
+    space substitution for path-like values such as ``Application+Support``.
+    """
+    return value.replace("+", " ")
+
+
+def decode_xprompt_args(
+    positional: list[str], named: dict[str, str]
+) -> tuple[list[str], dict[str, str]]:
+    """Decode all parsed xprompt argument values."""
+    return (
+        [decode_xprompt_arg_value(value) for value in positional],
+        {name: decode_xprompt_arg_value(value) for name, value in named.items()},
+    )
+
+
 def escape_for_xprompt(text: str) -> str:
     """Escape text for use in an xprompt argument string.
 
@@ -206,8 +225,13 @@ def parse_workflow_reference(
         Tuple of (workflow_name, positional_args, named_args).
     """
     # Plus syntax: workflow+ -> ["true"]
-    if workflow_ref.endswith("+"):
-        return workflow_ref[:-1], ["true"], {}
+    if (
+        workflow_ref.endswith("+")
+        and ":" not in workflow_ref
+        and "(" not in workflow_ref
+    ):
+        positional_args, named_args = decode_xprompt_args(["true"], {})
+        return workflow_ref[:-1], positional_args, named_args
 
     # Parenthesis syntax: workflow(args) or workflow(args): text
     if "(" in workflow_ref:
@@ -224,12 +248,15 @@ def parse_workflow_reference(
             # Handle text after closing paren: "): text" or "):: text"
             rest = workflow_ref[close_paren + 1 :]
             if rest.startswith(":: "):
-                positional_args.append(rest[3:])
+                positional_args.append(decode_xprompt_arg_value(rest[3:]))
             elif rest.startswith(": "):
-                positional_args.append(rest[2:])
+                positional_args.append(decode_xprompt_arg_value(rest[2:]))
             elif rest.startswith(":") and len(rest) > 1:
-                positional_args.append(rest[1:])
+                positional_args.append(decode_xprompt_arg_value(rest[1:]))
 
+            positional_args, named_args = decode_xprompt_args(
+                positional_args, named_args
+            )
             return workflow_name, positional_args, named_args
         return workflow_name, [], {}
 
@@ -240,12 +267,15 @@ def parse_workflow_reference(
         rest = workflow_ref[colon_idx + 1 :]
         # Double-colon shorthand: workflow:: text -> strip the extra colon
         if rest.startswith(": "):
-            return workflow_name, [rest[2:]], {}
+            positional_args, named_args = decode_xprompt_args([rest[2:]], {})
+            return workflow_name, positional_args, named_args
         # The entire rest (with or without leading space) is a single positional arg
         # But we strip leading space for multi-line syntax aesthetics
         if rest.startswith(" "):
-            return workflow_name, [rest[1:]], {}
-        return workflow_name, [rest], {}
+            positional_args, named_args = decode_xprompt_args([rest[1:]], {})
+            return workflow_name, positional_args, named_args
+        positional_args, named_args = decode_xprompt_args([rest], {})
+        return workflow_name, positional_args, named_args
 
     # Plain name, no args
     return workflow_ref, [], {}
@@ -324,4 +354,4 @@ def parse_args(args_str: str) -> tuple[list[str], dict[str, str]]:
             value = _process_text_block(value)
             positional.append(value)
 
-    return positional, named
+    return decode_xprompt_args(positional, named)

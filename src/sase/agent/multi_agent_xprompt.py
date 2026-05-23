@@ -29,6 +29,7 @@ from sase.xprompt._parsing import (
     iter_xprompt_references,
     normalize_vcs_underscore_refs,
 )
+from sase.xprompt._parsing_args import decode_xprompt_args
 from sase.xprompt.loader import get_all_xprompts
 from sase.xprompt.models import XPrompt
 from sase.xprompt.processor import expand_single_xprompt
@@ -147,8 +148,8 @@ def _parse_xprompt_reference_arguments(
     if ref.arg_kind is XPromptReferenceArgKind.COLON:
         colon_arg = ref.argument_source[1:]
         if colon_arg.startswith("`") and colon_arg.endswith("`"):
-            return [colon_arg[1:-1]], {}
-        return colon_arg.split(","), {}
+            return decode_xprompt_args([colon_arg[1:-1]], {})
+        return decode_xprompt_args(colon_arg.split(","), {})
     return ref.parse_arguments()
 
 

@@ -26,6 +26,7 @@ from ._jinja import (
     validate_and_convert_args,
 )
 from ._parsing import (
+    decode_xprompt_args,
     find_double_colon_text_end,
     find_shorthand_text_end,
     find_matching_paren_for_args,
@@ -55,7 +56,7 @@ _DISABLED_REGION_START_RE = re.compile(r"[ \t]*%xprompts_enabled:false")
 _XPROMPT_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"  # Must be at start, after whitespace, or after ([{"'
     r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"  # Group 1: xprompt name with optional namespace
-    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,/-]*[a-zA-Z0-9_~/-])|(\+))?"  # Group 2: open paren OR Group 3: colon arg (backtick, $(cmd), or word) OR Group 4: plus
+    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,+/-]*[a-zA-Z0-9_~+/-])|(\+))?"  # Group 2: open paren OR Group 3: colon arg (backtick, $(cmd), or word) OR Group 4: plus
 )
 
 _COMMON_VCS_XPROMPT_NAMES = frozenset({"gh", "git", "hg", "p4"})
@@ -410,9 +411,13 @@ def process_xprompt_references_with_catalog(
                     # Strip backticks if present (backtick-delimited syntax)
                     if colon_arg.startswith("`") and colon_arg.endswith("`"):
                         colon_arg = colon_arg[1:-1]
-                        positional_args, named_args = [colon_arg], {}
+                        positional_args, named_args = decode_xprompt_args(
+                            [colon_arg], {}
+                        )
                     else:
-                        positional_args, named_args = colon_arg.split(","), {}
+                        positional_args, named_args = decode_xprompt_args(
+                            colon_arg.split(","), {}
+                        )
                 elif plus_suffix is not None:
                     positional_args, named_args = ["true"], {}
                 else:

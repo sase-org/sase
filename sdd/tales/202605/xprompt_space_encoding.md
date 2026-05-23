@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 15:44:02
-status: wip
+status: done
 prompt: sdd/prompts/202605/xprompt_space_encoding.md
 ---
 # Plan: XPrompt Space Encoding for Path Values

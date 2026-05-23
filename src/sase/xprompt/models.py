@@ -25,7 +25,7 @@ class InputType(Enum):
     WORD = "word"  # Single word, no whitespace
     LINE = "line"  # Single line, no newlines
     TEXT = "text"  # Multi-line text (any content)
-    PATH = "path"  # File path (no whitespace + must exist)
+    PATH = "path"  # Single-line file path
     INT = "int"
     BOOL = "bool"
     FLOAT = "float"
@@ -37,7 +37,7 @@ class OutputType(Enum):
     WORD = "word"  # Single word, no whitespace
     LINE = "line"  # Single line, no newlines
     TEXT = "text"  # Multi-line text (any content)
-    PATH = "path"  # File path (no whitespace, existence not checked)
+    PATH = "path"  # Single-line file path (existence not checked)
     BOOL = "bool"  # Boolean value
     INT = "int"  # Integer value
     FLOAT = "float"  # Floating point value
@@ -112,9 +112,10 @@ class InputArg:
         elif self.type == InputType.TEXT:
             return value  # No validation
         elif self.type == InputType.PATH:
-            if any(c.isspace() for c in value):
+            if "\n" in value:
                 raise XPromptValidationError(
-                    f"Argument '{self.name}' expects path (no spaces), got '{value}'"
+                    f"Argument '{self.name}' expects single-line path "
+                    f"(no newlines), got value with newlines"
                 )
             return value
         elif self.type == InputType.INT:

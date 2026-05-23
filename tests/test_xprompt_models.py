@@ -48,11 +48,18 @@ def test_input_arg_line_rejects_newlines() -> None:
         arg.validate_and_convert("line1\nline2\nline3")
 
 
-def test_input_arg_path_rejects_whitespace() -> None:
-    """Test that path type rejects values with whitespace."""
+def test_input_arg_path_accepts_spaces() -> None:
+    """Test that path type accepts single-line values with spaces."""
     arg = InputArg(name="test", type=InputType.PATH)
-    with pytest.raises(XPromptValidationError, match="expects path"):
-        arg.validate_and_convert("/path/with spaces/file.txt")
+    result = arg.validate_and_convert("/path/with spaces/file.txt")
+    assert result == "/path/with spaces/file.txt"
+
+
+def test_input_arg_path_rejects_newlines() -> None:
+    """Test that path type rejects multiline values."""
+    arg = InputArg(name="test", type=InputType.PATH)
+    with pytest.raises(XPromptValidationError, match="single-line path"):
+        arg.validate_and_convert("/path/with\nnewline/file.txt")
 
 
 def test_input_arg_path_accepts_nonexistent() -> None:

@@ -115,9 +115,8 @@ def _validate_semantic_type(
         if "\n" in value:
             return f"At {field_path}: expected line (no newlines)"
     elif output_type == OutputType.PATH.value:
-        if any(c.isspace() for c in value):
-            truncated = value[:50] + "..." if len(value) > 50 else value
-            return f"At {field_path}: expected path (no spaces), got '{truncated}'"
+        if "\n" in value:
+            return f"At {field_path}: expected single-line path (no newlines)"
     # text has no validation
     return None
 
@@ -428,9 +427,7 @@ def extract_semantic_type_hints(schema: Any, path: str = "") -> list[str]:
                 f"- `{field_desc}`: must be a single line (no newlines){null_suffix}"
             )
         elif type_val == OutputType.PATH.value:
-            hints.append(
-                f"- `{field_desc}`: must be a valid path (no spaces){null_suffix}"
-            )
+            hints.append(f"- `{field_desc}`: must be a single-line path{null_suffix}")
         # text, bool, int, float have no special constraints to describe
 
     # Recurse into properties

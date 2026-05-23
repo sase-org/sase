@@ -47,6 +47,14 @@ def test_parse_standalone_reference_with_hitl_suffix() -> None:
     assert ref.reference_body == "sync"
 
 
+def test_parse_plus_reference_is_boolean_shorthand() -> None:
+    ref = _single_ref("#feature+")
+
+    assert ref.name == "feature"
+    assert ref.arg_kind is XPromptReferenceArgKind.PLUS
+    assert ref.parse_arguments() == (["true"], {})
+
+
 def test_parse_namespaced_standalone_reference_with_colon_arg() -> None:
     ref = _single_ref("#!sase/pylimit_split:prod")
 
@@ -55,6 +63,18 @@ def test_parse_namespaced_standalone_reference_with_colon_arg() -> None:
     assert ref.raw == "#!sase/pylimit_split:prod"
     assert ref.argument_source == ":prod"
     assert ref.parse_arguments() == (["prod"], {})
+
+
+def test_parse_colon_reference_decodes_plus_space_substitution() -> None:
+    ref = _single_ref("#setup:/Users/me/Library/Application+Support/sase")
+
+    assert ref.name == "setup"
+    assert ref.raw == "#setup:/Users/me/Library/Application+Support/sase"
+    assert ref.argument_source == ":/Users/me/Library/Application+Support/sase"
+    assert ref.parse_arguments() == (
+        ["/Users/me/Library/Application Support/sase"],
+        {},
+    )
 
 
 def test_parse_colon_shorthand_reference_with_parentheses_in_text() -> None:

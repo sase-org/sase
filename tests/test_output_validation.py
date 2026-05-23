@@ -129,11 +129,16 @@ class TestSemanticTypeValidation:
         assert result is None
 
     def test_validate_semantic_type_path_with_space(self) -> None:
-        """Test that path with space fails validation."""
+        """Test that path with space passes validation."""
         result = _validate_semantic_type("/some path/file.txt", "path", "file")
+        assert result is None
+
+    def test_validate_semantic_type_path_with_newline(self) -> None:
+        """Test that path with newline fails validation."""
+        result = _validate_semantic_type("/some\npath/file.txt", "path", "file")
         assert result is not None
-        assert "expected path" in result
-        assert "no spaces" in result
+        assert "single-line path" in result
+        assert "no newlines" in result
 
     def test_validate_semantic_type_string_no_validation(self) -> None:
         """Test that string type has no validation."""
@@ -176,6 +181,41 @@ class TestValidateAgainstSchemaWithSemanticTypes:
         # It should fail because "not a number" is not an integer
         assert is_valid is False
 
+    def test_path_with_spaces_passes(self) -> None:
+        """Test that semantic path accepts macOS Application Support paths."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "workspace_dir": {"type": "path"},
+            },
+        }
+        data = {
+            "workspace_dir": "/Users/me/Library/Application Support/sase/workspaces/p"
+        }
+
+        is_valid, error = validate_against_schema(data, schema)
+
+        assert is_valid is True
+        assert error is None
+
+    def test_path_with_newline_fails(self) -> None:
+        """Test that semantic path rejects multiline values."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "workspace_dir": {"type": "path"},
+            },
+        }
+        data = {
+            "workspace_dir": "/Users/me/Library/Application Support\nsase/workspaces/p"
+        }
+
+        is_valid, error = validate_against_schema(data, schema)
+
+        assert is_valid is False
+        assert error is not None
+        assert "single-line path" in error
+
     def test_float_type_with_invalid_string_keeps_string(self) -> None:
         """Test that float type with non-numeric string stays as string."""
         schema = {
@@ -205,7 +245,7 @@ class TestExtractSemanticTypeHints:
         hints = extract_semantic_type_hints(schema)
         assert len(hints) == 1
         assert "file" in hints[0]
-        assert "valid path" in hints[0]
+        assert "single-line path" in hints[0]
 
     def test_multiple_hints_from_nested_schema(self) -> None:
         """Test extracting multiple hints from nested schema."""
