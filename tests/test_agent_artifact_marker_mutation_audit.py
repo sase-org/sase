@@ -168,6 +168,10 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("open", "dump", "open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
+    "src/sase/axe/run_agent_helpers.py:finalize_handoff_artifacts_as_completed": Review(
+        mutation_calls=("open", "dump", "open", "dump"),
+        lifecycle_calls=(_UPDATE_INDEX,),
+    ),
     "src/sase/axe/run_agent_helpers.py:update_step_marker_chat_path": Review(
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),

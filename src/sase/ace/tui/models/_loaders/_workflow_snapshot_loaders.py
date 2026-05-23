@@ -23,6 +23,11 @@ from ..agent import Agent, AgentType
 from ..workflow import WorkflowEntry
 from ._meta_enrichment import enrich_agent_from_meta, enrich_agent_from_meta_wire
 from ._workflow_loaders import ACTIVE_STATUSES
+from ._workflow_step_loaders import (
+    FAMILY_PROGRESSED_PLAN_ACTIONS,
+    NON_TERMINAL_STEP_DISPLAY_STATUSES,
+    is_plan_step,
+)
 
 
 def _is_workflow_state_record(record: AgentArtifactRecordWire) -> bool:
@@ -255,6 +260,12 @@ def _build_workflow_agent_steps_for_record(
         elif parent_state.status == "completed":
             parent_wf_completed = True
 
+    family_progressed_past_plan = (
+        record.agent_meta is not None
+        and record.agent_meta.plan_approved
+        and record.agent_meta.plan_action in FAMILY_PROGRESSED_PLAN_ACTIONS
+    )
+
     project_file = record.project_file
 
     for step in record.prompt_steps:
@@ -361,6 +372,14 @@ def _build_workflow_agent_steps_for_record(
             enrich_agent_from_meta(
                 agent, artifacts_dir_from_marker, workflow_child=True
             )
+
+            if (
+                family_progressed_past_plan
+                and agent.status in NON_TERMINAL_STEP_DISPLAY_STATUSES
+                and is_plan_step(step_name, agent.role_suffix)
+            ):
+                agent.status = "DONE"
+
             dir_agents.append(agent)
         except Exception:
             continue

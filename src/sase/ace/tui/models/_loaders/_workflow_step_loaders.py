@@ -2,11 +2,46 @@
 
 from pathlib import Path
 
+from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX, canonical_plan_chain_suffix
+
 from .._timestamps import parse_timestamp_14_digit
 from ..agent import Agent, AgentType
 from ._json_cache import get_loader_executor, load_json_cached
 from ._meta_enrichment import enrich_agent_from_meta
 from ._workflow_loaders import get_workflow_timestamp_dirs
+
+FAMILY_PROGRESSED_PLAN_ACTIONS = frozenset({"epic", "tale", "legend", "commit"})
+_PLAN_STEP_NAMES = frozenset({"plan"})
+NON_TERMINAL_STEP_DISPLAY_STATUSES = frozenset({"RUNNING", "WAITING INPUT"})
+
+
+def _family_progressed_past_plan(timestamp_dir: Path) -> bool:
+    """Return True iff the family root recorded a plan-approval handoff.
+
+    Reads ``agent_meta.json`` from *timestamp_dir* (the family-root agent's
+    artifacts directory) and checks for ``plan_approved == true`` paired
+    with a recognized ``plan_action``.  When this is true, a plan step
+    still showing ``RUNNING`` / ``WAITING INPUT`` is necessarily stale.
+    """
+    meta_file = timestamp_dir / "agent_meta.json"
+    if not meta_file.exists():
+        return False
+    try:
+        meta = load_json_cached(meta_file)
+    except Exception:
+        return False
+    if not isinstance(meta, dict):
+        return False
+    if not meta.get("plan_approved"):
+        return False
+    return meta.get("plan_action") in FAMILY_PROGRESSED_PLAN_ACTIONS
+
+
+def is_plan_step(step_name: str | None, role_suffix: str | None) -> bool:
+    """Return True iff *step_name*/*role_suffix* names the planner phase row."""
+    if step_name in _PLAN_STEP_NAMES:
+        return True
+    return canonical_plan_chain_suffix(role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
 
 
 def _load_workflow_agent_steps_for_dir(
@@ -43,6 +78,8 @@ def _load_workflow_agent_steps_for_dir(
                 parent_wf_completed = True
         except Exception:
             pass
+
+    family_progressed_past_plan = _family_progressed_past_plan(timestamp_dir)
 
     # Find all prompt step marker files
     for marker_file in timestamp_dir.glob("prompt_step_*.json"):
@@ -167,6 +204,18 @@ def _load_workflow_agent_steps_for_dir(
             enrich_agent_from_meta(
                 agent, artifacts_dir_from_marker, workflow_child=True
             )
+
+            # Family root advanced past plan approval (EPIC/TALE/LEGEND
+            # APPROVED / PLAN COMMITTED) but the planner's own marker is
+            # still non-terminal — common when an in-process SDK provider
+            # was SIGTERM'd before the executor could persist completion.
+            if (
+                family_progressed_past_plan
+                and agent.status in NON_TERMINAL_STEP_DISPLAY_STATUSES
+                and is_plan_step(step_name, agent.role_suffix)
+            ):
+                agent.status = "DONE"
+
             dir_agents.append(agent)
         except Exception:
             continue

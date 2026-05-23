@@ -28,6 +28,7 @@ from sase.axe.run_agent_exec_plan_sdd import (
 from sase.axe.run_agent_helpers import (
     build_qa_round,
     create_followup_artifacts,
+    finalize_handoff_artifacts_as_completed,
     handle_questions_flow,
     merge_qa_for_prompt,
     normalize_handoff_interruption_state,
@@ -140,6 +141,7 @@ def handle_plan_marker(
     Returns a loop-outcome string to break the loop, or ``None`` to continue.
     """
     normalize_handoff_interruption_state(state.current_artifacts_dir)
+    finalize_handoff_artifacts_as_completed(state.current_artifacts_dir)
     # Only set the planner suffix on the original workflow entry;
     # feedback round agents keep their numeric suffixes.
     if state.feedback_round == 0:
@@ -555,6 +557,7 @@ def handle_questions_marker(
     Returns a loop-outcome string to break the loop, or ``None`` to continue.
     """
     normalize_handoff_interruption_state(state.current_artifacts_dir)
+    finalize_handoff_artifacts_as_completed(state.current_artifacts_dir)
     previous_role_suffix = state.current_role_suffix
     state.current_role_suffix = PLAN_CHAIN_QUESTION_SUFFIX
     update_meta_suffix(

@@ -9,6 +9,7 @@ from unittest.mock import patch
 from sase.axe.run_agent_helpers import (
     append_meta_list_field,
     create_followup_artifacts,
+    finalize_handoff_artifacts_as_completed,
     handle_questions_flow,
     normalize_handoff_interruption_state,
     promote_to_workflow,
@@ -342,6 +343,142 @@ def test_normalize_handoff_interruption_state_coalesces_index_update(
         side_effect=lambda path: calls.append(path),
     ):
         normalize_handoff_interruption_state(str(artifacts_dir))
+
+    assert calls == [str(artifacts_dir)]
+
+
+def test_finalize_handoff_artifacts_completes_non_terminal_state(tmp_path) -> None:
+    """In-process SDK SIGTERM leaves markers at in_progress; finalize → completed."""
+    artifacts_dir = tmp_path
+
+    state_file = artifacts_dir / "workflow_state.json"
+    state_file.write_text(
+        json.dumps(
+            {
+                "status": "in_progress",
+                "steps": [
+                    {"name": "plan", "status": "in_progress"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    marker_file = artifacts_dir / "prompt_step_plan.json"
+    marker_file.write_text(
+        json.dumps({"step_name": "plan", "status": "in_progress"}),
+        encoding="utf-8",
+    )
+
+    finalize_handoff_artifacts_as_completed(str(artifacts_dir))
+
+    state_data = json.loads(state_file.read_text(encoding="utf-8"))
+    assert state_data["status"] == "completed"
+    assert state_data["steps"][0]["status"] == "completed"
+
+    marker_data = json.loads(marker_file.read_text(encoding="utf-8"))
+    assert marker_data["status"] == "completed"
+
+
+def test_finalize_handoff_artifacts_completes_waiting_hitl(tmp_path) -> None:
+    """HITL-save-before-kill leaves marker at waiting_hitl → completed at handoff."""
+    artifacts_dir = tmp_path
+
+    (artifacts_dir / "workflow_state.json").write_text(
+        json.dumps(
+            {
+                "status": "waiting_hitl",
+                "steps": [{"name": "plan", "status": "waiting_hitl"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    marker_file = artifacts_dir / "prompt_step_plan.json"
+    marker_file.write_text(
+        json.dumps({"step_name": "plan", "status": "waiting_hitl"}),
+        encoding="utf-8",
+    )
+
+    finalize_handoff_artifacts_as_completed(str(artifacts_dir))
+
+    state_data = json.loads(
+        (artifacts_dir / "workflow_state.json").read_text(encoding="utf-8")
+    )
+    assert state_data["status"] == "completed"
+    assert state_data["steps"][0]["status"] == "completed"
+    assert json.loads(marker_file.read_text(encoding="utf-8"))["status"] == "completed"
+
+
+def test_finalize_handoff_artifacts_preserves_real_failures(tmp_path) -> None:
+    """A pre-existing non-SIGTERM failure must survive the handoff finalize."""
+    artifacts_dir = tmp_path
+
+    state_file = artifacts_dir / "workflow_state.json"
+    state_file.write_text(
+        json.dumps(
+            {
+                "status": "failed",
+                "error": "API quota exhausted",
+                "traceback": "tb",
+                "steps": [
+                    {
+                        "name": "plan",
+                        "status": "failed",
+                        "error": "API quota exhausted",
+                        "traceback": "tb",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    marker_file = artifacts_dir / "prompt_step_plan.json"
+    marker_file.write_text(
+        json.dumps(
+            {
+                "step_name": "plan",
+                "status": "failed",
+                "error": "API quota exhausted",
+                "traceback": "tb",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    finalize_handoff_artifacts_as_completed(str(artifacts_dir))
+
+    state_data = json.loads(state_file.read_text(encoding="utf-8"))
+    assert state_data["status"] == "failed"
+    assert state_data["error"] == "API quota exhausted"
+    assert state_data["steps"][0]["status"] == "failed"
+
+    marker_data = json.loads(marker_file.read_text(encoding="utf-8"))
+    assert marker_data["status"] == "failed"
+    assert marker_data["error"] == "API quota exhausted"
+
+
+def test_finalize_handoff_artifacts_coalesces_index_update(tmp_path) -> None:
+    """State + step rewrites produce exactly one artifact-index refresh."""
+    artifacts_dir = tmp_path
+    (artifacts_dir / "workflow_state.json").write_text(
+        json.dumps(
+            {
+                "status": "in_progress",
+                "steps": [{"name": "plan", "status": "in_progress"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifacts_dir / "prompt_step_plan.json").write_text(
+        json.dumps({"step_name": "plan", "status": "in_progress"}),
+        encoding="utf-8",
+    )
+    calls: list[str] = []
+
+    with patch(
+        "sase.axe.run_agent_helpers.update_agent_artifact_index_for_marker_mutation",
+        side_effect=lambda path: calls.append(path),
+    ):
+        finalize_handoff_artifacts_as_completed(str(artifacts_dir))
 
     assert calls == [str(artifacts_dir)]
 

@@ -323,6 +323,58 @@ def test_workflow_coder_child_with_tale_approved_ticks_from_run_start() -> None:
     assert runtime_suffix_ticks(child) is True
 
 
+def test_workflow_root_aggregate_ticks_at_1s_per_1s_with_done_plan_child() -> None:
+    """Regression: a DONE plan child + RUNNING epic child must tick 1s/1s.
+
+    The original bug aggregated two active intervals (each ticking 1s/s)
+    when the planner's marker was stuck at RUNNING, so the root suffix
+    ticked at 2s/1s. Once the data/TUI fix freezes the plan child at
+    plan_times, the root aggregate equals the (frozen) plan elapsed plus
+    the (live) epic elapsed and only the epic child contributes new
+    seconds.
+    """
+    plan_start = datetime(2026, 5, 21, 14, 49, 20)
+    plan_submit = datetime(2026, 5, 21, 14, 52, 0)
+    epic_start = datetime(2026, 5, 21, 15, 6, 0)
+
+    parent = agent(
+        agent_type=AgentType.WORKFLOW,
+        status="EPIC APPROVED",
+        start=plan_start,
+        run_start=plan_start,
+    )
+    planner = workflow_child(
+        step_type="agent",
+        status="DONE",
+        start=plan_start,
+        run_start=plan_start,
+        plan_times=[plan_submit],
+        cl_name="plan",
+        role_suffix=".plan",
+    )
+    epic = workflow_child(
+        step_type="agent",
+        status="RUNNING",
+        start=epic_start,
+        run_start=epic_start,
+        raw_suffix="20260521150600",
+        cl_name="epic",
+    )
+    parent.runtime_children.extend([planner, epic])
+
+    now1 = datetime(2026, 5, 21, 15, 7, 0)
+    now2 = datetime(2026, 5, 21, 15, 7, 1)
+    _, elapsed1 = compute_row_runtime(parent, now=now1)
+    _, elapsed2 = compute_row_runtime(parent, now=now2)
+
+    # planner is frozen at plan_submit (2m40s) -> contributes a constant
+    # value. epic ticks live (1m -> 1m01s). The root therefore advances
+    # by exactly one second between now1 and now2 — not two.
+    assert elapsed1 == "3m40s"
+    assert elapsed2 == "3m41s"
+    assert runtime_suffix_ticks(parent) is True
+
+
 def test_workflow_root_aggregates_active_plan_and_code_children() -> None:
     plan_start = datetime(2026, 5, 21, 14, 49, 20)
     plan_submit = datetime(2026, 5, 21, 14, 52, 0)
