@@ -13,13 +13,14 @@ from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.actions.agents._display_panels import PanelsMixin
 from sase.ace.tui.actions.agents._panels import AgentPanelsMixin
 from sase.ace.tui.actions.agents._unread import AgentUnreadMixin
+from sase.ace.tui.actions.navigation._advanced import AdvancedNavigationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_panels import AgentPanelGroup, panel_key_per_agent
 
 
-class _StubApp(AgentPanelsMixin):
+class _StubApp(AgentPanelsMixin, AdvancedNavigationMixin):
     """Small harness for panel switching with production render-order helpers."""
 
     _agents_visible_order = AgentsMixinCore._agents_visible_order
@@ -36,6 +37,7 @@ class _StubApp(AgentPanelsMixin):
         self._grouping_mode = GroupingMode.STANDARD
         self._panel_group = AgentPanelGroup.from_agents(agents, focused_key)
         self._nav_stops_cache: tuple[Any, ...] | None = None
+        self._entry_jump_last_agents_anchor: Any = None
         self.refresh_calls: list[bool] = []
         self.artifact_viewer_guard_active = False
         self.notify = MagicMock()
@@ -257,6 +259,26 @@ def test_focus_next_agent_panel_acknowledges_unread_agent_row(
     )
 
 
+def test_focus_next_agent_panel_back_jump_restores_origin() -> None:
+    agents = [
+        _agent(tag=None, project="home", cl="home", name="untagged"),
+        _agent(tag="alpha", project="alpha", cl="a", name="tagged"),
+    ]
+    app = _StubApp(agents, focused_key=None)
+    app._current_group_key = None
+
+    app.action_focus_next_agent_panel()
+
+    assert app._panel_group.focused_key == "alpha"
+    assert app.current_idx == 1
+    assert app._entry_jump_last_agents_anchor == ("agent", 0, 0)
+
+    assert app._restore_agents_jump_anchor()
+    assert app._panel_group.focused_key is None
+    assert app.current_idx == 0
+    assert app._current_group_key is None
+
+
 def test_focus_next_agent_panel_guard_keeps_panel_and_selection() -> None:
     agents = [
         _agent(tag=None, project="home", cl="home", name="untagged"),
@@ -264,12 +286,14 @@ def test_focus_next_agent_panel_guard_keeps_panel_and_selection() -> None:
     ]
     app = _StubApp(agents, focused_key=None)
     app.artifact_viewer_guard_active = True
+    app._entry_jump_last_agents_anchor = ("agent", 1, 1)
 
     app.action_focus_next_agent_panel()
 
     assert app._panel_group.focused_key is None
     assert app.current_idx == 0
     assert app._current_group_key == ("stale",)
+    assert app._entry_jump_last_agents_anchor == ("agent", 1, 1)
     assert app.refresh_calls == []
     app.notify.assert_called_once_with(
         "Close the artifact viewer before switching agents",
@@ -326,6 +350,27 @@ def test_focus_prev_agent_panel_acknowledges_unread_agent_row(
     )
 
 
+def test_focus_prev_agent_panel_back_jump_restores_origin() -> None:
+    agents = [
+        _agent(tag=None, project="home", cl="home", name="untagged"),
+        _agent(tag="alpha", project="alpha", cl="a", name="tagged"),
+    ]
+    app = _StubApp(agents, focused_key="alpha")
+    app.current_idx = 1
+    app._current_group_key = None
+
+    app.action_focus_prev_agent_panel()
+
+    assert app._panel_group.focused_key is None
+    assert app.current_idx == 0
+    assert app._entry_jump_last_agents_anchor == ("agent", 1, 1)
+
+    assert app._restore_agents_jump_anchor()
+    assert app._panel_group.focused_key == "alpha"
+    assert app.current_idx == 1
+    assert app._current_group_key is None
+
+
 def test_panel_switch_can_land_on_first_collapsed_banner() -> None:
     agents = [
         _agent(tag=None, project="home", cl="home", name="untagged"),
@@ -334,6 +379,7 @@ def test_panel_switch_can_land_on_first_collapsed_banner() -> None:
         _agent(tag="alpha", project="beta", cl="b", name="render-second"),
     ]
     app = _StubApp(agents, focused_key=None)
+    app._current_group_key = None
     app._group_fold_registry.collapse(("alpha",))
 
     app.action_focus_next_agent_panel()
@@ -343,6 +389,12 @@ def test_panel_switch_can_land_on_first_collapsed_banner() -> None:
     assert app.current_idx == 2
     assert app._agents[app.current_idx].agent_name == "banner-agent"
     assert app.current_attempt_number is None
+    assert app._entry_jump_last_agents_anchor == ("agent", 0, 0)
+
+    assert app._restore_agents_jump_anchor()
+    assert app._panel_group.focused_key is None
+    assert app._current_group_key is None
+    assert app.current_idx == 0
 
 
 def test_panel_switch_collapsed_banner_does_not_acknowledge_unread_agent(
@@ -427,6 +479,22 @@ def test_panel_switch_arms_manual_unread_departure_before_return_selection(
     notification_dismiss.assert_called_once_with(
         [{"cl_name": manual_agent.cl_name, "raw_suffix": manual_agent.raw_suffix}]
     )
+
+
+def test_focus_next_agent_panel_single_panel_does_not_overwrite_anchor() -> None:
+    agents = [
+        _agent(tag="alpha", project="alpha", cl="a", name="only"),
+    ]
+    app = _StubApp(agents, focused_key="alpha")
+    app.current_idx = 0
+    app._current_group_key = None
+    app._entry_jump_last_agents_anchor = ("agent", 0, 0)
+
+    app.action_focus_next_agent_panel()
+
+    assert app._panel_group.focused_key == "alpha"
+    assert app.current_idx == 0
+    assert app._entry_jump_last_agents_anchor == ("agent", 0, 0)
 
 
 def test_optimized_panel_switch_clears_old_panel_highlight() -> None:

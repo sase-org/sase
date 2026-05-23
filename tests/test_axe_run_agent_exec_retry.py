@@ -362,21 +362,24 @@ class TestHandleWorkflowErrorPreserveWorkspace:
         # max_retries=0 means we skip the retry branch and go to fallback.
         tracker = RetryTracker(retry_cfg=_fallback_preserve_cfg())
 
-        with (
-            patch("sase.axe.run_agent_exec_retry.time.sleep", MagicMock()),
-            patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
-            patch(
-                "sase.axe.run_agent_exec_retry.prepare_workspace",
-                MagicMock(),
-            ) as mock_prepare,
-        ):
-            action = handle_workflow_error(
-                RuntimeError("Prompt is too long"), tracker, ctx, state
-            )
+        try:
+            with (
+                patch("sase.axe.run_agent_exec_retry.time.sleep", MagicMock()),
+                patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+                patch(
+                    "sase.axe.run_agent_exec_retry.prepare_workspace",
+                    MagicMock(),
+                ) as mock_prepare,
+            ):
+                action = handle_workflow_error(
+                    RuntimeError("Prompt is too long"), tracker, ctx, state
+                )
 
-        assert action == "continue"
-        assert tracker.using_fallback is True
-        mock_prepare.assert_not_called()
+            assert action == "continue"
+            assert tracker.using_fallback is True
+            mock_prepare.assert_not_called()
+        finally:
+            os.environ.pop("SASE_MODEL_OVERRIDE", None)
 
     def test_default_preserve_workspace_false_still_calls_prepare(
         self, tmp_path: Path

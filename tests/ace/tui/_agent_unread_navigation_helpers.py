@@ -8,13 +8,14 @@ from sase.ace.tui.actions.agent_workflow._leader_mode import LeaderModeMixin
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
 from sase.ace.tui.actions.agents._navigation_order import AgentNavigationOrderMixin
 from sase.ace.tui.actions.agents._unread import AgentUnreadMixin
+from sase.ace.tui.actions.navigation._advanced import AdvancedNavigationMixin
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panels import AgentPanelGroup, panel_key_per_agent
 
 
-class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin):
+class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin, AdvancedNavigationMixin):
     def __init__(
         self,
         agents: list[Agent],
@@ -38,6 +39,7 @@ class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin):
             )
         self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._entry_jump_last_agents_anchor: Any = None
         self._visible = visible
         self._stops = stops
         self._patch_result = patch_result
@@ -80,6 +82,7 @@ class LeaderUnreadJumpApp(
     LeaderModeMixin,
     AgentUnreadMixin,
     AgentNavigationOrderMixin,
+    AdvancedNavigationMixin,
 ):
     def __init__(self, agents: list[Agent], *, current_idx: int = 0) -> None:
         self._agents = agents
@@ -95,6 +98,7 @@ class LeaderUnreadJumpApp(
         self._keymap_registry = load_keymap_registry({})
         self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._entry_jump_last_agents_anchor: Any = None
         self.patch_calls: list[Agent] = []
         self.refresh_calls: list[dict[str, Any]] = []
         self.current_tab_refresh_calls = 0

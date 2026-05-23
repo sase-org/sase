@@ -174,6 +174,15 @@ class AgentUnreadMixin:
             getattr(self, "_panel_group", None), "focused_idx", None
         )
         old_group_key = self._current_group_key
+        focus_will_change = (
+            old_idx != target_idx
+            or old_group_key is not None
+            or (target_panel_idx is not None and target_panel_idx != old_panel_idx)
+        )
+        save_jump_anchor = getattr(self, "_save_agents_jump_anchor", None)
+        if focus_will_change and callable(save_jump_anchor):
+            save_jump_anchor()
+
         target_agent = self._agents[target_idx]
         panel_changed = False
         panel_group = getattr(self, "_panel_group", None)

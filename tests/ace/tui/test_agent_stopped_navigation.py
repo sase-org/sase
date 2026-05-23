@@ -131,6 +131,7 @@ def test_jump_to_next_stopped_agent_starts_at_newest_from_focused_banner() -> No
     assert app.current_idx == 1
     assert app._current_group_key is None
     assert app.current_attempt_number is None
+    assert app._entry_jump_last_agents_anchor == ("banner", 0, ("group",))
     assert app.refresh_calls == []
 
 
@@ -160,3 +161,37 @@ def test_jump_to_next_stopped_agent_finds_non_focused_panel_row() -> None:
     assert app.current_attempt_number is None
     assert app.patch_calls == []
     assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+
+
+def test_jump_to_next_stopped_agent_back_jump_restores_without_acknowledging_unread() -> (
+    None
+):
+    origin = make_agent(name="origin", status="DONE", raw_suffix="origin")
+    target = make_agent(
+        name="target",
+        status="PLAN",
+        raw_suffix="target",
+        tag="chop",
+        start_time=datetime(2026, 5, 7, 12, 0, 0),
+    )
+    target.plan_times = [datetime(2026, 5, 7, 12, 0, 0)]
+    app = UnreadJumpApp(
+        [origin, target],
+        current_idx=0,
+        with_panels=True,
+        focused_key=None,
+    )
+    app._unread_completed_agent_ids.add(origin.identity)
+    unread_before = set(app._unread_completed_agent_ids)
+
+    assert app._jump_to_next_stopped_agent()
+    assert app.current_idx == 1
+    assert app._panel_group.focused_idx == 1
+    assert app._entry_jump_last_agents_anchor == ("agent", 0, 0)
+    assert app._unread_completed_agent_ids == unread_before
+
+    assert app._restore_agents_jump_anchor()
+    assert app.current_idx == 0
+    assert app._panel_group.focused_idx == 0
+    assert app._current_group_key is None
+    assert app._unread_completed_agent_ids == unread_before

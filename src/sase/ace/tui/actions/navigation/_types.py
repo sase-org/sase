@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal
 
-from .jump_hints import BannerJumpTarget
+from .jump_hints import AgentJumpAnchor, BannerJumpTarget
 
 if TYPE_CHECKING:
     from ....changespec import ChangeSpec
@@ -75,9 +75,7 @@ class NavigationMixinBase:
     # when it was on a banner row.  Independent of
     # ``_entry_jump_last_index`` so banner anchors can survive a tab cycle
     # without polluting the int-typed map shared with CLs/AXE tabs.
-    _entry_jump_last_agents_anchor: (
-        tuple[Literal["agent"], int, int] | BannerJumpTarget | None
-    )
+    _entry_jump_last_agents_anchor: AgentJumpAnchor | None
     _jump_all_last_position: JumpAllResult | None
     _child_key_buffer: str
     _ancestor_keys: dict[str, str]

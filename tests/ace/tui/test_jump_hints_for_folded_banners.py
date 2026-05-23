@@ -268,3 +268,39 @@ def test_apostrophe_without_anchor_dispatches_first_agent_jump_hint() -> None:
     assert app.current_idx == 1
     assert app._entry_jump_last_agents_anchor == ("agent", 1, 0)
     assert app._entry_jump_mode_active is False
+
+
+def test_stale_agent_back_anchor_falls_through_to_first_hint() -> None:
+    """Out-of-range agent anchors are ignored so ``'`` can dispatch hint ``1``."""
+    agents = [
+        _agent(project="alpha", cl="a1", name="a1"),
+        _agent(project="beta", cl="b1", name="b1"),
+    ]
+    app = _StubApp(agents, collapsed=[("alpha",)])
+    app.current_idx = 1
+    app._entry_jump_last_agents_anchor = ("agent", 99, 0)
+
+    app._begin_agents_jump_mode()
+    handled = app._handle_entry_jump_key("apostrophe")
+
+    assert handled is True
+    assert app._current_group_key == ("alpha",)
+    assert app.current_idx == 1
+    assert app._entry_jump_last_agents_anchor == ("agent", 1, 0)
+
+
+def test_invalid_panel_back_anchor_does_not_change_focused_panel() -> None:
+    """Invalid panel indexes are stale and must not be assigned during restore."""
+    agents = [
+        _agent(project="alpha", cl="a1", name="a1"),
+        _agent(project="alpha", cl="a1", name="a2", tag="ws"),
+    ]
+    app = _StubApp(agents)
+    app.current_idx = 0
+    app._entry_jump_last_agents_anchor = ("agent", 1, 99)
+
+    restored = app._restore_agents_jump_anchor()
+
+    assert restored is False
+    assert app._panel_group.focused_idx == 0
+    assert app.current_idx == 0

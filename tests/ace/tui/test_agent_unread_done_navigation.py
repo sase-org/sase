@@ -112,18 +112,22 @@ def test_repeated_leader_j_walks_unread_done_agents_by_recency(
     assert app._handle_leader_key("j") is True
     assert app.current_idx == 1
     assert app._panel_group.focused_key == "alpha"
+    assert app._entry_jump_last_agents_anchor == ("agent", 2, 0)
 
     assert app._handle_leader_key("comma") is True
     assert app.current_idx == 3
     assert app._panel_group.focused_key == "beta"
+    assert app._entry_jump_last_agents_anchor == ("agent", 1, 1)
 
     assert app._handle_leader_key("comma") is True
     assert app.current_idx == 0
     assert app._panel_group.focused_key == "zeta"
+    assert app._entry_jump_last_agents_anchor == ("agent", 3, 2)
 
     assert app._handle_leader_key("comma") is True
     assert app.current_idx == 0
     assert app._last_leader_key == "j"
+    assert app._entry_jump_last_agents_anchor == ("agent", 3, 2)
     assert app._unread_completed_agent_ids == set()
     assert app.notifications == ["No unread completed agents"]
     assert app.current_tab_refresh_calls == 4
@@ -249,7 +253,11 @@ def test_jump_to_next_unread_done_agent_falls_back_to_full_refresh() -> None:
 
 def test_jump_to_next_unread_done_agent_clears_banner_focus_and_refreshes() -> None:
     done = make_agent(name="done", status="DONE")
-    app = UnreadJumpApp([done], current_idx=0)
+    app = UnreadJumpApp(
+        [done],
+        current_idx=0,
+        stops=[("banner", ("done",)), ("agent", 0)],
+    )
     app._current_group_key = ("done",)
     app._unread_completed_agent_ids.add(done.identity)
 
@@ -257,6 +265,7 @@ def test_jump_to_next_unread_done_agent_clears_banner_focus_and_refreshes() -> N
 
     assert app.current_idx == 0
     assert app._current_group_key is None
+    assert app._entry_jump_last_agents_anchor == ("banner", 0, ("done",))
     assert done.identity not in app._unread_completed_agent_ids
     assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
 
@@ -315,6 +324,34 @@ def test_jump_to_next_unread_done_agent_finds_non_focused_panel_row() -> None:
     assert target.identity not in app._unread_completed_agent_ids
     assert app.patch_calls == []
     assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+
+
+def test_jump_to_next_unread_done_agent_back_jump_restores_origin() -> None:
+    origin = make_agent(name="origin", status="RUNNING", raw_suffix="origin")
+    target = make_agent(
+        name="target",
+        status="DONE",
+        raw_suffix="target",
+        tag="chop",
+        stop_time=datetime(2026, 5, 7, 12, 0, 0),
+    )
+    app = UnreadJumpApp(
+        [origin, target],
+        current_idx=0,
+        with_panels=True,
+        focused_key=None,
+    )
+    app._unread_completed_agent_ids.add(target.identity)
+
+    assert app._jump_to_next_unread_done_agent()
+    assert app.current_idx == 1
+    assert app._panel_group.focused_idx == 1
+    assert app._entry_jump_last_agents_anchor == ("agent", 0, 0)
+
+    assert app._restore_agents_jump_anchor()
+    assert app.current_idx == 0
+    assert app._panel_group.focused_idx == 0
+    assert app._current_group_key is None
 
 
 def test_jump_to_next_unread_done_agent_returns_false_when_no_unread_panels() -> None:

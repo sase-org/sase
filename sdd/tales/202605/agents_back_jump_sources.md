@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 15:39:59
-status: wip
+status: done
 prompt: sdd/prompts/202605/agents_back_jump_sources.md
 ---
 # Agents Back-Jump Sources Plan

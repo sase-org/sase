@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Literal
-
 from ...changespec_history import ChangeSpecHistoryEntry
 from ...models.fold_state import (
     FoldLevel,
@@ -11,6 +9,7 @@ from ...models.fold_state import (
     cycle_forward,
 )
 from .jump_hints import (
+    AgentJumpAnchor,
     BannerJumpTarget,
     JumpTarget,
     build_jump_hint_maps,
@@ -295,53 +294,113 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         else:
             self._refresh_current_tab()  # type: ignore[attr-defined]
 
+    def _current_agents_panel_idx(self) -> int | None:
+        """Return the focused agents panel index, or ``None`` if it is stale."""
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is None:
+            return 0
+        panel_idx = getattr(panel_group, "focused_idx", None)
+        panel_keys = getattr(panel_group, "panel_keys", [])
+        if not isinstance(panel_idx, int):
+            return None
+        if not (0 <= panel_idx < len(panel_keys)):
+            return None
+        return panel_idx
+
+    def _current_agents_banner_is_selectable(self, group_key: tuple[str, ...]) -> bool:
+        """Return whether ``group_key`` is a selectable banner in this panel."""
+        stops_fn = getattr(self, "_panel_navigation_stops", None)
+        if not callable(stops_fn):
+            return True
+        try:
+            stops = stops_fn()
+        except Exception:
+            return True
+        return any(kind == "banner" and payload == group_key for kind, payload in stops)
+
+    def _current_agents_jump_anchor(self) -> AgentJumpAnchor | None:
+        """Snapshot the agents-tab cursor as an agent row or collapsed banner."""
+        panel_idx = self._current_agents_panel_idx()
+        if panel_idx is None:
+            return None
+
+        group_key = getattr(self, "_current_group_key", None)
+        if group_key is not None and self._current_agents_banner_is_selectable(
+            group_key
+        ):
+            return ("banner", panel_idx, group_key)
+
+        if 0 <= self.current_idx < len(self._agents):
+            return ("agent", self.current_idx, panel_idx)
+        return None
+
     def _save_agents_jump_anchor(self) -> None:
         """Snapshot the agents-tab cursor (agent or banner) for ``'`` back-jump."""
-        panel_idx = self._panel_group.focused_idx
-        if self._current_group_key is not None:
-            self._entry_jump_last_agents_anchor = (
-                "banner",
-                panel_idx,
-                self._current_group_key,
-            )
-        else:
-            self._entry_jump_last_agents_anchor = (
-                "agent",
-                self.current_idx,
-                panel_idx,
-            )
+        anchor = self._current_agents_jump_anchor()
+        if anchor is not None:
+            self._entry_jump_last_agents_anchor = anchor
+
+    def _remember_agents_jump_origin_if_changed(
+        self,
+        *,
+        target_idx: int | None,
+        target_panel_idx: int | None,
+        target_group_key: tuple[str, ...] | None,
+    ) -> None:
+        """Save the current cursor when an agents jump will change focus."""
+        current_panel_idx = self._current_agents_panel_idx()
+        panel_changed = (
+            target_panel_idx is not None and target_panel_idx != current_panel_idx
+        )
+        row_changed = target_idx is not None and target_idx != self.current_idx
+        group_changed = target_group_key != getattr(self, "_current_group_key", None)
+        if row_changed or panel_changed or group_changed:
+            self._save_agents_jump_anchor()
+
+    def _agents_jump_anchor_panel_is_valid(self, panel_idx: int) -> bool:
+        """Return whether ``panel_idx`` can be assigned in the current panel set."""
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is None:
+            return panel_idx == 0
+        return 0 <= panel_idx < len(panel_group.panel_keys)
+
+    def _focus_agents_jump_anchor_panel(self, panel_idx: int) -> None:
+        """Focus the panel for a validated agents jump anchor."""
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is not None:
+            panel_group.focused_idx = panel_idx
 
     def _restore_agents_jump_anchor(self) -> bool:
         """Restore the saved agents-tab anchor.  Returns True on success."""
         anchor = self._entry_jump_last_agents_anchor
         if anchor is None:
             return False
+        if anchor[0] == "agent":
+            _, agent_idx, target_panel = anchor
+            if not (0 <= agent_idx < len(self._agents)):
+                return False
+            if not self._agents_jump_anchor_panel_is_valid(target_panel):
+                return False
+        else:
+            _, target_panel, _group_key = anchor
+            if not self._agents_jump_anchor_panel_is_valid(target_panel):
+                return False
+
         # Capture the current spot as the new anchor before jumping back so
         # a third ``'`` press toggles back to where we were.
-        new_anchor: tuple[Literal["agent"], int, int] | BannerJumpTarget
-        panel_idx = self._panel_group.focused_idx
-        if self._current_group_key is not None:
-            new_anchor = ("banner", panel_idx, self._current_group_key)
-        else:
-            new_anchor = ("agent", self.current_idx, panel_idx)
+        new_anchor = self._current_agents_jump_anchor()
+        if new_anchor is None:
+            return False
         self._entry_jump_last_agents_anchor = new_anchor
 
         if anchor[0] == "agent":
             _, agent_idx, target_panel = anchor
-            if (
-                target_panel != self._panel_group.focused_idx
-                and 0 <= target_panel < len(self._panel_group.panel_keys)
-            ):
-                self._panel_group.focused_idx = target_panel
+            self._focus_agents_jump_anchor_panel(target_panel)
             self._current_group_key = None
             self.current_idx = agent_idx
         else:
             _, target_panel, group_key = anchor
-            if (
-                target_panel != self._panel_group.focused_idx
-                and 0 <= target_panel < len(self._panel_group.panel_keys)
-            ):
-                self._panel_group.focused_idx = target_panel
+            self._focus_agents_jump_anchor_panel(target_panel)
             self._current_group_key = group_key
         return True
 
@@ -404,9 +463,13 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             if callable(guard) and guard():
                 self._exit_entry_jump_mode()
                 return True
-            self._save_agents_jump_anchor()
             if banner_target is not None:
                 _, panel_idx, group_key = banner_target
+                self._remember_agents_jump_origin_if_changed(
+                    target_idx=None,
+                    target_panel_idx=panel_idx,
+                    target_group_key=group_key,
+                )
                 if 0 <= panel_idx < len(self._panel_group.panel_keys):
                     if panel_idx != self._panel_group.focused_idx:
                         self._panel_group.focused_idx = panel_idx
@@ -414,6 +477,11 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             else:
                 assert agent_target is not None
                 agent_panel_idx = self._panel_idx_for_agent_jump_target(agent_target)
+                self._remember_agents_jump_origin_if_changed(
+                    target_idx=agent_target,
+                    target_panel_idx=agent_panel_idx,
+                    target_group_key=None,
+                )
                 if (
                     agent_panel_idx is not None
                     and agent_panel_idx != self._panel_group.focused_idx

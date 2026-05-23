@@ -181,7 +181,7 @@ class StateInitMixin:
         self._entry_jump_index_to_hint: dict[int, str] = {}
         # Agents-tab banner targets (kept in their own maps so the int-keyed
         # agent maps above can stay shared with CLs / AXE tabs).
-        from .navigation.jump_hints import BannerJumpTarget
+        from .navigation.jump_hints import AgentJumpAnchor, BannerJumpTarget
 
         self._entry_jump_hint_to_banner: dict[str, BannerJumpTarget] = {}
         self._entry_jump_banner_to_hint: dict[BannerJumpTarget, str] = {}
@@ -198,9 +198,7 @@ class StateInitMixin:
         self._entry_jump_last_panel: dict[str, str | None] = {}
         # Banner-aware agents-tab anchor; ``None`` when the user has not yet
         # used jump mode on the agents tab.
-        self._entry_jump_last_agents_anchor: (
-            tuple[Literal["agent"], int, int] | BannerJumpTarget | None
-        ) = None
+        self._entry_jump_last_agents_anchor: AgentJumpAnchor | None = None
 
         # Cross-tab jump back state (`)
         self._jump_all_last_position: JumpAllResult | None = None

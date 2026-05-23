@@ -75,6 +75,8 @@ class AgentPanelNavigationMixin:
             return
         if self._guard_agent_navigation_for_artifact_viewer():  # type: ignore[attr-defined]
             return
+        if len(self._panel_group.panel_keys) <= 1:
+            return
         old_focused_idx = self._panel_group.focused_idx
         old_idx = self.current_idx
         old_group_key = self._current_group_key
@@ -83,6 +85,9 @@ class AgentPanelNavigationMixin:
             if old_group_key is None and 0 <= old_idx < len(self._agents)
             else None
         )
+        save_jump_anchor = getattr(self, "_save_agents_jump_anchor", None)
+        if callable(save_jump_anchor):
+            save_jump_anchor()
         if forward:
             changed = self._panel_group.focus_next()
         else:

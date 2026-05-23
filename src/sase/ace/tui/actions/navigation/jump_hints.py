@@ -13,6 +13,7 @@ JUMP_HINT_CHARS = "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXY
 AgentJumpTarget = tuple[Literal["agent"], int]
 BannerJumpTarget = tuple[Literal["banner"], int, tuple[str, ...]]
 JumpTarget = AgentJumpTarget | BannerJumpTarget
+AgentJumpAnchor = tuple[Literal["agent"], int, int] | BannerJumpTarget
 
 
 def normalize_jump_key(key: str, character: str | None = None) -> str:
