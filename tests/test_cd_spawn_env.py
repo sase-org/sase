@@ -289,7 +289,10 @@ def test_spawn_agent_subprocess_exports_sibling_repo_env_without_prompt_note(
         project_file=str(project_file),
         workspace_dir=str(workspace),
         workspace_num=101,
-        config={"sibling_repos": [{"name": "core", "path": "../sase-core"}]},
+        config={
+            "workspace": {"root": "adjacent"},
+            "sibling_repos": [{"name": "core", "path": "../sase-core"}],
+        },
         materialize=False,
     )
 

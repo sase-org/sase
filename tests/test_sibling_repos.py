@@ -31,7 +31,10 @@ def test_resolves_relative_sibling_from_primary_not_numbered_workspace(
         project_file=str(project_file),
         workspace_dir=str(workspace),
         workspace_num=10,
-        config={"sibling_repos": [{"name": "core", "path": "../sase-core"}]},
+        config={
+            "workspace": {"root": "adjacent"},
+            "sibling_repos": [{"name": "core", "path": "../sase-core"}],
+        },
         materialize=False,
     )
 
@@ -41,6 +44,36 @@ def test_resolves_relative_sibling_from_primary_not_numbered_workspace(
     assert repo.primary_dir == str(sibling.resolve())
     assert repo.workspace_dir == str((tmp_path / "sase-core_10").resolve())
     assert repo.workspace_num == 10
+
+
+def test_non_materializing_resolution_uses_managed_workspace_root(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "sase"
+    workspace = tmp_path / "sase_10"
+    sibling = tmp_path / "sase-core"
+    managed_root = tmp_path / "managed"
+    primary.mkdir()
+    workspace.mkdir()
+    sibling.mkdir()
+    project_file = _project_file(tmp_path / "project.sase", primary)
+
+    resolution = resolve_sibling_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(workspace),
+        workspace_num=10,
+        config={
+            "workspace": {"root": str(managed_root), "project_key": "sase-suite"},
+            "sibling_repos": [{"name": "core", "path": "../sase-core"}],
+        },
+        materialize=False,
+    )
+
+    assert resolution.warnings == ()
+    repo = resolution.repos[0]
+    expected = managed_root / "sase-suite" / "sase-core_10"
+    assert repo.workspace_dir == str(expected.resolve(strict=False))
+    assert not expected.exists()
 
 
 def test_absolute_none_strategy_uses_primary_path_without_suffix(
@@ -88,10 +121,11 @@ def test_env_aliases_are_sanitized_and_json_is_canonical(tmp_path: Path) -> None
         workspace_dir=str(primary),
         workspace_num=4,
         config={
+            "workspace": {"root": "adjacent"},
             "sibling_repos": [
                 {"name": "sase-core", "path": "../first"},
                 {"name": "sase.core", "path": "../second"},
-            ]
+            ],
         },
         materialize=False,
     )

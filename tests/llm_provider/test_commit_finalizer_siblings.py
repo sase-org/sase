@@ -173,6 +173,56 @@ def test_config_fallback_checks_none_strategy_absolute_sibling(
     assert "dotfile" in prompts[0]
 
 
+def test_config_fallback_checks_managed_root_sibling(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "sase"
+    workspace = tmp_path / "sase_10"
+    sibling_primary = tmp_path / "sase-core"
+    managed_root = tmp_path / "managed"
+    managed_sibling = managed_root / "suite" / "sase-core_10"
+    primary.mkdir()
+    workspace.mkdir()
+    sibling_primary.mkdir()
+    _init_git_repo(managed_sibling)
+    dirty_file = managed_sibling / "dirty.txt"
+    dirty_file.write_text("dirty\n", encoding="utf-8")
+    project_file = tmp_path / "project.sase"
+    project_file.write_text(f"WORKSPACE_DIR: {primary}\nNAME: sase\n", encoding="utf-8")
+    (primary / "sase.yml").write_text(
+        "workspace:\n"
+        f"  root: {managed_root}\n"
+        "  project_key: suite\n"
+        "sibling_repos:\n"
+        "  - name: core\n"
+        "    path: ../sase-core\n"
+        "    description: Rust core checkout.\n",
+        encoding="utf-8",
+    )
+    _set_agent_env(monkeypatch, workspace)
+    _set_clean_main(monkeypatch)
+    monkeypatch.setenv("SASE_AGENT_PROJECT_FILE", str(project_file))
+    monkeypatch.delenv(SIBLING_REPOS_JSON_ENV, raising=False)
+
+    prompts: list[str] = []
+    provider = MagicMock()
+
+    def invoke(prompt: str, **_: object) -> InvokeResult:
+        prompts.append(prompt)
+        dirty_file.unlink()
+        return InvokeResult(content="finalized core")
+
+    provider.invoke.side_effect = invoke
+
+    result = _run_finalizer(provider, tmp_path / "artifacts")
+
+    assert result.content == "primary response\n\nfinalized core"
+    assert provider.invoke.call_count == 1
+    assert f"cd {managed_sibling.resolve()}" in prompts[0]
+    assert "dirty.txt" in prompts[0]
+
+
 def test_multiple_dirty_configured_siblings_are_listed_and_rechecked(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

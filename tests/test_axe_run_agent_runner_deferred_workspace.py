@@ -112,7 +112,10 @@ class TestDeferredWorkspacePreparation:
             project_file=str(project_file),
             workspace_dir=str(workspace_dir),
             workspace_num=7,
-            config={"sibling_repos": [{"name": "core", "path": "../sase-core"}]},
+            config={
+                "workspace": {"root": "adjacent"},
+                "sibling_repos": [{"name": "core", "path": "../sase-core"}],
+            },
             materialize=False,
         )
         monkeypatch.setenv(SIBLING_REPOS_JSON_ENV, "stale")
