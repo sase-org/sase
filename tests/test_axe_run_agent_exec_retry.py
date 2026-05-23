@@ -1,7 +1,10 @@
 """Tests for run_agent_exec_retry.handle_workflow_error and helpers."""
 
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from sase.axe.run_agent_exec import AgentExecContext, LoopState
 from sase.axe.run_agent_exec_retry import (
@@ -10,6 +13,16 @@ from sase.axe.run_agent_exec_retry import (
     handle_workflow_error,
 )
 from sase.llm_provider.retry_config import ProviderRetryConfig
+
+
+@pytest.fixture(autouse=True)
+def _restore_model_override_env():
+    original = os.environ.get("SASE_MODEL_OVERRIDE")
+    yield
+    if original is None:
+        os.environ.pop("SASE_MODEL_OVERRIDE", None)
+    else:
+        os.environ["SASE_MODEL_OVERRIDE"] = original
 
 
 def _make_ctx(tmp_path: Path) -> AgentExecContext:
