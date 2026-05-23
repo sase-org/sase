@@ -27,5 +27,11 @@ def handle_memory_command(args: argparse.Namespace) -> None:
         _handle_memory_list_command(args)
         sys.exit(0)
 
-    print("Usage: sase memory {init,list}", file=sys.stderr)
+    if sub == "read":
+        from sase.memory.cli_read import handle_memory_read_command
+
+        handle_memory_read_command(args)
+        sys.exit(0)
+
+    print("Usage: sase memory {init,list,read}", file=sys.stderr)
     sys.exit(1)

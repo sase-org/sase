@@ -11,7 +11,9 @@ import pytest
 from rich.console import Console
 
 from sase.memory.cli_list import _render_memory_inventory
+from sase.memory.cli_read import handle_memory_read_command
 from sase.memory.inventory import build_memory_inventory
+from sase.memory.read_log import memory_read_log_path, read_memory_read_events
 from sase.main import memory_handler
 from sase.main.parser import create_parser
 
@@ -40,9 +42,24 @@ def test_parser_registers_memory_namespace() -> None:
     assert list_args.command == "memory"
     assert list_args.memory_subcommand == "list"
 
+    read_args = parser.parse_args(
+        ["memory", "read", "long/foo.md", "--reason", "Need context"]
+    )
+    assert read_args.command == "memory"
+    assert read_args.memory_subcommand == "read"
+    assert read_args.memory_path == "long/foo.md"
+    assert read_args.reason == "Need context"
+
     default_args = parser.parse_args(["memory"])
     assert default_args.command == "memory"
     assert default_args.memory_subcommand is None
+
+
+def test_parser_requires_memory_read_reason() -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["memory", "read", "long/foo.md"])
 
 
 def test_memory_init_dispatches_to_primary_init(
@@ -65,6 +82,29 @@ def test_memory_init_dispatches_to_primary_init(
     assert exc.value.code == 0
     assert calls == [args]
     assert calls[0].no_commit is True
+
+
+def test_memory_read_dispatches_to_read_handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[argparse.Namespace] = []
+
+    def fake_read(args: argparse.Namespace) -> None:
+        calls.append(args)
+
+    monkeypatch.setattr(
+        "sase.memory.cli_read.handle_memory_read_command",
+        fake_read,
+    )
+    args = create_parser().parse_args(
+        ["memory", "read", "long/foo.md", "--reason", "Need context"]
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        memory_handler.handle_memory_command(args)
+
+    assert exc.value.code == 0
+    assert calls == [args]
 
 
 def test_init_memory_alias_dispatches_to_memory_init(
@@ -154,6 +194,109 @@ def test_memory_list_dashboard_renders_inventory_statuses(tmp_path: Path) -> Non
     assert "Plain memory/... paths are visible references only." in text
     assert "Dynamic memory under .sase/memory is prompt-dependent" in text
     assert "agent launch" in text
+
+
+def test_memory_read_prints_body_and_appends_log(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = tmp_path / "home"
+    artifacts_dir = tmp_path / "artifacts"
+    _write(
+        tmp_path / "memory" / "long" / "foo.md",
+        "---\nkeywords: [foo]\n---\n# Body\n\n",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+
+    handle_memory_read_command(
+        argparse.Namespace(memory_path="long/foo.md", reason=" Need foo ")
+    )
+
+    captured = capsys.readouterr()
+    assert captured.out == "# Body\n\n"
+    assert captured.err == ""
+    events = read_memory_read_events(log_path=memory_read_log_path(cwd=tmp_path))
+    assert len(events) == 1
+    assert events[0].canonical_path == "long/foo.md"
+    assert events[0].agent_name == "agent-a"
+    assert events[0].artifacts_dir == str(artifacts_dir)
+    assert events[0].reason == "Need foo"
+    assert events[0].frontmatter_stripped is True
+
+
+def test_memory_read_rejects_short_memory_without_logging(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = tmp_path / "home"
+    _write(tmp_path / "memory" / "short" / "foo.md", "# Short\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
+
+    with pytest.raises(SystemExit) as exc:
+        handle_memory_read_command(
+            argparse.Namespace(memory_path="short/foo.md", reason="Need short")
+        )
+
+    captured = capsys.readouterr()
+    assert exc.value.code == 1
+    assert captured.out == ""
+    assert "memory/short" in captured.err
+    assert not memory_read_log_path(cwd=tmp_path).exists()
+
+
+def test_memory_read_rejects_blank_reason_before_logging(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = tmp_path / "home"
+    _write(tmp_path / "memory" / "long" / "foo.md", "# Body\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
+
+    with pytest.raises(SystemExit) as exc:
+        handle_memory_read_command(
+            argparse.Namespace(memory_path="long/foo.md", reason="   ")
+        )
+
+    captured = capsys.readouterr()
+    assert exc.value.code == 1
+    assert captured.out == ""
+    assert "reason" in captured.err
+    assert not memory_read_log_path(cwd=tmp_path).exists()
+
+
+def test_memory_read_requires_agent_attribution_before_logging(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = tmp_path / "home"
+    _write(tmp_path / "memory" / "long" / "foo.md", "# Body\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
+    monkeypatch.delenv("SASE_AGENT", raising=False)
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+
+    with pytest.raises(SystemExit) as exc:
+        handle_memory_read_command(
+            argparse.Namespace(memory_path="long/foo.md", reason="Need foo")
+        )
+
+    captured = capsys.readouterr()
+    assert exc.value.code == 1
+    assert captured.out == ""
+    assert "agent attribution" in captured.err
+    assert not memory_read_log_path(cwd=tmp_path).exists()
 
 
 def test_memory_list_dashboard_renders_home_context_paths(tmp_path: Path) -> None:

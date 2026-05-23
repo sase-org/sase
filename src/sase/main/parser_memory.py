@@ -50,3 +50,22 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             "available files, and missing references."
         ),
     )
+
+    read_parser = memory_subparsers.add_parser(
+        "read",
+        help="Read and audit a long-term memory file",
+        description=(
+            "Read a memory/long markdown file, strip leading YAML frontmatter, "
+            "and append an attributable audit log row."
+        ),
+    )
+    read_parser.add_argument(
+        "memory_path",
+        metavar="memory-relative-path",
+        help="Path relative to memory/, for example long/generated_skills.md",
+    )
+    read_parser.add_argument(
+        "--reason",
+        required=True,
+        help="Non-empty reason for the audited memory read",
+    )
