@@ -1,4 +1,4 @@
-"""Data models used by the ``sase init memory`` command."""
+"""Data models used by the ``sase memory init`` command."""
 
 from __future__ import annotations
 

@@ -71,7 +71,11 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
 
     memory_parser = init_subparsers.add_parser(
         "memory",
-        help="Initialize SASE memory files and provider instruction shims",
+        help="Alias for `sase memory init`",
+        description=(
+            "Compatibility alias for `sase memory init`, which creates or "
+            "refreshes SASE memory files and provider instruction shims."
+        ),
     )
     memory_parser.add_argument(
         "-C",

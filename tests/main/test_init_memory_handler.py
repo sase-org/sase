@@ -1,4 +1,4 @@
-"""Tests for the ``sase init memory`` command."""
+"""Tests for the ``sase memory init`` command."""
 
 from __future__ import annotations
 
@@ -286,6 +286,12 @@ sibling_repos:
     for root in (project_root, home_root):
         assert (root / "memory" / "long").is_dir()
         assert (root / "memory" / "README.md").is_file()
+        readme = (root / "memory" / "README.md").read_text()
+        assert "`sase memory list`" in readme
+        assert "`sase memory init`" in readme
+        assert "`@memory/...` reference" in readme
+        assert "Plain `memory/...` mentions" in readme
+        assert "`.sase/memory/` are prompt-dependent" in readme
         assert "@memory/short/sase.md" in (root / "AGENTS.md").read_text()
         for filename in ("CLAUDE.md", "GEMINI.md", "QWEN.md", "OPENCODE.md"):
             assert (root / filename).read_text() == "@AGENTS.md\n"

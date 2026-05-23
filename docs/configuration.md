@@ -1144,10 +1144,20 @@ subcommands below for setup today.
 | `--check`   | flag   | -       | Reserved for registered planners; currently no planner work is checked.       |
 | `-y, --yes` | flag   | -       | Reserved for registered planners; currently no initializer runs are launched. |
 
-### `sase init memory`
+### `sase memory`
+
+With no subcommand, `sase memory` defaults to `sase memory list`.
+
+| Form               | Flags | Description                                                                                  |
+| ------------------ | ----- | -------------------------------------------------------------------------------------------- |
+| `sase memory`      | -     | Show the same read-only memory context dashboard as `sase memory list`.                      |
+| `sase memory list` | -     | Show loaded, referenced, available, and missing memory files for the current launch context. |
+
+### `sase memory init`
 
 Creates or refreshes project and home memory roots, `AGENTS.md` when absent, and provider instruction shims. By default
-it also tries to commit, rebase-pull, and push generated project-side files.
+it also tries to commit, rebase-pull, and push generated project-side files. `sase init memory` is a compatibility alias
+for this command.
 
 | Flag              | Values | Default | Description                                                                                             |
 | ----------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |

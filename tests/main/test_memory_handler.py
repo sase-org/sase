@@ -143,4 +143,5 @@ def test_memory_list_dashboard_renders_inventory_statuses(tmp_path: Path) -> Non
     assert "memory/long/missing.md" in text
     assert "@path loads file contents" in text
     assert "Plain memory/... paths are visible references only." in text
-    assert "Dynamic memory is prompt-dependent" in text
+    assert "Dynamic memory under .sase/memory is prompt-dependent" in text
+    assert "agent launch" in text

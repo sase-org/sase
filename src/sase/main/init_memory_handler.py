@@ -378,7 +378,7 @@ def plan_init_memory(args: argparse.Namespace) -> InitPlan:
 
 
 def run_init_memory(args: argparse.Namespace) -> int:
-    """Apply ``sase init memory`` and return a process exit code."""
+    """Apply ``sase memory init`` and return a process exit code."""
     inputs = _load_memory_inputs(args)
     if inputs.config_errors:
         _print_config_errors(inputs.config_errors)

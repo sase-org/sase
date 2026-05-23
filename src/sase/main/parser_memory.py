@@ -8,6 +8,10 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
     memory_parser = subparsers.add_parser(
         "memory",
         help="Inspect and initialize SASE memory context",
+        description=(
+            "Inspect SASE memory context. With no subcommand, defaults to "
+            "`sase memory list`."
+        ),
     )
     memory_subparsers = memory_parser.add_subparsers(
         dest="memory_subcommand",
@@ -17,7 +21,12 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
 
     init_parser = memory_subparsers.add_parser(
         "init",
-        help="Initialize SASE memory files and provider instruction shims",
+        help="Create or refresh memory files and provider instruction shims",
+        description=(
+            "Create or refresh SASE memory files and provider instruction "
+            "shims. `sase init memory` is a compatibility alias for this "
+            "command."
+        ),
     )
     init_parser.add_argument(
         "-C",
@@ -28,5 +37,10 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
 
     memory_subparsers.add_parser(
         "list",
-        help="List memory files visible from the current launch context",
+        help="Show loaded, referenced, available, and missing memory files",
+        description=(
+            "Show the memory files visible from the current launch context, "
+            "including loaded @ references, referenced-only plain memory paths, "
+            "available files, and missing references."
+        ),
     )

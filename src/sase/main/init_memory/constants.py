@@ -1,4 +1,4 @@
-"""Shared constants for ``sase init memory`` helpers."""
+"""Shared constants for ``sase memory init`` helpers."""
 
 COMMAND_LABEL = "init memory"
 PROJECT_COMMIT_MESSAGE = "chore: run sase init memory"

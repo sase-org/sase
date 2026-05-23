@@ -1,1 +1,1 @@
-"""Helpers for the ``sase init memory`` command."""
+"""Helpers for the ``sase memory init`` command."""

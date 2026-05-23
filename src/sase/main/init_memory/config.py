@@ -1,4 +1,4 @@
-"""Configuration and project-name helpers for ``sase init memory``."""
+"""Configuration and project-name helpers for ``sase memory init``."""
 
 from __future__ import annotations
 

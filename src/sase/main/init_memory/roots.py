@@ -85,12 +85,18 @@ def _render_sase_memory(
 def _render_memory_readme() -> str:
     return (
         "# SASE Memory\n\n"
-        "The `memory/` directory holds agent-facing project context.\n\n"
-        "- `memory/short/` contains always-loaded context referenced from "
-        "`AGENTS.md`.\n"
-        "- `memory/long/` contains detailed context that must be reachable "
-        "from `AGENTS.md` directly or through another\n"
-        "  referenced memory file.\n"
+        "The `memory/` directory holds agent-facing project context. Use "
+        "`sase memory list` to inspect what a launch would load or reference, "
+        "and `sase memory init` to create or refresh generated memory files.\n\n"
+        "- `memory/short/` contains short-term context that is loaded when an "
+        "instruction root reaches it through an `@memory/...` reference.\n"
+        "- `memory/long/` contains detailed long-term context. Plain "
+        "`memory/...` mentions make files visible as references, but do not "
+        "load file contents unless the file is also reached through an "
+        "`@...` reference.\n"
+        "- Dynamic memory files under `.sase/memory/` are prompt-dependent. "
+        "They are generated only during agent launch when keyword-tagged "
+        "long-term sources match the prompt, not by `sase memory list`.\n"
     )
 
 

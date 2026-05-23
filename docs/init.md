@@ -4,14 +4,15 @@ SASE initialization commands create or refresh durable files that agents and com
 run the explicit subcommands instead of bare `sase init`:
 
 ```bash
-sase init memory --no-commit
+sase memory init --no-commit
+sase memory list
 sase init sdd
 sase init skills --dry-run
 ```
 
-`sase init memory --no-commit` is usually the safest first run because it writes the generated files but skips the
+`sase memory init --no-commit` is usually the safest first run because it writes the generated files but skips the
 project git commit/pull/push path. It is not a dry run: it can still write project files, write home memory, and follow
-home-level `use_chezmoi` deployment.
+home-level `use_chezmoi` deployment. `sase init memory` remains a compatibility alias for `sase memory init`.
 
 Bare `sase init` is coordinator plumbing for a future umbrella setup flow. It accepts `--check` and `--yes`, but the
 current release has no registered planners, so `sase init`, `sase init --check`, and `sase init --yes` all report that
@@ -24,8 +25,11 @@ no init planners are registered and exit non-zero.
 | `sase init`                      | Current coordinator stub; reports that no planners are registered and exits non-zero.  |
 | `sase init --check`              | Parsed today, but no drift checks run until planners are registered.                   |
 | `sase init --yes`                | Parsed today, but no initializers run until planners are registered.                   |
-| `sase init memory`               | Create or refresh project/home memory roots and provider instruction shims.            |
-| `sase init memory -C`            | Write memory files but skip the project git commit/pull/push path.                     |
+| `sase memory`                    | Alias for `sase memory list`.                                                          |
+| `sase memory list`               | Inspect loaded, referenced, available, and missing memory files for the current root.  |
+| `sase memory init`               | Create or refresh project/home memory roots and provider instruction shims.            |
+| `sase memory init -C`            | Write memory files but skip the project git commit/pull/push path.                     |
+| `sase init memory`               | Compatibility alias for `sase memory init`.                                            |
 | `sase init sdd`                  | Alias for `sase sdd init`; refreshes generated SDD README files and the directory map. |
 | `sase init skills`               | Generate skill files; existing files require confirmation or `--force`.                |
 | `sase init skills --dry-run`     | Preview generated skill target paths without writing files.                            |
@@ -34,7 +38,7 @@ no init planners are registered and exit non-zero.
 
 ## Memory Initialization
 
-`sase init memory` initializes both project-local and home-level memory surfaces:
+`sase memory init` initializes both project-local and home-level memory surfaces:
 
 - Project memory under `./memory/`, including `memory/README.md`, `memory/short/sase.md`, and `memory/long/`.
 - Home memory under `~/memory/`, or under `~/.local/share/chezmoi/home/` when `use_chezmoi: true`.
@@ -52,13 +56,27 @@ Every configured `sibling_repos` entry must have a non-empty `description`. Init
 ambiguous memory when a description is missing.
 
 By default, project memory initialization runs the configured precommit command, stages generated project files, commits
-them with `chore: run sase init memory`, pulls with rebase, and pushes. Use `sase init memory --no-commit` when you want
-to review generated project files before committing. That flag only skips the project deploy path; home memory
-deployment still follows `use_chezmoi` when it is enabled.
+them with the standard memory-init commit message, pulls with rebase, and pushes. Use `sase memory init --no-commit`
+when you want to review generated project files before committing. That flag only skips the project deploy path; home
+memory deployment still follows `use_chezmoi` when it is enabled.
 
 Memory validation is reachability-based: Markdown files under `memory/short/` and `memory/long/` must be reachable from
 `AGENTS.md` directly or through transitive `@memory/...` or `memory/...` references. Unreferenced memory files make the
 command fail so important agent context is not silently ignored.
+
+## Memory Context List
+
+`sase memory list`, or bare `sase memory`, renders a read-only dashboard for the current directory. It reports:
+
+- `loaded` files reached by transitive `@...` references from instruction roots such as `AGENTS.md` and provider shims.
+- `referenced` files mentioned by plain `memory/...` text from loaded context. These are visible in the dashboard, but
+  their contents are not loaded unless another `@...` edge reaches them.
+- `available` files present under `memory/short/` or `memory/long/` that the current launch context does not reach.
+- `missing` referenced memory paths that do not exist.
+
+The dashboard includes approximate local token estimates. It reports discoverable long-term sources, but it does not
+generate prompt-dependent `.sase/memory/` files; those are written only during an agent launch when keyword-tagged
+long-term memory matches the prompt.
 
 ## SDD Initialization
 

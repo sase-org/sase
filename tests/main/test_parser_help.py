@@ -52,6 +52,10 @@ def _help_subcommand_rows(help_text: str, expected_commands: set[str]) -> list[s
     return commands
 
 
+def _flat_help(help_text: str) -> str:
+    return " ".join(help_text.split())
+
+
 def test_all_subparser_choices_are_sorted() -> None:
     """Every subcommand group keeps usage metavars sorted alphabetically."""
     parser = create_parser()
@@ -85,6 +89,21 @@ def test_agents_help_renders_sorted_subcommands() -> None:
 
     assert help_commands == sorted(expected_commands)
     assert "{archive,index,kill,names,show,status,tag}" in agents_parser.format_help()
+
+
+def test_memory_help_marks_primary_command_and_init_alias() -> None:
+    """Memory help text points users to the new primary command surface."""
+    memory_help = _flat_help(_parser_for(("sase", "memory")).format_help())
+    memory_init_help = _flat_help(_parser_for(("sase", "memory", "init")).format_help())
+    memory_list_help = _flat_help(_parser_for(("sase", "memory", "list")).format_help())
+    init_alias_help = _flat_help(_parser_for(("sase", "init", "memory")).format_help())
+
+    assert "`sase memory list`" in memory_help
+    assert "loaded, referenced, available, and missing memory files" in memory_help
+    assert "`sase init memory` is a compatibility alias" in memory_init_help
+    assert "loaded @ references" in memory_list_help
+    assert "referenced-only plain memory paths" in memory_list_help
+    assert "Compatibility alias for `sase memory init`" in init_alias_help
 
 
 def test_init_and_git_namespace_parsers() -> None:

@@ -39,7 +39,9 @@ agents from the TUI.
 | `sase changespec search`                     | Search and filter ChangeSpecs with the query language.                    | [Query language](query_language.md)             |
 | `sase changespec sync-deltas`                | Recompute the `DELTAS` field for a ChangeSpec from VCS state.             | [ChangeSpecs](change_spec.md)                   |
 | `sase init`                                  | Run the initialization coordinator; use explicit subcommands today.       | [Initialization](init.md)                       |
-| `sase init memory`                           | Create or refresh project/home memory files and provider shims.           | [Initialization](init.md#memory-initialization) |
+| `sase memory` / `sase memory list`           | Show loaded, referenced, available, and missing memory files.             | [Initialization](init.md#memory-context-list)   |
+| `sase memory init`                           | Create or refresh project/home memory files and provider shims.           | [Initialization](init.md#memory-initialization) |
+| `sase init memory`                           | Alias for `sase memory init`.                                             | [Initialization](init.md#memory-initialization) |
 | `sase sdd init`                              | Create or refresh SDD README files and directory map assets.              | [SDD](sdd.md)                                   |
 | `sase init sdd`                              | Alias for `sase sdd init`.                                                | [SDD](sdd.md)                                   |
 | `sase sdd list`                              | List SDD prompt, tale, epic, legend, or all Markdown artifacts.           | [SDD](sdd.md)                                   |
