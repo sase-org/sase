@@ -120,11 +120,13 @@ def resolve_sibling_repos_for_project(
     """Resolve configured sibling repos for a launched project workspace."""
 
     primary_workspace_dir = _primary_workspace_dir(project_file, workspace_dir)
-    entries = _configured_entries(primary_workspace_dir, config)
+    resolution_config = _resolution_config(primary_workspace_dir, config)
+    entries = _entries_from_config(resolution_config)
     return _resolve_sibling_repos(
         entries,
         primary_workspace_dir=primary_workspace_dir,
         workspace_num=workspace_num,
+        config=resolution_config,
         materialize=materialize,
     )
 
@@ -134,6 +136,7 @@ def _resolve_sibling_repos(
     *,
     primary_workspace_dir: str,
     workspace_num: int,
+    config: Mapping[str, Any],
     materialize: bool = True,
 ) -> SiblingRepoResolution:
     """Resolve raw ``sibling_repos`` config entries into concrete paths."""
@@ -176,6 +179,7 @@ def _resolve_sibling_repos(
                 primary_dir,
                 workspace_num=workspace_num,
                 strategy=strategy,
+                config=config,
                 materialize=materialize,
             )
         except RuntimeError as exc:
@@ -208,22 +212,35 @@ def _primary_workspace_dir(project_file: str, workspace_dir: str) -> str:
     return _normalize_path(fallback)
 
 
-def _configured_entries(
+def _resolution_config(
     primary_workspace_dir: str,
     config: Mapping[str, Any] | None,
-) -> list[Mapping[str, Any]]:
+) -> Mapping[str, Any]:
     if config is not None:
-        return _entries_from_config(config)
+        return config
 
     from sase.config.core import load_merged_config
 
     merged = load_merged_config()
-    entries = _entries_from_config(merged)
-
     local_config = _read_project_local_config(primary_workspace_dir)
     if local_config:
-        entries.extend(_entries_from_config(local_config))
-    return entries
+        return _merge_resolution_config(merged, local_config)
+    return merged
+
+
+def _merge_resolution_config(
+    base: Mapping[str, Any], override: Mapping[str, Any]
+) -> dict[str, Any]:
+    result: dict[str, Any] = dict(base)
+    for key, override_value in override.items():
+        base_value = result.get(key)
+        if isinstance(base_value, Mapping) and isinstance(override_value, Mapping):
+            result[key] = _merge_resolution_config(base_value, override_value)
+        elif isinstance(base_value, list) and isinstance(override_value, list):
+            result[key] = [*base_value, *override_value]
+        else:
+            result[key] = override_value
+    return result
 
 
 def _entries_from_config(config: Mapping[str, Any]) -> list[Mapping[str, Any]]:
@@ -293,22 +310,26 @@ def _resolve_workspace_dir(
     *,
     workspace_num: int,
     strategy: str,
+    config: Mapping[str, Any],
     materialize: bool,
 ) -> str:
     if strategy == "none" or workspace_num <= 1:
         return primary_dir
 
     if not materialize:
-        return _suffix_workspace_path(primary_dir, workspace_num)
+        from sase.workspace_provider.store import WorkspaceStore
+
+        return _normalize_path(
+            WorkspaceStore(primary_dir, config=config)
+            .resolve(workspace_num)
+            .checkout_dir.rstrip("/")
+        )
 
     from sase.workspace_provider.utils import ensure_workspace_checkout
 
-    return _normalize_path(ensure_workspace_checkout(primary_dir, workspace_num))
-
-
-def _suffix_workspace_path(primary_dir: str, workspace_num: int) -> str:
-    primary = Path(primary_dir)
-    return _normalize_path(str(primary.with_name(f"{primary.name}_{workspace_num}")))
+    return _normalize_path(
+        ensure_workspace_checkout(primary_dir, workspace_num, config=config)
+    )
 
 
 def _sanitize_env_name(name: str) -> str:
