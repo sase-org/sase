@@ -466,6 +466,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         group_focused: bool = False,
         has_agent_artifacts: bool = False,
         artifact_viewer_active: bool = False,
+        sibling_count: int = 0,
     ) -> None:
         """Update bindings for Agents tab."""
         bindings = self._compute_agent_bindings(
@@ -477,6 +478,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             group_focused=group_focused,
             has_agent_artifacts=has_agent_artifacts,
             artifact_viewer_active=artifact_viewer_active,
+            sibling_count=sibling_count,
         )
         self._update_display(bindings)
 

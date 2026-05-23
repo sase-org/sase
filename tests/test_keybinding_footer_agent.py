@@ -168,6 +168,34 @@ def test_keybinding_footer_artifacts_and_attempts_have_separate_keys() -> None:
     assert ("D", "attempt view") in bindings
 
 
+def test_keybinding_footer_agent_sibling_binding_for_single_sibling() -> None:
+    footer = KeybindingFooter()
+    agent = _make_agent(status="RUNNING")
+
+    bindings = footer._compute_agent_bindings(agent, sibling_count=1)
+
+    assert ("~", "sibling") in bindings
+
+
+def test_keybinding_footer_agent_sibling_binding_for_multiple_siblings() -> None:
+    footer = KeybindingFooter()
+    agent = _make_agent(status="RUNNING")
+
+    bindings = footer._compute_agent_bindings(agent, sibling_count=3)
+
+    assert ("~", "siblings (3)") in bindings
+
+
+def test_keybinding_footer_agent_sibling_binding_hidden_without_siblings() -> None:
+    footer = KeybindingFooter()
+    agent = _make_agent(status="RUNNING")
+
+    bindings = footer._compute_agent_bindings(agent, sibling_count=0)
+
+    assert ("~", "sibling") not in bindings
+    assert not any(label.startswith("siblings") for _key, label in bindings)
+
+
 def test_keybinding_footer_agent_artifact_viewer_active_advertises_focus_key() -> None:
     footer = KeybindingFooter()
     agent = _make_agent(status="RUNNING")

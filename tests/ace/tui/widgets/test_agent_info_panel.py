@@ -12,6 +12,7 @@ from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
 _DEFAULT_GROUPING_KEY = key_display_name(
     load_keymap_registry({}).app.cycle_grouping_mode
 )
+_DEFAULT_SIBLING_KEY = key_display_name(load_keymap_registry({}).app.start_sibling_mode)
 
 
 def _collect_text(panel: AgentInfoPanel) -> str:
@@ -215,6 +216,51 @@ def test_agent_count_strip_omits_metrics_section_when_all_counts_are_zero() -> N
     assert counts_prefix == "5 Agents"
 
 
+def test_sibling_badge_is_omitted_without_visible_siblings() -> None:
+    panel = AgentInfoPanel()
+    panel._visible_agent_count = 5
+    panel._sibling_count = 0
+
+    plain = _collect_text(panel)
+
+    assert "siblings:" not in plain
+
+
+def test_sibling_badge_renders_single_visible_sibling() -> None:
+    panel = AgentInfoPanel()
+    panel._visible_agent_count = 5
+    panel._sibling_count = 1
+
+    plain = _collect_text(panel)
+
+    assert f"[siblings: 1 ({_DEFAULT_SIBLING_KEY})]" in plain
+
+
+def test_sibling_badge_renders_multiple_visible_siblings_with_styles() -> None:
+    panel = AgentInfoPanel()
+    panel._visible_agent_count = 5
+    panel._sibling_count = 3
+
+    text = _collect_rich_text(panel)
+
+    assert f"[siblings: 3 ({_DEFAULT_SIBLING_KEY})]" in text.plain
+    assert _style_for_plain_segment(text, "3") == "bold #00D7AF"
+
+
+def test_sibling_badge_uses_active_keymap_registry() -> None:
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.set_keymap_registry(
+            load_keymap_registry({"keymaps": {"app": {"start_sibling_mode": "f2"}}})
+        )
+    panel._visible_agent_count = 5
+    panel._sibling_count = 2
+
+    plain = _collect_text(panel)
+
+    assert "[siblings: 2 (f2)]" in plain
+
+
 def test_grouping_badge_renders_label_after_update() -> None:
     panel = AgentInfoPanel()
     panel._grouping_mode = "by status"
@@ -268,6 +314,7 @@ def _stable_state_kwargs(**overrides: object) -> dict[str, object]:
         "read": 0,
         "visible_agent_count": 5,
         "starting": 0,
+        "sibling_count": 0,
         "countdown": 5,
         "interval": 5,
         "view_mode": "",
@@ -336,6 +383,38 @@ def test_update_state_full_rebuild_when_stable_state_changes() -> None:
         patch.object(panel, "update_countdown_only") as cheap_path,
     ):
         panel.update_state(**_stable_state_kwargs(running=3))  # type: ignore[arg-type]
+
+    full_rebuild.assert_called_once()
+    cheap_path.assert_not_called()
+
+
+def test_update_state_routes_unchanged_sibling_count_to_countdown_only() -> None:
+    """Unchanged sibling count is part of stable state, not countdown churn."""
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.update_state(**_stable_state_kwargs(sibling_count=2, countdown=5))  # type: ignore[arg-type]
+
+    with (
+        patch.object(panel, "_update_display") as full_rebuild,
+        patch.object(panel, "update_countdown_only") as cheap_path,
+    ):
+        panel.update_state(**_stable_state_kwargs(sibling_count=2, countdown=4))  # type: ignore[arg-type]
+
+    full_rebuild.assert_not_called()
+    cheap_path.assert_called_once_with(4, 5)
+
+
+def test_update_state_full_rebuild_when_sibling_count_changes() -> None:
+    """Sibling-count changes rebuild the stable badge text."""
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.update_state(**_stable_state_kwargs(sibling_count=1))  # type: ignore[arg-type]
+
+    with (
+        patch.object(panel, "_update_display") as full_rebuild,
+        patch.object(panel, "update_countdown_only") as cheap_path,
+    ):
+        panel.update_state(**_stable_state_kwargs(sibling_count=2))  # type: ignore[arg-type]
 
     full_rebuild.assert_called_once()
     cheap_path.assert_not_called()

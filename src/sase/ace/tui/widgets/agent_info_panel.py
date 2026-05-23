@@ -26,6 +26,7 @@ class AgentInfoPanel(Static):
         self._failed_count = 0
         self._read_count = 0
         self._visible_agent_count = 0
+        self._sibling_count = 0
         self._countdown = 0
         self._interval = 0
         self._view_mode: str = ""
@@ -150,6 +151,7 @@ class AgentInfoPanel(Static):
         read: int,
         visible_agent_count: int,
         starting: int,
+        sibling_count: int = 0,
         countdown: int,
         interval: int,
         view_mode: str,
@@ -174,6 +176,7 @@ class AgentInfoPanel(Static):
             failed,
             read,
             visible_agent_count,
+            max(0, sibling_count),
             view_mode,
             grouping_mode,
             search_query,
@@ -189,6 +192,7 @@ class AgentInfoPanel(Static):
             self._failed_count,
             self._read_count,
             self._visible_agent_count,
+            self._sibling_count,
             self._view_mode,
             self._grouping_mode,
             self._search_query,
@@ -207,6 +211,7 @@ class AgentInfoPanel(Static):
             self._failed_count,
             self._read_count,
             self._visible_agent_count,
+            self._sibling_count,
             self._view_mode,
             self._grouping_mode,
             self._search_query,
@@ -281,6 +286,17 @@ class AgentInfoPanel(Static):
             text.append(suffix, style=label_style)
         text.append("]", style="dim")
 
+    def _append_sibling_badge(self, text: Text) -> None:
+        if self._sibling_count <= 0:
+            return
+        key = key_display_name(self._registry.app.start_sibling_mode)
+        text.append("   ")
+        text.append("[", style="dim")
+        text.append("siblings: ", style="dim")
+        text.append(str(self._sibling_count), style="bold #00D7AF")
+        text.append(f" ({key})", style="dim")
+        text.append("]", style="dim")
+
     def _build_display_text(self) -> Text:
         """Build the full Rich ``Text`` for the current panel state."""
         text = Text()
@@ -292,6 +308,7 @@ class AgentInfoPanel(Static):
         text.append(f"{self._visible_agent_count}", style=self._TOTAL_COUNT_STYLE)
         text.append(" Agents", style="bold #87D7FF")
         self._append_metric_strip(text)
+        self._append_sibling_badge(text)
         if self._search_query:
             text.append("   ")
             text.append("filter: ", style="dim italic")

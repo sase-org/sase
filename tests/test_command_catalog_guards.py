@@ -271,6 +271,21 @@ def test_open_command_palette_command_is_always_present() -> None:
     assert "axe" in spec.tabs
 
 
+def test_tree_navigation_command_tab_scopes() -> None:
+    """Sibling navigation applies to CLs and Agents; ancestor/child stay CL-only."""
+    catalog = build_command_catalog(_registry())
+    ancestor = get_command_by_id(catalog, "app.start_ancestor_mode")
+    child = get_command_by_id(catalog, "app.start_child_mode")
+    sibling = get_command_by_id(catalog, "app.start_sibling_mode")
+
+    assert ancestor is not None
+    assert child is not None
+    assert sibling is not None
+    assert ancestor.tabs == ("changespecs",)
+    assert child.tabs == ("changespecs",)
+    assert sibling.tabs == ("changespecs", "agents")
+
+
 # ---------------------------------------------------------------------------
 # Regression: well-formed CommandSpec instances
 # ---------------------------------------------------------------------------

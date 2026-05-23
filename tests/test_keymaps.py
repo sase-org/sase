@@ -98,6 +98,23 @@ def test_agents_help_uses_f_for_fork_not_r_for_resume() -> None:
     assert ("e", "Edit chat in editor") not in agent_pairs
 
 
+def test_agents_help_lists_sibling_navigation() -> None:
+    reg = load_keymap_registry({})
+    agent_pairs = {
+        (key, label)
+        for _section, bindings in agents_bindings(reg)
+        for key, label in bindings
+    }
+    cls_pairs = {
+        (key, label)
+        for _section, bindings in cls_bindings(reg)
+        for key, label in bindings
+    }
+
+    assert ("~", "Jump to sibling agent") in agent_pairs
+    assert ("< / > / ~", "Navigate to ancestor / child / sibling") in cls_pairs
+
+
 def test_help_modal_labels_capital_a_as_agent_artifacts() -> None:
     """Guard ``A`` as the Agents-tab artifact binding."""
     reg = load_keymap_registry({})

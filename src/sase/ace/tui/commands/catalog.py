@@ -266,7 +266,7 @@ _APP_COMMAND_META: tuple[
         (),
     ),
     ("start_child_mode", "Child navigation", "Tree Navigation", _CL_ONLY, ()),
-    ("start_sibling_mode", "Sibling navigation", "Tree Navigation", _CL_ONLY, ()),
+    ("start_sibling_mode", "Sibling navigation", "Tree Navigation", _CL_AGENTS, ()),
     # Mode activation prefixes
     ("start_fold_mode", "Enter fold mode", "Modes", _ALL_TABS, ()),
     ("start_leader_mode", "Enter leader mode", "Modes", _ALL_TABS, ()),

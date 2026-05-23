@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from datetime import datetime
+from typing import Any
 
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -166,3 +167,40 @@ def test_agent_sibling_index_cache_tracks_panel_mode() -> None:
     assert grouped.panel_idx_for(0) == 0
     assert grouped.panel_idx_for(1) == 0
     assert app.visible_walk_count == 2
+
+
+def test_agents_info_panel_update_uses_cached_sibling_count() -> None:
+    app = _Bare(
+        [
+            _agent("foo.plan", suffix="a"),
+            _agent("foo.code", suffix="b"),
+            _agent("foo.review", suffix="c"),
+        ]
+    )
+
+    class _InfoPanel:
+        kwargs: dict[str, Any]
+
+        def update_state(self, **kwargs: Any) -> None:
+            self.kwargs = kwargs
+
+    class _DetailPanel:
+        panel_mode_label = ""
+
+    info_panel = _InfoPanel()
+    detail_panel = _DetailPanel()
+
+    def _query_one(selector: str, _type: Any = None) -> Any:
+        if selector == "#agent-info-panel":
+            return info_panel
+        if selector == "#agent-detail-panel":
+            return detail_panel
+        raise AssertionError(selector)
+
+    app.query_one = _query_one  # type: ignore[attr-defined]
+
+    app._update_agents_info_panel()
+    app._update_agents_info_panel()
+
+    assert info_panel.kwargs["sibling_count"] == 2
+    assert app.visible_walk_count == 1

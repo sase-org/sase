@@ -90,6 +90,7 @@ class KeybindingBindingsMixin:
         group_focused: bool = False,
         has_agent_artifacts: bool = False,
         artifact_viewer_active: bool = False,
+        sibling_count: int = 0,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
 
@@ -208,6 +209,10 @@ class KeybindingBindingsMixin:
                     f"cleanup ({completed_count} done)",
                 )
             )
+
+        if sibling_count > 0:
+            label = "sibling" if sibling_count == 1 else f"siblings ({sibling_count})"
+            bindings.append((self._kd("start_sibling_mode"), label))
 
         return bindings
 
