@@ -22,9 +22,9 @@ Current init subcommands:
 
 | Subcommand | Handler | Current write behavior | Current dry-run/check quality |
 | ---------- | ------- | ---------------------- | ----------------------------- |
-| `memory` | `src/sase/main/init_memory_handler.py` | Generates project memory, home memory, provider shims, validates references, then commits/pushes project changes by default and deploys chezmoi home changes when enabled. | No dry-run mode. Low-level helpers know which files changed, but only after writing. |
-| `sdd` | `src/sase/main/sdd_handler.py` -> `sase.sdd.files.write_sdd_readme` | Writes SDD README files and directory map asset every time. Idempotent in content, but it does not report whether bytes changed. | No dry-run/check mode. |
-| `skills` | `src/sase/main/init_skills_handler.py` | Renders skill files for provider targets, prompts for overwrites unless `--force`, then optionally commits/pushes/applies chezmoi changes. | Has `--dry-run`, but it prints target paths for all matching skills. It does not compare rendered output with existing target content, so it cannot answer "would produce changes". |
+| `memory` | `src/sase/main/init_memory_handler.py` | Generates project memory, home memory, provider shims, validates references, then commits/pushes project changes by default and deploys chezmoi home changes when enabled. | No dry-run mode. Helpers know which files changed but only after writing. `_write_text_if_changed()` and `MemoryRootResult.written_paths` already encode "what was different"; planning can reuse that comparison without touching disk. |
+| `sdd` | `src/sase/main/sdd_handler.py` -> `sase.sdd.files.write_sdd_readme` | Writes the top-level SDD README, the per-directory READMEs from `SDD_DIRECTORY_README_CONTENT`, and copies the binary `sdd-directory-map.png` asset from `sase.sdd` package resources every time. Idempotent in content, but does not report whether bytes changed. | No dry-run/check mode. The asset is binary (PNG) so plan-time comparison must hash bytes, not compare text. |
+| `skills` | `src/sase/main/init_skills_handler.py` | Renders skill files for provider targets, prompts for overwrites unless `--force`, then optionally commits/pushes/applies chezmoi changes. Already has an in-handler "unchanged, skipping" branch inside `_prompt_overwrite()` for the interactive path. | Has `--dry-run`, but it prints target paths for all matching skills. It does not compare rendered output with existing target content, so it cannot answer "would produce changes". |
 
 Related existing research:
 
@@ -51,6 +51,27 @@ init_subparsers = init_parser.add_subparsers(
 
 Then `entry.py` can dispatch `args.init_subcommand is None` to a new onboarding handler. This keeps all explicit
 subcommands unchanged while giving bare `sase init` a real path.
+
+Note: making the subparser non-required does not change `sase init --help` output — argparse still prints the subcommand
+list, which is what we want. Confirm with a parser unit test that `["init", "--help"]` still exits 0 and lists
+`memory|sdd|skills`. Bare `sase init` should also fall back to printing this help block if there are zero registered
+init subcommands at runtime (a safety net for plugin-discovered registries; see "Plugin-discovered init subcommands"
+below).
+
+### Existing Handlers Call `sys.exit()` Mid-Flow
+
+Both `handle_init_memory_command` and `handle_init_skills_command` call `sys.exit(exit_code)` themselves, and
+`handle_sdd_command` calls `sys.exit(0)` after `_handle_init`. An onboarding coordinator that imports these handlers
+directly will be terminated by the first subcommand that runs. Two options:
+
+1. Refactor each handler so the public CLI entry is a thin wrapper that calls `sys.exit()` around a pure
+   `run_*()` function returning an `int` exit code. The onboarding coordinator calls the pure functions and aggregates
+   exit codes itself. This is the recommended split because it also makes unit testing trivial.
+2. Wrap onboarding subcommand calls in a `try/except SystemExit` and read `.code`. Workable but obscures intent and is
+   easy to regress when handler internals change.
+
+Option 1 also unblocks the plan/apply split below: the planner becomes a third pure function (`plan_*()`) alongside
+`run_*()`.
 
 ### Do Not Shell Out To Subcommands For Detection
 
@@ -105,13 +126,31 @@ handler. The onboarding handler can then:
 The plan functions should not create directories, write files, stage commits, or invoke chezmoi. They should calculate
 expected content and compare it to the filesystem.
 
+Specific traps to avoid in the planner:
+
+- `initialize_memory_root()` currently `.mkdir(parents=True, exist_ok=True)` on `memory/short/` and `memory/long/`
+  **before** any write check. The planner must not do this — directory creation is itself a filesystem mutation that
+  changes git status. Move the `mkdir` calls into the apply path, or have the planner enumerate would-be paths from
+  pure values.
+- `write_sdd_readme()` copies a binary PNG asset (`sdd-directory-map.png`) from `sase.sdd` package resources. Plan-time
+  comparison must hash bytes (e.g. `hashlib.sha256`) — a text compare will misreport or crash on the binary content.
+  Reuse `resources.as_file(...)` to read the canonical bytes once and cache the hash.
+- `_render_skill()` runs Jinja2 + prettier (via `format_with_prettier`). If prettier is missing the renderer falls back
+  to unformatted output and warns once. The planner must invoke the exact same render+format path so plan and apply
+  agree on bytes. Planner that bypasses prettier will mis-report drift for users who have prettier installed.
+- The `init memory` flow validates "unreferenced memory files" *after* writing. To predict validation results without
+  writing, the planner can build an in-memory overlay: render the expected `memory/short/sase.md`, `memory/README.md`,
+  and provider shim contents, then run `unreferenced_memory_files()` against an overlay view (e.g. a temporary copy
+  layered with the rendered content, or a small refactor of `_reachable_memory_files` to accept a "synthetic file
+  contents" map).
+
 Suggested per-subcommand plan changes:
 
 | Subcommand | Planning approach |
 | ---------- | ----------------- |
-| `memory` | Refactor `initialize_memory_root()` into render/plan/apply steps. The current `_write_text_if_changed()` logic is close, but planning must inspect expected paths without writing. Also plan missing directories as part of creating the files rather than as standalone actions. Run unreferenced-memory validation read-only against the current tree plus expected generated files if practical; otherwise report validation blockers before prompting. |
-| `sdd` | Add helpers that return the expected README path/content, directory README path/content pairs, and asset bytes. Compare text/bytes before writing. Refactor `write_sdd_readme()` to apply the plan. |
-| `skills` | Split rendering/target resolution from writing. For each generated target, compare rendered content to existing content. Treat missing files and differing files as actions. Existing overwrite prompts can remain for explicit `init skills`; onboarding should likely invoke with an apply mode equivalent to `--force` only after the user confirms the whole subcommand. |
+| `memory` | Refactor `initialize_memory_root()` into `render()` (returns `dict[Path, str]`), `plan()` (compares rendered output against disk), and `apply()` (mkdirs + writes). The current `_write_text_if_changed()` logic is close but planning must inspect expected paths without writing or creating directories. Run unreferenced-memory validation read-only against the current tree plus rendered generated files; report validation blockers as plan-level warnings before prompting. |
+| `sdd` | Add helpers that return the expected README path/content, directory README path/content pairs, and the canonical asset bytes (with their hash). Compare text/bytes before writing. Refactor `write_sdd_readme()` to apply the plan. `_resolve_sdd_readme_path()` is already pure and can be reused as-is. |
+| `skills` | Split rendering/target resolution from writing. For each generated target, render through the same Jinja2 + prettier pipeline and compare to existing content. Treat missing files and differing files as actions. Existing overwrite prompts can remain for explicit `init skills`; onboarding should invoke skills with `--force` semantics only after the user confirms the whole subcommand. |
 
 ## Recommended UX
 
@@ -154,6 +193,64 @@ Useful flags for bare `sase init`:
 | `--check` | Report needed init work and exit non-zero if anything would change. Do not prompt or write. |
 | `--only {memory,sdd,skills}` | Optional, repeatable. Useful if the registry grows. Not required for the first version. |
 | `--no-commit`, `--no-push`, `--no-apply` | Consider forwarding only to subcommands that support them. Be careful: `memory --no-commit` and `skills --no-commit` have different scopes today. |
+
+## Coordinated Git / Chezmoi Deploys
+
+Running `memory`, `sdd`, and `skills` back-to-back today produces redundant deploy work because each handler owns its
+own commit/push/apply sequence:
+
+- `init memory` commits/pushes to the **project repo** and (when `use_chezmoi`) commits to the chezmoi repo and runs
+  `chezmoi apply --force`.
+- `init skills` commits/pushes to the chezmoi repo and runs `chezmoi apply`.
+- `init sdd` does not commit at all (the asset/README write is unstaged).
+
+If onboarding invokes all three sequentially, the user sees two separate chezmoi commit + push + apply cycles, with
+the second one potentially blocked behind the first finishing a remote push. The onboarding coordinator should:
+
+1. Extract the chezmoi deploy block (already duplicated between `init_memory_handler._deploy_to_chezmoi` and
+   `init_skills_handler._deploy_to_chezmoi`) into a shared helper, e.g. `src/sase/main/_init_chezmoi_deploy.py`. Both
+   `init_skills` and the proposed `init hooks` already plan to share this code (see
+   `sdd/research/202605/sase_init_hooks.md`); folding `init memory` in at the same time avoids re-extracting later.
+2. In onboarding, run each subcommand's `apply()` with `no_commit=True, no_push=True, no_apply=True` (or an equivalent
+   "defer deploy" flag), accumulate the set of changed paths per repo, then run one project-repo commit/push and one
+   chezmoi commit/push/apply at the end.
+3. Project-repo handling has a wrinkle: only `init memory` currently writes inside the project repo, so the
+   "coordinated deploy" really matters for the chezmoi side. Keep the project commit local to `init memory`'s apply for
+   v1 unless `init sdd` or `init skills` start writing to the project repo too.
+
+For the explicit subcommands, behavior should not change — only the onboarding coordinator should pass deploy-deferral
+flags.
+
+## Argument Forwarding And Flag Collisions
+
+`init memory` and `init skills` both use `-C / --no-commit` for repo-shaped meaning, but the repos are different:
+
+- `init memory --no-commit` skips the **project** repo commit/push and is silent about chezmoi.
+- `init skills --no-commit` skips the **chezmoi** repo commit/push/apply sequence entirely.
+
+If bare `sase init` forwards a single `--no-commit` flag to both, the resulting behavior is non-obvious. Recommended
+v1 behavior:
+
+- Do not expose `--no-commit` / `--no-push` / `--no-apply` on bare `sase init`. Users who want fine control should run
+  the explicit subcommand.
+- The onboarding coordinator implements coordinated deploy (above), so a single `--no-deploy` flag (or absence of
+  `--yes`) can suppress all post-write side effects uniformly.
+- Document the divergence in `sase init --help` epilog text.
+
+## Plugin-discovered init subcommands
+
+Today `entry.py` hard-codes the three init subcommands in an `if` chain. Future additions (`init hooks`, `init core`,
+`init telegram`) could each need their own onboarding plug-in point. Two options:
+
+1. **Module-level registry.** Each init module exposes `INIT_COMMAND_SPEC = InitCommandSpec(...)`, and `parser_init.py`
+   + the onboarding coordinator import a known list of modules. Simple and easy to reason about for the in-repo case.
+2. **Pluggy hook.** Add a `sase_init` hookspec that returns one or more `InitCommandSpec` entries. Provider plugins
+   (and sibling repos like `sase-github`) can then register their own init subcommands without editing this repo. This
+   matches the existing `sase_llm` plugin pattern from `iter_plugins()`.
+
+For v1, option 1 is sufficient — there are only three subcommands and no external plugin currently registers init
+work. The `InitCommandSpec` shape below is identical either way, so picking option 1 first does not block migrating to
+pluggy later.
 
 ## Command Registry Shape
 
@@ -198,6 +295,26 @@ has actions:
 Run `sase init memory` now? This may commit and push generated project memory changes. [y/N]
 ```
 
+## Prior Art
+
+Common conventions from comparable interactive setup commands:
+
+- **`pre-commit install`** is silent on a no-op repeat. `pre-commit install --install-hooks` prints "Pre-commit
+  installed" only on first run. Onboarding should match this: a fully-initialized workspace produces one short line of
+  output, not an empty one.
+- **`cargo init`** errors out hard if the directory already has a `Cargo.toml`, rather than offering an
+  interactive merge. SASE onboarding sits between these two extremes: per-subcommand prompts let the user opt in to
+  each change without forcing an all-or-nothing decision.
+- **`gh auth setup-git`** detects current state, prints what it will change, and asks one Y/N prompt per resource. That
+  is the closest UX analog and what the per-subcommand prompt loop in this proposal mirrors.
+- **`npm init` / `yarn init`** prompt for missing values rather than detecting drift. Not a good model for SASE
+  onboarding because nothing in `init memory|sdd|skills` is value-driven — every input is filesystem-derived.
+- **Ansible playbook --check mode** distinguishes "would change", "ok", "skipped". The `--check` flag in this proposal
+  intentionally borrows that exit-non-zero-on-drift behavior for CI use.
+
+The plan/apply split itself is an Ansible/Terraform pattern; we are not inventing it, just porting it to a CLI that
+currently entangles the two.
+
 ## Testing Strategy
 
 Add focused tests before broad end-to-end tests:
@@ -209,9 +326,20 @@ Add focused tests before broad end-to-end tests:
 - Non-TTY test: needed plan actions cause a summary without blocking on `input()`.
 - `--yes` test: all needed apply functions run in registry order.
 - Plan tests for each subcommand:
-  - `memory`: missing/generated/different files are reported without writing.
-  - `sdd`: stale README/asset/directory README content is reported; identical content is not.
+  - `memory`: missing/generated/different files are reported without writing. Verify the planner does **not** create
+    `memory/short/` or `memory/long/` directories on a fresh tree. Verify `unreferenced_memory_files` validation runs
+    against the rendered overlay, not the un-touched filesystem.
+  - `sdd`: stale README/asset/directory README content is reported; identical content is not. Use a hash-based
+    comparison test for the binary `sdd-directory-map.png` (corrupt the asset by one byte and assert the planner flags
+    it).
   - `skills`: existing identical rendered output is not reported; missing or differing target output is reported.
+    Cover both prettier-available and prettier-missing paths so plan and apply agree on bytes either way.
+- Handler-boundary tests:
+  - `run_init_memory()`, `run_init_sdd()`, `run_init_skills()` return `int` exit codes (no `sys.exit`).
+  - Onboarding coordinator with all three sub-applies in deploy-deferred mode invokes the shared chezmoi deploy helper
+    exactly once.
+- Snapshot test: golden output of the "needs attention" report for a tree missing all three resources, to lock in the
+  user-visible format.
 
 ## Risks And Open Questions
 
@@ -224,6 +352,19 @@ Add focused tests before broad end-to-end tests:
   fallback warning when Prettier is missing, or planner/apply drift will cause confusing onboarding output.
 - If future `init hooks` lands, it should plug into the same registry with a real plan function rather than relying on
   its own dry-run output.
+- `_load_skill_xprompts()` builds its catalog by calling `get_all_xprompts(project="")`. That call traverses user
+  config overlays and can be measurably slow on machines with many xprompts. Onboarding builds plans for every
+  registered subcommand on every invocation, so the no-op `sase init` path will pay this cost even when nothing needs
+  to change. Consider a cheap "is anything obviously missing?" pre-check (e.g. existence of
+  `~/.{provider}/skills/`) before invoking the full skills planner. The same applies to memory's reachability
+  validation on large memory trees.
+- Concurrency: the explicit subcommands already race on chezmoi when two agents run in parallel (see
+  `sdd/research/202605/sase_init_hooks.md` "Concurrency and Atomicity"). Bare `sase init` does not make this worse, but
+  the shared chezmoi deploy helper should add `fcntl.flock` around its commit/apply path before being relied on by
+  onboarding-from-multiple-agents.
+- `sase init` is also a likely first-command-after-clone target. The coordinator should not assume a `git remote` is
+  configured — `_deploy_to_project_repo()` will fail on `git push` for a fresh local-only clone. Either degrade
+  gracefully (skip push, print a hint) or require `--no-deploy` for that case.
 
 ## Recommendation
 
