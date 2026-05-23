@@ -97,12 +97,16 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     memory_init_help = _flat_help(_parser_for(("sase", "memory", "init")).format_help())
     memory_list_help = _flat_help(_parser_for(("sase", "memory", "list")).format_help())
     memory_read_help = _flat_help(_parser_for(("sase", "memory", "read")).format_help())
+    memory_write_help = _flat_help(
+        _parser_for(("sase", "memory", "write")).format_help()
+    )
     memory_log_help = _flat_help(_parser_for(("sase", "memory", "log")).format_help())
     init_alias_help = _flat_help(_parser_for(("sase", "init", "memory")).format_help())
 
     assert "`sase memory list`" in memory_help
-    assert "{init,list,log,read}" in memory_help
+    assert "{init,list,log,read,write}" in memory_help
     assert "sase memory read long/generated_skills.md --reason" in memory_help
+    assert "sase memory write --title" in memory_help
     assert "sase memory log --path long/generated_skills.md" in memory_help
     assert "sase memory log --id <read-id>" in memory_help
     assert "loaded, referenced, available, and missing memory files" in memory_help
@@ -112,6 +116,9 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     assert "memory/long markdown file" in memory_read_help
     assert "--reason REASON" in memory_read_help
     assert "Need generated skill context" in memory_read_help
+    assert "--evidence EVIDENCE" in memory_write_help
+    assert "--manual-author NAME" in memory_write_help
+    assert "never modifies canonical memory/long files" in memory_write_help
     assert "--path MEMORY_PATH" in memory_log_help
     assert "--agent AGENT_NAME" in memory_log_help
     assert "--id READ_ID" in memory_log_help

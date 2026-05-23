@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Mapping
-from contextlib import contextmanager
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 import fcntl
@@ -14,6 +13,7 @@ from typing import Any, Literal
 from uuid import uuid4
 
 from sase.main.init_memory.config import project_memory_name
+from sase.memory.locks import locked_file
 
 READ_LOG_SCHEMA_VERSION = 1
 ALLOWED_READ_SUBDIRS = frozenset({"long"})
@@ -287,7 +287,7 @@ def append_memory_read_event(
     """Append one memory-read event under an exclusive file lock."""
     path = log_path or memory_read_log_path(event.project)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with _locked(path.with_suffix(".lock"), fcntl.LOCK_EX):
+    with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
         with path.open("a", encoding="utf-8") as output_file:
             json.dump(asdict(event), output_file, sort_keys=True)
             output_file.write("\n")
@@ -301,7 +301,7 @@ def read_memory_read_events(
 ) -> tuple[MemoryReadEvent, ...]:
     """Read memory-read events, skipping malformed JSONL rows."""
     path = log_path or memory_read_log_path(project)
-    with _locked(path.with_suffix(".lock"), fcntl.LOCK_SH):
+    with locked_file(path.with_suffix(".lock"), fcntl.LOCK_SH):
         if not path.exists():
             return ()
         try:
@@ -474,14 +474,3 @@ def _event_from_mapping(data: Mapping[str, Any]) -> MemoryReadEvent | None:
 
 def _latest_event(events: list[MemoryReadEvent]) -> MemoryReadEvent:
     return max(events, key=lambda event: event.timestamp)
-
-
-@contextmanager
-def _locked(lock_path: Path, flags: int) -> Iterator[None]:
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with lock_path.open("a", encoding="utf-8") as lock_file:
-        fcntl.flock(lock_file.fileno(), flags)
-        try:
-            yield
-        finally:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)

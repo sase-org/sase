@@ -40,9 +40,15 @@ def handle_memory_command(args: argparse.Namespace) -> None:
         handle_memory_read_command(args)
         sys.exit(0)
 
+    if sub == "write":
+        from sase.memory.cli_write import handle_memory_write_command
+
+        handle_memory_write_command(args)
+        sys.exit(0)
+
     if sub == "log":
         _handle_memory_log_command(args)
         sys.exit(0)
 
-    print("Usage: sase memory {init,list,read,log}", file=sys.stderr)
+    print("Usage: sase memory {init,list,log,read,write}", file=sys.stderr)
     sys.exit(1)

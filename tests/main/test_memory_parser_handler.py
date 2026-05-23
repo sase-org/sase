@@ -38,6 +38,40 @@ def test_parser_registers_memory_namespace() -> None:
     assert read_args.memory_path == "long/foo.md"
     assert read_args.reason == "Need context"
 
+    write_args = parser.parse_args(
+        [
+            "memory",
+            "write",
+            "--title",
+            "Generated skills",
+            "--slug",
+            "generated_skills",
+            "--evidence",
+            "sdd/research/skills.md",
+            "--evidence",
+            "note:supplemental",
+            "--from-chat",
+            "chat-a",
+            "--keyword",
+            "skills",
+            "--file",
+            "draft.md",
+            "--allow-large",
+            "--json",
+        ]
+    )
+    assert write_args.command == "memory"
+    assert write_args.memory_subcommand == "write"
+    assert write_args.title == "Generated skills"
+    assert write_args.slug == "generated_skills"
+    assert write_args.target is None
+    assert write_args.evidence == ["sdd/research/skills.md", "note:supplemental"]
+    assert write_args.from_chat == ["chat-a"]
+    assert write_args.keyword == ["skills"]
+    assert write_args.file == "draft.md"
+    assert write_args.allow_large is True
+    assert write_args.json is True
+
     log_args = parser.parse_args(
         [
             "memory",
@@ -70,6 +104,24 @@ def test_parser_requires_memory_read_reason() -> None:
 
     with pytest.raises(SystemExit):
         parser.parse_args(["memory", "read", "long/foo.md"])
+
+
+def test_parser_requires_memory_write_target_or_slug() -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "memory",
+                "write",
+                "--title",
+                "Memory",
+                "--evidence",
+                "chat:abc",
+                "--body",
+                "Body",
+            ]
+        )
 
 
 def test_memory_init_dispatches_to_primary_init(
@@ -108,6 +160,40 @@ def test_memory_read_dispatches_to_read_handler(
     )
     args = create_parser().parse_args(
         ["memory", "read", "long/foo.md", "--reason", "Need context"]
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        memory_handler.handle_memory_command(args)
+
+    assert exc.value.code == 0
+    assert calls == [args]
+
+
+def test_memory_write_dispatches_to_write_handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[argparse.Namespace] = []
+
+    def fake_write(args: argparse.Namespace) -> None:
+        calls.append(args)
+
+    monkeypatch.setattr(
+        "sase.memory.cli_write.handle_memory_write_command",
+        fake_write,
+    )
+    args = create_parser().parse_args(
+        [
+            "memory",
+            "write",
+            "--title",
+            "Memory",
+            "--slug",
+            "memory",
+            "--evidence",
+            "chat:abc",
+            "--body",
+            "Body",
+        ]
     )
 
     with pytest.raises(SystemExit) as exc:

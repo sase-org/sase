@@ -73,11 +73,12 @@ def test_forced_reuse_name_directive_rejects_hyphen_after_bang_strip() -> None:
         validate_launch_name_requests(["%name:!foo-bar\nDo work"])
 
 
-def test_internal_bypass_allows_hyphenated_system_names() -> None:
-    validate_launch_name_requests(
-        ["%name:sase-42.3\nDo work"],
-        allow_hyphenated_names=True,
-    )
+def test_internal_bypass_allows_hyphenated_system_names(tmp_path: Path) -> None:
+    with patch.object(Path, "home", return_value=tmp_path):
+        validate_launch_name_requests(
+            ["%name:sase-42.3\nDo work"],
+            allow_hyphenated_names=True,
+        )
     assert internal_agent_name_bypass_enabled({INTERNAL_AGENT_NAME_BYPASS_ENV: "1"})
 
 
