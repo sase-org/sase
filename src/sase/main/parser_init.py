@@ -52,10 +52,21 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         "init",
         help="Initialize SASE-managed resources",
     )
+    init_parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Report initialization drift without writing files",
+    )
+    init_parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Run every needed initializer without prompting",
+    )
     init_subparsers = init_parser.add_subparsers(
         dest="init_subcommand",
         help="Initialization subcommands",
-        required=True,
+        required=False,
     )
 
     memory_parser = init_subparsers.add_parser(

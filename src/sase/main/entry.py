@@ -179,6 +179,11 @@ def main() -> NoReturn:
 
     # --- init ---
     if args.command == "init":
+        if args.init_subcommand is None:
+            from .init_onboarding import run_init_onboarding
+
+            sys.exit(run_init_onboarding(args))
+
         if args.init_subcommand == "memory":
             from .init_memory_handler import handle_init_memory_command
 
