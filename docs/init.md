@@ -22,7 +22,10 @@ sase memory init --no-commit
 sase memory init --check
 sase memory list
 sase memory read long/generated_skills.md --reason "Need generated skill context"
+sase memory write --title "Generated skills" --slug generated_skills --evidence chat:abc123 --body "Durable memory body" --notify
+sase memory review --list
 sase memory log
+sase memory log --include proposals
 sase memory log --path long/generated_skills.md
 sase memory log --id <read-id>
 sase init sdd
@@ -36,27 +39,30 @@ home-level `use_chezmoi` deployment. `sase init memory` remains a compatibility 
 
 ## Commands
 
-| Command                          | Purpose                                                                                  |
-| -------------------------------- | ---------------------------------------------------------------------------------------- |
-| `sase init`                      | Check memory, SDD, and skills; prompt once per needed initializer in interactive shells. |
-| `sase init -c, --check`          | Report initialization drift without writing and exit non-zero when changes are needed.   |
-| `sase init --yes`                | Run every needed initializer in memory, SDD, skills order without prompting.             |
-| `sase memory`                    | Alias for `sase memory list`.                                                            |
-| `sase memory list`               | Inspect loaded, referenced, available, and missing memory files for the current root.    |
-| `sase memory read <path>`        | Print one `memory/long/*.md` file and append an attributable audit event.                |
-| `sase memory log`                | Summarize audited long-term memory reads.                                                |
-| `sase memory log --path <path>`  | Show a path-level summary and matching individual read events.                           |
-| `sase memory log --id <read-id>` | Show one full audited read event by id or unambiguous id prefix.                         |
-| `sase memory init`               | Create or refresh project/home memory roots and provider instruction shims.              |
-| `sase memory init --check`       | Report memory initialization drift without writing files.                                |
-| `sase memory init -C`            | Write memory files but skip the project git commit/pull/push path.                       |
-| `sase init memory`               | Compatibility alias for `sase memory init`.                                              |
-| `sase init sdd`                  | Alias for `sase sdd init`; refreshes generated SDD README files and the directory map.   |
-| `sase init sdd --check`          | Report SDD generated-file drift without writing files.                                   |
-| `sase init skills`               | Generate skill files; existing files require confirmation or `--force`.                  |
-| `sase init skills --dry-run`     | Preview generated skill target paths without writing files.                              |
-| `sase init skills --force`       | Generate and overwrite deployed skill files without confirmation.                        |
-| `sase init skills -p <provider>` | Deploy only one provider's generated skill files.                                        |
+| Command                               | Purpose                                                                                  |
+| ------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `sase init`                           | Check memory, SDD, and skills; prompt once per needed initializer in interactive shells. |
+| `sase init -c, --check`               | Report initialization drift without writing and exit non-zero when changes are needed.   |
+| `sase init --yes`                     | Run every needed initializer in memory, SDD, skills order without prompting.             |
+| `sase memory`                         | Alias for `sase memory list`.                                                            |
+| `sase memory list`                    | Inspect loaded, referenced, available, and missing memory files for the current root.    |
+| `sase memory read <path>`             | Print one `memory/long/*.md` file and append an attributable audit event.                |
+| `sase memory write`                   | Propose a long-term memory file for user review.                                         |
+| `sase memory review`                  | List, inspect, approve, edit, or reject memory proposals.                                |
+| `sase memory log`                     | Summarize audited long-term memory reads.                                                |
+| `sase memory log --include proposals` | Include proposal and review events in the memory audit surface.                          |
+| `sase memory log --path <path>`       | Show a path-level summary and matching individual read events.                           |
+| `sase memory log --id <read-id>`      | Show one full audited read event by id or unambiguous id prefix.                         |
+| `sase memory init`                    | Create or refresh project/home memory roots and provider instruction shims.              |
+| `sase memory init --check`            | Report memory initialization drift without writing files.                                |
+| `sase memory init -C`                 | Write memory files but skip the project git commit/pull/push path.                       |
+| `sase init memory`                    | Compatibility alias for `sase memory init`.                                              |
+| `sase init sdd`                       | Alias for `sase sdd init`; refreshes generated SDD README files and the directory map.   |
+| `sase init sdd --check`               | Report SDD generated-file drift without writing files.                                   |
+| `sase init skills`                    | Generate skill files; existing files require confirmation or `--force`.                  |
+| `sase init skills --dry-run`          | Preview generated skill target paths without writing files.                              |
+| `sase init skills --force`            | Generate and overwrite deployed skill files without confirmation.                        |
+| `sase init skills -p <provider>`      | Deploy only one provider's generated skill files.                                        |
 
 Advanced deploy controls such as `--no-commit`, `--no-push`, and `--no-apply` live on explicit subcommands rather than
 the bare coordinator. Scoped `--check` flags also live on explicit subcommands when you want to validate only memory or
@@ -118,13 +124,22 @@ from stdout, but the audit log records only metadata such as path, agent name, t
 Every read must include a non-empty `--reason`. The command also requires agent attribution from `SASE_AGENT_NAME`,
 `SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json`; unattributed reads fail instead of writing a log row.
 
+`sase memory write` creates an attributable proposal under `~/.sase/projects/<project>/` and never writes
+`memory/long/*.md` directly. Pass `--notify` when you want a best-effort `memory.proposed` notification in the SASE
+inbox. `sase memory review` is the human promotion path for listing, showing, approving, editing, or rejecting those
+proposals.
+
 `sase memory log` reads the project-scoped audit log from SASE state under `~/.sase/projects/<project>/`, not from the
 repo. Use `--path` or `--agent` to drill down to matching read events, `--id <read-id>` to inspect one event, and
-`--json` for deterministic machine-readable output.
+`--json` for deterministic machine-readable output. Add `--include proposals` to include proposal and review ledger
+events alongside read-log summaries.
 
 ```bash
 sase memory read long/generated_skills.md --reason "Need generated skill context"
+sase memory write --title "Generated skills" --slug generated_skills --evidence chat:abc123 --body "Durable memory body" --notify
+sase memory review --list
 sase memory log
+sase memory log --include proposals
 sase memory log --path long/generated_skills.md
 sase memory log --id <read-id>
 ```

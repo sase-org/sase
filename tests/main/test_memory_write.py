@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -151,3 +152,83 @@ def test_memory_write_manual_author_is_visible_test_escape_hatch(
     payload = json.loads(capsys.readouterr().out)
     assert payload["proposal"]["author_name"] == "demo-user"
     assert payload["proposal"]["author_source"] == "manual"
+
+
+def test_memory_write_notify_attempts_notification(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = tmp_path / "home"
+    calls: list[str] = []
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
+
+    def fake_notify(proposal: Any) -> str:
+        calls.append(proposal.proposal_id)
+        return "notification-a"
+
+    monkeypatch.setattr("sase.memory.cli_write.notify_memory_proposed", fake_notify)
+    args = create_parser().parse_args(
+        [
+            "memory",
+            "write",
+            "--title",
+            "Memory",
+            "--target",
+            "long/memory.md",
+            "--evidence",
+            "chat:abc",
+            "--body",
+            "Body\n",
+            "--notify",
+            "--json",
+        ]
+    )
+
+    handle_memory_write_command(args)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["notification_id"] == "notification-a"
+    assert calls == [payload["proposal"]["proposal_id"]]
+
+
+def test_memory_write_notify_failure_does_not_fail_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
+
+    def fail_notify(_proposal: object) -> str:
+        raise RuntimeError("notification store unavailable")
+
+    monkeypatch.setattr("sase.memory.cli_write.notify_memory_proposed", fail_notify)
+    args = create_parser().parse_args(
+        [
+            "memory",
+            "write",
+            "--title",
+            "Memory",
+            "--target",
+            "long/memory.md",
+            "--evidence",
+            "chat:abc",
+            "--body",
+            "Body\n",
+            "--notify",
+            "--json",
+        ]
+    )
+
+    handle_memory_write_command(args)
+
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    payload = json.loads(captured.out)
+    assert payload["notification_id"] is None
+    assert payload["proposal"]["status"] == "pending"

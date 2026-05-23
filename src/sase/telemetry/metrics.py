@@ -75,6 +75,13 @@ WORKSPACE_ACTIVE: StubGauge = StubGauge()
 # ---------------------------------------------------------------------------
 NOTIFICATIONS_SENT: StubCounter = StubCounter()
 
+# ---------------------------------------------------------------------------
+# Memory Proposals
+# ---------------------------------------------------------------------------
+MEMORY_PROPOSALS_PROPOSED: StubCounter = StubCounter()
+MEMORY_PROPOSALS_APPROVED: StubCounter = StubCounter()
+MEMORY_PROPOSALS_REJECTED: StubCounter = StubCounter()
+
 
 # ---------------------------------------------------------------------------
 # Metric definitions used by _registry.init_telemetry() to create real
@@ -359,6 +366,31 @@ METRIC_DEFS: list[tuple[str, str, str, str, list[str], dict]] = [
         "sase_notifications_sent_total",
         "Total notifications sent",
         ["type", "status"],
+        {},
+    ),
+    # -- Memory Proposals --
+    (
+        "MEMORY_PROPOSALS_PROPOSED",
+        "counter",
+        "sase_memory_proposals_proposed_total",
+        "Total long-term memory proposals created",
+        [],
+        {},
+    ),
+    (
+        "MEMORY_PROPOSALS_APPROVED",
+        "counter",
+        "sase_memory_proposals_approved_total",
+        "Total long-term memory proposals approved",
+        ["edited"],
+        {},
+    ),
+    (
+        "MEMORY_PROPOSALS_REJECTED",
+        "counter",
+        "sase_memory_proposals_rejected_total",
+        "Total long-term memory proposals rejected",
+        [],
         {},
     ),
 ]

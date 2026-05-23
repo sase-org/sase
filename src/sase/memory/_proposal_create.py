@@ -32,6 +32,7 @@ from sase.memory._proposal_validation import (
     parse_memory_proposal_evidence,
     validate_memory_proposal_target,
 )
+from sase.telemetry.metrics import MEMORY_PROPOSALS_PROPOSED
 
 
 def create_memory_proposal(
@@ -97,6 +98,7 @@ def create_memory_proposal(
 
     append_memory_proposal_event(event, body=body, ledger_path=final_ledger_path)
     state = reduce_memory_proposal_events((event,))[0]
+    MEMORY_PROPOSALS_PROPOSED.inc()
     return MemoryProposalWriteResult(
         event=event,
         state=state,

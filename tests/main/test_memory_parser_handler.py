@@ -58,6 +58,7 @@ def test_parser_registers_memory_namespace() -> None:
             "draft.md",
             "--allow-large",
             "--json",
+            "--notify",
         ]
     )
     assert write_args.command == "memory"
@@ -71,6 +72,7 @@ def test_parser_registers_memory_namespace() -> None:
     assert write_args.file == "draft.md"
     assert write_args.allow_large is True
     assert write_args.json is True
+    assert write_args.notify is True
 
     review_list_args = parser.parse_args(["memory", "review", "--list", "--json"])
     assert review_list_args.command == "memory"
@@ -106,6 +108,8 @@ def test_parser_registers_memory_namespace() -> None:
             "--agent",
             "agent-a",
             "--json",
+            "--include",
+            "proposals",
         ]
     )
     assert log_args.command == "memory"
@@ -113,6 +117,7 @@ def test_parser_registers_memory_namespace() -> None:
     assert log_args.path == "long/generated_skills.md"
     assert log_args.agent == "agent-a"
     assert log_args.json is True
+    assert log_args.include == ["proposals"]
 
     log_id_args = parser.parse_args(["memory", "log", "--id", "read-a"])
     assert log_id_args.command == "memory"

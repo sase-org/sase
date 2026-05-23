@@ -2,12 +2,44 @@
 
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from sase.notifications.models import Notification
 from sase.notifications.store import append_notification
 from sase.core.time import get_timezone
 from sase.telemetry.metrics import NOTIFICATIONS_SENT
+
+
+def notify_memory_proposed(proposal: Any) -> str:
+    """Send a notification for a pending long-term memory proposal."""
+    notification_id = str(uuid4())
+    evidence_count = len(getattr(proposal, "evidence", ()) or ())
+    n = Notification(
+        id=notification_id,
+        timestamp=datetime.now(get_timezone()).isoformat(),
+        sender="memory.proposed",
+        notes=[
+            f"Memory proposal ready: {proposal.title}",
+            f"{proposal.author_name} proposed {proposal.target_path}",
+            f"{evidence_count} evidence item(s)",
+        ],
+        files=_memory_proposal_evidence_files(proposal),
+        action="memory_review",
+        action_data={"proposal_id": proposal.proposal_id},
+    )
+    append_notification(n)
+    NOTIFICATIONS_SENT.labels(type="memory_proposed", status="ok").inc()
+    return notification_id
+
+
+def _memory_proposal_evidence_files(proposal: Any) -> list[str]:
+    files: list[str] = []
+    for evidence in getattr(proposal, "evidence", ()) or ():
+        resolved_path = getattr(evidence, "resolved_path", None)
+        if isinstance(resolved_path, str) and resolved_path:
+            files.append(resolved_path)
+    return files
 
 
 def notify_workflow_complete(

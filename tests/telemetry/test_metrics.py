@@ -57,5 +57,14 @@ def test_default_singletons_are_stubs() -> None:
 
 
 def test_metric_def_count() -> None:
-    """Sanity check: 34 metrics total (30 original + 3 token counters + retry spawns)."""
-    assert len(METRIC_DEFS) == 34
+    """Sanity check: 37 metrics total after memory proposal counters."""
+    assert len(METRIC_DEFS) == 37
+
+
+def test_memory_proposal_metrics_are_defined() -> None:
+    attrs = {attr for attr, _, _, _, _, _ in METRIC_DEFS}
+    assert {
+        "MEMORY_PROPOSALS_PROPOSED",
+        "MEMORY_PROPOSALS_APPROVED",
+        "MEMORY_PROPOSALS_REJECTED",
+    } <= attrs

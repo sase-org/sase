@@ -30,7 +30,7 @@ principles:
   start an exposition server.
 - **Dual data collection**: Short-lived processes (agents) push metrics to a Push Gateway. Long-lived processes (axe
   daemon) expose metrics via an HTTP endpoint for Prometheus to scrape.
-- **34 metrics across 7 subsystems**: Comprehensive coverage of the full sase lifecycle.
+- **37 metrics across 8 subsystems**: Comprehensive coverage of the full sase lifecycle.
 
 Telemetry data appears only after telemetry is enabled and an instrumented process has run. For local dashboards, export
 the monitoring stack first, start it with Docker Compose, then run or restart the relevant sase processes so they
@@ -197,10 +197,10 @@ cd sase-monitoring && docker compose up -d
 │ (short-lived procs) │   (long-lived: axe daemon)         │
 ├─────────────────────┴────────────────────────────────────┤
 │                 Prometheus Metrics Layer                 │
-│       metrics.py (34 metric singletons, stub/real switch)│
+│       metrics.py (37 metric singletons, stub/real switch)│
 ├──────────────────────────────────────────────────────────┤
 │                  Instrumentation Points                  │
-│  Agent · LLM · Axe · Hooks · Beads · VCS · Notifications │
+│       Agent · LLM · Axe · Hooks · Beads · VCS · Notify · Memory │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -209,7 +209,7 @@ cd sase-monitoring && docker compose up -d
 | File / Directory                   | Purpose                                       |
 | ---------------------------------- | --------------------------------------------- |
 | `src/sase/telemetry/__init__.py`   | Public API exports                            |
-| `src/sase/telemetry/metrics.py`    | Module-level metric singletons (34 attrs)     |
+| `src/sase/telemetry/metrics.py`    | Module-level metric singletons (37 attrs)     |
 | `src/sase/telemetry/_registry.py`  | Init, Push Gateway integration, atexit        |
 | `src/sase/telemetry/_stubs.py`     | No-op stub classes used when telemetry is off |
 | `src/sase/telemetry/_config.py`    | Configuration loading from sase.yml           |
@@ -222,7 +222,7 @@ cd sase-monitoring && docker compose up -d
 
 ## Metric Catalog
 
-34 metrics organized into 7 subsystems:
+37 metrics organized into 8 subsystems:
 
 ### Agent Lifecycle
 
@@ -293,6 +293,14 @@ cd sase-monitoring && docker compose up -d
 | ------------------------------- | ------- | ------------ | ------------------ |
 | `sase_notifications_sent_total` | counter | type, status | Notifications sent |
 
+### Memory
+
+| Prometheus Name                        | Type    | Labels | Description               |
+| -------------------------------------- | ------- | ------ | ------------------------- |
+| `sase_memory_proposals_proposed_total` | counter | -      | Memory proposals created  |
+| `sase_memory_proposals_approved_total` | counter | edited | Memory proposals approved |
+| `sase_memory_proposals_rejected_total` | counter | -      | Memory proposals rejected |
+
 ## Monitoring Stack
 
 The `sase telemetry export-config` command exports a ready-to-use Docker Compose stack:
@@ -346,6 +354,7 @@ Telemetry is instrumented across the codebase:
 | Beads         | `src/sase/bead/project.py`, `src/sase/main/bead_fast_path.py`           | CRUD operations, status transitions  |
 | VCS           | VCS provider plugins under `src/sase/vcs_provider/plugins/`             | Commits, operations                  |
 | Notifications | `src/sase/notifications/senders.py`                                     | Notifications sent                   |
+| Memory        | `src/sase/memory/proposals.py`                                          | Proposal review lifecycle            |
 
 The axe orchestrator calls `init_telemetry(start_http_server=True)` on startup to begin exposing metrics. Agent
 processes use `push_metrics()` to send data to the Push Gateway on exit via an `atexit` handler.

@@ -1150,18 +1150,23 @@ Advanced deploy controls stay on explicit subcommands such as `sase init memory 
 
 With no subcommand, `sase memory` defaults to `sase memory list`.
 
-| Form                      | Flags                                 | Description                                                                                         |
-| ------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `sase memory`             | -                                     | Show the same read-only memory context dashboard as `sase memory list`.                             |
-| `sase memory list`        | -                                     | Show loaded, referenced, available, and missing memory files for the current launch context.        |
-| `sase memory read <path>` | `--reason <reason>` required          | Print a `memory/long/*.md` file without leading frontmatter and append an attributable audit event. |
-| `sase memory log`         | `--path`, `--agent`, `--id`, `--json` | Summarize or inspect audited long-term memory reads.                                                |
+| Form                      | Flags                                                    | Description                                                                                         |
+| ------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `sase memory`             | -                                                        | Show the same read-only memory context dashboard as `sase memory list`.                             |
+| `sase memory list`        | -                                                        | Show loaded, referenced, available, and missing memory files for the current launch context.        |
+| `sase memory read <path>` | `--reason <reason>` required                             | Print a `memory/long/*.md` file without leading frontmatter and append an attributable audit event. |
+| `sase memory write`       | `--title`, `--target`/`--slug`, `--evidence`, `--notify` | Propose a long-term memory file for user review without modifying canonical memory files.           |
+| `sase memory review`      | `--list`, `--show`, `--approve`, `--edit`, `--reject`    | Review, approve, edit, or reject pending long-term memory proposals.                                |
+| `sase memory log`         | `--path`, `--agent`, `--id`, `--include`, `--json`       | Summarize or inspect audited long-term memory reads, optionally including proposal events.          |
 
 Examples:
 
 ```bash
 sase memory read long/generated_skills.md --reason "Need generated skill context"
+sase memory write --title "Generated skills" --slug generated_skills --evidence chat:abc123 --body "Durable memory body" --notify
+sase memory review --list
 sase memory log
+sase memory log --include proposals
 sase memory log --path long/generated_skills.md
 sase memory log --id <read-id>
 ```

@@ -27,6 +27,7 @@ _ACTION_KIND_BY_NOTIFICATION_ACTION = {
     "PlanApproval": "plan_approval",
     "HITL": "hitl",
     "UserQuestion": "user_question",
+    "memory_review": "memory_review",
 }
 
 

@@ -73,7 +73,10 @@ sase core health          # verify the required Rust backend before launching ag
 sase memory init --no-commit  # write memory files; skip only the project commit/push
 sase memory list         # inspect loaded, referenced, available, and missing memory files
 sase memory read long/generated_skills.md --reason "Need generated skill context"
+sase memory write --title "Generated skills" --slug generated_skills --evidence chat:abc123 --body "Durable memory body" --notify
+sase memory review --list
 sase memory log          # summarize audited long-term memory reads
+sase memory log --include proposals  # include memory proposal/review events
 sase init sdd             # create/refresh generated SDD guides and directory map
 sase init skills --dry-run    # preview provider skill files before deploying them
 sase ace                  # open the interactive control surface

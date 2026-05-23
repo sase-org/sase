@@ -10,9 +10,11 @@ from typing import Any
 
 from sase.memory.proposals import (
     MemoryProposalError,
+    MemoryProposalWriteResult,
     create_memory_proposal,
     memory_proposal_state_to_dict,
 )
+from sase.notifications.senders import notify_memory_proposed
 
 
 def handle_memory_write_command(args: argparse.Namespace) -> None:
@@ -35,11 +37,13 @@ def handle_memory_write_command(args: argparse.Namespace) -> None:
         print(f"sase memory write: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    payload = {
+    payload: dict[str, Any] = {
         "draft_path": str(result.draft_path),
         "ledger_path": str(result.ledger_path),
         "proposal": memory_proposal_state_to_dict(result.state),
     }
+    if args.notify:
+        payload["notification_id"] = _notify_memory_proposed(result)
     if args.json:
         print(json.dumps(payload, sort_keys=True))
         return
@@ -84,3 +88,13 @@ def _print_human_result(payload: dict[str, Any]) -> None:
     warning_count = len(proposal["warnings"])
     if warning_count:
         print(f"warnings: {warning_count}")
+    if "notification_id" in payload:
+        notification_id = payload["notification_id"] or "not sent"
+        print(f"notification: {notification_id}")
+
+
+def _notify_memory_proposed(result: MemoryProposalWriteResult) -> str | None:
+    try:
+        return notify_memory_proposed(result.state)
+    except Exception:
+        return None

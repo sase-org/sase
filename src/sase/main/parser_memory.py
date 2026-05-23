@@ -21,7 +21,9 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             "generated_skills --evidence sdd/research/skills.md --body "
             '"Durable memory body"\n'
             "  sase memory review --list\n"
+            "  sase memory review mem-20260523-142233-a1b2c3d4 --edit\n"
             "  sase memory log\n"
+            "  sase memory log --include proposals\n"
             "  sase memory log --path long/generated_skills.md\n"
             "  sase memory log --id <read-id>"
         ),
@@ -103,6 +105,9 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             '  sase memory write --title "Generated skills" --slug '
             "generated_skills --evidence sdd/research/skills.md --body "
             '"Durable memory body"\n'
+            '  sase memory write --title "Generated skills" --slug '
+            "generated_skills --evidence chat:abc123 --body "
+            '"Durable memory body" --notify\n'
             '  cat draft.md | sase memory write --title "Generated skills" '
             "--target long/generated_skills.md --evidence chat:abc123"
         ),
@@ -172,6 +177,11 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Emit deterministic machine-readable JSON",
     )
+    write_parser.add_argument(
+        "--notify",
+        action="store_true",
+        help="Best-effort append a memory.proposed notification after creation",
+    )
 
     review_parser = memory_subparsers.add_parser(
         "review",
@@ -187,6 +197,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase memory review --list\n"
             "  sase memory review mem-20260523-142233-a1b2c3d4 --show\n"
             "  sase memory review mem-20260523-142233-a1b2c3d4 --approve\n"
+            "  sase memory review mem-20260523-142233-a1b2c3d4 --edit\n"
             "  sase memory review mem-20260523-142233-a1b2c3d4 --reject "
             '--reason "Too speculative"'
         ),
@@ -259,6 +270,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         epilog=(
             "examples:\n"
             "  sase memory log\n"
+            "  sase memory log --include proposals\n"
             "  sase memory log --path long/generated_skills.md\n"
             "  sase memory log --id <read-id>"
         ),
@@ -277,6 +289,14 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         "--id",
         metavar="READ_ID",
         help="Show one memory read event by id or unambiguous id prefix",
+    )
+    log_parser.add_argument(
+        "--include",
+        action="append",
+        choices=("proposals",),
+        default=[],
+        metavar="KIND",
+        help="Include additional audit events; currently only 'proposals'",
     )
     log_parser.add_argument(
         "--json",

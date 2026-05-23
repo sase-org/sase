@@ -35,6 +35,10 @@ from sase.memory._proposal_validation import (
     validate_memory_proposal_target,
 )
 from sase.memory.locks import locked_file
+from sase.telemetry.metrics import (
+    MEMORY_PROPOSALS_APPROVED,
+    MEMORY_PROPOSALS_REJECTED,
+)
 
 
 def reject_memory_proposal(
@@ -87,6 +91,7 @@ def reject_memory_proposal(
             state.proposal_id, reduce_memory_proposal_events((*events, event))
         )
 
+    MEMORY_PROPOSALS_REJECTED.inc()
     return MemoryProposalReviewResult(
         event=event,
         state=state,
@@ -175,6 +180,9 @@ def approve_memory_proposal(
             state.proposal_id, reduce_memory_proposal_events((*events, event))
         )
 
+    MEMORY_PROPOSALS_APPROVED.labels(
+        edited=str(event.event_type == "approved_with_edits").lower()
+    ).inc()
     warnings = _approval_reachability_warnings(
         state,
         canonical_path=canonical_path,

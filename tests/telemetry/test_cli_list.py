@@ -42,6 +42,7 @@ def test_list_shows_all_subsystems() -> None:
     assert "Beads" in output
     assert "VCS / Workspace" in output
     assert "Notifications" in output
+    assert "Memory" in output
 
 
 def test_list_shows_metric_names() -> None:
