@@ -5,9 +5,11 @@ import tempfile
 from typing import TYPE_CHECKING
 
 from sase.llm_provider.postprocessing import (
+    _save_to_chat_history,
     log_prompt_and_response,
     save_prompt_to_file,
 )
+from sase.llm_provider.types import LoggingContext
 
 if TYPE_CHECKING:
     from pytest import CaptureFixture
@@ -88,3 +90,21 @@ def test_save_prompt_to_file_with_iteration() -> None:
 
         prompt_file = os.path.join(tmpdir, "editor_iter_3_prompt.md")
         assert os.path.exists(prompt_file)
+
+
+def test_save_to_chat_history_passes_transcript_model_metadata() -> None:
+    context = LoggingContext(
+        agent_type="wf",
+        workflow="wf",
+        metadata_model="sonnet",
+        metadata_llm_provider="claude",
+    )
+
+    from unittest.mock import patch
+
+    with patch("sase.llm_provider.postprocessing.save_chat_history") as save_chat:
+        _save_to_chat_history("prompt", "response", context, "260501_225009")
+
+    assert save_chat.call_args.kwargs["metadata_model"] == "sonnet"
+    assert save_chat.call_args.kwargs["metadata_llm_provider"] == "claude"
+    assert save_chat.call_args.kwargs["metadata_agent"] is None

@@ -189,9 +189,15 @@ def invoke_agent(
 
     # 7. Get provider and invoke
     provider_label = provider_name or get_default_provider_name()
+    context.metadata_llm_provider = provider_label
+    context.metadata_model = model_override
     t0 = time.monotonic()
     try:
         provider = get_provider(provider_name)
+        if context.metadata_model is None:
+            resolved_model = provider.resolve_model_name(model_tier)
+            if resolved_model and resolved_model != "unknown":
+                context.metadata_model = resolved_model
         invoke_result = provider.invoke(
             query,
             model_tier=model_tier,

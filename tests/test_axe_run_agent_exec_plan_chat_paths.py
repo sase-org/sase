@@ -69,6 +69,9 @@ class TestFeedbackRoundChatPath:
         """Round 1 (no role suffix yet) falls back to '-plan' suffix."""
         captured = self._run_plan(tmp_path, role_suffix="")
         assert captured["agent"] == "test_agent-plan"
+        assert captured["metadata_agent"] == "test_agent-plan"
+        assert captured["metadata_model"] is None
+        assert captured["metadata_llm_provider"] == "anthropic"
 
     def test_handle_plan_marker_round2_uses_round_suffix_in_agent_name(
         self, tmp_path
@@ -76,6 +79,7 @@ class TestFeedbackRoundChatPath:
         """Round 2 uses the round suffix instead of hardcoded '-plan'."""
         captured = self._run_plan(tmp_path, role_suffix=".2")
         assert captured["agent"] == "test_agent-2"
+        assert captured["metadata_agent"] == "test_agent-2"
 
     def test_handle_plan_marker_uses_distinct_agent_per_round(self, tmp_path) -> None:
         """Two rounds with different suffixes must produce distinct agent names."""
@@ -91,6 +95,7 @@ class TestFeedbackRoundChatPath:
         """Agent kwarg is None when ctx.agent_name is None (regression check)."""
         captured = self._run_plan(tmp_path, role_suffix="", agent_name=None)
         assert captured["agent"] is None
+        assert captured["metadata_agent"] is None
 
     def test_handle_questions_marker_uses_suffix_in_agent_name(self, tmp_path) -> None:
         """Questions handler uses current_role_suffix (post-`-q` accumulation)."""
@@ -117,3 +122,6 @@ class TestFeedbackRoundChatPath:
             handle_questions_marker({"questions": []}, ctx, state)
 
         assert captured["agent"] == "test_agent-2-q"
+        assert captured["metadata_agent"] == "test_agent-2-q"
+        assert "metadata_model" not in captured
+        assert "metadata_llm_provider" not in captured

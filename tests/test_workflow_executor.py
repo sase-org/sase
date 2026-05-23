@@ -94,6 +94,47 @@ class TestShouldHitl:
             assert directives is not None
             assert getattr(directives, "model", None) == "gemini-3-flash-preview"
 
+    def test_prompt_step_chat_history_includes_step_metadata(self) -> None:
+        """Prompt-step chat saves include resolved model/provider and step name."""
+        step = WorkflowStep(name="review", agent="%model:codex/o3\nReview it")
+        workflow = _create_test_workflow(name="workflow/main", steps=[step])
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            captured: dict[str, object] = {}
+
+            def _fake_invoke_agent(prompt: str, **_: object) -> AIMessage:
+                captured["prompt"] = prompt
+                return AIMessage(content="ok")
+
+            def _fake_save_chat_history(**kwargs: object) -> str:
+                captured["chat_kwargs"] = kwargs
+                return "/tmp/chat.md"
+
+            with (
+                patch("sase.llm_provider.invoke_agent", side_effect=_fake_invoke_agent),
+                patch(
+                    "sase.llm_provider.registry.resolve_model_provider",
+                    return_value=("codex", "o3"),
+                ),
+                patch(
+                    "sase.history.chat.save_chat_history",
+                    side_effect=_fake_save_chat_history,
+                ),
+            ):
+                executor = WorkflowExecutor(
+                    workflow=workflow,
+                    args={},
+                    artifacts_dir=tmpdir,
+                )
+                assert executor.execute() is True
+
+        kwargs = captured["chat_kwargs"]
+        assert isinstance(kwargs, dict)
+        assert kwargs["agent"] == "review"
+        assert kwargs["metadata_agent"] == "review"
+        assert kwargs["metadata_model"] == "o3"
+        assert kwargs["metadata_llm_provider"] == "codex"
+
     def test_inherited_vcs_tag_prefixes_bare_prompt_step(self) -> None:
         """Workflow step prompts inherit the wrapper VCS tag before expansion."""
         step = WorkflowStep(name="s1", agent="Fix it")

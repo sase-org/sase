@@ -203,6 +203,44 @@ def resolve_chat_file_path(basename: str) -> str | None:
     return find_sharded_file("chats", basename)
 
 
+def _clean_metadata_field(value: str | None) -> str | None:
+    """Normalize a transcript metadata field for single-line markdown output."""
+    if value is None:
+        return None
+    cleaned = " ".join(str(value).split())
+    return cleaned or None
+
+
+def _format_metadata_model(
+    metadata_llm_provider: str | None,
+    metadata_model: str | None,
+) -> str | None:
+    """Format transcript provider/model metadata without inventing unknowns."""
+    provider = _clean_metadata_field(metadata_llm_provider)
+    model = _clean_metadata_field(metadata_model)
+    if provider and model:
+        if model.startswith(f"{provider}/"):
+            return model
+        return f"{provider}/{model}"
+    return model or provider
+
+
+def _format_transcript_metadata(
+    *,
+    metadata_model: str | None,
+    metadata_llm_provider: str | None,
+    metadata_agent: str | None,
+) -> str:
+    fields: list[str] = []
+    model = _format_metadata_model(metadata_llm_provider, metadata_model)
+    agent = _clean_metadata_field(metadata_agent)
+    if model:
+        fields.append(f"**MODEL:** {model}")
+    if agent:
+        fields.append(f"**AGENT:** {agent}")
+    return f" {' '.join(fields)}" if fields else ""
+
+
 def save_chat_history(
     prompt: str,
     response: str,
@@ -212,6 +250,10 @@ def save_chat_history(
     timestamp: str | None = None,
     extra_sections: str | None = None,
     branch_or_workspace: str | None = None,
+    *,
+    metadata_model: str | None = None,
+    metadata_llm_provider: str | None = None,
+    metadata_agent: str | None = None,
 ) -> str:
     """Save a chat history to a file.
 
@@ -224,6 +266,10 @@ def save_chat_history(
         timestamp: Optional timestamp for filename (YYmmdd_HHMMSS format)
         extra_sections: Optional markdown content (plan feedback, Q&A) to
             insert after the timestamp and before the prompt.
+        branch_or_workspace: Optional branch/workspace name for filename.
+        metadata_model: Optional model name to render in the transcript header.
+        metadata_llm_provider: Optional LLM provider to render with the model.
+        metadata_agent: Optional SASE agent name to render in the transcript header.
 
     Returns:
         The full path to the saved chat history file
@@ -246,7 +292,12 @@ def save_chat_history(
     content_parts.append(f"# Chat History - {workflow}")
     if agent:
         content_parts.append(f" ({agent})")
-    content_parts.append(f"\n\n**Timestamp:** {display_timestamp}\n")
+    metadata_suffix = _format_transcript_metadata(
+        metadata_model=metadata_model,
+        metadata_llm_provider=metadata_llm_provider,
+        metadata_agent=metadata_agent,
+    )
+    content_parts.append(f"\n\n**Timestamp:** {display_timestamp}{metadata_suffix}\n")
 
     # Add extra sections (plan feedback, Q&A) before prompt
     if extra_sections:

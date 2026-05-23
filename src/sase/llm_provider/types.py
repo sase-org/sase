@@ -44,3 +44,6 @@ class LoggingContext:
     is_home_mode: bool = False
     branch_or_workspace: str | None = None
     decision_counts: dict[str, Any] | None = field(default=None)
+    metadata_model: str | None = None
+    metadata_llm_provider: str | None = None
+    metadata_agent: str | None = None

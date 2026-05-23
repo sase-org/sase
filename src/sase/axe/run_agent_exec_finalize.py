@@ -296,6 +296,51 @@ def _read_retry_handoff_meta(
     )
 
 
+def _read_transcript_agent_meta(artifacts_dir: str) -> dict[str, Any]:
+    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _metadata_str(meta: dict[str, Any], key: str) -> str | None:
+    value = meta.get(key)
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    return value or None
+
+
+def _final_transcript_model_provider(
+    ctx: AgentExecContext,
+    state: LoopState,
+    tracker: RetryTracker,
+    fallback_model_override: str | None,
+) -> tuple[str | None, str | None]:
+    latest_meta = _read_transcript_agent_meta(state.current_artifacts_dir)
+    model = _metadata_str(latest_meta, "model") or ctx.agent_model
+    llm_provider = _metadata_str(latest_meta, "llm_provider") or ctx.agent_llm_provider
+
+    fallback_model = fallback_model_override
+    if fallback_model is None and tracker.using_fallback and tracker.retry_cfg:
+        fallback_model = tracker.retry_cfg.fallback_model
+    if fallback_model:
+        try:
+            from sase.llm_provider.registry import resolve_model_provider
+
+            resolved_provider, resolved_model = resolve_model_provider(fallback_model)
+        except Exception:
+            resolved_provider, resolved_model = None, fallback_model
+        model = resolved_model
+        if resolved_provider:
+            llm_provider = resolved_provider
+
+    return model, llm_provider
+
+
 def finalize_loop(
     ctx: AgentExecContext,
     state: LoopState,
@@ -304,12 +349,19 @@ def finalize_loop(
 ) -> AgentExecResult:
     """Post-loop cleanup: retry state, done marker, result construction."""
     RetryState.delete_from(ctx.artifacts_dir)
+    fallback_model_override = os.environ.get("SASE_MODEL_OVERRIDE")
     if "SASE_MODEL_OVERRIDE" in os.environ:
         del os.environ["SASE_MODEL_OVERRIDE"]
 
     retry_meta = _build_retry_metadata(tracker)
     _restore_execution_env(state)
     done_agent_name = _final_done_agent_name(ctx, state)
+    metadata_model, metadata_llm_provider = _final_transcript_model_provider(
+        ctx,
+        state,
+        tracker,
+        fallback_model_override,
+    )
 
     saved_path: str | None = None
     diff_path: str | None = None
@@ -332,6 +384,9 @@ def finalize_loop(
         timestamp=ctx.timestamp,
         extra_sections=extra,
         branch_or_workspace=ctx.cl_name,
+        metadata_agent=done_agent_name,
+        metadata_model=metadata_model,
+        metadata_llm_provider=metadata_llm_provider,
     )
     print(f"\nChat history saved to: {saved_path}")
 

@@ -202,6 +202,9 @@ def handle_plan_marker(
         timestamp=ctx.timestamp,
         extra_sections=_planner_extra,
         branch_or_workspace=ctx.cl_name,
+        metadata_agent=planner_agent,
+        metadata_model=ctx.agent_model,
+        metadata_llm_provider=ctx.agent_llm_provider,
     )
     state.saved_chat_paths.append((_planner_suffix, _planner_chat))
     update_meta_field(state.current_artifacts_dir, "chat_path", _planner_chat)
@@ -610,6 +613,7 @@ def handle_questions_marker(
         timestamp=ctx.timestamp,
         extra_sections=_q_extra,
         branch_or_workspace=ctx.cl_name,
+        metadata_agent=_q_agent,
     )
     state.saved_chat_paths.append((_q_suffix, _q_chat))
     update_meta_field(state.current_artifacts_dir, "chat_path", _q_chat)

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 12:03:02
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_chat_transcript_metadata.md
 ---
 # Plan: Agent Chat Transcript Metadata

@@ -131,6 +131,63 @@ def test_save_chat_history_basic(
     assert "Hello, how are you?" in content
     assert "I am fine, thank you!" in content
     assert "# Chat History - run" in content
+    assert "**MODEL:**" not in content
+    assert "**AGENT:**" not in content
+
+
+def test_save_chat_history_with_transcript_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Metadata fields are rendered on the timestamp line before the prompt."""
+    redirect_sase_home(monkeypatch, tmp_path)
+    with (
+        patch(
+            "sase.history.chat._get_branch_or_workspace_name",
+            return_value="test-branch",
+        ),
+        patch("sase.history.chat.generate_timestamp", return_value="251128_120000"),
+    ):
+        result = save_chat_history(
+            prompt="Implement the plan",
+            response="Done",
+            workflow="ace-run",
+            metadata_model="claude-sonnet",
+            metadata_llm_provider="claude",
+            metadata_agent="alpha",
+        )
+
+    content = Path(os.path.expanduser(result)).read_text(encoding="utf-8")
+    timestamp_line = next(
+        line for line in content.splitlines() if line.startswith("**Timestamp:**")
+    )
+    assert "**MODEL:** claude/claude-sonnet" in timestamp_line
+    assert "**AGENT:** alpha" in timestamp_line
+    assert content.index("**Timestamp:**") < content.index("**MODEL:**")
+    assert content.index("**MODEL:**") < content.index("**AGENT:**")
+    assert content.index("**AGENT:**") < content.index("## Prompt")
+
+
+def test_save_chat_history_filename_agent_can_differ_from_metadata_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The legacy agent kwarg still controls path/header only."""
+    redirect_sase_home(monkeypatch, tmp_path)
+
+    result = save_chat_history(
+        prompt="Plan",
+        response="Approved",
+        workflow="ace-run",
+        agent="planner-role",
+        branch_or_workspace="branch",
+        timestamp="260501_225009",
+        metadata_agent="sase-agent-plan",
+    )
+
+    actual_path = Path(os.path.expanduser(result))
+    content = actual_path.read_text(encoding="utf-8")
+    assert actual_path.name == "branch-ace_run-planner_role-260501_225009.md"
+    assert "# Chat History - ace-run (planner-role)" in content
+    assert "**AGENT:** sase-agent-plan" in content
 
 
 def test_save_chat_history_with_path_like_branch(

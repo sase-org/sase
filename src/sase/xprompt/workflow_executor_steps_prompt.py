@@ -313,6 +313,9 @@ class PromptStepMixin:
                     response=response_text,
                     workflow=self.workflow.name,
                     agent=step.name,
+                    metadata_agent=step.name,
+                    metadata_model=step_model,
+                    metadata_llm_provider=step_llm_provider,
                 )
             except Exception:
                 pass
