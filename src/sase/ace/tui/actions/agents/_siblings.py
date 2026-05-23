@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from ...models.agent_groups import GroupingMode
     from ...models.agent_panels import AgentPanelGroup
     from ...models.agent_siblings import AgentSiblingIndex, AgentSiblingRow
+    from ...modals.agent_sibling_modal import AgentSiblingChoice
 
 
 class AgentSiblingMixin:
@@ -24,6 +25,10 @@ class AgentSiblingMixin:
     _panel_group: AgentPanelGroup
     _agent_panels_grouped: bool
     _agent_sibling_index_cache: tuple[Any, ...] | None
+    _current_group_key: tuple[str, ...] | None
+    current_idx: int
+    current_attempt_number: int | None
+    current_tab: str
 
     def _agent_sibling_index(self) -> AgentSiblingIndex:
         """Return the sibling index for all currently visible agent rows."""
@@ -107,3 +112,211 @@ class AgentSiblingMixin:
                         agent=panel_agents[local_idx],
                         family=agent_sibling_family(panel_agents[local_idx]),
                     )
+
+    def _start_agent_sibling_navigation(self) -> None:
+        """Jump to, or choose from, visible siblings of the selected agent."""
+        if getattr(self, "current_tab", None) != "agents":
+            return
+        if getattr(self, "_current_group_key", None) is not None:
+            return
+        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+            return
+
+        selected = self._get_selected_agent()  # type: ignore[attr-defined]
+        if selected is None:
+            return
+
+        from ...models.agent_siblings import agent_sibling_family
+
+        if agent_sibling_family(selected) is None:
+            return
+
+        index = self._agent_sibling_index()
+        siblings = index.siblings_for(self.current_idx)
+        if not siblings:
+            return
+
+        guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
+        if callable(guard) and guard():
+            return
+
+        if len(siblings) == 1:
+            self._focus_agent_sibling_by_global_index(
+                siblings[0],
+                sibling_index=index,
+            )
+            return
+
+        choices = self._agent_sibling_choices(siblings, index)
+        if not choices:
+            return
+
+        from ...modals import AgentSiblingModal
+
+        def _on_sibling_selected(target_idx: int | None) -> None:
+            if target_idx is None:
+                return
+            self._focus_agent_sibling_by_global_index(target_idx)
+
+        self.push_screen(  # type: ignore[attr-defined]
+            AgentSiblingModal(
+                self._agent_sibling_family_label(selected),
+                choices,
+            ),
+            _on_sibling_selected,
+        )
+
+    def _focus_agent_sibling_by_global_index(
+        self,
+        target_idx: int,
+        *,
+        sibling_index: AgentSiblingIndex | None = None,
+    ) -> bool:
+        """Focus the visible sibling row identified by its global agent index."""
+        if getattr(self, "current_tab", None) != "agents":
+            return False
+        if not (0 <= target_idx < len(self._agents)):
+            return False
+
+        index = (
+            sibling_index if sibling_index is not None else self._agent_sibling_index()
+        )
+        target_panel_idx = index.panel_idx_for(target_idx)
+        if target_panel_idx is None:
+            return False
+
+        guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
+        if callable(guard) and guard():
+            return False
+
+        panel_group = getattr(self, "_panel_group", None)
+        old_focused_idx = panel_group.focused_idx if panel_group is not None else None
+        old_idx = self.current_idx
+        old_group_key = getattr(self, "_current_group_key", None)
+        old_agent = (
+            self._agents[old_idx]
+            if old_group_key is None and 0 <= old_idx < len(self._agents)
+            else None
+        )
+
+        if (
+            panel_group is not None
+            and 0 <= target_panel_idx < len(panel_group.panel_keys)
+            and target_panel_idx != panel_group.focused_idx
+        ):
+            panel_group.focused_idx = target_panel_idx
+
+        if old_agent is not None and old_idx != target_idx:
+            arm_manual = getattr(self, "_arm_manual_unread_after_departure", None)
+            if callable(arm_manual):
+                arm_manual(old_agent)
+
+        self._current_group_key = None  # type: ignore[attr-defined]
+        if hasattr(self, "current_attempt_number"):
+            self.current_attempt_number = None  # type: ignore[attr-defined]
+        self.current_idx = target_idx
+
+        target_agent = self._agents[target_idx]
+        ack_unread = getattr(self, "_acknowledge_agent_unread", None)
+        if callable(ack_unread):
+            ack_unread(target_agent)
+
+        self._refresh_agent_sibling_jump_views(old_focused_idx=old_focused_idx)
+        return True
+
+    def _refresh_agent_sibling_jump_views(self, *, old_focused_idx: int | None) -> None:
+        """Refresh selection chrome after a sibling jump without rebuilding rows."""
+        panel_group = getattr(self, "_panel_group", None)
+        focused_changed = (
+            panel_group is not None
+            and old_focused_idx is not None
+            and old_focused_idx != panel_group.focused_idx
+        )
+        refresh_focused_panel = getattr(self, "_refresh_focused_agent_panel", None)
+        if focused_changed and callable(refresh_focused_panel):
+            refresh_focused_panel(old_focused_idx=old_focused_idx)
+        else:
+            refresh_highlights = getattr(self, "_refresh_panel_highlights", None)
+            if callable(refresh_highlights):
+                refresh_highlights()
+            else:
+                refresh_display = getattr(self, "_refresh_agents_display", None)
+                if callable(refresh_display):
+                    refresh_display(list_changed=False)
+
+        update_info = getattr(self, "_update_agents_info_panel", None)
+        if callable(update_info):
+            update_info()
+        apply_immediate = getattr(self, "_apply_agent_detail_immediate", None)
+        if callable(apply_immediate):
+            apply_immediate()
+        debouncer = getattr(self, "_agent_detail_debouncer", None)
+        fire_detail = getattr(self, "_fire_debounced_detail_update", None)
+        if debouncer is not None and callable(fire_detail):
+            debouncer.schedule(fire_detail)
+
+    def _agent_sibling_choices(
+        self,
+        siblings: tuple[int, ...],
+        index: AgentSiblingIndex,
+    ) -> list[AgentSiblingChoice]:
+        """Build modal choices for sibling rows in render order."""
+        from ...modals.agent_sibling_modal import AgentSiblingChoice
+
+        choices: list[AgentSiblingChoice] = []
+        for global_idx in siblings:
+            if not (0 <= global_idx < len(self._agents)):
+                continue
+            agent = self._agents[global_idx]
+            choices.append(
+                AgentSiblingChoice(
+                    global_idx=global_idx,
+                    agent_name=agent.agent_name or agent.display_name,
+                    display_name=agent.display_name,
+                    status=agent.status,
+                    panel_label=self._agent_sibling_panel_label(
+                        index.panel_idx_for(global_idx)
+                    ),
+                    time_hint=self._agent_sibling_time_hint(agent),
+                )
+            )
+        return choices
+
+    def _agent_sibling_family_label(self, agent: Agent) -> str:
+        """Return the display family label used by the chooser title."""
+        name = agent.agent_name or ""
+        family = name.split(".", 1)[0] if "." in name else name
+        return f"{family}.*" if family else "*"
+
+    def _agent_sibling_panel_label(self, panel_idx: int | None) -> str:
+        """Return a compact label for the tag panel containing a sibling."""
+        if getattr(self, "_agent_panels_grouped", False):
+            return "all"
+        panel_group = getattr(self, "_panel_group", None)
+        if (
+            panel_group is None
+            or panel_idx is None
+            or not (0 <= panel_idx < len(panel_group.panel_keys))
+        ):
+            return "panel"
+        key = panel_group.panel_keys[panel_idx]
+        return "(untagged)" if key is None else f"#{key}"
+
+    def _agent_sibling_time_hint(self, agent: Agent) -> str:
+        """Return a compact timestamp/runtime hint for a sibling row."""
+        from ...models.agent import compute_row_runtime
+
+        timestamp, elapsed = compute_row_runtime(agent)
+        if timestamp is not None:
+            date_prefix, time_text = timestamp
+            finished = f"{date_prefix}{time_text}".strip()
+            return f"{finished} {elapsed or ''}".strip()
+        if elapsed:
+            return elapsed
+        if agent.stop_time is not None:
+            return agent.stop_time.strftime("%H:%M")
+        if agent.run_start_time is not None:
+            return agent.run_start_time.strftime("%H:%M")
+        if agent.start_time is not None:
+            return agent.start_time.strftime("%H:%M")
+        return ""

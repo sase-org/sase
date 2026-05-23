@@ -467,6 +467,41 @@ AgentArtifactSelectionModal {
     padding-top: 1;
 }
 
+/* Agent Sibling Modal styling */
+AgentSiblingModal {
+    align: center middle;
+}
+
+#agent-sibling-container {
+    width: 78;
+    max-width: 94%;
+    height: auto;
+    max-height: 24;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+#agent-sibling-title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#agent-sibling-list {
+    height: auto;
+    max-height: 16;
+}
+
+#agent-sibling-hints {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
 
 /* Temporary LLM Override Modal styling */
 TemporaryLLMOverrideModal {

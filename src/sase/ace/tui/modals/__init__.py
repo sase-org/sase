@@ -1,6 +1,7 @@
 """Modal dialogs for the ace TUI."""
 
 from .agent_name_modal import AgentNameModal
+from .agent_sibling_modal import AgentSiblingChoice, AgentSiblingModal
 from .agent_artifacts_modal import AgentArtifactSelectionModal
 from .agent_cleanup_modal import (
     AgentCleanupAction,
@@ -106,6 +107,8 @@ __all__ = [
     "CustomApprovalModal",
     "CustomApprovalResult",
     "AgentNameModal",
+    "AgentSiblingChoice",
+    "AgentSiblingModal",
     "AgentArtifactSelectionModal",
     "AgentCleanupAction",
     "AgentCleanupCustomModal",

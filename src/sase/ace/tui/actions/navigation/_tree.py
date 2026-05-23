@@ -40,6 +40,14 @@ class TreeNavigationMixin(NavigationMixinBase):
 
     def action_start_sibling_mode(self) -> None:
         """Enter sibling navigation mode (~ key pressed)."""
+        if self.current_tab == "agents":
+            start_agent_siblings = getattr(
+                self, "_start_agent_sibling_navigation", None
+            )
+            if callable(start_agent_siblings):
+                start_agent_siblings()
+            return
+
         if self.current_tab != "changespecs" or not self.changespecs:
             return
 
