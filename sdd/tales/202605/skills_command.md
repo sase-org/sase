@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 13:16:26
-status: wip
+status: done
 prompt: sdd/prompts/202605/skills_command.md
 ---
 # Add `sase skills`

@@ -300,6 +300,12 @@ def main() -> NoReturn:
 
         handle_sdd_command(args)
 
+    # --- skills ---
+    if args.command == "skills":
+        from .skills_handler import handle_skills_command
+
+        handle_skills_command(args)
+
     # --- telemetry ---
     if args.command == "telemetry":
         from .telemetry_handler import handle_telemetry_command

@@ -46,6 +46,46 @@ def register_git_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
+def add_skills_init_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add flags shared by ``sase init skills`` and ``sase skills init``."""
+    parser.add_argument(
+        "-A",
+        "--no-apply",
+        action="store_true",
+        help="With use_chezmoi: skip running 'chezmoi apply' after pushing",
+    )
+    parser.add_argument(
+        "-C",
+        "--no-commit",
+        action="store_true",
+        help="With use_chezmoi: skip the entire git commit/push/apply sequence",
+    )
+    parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="Overwrite existing files without confirmation",
+    )
+    parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Show what would be written without writing",
+    )
+    parser.add_argument(
+        "-P",
+        "--no-push",
+        action="store_true",
+        help="With use_chezmoi: commit but skip 'git pull --rebase && git push' and 'chezmoi apply'",
+    )
+    parser.add_argument(
+        "-p",
+        "--provider",
+        choices=["claude", "gemini", "codex", "opencode", "qwen"],
+        help="Only deploy for a specific provider (default: all)",
+    )
+
+
 def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'init' command group."""
     init_parser = subparsers.add_parser(
@@ -117,39 +157,4 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         "skills",
         help="Generate and deploy agent skill files from xprompt sources",
     )
-    skills_parser.add_argument(
-        "-A",
-        "--no-apply",
-        action="store_true",
-        help="With use_chezmoi: skip running 'chezmoi apply' after pushing",
-    )
-    skills_parser.add_argument(
-        "-C",
-        "--no-commit",
-        action="store_true",
-        help="With use_chezmoi: skip the entire git commit/push/apply sequence",
-    )
-    skills_parser.add_argument(
-        "-f",
-        "--force",
-        action="store_true",
-        help="Overwrite existing files without confirmation",
-    )
-    skills_parser.add_argument(
-        "-n",
-        "--dry-run",
-        action="store_true",
-        help="Show what would be written without writing",
-    )
-    skills_parser.add_argument(
-        "-P",
-        "--no-push",
-        action="store_true",
-        help="With use_chezmoi: commit but skip 'git pull --rebase && git push' and 'chezmoi apply'",
-    )
-    skills_parser.add_argument(
-        "-p",
-        "--provider",
-        choices=["claude", "gemini", "codex", "opencode", "qwen"],
-        help="Only deploy for a specific provider (default: all)",
-    )
+    add_skills_init_arguments(skills_parser)

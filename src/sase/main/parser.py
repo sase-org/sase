@@ -34,6 +34,7 @@ from sase.main.parser_memory import register_memory_parser
 from sase.main.parser_mobile import register_mobile_parser
 from sase.main.parser_repro import register_repro_parser
 from sase.main.parser_sdd import register_sdd_parser
+from sase.main.parser_skills import register_skills_parser
 from sase.main.parser_telemetry import register_telemetry_parser
 from sase.main.parser_validate import register_validate_parser
 from sase.main.parser_workspace import register_workspace_parser
@@ -104,6 +105,7 @@ def create_parser() -> argparse.ArgumentParser:
     register_revive_log_parser(top_level_subparsers)
     register_run_parser(top_level_subparsers)
     register_sdd_parser(top_level_subparsers)
+    register_skills_parser(top_level_subparsers)
     register_telemetry_parser(top_level_subparsers)
     register_validate_parser(top_level_subparsers)
     register_workspace_parser(top_level_subparsers)

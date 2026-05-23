@@ -30,13 +30,16 @@ _PRETTIER_WARNING = (
 
 
 @dataclass(frozen=True)
-class _RenderedSkillTarget:
+class RenderedSkillTarget:
     """One generated skill file target."""
 
     path: Path
     content: str
     provider: str
     skill_name: str
+
+
+_RenderedSkillTarget = RenderedSkillTarget
 
 
 def _all_providers() -> list[str]:
@@ -148,6 +151,21 @@ def _load_skill_xprompts() -> list[XPrompt]:
     return sorted((xp for xp in xprompts.values() if xp.skill), key=lambda xp: xp.name)
 
 
+def prettier_available() -> bool:
+    """Return whether generated Markdown can be formatted with prettier."""
+    return _prettier_available()
+
+
+def load_skill_xprompts() -> list[XPrompt]:
+    """Return loaded xprompts that are installable as provider skills."""
+    return _load_skill_xprompts()
+
+
+def get_skill_target_providers(skill_field: bool | list[str]) -> list[str]:
+    """Return providers a skill should be deployed to."""
+    return _get_target_providers(skill_field)
+
+
 _PRETTIER_COMMENT_RE = re.compile(r"^<!-- prettier-ignore[^\n]*-->\n?", re.MULTILINE)
 
 
@@ -208,9 +226,9 @@ def _render_skill_targets(
     provider_filter: str | None,
     use_chezmoi: bool,
     use_prettier: bool,
-) -> list[_RenderedSkillTarget]:
+) -> list[RenderedSkillTarget]:
     """Render every selected skill/provider target without writing files."""
-    targets: list[_RenderedSkillTarget] = []
+    targets: list[RenderedSkillTarget] = []
 
     for xprompt in skill_xprompts:
         name = xprompt.name
@@ -232,7 +250,7 @@ def _render_skill_targets(
             output = _format_skill_output(output, use_prettier=use_prettier)
             for target in _get_target_paths(provider, name, use_chezmoi):
                 targets.append(
-                    _RenderedSkillTarget(
+                    RenderedSkillTarget(
                         path=target,
                         content=output,
                         provider=provider,
@@ -243,8 +261,24 @@ def _render_skill_targets(
     return targets
 
 
+def render_skill_targets(
+    skill_xprompts: list[XPrompt],
+    *,
+    provider_filter: str | None,
+    use_chezmoi: bool,
+    use_prettier: bool,
+) -> list[RenderedSkillTarget]:
+    """Render every selected skill/provider target without writing files."""
+    return _render_skill_targets(
+        skill_xprompts,
+        provider_filter=provider_filter,
+        use_chezmoi=use_chezmoi,
+        use_prettier=use_prettier,
+    )
+
+
 def _planned_skill_operation(
-    target: _RenderedSkillTarget,
+    target: RenderedSkillTarget,
 ) -> tuple[InitOperation, str] | None:
     """Return planned operation/detail for a skill target, or ``None``."""
     detail = f"{target.provider}/{target.skill_name}"
@@ -259,6 +293,13 @@ def _planned_skill_operation(
     if existing == target.content:
         return None
     return "overwrite", detail
+
+
+def planned_skill_operation(
+    target: RenderedSkillTarget,
+) -> tuple[InitOperation, str] | None:
+    """Return planned operation/detail for a skill target, or ``None``."""
+    return _planned_skill_operation(target)
 
 
 def _summarize_skill_actions(actions: tuple[InitAction, ...]) -> str:
