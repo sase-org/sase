@@ -1,5 +1,6 @@
 """Tests for core multi-prompt launch behavior."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
@@ -139,9 +140,53 @@ def test_launch_multi_prompt_wait_segments_get_unique_artifacts(
     assert mock_create_artifacts.call_count == 0
     assert mock_wait.call_count == 0
     assert calls[0].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "a"
-    assert calls[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "b"
+    assert calls[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "a.w1"
+    assert calls[2].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "a.w1.w1"
     assert calls[1].kwargs["prompt"].startswith("%wait:a")
-    assert calls[2].kwargs["prompt"].startswith("%wait:b")
+    assert calls[2].kwargs["prompt"].startswith("%wait:a.w1")
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp")
+@patch("sase.artifacts.create_artifacts_directory")
+@patch("sase.running_field.get_workspace_directory")
+def test_launch_multi_prompt_plans_wait_derived_sibling_names(
+    mock_wait_ws_dir: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Sibling explicit waits on the same agent reserve distinct .w slots."""
+    mock_wait_ws_dir.return_value = "/ws/1"
+    mock_timestamp.return_value = "260501_120000"
+    mock_wait.return_value = "alpha"
+    mock_create_artifacts.return_value = "/artifacts/dir"
+    mock_spawn.return_value = MagicMock(pid=1)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        launch_multi_prompt_agents(
+            segments=["%wait:foo first", "%wait:foo second"],
+            local_xprompts={},
+            cl_name="test",
+            project_file="/test.sase",
+            project_name="test",
+            is_home_mode=False,
+            vcs_ref=None,
+        )
+
+    calls = mock_spawn.call_args_list
+    assert [c.kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] for c in calls] == [
+        "foo.w1",
+        "foo.w2",
+    ]
+    assert [c.kwargs["prompt"] for c in calls] == [
+        "%wait:foo first",
+        "%wait:foo second",
+    ]
+    assert mock_wait.call_count == 0
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -272,7 +317,7 @@ def test_launch_multi_prompt_merges_segment_extra_env(
     )
 
     # Parent-side name planning adds SASE_AGENT_PLANNED_NAME per slot:
-    # explicit %name:first for segment 1, auto "a" for segment 2.
+    # explicit %name:first for segment 1, then a wait-derived child name.
     assert mock_spawn.call_args_list[0].kwargs["extra_env"] == {
         "SASE_SHARED": "yes",
         "SASE_BEAD_ID": "sase-x.1",
@@ -281,7 +326,7 @@ def test_launch_multi_prompt_merges_segment_extra_env(
     assert mock_spawn.call_args_list[1].kwargs["extra_env"] == {
         "SASE_SHARED": "yes",
         "SASE_BEAD_ID": "sase-x.2",
-        "SASE_AGENT_PLANNED_NAME": "a",
+        "SASE_AGENT_PLANNED_NAME": "first.w1",
     }
 
 

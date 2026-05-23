@@ -105,6 +105,37 @@ def test_single_prompt_launch_result_carries_explicit_name(
     assert kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "foo"
 
 
+def test_single_prompt_launch_result_carries_wait_derived_name(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A single explicit wait gets a parent-allocated wait-derived name."""
+    patch_cd_metadata(monkeypatch)
+    from sase.agent.launcher import launch_agents_from_cwd
+
+    spawn = _make_spawn_capture()
+    with (
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=(None, None, None),
+        ),
+        patch("sase.history.prompt.add_or_update_prompt"),
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["260501_120000"],
+        ),
+        patch.object(Path, "home", return_value=tmp_path),
+        patch("sase.agent.launcher.spawn_agent_subprocess", spawn),
+        patch("sase.running_field.get_workspace_directory", return_value="/ws/main"),
+    ):
+        results = launch_agents_from_cwd("%wait:foo do work")
+
+    assert len(results) == 1
+    assert results[0].agent_name == "foo.w1"
+    kwargs = spawn.call_args.kwargs
+    assert kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "foo.w1"
+
+
 def test_single_prompt_with_unexpanded_xprompt_leaves_agent_name_unset(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

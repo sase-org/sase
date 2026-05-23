@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 17:38:37
-status: wip
+status: done
 prompt: sdd/prompts/202605/wait_derived_agent_names.md
 ---
 # Wait-Derived Agent Names Plan

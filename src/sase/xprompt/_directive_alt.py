@@ -499,14 +499,19 @@ def apply_fanout_naming(
         from sase.agent.names import (
             agent_name_allocation_lock,
             allocate_resume_name,
+            allocate_wait_name,
             first_resume_agent_name,
             get_next_auto_name,
+            single_wait_agent_name,
         )
 
         resume_target = first_resume_agent_name(sub_prompts[0])
+        wait_target = None if resume_target else single_wait_agent_name(sub_prompts[0])
         with agent_name_allocation_lock():
             if resume_target:
                 base = allocate_resume_name(resume_target)
+            elif wait_target:
+                base = allocate_wait_name(wait_target)
             else:
                 base = get_next_auto_name()
 

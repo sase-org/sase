@@ -210,6 +210,7 @@ class PlannedNameAllocator:
 
     def __init__(self) -> None:
         self._auto_reserved: set[str] | None = None
+        self._wait_reserved: dict[str, set[str]] = {}
 
     def planned_name_for_prompt(self, prompt: str) -> tuple[str | None, str | None]:
         """Return ``(name, env_value)`` for a prompt, if safely knowable."""
@@ -219,6 +220,21 @@ class PlannedNameAllocator:
 
         if "#" in prompt:
             return None, None
+
+        from sase.agent.names import (
+            active_wait_reserved_names,
+            allocate_wait_name,
+            single_wait_agent_name,
+        )
+
+        wait_target = single_wait_agent_name(prompt)
+        if wait_target is not None:
+            reserved = self._wait_reserved.get(wait_target)
+            if reserved is None:
+                reserved = active_wait_reserved_names(wait_target)
+                self._wait_reserved[wait_target] = reserved
+            name = allocate_wait_name(wait_target, reserved=reserved)
+            return name, name
 
         from sase.agent.names import allocate_auto_names
 

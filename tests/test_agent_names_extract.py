@@ -159,6 +159,57 @@ class TestExtractDirectivesAutoDismiss:
         assert result["info"].name is None
         assert "name" not in result["meta"]
 
+    def test_wait_prompt_gets_wait_derived_name(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="%wait:foo do stuff",
+            )
+        assert result["info"].name == "foo.w1"
+        assert result["meta"].get("name") == "foo.w1"
+
+    def test_explicit_name_wins_over_wait_derived_name(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="%name:bar\n%wait:foo do stuff",
+            )
+        assert result["info"].name == "bar"
+        assert result["meta"].get("name") == "bar"
+
+    def test_resume_name_wins_over_wait_derived_name(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="%wait:foo expanded prompt",
+                raw_resolved_prompt="#fork:bar\n%wait:foo do stuff",
+            )
+        assert result["info"].name == "bar.f1"
+        assert result["meta"].get("name") == "bar.f1"
+
+    def test_multiple_waits_fall_back_to_auto_name(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="%wait:foo\n%wait:bar\ndo stuff",
+            )
+        assert result["info"].name == "a"
+        assert result["meta"].get("name") == "a"
+
+    def test_auto_dismiss_suppresses_wait_derived_name(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                env_auto_dismiss=True,
+                prompt="%wait:foo do stuff",
+            )
+        assert result["info"].name is None
+        assert "name" not in result["meta"]
+
     def test_metadata_records_workspace_dir_without_vcs_provider(
         self, tmp_path: Path
     ) -> None:

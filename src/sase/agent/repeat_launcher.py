@@ -20,7 +20,9 @@ from sase.agent.names import NameCollisionError, reserve_repeat_name_base
 from sase.agent.names import (
     agent_name_allocation_lock,
     allocate_resume_names,
+    allocate_wait_names,
     first_resume_agent_name,
+    single_wait_agent_name,
 )
 
 __all__ = [
@@ -111,8 +113,17 @@ def spawn_repeat_batch(
         with agent_name_allocation_lock():
             names = allocate_resume_names(resume_target, count)
     else:
-        base = reserve_repeat_name_base(explicit_base, count)
-        names = [f"{base}.{k}" for k in range(1, count + 1)]
+        wait_target = (
+            None
+            if explicit_base is not None
+            else single_wait_agent_name(prompt_stripped)
+        )
+        if wait_target is not None:
+            with agent_name_allocation_lock():
+                names = allocate_wait_names(wait_target, count)
+        else:
+            base = reserve_repeat_name_base(explicit_base, count)
+            names = [f"{base}.{k}" for k in range(1, count + 1)]
 
     specs = [
         RepeatAgentSpec(

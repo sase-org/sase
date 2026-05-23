@@ -215,6 +215,34 @@ class TestSpawnRepeatBatch:
             )
         assert [s.name for s in specs] == ["foo.f2", "foo.f3"]
 
+    def test_wait_prompt_uses_wait_derived_names(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            specs = spawn_repeat_batch(
+                "%r:3 %wait:foo do X",
+                base_spawn_fn=lambda _s: None,
+                sleep_between=0.0,
+            )
+        assert [s.name for s in specs] == ["foo.w1", "foo.w2", "foo.w3"]
+        assert specs[0].prompt.startswith("%n:foo.w1\n")
+        assert specs[1].prompt.startswith("%n:foo.w2\n%wait:foo.w1\n")
+        assert specs[2].prompt.startswith("%n:foo.w3\n%wait:foo.w2\n")
+
+    def test_wait_repeat_fills_available_gaps(self, tmp_path: Path) -> None:
+        taken = (
+            tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / "run1"
+        )
+        taken.mkdir(parents=True)
+        (taken / "agent_meta.json").write_text(json.dumps({"name": "foo.w1"}))
+        (taken / "done.json").write_text("{}")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            specs = spawn_repeat_batch(
+                "%r:2 %wait:foo do X",
+                base_spawn_fn=lambda _s: None,
+                sleep_between=0.0,
+            )
+        assert [s.name for s in specs] == ["foo.w2", "foo.w3"]
+
     def test_explicit_repeat_base_wins_over_resume(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             specs = spawn_repeat_batch(

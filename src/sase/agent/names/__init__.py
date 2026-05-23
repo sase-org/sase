@@ -62,10 +62,14 @@ from sase.agent.names._registry import (
 )
 from sase.agent.names._retry import allocate_retry_name
 from sase.agent.names._resume import (
+    active_wait_reserved_names,
     agent_name_allocation_lock,
     allocate_resume_name,
     allocate_resume_names,
+    allocate_wait_name,
+    allocate_wait_names,
     first_resume_agent_name,
+    single_wait_agent_name,
 )
 from sase.agent.names._wipe import AgentNameWipeResult, wipe_agent_name_for_reuse
 
@@ -163,11 +167,14 @@ __all__ = [
     "NameCollisionError",
     "NamedAgent",
     "add_dismissed_prefix",
+    "active_wait_reserved_names",
     "allocate_auto_names",
     "agent_name_allocation_lock",
     "allocate_retry_name",
     "allocate_resume_name",
     "allocate_resume_names",
+    "allocate_wait_name",
+    "allocate_wait_names",
     "claim_agent_name",
     "claim_registered_name",
     "delete_registered_name",
@@ -199,6 +206,7 @@ __all__ = [
     "resolve_resume_agent_name",
     "resolve_wait_dependency",
     "run_historical_auto_name_migration",
+    "single_wait_agent_name",
     "strip_dismissed_prefix",
     "wipe_agent_name_for_reuse",
 ]

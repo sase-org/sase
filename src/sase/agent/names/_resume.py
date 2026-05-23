@@ -1,4 +1,4 @@
-"""Fork-derived agent-name parsing and allocation."""
+"""Derived agent-name parsing and allocation."""
 
 from __future__ import annotations
 
@@ -103,6 +103,91 @@ def allocate_resume_names(resume_name: str, count: int) -> list[str]:
         raise ValueError(f"count must be positive, got {count}")
     reserved = _active_resume_reserved_names(resume_name)
     return [allocate_resume_name(resume_name, reserved=reserved) for _ in range(count)]
+
+
+def single_wait_agent_name(prompt: str | None) -> str | None:
+    """Return the sole parsed ``%wait`` agent dependency, if unambiguous."""
+    if not prompt or "%" not in prompt:
+        return None
+    if _has_non_explicit_wait_directive(prompt):
+        return None
+
+    try:
+        from sase.xprompt.directives import extract_prompt_directives
+        from sase.xprompt._exceptions import DirectiveError
+
+        _, directives = extract_prompt_directives(prompt)
+    except DirectiveError:
+        return None
+
+    return directives.wait[0] if len(directives.wait) == 1 else None
+
+
+def _has_non_explicit_wait_directive(prompt: str) -> bool:
+    """Return True for bare/plus/empty ``%wait`` directives."""
+    from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
+    from sase.xprompt._disabled_regions import protect_disabled_regions
+    from sase.xprompt._fenced_blocks import protect_fenced_blocks
+    from sase.xprompt._parsing import find_matching_paren_for_args
+
+    fenced: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced)
+    disabled: list[str] = []
+    protected = protect_disabled_regions(protected, disabled)
+
+    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+        raw_name = match.group(1)
+        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "wait":
+            continue
+        if match.group(2) is not None:
+            paren_start = match.end() - 1
+            paren_end = find_matching_paren_for_args(protected, paren_start)
+            if paren_end is not None and protected[paren_start + 1 : paren_end]:
+                continue
+            return True
+        if match.group(3) is not None:
+            continue
+        return True
+    return False
+
+
+def allocate_wait_name(
+    wait_name: str,
+    *,
+    reserved: set[str] | None = None,
+) -> str:
+    """Return the first available ``<wait_name>.w<N>`` name."""
+    pool = active_wait_reserved_names(wait_name) if reserved is None else reserved
+    n = 1
+    while True:
+        candidate = f"{wait_name}.w{n}"
+        if candidate not in pool:
+            pool.add(candidate)
+            return candidate
+        n += 1
+
+
+def allocate_wait_names(wait_name: str, count: int) -> list[str]:
+    """Allocate *count* wait-derived names from one active-name snapshot."""
+    if count <= 0:
+        raise ValueError(f"count must be positive, got {count}")
+    reserved = active_wait_reserved_names(wait_name)
+    return [allocate_wait_name(wait_name, reserved=reserved) for _ in range(count)]
+
+
+def active_wait_reserved_names(wait_name: str) -> set[str]:
+    """Return active names that reserve ``<wait_name>.w<N>`` slots."""
+    from sase.agent.names._auto import get_active_agent_names
+
+    active = get_active_agent_names()
+    pattern = re.compile(rf"^{re.escape(wait_name)}\.w(\d+)(?:\.|$)")
+    reserved: set[str] = set()
+    for name in active:
+        match = pattern.match(name)
+        if match is None:
+            continue
+        reserved.add(f"{wait_name}.w{match.group(1)}")
+    return reserved
 
 
 def _resume_reference_argument(text: str, match: re.Match[str]) -> str | None:
