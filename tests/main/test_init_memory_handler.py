@@ -2,237 +2,15 @@
 
 from __future__ import annotations
 
-import argparse
-from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
-from sase.main import init_memory_handler
-from sase.main._init_chezmoi_deploy import defer_chezmoi_deploy
-from sase.main.init_memory.inventory import unreferenced_memory_files
-from sase.main.init_memory_handler import plan_init_memory
-from sase.main.init_plan import InitPlan
-from sase.main.init_registry import iter_init_command_specs
-from sase.main.init_memory_handler import handle_init_memory_command
-
-
-def _write(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-
-
-def _run_handler(*, no_commit: bool = True) -> int:
-    with pytest.raises(SystemExit) as exc:
-        handle_init_memory_command(argparse.Namespace(no_commit=no_commit))
-    return int(exc.value.code)
-
-
-def _run_memory(*, no_commit: bool = True) -> int:
-    return init_memory_handler.run_init_memory(argparse.Namespace(no_commit=no_commit))
-
-
-def _plan_memory(*, no_commit: bool = True) -> InitPlan:
-    return plan_init_memory(argparse.Namespace(no_commit=no_commit))
-
-
-def _patch_standard_paths(
-    monkeypatch: pytest.MonkeyPatch,
-    *,
-    project_root: Path,
-    home_root: Path,
-    config_dir: Path,
-    use_chezmoi: bool = False,
-) -> None:
-    monkeypatch.chdir(project_root)
-    monkeypatch.setenv("HOME", str(home_root))
-    monkeypatch.setattr(init_memory_handler, "CONFIG_DIR", config_dir)
-    monkeypatch.setattr(init_memory_handler, "get_use_chezmoi", lambda: use_chezmoi)
-
-
-def test_memory_plan_missing_tree_reports_create_actions_without_writing(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    _patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-
-    plan = _plan_memory()
-
-    assert {action.operation for action in plan.actions} == {"create"}
-    assert project_root / "memory" / "short" / "sase.md" in {
-        action.path for action in plan.actions
-    }
-    assert project_root / "AGENTS.md" in {action.path for action in plan.actions}
-    assert not (project_root / "memory").exists()
-    assert not (home_root / "memory").exists()
-
-
-def test_memory_plan_identical_generated_memory_is_empty(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    _patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-
-    assert _run_memory() == 0
-
-    plan = _plan_memory()
-
-    assert plan.actions == ()
-    assert plan.blockers == ()
-    assert "current" in plan.summary
-
-
-def test_memory_plan_stale_provider_shim_reports_overwrite(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    _patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-    assert _run_memory() == 0
-    (project_root / "CLAUDE.md").write_text("old instructions\n", encoding="utf-8")
-
-    plan = _plan_memory()
-
-    assert {(action.operation, action.path) for action in plan.actions} == {
-        ("overwrite", project_root / "CLAUDE.md")
-    }
-
-
-def test_memory_plan_preserves_existing_user_agents_file(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    _patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-    _write(
-        project_root / "AGENTS.md",
-        "# Custom Instructions\n\n@memory/short/sase.md\n",
-    )
-
-    plan = _plan_memory()
-
-    assert project_root / "AGENTS.md" not in {action.path for action in plan.actions}
-    assert (
-        (project_root / "AGENTS.md")
-        .read_text(encoding="utf-8")
-        .startswith("# Custom Instructions")
-    )
-
-
-def test_memory_plan_invalid_sibling_config_returns_blocker_without_writing(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    _patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-    _write(
-        project_root / "sase.yml",
-        """
-sibling_repos:
-  - name: core
-    path: ../sase-core
-""",
-    )
-
-    plan = _plan_memory()
-
-    assert plan.actions == ()
-    assert any("cannot generate project memory" in blocker for blocker in plan.blockers)
-    assert not (project_root / "memory").exists()
-
-
-def test_memory_reference_validation_uses_rendered_overlay(tmp_path: Path) -> None:
-    root = tmp_path / "project"
-    root.mkdir()
-    _write(root / "AGENTS.md", "@memory/short/generated.md\n")
-    _write(root / "memory" / "long" / "detail.md", "# Detail\n")
-
-    unreferenced = unreferenced_memory_files(
-        root,
-        overlay={
-            root / "memory" / "short" / "generated.md": "@memory/long/detail.md\n",
-        },
-    )
-
-    assert unreferenced == ()
-
-
-def test_run_init_memory_returns_int_and_wrapper_raises_system_exit(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    _patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-
-    assert _run_memory() == 0
-    assert _run_handler() == 0
-
-
-def test_init_memory_registry_includes_memory_before_sdd() -> None:
-    specs = {spec.name: spec for spec in iter_init_command_specs()}
-    names = tuple(spec.name for spec in iter_init_command_specs())
-
-    assert names[:2] == ("memory", "sdd")
-    assert specs["memory"].plan is plan_init_memory
-    assert specs["memory"].run is init_memory_handler.run_init_memory
+from tests.main.init_memory_handler_helpers import (
+    patch_standard_paths,
+    run_handler,
+    write,
+)
 
 
 def test_init_memory_uses_local_siblings_for_project_and_global_for_home(
@@ -245,14 +23,14 @@ def test_init_memory_uses_local_siblings_for_project_and_global_for_home(
     config_dir = tmp_path / "config"
     project_root.mkdir()
     home_root.mkdir()
-    _patch_standard_paths(
+    patch_standard_paths(
         monkeypatch,
         project_root=project_root,
         home_root=home_root,
         config_dir=config_dir,
     )
 
-    _write(
+    write(
         project_root / "sase.yml",
         """
 sibling_repos:
@@ -261,7 +39,7 @@ sibling_repos:
     description: Local Rust core.
 """,
     )
-    _write(
+    write(
         config_dir / "sase.yml",
         """
 sibling_repos:
@@ -271,7 +49,7 @@ sibling_repos:
 """,
     )
 
-    assert _run_handler() == 0
+    assert run_handler() == 0
     out = capsys.readouterr().out
     assert "init memory: initialized memory" in out
 
@@ -317,14 +95,14 @@ def test_init_memory_project_memory_includes_workspace_section(
     config_dir = tmp_path / "config"
     project_root.mkdir()
     home_root.mkdir()
-    _patch_standard_paths(
+    patch_standard_paths(
         monkeypatch,
         project_root=project_root,
         home_root=home_root,
         config_dir=config_dir,
     )
 
-    assert _run_handler() == 0
+    assert run_handler() == 0
 
     project_memory = (project_root / "memory" / "short" / "sase.md").read_text()
     home_memory = (home_root / "memory" / "short" / "sase.md").read_text()
@@ -350,13 +128,13 @@ def test_init_memory_project_memory_uses_managed_checkout_marker_name(
     config_dir = tmp_path / "config"
     project_root.mkdir()
     home_root.mkdir()
-    _patch_standard_paths(
+    patch_standard_paths(
         monkeypatch,
         project_root=project_root,
         home_root=home_root,
         config_dir=config_dir,
     )
-    _write(
+    write(
         project_root / ".sase" / "checkout.json",
         """
 {
@@ -370,7 +148,7 @@ def test_init_memory_project_memory_uses_managed_checkout_marker_name(
 """,
     )
 
-    assert _run_handler() == 0
+    assert run_handler() == 0
 
     project_memory = (project_root / "memory" / "short" / "sase.md").read_text()
     assert "## Ephemeral `project_<N>` Workspace Directories" in project_memory
@@ -388,13 +166,13 @@ def test_init_memory_reports_missing_sibling_descriptions(
     config_dir = tmp_path / "config"
     project_root.mkdir()
     home_root.mkdir()
-    _patch_standard_paths(
+    patch_standard_paths(
         monkeypatch,
         project_root=project_root,
         home_root=home_root,
         config_dir=config_dir,
     )
-    _write(
+    write(
         project_root / "sase.yml",
         """
 sibling_repos:
@@ -403,7 +181,7 @@ sibling_repos:
 """,
     )
 
-    assert _run_handler() == 1
+    assert run_handler() == 1
     err = capsys.readouterr().err
     assert "cannot generate project memory" in err
     assert "field 'description'" in err
@@ -419,16 +197,16 @@ def test_init_memory_overwrites_provider_shims(
     config_dir = tmp_path / "config"
     project_root.mkdir()
     home_root.mkdir()
-    _patch_standard_paths(
+    patch_standard_paths(
         monkeypatch,
         project_root=project_root,
         home_root=home_root,
         config_dir=config_dir,
     )
-    _write(project_root / "AGENTS.md", "@memory/short/sase.md\n")
-    _write(project_root / "CLAUDE.md", "old instructions\n")
+    write(project_root / "AGENTS.md", "@memory/short/sase.md\n")
+    write(project_root / "CLAUDE.md", "old instructions\n")
 
-    assert _run_handler() == 0
+    assert run_handler() == 0
 
     assert (project_root / "CLAUDE.md").read_text() == "@AGENTS.md\n"
     for filename in ("GEMINI.md", "QWEN.md", "OPENCODE.md"):
@@ -444,23 +222,23 @@ def test_init_memory_allows_transitive_memory_references(
     config_dir = tmp_path / "config"
     project_root.mkdir()
     home_root.mkdir()
-    _patch_standard_paths(
+    patch_standard_paths(
         monkeypatch,
         project_root=project_root,
         home_root=home_root,
         config_dir=config_dir,
     )
-    _write(
+    write(
         project_root / "AGENTS.md",
         "@memory/short/sase.md\n\nmemory/long/index.md\n",
     )
-    _write(
+    write(
         project_root / "memory" / "long" / "index.md",
         "# Index\n\n@memory/long/detail.md\n",
     )
-    _write(project_root / "memory" / "long" / "detail.md", "# Detail\n")
+    write(project_root / "memory" / "long" / "detail.md", "# Detail\n")
 
-    assert _run_handler() == 0
+    assert run_handler() == 0
 
 
 def test_init_memory_rejects_unreferenced_memory_files(
@@ -473,232 +251,19 @@ def test_init_memory_rejects_unreferenced_memory_files(
     config_dir = tmp_path / "config"
     project_root.mkdir()
     home_root.mkdir()
-    _patch_standard_paths(
+    patch_standard_paths(
         monkeypatch,
         project_root=project_root,
         home_root=home_root,
         config_dir=config_dir,
     )
-    _write(project_root / "AGENTS.md", "@memory/short/sase.md\n")
-    _write(
+    write(project_root / "AGENTS.md", "@memory/short/sase.md\n")
+    write(
         project_root / "memory" / "long" / "orphan.md",
         "# Orphan\n\n@memory/long/orphan.md\n",
     )
 
-    assert _run_handler() == 1
+    assert run_handler() == 1
     err = capsys.readouterr().err
     assert "unreferenced memory files" in err
     assert "memory/long/orphan.md" in err
-
-
-def test_init_memory_uses_chezmoi_home_and_global_config_source(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    chezmoi_home = tmp_path / "chezmoi" / "home"
-    project_root.mkdir()
-    home_root.mkdir()
-    _patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-        use_chezmoi=True,
-    )
-    monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
-    _write(
-        chezmoi_home / "dot_config" / "sase" / "sase.yml",
-        """
-sibling_repos:
-  - name: telegram
-    path: /global/telegram
-    description: Telegram workflow plugin.
-""",
-    )
-
-    deployed: list[Path] = []
-
-    def fake_deploy(paths: Iterable[Path]) -> int:
-        deployed.extend(paths)
-        return 0
-
-    monkeypatch.setattr(init_memory_handler, "_deploy_to_chezmoi", fake_deploy)
-
-    assert _run_handler() == 0
-
-    assert not (home_root / "memory").exists()
-    chezmoi_memory = (chezmoi_home / "memory" / "short" / "sase.md").read_text()
-    assert "`telegram`: Telegram workflow plugin." in chezmoi_memory
-    assert "/global/telegram" not in chezmoi_memory
-    assert chezmoi_home / "memory" / "short" / "sase.md" in deployed
-
-
-def test_init_memory_deferred_chezmoi_collects_paths_without_deploy(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    chezmoi_home = tmp_path / "chezmoi" / "home"
-    project_root.mkdir()
-    home_root.mkdir()
-    _patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-        use_chezmoi=True,
-    )
-    monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
-
-    deploy_mock = MagicMock(return_value=0)
-    monkeypatch.setattr(init_memory_handler, "_deploy_to_chezmoi", deploy_mock)
-
-    with defer_chezmoi_deploy() as deferred:
-        assert _run_handler() == 0
-
-    deploy_mock.assert_not_called()
-    assert chezmoi_home / "memory" / "short" / "sase.md" in deferred.paths
-    assert deferred.apply_force is True
-
-
-def test_init_memory_default_commits_and_pushes_project_changes(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    _patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-    monkeypatch.setattr(
-        init_memory_handler, "_project_memory_name", lambda root: "project"
-    )
-
-    git_calls: list[list[str]] = []
-
-    def fake_run(*args: Any, **kwargs: Any) -> MagicMock:
-        cmd: list[str] = args[0] if args else kwargs.get("cmd", [])
-        git_calls.append(cmd)
-        if "rev-parse" in cmd:
-            return MagicMock(returncode=0, stdout=f"{project_root}\n", stderr="")
-        if "diff" in cmd and "--cached" in cmd:
-            return MagicMock(returncode=1, stdout="", stderr="")
-        if "commit" in cmd:
-            return MagicMock(
-                returncode=0,
-                stdout="[main abc1234] chore: run sase init memory\n",
-                stderr="",
-            )
-        if "pull" in cmd:
-            return MagicMock(returncode=0, stdout="Already up to date.\n", stderr="")
-        if "push" in cmd:
-            return MagicMock(returncode=0, stdout="", stderr="To origin\n")
-        return MagicMock(returncode=0, stdout="", stderr="")
-
-    precommit_calls: list[str] = []
-
-    def fake_precommit(cwd: str) -> bool:
-        precommit_calls.append(cwd)
-        return True
-
-    monkeypatch.setattr(init_memory_handler, "run_precommit", fake_precommit)
-    monkeypatch.setattr(init_memory_handler.subprocess, "run", fake_run)
-
-    assert _run_handler(no_commit=False) == 0
-
-    assert precommit_calls == [str(project_root)]
-    verbs = [cmd[cmd.index("git") + 3] for cmd in git_calls if cmd[0] == "git"]
-    assert verbs == [
-        "rev-parse",
-        "add",
-        "add",
-        "add",
-        "add",
-        "add",
-        "add",
-        "add",
-        "diff",
-        "commit",
-        "pull",
-        "push",
-    ]
-    commit_calls = [cmd for cmd in git_calls if "commit" in cmd and "-m" in cmd]
-    assert commit_calls
-    message = commit_calls[0][commit_calls[0].index("-m") + 1]
-    assert message == "chore: run sase init memory"
-
-
-def test_init_memory_no_commit_skips_project_deploy(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    _patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-    monkeypatch.setattr(
-        init_memory_handler, "_project_memory_name", lambda root: "project"
-    )
-
-    precommit = MagicMock(return_value=True)
-    git_run = MagicMock(return_value=MagicMock(returncode=0, stdout="", stderr=""))
-    monkeypatch.setattr(init_memory_handler, "run_precommit", precommit)
-    monkeypatch.setattr(init_memory_handler.subprocess, "run", git_run)
-
-    assert _run_handler(no_commit=True) == 0
-    precommit.assert_not_called()
-    git_run.assert_not_called()
-
-
-def test_init_memory_failing_precommit_aborts_project_deploy(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    _patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-    monkeypatch.setattr(
-        init_memory_handler, "_project_memory_name", lambda root: "project"
-    )
-
-    git_calls: list[list[str]] = []
-
-    def fake_run(*args: Any, **kwargs: Any) -> MagicMock:
-        cmd: list[str] = args[0] if args else kwargs.get("cmd", [])
-        git_calls.append(cmd)
-        if "rev-parse" in cmd:
-            return MagicMock(returncode=0, stdout=f"{project_root}\n", stderr="")
-        return MagicMock(returncode=0, stdout="", stderr="")
-
-    monkeypatch.setattr(init_memory_handler, "run_precommit", lambda cwd: False)
-    monkeypatch.setattr(init_memory_handler.subprocess, "run", fake_run)
-
-    assert _run_handler(no_commit=False) == 1
-
-    assert [cmd[cmd.index("git") + 3] for cmd in git_calls] == ["rev-parse"]
