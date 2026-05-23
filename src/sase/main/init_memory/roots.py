@@ -35,6 +35,23 @@ def _extend_workspace_section(lines: list[str], project_name: str) -> None:
     )
 
 
+def _static_sibling_display_path(entry: SiblingMemoryEntry) -> str:
+    display_path = entry.path
+    if not display_path.endswith("/"):
+        display_path = f"{display_path}/"
+    return display_path
+
+
+def _sibling_list_item(entry: SiblingMemoryEntry) -> str:
+    text = f"- `{entry.name}`: {entry.description}"
+    if entry.workspace_strategy == "none":
+        text += (
+            " This repo is defined in the "
+            f"`{_static_sibling_display_path(entry)}` directory."
+        )
+    return text
+
+
 def _extend_sibling_repository_section(
     lines: list[str], entries: Iterable[SiblingMemoryEntry]
 ) -> None:
@@ -49,30 +66,15 @@ def _extend_sibling_repository_section(
         lines.append("Configured sibling repositories for this context:")
         lines.append("")
         for entry in entries:
-            lines.append(f"- `{entry.name}`: {entry.description}")
+            lines.append(_sibling_list_item(entry))
     else:
         lines.append("No sibling repositories are configured for this context.")
         lines.append("")
         return
 
-    static_entries = tuple(
-        entry for entry in entries if entry.workspace_strategy == "none"
-    )
     numbered_entries = tuple(
         entry for entry in entries if entry.workspace_strategy != "none"
     )
-
-    if static_entries:
-        lines.extend(
-            [
-                "",
-                "Static-path sibling repositories (`workspace.strategy: none`) should be accessed directly at these paths:",
-                "",
-            ]
-        )
-        for entry in static_entries:
-            static_path = entry.static_path or entry.path
-            lines.append(f"- `{entry.name}`: `{static_path}`")
 
     if numbered_entries:
         lines.extend(

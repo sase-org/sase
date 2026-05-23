@@ -116,7 +116,6 @@ def test_init_memory_static_siblings_use_paths_without_workspace_open(
     home_root = tmp_path / "home"
     config_dir = tmp_path / "config"
     static_one = tmp_path / "static-one"
-    static_two = tmp_path / "static-two"
     project_root.mkdir()
     home_root.mkdir()
     patch_standard_paths(
@@ -146,23 +145,28 @@ sibling_repos:
     assert run_handler() == 0
 
     project_memory = (project_root / "memory" / "short" / "sase.md").read_text()
-    assert (
-        "Static-path sibling repositories (`workspace.strategy: none`)"
-        in project_memory
+    single_line = _single_line(project_memory)
+    assert "Static-path sibling repositories (`workspace.strategy: none`)" not in (
+        project_memory
     )
-    assert f"- `dotfiles`: `{static_one.resolve(strict=False)}`" in project_memory
-    assert f"- `notes`: `{static_two.resolve(strict=False)}`" in project_memory
+    assert (
+        "- `dotfiles`: User dotfiles source. This repo is defined in the "
+        "`$STATIC_ONE/` directory."
+    ) in single_line
+    assert (
+        "- `notes`: Static notes checkout. This repo is defined in the "
+        "`../static-two/` directory."
+    ) in single_line
     assert "sase workspace open -p <sibling_repo> <workspace_num>" not in project_memory
 
 
-def test_init_memory_mixed_siblings_render_static_paths_and_workspace_open(
+def test_init_memory_mixed_siblings_render_static_location_and_workspace_open(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     project_root = tmp_path / "project"
     home_root = tmp_path / "home"
     config_dir = tmp_path / "config"
-    static_path = tmp_path / "dotfiles"
     project_root.mkdir()
     home_root.mkdir()
     patch_standard_paths(
@@ -189,13 +193,20 @@ sibling_repos:
     assert run_handler() == 0
 
     project_memory = (project_root / "memory" / "short" / "sase.md").read_text()
-    assert f"- `dotfiles`: `{static_path.resolve(strict=False)}`" in project_memory
+    single_line = _single_line(project_memory)
+    assert "Static-path sibling repositories (`workspace.strategy: none`)" not in (
+        project_memory
+    )
+    assert (
+        "- `dotfiles`: Static dotfiles source. This repo is defined in the "
+        "`../dotfiles/` directory."
+    ) in single_line
     assert "numbered-workspace sibling repository" in project_memory
     assert "sase workspace open -p <sibling_repo> <workspace_num>" in project_memory
-    assert "numbered-workspace sibling reads/writes" in _single_line(project_memory)
+    assert "numbered-workspace sibling reads/writes" in single_line
 
 
-def test_init_memory_static_relative_paths_use_managed_primary_checkout(
+def test_init_memory_static_relative_paths_use_configured_display_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -203,7 +214,6 @@ def test_init_memory_static_relative_paths_use_managed_primary_checkout(
     project_root = tmp_path / "managed" / "project_10"
     home_root = tmp_path / "home"
     config_dir = tmp_path / "config"
-    static_path = tmp_path / "primary" / "shared"
     numbered_relative_path = tmp_path / "managed" / "shared"
     primary_root.mkdir(parents=True)
     project_root.mkdir(parents=True)
@@ -242,7 +252,13 @@ sibling_repos:
     assert run_handler() == 0
 
     project_memory = (project_root / "memory" / "short" / "sase.md").read_text()
-    assert f"- `shared`: `{static_path.resolve(strict=False)}`" in project_memory
+    assert (
+        "- `shared`: Static shared checkout. This repo is defined in the "
+        "`../shared/` directory."
+    ) in _single_line(project_memory)
+    assert str((tmp_path / "primary" / "shared").resolve(strict=False)) not in (
+        project_memory
+    )
     assert str(numbered_relative_path.resolve(strict=False)) not in project_memory
     assert "sase workspace open -p <sibling_repo> <workspace_num>" not in project_memory
 

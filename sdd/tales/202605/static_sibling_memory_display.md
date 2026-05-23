@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 11:25:21
-status: wip
+status: done
 prompt: sdd/prompts/202605/static_sibling_memory_display.md
 ---
 # Plan: Inline Static Sibling Paths in Generated Memory

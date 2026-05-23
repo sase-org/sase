@@ -17,6 +17,10 @@ from tests.main.init_memory_handler_helpers import (
 )
 
 
+def _single_line(text: str) -> str:
+    return " ".join(text.split())
+
+
 def test_init_memory_uses_chezmoi_home_and_global_config_source(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -42,6 +46,11 @@ sibling_repos:
   - name: telegram
     path: /global/telegram
     description: Telegram workflow plugin.
+  - name: chezmoi
+    path: ~/.local/share/chezmoi
+    description: Chezmoi-managed dotfiles and global SASE configuration source.
+    workspace:
+      strategy: none
 """,
     )
 
@@ -59,6 +68,13 @@ sibling_repos:
     chezmoi_memory = (chezmoi_home / "memory" / "short" / "sase.md").read_text()
     assert "`telegram`: Telegram workflow plugin." in chezmoi_memory
     assert "/global/telegram" not in chezmoi_memory
+    assert "Static-path sibling repositories (`workspace.strategy: none`)" not in (
+        chezmoi_memory
+    )
+    assert (
+        "- `chezmoi`: Chezmoi-managed dotfiles and global SASE configuration source. "
+        "This repo is defined in the `~/.local/share/chezmoi/` directory."
+    ) in _single_line(chezmoi_memory)
     assert chezmoi_home / "memory" / "short" / "sase.md" in deployed
 
 
