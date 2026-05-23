@@ -1172,9 +1172,10 @@ only includes `sase workspace open` guidance when a configured sibling uses numb
 `sase init sdd` is an alias for `sase sdd init`. It creates or refreshes generated SDD README files and the directory
 map asset.
 
-| Flag         | Values | Default                  | Description                    |
-| ------------ | ------ | ------------------------ | ------------------------------ |
-| `-p, --path` | path   | `./sdd` or `./.sase/sdd` | SDD root or project root path. |
+| Flag          | Values | Default                  | Description                                            |
+| ------------- | ------ | ------------------------ | ------------------------------------------------------ |
+| `-c, --check` | flag   | -                        | Report SDD initialization drift without writing files. |
+| `-p, --path`  | path   | `./sdd` or `./.sase/sdd` | SDD root or project root path.                         |
 
 ### `sase init skills`
 
@@ -1329,8 +1330,10 @@ may point at an SDD root or at a project root containing `sdd/`. `sase init sdd`
 
 ### `sase validate`
 
-`sase validate` is the top-level project validation command. It currently runs `sase init --check` and
-`sase sdd validate`, prints one status line per check, and exits non-zero if any check fails.
+`sase validate` is the top-level SASE validation command. It currently runs `sase init --check` and `sase sdd validate`,
+prints one status line per check, and exits non-zero if any check fails. Because `sase init --check` includes home-level
+memory and skill deployment surfaces, this command can fail on user/home initialization drift even when repository-local
+SDD validation passes.
 
 ### `sase telemetry`
 

@@ -317,9 +317,10 @@ that does not scan source artifacts, `sase agents index verify` to compare the i
 `sase agents index gc` to rebuild the index and dismissed projection. Use the Agents-tab leader command `,y` when you
 want an immediate full-history refresh from source artifacts.
 
-When one or more agents are marked, `e` edits the marked set instead of only the focused row. ACE opens the editable
-completed transcripts in visible row order, deduplicates repeated paths, skips running or transcript-less rows, and
-reports how many marked rows were skipped. Marks remain in place after the editor exits.
+When one or more agents are marked, `e` edits the marked set instead of only the focused row. ACE opens editable
+completed transcripts in visible row order, deduplicates repeated paths, skips live marked rows that are still running
+or have no chat file, and reports that live skip count. Stale marks are ignored for this action, and marks remain in
+place after the editor exits.
 
 ### Wait Modal
 

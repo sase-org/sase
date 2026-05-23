@@ -1110,8 +1110,9 @@ Dashes and slashes in workflow names are normalized to underscores.
 <response text>
 ```
 
-The `MODEL` and `AGENT` fields are omitted when the invocation did not provide that metadata. When both provider and
-model are known, the model is rendered as `<provider>/<model>` unless the model already includes that prefix.
+The `MODEL` and `AGENT` fields are omitted when the invocation did not provide that metadata. `MODEL` can contain just a
+model name, just a provider name, or both. When both provider and model are known, it is rendered as
+`<provider>/<model>` unless the model already includes that prefix.
 
 ### Resume Support
 

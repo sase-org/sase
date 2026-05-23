@@ -124,7 +124,7 @@ GitHub pull requests, and other provider plugins.
 | `sase config show`             | Dump the final merged configuration, optionally filtered by key.                                        | [Configuration](configuration.md)                           |
 | `sase config mentor-match`     | Trace mentor profile matching for a ChangeSpec.                                                         | [Mentors](mentors.md)                                       |
 | `sase core health`             | Check that the required `sase_core_rs` extension is loadable and working.                               | [Rust backend](rust_backend.md)                             |
-| `sase validate`                | Run project validation checks: initialization drift plus SDD frontmatter validation.                    | [Initialization](init.md), [SDD](sdd.md)                    |
+| `sase validate`                | Run SASE validation checks: initialization drift plus SDD frontmatter validation.                       | [Initialization](init.md), [SDD](sdd.md)                    |
 | `sase telemetry status`        | Show telemetry configuration and reachability.                                                          | [Telemetry](telemetry.md)                                   |
 | `sase telemetry list`          | Display the metric catalog.                                                                             | [Telemetry](telemetry.md)                                   |
 | `sase telemetry snapshot`      | Fetch current metric values.                                                                            | [Telemetry](telemetry.md)                                   |

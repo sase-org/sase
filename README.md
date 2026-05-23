@@ -162,7 +162,7 @@ just test-visual   # ACE PNG visual regression snapshots only
 just test-terminal-smoke  # Optional real-terminal ACE smoke test
 just test-cov      # Parallel test run with coverage + 50% gate, including visual snapshots
 just check         # All checks: formatting, lint, SDD validation, and tests
-sase validate      # Project-level validation: init --check plus sdd validate
+sase validate      # Validation: init --check plus sdd validate
 just test-tox      # Test across Python 3.12, 3.13, 3.14
 just clean         # Remove build artifacts
 just build         # Build wheel + sdist

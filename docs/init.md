@@ -12,7 +12,8 @@ sase init --yes    # run every needed initializer in order
 
 The coordinator plans in registry order: memory, SDD, then skills. Planning is read-only. In non-interactive shells,
 bare `sase init` reports drift and exits non-zero instead of prompting; use `sase init --yes` when you want an
-unattended apply run.
+unattended apply run. Apply runs can write project files, deploy home files through chezmoi when configured, and use
+each initializer's normal commit/push behavior.
 
 Explicit subcommands are still available when you need narrower control:
 
