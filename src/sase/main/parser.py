@@ -30,6 +30,7 @@ from sase.main.parser_commit import (
 from sase.main.parser_core import register_core_parser
 from sase.main.parser_editor import register_editor_parser
 from sase.main.parser_init import register_git_parser, register_init_parser
+from sase.main.parser_memory import register_memory_parser
 from sase.main.parser_mobile import register_mobile_parser
 from sase.main.parser_repro import register_repro_parser
 from sase.main.parser_sdd import register_sdd_parser
@@ -90,6 +91,7 @@ def create_parser() -> argparse.ArgumentParser:
     register_init_parser(top_level_subparsers)
     register_logs_parser(top_level_subparsers)
     register_lsp_parser(top_level_subparsers)
+    register_memory_parser(top_level_subparsers)
     register_mobile_parser(top_level_subparsers)
     register_notify_parser(top_level_subparsers)
     register_path_parser(top_level_subparsers)

@@ -1,4 +1,4 @@
-"""Handler for the ``sase init memory`` command."""
+"""Handler for memory initialization commands."""
 
 from __future__ import annotations
 
@@ -252,8 +252,8 @@ def _deploy_to_chezmoi(written_paths: Iterable[Path]) -> int:
     return 0
 
 
-def handle_init_memory_command(args: argparse.Namespace) -> None:
-    """Handle the ``sase init memory`` command."""
+def handle_memory_init_command(args: argparse.Namespace) -> None:
+    """Handle the ``sase memory init`` command."""
     use_chezmoi = get_use_chezmoi()
     no_commit: bool = getattr(args, "no_commit", False)
     project_config = _project_config_path()
@@ -298,3 +298,8 @@ def handle_init_memory_command(args: argparse.Namespace) -> None:
         if chezmoi_exit_code != 0:
             exit_code = chezmoi_exit_code
     sys.exit(exit_code)
+
+
+def handle_init_memory_command(args: argparse.Namespace) -> None:
+    """Compatibility wrapper for ``sase init memory``."""
+    handle_memory_init_command(args)

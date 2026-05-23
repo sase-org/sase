@@ -220,6 +220,12 @@ def main() -> NoReturn:
 
         handle_xprompt_lsp_command(args)
 
+    # --- memory ---
+    if args.command == "memory":
+        from .memory_handler import handle_memory_command
+
+        handle_memory_command(args)
+
     # --- mobile ---
     if args.command == "mobile":
         from .mobile_handler import handle_mobile_command

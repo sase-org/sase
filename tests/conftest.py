@@ -104,7 +104,12 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
         if (
             key.startswith("SASE_AGENT_")
             or key.startswith("SASE_SIBLING_REPO_")
-            or key in {"SASE_ARTIFACTS_DIR", "SASE_SIBLING_REPOS_JSON"}
+            or key
+            in {
+                "SASE_ARTIFACTS_DIR",
+                "SASE_BEAD_ID",
+                "SASE_SIBLING_REPOS_JSON",
+            }
         ):
             monkeypatch.delenv(key)
 
