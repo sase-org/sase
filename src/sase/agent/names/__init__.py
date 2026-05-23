@@ -62,6 +62,7 @@ from sase.agent.names._registry import (
 )
 from sase.agent.names._retry import allocate_retry_name
 from sase.agent.names._resume import (
+    active_resume_reserved_names,
     active_wait_reserved_names,
     agent_name_allocation_lock,
     allocate_resume_name,
@@ -167,6 +168,7 @@ __all__ = [
     "NameCollisionError",
     "NamedAgent",
     "add_dismissed_prefix",
+    "active_resume_reserved_names",
     "active_wait_reserved_names",
     "allocate_auto_names",
     "agent_name_allocation_lock",

@@ -105,6 +105,11 @@ def allocate_resume_names(resume_name: str, count: int) -> list[str]:
     return [allocate_resume_name(resume_name, reserved=reserved) for _ in range(count)]
 
 
+def active_resume_reserved_names(resume_name: str) -> set[str]:
+    """Return active names that reserve ``<resume_name>.f<N>`` slots."""
+    return _active_resume_reserved_names(resume_name)
+
+
 def single_wait_agent_name(prompt: str | None) -> str | None:
     """Return the sole parsed ``%wait`` agent dependency, if unambiguous."""
     if not prompt or "%" not in prompt:

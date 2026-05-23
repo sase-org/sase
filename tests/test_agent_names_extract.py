@@ -190,6 +190,18 @@ class TestExtractDirectivesAutoDismiss:
         assert result["info"].name == "bar.f1"
         assert result["meta"].get("name") == "bar.f1"
 
+    def test_resume_name_wins_over_wait_planned_name(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                planned_name="foo.w1",
+                prompt="%wait:foo expanded prompt",
+                raw_resolved_prompt="%wait:foo\n#fork:foo do stuff",
+            )
+        assert result["info"].name == "foo.f1"
+        assert result["meta"].get("name") == "foo.f1"
+
     def test_multiple_waits_fall_back_to_auto_name(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             result = _run_extract(

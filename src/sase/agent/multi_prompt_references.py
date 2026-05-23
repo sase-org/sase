@@ -147,6 +147,7 @@ def rewrite_bare_wait_directives(prompt: str, agent_name: str) -> str:
 
 
 _BARE_RESUME_RE = re.compile(r"#fork(?![A-Za-z0-9_])")
+_XPROMPT_REF_RE = re.compile(r"#([A-Za-z_][A-Za-z0-9_]*(?:/[A-Za-z_][A-Za-z0-9_]*)*)")
 
 
 def has_bare_resume_reference(prompt: str) -> bool:
@@ -205,11 +206,30 @@ def _is_bare_resume_match(text: str, match: re.Match[str]) -> bool:
     return text[match.end()] not in ":("
 
 
+def _has_non_resume_xprompt_reference(prompt: str) -> bool:
+    if "#" not in prompt:
+        return False
+
+    from sase.xprompt._disabled_regions import protect_disabled_regions
+    from sase.xprompt._fenced_blocks import protect_fenced_blocks
+
+    fenced: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced)
+    disabled: list[str] = []
+    protected = protect_disabled_regions(protected, disabled)
+
+    return any(
+        match.group(1) not in {"fork", "resume"}
+        for match in _XPROMPT_REF_RE.finditer(protected)
+    )
+
+
 class PlannedNameAllocator:
     """Allocate parent-side names for multi-prompt wait rewrites."""
 
     def __init__(self) -> None:
         self._auto_reserved: set[str] | None = None
+        self._resume_reserved: dict[str, set[str]] = {}
         self._wait_reserved: dict[str, set[str]] = {}
 
     def planned_name_for_prompt(self, prompt: str) -> tuple[str | None, str | None]:
@@ -218,14 +238,28 @@ class PlannedNameAllocator:
         if explicit_name is not None:
             return explicit_name, None
 
-        if "#" in prompt:
-            return None, None
-
         from sase.agent.names import (
+            active_resume_reserved_names,
             active_wait_reserved_names,
+            allocate_resume_name,
             allocate_wait_name,
+            first_resume_agent_name,
             single_wait_agent_name,
         )
+
+        resume_target = first_resume_agent_name(prompt)
+        if resume_target is not None:
+            if _has_non_resume_xprompt_reference(prompt):
+                return None, None
+            reserved = self._resume_reserved.get(resume_target)
+            if reserved is None:
+                reserved = active_resume_reserved_names(resume_target)
+                self._resume_reserved[resume_target] = reserved
+            name = allocate_resume_name(resume_target, reserved=reserved)
+            return name, name
+
+        if "#" in prompt:
+            return None, None
 
         wait_target = single_wait_agent_name(prompt)
         if wait_target is not None:

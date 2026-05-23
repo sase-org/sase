@@ -275,6 +275,23 @@ def test_split_prompt_for_models_wait_base(tmp_path: Path) -> None:
     assert result[1] == "%name:foo.w1.cld_sonnet\n%wait:foo\n%model:sonnet\nDo work"
 
 
+def test_split_prompt_for_models_resume_base_wins_over_wait(
+    tmp_path: Path,
+) -> None:
+    """Multi-model fan-out uses the fork-derived base when both refs exist."""
+    with patch.object(Path, "home", return_value=tmp_path):
+        result = split_prompt_for_models(
+            "%wait:foo\n#fork:foo\n%m(opus,sonnet)\nDo work"
+        )
+    assert result is not None
+    assert result[0] == (
+        "%name:foo.f1.cld_opus\n%wait:foo\n#fork:foo\n%model:opus\nDo work"
+    )
+    assert result[1] == (
+        "%name:foo.f1.cld_sonnet\n%wait:foo\n#fork:foo\n%model:sonnet\nDo work"
+    )
+
+
 def test_split_prompt_for_models_multi_model_auto_generated_base() -> None:
     """No %name with multi-model → auto-name is generated once and shared."""
     with patch("sase.agent.names.get_next_auto_name", return_value="z"):

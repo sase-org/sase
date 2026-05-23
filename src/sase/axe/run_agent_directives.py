@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from typing import Any, NamedTuple
 
 from sase.axe.chop_agents import agent_meta_from_chop_env
@@ -132,7 +133,17 @@ def extract_directives_and_write_meta(
         agent_vcs_provider = None
 
     with name_lock_context:
-        if not directives.name_explicit and planned_name and not auto_dismiss:
+        planned_name_matches_resume = (
+            planned_name is not None
+            and resume_name is not None
+            and _planned_name_matches_resume_target(planned_name, resume_name)
+        )
+        planned_name_is_usable = (
+            planned_name is not None
+            and not auto_dismiss
+            and (resume_name is None or planned_name_matches_resume)
+        )
+        if not directives.name_explicit and planned_name_is_usable:
             agent_name = planned_name
         elif not directives.name_explicit and resume_name is not None:
             from sase.agent.names import allocate_resume_name
@@ -248,3 +259,8 @@ def _sibling_repos_from_env() -> list[dict[str, object]]:
     from sase.sibling_repos import sibling_repo_metadata_from_env
 
     return sibling_repo_metadata_from_env()
+
+
+def _planned_name_matches_resume_target(planned_name: str, resume_name: str) -> bool:
+    pattern = rf"^{re.escape(resume_name)}\.f\d+(?:\.|$)"
+    return re.match(pattern, planned_name) is not None

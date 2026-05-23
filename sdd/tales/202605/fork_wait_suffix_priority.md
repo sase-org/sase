@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 19:39:29
-status: wip
+status: done
 prompt: sdd/prompts/202605/fork_wait_suffix_priority.md
 ---
 # Fork/Wait Suffix Priority Plan
