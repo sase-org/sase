@@ -1,4 +1,4 @@
-"""Types and result models for memory proposals."""
+"""Data structures and errors for memory proposals."""
 
 from __future__ import annotations
 

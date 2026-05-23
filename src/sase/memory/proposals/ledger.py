@@ -1,4 +1,4 @@
-"""Ledger storage and reduction for memory proposals."""
+"""JSONL ledger IO and event reduction for memory proposals."""
 
 from __future__ import annotations
 
@@ -9,38 +9,22 @@ import json
 from pathlib import Path
 from typing import Any
 
-from sase.main.init_memory.config import project_memory_name
-from sase.memory._proposal_models import (
+from sase.memory.locks import locked_file
+from sase.memory.proposals.models import (
     MEMORY_PROPOSAL_SCHEMA_VERSION,
     EvidenceRecord,
     MemoryProposalError,
     MemoryProposalEvent,
     MemoryProposalLedgerEvent,
-    MemoryProposalState,
-    ProposalWarning,
     MemoryProposalLookupError,
     MemoryProposalReviewEvent,
+    MemoryProposalState,
+    ProposalWarning,
 )
-from sase.memory.locks import locked_file
-
-
-def memory_proposal_ledger_path(
-    project: str | None = None, *, cwd: Path | None = None
-) -> Path:
-    """Return the project-scoped memory-proposal JSONL ledger path."""
-    project_name = project or project_memory_name(cwd or Path.cwd())
-    return Path.home() / ".sase" / "projects" / project_name / "memory_proposals.jsonl"
-
-
-def memory_proposal_lock_path(
-    project: str | None = None,
-    *,
-    cwd: Path | None = None,
-    ledger_path: Path | None = None,
-) -> Path:
-    """Return the lock companion for a memory-proposal ledger path."""
-    path = ledger_path or memory_proposal_ledger_path(project, cwd=cwd)
-    return path.with_suffix(".lock")
+from sase.memory.proposals.paths import (
+    memory_proposal_ledger_path,
+    memory_proposal_lock_path,
+)
 
 
 def resolve_memory_proposal_id(
@@ -318,7 +302,7 @@ def _review_event_from_mapping(
 
     return MemoryProposalReviewEvent(
         schema_version=MEMORY_PROPOSAL_SCHEMA_VERSION,
-        event_type=event_type,  # type: ignore[arg-type]
+        event_type=event_type,
         proposal_id=data["proposal_id"],
         timestamp=data["timestamp"],
         project=data["project"],
@@ -380,7 +364,7 @@ def _evidence_from_mapping(data: Mapping[str, Any]) -> EvidenceRecord | None:
     if byte_count is not None and not isinstance(byte_count, int):
         return None
     return EvidenceRecord(
-        kind=kind,  # type: ignore[arg-type]
+        kind=kind,
         raw=raw,
         path=path,
         resolved_path=resolved_path,

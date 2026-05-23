@@ -7,7 +7,7 @@ import getpass
 import os
 import socket
 
-from sase.memory._proposal_models import (
+from sase.memory.proposals.models import (
     MemoryProposalAuthorError,
     MemoryProposalReviewError,
     ProposalAuthor,

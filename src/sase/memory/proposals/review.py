@@ -1,4 +1,4 @@
-"""Review flow for pending memory proposals."""
+"""Review actions for memory proposals."""
 
 from __future__ import annotations
 
@@ -8,33 +8,35 @@ import hashlib
 import json
 from pathlib import Path
 
-from sase.memory._proposal_identity import require_proposal_reviewer
-from sase.memory._proposal_ledger import (
+from sase.memory.locks import locked_file
+from sase.memory.proposals.identity import require_proposal_reviewer
+from sase.memory.proposals.ledger import (
     append_event_to_ledger_unlocked,
-    read_memory_proposal_events_unlocked,
-    memory_proposal_ledger_path,
-    memory_proposal_lock_path,
     read_memory_proposals,
+    read_memory_proposal_events_unlocked,
     reduce_memory_proposal_events,
     resolve_memory_proposal_id,
 )
-from sase.memory._proposal_models import (
+from sase.memory.proposals.models import (
     MEMORY_PROPOSAL_SCHEMA_VERSION,
     MemoryProposalBodyError,
+    MemoryProposalReviewEvent,
     MemoryProposalReviewError,
     MemoryProposalReviewResult,
     MemoryProposalState,
     MemoryProposalTargetError,
     ProposalReviewer,
     ProposalWarning,
-    MemoryProposalReviewEvent,
 )
-from sase.memory._proposal_validation import (
-    proposal_event_timestamp,
-    validate_proposal_body,
+from sase.memory.proposals.paths import (
+    memory_proposal_ledger_path,
+    memory_proposal_lock_path,
+)
+from sase.memory.proposals.validation import (
+    event_timestamp,
+    validate_body,
     validate_memory_proposal_target,
 )
-from sase.memory.locks import locked_file
 from sase.telemetry.metrics import (
     MEMORY_PROPOSALS_APPROVED,
     MEMORY_PROPOSALS_REJECTED,
@@ -74,7 +76,7 @@ def reject_memory_proposal(
             schema_version=MEMORY_PROPOSAL_SCHEMA_VERSION,
             event_type="rejected",
             proposal_id=state.proposal_id,
-            timestamp=proposal_event_timestamp(now or datetime.now(tz=UTC)),
+            timestamp=event_timestamp(now or datetime.now(tz=UTC)),
             project=state.project,
             cwd=str(cwd_path),
             reviewer_user=proposal_reviewer.user,
@@ -141,7 +143,7 @@ def approve_memory_proposal(
             state,
             edited_file=edited_file,
         )
-        body_bytes = validate_proposal_body(body)
+        body_bytes = validate_body(body)
         body_sha256 = hashlib.sha256(body_bytes).hexdigest()
         canonical_body = _canonical_memory_content(
             proposal_id=state.proposal_id,
@@ -161,7 +163,7 @@ def approve_memory_proposal(
             schema_version=MEMORY_PROPOSAL_SCHEMA_VERSION,
             event_type="approved_with_edits" if edited_file is not None else "approved",
             proposal_id=state.proposal_id,
-            timestamp=proposal_event_timestamp(now or datetime.now(tz=UTC)),
+            timestamp=event_timestamp(now or datetime.now(tz=UTC)),
             project=state.project,
             cwd=str(cwd_path),
             reviewer_user=proposal_reviewer.user,

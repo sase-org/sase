@@ -1,4 +1,4 @@
-"""Creation flow for memory proposals."""
+"""Proposal creation flow for ``sase memory write``."""
 
 from __future__ import annotations
 
@@ -8,29 +8,31 @@ import hashlib
 from pathlib import Path
 
 from sase.main.init_memory.config import project_memory_name
-from sase.memory._proposal_identity import require_proposal_author
-from sase.memory._proposal_ledger import (
+from sase.memory.proposals.identity import require_proposal_author
+from sase.memory.proposals.ledger import (
     append_memory_proposal_event,
-    memory_proposal_ledger_path,
-    memory_proposal_lock_path,
     reduce_memory_proposal_events,
 )
-from sase.memory._proposal_models import (
+from sase.memory.proposals.models import (
     MEMORY_PROPOSAL_SCHEMA_VERSION,
+    MemoryProposalError,
     MemoryProposalEvent,
     MemoryProposalWriteResult,
     ProposalAuthor,
 )
-from sase.memory._proposal_validation import (
-    proposal_event_timestamp,
-    normalize_proposal_title,
-    validate_proposal_body,
-    validate_proposal_id,
+from sase.memory.proposals.paths import (
+    memory_proposal_ledger_path,
+    memory_proposal_lock_path,
+)
+from sase.memory.proposals.validation import (
     build_memory_proposal_warnings,
+    event_timestamp,
     generate_memory_proposal_id,
     normalize_proposal_keywords,
     parse_memory_proposal_evidence,
+    validate_body,
     validate_memory_proposal_target,
+    validate_proposal_id,
 )
 from sase.telemetry.metrics import MEMORY_PROPOSALS_PROPOSED
 
@@ -55,14 +57,14 @@ def create_memory_proposal(
     """Create, persist, and reduce a pending memory proposal."""
     cwd_path = (cwd or Path.cwd()).resolve(strict=False)
     project_name = project or project_memory_name(cwd_path)
-    normalized_title = normalize_proposal_title(title)
+    normalized_title = _normalize_title(title)
     target_path = validate_memory_proposal_target(target, slug=slug)
     evidence = parse_memory_proposal_evidence(evidence_values, cwd=cwd_path)
     normalized_keywords = normalize_proposal_keywords(keywords)
     proposal_author = author or require_proposal_author(manual_author=manual_author)
-    body_bytes = validate_proposal_body(body)
+    body_bytes = validate_body(body)
     body_sha256 = hashlib.sha256(body_bytes).hexdigest()
-    timestamp = proposal_event_timestamp(now or datetime.now(tz=UTC))
+    timestamp = event_timestamp(now or datetime.now(tz=UTC))
     final_proposal_id = proposal_id or generate_memory_proposal_id(now=now)
     validate_proposal_id(final_proposal_id)
     warnings = build_memory_proposal_warnings(
@@ -106,3 +108,10 @@ def create_memory_proposal(
         lock_path=lock_path,
         draft_path=draft_path,
     )
+
+
+def _normalize_title(title: str) -> str:
+    normalized = title.strip()
+    if not normalized:
+        raise MemoryProposalError("memory proposal title must not be empty")
+    return normalized

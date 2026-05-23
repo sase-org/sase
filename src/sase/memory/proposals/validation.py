@@ -10,7 +10,7 @@ import re
 from urllib.parse import urlparse
 from uuid import uuid4
 
-from sase.memory._proposal_models import (
+from sase.memory.proposals.models import (
     MEMORY_PROPOSAL_BODY_MAX_BYTES,
     MEMORY_PROPOSAL_BODY_WARN_BYTES,
     EvidenceRecord,
@@ -143,27 +143,26 @@ def generate_memory_proposal_id(*, now: datetime | None = None) -> str:
     return f"mem-{stamp}-{uuid4().hex[:8]}"
 
 
-def normalize_proposal_title(title: str) -> str:
-    normalized = title.strip()
-    if not normalized:
-        raise MemoryProposalError("memory proposal title must not be empty")
-    return normalized
+def validate_proposal_id(proposal_id: str) -> None:
+    if not _PROPOSAL_ID_RE.fullmatch(proposal_id):
+        raise MemoryProposalError(
+            "memory proposal id must match mem-YYYYMMDD-HHMMSS-<8hex>"
+        )
 
 
-def validate_proposal_body(body: str) -> bytes:
+def event_timestamp(now: datetime) -> str:
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=UTC)
+    return now.astimezone(UTC).isoformat()
+
+
+def validate_body(body: str) -> bytes:
     if not body.strip():
         raise MemoryProposalBodyError("memory proposal body must not be empty")
     body_bytes = body.encode("utf-8")
     if len(body_bytes) > MEMORY_PROPOSAL_BODY_MAX_BYTES:
         raise MemoryProposalBodyError("memory proposal body exceeds 256 KiB")
     return body_bytes
-
-
-def validate_proposal_id(proposal_id: str) -> None:
-    if not _PROPOSAL_ID_RE.fullmatch(proposal_id):
-        raise MemoryProposalError(
-            "memory proposal id must match mem-YYYYMMDD-HHMMSS-<8hex>"
-        )
 
 
 def _parse_one_evidence(value: str, *, cwd: Path) -> EvidenceRecord:
@@ -225,9 +224,3 @@ def _path_evidence(raw: str, *, cwd: Path) -> EvidenceRecord:
         byte_count=byte_count,
         sha256=digest,
     )
-
-
-def proposal_event_timestamp(now: datetime) -> str:
-    if now.tzinfo is None:
-        now = now.replace(tzinfo=UTC)
-    return now.astimezone(UTC).isoformat()
