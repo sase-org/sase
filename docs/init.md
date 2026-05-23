@@ -21,6 +21,10 @@ Explicit subcommands are still available when you need narrower control:
 sase memory init --no-commit
 sase memory init --check
 sase memory list
+sase memory read long/generated_skills.md --reason "Need generated skill context"
+sase memory log
+sase memory log --path long/generated_skills.md
+sase memory log --id <read-id>
 sase init sdd
 sase init sdd --check
 sase init skills --dry-run
@@ -39,6 +43,10 @@ home-level `use_chezmoi` deployment. `sase init memory` remains a compatibility 
 | `sase init --yes`                | Run every needed initializer in memory, SDD, skills order without prompting.             |
 | `sase memory`                    | Alias for `sase memory list`.                                                            |
 | `sase memory list`               | Inspect loaded, referenced, available, and missing memory files for the current root.    |
+| `sase memory read <path>`        | Print one `memory/long/*.md` file and append an attributable audit event.                |
+| `sase memory log`                | Summarize audited long-term memory reads.                                                |
+| `sase memory log --path <path>`  | Show a path-level summary and matching individual read events.                           |
+| `sase memory log --id <read-id>` | Show one full audited read event by id or unambiguous id prefix.                         |
 | `sase memory init`               | Create or refresh project/home memory roots and provider instruction shims.              |
 | `sase memory init --check`       | Report memory initialization drift without writing files.                                |
 | `sase memory init -C`            | Write memory files but skip the project git commit/pull/push path.                       |
@@ -99,6 +107,27 @@ command fail so important agent context is not silently ignored.
 The dashboard includes approximate local token estimates. It reports discoverable long-term sources, but it does not
 generate prompt-dependent `.sase/memory/` files; those are written only during an agent launch when keyword-tagged
 long-term memory matches the prompt.
+
+## Memory Read Audit Log
+
+`sase memory read <memory-relative-path> --reason <reason>` is the audited path for agent-initiated long-term memory
+reads. The path is relative to `memory/`; the first version allows `long/*.md` files only and rejects `memory/short`
+because short-term memory is always-loaded instruction context. The command strips one leading YAML frontmatter block
+from stdout, but the audit log records only metadata such as path, agent name, timestamp, cwd, byte count, and reason.
+
+Every read must include a non-empty `--reason`. The command also requires agent attribution from `SASE_AGENT_NAME`,
+`SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json`; unattributed reads fail instead of writing a log row.
+
+`sase memory log` reads the project-scoped audit log from SASE state under `~/.sase/projects/<project>/`, not from the
+repo. Use `--path` or `--agent` to drill down to matching read events, `--id <read-id>` to inspect one event, and
+`--json` for deterministic machine-readable output.
+
+```bash
+sase memory read long/generated_skills.md --reason "Need generated skill context"
+sase memory log
+sase memory log --path long/generated_skills.md
+sase memory log --id <read-id>
+```
 
 ## SDD Initialization
 

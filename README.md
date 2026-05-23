@@ -72,6 +72,8 @@ Useful first commands:
 sase core health          # verify the required Rust backend before launching agents
 sase memory init --no-commit  # write memory files; skip only the project commit/push
 sase memory list         # inspect loaded, referenced, available, and missing memory files
+sase memory read long/generated_skills.md --reason "Need generated skill context"
+sase memory log          # summarize audited long-term memory reads
 sase init sdd             # create/refresh generated SDD guides and directory map
 sase init skills --dry-run    # preview provider skill files before deploying them
 sase ace                  # open the interactive control surface

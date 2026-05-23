@@ -40,6 +40,8 @@ agents from the TUI.
 | `sase changespec sync-deltas`                | Recompute the `DELTAS` field for a ChangeSpec from VCS state.             | [ChangeSpecs](change_spec.md)                   |
 | `sase init`                                  | Check and initialize memory, SDD, and skills from one coordinator.        | [Initialization](init.md)                       |
 | `sase memory` / `sase memory list`           | Show loaded, referenced, available, and missing memory files.             | [Initialization](init.md#memory-context-list)   |
+| `sase memory read`                           | Read one long-term memory file and record an attributable audit event.    | [Initialization](init.md#memory-read-audit-log) |
+| `sase memory log`                            | Summarize or inspect audited long-term memory reads.                      | [Initialization](init.md#memory-read-audit-log) |
 | `sase memory init`                           | Create or refresh project/home memory files and provider shims.           | [Initialization](init.md#memory-initialization) |
 | `sase init memory`                           | Alias for `sase memory init`.                                             | [Initialization](init.md#memory-initialization) |
 | `sase sdd init`                              | Create or refresh SDD README files and directory map assets.              | [SDD](sdd.md)                                   |

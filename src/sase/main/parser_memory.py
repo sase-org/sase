@@ -8,9 +8,18 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
     memory_parser = subparsers.add_parser(
         "memory",
         help="Inspect and initialize SASE memory context",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Inspect SASE memory context. With no subcommand, defaults to "
             "`sase memory list`."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase memory read long/generated_skills.md --reason "
+            '"Need generated skill context"\n'
+            "  sase memory log\n"
+            "  sase memory log --path long/generated_skills.md\n"
+            "  sase memory log --id <read-id>"
         ),
     )
     memory_subparsers = memory_parser.add_subparsers(
@@ -54,9 +63,15 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
     read_parser = memory_subparsers.add_parser(
         "read",
         help="Read and audit a long-term memory file",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Read a memory/long markdown file, strip leading YAML frontmatter, "
             "and append an attributable audit log row."
+        ),
+        epilog=(
+            "example:\n"
+            "  sase memory read long/generated_skills.md --reason "
+            '"Need generated skill context"'
         ),
     )
     read_parser.add_argument(
@@ -73,10 +88,17 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
     log_parser = memory_subparsers.add_parser(
         "log",
         help="Summarize or inspect auditable long-term memory reads",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Summarize auditable long-term memory reads recorded by "
             "`sase memory read`, or inspect matching read events with "
             "--path, --agent, or --id."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase memory log\n"
+            "  sase memory log --path long/generated_skills.md\n"
+            "  sase memory log --id <read-id>"
         ),
     )
     log_parser.add_argument(

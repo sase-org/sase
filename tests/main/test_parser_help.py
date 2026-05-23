@@ -96,13 +96,26 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     memory_help = _flat_help(_parser_for(("sase", "memory")).format_help())
     memory_init_help = _flat_help(_parser_for(("sase", "memory", "init")).format_help())
     memory_list_help = _flat_help(_parser_for(("sase", "memory", "list")).format_help())
+    memory_read_help = _flat_help(_parser_for(("sase", "memory", "read")).format_help())
+    memory_log_help = _flat_help(_parser_for(("sase", "memory", "log")).format_help())
     init_alias_help = _flat_help(_parser_for(("sase", "init", "memory")).format_help())
 
     assert "`sase memory list`" in memory_help
+    assert "{init,list,log,read}" in memory_help
+    assert "sase memory read long/generated_skills.md --reason" in memory_help
+    assert "sase memory log --path long/generated_skills.md" in memory_help
+    assert "sase memory log --id <read-id>" in memory_help
     assert "loaded, referenced, available, and missing memory files" in memory_help
     assert "`sase init memory` is a compatibility alias" in memory_init_help
     assert "loaded @ references" in memory_list_help
     assert "referenced-only plain memory paths" in memory_list_help
+    assert "memory/long markdown file" in memory_read_help
+    assert "--reason REASON" in memory_read_help
+    assert "Need generated skill context" in memory_read_help
+    assert "--path MEMORY_PATH" in memory_log_help
+    assert "--agent AGENT_NAME" in memory_log_help
+    assert "--id READ_ID" in memory_log_help
+    assert "sase memory log --id <read-id>" in memory_log_help
     assert "Compatibility alias for `sase memory init`" in init_alias_help
 
 

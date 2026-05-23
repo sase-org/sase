@@ -1150,10 +1150,21 @@ Advanced deploy controls stay on explicit subcommands such as `sase init memory 
 
 With no subcommand, `sase memory` defaults to `sase memory list`.
 
-| Form               | Flags | Description                                                                                  |
-| ------------------ | ----- | -------------------------------------------------------------------------------------------- |
-| `sase memory`      | -     | Show the same read-only memory context dashboard as `sase memory list`.                      |
-| `sase memory list` | -     | Show loaded, referenced, available, and missing memory files for the current launch context. |
+| Form                      | Flags                                 | Description                                                                                         |
+| ------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `sase memory`             | -                                     | Show the same read-only memory context dashboard as `sase memory list`.                             |
+| `sase memory list`        | -                                     | Show loaded, referenced, available, and missing memory files for the current launch context.        |
+| `sase memory read <path>` | `--reason <reason>` required          | Print a `memory/long/*.md` file without leading frontmatter and append an attributable audit event. |
+| `sase memory log`         | `--path`, `--agent`, `--id`, `--json` | Summarize or inspect audited long-term memory reads.                                                |
+
+Examples:
+
+```bash
+sase memory read long/generated_skills.md --reason "Need generated skill context"
+sase memory log
+sase memory log --path long/generated_skills.md
+sase memory log --id <read-id>
+```
 
 ### `sase memory init`
 
