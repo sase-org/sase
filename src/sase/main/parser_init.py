@@ -51,11 +51,19 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
     init_parser = subparsers.add_parser(
         "init",
         help="Initialize SASE-managed resources",
+        description=(
+            "Check and initialize SASE-managed resources. With no subcommand, "
+            "runs the onboarding coordinator for memory, SDD, and skills."
+        ),
+        epilog=(
+            "Advanced deploy controls live on explicit subcommands; for example, "
+            "use `sase init memory --no-commit` or `sase init skills --no-push`."
+        ),
     )
     init_parser.add_argument(
         "--check",
         action="store_true",
-        help="Report initialization drift without writing files",
+        help="Report initialization drift without writing files or running initializers",
     )
     init_parser.add_argument(
         "-y",

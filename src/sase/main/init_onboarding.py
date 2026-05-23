@@ -14,6 +14,8 @@ from rich.console import Console
 from .init_plan import InitAction, InitPlan
 from .init_registry import InitCommandSpec, iter_init_command_specs
 
+_MAX_ACTION_DETAILS = 3
+
 
 def _console_for(file: TextIO) -> Console:
     is_tty = file.isatty()
@@ -37,8 +39,42 @@ def _fallback_summary(plan: InitPlan) -> str:
     return f"{count} actions"
 
 
-def _render_row(prefix: str, plan: InitPlan) -> str:
-    return f"  {prefix:<3} init {plan.command:<6} {_fallback_summary(plan)}"
+def _display_path(path: Path) -> str:
+    resolved = path.resolve(strict=False)
+    cwd = Path.cwd().resolve(strict=False)
+    try:
+        return str(resolved.relative_to(cwd)) or "."
+    except ValueError:
+        pass
+
+    home = Path.home().resolve(strict=False)
+    try:
+        return f"~/{resolved.relative_to(home)}"
+    except ValueError:
+        return str(path)
+
+
+def _command_width(plans: Sequence[InitPlan]) -> int:
+    return max((len(plan.command) for plan in plans), default=0)
+
+
+def _render_row(prefix: str, plan: InitPlan, *, command_width: int) -> str:
+    return (
+        f"  {prefix:<4} init {plan.command:<{command_width}}  {_fallback_summary(plan)}"
+    )
+
+
+def _render_action_details(console: Console, plan: InitPlan) -> None:
+    for action in plan.actions[:_MAX_ACTION_DETAILS]:
+        detail = f"  {action.detail}" if action.detail else ""
+        console.print(
+            f"    - {action.operation:<9} {_display_path(action.path)}{detail}"
+        )
+
+    remaining = len(plan.actions) - _MAX_ACTION_DETAILS
+    if remaining > 0:
+        noun = "action" if remaining == 1 else "actions"
+        console.print(f"    ... {remaining} more {noun}", style="dim")
 
 
 def _render_plans(console: Console, plans: Sequence[InitPlan]) -> None:
@@ -48,19 +84,23 @@ def _render_plans(console: Console, plans: Sequence[InitPlan]) -> None:
     changed = [plan for plan in plans if plan.has_changes]
     warnings = [(plan, warning) for plan in plans for warning in plan.warnings]
     blockers = [(plan, blocker) for plan in plans for blocker in plan.blockers]
+    command_width = _command_width(plans)
 
     if up_to_date:
         console.print()
         console.print("Up to date:", style="dim")
         for plan in up_to_date:
-            console.print(_render_row("ok", plan), style="dim")
+            console.print(
+                _render_row("ok", plan, command_width=command_width), style="dim"
+            )
 
     if changed:
         console.print()
         console.print("Needs attention:", style="bold")
         for plan in changed:
             prefix = "run" if plan.runnable else "hold"
-            console.print(_render_row(prefix, plan))
+            console.print(_render_row(prefix, plan, command_width=command_width))
+            _render_action_details(console, plan)
 
     if warnings:
         console.print()
@@ -138,8 +178,9 @@ def run_init_onboarding(
     plans = _plan_specs(args, active_specs)
     has_changes = any(plan.has_changes for plan in plans)
     has_blockers = any(not plan.runnable for plan in plans)
+    has_warnings = any(plan.warnings for plan in plans)
 
-    if not has_changes and not has_blockers:
+    if not has_changes and not has_blockers and not has_warnings:
         _render_noop(out_console, active_specs)
         return 0
 
@@ -147,6 +188,9 @@ def run_init_onboarding(
 
     if has_blockers:
         return 1
+
+    if not has_changes:
+        return 0
 
     if getattr(args, "check", False):
         return 1
@@ -168,6 +212,11 @@ def run_init_onboarding(
             continue
         exit_code = spec.run(_apply_args(args, spec))
         if exit_code != 0:
+            out_console.print()
+            out_console.print(
+                f"init {plan.command} failed with exit code {exit_code}.",
+                style="red",
+            )
             return exit_code
 
     return 0

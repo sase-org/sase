@@ -1,7 +1,20 @@
 # Initialization
 
-SASE initialization commands create or refresh durable files that agents and companion tools rely on. For current setup,
-run the explicit subcommands instead of bare `sase init`:
+SASE initialization commands create or refresh durable files that agents and companion tools rely on. Bare `sase init`
+checks the current project and home setup first, then either reports that everything is current or shows the
+initializers that need attention:
+
+```bash
+sase init --check  # report drift without writing
+sase init          # prompt before each needed initializer
+sase init --yes    # run every needed initializer in order
+```
+
+The coordinator plans in registry order: memory, SDD, then skills. Planning is read-only. In non-interactive shells,
+bare `sase init` reports drift and exits non-zero instead of prompting; use `sase init --yes` when you want an
+unattended apply run.
+
+Explicit subcommands are still available when you need narrower control:
 
 ```bash
 sase memory init --no-commit
@@ -14,27 +27,26 @@ sase init skills --dry-run
 project git commit/pull/push path. It is not a dry run: it can still write project files, write home memory, and follow
 home-level `use_chezmoi` deployment. `sase init memory` remains a compatibility alias for `sase memory init`.
 
-Bare `sase init` is coordinator plumbing for a future umbrella setup flow. It accepts `--check` and `--yes`, but the
-current release has no registered planners, so `sase init`, `sase init --check`, and `sase init --yes` all report that
-no init planners are registered and exit non-zero.
-
 ## Commands
 
-| Command                          | Purpose                                                                                |
-| -------------------------------- | -------------------------------------------------------------------------------------- |
-| `sase init`                      | Current coordinator stub; reports that no planners are registered and exits non-zero.  |
-| `sase init --check`              | Parsed today, but no drift checks run until planners are registered.                   |
-| `sase init --yes`                | Parsed today, but no initializers run until planners are registered.                   |
-| `sase memory`                    | Alias for `sase memory list`.                                                          |
-| `sase memory list`               | Inspect loaded, referenced, available, and missing memory files for the current root.  |
-| `sase memory init`               | Create or refresh project/home memory roots and provider instruction shims.            |
-| `sase memory init -C`            | Write memory files but skip the project git commit/pull/push path.                     |
-| `sase init memory`               | Compatibility alias for `sase memory init`.                                            |
-| `sase init sdd`                  | Alias for `sase sdd init`; refreshes generated SDD README files and the directory map. |
-| `sase init skills`               | Generate skill files; existing files require confirmation or `--force`.                |
-| `sase init skills --dry-run`     | Preview generated skill target paths without writing files.                            |
-| `sase init skills --force`       | Generate and overwrite deployed skill files without confirmation.                      |
-| `sase init skills -p <provider>` | Deploy only one provider's generated skill files.                                      |
+| Command                          | Purpose                                                                                  |
+| -------------------------------- | ---------------------------------------------------------------------------------------- |
+| `sase init`                      | Check memory, SDD, and skills; prompt once per needed initializer in interactive shells. |
+| `sase init --check`              | Report initialization drift without writing and exit non-zero when changes are needed.   |
+| `sase init --yes`                | Run every needed initializer in memory, SDD, skills order without prompting.             |
+| `sase memory`                    | Alias for `sase memory list`.                                                            |
+| `sase memory list`               | Inspect loaded, referenced, available, and missing memory files for the current root.    |
+| `sase memory init`               | Create or refresh project/home memory roots and provider instruction shims.              |
+| `sase memory init -C`            | Write memory files but skip the project git commit/pull/push path.                       |
+| `sase init memory`               | Compatibility alias for `sase memory init`.                                              |
+| `sase init sdd`                  | Alias for `sase sdd init`; refreshes generated SDD README files and the directory map.   |
+| `sase init skills`               | Generate skill files; existing files require confirmation or `--force`.                  |
+| `sase init skills --dry-run`     | Preview generated skill target paths without writing files.                              |
+| `sase init skills --force`       | Generate and overwrite deployed skill files without confirmation.                        |
+| `sase init skills -p <provider>` | Deploy only one provider's generated skill files.                                        |
+
+Advanced deploy controls such as `--no-commit`, `--no-push`, and `--no-apply` live on explicit subcommands rather than
+the bare coordinator.
 
 ## Memory Initialization
 

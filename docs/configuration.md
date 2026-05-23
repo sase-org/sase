@@ -1134,15 +1134,17 @@ entries where `is_skill` is `true`.
 
 ### `sase init`
 
-Bare `sase init` is the future onboarding coordinator for SASE-managed resources. The command accepts drift-check and
-unattended-run flags, but the current release has no registered planners, so bare `sase init`, `sase init --check`, and
-`sase init --yes` all print a "No init planners are registered yet" message and exit non-zero. Run the explicit
-subcommands below for setup today.
+Bare `sase init` is the onboarding coordinator for SASE-managed resources. It runs read-only planners for memory, SDD,
+and skills, prints a grouped summary, and prompts once per initializer that needs work when stdin is interactive.
+Non-interactive runs never prompt; they print the drift summary and ask the caller to rerun with `--yes`.
 
-| Flag        | Values | Default | Description                                                                   |
-| ----------- | ------ | ------- | ----------------------------------------------------------------------------- |
-| `--check`   | flag   | -       | Reserved for registered planners; currently no planner work is checked.       |
-| `-y, --yes` | flag   | -       | Reserved for registered planners; currently no initializer runs are launched. |
+Advanced deploy controls stay on explicit subcommands such as `sase init memory --no-commit` and
+`sase init skills --no-push`.
+
+| Flag        | Values | Default | Description                                                                          |
+| ----------- | ------ | ------- | ------------------------------------------------------------------------------------ |
+| `--check`   | flag   | -       | Report initialization drift without writing; exits non-zero when changes are needed. |
+| `-y, --yes` | flag   | -       | Run every needed initializer in memory, SDD, skills order without prompting.         |
 
 ### `sase memory`
 

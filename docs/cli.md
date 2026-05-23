@@ -38,7 +38,7 @@ agents from the TUI.
 | `sase changespec migrate-extension`          | Rename legacy `.gp` ProjectSpec files to the canonical `.sase` extension. | [ProjectSpec](project_spec.md)                  |
 | `sase changespec search`                     | Search and filter ChangeSpecs with the query language.                    | [Query language](query_language.md)             |
 | `sase changespec sync-deltas`                | Recompute the `DELTAS` field for a ChangeSpec from VCS state.             | [ChangeSpecs](change_spec.md)                   |
-| `sase init`                                  | Run the initialization coordinator; use explicit subcommands today.       | [Initialization](init.md)                       |
+| `sase init`                                  | Check and initialize memory, SDD, and skills from one coordinator.        | [Initialization](init.md)                       |
 | `sase memory` / `sase memory list`           | Show loaded, referenced, available, and missing memory files.             | [Initialization](init.md#memory-context-list)   |
 | `sase memory init`                           | Create or refresh project/home memory files and provider shims.           | [Initialization](init.md#memory-initialization) |
 | `sase init memory`                           | Alias for `sase memory init`.                                             | [Initialization](init.md#memory-initialization) |

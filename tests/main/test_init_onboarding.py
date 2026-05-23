@@ -5,12 +5,13 @@ from __future__ import annotations
 import argparse
 from io import StringIO
 from pathlib import Path
+import sys
 
 import pytest
 
 from sase.main.init_onboarding import run_init_onboarding
 from sase.main.init_plan import InitAction, InitPlan
-from sase.main.init_registry import InitCommandSpec
+from sase.main.init_registry import InitCommandSpec, iter_init_command_specs
 from sase.main.parser import create_parser
 
 
@@ -33,6 +34,7 @@ def _plan(
     *,
     actions: tuple[InitAction, ...] = (),
     summary: str = "",
+    warnings: tuple[str, ...] = (),
     blockers: tuple[str, ...] = (),
 ) -> InitPlan:
     return InitPlan(
@@ -40,6 +42,7 @@ def _plan(
         label=f"Init {command}",
         summary=summary,
         actions=actions,
+        warnings=warnings,
         blockers=blockers,
     )
 
@@ -53,12 +56,13 @@ def _spec(
     plan: InitPlan,
     calls: list[str],
     args_seen: list[argparse.Namespace] | None = None,
+    exit_code: int = 0,
 ) -> InitCommandSpec:
     def _run(args: argparse.Namespace) -> int:
         calls.append(name)
         if args_seen is not None:
             args_seen.append(args)
-        return 0
+        return exit_code
 
     return InitCommandSpec(
         name=name,
@@ -103,6 +107,15 @@ def test_init_help_lists_existing_subcommands(
     assert "memory" in out
     assert "sdd" in out
     assert "skills" in out
+    assert "Advanced deploy controls live on explicit subcommands" in out
+
+
+def test_registry_order_is_memory_sdd_skills() -> None:
+    assert tuple(spec.name for spec in iter_init_command_specs()) == (
+        "memory",
+        "sdd",
+        "skills",
+    )
 
 
 def test_noop_plans_print_initialized_message(
@@ -170,6 +183,55 @@ def test_interactive_prompt_runs_only_confirmed_plan(
     assert "init skills" in out
 
 
+def test_full_drift_prompt_order_all_three_plans() -> None:
+    calls: list[str] = []
+    prompts: list[str] = []
+    specs = (
+        _spec(
+            "memory",
+            _plan("memory", actions=(_changed_action(),), summary="update memory"),
+            calls,
+        ),
+        _spec(
+            "sdd",
+            _plan(
+                "sdd",
+                actions=(_changed_action("sdd/README.md"),),
+                summary="update SDD files",
+            ),
+            calls,
+        ),
+        _spec(
+            "skills",
+            _plan(
+                "skills",
+                actions=(_changed_action(".codex/skills/foo/SKILL.md"),),
+                summary="overwrite skills",
+            ),
+            calls,
+        ),
+    )
+
+    def _answer(prompt: str) -> str:
+        prompts.append(prompt)
+        return "yes"
+
+    exit_code = run_init_onboarding(
+        _args(),
+        specs=specs,
+        stdin=_TtyStringIO(),
+        input_func=_answer,
+    )
+
+    assert exit_code == 0
+    assert calls == ["memory", "sdd", "skills"]
+    assert [prompt.split(" now?", maxsplit=1)[0] for prompt in prompts] == [
+        "Run `sase init memory`",
+        "Run `sase init sdd`",
+        "Run `sase init skills --force`",
+    ]
+
+
 def test_non_tty_drift_without_yes_prints_summary_and_exits_1(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -229,6 +291,28 @@ def test_check_mode_reports_drift_without_running(
     out = capsys.readouterr().out
     assert "Needs attention:" in out
     assert "update SDD README files" in out
+
+
+def test_check_mode_does_not_apply_later_changed_plans() -> None:
+    calls: list[str] = []
+    specs = (
+        _spec("memory", _plan("memory", actions=(_changed_action(),)), calls),
+        _spec(
+            "skills",
+            _plan("skills", actions=(_changed_action(".codex/skills/foo/SKILL.md"),)),
+            calls,
+        ),
+    )
+
+    exit_code = run_init_onboarding(
+        _args(check=True),
+        specs=specs,
+        stdin=_TtyStringIO(),
+        input_func=_reject_prompt,
+    )
+
+    assert exit_code == 1
+    assert calls == []
 
 
 def test_blocker_prints_and_exits_1_without_running(
@@ -295,3 +379,136 @@ def test_yes_runs_all_changed_specs_in_order() -> None:
     assert calls == ["memory", "skills"]
     assert [seen.init_subcommand for seen in args_seen] == ["memory", "skills"]
     assert args_seen[1].force is True
+
+
+def test_yes_stops_after_apply_failure_and_reports(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[str] = []
+    specs = (
+        _spec(
+            "memory",
+            _plan("memory", actions=(_changed_action(),), summary="update memory"),
+            calls,
+            exit_code=7,
+        ),
+        _spec(
+            "sdd",
+            _plan(
+                "sdd",
+                actions=(_changed_action("sdd/README.md"),),
+                summary="update SDD",
+            ),
+            calls,
+        ),
+    )
+
+    exit_code = run_init_onboarding(
+        _args(yes=True),
+        specs=specs,
+        stdin=StringIO(),
+        input_func=_reject_prompt,
+    )
+
+    assert exit_code == 7
+    assert calls == ["memory"]
+    assert "init memory failed with exit code 7." in capsys.readouterr().out
+
+
+def test_needs_attention_output_snapshot_caps_path_details(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[str] = []
+    specs = (
+        _spec("sdd", _plan("sdd", summary="SDD current"), calls),
+        _spec(
+            "memory",
+            _plan(
+                "memory",
+                summary="refresh 4 memory files",
+                actions=(
+                    InitAction(
+                        Path("memory/short/sase.md"), "update", "project memory"
+                    ),
+                    InitAction(Path("AGENTS.md"), "create", "project instructions"),
+                    InitAction(Path("CLAUDE.md"), "overwrite", "provider shim"),
+                    InitAction(Path("GEMINI.md"), "overwrite", "provider shim"),
+                ),
+            ),
+            calls,
+        ),
+    )
+
+    exit_code = run_init_onboarding(
+        _args(check=True),
+        specs=specs,
+        stdin=StringIO(),
+        input_func=_reject_prompt,
+    )
+
+    assert exit_code == 1
+    assert capsys.readouterr().out == (
+        "SASE initialization check\n"
+        "\n"
+        "Up to date:\n"
+        "  ok   init sdd     SDD current\n"
+        "\n"
+        "Needs attention:\n"
+        "  run  init memory  refresh 4 memory files\n"
+        "    - update    memory/short/sase.md  project memory\n"
+        "    - create    AGENTS.md  project instructions\n"
+        "    - overwrite CLAUDE.md  provider shim\n"
+        "    ... 1 more action\n"
+    )
+
+
+def test_warning_without_changes_is_visible_and_successful(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[str] = []
+    specs = (
+        _spec(
+            "skills",
+            _plan(
+                "skills",
+                summary="provider skill files are current",
+                warnings=("prettier not found",),
+            ),
+            calls,
+        ),
+    )
+
+    exit_code = run_init_onboarding(
+        _args(),
+        specs=specs,
+        stdin=StringIO(),
+        input_func=_reject_prompt,
+    )
+
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "Up to date:" in out
+    assert "Warnings:" in out
+    assert "init skills: prettier not found" in out
+
+
+def test_cli_main_dispatches_bare_init(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.main import entry, init_onboarding
+
+    calls: list[str] = []
+    specs = (_spec("memory", _plan("memory"), calls),)
+    monkeypatch.setattr(init_onboarding, "iter_init_command_specs", lambda: specs)
+    monkeypatch.setattr(sys, "argv", ["sase", "init"])
+
+    with pytest.raises(SystemExit) as exc:
+        entry.main()
+
+    assert exc.value.code == 0
+    assert calls == []
+    assert (
+        "SASE is initialized. No init subcommands need to run."
+        in capsys.readouterr().out
+    )
