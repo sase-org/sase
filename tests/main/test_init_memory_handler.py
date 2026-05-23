@@ -34,6 +34,9 @@ def _single_line(text: str) -> str:
     return " ".join(text.split())
 
 
+_SASE_MEMORY_HEADER = "# SASE = Structured Agentic Software Engineering"
+
+
 def test_init_memory_uses_local_siblings_for_project_and_global_for_home(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -82,6 +85,8 @@ sibling_repos:
     assert "`github`: Global GitHub plugin." in home_memory
     assert "`core`: Local Rust core." not in home_memory
     assert "/global/github" not in home_memory
+    assert project_memory.startswith(_SASE_MEMORY_HEADER)
+    assert home_memory.startswith(_SASE_MEMORY_HEADER)
 
     sibling_trigger = (
         "When you need to make changes to files in a numbered-workspace sibling "
@@ -283,7 +288,7 @@ def test_init_memory_project_memory_includes_workspace_section(
 
     project_memory = (project_root / "memory" / "short" / "sase.md").read_text()
     home_memory = (home_root / "memory" / "short" / "sase.md").read_text()
-    assert project_memory.startswith("# SASE = Structured Agentic Software Engineering")
+    assert project_memory.startswith(_SASE_MEMORY_HEADER)
     assert "## Ephemeral `project_<N>` Workspace Directories" in project_memory
     assert "full clones of the project repo" in project_memory
     assert "directories are named `project_<N>`" in project_memory
@@ -291,7 +296,7 @@ def test_init_memory_project_memory_includes_workspace_section(
     assert "sase workspace open -p <sibling_repo> <workspace_num>" not in home_memory
     assert "{{ project }}" not in project_memory
     assert "Ephemeral" not in home_memory
-    assert home_memory.startswith("# SASE Memory")
+    assert home_memory.startswith(_SASE_MEMORY_HEADER)
 
 
 def test_init_memory_project_memory_uses_managed_checkout_marker_name(

@@ -99,10 +99,8 @@ def _extend_sibling_repository_section(
 def _render_sase_memory(
     entries: Iterable[SiblingMemoryEntry], *, project_name: str | None = None
 ) -> str:
-    if project_name is None:
-        lines = ["# SASE Memory", ""]
-    else:
-        lines = ["# SASE = Structured Agentic Software Engineering", ""]
+    lines = ["# SASE = Structured Agentic Software Engineering", ""]
+    if project_name is not None:
         _extend_workspace_section(lines, project_name)
 
     _extend_sibling_repository_section(lines, entries)
