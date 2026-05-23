@@ -16,9 +16,26 @@ and `3 years`. This research treats those as a useful intuition, not as fixed re
 
 Related local research:
 
-- [`sdd/research/202605/sase_dreams_design.md`](sase_dreams_design.md)
-- [`sdd/research/202605/zettel_sase_shared_memory.md`](zettel_sase_shared_memory.md)
-- [`sdd/research/202605/sase_memory_command_research.md`](sase_memory_command_research.md)
+- [`sdd/research/202605/sase_dreams_design.md`](sase_dreams_design.md) — prior dreams architecture
+- [`sdd/research/202605/zettel_sase_shared_memory.md`](zettel_sase_shared_memory.md) — atomic-note model and promotion gate
+- [`sdd/research/202605/sase_memory_command_research.md`](sase_memory_command_research.md) — memory observability commands
+- [`sdd/research/202605/sase_memory_command_subcommands.md`](sase_memory_command_subcommands.md) — CLI verbs for memory I/O
+- [`sdd/research/202605/multi_machine_sync.md`](multi_machine_sync.md) — per-domain sync classes for `~/.sase`
+- [`sdd/research/202605/manus_vs_sase_lessons.md`](manus_vs_sase_lessons.md) — background-memory lessons from competing systems
+
+## Relationship To Prior Dreams Research
+
+[`sase_dreams_design.md`](sase_dreams_design.md) already established the substrate: `~/.sase/dreams/` layout, NREM/REM-style staged distillation, artifact-first discovery via `done.json`, checkpoint via `state.json`, and inbox-only writes guarded by provenance. This note does **not** restate that design. It adds the pieces that file is intentionally light on:
+
+- Time-band rollup semantics and the "do not repeat across bands" rule.
+- An importance/decay score so the filter can be tuned rather than hand-coded.
+- An on-demand reflect/search agent so old detail stays reachable without bloating context.
+- A concrete `sase dreams` CLI surface aligned with the planned [`sase memory`](sase_memory_command_subcommands.md) verbs.
+- Multi-machine sync behavior consistent with [`multi_machine_sync.md`](multi_machine_sync.md).
+- Failure-mode and schema-migration handling for `state.json` and rollups.
+- TUI review surface for the inbox so the promotion gate has a real interface.
+
+Where this note disagrees with the prior file, the disagreement is explicit and called out inline.
 
 ## Recommendation
 
@@ -296,6 +313,37 @@ Negative signals:
 
 Persist both selected and rejected candidates with reasons. The rejected set is the data needed to tune the filter.
 
+### Importance Score And Decay
+
+The Generative Agents paper uses a weighted blend of importance, recency, and relevance to retrieve memories. The same shape works as a deterministic *selection* gate before any LLM call:
+
+```text
+score = w_importance * importance
+      + w_recency    * exp(-age_hours / half_life_hours)
+      + w_signal     * positive_signal_count
+      - w_noise      * negative_signal_count
+```
+
+Suggested defaults for v1:
+
+- `w_importance = 1.0` — set from explicit signals (user-corrected, retry-chain recovery, decision/architecture content).
+- `w_recency = 0.6`, `half_life_hours = 72` — recent episodes win ties but a strong older episode still surfaces.
+- `w_signal = 0.3`, `w_noise = 0.5` — noise is penalized harder than signal is rewarded to keep idle cycles cheap.
+
+Decay belongs in *retrieval*, not in the stored episode card. Cards should never be downgraded or rewritten in place; they should age out of high-detail rollups while remaining searchable. This matches the 2026 "Useful Memories Become Faulty When Continuously Updated by LLMs" finding cited above: avoid lossy in-place edits.
+
+### Episode Boundary Detection
+
+Selecting "what is one episode" deterministically avoids the Sanity-style problem of arbitrary token spans. Use, in priority order:
+
+1. **Retry-chain root timestamp.** If `done.json` records a `retry_chain_root`, all chats sharing that root are one episode.
+2. **Parent workflow id.** Workflow steps under the same root agent/workflow entry collapse into one episode card, with child step text quoted as evidence.
+3. **ChangeSpec / bead / plan id co-mention.** Chats that touch the same ChangeSpec, bead, or plan within a short window join.
+4. **User-prompt boundary.** A new top-level user prompt with no shared retry-chain/workflow/CL link starts a new episode.
+5. **Idle gap.** As a last resort, a 60-minute idle gap between chats closes the prior episode.
+
+Rules 1-3 are SASE-specific and should dominate. Rule 5 exists only so unparented one-off chats still get bounded.
+
 ## Episode Card Format
 
 An episode card should be compact, cited, and structured enough to roll up later:
@@ -414,6 +462,117 @@ gate is active. It can launch a hidden agent/xprompt only after it writes a cand
 If SASE wants to start with an agent chop instead, make the xprompt's first deterministic step collect candidates and
 skip the LLM step when empty. Do not launch a long-running dream agent every hour just to discover that no work exists.
 
+## Reflect And Search Agent
+
+A static set of rollups will inevitably miss the detail a future task needs. The Sanity, MemGPT, and Generative Agents systems all converge on the same answer: keep a *reflect* path that can drill back into raw evidence on demand.
+
+For SASE, expose this as a hidden agent and a CLI command sharing one implementation:
+
+- `sase dreams reflect "<query>" [--since <duration>] [--project <name>] [--max-episodes N]`
+  Resolves the query against episode cards first (cheap), then rollups, then falls back to raw chats via `chat_catalog`. Returns a structured response with episode IDs, citations, and a short synthesized answer.
+
+- A `dreams.reflect` xprompt argument-hint so a normal coding agent can invoke `#dreams.reflect query="..."` inline. The hint should return episode-card excerpts, never raw transcripts, so injection surface stays small.
+
+Reflect is read-only. It does not write episode cards, rollups, or inbox entries. It is the escape hatch that lets the default `current.md` stay small without losing access to history.
+
+This is also the bridge to **dynamic memory**: a successful reflect query that produced a useful answer is itself a signal that the answered fact deserves to become a memory candidate. Record reflect hits in `metrics/` and feed the top-hit queries back into the dream scorer's positive-signal list.
+
+## CLI Surface
+
+Align with the verbs proposed in [`sase_memory_command_subcommands.md`](sase_memory_command_subcommands.md) so users have one mental model for read/write/promote across both subsystems:
+
+| Verb | Purpose | Phase |
+| --- | --- | --- |
+| `sase dreams status` | Show last run, checkpoint, backoff, budget used | v1 |
+| `sase dreams collect [--dry-run] [--since DUR]` | Build candidate manifest from `done.json` | v1 |
+| `sase dreams distill [--budget TOKENS]` | Run LLM stage on selected candidates | v1 |
+| `sase dreams rollup [--bands hot,warm,recent,medium,long]` | Refresh materialized views | v1 |
+| `sase dreams show [--band BAND] [--episode ID]` | Print current rollup or episode card | v1 |
+| `sase dreams reflect "<query>"` | On-demand search across cards, rollups, raw chats | v1 |
+| `sase dreams inbox list / show / promote / reject` | Manage memory candidates | v2 |
+| `sase dreams retract <memory_id>` | Find and remove memories sourced from a poisoned/bad chat | v2 |
+| `sase dreams doctor` | Validate `state.json`, rollups, lock file, schema version | v2 |
+| `sase dreams replay --from <dream_id>` | Re-run distillation from a past checkpoint without advancing live state | v2 |
+
+`promote` is the only verb that writes into canonical memory, and it must go through the same review path as `sase memory promote`. Dreams never call `sase memory promote` directly without the user.
+
+## Multi-Machine Sync
+
+[`multi_machine_sync.md`](multi_machine_sync.md) recommends a per-domain hybrid. Dreams should be classified as **write-mostly, append-only, machine-local-by-default**:
+
+- `~/.sase/dreams/episodes/`, `runs/`, `metrics/` are append-only and safe to merge by union. They can sync.
+- `~/.sase/dreams/rollups/` are derived. They should be regenerated, not synced. Treat them as a cache.
+- `~/.sase/dreams/state.json` is per-machine. Each machine maintains its own checkpoint over the union of episodes it can see.
+- `~/.sase/dreams/dream.lock` is per-machine and must never sync. It would deadlock the worker on the other side.
+- `~/.sase/dreams/inbox/` should sync, because promotion is a user action that may happen on either machine. Inbox files must be append-only with stable candidate IDs so concurrent edits resolve cleanly.
+
+A second machine reaching a synced episode store simply walks forward from its own checkpoint and skips any episode whose deterministic hash is already in its `processed_episode_ids`. There is no need for a CRDT.
+
+## Failure Modes And Recovery
+
+Treat the dream worker like any other long-running background job. Concrete cases:
+
+- **Crash mid-run.** `dream.lock` files become stale if a process dies. Use a pidfile with a heartbeat in the lock and treat it as expired after `chop_timeout`. `sase dreams doctor` clears stale locks after confirming no live PID.
+- **Partial write.** Write episode cards, rollups, and inbox files to a temp path and `rename` into place. Update `state.json` last. If a run dies before the rename, the next run reprocesses cleanly with no duplicate output.
+- **Corrupt `state.json`.** Keep `state.json.prev` after every successful checkpoint. Doctor restores from prev if the current file fails schema validation.
+- **Schema migration.** `schema_version` bumps require an explicit migration step. Do not silently rewrite old episode cards into new formats; write a new card alongside the old and mark the old as `superseded_by`. This honors the "preserve raw evidence" rule from the 2026 update-degradation paper.
+- **Missing source artifacts.** If `response_path` or `diff_path` no longer exists at distill time, mark the episode `evidence_missing` and skip distillation rather than fabricating context.
+- **Backoff.** Two consecutive failures should set `backoff_until` to `now + 1h`, capped at `12h`. Surface this in `dreams status` so users notice silent failure.
+- **Budget exceeded.** Token budget is a hard gate on the distill stage, not on collect/score. Exceeding it should leave the candidate manifest intact for the next run.
+
+## Dynamic Memory Integration
+
+Promoted candidates need to be retrievable by the existing tier-2 dynamic-memory keyword projection. That means promotion must produce a `memory/long/*.md` file with a `keywords` frontmatter list and a stable filename. Concretely:
+
+```yaml
+---
+schema_version: 1
+source: dream
+dream_id: 20260523040000
+candidate_id: c_8f7a...
+episode_ids:
+  - ep_4b21...
+trust: user_prompt
+confidence: high
+promoted_at: 2026-05-24T10:00:00-04:00
+keywords:
+  - axe lumberjack
+  - chop_runner
+  - dedupe
+---
+```
+
+Two important rules:
+
+1. The dream system **proposes** the keywords from the episode card's anticipated-questions section, but the human promoter is allowed to edit them before write. Bad keywords either over-trigger or never trigger.
+2. Promoted files write into `memory/long/`, not `memory/short/`. Short-term memory is "always loaded" and is the wrong place for opinions distilled from chats. Long-term memory loads only on keyword match, which matches the conservative, opt-in shape dreams should have.
+
+A retraction path can grep `source: dream` plus `episode_ids:` to find every promoted memory derived from a transcript that later turns out to be bad.
+
+## TUI Review Surface
+
+The inbox-only model only works if review is friction-free. The ACE TUI already has tabs for Agents and related views; the natural addition is a `Dreams` tab (or a new sub-tab under an existing memory tab) that lists pending inbox candidates with:
+
+- candidate type, trust, confidence;
+- citing episode link (jumps to the chat or artifact);
+- inline `promote` / `reject` / `defer` actions;
+- a diff preview of the would-be `memory/long/*.md` write.
+
+Until that lands, a CLI loop (`sase dreams inbox list` then `promote`/`reject` by ID) is enough. The point is that promotion must not require hand-editing files in `memory/long/`. If the only review path is "open the markdown and merge it manually," promotion will not happen and dreams will quietly stop being useful.
+
+## Cost Model
+
+Rough order-of-magnitude budget for a daily dream run, useful for picking the AXE `run_every` and prompt sizes:
+
+- Collect/score: zero LLM cost; bounded by `done.json` count.
+- Episode distill: one LLM call per selected episode. With redacted excerpts and a tight system prompt, expect 2-6k input tokens and 300-800 output tokens per card.
+- Rollup: one LLM call per band touched per run, but rollups consume cards, not raw chats. Expect 4-12k input tokens at the weekly/monthly bands; less at daily.
+- Reflect: paid per user request, not per dream run. Cap individual reflects with `--max-episodes`.
+
+A typical heavy day might process ~10 episode cards and refresh hot/warm/recent rollups: roughly 60-100k input tokens and 5-10k output tokens. Light days are zero. Both numbers should be reported in `metrics/` so the budget is observable, not assumed.
+
+The bigger cost question is not money but *prompt context*: a `current.md` that grows past ~2k tokens will quietly outcompete real working context in every future agent prompt. Track `current.md` size as a first-class metric and hard-cap it in the rollup step.
+
 ## Security Requirements
 
 Minimum v1 safeguards:
@@ -474,6 +633,18 @@ Defer:
 - multi-agent specialized dreamers;
 - years-long rollups;
 - cross-machine conflict resolution beyond a lock and append-mostly files.
+
+## MVP Plan Addendum
+
+To the v1 list above, add explicit acceptance signals before scheduling dreams to run automatically:
+
+- A user can run `sase dreams collect --dry-run --since 24h` and see a non-empty candidate manifest on a representative day.
+- A user can run `sase dreams reflect "<recent topic>"` and get back a citation to the correct episode card without raw transcript text.
+- The doctor command catches a hand-corrupted `state.json` and restores from `state.json.prev`.
+- A fixture run on the poisoned-transcript test produces no inbox entries.
+- `current.md` is under the configured token cap after a synthetic load of 50 episodes.
+
+Only after those signals are green should the AXE chop default to running, and even then only with the existing opt-in lumberjack pattern.
 
 ## Open Questions
 
