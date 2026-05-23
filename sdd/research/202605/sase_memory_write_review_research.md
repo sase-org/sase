@@ -12,29 +12,55 @@ and also provide a robust terminal review experience with a drill-down view.
 
 ## Current Local Architecture
 
-The existing memory CLI is entirely in the Python `sase` repo:
+The existing memory CLI is entirely in the Python `sase` repo. The new commands should reuse, not parallel, these
+helpers:
 
-- `src/sase/main/parser_memory.py` registers `sase memory {init,list,read,log}` with `argparse`.
-- `src/sase/main/memory_handler.py` dispatches to small handler modules.
-- `src/sase/memory/cli_read.py` implements the audited agent read command.
-- `src/sase/memory/read_log.py` owns path validation, agent attribution, JSONL audit storage, and locking.
-- `src/sase/memory/inventory.py` builds a memory inventory graph for `sase memory list`.
+- `src/sase/main/parser_memory.py` registers `sase memory {init,list,read,log}` with `argparse`; add `write` and
+  `review` here as additional sub-subparsers.
+- `src/sase/main/memory_handler.py` dispatches to small handler modules; the pattern is one new handler per command.
+- `src/sase/memory/cli_read.py` is the closest precedent for an agent-attributable write-style command and is worth
+  mirroring almost line-for-line for `cli_write.py`.
+- `src/sase/memory/read_log.py` already owns the JSONL primitives the proposal store needs:
+  - `discover_agent_identity(env)` and `require_agent_identity(env)` at lines 198 and 224 — reuse directly for `write`.
+  - `_locked(path, mode)` context manager with `fcntl.LOCK_EX` / `fcntl.LOCK_SH` at lines 290 and 304 — copy this exact
+    pattern, do not invent a new lock scheme.
+  - 12-char hex IDs via `uuid4().hex[:12]` at line 259 — use the same length and alphabet for `proposal_id` so
+    operational state stays uniform across `memory_reads.jsonl` and `memory_proposals.jsonl`.
+- `src/sase/memory/inventory.py:build_memory_inventory()` (line 381) produces `MemoryEntryStatus` of
+  `loaded | referenced | available | missing` (line 19). Approval flow must call this to detect when a newly approved
+  file would only be `available` and warn the reviewer.
 - `src/sase/xprompt/loader_memory.py` auto-discovers `memory/long/*.md` files with `keywords` frontmatter as dynamic
-  memory xprompts.
+  memory xprompts; the approved file's frontmatter must match this loader's expected schema or the new memory will
+  never load.
 
 The docs already present `sase memory` as the right top-level group for memory inspection and audited reads
 (`docs/init.md`, `docs/configuration.md`, `docs/cli.md`). The new commands fit naturally in that group.
 
-The repo also has prior SDD context that matters:
+## Adjacent Prior Research
 
-- `sdd/epics/202605/memory_command_1.md` designed `sase memory list` as a Rich dashboard over loaded/referenced/available
-  memory.
-- `sdd/epics/202605/memory_read_log.md` designed `sase memory read` / `log` as agent-attributable, project-scoped,
-  JSONL-backed operational state.
-- `sdd/research/202605/zettel_sase_shared_memory.md` explicitly warns against agents writing straight into canonical
-  memory and recommends an inbox/promotion workflow with provenance and trust metadata.
+These earlier notes establish constraints the new commands must respect:
 
-That last point is the core product constraint: `write` should create a proposal, not mutate `memory/long` directly.
+- `sdd/research/202605/zettel_sase_shared_memory.md` is the load-bearing argument against direct agent writes and the
+  source of the inbox/promotion-with-provenance pattern this design adopts.
+- `sdd/research/202604/git_versioned_agent_memory.md` frames the broader project-scoped, runtime-agnostic memory
+  problem; the proposal ledger sits in project-scoped operational state, not in the repo, exactly because that note
+  argues canonical memory should be curated, not auto-mutated.
+- `sdd/research/202604/short_term_vs_long_term_memory.md` quantifies the token cost of always-loaded short-term memory.
+  Long-term memory is dynamic, but every approval still grows the dynamic-keyword pool. Review UI should surface line
+  count and approximate token count for each proposal so reviewers can see the cost.
+- `sdd/research/202604/dynamic_memory_critique.md` and `sdd/research/202604/dynamic_memory_implementation.md` describe
+  how `keywords` matching gates loading. A proposed memory with no keywords becomes effectively unreachable except by
+  explicit `@` reference; the review UI should flag this.
+- `sdd/research/202604/agents_md_token_optimization.md` discusses keeping `AGENTS.md` / `memory/short` lean. Approval
+  must never touch those files implicitly.
+- `sdd/epics/202605/memory_command_1.md` defines the Rich dashboard for `sase memory list` — the pending-proposal count
+  should appear there too, not only inside `review`.
+- `sdd/epics/202605/memory_read_log.md` is the operational-state precedent the proposal ledger inherits from.
+- `sdd/research/202604/notification_store_python_baseline.md` documents the notification append pattern that
+  `sase memory write` should hook into so users see pending proposals in the existing inbox.
+
+The combined constraint is firm: `write` creates a proposal, not a memory file, and the user is the only path to
+`memory/long`.
 
 ## External/Library Notes
 
@@ -212,8 +238,15 @@ Review events:
   proposal event is in the ledger.
 - `rejected`: reviewer and reason.
 
-Reviewer identity can initially be `getpass.getuser()` plus hostname, with optional `SASE_USER`/env override if one
-already exists later. Agent identity should reuse `discover_agent_identity()` from `memory_read_log.py`.
+Agent identity should reuse `discover_agent_identity()` / `require_agent_identity()` from
+`src/sase/memory/read_log.py:198,224`. There is no existing reviewer-identity precedent in the read log
+(reads are agent-only), so the new commands need a small new helper:
+
+- New `reviewer_identity()` returning `{user, host, source}` where `source` is `SASE_USER` if set, else
+  `getpass.getuser()` and `socket.gethostname()`.
+- Tests should fix both via env / monkeypatch the same way `test_memory_read_log.py` fixes agent identity.
+- Do not require reviewer identity at all when running fully non-interactively in CI-style automation; tag the event
+  `source: "auto"` so the ledger distinguishes human approvals from scripted ones.
 
 ## Canonical Memory Write Behavior
 
@@ -243,9 +276,112 @@ Do not embed the full evidence list in the approved memory body by default. Evid
 reviewers want visible provenance, add a short footer later, but keep the first canonical memory files clean and useful
 as agent context.
 
-After approval, run `build_memory_inventory()` or an equivalent reachability check and warn if the new `memory/long`
-file is only "available" and will not be loaded except through dynamic keyword matching. Do not auto-edit `AGENTS.md` or
-`memory/short` without explicit user approval.
+After approval, call `src/sase/memory/inventory.py:build_memory_inventory()` and inspect the new file's
+`MemoryEntryStatus`:
+
+- `loaded` — covered.
+- `referenced` — covered, but warn if the only reference is from another `long/` file (still requires keyword hit to
+  actually load).
+- `available` — warn loudly: the file exists but is unreachable unless an agent prompt happens to match a keyword.
+  Suggest adding keywords or an `@` reference from `memory/short` or `AGENTS.md`.
+- `missing` — bug; abort approval.
+
+Do not auto-edit `AGENTS.md` or `memory/short` without explicit user approval, even when status is `available`. The
+warning is the right escape valve, not a silent edit.
+
+Also surface file metrics in the review UI before approval: byte count, line count, and an approximate token count
+(use the same heuristic the inventory's `loaded_token_count` uses at `inventory.py:443`). This makes the cost discussed
+in `sdd/research/202604/short_term_vs_long_term_memory.md` visible at the point of decision.
+
+## Notification Integration
+
+`sase memory write` should emit a SASE notification so users see pending proposals in the existing inbox without
+polling `sase memory review --list`. The notification store is already plumbed end-to-end:
+
+- `src/sase/notifications/store.py:append_notification()` is the append entry point (backed by the Rust core notification
+  store).
+- `src/sase/notifications/senders.py` contains seven precedent senders; add an eighth, e.g.
+  `send_memory_proposal_notification(proposal_id, title, agent)`.
+- The notification's `action` field should be `"memory_review"` and `action_data` should carry `{"proposal_id": "..."}`
+  so a future ACE / mobile / Telegram surface can deep-link into the review flow without depending on the Python CLI
+  layout.
+- Use `notes` for the human-readable summary (title, agent name, evidence count) and `files` for the resolved evidence
+  paths so the existing notification modal already knows how to render them.
+
+Approval and rejection should mark that notification as read / dismissed, not create new ones, to avoid inbox spam when
+a reviewer churns through several proposals in one session.
+
+## Concurrency and Deduplication
+
+The proposal ledger is append-only and locked, but the higher-level workflow needs a few rules:
+
+- Two agents may propose the same `--slug` simultaneously. The reducer should treat them as separate proposals
+  (different `proposal_id`) and let the reviewer pick one or merge. Do not collapse them silently.
+- Before appending a new proposal event, compute a content hash (sha256 of normalized body + target). If the same hash
+  is already in `pending` state, `write` should refuse with a clear message and emit the existing `proposal_id`. Use
+  `--force` to bypass.
+- A proposal targeting an existing `memory/long/foo.md` should record the current file's content hash at proposal time.
+  At approval time, recompute the hash and warn if the on-disk file changed between proposal and approval — the
+  reviewer should see the divergence diff before promoting.
+- `review --approve` should refuse if the proposal's status is anything other than `pending` (already approved, already
+  rejected, superseded). Re-approving is a new proposal, not a state toggle.
+
+These rules are cheap to implement on top of the JSONL reducer and prevent the most common foot-guns.
+
+## JSON Output Contract
+
+`--json` is currently informal across `sase memory` subcommands. Because the new commands are the first ones agents are
+expected to drive non-interactively, define the schema now and document it in `docs/cli.md`:
+
+```json
+// sase memory write --json
+{
+  "ok": true,
+  "proposal_id": "a1b2c3d4e5f6",
+  "status": "pending",
+  "target": "long/generated_skills.md",
+  "state_path": "/home/<user>/.sase/projects/sase/memory_proposals.jsonl",
+  "notification_id": "n_..."
+}
+
+// sase memory review --list --json
+{
+  "schema_version": 1,
+  "project": "sase",
+  "proposals": [
+    {
+      "proposal_id": "a1b2c3d4e5f6",
+      "status": "pending",
+      "title": "...",
+      "target": "long/...md",
+      "agent": "agent-name",
+      "evidence_count": 2,
+      "created": "2026-05-23T15:30:12Z"
+    }
+  ]
+}
+
+// sase memory review --approve <id> --json
+{
+  "ok": true,
+  "proposal_id": "a1b2c3d4e5f6",
+  "status": "approved",
+  "target_path": "memory/long/generated_skills.md",
+  "bytes_written": 1832,
+  "warnings": ["inventory_status: available"]
+}
+```
+
+Exit codes:
+
+- `0` — success.
+- `2` — argparse usage error (default).
+- `3` — proposal not found.
+- `4` — proposal in wrong state (e.g., approving an already-approved id).
+- `5` — validation failure (bad target path, missing evidence, hash drift).
+- `6` — write failed (filesystem, lock contention beyond retry budget).
+
+Reserve `1` for unexpected exceptions to match standard CLI conventions.
 
 ## Textual Review Experience
 
@@ -311,6 +447,15 @@ However, design the proposal model as if it could move to `sase-core` later:
 If Telegram, mobile, web, or nvim need to list/approve proposals, promote the storage/reducer/validation layer to
 `sase-core` and leave Python as a frontend adapter. This matches the repo's Rust core boundary guidance.
 
+Reality check on the sibling repos today (verified May 2026):
+
+- `sase-telegram_23` has no memory surfaces and only consumes notifications. The `action="memory_review"` notification
+  payload is sufficient for a future Telegram approve-button feature without any core promotion.
+- `sase-nvim_23` does not consume the memory inventory or the notification store. Nothing to update there for v1.
+- `sase-core_23` already hosts the notification store JSONL+lock pattern at
+  `crates/sase_core/src/notifications/store.rs`, which is the structural model the proposal store should imitate so a
+  future port is cheap.
+
 ## Security and Quality Constraints
 
 The biggest risk is memory poisoning. Guardrails for the first version:
@@ -347,17 +492,26 @@ CLI tests:
 - `--approve`, `--reject`, and `--show` work without a TTY.
 - non-TTY bare `review` does not try to launch Textual.
 
-TUI tests:
+TUI tests — model these on the existing modal tests rather than starting from the Textual docs:
+
+- `tests/test_mentor_review_modal_actions.py` — best precedent for two-pane review actions with state assertions.
+- `tests/test_plan_approval_modal_title.py` — header and content-pane rendering plus key handling.
+- `tests/test_approve_options_modal_keys.py` — compact action chooser key dispatch.
+- `tests/test_notification_modal_actions.py` — relevant if the review TUI is reached via the notification flow.
+- `tests/test_ace_tui_app.py` — Pilot harness setup for full-app launches.
+
+The test points to hit:
 
 - launch with `App.run_test()`;
 - `j/k` moves selection;
 - `enter` opens drill-down and `escape` returns;
 - `a` triggers approval callback;
 - `r` opens rejection flow or marks rejected with supplied reason in test harness;
+- `e` suspends, runs a fake editor (env-injected), and applies edited body;
 - render at 80x24 and a wider size to catch layout regressions.
 
 Visual snapshot testing is optional for v1, but the repo already has Textual Pilot tests and PNG/SVG snapshot experience
-that can be copied if the UI becomes central.
+that can be copied if the UI becomes central — see `tests/ace/tui/visual/` for the existing harness.
 
 ## Phased Implementation
 
@@ -393,12 +547,19 @@ that can be copied if the UI becomes central.
 ## Open Decisions
 
 - Whether `--keywords` should be required. I recommend optional: some long-term memories are manually referenced rather
-  than dynamic, and review can add keywords.
+  than dynamic, and review can add keywords. The TUI should still flag a keyword-less proposal as low-reachability per
+  `dynamic_memory_critique.md`.
 - Whether approved files should include provenance comments. I recommend no for v1; keep provenance in the ledger.
 - Whether in-app editing should use Textual `TextArea` immediately. I recommend `$EDITOR` first for robust real editing,
   then consider `TextArea` if users want a fully contained review flow.
 - Whether approval should auto-stage/commit memory files. I recommend no for v1; keep the command focused on memory
   review and leave VCS to the normal SASE commit workflow.
+- Whether `sase memory list` should display pending-proposal counts. I recommend yes; it is a single reducer call and
+  keeps the user from having to remember the new `review` command exists.
+- Whether to support `--supersede <id>` on `write` for an agent that wants to replace a still-pending proposal it
+  authored. Recommend deferring; v1 reviewers can reject the old proposal manually.
+- Whether to rate-limit per-agent proposals. Recommend deferring with a TODO; the notification inbox will make any
+  runaway agent visible quickly enough for v1.
 
 ## Bottom Line
 
