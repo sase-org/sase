@@ -133,6 +133,7 @@ def test_memory_list_dashboard_renders_inventory_statuses(tmp_path: Path) -> Non
     assert "Available files" in text
     assert "Missing references" in text
     assert "Approx loaded tokens" in text
+    assert "AGENTS.md" in text
     assert "loaded" in text
     assert "memory/short/base.md" in text
     assert "referenced" in text
@@ -142,6 +143,34 @@ def test_memory_list_dashboard_renders_inventory_statuses(tmp_path: Path) -> Non
     assert "missing" in text
     assert "memory/long/missing.md" in text
     assert "@path loads file contents" in text
+    assert "AGENTS.md is counted because it is loaded instruction context." in text
     assert "Plain memory/... paths are visible references only." in text
     assert "Dynamic memory under .sase/memory is prompt-dependent" in text
     assert "agent launch" in text
+
+
+def test_memory_list_dashboard_renders_home_context_paths(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    home = tmp_path / "home"
+    _write(project / "AGENTS.md", "@memory/short/project.md\n")
+    _write(project / "memory" / "short" / "project.md", "# Project\n")
+    _write(home / "AGENTS.md", "@memory/short/home.md\n")
+    _write(home / "memory" / "short" / "home.md", "# Home\n")
+
+    inventory = build_memory_inventory(project, home_root=home)
+    output = StringIO()
+    console = Console(
+        file=output,
+        force_terminal=False,
+        color_system=None,
+        width=140,
+    )
+
+    _render_memory_inventory(inventory, console=console, project_name="demo")
+
+    text = output.getvalue()
+    assert "AGENTS.md" in text
+    assert "memory/short/project.md" in text
+    assert "~/AGENTS.md" in text
+    assert "~/memory/short/home.md" in text
+    assert "~/AGENTS.md -> @memory/short/home.md" in text

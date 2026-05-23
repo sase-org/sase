@@ -24,10 +24,12 @@ def test_inventory_tracks_transitive_loaded_references(tmp_path: Path) -> None:
 
     inventory = build_memory_inventory(tmp_path)
 
+    assert inventory.entry_for("AGENTS.md").status == "loaded"
+    assert inventory.entry_for("AGENTS.md").kind == "instruction"
     assert inventory.entry_for("memory/short/base.md").status == "loaded"
     assert inventory.entry_for("memory/long/detail.md").status == "loaded"
-    assert inventory.loaded_count == 2
-    assert inventory.loaded_stats.line_count == 3
+    assert inventory.loaded_count == 3
+    assert inventory.loaded_stats.line_count == 4
 
 
 def test_plain_memory_references_stay_referenced_only(tmp_path: Path) -> None:
@@ -68,9 +70,9 @@ def test_duplicate_instruction_roots_count_loaded_memory_once(
         "OPENCODE.md",
         "AGENTS.md",
     )
-    assert inventory.loaded_count == 1
-    assert inventory.loaded_stats.line_count == 1
-    assert inventory.loaded_stats.approx_token_count == 2
+    assert inventory.loaded_count == 2
+    assert inventory.loaded_stats.line_count == 2
+    assert inventory.loaded_stats.approx_token_count == 8
 
 
 def test_inventory_reports_missing_referenced_memory_files(tmp_path: Path) -> None:
@@ -116,10 +118,69 @@ def test_outside_root_references_are_ignored(tmp_path: Path) -> None:
     inventory = build_memory_inventory(root)
 
     assert tuple(entry.relative_path for entry in inventory.entries) == (
+        "AGENTS.md",
         "memory/short/base.md",
     )
     assert inventory.entry_for("memory/short/base.md").status == "loaded"
     assert unreferenced_memory_files_for_init(root) == ()
+
+
+def test_home_agents_and_memory_are_included_when_home_root_is_provided(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    home = tmp_path / "home"
+    _write(home / "AGENTS.md", "@memory/short/home.md\n")
+    _write(home / "memory" / "short" / "home.md", "# Home\n")
+
+    inventory = build_memory_inventory(project, home_root=home)
+
+    assert inventory.entry_for("~/AGENTS.md").status == "loaded"
+    assert inventory.entry_for("~/AGENTS.md").kind == "instruction"
+    assert inventory.entry_for("~/memory/short/home.md").status == "loaded"
+    assert inventory.loaded_count == 2
+    assert inventory.loaded_stats.line_count == 2
+
+
+def test_project_and_home_memory_with_same_relative_path_are_unambiguous(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    home = tmp_path / "home"
+    _write(project / "AGENTS.md", "@memory/short/shared.md\n")
+    _write(project / "memory" / "short" / "shared.md", "# Project\n")
+    _write(home / "AGENTS.md", "@memory/short/shared.md\n")
+    _write(home / "memory" / "short" / "shared.md", "# Home\n")
+
+    inventory = build_memory_inventory(project, home_root=home)
+
+    assert inventory.entry_for("memory/short/shared.md").path == (
+        project / "memory" / "short" / "shared.md"
+    )
+    assert inventory.entry_for("~/memory/short/shared.md").path == (
+        home / "memory" / "short" / "shared.md"
+    )
+    assert {entry.relative_path for entry in inventory.entries} >= {
+        "AGENTS.md",
+        "memory/short/shared.md",
+        "~/AGENTS.md",
+        "~/memory/short/shared.md",
+    }
+
+
+def test_matching_project_and_home_root_are_not_counted_twice(tmp_path: Path) -> None:
+    _write(tmp_path / "AGENTS.md", "@memory/short/base.md\n")
+    _write(tmp_path / "memory" / "short" / "base.md", "# Base\n")
+
+    inventory = build_memory_inventory(tmp_path, home_root=tmp_path)
+
+    assert tuple(entry.relative_path for entry in inventory.entries) == (
+        "AGENTS.md",
+        "memory/short/base.md",
+    )
+    assert tuple(root.kind for root in inventory.context_roots) == ("project",)
+    assert inventory.loaded_count == 2
+    assert inventory.loaded_stats.line_count == 2
 
 
 def test_init_reachability_still_traverses_plain_memory_references(

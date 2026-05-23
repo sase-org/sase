@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 10:01:47
-status: wip
+status: done
 prompt: sdd/prompts/202605/memory_list_home_context.md
 ---
 # Plan: `sase memory list` Loaded Context Accuracy

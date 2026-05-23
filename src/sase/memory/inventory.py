@@ -17,6 +17,8 @@ from typing import Literal
 
 ReferenceKind = Literal["loaded", "plain"]
 MemoryEntryStatus = Literal["loaded", "referenced", "available", "missing"]
+MemoryEntryKind = Literal["memory", "instruction"]
+MemoryContextRootKind = Literal["project", "home"]
 
 INSTRUCTION_ROOT_FILENAMES = (
     "CLAUDE.md",
@@ -25,6 +27,7 @@ INSTRUCTION_ROOT_FILENAMES = (
     "OPENCODE.md",
     "AGENTS.md",
 )
+LOADED_INSTRUCTION_ROOT_FILENAMES = ("AGENTS.md",)
 
 _AT_REF_RE = re.compile(r"(?:^|(?<=\s)|(?<=[\"'`(]))@([^\s,;:()[\]{}\"'`]+)")
 _MEMORY_PATH_RE = re.compile(
@@ -67,6 +70,13 @@ class MemoryFileEntry:
     status: MemoryEntryStatus
     stats: _MemoryStats | None
     references: tuple[MemoryReference, ...]
+    kind: MemoryEntryKind = "memory"
+
+
+@dataclass(frozen=True)
+class MemoryContextRoot:
+    root: Path
+    kind: MemoryContextRootKind
 
 
 @dataclass(frozen=True)
@@ -75,6 +85,7 @@ class MemoryInventory:
     instruction_roots: tuple[Path, ...]
     entries: tuple[MemoryFileEntry, ...]
     loaded_stats: _MemoryStats
+    context_roots: tuple[MemoryContextRoot, ...] = ()
 
     @property
     def loaded_count(self) -> int:
@@ -203,6 +214,32 @@ def _instruction_roots(root: Path) -> tuple[Path, ...]:
     return tuple(roots)
 
 
+def _loaded_instruction_roots(root: Path) -> tuple[Path, ...]:
+    root_resolved = root.resolve(strict=False)
+    roots: list[Path] = []
+    for filename in LOADED_INSTRUCTION_ROOT_FILENAMES:
+        path = (root_resolved / filename).resolve(strict=False)
+        if path.is_file():
+            roots.append(path)
+    return tuple(roots)
+
+
+def _context_roots(
+    project_root: Path, home_root: Path | None
+) -> tuple[MemoryContextRoot, ...]:
+    project_root_resolved = project_root.resolve(strict=False)
+    roots = [
+        MemoryContextRoot(root=project_root_resolved, kind="project"),
+    ]
+    if home_root is None:
+        return tuple(roots)
+
+    home_root_resolved = home_root.expanduser().resolve(strict=False)
+    if home_root_resolved != project_root_resolved:
+        roots.append(MemoryContextRoot(root=home_root_resolved, kind="home"))
+    return tuple(roots)
+
+
 def _candidate_paths(root: Path, source: Path, token: str) -> tuple[Path, ...]:
     expanded = Path(token).expanduser()
     if expanded.is_absolute():
@@ -233,11 +270,24 @@ def _is_memory_path(root: Path, path: Path) -> bool:
     return False
 
 
-def _relative_path(root: Path, path: Path) -> str:
-    try:
-        return path.relative_to(root).as_posix()
-    except ValueError:
-        return path.as_posix()
+def display_path_for_context(
+    context_roots: tuple[MemoryContextRoot, ...], path: Path
+) -> str:
+    """Return the user-facing path for ``path`` within an inventory."""
+    resolved = path.resolve(strict=False)
+    for context_root in context_roots:
+        try:
+            relative = resolved.relative_to(context_root.root)
+        except ValueError:
+            continue
+
+        relative_text = relative.as_posix()
+        if relative_text == ".":
+            return "~" if context_root.kind == "home" else "."
+        if context_root.kind == "home":
+            return f"~/{relative_text}"
+        return relative_text
+    return resolved.as_posix()
 
 
 def _resolve_reference(
@@ -328,38 +378,62 @@ def _record_reference(
     )
 
 
-def build_memory_inventory(root: Path | None = None) -> MemoryInventory:
+def build_memory_inventory(
+    root: Path | None = None, *, home_root: Path | None = None
+) -> MemoryInventory:
     root_resolved = (Path.cwd() if root is None else root).resolve(strict=False)
-    memory_files = set(_iter_memory_files(root_resolved))
+    context_roots = _context_roots(root_resolved, home_root)
+    memory_files_by_root = {
+        context_root.root: set(_iter_memory_files(context_root.root))
+        for context_root in context_roots
+    }
+    memory_files = {
+        path for root_files in memory_files_by_root.values() for path in root_files
+    }
     loaded_memory_files: set[Path] = set()
+    loaded_instruction_files: set[Path] = set()
     references_by_target: dict[Path, list[MemoryReference]] = {}
 
-    queue: deque[Path] = deque(_instruction_roots(root_resolved))
-    visited: set[Path] = set()
-    while queue:
-        source = queue.popleft().resolve(strict=False)
-        if source in visited:
-            continue
-        visited.add(source)
+    instruction_roots: list[Path] = []
+    seen_instruction_roots: set[Path] = set()
+    queue: deque[tuple[MemoryContextRoot, Path]] = deque()
+    for context_root in context_roots:
+        for instruction_root in _instruction_roots(context_root.root):
+            if instruction_root in seen_instruction_roots:
+                continue
+            seen_instruction_roots.add(instruction_root)
+            instruction_roots.append(instruction_root)
+        for instruction_root in _loaded_instruction_roots(context_root.root):
+            loaded_instruction_files.add(instruction_root)
+            queue.append((context_root, instruction_root))
 
-        for parsed, resolved in _references_from_file(root_resolved, source):
+    visited: set[tuple[Path, Path]] = set()
+    while queue:
+        context_root, source_path = queue.popleft()
+        source = source_path.resolve(strict=False)
+        visit_key = (context_root.root, source)
+        if visit_key in visited:
+            continue
+        visited.add(visit_key)
+
+        for parsed, resolved in _references_from_file(context_root.root, source):
             if parsed.kind == "loaded":
                 _record_reference(
                     references_by_target,
-                    root=root_resolved,
+                    root=context_root.root,
                     parsed=parsed,
                     source=source,
                     resolved=resolved,
                 )
                 if resolved.exists:
-                    if resolved.target in memory_files:
+                    if resolved.target in memory_files_by_root[context_root.root]:
                         loaded_memory_files.add(resolved.target)
-                    queue.append(resolved.target)
+                    queue.append((context_root, resolved.target))
                 continue
 
             _record_reference(
                 references_by_target,
-                root=root_resolved,
+                root=context_root.root,
                 parsed=parsed,
                 source=source,
                 resolved=resolved,
@@ -368,13 +442,22 @@ def build_memory_inventory(root: Path | None = None) -> MemoryInventory:
     loaded_line_count = 0
     loaded_token_count = 0
     entries: list[MemoryFileEntry] = []
-    entry_paths = set(memory_files) | set(references_by_target)
+    entry_paths = (
+        set(memory_files) | set(references_by_target) | loaded_instruction_files
+    )
     for path in entry_paths:
-        exists = path in memory_files and path.is_file()
+        is_instruction = path in loaded_instruction_files
+        exists = (path in memory_files or is_instruction) and path.is_file()
         stats = _stats_for_file(path) if exists else None
         references = tuple(references_by_target.get(path, ()))
-        if path in loaded_memory_files:
-            status: MemoryEntryStatus = "loaded"
+        status: MemoryEntryStatus
+        if is_instruction:
+            status = "loaded"
+            if stats is not None:
+                loaded_line_count += stats.line_count
+                loaded_token_count += stats.approx_token_count
+        elif path in loaded_memory_files:
+            status = "loaded"
             if stats is not None:
                 loaded_line_count += stats.line_count
                 loaded_token_count += stats.approx_token_count
@@ -387,10 +470,11 @@ def build_memory_inventory(root: Path | None = None) -> MemoryInventory:
         entries.append(
             MemoryFileEntry(
                 path=path,
-                relative_path=_relative_path(root_resolved, path),
+                relative_path=display_path_for_context(context_roots, path),
                 status=status,
                 stats=stats,
                 references=references,
+                kind="instruction" if is_instruction else "memory",
             )
         )
 
@@ -402,12 +486,13 @@ def build_memory_inventory(root: Path | None = None) -> MemoryInventory:
     )
     return MemoryInventory(
         root=root_resolved,
-        instruction_roots=_instruction_roots(root_resolved),
+        instruction_roots=tuple(instruction_roots),
         entries=tuple(entries),
         loaded_stats=_MemoryStats(
             line_count=loaded_line_count,
             approx_token_count=loaded_token_count,
         ),
+        context_roots=context_roots,
     )
 
 

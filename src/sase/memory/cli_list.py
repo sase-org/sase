@@ -13,10 +13,12 @@ from rich.text import Text
 from sase.main.init_memory.config import project_memory_name
 from sase.memory.inventory import (
     MemoryEntryStatus,
+    MemoryContextRoot,
     MemoryFileEntry,
     MemoryInventory,
     MemoryReference,
     build_memory_inventory,
+    display_path_for_context,
 )
 
 _STATUS_STYLES: dict[MemoryEntryStatus, str] = {
@@ -33,7 +35,7 @@ def handle_memory_list_command(
     """Render memory files visible from the current launch context."""
     _ = args
     root = Path.cwd()
-    inventory = build_memory_inventory(root)
+    inventory = build_memory_inventory(root, home_root=Path.home())
     _render_memory_inventory(
         inventory,
         console=console,
@@ -72,7 +74,10 @@ def _summary_panel(
     summary.add_column(style="bold")
     summary.add_column()
 
-    roots = ", ".join(path.name for path in inventory.instruction_roots)
+    roots = ", ".join(
+        _display_path_for_inventory(inventory, path)
+        for path in inventory.instruction_roots
+    )
     if not roots:
         roots = "none found"
 
@@ -94,7 +99,7 @@ def _summary_panel(
 
 
 def _entries_panel(inventory: MemoryInventory) -> Panel:
-    title = f"Memory Files ({len(inventory.entries)})"
+    title = f"Context Files ({len(inventory.entries)})"
     if not inventory.entries:
         return Panel(
             Text("No memory files or references found.", style="dim"),
@@ -128,6 +133,7 @@ def _entries_panel(inventory: MemoryInventory) -> Panel:
 def _notes_panel() -> Panel:
     notes = Text()
     notes.append("@path loads file contents into agent context.\n")
+    notes.append("AGENTS.md is counted because it is loaded instruction context.\n")
     notes.append("Plain memory/... paths are visible references only.\n")
     notes.append(
         "Dynamic memory under .sase/memory is prompt-dependent: keyword "
@@ -157,7 +163,7 @@ def _reference_detail(inventory: MemoryInventory, entry: MemoryFileEntry) -> Tex
 
 
 def _format_reference(inventory: MemoryInventory, reference: MemoryReference) -> Text:
-    source = _relative_to_root(inventory.root, reference.source)
+    source = _display_path_for_inventory(inventory, reference.source)
     marker = "@" if reference.kind == "loaded" else ""
     detail = Text()
     detail.append(source)
@@ -166,8 +172,12 @@ def _format_reference(inventory: MemoryInventory, reference: MemoryReference) ->
     return detail
 
 
-def _relative_to_root(root: Path, path: Path) -> str:
-    try:
-        return path.relative_to(root).as_posix()
-    except ValueError:
-        return path.as_posix()
+def _display_path_for_inventory(inventory: MemoryInventory, path: Path) -> str:
+    context_roots = inventory.context_roots
+    if not context_roots:
+        context_roots = (
+            MemoryContextRoot(
+                root=inventory.root.resolve(strict=False), kind="project"
+            ),
+        )
+    return display_path_for_context(context_roots, path)
