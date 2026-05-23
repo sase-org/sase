@@ -96,6 +96,52 @@ def test_deploy_nothing_staged_skips_commit_and_later_steps() -> None:
     assert not any(cmd[0] == "chezmoi" for cmd in calls)
 
 
+def test_deploy_git_add_failure_returns_nonzero_and_skips_commit(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """git add failure should stop before commit/push/apply."""
+    args = make_args()
+
+    with patch.object(
+        _init_chezmoi_deploy.subprocess,
+        "run",
+        side_effect=git_cmd_handler(add_rc=128),
+    ) as mock_run:
+        rc = _deploy_to_chezmoi([Path("/x/a")], args)
+
+    assert rc == 1
+    calls = [c.args[0] for c in mock_run.call_args_list]
+    assert not any("commit" in cmd for cmd in calls)
+    assert not any("push" in cmd for cmd in calls)
+    assert not any(cmd[0] == "chezmoi" for cmd in calls)
+    err = capsys.readouterr().err
+    assert "git add failed" in err
+    assert "add failed" in err
+
+
+def test_deploy_staged_diff_failure_returns_nonzero_and_skips_commit(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """git diff --cached --quiet errors should not be treated as staged work."""
+    args = make_args()
+
+    with patch.object(
+        _init_chezmoi_deploy.subprocess,
+        "run",
+        side_effect=git_cmd_handler(diff_rc=128),
+    ) as mock_run:
+        rc = _deploy_to_chezmoi([Path("/x/a")], args)
+
+    assert rc == 1
+    calls = [c.args[0] for c in mock_run.call_args_list]
+    assert not any("commit" in cmd for cmd in calls)
+    assert not any("push" in cmd for cmd in calls)
+    assert not any(cmd[0] == "chezmoi" for cmd in calls)
+    err = capsys.readouterr().err
+    assert "staged diff check failed" in err
+    assert "diff failed" in err
+
+
 def test_deploy_not_a_git_repo_skips_gracefully(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
