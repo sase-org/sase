@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 12:03:29
-status: wip
+status: done
 prompt: sdd/prompts/202605/validate_command.md
 ---
 # Plan: Add `sase validate`

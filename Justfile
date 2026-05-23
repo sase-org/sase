@@ -110,7 +110,7 @@ _setup-terminal-smoke: _setup
         uv pip install --no-sources -e ".[dev,terminal-smoke]"; \
     fi
 
-# Run linters (ruff + mypy + pyscripts + pyvision + keep-sorted + SDD validation)
+# Run linters (ruff + mypy + pyscripts + pyvision + keep-sorted + SASE validation)
 lint: _setup (_header "lint") lint-keep-sorted
     @printf "\n---------- Running ruff linter on Python files... ----------\n"
     @just _lint-ruff
@@ -120,8 +120,8 @@ lint: _setup (_header "lint") lint-keep-sorted
     @just _lint-pyscripts
     @printf "\n---------- Checking for unused Python definitions... ----------\n"
     @just _lint-pyvision
-    @printf "\n---------- Validating SDD frontmatter links... ----------\n"
-    @just sdd-validate
+    @printf "\n---------- Running SASE validation... ----------\n"
+    @just validate
 
 # Run ruff linter on Python files (private, extracted for per-stage wrapping)
 _lint-ruff: _setup
@@ -232,7 +232,7 @@ check: _setup
     @tools/run_silent "lint (mypy)"        just _lint-mypy
     @tools/run_silent "lint (pyscripts)"   just _lint-pyscripts
     @tools/run_silent "lint (pyvision)"    just _lint-pyvision
-    @tools/run_silent "lint (sdd validate)" just sdd-validate
+    @tools/run_silent "SASE validation"     just validate
     @tools/run_silent "test"               just test
 
 # Build the MkDocs Material site with strict warnings-as-errors behavior.
@@ -273,9 +273,9 @@ docs-deploy-artifact-check:
     test -f site/series/agentic-software-engineering/index.html
     ! grep -Fq 'href="blog/why-coding-agents-need-orchestration/"' site/index.html
 
-# Validate SDD prompt/plan frontmatter links.
-sdd-validate: _setup
-    {{ venv_bin }}/sase sdd validate
+# Validate SASE initialization and SDD prompt/plan frontmatter links.
+validate: _setup
+    {{ venv_bin }}/sase validate
 
 # Report the status of the last fully-completed GitHub Actions workflow set.
 [positional-arguments]

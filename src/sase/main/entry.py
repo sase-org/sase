@@ -306,6 +306,12 @@ def main() -> NoReturn:
 
         handle_telemetry_command(args)
 
+    # --- validate ---
+    if args.command == "validate":
+        from .validate_handler import handle_validate_command
+
+        handle_validate_command(args)
+
     # --- workspace ---
     if args.command == "workspace":
         from .workspace_handler import handle_workspace_command
