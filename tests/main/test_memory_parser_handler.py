@@ -136,6 +136,17 @@ def test_parser_requires_memory_read_reason() -> None:
         parser.parse_args(["memory", "read", "long/foo.md"])
 
 
+def test_parser_accepts_memory_read_reason_short_option() -> None:
+    parser = create_parser()
+
+    args = parser.parse_args(["memory", "read", "long/foo.md", "-r", "Need context"])
+
+    assert args.command == "memory"
+    assert args.memory_subcommand == "read"
+    assert args.memory_path == "long/foo.md"
+    assert args.reason == "Need context"
+
+
 def test_parser_requires_memory_write_target_or_slug() -> None:
     parser = create_parser()
 

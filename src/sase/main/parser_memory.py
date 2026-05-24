@@ -86,6 +86,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Path relative to memory/, for example long/generated_skills.md",
     )
     read_parser.add_argument(
+        "-r",
         "--reason",
         required=True,
         help="Non-empty reason for the audited memory read",

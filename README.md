@@ -89,7 +89,7 @@ sase workspace path 10    # preview where managed workspace #10 would live
 sase workspace open 10    # create/refresh workspace #10, then print its path
 ```
 
-SASE-launched agents use `sase memory read ... --reason ...` and `sase memory write ...` when they need audited
+SASE-launched agents use `sase memory read ... -r/--reason ...` and `sase memory write ...` when they need audited
 long-term memory access. Those commands require agent identity in the environment, so a normal human shell should start
 with `sase memory list`, `sase memory review --list`, and `sase memory log`.
 

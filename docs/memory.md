@@ -55,10 +55,10 @@ excluded because short-term memory is intended to arrive through instruction loa
 command strips one leading YAML frontmatter block from stdout, while the audit event records metadata such as path,
 agent name, timestamp, cwd, byte count, and reason.
 
-Every read requires a non-empty `--reason` and agent attribution from `SASE_AGENT_NAME`, `SASE_AGENT`, or
-`SASE_ARTIFACTS_DIR/agent_meta.json` (`name`, `workflow_name`, or `agent_name`). Unattributed reads fail instead of
-writing the log. In a normal human shell, use regular file reads instead of this audited command unless you are
-intentionally simulating an agent identity.
+Every read requires a non-empty reason via `-r` or `--reason` and agent attribution from `SASE_AGENT_NAME`,
+`SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json` (`name`, `workflow_name`, or `agent_name`). Unattributed reads
+fail instead of writing the log. In a normal human shell, use regular file reads instead of this audited command unless
+you are intentionally simulating an agent identity.
 
 Pass `--include proposals` to include memory proposal and review ledger events in the same audit dashboard. Path and
 agent filters also apply to proposal target paths and proposal/review actors.

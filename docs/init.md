@@ -123,15 +123,15 @@ For day-to-day read/write operations, including audited reads and reviewed long-
 
 ## Memory Read Audit Log
 
-`sase memory read <memory-relative-path> --reason <reason>` is the audited path for agent-initiated long-term memory
-reads. The path is relative to `memory/`; the command allows Markdown files under `memory/long/` and rejects
-`memory/short` because short-term memory is expected to arrive through instruction loading. The command strips one
-leading YAML frontmatter block from stdout, but the audit log records only metadata such as path, agent name, timestamp,
-cwd, byte count, and reason.
+`sase memory read <memory-relative-path> -r <reason>` is the audited path for agent-initiated long-term memory reads.
+The path is relative to `memory/`; the command allows Markdown files under `memory/long/` and rejects `memory/short`
+because short-term memory is expected to arrive through instruction loading. The command strips one leading YAML
+frontmatter block from stdout, but the audit log records only metadata such as path, agent name, timestamp, cwd, byte
+count, and reason.
 
-Every read must include a non-empty `--reason`. The command also requires agent attribution from `SASE_AGENT_NAME`,
-`SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json`; unattributed reads fail instead of writing a log row. Human shell
-users normally inspect files directly and use `sase memory review` for promotion decisions.
+Every read must include a non-empty reason via `-r` or `--reason`. The command also requires agent attribution from
+`SASE_AGENT_NAME`, `SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json`; unattributed reads fail instead of writing a
+log row. Human shell users normally inspect files directly and use `sase memory review` for promotion decisions.
 
 `sase memory write` creates an attributable proposal under `~/.sase/projects/<project>/` and never writes
 `memory/long/*.md` directly. It uses the same agent-attribution rules as `read`; `--manual-author` is intended for tests
