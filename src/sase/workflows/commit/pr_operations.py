@@ -7,6 +7,10 @@ import os
 
 from sase.output import print_status
 from sase.vcs_provider import get_vcs_provider
+from sase.workflows.commit.runtime_tags import (
+    filter_runtime_owned_tags,
+    update_trailing_commit_tags,
+)
 
 
 def apply_project_pr_prefix(payload: dict) -> None:
@@ -80,8 +84,8 @@ def append_pr_tags(payload: dict, parent_cl_name: str | None) -> None:
     """
     from sase.vcs_provider.config import get_pr_tags
 
-    parent_tags = _fetch_parent_pr_tags(parent_cl_name)
-    config_tags = get_pr_tags()
+    parent_tags = filter_runtime_owned_tags(_fetch_parent_pr_tags(parent_cl_name))
+    config_tags = filter_runtime_owned_tags(get_pr_tags())
 
     # Merge: parent (lowest) → config → BUG (highest)
     tags = {**parent_tags, **config_tags}
@@ -93,9 +97,8 @@ def append_pr_tags(payload: dict, parent_cl_name: str | None) -> None:
     if not tags:
         return
 
-    tag_lines = "\n".join(f"{k}={v}" for k, v in tags.items())
     message = payload.get("message", "")
-    payload["message"] = f"{message}\n\n{tag_lines}"
+    payload["message"] = update_trailing_commit_tags(message, tags)
 
 
 def build_pr_body(payload: dict) -> None:

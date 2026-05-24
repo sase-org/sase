@@ -114,7 +114,11 @@ PR name suffixing  (compute _<N> suffix for unique branch names)          [PR on
     |
 Detect parent CL   (auto-set PARENT from current branch's ChangeSpec)     [PR only]
     |
-PR tags/body       (append PR tags, project prefix, and agent footer)     [PR only]
+PR metadata        (append PR tags and project prefix)                    [PR only]
+    |
+Runtime tags       (append/update AGENT= and MACHINE= provenance)         [commit/PR only]
+    |
+PR body            (build body with final tags and agent footer)          [PR only]
     |
 Diff capture       (save the pre-dispatch diff for tracking)
     |
@@ -169,6 +173,13 @@ Bead association is not a user-supplied CLI flag. For new commit attempts, `sase
 is set, the CLI adds that bead to the workflow payload, and `CommitWorkflow` enforces that the bead ID appears in the
 first line of the dispatched commit or PR message. Conflict resumes reuse the bead value captured in the original
 checkpoint.
+
+Runtime provenance tags are also not user-supplied CLI flags. For `create_commit` and `create_pull_request`,
+`CommitWorkflow` appends or updates trailing `AGENT=<sase agent name>` and `MACHINE=<host name>` lines in the commit
+message. `AGENT` comes from `SASE_AGENT_NAME`, falling back to `SASE_ARTIFACTS_DIR/agent_meta.json` when available; it
+is omitted for manual non-agent commits with no agent name. `MACHINE` comes from the local hostname. Runtime-owned
+`AGENT` and `MACHINE` values replace inherited or configured PR tags with the same keys. `create_proposal` does not get
+runtime commit tags because it saves a diff instead of creating a VCS commit.
 
 Internal fields added by `CommitWorkflow`:
 
@@ -237,7 +248,8 @@ that aren't ready to land.
 **Returns:** `(True, diff_path)`
 
 **Tracking:** Appends a proposal COMMITS entry to the project file. Bead lifecycle and plan handling are skipped because
-proposals don't represent landed changes.
+proposals don't represent landed changes. Runtime `AGENT` and `MACHINE` commit tags are also skipped because no VCS
+commit is created.
 
 ### Pull Request (`#pr`)
 
@@ -279,11 +291,13 @@ back.
 
 **PR tag inheritance:** When creating a child PR (one whose PARENT is an existing ChangeSpec), PR tags from the parent
 PR's body are automatically inherited. The merge order is: parent PR tags (lowest priority) -> config `pr_tags` -> `BUG`
-tag (highest priority). This ensures child PRs carry forward metadata like team tags without manual re-entry.
+tag (highest priority), followed by runtime-owned `AGENT` and `MACHINE` tags. Inherited or configured `AGENT` and
+`MACHINE` values are ignored so child PRs do not retain stale parent runtime provenance.
 
 **PR tags:** Any key-value pairs configured in `vcs_provider.pr_tags` are appended as `TAG=VALUE` lines to the commit
 message before building the PR body. This supports provider-specific metadata (e.g., Google CL tags) without manual
-entry. See [configuration.md](configuration.md#vcs_provider) for the config format.
+entry. `AGENT` and `MACHINE` are reserved for runtime provenance and are owned by the commit workflow rather than static
+config. See [configuration.md](configuration.md#vcs_provider) for the config format.
 
 **PR tag stripping:** When PR tags are present in the commit description (trailing lines matching `^[A-Z][A-Z0-9_]*=`),
 they are automatically stripped before writing the DESCRIPTION field of the created ChangeSpec. This prevents
@@ -364,6 +378,7 @@ instructions automatically, so agents know to hand control back to the user rath
 | `SASE_COMMIT_METHOD`                | Dispatch method (set by xprompt `environment:` section)          |
 | `SASE_COMMIT_METHOD_ALLOW_OVERRIDE` | Allow `-t/--type` to override a conflicting `SASE_COMMIT_METHOD` |
 | `SASE_ARTIFACTS_DIR`                | Directory for `commit_result.json` and other artifacts           |
+| `SASE_AGENT_NAME`                   | Agent name used for `AGENT=` runtime commit provenance           |
 | `SASE_BEAD_ID`                      | Bead ID to automatically associate with the commit               |
 | `SASE_PLAN`                         | Plan file path for staging and status update                     |
 | `SASE_AGENT_PROJECT_FILE`           | Project file for COMMITS/ChangeSpec tracking                     |

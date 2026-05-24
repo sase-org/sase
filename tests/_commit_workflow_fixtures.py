@@ -22,7 +22,15 @@ def no_precommit_hooks() -> Iterator[None]:
     """
     with (
         patch(_CONFIG_TARGET, return_value={"precommit_command": ""}),
-        patch.dict("os.environ", {"SASE_PLAN": ""}, clear=False),
+        patch.dict(
+            "os.environ",
+            {"SASE_PLAN": "", "SASE_AGENT_NAME": "", "SASE_ARTIFACTS_DIR": ""},
+            clear=False,
+        ),
+        patch(
+            "sase.workflows.commit.runtime_tags.socket.gethostname",
+            return_value="test-host",
+        ),
         patch("sase.workflows.commit.workflow.handle_beads", return_value=None),
         patch("sase.workflows.commit.workflow.handle_sase_plan", return_value=None),
         patch(

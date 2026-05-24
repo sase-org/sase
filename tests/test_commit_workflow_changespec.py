@@ -73,7 +73,7 @@ class TestCommitWorkflowChangeSpec:
             workflow_name="sase_commit",
             cl_url="https://github.com/org/repo/pull/1",
             cl_name="feat-x",
-            commit_description="add feature",
+            commit_description="add feature\n\nMACHINE=test-host",
             parent=None,
             bug=None,
             reserved_name="feat-x_1",

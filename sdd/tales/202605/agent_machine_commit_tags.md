@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-24 13:13:42
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_machine_commit_tags.md
 ---
 # Plan: Add Agent and Machine Commit Tags

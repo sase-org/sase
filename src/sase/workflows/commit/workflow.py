@@ -37,6 +37,7 @@ from sase.workflows.commit.pr_operations import (
     build_pr_body,
     detect_parent_changespec,
 )
+from sase.workflows.commit.runtime_tags import apply_runtime_commit_tags
 
 
 class RunResult(IntEnum):
@@ -161,7 +162,10 @@ class CommitWorkflow(BaseWorkflow):
         if self._method == "create_pull_request":
             apply_project_pr_prefix(self._payload)
             append_pr_tags(self._payload, self._parent_cl_name)
+            apply_runtime_commit_tags(self._payload)
             build_pr_body(self._payload)
+        elif self._method == "create_commit":
+            apply_runtime_commit_tags(self._payload)
 
         provider = get_vcs_provider(cwd)
         dispatch = getattr(provider, self._method)

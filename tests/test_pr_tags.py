@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.vcs_provider.config import extract_pr_tags, get_pr_tags
+from sase.workflows.commit.pr_operations import append_pr_tags
 from sase.workflows.commit.workflow import CommitWorkflow
 from tests._commit_workflow_fixtures import (
     no_precommit_hooks,  # noqa: F401 (imported for fixture discovery, re-used as fixture arg)
@@ -14,6 +15,7 @@ from tests._commit_workflow_fixtures import (
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
 _PR_TAGS_TARGET = "sase.vcs_provider.config.get_vcs_provider_config"
 _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
+_FETCH_PARENT_TARGET = "sase.workflows.commit.pr_operations._fetch_parent_pr_tags"
 
 
 @pytest.fixture(autouse=True)
@@ -285,7 +287,24 @@ class TestAppendPrTags:
             wf.run()
 
         sent_payload = provider.create_pull_request.call_args[0][0]
-        assert sent_payload["message"] == "Add feature"
+        assert sent_payload["message"] == "Add feature\n\nMACHINE=test-host"
+
+    @patch(_FETCH_PARENT_TARGET, return_value={})
+    def test_existing_tag_block_is_updated_without_duplicate(
+        self,
+        _mock_fetch: MagicMock,
+    ) -> None:
+        payload = {"message": "Add feature\n\nPLAN=sdd/tales/plan.md\nMARKDOWN=false"}
+
+        with patch(
+            "sase.vcs_provider.config.get_pr_tags",
+            return_value={"MARKDOWN": "true"},
+        ):
+            append_pr_tags(payload, None)
+
+        assert payload["message"] == (
+            "Add feature\n\nPLAN=sdd/tales/plan.md\nMARKDOWN=true"
+        )
 
 
 class TestExtractPrTags:
@@ -313,9 +332,6 @@ class TestExtractPrTags:
     def test_tag_with_equals_in_value(self) -> None:
         body = "Description\n\nFOO=a=b=c"
         assert extract_pr_tags(body) == {"FOO": "a=b=c"}
-
-
-_FETCH_PARENT_TARGET = "sase.workflows.commit.pr_operations._fetch_parent_pr_tags"
 
 
 class TestInheritParentPrTags:
@@ -416,4 +432,4 @@ class TestInheritParentPrTags:
             wf.run()
 
         sent = provider.create_pull_request.call_args[0][0]
-        assert sent["message"] == "Add feature"
+        assert sent["message"] == "Add feature\n\nMACHINE=test-host"
