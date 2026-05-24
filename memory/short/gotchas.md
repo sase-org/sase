@@ -8,3 +8,7 @@ the `src/sase/default_config.yml` file if necessary.
 All supported agent runtimes (Claude, Gemini, Codex, etc.) have the same capabilities: they all support hooks, skills,
 and the same commit workflow. Do NOT introduce runtime-specific special cases or branching logic that assumes one
 runtime lacks a capability that others have. Treat all runtimes uniformly.
+
+**Command-Line Short Options**  
+When defining new `sase` command options, make sure that all command-line options have both a long and short option
+defined (ex: `-f|--foobar` not just `--foobar`).
