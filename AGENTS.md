@@ -28,12 +28,20 @@ corresponding tier 3 file below — you do NOT need to separately read the tier 
 
 ## Tier 3 (long-term) Memory
 
-The below files contain detailed reference material. Read them when working in their domain.
+The below files contain detailed reference material. When working in their domain, you MUST read them through the
+audited memory-read command:
 
-**`memory/long/generated_skills.md`**  
+```bash
+sase memory read <long-memory-path> --reason "<why this context is needed>"
+```
+
+`<long-memory-path>` is relative to `memory/`, for example `long/generated_skills.md`. Do not read canonical
+`memory/long/*.md` files directly.
+
+**`long/generated_skills.md`**  
 Skill file generation pipeline, CLI/skill contract synchronization, commit skills per runtime. _Read when modifying
 skill source files or the commit workflow._
 
-**`memory/long/tui_jk_baseline.md`**  
+**`long/tui_jk_baseline.md`**  
 Baseline j/k key-to-paint latency data and reproduction steps. _Read when working on TUI navigation latency or related
 performance instrumentation._

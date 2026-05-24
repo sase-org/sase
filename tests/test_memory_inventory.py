@@ -194,3 +194,26 @@ def test_init_reachability_still_traverses_plain_memory_references(
     _write(tmp_path / "memory" / "long" / "detail.md", "# Detail\n")
 
     assert unreferenced_memory_files_for_init(tmp_path) == ()
+
+
+def test_memory_relative_long_paths_reference_canonical_memory_files(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "AGENTS.md",
+        'sase memory read long/index.md --reason "Need index context"\n',
+    )
+    _write(
+        tmp_path / "memory" / "long" / "index.md",
+        "# Index\n@memory/long/detail.md\n",
+    )
+    _write(tmp_path / "memory" / "long" / "detail.md", "# Detail\n")
+
+    inventory = build_memory_inventory(tmp_path)
+    index = inventory.entry_for("memory/long/index.md")
+
+    assert index.status == "referenced"
+    assert len(index.references) == 1
+    assert index.references[0].kind == "plain"
+    assert index.references[0].token == "long/index.md"
+    assert unreferenced_memory_files_for_init(tmp_path) == ()

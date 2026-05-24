@@ -31,8 +31,9 @@ LOADED_INSTRUCTION_ROOT_FILENAMES = ("AGENTS.md",)
 
 _AT_REF_RE = re.compile(r"(?:^|(?<=\s)|(?<=[\"'`(]))@([^\s,;:()[\]{}\"'`]+)")
 _MEMORY_PATH_RE = re.compile(
-    r"(?<![\w./-])(memory/(?:short|long)/[^\s,;:()[\]{}\"'`]+?\.md)"
+    r"(?<![\w./-])((?:memory/)?(?:short|long)/[^\s,;:()[\]{}\"'`]+?\.md)"
 )
+_MEMORY_RELATIVE_TIERS = frozenset({"short", "long"})
 _TRAILING_TOKEN_PUNCTUATION = ".,;:!?)"
 _STATUS_SORT_ORDER: dict[MemoryEntryStatus, int] = {
     "loaded": 0,
@@ -151,7 +152,8 @@ def _parse_references(text: str) -> tuple[_ParsedMemoryReference, ...]:
     """Return typed reference tokens found in ``text``.
 
     ``@memory/short/foo.md`` is reported only as a loaded reference, not also as
-    a plain memory-path mention.
+    a plain memory-path mention. Memory-relative ``long/foo.md`` tokens are
+    plain references for audited ``sase memory read`` instructions.
     """
     references: list[tuple[int, _ParsedMemoryReference]] = []
     loaded_spans: list[tuple[int, int]] = []
@@ -244,9 +246,14 @@ def _candidate_paths(root: Path, source: Path, token: str) -> tuple[Path, ...]:
     expanded = Path(token).expanduser()
     if expanded.is_absolute():
         return (expanded,)
+
+    memory_relative_candidates: list[Path] = []
+    if expanded.parts and expanded.parts[0] in _MEMORY_RELATIVE_TIERS:
+        memory_relative_candidates.append(root / "memory" / expanded)
+
     if token.startswith(("./", "../")):
-        return (source.parent / expanded,)
-    return (root / expanded, source.parent / expanded)
+        return (*memory_relative_candidates, source.parent / expanded)
+    return (*memory_relative_candidates, root / expanded, source.parent / expanded)
 
 
 def _inside_root(root: Path, path: Path) -> bool:
