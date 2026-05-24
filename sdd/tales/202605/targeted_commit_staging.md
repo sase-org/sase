@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-24 17:04:07
-status: wip
+status: done
 prompt: sdd/prompts/202605/targeted_commit_staging.md
 ---
 # Plan: Targeted Staging for Automatic Commits

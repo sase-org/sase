@@ -46,6 +46,14 @@ def test_commit_instruction_includes_method_override_warning(method: str) -> Non
     assert f"--type {method}" in message
 
 
+def test_commit_instruction_guides_finalizer_to_use_targeted_file_flags() -> None:
+    """Finalizer-triggered commits should prefer one -f per listed file."""
+    message = build_commit_instruction_message("/sase_git_commit", "create_commit")
+    assert "include a separate `-f` flag for each listed file" in message
+    assert "including newly created untracked files" in message
+    assert "Omit `-f` only when you intentionally want to stage every change" in message
+
+
 def test_commit_instruction_includes_bead_close_when_bead_id_is_set() -> None:
     """SASE_BEAD_ID should close the bead before invoking the commit skill."""
     message = build_commit_instruction_message(

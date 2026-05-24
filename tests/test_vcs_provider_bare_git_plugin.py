@@ -4,6 +4,7 @@ Verifies that :class:`BareGitPlugin` works correctly when routed through
 :class:`VCSPluginManager`.
 """
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pluggy
@@ -133,6 +134,59 @@ def test_vcs_create_commit_no_files_uses_add_all(
     add_call = mock_run.call_args_list[0]
     cmd = add_call[0][0]
     assert cmd == ["git", "add", "-A"]
+
+
+@patch(_MOCK_TARGET)
+def test_vcs_create_commit_stages_concrete_bead_files(
+    mock_run: MagicMock, bare_git_provider: VCSPluginManager, tmp_path: Path
+) -> None:
+    """Bead staging should add concrete changed files, not the whole bead dir."""
+    cwd = tmp_path
+    (cwd / "sdd" / "beads").mkdir(parents=True)
+    bead_files = [
+        "sdd/beads/issues.jsonl",
+        "sdd/beads/events/streams/sase-1.jsonl",
+    ]
+    bead_stdout = "\0".join(bead_files) + "\0"
+
+    def handler(*args: object, **kwargs: object) -> MagicMock:
+        cmd = args[0] if args else kwargs.get("cmd", [])
+        if isinstance(cmd, list):
+            if cmd[:2] == ["git", "ls-files"]:
+                return MagicMock(returncode=0, stdout=bead_stdout, stderr="")
+            if cmd == ["git", "diff", "--cached", "--quiet"]:
+                return MagicMock(returncode=1, stdout="", stderr="")
+            if cmd[:3] == ["git", "symbolic-ref", "--short"]:
+                return MagicMock(returncode=1, stdout="", stderr="")
+            if cmd[:3] == ["git", "remote", "get-url"]:
+                return MagicMock(returncode=1, stdout="", stderr="")
+            if cmd[:3] == ["git", "rev-parse", "--short"]:
+                return MagicMock(returncode=0, stdout="abc1234\n", stderr="")
+        return MagicMock(returncode=0, stdout="", stderr="")
+
+    mock_run.side_effect = handler
+
+    ok, result = bare_git_provider.create_commit(
+        {
+            "message": "chore: sync beads",
+            "files": ["src/main.py"],
+            "bead_id": "sase-1",
+        },
+        str(cwd),
+    )
+
+    assert ok is True
+    assert result == "abc1234"
+    commands = [call[0][0] for call in mock_run.call_args_list]
+    bead_add_calls = [
+        cmd
+        for cmd in commands
+        if cmd[:3] == ["git", "add", "--"] and any("sdd/beads/" in p for p in cmd)
+    ]
+    assert bead_add_calls
+    assert all(cmd == ["git", "add", "--", *bead_files] for cmd in bead_add_calls)
+    assert ["git", "add", "sdd/beads/"] not in commands
+    assert not any(cmd[:3] == ["git", "status", "--porcelain"] for cmd in commands)
 
 
 @patch(_MOCK_TARGET)

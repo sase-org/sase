@@ -111,6 +111,8 @@ def test_git_commit_skill_invokes_observable_wrapper() -> None:
     assert "Commit changes via the `sase_git_commit` wrapper" in body
     assert "records skill invocation evidence" in body
     assert "sase_git_commit -M commit_message.md" in body
+    assert "use one `-f` flag for each listed file" in body
+    assert "reserve that for an intentional" in body
     assert "sase_git_commit --resume" in body
     assert "sase commit -M commit_message.md" not in body
     assert "sase commit --resume" not in body

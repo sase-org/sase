@@ -2,6 +2,7 @@
 
 import logging
 import subprocess
+from collections.abc import Iterable
 from datetime import datetime
 from importlib import resources
 from pathlib import Path
@@ -321,6 +322,7 @@ def commit_sdd_files(
     message: str,
     *,
     auto_commit_type: str = "sdd",
+    paths: Iterable[str | Path] | None = None,
 ) -> None:
     """Auto-commit SDD files in a local `.sase/sdd/` git repo.
 
@@ -329,10 +331,20 @@ def commit_sdd_files(
     if not (sdd_dir / ".git").is_dir():
         return
 
-    subprocess.run(["git", "add", "-A"], cwd=sdd_dir, check=True, capture_output=True)
+    pathspecs = _normalize_sdd_commit_pathspecs(sdd_dir, paths)
+    changed_files = _changed_sdd_files(sdd_dir, pathspecs)
+    if not changed_files:
+        return
+
+    subprocess.run(
+        ["git", "add", "--"] + changed_files,
+        cwd=sdd_dir,
+        check=True,
+        capture_output=True,
+    )
 
     result = subprocess.run(
-        ["git", "diff", "--cached", "--quiet"],
+        ["git", "diff", "--cached", "--quiet", "--"] + changed_files,
         cwd=sdd_dir,
         capture_output=True,
     )
@@ -342,11 +354,58 @@ def commit_sdd_files(
 
         message = apply_auto_commit_type_tag(message, auto_commit_type)
         subprocess.run(
-            ["git", "commit", "-m", message],
+            ["git", "commit", "-m", message, "--"] + changed_files,
             cwd=sdd_dir,
             check=True,
             capture_output=True,
         )
+
+
+def _normalize_sdd_commit_pathspecs(
+    sdd_dir: Path,
+    paths: Iterable[str | Path] | None,
+) -> list[str]:
+    """Return git pathspecs rooted at ``sdd_dir`` for targeted SDD commits."""
+    if paths is None:
+        return ["."]
+
+    sdd_root = sdd_dir.resolve()
+    pathspecs: list[str] = []
+    for raw_path in paths:
+        path = Path(raw_path)
+        if path.is_absolute():
+            try:
+                path = path.resolve().relative_to(sdd_root)
+            except ValueError:
+                path = Path(raw_path)
+        pathspec = path.as_posix()
+        if pathspec and pathspec != ".":
+            pathspecs.append(pathspec)
+    return pathspecs or ["."]
+
+
+def _changed_sdd_files(sdd_dir: Path, pathspecs: list[str]) -> list[str]:
+    """Return concrete changed files under ``pathspecs`` in the SDD git repo."""
+    result = subprocess.run(
+        [
+            "git",
+            "ls-files",
+            "--modified",
+            "--others",
+            "--deleted",
+            "--exclude-standard",
+            "-z",
+            "--",
+            *pathspecs,
+        ],
+        cwd=sdd_dir,
+        check=True,
+        capture_output=True,
+    )
+    stdout = result.stdout or b""
+    if isinstance(stdout, str):
+        return [path for path in stdout.split("\0") if path]
+    return [path.decode("utf-8") for path in stdout.split(b"\0") if path]
 
 
 def _sdd_link_path(sdd_dir: Path, path: Path) -> str:

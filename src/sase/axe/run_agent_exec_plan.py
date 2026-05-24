@@ -294,6 +294,7 @@ def handle_plan_marker(
 
     sdd_plan_name: str | None = None
     sdd_plan_path: Path | None = None
+    sdd_commit_paths: list[Path] = []
     version_controlled = True  # safe default (VC path is the no-op path)
     sdd_dir = Path(ctx.workspace_dir)
     try:
@@ -315,6 +316,7 @@ def handle_plan_marker(
             plan_result.plan_file,
             plan_kind=plan_kind,
         )
+        sdd_commit_paths = [sdd_prompt_path_obj, sdd_plan_path]
         state.sdd_spec_path = str(sdd_prompt_path_obj)
         _record_workflow_metadata(
             state.current_artifacts_dir,
@@ -324,7 +326,11 @@ def handle_plan_marker(
             },
         )
         if not version_controlled:
-            commit_sdd_files(sdd_dir, f"Add SDD files for {sdd_plan_name}")
+            commit_sdd_files(
+                sdd_dir,
+                f"Add SDD files for {sdd_plan_name}",
+                paths=sdd_commit_paths,
+            )
     except Exception:
         logger.warning("SDD file generation failed", exc_info=True)
 
@@ -345,7 +351,11 @@ def handle_plan_marker(
                 plan_kind=plan_kind,
             )
         else:
-            commit_sdd_files(sdd_dir, f"Add SDD files for {sdd_plan_name}")
+            commit_sdd_files(
+                sdd_dir,
+                f"Add SDD files for {sdd_plan_name}",
+                paths=sdd_commit_paths,
+            )
     elif should_commit:
         required_sdd_commit_succeeded = False
     plan_committed = bool(

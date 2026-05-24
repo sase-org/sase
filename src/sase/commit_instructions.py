@@ -125,6 +125,13 @@ def build_commit_instruction_message(
             f"If you DID make these changes, commit them using your {skill} skill before continuing."
         )
     parts.append(f"The commit method type is `{method}`.")
+    parts.append(
+        "When invoking the commit skill, include a separate `-f` flag for each listed file you intend to commit, "
+        "including newly created untracked files."
+    )
+    parts.append(
+        "Omit `-f` only when you intentionally want to stage every change in that repository."
+    )
     if method != "create_pull_request":
         parts.append(
             "When constructing the commit message, describe only the changes in this commit."

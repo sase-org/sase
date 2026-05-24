@@ -40,6 +40,66 @@ def test_commit_sdd_files() -> None:
         assert "TYPE=sdd" in log.stdout
 
 
+def test_commit_sdd_files_stages_only_targeted_paths() -> None:
+    """Targeted local SDD commits must not sweep unrelated dirty files."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        sdd_dir = Path(tmpdir)
+        subprocess.run(["git", "init"], cwd=sdd_dir, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@test.com"],
+            cwd=sdd_dir,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=sdd_dir,
+            check=True,
+            capture_output=True,
+        )
+
+        prompt = sdd_dir / "prompts" / "202605" / "targeted.md"
+        plan = sdd_dir / "tales" / "202605" / "targeted.md"
+        prompt.parent.mkdir(parents=True)
+        plan.parent.mkdir(parents=True)
+        prompt.write_text("prompt", encoding="utf-8")
+        plan.write_text("plan", encoding="utf-8")
+        unrelated = sdd_dir / "research" / "202605" / "notes.md"
+        unrelated.parent.mkdir(parents=True)
+        unrelated.write_text("do not commit", encoding="utf-8")
+
+        commit_sdd_files(sdd_dir, "Targeted commit", paths=[prompt, plan])
+
+        committed = subprocess.run(
+            ["git", "show", "--name-only", "--format=", "HEAD"],
+            cwd=sdd_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.splitlines()
+        status = subprocess.run(
+            [
+                "git",
+                "-c",
+                "color.status=false",
+                "status",
+                "--short",
+                "--",
+                "research/202605/notes.md",
+            ],
+            cwd=sdd_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+
+        assert committed == [
+            "prompts/202605/targeted.md",
+            "tales/202605/targeted.md",
+        ]
+        assert status == "?? research/202605/notes.md\n"
+
+
 def test_commit_sdd_files_no_changes() -> None:
     """No-op when there are no changes to commit."""
     with tempfile.TemporaryDirectory() as tmpdir:

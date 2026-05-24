@@ -25,14 +25,35 @@ class GitCommitDispatchMixin(CommandRunner):
 
     # --- Helpers ---
 
-    def _stage_bead_dirs(self, cwd: str) -> None:
-        """Stage the version-controlled bead store if it has changes."""
+    def _changed_bead_files(self, cwd: str) -> list[str]:
+        """Return concrete changed files in the version-controlled bead store."""
         bead_dir = os.path.join(cwd, BEADS_DIRNAME)
         bead_pathspec = f"{BEADS_DIRNAME}/"
-        if os.path.isdir(bead_dir):
-            status = self._run(["git", "status", "--porcelain", bead_pathspec], cwd)
-            if status.stdout.strip():
-                self._run(["git", "add", bead_pathspec], cwd)
+        if not os.path.isdir(bead_dir):
+            return []
+        out = self._run(
+            [
+                "git",
+                "ls-files",
+                "--modified",
+                "--others",
+                "--deleted",
+                "--exclude-standard",
+                "-z",
+                "--",
+                bead_pathspec,
+            ],
+            cwd,
+        )
+        if not out.success:
+            return []
+        return [path for path in out.stdout.split("\0") if path]
+
+    def _stage_bead_dirs(self, cwd: str) -> None:
+        """Stage the version-controlled bead store if it has changes."""
+        changed_files = self._changed_bead_files(cwd)
+        if changed_files:
+            self._run(["git", "add", "--"] + changed_files, cwd)
 
     def _stage_extra_paths(self, payload: dict, cwd: str) -> None:
         """Stage extra paths recorded in the payload (e.g. plan file)."""
@@ -134,12 +155,10 @@ class GitCommitDispatchMixin(CommandRunner):
         )
 
         # Fold bead tracking changes into the commit via amend
-        bead_dir = os.path.join(cwd, BEADS_DIRNAME)
-        bead_pathspec = f"{BEADS_DIRNAME}/"
-        if os.path.isdir(bead_dir):
-            status = self._run(["git", "status", "--porcelain", bead_pathspec], cwd)
-            if status.stdout.strip():
-                self._run(["git", "add", bead_pathspec], cwd)
+        changed_files = self._changed_bead_files(cwd)
+        if changed_files:
+            add_out = self._run(["git", "add", "--"] + changed_files, cwd)
+            if add_out.success:
                 self._run(["git", "commit", "--amend", "--no-edit", "--quiet"], cwd)
 
     # --- Dispatch ---
