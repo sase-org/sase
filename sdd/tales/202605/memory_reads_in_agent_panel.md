@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-24 13:13:02
-status: wip
+status: done
 prompt: sdd/prompts/202605/memory_reads_in_agent_panel.md
 ---
 # Surface Audited Memory Reads in the Agents Tab Metadata Panel

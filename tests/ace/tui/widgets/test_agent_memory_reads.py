@@ -1,0 +1,159 @@
+"""Tests for the agent MEMORY READS prompt-panel section renderer."""
+
+from __future__ import annotations
+
+from zoneinfo import ZoneInfo
+
+import pytest
+from rich.text import Text
+
+from sase.ace.tui.widgets.prompt_panel import _agent_memory_reads
+from sase.ace.tui.widgets.prompt_panel._agent_memory_reads import (
+    MAX_VISIBLE_READS,
+    REASON_LIMIT,
+    append_agent_memory_reads_section,
+)
+from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
+
+
+@pytest.fixture(autouse=True)
+def _pin_timezone(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        _agent_memory_reads,
+        "get_timezone",
+        lambda: ZoneInfo("UTC"),
+    )
+
+
+def _event(
+    *,
+    canonical_path: str,
+    timestamp: str,
+    reason: str = "needed it",
+    frontmatter_stripped: bool = False,
+    read_id: str | None = None,
+) -> MemoryReadEvent:
+    return MemoryReadEvent(
+        schema_version=READ_LOG_SCHEMA_VERSION,
+        id=read_id or canonical_path + timestamp,
+        timestamp=timestamp,
+        project="test",
+        cwd="/tmp/test",
+        canonical_path=canonical_path,
+        resolved_path=f"/tmp/test/memory/{canonical_path}",
+        agent_name="alpha",
+        agent_source="SASE_AGENT_NAME",
+        artifacts_dir="/tmp/test/artifacts",
+        reason=reason,
+        byte_count=64,
+        frontmatter_stripped=frontmatter_stripped,
+    )
+
+
+def test_empty_events_appends_nothing() -> None:
+    text = Text()
+    append_agent_memory_reads_section(text, events=())
+    assert text.plain == ""
+
+
+def test_single_event_renders_timestamp_path_and_reason() -> None:
+    text = Text()
+    event = _event(
+        canonical_path="long/generated_skills.md",
+        timestamp="2026-05-24T14:22:08+00:00",
+        reason="needed commit hook contract for runtime parity refactor",
+    )
+    append_agent_memory_reads_section(text, events=(event,))
+
+    plain = text.plain
+    assert "MEMORY READS\n" in plain
+    assert "1 reads · 1 files · last 14:22:08" in plain
+    assert "14:22:08  long/generated_skills.md" in plain
+    assert "↳ needed commit hook contract for runtime parity refactor" in plain
+    assert "+ " not in plain
+
+
+def test_overflow_renders_truncation_footer() -> None:
+    events = tuple(
+        _event(
+            canonical_path=f"long/file_{index}.md",
+            timestamp=f"2026-05-24T14:{30 - index:02d}:00+00:00",
+            reason=f"reason {index}",
+            read_id=f"id-{index}",
+        )
+        for index in range(MAX_VISIBLE_READS + 2)
+    )
+    text = Text()
+    append_agent_memory_reads_section(text, events=events)
+
+    plain = text.plain
+    assert plain.count("↳") == MAX_VISIBLE_READS
+    overflow = len(events) - MAX_VISIBLE_READS
+    assert f"+ {overflow} more" in plain
+    # Earliest visible footer uses HH:MM of the last (oldest) event.
+    earliest_hhmm = events[-1].timestamp[11:16]
+    assert f"({earliest_hhmm} earliest)" in plain
+
+
+def test_long_reason_is_truncated_with_ellipsis() -> None:
+    long_reason = "x" * (REASON_LIMIT + 50)
+    text = Text()
+    event = _event(
+        canonical_path="long/skill.md",
+        timestamp="2026-05-24T14:00:00+00:00",
+        reason=long_reason,
+    )
+    append_agent_memory_reads_section(text, events=(event,))
+
+    plain = text.plain
+    assert "…" in plain
+    truncated_marker = "x" * (REASON_LIMIT - 1) + "…"
+    assert truncated_marker in plain
+
+
+def test_frontmatter_marker_present_when_stripped() -> None:
+    text = Text()
+    event = _event(
+        canonical_path="long/skill.md",
+        timestamp="2026-05-24T14:00:00+00:00",
+        frontmatter_stripped=True,
+    )
+    append_agent_memory_reads_section(text, events=(event,))
+
+    assert "↩ frontmatter" in text.plain
+
+
+def test_frontmatter_marker_absent_when_not_stripped() -> None:
+    text = Text()
+    event = _event(
+        canonical_path="long/skill.md",
+        timestamp="2026-05-24T14:00:00+00:00",
+        frontmatter_stripped=False,
+    )
+    append_agent_memory_reads_section(text, events=(event,))
+
+    assert "↩ frontmatter" not in text.plain
+
+
+def test_distinct_path_count_in_summary() -> None:
+    events = (
+        _event(
+            canonical_path="long/a.md",
+            timestamp="2026-05-24T14:05:00+00:00",
+            read_id="id-1",
+        ),
+        _event(
+            canonical_path="long/a.md",
+            timestamp="2026-05-24T14:04:00+00:00",
+            read_id="id-2",
+        ),
+        _event(
+            canonical_path="long/b.md",
+            timestamp="2026-05-24T14:03:00+00:00",
+            read_id="id-3",
+        ),
+    )
+    text = Text()
+    append_agent_memory_reads_section(text, events=events)
+
+    assert "3 reads · 2 files · last 14:05:00" in text.plain

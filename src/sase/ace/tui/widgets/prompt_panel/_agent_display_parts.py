@@ -10,6 +10,7 @@ from rich.text import Text
 
 from sase.agent.agent_artifacts_cache import get_global_cache
 from sase.ace.changespec.models import DeltaEntry
+from sase.memory.read_log import MemoryReadEvent
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_COMMIT_SUFFIX,
@@ -51,6 +52,7 @@ class DetailHeaderSummary:
     bead_display: str | None = None
     delta_entries: list[DeltaEntry] | None = None
     artifact_paths: list[AgentArtifactPath] | None = None
+    memory_reads: tuple[MemoryReadEvent, ...] = ()
 
 
 _PHASE_LABELS = {
@@ -73,6 +75,8 @@ def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
     if agent.agent_name:
         bead_display = format_agent_bead_display(agent, include_description=True)
 
+    from sase.ace.tui.memory_reads import load_memory_reads_for_agent
+
     from ._agent_artifacts import agent_artifact_paths
     from ._agent_deltas import agent_delta_entries
 
@@ -81,6 +85,7 @@ def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
         bead_display=bead_display,
         delta_entries=agent_delta_entries(agent),
         artifact_paths=agent_artifact_paths(agent),
+        memory_reads=load_memory_reads_for_agent(agent),
     )
 
 
@@ -454,6 +459,7 @@ def build_header_text(
     if not cheap and summary is not None:
         from ._agent_artifacts import append_agent_artifacts_section
         from ._agent_deltas import append_agent_deltas_section
+        from ._agent_memory_reads import append_agent_memory_reads_section
 
         append_agent_deltas_section(
             header_text,
@@ -464,6 +470,10 @@ def build_header_text(
             header_text,
             artifact_paths=summary.artifact_paths,
             hint_state=hint_state,
+        )
+        append_agent_memory_reads_section(
+            header_text,
+            events=summary.memory_reads,
         )
 
     # Meta fields from step output
