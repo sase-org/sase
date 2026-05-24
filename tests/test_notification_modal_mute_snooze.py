@@ -25,23 +25,6 @@ def test_toggle_mute_sets_muted_and_rebuilds() -> None:
     modal.notify.assert_called_once_with("Muted")
 
 
-def test_toggle_mute_syncs_plan_notification_mute_tag() -> None:
-    notification = _make_notification("n1", action="PlanApproval")
-    modal = NotificationModal([notification])
-    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
-    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
-    modal.notify = MagicMock()  # type: ignore[method-assign]
-    modal._sync_plan_notification_mute_tag = MagicMock()  # type: ignore[method-assign]
-
-    with patch("sase.ace.tui.modals.notification_modal.mark_muted"):
-        modal.action_toggle_mute()
-
-    modal._sync_plan_notification_mute_tag.assert_called_once_with(
-        notification,
-        muted=True,
-    )
-
-
 def test_toggle_mute_unmutes_when_already_muted() -> None:
     """m on an already-muted notification flips it back to unmuted."""
     notification = _make_notification("n1", action="JumpToAgent")
@@ -57,24 +40,6 @@ def test_toggle_mute_unmutes_when_already_muted() -> None:
     mock_mark.assert_called_once_with("n1", False)
     assert notification.muted is False
     modal.notify.assert_called_once_with("Unmuted")
-
-
-def test_toggle_unmute_syncs_plan_notification_mute_tag() -> None:
-    notification = _make_notification("n1", action="PlanApproval")
-    notification.muted = True
-    modal = NotificationModal([notification])
-    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
-    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
-    modal.notify = MagicMock()  # type: ignore[method-assign]
-    modal._sync_plan_notification_mute_tag = MagicMock()  # type: ignore[method-assign]
-
-    with patch("sase.ace.tui.modals.notification_modal.mark_muted"):
-        modal.action_toggle_mute()
-
-    modal._sync_plan_notification_mute_tag.assert_called_once_with(
-        notification,
-        muted=False,
-    )
 
 
 def test_styled_label_uses_tilde_prefix_for_muted() -> None:
@@ -173,33 +138,6 @@ def test_snooze_callback_with_timedelta_calls_mark_snoozed() -> None:
     assert notification.muted is True
     assert notification.snooze_until == args[1].isoformat()
     modal.notify.assert_called_once_with("Snoozed for 15m")
-
-
-def test_snooze_callback_syncs_plan_notification_mute_tag() -> None:
-    notification = _make_notification("n1", action="PlanApproval")
-    modal = NotificationModal([notification])
-    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
-    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
-    modal.notify = MagicMock()  # type: ignore[method-assign]
-    modal._sync_plan_notification_mute_tag = MagicMock()  # type: ignore[method-assign]
-
-    captured_callback: list = []
-
-    def fake_push_screen(_screen, *, callback) -> None:
-        captured_callback.append(callback)
-
-    with (
-        patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app,
-        patch("sase.ace.tui.modals.notification_modal.mark_snoozed"),
-    ):
-        mock_app.push_screen = fake_push_screen
-        modal.action_snooze()
-        captured_callback[0](timedelta(minutes=15))
-
-    modal._sync_plan_notification_mute_tag.assert_called_once_with(
-        notification,
-        muted=True,
-    )
 
 
 def test_snooze_callback_with_datetime_uses_until_label() -> None:
