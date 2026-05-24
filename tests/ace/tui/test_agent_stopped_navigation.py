@@ -131,7 +131,7 @@ def test_jump_to_next_stopped_agent_starts_at_newest_from_focused_banner() -> No
     assert app.current_idx == 1
     assert app._current_group_key is None
     assert app.current_attempt_number is None
-    assert app._entry_jump_last_agents_anchor == ("banner", 0, ("group",))
+    assert app._entry_jump_agents_anchor_stack == [("banner", 0, ("group",))]
     assert app.refresh_calls == []
 
 
@@ -187,7 +187,7 @@ def test_jump_to_next_stopped_agent_back_jump_restores_without_acknowledging_unr
     assert app._jump_to_next_stopped_agent()
     assert app.current_idx == 1
     assert app._panel_group.focused_idx == 1
-    assert app._entry_jump_last_agents_anchor == ("agent", 0, 0)
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, 0)]
     assert app._unread_completed_agent_ids == unread_before
 
     assert app._restore_agents_jump_anchor()
@@ -195,3 +195,4 @@ def test_jump_to_next_stopped_agent_back_jump_restores_without_acknowledging_unr
     assert app._panel_group.focused_idx == 0
     assert app._current_group_key is None
     assert app._unread_completed_agent_ids == unread_before
+    assert app._entry_jump_agents_anchor_stack == []

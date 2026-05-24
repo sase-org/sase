@@ -67,8 +67,8 @@ class _InlineJumpApp(AdvancedNavigationMixin, ChangeSpecGroupingNavMixin):
         self._entry_jump_banner_to_hint: dict[Any, str] = {}
         self._entry_jump_hint_to_changespec_banner: dict[str, Any] = {}
         self._entry_jump_changespec_banner_to_hint: dict[Any, str] = {}
-        self._entry_jump_last_index: dict[str, int] = {}
-        self._entry_jump_last_agents_anchor: Any = None
+        self._entry_jump_index_stack: dict[str, list[int]] = {}
+        self._entry_jump_agents_anchor_stack: list[Any] = []
         self._changespec_grouping_mode = ChangeSpecGroupingMode.BY_PROJECT
         self._changespec_group_fold_registry = GroupFoldRegistry()
         self._current_changespec_group_key: tuple[str, ...] | None = None
@@ -172,7 +172,7 @@ def test_apostrophe_without_history_dispatches_first_changespec_hint() -> None:
 
     assert handled is True
     assert app.current_idx == 0
-    assert app._entry_jump_last_index["changespecs"] == 2
+    assert app._entry_jump_index_stack["changespecs"] == [2]
     assert app._entry_jump_mode_active is False
 
 
@@ -184,21 +184,68 @@ def test_fast_jump_without_history_dispatches_first_changespec_without_footer() 
     app.action_jump_to_entry_fast()
 
     assert app.current_idx == 0
-    assert app._entry_jump_last_index["changespecs"] == 2
+    assert app._entry_jump_index_stack["changespecs"] == [2]
     assert app._entry_jump_mode_active is False
     assert app.jump_footer_updates == 0
 
 
-def test_fast_jump_with_history_restores_changespec_and_updates_origin() -> None:
+def test_fast_jump_with_history_restores_changespec_and_pops_origin() -> None:
     changespecs = [_make_changespec(f"feature_{i:02d}") for i in range(3)]
     app = _InlineJumpApp(changespecs)
     app.current_idx = 2
-    app._entry_jump_last_index["changespecs"] = 1
+    app._entry_jump_index_stack["changespecs"] = [1]
 
     app.action_jump_to_entry_fast()
 
     assert app.current_idx == 1
-    assert app._entry_jump_last_index["changespecs"] == 2
+    assert app._entry_jump_index_stack["changespecs"] == []
+    assert app._entry_jump_mode_active is False
+    assert app.jump_footer_updates == 0
+
+
+def test_fast_jump_with_history_pops_changespec_stack_lifo() -> None:
+    changespecs = [_make_changespec(f"feature_{i:02d}") for i in range(4)]
+    app = _InlineJumpApp(changespecs)
+    app.current_idx = 3
+    app._entry_jump_index_stack["changespecs"] = [0, 1, 2]
+
+    app.action_jump_to_entry_fast()
+    assert app.current_idx == 2
+    assert app._entry_jump_index_stack["changespecs"] == [0, 1]
+
+    app.action_jump_to_entry_fast()
+    assert app.current_idx == 1
+    assert app._entry_jump_index_stack["changespecs"] == [0]
+
+    app.action_jump_to_entry_fast()
+    assert app.current_idx == 0
+    assert app._entry_jump_index_stack["changespecs"] == []
+
+
+def test_fast_jump_discards_stale_changespec_history_before_fallback() -> None:
+    changespecs = [_make_changespec(f"feature_{i:02d}") for i in range(2)]
+    app = _InlineJumpApp(changespecs)
+    app.current_idx = 1
+    app._entry_jump_index_stack["changespecs"] = [9]
+
+    app.action_jump_to_entry_fast()
+
+    assert app.current_idx == 0
+    assert app._entry_jump_index_stack["changespecs"] == [1]
+    assert app._entry_jump_mode_active is False
+    assert app.jump_footer_updates == 0
+
+
+def test_fast_jump_discards_stale_changespec_history_before_valid_restore() -> None:
+    changespecs = [_make_changespec(f"feature_{i:02d}") for i in range(2)]
+    app = _InlineJumpApp(changespecs)
+    app.current_idx = 1
+    app._entry_jump_index_stack["changespecs"] = [0, 9]
+
+    app.action_jump_to_entry_fast()
+
+    assert app.current_idx == 0
+    assert app._entry_jump_index_stack["changespecs"] == []
     assert app._entry_jump_mode_active is False
     assert app.jump_footer_updates == 0
 

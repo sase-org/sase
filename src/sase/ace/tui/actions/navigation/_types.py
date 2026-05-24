@@ -58,7 +58,7 @@ class NavigationMixinBase:
     _entry_jump_mode_active: bool
     _entry_jump_hint_to_index: dict[str, int]
     _entry_jump_index_to_hint: dict[int, str]
-    _entry_jump_last_index: dict[str, int]
+    _entry_jump_index_stack: dict[str, list[int]]
     # Agents-tab jump-mode state for banner targets.  Agent targets are
     # tracked through ``_entry_jump_hint_to_index`` / ``_entry_jump_index_to_hint``
     # (their key is the global agent index); banners need a richer key
@@ -70,12 +70,11 @@ class NavigationMixinBase:
     _entry_jump_hint_to_changespec_banner: dict[str, tuple[str, ...]]
     _entry_jump_changespec_banner_to_hint: dict[tuple[str, ...], str]
     _current_changespec_group_key: tuple[str, ...] | None
-    # Back-jump anchor for the agents tab: ``("agent", agent_idx, panel_idx)``
+    # Back-jump anchors for the agents tab: ``("agent", agent_idx, panel_idx)``
     # when the cursor was on an agent row, ``("banner", panel_idx, group_key)``
-    # when it was on a banner row.  Independent of
-    # ``_entry_jump_last_index`` so banner anchors can survive a tab cycle
-    # without polluting the int-typed map shared with CLs/AXE tabs.
-    _entry_jump_last_agents_anchor: AgentJumpAnchor | None
+    # when it was on a banner row.  Independent of the int stack shared with
+    # CLs/AXE tabs because banner anchors need panel scope.
+    _entry_jump_agents_anchor_stack: list[AgentJumpAnchor]
     _jump_all_last_position: JumpAllResult | None
     _child_key_buffer: str
     _ancestor_keys: dict[str, str]

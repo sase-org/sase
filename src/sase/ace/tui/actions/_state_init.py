@@ -193,12 +193,11 @@ class StateInitMixin:
         self._entry_jump_hint_to_changespec_banner: dict[str, tuple[str, ...]] = {}
         self._entry_jump_changespec_banner_to_hint: dict[tuple[str, ...], str] = {}
 
-        # Entry jump-back state (' toggle)
-        self._entry_jump_last_index: dict[str, int] = {}
+        # Entry jump-back state. Non-Agents tabs keep per-tab row-index stacks;
+        # the Agents tab uses richer anchors so banner focus can be restored.
+        self._entry_jump_index_stack: dict[str, list[int]] = {}
         self._entry_jump_last_panel: dict[str, str | None] = {}
-        # Banner-aware agents-tab anchor; ``None`` when the user has not yet
-        # used jump mode on the agents tab.
-        self._entry_jump_last_agents_anchor: AgentJumpAnchor | None = None
+        self._entry_jump_agents_anchor_stack: list[AgentJumpAnchor] = []
 
         # Cross-tab jump back state (`)
         self._jump_all_last_position: JumpAllResult | None = None

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-24 09:45:58
-status: wip
+status: done
 prompt: sdd/prompts/202605/entry_jump_stack.md
 ---
 # Make double-apostrophe entry jumps stack-based

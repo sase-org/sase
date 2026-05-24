@@ -40,8 +40,8 @@ class _StubApp(AdvancedNavigationMixin):
         self._entry_jump_index_to_hint: dict[int, str] = {}
         self._entry_jump_hint_to_banner: dict[str, Any] = {}
         self._entry_jump_banner_to_hint: dict[Any, str] = {}
-        self._entry_jump_last_index: dict[str, int] = {}
-        self._entry_jump_last_agents_anchor: Any = None
+        self._entry_jump_index_stack: dict[str, list[int]] = {}
+        self._entry_jump_agents_anchor_stack: list[Any] = []
         self.artifact_viewer_guard_active = False
         self.jump_footer_updates = 0
         self.notify = MagicMock()
@@ -185,7 +185,7 @@ def test_jump_dispatch_agent_switches_focused_panel() -> None:
     assert app.current_idx == 1
     assert app._panel_group.focused_idx == 1
     assert app._current_group_key is None
-    assert app._entry_jump_last_agents_anchor == ("agent", 0, 0)
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, 0)]
 
 
 def test_jump_mode_entry_guard_warns_without_entering() -> None:
@@ -267,7 +267,7 @@ def test_apostrophe_without_anchor_dispatches_first_agent_jump_hint() -> None:
     assert handled is True
     assert app._current_group_key == ("alpha",)
     assert app.current_idx == 1
-    assert app._entry_jump_last_agents_anchor == ("agent", 1, 0)
+    assert app._entry_jump_agents_anchor_stack == [("agent", 1, 0)]
     assert app._entry_jump_mode_active is False
 
 
@@ -284,7 +284,7 @@ def test_fast_jump_without_anchor_dispatches_first_agent_jump_hint() -> None:
 
     assert app._current_group_key == ("alpha",)
     assert app.current_idx == 1
-    assert app._entry_jump_last_agents_anchor == ("agent", 1, 0)
+    assert app._entry_jump_agents_anchor_stack == [("agent", 1, 0)]
     assert app._entry_jump_mode_active is False
     assert app.jump_footer_updates == 0
 
@@ -295,17 +295,50 @@ def test_fast_jump_restores_agent_banner_anchor_with_panel_focus() -> None:
         _agent(project="alpha", cl="a1", name="a1"),
         _agent(project="alpha", cl="a1", name="a2", tag="ws"),
     ]
-    app = _StubApp(agents)
+    app = _StubApp(agents, collapsed=[("alpha",)])
     app.current_idx = 0
-    app._entry_jump_last_agents_anchor = ("banner", 1, ("alpha",))
+    app._entry_jump_agents_anchor_stack = [("banner", 1, ("alpha",))]
 
     app.action_jump_to_entry_fast()
 
     assert app._panel_group.focused_idx == 1
     assert app._current_group_key == ("alpha",)
-    assert app._entry_jump_last_agents_anchor == ("agent", 0, 0)
+    assert app._entry_jump_agents_anchor_stack == []
     assert app._entry_jump_mode_active is False
     assert app.jump_footer_updates == 0
+
+
+def test_fast_jump_pops_agent_anchor_stack_lifo() -> None:
+    """Repeated fast jumps walk backward through agent and banner anchors."""
+    agents = [
+        _agent(project="alpha", cl="a1", name="a1"),
+        _agent(project="beta", cl="b1", name="b1"),
+        _agent(project="beta", cl="b2", name="b2"),
+    ]
+    app = _StubApp(agents, collapsed=[("alpha",)])
+    app.current_idx = 0
+    app._entry_jump_agents_anchor_stack = [
+        ("agent", 2, 0),
+        ("banner", 0, ("alpha",)),
+        ("agent", 1, 0),
+    ]
+
+    app.action_jump_to_entry_fast()
+    assert app.current_idx == 1
+    assert app._current_group_key is None
+    assert app._entry_jump_agents_anchor_stack == [
+        ("agent", 2, 0),
+        ("banner", 0, ("alpha",)),
+    ]
+
+    app.action_jump_to_entry_fast()
+    assert app._current_group_key == ("alpha",)
+    assert app._entry_jump_agents_anchor_stack == [("agent", 2, 0)]
+
+    app.action_jump_to_entry_fast()
+    assert app.current_idx == 2
+    assert app._current_group_key is None
+    assert app._entry_jump_agents_anchor_stack == []
 
 
 def test_stale_agent_back_anchor_falls_through_to_first_hint() -> None:
@@ -316,7 +349,7 @@ def test_stale_agent_back_anchor_falls_through_to_first_hint() -> None:
     ]
     app = _StubApp(agents, collapsed=[("alpha",)])
     app.current_idx = 1
-    app._entry_jump_last_agents_anchor = ("agent", 99, 0)
+    app._entry_jump_agents_anchor_stack = [("agent", 99, 0)]
 
     app._begin_agents_jump_mode()
     handled = app._handle_entry_jump_key("apostrophe")
@@ -324,7 +357,24 @@ def test_stale_agent_back_anchor_falls_through_to_first_hint() -> None:
     assert handled is True
     assert app._current_group_key == ("alpha",)
     assert app.current_idx == 1
-    assert app._entry_jump_last_agents_anchor == ("agent", 1, 0)
+    assert app._entry_jump_agents_anchor_stack == [("agent", 1, 0)]
+
+
+def test_stale_agent_banner_anchor_falls_through_to_first_hint() -> None:
+    """Banner anchors that no longer exist are popped before hint fallback."""
+    agents = [
+        _agent(project="alpha", cl="a1", name="a1"),
+        _agent(project="beta", cl="b1", name="b1"),
+    ]
+    app = _StubApp(agents, collapsed=[("alpha",)])
+    app.current_idx = 1
+    app._entry_jump_agents_anchor_stack = [("banner", 0, ("missing",))]
+
+    app.action_jump_to_entry_fast()
+
+    assert app._current_group_key == ("alpha",)
+    assert app.current_idx == 1
+    assert app._entry_jump_agents_anchor_stack == [("agent", 1, 0)]
 
 
 def test_invalid_panel_back_anchor_does_not_change_focused_panel() -> None:
@@ -335,10 +385,11 @@ def test_invalid_panel_back_anchor_does_not_change_focused_panel() -> None:
     ]
     app = _StubApp(agents)
     app.current_idx = 0
-    app._entry_jump_last_agents_anchor = ("agent", 1, 99)
+    app._entry_jump_agents_anchor_stack = [("agent", 1, 99)]
 
     restored = app._restore_agents_jump_anchor()
 
     assert restored is False
     assert app._panel_group.focused_idx == 0
     assert app.current_idx == 0
+    assert app._entry_jump_agents_anchor_stack == []

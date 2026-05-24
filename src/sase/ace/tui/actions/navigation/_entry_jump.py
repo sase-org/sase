@@ -184,6 +184,54 @@ class EntryJumpNavigationMixin(NavigationMixinBase):
         else:
             self._refresh_current_tab()  # type: ignore[attr-defined]
 
+    def _entry_jump_index_stack_for_current_tab(self) -> list[int]:
+        """Return the current non-Agents tab's jump-back stack."""
+        return self._entry_jump_index_stack.setdefault(self.current_tab, [])
+
+    def _entry_jump_index_stack_has_current_tab_history(self) -> bool:
+        """Return whether the current non-Agents tab has jump-back history."""
+        return bool(self._entry_jump_index_stack.get(self.current_tab))
+
+    def _entry_jump_index_is_valid(self, tab: str, idx: int) -> bool:
+        """Return whether ``idx`` still identifies a row in ``tab``."""
+        if tab == "changespecs":
+            return 0 <= idx < len(self.changespecs)
+        if tab == "axe":
+            return 0 <= idx < len(self._axe_items)  # type: ignore[attr-defined]
+        return False
+
+    def _push_entry_jump_index_origin_if_changed(
+        self,
+        *,
+        target_idx: int | None,
+        target_group_key: tuple[str, ...] | None = None,
+    ) -> None:
+        """Push the current non-Agents row when a jump will move focus."""
+        row_changed = target_idx is not None and target_idx != self.current_idx
+        group_changed = (
+            self.current_tab == "changespecs"
+            and target_group_key != getattr(self, "_current_changespec_group_key", None)
+        )
+        if not row_changed and not group_changed:
+            return
+        if not self._entry_jump_index_is_valid(self.current_tab, self.current_idx):
+            return
+        stack = self._entry_jump_index_stack_for_current_tab()
+        if not stack or stack[-1] != self.current_idx:
+            stack.append(self.current_idx)
+
+    def _pop_entry_jump_index(self) -> int | None:
+        """Pop the latest valid row index for the current non-Agents tab."""
+        stack = self._entry_jump_index_stack.get(self.current_tab)
+        if not stack:
+            return None
+        while stack:
+            idx = stack.pop()
+            if self._entry_jump_index_is_valid(self.current_tab, idx):
+                return idx
+        self._entry_jump_index_stack.pop(self.current_tab, None)
+        return None
+
     def _current_agents_panel_idx(self) -> int | None:
         """Return the focused agents panel index, or ``None`` if it is stale."""
         panel_group = getattr(self, "_panel_group", None)
@@ -225,10 +273,12 @@ class EntryJumpNavigationMixin(NavigationMixinBase):
         return None
 
     def _save_agents_jump_anchor(self) -> None:
-        """Snapshot the agents-tab cursor (agent or banner) for ``'`` back-jump."""
+        """Push the agents-tab cursor (agent or banner) for ``'`` back-jump."""
         anchor = self._current_agents_jump_anchor()
         if anchor is not None:
-            self._entry_jump_last_agents_anchor = anchor
+            stack = self._entry_jump_agents_anchor_stack
+            if not stack or stack[-1] != anchor:
+                stack.append(anchor)
 
     def _remember_agents_jump_origin_if_changed(
         self,
@@ -254,6 +304,76 @@ class EntryJumpNavigationMixin(NavigationMixinBase):
             return panel_idx == 0
         return 0 <= panel_idx < len(panel_group.panel_keys)
 
+    def _agents_jump_banner_anchor_is_valid(
+        self,
+        *,
+        panel_idx: int,
+        group_key: tuple[str, ...],
+    ) -> bool:
+        """Return whether a banner anchor still maps to a selectable banner."""
+        if not self._agents_jump_anchor_panel_is_valid(panel_idx):
+            return False
+
+        panel_group = getattr(self, "_panel_group", None)
+        stops_fn = getattr(self, "_panel_navigation_stops", None)
+        if callable(stops_fn):
+            old_focused_idx = (
+                panel_group.focused_idx if panel_group is not None else None
+            )
+            try:
+                if panel_group is not None:
+                    panel_group.focused_idx = panel_idx
+                stops = stops_fn()
+            except Exception:
+                stops = None
+            finally:
+                if panel_group is not None and old_focused_idx is not None:
+                    panel_group.focused_idx = old_focused_idx
+            if stops is not None:
+                return any(
+                    kind == "banner" and payload == group_key for kind, payload in stops
+                )
+
+        from ...models.agent_groups import GroupingMode, build_agent_tree
+        from ..agents._navigation_order import rendered_panel_slice
+
+        panel_key = None
+        if panel_group is not None:
+            panel_key = panel_group.panel_keys[panel_idx]
+        registry = getattr(self, "_group_fold_registry", None)
+        mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+        _global_indices, panel_agents = rendered_panel_slice(self, panel_key)
+        tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
+        return any(
+            entry.kind == "group"
+            and entry.group is not None
+            and entry.group.is_collapsed
+            and entry.group.group_key == group_key
+            for entry in tree
+        )
+
+    def _agents_jump_anchor_is_valid(self, anchor: AgentJumpAnchor) -> bool:
+        """Return whether an agents jump anchor can still be restored."""
+        if anchor[0] == "agent":
+            _, agent_idx, target_panel = anchor
+            agent_valid = 0 <= agent_idx < len(self._agents)
+            return agent_valid and self._agents_jump_anchor_panel_is_valid(target_panel)
+
+        _, target_panel, group_key = anchor
+        return self._agents_jump_banner_anchor_is_valid(
+            panel_idx=target_panel,
+            group_key=group_key,
+        )
+
+    def _pop_agents_jump_anchor(self) -> AgentJumpAnchor | None:
+        """Pop and return the latest valid agents-tab jump anchor."""
+        stack = self._entry_jump_agents_anchor_stack
+        while stack:
+            anchor = stack.pop()
+            if self._agents_jump_anchor_is_valid(anchor):
+                return anchor
+        return None
+
     def _focus_agents_jump_anchor_panel(self, panel_idx: int) -> None:
         """Focus the panel for a validated agents jump anchor."""
         panel_group = getattr(self, "_panel_group", None)
@@ -261,27 +381,10 @@ class EntryJumpNavigationMixin(NavigationMixinBase):
             panel_group.focused_idx = panel_idx
 
     def _restore_agents_jump_anchor(self) -> bool:
-        """Restore the saved agents-tab anchor.  Returns True on success."""
-        anchor = self._entry_jump_last_agents_anchor
+        """Pop and restore the latest agents-tab anchor.  Returns True on success."""
+        anchor = self._pop_agents_jump_anchor()
         if anchor is None:
             return False
-        if anchor[0] == "agent":
-            _, agent_idx, target_panel = anchor
-            if not (0 <= agent_idx < len(self._agents)):
-                return False
-            if not self._agents_jump_anchor_panel_is_valid(target_panel):
-                return False
-        else:
-            _, target_panel, _group_key = anchor
-            if not self._agents_jump_anchor_panel_is_valid(target_panel):
-                return False
-
-        # Capture the current spot as the new anchor before jumping back so
-        # a third ``'`` press toggles back to where we were.
-        new_anchor = self._current_agents_jump_anchor()
-        if new_anchor is None:
-            return False
-        self._entry_jump_last_agents_anchor = new_anchor
 
         if anchor[0] == "agent":
             _, agent_idx, target_panel = anchor
@@ -322,11 +425,7 @@ class EntryJumpNavigationMixin(NavigationMixinBase):
                 guard = getattr(
                     self, "_guard_agent_navigation_for_artifact_viewer", None
                 )
-                if (
-                    self._entry_jump_last_agents_anchor is not None
-                    and callable(guard)
-                    and guard()
-                ):
+                if self._entry_jump_agents_anchor_stack and callable(guard) and guard():
                     self._exit_entry_jump_mode()
                     return True
                 if self._restore_agents_jump_anchor():
@@ -334,10 +433,10 @@ class EntryJumpNavigationMixin(NavigationMixinBase):
                     return True
                 key = "1"
             else:
-                last_idx = self._entry_jump_last_index.get(self.current_tab)
+                last_idx = self._pop_entry_jump_index()
                 if last_idx is not None:
-                    # Save current position before jumping back
-                    self._entry_jump_last_index[self.current_tab] = self.current_idx
+                    if self.current_tab == "changespecs":
+                        self._current_changespec_group_key = None  # type: ignore[attr-defined]
                     self.current_idx = last_idx
                     self._exit_entry_jump_mode()
                     return True
@@ -388,11 +487,18 @@ class EntryJumpNavigationMixin(NavigationMixinBase):
             if banner_key is None and agent_target is None:
                 self._exit_entry_jump_mode()
                 return True
-            self._entry_jump_last_index[self.current_tab] = self.current_idx
             if banner_key is not None:
+                self._push_entry_jump_index_origin_if_changed(
+                    target_idx=None,
+                    target_group_key=banner_key,
+                )
                 self._current_changespec_group_key = banner_key  # type: ignore[attr-defined]
             else:
                 assert agent_target is not None
+                self._push_entry_jump_index_origin_if_changed(
+                    target_idx=agent_target,
+                    target_group_key=None,
+                )
                 self._current_changespec_group_key = None  # type: ignore[attr-defined]
                 self.current_idx = agent_target
             self._exit_entry_jump_mode()
@@ -404,7 +510,7 @@ class EntryJumpNavigationMixin(NavigationMixinBase):
             self._exit_entry_jump_mode()
             return True
 
-        self._entry_jump_last_index[self.current_tab] = self.current_idx
+        self._push_entry_jump_index_origin_if_changed(target_idx=target)
         self.current_idx = target
         self._exit_entry_jump_mode()
         return True
@@ -416,9 +522,9 @@ class EntryJumpNavigationMixin(NavigationMixinBase):
         try:
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
             if self.current_tab == "agents":
-                has_back = self._entry_jump_last_agents_anchor is not None
+                has_back = bool(self._entry_jump_agents_anchor_stack)
             else:
-                has_back = self.current_tab in self._entry_jump_last_index
+                has_back = self._entry_jump_index_stack_has_current_tab_history()
             footer.update_jump_bindings(has_back=has_back)
         except Exception:
             pass

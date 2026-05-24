@@ -58,8 +58,8 @@ class _SiblingApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMixi
         self._entry_jump_banner_to_hint: dict[Any, str] = {}
         self._entry_jump_hint_to_changespec_banner: dict[str, tuple[str, ...]] = {}
         self._entry_jump_changespec_banner_to_hint: dict[tuple[str, ...], str] = {}
-        self._entry_jump_last_index: dict[str, int] = {}
-        self._entry_jump_last_agents_anchor: Any = None
+        self._entry_jump_index_stack: dict[str, list[int]] = {}
+        self._entry_jump_agents_anchor_stack: list[Any] = []
         self._marked_agents = set()
         self._unread_completed_agent_ids = set()
         self._manual_unread_agent_ids = set()
@@ -179,7 +179,7 @@ def test_changespec_sibling_navigation_still_direct_jumps() -> None:
 
 def test_agent_sibling_navigation_noops_without_visible_sibling() -> None:
     app = _SiblingApp([_agent("foo.plan"), _agent("bar.plan")])
-    app._entry_jump_last_agents_anchor = ("agent", 1, 0)
+    app._entry_jump_agents_anchor_stack = [("agent", 1, 0)]
 
     app.action_start_sibling_mode()
 
@@ -187,7 +187,7 @@ def test_agent_sibling_navigation_noops_without_visible_sibling() -> None:
     assert app.pushed_screens == []
     assert app.acknowledged == []
     assert app.highlight_refreshes == 0
-    assert app._entry_jump_last_agents_anchor == ("agent", 1, 0)
+    assert app._entry_jump_agents_anchor_stack == [("agent", 1, 0)]
 
 
 def test_agent_sibling_navigation_direct_jumps_to_single_sibling() -> None:
@@ -197,7 +197,7 @@ def test_agent_sibling_navigation_direct_jumps_to_single_sibling() -> None:
     app.action_start_sibling_mode()
 
     assert app.current_idx == 1
-    assert app._entry_jump_last_agents_anchor == ("agent", 0, 0)
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, 0)]
     assert app.current_attempt_number is None
     assert app._current_group_key is None
     assert app.armed_departures == [agents[0]]
@@ -219,7 +219,7 @@ def test_agent_sibling_navigation_back_jump_restores_origin() -> None:
     assert handled is True
     assert app.current_idx == 0
     assert app._current_group_key is None
-    assert app._entry_jump_last_agents_anchor == ("agent", 1, 0)
+    assert app._entry_jump_agents_anchor_stack == []
     assert app._entry_jump_mode_active is False
     assert app.jump_footer_updates == 1
 
@@ -234,7 +234,7 @@ def test_agent_sibling_navigation_fast_back_jump_restores_origin_without_hints()
     app.action_jump_to_entry_fast()
 
     assert app.current_idx == 0
-    assert app._entry_jump_last_agents_anchor == ("agent", 1, 0)
+    assert app._entry_jump_agents_anchor_stack == []
     assert app._entry_jump_mode_active is False
     assert app.jump_footer_updates == 0
 
@@ -268,7 +268,7 @@ def test_agent_sibling_navigation_opens_modal_for_multiple_siblings() -> None:
     app.action_start_sibling_mode()
 
     assert app.current_idx == 0
-    assert app._entry_jump_last_agents_anchor is None
+    assert app._entry_jump_agents_anchor_stack == []
     assert len(app.pushed_screens) == 1
     modal = app.pushed_screens[0]
     assert isinstance(modal, AgentSiblingModal)
@@ -279,13 +279,13 @@ def test_agent_sibling_navigation_opens_modal_for_multiple_siblings() -> None:
     app.pushed_callbacks[0](None)
 
     assert app.current_idx == 0
-    assert app._entry_jump_last_agents_anchor is None
+    assert app._entry_jump_agents_anchor_stack == []
     assert app.acknowledged == []
 
     app.pushed_callbacks[0](2)
 
     assert app.current_idx == 2
-    assert app._entry_jump_last_agents_anchor == ("agent", 0, 0)
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, 0)]
     assert app.acknowledged == [agents[2]]
 
 
@@ -301,7 +301,7 @@ def test_agent_sibling_navigation_switches_focused_panel() -> None:
 
     assert app.current_idx == 1
     assert app._panel_group.focused_idx == 1
-    assert app._entry_jump_last_agents_anchor == ("agent", 0, 0)
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, 0)]
     assert app.focused_panel_refreshes == [0]
     assert app.highlight_refreshes == 0
 
@@ -329,14 +329,14 @@ def test_agent_sibling_navigation_guard_blocks_row_change() -> None:
     agents = [_agent("foo.plan"), _agent("foo.code")]
     app = _SiblingApp(agents)
     app.artifact_viewer_guard_active = True
-    app._entry_jump_last_agents_anchor = ("agent", 1, 0)
+    app._entry_jump_agents_anchor_stack = [("agent", 1, 0)]
 
     app.action_start_sibling_mode()
 
     assert app.current_idx == 0
     assert app.pushed_screens == []
     assert app.acknowledged == []
-    assert app._entry_jump_last_agents_anchor == ("agent", 1, 0)
+    assert app._entry_jump_agents_anchor_stack == [("agent", 1, 0)]
     app.notify.assert_called_once_with(
         "Close the artifact viewer before switching agents",
         severity="warning",
