@@ -2,6 +2,8 @@
 create_time: 2026-05-23 20:09:25
 status: wip
 prompt: sdd/prompts/202605/notification_tags.md
+bead_id: sase-43
+tier: epic
 ---
 # Plan: Notification Tags + TUI Tag Tabs
 
