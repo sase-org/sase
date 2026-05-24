@@ -190,6 +190,13 @@ class AgentSiblingMixin:
             return False
 
         panel_group = getattr(self, "_panel_group", None)
+        if panel_group is not None and not (
+            0 <= target_panel_idx < len(panel_group.panel_keys)
+        ):
+            return False
+        if panel_group is None and target_panel_idx != 0:
+            return False
+
         old_focused_idx = panel_group.focused_idx if panel_group is not None else None
         old_idx = self.current_idx
         old_group_key = getattr(self, "_current_group_key", None)
@@ -198,6 +205,14 @@ class AgentSiblingMixin:
             if old_group_key is None and 0 <= old_idx < len(self._agents)
             else None
         )
+        focus_will_change = (
+            old_idx != target_idx
+            or old_group_key is not None
+            or (old_focused_idx is not None and target_panel_idx != old_focused_idx)
+        )
+        save_jump_anchor = getattr(self, "_save_agents_jump_anchor", None)
+        if focus_will_change and callable(save_jump_anchor):
+            save_jump_anchor()
 
         if (
             panel_group is not None

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 19:55:33
-status: wip
+status: done
 prompt: sdd/prompts/202605/sibling_jump_previous_points.md
 ---
 # Treat sibling agent jumps as entry-jump previous points
