@@ -11,6 +11,7 @@ keywords:
     commit skill,
     xprompt skill,
   ]
+description: Skill file generation pipeline, CLI/skill contract synchronization, commit skills per runtime.
 ---
 
 # Generated Skill Files

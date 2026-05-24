@@ -32,40 +32,43 @@ agents from the TUI.
 
 ## Work Tracking And Planning
 
-| Command                                      | Purpose                                                                                      | Details                                         |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `sase changespec current`                    | Render the ChangeSpec associated with the current workspace.                                 | [ChangeSpecs](change_spec.md)                   |
-| `sase changespec migrate-extension`          | Rename legacy `.gp` ProjectSpec files to the canonical `.sase` extension.                    | [ProjectSpec](project_spec.md)                  |
-| `sase changespec search`                     | Search and filter ChangeSpecs with the query language.                                       | [Query language](query_language.md)             |
-| `sase changespec sync-deltas`                | Recompute the `DELTAS` field for a ChangeSpec from VCS state.                                | [ChangeSpecs](change_spec.md)                   |
-| `sase init`                                  | Check and initialize memory, SDD, and skills from one coordinator.                           | [Initialization](init.md)                       |
-| `sase memory` / `sase memory list`           | Show loaded, referenced, available, and missing memory files.                                | [Memory](memory.md#inspect-context)             |
-| `sase memory read`                           | Agent-side read of one long-term memory file with an attributable audit event.               | [Memory](memory.md#audited-reads)               |
-| `sase memory write`                          | Agent-side proposal for human-reviewed long-term memory; `--notify` can add an inbox item.   | [Memory](memory.md#propose-memory)              |
-| `sase memory review`                         | Human listing, inspection, approval, editing, or rejection of pending memory proposals.      | [Memory](memory.md#review-proposals)            |
-| `sase memory log`                            | Summarize audited memory reads; `--include proposals` also shows proposal and review events. | [Memory](memory.md#audited-reads)               |
-| `sase memory init`                           | Create or refresh project/home memory files and provider shims.                              | [Initialization](init.md#memory-initialization) |
-| `sase init memory`                           | Alias for `sase memory init`.                                                                | [Initialization](init.md#memory-initialization) |
-| `sase sdd init`                              | Create or refresh SDD README files and directory map assets.                                 | [SDD](sdd.md)                                   |
-| `sase init sdd`                              | Alias for `sase sdd init`.                                                                   | [SDD](sdd.md)                                   |
-| `sase sdd list`                              | List SDD prompt, tale, epic, legend, or all Markdown artifacts.                              | [SDD](sdd.md)                                   |
-| `sase sdd links`                             | Inspect prompt/artifact frontmatter links.                                                   | [SDD](sdd.md)                                   |
-| `sase sdd validate`                          | Validate SDD frontmatter links.                                                              | [SDD](sdd.md)                                   |
-| `sase sdd repair-links`                      | Infer and optionally write missing bidirectional SDD links.                                  | [SDD](sdd.md)                                   |
-| `sase bead onboard`                          | Print the bead quick-start guide.                                                            | [Beads](beads.md)                               |
-| `sase bead init`                             | Initialize bead storage for the current project.                                             | [Beads](beads.md#storage)                       |
-| `sase bead create`                           | Create plan, epic, legend, or phase issues.                                                  | [Beads](beads.md#cli-commands)                  |
-| `sase bead list`                             | List bead issues by status, type, or tier.                                                   | [Beads](beads.md#cli-commands)                  |
-| `sase bead ready`                            | Show open issues whose dependencies are closed.                                              | [Beads](beads.md#dependencies)                  |
-| `sase bead blocked`                          | Show issues blocked by open dependencies.                                                    | [Beads](beads.md#dependencies)                  |
-| `sase bead show`                             | Show one issue.                                                                              | [Beads](beads.md#cli-commands)                  |
-| `sase bead update` / `open` / `close` / `rm` | Mutate issue metadata or lifecycle state.                                                    | [Beads](beads.md#cli-commands)                  |
-| `sase bead dep add`                          | Add an issue dependency.                                                                     | [Beads](beads.md#dependencies)                  |
-| `sase bead sync`                             | Export the bead database to git-tracked JSONL and stage it.                                  | [Beads](beads.md#sync-mechanism)                |
-| `sase bead stats` / `doctor`                 | Inspect project statistics or bead-store health.                                             | [Beads](beads.md#rust-backend)                  |
-| `sase bead work`                             | Launch phase agents for an epic, or epic-planning agents for a legend.                       | [Beads](beads.md#sase-bead-work-id)             |
-| `sase plan`                                  | Submit a plan for approval from the plan skill path.                                         | [XPrompt directives](xprompt.md#plan-directive) |
-| `sase questions`                             | Ask structured user questions from the questions skill path.                                 | [XPrompt directives](xprompt.md#directives)     |
+| Command                                      | Purpose                                                                                      | Details                                            |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `sase changespec current`                    | Render the ChangeSpec associated with the current workspace.                                 | [ChangeSpecs](change_spec.md)                      |
+| `sase changespec migrate-extension`          | Rename legacy `.gp` ProjectSpec files to the canonical `.sase` extension.                    | [ProjectSpec](project_spec.md)                     |
+| `sase changespec search`                     | Search and filter ChangeSpecs with the query language.                                       | [Query language](query_language.md)                |
+| `sase changespec sync-deltas`                | Recompute the `DELTAS` field for a ChangeSpec from VCS state.                                | [ChangeSpecs](change_spec.md)                      |
+| `sase init`                                  | Check and initialize AMD, memory, SDD, and skills from one coordinator.                      | [Initialization](init.md)                          |
+| `sase amd` / `sase amd list`                 | Inventory project, home, and chezmoi `AGENTS.md` files plus nearby provider shims.           | [Initialization](init.md#agent-markdown-documents) |
+| `sase amd init`                              | Create or refresh root `AGENTS.md` and provider instruction shims.                           | [Initialization](init.md#agent-markdown-documents) |
+| `sase init amd`                              | Alias for `sase amd init`.                                                                   | [Initialization](init.md#agent-markdown-documents) |
+| `sase memory` / `sase memory list`           | Show loaded, referenced, available, and missing memory files.                                | [Memory](memory.md#inspect-context)                |
+| `sase memory read`                           | Agent-side read of one long-term memory file with an attributable audit event.               | [Memory](memory.md#audited-reads)                  |
+| `sase memory write`                          | Agent-side proposal for human-reviewed long-term memory; `--notify` can add an inbox item.   | [Memory](memory.md#propose-memory)                 |
+| `sase memory review`                         | Human listing, inspection, approval, editing, or rejection of pending memory proposals.      | [Memory](memory.md#review-proposals)               |
+| `sase memory log`                            | Summarize audited memory reads; `--include proposals` also shows proposal and review events. | [Memory](memory.md#audited-reads)                  |
+| `sase memory init`                           | Create or refresh project/home memory files and AGENTS memory references.                    | [Initialization](init.md#memory-initialization)    |
+| `sase init memory`                           | Alias for `sase memory init`.                                                                | [Initialization](init.md#memory-initialization)    |
+| `sase sdd init`                              | Create or refresh SDD README files and directory map assets.                                 | [SDD](sdd.md)                                      |
+| `sase init sdd`                              | Alias for `sase sdd init`.                                                                   | [SDD](sdd.md)                                      |
+| `sase sdd list`                              | List SDD prompt, tale, epic, legend, or all Markdown artifacts.                              | [SDD](sdd.md)                                      |
+| `sase sdd links`                             | Inspect prompt/artifact frontmatter links.                                                   | [SDD](sdd.md)                                      |
+| `sase sdd validate`                          | Validate SDD frontmatter links.                                                              | [SDD](sdd.md)                                      |
+| `sase sdd repair-links`                      | Infer and optionally write missing bidirectional SDD links.                                  | [SDD](sdd.md)                                      |
+| `sase bead onboard`                          | Print the bead quick-start guide.                                                            | [Beads](beads.md)                                  |
+| `sase bead init`                             | Initialize bead storage for the current project.                                             | [Beads](beads.md#storage)                          |
+| `sase bead create`                           | Create plan, epic, legend, or phase issues.                                                  | [Beads](beads.md#cli-commands)                     |
+| `sase bead list`                             | List bead issues by status, type, or tier.                                                   | [Beads](beads.md#cli-commands)                     |
+| `sase bead ready`                            | Show open issues whose dependencies are closed.                                              | [Beads](beads.md#dependencies)                     |
+| `sase bead blocked`                          | Show issues blocked by open dependencies.                                                    | [Beads](beads.md#dependencies)                     |
+| `sase bead show`                             | Show one issue.                                                                              | [Beads](beads.md#cli-commands)                     |
+| `sase bead update` / `open` / `close` / `rm` | Mutate issue metadata or lifecycle state.                                                    | [Beads](beads.md#cli-commands)                     |
+| `sase bead dep add`                          | Add an issue dependency.                                                                     | [Beads](beads.md#dependencies)                     |
+| `sase bead sync`                             | Export the bead database to git-tracked JSONL and stage it.                                  | [Beads](beads.md#sync-mechanism)                   |
+| `sase bead stats` / `doctor`                 | Inspect project statistics or bead-store health.                                             | [Beads](beads.md#rust-backend)                     |
+| `sase bead work`                             | Launch phase agents for an epic, or epic-planning agents for a legend.                       | [Beads](beads.md#sase-bead-work-id)                |
+| `sase plan`                                  | Submit a plan for approval from the plan skill path.                                         | [XPrompt directives](xprompt.md#plan-directive)    |
+| `sase questions`                             | Ask structured user questions from the questions skill path.                                 | [XPrompt directives](xprompt.md#directives)        |
 
 ChangeSpecs are CL/PR-sized review records. SDD stores durable prompt and planning artifacts. Beads add git-portable
 dependency tracking and executable epics on top of those artifacts.

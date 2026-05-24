@@ -10,14 +10,20 @@ sase init          # prompt before each needed initializer
 sase init --yes    # run every needed initializer in order
 ```
 
-The coordinator plans in registry order: memory, SDD, then skills. Planning is read-only. In non-interactive shells,
-bare `sase init` reports drift and exits non-zero instead of prompting; use `sase init --yes` when you want an
+The coordinator plans in registry order: AMD, memory, SDD, then skills. Planning is read-only. In non-interactive
+shells, bare `sase init` reports drift and exits non-zero instead of prompting; use `sase init --yes` when you want an
 unattended apply run. Apply runs can write project files, deploy home files through chezmoi when configured, and use
-each initializer's normal commit/push behavior.
+each initializer's normal commit/push behavior. Bare `sase init` only lets AMD manage `AGENTS.md` when the current
+project's own `./sase.yml` sets `amd_h1_title`; explicit AMD commands still repair provider shims and handle legacy
+one-file migrations when that field is unset.
 
 Explicit subcommands are still available when you need narrower control:
 
 ```bash
+sase amd init --check
+sase amd init
+sase amd list
+sase init amd --check
 sase memory init --no-commit
 sase memory init --check
 sase memory list
@@ -35,40 +41,72 @@ sase memory read long/generated_skills.md --reason "Need generated skill context
 sase memory write --title "Generated skills" --slug generated_skills --evidence chat:abc123 --body "Durable memory body" --notify
 ```
 
-`sase memory init --no-commit` is usually the safest first run because it writes the generated files but skips the
-project git commit/pull/push path. It is not a dry run: it can still write project files, write home memory, and follow
-home-level `use_chezmoi` deployment. `sase init memory` remains a compatibility alias for `sase memory init`.
+`sase amd init --check` is the safest way to inspect agent-markdown drift. `sase memory init --no-commit` is usually the
+safest first memory run because it writes the generated files but skips the project git commit/pull/push path. It is not
+a dry run: it can still write project files, write home memory, and follow home-level `use_chezmoi` deployment.
+`sase init amd` remains a compatibility alias for `sase amd init`, and `sase init memory` remains a compatibility alias
+for `sase memory init`.
 
 ## Commands
 
-| Command                               | Purpose                                                                                  |
-| ------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `sase init`                           | Check memory, SDD, and skills; prompt once per needed initializer in interactive shells. |
-| `sase init -c, --check`               | Report initialization drift without writing and exit non-zero when changes are needed.   |
-| `sase init --yes`                     | Run every needed initializer in memory, SDD, skills order without prompting.             |
-| `sase memory`                         | Alias for `sase memory list`.                                                            |
-| `sase memory list`                    | Inspect loaded, referenced, available, and missing memory files for the current root.    |
-| `sase memory read <path>`             | Agent-side read of one long-term memory file with an attributable audit event.           |
-| `sase memory write`                   | Create an attributable long-term memory proposal for human review.                       |
-| `sase memory review`                  | List, inspect, approve, edit, or reject pending memory proposals.                        |
-| `sase memory log`                     | Summarize audited long-term memory reads.                                                |
-| `sase memory log --include proposals` | Include proposal and review events in the memory audit surface.                          |
-| `sase memory log --path <path>`       | Show a path-level summary and matching individual read events.                           |
-| `sase memory log --id <read-id>`      | Show one full audited read event by id or unambiguous id prefix.                         |
-| `sase memory init`                    | Create or refresh project/home memory roots and provider instruction shims.              |
-| `sase memory init --check`            | Report memory initialization drift without writing files.                                |
-| `sase memory init -C`                 | Write memory files but skip the project git commit/pull/push path.                       |
-| `sase init memory`                    | Compatibility alias for `sase memory init`.                                              |
-| `sase init sdd`                       | Alias for `sase sdd init`; refreshes generated SDD README files and the directory map.   |
-| `sase init sdd --check`               | Report SDD generated-file drift without writing files.                                   |
-| `sase init skills`                    | Generate skill files; existing files require confirmation or `--force`.                  |
-| `sase init skills --dry-run`          | Preview generated skill target paths without writing files.                              |
-| `sase init skills --force`            | Generate and overwrite deployed skill files without confirmation.                        |
-| `sase init skills -p <provider>`      | Deploy only one provider's generated skill files.                                        |
+| Command                               | Purpose                                                                                       |
+| ------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `sase init`                           | Check AMD, memory, SDD, and skills; prompt once per needed initializer in interactive shells. |
+| `sase init -c, --check`               | Report initialization drift without writing and exit non-zero when changes are needed.        |
+| `sase init --yes`                     | Run every needed initializer in AMD, memory, SDD, skills order without prompting.             |
+| `sase amd`                            | Alias for `sase amd list`.                                                                    |
+| `sase amd list`                       | Inspect project, home, and chezmoi `AGENTS.md` files and nearby provider shims.               |
+| `sase amd init`                       | Create or refresh `AGENTS.md` and provider instruction shims.                                 |
+| `sase amd init --check`               | Report AMD initialization drift without writing files.                                        |
+| `sase init amd`                       | Compatibility alias for `sase amd init`.                                                      |
+| `sase memory`                         | Alias for `sase memory list`.                                                                 |
+| `sase memory list`                    | Inspect loaded, referenced, available, and missing memory files for the current root.         |
+| `sase memory read <path>`             | Agent-side read of one long-term memory file with an attributable audit event.                |
+| `sase memory write`                   | Create an attributable long-term memory proposal for human review.                            |
+| `sase memory review`                  | List, inspect, approve, edit, or reject pending memory proposals.                             |
+| `sase memory log`                     | Summarize audited long-term memory reads.                                                     |
+| `sase memory log --include proposals` | Include proposal and review events in the memory audit surface.                               |
+| `sase memory log --path <path>`       | Show a path-level summary and matching individual read events.                                |
+| `sase memory log --id <read-id>`      | Show one full audited read event by id or unambiguous id prefix.                              |
+| `sase memory init`                    | Create or refresh project/home memory roots and AGENTS memory references.                     |
+| `sase memory init --check`            | Report memory initialization drift without writing files.                                     |
+| `sase memory init -C`                 | Write memory files but skip the project git commit/pull/push path.                            |
+| `sase init memory`                    | Compatibility alias for `sase memory init`.                                                   |
+| `sase init sdd`                       | Alias for `sase sdd init`; refreshes generated SDD README files and the directory map.        |
+| `sase init sdd --check`               | Report SDD generated-file drift without writing files.                                        |
+| `sase init skills`                    | Generate skill files; existing files require confirmation or `--force`.                       |
+| `sase init skills --dry-run`          | Preview generated skill target paths without writing files.                                   |
+| `sase init skills --force`            | Generate and overwrite deployed skill files without confirmation.                             |
+| `sase init skills -p <provider>`      | Deploy only one provider's generated skill files.                                             |
 
 Advanced deploy controls such as `--no-commit`, `--no-push`, and `--no-apply` live on explicit subcommands rather than
 the bare coordinator. Scoped `--check` flags also live on explicit subcommands when you want to validate only memory or
 only SDD generated files.
+
+## Agent Markdown Documents
+
+AMD is the initialization surface for agent markdown documents: root `AGENTS.md` plus provider shims such as
+`CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md`.
+
+```bash
+sase amd list
+sase amd init --check
+sase amd init
+sase init amd --check
+```
+
+With no subcommand, `sase amd` defaults to `sase amd list`. The inventory shows project, subdirectory, home, and
+chezmoi-source `AGENTS.md` files, their H1 titles, whether they look AMD-managed, short/long memory reference counts,
+and nearby provider shim status.
+
+`sase amd init` always creates or repairs root provider shims. When the project-local `./sase.yml` sets `amd_h1_title`,
+AMD also writes a managed `AGENTS.md` with marker-delimited short-memory and long-memory sections. When the title is
+unset and `AGENTS.md` is missing, explicit AMD init can migrate exactly one custom provider instruction file into
+`AGENTS.md`; multiple custom provider files block so content is not guessed.
+
+Bare `sase init` runs AMD before memory so memory validation can see the `AGENTS.md` that AMD would create. To avoid
+surprising existing repositories, bare `sase init` only lets AMD generate managed `AGENTS.md` when the current project's
+own `./sase.yml` opts in with `amd_h1_title`; global config values are ignored for this generator.
 
 ## Memory Initialization
 
@@ -76,8 +114,13 @@ only SDD generated files.
 
 - Project memory under `./memory/`, including `memory/README.md`, `memory/short/sase.md`, and `memory/long/`.
 - Home memory under `~/memory/`, or under `~/.local/share/chezmoi/home/` when `use_chezmoi: true`.
-- A minimal `AGENTS.md` when one does not already exist.
-- Provider shims `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md` containing `@AGENTS.md`.
+- A minimal `AGENTS.md` when one does not already exist and the repo is not opted into AMD-managed instructions.
+- Provider shims `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md` containing `@AGENTS.md` for compatibility with
+  older memory-init workflows.
+
+When the project-local `./sase.yml` sets `amd_h1_title`, `sase memory init` synchronizes the AMD-managed memory blocks
+inside `AGENTS.md`, adds missing `description` frontmatter to long-memory files, and renders the Tier 3 list from those
+descriptions before reachability validation runs.
 
 When `use_chezmoi: true`, the home files are written to the chezmoi source tree. The command can then commit those home
 changes and run `chezmoi apply --force`; `--no-commit` does not disable that home deployment path.

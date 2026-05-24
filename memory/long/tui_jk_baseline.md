@@ -1,3 +1,7 @@
+---
+description: Baseline j/k key-to-paint latency data and reproduction steps.
+---
+
 # Baseline — j/k key-to-paint latency (Phase 1, bead sase-u.1)
 
 Plan: `sdd/tales/202604/instant_jk_navigation.md`. Phase-1 deliverable is the instrumentation + harness; the numbers

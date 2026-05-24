@@ -1152,17 +1152,30 @@ entries where `is_skill` is `true`.
 
 ### `sase init`
 
-Bare `sase init` is the onboarding coordinator for SASE-managed resources. It runs read-only planners for memory, SDD,
-and skills, prints a grouped summary, and prompts once per initializer that needs work when stdin is interactive.
-Non-interactive runs never prompt; they print the drift summary and ask the caller to rerun with `--yes`.
+Bare `sase init` is the onboarding coordinator for SASE-managed resources. It runs read-only planners for AMD, memory,
+SDD, and skills, prints a grouped summary, and prompts once per initializer that needs work when stdin is interactive.
+Non-interactive runs never prompt; they print the drift summary and ask the caller to rerun with `--yes`. The AMD
+planner only generates managed `AGENTS.md` from bare `sase init` when the current project's own `./sase.yml` sets
+`amd_h1_title`.
 
-Advanced deploy controls stay on explicit subcommands such as `sase init memory --no-commit` and
-`sase init skills --no-push`.
+Advanced deploy controls stay on explicit subcommands such as `sase init amd --check`, `sase init memory --no-commit`,
+and `sase init skills --no-push`.
 
 | Flag          | Values | Default | Description                                                                          |
 | ------------- | ------ | ------- | ------------------------------------------------------------------------------------ |
 | `-c, --check` | flag   | -       | Report initialization drift without writing; exits non-zero when changes are needed. |
-| `-y, --yes`   | flag   | -       | Run every needed initializer in memory, SDD, skills order without prompting.         |
+| `-y, --yes`   | flag   | -       | Run every needed initializer in AMD, memory, SDD, skills order without prompting.    |
+
+### `sase amd`
+
+With no subcommand, `sase amd` defaults to `sase amd list`.
+
+| Form            | Flags         | Description                                                                      |
+| --------------- | ------------- | -------------------------------------------------------------------------------- |
+| `sase amd`      | -             | Show the same read-only agent-markdown inventory as `sase amd list`.             |
+| `sase amd list` | -             | Inspect project, home, and chezmoi `AGENTS.md` files and provider shims.         |
+| `sase amd init` | `-c, --check` | Create or refresh `AGENTS.md` and provider shims, or report drift in check mode. |
+| `sase init amd` | `-c, --check` | Compatibility alias for `sase amd init`.                                         |
 
 ### `sase memory`
 
@@ -1193,10 +1206,13 @@ sase memory log --id <read-id>
 
 ### `sase memory init`
 
-Creates or refreshes project and home memory roots, `AGENTS.md` when absent, and provider instruction shims. By default
-it also tries to commit, rebase-pull, and push generated project-side files. `sase init memory` is a compatibility alias
-for this command. Generated sibling-repository memory lists direct paths for `workspace.strategy: none` siblings and
-only includes `sase workspace open` guidance when a configured sibling uses numbered workspace resolution.
+Creates or refreshes project and home memory roots and keeps `AGENTS.md` memory references reachable. It creates a
+minimal `AGENTS.md` when absent for repositories that are not opted into AMD-managed instructions, and it still repairs
+provider instruction shims for compatibility. When project-local `amd_h1_title` is set, memory init synchronizes the
+AMD-managed short/long memory blocks and inserts missing long-memory `description` frontmatter. By default it also tries
+to commit, rebase-pull, and push generated project-side files. `sase init memory` is a compatibility alias for this
+command. Generated sibling-repository memory lists direct paths for `workspace.strategy: none` siblings and only
+includes `sase workspace open` guidance when a configured sibling uses numbered workspace resolution.
 
 | Flag              | Values | Default | Description                                                                                             |
 | ----------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |

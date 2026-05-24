@@ -6,11 +6,14 @@ IMPORTANT: You should not modify any of these memory files without approval from
 
 The following memory files contain core (always loaded) context:
 
+<!-- sase-amd:short-memory:start -->
+
 - @memory/short/build_and_run.md
 - @memory/short/glossary.md
 - @memory/short/gotchas.md
 - @memory/short/rust_core_backend_boundary.md
 - @memory/short/sase.md
+<!-- sase-amd:short-memory:end -->
 
 ## Tier 2 (dynamic) Memory
 
@@ -33,10 +36,12 @@ skill to review their contents. Do not read canonical `memory/long/*.md` files d
 
 #### Long-Term Memory Files
 
+<!-- sase-amd:long-memory:start -->
+
 **`memory/long/generated_skills.md`**  
-Skill file generation pipeline, CLI/skill contract synchronization, commit skills per runtime. _Read when modifying
-skill source files or the commit workflow._
+Skill file generation pipeline, CLI/skill contract synchronization, commit skills per runtime.
 
 **`memory/long/tui_jk_baseline.md`**  
-Baseline j/k key-to-paint latency data and reproduction steps. _Read when working on TUI navigation latency or related
-performance instrumentation._
+Baseline j/k key-to-paint latency data and reproduction steps.
+
+<!-- sase-amd:long-memory:end -->

@@ -344,6 +344,7 @@ def _render_managed_agents(
         "The following memory files contain core (always loaded) context:",
         "",
         SHORT_MEMORY_START_MARKER,
+        "",
     ]
     lines.extend(f"- {ref}" for ref in _short_memory_references(root))
     lines.extend(
@@ -380,6 +381,7 @@ def _render_managed_agents(
             "#### Long-Term Memory Files",
             "",
             LONG_MEMORY_START_MARKER,
+            "",
         ]
     )
     for index, path in enumerate(long_paths):
@@ -393,7 +395,7 @@ def _render_managed_agents(
         )
         lines.append(f"**`{rel}`**  ")
         lines.append(description)
-    lines.extend([LONG_MEMORY_END_MARKER, ""])
+    lines.extend(["", LONG_MEMORY_END_MARKER, ""])
     return "\n".join(lines)
 
 

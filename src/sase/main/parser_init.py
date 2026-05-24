@@ -94,11 +94,12 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Initialize SASE-managed resources",
         description=(
             "Check and initialize SASE-managed resources. With no subcommand, "
-            "runs the onboarding coordinator for memory, SDD, and skills."
+            "runs the onboarding coordinator for AMD, memory, SDD, and skills."
         ),
         epilog=(
             "Advanced deploy controls live on explicit subcommands; for example, "
-            "use `sase init memory --no-commit` or `sase init skills --no-push`."
+            "use `sase init amd --check`, `sase init memory --no-commit`, "
+            "or `sase init skills --no-push`."
         ),
     )
     init_parser.add_argument(
@@ -134,7 +135,8 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Alias for `sase memory init`",
         description=(
             "Compatibility alias for `sase memory init`, which creates or "
-            "refreshes SASE memory files and provider instruction shims."
+            "refreshes SASE memory files and keeps AGENTS.md memory references "
+            "reachable."
         ),
     )
     memory_parser.add_argument(
