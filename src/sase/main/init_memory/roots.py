@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 
+from sase.amd.init import AmdMemorySyncPlan, plan_amd_memory_sync
+
 from .constants import (
     MINIMAL_AGENTS_CONTENT,
     PROVIDER_SHIM_CONTENT,
@@ -130,6 +132,7 @@ def _render_expected_memory_files(
     sibling_entries: Iterable[SiblingMemoryEntry],
     *,
     project_name: str | None = None,
+    amd_sync: AmdMemorySyncPlan | None = None,
 ) -> tuple[MemoryExpectedFile, ...]:
     expected: list[MemoryExpectedFile] = [
         MemoryExpectedFile(
@@ -144,13 +147,34 @@ def _render_expected_memory_files(
             content=format_generated_memory_markdown(_render_memory_readme()),
             detail="memory README",
         ),
-        MemoryExpectedFile(
-            path=root / "AGENTS.md",
-            content=MINIMAL_AGENTS_CONTENT,
-            detail="agent instruction file",
-            write_policy="create_if_missing",
-        ),
     ]
+    if amd_sync is not None and amd_sync.agents_content is not None:
+        expected.extend(
+            MemoryExpectedFile(
+                path=update.path,
+                content=update.content,
+                detail="long-memory description frontmatter",
+                stale_operation="update",
+            )
+            for update in amd_sync.description_updates
+        )
+        expected.append(
+            MemoryExpectedFile(
+                path=root / "AGENTS.md",
+                content=amd_sync.agents_content,
+                detail="managed AGENTS.md",
+                stale_operation="overwrite",
+            )
+        )
+    else:
+        expected.append(
+            MemoryExpectedFile(
+                path=root / "AGENTS.md",
+                content=MINIMAL_AGENTS_CONTENT,
+                detail="agent instruction file",
+                write_policy="create_if_missing",
+            )
+        )
     expected.extend(
         MemoryExpectedFile(
             path=root / filename,
@@ -161,6 +185,10 @@ def _render_expected_memory_files(
         for filename in PROVIDER_SHIM_FILES
     )
     return tuple(expected)
+
+
+def _amd_sync_plan(root: Path, *, enable_amd: bool) -> AmdMemorySyncPlan | None:
+    return plan_amd_memory_sync(root) if enable_amd else None
 
 
 def _compare_expected_memory_files(
@@ -252,10 +280,12 @@ def _validation_overlay_for_expected_files(
         if _is_memory_markdown_path(root, expected.path):
             overlay[resolved] = expected.content
             continue
-        if (
-            resolved == agents_path
-            and expected.write_policy == "create_if_missing"
-            and not expected.path.exists()
+        if resolved == agents_path and (
+            expected.write_policy == "overwrite"
+            or (
+                expected.write_policy == "create_if_missing"
+                and not expected.path.exists()
+            )
         ):
             overlay[resolved] = expected.content
     return overlay
@@ -266,17 +296,21 @@ def plan_memory_root(
     sibling_entries: Iterable[SiblingMemoryEntry],
     *,
     project_name: str | None = None,
+    enable_amd: bool = False,
 ) -> MemoryRootPlan:
+    amd_sync = _amd_sync_plan(root, enable_amd=enable_amd)
     expected_files = _render_expected_memory_files(
         root,
         sibling_entries,
         project_name=project_name,
+        amd_sync=amd_sync,
     )
     overlay = _validation_overlay_for_expected_files(root, expected_files)
     return MemoryRootPlan(
         root=root,
         changes=_compare_expected_memory_files(expected_files),
         unreferenced=unreferenced_memory_files(root, overlay=overlay),
+        blockers=() if amd_sync is None else amd_sync.blockers,
     )
 
 
@@ -285,11 +319,14 @@ def initialize_memory_root(
     sibling_entries: Iterable[SiblingMemoryEntry],
     *,
     project_name: str | None = None,
+    enable_amd: bool = False,
 ) -> MemoryRootResult:
+    amd_sync = _amd_sync_plan(root, enable_amd=enable_amd)
     expected_files = _render_expected_memory_files(
         root,
         sibling_entries,
         project_name=project_name,
+        amd_sync=amd_sync,
     )
     written = _apply_expected_memory_files(expected_files)
 

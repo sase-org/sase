@@ -41,6 +41,7 @@ class MemoryRootPlan:
     root: Path
     changes: tuple[MemoryFileChange, ...]
     unreferenced: tuple[Path, ...]
+    blockers: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

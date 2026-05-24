@@ -8,6 +8,12 @@ import subprocess
 
 import pytest
 
+from sase.amd.constants import (
+    LONG_MEMORY_END_MARKER,
+    LONG_MEMORY_START_MARKER,
+    SHORT_MEMORY_END_MARKER,
+    SHORT_MEMORY_START_MARKER,
+)
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     plan_memory,
@@ -419,6 +425,62 @@ def test_init_memory_allows_transitive_memory_references(
     write(project_root / "memory" / "long" / "detail.md", "# Detail\n")
 
     assert run_handler() == 0
+
+
+def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(project_root / "sase.yml", 'amd_h1_title: "Managed Instructions"\n')
+    write(project_root / "memory" / "short" / "extra.md", "# Extra\n")
+    write(
+        project_root / "memory" / "long" / "described.md",
+        "---\ndescription: Existing description.\nkeywords: [existing]\n---\n# Described\n",
+    )
+    write(
+        project_root / "memory" / "long" / "curated.md",
+        "# Curated\n\nFallback body should not be used.\n",
+    )
+    write(
+        project_root / "AGENTS.md",
+        "# Previous\n\n"
+        "**`memory/long/curated.md`**  \n"
+        "Curated description survives. _Read when touching curated memory._\n",
+    )
+
+    assert run_handler() == 0
+
+    agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
+    assert agents.startswith("# Managed Instructions\n")
+    assert SHORT_MEMORY_START_MARKER in agents
+    assert "- @memory/short/extra.md" in agents
+    assert "- @memory/short/sase.md" in agents
+    assert SHORT_MEMORY_END_MARKER in agents
+    assert LONG_MEMORY_START_MARKER in agents
+    assert "**`memory/long/curated.md`**  \nCurated description survives." in agents
+    assert "**`memory/long/described.md`**  \nExisting description." in agents
+    assert LONG_MEMORY_END_MARKER in agents
+
+    curated = (project_root / "memory" / "long" / "curated.md").read_text(
+        encoding="utf-8"
+    )
+    assert curated.startswith("---\ndescription: Curated description survives.\n---\n")
+    described = (project_root / "memory" / "long" / "described.md").read_text(
+        encoding="utf-8"
+    )
+    assert "description: Existing description." in described
+    assert "keywords: [existing]" in described
 
 
 def test_init_memory_rejects_unreferenced_memory_files(

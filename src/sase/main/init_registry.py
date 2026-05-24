@@ -22,14 +22,21 @@ class InitCommandSpec:
 def iter_init_command_specs() -> tuple[InitCommandSpec, ...]:
     """Return registered onboarding specs in execution order.
 
-    Init plan/apply phases register memory, SDD, and skills specs as their
+    Init plan/apply phases register AMD, memory, SDD, and skills specs as their
     read-only planners become available.
     """
+    from sase.amd.init import plan_amd_init, run_amd_init
     from .init_skills_handler import plan_init_skills, run_init_skills
     from .init_memory_handler import plan_init_memory, run_init_memory
     from .sdd_handler import plan_sdd_init, run_sdd_init
 
     return (
+        InitCommandSpec(
+            name="amd",
+            label="AMD",
+            plan=plan_amd_init,
+            run=run_amd_init,
+        ),
         InitCommandSpec(
             name="memory",
             label="Memory",

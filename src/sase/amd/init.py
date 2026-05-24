@@ -39,6 +39,24 @@ class _AmdInitPlan:
     writes: tuple[_PlannedWrite, ...]
 
 
+@dataclass(frozen=True)
+class _AmdLongMemoryDescriptionUpdate:
+    """Planned frontmatter update for a long-term memory file."""
+
+    path: Path
+    content: str
+
+
+@dataclass(frozen=True)
+class AmdMemorySyncPlan:
+    """Files needed to keep AMD-managed memory blocks synchronized."""
+
+    title: str | None
+    agents_content: str | None
+    description_updates: tuple[_AmdLongMemoryDescriptionUpdate, ...]
+    blockers: tuple[str, ...] = ()
+
+
 def _read_text(path: Path) -> tuple[str | None, str | None]:
     try:
         return path.read_text(encoding="utf-8"), None
@@ -146,6 +164,7 @@ def _existing_agents_long_descriptions(root: Path) -> dict[str, str]:
     for match in _AGENTS_LONG_MEMORY_RE.finditer(text):
         body = " ".join(line.strip() for line in match.group("body").splitlines())
         body = " ".join(body.split())
+        body = re.sub(r"\s+_Read when\b.*?_$", "", body).strip()
         if body:
             descriptions[match.group("path")] = body
     return descriptions
@@ -217,6 +236,79 @@ def _long_memory_description(
     return path.stem.replace("_", " ").replace("-", " ").strip().capitalize()
 
 
+def _frontmatter_description_line(description: str) -> str:
+    return yaml.safe_dump(
+        {"description": description},
+        allow_unicode=True,
+        default_flow_style=False,
+        sort_keys=False,
+    ).strip()
+
+
+def _frontmatter_close_line_range(text: str) -> tuple[int, int] | None:
+    if not text.startswith("---\n"):
+        return None
+    offset = 0
+    for index, line in enumerate(text.splitlines(keepends=True)):
+        line_start = offset
+        offset += len(line)
+        if index == 0:
+            continue
+        if line.strip() == "---":
+            return line_start, offset
+    return None
+
+
+def _with_description_frontmatter(text: str, description: str) -> str:
+    description_line = _frontmatter_description_line(description)
+    close_range = _frontmatter_close_line_range(text)
+    if close_range is None:
+        return f"---\n{description_line}\n---\n{text}"
+
+    close_start, _close_end = close_range
+    before_close = text[:close_start]
+    if not before_close.endswith("\n"):
+        before_close = f"{before_close}\n"
+    return f"{before_close}{description_line}\n{text[close_start:]}"
+
+
+def _long_memory_descriptions(root: Path) -> dict[str, str]:
+    existing_agents_descriptions = _existing_agents_long_descriptions(root)
+    return {
+        path.relative_to(root).as_posix(): _long_memory_description(
+            path,
+            root=root,
+            existing_agents_descriptions=existing_agents_descriptions,
+        )
+        for path in _iter_memory_markdown(root, "long")
+    }
+
+
+def _long_memory_description_updates(
+    root: Path, descriptions: dict[str, str]
+) -> tuple[_AmdLongMemoryDescriptionUpdate, ...]:
+    updates: list[_AmdLongMemoryDescriptionUpdate] = []
+    for path in _iter_memory_markdown(root, "long"):
+        rel = path.relative_to(root).as_posix()
+        description = descriptions[rel]
+        text, error = _read_text(path)
+        if error is not None or text is None:
+            continue
+        frontmatter, _body = _split_frontmatter(text)
+        raw_description = frontmatter.get("description")
+        if isinstance(raw_description, str) and raw_description.strip():
+            continue
+        content = _with_description_frontmatter(text, description)
+        if content != text:
+            updates.append(
+                _AmdLongMemoryDescriptionUpdate(
+                    path=path,
+                    content=content,
+                )
+            )
+    return tuple(updates)
+
+
 def _iter_memory_markdown(root: Path, tier: str) -> tuple[Path, ...]:
     memory_root = root / "memory" / tier
     if not memory_root.exists():
@@ -230,10 +322,16 @@ def _short_memory_references(root: Path) -> tuple[str, ...]:
     return tuple(f"@{path.as_posix()}" for path in sorted(refs))
 
 
-def _render_managed_agents(root: Path, title: str) -> str:
+def _render_managed_agents(
+    root: Path,
+    title: str,
+    *,
+    long_memory_descriptions: dict[str, str] | None = None,
+) -> str:
     """Render the project-managed AMD ``AGENTS.md`` content for *root*."""
     existing_descriptions = _existing_agents_long_descriptions(root)
     long_paths = _iter_memory_markdown(root, "long")
+    descriptions = long_memory_descriptions or {}
 
     lines = [
         f"# {title}",
@@ -288,7 +386,7 @@ def _render_managed_agents(root: Path, title: str) -> str:
         if index:
             lines.append("")
         rel = path.relative_to(root).as_posix()
-        description = _long_memory_description(
+        description = descriptions.get(rel) or _long_memory_description(
             path,
             root=root,
             existing_agents_descriptions=existing_descriptions,
@@ -297,6 +395,38 @@ def _render_managed_agents(root: Path, title: str) -> str:
         lines.append(description)
     lines.extend([LONG_MEMORY_END_MARKER, ""])
     return "\n".join(lines)
+
+
+def plan_amd_memory_sync(root: Path | None = None) -> AmdMemorySyncPlan:
+    """Plan AMD-managed memory block synchronization for ``sase memory init``."""
+    root = root or Path.cwd()
+    title, title_error = _load_project_amd_h1_title(root)
+    if title_error is not None:
+        return AmdMemorySyncPlan(
+            title=None,
+            agents_content=None,
+            description_updates=(),
+            blockers=(title_error,),
+        )
+    if title is None:
+        return AmdMemorySyncPlan(
+            title=None,
+            agents_content=None,
+            description_updates=(),
+        )
+
+    descriptions = _long_memory_descriptions(root)
+    updates = _long_memory_description_updates(root, descriptions)
+    agents_content = _render_managed_agents(
+        root,
+        title,
+        long_memory_descriptions=descriptions,
+    )
+    return AmdMemorySyncPlan(
+        title=title,
+        agents_content=agents_content,
+        description_updates=updates,
+    )
 
 
 def _migration_writes(
@@ -369,7 +499,9 @@ def _summarize_amd_actions(
     return f"{verb} {len(actions)} agent markdown documents"
 
 
-def _build_amd_init_plan(root: Path | None = None) -> _AmdInitPlan:
+def _build_amd_init_plan(
+    root: Path | None = None, *, explicit: bool = True
+) -> _AmdInitPlan:
     """Return the pure AMD init plan for *root* without writing files."""
     root = root or Path.cwd()
     title, title_error = _load_project_amd_h1_title(root)
@@ -387,6 +519,8 @@ def _build_amd_init_plan(root: Path | None = None) -> _AmdInitPlan:
             if agents_write is not None:
                 writes.append(agents_write)
             writes.extend(_provider_shim_writes(root))
+        elif not explicit:
+            pass
         else:
             migration_writes, migration_blockers = _migration_writes(
                 root,
@@ -413,8 +547,17 @@ def _build_amd_init_plan(root: Path | None = None) -> _AmdInitPlan:
 
 def _plan_amd_init(args: argparse.Namespace) -> InitPlan:
     """Return a read-only plan for ``sase amd init``."""
-    del args
-    return _build_amd_init_plan().plan
+    is_bare_onboarding = (
+        getattr(args, "command", None) == "init"
+        and getattr(args, "init_subcommand", None) is None
+    )
+    explicit = not is_bare_onboarding
+    return _build_amd_init_plan(explicit=explicit).plan
+
+
+def plan_amd_init(args: argparse.Namespace) -> InitPlan:
+    """Return a read-only AMD init plan for onboarding registries."""
+    return _plan_amd_init(args)
 
 
 def _print_blockers(blockers: tuple[str, ...]) -> None:
@@ -460,4 +603,9 @@ def run_amd_init(args: argparse.Namespace) -> int:
     return 0
 
 
-__all__ = ["run_amd_init"]
+__all__ = [
+    "AmdMemorySyncPlan",
+    "plan_amd_memory_sync",
+    "plan_amd_init",
+    "run_amd_init",
+]

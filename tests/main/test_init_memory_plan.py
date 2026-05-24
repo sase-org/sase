@@ -261,6 +261,36 @@ def test_memory_reference_validation_uses_rendered_overlay(tmp_path: Path) -> No
     assert unreferenced == ()
 
 
+def test_memory_plan_uses_amd_agents_overlay_when_project_is_opted_in(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(project_root / "sase.yml", 'amd_h1_title: "Managed Instructions"\n')
+    write(project_root / "AGENTS.md", "# Stale Instructions\n")
+    write(project_root / "memory" / "long" / "detail.md", "# Detail\n")
+
+    plan = plan_memory()
+
+    assert plan.blockers == ()
+    assert ("overwrite", project_root / "AGENTS.md") in {
+        (action.operation, action.path) for action in plan.actions
+    }
+    assert ("update", project_root / "memory" / "long" / "detail.md") in {
+        (action.operation, action.path) for action in plan.actions
+    }
+
+
 def test_run_init_memory_returns_int_and_wrapper_raises_system_exit(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -285,6 +315,6 @@ def test_init_memory_registry_includes_memory_before_sdd() -> None:
     specs = {spec.name: spec for spec in iter_init_command_specs()}
     names = tuple(spec.name for spec in iter_init_command_specs())
 
-    assert names[:2] == ("memory", "sdd")
+    assert names[:3] == ("amd", "memory", "sdd")
     assert specs["memory"].plan is plan_init_memory
     assert specs["memory"].run is init_memory_handler.run_init_memory

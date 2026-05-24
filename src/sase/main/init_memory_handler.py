@@ -256,6 +256,7 @@ def _memory_root_plans(inputs: _MemoryInitInputs) -> tuple[_MemoryRootPlan, ...]
         inputs.project_root,
         inputs.project_entries,
         project_name=inputs.project_name,
+        enable_amd=True,
     )
     home_plan = _plan_memory_root(inputs.home_root, inputs.home_entries)
     return (project_plan, home_plan)
@@ -273,10 +274,17 @@ def _memory_plan_blockers(
 ) -> tuple[str, ...]:
     blockers: list[str] = []
     for root_plan in root_plans:
+        blockers.extend(root_plan.blockers)
         for path in root_plan.unreferenced:
             display = _format_unreferenced_path(root_plan.root, path)
             blockers.append(f"{root_plan.root}: unreferenced memory file {display}")
     return tuple(blockers)
+
+
+def _memory_root_plan_blockers(
+    root_plans: Iterable[_MemoryRootPlan],
+) -> tuple[str, ...]:
+    return tuple(blocker for root_plan in root_plans for blocker in root_plan.blockers)
 
 
 def _summarize_memory_actions(actions: tuple[InitAction, ...]) -> str:
@@ -352,10 +360,17 @@ def run_init_memory(args: argparse.Namespace) -> int:
         _print_config_errors(inputs.config_errors)
         return 1
 
+    root_plans = _memory_root_plans(inputs)
+    root_plan_blockers = _memory_root_plan_blockers(root_plans)
+    if root_plan_blockers:
+        _print_config_errors(root_plan_blockers)
+        return 1
+
     project_result = _initialize_memory_root(
         inputs.project_root,
         inputs.project_entries,
         project_name=inputs.project_name,
+        enable_amd=True,
     )
     home_result = _initialize_memory_root(inputs.home_root, inputs.home_entries)
     results = (project_result, home_result)

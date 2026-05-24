@@ -16,6 +16,7 @@ from sase.amd.constants import (
     SHORT_MEMORY_START_MARKER,
 )
 from sase.amd.init import _build_amd_init_plan, run_amd_init
+from sase.amd.init import plan_amd_init
 
 
 def write(path: Path, content: str) -> None:
@@ -29,6 +30,11 @@ def run_amd(*, check: bool = False) -> int:
 
 def plan_amd() -> set[tuple[str, Path]]:
     plan = _build_amd_init_plan().plan
+    return {(action.operation, action.path) for action in plan.actions}
+
+
+def plan_bare_init_amd() -> set[tuple[str, Path]]:
+    plan = plan_amd_init(argparse.Namespace(command="init", init_subcommand=None))
     return {(action.operation, action.path) for action in plan.actions}
 
 
@@ -64,6 +70,36 @@ def test_amd_check_reports_drift_without_writing(
     assert "SASE initialization check" in out
     assert "init amd" in out
     assert "Needs attention:" in out
+
+
+def test_bare_init_amd_plan_is_conservative_without_project_title(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    assert plan_bare_init_amd() == set()
+
+    assert run_amd() == 0
+    for filename in PROVIDER_SHIM_FILES:
+        assert (tmp_path / filename).read_text(encoding="utf-8") == (
+            PROVIDER_SHIM_CONTENT
+        )
+
+
+def test_bare_init_amd_plan_generates_when_project_title_is_set(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    write(tmp_path / "sase.yml", 'amd_h1_title: "Managed Instructions"\n')
+    write(tmp_path / "memory" / "short" / "sase.md", "# SASE\n")
+
+    planned = plan_bare_init_amd()
+
+    assert ("create", tmp_path / "AGENTS.md") in planned
+    for filename in PROVIDER_SHIM_FILES:
+        assert ("create", tmp_path / filename) in planned
 
 
 def test_amd_init_migrates_single_legacy_provider_file(
