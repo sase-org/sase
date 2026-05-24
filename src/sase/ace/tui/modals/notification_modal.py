@@ -28,6 +28,11 @@ from .notification_modal_actions import NotificationStateActionsMixin
 from .notification_modal_attachments import NotificationAttachmentMixin
 from .notification_modal_constants import DEFAULT_HINT_TEXT, HEADER_ID_PREFIX
 from .notification_modal_options import NotificationOptionMixin
+from .notification_modal_tags import (
+    NotificationTagStrip,
+    NotificationTagTab,
+    build_notification_tag_tabs,
+)
 
 
 class NotificationModal(
@@ -54,6 +59,8 @@ class NotificationModal(
         ("Y", "copy_file_path", "Copy path"),
         ("ctrl+n", "next_file", "Next File"),
         ("ctrl+p", "prev_file", "Previous File"),
+        ("left_square_bracket", "prev_notification_tag_tab", "Prev Tag"),
+        ("right_square_bracket", "next_notification_tag_tab", "Next Tag"),
         ("R", "read_all", "Read All"),
         ("M", "toggle_mute", "Toggle Mute"),
         ("m", "toggle_mark", "Mark"),
@@ -76,6 +83,7 @@ class NotificationModal(
         self._notifications = list(notifications)
         self._initial_index = initial_index
         self._current_file_index: int = 0
+        self._active_notification_tag: str | None = None
         self._pending_confirm_notification_id: str | None = None
         self._pending_confirm_notification_ids: list[str] | None = None
         self._marked_notification_ids: set[str] = set()
@@ -91,6 +99,13 @@ class NotificationModal(
             with Horizontal(id="notification-panels"):
                 with Vertical(id="notification-left"):
                     if self._notifications:
+                        tabs = self._tag_tabs()
+                        yield NotificationTagStrip(
+                            tabs,
+                            self._active_notification_tag,
+                            id="notification-tag-tabs",
+                            classes="hidden" if len(tabs) <= 1 else None,
+                        )
                         yield OptionList(
                             *self._create_sectioned_options(),
                             id="notification-list",
@@ -239,6 +254,105 @@ class NotificationModal(
             idx = min(self._initial_index, len(self._notifications) - 1)
             self._display_file(self._notifications[max(0, idx)])
 
+    def _tag_tabs(self) -> list[NotificationTagTab]:
+        """Return tag tabs for the current in-memory modal dataset."""
+        return build_notification_tag_tabs(self._notifications)
+
+    def _coerce_active_notification_tag(
+        self,
+        *,
+        previous_tabs: list[NotificationTagTab] | None = None,
+    ) -> None:
+        """Keep the active tag valid after notification mutations."""
+        current_tags = [tab.tag for tab in self._tag_tabs()]
+        if self._active_notification_tag in current_tags:
+            return
+
+        if previous_tabs is not None:
+            previous_tags = [tab.tag for tab in previous_tabs]
+            try:
+                old_position = previous_tags.index(self._active_notification_tag)
+            except ValueError:
+                old_position = -1
+
+            if old_position >= 0:
+                for offset in range(1, len(previous_tags) + 1):
+                    for candidate_position in (
+                        old_position + offset,
+                        old_position - offset,
+                    ):
+                        if not 0 <= candidate_position < len(previous_tags):
+                            continue
+                        candidate = previous_tags[candidate_position]
+                        if candidate in current_tags:
+                            self._active_notification_tag = candidate
+                            return
+
+        self._active_notification_tag = None
+
+    def _refresh_tag_strip(self) -> None:
+        """Refresh the visible tag strip when mounted."""
+        try:
+            strip = self.query_one("#notification-tag-tabs", NotificationTagStrip)
+        except Exception:
+            return
+
+        tabs = self._tag_tabs()
+        strip.set_tabs(tabs, self._active_notification_tag)
+        if len(tabs) <= 1:
+            strip.add_class("hidden")
+        else:
+            strip.remove_class("hidden")
+
+    def _first_visible_notification_index(self) -> int | None:
+        """Return the first selectable notification for the active tab."""
+        visible = self._visual_notification_index_order()
+        return visible[0] if visible else None
+
+    def _switch_notification_tag_tab(self, tag: str | None) -> None:
+        """Switch the active tag tab and rebuild the in-memory list."""
+        valid_tags = {tab.tag for tab in self._tag_tabs()}
+        next_tag = tag if tag in valid_tags else None
+        if next_tag == self._active_notification_tag:
+            return
+
+        self._active_notification_tag = next_tag
+        self._marked_notification_ids.clear()
+        self._pending_confirm_notification_id = None
+        self._pending_confirm_notification_ids = None
+        self._rebuild_list(highlight_index=self._first_visible_notification_index())
+
+    def action_prev_notification_tag_tab(self) -> None:
+        """Switch to the previous notification tag tab."""
+        self._coerce_active_notification_tag()
+        tags = [tab.tag for tab in self._tag_tabs()]
+        if len(tags) <= 1:
+            return
+        try:
+            position = tags.index(self._active_notification_tag)
+        except ValueError:
+            position = 0
+        self._switch_notification_tag_tab(tags[(position - 1) % len(tags)])
+
+    def action_next_notification_tag_tab(self) -> None:
+        """Switch to the next notification tag tab."""
+        self._coerce_active_notification_tag()
+        tags = [tab.tag for tab in self._tag_tabs()]
+        if len(tags) <= 1:
+            return
+        try:
+            position = tags.index(self._active_notification_tag)
+        except ValueError:
+            position = 0
+        self._switch_notification_tag_tab(tags[(position + 1) % len(tags)])
+
+    def on_notification_tag_strip_tab_clicked(
+        self, event: NotificationTagStrip.TabClicked
+    ) -> None:
+        """Handle mouse selection of a notification tag tab."""
+        event.stop()
+        self._switch_notification_tag_tab(event.tag)
+
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle option selection (Enter or click)."""
         if (
@@ -270,6 +384,8 @@ class NotificationModal(
         if not show_jump_hints:
             self._clear_entry_jump_hints()
             self._update_hint_footer()
+        self._coerce_active_notification_tag()
+        self._refresh_tag_strip()
 
         try:
             option_list = self.query_one("#notification-list", OptionList)

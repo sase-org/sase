@@ -1,8 +1,10 @@
 """Tests for NotificationModal section rendering and row selection."""
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from sase.ace.tui.modals.notification_modal import NotificationModal
+from sase.ace.tui.modals.notification_modal_tags import NotificationTagStrip
 
 from tests._notification_modal_helpers import _make_notification
 
@@ -331,3 +333,123 @@ def test_jump_hints_render_only_on_notification_rows_in_visual_order() -> None:
     assert "[1]" in by_id["2"]
     assert "[2]" in by_id["0"]
     assert "[3]" in by_id["1"]
+
+
+def test_tag_tabs_order_counts_and_pin_done() -> None:
+    """Tag tabs are All, pinned done, then remaining tags alphabetically."""
+    done = _make_notification("done", action="JumpToAgent")
+    done.tags = ["done", "review"]
+    foobar = _make_notification("foobar", action="JumpToAgent")
+    foobar.tags = ["foobar"]
+    review = _make_notification("review", action="JumpToAgent")
+    review.tags = ["review"]
+    untagged = _make_notification("untagged", action="JumpToAgent")
+
+    modal = NotificationModal([done, foobar, review, untagged])
+
+    assert [(tab.tag, tab.count) for tab in modal._tag_tabs()] == [
+        (None, 4),
+        ("done", 1),
+        ("foobar", 1),
+        ("review", 2),
+    ]
+
+
+def test_active_tag_filters_rows_but_preserves_original_option_ids() -> None:
+    """Tag tabs filter display rows without renumbering option ids."""
+    done = _make_notification("done", action="JumpToAgent")
+    done.tags = ["done"]
+    review = _make_notification("review", action="JumpToAgent")
+    review.tags = ["review"]
+    both = _make_notification("both", action="JumpToAgent")
+    both.tags = ["done", "review"]
+    untagged = _make_notification("untagged", action="JumpToAgent")
+
+    modal = NotificationModal([done, review, both, untagged])
+    modal._active_notification_tag = "done"
+    options = modal._create_sectioned_options()
+
+    assert [opt.id for opt in options] == ["hdr:inbox", "0", "2"]
+    assert modal._visual_notification_index_order() == [0, 2]
+
+
+def test_untagged_notifications_only_render_in_all_tab() -> None:
+    """Untagged rows stay in All and do not appear in a tag tab."""
+    untagged = _make_notification("untagged", action="JumpToAgent")
+    done = _make_notification("done", action="JumpToAgent")
+    done.tags = ["done"]
+    modal = NotificationModal([untagged, done])
+
+    assert [opt.id for opt in modal._create_sectioned_options()] == [
+        "hdr:inbox",
+        "0",
+        "1",
+    ]
+
+    modal._active_notification_tag = "done"
+    assert [opt.id for opt in modal._create_sectioned_options()] == [
+        "hdr:inbox",
+        "1",
+    ]
+
+
+def test_active_tag_section_headers_count_visible_rows_only() -> None:
+    """Section headers/counts are recomputed after tag filtering."""
+    priority = _make_notification("priority", action="PlanApproval")
+    priority.tags = ["done"]
+    error = _make_notification("error", action="ViewErrorReport")
+    error.sender = "axe"
+    error.tags = ["review"]
+    inbox = _make_notification("inbox", action="JumpToAgent")
+    inbox.tags = ["done"]
+
+    modal = NotificationModal([priority, error, inbox])
+    modal._active_notification_tag = "done"
+    options = modal._create_sectioned_options()
+
+    assert [opt.id for opt in options] == [
+        "hdr:priority",
+        "0",
+        "hdr:gap:inbox",
+        "hdr:inbox",
+        "2",
+    ]
+    by_id = {str(option.id): str(option.prompt) for option in options}
+    assert "· 1" in by_id["hdr:priority"]
+    assert "· 1" in by_id["hdr:inbox"]
+
+
+def test_styled_label_includes_compact_tag_badges() -> None:
+    """Row labels show bounded tag badges without letting long tags dominate."""
+    notification = _make_notification("n1", action="JumpToAgent")
+    notification.tags = [
+        "done",
+        "really-long-tag-name",
+        "review",
+        "extra",
+    ]
+
+    modal = NotificationModal([notification])
+    label = modal._create_styled_label(notification)
+
+    assert "#done" in label.plain
+    assert "#really-long..." in label.plain
+    assert "+1" in label.plain
+
+
+def test_tag_strip_click_posts_selected_tag() -> None:
+    """The tag strip keeps stable click ranges for tag tabs."""
+    done = _make_notification("done", action="JumpToAgent")
+    done.tags = ["done"]
+    review = _make_notification("review", action="JumpToAgent")
+    review.tags = ["review"]
+    modal = NotificationModal([done, review])
+    strip = NotificationTagStrip(modal._tag_tabs(), None)
+    strip.post_message = MagicMock()  # type: ignore[method-assign]
+
+    start, _end = strip._tab_ranges["done"]
+    strip.on_click(SimpleNamespace(x=start))
+
+    message = strip.post_message.call_args.args[0]
+    assert isinstance(message, NotificationTagStrip.TabClicked)
+    assert message.tag == "done"

@@ -1685,6 +1685,14 @@ NotificationModal #notification-left.image-preview {
     width: 30%;
 }
 
+NotificationModal #notification-tag-tabs {
+    height: 1;
+    color: $text-muted;
+    margin-bottom: 1;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
 NotificationModal #notification-list {
     height: 1fr;
     border: solid $secondary;

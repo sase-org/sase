@@ -101,6 +101,7 @@ class NotificationStateActionsMixin:
 
     def _bulk_dismiss_marked_ids(self: Any, notification_ids: list[str]) -> None:
         """Persist a bulk dismiss for the given ids and rebuild the modal."""
+        previous_tabs = self._tag_tabs()
         id_set = set(notification_ids)
         marked_indices = [
             i for i, n in enumerate(self._notifications) if n.id in id_set
@@ -115,6 +116,7 @@ class NotificationStateActionsMixin:
         self._mark_many_dismissed(notification_ids)
         self._notifications = [n for n in self._notifications if n.id not in id_set]
         self._marked_notification_ids.clear()
+        self._coerce_active_notification_tag(previous_tabs=previous_tabs)
 
         highlight = next(
             (i for i, n in enumerate(self._notifications) if n.id == replacement_id),
@@ -150,11 +152,13 @@ class NotificationStateActionsMixin:
 
     def _dismiss_notification_by_index(self: Any, idx: int) -> None:
         """Dismiss notification at index and rebuild the list UI."""
+        previous_tabs = self._tag_tabs()
         notification = self._notifications[idx]
         replacement_id = self._replacement_notification_id_after_dismiss(idx)
         self._mark_dismissed(notification.id)
 
         self._notifications.pop(idx)
+        self._coerce_active_notification_tag(previous_tabs=previous_tabs)
         highlight = next(
             (
                 i
@@ -169,6 +173,7 @@ class NotificationStateActionsMixin:
         """Dismiss a burst of notifications from the current modal list."""
         if count <= 0 or not self._notifications:
             return 0
+        previous_tabs = self._tag_tabs()
 
         start_idx = self._get_selected_index()
         if start_idx is None:
@@ -185,6 +190,7 @@ class NotificationStateActionsMixin:
 
         self._mark_many_dismissed(notification_ids)
         del self._notifications[start_idx:end_idx]
+        self._coerce_active_notification_tag(previous_tabs=previous_tabs)
         highlight = min(start_idx, len(self._notifications) - 1)
         self._rebuild_list(highlight_index=highlight if highlight >= 0 else None)
         return len(notification_ids)

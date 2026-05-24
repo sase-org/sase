@@ -42,6 +42,20 @@ def test_notification_modal_binds_lowercase_m_to_toggle_mark() -> None:
     assert ("m", "toggle_mark", "Mark") in NotificationModal.BINDINGS
 
 
+def test_notification_modal_binds_brackets_to_tag_tabs() -> None:
+    """Square brackets switch notification tag tabs."""
+    assert (
+        "left_square_bracket",
+        "prev_notification_tag_tab",
+        "Prev Tag",
+    ) in NotificationModal.BINDINGS
+    assert (
+        "right_square_bracket",
+        "next_notification_tag_tab",
+        "Next Tag",
+    ) in NotificationModal.BINDINGS
+
+
 def test_copy_file_path_copies_current_attachment() -> None:
     notification = _make_notification("n1", action="JumpToAgent")
     notification.files = ["/tmp/first.txt", "/tmp/second.txt"]
@@ -587,3 +601,61 @@ def test_cancel_clears_bulk_pending() -> None:
 
     assert modal._pending_confirm_notification_ids is None
     modal.notify.assert_called_once_with("Dismiss canceled")
+
+
+def test_switching_tag_tabs_clears_marks_and_pending_confirms() -> None:
+    """Tab switches clear modal-local state that could affect hidden rows."""
+    done = _make_notification("done", action="JumpToAgent")
+    done.tags = ["done"]
+    review = _make_notification("review", action="JumpToAgent")
+    review.tags = ["review"]
+    modal = NotificationModal([done, review])
+    modal._marked_notification_ids = {"done"}
+    modal._pending_confirm_notification_id = "done"
+    modal._pending_confirm_notification_ids = ["done"]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    modal._switch_notification_tag_tab("review")
+
+    assert modal._active_notification_tag == "review"
+    assert modal._marked_notification_ids == set()
+    assert modal._pending_confirm_notification_id is None
+    assert modal._pending_confirm_notification_ids is None
+    modal._rebuild_list.assert_called_once_with(highlight_index=1)
+
+
+def test_next_prev_tag_tab_cycles_through_all_done_and_other_tags() -> None:
+    """Bracket actions cycle through the computed tab order."""
+    done = _make_notification("done", action="JumpToAgent")
+    done.tags = ["done"]
+    review = _make_notification("review", action="JumpToAgent")
+    review.tags = ["review"]
+    modal = NotificationModal([done, review])
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    modal.action_next_notification_tag_tab()
+    assert modal._active_notification_tag == "done"
+
+    modal.action_next_notification_tag_tab()
+    assert modal._active_notification_tag == "review"
+
+    modal.action_prev_notification_tag_tab()
+    assert modal._active_notification_tag == "done"
+
+
+def test_dismiss_last_row_in_active_tag_falls_back_to_nearest_tab() -> None:
+    """When a tag disappears after dismiss, the active tab moves to its neighbor."""
+    done = _make_notification("done", action="JumpToAgent")
+    done.tags = ["done"]
+    review = _make_notification("review", action="JumpToAgent")
+    review.tags = ["review"]
+    modal = NotificationModal([done, review])
+    modal._active_notification_tag = "done"
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_dismissed") as mock_mark:
+        modal.action_dismiss_notification()
+
+    mock_mark.assert_called_once_with("done")
+    assert modal._active_notification_tag == "review"

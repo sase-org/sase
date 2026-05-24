@@ -29,6 +29,11 @@ from .notification_modal_constants import (
     HEADER_ID_PREFIX,
     SECTIONS,
 )
+from .notification_modal_tags import (
+    notification_display_tags,
+    notification_has_tag,
+    shorten_notification_tag,
+)
 
 _REDUNDANT_AGENT_SENDERS = frozenset({"user-agent", "user-workflow"})
 
@@ -104,6 +109,18 @@ class NotificationOptionMixin:
                 style="dim",
             )
 
+        tags = notification_display_tags(notification)
+        if tags:
+            visible_tags = tags[:3]
+            for tag in visible_tags:
+                text.append(
+                    f"  #{shorten_notification_tag(tag, max_width=14)}",
+                    style="dim #87D7FF",
+                )
+            remaining = len(tags) - len(visible_tags)
+            if remaining > 0:
+                text.append(f"  +{remaining}", style="dim #87D7FF")
+
         return text
 
     @staticmethod
@@ -139,7 +156,10 @@ class NotificationOptionMixin:
         groups: dict[str, list[tuple[int, Notification]]] = {
             key: [] for key, _, _ in SECTIONS
         }
+        active_tag: str | None = getattr(self, "_active_notification_tag", None)
         for i, n in enumerate(self._notifications):
+            if active_tag is not None and not notification_has_tag(n, active_tag):
+                continue
             groups[self._section_for(n)].append((i, n))
 
         for key in groups:
