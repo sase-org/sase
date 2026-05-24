@@ -40,6 +40,14 @@ class TestAppendNotification:
         assert len(loaded) == 1
         assert loaded[0].silent is False
 
+    def test_tagged_notification_round_trip(self, temp_notifications_dir: Path) -> None:
+        """Tags are stored and loaded back unchanged."""
+        n = make_notification(tags=["done", "review"])
+        append_notification(n)
+        loaded = load_notifications()
+        assert len(loaded) == 1
+        assert loaded[0].tags == ["done", "review"]
+
     def test_routes_through_rust_facade(self, temp_notifications_dir: Path) -> None:
         import sase.notifications.store as store
 
@@ -107,6 +115,26 @@ class TestLoadNotifications:
             f.write("\n\n")
         loaded = load_notifications()
         assert len(loaded) == 1
+
+    def test_legacy_missing_tags_loads_empty(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        jsonl = temp_notifications_dir / "notifications" / "notifications.jsonl"
+        jsonl.parent.mkdir(parents=True, exist_ok=True)
+        with open(jsonl, "w") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "id": "legacy",
+                        "timestamp": "2025-01-01T00:00:00",
+                        "sender": "test",
+                    }
+                )
+                + "\n"
+            )
+        loaded = load_notifications()
+        assert len(loaded) == 1
+        assert loaded[0].tags == []
 
 
 class TestRewriteNotifications:

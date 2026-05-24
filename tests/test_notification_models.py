@@ -9,6 +9,7 @@ from sase.notifications.models import (
     Notification,
     format_relative_time,
     format_relative_until,
+    normalize_notification_tags,
 )
 
 
@@ -17,6 +18,7 @@ class TestNotificationDataclass:
         n = Notification(id="abc", timestamp="2025-01-01T00:00:00", sender="crs")
         assert n.notes == snapshot([])
         assert n.files == snapshot([])
+        assert n.tags == snapshot([])
         assert n.action is None
         assert n.action_data == snapshot({})
         assert n.read is False
@@ -30,6 +32,19 @@ class TestNotificationDataclass:
             id="abc", timestamp="2025-01-01T00:00:00", sender="crs", silent=True
         )
         assert n.silent is True
+
+
+class TestNormalizeNotificationTags:
+    def test_none_returns_empty_list(self) -> None:
+        assert normalize_notification_tags(None) == snapshot([])
+
+    def test_trims_lowercases_drops_empty_and_dedupes(self) -> None:
+        assert normalize_notification_tags(
+            [" Done ", "", "done", "Review", " review "]
+        ) == snapshot(["done", "review"])
+
+    def test_single_string_is_one_tag(self) -> None:
+        assert normalize_notification_tags(" Done ") == snapshot(["done"])
 
 
 class TestFormatRelativeTime:

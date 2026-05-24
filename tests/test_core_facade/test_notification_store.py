@@ -38,6 +38,7 @@ def _notification(
     *,
     sender: str = "test",
     action: str | None = None,
+    tags: list[str] | None = None,
     read: bool = False,
     muted: bool = False,
     snooze_until: str | None = None,
@@ -47,6 +48,7 @@ def _notification(
         timestamp="2026-04-30T12:00:00+00:00",
         sender=sender,
         notes=["note"],
+        tags=tags or [],
         action=action,
         read=read,
         muted=muted,
@@ -85,6 +87,7 @@ def test_read_snapshot_rehydrates_typed_records(
                     "sender": "axe",
                     "notes": ["hello"],
                     "files": [],
+                    "tags": ["done"],
                     "action": "PlanApproval",
                     "action_data": {"agent_cl_name": "cl"},
                     "read": False,
@@ -115,6 +118,7 @@ def test_read_snapshot_rehydrates_typed_records(
     assert calls == [("/tmp/notifications.jsonl", True, True)]
     assert snapshot.counts.priority == 1
     assert snapshot.notifications[0].id == "n1"
+    assert snapshot.notifications[0].tags == ["done"]
     assert isinstance(snapshot.notifications[0], Notification)
 
 
@@ -174,6 +178,7 @@ def test_wire_helpers_rehydrate_and_serialize_agent_keys() -> None:
     )
 
     assert n.id == "n1"
+    assert n.tags == []
     assert _NotificationCountsWire(priority=1).priority == 1
     assert _NotificationStoreStatsWire(total_lines=3).total_lines == 3
     assert notification_store_wire_to_json_dict(update) == {
@@ -219,9 +224,12 @@ def test_real_extension_round_trips_store_operations(tmp_path: Path) -> None:
     _skip_without_notification_bindings()
     path = tmp_path / "notifications.jsonl"
 
-    append = facade.append_notification(path, _notification("n1", sender="axe"))
+    append = facade.append_notification(
+        path, _notification("n1", sender="axe", tags=["done", "review"])
+    )
     assert append.appended_count == 1
     assert append.notifications[0].id == "n1"
+    assert append.notifications[0].tags == ["done", "review"]
 
     mark = facade.apply_notification_state_update(
         path, NotificationStateUpdateWire(kind="mark_read", id="n1")
@@ -233,6 +241,7 @@ def test_real_extension_round_trips_store_operations(tmp_path: Path) -> None:
     snapshot = facade.read_notifications_snapshot(path)
     assert snapshot.counts.priority == 0
     assert snapshot.notifications[0].read is True
+    assert snapshot.notifications[0].tags == ["done", "review"]
 
     rewrite = facade.rewrite_notifications(path, [_notification("n2")])
     assert rewrite.rewritten is True
@@ -366,6 +375,8 @@ def test_real_extension_reads_phase1_contract_fixture(tmp_path: Path) -> None:
     assert active.counts.priority == 4
     assert active.counts.errors == 2
     assert active.counts.muted == 2
+    valid_full = next(n for n in all_rows.notifications if n.id == "valid-full")
+    assert valid_full.tags == ["done", "review"]
 
 
 def test_real_extension_snapshot_can_expire_due_snoozes(tmp_path: Path) -> None:

@@ -10,6 +10,7 @@ from sase.notifications.models import (
     Notification,
     format_relative_time,
     format_relative_until,
+    normalize_notification_tags,
 )
 from sase.notifications.priority import is_error, is_priority
 from sase.notifications.senders import (
@@ -54,6 +55,7 @@ __all__ = [
     "mark_muted",
     "mark_read",
     "mark_snoozed",
+    "normalize_notification_tags",
     "notification_info_to_json",
     "read_notification_snapshot",
     "resolve_notification_ref",

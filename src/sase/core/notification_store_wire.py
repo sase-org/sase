@@ -102,6 +102,7 @@ def _notification_from_dict(data: dict[str, Any]) -> Notification:
         sender=str(data["sender"]),
         notes=list(data.get("notes") or []),
         files=list(data.get("files") or []),
+        tags=[str(item) for item in data.get("tags") or []],
         action=None if data.get("action") is None else str(data["action"]),
         action_data={
             str(k): str(v) for k, v in (data.get("action_data") or {}).items()

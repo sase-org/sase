@@ -13,6 +13,7 @@ class TestNotificationModel:
         n = Notification(id="abc", timestamp="2025-01-01T00:00:00", sender="test")
         assert n.notes == []
         assert n.files == []
+        assert n.tags == []
         assert n.action is None
         assert n.action_data == {}
         assert n.read is False
@@ -25,12 +26,14 @@ class TestNotificationModel:
             sender="crs",
             notes=["line1", "line2"],
             files=["/tmp/a.py"],
+            tags=["done", "review"],
             action="HITL",
             action_data={"key": "value"},
             read=True,
             dismissed=True,
         )
         assert n.notes == ["line1", "line2"]
+        assert n.tags == ["done", "review"]
         assert n.action == "HITL"
         assert n.action_data == {"key": "value"}
         assert n.read is True

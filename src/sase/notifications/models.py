@@ -1,5 +1,6 @@
 """Notification data model."""
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -13,6 +14,7 @@ class Notification:
     sender: str  # "crs", "fix-hook", etc.
     notes: list[str] = field(default_factory=list)  # Human-readable lines
     files: list[str] = field(default_factory=list)  # File paths
+    tags: list[str] = field(default_factory=list)  # Display/filter labels
     action: str | None = None  # "HITL" | "JumpToChangeSpec" | "Tmux" | None
     action_data: dict[str, str] = field(default_factory=dict)
     read: bool = False
@@ -20,6 +22,24 @@ class Notification:
     silent: bool = False
     muted: bool = False
     snooze_until: str | None = None  # ISO-8601 with timezone, or None
+
+
+def normalize_notification_tags(tags: Iterable[str] | None) -> list[str]:
+    """Normalize sender-provided notification tags."""
+    if tags is None:
+        return []
+
+    tag_values = (tags,) if isinstance(tags, str) else tags
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for tag in tag_values:
+        value = tag.strip().lower()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+    return normalized
 
 
 def format_relative_time(iso_timestamp: str) -> str:

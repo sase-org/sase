@@ -31,6 +31,7 @@ def fixture_rows() -> list[dict[str, Any] | str]:
             "sender": "crs",
             "notes": ["full row", "all fields populated"],
             "files": ["/tmp/full.py"],
+            "tags": ["done", "review"],
             "action": "JumpToChangeSpec",
             "action_data": {
                 "changespec_name": "valid-full",
