@@ -2,6 +2,8 @@
 create_time: 2026-05-24 17:51:26
 status: wip
 prompt: sdd/prompts/202605/amd_command.md
+bead_id: sase-44
+tier: epic
 ---
 # Plan: `sase amd` and Project-Managed AGENTS.md
 
