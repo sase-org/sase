@@ -13,6 +13,7 @@ def run_amd_init(args: argparse.Namespace) -> int:
 
 
 def run_amd_list(args: argparse.Namespace) -> int:
-    """Run the AMD inventory skeleton."""
-    print("AMD inventory is registered; no inventory output is implemented yet.")
-    return 0
+    """Run the AMD inventory."""
+    from .inventory import run_amd_list as _run_amd_list
+
+    return _run_amd_list(args)
