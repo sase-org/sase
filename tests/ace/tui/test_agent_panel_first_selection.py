@@ -206,7 +206,8 @@ class _UnreadPanelSwitchApp(AgentUnreadMixin, _StubApp):
 def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
     dismiss = Mock(return_value=0)
     monkeypatch.setattr(
-        "sase.notifications.dismiss_notifications_matching_agents", dismiss
+        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
+        dismiss,
     )
     return dismiss
 

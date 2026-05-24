@@ -303,9 +303,11 @@ class AgentUnreadMixin:
         if not is_unread_completed_status(agent.status):
             return True
 
-        from sase.notifications import dismiss_notifications_matching_agents
+        from sase.notifications import (
+            dismiss_agent_completion_notifications_matching_agents,
+        )
 
-        dismissed_count = dismiss_notifications_matching_agents(
+        dismissed_count = dismiss_agent_completion_notifications_matching_agents(
             [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
         )
         self._remove_agent_completion_notifications_from_cache([agent])

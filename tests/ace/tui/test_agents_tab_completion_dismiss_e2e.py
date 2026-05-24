@@ -28,6 +28,7 @@ from sase.ace.tui.actions.agents._core import AgentsMixinCore
 from sase.ace.tui.actions.agents._loading_finalize import (
     _sync_unread_completed_agents,
 )
+from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.notifications import (
     Notification,
@@ -57,11 +58,15 @@ def _completion_notification(
     *,
     n_id: str,
     action: str = "JumpToAgent",
+    tags: list[str] | None = None,
 ) -> Notification:
+    if tags is None:
+        tags = ["done"] if action == "JumpToAgent" else []
     return Notification(
         id=n_id,
         timestamp="2026-05-11T12:00:00-04:00",
         sender="user-agent",
+        tags=tags,
         action=action,
         action_data={
             "cl_name": agent.cl_name,
@@ -107,6 +112,16 @@ def _active_completion_ids() -> set[str]:
     }
 
 
+def _modal_visible_ids(modal: NotificationModal) -> list[str]:
+    """Return notification ids in current modal visual order."""
+    ids: list[str] = []
+    for option in modal._create_sectioned_options():
+        if option.disabled or option.id is None or str(option.id).startswith("hdr:"):
+            continue
+        ids.append(modal._notifications[int(str(option.id))].id)
+    return ids
+
+
 def _sync_from_store(app: _E2EApp, *, on_agents_tab: bool) -> None:
     """Refresh the notification cache and run the hot-path finalizer sync."""
     app._notification_snapshot_cache = read_notification_snapshot()
@@ -130,6 +145,82 @@ def test_two_completed_agents_with_two_notifications_start_unread(
     _sync_from_store(app, on_agents_tab=False)
 
     assert app._unread_completed_agent_ids == {first.identity, second.identity}
+
+
+def test_done_tab_matches_successful_unread_completion_notifications(
+    temp_notifications_dir: Path,
+) -> None:
+    """The done tab contains successful completions that project unread rows."""
+    assert temp_notifications_dir.is_dir()
+    first = make_agent(name="alpha", status="DONE", raw_suffix="20260507090000")
+    second = make_agent(name="beta", status="DONE", raw_suffix="20260507100000")
+    failed = make_agent(name="gamma", status="FAILED", raw_suffix="20260507110000")
+    app = _E2EApp([first, second, failed])
+    append_notification(_completion_notification(first, n_id="n-alpha"))
+    append_notification(_completion_notification(second, n_id="n-beta"))
+    append_notification(
+        _completion_notification(failed, n_id="n-failure", action="ViewErrorReport")
+    )
+
+    _sync_from_store(app, on_agents_tab=False)
+
+    assert app._unread_completed_agent_ids == {
+        first.identity,
+        second.identity,
+        failed.identity,
+    }
+    modal = NotificationModal(load_notifications())
+    assert [(tab.tag, tab.count) for tab in modal._tag_tabs()] == [
+        (None, 3),
+        ("done", 2),
+    ]
+
+    modal._active_notification_tag = "done"
+    assert set(_modal_visible_ids(modal)) == {"n-alpha", "n-beta"}
+
+    failure = next(n for n in modal._notifications if n.id == "n-failure")
+    assert modal._section_for(failure) == "errors"
+    assert "n-failure" not in _modal_visible_ids(modal)
+
+
+def test_acknowledging_done_agent_removes_completion_from_all_and_done_tabs(
+    temp_notifications_dir: Path,
+) -> None:
+    """Reading one done row removes only its completion notification."""
+    assert temp_notifications_dir.is_dir()
+    first = make_agent(name="alpha", status="DONE", raw_suffix="20260507090000")
+    second = make_agent(name="beta", status="DONE", raw_suffix="20260507100000")
+    app = _E2EApp([first, second])
+    append_notification(_completion_notification(first, n_id="n-alpha"))
+    append_notification(_completion_notification(second, n_id="n-beta"))
+    append_notification(
+        Notification(
+            id="n-plan",
+            timestamp="2026-05-11T12:01:00-04:00",
+            sender="plan",
+            action="PlanApproval",
+            action_data={
+                "agent_cl_name": first.cl_name,
+                "agent_timestamp": first.raw_suffix or "",
+            },
+        )
+    )
+    _sync_from_store(app, on_agents_tab=False)
+    assert app._unread_completed_agent_ids == {first.identity, second.identity}
+
+    modal = NotificationModal(load_notifications())
+    assert set(_modal_visible_ids(modal)) == {"n-alpha", "n-beta", "n-plan"}
+    modal._active_notification_tag = "done"
+    assert set(_modal_visible_ids(modal)) == {"n-alpha", "n-beta"}
+
+    assert app._clear_agent_unread_and_dismiss_notification(first)
+
+    modal = NotificationModal(load_notifications())
+    assert set(_modal_visible_ids(modal)) == {"n-beta", "n-plan"}
+    modal._active_notification_tag = "done"
+    assert _modal_visible_ids(modal) == ["n-beta"]
+    assert app._unread_completed_agent_ids == {second.identity}
+    assert app.refresh_count_calls == 1
 
 
 def test_reading_one_agent_dismisses_only_its_notification(
