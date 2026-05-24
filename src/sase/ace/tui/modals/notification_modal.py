@@ -165,6 +165,30 @@ class NotificationModal(
         """Persist one notification's snooze deadline."""
         mark_snoozed(notification_id, snooze_until)
 
+    def _sync_plan_notification_mute_tag(
+        self,
+        notification: Notification,
+        *,
+        muted: bool,
+    ) -> None:
+        """Best-effort hook for ACE app notification-to-agent tag sync."""
+        if notification.action != "PlanApproval":
+            return
+        try:
+            app = self.app
+        except Exception:
+            return
+
+        app_attrs = getattr(app, "__dict__", {})
+        has_sync = "_sync_plan_notification_mute_tag" in app_attrs or any(
+            "_sync_plan_notification_mute_tag" in vars(cls) for cls in type(app).__mro__
+        )
+        if not has_sync:
+            return
+        sync = getattr(app, "_sync_plan_notification_mute_tag", None)
+        if callable(sync):
+            sync(notification, muted=muted)
+
     def _get_highlighted_notification(self) -> Notification | None:
         """Return the notification object for the currently highlighted option."""
         idx = self._get_selected_index()

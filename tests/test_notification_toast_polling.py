@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import threading
 from datetime import datetime
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from sase.core.time import get_timezone
 
@@ -95,6 +95,25 @@ class TestPollingDelta:
 
 class TestSnoozeExpiry:
     """Tests for snooze expiration during ``_poll_agent_completions``."""
+
+    def test_expired_plan_snooze_invokes_unmute_tag_sync(self) -> None:
+        """Expired plan snoozes clear the notification-driven mute tag."""
+        app = _FakeApp()
+        app._sync_plan_notification_mute_tag = MagicMock()  # type: ignore[method-assign]
+        expired = _make(
+            action="PlanApproval",
+            notes=["plan resurfaced"],
+            id="expired-plan-snooze",
+            read=True,
+        )
+
+        with _patch_snapshot([expired], expired_ids=[expired.id]):
+            asyncio.run(app._poll_agent_completions())
+
+        app._sync_plan_notification_mute_tag.assert_called_once_with(
+            expired,
+            muted=False,
+        )
 
     def test_expired_snooze_flips_to_unread_and_rings_bell(self) -> None:
         """A snooze whose deadline passed re-enters unread + triggers the bell."""

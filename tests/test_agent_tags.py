@@ -10,8 +10,11 @@ import pytest
 
 from sase.ace.agent_tags import (
     InvalidTagError,
+    MUTE_AGENT_TAG,
+    clear_agent_tag_if_matches,
     load_agent_tags,
     save_agent_tags,
+    set_agent_tag_if_unset,
     set_tag,
     unset_tag,
     update_agent_tag,
@@ -206,3 +209,60 @@ def test_update_agent_tag_validates_input(tmp_path: Path) -> None:
         with pytest.raises(InvalidTagError):
             update_agent_tag(identity, "bad tag")
         assert load_agent_tags() == {}
+
+
+def test_set_agent_tag_if_unset_sets_and_persists_when_absent(
+    tmp_path: Path,
+) -> None:
+    test_file = tmp_path / "agent_tags.json"
+    identity = (AgentType.RUNNING, "cl", "ts")
+
+    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file):
+        assert set_agent_tag_if_unset(identity, MUTE_AGENT_TAG) is True
+        assert load_agent_tags() == {identity: MUTE_AGENT_TAG}
+
+
+def test_set_agent_tag_if_unset_preserves_existing_without_rewrite(
+    tmp_path: Path,
+) -> None:
+    test_file = tmp_path / "agent_tags.json"
+    identity = (AgentType.RUNNING, "cl", "ts")
+
+    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file):
+        assert save_agent_tags({identity: "manual"})
+        before = test_file.read_text()
+
+        with patch("sase.ace.agent_tags.save_agent_tags") as mock_save:
+            assert set_agent_tag_if_unset(identity, MUTE_AGENT_TAG) is False
+
+        mock_save.assert_not_called()
+        assert test_file.read_text() == before
+        assert load_agent_tags() == {identity: "manual"}
+
+
+def test_clear_agent_tag_if_matches_clears_expected_tag(tmp_path: Path) -> None:
+    test_file = tmp_path / "agent_tags.json"
+    identity = (AgentType.RUNNING, "cl", "ts")
+
+    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file):
+        assert save_agent_tags({identity: MUTE_AGENT_TAG})
+        assert clear_agent_tag_if_matches(identity, MUTE_AGENT_TAG) is True
+        assert load_agent_tags() == {}
+
+
+def test_clear_agent_tag_if_matches_preserves_different_tag_without_rewrite(
+    tmp_path: Path,
+) -> None:
+    test_file = tmp_path / "agent_tags.json"
+    identity = (AgentType.RUNNING, "cl", "ts")
+
+    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file):
+        assert save_agent_tags({identity: "manual"})
+        before = test_file.read_text()
+
+        with patch("sase.ace.agent_tags.save_agent_tags") as mock_save:
+            assert clear_agent_tag_if_matches(identity, MUTE_AGENT_TAG) is False
+
+        mock_save.assert_not_called()
+        assert test_file.read_text() == before
+        assert load_agent_tags() == {identity: "manual"}
