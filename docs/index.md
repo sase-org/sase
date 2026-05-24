@@ -86,8 +86,8 @@ title: Structured Agentic Software Engineering
   <h3>I need shared agent memory</h3>
 
   <p>
-    Use short-term memory for always-loaded instructions, long-term keyworded context for prompt-dependent retrieval,
-    and reviewed proposals for agent-suggested updates.
+    Use instruction memory loaded through AGENTS.md, keyword-triggered long-term context for prompt-dependent
+    retrieval, and reviewed proposals for agent-suggested updates.
   </p>
 
 <a href="memory/">Open memory</a>

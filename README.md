@@ -42,8 +42,8 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
 - **AXE** - The background automation daemon for scheduled work, chop scripts, hooks, mentors, and workflow runs.
 - **XPrompt** - Prompt templates and YAML workflows with reference expansion, typed inputs, and workflow visualization.
 - **ChangeSpecs** - Tracked CL/PR-sized units of work with lifecycle state, commits, comments, mentors, and metadata.
-- **Memory** - Short-term project instructions, keyword-triggered long-term context, audited reads, and reviewed write
-  proposals.
+- **Memory** - Agent instruction memory loaded through `AGENTS.md`, keyword-triggered long-term context, audited agent
+  reads, and human-reviewed write proposals.
 - **SDD and Beads** - Spec-driven planning artifacts plus git-portable issue tracking for epics, phases, and
   dependencies.
 - **Commit finalizer** - A provider-neutral post-invocation check that asks SASE-launched agents to commit their dirty
@@ -74,9 +74,7 @@ Useful first commands:
 sase core health          # verify the required Rust backend before launching agents
 sase memory init --no-commit  # write memory files; skip only the project commit/push
 sase memory list         # inspect loaded, referenced, available, and missing memory files
-sase memory read long/generated_skills.md --reason "Need generated skill context"
-sase memory write --title "Generated skills" --slug generated_skills --evidence chat:abc123 --body "Durable memory body" --notify
-sase memory review --list  # review pending long-term memory proposals
+sase memory review --list  # human review of pending long-term memory proposals
 sase memory log          # summarize audited long-term memory reads
 sase memory log --include proposals  # include memory proposal/review events
 sase init sdd             # create/refresh generated SDD guides and directory map
@@ -90,6 +88,10 @@ sase workspace list       # inspect the current project's numbered workspace vie
 sase workspace path 10    # preview where managed workspace #10 would live
 sase workspace open 10    # create/refresh workspace #10, then print its path
 ```
+
+SASE-launched agents use `sase memory read ... --reason ...` and `sase memory write ...` when they need audited
+long-term memory access. Those commands require agent identity in the environment, so a normal human shell should start
+with `sase memory list`, `sase memory review --list`, and `sase memory log`.
 
 ## Operational model
 

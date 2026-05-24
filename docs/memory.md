@@ -1,15 +1,18 @@
 # Memory
 
-SASE memory is the durable context layer that survives individual agent chats. It has three related surfaces:
+SASE memory is durable context that survives individual agent chats. It has two file tiers plus an audited operation
+ledger:
 
-- **Always-loaded short-term memory** under `memory/short/`, reached from `AGENTS.md` and provider shims through
-  `@memory/...` references.
-- **Long-term memory** under `memory/long/`, usually discovered dynamically through `keywords` frontmatter and appended
-  to matching agent prompts as on-demand references.
-- **Audited memory operations** under the project state directory, including read events and reviewed write proposals.
+- **Short-term memory** under `memory/short/` is instruction context. The files are loaded only when `AGENTS.md` reaches
+  them through `@memory/...` references; `sase memory init` creates that wiring for the generated defaults.
+- **Long-term memory** under `memory/long/` is reference context. Files with `keywords` frontmatter can be discovered
+  dynamically and appended to matching agent prompts as on-demand references.
+- **Audited memory operations** live under the project state directory and record agent reads plus proposed writes and
+  human review decisions.
 
-Use [initialization](init.md#memory-initialization) to create or refresh the files. Use the commands below to inspect,
-read, propose, and review long-term memory.
+Use [initialization](init.md#memory-initialization) to create or refresh the files. Day to day, the usual order is:
+inspect with `sase memory list`, let agents use audited `read`/`write`, then have a human approve or reject proposals
+with `sase memory review`.
 
 ## Inspect Context
 
@@ -22,9 +25,12 @@ sase memory list
 
 The dashboard separates:
 
-- `loaded` files reached by transitive `@...` references from instruction roots.
+- `loaded` files reached by transitive `@...` references from `AGENTS.md` in the project or home context. Provider shims
+  normally point at `AGENTS.md`; they are reported as instruction roots but are not separate traversal roots for this
+  dashboard.
 - `referenced` files mentioned by plain `memory/...` text but not loaded.
-- `available` files present under `memory/short/` or `memory/long/` but unreachable from the current launch context.
+- `available` files present under project or home `memory/short/` and `memory/long/` but unreachable from the current
+  launch context.
 - `missing` referenced files that do not exist.
 
 Approximate token counts are included so large instruction surfaces are visible before an agent launch.
@@ -42,12 +48,15 @@ sase memory log --agent agent-a
 sase memory log --id <read-id>
 ```
 
-The read path is relative to `memory/` and currently accepts only `long/*.md` files. `memory/short` is excluded because
-short-term memory is already loaded instruction context. The command strips one leading YAML frontmatter block from
-stdout, while the audit event records metadata such as path, agent name, timestamp, cwd, byte count, and reason.
+The read path is relative to `memory/` and currently accepts Markdown files under `memory/long/`. `memory/short` is
+excluded because short-term memory is intended to arrive through instruction loading rather than ad hoc reads. The
+command strips one leading YAML frontmatter block from stdout, while the audit event records metadata such as path,
+agent name, timestamp, cwd, byte count, and reason.
 
 Every read requires a non-empty `--reason` and agent attribution from `SASE_AGENT_NAME`, `SASE_AGENT`, or
-`SASE_ARTIFACTS_DIR/agent_meta.json`. Unattributed reads fail instead of writing the log.
+`SASE_ARTIFACTS_DIR/agent_meta.json` (`name`, `workflow_name`, or `agent_name`). Unattributed reads fail instead of
+writing the log. In a normal human shell, use regular file reads instead of this audited command unless you are
+intentionally simulating an agent identity.
 
 Pass `--include proposals` to include memory proposal and review ledger events in the same audit dashboard. Path and
 agent filters also apply to proposal target paths and proposal/review actors.
@@ -72,13 +81,13 @@ cat draft.md | sase memory write \
   --keyword "commit skill"
 ```
 
-`sase memory write` writes proposal state only under `~/.sase/projects/<project>/`; it never modifies canonical
-`memory/long` files. A proposal needs:
+`sase memory write` is the agent-side authoring path. It writes proposal state only under `~/.sase/projects/<project>/`;
+it never modifies canonical `memory/long` files. A proposal needs:
 
 - `--title`
 - exactly one of `--slug <slug>` or `--target long/<slug>.md`
 - at least one non-note evidence item
-- body content from `--body`, `--file`, or stdin
+- body content from `--body`, `--file <path>`, `--file -`, or piped stdin when neither `--body` nor `--file` is supplied
 
 Use `--file -` when a wrapper needs the explicit `--file` form but should still pass the body on stdin.
 
@@ -113,10 +122,12 @@ sase memory review <proposal-id> --reject --reason "Too speculative"
 ```
 
 A bare `sase memory review` opens the Textual review app when stdin/stdout are TTYs. In non-interactive shells it prints
-the pending list instead. Proposal ids can be abbreviated when the prefix is unambiguous.
+the pending list instead. `--list` and `--show` are inspection commands; `--approve`, `--edit`, and `--reject` are the
+human promotion decisions. Proposal ids can be abbreviated when the prefix is unambiguous.
 
-Agents cannot approve or reject proposals: review fails when agent identity is present in `SASE_AGENT_NAME`,
-`SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json`. Human review events record the local user and hostname.
+Agents cannot approve, edit-approve, or reject proposals: those actions fail when agent identity is present in
+`SASE_AGENT_NAME`, `SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json`. Human review events record the local user and
+hostname. `--edit` opens `$VISUAL` or `$EDITOR`, then approves the edited body.
 
 Approval writes the canonical file under the current repo's `memory/long/` path and prepends frontmatter:
 
@@ -128,8 +139,9 @@ source_candidate: mem-20260523-142233-a1b2c3d4
 ---
 ```
 
-Approval refuses to overwrite an existing target. Use `--target long/<slug>.md` to approve into a different available
-target, `--edit` to open `$VISUAL`/`$EDITOR` before approving, or `--edited-file` for non-interactive edited approval.
+Approval refuses to overwrite an existing target. Use `--target long/<slug>.md` to approve into a different unused
+one-level target, `--edit` to open `$VISUAL`/`$EDITOR` before approving, or `--edited-file` for non-interactive edited
+approval.
 
 Approved memory without keywords is not dynamically discoverable. If the file is meant to be loaded every time, add an
 explicit `@memory/long/...` reference from the appropriate instruction file instead.
@@ -142,9 +154,11 @@ audit events. Keybindings:
 | Key         | Action                                               |
 | ----------- | ---------------------------------------------------- |
 | `j` / `k`   | Move through pending proposals                       |
+| `Down`/`Up` | Move through pending proposals                       |
 | `g` / `G`   | Jump to first / last proposal                        |
 | `/`         | Filter by id, title, author, target, keyword, status |
 | `Enter`/`d` | Toggle detail view                                   |
+| `Esc`       | Return from detail view                              |
 | `a`         | Approve as-is                                        |
 | `e`         | Edit in `$VISUAL`/`$EDITOR`, then approve            |
 | `r`         | Reject with a required reason                        |

@@ -21,8 +21,6 @@ Explicit subcommands are still available when you need narrower control:
 sase memory init --no-commit
 sase memory init --check
 sase memory list
-sase memory read long/generated_skills.md --reason "Need generated skill context"
-sase memory write --title "Generated skills" --slug generated_skills --evidence chat:abc123 --body "Durable memory body" --notify
 sase memory review --list
 sase memory log
 sase memory log --include proposals
@@ -31,6 +29,10 @@ sase memory log --id <read-id>
 sase init sdd
 sase init sdd --check
 sase init skills --dry-run
+
+# Agent-side audited operations, normally run from a SASE-launched agent:
+sase memory read long/generated_skills.md --reason "Need generated skill context"
+sase memory write --title "Generated skills" --slug generated_skills --evidence chat:abc123 --body "Durable memory body" --notify
 ```
 
 `sase memory init --no-commit` is usually the safest first run because it writes the generated files but skips the
@@ -46,7 +48,7 @@ home-level `use_chezmoi` deployment. `sase init memory` remains a compatibility 
 | `sase init --yes`                     | Run every needed initializer in memory, SDD, skills order without prompting.             |
 | `sase memory`                         | Alias for `sase memory list`.                                                            |
 | `sase memory list`                    | Inspect loaded, referenced, available, and missing memory files for the current root.    |
-| `sase memory read <path>`             | Print one `memory/long/*.md` file and append an attributable audit event.                |
+| `sase memory read <path>`             | Agent-side read of one long-term memory file with an attributable audit event.           |
 | `sase memory write`                   | Create an attributable long-term memory proposal for human review.                       |
 | `sase memory review`                  | List, inspect, approve, edit, or reject pending memory proposals.                        |
 | `sase memory log`                     | Summarize audited long-term memory reads.                                                |
@@ -104,10 +106,11 @@ command fail so important agent context is not silently ignored.
 
 `sase memory list`, or bare `sase memory`, renders a read-only dashboard for the current directory. It reports:
 
-- `loaded` files reached by transitive `@...` references from instruction roots such as `AGENTS.md` and provider shims.
+- `loaded` files reached by transitive `@...` references from `AGENTS.md` in the project or home context.
 - `referenced` files mentioned by plain `memory/...` text from loaded context. These are visible in the dashboard, but
   their contents are not loaded unless another `@...` edge reaches them.
-- `available` files present under `memory/short/` or `memory/long/` that the current launch context does not reach.
+- `available` files present under project or home `memory/short/` and `memory/long/` that the current launch context
+  does not reach.
 - `missing` referenced memory paths that do not exist.
 
 The dashboard includes approximate local token estimates. It reports discoverable long-term sources, but it does not
@@ -120,17 +123,19 @@ For day-to-day read/write operations, including audited reads and reviewed long-
 ## Memory Read Audit Log
 
 `sase memory read <memory-relative-path> --reason <reason>` is the audited path for agent-initiated long-term memory
-reads. The path is relative to `memory/`; the first version allows `long/*.md` files only and rejects `memory/short`
-because short-term memory is always-loaded instruction context. The command strips one leading YAML frontmatter block
-from stdout, but the audit log records only metadata such as path, agent name, timestamp, cwd, byte count, and reason.
+reads. The path is relative to `memory/`; the command allows Markdown files under `memory/long/` and rejects
+`memory/short` because short-term memory is expected to arrive through instruction loading. The command strips one
+leading YAML frontmatter block from stdout, but the audit log records only metadata such as path, agent name, timestamp,
+cwd, byte count, and reason.
 
 Every read must include a non-empty `--reason`. The command also requires agent attribution from `SASE_AGENT_NAME`,
-`SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json`; unattributed reads fail instead of writing a log row.
+`SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json`; unattributed reads fail instead of writing a log row. Human shell
+users normally inspect files directly and use `sase memory review` for promotion decisions.
 
 `sase memory write` creates an attributable proposal under `~/.sase/projects/<project>/` and never writes
-`memory/long/*.md` directly. Pass `--notify` when you want a best-effort `memory.proposed` notification in the SASE
-inbox. `sase memory review` is the human promotion path for listing, showing, approving, editing, or rejecting those
-proposals.
+`memory/long/*.md` directly. It uses the same agent-attribution rules as `read`; `--manual-author` is intended for tests
+and demos. Pass `--notify` when you want a best-effort `memory.proposed` notification in the SASE inbox.
+`sase memory review` is the human promotion path for listing, showing, approving, editing, or rejecting those proposals.
 
 `sase memory log` reads the project-scoped audit log from SASE state under `~/.sase/projects/<project>/`, not from the
 repo. Use `--path` or `--agent` to drill down to matching read events, `--id <read-id>` to inspect one event, and
@@ -138,6 +143,7 @@ repo. Use `--path` or `--agent` to drill down to matching read events, `--id <re
 events alongside read-log summaries.
 
 ```bash
+# read requires SASE agent identity; write requires agent identity unless --manual-author is used for demos
 sase memory read long/generated_skills.md --reason "Need generated skill context"
 sase memory write --title "Generated skills" --slug generated_skills --evidence chat:abc123 --body "Durable memory body" --notify
 sase memory review --list

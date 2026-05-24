@@ -1150,18 +1150,19 @@ Advanced deploy controls stay on explicit subcommands such as `sase init memory 
 
 With no subcommand, `sase memory` defaults to `sase memory list`.
 
-| Form                      | Flags                                                                                                                                                     | Description                                                                                         |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `sase memory`             | -                                                                                                                                                         | Show the same read-only memory context dashboard as `sase memory list`.                             |
-| `sase memory list`        | -                                                                                                                                                         | Show loaded, referenced, available, and missing memory files for the current launch context.        |
-| `sase memory read <path>` | `--reason <reason>` required                                                                                                                              | Print a `memory/long/*.md` file without leading frontmatter and append an attributable audit event. |
-| `sase memory write`       | `--title`, `--target` or `--slug`, `--evidence`, `--from-chat`, `--keyword`, `--body`, `--file`, `--allow-large`, `--manual-author`, `--notify`, `--json` | Create an attributable long-term memory proposal without modifying canonical memory files.          |
-| `sase memory review [id]` | `--list`, `--show`, `--approve`, `--edit`, `--reject`, `--all`, `--target`, `--edited-file`, `--reason`, `--json`                                         | Review pending memory proposals; a bare TTY command opens the interactive review app.               |
-| `sase memory log`         | `--path`, `--agent`, `--id`, `--include`, `--json`                                                                                                        | Summarize or inspect audited memory reads, optionally including proposal and review events.         |
+| Form                      | Flags                                                                                                                                                                | Description                                                                                         |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `sase memory`             | -                                                                                                                                                                    | Show the same read-only memory context dashboard as `sase memory list`.                             |
+| `sase memory list`        | -                                                                                                                                                                    | Show loaded, referenced, available, and missing memory files for the current launch context.        |
+| `sase memory read <path>` | `--reason <reason>` required                                                                                                                                         | Agent-side read of a `memory/long/` Markdown file without leading frontmatter, plus an audit event. |
+| `sase memory write`       | `--title`, `--target` or `--slug`, repeatable `--evidence`, `--from-chat`, `--keyword`, `--body`, `--file`, `--allow-large`, `--manual-author`, `--notify`, `--json` | Create an attributable long-term memory proposal without modifying canonical memory files.          |
+| `sase memory review [id]` | `--list`, `--show`, `--approve`, `--edit`, `--reject`, `--all`, `--target`, `--edited-file`, `--reason`, `--json`                                                    | Human review of pending memory proposals; a bare TTY command opens the interactive review app.      |
+| `sase memory log`         | `--path`, `--agent`, `--id`, `--include`, `--json`                                                                                                                   | Summarize or inspect audited memory reads, optionally including proposal and review events.         |
 
 Examples:
 
 ```bash
+# read requires SASE agent identity; write requires agent identity unless --manual-author is used for demos
 sase memory read long/generated_skills.md --reason "Need generated skill context"
 sase memory write --title "Generated skills" --slug generated_skills --evidence chat:abc123 --body "Durable memory body" --notify
 sase memory review --list
