@@ -70,6 +70,15 @@ def apply_runtime_commit_tags(payload: dict) -> None:
     )
 
 
+def apply_auto_commit_type_tag(message: str, auto_commit_type: str) -> str:
+    """Append or update the auto-commit ``TYPE`` tag in *message*."""
+    return update_trailing_commit_tags(
+        message,
+        {"TYPE": auto_commit_type},
+        remove_keys={"TYPE"},
+    )
+
+
 def update_trailing_commit_tags(
     message: str,
     updates: Mapping[str, object],

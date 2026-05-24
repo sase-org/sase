@@ -78,7 +78,7 @@ def init_beads(root: Path, beads_dirname: str) -> None:
     if beads_dirname == BEADS_DIRNAME_NON_VC:
         from sase.sdd.files import commit_sdd_files
 
-        commit_sdd_files(root, "Initialize beads")
+        commit_sdd_files(root, "Initialize beads", auto_commit_type="beads")
 
 
 def get_project() -> BeadProject:

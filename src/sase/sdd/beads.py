@@ -53,7 +53,7 @@ def init_beads(workspace_dir: str, workspace_num: int) -> Path:
         print("  Initializing beads ...", flush=True)
         BeadProject.init(sdd_dir, beads_dirname=BEADS_DIRNAME_NON_VC)
 
-    commit_sdd_files(sdd_dir, "Initialize beads")
+    commit_sdd_files(sdd_dir, "Initialize beads", auto_commit_type="beads")
 
     return sdd_dir
 

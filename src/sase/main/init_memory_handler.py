@@ -176,8 +176,11 @@ def _deploy_to_project_repo(
         return 1
 
     print(f"Committing in {git_root}...")
+    from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+
+    commit_message = apply_auto_commit_type_tag(PROJECT_COMMIT_MESSAGE, "memory")
     commit = subprocess.run(
-        ["git", "-C", str(git_root), "commit", "-m", PROJECT_COMMIT_MESSAGE],
+        ["git", "-C", str(git_root), "commit", "-m", commit_message],
         capture_output=True,
         text=True,
         check=False,
@@ -234,6 +237,7 @@ def _deploy_to_chezmoi(written_paths: Iterable[Path]) -> int:
         ChezmoiDeployBehavior(
             command_label=COMMAND_LABEL,
             commit_message="chore: initialize sase memory",
+            auto_commit_type="memory",
             chezmoi_home=CHEZMOI_HOME,
             pull_push=False,
             apply_force=True,

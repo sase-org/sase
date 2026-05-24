@@ -94,8 +94,11 @@ def init_bare_git_project(
         )
 
         # Create initial commit and push
+        from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+
+        commit_message = apply_auto_commit_type_tag("Initial commit", "init")
         subprocess.run(
-            ["git", "commit", "--allow-empty", "-m", "Initial commit"],
+            ["git", "commit", "--allow-empty", "-m", commit_message],
             cwd=clone_dir,
             capture_output=True,
             text=True,

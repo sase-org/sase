@@ -333,6 +333,14 @@ class TestInitBareGitProject:
                 # git init --bare, git clone, git config email,
                 # git config name, git commit, git push
                 assert mock_run.call_count == 6
+                commit_calls = [
+                    call.args[0]
+                    for call in mock_run.call_args_list
+                    if "commit" in call.args[0] and "-m" in call.args[0]
+                ]
+                assert commit_calls
+                message = commit_calls[0][commit_calls[0].index("-m") + 1]
+                assert message == "Initial commit\n\nTYPE=init"
                 mock_set_bare.assert_called_once()
                 mock_set_ws.assert_called_once()
 

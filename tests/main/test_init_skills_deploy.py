@@ -273,5 +273,34 @@ def test_deploy_provider_filter_in_commit_message() -> None:
     commit_calls = [c for c in captured if "commit" in c and "-m" in c]
     assert commit_calls, "No commit call observed"
     msg = commit_calls[0][commit_calls[0].index("-m") + 1]
-    assert "claude" in msg
-    assert "sase init skills" in msg
+    assert msg == "chore: regenerate claude skills via sase init skills\n\nTYPE=skills"
+
+
+def test_deploy_behavior_auto_commit_type_tags_message() -> None:
+    """Shared deploy helper applies the caller-provided auto-commit type."""
+    captured: list[list[str]] = []
+
+    def handler(*a: Any, **kw: Any) -> MagicMock:
+        cmd = a[0] if a else kw.get("cmd", [])
+        captured.append(cmd)
+        if "rev-parse" in cmd:
+            return MagicMock(returncode=0, stdout="", stderr="")
+        if "diff" in cmd and "--cached" in cmd:
+            return MagicMock(returncode=1, stdout="", stderr="")
+        return MagicMock(returncode=0, stdout="", stderr="")
+
+    with patch.object(_init_chezmoi_deploy.subprocess, "run", side_effect=handler):
+        _init_chezmoi_deploy.deploy_to_chezmoi(
+            [Path("/x/a")],
+            _init_chezmoi_deploy.ChezmoiDeployBehavior(
+                command_label="init",
+                commit_message="chore: run sase init",
+                auto_commit_type="init",
+                no_push=True,
+            ),
+        )
+
+    commit_calls = [c for c in captured if "commit" in c and "-m" in c]
+    assert commit_calls, "No commit call observed"
+    msg = commit_calls[0][commit_calls[0].index("-m") + 1]
+    assert msg == "chore: run sase init\n\nTYPE=init"

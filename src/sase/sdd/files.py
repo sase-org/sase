@@ -316,7 +316,12 @@ def _resolve_primary_from_project(workspace_dir: str) -> str | None:
         return None
 
 
-def commit_sdd_files(sdd_dir: Path, message: str) -> None:
+def commit_sdd_files(
+    sdd_dir: Path,
+    message: str,
+    *,
+    auto_commit_type: str = "sdd",
+) -> None:
     """Auto-commit SDD files in a local `.sase/sdd/` git repo.
 
     No-op if `sdd_dir` is not a git repo or there are no staged changes.
@@ -333,6 +338,9 @@ def commit_sdd_files(sdd_dir: Path, message: str) -> None:
     )
     if result.returncode != 0:
         # There are staged changes — commit them
+        from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+
+        message = apply_auto_commit_type_tag(message, auto_commit_type)
         subprocess.run(
             ["git", "commit", "-m", message],
             cwd=sdd_dir,

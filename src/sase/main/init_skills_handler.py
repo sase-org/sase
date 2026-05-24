@@ -458,6 +458,7 @@ def _deploy_to_chezmoi(written_paths: list[Path], args: argparse.Namespace) -> i
         ChezmoiDeployBehavior(
             command_label=_COMMAND_LABEL,
             commit_message=message,
+            auto_commit_type="skills",
             chezmoi_home=CHEZMOI_HOME,
             no_commit=no_commit,
             no_push=no_push,

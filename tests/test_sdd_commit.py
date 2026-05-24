@@ -30,12 +30,14 @@ def test_commit_sdd_files() -> None:
         commit_sdd_files(sdd_dir, "Test commit")
 
         log = subprocess.run(
-            ["git", "log", "--oneline"],
+            ["git", "log", "-1", "--format=%B"],
             cwd=sdd_dir,
             capture_output=True,
             text=True,
+            check=True,
         )
         assert "Test commit" in log.stdout
+        assert "TYPE=sdd" in log.stdout
 
 
 def test_commit_sdd_files_no_changes() -> None:
@@ -88,7 +90,10 @@ def test_commit_sdd_files_passes_tempfile_to_m() -> None:
             assert _commit_sdd_files(ws, "my_plan") is True
 
         assert len(captured_msg_content) == 1
-        assert captured_msg_content[0] == "chore: Add SDD prompt and plan for my_plan"
+        assert (
+            captured_msg_content[0]
+            == "chore: Add SDD prompt and plan for my_plan\n\nTYPE=sdd"
+        )
 
 
 def test_commit_sdd_files_passes_f_flags() -> None:

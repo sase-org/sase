@@ -11,6 +11,7 @@ import pytest
 from sase.workflows.commit.runtime_tags import (
     RUNTIME_COMMIT_TAG_KEYS,
     _resolve_runtime_commit_tags,
+    apply_auto_commit_type_tag,
     filter_runtime_owned_tags,
     update_trailing_commit_tags,
 )
@@ -110,6 +111,33 @@ def test_update_trailing_tags_replaces_stale_runtime_tags() -> None:
     assert "old-machine" not in updated
     assert updated.count("AGENT=") == 1
     assert updated.count("MACHINE=") == 1
+
+
+def test_auto_commit_type_tag_adds_type() -> None:
+    assert apply_auto_commit_type_tag("Fix bug", "sdd") == "Fix bug\n\nTYPE=sdd"
+
+
+def test_auto_commit_type_tag_replaces_stale_type_and_preserves_other_tags() -> None:
+    updated = apply_auto_commit_type_tag(
+        "Fix bug\n\nBUG=123\nTYPE=old\nTEAM=infra",
+        "bead_work",
+    )
+
+    assert updated == "Fix bug\n\nBUG=123\nTEAM=infra\nTYPE=bead_work"
+    assert "TYPE=old" not in updated
+
+
+def test_auto_commit_type_tag_composes_with_runtime_tags_without_owning_type() -> None:
+    message = apply_auto_commit_type_tag("Fix bug", "sdd")
+
+    updated = update_trailing_commit_tags(
+        message,
+        {"AGENT": "agent-a", "MACHINE": "machine-a"},
+        remove_keys=RUNTIME_COMMIT_TAG_KEYS,
+    )
+
+    assert "TYPE" not in RUNTIME_COMMIT_TAG_KEYS
+    assert updated == "Fix bug\n\nTYPE=sdd\nAGENT=agent-a\nMACHINE=machine-a"
 
 
 def test_update_trailing_tags_keeps_body_text_intact() -> None:

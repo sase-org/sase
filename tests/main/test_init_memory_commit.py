@@ -82,7 +82,7 @@ def test_init_memory_default_commits_and_pushes_project_changes(
     commit_calls = [cmd for cmd in git_calls if "commit" in cmd and "-m" in cmd]
     assert commit_calls
     message = commit_calls[0][commit_calls[0].index("-m") + 1]
-    assert message == "chore: run sase init memory"
+    assert message == "chore: run sase init memory\n\nTYPE=memory"
 
 
 def test_init_memory_no_commit_skips_project_deploy(

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-24 13:41:33
-status: wip
+status: done
 prompt: sdd/prompts/202605/auto_commit_type_tags.md
 ---
 # Plan: Auto-Commit TYPE Tags

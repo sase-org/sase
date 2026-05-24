@@ -220,7 +220,10 @@ class XPromptBrowserActionsMixin:
                 capture_output=True,
                 check=False,
             )
-            message = f"chore: {verb} xprompt {xprompt_name}"
+            subject = f"chore: {verb} xprompt {xprompt_name}"
+            from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+
+            message = apply_auto_commit_type_tag(subject, "xprompt")
             result = subprocess.run(
                 ["git", "-C", git_root, "commit", "-m", message],
                 capture_output=True,
@@ -230,7 +233,7 @@ class XPromptBrowserActionsMixin:
             if result.returncode != 0:
                 self.notify(f"Commit failed: {result.stderr.strip()}", severity="error")  # type: ignore[attr-defined]
                 return
-            self.notify(f"Committed: {message}")  # type: ignore[attr-defined]
+            self.notify(f"Committed: {subject}")  # type: ignore[attr-defined]
 
             # Pull then push
             pull_result = subprocess.run(

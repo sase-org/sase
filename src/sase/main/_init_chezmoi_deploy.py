@@ -19,6 +19,7 @@ class ChezmoiDeployBehavior:
 
     command_label: str
     commit_message: str
+    auto_commit_type: str | None = None
     chezmoi_home: Path = CHEZMOI_HOME
     no_commit: bool = False
     no_push: bool = False
@@ -149,8 +150,16 @@ def deploy_to_chezmoi(
     else:
         if behavior.print_committing:
             print(f"\nCommitting in {git_root}...")
+        commit_message = behavior.commit_message
+        if behavior.auto_commit_type is not None:
+            from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+
+            commit_message = apply_auto_commit_type_tag(
+                commit_message,
+                behavior.auto_commit_type,
+            )
         commit = subprocess.run(
-            ["git", "-C", str(git_root), "commit", "-m", behavior.commit_message],
+            ["git", "-C", str(git_root), "commit", "-m", commit_message],
             capture_output=True,
             text=True,
             check=False,
@@ -278,6 +287,7 @@ def deploy_deferred_chezmoi(deferred: _DeferredChezmoiDeploy) -> int:
         ChezmoiDeployBehavior(
             command_label="init",
             commit_message="chore: run sase init",
+            auto_commit_type="init",
             chezmoi_home=deferred.chezmoi_home,
             apply_force=deferred.apply_force,
             apply_when_nothing_staged=True,

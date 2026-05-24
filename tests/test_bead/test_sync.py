@@ -158,14 +158,16 @@ def test_commit_bead_work_launch_commits_bead_state(tmp_path):
     )
 
     assert committed is True
-    subject = subprocess.run(
-        ["git", "log", "-1", "--format=%s"],
+    message = subprocess.run(
+        ["git", "log", "-1", "--format=%B"],
         cwd=tmp_path,
         capture_output=True,
         text=True,
         check=True,
     )
-    assert subject.stdout.strip() == "chore: mark bead work launched for sase-1"
+    assert message.stdout.strip() == (
+        "chore: mark bead work launched for sase-1\n\nTYPE=bead_work"
+    )
     files = subprocess.run(
         ["git", "show", "--name-only", "--format=", "HEAD"],
         cwd=tmp_path,

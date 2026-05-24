@@ -37,7 +37,12 @@ def commit_sdd_files_for_exec_plan(
     files = [str(f) for f in (prompt_found, plan_found) if f is not None]
     if not files:
         return True
-    message = f"chore: Add SDD prompt and plan for {plan_name}"
+    from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+
+    message = apply_auto_commit_type_tag(
+        f"chore: Add SDD prompt and plan for {plan_name}",
+        "sdd",
+    )
     # -M / --message-file expects a file path, not a raw string.
     # handle_commit_command deletes the file after reading it.
     msg_fd, msg_path = tempfile.mkstemp(suffix=".txt", prefix="sase_sdd_msg_")
