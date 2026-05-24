@@ -34,11 +34,6 @@ class AgentNotificationPollingMixin:
         self._set_notification_snapshot_cache(snapshot)
         notifications = snapshot.notifications
         expired_snoozes = snapshot.expired_ids
-        if expired_snoozes:
-            self._sync_expired_plan_notification_mute_tags(  # type: ignore[attr-defined]
-                notifications,
-                expired_snoozes,
-            )
         unread_priority, unread_errors, unread_rest, unread_muted = (
             unread_notification_buckets(notifications)
         )

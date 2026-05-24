@@ -1,0 +1,664 @@
+"""Tests for NotificationModal actions, labels, dismiss, mute, and snooze behavior."""
+
+from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
+
+from sase.ace.tui.modals.notification_modal import NotificationModal
+
+from tests._notification_modal_helpers import _make_notification
+
+
+def test_dismiss_notification_direct_for_non_plan_question() -> None:
+    """x should dismiss non-plan/question notifications immediately."""
+    modal = NotificationModal([_make_notification("n1", action="JumpToAgent")])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_dismissed") as mock_mark:
+        modal.action_dismiss_notification()
+
+    mock_mark.assert_called_once_with("n1")
+    assert modal._pending_confirm_notification_id is None
+    assert modal._notifications == []
+    modal._rebuild_list.assert_called_once_with(highlight_index=None)
+
+
+def test_notification_modal_binds_capital_v_to_view_image() -> None:
+    assert ("V", "view_image", "View Image") in NotificationModal.BINDINGS
+
+
+def test_notification_modal_binds_capital_y_to_copy_file_path() -> None:
+    assert ("Y", "copy_file_path", "Copy path") in NotificationModal.BINDINGS
+
+
+def test_notification_modal_binds_capital_m_to_toggle_mute() -> None:
+    """Capital M is the mute toggle key; lowercase m is no longer mute."""
+    assert ("M", "toggle_mute", "Toggle Mute") in NotificationModal.BINDINGS
+    assert ("m", "toggle_mute", "Toggle Mute") not in NotificationModal.BINDINGS
+
+
+def test_notification_modal_binds_lowercase_m_to_toggle_mark() -> None:
+    """Lowercase m toggles a per-row mark."""
+    assert ("m", "toggle_mark", "Mark") in NotificationModal.BINDINGS
+
+
+def test_notification_modal_binds_brackets_to_tag_tabs() -> None:
+    """Square brackets switch notification tag tabs."""
+    assert (
+        "left_square_bracket",
+        "prev_notification_tag_tab",
+        "Prev Tag",
+    ) in NotificationModal.BINDINGS
+    assert (
+        "right_square_bracket",
+        "next_notification_tag_tab",
+        "Next Tag",
+    ) in NotificationModal.BINDINGS
+
+
+def test_copy_file_path_copies_current_attachment() -> None:
+    notification = _make_notification("n1", action="JumpToAgent")
+    notification.files = ["/tmp/first.txt", "/tmp/second.txt"]
+    modal = NotificationModal([notification])
+    modal._get_highlighted_notification = lambda: notification  # type: ignore[method-assign]
+    modal._current_file_index = 1
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch(
+        "sase.ace.tui.modals.notification_modal_attachments.copy_to_system_clipboard",
+        return_value=True,
+    ) as mock_copy:
+        modal.action_copy_file_path()
+
+    mock_copy.assert_called_once_with("/tmp/second.txt")
+    modal.notify.assert_called_once_with("Copied: /tmp/second.txt")
+
+
+def test_copy_file_path_shortens_home_path() -> None:
+    notification = _make_notification("n1", action="JumpToAgent")
+    notification.files = ["/home/example/work/file.py"]
+    modal = NotificationModal([notification])
+    modal._get_highlighted_notification = lambda: notification  # type: ignore[method-assign]
+    modal._shorten_path = lambda path: path.replace("/home/example", "~")  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch(
+        "sase.ace.tui.modals.notification_modal_attachments.copy_to_system_clipboard",
+        return_value=True,
+    ) as mock_copy:
+        modal.action_copy_file_path()
+
+    mock_copy.assert_called_once_with("~/work/file.py")
+    modal.notify.assert_called_once_with("Copied: ~/work/file.py")
+
+
+def test_copy_file_path_clamps_out_of_range_index() -> None:
+    notification = _make_notification("n1", action="JumpToAgent")
+    notification.files = ["/tmp/first.txt", "/tmp/second.txt"]
+    modal = NotificationModal([notification])
+    modal._get_highlighted_notification = lambda: notification  # type: ignore[method-assign]
+    modal._current_file_index = 99
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch(
+        "sase.ace.tui.modals.notification_modal_attachments.copy_to_system_clipboard",
+        return_value=True,
+    ) as mock_copy:
+        modal.action_copy_file_path()
+
+    assert modal._current_file_index == 0
+    mock_copy.assert_called_once_with("/tmp/first.txt")
+
+
+def test_copy_file_path_warns_without_highlighted_notification() -> None:
+    modal = NotificationModal([])
+    modal._get_highlighted_notification = lambda: None  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch(
+        "sase.ace.tui.modals.notification_modal_attachments.copy_to_system_clipboard"
+    ) as mock_copy:
+        modal.action_copy_file_path()
+
+    mock_copy.assert_not_called()
+    modal.notify.assert_called_once_with("No file path to copy", severity="warning")
+
+
+def test_copy_file_path_warns_without_files() -> None:
+    notification = _make_notification("n1", action="JumpToAgent")
+    modal = NotificationModal([notification])
+    modal._get_highlighted_notification = lambda: notification  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch(
+        "sase.ace.tui.modals.notification_modal_attachments.copy_to_system_clipboard"
+    ) as mock_copy:
+        modal.action_copy_file_path()
+
+    mock_copy.assert_not_called()
+    modal.notify.assert_called_once_with("No file path to copy", severity="warning")
+
+
+def test_copy_file_path_reports_clipboard_failure() -> None:
+    notification = _make_notification("n1", action="JumpToAgent")
+    notification.files = ["/tmp/first.txt"]
+    modal = NotificationModal([notification])
+    modal._get_highlighted_notification = lambda: notification  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch(
+        "sase.ace.tui.modals.notification_modal_attachments.copy_to_system_clipboard",
+        return_value=False,
+    ) as mock_copy:
+        modal.action_copy_file_path()
+
+    mock_copy.assert_called_once_with("/tmp/first.txt")
+    modal.notify.assert_called_once_with(
+        "Failed to copy to clipboard",
+        severity="error",
+    )
+
+
+def test_dismiss_notification_requires_confirmation_for_plan_question() -> None:
+    """x should require y/n confirmation for plan/question notifications."""
+    modal = NotificationModal([_make_notification("n1", action="PlanApproval")])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_dismissed") as mock_mark:
+        modal.action_dismiss_notification()
+
+    mock_mark.assert_not_called()
+    assert modal._pending_confirm_notification_id == "n1"
+    assert len(modal._notifications) == 1
+    modal.notify.assert_called_once_with("Dismiss plan/question notification? (y/n)")
+
+
+def test_confirm_dismiss_notification_dismisses_pending_item() -> None:
+    """y should dismiss the pending plan/question notification."""
+    modal = NotificationModal([_make_notification("n1", action="UserQuestion")])
+    modal._pending_confirm_notification_id = "n1"
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_dismissed") as mock_mark:
+        modal.action_confirm_dismiss_notification()
+
+    mock_mark.assert_called_once_with("n1")
+    assert modal._pending_confirm_notification_id is None
+    assert modal._notifications == []
+    modal._rebuild_list.assert_called_once_with(highlight_index=None)
+
+
+def test_dismiss_highlights_next_notification_in_visual_order() -> None:
+    """Dismiss picks the next visible row, not the next raw-list index."""
+    inbox = _make_notification("i1", action="JumpToAgent")
+    muted = _make_notification("m1", action="JumpToAgent")
+    muted.muted = True
+    priority = _make_notification("p1", action="PlanApproval")
+    modal = NotificationModal([inbox, muted, priority])
+    modal._pending_confirm_notification_id = "p1"
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_dismissed") as mock_mark:
+        modal.action_confirm_dismiss_notification()
+
+    mock_mark.assert_called_once_with("p1")
+    assert [notification.id for notification in modal._notifications] == ["i1", "m1"]
+    modal._rebuild_list.assert_called_once_with(highlight_index=0)
+
+
+def test_dismiss_final_visible_notification_highlights_previous_visual_row() -> None:
+    """Dismissing the final visible row falls back to the previous visible row."""
+    muted = _make_notification("m1", action="JumpToAgent")
+    muted.muted = True
+    priority = _make_notification("p1", action="PlanApproval")
+    inbox = _make_notification("i1", action="JumpToAgent")
+    modal = NotificationModal([muted, priority, inbox])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_dismissed") as mock_mark:
+        modal.action_dismiss_notification()
+
+    mock_mark.assert_called_once_with("m1")
+    assert [notification.id for notification in modal._notifications] == ["p1", "i1"]
+    modal._rebuild_list.assert_called_once_with(highlight_index=1)
+
+
+def test_bulk_dismiss_persists_once_removes_rows_and_rebuilds_once() -> None:
+    """Bulk dismiss persists one ID burst and rebuilds the modal once."""
+    modal = NotificationModal(
+        [
+            _make_notification("n1", action="JumpToAgent"),
+            _make_notification("n2", action="JumpToAgent"),
+            _make_notification("n3", action="JumpToAgent"),
+        ]
+    )
+    modal._get_selected_index = lambda: 1  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    with patch(
+        "sase.ace.tui.modals.notification_modal.mark_many_dismissed"
+    ) as mock_mark:
+        dismissed = modal._bulk_dismiss_notifications_by_index(2)
+
+    assert dismissed == 2
+    mock_mark.assert_called_once_with(["n2", "n3"])
+    assert [notification.id for notification in modal._notifications] == ["n1"]
+    modal._rebuild_list.assert_called_once_with(highlight_index=0)
+
+
+def test_toggle_mute_sets_muted_and_rebuilds() -> None:
+    """m should toggle mute state, persist via mark_muted, and rebuild."""
+    notification = _make_notification("n1", action="JumpToAgent")
+    modal = NotificationModal([notification])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_muted") as mock_mark:
+        modal.action_toggle_mute()
+
+    mock_mark.assert_called_once_with("n1", True)
+    assert notification.muted is True
+    modal._rebuild_list.assert_called_once_with(highlight_index=0)
+    modal.notify.assert_called_once_with("Muted")
+
+
+def test_toggle_mute_unmutes_when_already_muted() -> None:
+    """m on an already-muted notification flips it back to unmuted."""
+    notification = _make_notification("n1", action="JumpToAgent")
+    notification.muted = True
+    modal = NotificationModal([notification])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_muted") as mock_mark:
+        modal.action_toggle_mute()
+
+    mock_mark.assert_called_once_with("n1", False)
+    assert notification.muted is False
+    modal.notify.assert_called_once_with("Unmuted")
+
+
+def test_styled_label_uses_tilde_prefix_for_muted() -> None:
+    """A muted notification renders with '~ ' prefix instead of '* '."""
+    notification = _make_notification("n1", action="JumpToAgent")
+    notification.muted = True
+    modal = NotificationModal([notification])
+    label = modal._create_styled_label(notification)
+    assert label.plain.startswith("~ ")
+
+
+def test_styled_label_uses_asterisk_for_unread_unmuted() -> None:
+    """An unread non-muted notification keeps the gold '* ' prefix."""
+    notification = _make_notification("n1", action="JumpToAgent")
+    modal = NotificationModal([notification])
+    label = modal._create_styled_label(notification)
+    assert label.plain.startswith("* ")
+
+
+def test_agent_completion_label_omits_redundant_sender_and_action_badge() -> None:
+    """Agent completion rows spend width on the result, not duplicate labels."""
+    notification = _make_notification("n1", action="JumpToAgent")
+    notification.sender = "user-agent"
+    notification.notes = ["CODEX(gpt-5.5) @sase-1l.1 completed: ace(run)-260430_175319"]
+    notification.files = ["/tmp/chat.md", "/tmp/diff.diff"]
+    modal = NotificationModal([notification])
+
+    label = modal._create_styled_label(notification)
+
+    assert "[user-agent]" not in label.plain
+    assert "[agent]" not in label.plain
+    assert "2 files" in label.plain
+
+
+def test_error_label_keeps_sender_and_error_badge() -> None:
+    """Error rows keep their source and action badge because both add context."""
+    notification = _make_notification("n1", action="ViewErrorReport")
+    notification.sender = "user-agent"
+    notification.notes = ["Agent failed"]
+    modal = NotificationModal([notification])
+
+    label = modal._create_styled_label(notification)
+
+    assert "[user-agent]" in label.plain
+    assert "[error]" in label.plain
+
+
+def test_press_s_pushes_snooze_picker_and_passes_callback() -> None:
+    """``s`` pushes the SnoozeDurationModal and registers a callback."""
+    notification = _make_notification("n1", action="JumpToAgent")
+    modal = NotificationModal([notification])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+
+    push_screen = MagicMock()
+    with patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app:
+        mock_app.push_screen = push_screen
+        modal.action_snooze()
+
+    push_screen.assert_called_once()
+    pushed_modal, kwargs = push_screen.call_args
+    from sase.ace.tui.modals.snooze_duration_modal import SnoozeDurationModal
+
+    assert isinstance(pushed_modal[0], SnoozeDurationModal)
+    assert "callback" in kwargs
+
+
+def test_snooze_callback_with_timedelta_calls_mark_snoozed() -> None:
+    """A timedelta from the picker is converted to an absolute datetime."""
+    notification = _make_notification("n1", action="JumpToAgent")
+    modal = NotificationModal([notification])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    captured_callback: list = []
+
+    def fake_push_screen(_screen, *, callback) -> None:
+        captured_callback.append(callback)
+
+    with (
+        patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app,
+        patch("sase.ace.tui.modals.notification_modal.mark_snoozed") as mock_mark,
+    ):
+        mock_app.push_screen = fake_push_screen
+        modal.action_snooze()
+
+        assert captured_callback, "callback was not registered"
+        callback = captured_callback[0]
+        callback(timedelta(minutes=15))
+
+        mock_mark.assert_called_once()
+        args, _ = mock_mark.call_args
+
+    assert args[0] == "n1"
+    assert isinstance(args[1], datetime)
+    assert notification.muted is True
+    assert notification.snooze_until == args[1].isoformat()
+    modal.notify.assert_called_once_with("Snoozed for 15m")
+
+
+def test_snooze_callback_with_datetime_uses_until_label() -> None:
+    """A datetime result (e.g. tomorrow morning) preserves the absolute time."""
+    notification = _make_notification("n1", action="JumpToAgent")
+    modal = NotificationModal([notification])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    captured_callback: list = []
+
+    def fake_push_screen(_screen, *, callback) -> None:
+        captured_callback.append(callback)
+
+    target = datetime(2026, 4, 22, 9, 0, 0)
+    with (
+        patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app,
+        patch("sase.ace.tui.modals.notification_modal.mark_snoozed") as mock_mark,
+    ):
+        mock_app.push_screen = fake_push_screen
+        modal.action_snooze()
+        captured_callback[0](target)
+
+        mock_mark.assert_called_once_with("n1", target)
+
+    assert notification.snooze_until == target.isoformat()
+    modal.notify.assert_called_once_with("Snoozed until tomorrow morning")
+
+
+def test_snooze_callback_none_is_cancellation() -> None:
+    """Picker returning None just toasts 'Snooze cancelled' — no store call."""
+    notification = _make_notification("n1", action="JumpToAgent")
+    modal = NotificationModal([notification])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    captured_callback: list = []
+
+    def fake_push_screen(_screen, *, callback) -> None:
+        captured_callback.append(callback)
+
+    with (
+        patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app,
+        patch("sase.ace.tui.modals.notification_modal.mark_snoozed") as mock_mark,
+    ):
+        mock_app.push_screen = fake_push_screen
+        modal.action_snooze()
+        captured_callback[0](None)
+
+        mock_mark.assert_not_called()
+
+    assert notification.snooze_until is None
+    assert notification.muted is False
+    modal.notify.assert_called_once_with("Snooze cancelled")
+
+
+def test_unmute_on_snoozed_clears_snooze_and_toasts() -> None:
+    """``m`` on a snoozed row unmutes AND clears snooze_until."""
+    notification = _make_notification("n1", action="JumpToAgent")
+    notification.muted = True
+    notification.snooze_until = "2026-04-22T09:00:00-04:00"
+    modal = NotificationModal([notification])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_muted") as mock_mark:
+        modal.action_toggle_mute()
+
+    mock_mark.assert_called_once_with("n1", False)
+    assert notification.muted is False
+    assert notification.snooze_until is None
+    modal.notify.assert_called_once_with("Unmuted (snooze cancelled)")
+
+
+def test_styled_label_includes_snooze_badge_when_snoozed() -> None:
+    """A snoozed row's label appends a '⏰ {time}' badge."""
+    from datetime import datetime as _datetime
+    from datetime import timedelta as _timedelta
+
+    from sase.core.time import get_timezone
+
+    notification = _make_notification("n1", action="JumpToAgent")
+    notification.muted = True
+    deadline = _datetime.now(get_timezone()) + _timedelta(minutes=14)
+    notification.snooze_until = deadline.isoformat()
+
+    modal = NotificationModal([notification])
+    label = modal._create_styled_label(notification)
+    assert "⏰" in label.plain
+
+
+def test_cancel_dismiss_notification_clears_pending() -> None:
+    """n should cancel pending dismissal and keep the notification."""
+    modal = NotificationModal([_make_notification("n1", action="PlanApproval")])
+    modal._pending_confirm_notification_id = "n1"
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_dismissed") as mock_mark:
+        modal.action_cancel_dismiss_notification()
+
+    mock_mark.assert_not_called()
+    assert modal._pending_confirm_notification_id is None
+    assert len(modal._notifications) == 1
+    modal.notify.assert_called_once_with("Dismiss canceled")
+
+
+def test_toggle_mark_adds_id_to_marked_set() -> None:
+    """m adds the highlighted id to the marked set and advances the cursor."""
+    n1 = _make_notification("n1", action="JumpToAgent")
+    n2 = _make_notification("n2", action="JumpToAgent")
+    modal = NotificationModal([n1, n2])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    modal.action_toggle_mark()
+
+    assert "n1" in modal._marked_notification_ids
+    modal._rebuild_list.assert_called_once_with(highlight_index=1)
+
+
+def test_toggle_mark_removes_id_when_already_marked() -> None:
+    """m on an already-marked row toggles it off."""
+    n1 = _make_notification("n1", action="JumpToAgent")
+    modal = NotificationModal([n1])
+    modal._marked_notification_ids = {"n1"}
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    modal.action_toggle_mark()
+
+    assert "n1" not in modal._marked_notification_ids
+
+
+def test_marked_row_label_has_marker_prefix() -> None:
+    """Marked rows render the '▶ ' marker before the regular prefix."""
+    notification = _make_notification("n1", action="JumpToAgent")
+    modal = NotificationModal([notification])
+    label = modal._create_styled_label(notification, is_marked=True)
+    assert label.plain.startswith("▶ ")
+
+
+def test_x_with_marks_bulk_dismisses_all_marked() -> None:
+    """When marks exist, x bulk-dismisses every marked row in one persistence call."""
+    n1 = _make_notification("n1", action="JumpToAgent")
+    n2 = _make_notification("n2", action="JumpToAgent")
+    n3 = _make_notification("n3", action="JumpToAgent")
+    modal = NotificationModal([n1, n2, n3])
+    modal._marked_notification_ids = {"n1", "n3"}
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    with patch(
+        "sase.ace.tui.modals.notification_modal.mark_many_dismissed"
+    ) as mock_mark:
+        modal.action_dismiss_notification()
+
+    mock_mark.assert_called_once_with(["n1", "n3"])
+    assert [n.id for n in modal._notifications] == ["n2"]
+    assert modal._marked_notification_ids == set()
+    modal._rebuild_list.assert_called_once()
+
+
+def test_x_with_marks_including_plan_question_requires_confirmation() -> None:
+    """Bulk dismiss with a plan/question marked needs a single y/n confirm."""
+    n1 = _make_notification("n1", action="JumpToAgent")
+    n2 = _make_notification("n2", action="PlanApproval")
+    modal = NotificationModal([n1, n2])
+    modal._marked_notification_ids = {"n1", "n2"}
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch(
+        "sase.ace.tui.modals.notification_modal.mark_many_dismissed"
+    ) as mock_mark:
+        modal.action_dismiss_notification()
+
+    mock_mark.assert_not_called()
+    assert modal._pending_confirm_notification_ids == ["n1", "n2"]
+    assert len(modal._notifications) == 2
+    modal.notify.assert_called_once()
+
+    with patch(
+        "sase.ace.tui.modals.notification_modal.mark_many_dismissed"
+    ) as mock_mark:
+        modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+        modal.action_confirm_dismiss_notification()
+
+    mock_mark.assert_called_once_with(["n1", "n2"])
+    assert modal._notifications == []
+    assert modal._marked_notification_ids == set()
+    assert modal._pending_confirm_notification_ids is None
+
+
+def test_x_without_marks_unchanged_behavior() -> None:
+    """No marks → x dismisses only the highlighted row (legacy path)."""
+    n1 = _make_notification("n1", action="JumpToAgent")
+    n2 = _make_notification("n2", action="JumpToAgent")
+    modal = NotificationModal([n1, n2])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_dismissed") as mock_mark:
+        modal.action_dismiss_notification()
+
+    mock_mark.assert_called_once_with("n1")
+    assert [n.id for n in modal._notifications] == ["n2"]
+
+
+def test_cancel_clears_bulk_pending() -> None:
+    """Cancel clears pending bulk dismiss and toasts a single message."""
+    modal = NotificationModal(
+        [
+            _make_notification("n1", action="PlanApproval"),
+            _make_notification("n2", action="JumpToAgent"),
+        ]
+    )
+    modal._pending_confirm_notification_ids = ["n1", "n2"]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    modal.action_cancel_dismiss_notification()
+
+    assert modal._pending_confirm_notification_ids is None
+    modal.notify.assert_called_once_with("Dismiss canceled")
+
+
+def test_switching_tag_tabs_clears_marks_and_pending_confirms() -> None:
+    """Tab switches clear modal-local state that could affect hidden rows."""
+    done = _make_notification("done", action="JumpToAgent")
+    done.tags = ["done"]
+    review = _make_notification("review", action="JumpToAgent")
+    review.tags = ["review"]
+    modal = NotificationModal([done, review])
+    modal._marked_notification_ids = {"done"}
+    modal._pending_confirm_notification_id = "done"
+    modal._pending_confirm_notification_ids = ["done"]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    modal._switch_notification_tag_tab("review")
+
+    assert modal._active_notification_tag == "review"
+    assert modal._marked_notification_ids == set()
+    assert modal._pending_confirm_notification_id is None
+    assert modal._pending_confirm_notification_ids is None
+    modal._rebuild_list.assert_called_once_with(highlight_index=1)
+
+
+def test_next_prev_tag_tab_cycles_without_general_tab() -> None:
+    """Bracket actions cycle through the computed tab order without General."""
+    done = _make_notification("done", action="JumpToAgent")
+    done.tags = ["done"]
+    review = _make_notification("review", action="JumpToAgent")
+    review.tags = ["review"]
+    modal = NotificationModal([done, review])
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    assert [tab.tag for tab in modal._tag_tabs()] == ["done", "review"]
+    assert modal._active_notification_tag == "done"
+
+    modal.action_next_notification_tag_tab()
+    assert modal._active_notification_tag == "review"
+
+    modal.action_next_notification_tag_tab()
+    assert modal._active_notification_tag == "done"
+
+    modal.action_prev_notification_tag_tab()
+    assert modal._active_notification_tag == "review"
+
+
+def test_dismiss_last_row_in_active_tag_falls_back_to_nearest_tab() -> None:
+    """When a tag disappears after dismiss, the active tab moves to its neighbor."""
+    done = _make_notification("done", action="JumpToAgent")
+    done.tags = ["done"]
+    review = _make_notification("review", action="JumpToAgent")
+    review.tags = ["review"]
+    modal = NotificationModal([done, review])
+    modal._active_notification_tag = "done"
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_dismissed") as mock_mark:
+        modal.action_dismiss_notification()
+
+    mock_mark.assert_called_once_with("done")
+    assert modal._active_notification_tag == "review"

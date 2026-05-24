@@ -205,7 +205,6 @@ class NotificationStateActionsMixin:
         new_muted = not notification.muted
         was_snoozed = notification.snooze_until is not None
         self._mark_muted(notification.id, new_muted)
-        self._sync_plan_notification_mute_tag(notification, muted=new_muted)
         notification.muted = new_muted
         if not new_muted:
             notification.snooze_until = None
@@ -238,7 +237,6 @@ class NotificationStateActionsMixin:
                 description = f"for {self._format_delta(result)}"
 
             self._mark_snoozed(notification.id, snooze_until)
-            self._sync_plan_notification_mute_tag(notification, muted=True)
             notification.muted = True
             notification.snooze_until = snooze_until.isoformat()
 

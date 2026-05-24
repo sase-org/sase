@@ -29,7 +29,6 @@ if TYPE_CHECKING:
 _AGENT_TAGS_FILE = Path.home() / ".sase" / "agent_tags.json"
 
 REVIEW_AGENT_TAG = "review"
-MUTE_AGENT_TAG = "mute"
 
 TAG_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
@@ -191,48 +190,6 @@ def update_agent_tag(
         with _agent_tags_file_lock():
             store = load_agent_tags()
             set_tag(store, identity, tag)
-            return save_agent_tags(store)
-    except OSError:
-        return False
-
-
-def set_agent_tag_if_unset(
-    identity: tuple[AgentType, str, str | None],
-    tag: str,
-) -> bool:
-    """Atomically set one identity's tag only when it is currently untagged.
-
-    Returns True only when the store was changed and saved successfully. Existing
-    tag assignments are left untouched and do not rewrite the file.
-    """
-    validate_tag_name(tag)
-    try:
-        with _agent_tags_file_lock():
-            store = load_agent_tags()
-            if store.get(identity):
-                return False
-            set_tag(store, identity, tag)
-            return save_agent_tags(store)
-    except OSError:
-        return False
-
-
-def clear_agent_tag_if_matches(
-    identity: tuple[AgentType, str, str | None],
-    expected_tag: str,
-) -> bool:
-    """Atomically clear one identity's tag only when it matches *expected_tag*.
-
-    Returns True only when the store was changed and saved successfully. Missing
-    or different tags are left untouched and do not rewrite the file.
-    """
-    validate_tag_name(expected_tag)
-    try:
-        with _agent_tags_file_lock():
-            store = load_agent_tags()
-            if store.get(identity) != expected_tag:
-                return False
-            unset_tag(store, identity)
             return save_agent_tags(store)
     except OSError:
         return False
