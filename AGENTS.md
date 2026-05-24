@@ -19,7 +19,7 @@ that prompt listing individual `.sase/memory/` file paths — one per matched me
 
 ```
 ### DYNAMIC MEMORY
-- @.sase/memory/long-generated-skills.md (memory/long/generated_skills, matched: `commit skill`)
+- @.sase/memory/long-facts-about-foobar.md (memory/long/facts_about_foobar, matched: `foobar facts`)
 ```
 
 File names use a prefix that encodes the source tier: `long-` means the file originates from a long-term (tier 3) memory
