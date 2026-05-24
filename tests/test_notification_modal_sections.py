@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.modals.notification_modal_tags import NotificationTagStrip
 
-from tests._notification_modal_helpers import _make_notification
+from tests._notification_modal_helpers import _FakeOptionList, _make_notification
 
 
 def test_sections_render_in_priority_errors_inbox_muted_order() -> None:
@@ -336,7 +336,7 @@ def test_jump_hints_render_only_on_notification_rows_in_visual_order() -> None:
 
 
 def test_tag_tabs_order_counts_and_pin_done() -> None:
-    """Tag tabs are All, pinned done, then remaining tags alphabetically."""
+    """Tag tabs are General, pinned done, then remaining tags alphabetically."""
     done = _make_notification("done", action="JumpToAgent")
     done.tags = ["done", "review"]
     foobar = _make_notification("foobar", action="JumpToAgent")
@@ -347,12 +347,56 @@ def test_tag_tabs_order_counts_and_pin_done() -> None:
 
     modal = NotificationModal([done, foobar, review, untagged])
 
-    assert [(tab.tag, tab.count) for tab in modal._tag_tabs()] == [
-        (None, 4),
-        ("done", 1),
-        ("foobar", 1),
-        ("review", 2),
+    assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
+        (None, "General", 1),
+        ("done", "done", 1),
+        ("foobar", "foobar", 1),
+        ("review", "review", 2),
     ]
+
+
+def test_all_tagged_notifications_open_on_first_tag_tab() -> None:
+    """When there is no General tab, the modal starts on the first tag tab."""
+    review = _make_notification("review", action="JumpToAgent")
+    review.tags = ["review"]
+    done = _make_notification("done", action="JumpToAgent")
+    done.tags = ["done"]
+
+    modal = NotificationModal([review, done])
+
+    assert [(tab.tag, tab.count) for tab in modal._tag_tabs()] == [
+        ("done", 1),
+        ("review", 1),
+    ]
+    assert modal._active_notification_tag == "done"
+    assert [opt.id for opt in modal._create_sectioned_options()] == [
+        "hdr:inbox",
+        "1",
+    ]
+
+
+def test_on_mount_highlights_first_visible_row_when_initial_is_hidden() -> None:
+    """Initial mount falls forward to a visible row in the starting tag tab."""
+    review = _make_notification("review", action="JumpToAgent")
+    review.tags = ["review"]
+    done = _make_notification("done", action="JumpToAgent")
+    done.tags = ["done"]
+    modal = NotificationModal([review, done], initial_index=0)
+    option_list = _FakeOptionList(modal._create_sectioned_options())
+    option_list.focus = MagicMock()  # type: ignore[method-assign]
+
+    def query_one(selector: str, *_args: object, **_kwargs: object) -> object:
+        if selector == "#notification-list":
+            return option_list
+        raise LookupError(selector)
+
+    modal.query_one = MagicMock(side_effect=query_one)  # type: ignore[method-assign]
+    modal._display_file = MagicMock()  # type: ignore[method-assign]
+
+    modal.on_mount()
+
+    assert option_list.highlighted == 1
+    modal._display_file.assert_called_once_with(done)
 
 
 def test_active_tag_filters_rows_but_preserves_original_option_ids() -> None:
@@ -373,23 +417,52 @@ def test_active_tag_filters_rows_but_preserves_original_option_ids() -> None:
     assert modal._visual_notification_index_order() == [0, 2]
 
 
-def test_untagged_notifications_only_render_in_all_tab() -> None:
-    """Untagged rows stay in All and do not appear in a tag tab."""
+def test_general_tab_excludes_tagged_notifications() -> None:
+    """Untagged rows stay in General and tagged rows stay out of it."""
     untagged = _make_notification("untagged", action="JumpToAgent")
     done = _make_notification("done", action="JumpToAgent")
     done.tags = ["done"]
     modal = NotificationModal([untagged, done])
 
+    assert [(tab.tag, tab.count) for tab in modal._tag_tabs()] == [
+        (None, 1),
+        ("done", 1),
+    ]
     assert [opt.id for opt in modal._create_sectioned_options()] == [
         "hdr:inbox",
         "0",
-        "1",
     ]
 
     modal._active_notification_tag = "done"
     assert [opt.id for opt in modal._create_sectioned_options()] == [
         "hdr:inbox",
         "1",
+    ]
+
+
+def test_multi_tag_notification_appears_in_each_tag_tab_not_general() -> None:
+    """Multi-tag rows render in every matching tag tab, never in General."""
+    both = _make_notification("both", action="JumpToAgent")
+    both.tags = ["done", "review"]
+    untagged = _make_notification("untagged", action="JumpToAgent")
+
+    modal = NotificationModal([both, untagged])
+
+    assert [opt.id for opt in modal._create_sectioned_options()] == [
+        "hdr:inbox",
+        "1",
+    ]
+
+    modal._active_notification_tag = "done"
+    assert [opt.id for opt in modal._create_sectioned_options()] == [
+        "hdr:inbox",
+        "0",
+    ]
+
+    modal._active_notification_tag = "review"
+    assert [opt.id for opt in modal._create_sectioned_options()] == [
+        "hdr:inbox",
+        "0",
     ]
 
 

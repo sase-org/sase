@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-24 09:46:10
-status: wip
+status: done
 prompt: sdd/prompts/202605/notification_tag_tab_isolation.md
 ---
 # Notification Tag Tab Isolation Plan

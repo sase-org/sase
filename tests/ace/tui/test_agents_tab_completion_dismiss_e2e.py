@@ -171,9 +171,10 @@ def test_done_tab_matches_successful_unread_completion_notifications(
     }
     modal = NotificationModal(load_notifications())
     assert [(tab.tag, tab.count) for tab in modal._tag_tabs()] == [
-        (None, 3),
+        (None, 1),
         ("done", 2),
     ]
+    assert _modal_visible_ids(modal) == ["n-failure"]
 
     modal._active_notification_tag = "done"
     assert set(_modal_visible_ids(modal)) == {"n-alpha", "n-beta"}
@@ -183,7 +184,7 @@ def test_done_tab_matches_successful_unread_completion_notifications(
     assert "n-failure" not in _modal_visible_ids(modal)
 
 
-def test_acknowledging_done_agent_removes_completion_from_all_and_done_tabs(
+def test_acknowledging_done_agent_removes_completion_from_done_not_general_tab(
     temp_notifications_dir: Path,
 ) -> None:
     """Reading one done row removes only its completion notification."""
@@ -209,14 +210,14 @@ def test_acknowledging_done_agent_removes_completion_from_all_and_done_tabs(
     assert app._unread_completed_agent_ids == {first.identity, second.identity}
 
     modal = NotificationModal(load_notifications())
-    assert set(_modal_visible_ids(modal)) == {"n-alpha", "n-beta", "n-plan"}
+    assert _modal_visible_ids(modal) == ["n-plan"]
     modal._active_notification_tag = "done"
     assert set(_modal_visible_ids(modal)) == {"n-alpha", "n-beta"}
 
     assert app._clear_agent_unread_and_dismiss_notification(first)
 
     modal = NotificationModal(load_notifications())
-    assert set(_modal_visible_ids(modal)) == {"n-beta", "n-plan"}
+    assert _modal_visible_ids(modal) == ["n-plan"]
     modal._active_notification_tag = "done"
     assert _modal_visible_ids(modal) == ["n-beta"]
     assert app._unread_completed_agent_ids == {second.identity}

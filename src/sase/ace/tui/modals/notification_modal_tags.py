@@ -38,18 +38,29 @@ def notification_display_tags(notification: Notification) -> list[str]:
     return tags
 
 
-def notification_has_tag(notification: Notification, tag: str) -> bool:
-    """Return whether a notification belongs in a tag tab."""
-    return tag in notification_display_tags(notification)
+def notification_matches_tag_tab(
+    notification: Notification,
+    tag: str | None,
+) -> bool:
+    """Return whether a notification belongs in the requested tag tab."""
+    tags = notification_display_tags(notification)
+    if tag is None:
+        return not tags
+    return tag in tags
 
 
 def build_notification_tag_tabs(
     notifications: list[Notification],
 ) -> list[NotificationTagTab]:
-    """Build modal tag tabs: All, pinned done, then remaining tags alphabetically."""
+    """Build modal tag tabs: General when present, pinned done, then tags."""
     counts: Counter[str] = Counter()
+    untagged_count = 0
     for notification in notifications:
-        for tag in notification_display_tags(notification):
+        tags = notification_display_tags(notification)
+        if not tags:
+            untagged_count += 1
+            continue
+        for tag in tags:
             counts[tag] += 1
 
     ordered_tags: list[str] = []
@@ -57,10 +68,11 @@ def build_notification_tag_tabs(
         ordered_tags.append("done")
     ordered_tags.extend(sorted(tag for tag in counts if tag != "done"))
 
-    return [
-        NotificationTagTab(None, "All", len(notifications)),
-        *[NotificationTagTab(tag, tag, counts[tag]) for tag in ordered_tags],
-    ]
+    tabs: list[NotificationTagTab] = []
+    if untagged_count:
+        tabs.append(NotificationTagTab(None, "General", untagged_count))
+    tabs.extend(NotificationTagTab(tag, tag, counts[tag]) for tag in ordered_tags)
+    return tabs
 
 
 def shorten_notification_tag(tag: str, *, max_width: int = 18) -> str:

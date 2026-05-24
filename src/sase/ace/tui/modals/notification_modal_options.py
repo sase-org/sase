@@ -31,7 +31,7 @@ from .notification_modal_constants import (
 )
 from .notification_modal_tags import (
     notification_display_tags,
-    notification_has_tag,
+    notification_matches_tag_tab,
     shorten_notification_tag,
 )
 
@@ -158,7 +158,7 @@ class NotificationOptionMixin:
         }
         active_tag: str | None = getattr(self, "_active_notification_tag", None)
         for i, n in enumerate(self._notifications):
-            if active_tag is not None and not notification_has_tag(n, active_tag):
+            if not notification_matches_tag_tab(n, active_tag):
                 continue
             groups[self._section_for(n)].append((i, n))
 

@@ -624,8 +624,8 @@ def test_switching_tag_tabs_clears_marks_and_pending_confirms() -> None:
     modal._rebuild_list.assert_called_once_with(highlight_index=1)
 
 
-def test_next_prev_tag_tab_cycles_through_all_done_and_other_tags() -> None:
-    """Bracket actions cycle through the computed tab order."""
+def test_next_prev_tag_tab_cycles_without_general_tab() -> None:
+    """Bracket actions cycle through the computed tab order without General."""
     done = _make_notification("done", action="JumpToAgent")
     done.tags = ["done"]
     review = _make_notification("review", action="JumpToAgent")
@@ -633,14 +633,17 @@ def test_next_prev_tag_tab_cycles_through_all_done_and_other_tags() -> None:
     modal = NotificationModal([done, review])
     modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
 
-    modal.action_next_notification_tag_tab()
+    assert [tab.tag for tab in modal._tag_tabs()] == ["done", "review"]
     assert modal._active_notification_tag == "done"
 
     modal.action_next_notification_tag_tab()
     assert modal._active_notification_tag == "review"
 
-    modal.action_prev_notification_tag_tab()
+    modal.action_next_notification_tag_tab()
     assert modal._active_notification_tag == "done"
+
+    modal.action_prev_notification_tag_tab()
+    assert modal._active_notification_tag == "review"
 
 
 def test_dismiss_last_row_in_active_tag_falls_back_to_nearest_tab() -> None:

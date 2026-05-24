@@ -83,7 +83,8 @@ class NotificationModal(
         self._notifications = list(notifications)
         self._initial_index = initial_index
         self._current_file_index: int = 0
-        self._active_notification_tag: str | None = None
+        tabs = build_notification_tag_tabs(self._notifications)
+        self._active_notification_tag: str | None = tabs[0].tag if tabs else None
         self._pending_confirm_notification_id: str | None = None
         self._pending_confirm_notification_ids: list[str] | None = None
         self._marked_notification_ids: set[str] = set()
@@ -240,19 +241,32 @@ class NotificationModal(
 
     def on_mount(self) -> None:
         """Focus the option list on mount and display initial file."""
+        display_index: int | None = None
         try:
             option_list = self.query_one("#notification-list", OptionList)
+            row: int | None = None
             if 0 <= self._initial_index < len(self._notifications):
                 row = self._row_for_notification_index(option_list, self._initial_index)
                 if row is not None:
-                    option_list.highlighted = row
+                    display_index = self._initial_index
+            if row is None:
+                display_index = self._first_visible_notification_index()
+                if display_index is not None:
+                    row = self._row_for_notification_index(option_list, display_index)
+            if row is not None:
+                option_list.highlighted = row
             option_list.focus()
         except Exception:
             pass
 
         if self._notifications:
-            idx = min(self._initial_index, len(self._notifications) - 1)
-            self._display_file(self._notifications[max(0, idx)])
+            if display_index is None:
+                display_index = self._first_visible_notification_index()
+            if display_index is None:
+                display_index = max(
+                    0, min(self._initial_index, len(self._notifications) - 1)
+                )
+            self._display_file(self._notifications[display_index])
 
     def _tag_tabs(self) -> list[NotificationTagTab]:
         """Return tag tabs for the current in-memory modal dataset."""
@@ -265,6 +279,9 @@ class NotificationModal(
     ) -> None:
         """Keep the active tag valid after notification mutations."""
         current_tags = [tab.tag for tab in self._tag_tabs()]
+        if not current_tags:
+            self._active_notification_tag = None
+            return
         if self._active_notification_tag in current_tags:
             return
 
@@ -288,7 +305,7 @@ class NotificationModal(
                             self._active_notification_tag = candidate
                             return
 
-        self._active_notification_tag = None
+        self._active_notification_tag = current_tags[0]
 
     def _refresh_tag_strip(self) -> None:
         """Refresh the visible tag strip when mounted."""
@@ -311,8 +328,13 @@ class NotificationModal(
 
     def _switch_notification_tag_tab(self, tag: str | None) -> None:
         """Switch the active tag tab and rebuild the in-memory list."""
-        valid_tags = {tab.tag for tab in self._tag_tabs()}
-        next_tag = tag if tag in valid_tags else None
+        tags = [tab.tag for tab in self._tag_tabs()]
+        if not tags:
+            next_tag = None
+        elif tag in tags:
+            next_tag = tag
+        else:
+            next_tag = tags[0]
         if next_tag == self._active_notification_tag:
             return
 
