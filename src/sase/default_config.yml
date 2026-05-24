@@ -55,6 +55,7 @@ ace:
       reword: "w"
       add_tag: "W"
       view_files: "v"
+      jump_to_entry: "apostrophe"
       jump_to_entry_fast: "ctrl+o"
       jump_to_all_entries: "grave_accent"
       edit_spec: "e"
