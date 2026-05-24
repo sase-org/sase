@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-24 11:49:41
-status: wip
+status: done
 prompt: sdd/prompts/202605/fenced_file_refs.md
 ---
 # Plan: Ignore @ File References Inside Fenced Blocks
