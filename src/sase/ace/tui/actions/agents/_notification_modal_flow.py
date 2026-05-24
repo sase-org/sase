@@ -137,6 +137,7 @@ class AgentNotificationModalMixin:
             handle_jump_to_agent,
             handle_jump_to_changespec,
             handle_jump_to_mentor_review,
+            handle_memory_review,
             handle_plan_approval,
             handle_tmux,
             handle_user_question,
@@ -180,6 +181,8 @@ class AgentNotificationModalMixin:
                 handle_user_question(self, result)
             elif result.action == "ViewErrorReport":
                 handle_view_error_report(self, result)
+            elif result.action == "memory_review":
+                handle_memory_review(self, result)
 
         self.push_screen(  # type: ignore[attr-defined]
             NotificationModal(unread, initial_index=initial_index), callback=_on_dismiss

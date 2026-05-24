@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-23 21:28:34
-status: wip
+status: done
 prompt: sdd/prompts/202605/memory_notification_actions.md
 ---
 # Plan: Memory Proposal Notification Actions

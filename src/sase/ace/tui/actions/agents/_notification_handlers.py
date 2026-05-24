@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sase.memory.review_tui import MemoryReviewTuiApp
+
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
@@ -82,6 +84,19 @@ def handle_view_error_report(app: object, notification: Notification) -> bool:
 
     with app.suspend():  # type: ignore[attr-defined]
         subprocess.run(editor_args, check=False)
+
+    return True
+
+
+def handle_memory_review(app: object, notification: Notification) -> bool:
+    """Open the memory proposal review TUI for the notification proposal."""
+    proposal_id = notification.action_data.get("proposal_id")
+    if not proposal_id:
+        app.notify("No proposal_id in notification", severity="warning")  # type: ignore[attr-defined]
+        return False
+
+    with app.suspend():  # type: ignore[attr-defined]
+        MemoryReviewTuiApp(initial_proposal_id=proposal_id).run()
 
     return True
 

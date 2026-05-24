@@ -76,6 +76,7 @@ class MemoryReviewTuiApp(App[None]):
         approve_callback: ApproveCallback | None = None,
         reject_callback: RejectCallback | None = None,
         edit_callback: EditCallback | None = None,
+        initial_proposal_id: str | None = None,
         cwd: Path | None = None,
     ) -> None:
         super().__init__()
@@ -88,7 +89,7 @@ class MemoryReviewTuiApp(App[None]):
         self._all_states: tuple[MemoryProposalState, ...] = ()
         self._states: tuple[MemoryProposalState, ...] = ()
         self._events: tuple[MemoryProposalLedgerEvent, ...] = ()
-        self._selected_id: str | None = None
+        self._selected_id: str | None = initial_proposal_id
         self._filter_text = ""
         self._view_mode = "list"
         self._status_message = ""

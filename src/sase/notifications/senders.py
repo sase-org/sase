@@ -27,6 +27,7 @@ def notify_memory_proposed(proposal: Any) -> str:
         files=_memory_proposal_evidence_files(proposal),
         action="memory_review",
         action_data={"proposal_id": proposal.proposal_id},
+        tags=normalize_notification_tags(["memory"]),
     )
     append_notification(n)
     NOTIFICATIONS_SENT.labels(type="memory_proposed", status="ok").inc()

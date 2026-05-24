@@ -7,6 +7,7 @@ from ._notification_handlers import (
     handle_jump_to_agent as handle_jump_to_agent,
     handle_jump_to_changespec as handle_jump_to_changespec,
     handle_jump_to_mentor_review as handle_jump_to_mentor_review,
+    handle_memory_review as handle_memory_review,
     handle_tmux as handle_tmux,
     handle_view_error_report as handle_view_error_report,
 )
@@ -31,6 +32,7 @@ __all__ = [
     "handle_jump_to_agent",
     "handle_jump_to_changespec",
     "handle_jump_to_mentor_review",
+    "handle_memory_review",
     "handle_plan_approval",
     "handle_tmux",
     "handle_user_question",

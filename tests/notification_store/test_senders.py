@@ -167,4 +167,5 @@ class TestNotifyMemoryProposed:
             "proposal_id": "mem-20260523-120000-1234abcd"
         }
         assert notification.files == ["/tmp/evidence.md"]
+        assert notification.tags == ["memory"]
         assert "Memory proposal ready: Generated skills" in notification.notes

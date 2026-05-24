@@ -116,6 +116,34 @@ async def test_memory_review_tui_navigation_updates_preview(
         assert "Second memory" in _detail_plain(app)
 
 
+async def test_memory_review_tui_honors_initial_proposal_selection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _setup_review_state(tmp_path, monkeypatch)
+    _create_proposal(
+        tmp_path,
+        proposal_id="mem-20260523-120000-11111111",
+        title="First memory",
+        body="First body\n",
+        target="long/first.md",
+    )
+    second_id = _create_proposal(
+        tmp_path,
+        proposal_id="mem-20260523-120001-22222222",
+        title="Second memory",
+        body="Second body\n",
+        target="long/second.md",
+    )
+
+    app = MemoryReviewTuiApp(initial_proposal_id=second_id, cwd=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        assert app.selected_proposal_id == second_id
+        assert "Second memory" in _detail_plain(app)
+
+
 async def test_memory_review_tui_drill_down_opens_and_exits(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
