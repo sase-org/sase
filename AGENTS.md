@@ -38,6 +38,8 @@ sase memory read <long-memory-path> --reason "<why this context is needed>"
 `<long-memory-path>` is relative to `memory/`, for example `long/generated_skills.md`. Do not read canonical
 `memory/long/*.md` files directly.
 
+#### Long-Term Memory Files
+
 **`long/generated_skills.md`**  
 Skill file generation pipeline, CLI/skill contract synchronization, commit skills per runtime. _Read when modifying
 skill source files or the commit workflow._
