@@ -45,6 +45,7 @@ def _make_notification(
     sender: str = "test",
     notes: list[str] | None = None,
     files: list[str] | None = None,
+    tags: list[str] | None = None,
     action: str | None = None,
     action_data: dict[str, str] | None = None,
     read: bool = False,
@@ -56,6 +57,7 @@ def _make_notification(
         sender=sender,
         notes=notes or [],
         files=files or [],
+        tags=tags or [],
         action=action,
         action_data=action_data or {},
         read=read,
@@ -71,6 +73,7 @@ def _list_args(**overrides: object) -> argparse.Namespace:
         "sender": None,
         "unread": False,
         "all": False,
+        "tag": None,
     }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
@@ -84,16 +87,31 @@ def _show_args(**overrides: object) -> argparse.Namespace:
 
 def test_parser_preserves_legacy_bare_notify_create() -> None:
     parser = create_parser()
-    args = parser.parse_args(["notify", "--sender", "axe"])
+    args = parser.parse_args(["notify", "--sender", "axe", "--tag", "Done"])
     assert args.command == "notify"
     assert args.notify_subcommand is None
     assert args.sender == "axe"
+    assert args.tag == ["Done"]
 
 
 def test_parser_registers_notify_list_options() -> None:
     parser = create_parser()
     args = parser.parse_args(
-        ["notify", "list", "-j", "-l", "5", "-q", "digest", "-s", "axe", "-u", "-a"]
+        [
+            "notify",
+            "list",
+            "-j",
+            "-l",
+            "5",
+            "-q",
+            "digest",
+            "-s",
+            "axe",
+            "-u",
+            "-a",
+            "--tag",
+            "done",
+        ]
     )
     assert args.command == "notify"
     assert args.notify_subcommand == "list"
@@ -103,6 +121,7 @@ def test_parser_registers_notify_list_options() -> None:
     assert args.sender == "axe"
     assert args.unread is True
     assert args.all is True
+    assert args.tag == "done"
 
 
 def test_parser_registers_notify_show_options() -> None:
@@ -120,9 +139,10 @@ def test_parser_registers_notify_show_options() -> None:
 
 def test_parser_registers_explicit_create_alias() -> None:
     parser = create_parser()
-    args = parser.parse_args(["notify", "create", "-s", "worker"])
+    args = parser.parse_args(["notify", "create", "-s", "worker", "-t", "Review"])
     assert args.notify_subcommand == "create"
     assert args.sender == "worker"
+    assert args.tag == ["Review"]
 
 
 def test_legacy_create_path_still_writes_notification(
@@ -163,6 +183,34 @@ def test_create_sender_flag_overrides_stdin(
 
     assert excinfo.value.code == 0
     assert load_notifications(include_dismissed=True)[0].sender == "cli"
+
+
+def test_create_combines_json_and_cli_tags(
+    temp_notifications_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del temp_notifications_dir
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        io.StringIO(json.dumps({"sender": "json", "tags": [" Done ", "Review"]})),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_notify_command(
+            argparse.Namespace(
+                notify_subcommand="create",
+                sender=None,
+                tag=["review", "CLI"],
+            )
+        )
+
+    assert excinfo.value.code == 0
+    assert load_notifications(include_dismissed=True)[0].tags == [
+        "done",
+        "review",
+        "cli",
+    ]
 
 
 def test_notify_command_dispatches_list(
@@ -219,6 +267,7 @@ def test_list_json_shape_default_limit_and_filters(
         "priority",
         "notes",
         "files",
+        "tags",
         "action",
         "action_data",
         "read",
@@ -266,6 +315,7 @@ def test_show_json_and_markdown(
             sender="axe",
             notes=["1 error"],
             files=[str(Path.home() / ".sase" / "axe" / "digest.txt")],
+            tags=["digest", "error"],
             action="ViewErrorReport",
             action_data={
                 "error_report_path": str(Path.home() / ".sase" / "axe" / "digest.txt")
@@ -276,12 +326,14 @@ def test_show_json_and_markdown(
     handle_notify_show(_show_args(format="json"))
     payload = json.loads(capsys.readouterr().out)
     assert payload["id"] == "target"
+    assert payload["tags"] == ["digest", "error"]
     assert payload["action_data"]["error_report_path"].endswith("digest.txt")
 
     handle_notify_show(_show_args(format="markdown"))
     out = capsys.readouterr().out
     assert "# Notification target" in out
     assert "ViewErrorReport" in out
+    assert "`digest`, `error`" in out
     assert "error_report_path" in out
     assert "digest.txt" in out
 
@@ -349,6 +401,7 @@ def test_notify_skill_recommended_flow_lists_shows_and_reads_axe_digest(
             sender="axe",
             notes=["1 error(s) in the last hour"],
             files=[str(digest_path)],
+            tags=["digest"],
             action="ViewErrorReport",
             action_data={"error_report_path": str(digest_path)},
             read=False,
@@ -366,7 +419,7 @@ def test_notify_skill_recommended_flow_lists_shows_and_reads_axe_digest(
 
     parser = create_parser()
     list_args = parser.parse_args(
-        ["notify", "list", "-j", "-l", "20", "--sender", "axe"]
+        ["notify", "list", "-j", "-l", "20", "--sender", "axe", "--tag", "digest"]
     )
     with pytest.raises(SystemExit) as excinfo:
         handle_notify_command(list_args)
@@ -376,6 +429,7 @@ def test_notify_skill_recommended_flow_lists_shows_and_reads_axe_digest(
     assert [row["id"] for row in rows] == ["axe-digest"]
     axe_row = rows[0]
     assert axe_row["priority"] is True
+    assert axe_row["tags"] == ["digest"]
     assert axe_row["read"] is False
     assert axe_row["files"] == [str(digest_path)]
     assert axe_row["action_data"]["error_report_path"] == str(digest_path)

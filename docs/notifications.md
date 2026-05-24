@@ -164,6 +164,7 @@ Each notification contains:
 | `sender`       | string       | Source identifier (e.g., "plan", "sync", "axe")                                                        |
 | `notes`        | list[string] | Human-readable message lines                                                                           |
 | `files`        | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                   |
+| `tags`         | list[string] | Optional normalized labels for filtering and future modal tabs                                         |
 | `action`       | string       | Action type: `HITL`, `JumpToChangeSpec`, `PlanApproval`, etc.                                          |
 | `action_data`  | dict         | Action-specific data (e.g., response directory, CL name)                                               |
 | `read`         | bool         | Whether the notification has been read                                                                 |
@@ -182,6 +183,15 @@ indicator, toast, notification modal, and Telegram delivery. They remain visible
 Agent completion and failure events from hidden background agents still write a notification row, but with the silent
 flag set. This keeps the JSONL audit trail complete while keeping the inbox focused on user-facing agent work.
 
+## Tags
+
+Senders may attach `tags` to a notification. Tags are normalized when notifications are created: whitespace is trimmed,
+empty values are dropped, values are lowercased, and duplicates are removed while preserving sender order. Tags do not
+change priority, error classification, unread counts, mute, snooze, or auto-dismiss matching.
+
+Successful visible and hidden user-agent completion notifications that jump back to the agent row carry the `done` tag.
+Failed user-agent notifications do not carry `done`; failures remain error reports.
+
 ## CLI
 
 The `sase notify` command can create notifications and inspect the local notification inbox.
@@ -189,9 +199,9 @@ The `sase notify` command can create notifications and inspect the local notific
 Create remains backward-compatible with the original bare command form:
 
 ```bash
-echo '{"sender": "test", "notes": ["Hello"]}' | sase notify
+echo '{"sender": "test", "notes": ["Hello"], "tags": ["review"]}' | sase notify
 sase notify -s my_sender < notification.json
-sase notify create -s my_sender < notification.json
+sase notify create -s my_sender --tag review --tag handoff < notification.json
 ```
 
 For read-only inspection, list recent notifications as either a compact table or stable JSON:
@@ -201,13 +211,15 @@ sase notify list
 sase notify list -j -l 20
 sase notify list -j --sender axe
 sase notify list -j --unread
+sase notify list -j --tag done
 sase notify list -j -q digest
 sase notify list -j --all
 ```
 
 `sase notify list -j` prints notifications newest first with `id`, `timestamp`, `age`, `sender`, `priority`, `notes`,
-`files`, `action`, `action_data`, `read`, `dismissed`, `silent`, `muted`, and `snooze_until`. Dismissed notifications
-are hidden unless `--all` is provided.
+`files`, `tags`, `action`, `action_data`, `read`, `dismissed`, `silent`, `muted`, and `snooze_until`. The `-q/--query`
+filter matches tags as well as ids, senders, notes, files, actions, and action data. Dismissed notifications are hidden
+unless `--all` is provided.
 
 Inspect one notification by id:
 
@@ -217,8 +229,8 @@ sase notify show --id <notification_id> -f json
 sase notify show --id <notification_id> -f markdown
 ```
 
-The default `show` format is markdown. It includes the notification notes, attached file paths, action data, and state
-flags. Axe error digest notifications usually point to the actionable report through `files` or
+The default `show` format is markdown. It includes the notification tags, notes, attached file paths, action data, and
+state flags. Axe error digest notifications usually point to the actionable report through `files` or
 `action_data.error_report_path`; read that attached file for the detailed errors.
 
 To create a local test notification with a persistent PNG attachment for ACE modal image-preview checks, run

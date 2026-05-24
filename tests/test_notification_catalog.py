@@ -41,6 +41,7 @@ def _make_notification(
     sender: str = "test",
     notes: list[str] | None = None,
     files: list[str] | None = None,
+    tags: list[str] | None = None,
     action: str | None = None,
     action_data: dict[str, str] | None = None,
     read: bool = False,
@@ -55,6 +56,7 @@ def _make_notification(
         sender=sender,
         notes=notes or [],
         files=files or [],
+        tags=tags or [],
         action=action,
         action_data=action_data or {},
         read=read,
@@ -92,6 +94,7 @@ def test_lists_newest_first_with_limit_and_stable_json_keys(
         "priority",
         "notes",
         "files",
+        "tags",
         "action",
         "action_data",
         "read",
@@ -157,7 +160,7 @@ def test_sender_unread_dismissed_and_silent_filters(
 
 @pytest.mark.parametrize(
     "query",
-    ["catalog-id", "worker", "digest", "ViewErrorReport", "AXE-42"],
+    ["catalog-id", "worker", "digest", "ViewErrorReport", "AXE-42", "review"],
 )
 def test_query_matches_catalog_fields(
     temp_notifications_dir: Path,
@@ -170,6 +173,7 @@ def test_query_matches_catalog_fields(
             sender="worker",
             notes=["digest available"],
             files=["/tmp/digest.txt"],
+            tags=["review"],
             action="ViewErrorReport",
             action_data={"code": "AXE-42"},
         )
@@ -177,6 +181,21 @@ def test_query_matches_catalog_fields(
     append_notification(_make_notification("other"))
 
     assert [row.id for row in list_notification_infos(query=query)] == ["catalog-id"]
+
+
+def test_tag_filter_normalizes_and_matches_exact_tags(
+    temp_notifications_dir: Path,
+) -> None:
+    del temp_notifications_dir
+    append_notification(_make_notification("review", tags=["done", "review"]))
+    append_notification(_make_notification("done-only", tags=["done"]))
+    append_notification(_make_notification("untagged"))
+
+    assert [row.id for row in list_notification_infos(tag=" Review ")] == ["review"]
+    assert [row.id for row in list_notification_infos(tag="done")] == [
+        "done-only",
+        "review",
+    ]
 
 
 def test_projection_normalizes_home_paths_and_preserves_state_fields(

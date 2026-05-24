@@ -279,4 +279,5 @@ def send_completion_notification(
         action_data=action_data,
         extra_files=extra_files,
         silent=agent_hidden,
+        tags=["done"] if success and action == "JumpToAgent" else None,
     )

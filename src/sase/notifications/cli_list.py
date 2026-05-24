@@ -24,6 +24,7 @@ def handle_notify_list(args: argparse.Namespace) -> None:
             sender=getattr(args, "sender", None),
             unread=bool(getattr(args, "unread", False)),
             include_dismissed=bool(getattr(args, "all", False)),
+            tag=getattr(args, "tag", None),
         )
     except Exception as exc:
         print(f"sase notify list: cannot read notifications: {exc}", file=sys.stderr)
@@ -50,7 +51,7 @@ def _print_pretty(infos: list[NotificationInfo]) -> None:
         print("No notifications found.")
         return
 
-    print("ID\tAGE\tSENDER\tSTATE\tNOTES")
+    print("ID\tAGE\tSENDER\tTAGS\tSTATE\tNOTES")
     for info in infos:
         print(
             "\t".join(
@@ -58,6 +59,7 @@ def _print_pretty(infos: list[NotificationInfo]) -> None:
                     info.id,
                     info.age,
                     info.sender,
+                    ",".join(info.tags) if info.tags else "-",
                     _state_label(info),
                     _truncate(" | ".join(info.notes), _PRETTY_NOTES_MAX_CHARS),
                 ]

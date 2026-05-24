@@ -76,6 +76,27 @@ def test_success_completion_notification_includes_runtime(base_kwargs):
     assert action_data["runtime"] == "4m32s"
 
 
+def test_success_completion_notification_tags_done(base_kwargs):
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["action"] == "JumpToAgent"
+    assert mock_notify.call_args.kwargs["tags"] == ["done"]
+
+
+def test_failure_completion_notification_is_not_tagged_done(base_kwargs, tmp_path):
+    error_report = tmp_path / "error.md"
+    error_report.write_text("boom\n")
+    base_kwargs["success"] = False
+    base_kwargs["error_report_path"] = str(error_report)
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["action"] == "ViewErrorReport"
+    assert mock_notify.call_args.kwargs["tags"] is None
+
+
 def test_completion_notification_uses_full_commit_result_message(base_kwargs):
     full_message = "feat: add report\n\nInclude full commit body."
     artifacts_dir = Path(base_kwargs["current_artifacts_dir"])

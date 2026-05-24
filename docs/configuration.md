@@ -1422,12 +1422,16 @@ checkout.
 
 `sase notify` without a subcommand preserves the legacy create behavior and reads notification JSON from stdin.
 
-| Form                 | Flags                                                                             | Description                                                 |
-| -------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `sase notify`        | `-s/--sender`                                                                     | Create a notification from stdin JSON                       |
-| `sase notify create` | `-s/--sender`                                                                     | Explicit alias for the legacy create path                   |
-| `sase notify list`   | `-j/--json`, `-l/--limit`, `-q/--query`, `-s/--sender`, `-u/--unread`, `-a/--all` | List recent notifications; `-j` emits the stable JSON shape |
-| `sase notify show`   | `-i/--id`, `-f/--format` (`markdown` or `json`)                                   | Show one notification by id; defaults to markdown           |
+| Form                 | Flags                                                                                         | Description                                                 |
+| -------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `sase notify`        | `-s/--sender`, `-t/--tag`                                                                     | Create a notification from stdin JSON                       |
+| `sase notify create` | `-s/--sender`, `-t/--tag`                                                                     | Explicit alias for the legacy create path                   |
+| `sase notify list`   | `-j/--json`, `-l/--limit`, `-q/--query`, `-t/--tag`, `-s/--sender`, `-u/--unread`, `-a/--all` | List recent notifications; `-j` emits the stable JSON shape |
+| `sase notify show`   | `-i/--id`, `-f/--format` (`markdown` or `json`)                                               | Show one notification by id; defaults to markdown           |
+
+Create accepts a JSON `tags` field and repeatable `-t/--tag`; CLI tags are appended to JSON tags, then normalized and
+deduplicated. `sase notify list -q` also matches tags, and `sase notify list --tag <tag>` filters to notifications with
+that exact normalized tag.
 
 ### `sase plan`
 

@@ -37,6 +37,20 @@ class TestNotifyWorkflowCompleteSilent:
         assert len(loaded) == 1
         assert loaded[0].silent is False
 
+    def test_tags_are_normalized(self, temp_notifications_dir: Path) -> None:
+        from sase.notifications.senders import notify_workflow_complete
+
+        notify_workflow_complete(
+            sender="run-agent",
+            cl_name="test-cl",
+            success=True,
+            notes=["Agent completed"],
+            tags=[" Done ", "done", "Review"],
+        )
+        loaded = load_notifications()
+        assert len(loaded) == 1
+        assert loaded[0].tags == ["done", "review"]
+
 
 class TestNotifyMentorsComplete:
     """Tests for notify_mentors_complete()."""

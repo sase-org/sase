@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 from typing import NoReturn
 
-from sase.notifications.models import Notification
+from sase.notifications.models import Notification, normalize_notification_tags
 from sase.notifications.store import append_notification
 from sase.core.time import get_timezone
 
@@ -62,6 +62,7 @@ def _handle_notify_create(args: argparse.Namespace) -> NoReturn:
         sender=data["sender"],
         notes=data.get("notes", []),
         files=data.get("files", []),
+        tags=_create_tags(data.get("tags"), getattr(args, "tag", None)),
         action=data.get("action"),
         action_data=data.get("action_data", {}),
     )
@@ -69,3 +70,15 @@ def _handle_notify_create(args: argparse.Namespace) -> NoReturn:
     append_notification(notification)
     print(notification.id)
     sys.exit(0)
+
+
+def _create_tags(json_tags: object, cli_tags: list[str] | None) -> list[str]:
+    values: list[str] = []
+    if isinstance(json_tags, str):
+        values.append(json_tags)
+    elif isinstance(json_tags, list):
+        values.extend(str(tag) for tag in json_tags)
+    elif json_tags is not None:
+        values.append(str(json_tags))
+    values.extend(cli_tags or [])
+    return normalize_notification_tags(values)

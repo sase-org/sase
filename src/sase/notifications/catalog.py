@@ -5,7 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.notifications.models import Notification, format_relative_time
+from sase.notifications.models import (
+    Notification,
+    format_relative_time,
+    normalize_notification_tags,
+)
 from sase.notifications.priority import is_error, is_priority
 from sase.notifications.sort import timestamp_sort_key
 from sase.notifications.store import load_notifications
@@ -22,6 +26,7 @@ class NotificationInfo:
     priority: bool
     notes: list[str]
     files: list[str]
+    tags: list[str]
     action: str | None
     action_data: dict[str, str]
     read: bool
@@ -49,6 +54,7 @@ def _notification_info(notification: Notification) -> NotificationInfo:
         priority=is_priority(notification) or is_error(notification),
         notes=list(notification.notes),
         files=[_normalize_home_path(path) for path in notification.files],
+        tags=list(notification.tags),
         action=notification.action,
         action_data={
             key: _normalize_home_path(value)
@@ -68,6 +74,7 @@ def _query_values(notification: Notification) -> list[str]:
         notification.sender,
         *(notification.notes or []),
         *(notification.files or []),
+        *(notification.tags or []),
     ]
     if notification.action:
         values.append(notification.action)
@@ -90,6 +97,7 @@ def list_notification_infos(
     unread: bool = False,
     include_dismissed: bool = False,
     include_silent: bool = True,
+    tag: str | None = None,
 ) -> list[NotificationInfo]:
     """Return filtered notification info rows, newest first."""
     notifications = load_notifications(include_dismissed=include_dismissed)
@@ -101,6 +109,15 @@ def list_notification_infos(
         rows = [notification for notification in rows if not notification.read]
     if not include_silent:
         rows = [notification for notification in rows if not notification.silent]
+    if tag is not None:
+        normalized_tags = normalize_notification_tags(tag)
+        if normalized_tags:
+            target_tag = normalized_tags[0]
+            rows = [
+                notification for notification in rows if target_tag in notification.tags
+            ]
+        else:
+            rows = []
     if query:
         rows = [
             notification for notification in rows if _matches_query(notification, query)
@@ -129,6 +146,7 @@ def notification_info_to_json(info: NotificationInfo) -> dict[str, object]:
         "priority": info.priority,
         "notes": info.notes,
         "files": info.files,
+        "tags": info.tags,
         "action": info.action,
         "action_data": info.action_data,
         "read": info.read,

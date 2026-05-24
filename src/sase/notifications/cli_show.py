@@ -53,6 +53,10 @@ def _print_markdown(info: NotificationInfo) -> None:
     sys.stdout.write(f"- timestamp: `{info.timestamp}` ({info.age})\n")
     sys.stdout.write(f"- sender: `{info.sender}`\n")
     sys.stdout.write(f"- priority: {_bool_text(info.priority)}\n")
+    if info.tags:
+        sys.stdout.write(f"- tags: {', '.join(f'`{tag}`' for tag in info.tags)}\n")
+    else:
+        sys.stdout.write("- tags: none\n")
     sys.stdout.write("- notes:\n")
     if info.notes:
         for note in info.notes:

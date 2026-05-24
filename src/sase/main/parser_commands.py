@@ -307,6 +307,13 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         help="Notification sender name (overrides sender in JSON input)",
     )
+    notify_parser.add_argument(
+        "-t",
+        "--tag",
+        action="append",
+        default=None,
+        help="Tag for a created notification; repeat to add more tags",
+    )
     notify_sub = notify_parser.add_subparsers(
         dest="notify_subcommand", help="Notification subcommands"
     )
@@ -320,6 +327,13 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
         "--sender",
         default=None,
         help="Notification sender name (overrides sender in JSON input)",
+    )
+    create_parser.add_argument(
+        "-t",
+        "--tag",
+        action="append",
+        default=None,
+        help="Tag for the created notification; repeat to add more tags",
     )
 
     list_parser = notify_sub.add_parser(
@@ -344,6 +358,12 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
         "--query",
         default=None,
         help="Case-insensitive substring filter over notification fields",
+    )
+    list_parser.add_argument(
+        "-t",
+        "--tag",
+        default=None,
+        help="Only include notifications with this tag",
     )
     list_parser.add_argument(
         "-s",

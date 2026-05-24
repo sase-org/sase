@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from sase.notifications.models import Notification
+from sase.notifications.models import Notification, normalize_notification_tags
 from sase.notifications.store import append_notification
 from sase.core.time import get_timezone
 from sase.telemetry.metrics import NOTIFICATIONS_SENT
@@ -51,6 +51,7 @@ def notify_workflow_complete(
     action_data: dict[str, str] | None = None,
     extra_files: list[str] | None = None,
     silent: bool = False,
+    tags: list[str] | None = None,
 ) -> None:
     """Send a notification when a workflow finishes."""
     files = list(extra_files or [])
@@ -63,6 +64,7 @@ def notify_workflow_complete(
         action=action,
         action_data=action_data or {},
         silent=silent,
+        tags=normalize_notification_tags(tags),
     )
     append_notification(n)
     NOTIFICATIONS_SENT.labels(type="workflow_complete", status="ok").inc()
