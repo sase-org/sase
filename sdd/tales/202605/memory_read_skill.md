@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-24 13:14:49
-status: wip
+status: done
 prompt: sdd/prompts/202605/memory_read_skill.md
 ---
 # Plan: SASE Memory Read Skill

@@ -28,15 +28,8 @@ corresponding tier 3 file below — you do NOT need to separately read the tier 
 
 ## Tier 3 (long-term) Memory
 
-The below files contain detailed reference material. When working in their domain, you MUST read them through the
-audited memory-read command:
-
-```bash
-sase memory read <long-memory-path> --reason "<why this context is needed>"
-```
-
-`<long-memory-path>` is relative to `memory/`, for example `long/generated_skills.md`. Do not read canonical
-`memory/long/*.md` files directly.
+The below files contain detailed reference material. When working in their domain, you MUST use `/sase_memory_read` and
+perform the audited `sase memory read` workflow. Do not read canonical `memory/long/*.md` files directly.
 
 #### Long-Term Memory Files
 

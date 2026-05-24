@@ -748,6 +748,7 @@ local skill files. Coding agents invoke them as `/sase_<name>`:
 | `sase_changespecs`   | Inspect and reason about ChangeSpecs via `sase changespec search ...`, exact-name lookup, and safe edit rules |
 | `sase_git_commit`    | Commit changes for git-based VCS via `sase commit` (the only sanctioned commit path on git repos)             |
 | `sase_hg_commit`     | Mercurial counterpart of `sase_git_commit`                                                                    |
+| `sase_memory_read`   | Guide audited long-term memory reads through `sase memory read`                                               |
 | `sase_notify`        | Inspect SASE notification inbox entries via `sase notify list` and `sase notify show`                         |
 | `sase_plan`          | Submit a plan file for approval (used in lieu of disabled `EnterPlanMode`)                                    |
 | `sase_questions`     | Ask the user structured questions (used in lieu of disabled `AskUserQuestion`)                                |
