@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from sase.plan_chain import agent_family_base
+from sase.plan_chain import agent_family_base, canonical_plan_chain_suffix
 
 from ..agent import Agent
 from ._buckets import (
@@ -22,12 +22,28 @@ from ._buckets import (
 
 
 def _agent_family_base_from_row(agent: Agent, name: str) -> str | None:
-    """Infer a family base only for rows carrying family metadata."""
-    if agent.agent_family:
-        return agent.agent_family
-    if agent.role_suffix:
+    """Infer a family base only for rows carrying known family metadata."""
+    if canonical_plan_chain_suffix(agent.role_suffix) is not None:
         return agent_family_base(name)
     return None
+
+
+def _grouping_name(agent: Agent) -> str:
+    """Return the effective name used for root/prefix grouping."""
+    if agent.agent_family:
+        return agent.agent_family
+
+    if agent.agent_name:
+        family_base = _agent_family_base_from_row(agent, agent.agent_name)
+        return family_base or agent.agent_name
+
+    name = agent.display_name or ""
+    family_base = _agent_family_base_from_row(agent, name)
+    if family_base:
+        return family_base
+    if "." in name:
+        return name
+    return ""
 
 
 @dataclass(frozen=True)
@@ -49,40 +65,15 @@ def _project_name(agent: Agent) -> str:
 
 def _name_root(agent: Agent) -> str:
     """Return the grouping root for an agent name."""
-    if agent.agent_family:
-        return agent.agent_family
-    if agent.agent_name:
-        family_base = _agent_family_base_from_row(agent, agent.agent_name)
-        if family_base:
-            return family_base
-        if "." in agent.agent_name:
-            return agent.agent_name.split(".", 1)[0]
-        return agent.agent_name
-
-    name = agent.display_name or ""
-    family_base = _agent_family_base_from_row(agent, name)
-    if family_base:
-        return family_base
+    name = _grouping_name(agent)
     if "." in name:
         return name.split(".", 1)[0]
-    return ""
+    return name
 
 
 def _name_prefix(agent: Agent) -> str:
     """Return the first two name segments when the grouping name is dotted."""
-    if agent.agent_family:
-        return ""
-    if agent.agent_name:
-        if _agent_family_base_from_row(agent, agent.agent_name):
-            return ""
-        parts = agent.agent_name.split(".", 2)
-        if len(parts) >= 2:
-            return ".".join(parts[:2])
-        return ""
-
-    name = agent.display_name or ""
-    if _agent_family_base_from_row(agent, name):
-        return ""
+    name = _grouping_name(agent)
     parts = name.split(".", 2)
     if len(parts) >= 2:
         return ".".join(parts[:2])
@@ -91,10 +82,7 @@ def _name_prefix(agent: Agent) -> str:
 
 def _name_prefix_member_rank(agent: Agent) -> int:
     """Sort exact parent-marker names before their dotted descendants."""
-    name = agent.agent_name or agent.display_name or ""
-    family_base = _agent_family_base_from_row(agent, name)
-    if family_base and name == family_base:
-        return 0
+    name = _grouping_name(agent)
     prefix = _name_prefix(agent)
     if prefix and name == prefix:
         return 0

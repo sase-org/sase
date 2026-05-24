@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-24 11:25:57
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_family_dotted_grouping.md
 ---
 # Plan: Fix Dotted Agent-Family Grouping In Agents Tab

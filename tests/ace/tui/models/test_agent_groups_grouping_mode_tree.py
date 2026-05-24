@@ -10,7 +10,7 @@ from sase.ace.tui.models.agent_groups import (
     enumerate_group_keys,
 )
 
-from ._agent_groups_helpers import _NOW, _agent, _kinds
+from ._agent_groups_helpers import _NOW, _agent, _group_keys, _kinds
 
 
 def test_build_agent_tree_by_date_buckets_at_l0() -> None:
@@ -146,6 +146,51 @@ def test_build_agent_tree_by_status_groups_by_name_root_within_bucket() -> None:
         ("group", 1),
         ("agent", 0),
         ("agent", 1),
+    ]
+
+
+def test_build_agent_tree_by_status_groups_dotted_agent_family_under_root() -> None:
+    root = _agent(
+        cl_name="x",
+        agent_name="a9f",
+        raw_suffix="ts-root",
+        status="RUNNING",
+        role_suffix="-plan",
+        agent_family="a9f",
+        agent_family_role="root",
+    )
+    wait_parent = _agent(
+        cl_name="x",
+        agent_name="a9f.w1",
+        raw_suffix="ts-w1",
+        status="RUNNING",
+        role_suffix="-plan",
+        agent_family="a9f.w1",
+        agent_family_role="root",
+    )
+    wait_plan = _agent(
+        cl_name="x",
+        agent_name="a9f.w1-plan",
+        parent_workflow="a9f.w1",
+        parent_timestamp="ts-w1",
+        status="DONE",
+        role_suffix="-plan",
+    )
+
+    entries = build_agent_tree(
+        [root, wait_parent, wait_plan], mode=GroupingMode.BY_STATUS, now=_NOW
+    )
+
+    assert _group_keys(entries, level=1) == [("Running", "a9f")]
+    assert _group_keys(entries, level=2) == [("Running", "a9f", "a9f.w1")]
+    assert ("Running", "a9f.w1") not in _group_keys(entries, level=1)
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("group", 1),
+        ("agent", 0),
+        ("group", 2),
+        ("agent", 1),
+        ("agent", 2),
     ]
 
 

@@ -61,6 +61,43 @@ def test_named_agents_share_name_root_banner() -> None:
     assert widget._row_entries == [BR, BR, BR, (0, None), (1, None)]
 
 
+def test_dotted_agent_family_renders_under_root_family_heading() -> None:
+    root = make_agent(cl_name="demo", agent_name="a9f")
+    root.raw_suffix = "ts-root"
+    root.role_suffix = "-plan"
+    root.agent_family = "a9f"
+    root.agent_family_role = "root"
+
+    wait_parent = make_agent(cl_name="demo", agent_name="a9f.w1")
+    wait_parent.raw_suffix = "ts-w1"
+    wait_parent.role_suffix = "-plan"
+    wait_parent.agent_family = "a9f.w1"
+    wait_parent.agent_family_role = "root"
+
+    wait_plan = make_agent(cl_name="demo", agent_name="a9f.w1-plan")
+    wait_plan.parent_workflow = "a9f.w1"
+    wait_plan.parent_timestamp = "ts-w1"
+    wait_plan.role_suffix = "-plan"
+
+    widget = AgentList()
+    widget.update_list([root, wait_parent, wait_plan], current_idx=0)
+
+    assert widget._row_entries == [
+        BR,
+        BR,
+        BR,
+        (0, None),
+        BR,
+        (1, None),
+        (2, None),
+    ]
+    options = list(widget._options)
+    root_plain = options[2].prompt.plain  # type: ignore[union-attr]
+    prefix_plain = options[4].prompt.plain  # type: ignore[union-attr]
+    assert "a9f " in root_plain
+    assert "a9f.w1 " in prefix_plain
+
+
 def test_banner_options_are_disabled() -> None:
     """Banner Options are disabled so OptionList cursor navigation skips them."""
     widget = AgentList()

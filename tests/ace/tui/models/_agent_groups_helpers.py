@@ -25,8 +25,11 @@ def _agent(
     wait_until: str | None = None,
     waiting_for: list[str] | None = None,
     retried_as_timestamp: str | None = None,
+    role_suffix: str | None = None,
+    agent_family: str | None = None,
+    agent_family_role: str | None = None,
 ) -> Agent:
-    return Agent(
+    agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl_name,
         project_file=project_file,
@@ -42,6 +45,10 @@ def _agent(
         waiting_for=list(waiting_for) if waiting_for is not None else [],
         retried_as_timestamp=retried_as_timestamp,
     )
+    agent.role_suffix = role_suffix
+    agent.agent_family = agent_family
+    agent.agent_family_role = agent_family_role
+    return agent
 
 
 def _kinds(entries: list[TreeEntry]) -> list[tuple[str, int | None]]:

@@ -52,6 +52,47 @@ def test_dotless_parent_groups_with_dotted_resume_child() -> None:
     assert _group_keys(entries, level=2) == [("repo", "demo", "foo")]
 
 
+def test_dotted_agent_family_groups_under_root_family() -> None:
+    root = _agent(
+        cl_name="demo",
+        agent_name="a9f",
+        raw_suffix="ts-root",
+        role_suffix="-plan",
+        agent_family="a9f",
+        agent_family_role="root",
+    )
+    wait_parent = _agent(
+        cl_name="demo",
+        agent_name="a9f.w1",
+        raw_suffix="ts-w1",
+        role_suffix="-plan",
+        agent_family="a9f.w1",
+        agent_family_role="root",
+    )
+    wait_plan = _agent(
+        cl_name="demo",
+        agent_name="a9f.w1-plan",
+        parent_workflow="a9f.w1",
+        parent_timestamp="ts-w1",
+        role_suffix="-plan",
+    )
+
+    entries = build_agent_tree([root, wait_parent, wait_plan])
+
+    assert _group_keys(entries, level=2) == [("repo", "demo", "a9f")]
+    assert _group_keys(entries, level=3) == [("repo", "demo", "a9f", "a9f.w1")]
+    assert ("repo", "demo", "a9f.w1") not in _group_keys(entries, level=2)
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("group", 1),
+        ("group", 2),
+        ("agent", 0),
+        ("group", 3),
+        ("agent", 1),
+        ("agent", 2),
+    ]
+
+
 def test_two_agents_sharing_name_root_emit_three_banners() -> None:
     a = _agent(cl_name="demo", agent_name="coder.claude")
     b = _agent(cl_name="demo", agent_name="coder.codex")
