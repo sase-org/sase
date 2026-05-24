@@ -28,8 +28,8 @@ corresponding tier 3 file below — you do NOT need to separately read the tier 
 
 ## Tier 3 (long-term) Memory
 
-The below files contain detailed reference material. When working in their domain, you MUST use `/sase_memory_read` and
-perform the audited `sase memory read` workflow. Do not read canonical `memory/long/*.md` files directly.
+The below files contain detailed reference material. When working in their domain, you MUST use your `/sase_memory_read`
+skill to review their contents. Do not read canonical `memory/long/*.md` files directly.
 
 #### Long-Term Memory Files
 
