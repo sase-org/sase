@@ -218,6 +218,101 @@ def test_incomplete_merge_refresh_preserves_child_derived_timestamps() -> None:
     assert "CODE  | 2026-05-21 09:08:05" in fresh_parent.timestamps_display
 
 
+def test_incomplete_merge_replaces_plan_chain_child_with_transient_cl_name() -> None:
+    """Same artifact-backed child rows must merge even when ``cl_name`` changes."""
+    parent_ts = "20260524113000"
+    code_ts = "20260524114223"
+    code_started = datetime(2026, 5, 24, 11, 42, 23)
+    cached_parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="sase",
+        project_file="/tmp/test.sase",
+        status="PLAN APPROVED",
+        start_time=datetime(2026, 5, 24, 11, 30, 0),
+        raw_suffix=parent_ts,
+        workflow="sase",
+        pid=5150,
+        role_suffix="-plan",
+        agent_name="a90",
+        agent_family="a90",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    cached_child = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="a90-code",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=code_started,
+        run_start_time=code_started,
+        raw_suffix=code_ts,
+        workflow="sase",
+        pid=5150,
+        parent_timestamp=parent_ts,
+        role_suffix="-code",
+        agent_name="a90-code",
+        agent_family="a90",
+        agent_family_role="code",
+        model="cached-model",
+    )
+    refreshed_child = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="sase",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=code_started,
+        run_start_time=code_started,
+        raw_suffix=code_ts,
+        workflow="sase",
+        pid=5150,
+        parent_timestamp=parent_ts,
+        role_suffix="-code",
+        agent_name="a90-code",
+        agent_family="a90",
+        agent_family_role="code",
+        model="fresh-model",
+        llm_provider="codex",
+    )
+    prep = PreparedApplyData(
+        filtered_agents=[refreshed_child],
+        has_always_visible=True,
+        hidden_count=0,
+        hideable_agents=[],
+        dismissed_agent_objects=[],
+    )
+    snapshot = PreparedApplySnapshot(
+        cached_agents_with_children=[cached_parent, cached_child],
+        dismissed_agents=set(),
+        agents_seen_complete_history=True,
+        hide_non_run_agents=False,
+        load_state=AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            artifact_source="artifact_index",
+            used_artifact_index=True,
+        ),
+        fold_levels=None,
+        selection=PreparedApplySelectionInputs(
+            on_agents_tab=False,
+            selected_identity=None,
+            prior_visual_row=None,
+        ),
+    )
+
+    merge_incomplete_load_after_complete_history(prep, snapshot)
+
+    code_children = [
+        agent
+        for agent in prep.filtered_agents
+        if agent.parent_timestamp == parent_ts and agent.raw_suffix == code_ts
+    ]
+    assert code_children == [refreshed_child]
+    assert cached_child not in prep.filtered_agents
+    assert refreshed_child.cl_name == "sase"
+    assert refreshed_child.model == "fresh-model"
+    assert refreshed_child.llm_provider == "codex"
+
+
 def test_on_tab_finalizer_defers_selected_agent_file_refresh() -> None:
     """Agent-list finalization must not start file/diff work inline."""
     agent = _make_agent(status="RUNNING", cl_name="active")

@@ -16,6 +16,43 @@ if TYPE_CHECKING:
     from ...models import Agent
 
 
+_Tier1MergeKey = tuple[object, ...]
+
+
+def _identity_merge_key(agent: Agent) -> _Tier1MergeKey:
+    return ("identity", agent.agent_type, agent.cl_name, agent.raw_suffix)
+
+
+def _tier1_merge_key(agent: Agent) -> _Tier1MergeKey:
+    """Stable replacement key for patching Tier 1 rows over cached history."""
+    if agent.raw_suffix is None:
+        return _identity_merge_key(agent)
+    if agent.parent_workflow is not None:
+        return (
+            "artifact-step",
+            agent.agent_type,
+            agent.raw_suffix,
+            agent.parent_timestamp,
+            agent.parent_workflow,
+            agent.parent_step_index,
+            agent.step_index,
+            agent.step_type,
+            agent.step_name,
+        )
+    if agent.parent_timestamp is not None:
+        return (
+            "artifact-followup",
+            agent.agent_type,
+            agent.raw_suffix,
+            agent.parent_timestamp,
+        )
+    from ...models.agent import AgentType
+
+    if agent.agent_type != AgentType.WORKFLOW:
+        return _identity_merge_key(agent)
+    return ("artifact-root", agent.agent_type, agent.raw_suffix)
+
+
 def _reattach_children_after_parent_dedup(
     agents_before_dedup: list[Agent],
     agents_after_dedup: list[Agent],
@@ -121,7 +158,7 @@ def merge_incomplete_load_after_complete_history(
     from ...models._dedup import dedup_by_pid, dedup_running_vs_workflow
     from ...models.agent import AgentType
 
-    incoming_by_identity = {agent.identity: agent for agent in prep.filtered_agents}
+    incoming_by_key = {_tier1_merge_key(agent): agent for agent in prep.filtered_agents}
     dismissed = set(snapshot.dismissed_agents)
     dismissed_suffixes = {
         raw_suffix for _, _, raw_suffix in dismissed if raw_suffix is not None
@@ -144,8 +181,8 @@ def merge_incomplete_load_after_complete_history(
         return agent.raw_suffix in dismissed_suffixes
 
     merged: list[Agent] = []
-    seen: set[tuple[AgentType, str, str | None]] = set()
-    cached_identities = {agent.identity for agent in cached_agents}
+    seen: set[_Tier1MergeKey] = set()
+    cached_keys = {_tier1_merge_key(agent) for agent in cached_agents}
     cached_parent_by_suffix = {
         agent.raw_suffix: agent
         for agent in cached_agents
@@ -183,7 +220,8 @@ def merge_incomplete_load_after_complete_history(
     # Newly discovered Tier 1 rows are usually the newest rows. Keep their
     # relative Tier 1 order while preserving cached parent/child groups.
     for agent in prep.filtered_agents:
-        if agent.identity in cached_identities or is_dismissed(agent):
+        agent_key = _tier1_merge_key(agent)
+        if agent_key in cached_keys or is_dismissed(agent):
             continue
         if agent.parent_timestamp and agent.parent_timestamp in known_parent_suffixes:
             new_children_by_parent.setdefault(agent.parent_timestamp, []).append(agent)
@@ -198,29 +236,33 @@ def merge_incomplete_load_after_complete_history(
         new_roots.append(agent)
 
     for agent in new_roots:
-        if agent.identity in seen:
+        agent_key = _tier1_merge_key(agent)
+        if agent_key in seen:
             continue
         merged.append(agent)
-        seen.add(agent.identity)
+        seen.add(agent_key)
         if agent.raw_suffix:
             for child in new_children_by_parent.pop(agent.raw_suffix, []):
-                if child.identity in seen:
+                child_key = _tier1_merge_key(child)
+                if child_key in seen:
                     continue
                 merged.append(child)
-                seen.add(child.identity)
+                seen.add(child_key)
 
     for cached in cached_agents:
-        replacement = incoming_by_identity.get(cached.identity, cached)
-        if replacement.identity in seen or is_dismissed(replacement):
+        replacement = incoming_by_key.get(_tier1_merge_key(cached), cached)
+        replacement_key = _tier1_merge_key(replacement)
+        if replacement_key in seen or is_dismissed(replacement):
             continue
         merged.append(replacement)
-        seen.add(replacement.identity)
+        seen.add(replacement_key)
         if replacement.raw_suffix:
             for child in new_children_by_parent.pop(replacement.raw_suffix, []):
-                if child.identity in seen:
+                child_key = _tier1_merge_key(child)
+                if child_key in seen:
                     continue
                 merged.append(child)
-                seen.add(child.identity)
+                seen.add(child_key)
 
     before_dedup = list(merged)
     merged = dedup_running_vs_workflow(merged)
