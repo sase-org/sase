@@ -64,6 +64,7 @@ def test_open_command_palette_command_uses_default_alternatives() -> None:
 def test_fast_jump_command_uses_ctrl_o_default() -> None:
     """The palette exposes Ctrl+O as fast jump, not CL history."""
     by_id = {c.id: c for c in iter_app_commands(_registry())}
+    assert "app.jump_to_entry" not in by_id
     spec = by_id["app.jump_to_entry_fast"]
     history = by_id["app.prev_changespec_history"]
 

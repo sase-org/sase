@@ -57,17 +57,16 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 ### Navigation
 
-| Key                 | Action                                                                             |
-| ------------------- | ---------------------------------------------------------------------------------- |
-| `j` / `k`           | Move to next / previous visible row (banner at fold `< L2`, CL at the leaf level)  |
-| `<` / `>` / `~`     | Navigate to ancestor / child / sibling CL                                          |
-| `'`                 | Jump to entry by hint character (current tab); hints land on collapsed banners too |
-| `Ctrl+O`            | Fast jump: jump back if possible, otherwise jump to the first current-tab hint     |
-| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))              |
-| `Ctrl+R` / `Ctrl+K` | Jump back / forward in CL history                                                  |
-| `o` / `O`           | Cycle CL grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`)  |
-| `g` / `G`           | Scroll detail panel to top / bottom                                                |
-| `Ctrl+D` / `Ctrl+U` | Scroll detail panel down / up (half page)                                          |
+| Key                 | Action                                                                            |
+| ------------------- | --------------------------------------------------------------------------------- |
+| `j` / `k`           | Move to next / previous visible row (banner at fold `< L2`, CL at the leaf level) |
+| `<` / `>` / `~`     | Navigate to ancestor / child / sibling CL                                         |
+| `Ctrl+O`            | Fast jump: jump back if possible, otherwise jump to the first current-tab hint    |
+| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))             |
+| `Ctrl+R` / `Ctrl+K` | Jump back / forward in CL history                                                 |
+| `o` / `O`           | Cycle CL grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`) |
+| `g` / `G`           | Scroll detail panel to top / bottom                                               |
+| `Ctrl+D` / `Ctrl+U` | Scroll detail panel down / up (half page)                                         |
 
 > **Note:** `o`/`O` ("organize") cycles the L0 grouping bucket forward / reverse on the Agents and CLs tabs (each tab
 > keeps its own in-session mode). On the AXE tab it is a silent no-op. See
@@ -259,18 +258,17 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 
 ### Navigation
 
-| Key                 | Action                                                                                                |
-| ------------------- | ----------------------------------------------------------------------------------------------------- |
-| `j` / `k`           | Move to next / previous visible row (banner at fold `< L3`, agent at `L3`)                            |
-| `J` / `K`           | Cycle focus across tag side panels (forward / reverse)                                                |
-| `'`                 | Jump to entry by hint character (current tab); on the Agents tab, hints land on collapsed banners too |
-| `Ctrl+O`            | Fast jump: jump back if possible, otherwise jump to the first current-tab hint                        |
-| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                 |
-| `o` / `O`           | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                          |
-| `g`                 | Scroll to top (file, tools, or metadata panel)                                                        |
-| `G`                 | Scroll to bottom (file, tools, or metadata panel)                                                     |
-| `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                                                           |
-| `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up                                                                         |
+| Key                 | Action                                                                         |
+| ------------------- | ------------------------------------------------------------------------------ |
+| `j` / `k`           | Move to next / previous visible row (banner at fold `< L3`, agent at `L3`)     |
+| `J` / `K`           | Cycle focus across tag side panels (forward / reverse)                         |
+| `Ctrl+O`            | Fast jump: jump back if possible, otherwise jump to the first current-tab hint |
+| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))          |
+| `o` / `O`           | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)   |
+| `g`                 | Scroll to top (file, tools, or metadata panel)                                 |
+| `G`                 | Scroll to bottom (file, tools, or metadata panel)                              |
+| `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                                    |
+| `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up                                                  |
 
 > **Note:** `o`/`O` ("organize") cycles the grouping mode forward / reverse on the Agents and CLs tabs (each tab keeps
 > its own in-session selection independently); on the AXE tab it is a silent no-op. `g`/`G` keep their conventional
@@ -1025,16 +1023,12 @@ agent names with running indicators, and Axe lumberjack/command labels.
 
 ### Jump Back
 
-Both jump modals support a jump-back feature for toggling between two entries:
+Jump surfaces support quick returns to recent entry positions:
 
 - **Backtick jump-back**: Pressing `` ` `` inside the Jump All Modal returns to the previous position, enabling quick
   toggling between two entries across tabs.
-- **Apostrophe jump-back**: Pressing `'` twice (`''`) in the single-tab entry jump mode jumps back to the previously
-  jumped-from entry. The footer shows a "JUMP" mode indicator with `' back` when a target exists.
-- **Fast jump**: `Ctrl+O` runs the same current-tab jump-back path without painting hints first; when no jump-back
-  target exists, it selects the first current-tab hint.
-
-The single-tab variant (`'` apostrophe) shows entries only from the current tab with the same hint-character navigation.
+- **Fast current-tab jump**: `Ctrl+O` jumps back when a current-tab jump-back target exists. When no target exists, it
+  selects the first current-tab jump target without painting hint UI first.
 
 ## Mentor Comment Stats in CL List
 

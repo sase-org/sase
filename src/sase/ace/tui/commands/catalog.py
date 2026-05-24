@@ -85,7 +85,6 @@ _APP_COMMAND_META: tuple[
     ),
     ("next_agent_file", "Next file / chop run", "Navigation", _AGENTS_AXE, ()),
     ("prev_agent_file", "Previous file / chop run", "Navigation", _AGENTS_AXE, ()),
-    ("jump_to_entry", "Jump to entry", "Navigation", _ALL_TABS, ("hint",)),
     (
         "jump_to_entry_fast",
         "Fast jump to entry",

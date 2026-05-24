@@ -17,7 +17,6 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("w", "reword", "Reword", show=False),
     Binding("W", "add_tag", "Add Tag", show=False),
     Binding("v", "view_files", "View", show=False),
-    Binding("apostrophe", "jump_to_entry", "Jump to Entry", show=False),
     Binding("ctrl+o", "jump_to_entry_fast", "Fast Jump", show=False),
     Binding("grave_accent", "jump_to_all_entries", "Jump All", show=False),
     Binding("h", "hooks_or_collapse", "Hooks / Collapse", show=False),

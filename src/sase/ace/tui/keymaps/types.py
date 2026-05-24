@@ -42,7 +42,6 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("reword", "Reword", False),
     ("add_tag", "Add Tag", False),
     ("view_files", "View", False),
-    ("jump_to_entry", "Jump to Entry", False),
     ("jump_to_entry_fast", "Fast Jump", False),
     ("jump_to_all_entries", "Jump All", False),
     ("hooks_or_collapse", "Hooks / Collapse", False),
@@ -242,7 +241,6 @@ class AppKeymaps:
     reword: str
     add_tag: str
     view_files: str
-    jump_to_entry: str
     jump_to_entry_fast: str
     jump_to_all_entries: str
     edit_spec: str

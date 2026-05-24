@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-24 10:06:28
-status: wip
+status: done
 prompt: sdd/prompts/202605/remove_apostrophe_jump_keymap.md
 ---
 # Remove Apostrophe Jump Keymap
