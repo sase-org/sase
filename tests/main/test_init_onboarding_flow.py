@@ -1,4 +1,4 @@
-"""Tests for bare ``sase init`` onboarding."""
+"""Flow tests for bare ``sase init`` onboarding."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import argparse
 from collections.abc import Callable
 from io import StringIO
 from pathlib import Path
-import sys
 from unittest.mock import MagicMock
 
 import pytest
@@ -14,159 +13,17 @@ import pytest
 from sase.main import _init_chezmoi_deploy
 from sase.main._init_chezmoi_deploy import defer_chezmoi_paths
 from sase.main.init_onboarding import run_init_onboarding
-from sase.main.init_plan import InitAction, InitPlan
-from sase.main.init_registry import InitCommandSpec, iter_init_command_specs
-from sase.main.parser import create_parser
+from sase.main.init_plan import InitAction
+from sase.main.init_registry import InitCommandSpec
+from tests.main.init_onboarding_helpers import (
+    _TtyStringIO,
+    _args,
+    _changed_action,
+    _plan,
+    _reject_prompt,
+    _spec,
+)
 from tests.main.init_skills_handler_helpers import git_cmd_handler
-
-
-class _TtyStringIO(StringIO):
-    def isatty(self) -> bool:
-        return True
-
-
-def _args(*, yes: bool = False, check: bool = False) -> argparse.Namespace:
-    return argparse.Namespace(
-        command="init",
-        init_subcommand=None,
-        yes=yes,
-        check=check,
-    )
-
-
-def _plan(
-    command: str,
-    *,
-    actions: tuple[InitAction, ...] = (),
-    summary: str = "",
-    warnings: tuple[str, ...] = (),
-    blockers: tuple[str, ...] = (),
-) -> InitPlan:
-    return InitPlan(
-        command=command,
-        label=f"Init {command}",
-        summary=summary,
-        actions=actions,
-        warnings=warnings,
-        blockers=blockers,
-    )
-
-
-def _changed_action(path: str = "memory/short/sase.md") -> InitAction:
-    return InitAction(Path(path), "update", "changed")
-
-
-def _spec(
-    name: str,
-    plan: InitPlan,
-    calls: list[str],
-    args_seen: list[argparse.Namespace] | None = None,
-    exit_code: int = 0,
-) -> InitCommandSpec:
-    def _run(args: argparse.Namespace) -> int:
-        calls.append(name)
-        if args_seen is not None:
-            args_seen.append(args)
-        return exit_code
-
-    return InitCommandSpec(
-        name=name,
-        label=plan.label,
-        plan=lambda args: plan,
-        run=_run,
-    )
-
-
-def _reject_prompt(prompt: str) -> str:
-    raise AssertionError(f"unexpected prompt: {prompt}")
-
-
-def test_parser_accepts_bare_init_modes() -> None:
-    parser = create_parser()
-
-    init_args = parser.parse_args(["init"])
-    assert init_args.command == "init"
-    assert init_args.init_subcommand is None
-    assert init_args.yes is False
-    assert init_args.check is False
-
-    yes_args = parser.parse_args(["init", "--yes"])
-    assert yes_args.init_subcommand is None
-    assert yes_args.yes is True
-
-    check_args = parser.parse_args(["init", "--check"])
-    assert check_args.init_subcommand is None
-    assert check_args.check is True
-
-    short_check_args = parser.parse_args(["init", "-c"])
-    assert short_check_args.init_subcommand is None
-    assert short_check_args.check is True
-
-
-def test_parser_accepts_scoped_init_check_modes() -> None:
-    parser = create_parser()
-
-    sdd_short_args = parser.parse_args(["sdd", "init", "-c"])
-    assert sdd_short_args.command == "sdd"
-    assert sdd_short_args.sdd_subcommand == "init"
-    assert sdd_short_args.check is True
-
-    sdd_long_args = parser.parse_args(["sdd", "init", "--check"])
-    assert sdd_long_args.check is True
-
-    memory_short_args = parser.parse_args(["memory", "init", "-c"])
-    assert memory_short_args.command == "memory"
-    assert memory_short_args.memory_subcommand == "init"
-    assert memory_short_args.check is True
-    assert memory_short_args.no_commit is False
-
-    memory_long_args = parser.parse_args(["memory", "init", "--check"])
-    assert memory_long_args.check is True
-
-    init_sdd_args = parser.parse_args(["init", "sdd", "--check"])
-    assert init_sdd_args.command == "init"
-    assert init_sdd_args.init_subcommand == "sdd"
-    assert init_sdd_args.check is True
-
-    init_memory_args = parser.parse_args(["init", "memory", "--check"])
-    assert init_memory_args.command == "init"
-    assert init_memory_args.init_subcommand == "memory"
-    assert init_memory_args.check is True
-
-    parent_sdd_args = parser.parse_args(["init", "--check", "sdd"])
-    assert parent_sdd_args.init_subcommand == "sdd"
-    assert parent_sdd_args.check is True
-
-    parent_memory_args = parser.parse_args(["init", "--check", "memory"])
-    assert parent_memory_args.init_subcommand == "memory"
-    assert parent_memory_args.check is True
-
-
-def test_init_help_lists_existing_subcommands(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    parser = create_parser()
-
-    with pytest.raises(SystemExit) as exc:
-        parser.parse_args(["init", "--help"])
-
-    assert exc.value.code == 0
-    out = capsys.readouterr().out
-    assert "amd" in out
-    assert "memory" in out
-    assert "sdd" in out
-    assert "skills" in out
-    assert "-c, --check" in out
-    assert "Advanced deploy controls live on explicit subcommands" in out
-
-
-def test_registry_order_is_amd_memory_sdd_skills() -> None:
-    assert tuple(spec.name for spec in iter_init_command_specs()) == (
-        "amd",
-        "memory",
-        "sdd",
-        "skills",
-    )
 
 
 def test_noop_plans_print_initialized_message(
@@ -621,81 +478,3 @@ def test_warning_without_changes_is_visible_and_successful(
     assert "Up to date:" in out
     assert "Warnings:" in out
     assert "init skills: prettier not found" in out
-
-
-def test_cli_main_dispatches_bare_init(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    from sase.main import entry, init_onboarding
-
-    calls: list[str] = []
-    specs = (_spec("memory", _plan("memory"), calls),)
-    monkeypatch.setattr(init_onboarding, "iter_init_command_specs", lambda: specs)
-    monkeypatch.setattr(sys, "argv", ["sase", "init"])
-
-    with pytest.raises(SystemExit) as exc:
-        entry.main()
-
-    assert exc.value.code == 0
-    assert calls == []
-    assert (
-        "SASE is initialized. No init subcommands need to run."
-        in capsys.readouterr().out
-    )
-
-
-def test_init_check_memory_alias_does_not_apply(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    from sase.main import entry, init_memory_handler
-
-    def _fail_apply(*args: object, **kwargs: object) -> object:
-        raise AssertionError("memory check mode must not apply generated files")
-
-    monkeypatch.setattr(sys, "argv", ["sase", "init", "--check", "memory"])
-    monkeypatch.setattr(
-        init_memory_handler,
-        "plan_init_memory",
-        lambda args: _plan(
-            "memory",
-            actions=(_changed_action("memory/short/sase.md"),),
-            summary="create memory files",
-        ),
-    )
-    monkeypatch.setattr(init_memory_handler, "_initialize_memory_root", _fail_apply)
-
-    with pytest.raises(SystemExit) as exc:
-        entry.main()
-
-    assert exc.value.code == 1
-    assert "create memory files" in capsys.readouterr().out
-
-
-def test_init_check_sdd_alias_does_not_apply(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    from sase.main import entry, sdd_handler
-
-    def _fail_apply(*args: object, **kwargs: object) -> object:
-        raise AssertionError("SDD check mode must not apply generated files")
-
-    monkeypatch.setattr(sys, "argv", ["sase", "init", "--check", "sdd"])
-    monkeypatch.setattr(
-        sdd_handler,
-        "plan_sdd_init",
-        lambda args: _plan(
-            "sdd",
-            actions=(_changed_action("sdd/README.md"),),
-            summary="create SDD README files",
-        ),
-    )
-    monkeypatch.setattr("sase.sdd.files.write_sdd_readme", _fail_apply)
-
-    with pytest.raises(SystemExit) as exc:
-        entry.main()
-
-    assert exc.value.code == 1
-    assert "create SDD README files" in capsys.readouterr().out
