@@ -96,6 +96,7 @@ The following events generate notifications:
 | `plan`                         | A plan file is ready for user review and approval              |
 | `question`                     | An agent is asking the user a question (via `/sase_questions`) |
 | `hitl`                         | A workflow HITL step is waiting for user input                 |
+| `memory.proposed`              | A long-term memory proposal is ready for human review          |
 | `sync`                         | A sync operation completed for a ChangeSpec                    |
 | `axe`                          | Hourly error digest summarizing recent axe errors              |
 | `mentors`                      | All mentors finished for a ChangeSpec entry (or none matched)  |
@@ -160,6 +161,14 @@ Idempotency is enforced via `~/.sase/notifications/mentors_complete.json`, keyed
 without re-firing. The sender suppresses the notification on the same axe cycle that just wrote the `MENTORS` field for
 the latest entry, preventing premature firing on `Draft → Ready` transitions.
 
+### Memory Proposal Notification
+
+`sase memory write --notify` creates a `memory.proposed` notification when the proposal is saved. The notification
+includes the `memory` tag, any resolved evidence file paths, `action: memory_review`, and `action_data.proposal_id`.
+Selecting it in ACE suspends the main TUI and opens the memory review app with that proposal selected. The notification
+is best-effort: proposal creation still succeeds if notification delivery fails, and the CLI reports the notification id
+when delivery succeeds.
+
 ## Notification Fields
 
 Each notification contains:
@@ -199,6 +208,9 @@ change priority, error classification, unread counts, mute, snooze, or auto-dism
 Successful visible and hidden user-agent completion notifications that jump back to the agent row carry the `done` tag.
 Failed user-agent notifications do not carry `done`; failures remain error reports.
 
+Memory proposal notifications created by `sase memory write --notify` carry the `memory` tag. Use the `memory` tab in
+ACE or `sase notify list --tag memory` to find pending proposal review prompts.
+
 In ACE, tags create modal tabs above the notification list. The `done` tab is intended as the quick path for successful
 agent completions; reading or jumping to a done Agents-tab row dismisses its matching completion notification, so it
 disappears from both `All` and `done` after the next refresh. Failed agent notifications stay untagged by `done` and
@@ -224,6 +236,7 @@ sase notify list -j -l 20
 sase notify list -j --sender axe
 sase notify list -j --unread
 sase notify list -j --tag done
+sase notify list -j --tag memory
 sase notify list -j -q digest
 sase notify list -j --all
 ```

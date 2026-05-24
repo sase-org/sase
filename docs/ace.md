@@ -900,8 +900,8 @@ See [docs/llms.md](llms.md#temporary-default-override) for the resolution order 
 ## Notifications Modal
 
 Press `i` (or the `,n` leader chord to jump straight to an agent's notification) to open the notifications modal. See
-[`docs/notifications.md`](notifications.md) for the full keybinding reference, the priority/inbox/muted section
-taxonomy, and the per-notification snooze and mute affordances.
+[`docs/notifications.md`](notifications.md) for the full keybinding reference, tag tabs, the priority/inbox/muted
+section taxonomy, and the per-notification snooze and mute affordances.
 
 The top-bar notification indicator color reflects the highest-priority unread bucket: orange for **PRIORITY**
 notifications (plan approvals, user questions, mentor reviews, axe errors, CRS results, agent error reports), gold for
@@ -912,14 +912,24 @@ regular **INBOX** notifications, and cyan when only **MUTED** notifications rema
 Some notifications carry an `action` field that triggers a handler when the notification is selected. The following
 notification action types are supported:
 
-| Action            | Source     | Behavior                                                     |
-| ----------------- | ---------- | ------------------------------------------------------------ |
-| `ViewErrorReport` | Axe daemon | Opens the error digest file in `$EDITOR` for review          |
-| `plan`            | Agent      | Jumps to the agent's plan notification in the Agents tab     |
-| `question`        | Agent      | Jumps to the agent's question notification in the Agents tab |
+| Action               | Source          | Behavior                                                               |
+| -------------------- | --------------- | ---------------------------------------------------------------------- |
+| `HITL`               | Workflow        | Opens the workflow human-in-the-loop response modal                    |
+| `JumpToAgent`        | Agent/workflow  | Jumps to the matching Agents-tab row                                   |
+| `JumpToChangeSpec`   | Sync/workflow   | Jumps to the referenced ChangeSpec on the CLs tab                      |
+| `JumpToMentorReview` | Mentors         | Jumps to the ChangeSpec and opens mentor review output when available  |
+| `PlanApproval`       | Agent           | Opens the plan approval modal                                          |
+| `Tmux`               | External bridge | Opens or focuses the referenced tmux target                            |
+| `UserQuestion`       | Agent           | Opens the structured user-question response modal                      |
+| `ViewErrorReport`    | Axe daemon      | Opens the error digest file in `$EDITOR` for review                    |
+| `memory_review`      | Memory          | Suspends ACE and opens the memory proposal review TUI at that proposal |
+| `plan`               | Agent           | Jumps to the agent's plan notification in the Agents tab               |
+| `question`           | Agent           | Jumps to the agent's question notification in the Agents tab           |
 
 The `ViewErrorReport` action is created by the axe `error_digest` chop when errors accumulate. The digest file
-summarizing recent errors is stored at `~/.sase/axe/error_digests/digest_<timestamp>.txt`.
+summarizing recent errors is stored at `~/.sase/axe/error_digests/digest_<timestamp>.txt`. Memory proposal notifications
+created by `sase memory write --notify` use `memory_review` with `action_data.proposal_id`; selecting one opens
+`sase memory review` with that proposal selected.
 
 ### Toast Notifications
 

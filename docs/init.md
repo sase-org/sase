@@ -107,8 +107,9 @@ command fail so important agent context is not silently ignored.
 `sase memory list`, or bare `sase memory`, renders a read-only dashboard for the current directory. It reports:
 
 - `loaded` files reached by transitive `@...` references from `AGENTS.md` in the project or home context.
-- `referenced` files mentioned by plain `memory/...` text from loaded context. These are visible in the dashboard, but
-  their contents are not loaded unless another `@...` edge reaches them.
+- `referenced` files mentioned by plain `memory/...` text from loaded context, or by memory-relative `long/...` paths in
+  audited `sase memory read` instructions. These are visible in the dashboard, but their contents are not loaded unless
+  another `@...` edge reaches them.
 - `available` files present under project or home `memory/short/` and `memory/long/` that the current launch context
   does not reach.
 - `missing` referenced memory paths that do not exist.

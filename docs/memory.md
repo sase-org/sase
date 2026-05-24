@@ -28,7 +28,8 @@ The dashboard separates:
 - `loaded` files reached by transitive `@...` references from `AGENTS.md` in the project or home context. Provider shims
   normally point at `AGENTS.md`; they are reported as instruction roots but are not separate traversal roots for this
   dashboard.
-- `referenced` files mentioned by plain `memory/...` text but not loaded.
+- `referenced` files mentioned by plain `memory/...` text, or by memory-relative `long/...` paths in audited
+  `sase memory read` instructions, but not loaded.
 - `available` files present under project or home `memory/short/` and `memory/long/` but unreachable from the current
   launch context.
 - `missing` referenced files that do not exist.
@@ -101,8 +102,9 @@ Proposal bodies must be non-empty UTF-8 and at most 256 KiB. Bodies above 16 KiB
 Proposal authors are attributed from the same agent identity sources as audited reads. `--manual-author` exists for
 tests and demos; normal agent writes should rely on the SASE-provided identity.
 
-Use `--notify` to best-effort append a `memory.proposed` notification after proposal creation. Notification delivery is
-reported in the human output and as `notification_id` in JSON output.
+Use `--notify` to best-effort append a `memory.proposed` notification after proposal creation. The notification carries
+the `memory` tag, points at any resolved evidence files, and opens `sase memory review` at the proposal when selected in
+ACE. Notification delivery is reported in the human output and as `notification_id` in JSON output.
 
 Use `--json` for deterministic machine-readable output.
 
