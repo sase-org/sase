@@ -24,7 +24,10 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                     "Move to next / previous command",
                 ),
                 (d(a.jump_to_entry), "Jump to entry (' first/back stack)"),
-                (d(a.jump_to_entry_fast), "Fast jump to entry (first/back stack)"),
+                (
+                    f"{d(a.jump_to_entry_fast)} / {d(a.jump_to_entry_forward)}",
+                    "Jump stack back / forward",
+                ),
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 (
                     f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",

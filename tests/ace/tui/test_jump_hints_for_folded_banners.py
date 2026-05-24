@@ -41,7 +41,9 @@ class _StubApp(AdvancedNavigationMixin):
         self._entry_jump_hint_to_banner: dict[str, Any] = {}
         self._entry_jump_banner_to_hint: dict[Any, str] = {}
         self._entry_jump_index_stack: dict[str, list[int]] = {}
+        self._entry_jump_forward_index_stack: dict[str, list[Any]] = {}
         self._entry_jump_agents_anchor_stack: list[Any] = []
+        self._entry_jump_agents_forward_anchor_stack: list[Any] = []
         self.artifact_viewer_guard_active = False
         self.jump_footer_updates = 0
         self.notify = MagicMock()
@@ -306,6 +308,31 @@ def test_fast_jump_restores_agent_banner_anchor_with_panel_focus() -> None:
     assert app._entry_jump_agents_anchor_stack == []
     assert app._entry_jump_mode_active is False
     assert app.jump_footer_updates == 0
+
+
+def test_agent_forward_jump_restores_panel_and_banner_anchors() -> None:
+    """Ctrl+K walks forward and keeps agent/banner panel focus intact."""
+    agents = [
+        _agent(project="alpha", cl="a1", name="a1"),
+        _agent(project="alpha", cl="a1", name="a2", tag="ws"),
+    ]
+    app = _StubApp(agents, collapsed=[("alpha",)])
+    app.current_idx = 0
+    app._entry_jump_agents_anchor_stack = [("banner", 1, ("alpha",))]
+
+    app.action_jump_to_entry_fast()
+
+    assert app._panel_group.focused_idx == 1
+    assert app._current_group_key == ("alpha",)
+    assert app._entry_jump_agents_forward_anchor_stack == [("agent", 0, 0)]
+
+    app.action_jump_to_entry_forward()
+
+    assert app._panel_group.focused_idx == 0
+    assert app._current_group_key is None
+    assert app.current_idx == 0
+    assert app._entry_jump_agents_anchor_stack == [("banner", 1, ("alpha",))]
+    assert app._entry_jump_agents_forward_anchor_stack == []
 
 
 def test_fast_jump_pops_agent_anchor_stack_lifo() -> None:

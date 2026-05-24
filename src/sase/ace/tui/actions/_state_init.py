@@ -181,7 +181,11 @@ class StateInitMixin:
         self._entry_jump_index_to_hint: dict[int, str] = {}
         # Agents-tab banner targets (kept in their own maps so the int-keyed
         # agent maps above can stay shared with CLs / AXE tabs).
-        from .navigation.jump_hints import AgentJumpAnchor, BannerJumpTarget
+        from .navigation.jump_hints import (
+            AgentJumpAnchor,
+            BannerJumpTarget,
+            EntryJumpAnchor,
+        )
 
         self._entry_jump_hint_to_banner: dict[str, BannerJumpTarget] = {}
         self._entry_jump_banner_to_hint: dict[BannerJumpTarget, str] = {}
@@ -193,11 +197,14 @@ class StateInitMixin:
         self._entry_jump_hint_to_changespec_banner: dict[str, tuple[str, ...]] = {}
         self._entry_jump_changespec_banner_to_hint: dict[tuple[str, ...], str] = {}
 
-        # Entry jump-back state. Non-Agents tabs keep per-tab row-index stacks;
-        # the Agents tab uses richer anchors so banner focus can be restored.
-        self._entry_jump_index_stack: dict[str, list[int]] = {}
+        # Entry jump-stack state. Non-Agents tabs keep per-tab row/banner
+        # anchor stacks; the Agents tab uses richer anchors so panel and
+        # banner focus can be restored.
+        self._entry_jump_index_stack: dict[str, list[EntryJumpAnchor]] = {}
+        self._entry_jump_forward_index_stack: dict[str, list[EntryJumpAnchor]] = {}
         self._entry_jump_last_panel: dict[str, str | None] = {}
         self._entry_jump_agents_anchor_stack: list[AgentJumpAnchor] = []
+        self._entry_jump_agents_forward_anchor_stack: list[AgentJumpAnchor] = []
 
         # Cross-tab jump back state (`)
         self._jump_all_last_position: JumpAllResult | None = None
@@ -513,11 +520,6 @@ class StateInitMixin:
         from ...saved_queries import load_saved_queries
 
         self._saved_queries: dict[str, str] = load_saved_queries()
-
-        # ChangeSpec history stacks for ctrl+r/ctrl+k navigation (session-based)
-        from ..changespec_history import create_empty_stacks as create_cs_history_stacks
-
-        self._changespec_history = create_cs_history_stacks()
 
         # Load inactive_seconds from merged config
         from sase.config import load_merged_config

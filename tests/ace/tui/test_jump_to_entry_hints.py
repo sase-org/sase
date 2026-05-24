@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from sase.ace.changespec import ChangeSpec
 from sase.ace.tui.actions.event_handlers import EventHandlersMixin
@@ -29,14 +29,16 @@ from sase.ace.tui.widgets.changespec_list import ChangeSpecList
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 
 
-def _make_changespec(name: str = "test_feature") -> ChangeSpec:
+def _make_changespec(
+    name: str = "test_feature", *, project: str = "test"
+) -> ChangeSpec:
     return ChangeSpec(
         name=name,
         description="Test description",
         parent=None,
         cl=None,
         status="Ready",
-        file_path="/tmp/test.sase",
+        file_path=f"/tmp/{project}/{project}.sase",
         line_number=1,
     )
 
@@ -68,12 +70,15 @@ class _InlineJumpApp(AdvancedNavigationMixin, ChangeSpecGroupingNavMixin):
         self._entry_jump_hint_to_changespec_banner: dict[str, Any] = {}
         self._entry_jump_changespec_banner_to_hint: dict[Any, str] = {}
         self._entry_jump_index_stack: dict[str, list[int]] = {}
+        self._entry_jump_forward_index_stack: dict[str, list[Any]] = {}
         self._entry_jump_agents_anchor_stack: list[Any] = []
+        self._entry_jump_agents_forward_anchor_stack: list[Any] = []
         self._changespec_grouping_mode = ChangeSpecGroupingMode.BY_PROJECT
         self._changespec_group_fold_registry = GroupFoldRegistry()
         self._current_changespec_group_key: tuple[str, ...] | None = None
         self.refreshes = 0
         self.jump_footer_updates = 0
+        self.notify = MagicMock()
 
     def _refresh_current_tab(self) -> None:
         self.refreshes += 1
@@ -203,6 +208,95 @@ def test_fast_jump_with_history_restores_changespec_and_pops_origin() -> None:
     assert app.jump_footer_updates == 0
 
 
+def test_changespec_jump_stack_walks_back_and_forward() -> None:
+    changespecs = [_make_changespec(f"feature_{i:02d}") for i in range(3)]
+    app = _InlineJumpApp(changespecs)
+    app.current_idx = 2
+
+    app.action_jump_to_entry()
+    handled = app._handle_entry_jump_key("1")
+
+    assert handled is True
+    assert app.current_idx == 0
+    assert app._entry_jump_index_stack["changespecs"] == [2]
+
+    app.action_jump_to_entry_fast()
+
+    assert app.current_idx == 2
+    assert app._entry_jump_index_stack["changespecs"] == []
+    assert app._entry_jump_forward_index_stack["changespecs"] == [0]
+
+    app.action_jump_to_entry_forward()
+
+    assert app.current_idx == 0
+    assert app._entry_jump_index_stack["changespecs"] == [2]
+    assert app._entry_jump_forward_index_stack["changespecs"] == []
+
+
+def test_new_changespec_hint_jump_clears_forward_history() -> None:
+    changespecs = [_make_changespec(f"feature_{i:02d}") for i in range(3)]
+    app = _InlineJumpApp(changespecs)
+    app.current_idx = 2
+    app._entry_jump_forward_index_stack["changespecs"] = [0]
+
+    app.action_jump_to_entry()
+    handled = app._handle_entry_jump_key("2")
+
+    assert handled is True
+    assert app.current_idx == 1
+    assert app._entry_jump_index_stack["changespecs"] == [2]
+    assert app._entry_jump_forward_index_stack["changespecs"] == []
+
+
+def test_forward_jump_discards_stale_changespec_anchor() -> None:
+    changespecs = [_make_changespec(f"feature_{i:02d}") for i in range(2)]
+    app = _InlineJumpApp(changespecs)
+    app.current_idx = 1
+    app._entry_jump_forward_index_stack["changespecs"] = [9]
+
+    app.action_jump_to_entry_forward()
+
+    assert app.current_idx == 1
+    assert "changespecs" not in app._entry_jump_forward_index_stack
+    app.notify.assert_called_once_with(
+        "No next jump point",
+        severity="information",
+    )
+
+
+def test_changespec_banner_anchor_restores_forward() -> None:
+    changespecs = [
+        _make_changespec("a_one", project="alpha"),
+        _make_changespec("b_one", project="beta"),
+    ]
+    app = _InlineJumpApp(changespecs)
+    app.current_idx = 1
+    app._changespec_group_fold_registry.collapse(("alpha",))
+
+    app.action_jump_to_entry()
+    banner_hint = app._entry_jump_changespec_banner_to_hint[("alpha",)]
+    handled = app._handle_entry_jump_key(banner_hint)
+
+    assert handled is True
+    assert app._current_changespec_group_key == ("alpha",)
+    assert app.current_idx == 1
+    assert app._entry_jump_index_stack["changespecs"] == [1]
+
+    app.action_jump_to_entry_fast()
+
+    assert app._current_changespec_group_key is None
+    assert app.current_idx == 1
+    assert app._entry_jump_forward_index_stack["changespecs"] == [
+        ("changespec_banner", ("alpha",))
+    ]
+
+    app.action_jump_to_entry_forward()
+
+    assert app._current_changespec_group_key == ("alpha",)
+    assert app.current_idx == 1
+    assert app._entry_jump_index_stack["changespecs"] == [1]
+
+
 def test_fast_jump_with_history_pops_changespec_stack_lifo() -> None:
     changespecs = [_make_changespec(f"feature_{i:02d}") for i in range(4)]
     app = _InlineJumpApp(changespecs)
@@ -222,7 +316,7 @@ def test_fast_jump_with_history_pops_changespec_stack_lifo() -> None:
     assert app._entry_jump_index_stack["changespecs"] == []
 
 
-def test_fast_jump_discards_stale_changespec_history_before_fallback() -> None:
+def test_fast_jump_discards_stale_changespec_back_stack_before_fallback() -> None:
     changespecs = [_make_changespec(f"feature_{i:02d}") for i in range(2)]
     app = _InlineJumpApp(changespecs)
     app.current_idx = 1
@@ -236,7 +330,7 @@ def test_fast_jump_discards_stale_changespec_history_before_fallback() -> None:
     assert app.jump_footer_updates == 0
 
 
-def test_fast_jump_discards_stale_changespec_history_before_valid_restore() -> None:
+def test_fast_jump_discards_stale_changespec_back_stack_before_valid_restore() -> None:
     changespecs = [_make_changespec(f"feature_{i:02d}") for i in range(2)]
     app = _InlineJumpApp(changespecs)
     app.current_idx = 1

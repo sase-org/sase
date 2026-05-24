@@ -14,6 +14,8 @@ AgentJumpTarget = tuple[Literal["agent"], int]
 BannerJumpTarget = tuple[Literal["banner"], int, tuple[str, ...]]
 JumpTarget = AgentJumpTarget | BannerJumpTarget
 AgentJumpAnchor = tuple[Literal["agent"], int, int] | BannerJumpTarget
+ChangeSpecBannerJumpAnchor = tuple[Literal["changespec_banner"], tuple[str, ...]]
+EntryJumpAnchor = int | ChangeSpecBannerJumpAnchor
 
 
 def normalize_jump_key(key: str, character: str | None = None) -> str:

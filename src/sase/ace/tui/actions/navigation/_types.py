@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal
 
-from .jump_hints import AgentJumpAnchor, BannerJumpTarget
+from .jump_hints import AgentJumpAnchor, BannerJumpTarget, EntryJumpAnchor
 
 if TYPE_CHECKING:
     from ....changespec import ChangeSpec
     from ....query.types import QueryExpr
     from ....query_history import QueryHistoryStacks
     from ...bgcmd import BackgroundCommandInfo
-    from ...changespec_history import ChangeSpecHistoryStacks
     from ...keymaps import KeymapRegistry
     from ...modals import JumpAllResult
     from ...models import Agent
@@ -58,7 +57,8 @@ class NavigationMixinBase:
     _entry_jump_mode_active: bool
     _entry_jump_hint_to_index: dict[str, int]
     _entry_jump_index_to_hint: dict[int, str]
-    _entry_jump_index_stack: dict[str, list[int]]
+    _entry_jump_index_stack: dict[str, list[EntryJumpAnchor]]
+    _entry_jump_forward_index_stack: dict[str, list[EntryJumpAnchor]]
     # Agents-tab jump-mode state for banner targets.  Agent targets are
     # tracked through ``_entry_jump_hint_to_index`` / ``_entry_jump_index_to_hint``
     # (their key is the global agent index); banners need a richer key
@@ -75,6 +75,7 @@ class NavigationMixinBase:
     # when it was on a banner row.  Independent of the int stack shared with
     # CLs/AXE tabs because banner anchors need panel scope.
     _entry_jump_agents_anchor_stack: list[AgentJumpAnchor]
+    _entry_jump_agents_forward_anchor_stack: list[AgentJumpAnchor]
     _jump_all_last_position: JumpAllResult | None
     _child_key_buffer: str
     _ancestor_keys: dict[str, str]
@@ -82,7 +83,6 @@ class NavigationMixinBase:
     _sibling_keys: dict[str, str]
     _all_changespecs: list[ChangeSpec]
     _query_history: QueryHistoryStacks
-    _changespec_history: ChangeSpecHistoryStacks
     query_string: str
     parsed_query: QueryExpr
     _axe_current_view: AxeViewType

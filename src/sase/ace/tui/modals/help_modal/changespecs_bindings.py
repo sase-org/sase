@@ -28,12 +28,11 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(a.start_ancestor_mode)} / {d(a.start_child_mode)} / {d(a.start_sibling_mode)}",
                     "Navigate to ancestor / child / sibling",
                 ),
-                (
-                    f"{d(a.prev_changespec_history)} / {d(a.next_changespec_history)}",
-                    "Jump back / forward in history",
-                ),
                 (d(a.jump_to_entry), "Jump to entry (' first/back stack)"),
-                (d(a.jump_to_entry_fast), "Fast jump to entry (first/back stack)"),
+                (
+                    f"{d(a.jump_to_entry_fast)} / {d(a.jump_to_entry_forward)}",
+                    "Jump stack back / forward",
+                ),
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 (
                     f"{d(a.scroll_detail_down)} / {d(a.scroll_detail_up)}",

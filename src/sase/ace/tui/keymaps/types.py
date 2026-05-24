@@ -44,6 +44,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("view_files", "View", False),
     ("jump_to_entry", "Jump to Entry", False),
     ("jump_to_entry_fast", "Fast Jump", False),
+    ("jump_to_entry_forward", "Forward Jump", False),
     ("jump_to_all_entries", "Jump All", False),
     ("hooks_or_collapse", "Hooks / Collapse", False),
     ("hooks_or_collapse_all", "Hooks / Collapse All", False),
@@ -91,8 +92,6 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("browse_xprompts", "XPrompts", False),
     ("prev_query", "Prev Query", False),
     ("next_query", "Next Query", False),
-    ("prev_changespec_history", "Prev CL History", False),
-    ("next_changespec_history", "Next CL History", False),
     ("start_ancestor_mode", "Ancestor", False),
     ("start_child_mode", "Child", False),
     ("start_sibling_mode", "Sibling", False),
@@ -226,8 +225,6 @@ class AppKeymaps:
     scroll_detail_up: str
     scroll_prompt_down: str
     scroll_prompt_up: str
-    prev_changespec_history: str
-    next_changespec_history: str
     next_agent_file: str
     prev_agent_file: str
     # Tab switching
@@ -244,6 +241,7 @@ class AppKeymaps:
     view_files: str
     jump_to_entry: str
     jump_to_entry_fast: str
+    jump_to_entry_forward: str
     jump_to_all_entries: str
     edit_spec: str
     rename_cl: str

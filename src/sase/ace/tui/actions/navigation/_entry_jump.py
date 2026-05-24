@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from ._types import NavigationMixinBase
 from .jump_hints import (
     AgentJumpAnchor,
     BannerJumpTarget,
+    EntryJumpAnchor,
     JumpTarget,
     build_jump_hint_maps,
 )
@@ -46,6 +49,45 @@ class EntryJumpNavigationMixin(NavigationMixinBase):
 
         self._entry_jump_mode_active = True
         self._handle_entry_jump_key("apostrophe")
+
+    def action_jump_to_entry_forward(self) -> None:
+        """Walk forward through jump points after a back-jump."""
+        if self.current_tab == "agents":
+            forward_stack = self._entry_jump_agents_forward_stack()
+            guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
+            if forward_stack and callable(guard) and guard():
+                return
+
+            agent_anchor = self._pop_agents_jump_anchor(forward_stack)
+            if agent_anchor is None:
+                self._notify_no_next_jump_point()
+                return
+
+            current_agent_anchor = self._current_agents_jump_anchor()
+            if current_agent_anchor is not None:
+                self._push_agents_jump_anchor(
+                    self._entry_jump_agents_anchor_stack,
+                    current_agent_anchor,
+                )
+            self._restore_agents_jump_anchor_value(agent_anchor)
+            self._refresh_after_entry_jump_restore()
+            return
+
+        entry_anchor = self._pop_entry_jump_anchor_from(
+            self._entry_jump_forward_stack_map()
+        )
+        if entry_anchor is None:
+            self._notify_no_next_jump_point()
+            return
+
+        current_entry_anchor = self._current_entry_jump_anchor()
+        if current_entry_anchor is not None:
+            self._push_entry_jump_anchor_to_stack(
+                self._entry_jump_index_stack,
+                current_entry_anchor,
+            )
+        self._restore_entry_jump_anchor(entry_anchor)
+        self._refresh_after_entry_jump_restore()
 
     def _prepare_entry_jump_index_maps(self, indices: list[int]) -> bool:
         """Allocate generic entry hints without entering/rendering jump mode."""
@@ -184,9 +226,21 @@ class EntryJumpNavigationMixin(NavigationMixinBase):
         else:
             self._refresh_current_tab()  # type: ignore[attr-defined]
 
-    def _entry_jump_index_stack_for_current_tab(self) -> list[int]:
+    def _entry_jump_index_stack_for_current_tab(self) -> list[EntryJumpAnchor]:
         """Return the current non-Agents tab's jump-back stack."""
         return self._entry_jump_index_stack.setdefault(self.current_tab, [])
+
+    def _entry_jump_forward_stack_map(self) -> dict[str, list[EntryJumpAnchor]]:
+        """Return the non-Agents tab forward stacks, creating them for old harnesses."""
+        stacks = getattr(self, "_entry_jump_forward_index_stack", None)
+        if stacks is None:
+            stacks = {}
+            self._entry_jump_forward_index_stack = stacks
+        return cast("dict[str, list[EntryJumpAnchor]]", stacks)
+
+    def _entry_jump_forward_stack_for_current_tab(self) -> list[EntryJumpAnchor]:
+        """Return the current non-Agents tab's jump-forward stack."""
+        return self._entry_jump_forward_stack_map().setdefault(self.current_tab, [])
 
     def _entry_jump_index_stack_has_current_tab_history(self) -> bool:
         """Return whether the current non-Agents tab has jump-back history."""
@@ -199,6 +253,67 @@ class EntryJumpNavigationMixin(NavigationMixinBase):
         if tab == "axe":
             return 0 <= idx < len(self._axe_items)  # type: ignore[attr-defined]
         return False
+
+    def _changespec_banner_anchor_is_valid(
+        self,
+        group_key: tuple[str, ...],
+    ) -> bool:
+        """Return whether ``group_key`` is a selectable CL banner right now."""
+        stops_fn = getattr(self, "_changespec_navigation_stops", None)
+        if not callable(stops_fn):
+            return False
+        try:
+            stops = stops_fn()
+        except Exception:
+            return False
+        return any(kind == "banner" and payload == group_key for kind, payload in stops)
+
+    def _entry_jump_anchor_is_valid(
+        self,
+        tab: str,
+        anchor: EntryJumpAnchor,
+    ) -> bool:
+        """Return whether a non-Agents jump anchor can be restored."""
+        if isinstance(anchor, int):
+            return self._entry_jump_index_is_valid(tab, anchor)
+        kind, group_key = anchor
+        return (
+            kind == "changespec_banner"
+            and tab == "changespecs"
+            and self._changespec_banner_anchor_is_valid(group_key)
+        )
+
+    def _current_entry_jump_anchor(self) -> EntryJumpAnchor | None:
+        """Snapshot the current non-Agents cursor as a row or CL banner."""
+        if self.current_tab == "changespecs":
+            group_key = getattr(self, "_current_changespec_group_key", None)
+            if group_key is not None:
+                banner_anchor: EntryJumpAnchor = (
+                    "changespec_banner",
+                    tuple(group_key),
+                )
+                if self._entry_jump_anchor_is_valid(self.current_tab, banner_anchor):
+                    return banner_anchor
+
+        if self._entry_jump_index_is_valid(self.current_tab, self.current_idx):
+            return self.current_idx
+        return None
+
+    def _push_entry_jump_anchor_to_stack(
+        self,
+        stacks: dict[str, list[EntryJumpAnchor]],
+        anchor: EntryJumpAnchor,
+    ) -> None:
+        """Push ``anchor`` onto the current tab's stack without adjacent duplicates."""
+        stack = stacks.setdefault(self.current_tab, [])
+        if not stack or stack[-1] != anchor:
+            stack.append(anchor)
+
+    def _clear_current_entry_jump_forward_stack(self) -> None:
+        """Clear forward history for the current non-Agents tab."""
+        stack = self._entry_jump_forward_stack_map().get(self.current_tab)
+        if stack is not None:
+            stack.clear()
 
     def _push_entry_jump_index_origin_if_changed(
         self,
@@ -214,23 +329,59 @@ class EntryJumpNavigationMixin(NavigationMixinBase):
         )
         if not row_changed and not group_changed:
             return
-        if not self._entry_jump_index_is_valid(self.current_tab, self.current_idx):
+        anchor = self._current_entry_jump_anchor()
+        if anchor is None:
             return
-        stack = self._entry_jump_index_stack_for_current_tab()
-        if not stack or stack[-1] != self.current_idx:
-            stack.append(self.current_idx)
+        self._push_entry_jump_anchor_to_stack(self._entry_jump_index_stack, anchor)
+        self._clear_current_entry_jump_forward_stack()
 
-    def _pop_entry_jump_index(self) -> int | None:
-        """Pop the latest valid row index for the current non-Agents tab."""
-        stack = self._entry_jump_index_stack.get(self.current_tab)
+    def _pop_entry_jump_anchor_from(
+        self,
+        stacks: dict[str, list[EntryJumpAnchor]],
+    ) -> EntryJumpAnchor | None:
+        """Pop the latest valid anchor for the current non-Agents tab."""
+        stack = stacks.get(self.current_tab)
         if not stack:
             return None
         while stack:
-            idx = stack.pop()
-            if self._entry_jump_index_is_valid(self.current_tab, idx):
-                return idx
-        self._entry_jump_index_stack.pop(self.current_tab, None)
+            anchor = stack.pop()
+            if self._entry_jump_anchor_is_valid(self.current_tab, anchor):
+                return anchor
+        stacks.pop(self.current_tab, None)
         return None
+
+    def _pop_entry_jump_index(self) -> EntryJumpAnchor | None:
+        """Pop the latest valid anchor for the current non-Agents tab."""
+        return self._pop_entry_jump_anchor_from(self._entry_jump_index_stack)
+
+    def _restore_entry_jump_anchor(self, anchor: EntryJumpAnchor) -> bool:
+        """Restore a non-Agents jump anchor. Returns True when it was valid."""
+        if not self._entry_jump_anchor_is_valid(self.current_tab, anchor):
+            return False
+        if isinstance(anchor, int):
+            if self.current_tab == "changespecs":
+                self._current_changespec_group_key = None  # type: ignore[attr-defined]
+            self.current_idx = anchor
+            return True
+
+        _, group_key = anchor
+        self._current_changespec_group_key = group_key  # type: ignore[attr-defined]
+        return True
+
+    def _refresh_after_entry_jump_restore(self) -> None:
+        """Refresh the tab after a direct jump-stack restore."""
+        if self.current_tab == "agents":
+            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+        elif self.current_tab == "changespecs":
+            self._refresh_display()  # type: ignore[attr-defined]
+        else:
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+
+    def _notify_no_next_jump_point(self) -> None:
+        """Notify the user that the jump-forward stack is empty."""
+        notify = getattr(self, "notify", None)
+        if callable(notify):
+            notify("No next jump point", severity="information")
 
     def _current_agents_panel_idx(self) -> int | None:
         """Return the focused agents panel index, or ``None`` if it is stale."""
@@ -272,13 +423,33 @@ class EntryJumpNavigationMixin(NavigationMixinBase):
             return ("agent", self.current_idx, panel_idx)
         return None
 
+    def _entry_jump_agents_forward_stack(self) -> list[AgentJumpAnchor]:
+        """Return the Agents tab's jump-forward stack."""
+        stack = getattr(self, "_entry_jump_agents_forward_anchor_stack", None)
+        if stack is None:
+            stack = []
+            self._entry_jump_agents_forward_anchor_stack = stack
+        return cast("list[AgentJumpAnchor]", stack)
+
+    def _push_agents_jump_anchor(
+        self,
+        stack: list[AgentJumpAnchor],
+        anchor: AgentJumpAnchor,
+    ) -> None:
+        """Push an Agents anchor without adjacent duplicates."""
+        if not stack or stack[-1] != anchor:
+            stack.append(anchor)
+
+    def _clear_agents_jump_forward_stack(self) -> None:
+        """Clear Agents-tab forward history after a new explicit jump."""
+        self._entry_jump_agents_forward_stack().clear()
+
     def _save_agents_jump_anchor(self) -> None:
         """Push the agents-tab cursor (agent or banner) for ``'`` back-jump."""
         anchor = self._current_agents_jump_anchor()
         if anchor is not None:
-            stack = self._entry_jump_agents_anchor_stack
-            if not stack or stack[-1] != anchor:
-                stack.append(anchor)
+            self._push_agents_jump_anchor(self._entry_jump_agents_anchor_stack, anchor)
+            self._clear_agents_jump_forward_stack()
 
     def _remember_agents_jump_origin_if_changed(
         self,
@@ -365,11 +536,16 @@ class EntryJumpNavigationMixin(NavigationMixinBase):
             group_key=group_key,
         )
 
-    def _pop_agents_jump_anchor(self) -> AgentJumpAnchor | None:
+    def _pop_agents_jump_anchor(
+        self,
+        stack: list[AgentJumpAnchor] | None = None,
+    ) -> AgentJumpAnchor | None:
         """Pop and return the latest valid agents-tab jump anchor."""
-        stack = self._entry_jump_agents_anchor_stack
-        while stack:
-            anchor = stack.pop()
+        target_stack = (
+            stack if stack is not None else self._entry_jump_agents_anchor_stack
+        )
+        while target_stack:
+            anchor = target_stack.pop()
             if self._agents_jump_anchor_is_valid(anchor):
                 return anchor
         return None
@@ -380,12 +556,8 @@ class EntryJumpNavigationMixin(NavigationMixinBase):
         if panel_group is not None:
             panel_group.focused_idx = panel_idx
 
-    def _restore_agents_jump_anchor(self) -> bool:
-        """Pop and restore the latest agents-tab anchor.  Returns True on success."""
-        anchor = self._pop_agents_jump_anchor()
-        if anchor is None:
-            return False
-
+    def _restore_agents_jump_anchor_value(self, anchor: AgentJumpAnchor) -> None:
+        """Restore a validated agents-tab anchor."""
         if anchor[0] == "agent":
             _, agent_idx, target_panel = anchor
             self._focus_agents_jump_anchor_panel(target_panel)
@@ -395,6 +567,20 @@ class EntryJumpNavigationMixin(NavigationMixinBase):
             _, target_panel, group_key = anchor
             self._focus_agents_jump_anchor_panel(target_panel)
             self._current_group_key = group_key
+
+    def _restore_agents_jump_anchor(self) -> bool:
+        """Pop and restore the latest agents-tab anchor.  Returns True on success."""
+        anchor = self._pop_agents_jump_anchor()
+        if anchor is None:
+            return False
+
+        current_anchor = self._current_agents_jump_anchor()
+        if current_anchor is not None:
+            self._push_agents_jump_anchor(
+                self._entry_jump_agents_forward_stack(),
+                current_anchor,
+            )
+        self._restore_agents_jump_anchor_value(anchor)
         return True
 
     def _panel_idx_for_agent_jump_target(self, agent_idx: int) -> int | None:
@@ -433,11 +619,15 @@ class EntryJumpNavigationMixin(NavigationMixinBase):
                     return True
                 key = "1"
             else:
-                last_idx = self._pop_entry_jump_index()
-                if last_idx is not None:
-                    if self.current_tab == "changespecs":
-                        self._current_changespec_group_key = None  # type: ignore[attr-defined]
-                    self.current_idx = last_idx
+                last_anchor = self._pop_entry_jump_index()
+                if last_anchor is not None:
+                    current_anchor = self._current_entry_jump_anchor()
+                    if current_anchor is not None:
+                        self._push_entry_jump_anchor_to_stack(
+                            self._entry_jump_forward_stack_map(),
+                            current_anchor,
+                        )
+                    self._restore_entry_jump_anchor(last_anchor)
                     self._exit_entry_jump_mode()
                     return True
                 key = "1"
