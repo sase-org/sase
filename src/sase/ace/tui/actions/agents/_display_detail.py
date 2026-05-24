@@ -120,6 +120,11 @@ class DetailMixin:
         elif getattr(self, "_leader_mode_active", False):
             footer_widget.update_leader_bindings(
                 current_tab="agents",
+                has_notification=(
+                    current_agent.status in ("PLAN", "QUESTION")
+                    if current_agent is not None
+                    else False
+                ),
                 has_unread_completed_agent=self._has_unread_completed_agent(),  # type: ignore[attr-defined]
                 has_stopped_agent=self._has_stopped_agent(),  # type: ignore[attr-defined]
             )

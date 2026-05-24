@@ -51,8 +51,14 @@ class _DetailWidget:
 
 
 class _FooterWidget:
+    def __init__(self) -> None:
+        self.leader_binding_calls: list[dict[str, object]] = []
+
     def update_agent_bindings(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         return
+
+    def update_leader_bindings(self, **kwargs: object) -> None:
+        self.leader_binding_calls.append(dict(kwargs))
 
 
 class _Container:
@@ -103,16 +109,20 @@ class _FakeApp(AgentDisplayMixin):
         self._current_group_key = None
         self._panel_group = AgentPanelGroup.from_agents(self._agents)
         self._pending_callback = None
+        self.unread_completed_available = False
+        self.stopped_available = False
 
         list_widget = _ListWidget()
+        footer_widget = _FooterWidget()
         self._container = _Container([list_widget])
         self._widgets = {
             "#agent-list-panel": list_widget,
             "#agent-list-container": self._container,
             "#agent-detail-panel": _DetailWidget(),
-            "#keybinding-footer": _FooterWidget(),
+            "#keybinding-footer": footer_widget,
         }
         self.detail_calls = 0
+        self.footer_widget = footer_widget
 
     def query_one(self, selector: str, _type=None):  # type: ignore[no-untyped-def]
         return self._widgets[selector]
@@ -136,6 +146,12 @@ class _FakeApp(AgentDisplayMixin):
     def _resolve_agent_cl_name(self, _agent: Agent) -> str | None:
         return "test"
 
+    def _has_unread_completed_agent(self) -> bool:
+        return self.unread_completed_available
+
+    def _has_stopped_agent(self) -> bool:
+        return self.stopped_available
+
     def _apply_agent_detail_update(self, agent_detail, footer_widget) -> None:  # type: ignore[no-untyped-def]
         del agent_detail, footer_widget
         self.detail_calls += 1
@@ -158,3 +174,43 @@ def test_refresh_list_without_defer_updates_detail_immediately() -> None:
 
     assert app.detail_calls == 1
     assert app._pending_callback is None
+
+
+def test_leader_footer_refresh_preserves_plan_notification_binding() -> None:
+    app = _FakeApp()
+    app._leader_mode_active = True
+    app._agents[0].status = "PLAN"
+
+    app._apply_agent_footer_update(
+        _DetailWidget(), app.footer_widget, app._get_selected_agent()
+    )
+
+    assert app.footer_widget.leader_binding_calls[-1]["current_tab"] == "agents"
+    assert app.footer_widget.leader_binding_calls[-1]["has_notification"] is True
+
+
+def test_leader_footer_refresh_clears_non_notification_binding() -> None:
+    app = _FakeApp()
+    app._leader_mode_active = True
+    app._agents[0].status = "RUNNING"
+
+    app._apply_agent_footer_update(
+        _DetailWidget(), app.footer_widget, app._get_selected_agent()
+    )
+
+    assert app.footer_widget.leader_binding_calls[-1]["has_notification"] is False
+
+
+def test_leader_footer_refresh_keeps_unread_and_stopped_flags() -> None:
+    app = _FakeApp()
+    app._leader_mode_active = True
+    app.unread_completed_available = True
+    app.stopped_available = True
+
+    app._apply_agent_footer_update(
+        _DetailWidget(), app.footer_widget, app._get_selected_agent()
+    )
+
+    call = app.footer_widget.leader_binding_calls[-1]
+    assert call["has_unread_completed_agent"] is True
+    assert call["has_stopped_agent"] is True
