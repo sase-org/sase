@@ -8,6 +8,7 @@ and CLI flags.
 - [Config File Location](#config-file-location)
 - [Deep-Merge System](#deep-merge-system)
 - [Configuration Sections](#configuration-sections)
+  - [amd_h1_title](#amd_h1_title)
   - [ace](#ace)
   - [llm_provider](#llm_provider)
   - [commit](#commit)
@@ -75,6 +76,23 @@ two files define the same scalar key (e.g., `axe.max_hook_runners`), the later l
 Source: `src/sase/config/core.py`
 
 ## Configuration Sections
+
+### amd_h1_title
+
+Opts a project into a generated, project-managed `AGENTS.md` by providing the Markdown H1 title for that file.
+
+```yaml
+amd_h1_title: "Structured Agentic Software Engineering (SASE) - Agent Instructions" # default: null
+```
+
+| Field          | Type           | Default | Description                                                                |
+| -------------- | -------------- | ------- | -------------------------------------------------------------------------- |
+| `amd_h1_title` | string \| null | `null`  | Project-local H1 title used by the AMD `AGENTS.md` generator when enabled. |
+
+This field is intentionally project-local. The AMD generator reads only the current project's `./sase.yml` value, so a
+global `~/.config/sase/sase.yml` value does not opt every repository on the machine into generated `AGENTS.md` files.
+
+Source: `src/sase/default_config.yml`, `config/sase.schema.json`
 
 ### ace
 

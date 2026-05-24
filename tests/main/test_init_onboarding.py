@@ -152,6 +152,7 @@ def test_init_help_lists_existing_subcommands(
 
     assert exc.value.code == 0
     out = capsys.readouterr().out
+    assert "amd" in out
     assert "memory" in out
     assert "sdd" in out
     assert "skills" in out

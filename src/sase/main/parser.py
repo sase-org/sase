@@ -4,6 +4,7 @@ import argparse
 
 from sase.main.parser_ace import register_ace_parser, register_axe_parser
 from sase.main.parser_agents import register_agents_parser
+from sase.main.parser_amd import register_amd_parser
 from sase.main.parser_artifact import register_artifact_parser
 from sase.main.parser_bead import register_bead_parser
 from sase.main.parser_chats import register_chats_parser
@@ -77,6 +78,7 @@ def create_parser() -> argparse.ArgumentParser:
     # =========================================================================
     register_ace_parser(top_level_subparsers)
     register_agents_parser(top_level_subparsers)
+    register_amd_parser(top_level_subparsers)
     register_artifact_parser(top_level_subparsers)
     register_axe_parser(top_level_subparsers)
     register_bead_parser(top_level_subparsers)

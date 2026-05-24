@@ -70,6 +70,11 @@
     }
   },
   "properties": {
+    "amd_h1_title": {
+      "type": ["string", "null"],
+      "description": "Project-local H1 title that opts a repository into generated AMD-managed AGENTS.md. The generator ignores global values.",
+      "default": null
+    },
     "ace": {
       "type": "object",
       "description": "Configuration for the ace TUI",

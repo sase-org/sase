@@ -43,6 +43,12 @@ def main() -> NoReturn:
 
         handle_agents_command(args)
 
+    # --- amd ---
+    if args.command == "amd":
+        from .amd_handler import handle_amd_command
+
+        handle_amd_command(args)
+
     # --- artifact ---
     if args.command == "artifact":
         from .artifact_handler import handle_artifact_command
@@ -183,6 +189,11 @@ def main() -> NoReturn:
             from .init_onboarding import run_init_onboarding
 
             sys.exit(run_init_onboarding(args))
+
+        if args.init_subcommand == "amd":
+            from .amd_handler import handle_init_amd_command
+
+            handle_init_amd_command(args)
 
         if args.init_subcommand == "memory":
             from .init_memory_handler import handle_init_memory_command

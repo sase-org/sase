@@ -2,6 +2,7 @@
 
 import argparse
 
+from sase.main.parser_amd import add_amd_init_arguments
 from sase.main.parser_sdd import add_sdd_path_arg
 
 
@@ -117,6 +118,16 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Initialization subcommands",
         required=False,
     )
+
+    amd_parser = init_subparsers.add_parser(
+        "amd",
+        help="Alias for `sase amd init`",
+        description=(
+            "Compatibility alias for `sase amd init`, which creates or "
+            "refreshes AGENTS.md and provider instruction shims."
+        ),
+    )
+    add_amd_init_arguments(amd_parser, suppress_check_default=True)
 
     memory_parser = init_subparsers.add_parser(
         "memory",

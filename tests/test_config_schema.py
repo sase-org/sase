@@ -63,6 +63,18 @@ def test_config_schema_accepts_xprompt_input_descriptions() -> None:
     assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
 
 
+def test_config_schema_accepts_amd_h1_title_string_or_null() -> None:
+    schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
+
+    for config in ({"amd_h1_title": None}, {"amd_h1_title": "Agent Instructions"}):
+        errors = sorted(
+            Draft7Validator(schema).iter_errors(config),
+            key=lambda error: list(error.absolute_path),
+        )
+
+        assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
+
+
 def test_config_schema_requires_sibling_repo_descriptions() -> None:
     schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
     config = {

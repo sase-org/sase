@@ -141,6 +141,11 @@ def test_init_and_git_namespace_parsers() -> None:
     """New init and git namespaces parse their migrated leaf commands."""
     parser = create_parser()
 
+    amd_args = parser.parse_args(["init", "amd", "--check"])
+    assert amd_args.command == "init"
+    assert amd_args.init_subcommand == "amd"
+    assert amd_args.check is True
+
     memory_args = parser.parse_args(["init", "memory"])
     assert memory_args.command == "init"
     assert memory_args.init_subcommand == "memory"
