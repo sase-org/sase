@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-24 11:42:07
-status: wip
+status: done
 prompt: sdd/prompts/202605/static_sibling_finalizer.md
 ---
 # Plan: Ignore Static Sibling Repos in Commit Finalizer Failures

@@ -42,6 +42,7 @@ _DEFAULT_ENABLED = True
 _DEFAULT_MAX_PASSES = 2
 
 _FinalizerStatus = Literal["skipped", "clean", "finalized", "failed"]
+_WorkspaceStrategy = Literal["suffix", "none"]
 
 
 class _CommitFinalizerError(Exception):
@@ -83,6 +84,7 @@ class _DirtyState:
 class _SiblingTarget:
     name: str
     workspace_dir: str
+    workspace_strategy: _WorkspaceStrategy = "suffix"
 
 
 def run_commit_finalizer(
@@ -273,6 +275,8 @@ def _collect_dirty_state(project_dir: str) -> _DirtyState:
 def _dirty_configured_sibling_repos(project_dir: str) -> list[_DirtyRepo]:
     dirty: list[_DirtyRepo] = []
     for target in _configured_sibling_targets(project_dir):
+        if target.workspace_strategy == "none":
+            continue
         changed_files = _git_changed_files(target.workspace_dir)
         if not changed_files:
             continue
@@ -306,6 +310,9 @@ def _sibling_targets_from_env() -> list[_SiblingTarget]:
             _SiblingTarget(
                 name=name.strip(),
                 workspace_dir=_normalize_path(workspace_dir),
+                workspace_strategy=_sibling_workspace_strategy(
+                    item.get("workspace_strategy")
+                ),
             )
         )
     return targets
@@ -334,10 +341,18 @@ def _sibling_targets_from_config(project_dir: str) -> list[_SiblingTarget]:
 
     return [
         _SiblingTarget(
-            name=repo.name, workspace_dir=_normalize_path(repo.workspace_dir)
+            name=repo.name,
+            workspace_dir=_normalize_path(repo.workspace_dir),
+            workspace_strategy=_sibling_workspace_strategy(repo.workspace_strategy),
         )
         for repo in resolution.repos
     ]
+
+
+def _sibling_workspace_strategy(value: object) -> _WorkspaceStrategy:
+    if value == "none":
+        return "none"
+    return "suffix"
 
 
 def _workspace_num_for_project_file(project_file: str, project_dir: str) -> int | None:
