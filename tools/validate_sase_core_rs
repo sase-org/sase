@@ -32,6 +32,13 @@ REQUIRED_BINDINGS = (
     "derive_git_workspace_name",
     "parse_git_conflicted_files",
     "parse_git_local_changes",
+    "read_notifications_snapshot",
+    "apply_notification_state_update",
+    "apply_notification_state_update_counts",
+    "append_notification",
+    "append_notification_counts",
+    "rewrite_notifications",
+    "rewrite_notifications_counts",
     "bead_build_legend_work_plan",
     "bead_build_legend_work_plan_from_issues",
 )
@@ -136,6 +143,57 @@ def _validate_scalar_plan_timestamp(module: ModuleType) -> bool:
     return True
 
 
+def _validate_notification_tags(module: ModuleType) -> bool:
+    tags = ["done", "review"]
+    with tempfile.TemporaryDirectory(prefix="sase-core-rs-notify-probe-") as tmp:
+        path = Path(tmp) / "notifications" / "notifications.jsonl"
+        notification = {
+            "id": "tag-probe",
+            "timestamp": "2026-05-24T12:00:00+00:00",
+            "sender": "validator",
+            "notes": ["probe"],
+            "files": [],
+            "tags": tags,
+            "action": None,
+            "action_data": {},
+            "read": False,
+            "dismissed": False,
+            "silent": False,
+            "muted": False,
+            "snooze_until": None,
+        }
+
+        try:
+            appended = module.append_notification(str(path), notification)
+            snapshot = module.read_notifications_snapshot(str(path), True, False)
+        except Exception as exc:
+            _error(f"notification tag round-trip probe failed: {exc}")
+            return False
+
+    appended_tags = _first_notification_tags(appended)
+    snapshot_tags = _first_notification_tags(snapshot)
+    if appended_tags != tags or snapshot_tags != tags:
+        _error(
+            "notification tag round-trip probe lost tags: "
+            f"append={appended_tags!r}, snapshot={snapshot_tags!r}"
+        )
+        return False
+
+    return True
+
+
+def _first_notification_tags(payload: object) -> object:
+    if not isinstance(payload, dict):
+        return None
+    notifications = payload.get("notifications")
+    if not isinstance(notifications, list) or not notifications:
+        return None
+    first = notifications[0]
+    if not isinstance(first, dict):
+        return None
+    return first.get("tags")
+
+
 def main() -> int:
     module = _load_extension()
     if module is None:
@@ -143,6 +201,8 @@ def main() -> int:
     if not _validate_bindings(module):
         return 1
     if not _validate_scalar_plan_timestamp(module):
+        return 1
+    if not _validate_notification_tags(module):
         return 1
     return 0
 

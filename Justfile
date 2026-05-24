@@ -10,8 +10,9 @@ prettier_bin := "node_modules/.bin/prettier"
 
 # Sibling Rust core repo. CI can override this with SASE_CORE_DIR after
 # checking out sase-core inside the Actions workspace. SASE-launched agents
-# provide the workspace-matched sibling checkout via SASE_SIBLING_REPO_CORE_DIR.
-sase_core_dir := env_var_or_default("SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_CORE_DIR", "../sase-core"))
+# provide the workspace-matched sibling checkout via SASE_SIBLING_REPO_SASE_CORE_DIR.
+sase_core_env_default := env_var_or_default("SASE_SIBLING_REPO_SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_CORE_DIR", "../sase-core"))
+sase_core_dir := env_var_or_default("SASE_CORE_DIR", sase_core_env_default)
 
 default:
     @just --list
