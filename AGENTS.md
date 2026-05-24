@@ -40,10 +40,10 @@ sase memory read <long-memory-path> --reason "<why this context is needed>"
 
 #### Long-Term Memory Files
 
-**`long/generated_skills.md`**  
+**`memory/long/generated_skills.md`**  
 Skill file generation pipeline, CLI/skill contract synchronization, commit skills per runtime. _Read when modifying
 skill source files or the commit workflow._
 
-**`long/tui_jk_baseline.md`**  
+**`memory/long/tui_jk_baseline.md`**  
 Baseline j/k key-to-paint latency data and reproduction steps. _Read when working on TUI navigation latency or related
 performance instrumentation._
