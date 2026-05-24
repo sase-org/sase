@@ -11,8 +11,9 @@ ledger:
   human review decisions.
 
 Use [initialization](init.md#memory-initialization) to create or refresh the files. Day to day, the usual order is:
-inspect with `sase memory list`, let agents use audited `read`/`write`, then have a human approve or reject proposals
-with `sase memory review`.
+inspect loaded context with `sase memory list`, have agents use `sase memory read` for audited long-term reads, have
+agents use `sase memory write` only to create proposals, then have a human approve or reject those proposals with
+`sase memory review`.
 
 ## Inspect Context
 
@@ -103,8 +104,9 @@ Proposal authors are attributed from the same agent identity sources as audited 
 tests and demos; normal agent writes should rely on the SASE-provided identity.
 
 Use `--notify` to best-effort append a `memory.proposed` notification after proposal creation. The notification carries
-the `memory` tag, points at any resolved evidence files, and opens `sase memory review` at the proposal when selected in
-ACE. Notification delivery is reported in the human output and as `notification_id` in JSON output.
+the `memory` tag, attaches any evidence paths that resolved to local files, and opens the interactive memory review TUI
+at that proposal when selected in ACE. The notification is only a prompt to review; it does not approve, reject, or edit
+the proposal by itself. Notification delivery is reported in the human output and as `notification_id` in JSON output.
 
 Use `--json` for deterministic machine-readable output.
 

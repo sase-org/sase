@@ -912,24 +912,23 @@ regular **INBOX** notifications, and cyan when only **MUTED** notifications rema
 Some notifications carry an `action` field that triggers a handler when the notification is selected. The following
 notification action types are supported:
 
-| Action               | Source          | Behavior                                                               |
-| -------------------- | --------------- | ---------------------------------------------------------------------- |
-| `HITL`               | Workflow        | Opens the workflow human-in-the-loop response modal                    |
-| `JumpToAgent`        | Agent/workflow  | Jumps to the matching Agents-tab row                                   |
-| `JumpToChangeSpec`   | Sync/workflow   | Jumps to the referenced ChangeSpec on the CLs tab                      |
-| `JumpToMentorReview` | Mentors         | Jumps to the ChangeSpec and opens mentor review output when available  |
-| `PlanApproval`       | Agent           | Opens the plan approval modal                                          |
-| `Tmux`               | External bridge | Opens or focuses the referenced tmux target                            |
-| `UserQuestion`       | Agent           | Opens the structured user-question response modal                      |
-| `ViewErrorReport`    | Axe daemon      | Opens the error digest file in `$EDITOR` for review                    |
-| `memory_review`      | Memory          | Suspends ACE and opens the memory proposal review TUI at that proposal |
-| `plan`               | Agent           | Jumps to the agent's plan notification in the Agents tab               |
-| `question`           | Agent           | Jumps to the agent's question notification in the Agents tab           |
+| Action               | Source          | Behavior                                                                        |
+| -------------------- | --------------- | ------------------------------------------------------------------------------- |
+| `HITL`               | Workflow        | Opens the workflow human-in-the-loop response modal                             |
+| `JumpToAgent`        | Agent/workflow  | Jumps to the matching Agents-tab row                                            |
+| `JumpToChangeSpec`   | Sync/workflow   | Jumps to the referenced ChangeSpec on the CLs tab                               |
+| `JumpToMentorReview` | Mentors         | Jumps to the ChangeSpec and opens mentor review output when available           |
+| `PlanApproval`       | Agent           | Opens the plan approval modal                                                   |
+| `Tmux`               | External bridge | Runs `tm <workspace-name>` for the notification's `action_data.workspace_dir`   |
+| `UserQuestion`       | Agent           | Opens the structured user-question response modal                               |
+| `ViewErrorReport`    | Axe/agent       | Opens `action_data.error_report_path`, or the first attached file, in `$EDITOR` |
+| `memory_review`      | Memory          | Suspends ACE and opens the memory proposal review TUI at that proposal          |
 
-The `ViewErrorReport` action is created by the axe `error_digest` chop when errors accumulate. The digest file
-summarizing recent errors is stored at `~/.sase/axe/error_digests/digest_<timestamp>.txt`. Memory proposal notifications
-created by `sase memory write --notify` use `memory_review` with `action_data.proposal_id`; selecting one opens
-`sase memory review` with that proposal selected.
+The axe `error_digest` chop creates `ViewErrorReport` notifications whose digest files live under
+`~/.sase/axe/error_digests/digest_<timestamp>.txt`; user-agent failures can use the same action for their own attached
+error reports. Memory proposal notifications created by `sase memory write --notify` use `memory_review` with
+`action_data.proposal_id`. Selecting one opens the same review UI as `sase memory review`, preselected on that proposal;
+approval or rejection still happens inside the review UI.
 
 ### Toast Notifications
 
