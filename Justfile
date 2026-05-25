@@ -16,9 +16,12 @@ sase_core_dir := env_var_or_default("SASE_CORE_DIR", env_var_or_default("SASE_SI
 default:
     @just --list
 
-# Bootstrap .venv if it doesn't exist.
+# Bootstrap .venv if it doesn't exist. SASE workspaces may copy a venv from
+# another checkout, so repair console-script shebangs that still point at the
+# source workspace before any recipe calls those scripts.
 _venv:
     @[ -x {{ venv_bin }}/python ] || uv venv {{ venv_dir }}
+    @{{ venv_bin }}/python tools/repair_venv_entrypoints {{ venv_dir }}
 
 # Bootstrap .venv and install editable dev dependencies. Build the local
 # Rust extension first when a source checkout and Rust toolchain are

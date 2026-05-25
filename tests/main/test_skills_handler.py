@@ -285,6 +285,35 @@ def test_skills_list_dashboard_does_not_truncate_long_name_or_description() -> N
     # name and intentionally omitted from the description footer.
 
 
+def test_skills_list_drift_paths_fold_instead_of_ellipsize() -> None:
+    target = SkillTargetEntry(
+        path=Path(
+            "/tmp/pytest-with-a-long-counter-name/home/.claude/skills/"
+            "long_drift_skill/SKILL.md"
+        ),
+        provider="claude",
+        skill_name="long_drift_skill",
+        status="stale",
+    )
+    source = SkillSourceEntry(
+        name="long_drift_skill",
+        description="drift path rendering",
+        source_path="src/sase/xprompts/skills/long_drift_skill.md",
+        providers=("claude",),
+        targets=(target,),
+    )
+    inventory = SkillsInventory(sources=(source,), deploy_mode="home")
+
+    output = StringIO()
+    console = Console(file=output, force_terminal=False, color_system=None, width=80)
+    _render_skills_inventory(inventory, console=console)
+    text = output.getvalue()
+
+    assert "long_drift_skill" in text
+    assert "SKILL.md" in text
+    assert "…" not in text
+
+
 def test_skills_list_table_shows_full_provider_set_and_status_tokens() -> None:
     multi_targets = tuple(
         SkillTargetEntry(

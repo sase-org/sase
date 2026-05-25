@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+"""Repair venv console-script shebangs after a workspace move or copy."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+
+def _split_shebang(first_line: bytes) -> tuple[Path, str] | None:
+    try:
+        text = first_line.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+    if not text.startswith("#!"):
+        return None
+
+    body = text[2:].strip()
+    if not body:
+        return None
+
+    parts = body.split(maxsplit=1)
+    suffix = f" {parts[1]}" if len(parts) == 2 else ""
+    return Path(parts[0]), suffix
+
+
+def _should_rewrite_shebang(interpreter: Path, venv_dir: Path) -> bool:
+    if not interpreter.is_absolute():
+        return False
+    if interpreter.name not in {"python", "python3"} and not (
+        interpreter.name.startswith("python3.")
+    ):
+        return False
+    if interpreter.parent.name != "bin":
+        return False
+
+    target_interpreters = {
+        venv_dir / "bin" / "python",
+        venv_dir / "bin" / "python3",
+    }
+    target_interpreters.update(venv_dir.glob("bin/python3.*"))
+    if interpreter in target_interpreters:
+        return False
+
+    return venv_dir.name in interpreter.parts
+
+
+def repair_entrypoint(path: Path, venv_dir: Path, target_python: Path) -> bool:
+    data = path.read_bytes()
+    first_line, separator, rest = data.partition(b"\n")
+    if not separator:
+        return False
+
+    parsed = _split_shebang(first_line)
+    if parsed is None:
+        return False
+
+    interpreter, suffix = parsed
+    if not _should_rewrite_shebang(interpreter, venv_dir):
+        return False
+
+    path.write_bytes(f"#!{target_python}{suffix}\n".encode("utf-8") + rest)
+    return True
+
+
+def repair_venv_entrypoints(venv_dir: Path) -> list[Path]:
+    venv_dir = venv_dir.resolve()
+    bin_dir = venv_dir / "bin"
+    target_python = venv_dir / "bin" / "python3"
+    if not target_python.exists():
+        target_python = venv_dir / "bin" / "python"
+
+    if not bin_dir.is_dir() or not target_python.exists():
+        raise FileNotFoundError(f"not a Python virtualenv: {venv_dir}")
+
+    repaired: list[Path] = []
+    for path in sorted(bin_dir.iterdir()):
+        if not path.is_file():
+            continue
+        try:
+            if repair_entrypoint(path, venv_dir, target_python):
+                repaired.append(path)
+        except OSError as exc:
+            print(
+                f"[repair_venv_entrypoints] warning: cannot inspect {path}: {exc}",
+                file=sys.stderr,
+            )
+
+    return repaired
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "venv",
+        nargs="?",
+        default=".venv",
+        help="virtualenv directory to repair (default: .venv)",
+    )
+    args = parser.parse_args(argv)
+
+    repaired = repair_venv_entrypoints(Path(args.venv))
+    if repaired:
+        print(
+            "[repair_venv_entrypoints] repaired stale shebangs: "
+            + ", ".join(path.name for path in repaired)
+        )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
