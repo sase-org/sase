@@ -149,7 +149,7 @@ def _drift_panel(inventory: SkillsInventory) -> Panel | None:
     table = Table(show_header=True, header_style="bold", box=None, pad_edge=False)
     table.add_column("Status", no_wrap=True)
     table.add_column("Provider/Skill", no_wrap=True)
-    table.add_column("Path")
+    table.add_column("Path", no_wrap=False, overflow="fold", min_width=20)
 
     for target in drift_targets[:_DRIFT_LIMIT]:
         table.add_row(
