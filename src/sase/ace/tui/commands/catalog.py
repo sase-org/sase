@@ -41,7 +41,6 @@ if TYPE_CHECKING:
 
 _ALL_TABS: tuple[CommandTab, ...] = ("changespecs", "agents", "axe")
 _CL_ONLY: tuple[CommandTab, ...] = ("changespecs",)
-_CL_AXE: tuple[CommandTab, ...] = ("changespecs", "axe")
 _AGENTS_ONLY: tuple[CommandTab, ...] = ("agents",)
 _AGENTS_AXE: tuple[CommandTab, ...] = ("agents", "axe")
 _CL_AGENTS: tuple[CommandTab, ...] = ("changespecs", "agents")
@@ -93,7 +92,13 @@ _APP_COMMAND_META: tuple[
     # CL Actions
     ("quit", "Quit ace", "Misc", _ALL_TABS, ("exit",)),
     ("change_status", "Change CL status", "CL Actions", _CL_ONLY, ()),
-    ("run_workflow", "Run workflow / re-run", "CL Actions", _CL_AXE, ()),
+    (
+        "run_workflow",
+        "Run workflow / retry agent / re-run",
+        "CL Actions",
+        _ALL_TABS,
+        ("retry", "relaunch", "edit prompt"),
+    ),
     ("mail", "Mail CL", "CL Actions", _CL_ONLY, ("send",)),
     ("show_diff", "Show diff", "CL Actions", _CL_ONLY, ()),
     ("reword", "Reword CL", "CL Actions", _CL_ONLY, ()),
@@ -365,7 +370,6 @@ _LEADER_LABELS: dict[str, str] = {
     "mark_all_unread_done_agents_read": "Mark all unread completed agents read",
     "kill_and_edit": "Kill agent and edit",
     "mark_inactive": "Mark inactive agents",
-    "retry_edit": "Retry agent (edit)",
     "activity_info": "Activity dashboard",
     "clear_comments": "Clear CL comments",
     "task_queue": "Task queue",
@@ -391,7 +395,6 @@ _LEADER_TABS: dict[str, tuple[CommandTab, ...]] = {
     "review_mentors": _CL_ONLY,
     "agent_run_log": _CL_ONLY,
     "kill_and_edit": _AGENTS_ONLY,
-    "retry_edit": _AGENTS_ONLY,
     "toggle_agent_panel_grouping": _AGENTS_ONLY,
     "jump_to_next_unread_done_agent": _AGENTS_ONLY,
     "jump_to_next_stopped_agent": _AGENTS_ONLY,

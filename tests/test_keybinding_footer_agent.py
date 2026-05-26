@@ -50,7 +50,7 @@ def test_keybinding_footer_agent_bindings_running_agent() -> None:
 
     assert "x" in binding_keys  # Kill is available
     assert "f" not in binding_keys  # No fork chat
-    assert "r" not in binding_keys
+    assert ("r", "retry") in bindings
 
 
 def test_keybinding_footer_agent_bindings_starting_agent() -> None:

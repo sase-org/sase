@@ -364,20 +364,28 @@ class TestRetryAgentNames:
     def test_allocates_first_retry_slot(self, tmp_path: Path) -> None:
         _make_agent(tmp_path, "proj", "run1", "foo", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_retry_name("foo") == "foo.1"
+            assert allocate_retry_name("foo") == "foo.r1"
 
     def test_skips_retry_slots_reserved_by_descendants(self, tmp_path: Path) -> None:
         _make_agent(tmp_path, "proj", "run1", "foo", done=True)
-        _make_agent(tmp_path, "proj", "run2", "foo.1", done=True)
-        _make_agent(tmp_path, "proj", "run3", "foo.2.plan", done=True)
+        _make_agent(tmp_path, "proj", "run2", "foo.r1", done=True)
+        _make_agent(tmp_path, "proj", "run3", "foo.r2.plan", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_retry_name("foo") == "foo.3"
+            assert allocate_retry_name("foo") == "foo.r3"
+
+    def test_legacy_numeric_names_do_not_reserve_retry_slots(
+        self, tmp_path: Path
+    ) -> None:
+        _make_agent(tmp_path, "proj", "run1", "foo.1", done=True)
+        _make_agent(tmp_path, "proj", "run2", "foo.2.plan", done=True)
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert allocate_retry_name("foo") == "foo.r1"
 
     def test_chains_allocations_through_reserved_set(self) -> None:
-        reserved = {"foo", "foo.1.plan"}
-        assert allocate_retry_name("foo", reserved=reserved) == "foo.2"
-        assert allocate_retry_name("foo", reserved=reserved) == "foo.3"
-        assert reserved == {"foo", "foo.1.plan", "foo.2", "foo.3"}
+        reserved = {"foo", "foo.r1.plan"}
+        assert allocate_retry_name("foo", reserved=reserved) == "foo.r2"
+        assert allocate_retry_name("foo", reserved=reserved) == "foo.r3"
+        assert reserved == {"foo", "foo.r1.plan", "foo.r2", "foo.r3"}
 
 
 class TestClaimAgentName:

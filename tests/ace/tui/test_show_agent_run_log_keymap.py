@@ -232,7 +232,18 @@ def test_leader_repeat_does_not_record_repeat_subkey() -> None:
     assert app.jump_unread_count == 2
 
 
-def test_leader_repeat_uses_raw_subkey_for_duplicate_r_behavior() -> None:
+def test_leader_r_opens_runners_on_agents_tab() -> None:
+    app = _FakeApp(current_tab="agents")
+
+    handled = app._handle_leader_key("r")
+
+    assert handled is True
+    assert app.retry_edit_count == 0
+    assert app.runners_count == 1
+    assert app.refresh_count == 1
+
+
+def test_leader_repeat_uses_raw_subkey_for_runners() -> None:
     app = _FakeApp(current_tab="agents")
     app._handle_leader_key("r")
 
@@ -240,8 +251,8 @@ def test_leader_repeat_uses_raw_subkey_for_duplicate_r_behavior() -> None:
     app._handle_leader_key("comma")
 
     assert app._last_leader_key == "r"
-    assert app.retry_edit_count == 1
-    assert app.runners_count == 1
+    assert app.retry_edit_count == 0
+    assert app.runners_count == 2
 
 
 def test_leader_j_notifies_when_no_unread_done_agent() -> None:

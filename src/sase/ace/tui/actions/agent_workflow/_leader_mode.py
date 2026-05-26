@@ -77,14 +77,6 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        if key == leader_keys["retry_edit"]:
-            if self.current_tab == "agents":
-                LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-                self._retry_edit_agent()  # type: ignore[attr-defined]
-                self._refresh_current_tab()  # type: ignore[attr-defined]
-                return True
-            # Fall through to runners (same key) on other tabs
-
         if key == leader_keys["runners"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             self.action_show_runners()  # type: ignore[attr-defined]

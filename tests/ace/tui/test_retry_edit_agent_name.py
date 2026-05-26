@@ -53,19 +53,20 @@ class _App(EntryPointsMixin):
 
 
 def test_rewrite_retry_prompt_prepends_name_when_missing() -> None:
-    assert _rewrite_retry_prompt_name("Do work", "foo.1") == "%name:foo.1\nDo work"
+    assert _rewrite_retry_prompt_name("Do work", "foo.r1") == "%name:foo.r1\nDo work"
 
 
 def test_rewrite_retry_prompt_replaces_percent_name() -> None:
     assert (
-        _rewrite_retry_prompt_name("%name:foo\nDo work", "foo.1")
-        == "%name:foo.1\nDo work"
+        _rewrite_retry_prompt_name("%name:foo\nDo work", "foo.r1")
+        == "%name:foo.r1\nDo work"
     )
 
 
 def test_rewrite_retry_prompt_replaces_percent_n() -> None:
     assert (
-        _rewrite_retry_prompt_name("%n:foo\nDo work", "foo.1") == "%name:foo.1\nDo work"
+        _rewrite_retry_prompt_name("%n:foo\nDo work", "foo.r1")
+        == "%name:foo.r1\nDo work"
     )
 
 
@@ -77,7 +78,7 @@ def test_rewrite_retry_prompt_ignores_fenced_and_disabled_name_directives() -> N
         "%xprompts_enabled:true\n"
         "Do work"
     )
-    assert _rewrite_retry_prompt_name(prompt, "foo.1") == f"%name:foo.1\n{prompt}"
+    assert _rewrite_retry_prompt_name(prompt, "foo.r1") == f"%name:foo.r1\n{prompt}"
 
 
 def test_force_name_reuse_rewrites_colon_name_directive() -> None:
@@ -118,7 +119,7 @@ def test_force_name_reuse_ignores_fenced_and_disabled_name_directives() -> None:
     assert _force_name_reuse_in_prompt(prompt) == prompt
 
 
-@patch("sase.agent.names.allocate_retry_name", return_value="foo.1")
+@patch("sase.agent.names.allocate_retry_name", return_value="foo.r1")
 def test_retry_edit_agent_prepends_allocated_retry_name(
     _mock_allocate: Mock,
 ) -> None:
@@ -127,7 +128,7 @@ def test_retry_edit_agent_prepends_allocated_retry_name(
     app._retry_edit_agent()
 
     assert app.launched == (
-        "%name:foo.1\nDo work",
+        "%name:foo.r1\nDo work",
         "/tmp/proj/proj.sase",
         "branch",
         False,
@@ -135,7 +136,7 @@ def test_retry_edit_agent_prepends_allocated_retry_name(
     assert app.notifications == []
 
 
-@patch("sase.agent.names.allocate_retry_name", return_value="foo.1")
+@patch("sase.agent.names.allocate_retry_name", return_value="foo.r1")
 def test_retry_edit_agent_preserves_unnamed_agent_prompt(
     mock_allocate: Mock,
 ) -> None:
@@ -148,7 +149,7 @@ def test_retry_edit_agent_preserves_unnamed_agent_prompt(
     assert not mock_allocate.called
 
 
-@patch("sase.agent.names.allocate_retry_name", return_value="foo.1")
+@patch("sase.agent.names.allocate_retry_name", return_value="foo.r1")
 def test_retry_edit_agent_replaces_name_without_force_reuse(
     _mock_allocate: Mock,
 ) -> None:
@@ -157,7 +158,7 @@ def test_retry_edit_agent_replaces_name_without_force_reuse(
     app._retry_edit_agent()
 
     assert app.launched == (
-        "%name:foo.1\nDo work",
+        "%name:foo.r1\nDo work",
         "/tmp/proj/proj.sase",
         "branch",
         False,

@@ -593,7 +593,6 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         bindings.append((k("prompt_history_cancelled"), "history (+cancelled)"))
         if current_tab == "agents":
             bindings.append((k("kill_and_edit"), "kill & edit"))
-            bindings.append((k("retry_edit"), "retry (edit)"))
             bindings.append((k("capture_agents_repro"), "capture repro"))
             bindings.append((k("toggle_agents_repro_checks"), "repro checks"))
             if has_notification:

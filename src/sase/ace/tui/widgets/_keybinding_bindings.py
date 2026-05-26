@@ -134,6 +134,8 @@ class KeybindingBindingsMixin:
                 )
             return bindings
 
+        bindings.append((self._kd("run_workflow"), "retry"))
+
         # --- Status-dependent actions ---
         if agent.status == "FAILED" or is_resumable_done_status(agent.status):
             if marked_count == 0:

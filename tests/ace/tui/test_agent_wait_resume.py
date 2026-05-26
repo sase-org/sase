@@ -154,9 +154,13 @@ class _FakeAgentForkDispatchApp(BaseActionsMixin, HookEditingMixin):
         self.current_idx = 0
         self.changespecs = [object()]
         self.fork_calls = 0
+        self.retry_edit_calls = 0
 
     def action_fork_agent(self) -> None:
         self.fork_calls += 1
+
+    def _retry_edit_agent(self) -> None:
+        self.retry_edit_calls += 1
 
 
 def test_fork_agent_tale_done_family_root_uses_family_name() -> None:
@@ -197,11 +201,12 @@ def test_fork_agent_plan_done_family_root_uses_family_name() -> None:
     assert app.prompt_bar_calls[0]["initial_text"] == "#fork:planner "
 
 
-def test_run_workflow_on_agents_does_not_fork() -> None:
+def test_run_workflow_on_agents_dispatches_retry_edit_and_does_not_fork() -> None:
     app = _FakeAgentForkDispatchApp()
 
     BaseActionsMixin.action_run_workflow(app)
 
+    assert app.retry_edit_calls == 1
     assert app.fork_calls == 0
 
 

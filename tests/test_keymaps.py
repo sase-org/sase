@@ -98,6 +98,7 @@ def test_agents_help_uses_f_for_fork_not_r_for_resume() -> None:
 
     assert ("f", "Fork chat as agent") in agent_pairs
     assert ("r", "Resume chat as agent") not in agent_pairs
+    assert ("r", "Retry: edit prompt & relaunch") in agent_pairs
     assert ("e", "Edit chat(s) in editor") in agent_pairs
     assert ("e", "Edit chat in editor") not in agent_pairs
 
@@ -515,6 +516,14 @@ def test_leader_mode_omits_legacy_kill_all() -> None:
     """The Agents cleanup panel replaces the old leader kill-all command."""
     reg = load_keymap_registry({})
     assert "kill_all" not in reg.leader_mode.keys
+
+
+def test_leader_mode_omits_retry_edit() -> None:
+    """Direct ``r`` handles Agents-tab retry-edit; leader ``,r`` shows runners."""
+    reg = load_keymap_registry({})
+    assert "retry_edit" not in LeaderModeKeymaps().keys
+    assert "retry_edit" not in reg.leader_mode.keys
+    assert reg.leader_mode.keys["runners"] == "r"
 
 
 # --- Source-of-truth consistency ---

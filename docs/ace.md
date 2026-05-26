@@ -286,6 +286,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `a`                 | Cycle auto-approve state / answer HITL                                                                        |
 | `f`                 | Fork agent (by name if running, by chat file if completed)                                                    |
 | `n`                 | Name agent                                                                                                    |
+| `r`                 | Edit prompt and relaunch agent (retry without killing)                                                        |
 | `v`                 | View files (hint mode)                                                                                        |
 | `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                             |
 | `V`                 | Open the Agent Run Log modal for the focused agent                                                            |
@@ -601,7 +602,7 @@ cached by raw query string so re-renders skip the parse.
 
 ### Leader Mode (`,` prefix)
 
-On the Agents tab, leader mode exposes layout, notification, and relaunch shortcuts for the currently loaded agent list.
+On the Agents tab, leader mode exposes layout and notification shortcuts for the currently loaded agent list.
 Unread-completed actions operate on terminal rows that are loaded in the tab; `,j` only targets visible rows.
 
 | Key        | Action                                                                                        |
@@ -617,7 +618,6 @@ Unread-completed actions operate on terminal rows that are loaded in the tab; `,
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                         |
 | `,P`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
 | `,R`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication      |
-| `,r`       | Edit prompt and relaunch agent (retry without killing)                                        |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation             |
 | `,x`       | Kill agent & edit prompt                                                                      |
 | `,<space>` | Run agent from current agent's CL (skips selection)                                           |

@@ -88,6 +88,17 @@ def test_last_vcs_xprompt_editor_command_is_all_tab_agent_command() -> None:
     assert spec.key_display == "Ctrl+G"
 
 
+def test_run_workflow_command_is_contextual_retry_on_agents() -> None:
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+    spec = by_id["app.run_workflow"]
+
+    assert spec.label == "Run workflow / retry agent / re-run"
+    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.key_sequence == ("r",)
+    assert spec.key_display == "r"
+    assert "retry" in spec.aliases
+
+
 # --- Digit commands ---
 
 
@@ -141,6 +152,7 @@ def test_leader_mode_commands_cover_every_subkey() -> None:
     leader_specs = [c for c in iter_mode_commands(reg) if c.id.startswith("leader.")]
     expected = {f"leader.{cid}" for cid in reg.leader_mode.keys}
     assert {c.id for c in leader_specs} == expected
+    assert "leader.retry_edit" not in {c.id for c in leader_specs}
 
 
 def test_bang_mode_commands_cover_every_subkey() -> None:

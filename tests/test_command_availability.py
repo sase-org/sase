@@ -240,11 +240,12 @@ def test_edit_spec_for_resumable_done_agent_or_marks() -> None:
     assert is_command_available(spec, CommandContext(tab="agents", mark_count=2))
 
 
-def test_run_workflow_hidden_on_agents_tab() -> None:
+def test_run_workflow_on_agents_requires_focused_agent() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.run_workflow"]
     with_path = _make_agent(status="DONE", response_path="/tmp/r.txt")
-    assert not is_command_available(spec, CommandContext(tab="agents", agent=with_path))
+    assert not is_command_available(spec, CommandContext(tab="agents", agent=None))
+    assert is_command_available(spec, CommandContext(tab="agents", agent=with_path))
 
 
 def test_edit_hooks_fork_requires_response_path_for_done_agent() -> None:

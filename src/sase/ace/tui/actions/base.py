@@ -38,7 +38,7 @@ class BaseActionsMixin:
     # --- Workflow Actions ---
 
     def action_run_workflow(self) -> None:
-        """Run a workflow on the current ChangeSpec."""
+        """Run the contextual ``r`` action for the current tab."""
         # On axe tab, dispatch to re-run for done bgcmds or to manual chop run
         # for chop rows. Other rows (lumberjacks, running bgcmds) are no-ops.
         if self.current_tab == "axe":
@@ -53,6 +53,10 @@ class BaseActionsMixin:
                     self._rerun_bgcmd(item.slot)  # type: ignore[attr-defined]
                 elif isinstance(item, ChopItem):
                     self._run_selected_chop()  # type: ignore[attr-defined]
+            return
+
+        if self.current_tab == "agents":
+            self._retry_edit_agent()  # type: ignore[attr-defined]
             return
 
         # Only run on changespecs tab

@@ -401,7 +401,6 @@ class LeaderModeKeymaps(ModeKeymaps):
             "mark_all_unread_done_agents_read": "u",
             "kill_and_edit": "x",
             "mark_inactive": "I",
-            "retry_edit": "r",
             "activity_info": "i",
             "clear_comments": "c",
             "task_queue": "t",

@@ -14,8 +14,8 @@ footer logic and the help modal's tab buckets:
   same gates as the footer.
 - Agents-tab predicates: kill/dismiss splits by status + group focus
   + mark count, ``edit_spec``/``edit_hooks`` reuse the footer's
-  done-vs-running rules, ``toggle_attempt_view`` requires history,
-  and so on.
+  done-vs-running rules, ``run_workflow`` exposes retry-edit only with a
+  focused agent, ``toggle_attempt_view`` requires history, and so on.
 - Axe-tab predicates: ``run_workflow`` (re-run) requires a done
   bgcmd row, ``kill_agent`` is always meaningful (label changes
   between start/stop/kill), and the parent row blocks bgcmd-only
@@ -76,6 +76,7 @@ _REQUIRES_AGENT: frozenset[str] = frozenset(
     {
         "app.edit_spec",
         "app.edit_hooks",
+        "app.run_workflow",
         "app.add_agent_tag",
         "app.rename_cl",
         "app.toggle_attempt_view",
@@ -275,11 +276,7 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id == "leader.jump_to_next_stopped_agent":
         return ctx.stopped_agent_count > 0
 
-    if spec.id in {
-        "leader.kill_and_edit",
-        "leader.retry_edit",
-        "leader.jump_to_notification",
-    }:
+    if spec.id in {"leader.kill_and_edit", "leader.jump_to_notification"}:
         return agent is not None
 
     return True

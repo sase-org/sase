@@ -53,6 +53,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             [
                 (d(a.start_custom_agent), "Run custom agent"),
                 (d(a.start_last_vcs_xprompt_in_editor), "Edit last VCS xprompt"),
+                (d(a.run_workflow), "Retry: edit prompt & relaunch"),
                 (d(a.accept_proposal), "Toggle auto-approve / answer HITL"),
                 (d(a.rename_cl), "Name agent"),
                 (d(a.edit_hooks), "Fork chat as agent"),
@@ -129,10 +130,6 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'kill_and_edit'))}",
                     "Kill agent & edit prompt",
-                ),
-                (
-                    f"{d(lm.prefix)}{d(sk(lm.keys, 'retry_edit'))}",
-                    "Retry: edit prompt & relaunch",
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'prompt_history'))}",
