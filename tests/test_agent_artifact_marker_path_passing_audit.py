@@ -7,7 +7,14 @@ from tests._agent_artifact_marker_audit_helpers import (
     _path_passing_contexts,
 )
 
-_REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {}
+_REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
+    "src/sase/memory/episodes/collector.py:_record_from_artifact_dir": PathPassingReview(
+        exemption=(
+            "Read-only episode collector fallback: marker paths are parsed into "
+            "wire dataclasses and no marker/index mutation occurs."
+        ),
+    ),
+}
 
 
 def test_tracked_marker_path_passing_sites_are_reviewed() -> None:

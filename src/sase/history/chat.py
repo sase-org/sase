@@ -51,6 +51,12 @@ def _find_resume_refs(text: str) -> list[tuple[str, str, str]]:
     return results
 
 
+def find_resume_refs(text: str) -> list[tuple[str, str, str]]:
+    """Find current and legacy fork/resume references in prompt text."""
+
+    return _find_resume_refs(text)
+
+
 def _resolve_resume_to_chat_path(xprompt_name: str, argument: str) -> str | None:
     """Resolve a fork/resume ref to a chat file path.
 
@@ -400,6 +406,12 @@ def _parse_chat_turns(content: str) -> list[tuple[str, str]]:
     turns.sort(key=lambda t: t[0], reverse=True)
 
     return [(prompt, response) for _, prompt, response in turns]
+
+
+def parse_chat_turns(content: str) -> list[tuple[str, str]]:
+    """Parse chat history content into chronological prompt/response turns."""
+
+    return _parse_chat_turns(content)
 
 
 def extract_response_from_chat_file(file_ref: str) -> str | None:

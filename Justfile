@@ -143,8 +143,6 @@ _lint-pyvision: _setup
             --epic-symbol 'sase-45(EpisodeStorageIndexRowWire)' \
             --epic-symbol 'sase-45(canonical_episode_json)' \
             --epic-symbol 'sase-45(episode_wire_schema_version)' \
-            --epic-symbol 'sase-45(generate_episode_id)' \
-            --epic-symbol 'sase-45(generate_source_id)' \
             --epic-symbol 'sase-45(verify_episode_sources)' \
             src/sase
 
