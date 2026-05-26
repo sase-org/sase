@@ -110,6 +110,13 @@ can become a cross-session attack surface when untrusted content is stored and l
 `sase memory read` should become better at read-only discovery and provenance, while `write` and `review` should remain
 the only path into canonical long-term memory.
 
+Anthropic's context-engineering guidance points in the same direction from a different angle: keep cheap identifiers
+such as file paths, queries, and links in context, then load detailed content just in time with tools. Basic Memory and
+Goose also treat runtime memory retrieval as a first-class command/tool surface, and both reinforce the value of clean
+CLI output plus structured machine-readable modes. The AGENTS.md evaluation paper is a useful caution here: repository
+instruction files can increase cost or reduce success when they add irrelevant context, so SASE should prefer precise
+on-demand reads over adding more always-loaded long-term memory.
+
 ## Recommendation
 
 ### 1. Make `sase memory read` without a path show a readable catalog
@@ -299,12 +306,76 @@ That may be useful later, especially if the long-memory pool grows. It should no
 Deterministic search over slug, description, keywords, and headings is enough for the current memory shape, easier to
 test, and safer for auditability.
 
+### 9. Add progressive read modes before full retrieval becomes the only option
+
+The catalog/search path helps agents choose a memory. Once they choose one, the next useful improvement is progressive
+disclosure inside the audited read flow:
+
+```bash
+sase memory read long/generated_skills.md --metadata -r "Check whether this is relevant"
+sase memory read long/generated_skills.md --toc -r "Find the relevant section"
+sase memory read long/generated_skills.md --section "CLI/Skill Contract Synchronization" -r "Need CLI contract details"
+sase memory read long/generated_skills.md --grep "init-skills" --context 3 -r "Locate regeneration command"
+```
+
+These modes should still create read-log events, because they expose memory content or content-derived structure. They
+should record `output_mode`, `start_line`, `end_line`, and omitted-line counts so later audit analysis can distinguish a
+full read from a metadata, table-of-contents, section, or grep read.
+
+Implementation can stay deterministic:
+
+- parse YAML frontmatter with the same helper used for full reads;
+- parse Markdown ATX headings for `--toc` and `--section`;
+- match sections by exact heading first, then slug;
+- keep `--grep` literal by default, with explicit case/context flags if needed.
+
+### 10. Make read receipts content-version aware
+
+JSON reads should be more than "body plus event id." They should let a later person answer exactly what an agent saw
+without logging the memory body itself.
+
+Add schema-v2 event fields such as:
+
+- `requested_path`
+- `canonical_path`
+- `raw_sha256`
+- `body_sha256`
+- `line_count`
+- `approx_token_count`
+- `output_mode`
+- `start_line`
+- `end_line`
+- `omitted_line_count`
+- `git_commit` or `git_tree` when available
+
+Keep schema-v1 log readers tolerant. The hashes and ranges are enough to prove the content version later while
+preserving the current "metadata, not content" audit boundary.
+
+### 11. Surface dynamic-memory state without hiding output
+
+When `SASE_ARTIFACTS_DIR/dynamic_memory.json` exists, `--json`, `--metadata`, and `--dynamic` should report whether the
+requested canonical memory was already injected into the current agent launch. Useful fields include matched keywords,
+source memory name, dynamic artifact path, generated `.sase/memory` path, and whether the dynamic file is still present.
+
+Do not make a normal content read silently skip stdout just because the memory was already loaded dynamically. That
+would be surprising in shell pipelines. If skipping is useful later, make it explicit, for example
+`--metadata --if-loaded`.
+
 ## Proposed Command Contract
 
 Path read:
 
 ```bash
 sase memory read <path-or-name> --reason <reason> [--json]
+```
+
+Progressive read:
+
+```bash
+sase memory read <path-or-name> --metadata --reason <reason> [--json]
+sase memory read <path-or-name> --toc --reason <reason> [--json]
+sase memory read <path-or-name> --section <heading-or-slug> --reason <reason> [--json]
+sase memory read <path-or-name> --grep <literal> [--context N] --reason <reason> [--json]
 ```
 
 Catalog:
@@ -348,9 +419,11 @@ Add a reusable catalog builder, probably `src/sase/memory/catalog.py`, that join
 
 Then update:
 
-- `parser_memory.py`: make `memory_path` optional; add `--json`, `--search`, `--for`, `--dynamic`.
+- `parser_memory.py`: make `memory_path` optional; add `--json`, `--search`, `--for`, `--dynamic`, `--metadata`,
+  `--toc`, `--section`, `--grep`, and `--context`.
 - `cli_read.py`: dispatch catalog/search/dynamic modes before requiring `--reason` or agent identity.
-- `read_log.py`: add alias normalization and, optionally, `requested_path` to schema v2 events.
+- `read_log.py`: add alias normalization plus `requested_path`, content hashes, output mode, and output range to schema
+  v2 events.
 - `cli_list.py`: either reuse the catalog or at least align status/dynamic metadata.
 - tests:
   - catalog includes descriptions, keywords, dynamic flag, inventory status, and read stats;
@@ -358,6 +431,7 @@ Then update:
   - `--search` ranks exact slug/keyword matches;
   - path aliases canonicalize to the same audit path;
   - `--json` read includes content plus event receipt;
+  - metadata, toc, section, and grep reads log the right mode/range without logging body content;
   - `--dynamic` reads `dynamic_memory.json` without logging;
   - glob-like prose tokens do not become missing files.
 
@@ -375,6 +449,9 @@ mobile, or editor integrations.
   relevant memory. Agents still need a deterministic manual read path.
 - Do not require humans to fake agent identity for catalog/search. Humans should be able to inspect the catalog without
   creating audit events.
+- Do not add automatic LLM summarization to `read`. It adds cost, nondeterminism, and another prompt-injection surface.
+- Do not make semantic search a side effect of a content read. If SASE needs semantic retrieval later, give it its own
+  command and evaluation story.
 
 ## Ranking
 
@@ -382,10 +459,13 @@ mobile, or editor integrations.
 2. `--search` / `--for` deterministic selector.
 3. Alias normalization for path/name inputs.
 4. `--json` content reads with event receipt and stderr receipt for non-JSON.
-5. `--dynamic` agent runtime introspection.
-6. Inventory false-positive fix for glob-like prose paths.
-7. Token estimates and bloat warnings in the catalog.
-8. Later: semantic search and cross-memory retrieval.
+5. Metadata and table-of-contents reads.
+6. Section and grep reads with audited output ranges.
+7. Content hashes, token estimates, and line counts in schema-v2 read events.
+8. `--dynamic` agent runtime introspection.
+9. Inventory false-positive fix for glob-like prose paths.
+10. Token estimates and bloat warnings in the catalog.
+11. Later: semantic search and cross-memory retrieval.
 
 ## Gaps and Additional Observations
 
@@ -404,6 +484,11 @@ short forms. That is a blocker by project policy. Concrete proposal, picked to a
   with a `-r` reason swap)
 - `-j, --json`
 - `-d, --dynamic`
+- `-m, --metadata`
+- `-t, --toc`
+- `-S, --section`
+- `-g, --grep`
+- `-c, --context`
 
 Note that `-r` is already taken by `--reason`. A path-listing `--paths-only` toggle (often useful for scripts) would
 need its own short form; `-p` is a safe default.
@@ -556,6 +641,12 @@ External:
 - Letta Code MemFS docs: https://docs.letta.com/letta-code/memfs/
 - OpenHands skills overview: https://docs.openhands.dev/overview/skills
 - OpenHands Agent Skills guide: https://docs.openhands.dev/sdk/guides/skill
+- Anthropic context engineering for agents: https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents
+- Basic Memory CLI overview: https://www.mintlify.com/basicmachines-co/basic-memory/api/cli/overview
+- Goose memory MCP docs: https://goose-docs.ai/docs/mcp/memory-mcp/
+- Evaluating AGENTS.md: https://arxiv.org/abs/2602.11988
+- Unit 42 memory poisoning writeup:
+  https://unit42.paloaltonetworks.com/indirect-prompt-injection-poisons-ai-longterm-memory/
 - "Poison Once, Exploit Forever" arXiv: https://arxiv.org/abs/2604.02623
 - "Zombie Agents" arXiv: https://arxiv.org/abs/2602.15654
 - "Memory Poisoning Attack and Defense on Memory Based LLM-Agents": https://huggingface.co/papers/2601.05504
