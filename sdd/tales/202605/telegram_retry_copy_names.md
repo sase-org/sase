@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-26 18:43:20
-status: wip
+status: done
 prompt: sdd/prompts/202605/telegram_retry_copy_names.md
 ---
 # Plan: Telegram Retry Copy Names

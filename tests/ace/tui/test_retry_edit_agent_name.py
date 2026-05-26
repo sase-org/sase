@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from unittest.mock import Mock, patch
 
+from sase.agent.retry_prompt import rewrite_retry_prompt_name
 from sase.ace.tui.actions.agent_workflow._entry_points import (
     EntryPointsMixin,
     _force_name_reuse_in_prompt,
@@ -79,6 +80,45 @@ def test_rewrite_retry_prompt_ignores_fenced_and_disabled_name_directives() -> N
         "Do work"
     )
     assert _rewrite_retry_prompt_name(prompt, "foo.r1") == f"%name:foo.r1\n{prompt}"
+
+
+def test_rewrite_retry_prompt_can_prepend_n_alias() -> None:
+    assert (
+        rewrite_retry_prompt_name("Do work", "foo.r1", directive_alias="n")
+        == "%n:foo.r1\nDo work"
+    )
+
+
+def test_rewrite_retry_prompt_can_replace_percent_name_with_n_alias() -> None:
+    assert (
+        rewrite_retry_prompt_name(
+            "%name:foo\nDo work",
+            "foo.r1",
+            directive_alias="n",
+        )
+        == "%n:foo.r1\nDo work"
+    )
+
+
+def test_rewrite_retry_prompt_can_replace_percent_n_with_n_alias() -> None:
+    assert (
+        rewrite_retry_prompt_name("%n:foo\nDo work", "foo.r1", directive_alias="n")
+        == "%n:foo.r1\nDo work"
+    )
+
+
+def test_rewrite_retry_prompt_n_alias_ignores_fenced_and_disabled_directives() -> None:
+    prompt = (
+        "```\n%name:fenced\n```\n"
+        "%xprompts_enabled:false\n"
+        "%n:disabled\n"
+        "%xprompts_enabled:true\n"
+        "Do work"
+    )
+    assert (
+        rewrite_retry_prompt_name(prompt, "foo.r1", directive_alias="n")
+        == f"%n:foo.r1\n{prompt}"
+    )
 
 
 def test_force_name_reuse_rewrites_colon_name_directive() -> None:

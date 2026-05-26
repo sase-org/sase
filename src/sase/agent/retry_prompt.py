@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 import re
+from typing import Literal
 
 
-def rewrite_retry_prompt_name(raw_prompt: str, retry_name: str) -> str:
+def rewrite_retry_prompt_name(
+    raw_prompt: str,
+    retry_name: str,
+    *,
+    directive_alias: Literal["name", "n"] = "name",
+) -> str:
     """Replace or prepend the top-level prompt name directive for retry."""
     from sase.xprompt._directive_types import (
         _DIRECTIVE_ALIASES,
@@ -21,6 +27,7 @@ def rewrite_retry_prompt_name(raw_prompt: str, retry_name: str) -> str:
     )
     from sase.xprompt._parsing import find_matching_paren_for_args
 
+    name_directive = f"%{directive_alias}:{retry_name}"
     fenced: list[str] = []
     protected = protect_fenced_blocks(raw_prompt, fenced)
     disabled: list[str] = []
@@ -39,12 +46,12 @@ def rewrite_retry_prompt_name(raw_prompt: str, retry_name: str) -> str:
                 match_end = paren_end + 1
 
         rewritten = (
-            f"{protected[: match.start()]}%name:{retry_name}{protected[match_end:]}"
+            f"{protected[: match.start()]}{name_directive}{protected[match_end:]}"
         )
         rewritten = unprotect_disabled_regions(rewritten, disabled)
         return unprotect_fenced_blocks(rewritten, fenced)
 
-    protected = f"%name:{retry_name}\n{protected}"
+    protected = f"{name_directive}\n{protected}"
     protected = unprotect_disabled_regions(protected, disabled)
     return unprotect_fenced_blocks(protected, fenced)
 
