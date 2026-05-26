@@ -37,6 +37,7 @@ steps:
         echo "success=false"
       fi
     output: { success: bool }
+    artifact: stdout
 
   - name: decide_fixers
     hidden: true
@@ -89,3 +90,7 @@ steps:
     if: "{{ decide_fixers.launch_tests }}"
     agent: |
       #gh:sase #pr(fix_just_tests) Can you help me fix the `just test` command?
+      {% if _just_test._artifact is defined %}
+      The parent `fix_just` workflow captured the failing `just test` output at:
+      {{ _just_test._artifact }}
+      {% endif %}

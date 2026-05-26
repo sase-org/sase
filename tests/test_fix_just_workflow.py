@@ -33,6 +33,7 @@ def test_fix_just_test_step_confirms_failures_before_reporting_failure() -> None
     assert test_step.is_bash_step()
     assert test_step.bash is not None
     assert test_step.bash.count("just test") == 2
+    assert test_step.artifact == "stdout"
     assert test_step.output is not None
     assert test_step.output.schema["properties"] == {"success": {"type": "bool"}}
 
@@ -267,7 +268,10 @@ def test_fix_just_agent_steps_expand_pr_xprompt(
             args={
                 "_just_fmt_check": {"success": True},
                 "_just_lint": {"success": False},
-                "_just_test": {"success": False},
+                "_just_test": {
+                    "success": False,
+                    "_artifact": str(tmp_path / "_just_test.stdout"),
+                },
             },
             artifacts_dir=str(tmp_path),
         )
@@ -282,6 +286,7 @@ def test_fix_just_agent_steps_expand_pr_xprompt(
 
     assert "`just lint` command" in captured_prompts["fix_linters"]
     assert "`just test` command" in captured_prompts["fix_tests"]
+    assert str(tmp_path / "_just_test.stdout") in captured_prompts["fix_tests"]
 
     assert captured_env["fix_linters"] == {
         "SASE_COMMIT_METHOD": "create_pull_request",
