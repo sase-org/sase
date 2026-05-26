@@ -34,6 +34,8 @@ sase memory log --path long/generated_skills.md
 sase memory log --id <read-id>
 sase init sdd
 sase init sdd --check
+sase skills list
+sase skills init --dry-run
 sase init skills --dry-run
 
 # Agent-side audited operations, normally run from a SASE-launched agent:
@@ -44,8 +46,8 @@ sase memory write --title "Generated skills" --slug generated_skills --evidence 
 `sase amd init --check` is the safest way to inspect agent-markdown drift. `sase memory init --no-commit` is usually the
 safest first memory run because it writes the generated files but skips the project git commit/pull/push path. It is not
 a dry run: it can still write project files, write home memory, and follow home-level `use_chezmoi` deployment.
-`sase init amd` remains a compatibility alias for `sase amd init`, and `sase init memory` remains a compatibility alias
-for `sase memory init`.
+`sase init amd` remains a compatibility alias for `sase amd init`, `sase init memory` remains a compatibility alias for
+`sase memory init`, and `sase init skills` remains a compatibility alias for `sase skills init`.
 
 ## Commands
 
@@ -74,10 +76,13 @@ for `sase memory init`.
 | `sase init memory`                    | Compatibility alias for `sase memory init`.                                                   |
 | `sase init sdd`                       | Alias for `sase sdd init`; refreshes generated SDD README files and the directory map.        |
 | `sase init sdd --check`               | Report SDD generated-file drift without writing files.                                        |
-| `sase init skills`                    | Generate skill files; existing files require confirmation or `--force`.                       |
-| `sase init skills --dry-run`          | Preview generated skill target paths without writing files.                                   |
-| `sase init skills --force`            | Generate and overwrite deployed skill files without confirmation.                             |
-| `sase init skills -p <provider>`      | Deploy only one provider's generated skill files.                                             |
+| `sase skills`                         | Alias for `sase skills list`.                                                                 |
+| `sase skills list`                    | Inspect generated skill sources, provider targets, and deployed-file drift.                   |
+| `sase skills init`                    | Generate skill files; existing files require confirmation or `--force`.                       |
+| `sase skills init --dry-run`          | Preview generated skill target paths without writing files.                                   |
+| `sase skills init --force`            | Generate and overwrite deployed skill files without confirmation.                             |
+| `sase skills init -p <provider>`      | Deploy only one provider's generated skill files.                                             |
+| `sase init skills`                    | Compatibility alias for `sase skills init`.                                                   |
 
 Advanced deploy controls such as `--no-commit`, `--no-push`, and `--no-apply` live on explicit subcommands rather than
 the bare coordinator. Scoped `--check` flags also live on explicit subcommands when you want to validate only memory or
@@ -214,13 +219,18 @@ them.
 
 ## Skill Initialization
 
-`sase init skills` renders loaded xprompts marked with a `skill` frontmatter field into provider-specific `SKILL.md`
-files. Sources include bundled skill xprompts and user/runtime xprompt catalog entries. Run a dry run first when adding
-or changing skill sources:
+`sase skills list`, or bare `sase skills`, renders a read-only dashboard for generated skill sources, provider targets,
+and deployed-file drift. Use it before and after changing skill sources to see which provider skill files are current,
+stale, or missing.
+
+`sase skills init` renders loaded xprompts marked with a `skill` frontmatter field into provider-specific `SKILL.md`
+files. `sase init skills` is a compatibility alias for the same initializer. Sources include bundled skill xprompts and
+user/runtime xprompt catalog entries. Run a dry run first when adding or changing skill sources:
 
 ```bash
-sase init skills --dry-run
-sase init skills --force
+sase skills list
+sase skills init --dry-run
+sase skills init --force
 ```
 
 Without `use_chezmoi`, generated skill files are written directly under the provider's home-directory skill targets.

@@ -93,19 +93,21 @@ digests. ACE starts axe automatically unless launched with `sase ace --no-axe`.
 
 ## Prompt And Workflow Authoring
 
-| Command                     | Purpose                                                               | Details                                                                                     |
-| --------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `sase xprompt expand`       | Expand xprompt references in prompt text, with optional trace output. | [XPrompt reference syntax](xprompt.md#reference-syntax)                                     |
-| `sase xprompt explain`      | Dry-run a workflow and show the execution plan.                       | [Workflows](workflow_spec.md)                                                               |
-| `sase xprompt list`         | Emit the structured xprompt catalog as JSON.                          | [XPrompt catalog](xprompt.md#cli-subcommands)                                               |
-| `sase xprompt graph`        | Generate a workflow DAG as Mermaid or text.                           | [Workflow graphing](xprompt.md#cli-subcommands)                                             |
-| `sase xprompt catalog`      | Render visible xprompts to a formatted PDF catalog.                   | [XPrompt catalog](xprompt.md#cli-subcommands)                                               |
-| `sase lsp`                  | Start the xprompt language server over stdio.                         | [Editor integration](editor.md#language-server)                                             |
-| `sase editor helper-bridge` | JSON helper operations for editor integrations.                       | [Editor helper bridge](editor.md#helper-bridge)                                             |
-| `sase file list`            | Emit JSON filesystem completion candidates.                           | [Editor completion commands](configuration.md#sase-file)                                    |
-| `sase file-history list`    | Emit recently referenced files for editor completion.                 | [Editor completion commands](configuration.md#sase-file-history)                            |
-| `sase file-history delete`  | Remove one path from the file-reference history.                      | [Editor completion commands](configuration.md#sase-file-history)                            |
-| `sase init skills`          | Generate and deploy agent skill files from xprompt source templates.  | [Initialization](init.md#skill-initialization), [bundled skills](xprompt.md#bundled-skills) |
+| Command                            | Purpose                                                                     | Details                                                                                     |
+| ---------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `sase xprompt expand`              | Expand xprompt references in prompt text, with optional trace output.       | [XPrompt reference syntax](xprompt.md#reference-syntax)                                     |
+| `sase xprompt explain`             | Dry-run a workflow and show the execution plan.                             | [Workflows](workflow_spec.md)                                                               |
+| `sase xprompt list`                | Emit the structured xprompt catalog as JSON.                                | [XPrompt catalog](xprompt.md#cli-subcommands)                                               |
+| `sase xprompt graph`               | Generate a workflow DAG as Mermaid or text.                                 | [Workflow graphing](xprompt.md#cli-subcommands)                                             |
+| `sase xprompt catalog`             | Render visible xprompts to a formatted PDF catalog.                         | [XPrompt catalog](xprompt.md#cli-subcommands)                                               |
+| `sase lsp`                         | Start the xprompt language server over stdio.                               | [Editor integration](editor.md#language-server)                                             |
+| `sase editor helper-bridge`        | JSON helper operations for editor integrations.                             | [Editor helper bridge](editor.md#helper-bridge)                                             |
+| `sase file list`                   | Emit JSON filesystem completion candidates.                                 | [Editor completion commands](configuration.md#sase-file)                                    |
+| `sase file-history list`           | Emit recently referenced files for editor completion.                       | [Editor completion commands](configuration.md#sase-file-history)                            |
+| `sase file-history delete`         | Remove one path from the file-reference history.                            | [Editor completion commands](configuration.md#sase-file-history)                            |
+| `sase skills` / `sase skills list` | Inspect generated skill sources, provider targets, and deployed-file drift. | [Initialization](init.md#skill-initialization), [bundled skills](xprompt.md#bundled-skills) |
+| `sase skills init`                 | Generate and deploy agent skill files from xprompt source templates.        | [Initialization](init.md#skill-initialization), [bundled skills](xprompt.md#bundled-skills) |
+| `sase init skills`                 | Compatibility alias for `sase skills init`.                                 | [Initialization](init.md#skill-initialization)                                              |
 
 Use `#name(...)` for inline xprompt expansion and `#!workflow(...)` for standalone workflow references. Workspace
 references such as `#cd:<path>`, `#git:<project>`, and plugin-provided references are resolved before the prompt or

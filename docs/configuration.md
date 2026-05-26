@@ -1159,7 +1159,7 @@ planner only generates managed `AGENTS.md` from bare `sase init` when the curren
 `amd_h1_title`.
 
 Advanced deploy controls stay on explicit subcommands such as `sase init amd --check`, `sase init memory --no-commit`,
-and `sase init skills --no-push`.
+and `sase skills init --no-push`.
 
 | Flag          | Values | Default | Description                                                                          |
 | ------------- | ------ | ------- | ------------------------------------------------------------------------------------ |
@@ -1229,11 +1229,19 @@ map asset.
 | `-c, --check` | flag   | -                        | Report SDD initialization drift without writing files. |
 | `-p, --path`  | path   | `./sdd` or `./.sase/sdd` | SDD root or project root path.                         |
 
-### `sase init skills`
+### `sase skills`
 
-Generates and deploys agent skill files from xprompt sources marked with the `skill` field. See
-[xprompt.md — Skill Field](xprompt.md#skill-field) for the skill-source contract and provider targets. Existing files
-are skipped in non-interactive runs unless `--force` is passed; interactive runs prompt before overwriting.
+With no subcommand, `sase skills` defaults to `sase skills list`.
+
+| Form               | Flags | Description                                                                     |
+| ------------------ | ----- | ------------------------------------------------------------------------------- |
+| `sase skills`      | -     | Show the same read-only generated-skill inventory as `sase skills list`.        |
+| `sase skills list` | -     | Inspect generated skill sources, provider targets, and deployed-file drift.     |
+| `sase skills init` | below | Generate and deploy agent skill files from xprompt sources marked with `skill`. |
+| `sase init skills` | below | Compatibility alias for `sase skills init`.                                     |
+
+See [xprompt.md — Skill Field](xprompt.md#skill-field) for the skill-source contract and provider targets. Existing
+files are skipped in non-interactive runs unless `--force` is passed; interactive runs prompt before overwriting.
 
 | Flag              | Values                                          | Default | Description                                                                                 |
 | ----------------- | ----------------------------------------------- | ------- | ------------------------------------------------------------------------------------------- |

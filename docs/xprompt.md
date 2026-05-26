@@ -214,7 +214,7 @@ Hello, {{ user_name }}! Welcome aboard.
 | `input`       | No       | Input parameter definitions (see [Typed Inputs](#typed-inputs))                |
 | `snippet`     | No       | Opt-in to ACE snippet expansion (see [Snippet Field](#snippet-field) below)    |
 | `description` | No       | Human-readable one-line description of what the xprompt does                   |
-| `skill`       | No       | Marks this xprompt as an agent skill source for `sase init skills` (see below) |
+| `skill`       | No       | Marks this xprompt as an agent skill source for `sase skills init` (see below) |
 | `keywords`    | No       | Trigger terms that append this xprompt as dynamic memory to matching prompts   |
 
 If no front matter is present, the entire file content is the template body and the filename stem is the name.
@@ -694,9 +694,10 @@ Source: `src/sase/xprompt/snippet_bridge.py`, `src/sase/xprompt/models.py`
 
 ## Skill Field
 
-XPrompts can be marked as agent skill sources by setting the `skill` field in their front matter. The `sase init skills`
+XPrompts can be marked as agent skill sources by setting the `skill` field in their front matter. The `sase skills init`
 command reads the loaded xprompt catalog, including bundled skill sources and runtime config overlays, to determine
-which xprompts should be rendered into per-provider SKILL.md files and deployed to agent skill directories.
+which xprompts should be rendered into per-provider SKILL.md files and deployed to agent skill directories. The
+compatibility alias `sase init skills` runs the same initializer.
 
 ```markdown
 ---
@@ -715,14 +716,14 @@ Commit instructions here...
 | `true`                 | Deploy to all registered providers  |
 | `["claude", "gemini"]` | Deploy only to the listed providers |
 
-The `description` field provides a human-readable summary shown in `sase xprompt list` output. The structured catalog
-also marks these entries with `is_skill: true`; ACE and editor clients use that flag to offer slash-skill completions
-such as `/sase_plan` while keeping ordinary xprompts out of slash completion results.
+The `description` field provides a human-readable summary shown in `sase xprompt list` and `sase skills list` output.
+The structured catalog also marks these entries with `is_skill: true`; ACE and editor clients use that flag to offer
+slash-skill completions such as `/sase_plan` while keeping ordinary xprompts out of slash completion results.
 
 **Workflow:** Edit packaged skill sources in `src/sase/xprompts/skills/`, or define user/runtime skill xprompts through
-the normal xprompt catalog sources, then run `sase init skills --force`. When `use_chezmoi` is enabled, `init skills`
-commits, pushes, and applies the generated files unless passed `--no-commit`, `--no-push`, or `--no-apply`. Do not edit
-deployed SKILL.md files directly.
+the normal xprompt catalog sources, inspect target drift with `sase skills list`, then run `sase skills init --force`.
+When `use_chezmoi` is enabled, `sase skills init` commits, pushes, and applies the generated files unless passed
+`--no-commit`, `--no-push`, or `--no-apply`. Do not edit deployed SKILL.md files directly.
 
 Provider plugins declare where generated skills should be written. Built-in targets are:
 
@@ -736,18 +737,19 @@ Provider plugins declare where generated skills should be written. Built-in targ
 
 ### Bundled Skills
 
-The following skills ship in `src/sase/xprompts/skills/` and are deployed by `sase init skills`. They are packaged with
+The following skills ship in `src/sase/xprompts/skills/` and are deployed by `sase skills init`. They are packaged with
 sase, included in `sase xprompt list`, and available to prompt completion clients even when a checkout does not have
 local skill files. Coding agents invoke them as `/sase_<name>`:
 
 | Skill                | Purpose                                                                                                       |
 | -------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `sase_agents_status` | Report on currently-running sase agents (status, kill, show)                                                  |
+| `sase_artifact`      | Create explicit SASE artifacts from files produced during an agent run                                        |
 | `sase_beads`         | Reference for `sase bead` commands (create, update, list, ready, show, dep)                                   |
 | `sase_chats`         | Inspect prior sase agent chat transcripts via `sase chats list` and `sase chats show`                         |
 | `sase_changespecs`   | Inspect and reason about ChangeSpecs via `sase changespec search ...`, exact-name lookup, and safe edit rules |
 | `sase_git_commit`    | Commit changes for git-based VCS via `sase commit` (the only sanctioned commit path on git repos)             |
-| `sase_hg_commit`     | Mercurial counterpart of `sase_git_commit`                                                                    |
+| `sase_hg_commit`     | Gemini-only Mercurial counterpart of `sase_git_commit`                                                        |
 | `sase_memory_read`   | Guide audited long-term memory reads through `sase memory read`                                               |
 | `sase_notify`        | Inspect SASE notification inbox entries via `sase notify list` and `sase notify show`                         |
 | `sase_plan`          | Submit a plan file for approval (used in lieu of disabled `EnterPlanMode`)                                    |
