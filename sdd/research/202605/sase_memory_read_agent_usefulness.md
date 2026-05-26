@@ -602,6 +602,166 @@ adds another surface for similar data. To avoid drift:
 including the addition of stable error tags in recommendation H, will require updating those tests in the same change.
 This is small but easy to forget and will block CI if missed.
 
+### K. Reason quality is only whitespace-validated today
+
+`normalize_read_reason` in `src/sase/memory/read_log.py` strips and rejects empty strings, nothing more. An agent can
+pass `--reason "x"` or `--reason "context"` and the read will succeed and audit cleanly. That weakens the audit value of
+the `reason` field, which is the only human-facing handle on *why* an agent saw the content.
+
+Cheap, deterministic floors worth considering (do them at the same time as recommendation H so error tags exist):
+
+- Minimum normalized length (for example, 12 characters or 3 words).
+- Reject reasons that are pure stopwords or single tokens.
+- Reject reasons that exactly match the canonical path or basename (a common agent shortcut).
+- Optional `--reason-from-file` for long structured reasons, so the floor does not push agents toward shell-escaping
+  multi-line strings.
+
+Do not add LLM-based reason scoring. That re-introduces nondeterminism and a prompt-injection surface into the audit
+boundary the command is supposed to protect.
+
+### L. The read log is host-local and not VCS-tracked
+
+`memory_read_log_path()` writes to `~/.sase/projects/<project>/memory_reads.jsonl`. That path is outside the repo and
+outside any sibling repo. Implications the prior pass did not call out:
+
+- Two machines reading the same canonical memory will produce two disjoint log files. `sase memory log` only sees the
+  local one. Any catalog `read_count` is also local-only.
+- A user reviewing an agent's behavior from a different machine cannot see the audit unless logs are synced separately.
+- The log survives ephemeral `sase_<N>` workspace deletion (good), but tying a row back to the workspace that produced
+  it depends on the `cwd` field staying meaningful (see L below).
+- Anything that proposes ACE-side display of read counts (the catalog, the existing `_agent_memory_reads.py` panel)
+  must be honest that "reads" means "reads visible to this host."
+
+A small near-term fix: when emitting catalog or `--json` output, include a `log_scope: "host_local"` field so downstream
+consumers do not assume global counts. A bigger optional step: support a configurable shared log location (NFS, S3, or
+the existing multi-machine sync mechanism), gated behind a config key. Do not enable shared logs by default; concurrent
+appends to a non-POSIX-locked file system would silently corrupt JSONL.
+
+### M. The event `cwd` records the ephemeral workspace, not a stable repo identity
+
+`build_memory_read_event` sets `cwd=str((cwd or Path.cwd()).resolve(strict=False))`. In a SASE workspace, that resolves
+to `/home/.../sase_15`, `/home/.../sase_16`, and so on across runs. Cross-workspace analysis ("how many times has any
+agent read this memory in the sase project?") has to strip the trailing `_<N>` to aggregate.
+
+Recommendation: in schema v2, add a `workspace` block, for example:
+
+```json
+{
+  "workspace": {
+    "path": "/home/bryan/.local/state/sase/workspaces/sase-org/sase/sase_15",
+    "number": 15,
+    "project_root": "/home/bryan/.local/state/sase/workspaces/sase-org/sase/sase_15",
+    "logical_repo": "sase-org/sase"
+  }
+}
+```
+
+Keep the existing `cwd` for back-compat. The `logical_repo` slot lets cross-workspace analytics use the same key as the
+project memory name. This composes with recommendation L: even host-local logs become usable across many ephemeral
+checkouts.
+
+### N. The schema-v1 reader hard-rejects future events; v2 cannot ship until it is loosened
+
+`_event_from_mapping` at `src/sase/memory/read_log.py:434` short-circuits with
+`if data.get("schema_version") != READ_LOG_SCHEMA_VERSION: return None`. Today that is "tolerate corrupted rows." After
+a v2 bump it becomes "silently drop every v2 event you wrote yesterday." Any v1→v2 migration must:
+
+1. Land a tolerant reader first that accepts `schema_version in {1, 2}` and back-fills missing v1-only fields with
+   safe defaults.
+2. Wait one release cycle so old binaries upgrade before any writer starts emitting v2.
+3. Only then bump `READ_LOG_SCHEMA_VERSION` and start writing v2.
+
+`sase memory log`, the ACE TUI consumers in `_agent_memory_reads.py`, and the catalog all sit downstream of this
+reader. Bump them as one change set, with tests covering "mixed v1+v2 file" explicitly.
+
+### O. Concurrent reads serialize on a single exclusive lock
+
+`append_memory_read_event` takes `fcntl.LOCK_EX` on a sibling `.lock` file for every append. Many concurrent agents will
+serialize on that lock. At today's volume (single-digit reads per agent per day) this is invisible. Two things to keep
+in mind as the catalog and progressive-read modes land:
+
+- The catalog and any future "self" read-log views call `read_memory_read_events`, which takes `LOCK_SH`. That blocks
+  appends until the read completes, so a `--json` catalog over a large log file briefly stalls concurrent reads. Use
+  bounded summary loading (cap rows, cap age) rather than always re-reading the full file.
+- Progressive-read modes still create one event per call. A `--toc` followed by `--section` followed by `--lines` is
+  three appends. That is fine for audit, but `read_count`-based ranking in the catalog will inflate. Consider counting
+  *full-body equivalent* reads separately from partial reads when ranking.
+
+### P. CLI is one surface; MCP and SDK consumers want the same primitive
+
+The current command assumes the agent runtime can shell out and parse stdout/stderr. Some runtimes prefer MCP tools or
+in-process SDK calls and do not shell well (long stdout, escaping, ANSI). Three actions keep the audit boundary uniform
+across surfaces:
+
+- Expose a stable Python entry point, for example `sase.memory.read_api.read_memory(path, reason, *, mode, identity)`,
+  that the CLI handler in `cli_read.py` becomes a thin wrapper over. Hooks, future MCP servers, and ACE all call the
+  same function and write the same event.
+- When `sase-core` later owns cross-frontend memory APIs, the Rust binding should expose the same shape.
+- If/when an MCP server is added, prefer one tool per mode (`memory.read.full`, `memory.read.metadata`,
+  `memory.read.section`, `memory.search`, `memory.catalog`) over one mega-tool. Tool descriptions are how MCP-driven
+  agents discover affordances; a single overloaded tool hides the progressive modes the same way the current
+  path-only CLI hides discovery.
+
+This is not a near-term shipping item, but the JSON shapes in recommendations 1 and 4 should be designed assuming an
+MCP wrapper will exist later.
+
+### Q. `--lines N-M` is the missing composition primitive after `--grep`
+
+Recommendation 9 covers `--metadata`, `--toc`, `--section`, and `--grep --context`. The natural next move after `--grep`
+finds a hit on line 142 is "read lines 130–160 with full audit." Today's options force the agent to either re-grep with
+larger context (loses precision) or read the whole file (loses the partial-read benefit).
+
+Add `--lines <start>-<end>` (and `-L` as the short form) to the progressive set. Event fields already cover this:
+`output_mode: "lines"`, `start_line`, `end_line`, `omitted_line_count = total_lines - (end - start + 1)`. Cap the
+range at, for example, 1000 lines so this does not become a stealth full read.
+
+This composes cleanly with `--json`: `--grep` returns matching line numbers in the event, and a follow-up `--lines`
+read can cite those numbers as the reason (`--reason "follow-up on grep hit at line 142"`).
+
+### R. Memory-read events are a natural hook trigger
+
+The repo has a hooks system but no documented integration with memory reads. Possible hooks that would not weaken the
+audit boundary:
+
+- `on_memory_read`: fires after `append_memory_read_event`. Useful for: notifying a reviewer when sensitive long memory
+  is touched; updating a per-agent context bar in ACE without polling the log; warning the agent itself via stderr
+  when the read is the third+ read of the same path in the same session.
+- `before_memory_read`: pre-flight veto for policy enforcement (for example: block reads from agents in a constrained
+  family). This must run synchronously and must default to allow on hook error so a broken hook does not block all
+  reads.
+
+Hooks deserve their own design pass and should not block recommendations 1–4. Worth listing now so the schema-v2 event
+shape leaves room for a `hook_decisions` array.
+
+### S. Reads and citations are different events; the schema only models reads
+
+`MemoryReadEvent` records what the agent *saw*. It does not record what the agent *used* in its eventual output, nor
+which memory the agent claimed informed a write proposal. That gap matters because:
+
+- Reviewing a write proposal benefits from knowing which long memories the proposing agent read first.
+- An agent that read 5 memories but only cited 1 looks the same in the log as one that cited all 5.
+- Auditing memory-poisoning incidents (see prior research's external sources) needs to follow the read → output edge,
+  not just the read edge.
+
+Do not graft citation into `MemoryReadEvent`. Add a separate event type (for example `MemoryCitationEvent`) that
+references read event IDs and the artifact or proposal that cites them, and surface it through the same `memory log`
+command. This pairs naturally with the proposal ledger in recommendation G.
+
+### T. Content hashes must hash what the agent saw, not the raw file
+
+Recommendation 10 lists both `raw_sha256` and `body_sha256`. Worth being precise about what each covers, because the
+frontmatter strip and the progressive-read modes change the boundary:
+
+- `raw_sha256`: SHA-256 of the file as it lives on disk, before any strip or slice. Stable per file version.
+- `body_sha256`: SHA-256 of *the exact bytes returned on stdout for this read*. After frontmatter strip for full
+  reads. After heading-bounded slicing for `--section`. After line slicing for `--lines`. After grep filtering for
+  `--grep`.
+- For `--metadata` and `--toc`, the body hash should cover the structured output bytes (canonicalized JSON if `--json`,
+  the human-readable text otherwise). Document the canonicalization, or the hash is not reproducible.
+
+Without this discipline, a later auditor cannot tell whether the agent saw the value at line 142 or a different value
+at line 142 from a different file version. The hash becomes "trust me, it was something."
+
 ## Open Questions
 
 - Should `sase memory read` ever return content from a dynamic file when the canonical file is unreadable for some
@@ -611,6 +771,17 @@ This is small but easy to forget and will block CI if missed.
   as missing under inventory; a catalog-friendly state might be `inventory_status: "declared_only"`.
 - Should `--search` be available without agent identity (so humans can drive it from a shell)? The recommendations
   imply yes; confirm and lock in tests.
+- Should `--reason` enforce a minimum quality floor (recommendation K), and if so, what is the right floor before it
+  starts pushing agents toward boilerplate ("read for context before editing the file") that defeats the audit value?
+- Should the read log live host-locally forever (recommendation L), or is there a SASE-wide place for cross-host audit
+  that does not collide on concurrent writes? If shared, what is the conflict-resolution story for two hosts
+  appending the same second?
+- Should the schema migration to v2 be done as one atomic bump or split into "tolerant reader ships first, writer
+  ships next release" (recommendation N)? The latter is safer but doubles the change-set count.
+- Should hooks ever block a memory read (recommendation R)? A `before_memory_read` veto is powerful but also a footgun
+  if a broken hook locks all agents out of long-term memory mid-session.
+- Should citation events (recommendation S) flow through the same JSONL log as read events, or live in a sibling file?
+  Same file is simpler to consume; separate files keep schema-v2 cleaner.
 
 ## Sources
 
@@ -650,3 +821,7 @@ External:
 - "Poison Once, Exploit Forever" arXiv: https://arxiv.org/abs/2604.02623
 - "Zombie Agents" arXiv: https://arxiv.org/abs/2602.15654
 - "Memory Poisoning Attack and Defense on Memory Based LLM-Agents": https://huggingface.co/papers/2601.05504
+- Model Context Protocol specification: https://spec.modelcontextprotocol.io/
+- Model Context Protocol overview: https://modelcontextprotocol.io/
+- POSIX `fcntl` advisory locking (Linux man page): https://man7.org/linux/man-pages/man2/fcntl.2.html
+- JSON Lines format (concurrent-append constraints): https://jsonlines.org/
