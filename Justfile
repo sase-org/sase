@@ -137,7 +137,16 @@ _lint-pyscripts: _setup
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
-        BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 src/sase
+        BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 \
+            --epic-symbol 'sase-45(EpisodeBuildReportWire)' \
+            --epic-symbol 'sase-45(EpisodeBuildRequestWire)' \
+            --epic-symbol 'sase-45(EpisodeStorageIndexRowWire)' \
+            --epic-symbol 'sase-45(canonical_episode_json)' \
+            --epic-symbol 'sase-45(episode_wire_schema_version)' \
+            --epic-symbol 'sase-45(generate_episode_id)' \
+            --epic-symbol 'sase-45(generate_source_id)' \
+            --epic-symbol 'sase-45(verify_episode_sources)' \
+            src/sase
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted
