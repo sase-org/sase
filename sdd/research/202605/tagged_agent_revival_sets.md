@@ -372,3 +372,236 @@ clear warning that live process state cannot be revived.
 After the MVP proves useful, promote revival sets into the Agent Archive model in Rust core as first-class archive
 collections with SQLite membership tables, lifecycle events, bundle hashes, and query/CLI support. This gives immediate
 user value without blocking on the broader archive migration, while still leading to the right long-term architecture.
+
+## Followup Gap Analysis
+
+Date: 2026-05-26 (same-day followup)
+
+The sections below extend the original analysis after a second pass through related code and research. Each gap names
+something the first draft glossed over and links it to evidence in the repo.
+
+### Manifest Write Atomicity And Sibling Lock Pattern
+
+The original schema sketch said "manifest writes must be atomic" without specifying how. The repo already has a working
+pattern that the revival-set store should reuse rather than reinvent:
+
+- `src/sase/ace/agent_tags.py:144-157` writes via `tempfile.mkstemp` in the parent directory, `json.dump`, then
+  `os.replace`, with cleanup of the temp file on failure.
+- `src/sase/ace/agent_tags.py:163-...` exposes an `_agent_tags_file_lock()` context manager using `fcntl.flock` for
+  exclusive access during read-modify-write.
+- `src/sase/logs/run_log.py:26-34` uses `fcntl.flock(LOCK_EX)` for append-only JSONL writes.
+
+For the revival-set store:
+
+- Each manifest file should be written via the same temp+rename idiom, with the temp file living in the same `YYYYMM/`
+  directory so `os.replace` stays atomic on the same filesystem.
+- The per-manifest status field (`created` → `dismissing` → `dismissed` / `partial` → `restoring` → `restored` /
+  `partially_restored`) should be updated under `fcntl.flock` against the manifest itself.
+- An optional `agent_revival_sets/.index.json` summary (cheap projection: `set_id`, tag, count, status, created_at)
+  should be rebuilt from scratch or via flock-guarded merge — avoid making it the source of truth.
+
+### Concurrency Across Multiple ACE Instances
+
+Multi-instance is not addressed in the first draft. The repo today assumes single-machine concurrency at most:
+
+- `sdd/research/202605/multi_machine_sync.md` discusses Syncthing/git/rclone but explicitly leaves distributed locking
+  out of scope.
+- Agent-name allocation and tag writes rely on local `fcntl.flock` only.
+
+Realistic stance for the revival-set MVP:
+
+- Treat each set's manifest file as the lock target; concurrent writers serialize at the OS level on the same machine.
+- Two ACE instances on different machines syncing via Syncthing/git can produce competing manifests with the same
+  human-readable suffix; mitigate by adding a short random suffix (`set_id = "20260526_143012_review_a1b2c3"` already
+  has one — keep it) so collisions become file-level rather than logical.
+- Document that cross-machine restore of a manifest written elsewhere is allowed but the dismissed bundles must also
+  have synced; otherwise the restore reports `missing_bundles`.
+
+### Bundle Lifecycle, GC, And Integrity
+
+Bundle pruning is **not** implemented today:
+
+- `src/sase/ace/dismissed_agents_bundles.py:131-141` (`mark_bundles_revived_by_suffixes()`) intentionally preserves
+  bundles after revive, returning matched paths/counts only.
+- `src/sase/ace/dismissed_agents_paths.py:14-22` shards bundles by `YYYYMM/` but there is no scheduled GC, TTL, or
+  retention policy.
+
+Implications for revival sets:
+
+- A manifest can safely point at a bundle file by path because the system does not delete bundles on its own. The
+  manifest is still vulnerable to manual deletion or sync conflicts.
+- Add a `bundle_sha256` field to each member (nullable until bundle hashing exists). On restore, verify the hash if
+  present and report mismatch as a per-member `bundle_drift` error instead of silently restoring a different revision.
+- When the broader Agent Archive eventually adds retention/purge, revival sets must be a first-class "pin": purging a
+  bundle that belongs to an active (un-restored) set should be refused or require an explicit override.
+
+### Workflow Parent/Child Cascade Is Already Handled
+
+The first draft mentions workflow children but doesn't make a recommendation about manifest membership. The existing
+code answers this:
+
+- `src/sase/ace/tui/actions/agents/_revive.py:23-42` defines `_is_child_of()` which matches workflow step children
+  (`parent_workflow` set), follow-up agents (`parent_timestamp` set, `parent_workflow` is None), and spawn-on-retry
+  children (`retry_of_timestamp` set).
+- `src/sase/ace/tui/actions/agents/_dismissing.py:48,70` already threads an `agents_with_children_snapshot` into the
+  cleanup planner; the Rust planner expands a parent's selection to include its children.
+
+Recommendation: store **parent identities only** in the manifest by default, and rely on the existing cascade for
+restore. Add an optional `members[].expand_children: true` marker so the manifest documents intent without freezing the
+child list. Also record `children_at_capture: [identity, ...]` as a diagnostic field so a restore can detect when the
+parent's child set has changed since capture (e.g., a follow-up appeared later) and surface that to the user.
+
+### Per-Member Failure Reporting Is Currently Weak
+
+The original "Acceptance Criteria" mentions partial failures but the existing batch dismiss path does not return
+per-member errors:
+
+- `src/sase/ace/tui/actions/agents/_kill_persistence.py:38-68` reports success/failure via the cleanup plan's
+  `side_effects` structure, which is plan-level, not per-agent.
+- `_dismissing.py` and `_dismiss_persistence.py` optimistically update memory then persist asynchronously; failures
+  surface as toasts/log entries, not structured per-agent state.
+
+Revival sets should not pretend to have this data. Add an explicit `members[].state` enum: `pending`, `dismissed`,
+`dismiss_failed`, `revived`, `revive_failed`, `bundle_missing`, `bundle_drift`, `already_visible`, with an optional
+`error: { code, message, timestamp }`. Also add a `sase agents revival-set repair <set-id>` command that re-attempts
+dismiss or restore for members in a non-terminal failed state, since the absence of per-member errors today means the
+first try is the only try.
+
+### Audit Log Integration
+
+The first draft hand-waves "audit events include the `set_id`". The concrete hook point exists:
+
+- `src/sase/logs/run_log.py:17-19` defines `REVIVE_EVENTS = {"agent_revive_started", "agent_revived",
+  "agent_revive_failed"}`.
+- `src/sase/logs/run_log.py:76-92` (`log_event`) appends arbitrary `kwargs` to `~/.sase/logs/events.jsonl` under
+  `fcntl.flock`.
+- `src/sase/logs/run_log.py:106-...` (`iter_revive_events`) reads events back in reverse-chronological order with
+  filters.
+
+New events to add (do not rename the existing ones):
+
+- `revival_set_created` — `set_id`, source kind, tags, member_count, scope, mode.
+- `revival_set_dismiss_completed` / `revival_set_dismiss_partial` — counts, failed_members.
+- `revival_set_restore_started` / `revival_set_restored` / `revival_set_restore_partial`.
+- Existing per-agent `agent_revive_started` / `agent_revived` / `agent_revive_failed` should accept an optional
+  `set_id` kwarg when the revive is set-driven, so timeline queries can correlate per-agent events to their set.
+
+### CLI Placement Inside Existing `sase agents`
+
+The first draft proposed `sase agents revival-set ...` without confirming the surrounding namespace. The existing CLI
+already has a rich tree:
+
+- `src/sase/main/parser_agents.py:6-...` registers `status`, `kill`, `show`, plus subgroups `tag {set, unset, list}`,
+  `archive {rebuild-index, verify}`, `index {gc, rebuild, status, verify}`, and `names {migrate-auto}`.
+
+Two natural placements:
+
+- `sase agents revival-set {create, list, show, restore, repair, delete}` — discoverable, sibling of `tag`.
+- `sase agents archive set {create, list, show, restore, repair, delete}` — fits the long-term archive namespace and
+  matches the eventual "archive collections" model.
+
+Recommendation: ship under `sase agents revival-set` for the MVP since the archive subgroup is still focused on index
+maintenance. When archive collections land, add `sase agents archive set` as an alias that points at the same
+underlying store, and keep `revival-set` as a stable user-facing name (it reads better in docs and toasts).
+
+### Selection Source Generalization
+
+The MVP schema's `source.kind: "agent_tag"` is too narrow. The same primitive is useful for several capture sources:
+
+- Tag (`source.kind: "tag"`, `source.tags: [...]`).
+- Manual mark/visual-selection from the Agents tab (`source.kind: "manual_selection"`).
+- Agent query language predicate (`source.kind: "query"`, `source.query: "status:DONE project:sase tag:review"`).
+- Filter/panel state (`source.kind: "panel"`, `source.panel_id: ...`).
+
+Keep `source` as a tagged union from day one so future entry points (query-driven cleanup, automation) don't require a
+schema bump.
+
+### Reused-Tag Detection On Restore
+
+A subtle but important UX gap: after a set is dismissed, the user can reassign the same tag to a new group of agents.
+At restore time, three different populations exist:
+
+1. The exact identities frozen in the manifest (the truthful restore target).
+2. Currently-live agents that also have `tag_at_capture` because the tag was reused.
+3. Other dismissed agents that share the tag in the archive.
+
+Restore should:
+
+- Only revive members from group (1).
+- Warn (not block) when group (2) is non-empty: "Tag `review` is currently assigned to 4 other live agents; they will
+  not be touched."
+- Offer a one-key "merge into current tag" option that re-tags restored agents to whatever the tag now means, vs. the
+  default of restoring `tag_at_capture` verbatim (which can create two distinct live groups sharing one tag name).
+
+### Cross-References Missed By The Original Draft
+
+The original draft cites the archive/query research file but does not absorb several of its decisions. The revival-set
+implementation should align with these to avoid future churn (see
+`sdd/research/202605/dismissed_agent_archive_and_query_language.md`):
+
+- **Stable `agent_id`**: the archive work expects a stable identifier independent of the
+  `(agent_type, cl_name, raw_suffix)` tuple. Manifests should record the stable id when available and fall back to the
+  tuple, so a later identity migration does not orphan revival sets.
+- **Archive revisions**: the archive plans to keep revisions of an agent rather than overwriting. Manifests should
+  reference a revision id where applicable, and a restore should be able to choose "latest revision" vs. "captured
+  revision".
+- **FTS over agent text**: when archive FTS lands, the `source.query` form above should accept the same query syntax,
+  not invent its own.
+- **Retention/purge/privacy**: the archive research calls out user-driven purge. Active revival sets must act as a pin
+  (see the GC subsection above); revival-set deletion should be a deliberate user action with a confirmation that the
+  underlying bundles may also be eligible for purge afterward.
+- **Tag schema migration**: the archive's tag column needs a migration plan; revival-set `tag_at_capture` should be
+  serialized in a form the archive can ingest without translation.
+
+### Forward-Compatible Manifest Versioning
+
+`schema_version: 1` is in the sketch but there is no migration story. Two cheap additions now:
+
+- A top-level `produced_by: { sase_version, host, ace_session_id }` block so a future reader can identify the writer.
+- An explicit `reader_min_schema_version` field so a future writer can mark "older readers should refuse this file"
+  without negotiating compatibility.
+
+### Dry-Run / Preview And Export
+
+Two affordances were missing entirely:
+
+- **Dry-run restore**: `sase agents revival-set restore <set-id> --dry-run` should print the resolved per-member
+  outcome (`would_revive`, `bundle_missing`, `already_visible`, `bundle_drift`) without writing anything. This is the
+  cheapest way to make a destructive-looking action feel safe.
+- **Export/import**: a revival-set manifest is small JSON and is portable across machines if the bundles travel with
+  it. Add `sase agents revival-set export <set-id> --bundles -o <tar>` and a matching `import` that places the manifest
+  and bundles into the right `YYYYMM/` shards. This becomes the natural sharing format until archive collections grow
+  their own export.
+
+### Updated Acceptance Criteria
+
+Additions to the original list:
+
+- Manifest writes use temp+rename and survive a kill -9 mid-write without leaving a half-written file in place.
+- Concurrent dismiss-then-restore on the same set from two TUI instances on the same machine produces a deterministic
+  status (one wins, the other observes `restored` and no-ops).
+- Restore of a set whose tag was later reused does not touch the newly-tagged live agents and surfaces a clear warning.
+- Restore with `--dry-run` produces the same per-member outcome map as a real restore would, with no side effects on
+  bundles, the dismissed index, the Agents tab, or `agent_tags.json`.
+- Manual deletion of a bundle file between dismiss and restore yields `bundle_missing` for that member and leaves the
+  rest restorable.
+- A `repair` invocation can advance members from `dismiss_failed`/`revive_failed` to terminal states without rebuilding
+  the manifest from scratch.
+- Audit events for set-driven revives include `set_id`, and per-agent revive events also carry `set_id` when invoked
+  through a set restore.
+
+### Recommended Solution Refinements
+
+Keeping the MVP shape from the original recommendation, but layered with the refinements above:
+
+1. Use the in-repo temp+rename + `fcntl.flock` pattern (`agent_tags.py:144-157`) for every manifest write.
+2. Generalize `source` into a tagged union now (`tag` / `manual_selection` / `query` / `panel`).
+3. Persist parent identities only in `members`, but capture `children_at_capture` as diagnostic-only.
+4. Add `members[].state` + `members[].error` and ship `revival-set repair` from day one.
+5. Hook the existing `log_event` audit stream with new `revival_set_*` events and add an optional `set_id` kwarg to
+   the existing `agent_revive_*` events.
+6. Ship under `sase agents revival-set` with a future `sase agents archive set` alias.
+7. Add `--dry-run` to restore and `export`/`import` to the CLI from the first cut; both are cheap and unlock real
+   workflows (sharing, debugging, cross-machine moves).
+8. Treat every active manifest as a pin against the eventual archive GC; do not defer this decision until GC ships,
+   because the manifest format needs the `bundle_sha256` and revision fields now to make the pin enforceable later.
