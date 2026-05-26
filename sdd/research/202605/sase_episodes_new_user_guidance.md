@@ -1,56 +1,58 @@
-# SASE Episodes New User Guidance Research
+---
+create_time: 2026-05-26
+status: research
+bead_id: sase-45
+---
 
-Research date: 2026-05-26
+# SASE Episodes New User Guidance Research
 
 ## Question
 
-How should SASE guide a new user through using episodes?
+How should SASE guide a new user through episodes, given the `sase-45` Structured Deterministic Episodic Memory MVP?
 
-Short answer: present episodes as a source-grounded "what happened last time?" layer under `sase memory`, not as a new
-top-level product and not as automatic long-term memory. A new user should learn to build or inspect episodes only when
-they need evidence about prior work, then promote durable lessons through the existing reviewed memory flow when a
-lesson should affect future agents.
+## Short Answer
+
+Teach episodes as **evidence-backed project history**, not as magic memory and not as instructions.
+
+A new user should learn this mental model first:
+
+- **Chats and artifacts** are the raw source of truth.
+- **Episodes** are deterministic, rebuildable records that connect chats, artifacts, plans, beads, ChangeSpecs, retries,
+  questions, feedback, memory reads, and outcomes into one inspectable story.
+- **Episode recall** is a way to ask "what happened before?" with evidence links.
+- **Long-term memory** is still the human-reviewed place for durable guidance. Episodes can provide evidence for
+  `sase memory write`, but they should not bypass `sase memory review`.
+
+The first user-facing documentation should avoid agent-memory theory. It should show a small loop:
+
+1. Build an episode from a recent agent run.
+2. Inspect the rendered lesson and source graph.
+3. Verify whether source evidence has drifted.
+4. Recall prior episodes before starting similar work.
+5. Promote only reviewed, reusable lessons into long-term memory.
 
 There is an important current-state caveat: in this workspace, `sase memory episodes` is designed in
 `sdd/epics/202605/structured_episodic_memory_mvp.md`, and the core wire schema exists, but the CLI is not wired into the
 current `sase memory` parser yet. `sase memory --help` currently lists only `init`, `list`, `log`, `read`, `review`, and
 `write`; `sase memory episodes --help` currently fails as an invalid subcommand.
 
-## Mental Model For New Users
+## Current Implementation State
 
-An episode is not a chat transcript. It is a compact, deterministic record derived from chats, agent metadata, plans,
-diffs, questions, feedback, artifacts, beads, and ChangeSpecs.
+As of 2026-05-26, `sase-45` is open:
 
-An episode is not canonical project memory. It is evidence. If the user wants a lesson to become durable guidance for
-future agents, the lesson should go through `sase memory write` and `sase memory review`, with the episode and source
-chat as evidence.
+- `sase-45.1` is closed: core episode schema and canonicalization.
+- `sase-45.2` through `sase-45.8` are in progress.
 
-An episode is not a separate command family. The intended surface is:
+Current code in this checkout confirms only the Phase 1 boundary is present:
 
-```bash
-sase memory episodes ...
-```
-
-not:
-
-```bash
-sase episodes ...
-```
-
-The simplest explanation for a new user is:
-
-> Use episodes when you want SASE to answer, with citations, "what happened in that prior agent run or workflow?"
-
-## Current Implementation Findings
-
-The current codebase has Phase 1 foundations:
-
-- `src/sase/core/episode_wire.py` defines `EpisodeWire`, `EpisodeSourceRefWire`, graph nodes/edges, timeline events,
-  deterministic lessons, build reports, storage index rows, and source verification reports.
-- `src/sase/core/episode_facade.py` exposes Rust-backed helpers for schema version, canonical JSON, source IDs, episode
-  IDs, and source verification.
-- `tests/test_core_episode_wire.py` verifies stable canonical serialization, stable episode IDs across source order, and
-  source drift reporting.
+- `src/sase/core/episode_wire.py` defines `EpisodeWire`, source refs, nodes, edges, events, lessons, build reports,
+  storage index rows, and verify reports.
+- `src/sase/core/episode_facade.py` exposes Rust-backed helpers for schema version, canonical JSON, source IDs,
+  episode IDs, and source verification.
+- `tests/test_core_episode_wire.py` proves canonical serialization sorts sources/nodes/evidence IDs, episode IDs are
+  stable across source order, and source verification reports missing/changed evidence.
+- `src/sase/main/parser_memory.py` and `src/sase/main/memory_handler.py` currently expose `sase memory init`, `list`,
+  `read`, `write`, `review`, and `log`; no `episodes` subcommand exists yet in this workspace.
 
 The current codebase does not yet have the user-facing episode workflow:
 
@@ -59,19 +61,56 @@ The current codebase does not yet have the user-facing episode workflow:
 - `src/sase/main/parser_memory.py` does not register an `episodes` subparser.
 - `src/sase/main/memory_handler.py` does not dispatch `episodes`.
 
-The SDD epic defines the intended storage and command contract:
+That means any public guide should be explicit: `sase memory episodes ...` is the intended command surface from the
+epic, not a command available in this checkout yet.
+
+## Product Boundary To Teach
+
+Episodes belong under:
 
 ```text
-~/.sase/projects/<project>/episodes/
-  index.jsonl
-  index.lock
-  <episode_id>/
-    episode.json
-    lesson.md
-    sources.jsonl
+sase memory episodes
 ```
 
-`episode.json` is canonical. `lesson.md`, `sources.jsonl`, and `index.jsonl` are deterministic projections.
+not:
+
+```text
+sase episodes
+```
+
+The reason matters for onboarding. SASE already teaches memory as a family of audited operations:
+
+- `sase memory list` shows visible memory context.
+- `sase memory read` is an audited agent-side long-memory read.
+- `sase memory write` creates a proposal only.
+- `sase memory review` is the human promotion gate.
+- `sase memory log` audits reads and proposal/review events.
+
+Episodes should fit that story. They are a memory inspection and recall surface, not a separate product competing with
+the memory command group.
+
+## Beginner Explanation
+
+Use this as the plain-language explanation:
+
+> An episode is a source-linked summary of a piece of SASE work. It does not replace the chat transcript or artifacts.
+> It gives you a compact lesson, timeline, and evidence list so you can understand what happened without rereading every
+> raw file.
+
+For a new user, the useful analogy is not "AI memory"; it is "a buildable case file":
+
+- the prompt is the goal;
+- the agent chat is testimony;
+- artifacts and diffs are exhibits;
+- plan feedback, questions, and retries are decision points;
+- `episode.json` is the canonical record;
+- `lesson.md` is the readable case summary;
+- `sources.jsonl` is the evidence inventory;
+- `index.jsonl` lets SASE list and recall prior cases.
+
+The simplest task-level explanation is:
+
+> Use episodes when you want SASE to answer, with citations, "what happened in that prior agent run or workflow?"
 
 ## Why New Users Need A Different Guide Than Implementers
 
@@ -86,7 +125,7 @@ retrieval architecture. A new user guide should instead answer five practical qu
 
 Do not start the docs with the schema. Put the schema behind "what gets saved" or "how verification works."
 
-## Recommended First-Run Flow
+## Suggested New User Flow
 
 Once the CLI exists, the first-run guide should use a single prior agent name because that is the easiest selector to
 understand:
@@ -106,6 +145,19 @@ sase memory episodes recall -q "what did we learn about prompt history?"
 
 The guide should tell users to read `lesson.md` first. `episode.json` is for tools, debugging, and deterministic tests;
 `sources.jsonl` is for provenance review; `verify` is for deciding whether source files still match the episode record.
+
+The first guide should prefer one happy-path selector before introducing all selectors. Suggested ordering:
+
+```bash
+# Start here
+sase memory episodes build -n <agent-name>
+
+# Then learn alternatives
+sase memory episodes build -a ~/.sase/projects/sase/artifacts/.../<agent-dir>
+sase memory episodes build -c <changespec-name>
+sase memory episodes build -C ~/.sase/chats/202605/<chat>.md
+sase memory episodes build -s 2026-05-01 -u 2026-05-26 -l 20
+```
 
 ## Selector Guidance
 
@@ -177,11 +229,53 @@ sase memory review --list
 The exact evidence syntax may need CLI polish, but the principle should remain: durable memories are reviewed proposals,
 not automatic episode side effects.
 
-## What To Tell Users Not To Do
+## What Users Should Do Today
+
+Until Phases 2-8 land, users cannot rely on `sase memory episodes` in this checkout. The near-term guidance should be:
+
+- use `sase chats list/show` for raw transcript inspection;
+- use ACE or artifact paths for run artifacts;
+- use `sase memory log --include proposals` for audited memory activity;
+- use `sase memory write --evidence ...` when a durable lesson should be proposed for review;
+- do not write `memory/short` or `memory/long` directly through episode work.
+
+This is not equivalent to episodes, but it preserves the same safety model: inspect source evidence first, then propose
+durable memory through review. When episode CLI work lands, the docs should explicitly replace the "start from chat"
+path with "build/show/verify an episode, then propose memory from the cited lesson."
+
+## What An Episode Is Good For
+
+Episodes should be recommended when the user is asking:
+
+- "What happened in that agent run?"
+- "Why did the previous agent choose this approach?"
+- "Did we already try this and fail?"
+- "Which files, plans, beads, or ChangeSpecs were involved?"
+- "Was there user feedback or a question answer that changed the plan?"
+- "What evidence supports this lesson?"
+- "Did the source evidence drift since the episode was built?"
+
+Episodes should be especially useful before:
+
+- planning work on an old bead or ChangeSpec;
+- retrying a failed agent run;
+- touching a subsystem that recently had a migration or benchmark;
+- proposing long-term memory from prior work;
+- writing docs that summarize implementation history.
+
+## What Episodes Are Not For
+
+The guide should be blunt about non-goals:
+
+- Episodes are not canonical project instructions.
+- Episodes are not automatically loaded into every prompt.
+- Episodes are not a replacement for `memory/long`.
+- Episodes are not a way for agents to silently edit memory.
+- Episodes are not raw transcript storage.
+- Episodes are not a vector database requirement.
+- Episodes are not a reason to delete old chats or artifacts.
 
 Do not edit `episode.json` by hand. Rebuild from sources instead.
-
-Do not treat an episode lesson as a rule for all future work. It is a grounded observation from one run.
 
 Do not commit raw generated episodes to the repo. Prior research recommends keeping broad episode collection in project
 state under `~/.sase/projects/<project>/episodes/` and committing only curated, reviewed event/memory artifacts when
@@ -195,13 +289,19 @@ and lesson layer over those sources.
 
 ## Trust And Safety Guidance
 
-The user guide should make provenance visible early:
+New users need a trust model because episode summaries can feel authoritative.
 
-- Every lesson should cite evidence IDs.
-- `show` should default to `lesson.md`, but the output should expose the source list or a clear command to inspect it.
-- `verify` should be part of the first-page workflow, not an advanced appendix.
-- Prompt-injection and untrusted transcript content should remain evidence, not instructions.
-- Episode recall should return citations and snippets, not silently rewrite future prompts.
+Recommended framing:
+
+- Trust the **evidence links** first.
+- Treat the **lesson text** as a deterministic summary of available evidence, not as a universal rule.
+- Use `verify` when an episode matters for a new decision.
+- Promote durable lessons through `sase memory write` and human `sase memory review`.
+- Prefer recent, verified, source-rich episodes over old or drifted episodes.
+- If two episodes disagree, inspect their sources and timestamps rather than merging their lesson text mentally.
+
+The docs should show a warning box near `recall`: recall results answer "what did prior work record?" not "what is true
+now?"
 
 For new users, the practical rule is:
 
@@ -253,6 +353,30 @@ values stable.
 
 `recall` should return enough context to decide whether to open the episode, not enough to replace opening it.
 
+## Output Shape To Optimize For
+
+For new users, the most important display is `show` with the rendered lesson. The ideal first screen should contain:
+
+- title;
+- one-paragraph summary;
+- goal;
+- timeline;
+- decisions and feedback;
+- work performed;
+- outcome;
+- lessons with evidence IDs;
+- sources.
+
+The command should then make the evidence graph discoverable without requiring users to read JSON:
+
+```bash
+sase memory episodes show <episode-id> --timeline
+sase memory episodes show <episode-id> --sources
+sase memory episodes show <episode-id> --json
+```
+
+`--json` should be positioned as script/automation output. Human onboarding should show the markdown lesson first.
+
 ## Product Positioning
 
 For onboarding, episodes should sit between chats and memory:
@@ -269,34 +393,86 @@ This positioning solves a specific user problem:
 
 That is the core message for a new user.
 
+## Storage Contract To Explain Late
+
+The SDD epic defines the intended storage and command contract:
+
+```text
+~/.sase/projects/<project>/episodes/
+  index.jsonl
+  index.lock
+  <episode_id>/
+    episode.json
+    lesson.md
+    sources.jsonl
+```
+
+`episode.json` is canonical. `lesson.md`, `sources.jsonl`, and `index.jsonl` are deterministic projections. Do not lead
+with this structure in beginner docs; introduce it only after the user understands the build/show/verify loop.
+
 ## Documentation Placement
 
 Recommended docs/pages after implementation:
 
-1. A short `docs/episodes.md` or README section titled "Episodes".
+1. A short `docs/episodes.md` or `docs/memory.md` subsection titled "Episodes".
 2. CLI examples in `sase memory episodes --help`.
 3. A "Promote a lesson to memory" subsection that points to `sase memory write/review`.
 4. A troubleshooting subsection for "no episode found", "source changed", and "recall found stale evidence".
 
+Troubleshooting should cover:
+
+- no episode found for selector;
+- source file missing;
+- source hash changed;
+- command is unavailable in pre-MVP builds;
+- recall returns stale or irrelevant results;
+- private paths appear in output.
+
 Do not bury episodes only inside the structured memory epic. The epic is correct for implementers but too deep for
 first-use learning.
 
-## Current-State Guidance Until The CLI Lands
+## Relationship To `sdd/events`
 
-Because the CLI is not available in this workspace yet, a new user today should use the existing lower-level surfaces:
+Prior research separates private/generated **episodes** from reviewed, repo-checked **events**:
+
+- Episodes are operational, rebuildable, and stored under `~/.sase/projects/<project>/episodes/`.
+- Event cards, if added later, should be rare reviewed project memories under `sdd/events/YYYYMM/`.
+
+This distinction should not be introduced on day one unless the user asks about Git storage. The beginner guide should
+only say: "Episodes are local project state. Durable instructions still go through reviewed memory."
+
+## Documentation Copy Candidates
+
+### One-Line Definition
+
+SASE episodes are source-linked records of prior agent work that help you inspect, verify, and recall what happened.
+
+### First Paragraph
+
+Use episodes when you need history with evidence. An episode ties together the agent prompt, chat, artifacts, plan,
+feedback, retries, beads, ChangeSpecs, memory reads, and outcome into a deterministic record. It gives humans and agents
+a compact lesson without replacing the raw transcript.
+
+### Warning Box
+
+Episodes are evidence, not instructions. If an episode contains a lesson that should guide future agents, propose it
+with `sase memory write` and approve it with `sase memory review`.
+
+### First Workflow
 
 ```bash
-sase chats list
-sase chats show <chat-id-or-path>
-sase memory write --title "..." --slug ... --evidence chat:<chat-id> --body "..."
-sase memory review --list
+# Preview what would be built from an agent run.
+sase memory episodes build -n <agent> --dry-run
+
+# Build and store the episode.
+sase memory episodes build -n <agent>
+
+# Read the lesson and evidence.
+sase memory episodes show <episode-id>
+
+# Check whether the cited evidence still matches.
+sase memory episodes verify <episode-id>
 ```
-
-This is not equivalent to episodes, but it preserves the same safety model: inspect source evidence first, then propose
-durable memory through review.
-
-When episode CLI work lands, the docs should explicitly replace the "start from chat" path with "build/show/verify an
-episode, then propose memory from the cited lesson."
 
 ## Open Questions
 
@@ -308,8 +484,14 @@ episode, then propose memory from the cited lesson."
 - Should `list` default to the current project only? It should, unless `-p|--project` explicitly names another project.
 - Should `recall` search private episodes only, curated events only, or both? For first release, keep it to stored
   project episodes and make any later `sdd/events` bridge explicit.
+- Should `recall` search only verified episodes by default? Research recommendation: include drift status in results,
+  but do not silently hide drifted episodes until users can understand why results disappeared.
 - Should docs call them "episode lessons" or "lesson cards"? Use "episode" for the whole record and "lesson" for the
   human-readable projection to avoid conflating data and presentation.
+- Should episode IDs be visible in beginner docs? Yes, because every recall result and evidence link needs a stable
+  handle.
+- Should auto-build happen during agent finalization? Not for initial onboarding. Users should learn explicit builds
+  before background generation is enabled.
 
 ## Failure Modes And Error Recovery
 
@@ -566,7 +748,9 @@ source of truth; `episode.json` is canonical; and the command belongs under `sas
 
 ## Evidence Reviewed
 
+- `sase bead show sase-45`
 - `sdd/epics/202605/structured_episodic_memory_mvp.md`
+- `sdd/prompts/202605/structured_episodic_memory_mvp.md`
 - `sdd/research/202605/structured_episodic_agent_chat_memory.md`
 - `sdd/research/202605/structured_episodic_memory_for_agent_chats.md`
 - `sdd/research/202605/structured_episodic_events_for_memory_search.md`
@@ -576,6 +760,8 @@ source of truth; `episode.json` is canonical; and the command belongs under `sas
 - `tests/test_core_episode_wire.py`
 - `src/sase/main/parser_memory.py`
 - `src/sase/main/memory_handler.py`
+- `docs/memory.md`
+- `docs/configuration.md`
 - `sdd/epics/202605/structured_episodic_memory_mvp.md` Phase 5-8 (flag surface, exit criteria, non-goals)
 - `sdd/research/202605/sase_memory_command_research.md` (memory CLI conventions, `doctor`, output shapes)
 - `sdd/research/202605/sase_memory_write_review_research.md` (promotion path from evidence to durable memory)
