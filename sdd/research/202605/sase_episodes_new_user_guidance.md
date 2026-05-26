@@ -701,6 +701,13 @@ ep_20260403_3c2a99  Feedback artifact loss on retry        score=0.71  changespe
 These are illustrative, not literal. The doc should reproduce real outputs once Phase 8 fixtures exist, but the shapes
 should match.
 
+The illustrative `ep_YYYYMMDD_xxxxxx` IDs above should not be read as a spec. The epic's determinism rules
+(`sdd/epics/202605/structured_episodic_memory_mvp.md` Determinism Rules) require `episode_id` to be derived from project
+name, root source identity, and canonical source refs, not from wall-clock time. The user guide should describe IDs as
+"a short opaque handle" and show a real format only after Phase 1/2 fixtures pin it. Embedding the build date in the
+visible ID would make rebuilds appear to "change" the episode even when sources are unchanged, which is the opposite of
+the contract.
+
 ## Onboarding And `sase init`
 
 Episodes should not require an explicit `sase memory episodes init` step. The build path should create
@@ -746,6 +753,208 @@ Build the new-user guide around a small loop:
 Keep the wording disciplined: episodes are evidence records, not memory rules; `lesson.md` is the human view, not the
 source of truth; `episode.json` is canonical; and the command belongs under `sase memory episodes`.
 
+## Determinism Guarantees To Teach New Users
+
+The epic's determinism rules matter for onboarding because they are unusual relative to vendor "AI memory" products. The
+guide should state plainly:
+
+- No LLM call is required to build, render, verify, or recall an MVP episode. `build` is deterministic source
+  collection and rendering. `recall` is deterministic lexical scoring. The user is never paying a per-token cost to make
+  an episode appear or to find one.
+- The same sources always produce the same `episode_id`, the same `lesson.md` bytes, and the same `sources.jsonl`. If a
+  rebuild changes either projection, the sources or the SASE binary changed; the episode itself did not "drift" of its
+  own accord.
+- Wall-clock time is not part of identity. `build_time` may appear in non-identity fields, but two rebuilds an hour or a
+  month apart should hash identically when the underlying sources are unchanged.
+- Source timestamps come from artifact and chat content, not from filesystem mtimes. Touching a file (mtime bump with no
+  content change) should not invalidate an episode.
+- Missing or deleted sources are preserved as refs with `exists=false`. `verify` reports drift; it never rewrites
+  history.
+
+For new users, the practical implication is: episodes are reproducible artifacts, not stochastic summaries. If a
+teammate sees a different lesson than you do for the same `episode_id`, the SASE binary, project name, or source content
+differs on one side. Treat that as a bug, not as expected variance.
+
+## Recall Scoring Semantics
+
+`recall` is deterministic lexical scoring, not embedding search. The new user guide must say this up front because most
+people arrive expecting semantic retrieval like ChatGPT memory or a vector store. Per the epic Phase 7 contract, recall
+uses:
+
+1. Token overlap with title, summary, lesson text, source labels, ChangeSpec name, bead IDs, file paths, and tags.
+2. Recency and outcome only as tie-breakers after lexical score, never as primary signals.
+
+Practical consequences a new user should know:
+
+- Synonyms do not match. "retry" does not retrieve "rerun". Phrase queries with the words the lesson would actually use.
+- Code identifiers, ChangeSpec slugs, and bead IDs are first-class query terms. `recall -q "sase-45 storage"` is often
+  better than `recall -q "episode storage design"`.
+- Results are stable across runs on the same machine and across machines with the same episode store. There is no
+  randomness, no LLM reranker, and no per-user personalization in the MVP.
+- An empty result usually means "rephrase" or "build more episodes first", not "no prior work exists". The guide should
+  show a quick recovery: try `sase chats list` or `sase memory list`, then build an episode from the relevant agent.
+
+If a future release adds embedding-based recall, it should ship as an opt-in flag so the deterministic default is
+preserved.
+
+## When To Use Recall Versus Other Search Tools
+
+Episodes are not the only way to search SASE history. The new user guide should give an explicit decision rule rather
+than leaving users to guess:
+
+| Question | Best tool | Why |
+| --- | --- | --- |
+| "What did the agent literally say in turn N?" | `sase chats show <chat>` | Episodes summarize; chats are the raw transcript. |
+| "Which agent worked on bead X?" | `sase agents` filters or `sase bead show X` | Episodes are not the agent index. |
+| "What was decided across several runs on this PR?" | `sase memory episodes show` from a `-c|--changespec` build | Episode spans agents within a ChangeSpec. |
+| "Have we ever learned something about topic T?" | `sase memory episodes recall -q T` | Recall is the topic-to-episode bridge. |
+| "What durable rules apply to this project?" | `sase memory list` and `memory/long/` | Episodes are evidence, memory is rules. |
+| "Which long-memory proposals are open for review?" | `sase memory review --list` | Episodes do not bypass review. |
+
+The rule of thumb: reach for episodes when you want a compact, source-linked story; reach for chats/agents/beads when
+you want raw state; reach for memory when you want durable instructions.
+
+## Empty-State And Discoverability
+
+A new user who runs `sase memory episodes list` on a fresh project will see an empty store. The guide should treat that
+as a normal first encounter, not a failure:
+
+- The first run of `list` on an empty store should print a one-line empty state plus a hint pointing at `build`. It
+  should not print an error or a stack trace.
+- The first `build` should silently create `~/.sase/projects/<project>/episodes/` and `index.jsonl`, then print exactly
+  the episode ID, title, lesson path, source count, and lesson count.
+- `sase memory --help` should mention `episodes` as a subcommand once Phase 5 lands. Until then, the guide should
+  explicitly tell users that `sase memory episodes` will fail in pre-MVP builds and link to the epic.
+- The guide should mention that `sase memory log --include episodes` (or the equivalent filter once Phase 5/6 land) is
+  the audit trail for builds, verifies, and recall calls. Until that filter exists, the user can grep `~/.sase/logs/`
+  for `episode` events.
+
+The single sentence to put in the onboarding doc: "Episodes appear when you build them. SASE does not create them
+silently in the background until you opt into auto-build."
+
+## Mental-Model Contrast With Vendor "AI Memory"
+
+New users almost always arrive with one of three priors:
+
+1. **ChatGPT-style memory** — a profile blob the model reads automatically.
+2. **Vector store / RAG** — embedded chunks with semantic similarity retrieval.
+3. **Notion/Obsidian notes** — human-curated documents the user reads.
+
+SASE episodes are none of these. The mental model that fits is closer to a deterministic build artifact (think Bazel
+output or a reproducible PDF): given the same sources and binary, you get the same bytes. The guide should call this
+out directly:
+
+- Unlike ChatGPT memory, episodes are not auto-injected. Recall is explicit until a user opts into prompt augmentation.
+- Unlike a vector store, recall is lexical and deterministic. Same query, same store, same ranking.
+- Unlike free-form notes, episodes have a canonical machine-readable form (`episode.json`) and a derived human view
+  (`lesson.md`). Editing the human view by hand does not change the canonical record; rebuild instead.
+
+This framing also explains why episodes live under `~/.sase/projects/<project>/episodes/` rather than in the repo:
+they are project-local build outputs, not curated documentation.
+
+## Day-One Tutorial Script
+
+Once the CLI ships, the onboarding doc should include a single linear script a new user can paste. This is what the
+research recommends:
+
+```bash
+# 1. Pick a recent agent to anchor the first episode.
+sase agents --status done --limit 5
+
+# 2. Preview the episode SASE would build, without writing anything.
+sase memory episodes build -n <agent> -D
+
+# 3. Build for real. Note the printed episode ID.
+sase memory episodes build -n <agent>
+
+# 4. Read the lesson first; it is the human view.
+sase memory episodes show <episode-id>
+
+# 5. Confirm the cited evidence is still on disk and unchanged.
+sase memory episodes verify <episode-id>
+
+# 6. Search for related prior work by topic.
+sase memory episodes recall -q "<short phrase from the lesson>"
+
+# 7. If a lesson is reusable across future agents, propose it as durable memory.
+sase memory write \
+  --title "<one-line rule>" \
+  --slug <kebab_slug> \
+  --evidence ~/.sase/projects/<project>/episodes/<episode-id>/episode.json \
+  --body "<the rule, in plain English>"
+
+# 8. Promote it through human review.
+sase memory review --list
+sase memory review --approve <slug>
+```
+
+The tutorial deliberately ends in `sase memory review`, not at `recall`, so the user finishes with the correct mental
+model: episodes feed reviewed memory, they do not replace it.
+
+## Glossary For The Episodes Surface
+
+Beginner docs should define these terms once, near the top:
+
+- **Episode** — a deterministic record of prior SASE work for a project. Includes source refs, a timeline, decisions,
+  and lessons. Lives under `~/.sase/projects/<project>/episodes/<episode-id>/`.
+- **Episode ID** — a short opaque handle derived from the project name, root source identity, and canonical source refs.
+  Stable across rebuilds when sources are unchanged.
+- **Lesson** — a single source-linked claim with one or more `evidence_ids`. The episode's rendered `lesson.md` is a
+  human projection of the canonical lesson records inside `episode.json`.
+- **Source ref** — a pointer to a chat, artifact, plan, diff, ChangeSpec, bead, or commit, with path, kind, size, and
+  SHA-256 where applicable.
+- **Evidence ID** — a stable identifier inside an episode that lessons cite. Used to anchor a lesson to specific source
+  refs.
+- **Drift** — the state of an episode when one or more sources are missing or hashed differently from build time.
+  Reported by `verify`; does not delete the episode.
+- **Canonical projection** — a derived file (`lesson.md`, `sources.jsonl`, or an `index.jsonl` row) that can be
+  regenerated from `episode.json` and the current source tree without re-running the collector.
+- **Selector** — the build flag that picks which sources start the source graph: `-n|--agent`, `-a|--artifact-dir`,
+  `-c|--changespec`, `-C|--chat`, or `-s|--since`/`-u|--until`.
+- **Source graph** — the directed graph of agent_run, chat, plan, question, feedback, artifact, changespec, bead,
+  commit, memory_read, dynamic_memory, retry, and workflow_step nodes that a single episode records.
+- **Recall** — deterministic lexical search across stored lessons. Returns cards with episode IDs, scores, and evidence
+  links. Does not modify the episode store.
+
+## Performance And Scale Expectations
+
+The epic does not pin numeric SLAs, but the determinism contract and storage layout imply rough budgets the user guide
+should set expectations against:
+
+- `build` is dominated by source collection (chat file reads, artifact directory walks, SHA-256 hashing) rather than
+  rendering. A typical single-agent run should complete in well under a second; a ChangeSpec spanning many agents may
+  take longer because it hashes more files.
+- `list` reads `index.jsonl` and should return in tens of milliseconds for projects with hundreds of episodes. It
+  should not open per-episode `episode.json` files.
+- `show` opens one episode directory and renders `lesson.md` directly when available; it is read-only and fast.
+- `verify` is the only operation that re-hashes sources by default. On a large source set it can be the slowest
+  read-only command and may dominate latency. The guide should suggest running `verify` selectively, not on every list
+  view.
+- `recall` over a few thousand episodes should remain interactive because scoring is lexical and bounded by lesson and
+  index sizes, not by transcript size.
+
+Scale guidance for the onboarding doc: a single project with several hundred episodes is well within the MVP envelope.
+Tens of thousands of episodes is out of scope for MVP measurement and should be flagged as needing benchmarking before
+auto-build is enabled by default.
+
+## Related Research Cross-Links
+
+The new-user guide should not stand alone. The most useful adjacent reads, all in this directory, are:
+
+- `sase_memory_command_research.md` — overall `sase memory` CLI shape and audit semantics.
+- `sase_memory_write_review_research.md` — how an episode-derived lesson becomes a reviewed long-term memory.
+- `sase_memory_read_agent_usefulness.md` — when an agent should call `sase memory read` versus rely on dynamic memory.
+- `structured_episodic_memory_for_agent_chats.md` and `structured_episodic_agent_chat_memory.md` — the design history
+  behind the current epic.
+- `structured_episodic_events_for_memory_search.md` and `git_versioned_episodic_events.md` — the distinction between
+  private episodes (local project state) and curated events (`sdd/events/`, repo-checked).
+- `dream_chop_agent_chat_distillation.md` and `zettel_sase_shared_memory.md` — older summarization approaches that
+  episodes intentionally replace with a deterministic build.
+- `manus_vs_sase_lessons.md` and `openhands_vs_sase.md` — comparisons with vendor agent-memory designs that motivate
+  SASE's no-LLM, source-grounded default.
+
+Beginner docs should link to at most two of these (memory write/review and the epic) and treat the rest as deep dives.
+
 ## Evidence Reviewed
 
 - `sase bead show sase-45`
@@ -766,3 +975,8 @@ source of truth; `episode.json` is canonical; and the command belongs under `sas
 - `sdd/research/202605/sase_memory_command_research.md` (memory CLI conventions, `doctor`, output shapes)
 - `sdd/research/202605/sase_memory_write_review_research.md` (promotion path from evidence to durable memory)
 - `src/sase/ace/` (grep confirms no TUI surface for episodes in MVP)
+- `sdd/epics/202605/structured_episodic_memory_mvp.md` Phase 7 (deterministic lexical recall, no embeddings)
+- `sdd/epics/202605/structured_episodic_memory_mvp.md` Determinism Rules (episode_id derivation, no wall-clock)
+- `sdd/research/202605/README.md` (research directory convention)
+- `sdd/research/202605/dream_chop_agent_chat_distillation.md`, `zettel_sase_shared_memory.md`,
+  `manus_vs_sase_lessons.md`, `openhands_vs_sase.md` (mental-model contrast and prior approaches)
