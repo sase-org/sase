@@ -24,6 +24,7 @@ sase amd list         # read-only inventory
 sase amd init         # create/repair AGENTS.md and provider shims
 sase amd init --check # report AMD drift without writing
 sase init amd         # compatibility alias for `sase amd init`
+sase init --check amd # equivalent; `--check` flows through to the alias
 ```
 
 The command is intentionally split into two paths:
@@ -40,8 +41,17 @@ Parser registration lives in `src/sase/main/parser_amd.py`. The top-level comman
 it is absent, `src/sase/main/amd_handler.py` treats it as `list`.
 
 `sase init amd` is not a separate implementation. `src/sase/main/parser_init.py` registers it as a compatibility alias
-using the same `-c|--check` argument helper, and `src/sase/main/entry.py` dispatches it to
+using the same `add_amd_init_arguments()` helper, and `src/sase/main/entry.py` dispatches it to
 `handle_init_amd_command()`, which calls the same AMD initializer as `sase amd init`.
+
+The `--check` flag on the `sase init amd` alias is registered with `default=argparse.SUPPRESS`, so when the user runs
+`sase init --check amd`, the parent `init --check` flag is not silently overwritten by the alias's `False` default.
+`tests/main/test_amd_parser_handler.py::test_parser_registers_amd_namespace` covers both `init amd --check` and
+`init --check amd` forms.
+
+`src/sase/amd/cli.py` is a thin lazy-import indirection. `amd_handler` imports `run_amd_init` / `run_amd_list` from
+`sase.amd.cli`, and `cli.py` defers the heavyweight imports (`sase.amd.init`, `sase.amd.inventory`) until called. This
+keeps `sase --help` and unrelated commands from paying the YAML/Rich import cost.
 
 Observed help output from this workspace:
 
@@ -61,6 +71,26 @@ a compatibility alias for this command.
 
 Tests covering this wiring are in `tests/main/test_amd_parser_handler.py`.
 
+## Config Surface
+
+`amd_h1_title` is wired in three places:
+
+- `src/sase/default_config.yml` declares the default as `null`.
+- `config/sase.schema.json` types it as `["string", "null"]` with the explanation that the generator ignores global
+  values.
+- This repo's own `sase.yml` sets it to `"Structured Agentic Software Engineering (SASE) - Agent Instructions"`.
+
+Validation rules in `_load_project_amd_h1_title()` (`src/sase/amd/init.py`):
+
+- Missing `sase.yml` or missing field → no blocker, no managed `AGENTS.md`.
+- YAML parse error → blocker with the YAML exception message.
+- Top-level value is not a mapping → blocker `expected a YAML mapping at the top level`.
+- `amd_h1_title` set to a non-string non-null value → blocker `amd_h1_title must be a string or null`.
+- `amd_h1_title` set to an empty/whitespace-only string → blocker `amd_h1_title must not be empty`.
+
+Blockers surface through `InitPlan.blockers`, and propagate through `AmdMemorySyncPlan.blockers` into
+`MemoryRootPlan.blockers`, so a malformed AMD title also blocks `sase memory init`.
+
 ## Managed Files And Markers
 
 Shared AMD constants live in `src/sase/amd/constants.py`:
@@ -70,6 +100,9 @@ AGENTS_FILENAME = "AGENTS.md"
 PROVIDER_SHIM_FILES = ("CLAUDE.md", "GEMINI.md", "QWEN.md", "OPENCODE.md")
 PROVIDER_SHIM_CONTENT = "@AGENTS.md\n"
 ```
+
+`PROVIDER_SHIM_FILES` is a tuple in iteration order, so init writes and inventory rendering both visit the providers in
+the same Claude → Gemini → Qwen → OpenCode order.
 
 Managed `AGENTS.md` memory sections are delimited by stable HTML comments:
 
@@ -83,6 +116,24 @@ Managed `AGENTS.md` memory sections are delimited by stable HTML comments:
 Those marker blocks are what let `sase memory init` update the short-memory bullet list and long-memory description list
 without trying to rewrite arbitrary surrounding prose.
 
+## Provider Shim State Machine
+
+The init planner and inventory share a four-state classification for each root-level provider file:
+
+| State        | Meaning                                                                 | Init behavior              |
+|--------------|-------------------------------------------------------------------------|----------------------------|
+| `missing`    | File does not exist                                                     | Created with `@AGENTS.md\n` |
+| `exact_shim` | File contents exactly equal `PROVIDER_SHIM_CONTENT` (`@AGENTS.md\n`)    | Left alone                 |
+| `shim`       | Stripped contents equal the shim, but trailing whitespace differs       | Silently rewritten to canonical |
+| `custom`     | Anything else (including read errors)                                   | Treated as a migration source candidate; otherwise left alone if `AGENTS.md` already exists |
+
+`_action_for_write()` only emits a no-op when current content matches byte-for-byte, so `shim` is reported as an
+`overwrite` action by the planner even though the inventory's `_shim_summary` paints it as a yellow "noncanonical
+whitespace" warning.
+
+`InitAction.operation` is always `create` or `overwrite`. The planner never emits a delete, so a stale custom
+provider file is *not* removed during init unless its content can be canonicalized.
+
 ## `amd_h1_title`
 
 `amd_h1_title` is the opt-in switch for generated project-managed `AGENTS.md`.
@@ -95,7 +146,8 @@ amd_h1_title: "Structured Agentic Software Engineering (SASE) - Agent Instructio
 
 The key point is scope: `_load_project_amd_h1_title()` in `src/sase/amd/init.py` reads only `./sase.yml` in the current
 project root. It deliberately ignores merged/global config so a global `~/.config/sase/sase.yml` cannot accidentally opt
-every repository into generated agent instructions.
+every repository into generated agent instructions. This is asserted by
+`test_amd_init_ignores_global_amd_h1_title`.
 
 If the field is missing or null, AMD init still manages provider shims, but it does not generate a new managed
 `AGENTS.md` unless it can perform the single-provider migration described below.
@@ -133,56 +185,108 @@ Behavior under bare `sase init`:
 - In that conservative mode, AMD does nothing unless project-local `amd_h1_title` is set.
 - This avoids surprising existing repositories with new shims or migrations during a broad onboarding check.
 
-Check mode uses the shared onboarding check renderer by wrapping AMD in a one-item `InitCommandSpec`. In this repo,
-`./.venv/bin/sase amd init --check` printed:
+The `explicit` flag is computed in `_plan_amd_init()` from `args.command == "init" and args.init_subcommand is None`,
+so `sase amd init` and `sase init amd` are both treated as explicit even from the registry path.
+
+Check mode uses the shared onboarding check renderer by wrapping AMD in a one-item `InitCommandSpec` and calling
+`run_init_check()`. In this repo, `./.venv/bin/sase amd init --check` printed:
 
 ```text
 SASE is initialized. No init subcommands need to run.
 Checked: amd.
 ```
 
+The check-mode summary verbs come from `_summarize_amd_actions()`:
+
+- `"agent markdown documents are current"` — no actions, no blockers.
+- `"<operation> <detail>"` — exactly one action (e.g. `overwrite provider instruction shim`).
+- `"create N agent markdown documents"` — multiple actions, all creates.
+- `"overwrite N agent markdown documents"` — multiple actions, all overwrites.
+- `"refresh N agent markdown documents"` — mixed operations.
+- `"cannot initialize agent markdown documents until blockers are fixed"` — any blocker present.
+
 Focused behavior tests are in `tests/main/test_amd_init.py`.
+
+## Long-Memory Description Generation
+
+When generating Tier 3 entries, the planner runs each `memory/long/**/*.md` through `_long_memory_description()`
+with a four-step fallback:
+
+1. **Frontmatter `description` value** — non-empty string wins; whitespace is collapsed.
+2. **Existing AGENTS.md Tier 3 description** — extracted by `_AGENTS_LONG_MEMORY_RE`, which matches
+   `**`memory/long/...`**\n<body>` blocks terminated by a blank line or EOF. The trailing italic suffix
+   `_Read when ..._` is stripped so legacy italicized triggers don't leak into the new generator's output.
+3. **First body paragraph (or H1 fallback)** — `_first_body_paragraph_or_h1()` skips H1/H#/blank lines and joins the
+   first non-heading paragraph's lines, collapsing whitespace.
+4. **Filename fallback** — the file stem with `_`/`-` mapped to spaces and capitalized.
+
+For long-memory files that lack frontmatter `description` at all, `_long_memory_description_updates()` plans an
+in-place rewrite that inserts a `description:` line just before the closing `---` of the existing frontmatter using
+`_with_description_frontmatter()`. If the file has no frontmatter, a fresh `---\ndescription: ...\n---` block is
+prepended. PyYAML's `safe_dump` is used to encode the value so multi-line or quoted strings are properly escaped.
+
+These description updates are produced by AMD but written by `sase memory init`, not by `sase amd init` (see the
+memory-init section below).
 
 ## `sase amd list`
 
-The inventory command is implemented in `src/sase/amd/inventory.py`. It is read-only.
+The inventory command is implemented in `src/sase/amd/inventory.py`. It is read-only and has no flags — the original
+plan reserved `-j|--json` only if it would stay cheap, and the cheap path never materialized.
 
-Project root detection:
+Project root detection (`_project_root()`):
 
-- First walks up from CWD looking for `.git` or `.hg`.
-- Falls back to `git rev-parse --show-toplevel` or `hg root`.
+- First walks up from CWD looking for `.git` or `.hg` via `_find_marker_root()`.
+- Falls back to `git rev-parse --show-toplevel` or `hg --cwd <cwd> root` via `_run_vcs_root()` (subprocess).
 - Falls back to the resolved CWD.
 
-Project scanning:
+Project scanning prunes a fixed set of generated/cache/vendor directories. Full list from `_PRUNED_DIR_NAMES`:
 
-- Walks the project root looking for `AGENTS.md`.
-- Includes the root file as `project`.
-- Includes nested files as `project-subdir`.
-- Prunes generated/cache/vendor directories including `.git`, `.hg`, `.sase`, `.venv`, `node_modules`, `__pycache__`,
-  `target`, `build`, `dist`, `site`, and similar cache directories.
+```
+.cache, .git, .hg, .hypothesis, .mypy_cache, .nox, .pytest_cache, .ruff_cache, .sase, .tox, .venv,
+__pycache__, __pypackages__, artifacts, build, coverage, dist, generated, htmlcov, node_modules,
+site, target, venv
+```
 
-Home and chezmoi scanning:
+Discovery rules:
 
-- Includes live `~/AGENTS.md` when it exists.
-- Includes chezmoi-source `AGENTS.md` when `use_chezmoi` is enabled or the source root exists.
-- Deduplicates resolved paths so the same file is not shown twice.
+- Project root file → scope `project`.
+- Nested matches → scope `project-subdir`.
+- Live `~/AGENTS.md` → scope `home`.
+- Chezmoi-source `<chezmoi>/AGENTS.md` → scope `chezmoi`. Included when `config.use_chezmoi` is on *or* the source
+  root exists (deduplicated against `home` via resolved path).
 
 For each discovered `AGENTS.md`, the entry records:
 
-- Scope: `project`, `project-subdir`, `home`, or `chezmoi`.
-- Display path relative to the project root or home root.
-- First Markdown H1 title, if present.
+- Scope (`project`, `project-subdir`, `home`, `chezmoi`).
+- Display path: project-relative or `~`-relative depending on scope.
+- First Markdown H1 title via `_H1_RE`, with whitespace collapsed.
 - Management state:
-  - `managed` when all four AMD marker comments are present.
-  - `missing marker blocks` when only some markers are present.
-  - `custom` when no markers are present or the file cannot be read.
-- Unique short/long `memory/.../*.md` reference counts.
-- Nearby provider shim status for `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md`.
+  - `managed` — all four AMD marker comments are present.
+  - `missing marker blocks` — some markers are present.
+  - `custom` — no markers, or the file cannot be read.
+- Unique short/long memory reference counts. The regex `_MEMORY_REF_RE` accepts both `@memory/...` and bare
+  `memory/...` mentions and deduplicates per tier.
+- Nearby provider shim status for `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, `OPENCODE.md` in the same directory as the
+  `AGENTS.md`.
+
+Rendering uses two Rich panels:
+
+- `_summary_panel` shows project root, home root, chezmoi-source path (when active), `Use chezmoi` (yes/no), and the
+  total `AGENTS.md` count.
+- `_documents_panel` is a six-column table: Scope / Path / H1 / State / Memory / Provider shims.
+
+`_shim_summary` color-codes the provider column:
+
+- All four exact shims → green `all shims`.
+- Otherwise composite: `N shim(s)` (green), `noncanonical whitespace: <files>` (yellow), `custom: <files>` (yellow),
+  `missing: <files>` (red).
+- All four absent → red `missing all`.
 
 Observed `sase amd list` in this workspace showed 4 documents: root project `AGENTS.md` as managed with short 5 / long 2
 memory refs, two custom project-subdir `AGENTS.md` files, and one custom chezmoi-source `AGENTS.md`.
 
-Focused inventory/rendering tests are in `tests/main/test_amd_list.py`.
+Focused inventory/rendering tests are in `tests/main/test_amd_list.py`, including pruned-directory coverage and
+partial-marker classification.
 
 ## Integration With `sase init`
 
@@ -197,6 +301,17 @@ The order matters because memory validation needs to know what `AGENTS.md` will 
 uses read-only planning, but AMD still plans first so memory can reason about the same eventual agent-instruction
 surface.
 
+The "reason about" mechanism is the **validation overlay**. `_validation_overlay_for_expected_files()` in
+`src/sase/main/init_memory/roots.py` maps each expected file's resolved path to its planned content. The overlay
+includes:
+
+- All planned `memory/short/**/*.md` and `memory/long/**/*.md` content (so reachability checks see freshly-described
+  long files).
+- The planned `AGENTS.md` content when AMD will overwrite it, or when AMD will create the minimal version.
+
+Without that overlay, `sase init -c` would emit false "unreferenced memory" warnings whenever AMD has planned a new
+short-memory reference that does not yet live in the on-disk `AGENTS.md`.
+
 Docs in `docs/init.md` describe the same conservative policy: bare `sase init` only lets AMD generate managed
 `AGENTS.md` when the project-local config opts in with `amd_h1_title`; explicit AMD commands still repair provider
 shims and perform legacy single-file migrations when the title is unset.
@@ -209,16 +324,24 @@ shims and perform legacy single-file migrations when the title is unset.
 The integration point is `src/sase/main/init_memory/roots.py`:
 
 - `_amd_sync_plan(root, enable_amd=True)` calls `plan_amd_memory_sync(root)`.
-- `_render_expected_memory_files()` appends planned long-memory description frontmatter updates.
+- `_render_expected_memory_files()` appends planned long-memory description frontmatter updates as
+  `MemoryExpectedFile` entries with `stale_operation="update"` (so the memory-init UI reports them as `update` rather
+  than `overwrite`).
 - It also appends an overwrite for root `AGENTS.md` with the AMD-rendered managed content.
-- If AMD is not active, memory init falls back to creating a minimal `AGENTS.md` only when missing.
-- Provider shim constants now come from `sase.amd.constants`, avoiding drift between memory and AMD code paths.
+- If AMD is not active (no project-local `amd_h1_title`), memory init falls back to creating a minimal `AGENTS.md`
+  via `MINIMAL_AGENTS_CONTENT` (`# Agent Instructions\n\n@memory/short/sase.md\n`) with
+  `write_policy="create_if_missing"` so it never overwrites a hand-curated file.
+- Provider shim constants now come from `sase.amd.constants` re-exports in `init_memory/constants.py`, avoiding
+  drift between memory and AMD code paths.
 
 This means the practical split is:
 
 - `sase amd init` owns agent markdown document setup and shim repair.
 - `sase memory init` owns generated memory files and, when the project opted into AMD, keeps the AMD memory blocks and
   long-memory `description` frontmatter synchronized.
+
+`AmdMemorySyncPlan` also carries a `blockers` tuple. If `amd_h1_title` is malformed, the blocker reaches
+`MemoryRootPlan.blockers` and `sase memory init --check` will surface it without trying to write.
 
 ## Design Intent From The Original Plan
 
@@ -232,21 +355,29 @@ Important design decisions from that plan that are reflected in the implementati
 - Keep bare `sase init` conservative for repos that have not opted in.
 - Register AMD before memory.
 - Use marker comments so memory init can update generated memory blocks robustly.
-- Preserve curated long-memory descriptions during first migration.
+- Preserve curated long-memory descriptions during first migration (via `_AGENTS_LONG_MEMORY_RE`).
 - Keep `sase amd list` focused on known roots rather than scanning all of `$HOME`.
+- Read `amd_h1_title` directly from `./sase.yml` instead of merged config to prevent global opt-in.
 
 ## Source Map
 
 - CLI parser: `src/sase/main/parser_amd.py`
+- Init alias parser: `src/sase/main/parser_init.py` (`add_amd_init_arguments(..., suppress_check_default=True)`)
 - Top-level dispatch: `src/sase/main/amd_handler.py`
 - Compatibility alias dispatch: `src/sase/main/entry.py`
+- Lazy import shim: `src/sase/amd/cli.py`
 - AMD init planner/writer: `src/sase/amd/init.py`
 - AMD inventory renderer: `src/sase/amd/inventory.py`
 - Shared constants: `src/sase/amd/constants.py`
 - Init registry order: `src/sase/main/init_registry.py`
 - Memory init integration: `src/sase/main/init_memory/roots.py`
+- Memory minimal fallback: `src/sase/main/init_memory/constants.py`
+- Config default: `src/sase/default_config.yml` (`amd_h1_title: null`)
+- Config schema: `config/sase.schema.json` (`amd_h1_title: string|null`)
+- This repo's opt-in: `sase.yml` (`amd_h1_title: "Structured Agentic Software Engineering ..."`)
 - Config docs: `docs/configuration.md`
 - Init docs: `docs/init.md`
+- Memory docs: `docs/memory.md`
 - CLI command index: `docs/cli.md`
 - Parser tests: `tests/main/test_amd_parser_handler.py`
 - Init tests: `tests/main/test_amd_init.py`
@@ -259,4 +390,7 @@ Important design decisions from that plan that are reflected in the implementati
 - Subdirectory provider shims are only inventoried next to each discovered `AGENTS.md`; `sase amd init` repairs root
   provider shims only.
 - `sase amd init` and `sase memory init` both know how to produce AMD-managed `AGENTS.md`; the current division is
-  intentional, but future edits should preserve the shared renderer path to avoid drift.
+  intentional, but future edits should preserve the shared renderer path (`_render_managed_agents` /
+  `plan_amd_memory_sync`) to avoid drift.
+- The planner never emits a `delete` action, so a stale provider file with custom content next to a working
+  `AGENTS.md` is left in place. Cleaning it up requires manual intervention or future tooling.
