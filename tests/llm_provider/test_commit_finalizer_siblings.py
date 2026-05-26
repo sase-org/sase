@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 import json
 import subprocess
 from pathlib import Path
@@ -17,6 +18,17 @@ from sase.sibling_repos import SIBLING_REPOS_JSON_ENV
 def _init_git_repo(path: Path) -> None:
     path.mkdir(parents=True)
     subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+
+
+def _init_bare_remote(path: Path) -> Path:
+    subprocess.run(["git", "init", "--bare", "-q", str(path)], check=True)
+    return path
+
+
+def _add_origin(repo: Path, remote: Path) -> None:
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(remote)], cwd=repo, check=True
+    )
 
 
 def _set_agent_env(monkeypatch: pytest.MonkeyPatch, project_dir: Path) -> None:
@@ -42,6 +54,20 @@ def _run_finalizer(provider: MagicMock, artifacts_dir: Path) -> InvokeResult:
         suppress_output=True,
         model_override=None,
         artifacts_dir=str(artifacts_dir),
+    )
+
+
+def _write_tool_call_record(artifacts_dir: Path, record: dict[str, object]) -> None:
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    with open(artifacts_dir / "tool_calls.jsonl", "a", encoding="utf-8") as f:
+        f.write(json.dumps(record) + "\n")
+
+
+def _write_run_started_at(artifacts_dir: Path, started_at: datetime) -> None:
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"run_started_at": started_at.isoformat()}),
+        encoding="utf-8",
     )
 
 
@@ -90,6 +116,133 @@ def test_dirty_configured_sibling_triggers_follow_up_turn(
     assert "dirty.txt" in prompts[0]
     assert f"cd {sibling.resolve()}" in prompts[0]
     assert "/sase_git_commit" in prompts[0]
+
+
+def test_dirty_observed_same_repo_workspace_triggers_follow_up_turn(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    main = tmp_path / "sase_10"
+    observed = tmp_path / "sase_11"
+    remote = _init_bare_remote(tmp_path / "origin.git")
+    _init_git_repo(main)
+    _init_git_repo(observed)
+    _add_origin(main, remote)
+    _add_origin(observed, remote)
+    artifacts_dir = tmp_path / "artifacts"
+    _write_run_started_at(
+        artifacts_dir,
+        datetime.now(tz=UTC) - timedelta(minutes=1),
+    )
+    dirty_file = observed / "sdd" / "epics" / "observed.png"
+    dirty_file.parent.mkdir(parents=True)
+    dirty_file.write_text("dirty\n", encoding="utf-8")
+    _write_tool_call_record(
+        artifacts_dir,
+        {
+            "cwd": str(observed),
+            "tool_input_summary": {
+                "command": f"python render.py {dirty_file.resolve()}"
+            },
+            "tool_response_summary": {},
+        },
+    )
+    _set_agent_env(monkeypatch, main)
+    _set_clean_main(monkeypatch)
+    provider = MagicMock()
+    prompts: list[str] = []
+
+    def invoke(prompt: str, **_: object) -> InvokeResult:
+        prompts.append(prompt)
+        dirty_file.unlink()
+        return InvokeResult(content="finalized observed workspace")
+
+    provider.invoke.side_effect = invoke
+
+    result = _run_finalizer(provider, artifacts_dir)
+
+    assert provider.invoke.call_count == 1
+    assert result.content == "primary response\n\nfinalized observed workspace"
+    assert "observed workspace" in prompts[0]
+    assert "sdd/epics/observed.png" in prompts[0]
+    assert f"cd {observed.resolve()}" in prompts[0]
+    assert "/sase_git_commit" in prompts[0]
+
+
+def test_old_observed_same_repo_workspace_dirty_file_is_ignored(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    main = tmp_path / "sase_10"
+    observed = tmp_path / "sase_11"
+    remote = _init_bare_remote(tmp_path / "origin.git")
+    _init_git_repo(main)
+    _init_git_repo(observed)
+    _add_origin(main, remote)
+    _add_origin(observed, remote)
+    dirty_file = observed / "old.txt"
+    dirty_file.write_text("old\n", encoding="utf-8")
+    artifacts_dir = tmp_path / "artifacts"
+    _write_run_started_at(
+        artifacts_dir,
+        datetime.fromtimestamp(dirty_file.stat().st_mtime, tz=UTC) + timedelta(hours=1),
+    )
+    _write_tool_call_record(
+        artifacts_dir,
+        {
+            "cwd": str(observed),
+            "tool_input_summary": {"command": f"git -C {observed.resolve()} status"},
+            "tool_response_summary": {},
+        },
+    )
+    _set_agent_env(monkeypatch, main)
+    _set_clean_main(monkeypatch)
+    provider = MagicMock()
+
+    result = _run_finalizer(provider, artifacts_dir)
+
+    provider.invoke.assert_not_called()
+    assert result.content == "primary response"
+    assert dirty_file.exists()
+    assert '"status": "clean"' in (
+        artifacts_dir / "commit_finalizer_result.json"
+    ).read_text(encoding="utf-8")
+
+
+def test_observed_workspace_with_different_remote_is_ignored(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    main = tmp_path / "sase_10"
+    other = tmp_path / "other_10"
+    _init_git_repo(main)
+    _init_git_repo(other)
+    _add_origin(main, _init_bare_remote(tmp_path / "origin-main.git"))
+    _add_origin(other, _init_bare_remote(tmp_path / "origin-other.git"))
+    dirty_file = other / "dirty.txt"
+    dirty_file.write_text("dirty\n", encoding="utf-8")
+    artifacts_dir = tmp_path / "artifacts"
+    _write_run_started_at(
+        artifacts_dir,
+        datetime.now(tz=UTC) - timedelta(minutes=1),
+    )
+    _write_tool_call_record(
+        artifacts_dir,
+        {
+            "cwd": str(other),
+            "tool_input_summary": {"file_path": str(dirty_file.resolve())},
+            "tool_response_summary": {},
+        },
+    )
+    _set_agent_env(monkeypatch, main)
+    _set_clean_main(monkeypatch)
+    provider = MagicMock()
+
+    result = _run_finalizer(provider, artifacts_dir)
+
+    provider.invoke.assert_not_called()
+    assert result.content == "primary response"
+    assert dirty_file.exists()
 
 
 def test_dirty_primary_sibling_checkout_is_ignored_when_workspace_is_configured(

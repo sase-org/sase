@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-26 19:10:57
-status: wip
+status: done
 prompt: sdd/prompts/202605/commit_finalizer_cross_workspace.md
 ---
 # Plan: Commit Finalizer Cross-Workspace Dirty State
