@@ -469,6 +469,33 @@ def test_normalize_launch_xprompt_at_refs_skips_markdown_code() -> None:
             normalize_launch_xprompt_at_refs(fenced) == "```\n#gh@sase\n```\n#git:repo"
         )
 
+        tilde_fenced = "~~~\n#gh@sase\n~~~\n#git@repo"
+        assert (
+            normalize_launch_xprompt_at_refs(tilde_fenced)
+            == "~~~\n#gh@sase\n~~~\n#git:repo"
+        )
+
+        boxed_inner_fence = (
+            "```\n"
+            "outer snapshot\n"
+            "| prompt displays an inner fence:\n"
+            "|  ```\n"
+            "|  #gh@sase\n"
+            "still inside the outer snapshot\n"
+            "```\n"
+            "#git@repo"
+        )
+        assert normalize_launch_xprompt_at_refs(boxed_inner_fence) == (
+            "```\n"
+            "outer snapshot\n"
+            "| prompt displays an inner fence:\n"
+            "|  ```\n"
+            "|  #gh@sase\n"
+            "still inside the outer snapshot\n"
+            "```\n"
+            "#git:repo"
+        )
+
 
 # Tests for strip_vcs_workflow_tag
 

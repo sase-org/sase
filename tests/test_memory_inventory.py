@@ -217,3 +217,17 @@ def test_memory_relative_long_paths_reference_canonical_memory_files(
     assert index.references[0].kind == "plain"
     assert index.references[0].token == "long/index.md"
     assert unreferenced_memory_files_for_init(tmp_path) == ()
+
+
+def test_inventory_tolerates_invalid_utf8_files(tmp_path: Path) -> None:
+    _write(tmp_path / "AGENTS.md", "@memory/long/broken.md\n")
+    broken = tmp_path / "memory" / "long" / "broken.md"
+    broken.parent.mkdir(parents=True, exist_ok=True)
+    broken.write_bytes(b"\xff")
+
+    inventory = build_memory_inventory(tmp_path)
+    entry = inventory.entry_for("memory/long/broken.md")
+
+    assert entry.status == "loaded"
+    assert entry.stats is None
+    assert entry.references[0].exists is True

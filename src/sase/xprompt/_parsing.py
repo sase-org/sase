@@ -34,6 +34,7 @@ from ._parsing_shorthand import (
     find_shorthand_text_end,
     preprocess_shorthand_syntax,
 )
+from ._fenced_blocks import fenced_block_ranges
 
 
 def _parse_named_arg(token: str) -> tuple[str | None, str]:
@@ -96,17 +97,12 @@ def normalize_vcs_underscore_refs(prompt: str) -> str:
 
 
 def _markdown_code_ranges(text: str) -> list[tuple[int, int]]:
-    ranges: list[tuple[int, int]] = []
+    ranges = fenced_block_ranges(text)
     i = 0
     while i < len(text):
-        if text.startswith("```", i):
-            start = i
-            close = text.find("```", i + 3)
-            if close == -1:
-                ranges.append((start, len(text)))
-                break
-            ranges.append((start, close + 3))
-            i = close + 3
+        fenced_end = _range_end_containing(i, ranges)
+        if fenced_end is not None:
+            i = fenced_end
             continue
         if text[i] == "`":
             start = i
@@ -118,11 +114,18 @@ def _markdown_code_ranges(text: str) -> list[tuple[int, int]]:
             i = close + 1
             continue
         i += 1
-    return ranges
+    return sorted(ranges)
 
 
 def _inside_any_range(index: int, ranges: list[tuple[int, int]]) -> bool:
     return any(start <= index < end for start, end in ranges)
+
+
+def _range_end_containing(index: int, ranges: list[tuple[int, int]]) -> int | None:
+    for start, end in ranges:
+        if start <= index < end:
+            return end
+    return None
 
 
 def _get_launch_xprompt_at_ref_pattern() -> re.Pattern[str]:

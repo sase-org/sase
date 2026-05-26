@@ -133,7 +133,7 @@ def _read_text(path: Path, overlay: Mapping[Path, str]) -> str | None:
         return overlay[resolved]
     try:
         return path.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeError):
         return None
 
 
@@ -360,7 +360,7 @@ def _stats_for_text(text: str) -> _MemoryStats:
 def _stats_for_file(path: Path) -> _MemoryStats | None:
     try:
         return _stats_for_text(path.read_text(encoding="utf-8"))
-    except OSError:
+    except (OSError, UnicodeError):
         return None
 
 
