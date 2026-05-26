@@ -251,6 +251,124 @@ def test_collect_episode_draft_can_start_from_changespec(
     assert any(source.path == str(chat_path.resolve()) for source in draft.sources)
 
 
+def test_collect_episode_draft_prefers_episode_trace_hints(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home)
+    projects_root = home / ".sase" / "projects"
+    chats_dir = home / ".sase" / "chats" / "202605"
+    chats_dir.mkdir(parents=True)
+    repo_root = tmp_path / "repo"
+    _write_bead_store(repo_root)
+
+    legacy_chat = chats_dir / "legacy-260526_120000.md"
+    trace_chat = chats_dir / "trace-260526_121000.md"
+    legacy_chat.write_text(
+        "## Prompt\n\nLegacy.\n\n## Response\n\nLegacy response.\n",
+        encoding="utf-8",
+    )
+    trace_chat.write_text(
+        "## Prompt\n\nTrace.\n\n## Response\n\nTrace response.\n",
+        encoding="utf-8",
+    )
+    legacy_plan = tmp_path / "legacy-plan.md"
+    trace_plan = tmp_path / "trace-plan.md"
+    legacy_plan.write_text("# Legacy\n", encoding="utf-8")
+    trace_plan.write_text("# Trace\n", encoding="utf-8")
+
+    record = _make_record(
+        projects_root,
+        "20260526120000",
+        "legacy-agent",
+        meta={
+            "agent_family": "legacy-family",
+            "role_suffix": "-plan",
+            "changespec_name": "legacy-cl",
+            "phase_bead_id": "legacy-bead",
+            "plan_path": str(legacy_plan),
+            "chat_path": str(legacy_chat),
+        },
+        done={
+            "outcome": "completed",
+            "finished_at": 1.0,
+            "response_path": str(legacy_chat),
+            "plan_path": str(legacy_plan),
+        },
+    )
+    trace_path = Path(record.artifact_dir) / "episode_trace.json"
+    _write_json(
+        trace_path,
+        {
+            "schema_version": 1,
+            "artifact_timestamp": "20260526120000",
+            "agent_name": "trace-agent",
+            "agent_family": "trace-family",
+            "role_suffix": "-code",
+            "chat_path": str(trace_chat),
+            "plan_path": str(trace_plan),
+            "changespec_names": ["trace-cl"],
+            "bead_ids": ["sase-45.2"],
+        },
+    )
+    scan = _scan(projects_root, [record])
+
+    draft = collect_episode_draft(
+        EpisodeSelector(agent="trace-agent"),
+        projects_root=projects_root,
+        scan=scan,
+        repo_root=repo_root,
+    )
+
+    sources_by_path = {source.path: source for source in draft.sources}
+    assert str(trace_chat.resolve()) in sources_by_path
+    assert sources_by_path[str(trace_plan.resolve())].kind == "plan"
+    assert sources_by_path[str(trace_path.resolve())].id == draft.root_source_id
+    assert any(node.label == "trace-agent" for node in draft.nodes)
+    assert any(node.label == "trace-cl" for node in draft.nodes)
+    assert any(node.label == "sase-45.2" for node in draft.nodes)
+
+
+def test_collect_episode_draft_falls_back_when_episode_trace_absent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home)
+    projects_root = home / ".sase" / "projects"
+    chat_path = home / ".sase" / "chats" / "202605" / "fallback-260526_120000.md"
+    chat_path.parent.mkdir(parents=True)
+    chat_path.write_text(
+        "## Prompt\n\nFallback.\n\n## Response\n\nFallback response.\n",
+        encoding="utf-8",
+    )
+    record = _make_record(
+        projects_root,
+        "20260526120000",
+        "fallback-agent",
+        meta={"chat_path": str(chat_path)},
+        done={
+            "outcome": "completed",
+            "finished_at": 1.0,
+            "response_path": str(chat_path),
+        },
+    )
+    scan = _scan(projects_root, [record])
+
+    draft = collect_episode_draft(
+        EpisodeSelector(agent="fallback-agent"),
+        projects_root=projects_root,
+        scan=scan,
+        repo_root=tmp_path,
+    )
+
+    assert any(source.path == str(chat_path.resolve()) for source in draft.sources)
+    assert not any(
+        source.path.endswith("episode_trace.json") for source in draft.sources
+    )
+
+
 def _make_record(
     projects_root: Path,
     timestamp: str,

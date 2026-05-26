@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Any
 
 from sase.axe.image_attachments import append_unique_paths
+from sase.axe.run_agent_helpers_artifacts import write_episode_trace_marker
 from sase.axe.run_agent_helpers import read_commit_result_metadata
 from sase.axe.run_agent_phases import build_done_marker, record_stop_time
 from sase.core.agent_artifact_index_lifecycle import (
@@ -76,6 +77,7 @@ def write_error_done_marker(
         done_path = os.path.join(current_artifacts_dir, "done.json")
         with open(done_path, "w", encoding="utf-8") as f:
             json.dump(error_done, f, indent=2)
+        write_episode_trace_marker(current_artifacts_dir, update_index=False)
         update_agent_artifact_index_for_marker_mutation(current_artifacts_dir)
     except Exception:
         pass

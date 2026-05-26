@@ -36,6 +36,7 @@ from sase.axe.run_agent_helpers import (
     update_meta_field,
     update_meta_suffix,
     update_step_marker_chat_path,
+    write_episode_trace_marker,
 )
 from sase.axe.runner_utils import reset_killed, was_killed
 from sase.plan_chain import (
@@ -211,6 +212,11 @@ def handle_plan_marker(
     state.saved_chat_paths.append((_planner_suffix, _planner_chat))
     update_meta_field(state.current_artifacts_dir, "chat_path", _planner_chat)
     update_step_marker_chat_path(state.current_artifacts_dir, _planner_chat)
+    write_episode_trace_marker(
+        state.current_artifacts_dir,
+        chat_path=_planner_chat,
+        root_timestamp=ctx.artifacts_timestamp,
+    )
 
     # Feedback: spawn a new agent with the original prompt +
     # accumulated "Additional Requirements" section.
@@ -631,6 +637,11 @@ def handle_questions_marker(
     state.saved_chat_paths.append((_q_suffix, _q_chat))
     update_meta_field(state.current_artifacts_dir, "chat_path", _q_chat)
     update_step_marker_chat_path(state.current_artifacts_dir, _q_chat)
+    write_episode_trace_marker(
+        state.current_artifacts_dir,
+        chat_path=_q_chat,
+        root_timestamp=ctx.artifacts_timestamp,
+    )
 
     state.agent_step += 1
     if state.agent_step == 2 and ctx.agent_name:

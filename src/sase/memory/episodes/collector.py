@@ -384,10 +384,13 @@ class _EpisodeCollector:
         self.included_record_keys.add(record_key)
         self.project = self.selector.project or record.project_name
 
+        trace_source = self._add_marker_source(record, "episode_trace.json")
         agent_source = self._add_marker_source(record, "agent_meta.json")
         done_source = self._add_marker_source(record, "done.json")
         source_id = (
-            agent_source.id
+            trace_source.id
+            if trace_source is not None
+            else agent_source.id
             if agent_source is not None
             else done_source.id
             if done_source is not None
@@ -1148,7 +1151,9 @@ class _EpisodeCollector:
 
 
 def _record_agent_names(record: AgentArtifactRecordWire) -> list[str]:
+    trace = _record_trace(record)
     values = [
+        _str_value(trace.get("agent_name")),
         record.agent_meta.name if record.agent_meta is not None else None,
         record.done.name if record.done is not None else None,
     ]
@@ -1161,6 +1166,12 @@ def _record_display_name(record: AgentArtifactRecordWire) -> str:
 
 
 def _record_family(record: AgentArtifactRecordWire) -> str | None:
+    trace = _record_trace(record)
+    trace_family = _str_value(trace.get("agent_family")) or _str_value(
+        trace.get("workflow_name")
+    )
+    if trace_family is not None:
+        return trace_family
     meta = record.agent_meta
     if meta is None:
         return None
@@ -1168,6 +1179,12 @@ def _record_family(record: AgentArtifactRecordWire) -> str | None:
 
 
 def _record_role_suffix(record: AgentArtifactRecordWire) -> str | None:
+    trace = _record_trace(record)
+    trace_role = _str_value(trace.get("role_suffix")) or _str_value(
+        trace.get("agent_role")
+    )
+    if trace_role is not None:
+        return trace_role
     meta = record.agent_meta
     if meta is None:
         return None
@@ -1175,9 +1192,12 @@ def _record_role_suffix(record: AgentArtifactRecordWire) -> str | None:
 
 
 def _record_changespec_names(record: AgentArtifactRecordWire) -> list[str]:
+    trace = _record_trace(record)
     meta = record.agent_meta
     done = record.done
     values = [
+        *_str_list(trace.get("changespec_names")),
+        _str_value(trace.get("changespec_name")),
         meta.changespec_name if meta is not None else None,
         meta.cl_name if meta is not None else None,
         meta.commit_changespec_name if meta is not None else None,
@@ -1187,10 +1207,15 @@ def _record_changespec_names(record: AgentArtifactRecordWire) -> list[str]:
 
 
 def _record_bead_ids(record: AgentArtifactRecordWire) -> list[str]:
+    trace = _record_trace(record)
     meta = record.agent_meta
+    values: list[str | None] = [
+        *_str_list(trace.get("bead_ids")),
+        _str_value(trace.get("bead_id")),
+    ]
     if meta is None:
-        return []
-    return _unique_strings(
+        return _unique_strings(values)
+    values.extend(
         [
             meta.bead_id,
             meta.epic_bead_id,
@@ -1198,11 +1223,24 @@ def _record_bead_ids(record: AgentArtifactRecordWire) -> list[str]:
             meta.legend_bead_id,
         ]
     )
+    return _unique_strings(values)
 
 
 def _record_related_timestamps(
     record: AgentArtifactRecordWire,
 ) -> Iterator[tuple[str, str]]:
+    trace = _record_trace(record)
+    for kind, timestamp in (
+        ("parent_agent", _str_value(trace.get("parent_timestamp"))),
+        ("parent_agent", _str_value(trace.get("parent_agent_timestamp"))),
+        ("root_agent", _str_value(trace.get("root_timestamp"))),
+        ("retry_of", _str_value(trace.get("retry_of_timestamp"))),
+        ("retry_root", _str_value(trace.get("retry_chain_root_timestamp"))),
+        ("retried_as", _str_value(trace.get("retried_as_timestamp"))),
+    ):
+        if timestamp:
+            yield kind, _compact_timestamp(timestamp)
+
     meta = record.agent_meta
     done = record.done
     if meta is not None:
@@ -1228,10 +1266,13 @@ def _record_chat_paths(
     record: AgentArtifactRecordWire,
     raw_meta: dict[str, Any],
 ) -> list[str]:
+    trace = _record_trace(record)
     paths: list[str | None] = [
+        _str_value(trace.get("chat_path")),
         record.done.response_path if record.done is not None else None,
         _str_value(raw_meta.get("chat_path")),
     ]
+    paths.extend(_str_list(trace.get("chat_paths")))
     paths.extend(step.response_path for step in record.prompt_steps)
     return _unique_strings(paths)
 
@@ -1241,9 +1282,23 @@ def _record_referenced_paths(
     raw_meta: dict[str, Any],
     raw_done: dict[str, Any],
 ) -> list[tuple[str, str, str]]:
+    trace = _record_trace(record)
     meta = record.agent_meta
     done = record.done
     paths: list[tuple[str | None, str, str]] = [
+        (_str_value(trace.get("plan_path")), "plan", "plan"),
+        (_str_value(trace.get("sdd_prompt_path")), "plan", "plan"),
+        (_str_value(trace.get("sdd_plan_path")), "plan", "plan"),
+        (
+            _str_value(trace.get("question_request_path")),
+            "question",
+            "question",
+        ),
+        (
+            _str_value(trace.get("question_response_path")),
+            "question",
+            "question",
+        ),
         (
             record.plan_path.plan_path if record.plan_path is not None else None,
             "plan",
@@ -1291,6 +1346,13 @@ def _record_referenced_paths(
     if done is not None:
         paths.extend((path, "image", "artifact") for path in done.image_paths)
         paths.extend((path, "pdf", "artifact") for path in done.markdown_pdf_paths)
+    paths.extend(
+        (path, "feedback", "feedback")
+        for path in _str_list(trace.get("feedback_paths"))
+    )
+    paths.extend(
+        (path, "question", "question") for path in _str_list(trace.get("qa_paths"))
+    )
     for key in ("source_paths", "artifact_paths"):
         paths.extend(
             (path, "artifact", "artifact") for path in _str_list(raw_done.get(key))
@@ -1306,10 +1368,21 @@ def _record_referenced_paths(
 
 
 def _record_started_timestamp(record: AgentArtifactRecordWire) -> str | None:
+    trace = _record_trace(record)
+    trace_started = _str_value(trace.get("run_started_at"))
+    if trace_started:
+        return trace_started
     meta = record.agent_meta
     if meta is not None and meta.run_started_at:
         return meta.run_started_at
+    trace_timestamp = _str_value(trace.get("artifact_timestamp"))
+    if trace_timestamp:
+        return _timestamp_dir_to_iso(_compact_timestamp(trace_timestamp))
     return _timestamp_dir_to_iso(record.timestamp)
+
+
+def _record_trace(record: AgentArtifactRecordWire) -> dict[str, Any]:
+    return _read_json_object(Path(record.artifact_dir) / "episode_trace.json")
 
 
 def _record_from_artifact_dir(

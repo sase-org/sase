@@ -6,6 +6,7 @@ import json
 import os
 from typing import Any
 
+from sase.axe.run_agent_helpers_artifacts import write_episode_trace_marker
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -33,6 +34,7 @@ def write_done_marker_and_update_index(
     done_path = os.path.join(artifacts_dir, "done.json")
     with open(done_path, "w", encoding="utf-8") as f:
         json.dump(done_marker, f, indent=2)
+    write_episode_trace_marker(artifacts_dir, update_index=False)
     update_agent_artifact_index_for_marker_mutation(artifacts_dir)
     return done_path
 

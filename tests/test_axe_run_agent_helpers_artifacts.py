@@ -9,6 +9,7 @@ from sase.axe.run_agent_helpers import (
     promote_to_workflow,
     update_meta_field,
     update_meta_suffix,
+    write_episode_trace_marker,
 )
 from sase.plan_chain import PLAN_CHAIN_PARENT_TIMESTAMP_FIELD
 
@@ -163,3 +164,71 @@ def test_create_followup_artifacts_updates_artifact_index(tmp_path) -> None:
     assert calls == [str(followup)]
     assert (followup / "agent_meta.json").is_file()
     assert (followup / "workflow_state.json").is_file()
+
+
+def test_create_followup_artifacts_writes_episode_trace(tmp_path) -> None:
+    """Follow-up directories get lightweight episodic-memory linkage hints."""
+    followup = tmp_path / "20260526120000"
+    followup.mkdir()
+
+    with patch(
+        "sase.axe.run_agent_helpers.create_artifacts_directory",
+        return_value=str(followup),
+    ):
+        create_followup_artifacts(
+            "proj",
+            {
+                "name": "root",
+                "model": "test",
+                "changespec_name": "episode-cl",
+                "phase_bead_id": "sase-45.6",
+            },
+            ".code",
+            "20260526110000",
+            agent_name_override="root-code",
+            workflow_name="root",
+        )
+
+    trace = json.loads((followup / "episode_trace.json").read_text())
+    assert trace["schema_version"] == 1
+    assert trace["artifact_timestamp"] == "20260526120000"
+    assert trace["agent_name"] == "root-code"
+    assert trace["agent_family"] == "root"
+    assert trace["agent_role"] == "code"
+    assert trace["role_suffix"] == "-code"
+    assert trace["parent_timestamp"] == "20260526110000"
+    assert trace["changespec_names"] == ["episode-cl"]
+    assert trace["bead_ids"] == ["sase-45.6"]
+
+
+def test_write_episode_trace_marker_records_stable_paths(tmp_path) -> None:
+    """The trace marker records only stable hints derived from artifacts."""
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "agent",
+                "agent_family": "family",
+                "role_suffix": "-plan",
+                "plan_path": str(tmp_path / "plan.md"),
+                "chat_path": str(tmp_path / "chat.md"),
+                "changespec_name": "episode-cl",
+                "bead_id": "sase-45",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "plan_feedback.jsonl").write_text("{}\n", encoding="utf-8")
+    (tmp_path / "qa_log.jsonl").write_text("{}\n", encoding="utf-8")
+
+    changed = write_episode_trace_marker(
+        str(tmp_path),
+        root_timestamp="20260526100000",
+    )
+
+    assert changed is True
+    trace = json.loads((tmp_path / "episode_trace.json").read_text())
+    assert trace["chat_path"].endswith("chat.md")
+    assert trace["plan_path"].endswith("plan.md")
+    assert trace["feedback_paths"] == [str(tmp_path / "plan_feedback.jsonl")]
+    assert trace["qa_paths"] == [str(tmp_path / "qa_log.jsonl")]
+    assert trace["root_timestamp"] == "20260526100000"
