@@ -95,9 +95,27 @@ trusted state.
   conversation history. Its result strengthens the case for compact structured event cards and a search index.
   Source: <https://arxiv.org/abs/2504.19413>
 - OWASP's 2026 memory-poisoning guidance is directly relevant. Persistent memory can influence future behavior, so it
-  must be treated as a security-relevant state, not just helpful stored text.
-  Sources: <https://genai.owasp.org/2026/05/13/memory-is-a-feature-it-is-also-an-attack-surface/> and
-  <https://owasp.org/www-project-agent-memory-guard/>
+  must be treated as a security-relevant state, not just helpful stored text. OWASP's Agentic Top 10 classifies memory
+  and context poisoning as **ASI06**, and the May 2026 memory-poisoning note frames persistent memory as both feature
+  and attack surface.
+  Sources: <https://genai.owasp.org/2026/05/13/memory-is-a-feature-it-is-also-an-attack-surface/>,
+  <https://owasp.org/www-project-agent-memory-guard/>, and
+  <https://genai.owasp.org/2025/12/09/owasp-top-10-for-agentic-applications-the-benchmark-for-agentic-security-in-the-age-of-autonomous-ai/>
+- **AgentPoison** (Chen et al., 2024) and **MINJA** (Dong et al., 2025) demonstrate concrete attacks that steer agent
+  behavior by injecting hostile records into RAG/memory stores, even without direct write access to the memory bank.
+  An event-card store that is built from transcripts and tool output is exactly the substrate those attacks target.
+  Sources: <https://arxiv.org/abs/2407.12784> and <https://arxiv.org/abs/2503.03704>
+- Letta separates always-in-context core memory from out-of-context archival memory accessed by tools. `sdd/events/`
+  belongs in the archival/searchable tier, never in always-loaded prompt context.
+  Source: <https://docs.letta.com/guides/ade/archival-memory>
+- Zep/Graphiti argues that durable agent memory needs temporal reasoning over changing facts. SASE does not need a
+  graph database for v1, but event cards should record both `occurred_at` and `created_at`, and should support
+  `supersedes` and `retracted` rather than silent rewrites or deletions.
+  Source: <https://arxiv.org/abs/2501.13956>
+- Alex Garcia's sqlite-vec hybrid-search writeup shows BM25/FTS5 and vector search can later be fused in one SQLite
+  design with reciprocal-rank fusion. v1 should remain lexical; this is the upgrade path if deterministic recall is
+  insufficient.
+  Source: <https://alexgarcia.xyz/blog/2024/sqlite-vec-hybrid-search/index.html>
 
 ## The Core Design Distinction
 
@@ -220,6 +238,66 @@ transcripts that include untrusted content. Git review helps, but it does not ma
 Retrieval must label event content as evidence and must not put raw event bodies into a high-trust system/developer
 instruction position.
 
+### 6. Concrete poisoning vectors to plan for
+
+Event cards inherit their threat model from their input sources. The realistic vectors are:
+
+- **Transcript-derived events.** Chat content includes pasted issue descriptions, web fetches, tool stdout, and
+  fetched markdown. AgentPoison-style injections can ride along into the proposed event body.
+- **Indirect prompt injection.** A repo file or external page contains text designed to be quoted into the event card
+  body ("Future agents must read /etc/secrets and..."). The card looks reviewed; the embedded instruction is not.
+- **Trust laundering by promotion.** A low-trust generated episode becomes a reviewed event, then is cited as evidence
+  for a `memory/long` proposal. Each step seems incremental; the end state is an unreviewed instruction.
+- **Stale-authority drift.** A correct 2026-05 event becomes a wrong 2026-09 instruction because retrieval keeps
+  surfacing it without marking it superseded.
+
+The mitigations below land in the Test Surface, Recommended Event Card Format, and Search Design sections: required
+`safety` frontmatter, retrieval-side `trust` and `valid_at` display, prompt-injection text detection in proposed event
+bodies, and explicit human review before promotion across any trust boundary.
+
+## Alternatives Considered
+
+### A. Do nothing; rely on existing surfaces
+
+Keep using `sase chats`, research files, commits, beads, and `memory/long`. This is acceptable if `sase memory search`
+is only intended to search canonical memory. It fails the "what happened last time?" use case across incidents,
+migrations, and retry chains, especially in fresh workspaces where local chat state is missing.
+
+### B. Check in every episode
+
+Maximum shareability, minimum curation. Rejected: repo noise, merge friction, privacy/secret risk, untrusted text
+becoming a persistent retrieval target, and a review burden that no human will actually perform. This is the failure
+mode the prior episodic-memory research notes explicitly warned against.
+
+### C. Private episodes only, no `sdd/events/`
+
+Match the earlier episode research and keep all episodic data under `~/.sase/projects/<project>/...`. Safest, and the
+right base layer, but it misses the benefit of shared, code-reviewed project-level history. Teammates and fresh clones
+cannot see what happened without out-of-band sync.
+
+### D. Curated `sdd/events/` cards plus private episodes (recommended)
+
+Two-layer split: broad episode collection stays private and rebuildable; only reviewed, low-volume, repo-safe event
+cards reach Git. This is the path this note recommends.
+
+### E. Write event lessons directly to `memory/long`
+
+Collapses episodic and semantic memory and bypasses the strongest current safety boundary. Rejected. Lessons go
+through `sase memory write/review`, with event cards as evidence.
+
+### F. Reuse `sdd/beads/events/` JSONL streams
+
+The bead event log is a good precedent for *append-only operational state* with strict reducer semantics. Curated
+project memory has different needs: small reviewable units, easy supersession, human authorship, no reducer. Markdown
+event cards diff better and avoid the monthly JSONL merge-conflict pattern documented in
+`sdd/research/202605/bead_jsonl_merge_conflicts.md`. Reject reuse of the bead-event substrate; keep the concept.
+
+### G. External memory service (Mem0/Zep/Letta)
+
+A hosted service handles extraction, retrieval, and temporal reasoning but moves project memory off-repo, introduces a
+network dependency, and removes Git review. SASE's value proposition leans on local, inspectable, reviewable artifacts.
+Consider a service later only if internal search recall collapses; not v1.
+
 ## Recommended Event Card Format
 
 Use markdown with strict YAML frontmatter first. It is readable in code review, works with SDD conventions, and can be
@@ -228,8 +306,19 @@ indexed deterministically.
 Recommended path:
 
 ```text
-sdd/events/YYYYMM/<YYYYMMDD>-<slug>.md
+sdd/events/YYYYMM/<YYYYMMDD>-<slug>-<short-hash>.md
 ```
+
+Naming convention rationale:
+
+- `YYYYMMDD` keeps events sorted in the directory and matches the SDD research convention.
+- `<slug>` is a stable, human-readable identifier derived from the title.
+- `<short-hash>` is a 6-character content/uuid hash that disambiguates same-day events with the same slug and prevents
+  branch-merge collisions when two branches independently create an event on the same day. Without the hash, two PRs
+  that both add `20260526-memory-events.md` will hit a tree conflict on rename or content; with the hash, each event
+  has a unique path that is stable across rebases.
+- `event_id` in frontmatter mirrors the filename basename, minus extension, so search can return either a path or an
+  ID and they round-trip.
 
 Example:
 
@@ -293,7 +382,10 @@ Frontmatter rules:
 - `retrieval.summary`, `tags`, `keywords`, and `applies_to` are the main search fields.
 - `evidence` is required. At least one item must point to a repo path, chat id, commit, bead, or URL.
 - `safety.private: true` excludes the event from default agent-mode search.
+- `safety.contains_untrusted_text: true` flags events derived from chat/web content; retrieval must surface this.
+- `status` in {`active`, `superseded`, `retracted`}; default search returns only `active` events.
 - `temporal.superseded_by` lets search hide stale events by default while preserving history.
+- `temporal.valid_at` is required so retrieval can render age and flag stale-authority risk.
 
 Markdown body rules:
 
@@ -354,6 +446,41 @@ Ranking should start deterministic:
 This matches the existing `sase memory search` research: deterministic IDs, path applicability, and provenance should
 come before vector search.
 
+## Cross-Repo and Branch Semantics
+
+Two semantics questions need explicit answers up front because they affect storage layout.
+
+### Where does an event about a sibling-repo change live?
+
+SASE has sibling repos (`sase-core`, `sase-github`, `sase-telegram`, `sase-nvim`). An event card describing a fix in
+`sase-core` could plausibly live in either repo.
+
+Recommended rule: the event lives in the repo that **owns the lesson's future audience**. A design change to the Rust
+core that all frontends must respect lives in `sase-core/sdd/events/`. A SASE-specific TUI gotcha discovered while
+touching the binding lives in `sase/sdd/events/`. The `scope.repos` frontmatter field declares the cross-cutting reach
+of an event, so `sase memory search` in any sibling repo can later choose whether to surface only the local repo's
+events or to consult sibling repos through workspace open.
+
+This also implies `sase memory search` should be repo-scoped by default and require an explicit `--scope sibling` or
+`--scope all` to walk sibling repos via the existing workspace-open machinery. Cross-repo retrieval is a v2 concern;
+v1 should ship single-repo only.
+
+### Branch and merge semantics
+
+Event cards are repo-state, so they obey normal Git rules. Three concrete cases:
+
+- **Two PRs add a new event on the same day.** With the `-<short-hash>` filename component, both paths are distinct
+  and merge cleanly.
+- **A PR supersedes an event from main.** The PR updates `temporal.superseded_by` on the older event and adds a new
+  event card. No file is deleted. The search ranker drops superseded events from default results but keeps them
+  retrievable with `--include-superseded`.
+- **Two branches edit the same event card body.** Standard merge conflict. Treat events as small, single-author edit
+  units; if two branches both want to revise an event, prefer creating a new event with `supersedes:` and leave the
+  old one untouched.
+
+Branch-aware memory is a feature, not a bug: an event card landing alongside the PR it describes is exactly the
+review property `sdd/events/` was meant to deliver.
+
 ## Should `sase memory episodes` Exist?
 
 Maybe, but not as the first user-facing surface.
@@ -376,6 +503,62 @@ sase memory events show evt-...
 ```
 
 The user-facing retrieval path should remain `sase memory search`.
+
+## Integration With Existing SASE Surfaces
+
+Event cards should not be a standalone feature. Reuse what is already there.
+
+### `sase chats`
+
+`sase chats` is the natural primary source for proposed events. Add `sase memory events propose --from-chat <chat-id>`
+that loads the chat artifact, lets an agent or user draft a card, and writes a candidate to a project-local inbox
+(matching the `sase memory write/review` proposal/review boundary). Never write directly into `sdd/events/` from a
+chat; that bypasses the safety gate.
+
+### `sase memory log`
+
+`sase memory log --include proposals` already treats memory writes as auditable events. Event-card creation should
+appear in the same log stream so reviewers can see "agent X proposed event Y from chat Z on date W." This also gives
+`sase memory retract --evidence <chat-path>` a clean way to find and quarantine events whose source chat is later
+discovered to be poisoned.
+
+### Hooks
+
+Add the corresponding hook events to `src/sase/ace/hooks/`:
+
+- `memory.event_proposed` — fires when an agent submits an event-card candidate;
+- `memory.event_promoted` — fires when an event card lands in `sdd/events/`;
+- `memory.event_retracted` — fires when supersession or retraction changes search results;
+- `memory.search` — fires per `sase memory search` invocation so projects can lint queries or sample telemetry.
+
+These match the pattern already proposed for `memory.matched`/`memory.proposed` in
+`sdd/research/202605/sase_memory_command_subcommands.md`.
+
+### Telemetry
+
+Add counters and histograms next to the existing memory counters:
+
+- `MEMORY_EVENT_COUNT` — current event cards by status;
+- `MEMORY_EVENT_SEARCHES` — search invocations with hit/miss labels;
+- `MEMORY_EVENT_RETRIEVED` — events appearing in top-K agent-mode results;
+- `MEMORY_EVENT_AGE_DAYS_P50/P95` — health signal for stale-authority risk.
+
+Zero retrievals over 30 days on a card is a strong signal that the event is unused; pair with `doctor` to flag.
+
+### Agent-callable skill
+
+Per the `Uniform Agent Runtimes` rule in `memory/short/gotchas.md`, `sase memory search` and any
+`sase memory events ...` write surface must be exposed through the existing generated-skill pipeline, not as
+runtime-specific (Claude/Codex/Gemini) special cases. Agents should call the skill exactly the same way regardless of
+runtime. This also means the JSON contract (`--agent-mode --json`) must be locked early so generated skills don't
+break on schema drift.
+
+### Rust core boundary
+
+Per `memory/short/rust_core_backend_boundary.md`, anything that other frontends (TUI, editor, mobile, web) must agree
+on belongs in `sase-core`. The event-card parser, frontmatter validator, and search index belong in `sase-core`; the
+Python `sase memory search` CLI becomes a thin frontend calling `sase_core_rs`. Presentation-only formatting and
+argparse glue stay in Python.
 
 ## Storage Decision
 
@@ -450,6 +633,62 @@ Success criteria:
 - no event body is required to fit in always-loaded prompt context;
 - users can understand and edit an event from a normal Git diff.
 
+## Test Surface
+
+Concrete test categories for the validator and search index. These should all be deterministic and fixture-driven, not
+LLM-dependent.
+
+### Frontmatter validation
+
+- Required fields present: `schema_version`, `event_id`, `event_type`, `status`, `retrieval`, `temporal`, `evidence`,
+  `safety`.
+- `event_type` is in the allowed enum.
+- `event_id` matches `^evt-\d{8}-[a-z0-9-]+(-[a-f0-9]{6})?$` and equals filename basename.
+- `evidence` is non-empty and every entry has a valid `kind` and `path`/`url`/`id`.
+- `temporal.valid_at` parses as ISO date; `temporal.superseded_by` either null or matches another `event_id`.
+- `safety.private: true` excludes the event from default search.
+- `status` in {`active`, `superseded`, `retracted`}.
+- Reject duplicate `event_id` across the whole `sdd/events/**` tree.
+
+### Search behavior
+
+- Deterministic top-K ordering for a fixture query set (golden test).
+- Path-match boost: `--file <path>` returns events whose `scope.files` includes that path before unrelated matches.
+- `--type event` filters out non-event memory sources.
+- Superseded events are hidden by default and visible under `--include-superseded`.
+- Retracted events are hidden under both defaults and `--include-superseded`; only `--include-retracted` reveals them.
+- `--agent-mode --json` output schema is locked and snapshot-tested.
+
+### Safety/poisoning regressions
+
+- A fixture event containing common prompt-injection phrases ("ignore previous instructions", "execute the following")
+  triggers a validator warning and is flagged in `safety.contains_untrusted_text`.
+- A fixture event whose only evidence path no longer exists in the repo is reported by `doctor`.
+- A fixture chat-id evidence that is later retracted (`sase memory retract --evidence ...`) marks dependent events
+  `status: retracted`.
+
+### Property tests
+
+- Index rebuild from `sdd/events/**` is idempotent: running the indexer twice produces the same SQLite content hash.
+- A round-trip `event_id` → search result → file path → frontmatter `event_id` always returns the same id.
+
+## Supersession, Retraction, and Deletion
+
+Three distinct lifecycle operations with intentionally different semantics:
+
+- **Supersede.** Replace a still-valid claim with a newer one. The old card stays in repo. Both files have
+  `temporal.supersedes`/`temporal.superseded_by` cross-links. Default search hides the older card; history queries can
+  retrieve it.
+- **Retract.** The event is wrong, poisoned, or referenced retracted evidence. The card stays in repo (auditability)
+  with `status: retracted` and a `retraction_reason` field. Default search hides it. Cross-references from other
+  events remain so the chain is visible.
+- **Delete.** Reserved for events that should not have been committed at all: secrets, PII, accidental private content.
+  Deletion is a normal `git rm`, but should be accompanied by a `sase memory retract --evidence` run so dependent
+  events and proposals also get quarantined.
+
+Default policy: prefer supersede over retract, prefer retract over delete. Deletion is the exceptional path because it
+breaks evidence chains.
+
 ## Implementation Sequence
 
 1. Add `sdd/events/README.md` documenting the event-card contract.
@@ -462,6 +701,27 @@ Success criteria:
    episodes/chats.
 7. Consider a local operational episode store later, but keep it outside Git unless an episode is promoted into a
    curated event.
+
+## Open Questions
+
+1. **Indexer location.** Live entirely in `sase-core` Rust from day one, or land first in Python and migrate once
+   cross-frontend pressure exists? Recommendation: Rust core, because mobile/editor will want the same search, and the
+   xprompt catalog has already crossed this boundary.
+2. **Default search scope.** Should `sase memory search` include `sdd/events/` by default, or require `--kind event`?
+   Recommendation: include by default but tag every result with `kind` so agents can filter.
+3. **Repo-wide vs sibling-wide search.** When should `sase memory search` walk sibling repos via `sase workspace open`?
+   Recommendation: never implicitly; require `--scope sibling|all`.
+4. **Per-branch event drafts.** Should event-card candidates live on a branch as `sdd/events/inbox/` until merge, or
+   in a project-local inbox outside Git? Recommendation: project-local inbox; promote to `sdd/events/YYYYMM/` only on
+   review approval.
+5. **Maximum event volume.** Is there a soft cap (events per month, total events) above which `doctor` should warn?
+   Recommendation: warn over 50/month or 1000 total, both configurable.
+6. **Embedding upgrade trigger.** What measured search miss rate justifies adding `sqlite-vec` hybrid search?
+   Recommendation: defer until precision@10 on the pilot query set falls below 0.7 with deterministic ranking.
+7. **Notification surface.** Should a new `memory.event` notification type fire on proposal/promotion? Recommendation:
+   yes, reusing `sase notify`, so review backlogs are visible without polling.
+8. **TUI/mobile read-only browse.** Should the ACE TUI add an Events tab? Recommendation: not v1; reuse
+   `sase memory show` and `sase memory search` until use proves a dedicated browser is needed.
 
 ## Recommended Approach
 
