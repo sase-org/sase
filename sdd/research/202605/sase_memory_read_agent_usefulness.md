@@ -387,6 +387,146 @@ mobile, or editor integrations.
 7. Token estimates and bloat warnings in the catalog.
 8. Later: semantic search and cross-memory retrieval.
 
+## Gaps and Additional Observations
+
+These are constraints and details that should shape the recommendations above but were not surfaced in the previous
+pass.
+
+### A. Short-option convention is mandatory
+
+`memory/short/gotchas.md` requires every `sase` command-line option to have both a long and short form
+(`-f|--foobar`, not just `--foobar`). The recommendations introduce `--search`, `--for`, `--json`, `--dynamic` with no
+short forms. That is a blocker by project policy. Concrete proposal, picked to avoid collisions with the existing
+`-r/--reason`:
+
+- `-s, --search`
+- `-F, --for` (capital `F` so it does not clash with a future `-f` shorthand for filtering, and so it never collides
+  with a `-r` reason swap)
+- `-j, --json`
+- `-d, --dynamic`
+
+Note that `-r` is already taken by `--reason`. A path-listing `--paths-only` toggle (often useful for scripts) would
+need its own short form; `-p` is a safe default.
+
+### B. Read-log schema is v1 and has no `requested_path` field
+
+`src/sase/memory/read_log.py` defines `READ_LOG_SCHEMA_VERSION = 1` and `MemoryReadEvent` with these exact fields:
+`schema_version, id, timestamp, project, cwd, canonical_path, resolved_path, agent_name, agent_source, artifacts_dir,
+reason, byte_count, frontmatter_stripped`. `agent_source` is a `Literal["SASE_AGENT_NAME", "SASE_AGENT", "agent_meta"]`.
+
+The alias-normalization recommendation needs a `requested_path` field so that audit logs show what the agent asked for,
+not just what was resolved. That is a schema v2 change. Bump the constant, write events with `schema_version: 2`, and
+keep readers (catalog, ACE, `memory log`) tolerant of both versions.
+
+### C. ACE TUI already consumes the read log
+
+`src/sase/ace/tui/memory_reads.py` and `src/sase/ace/tui/widgets/prompt_panel/_agent_memory_reads.py` already load and
+display `MemoryReadEvent` rows in the Agents tab. Any schema change touches them directly. Two implications:
+
+- Any new optional field (`requested_path`, `via`, `received_aliases`) must default safely when missing, because old
+  log files will still be on disk.
+- The catalog JSON shape proposed under recommendation 1 is a likely future consumer too. Define one canonical JSON
+  schema and reuse it from both `read --json` and any future ACE catalog panel, rather than letting each surface invent
+  its own.
+
+### D. The skill file already does some of the work — but not all
+
+`src/sase/xprompts/skills/sase_memory_read.md` already tells agents to prefer dynamic `.sase/memory/long-*.md` files
+when they are attached, and not to re-read the canonical file unless a fresh audited read is required. That partly
+covers recommendation 5 (`--dynamic`) from the policy side. What is missing from the skill is:
+
+- A first move when no dynamic memory is attached and the agent does not know which file to choose. Today the skill
+  says "read with a specific reason" but does not point at any discovery surface.
+- A statement that repeat reads of the same memory in one agent session are wasteful (the audit event is recorded each
+  time; the log will grow). The catalog mode can report `read_count` per agent for the current run, which would let an
+  agent self-throttle.
+
+When recommendation 1 lands, the skill should be updated in the same change to point at `sase memory read` (no args)
+and `sase memory read --search <query>` as the discovery move.
+
+### E. Dynamic memory keyword matching is word-boundary regex, not substring
+
+`src/sase/memory/dynamic.py` builds case-insensitive regex patterns with `\b` anchors at word-character edges and
+supports `!`-prefixed negative keywords that mask spans before positive matching. Two consequences for the catalog and
+`--search` design:
+
+- The catalog should display keywords exactly as authored, including `!`-prefixed exclusions, so agents understand why
+  a memory did or did not dynamically match.
+- The `--search` ranker should use the same matching semantics as dynamic memory, not a different tokenizer. Otherwise
+  agents will see a memory in `--search` results that never dynamically matches their actual prompt, or vice versa,
+  which is confusing.
+
+Dynamic file paths are slug-mangled to `.sase/memory/long-<slug>.md` (underscores in slug preserved, slashes replaced
+with hyphens at the layer above). Alias normalization in recommendation 3 must round-trip through this transform
+correctly, including when the dynamic file is stale and no longer matches the canonical source.
+
+### F. Approximate-token accounting already exists
+
+`src/sase/memory/inventory.py` includes an `approx_token_count` field used by `sase memory list`. The Letta-style
+`tokens` capability is partially built. The catalog under recommendation 1 should reuse `approx_token_count` rather
+than reinventing a separate estimator, and the JSON shape should include it:
+
+```json
+{
+  "canonical_path": "long/generated_skills.md",
+  "approx_token_count": 612,
+  "...": "..."
+}
+```
+
+Add a clear warning band (for example: warn at >2k tokens, suggest splitting at >5k) only after at least one long
+memory file actually crosses those thresholds. Today the existing files are small enough that warnings would be noise.
+
+### G. Proposal ledger is read-aware-able
+
+`src/sase/memory/proposals/ledger.py` tracks pending memory write proposals. `sase memory read` has no awareness of
+this today. A low-risk enhancement: when the catalog or a content read covers a path that has a pending proposal, emit
+a non-fatal note such as:
+
+```text
+sase memory read: long/generated_skills.md has 1 pending proposal (id <proposal-id>). Use `sase memory review` to view.
+```
+
+This does not leak proposed content (the agent still cannot read the proposal body without going through `review`),
+but it warns the agent that what they just read may already be considered out of date by someone else.
+
+### H. Error paths collapse to exit code 1
+
+`src/sase/memory/cli_read.py` exits with `sys.exit(1)` for every failure: missing file, traversal, `memory/short`
+rejection, missing reason, missing agent identity. Agents cannot distinguish a recoverable mistake (typo in path) from
+a hard policy refusal (`memory/short` is never readable). For agent usefulness, consider:
+
+- Stable error tags in stderr (`error: NO_AGENT_IDENTITY`, `error: PATH_NOT_ALLOWED`, `error: PATH_NOT_FOUND`) without
+  changing exit codes. This is cheaper than a structured exit-code scheme and is enough for agents to retry sensibly.
+- `--json` on failure should also return an error envelope with the same tag, so JSON-using agents do not have to
+  parse stderr.
+
+### I. Catalog/list overlap is real; pick one canonical surface
+
+`sase memory list` already renders a per-file dashboard with description and approx-token columns. Recommendation 1
+adds another surface for similar data. To avoid drift:
+
+- Extract one catalog builder (recommendation 1's `src/sase/memory/catalog.py`) and call it from both `list` and
+  `read`-no-arg.
+- Pick one canonical JSON shape and use it for `list --json`, `read --json` (no args), and ACE consumption. Different
+  shapes per command will produce subtle bugs.
+
+### J. Tests pin exact error strings
+
+`tests/test_memory_read_log.py` matches error messages with `pytest.raises(..., match=...)`. Any rewording of errors,
+including the addition of stable error tags in recommendation H, will require updating those tests in the same change.
+This is small but easy to forget and will block CI if missed.
+
+## Open Questions
+
+- Should `sase memory read` ever return content from a dynamic file when the canonical file is unreadable for some
+  reason (permissions, IO error)? Today the answer is "no, fail." That is probably still right, but worth confirming
+  before recommendation 5 ships.
+- Should the catalog include AGENTS Tier 3 entries that have no canonical file on disk yet? Right now they would show
+  as missing under inventory; a catalog-friendly state might be `inventory_status: "declared_only"`.
+- Should `--search` be available without agent identity (so humans can drive it from a shell)? The recommendations
+  imply yes; confirm and lock in tests.
+
 ## Sources
 
 Local:
@@ -399,6 +539,11 @@ Local:
 - `src/sase/memory/dynamic.py`
 - `src/sase/xprompt/loader_memory.py`
 - `src/sase/xprompts/skills/sase_memory_read.md`
+- `src/sase/memory/proposals/ledger.py`
+- `src/sase/ace/tui/memory_reads.py`
+- `src/sase/ace/tui/widgets/prompt_panel/_agent_memory_reads.py`
+- `tests/test_memory_read_log.py`
+- `memory/short/gotchas.md`
 - `docs/memory.md`
 - `sdd/epics/202605/memory_read_log.md`
 - `sdd/tales/202605/memory_reads_in_agent_panel.md`
