@@ -120,6 +120,35 @@ search can be combined later with reciprocal-rank fusion in one SQLite-backed de
 structured filters first, then add embeddings only after measured misses justify them. Source:
 <https://alexgarcia.xyz/blog/2024/sqlite-vec-hybrid-search/index.html>
 
+### Additional Prior Art
+
+CoALA proposes a modular cognitive architecture for language agents that keeps episodic, semantic, and procedural memory
+as distinct stores reached through a structured action space. The SASE-relevant lesson is the boundary: `sdd/events`
+should be addressed by a single named action (`sase memory search --kind event`), not silently fused with semantic
+guidance. Source: <https://arxiv.org/abs/2309.02427>
+
+A-MEM applies a Zettelkasten model to agent memory: every new memory becomes a note that auto-links to neighbors, with
+links being editable evidence rather than implicit similarity. For `sdd/events`, the practical takeaway is the
+`supersedes` and `related_events` link fields — they should be first-class, human-reviewable, and not derived only from
+embedding distance. Source: <https://arxiv.org/abs/2502.12110>
+
+ExpeL keeps a trajectory pool separate from an extracted "insights" table, only the latter feeding future planning. The
+SASE-relevant lesson is that the event card body is the insight, not the trajectory, and the trajectory (chat,
+artifacts) stays out of the repo. Source: <https://arxiv.org/abs/2308.10144>
+
+MemoryBank operationalizes Ebbinghaus-style decay with a recall-strengthened retention term. SASE should not adopt decay
+for repo-checked event cards (deletion via Git is wrong; visibility via `status: superseded` is correct), but the
+recall-counter idea fits a private-side index that ranks events by how often a query actually opened them. Source:
+<https://arxiv.org/abs/2305.10250>
+
+SWE-Bench-CL repackages SWE-Bench Verified into chronological streams to measure knowledge transfer and catastrophic
+forgetting across a coding-agent career. It is the closest available analog for evaluating whether SASE's event memory
+helps the next prompt rather than just looking tidy. Source: <https://arxiv.org/abs/2507.00014>
+
+MemGovern reports a 4.65% absolute improvement on SWE-bench from a curated experience-card store. The number is small
+but real, and it matches the intuition that *curation*, not volume, is what makes event memory pay. Source:
+<https://arxiv.org/abs/2601.06789>
+
 ## Critique Of The `sdd/events` Idea
 
 ### What Is Strong
@@ -282,6 +311,85 @@ Open actions, if any.
 Keep source references stable and repo-safe. If a source lives only in `~/.sase/chats`, store a chat basename or hash,
 not an absolute home path. If the source cannot be safely cited, the event probably should not be checked in.
 
+### Worked Example
+
+To make the schema concrete, here is a plausible event card for the bead-event JSONL merge-conflict episode that already
+has a research note in this directory:
+
+```markdown
+---
+schema_version: 1
+event_id: evt_20260517_bead_jsonl_merge_pain_b41a08
+event_type: gotcha
+occurred_at: 2026-05-17T00:00:00-04:00
+created_at: 2026-05-26T00:00:00-04:00
+status: active
+project: sase
+scope:
+  repos: [sase]
+  files:
+    - sdd/beads/events/streams/main.jsonl
+    - sdd/beads/events/manifest.json
+  beads: []
+  changespecs: []
+sources:
+  sdd:
+    - sdd/research/202605/bead_jsonl_merge_conflicts.md
+    - sdd/research/202605/greenfield_bead_storage_architecture.md
+  chats: []
+  artifacts: []
+  commits: []
+keywords:
+  - bead events
+  - jsonl
+  - merge conflict
+  - vcs
+trust: reviewed
+confidence: high
+privacy: repo_safe
+supersedes: []
+---
+
+# Bead Event JSONL Branches Conflict On Concurrent Appends
+
+## Summary
+
+Concurrent feature branches that both append bead events to `sdd/beads/events/streams/main.jsonl` produced unavoidable
+text conflicts on merge, even though the records were logically independent. The accepted resolution is per-stream
+sharding plus a deterministic merge tool, not naive line-by-line reconciliation.
+
+## Evidence
+
+- `sdd/research/202605/bead_jsonl_merge_conflicts.md` — root-cause analysis and options table.
+- `sdd/research/202605/greenfield_bead_storage_architecture.md` — chosen architecture for sharded streams.
+
+## Retrieval Notes
+
+Should surface when an agent is planning bead event writes, asking about JSONL conflicts, or considering single-stream
+designs for any other append-mostly state under `sdd/`.
+
+## Follow-Ups
+
+- Confirm the merge tool is wired in CI before any new stream goes live.
+```
+
+This example shows several intended patterns: zero `chats` or `commits` fields when the source evidence is purely SDD
+research, `event_type: gotcha` for "do not repeat this," and a `Retrieval Notes` block that explicitly seeds future
+searches the author expects to hit.
+
+### Schema Versioning Strategy
+
+`schema_version: 1` exists so v2 can land without rewriting history. Rules:
+
+- Parsers must accept any `schema_version <= max_known` and ignore unknown fields under known keys.
+- Field removals require a major bump and a migration script that rewrites cards in place with a `migrated_from` note in
+  the commit body, not in the frontmatter.
+- Field additions are minor and do not bump `schema_version`; missing fields default at parse time.
+- `event_id` is immutable. A correction creates a new card with `supersedes: [old_id]` and sets the old card to
+  `status: superseded`.
+
+This keeps `sase memory search` forward-compatible with old cards even after the schema evolves.
+
 ## `sase memory search` Shape
 
 `sase memory search` should be the agent-facing retrieval API. It should search multiple memory-backed sources while
@@ -327,6 +435,41 @@ Implementation guidance:
 - Exclude `status: superseded` and `status: retracted` by default unless `--include-superseded` is passed.
 - Show `kind` and `trust` in every result so agents can avoid treating evidence as instruction.
 - Do not inject top results into prompts automatically. Agents can search, inspect, and cite.
+
+### Ranking Sketch
+
+A defensible v1 score (no embeddings yet):
+
+```text
+score = bm25(fts_match)
+      + 1.5 * keyword_exact_hit
+      + 1.0 * scope_files_overlap_ratio
+      + 0.5 * event_type_filter_match
+      + recency_boost(occurred_at)
+      + trust_boost(trust)
+      + confidence_boost(confidence)
+      - 5.0 * (status != "active" and not --include-superseded)
+```
+
+with:
+
+- `recency_boost = 0.5 * exp(-age_days / 180)` so old events still surface but never dominate;
+- `trust_boost = {user_authored: 0.4, reviewed: 0.3, agent_proposed: 0.0, generated: -0.2}`;
+- `confidence_boost = {high: 0.2, medium: 0.0, low: -0.2}`.
+
+These are starting weights, not committed magic numbers. Treat them as configuration in
+`~/.sase/projects/<project>/memory_search.toml` so tuning does not require code changes. Add `--explain` to print the
+contributing factors per result; that turns ranking debates into evidence rather than opinion.
+
+### CLI Failure Modes
+
+Define them up front so agents do not have to learn them by hitting them:
+
+- empty results: exit 0, print `no matches` plus the parsed filters and the sources searched;
+- `--json` always emits a `{results: [...], searched: {...}, warnings: [...]}` envelope, never a bare list;
+- malformed event card: parser emits a `warnings[]` entry with `event_id` and path, then keeps going; one bad card does
+  not poison search;
+- missing index: rebuild lazily on the next read; `--no-rebuild` opts out for scripts that want a hard failure.
 
 ## Relationship To `sase memory episodes`
 
@@ -384,6 +527,89 @@ Minimum requirements before generated events are allowed:
 
 Memory poisoning changes the risk posture. A bad event is not just a bad note; it is a future retrieval candidate. The
 retrieval UI and JSON result shape must keep provenance visible.
+
+## VCS Merge, Retention, And Archival
+
+Because `sdd/events/YYYYMM/*.md` is in VCS, the design has to answer questions Git itself will ask.
+
+**File naming.** `evt_<YYYYMMDD>_<slug>_<6-char-hash>.md`. The hash is over `event_id` itself and exists to make naming
+collisions vanishingly unlikely under concurrent authoring. One card per file makes Git diffs scoped and removes most
+merge-conflict surface.
+
+**Concurrent authoring.** Two branches creating two distinct events do not conflict — they touch different files. Two
+branches editing the *same* event card produce a normal text conflict, which is the correct outcome (a single event is
+one statement and should be reconciled). Avoid any shared per-month index file checked into VCS; the index lives in
+project state and is rebuilt from the cards.
+
+**Supersession instead of deletion.** A wrong or outdated event card is flipped to `status: superseded` and a new card
+is created with `supersedes: [old_id]`. The old card stays in the repo with a one-line `## Superseded` note pointing at
+the new `event_id`. Git history is the audit trail; the card itself signals the current view.
+
+**Retraction.** For events whose body should not be relied on at all (e.g., later found to be wrong or based on poisoned
+input), set `status: retracted` and leave a `## Retracted` note explaining why. The card is excluded from default
+search; `--include-retracted` exposes it for audit.
+
+**Hard deletion.** Reserved for accidental secret leaks. Use `git rm` plus a follow-up rotation; do not pretend
+supersession is enough.
+
+**Long-term archival.** After a year, `status: superseded` and `status: retracted` cards can optionally be moved into
+`sdd/events/archive/YYYYMM/` to keep month directories cheap to scan. Search treats the archive as a separate source
+indexed only when `--include-archive` is set.
+
+## Cross-Repo Scope
+
+SASE has sibling repos (`sase-core`, `sase-github`, `sase-telegram`, `sase-nvim`) that this critique should address.
+
+- Events that describe behavior of a sibling repo's code belong **in that sibling repo's** `sdd/events/` if and only if
+  the sibling has adopted the convention. Otherwise file the event in `sase` with `scope.repos` naming the sibling, and
+  add a `sources.sdd[]` link to any relevant sibling research file.
+- `scope.repos` is the canonical filter. `sase memory search --repo sase-core` is the agent-facing surface and must
+  honor multi-repo events.
+- Do not centralize a single events directory across siblings. Each repo's events stay with that repo so workspace
+  isolation, review, and clones remain coherent.
+- A future cross-repo `sase memory search` can union indexes from siblings via `sase workspace open -p <sibling>`, but
+  v1 should search the current repo only and print a one-line note when `scope.repos` mentions an unsearched sibling.
+
+## Integration With `sase chats` And Beads
+
+The new event store should not duplicate machinery that already exists.
+
+- **`sase chats`.** Event cards that cite a chat should reference it by basename (e.g., `chat:2026-05-17-bead-merge.md`)
+  and never by absolute home path. `sase memory search` results with chat citations should print the exact
+  `sase chats show <basename>` command an agent can run to read the transcript — retrieval points to evidence, not
+  inlines it.
+- **Beads.** Operational state about a bead lifecycle stays in `sdd/beads/events/`. An `sdd/events/` card may reference
+  a bead in `scope.beads[]` when the event is *about* the work the bead represents (e.g., "the migration tracked by
+  sase-XX taught us Y"). Do not mirror bead transitions into `sdd/events/`; the bead ledger is authoritative for that.
+- **ChangeSpecs.** Same rule: `scope.changespecs[]` cites the spec when the event explains a decision; the spec itself
+  remains the canonical project artifact.
+- **Memory proposals.** `sase memory write` already accepts `path` and `chat` evidence (see
+  `src/sase/memory/proposals.py`). An approved event card is a natural evidence target: a `memory/long` proposal can
+  cite `path:sdd/events/.../evt_*.md` plus the underlying sources, and `sase memory review` retains the final say.
+
+## Seed Event Candidates For V1
+
+Concrete cards to author by hand to prove the design before any extractor exists. All are derivable from existing SDD
+artifacts in this checkout:
+
+1. **`evt_*_bead_jsonl_merge_pain`** — `gotcha`. Source:
+   `sdd/research/202605/bead_jsonl_merge_conflicts.md`. Why: future agents proposing append-only JSONL state will
+   benefit from finding this on a `jsonl merge conflict` query.
+2. **`evt_*_rust_core_backend_boundary_decision`** — `decision`. Source: `memory/short/rust_core_backend_boundary.md`
+   plus relevant `sase-core` research. Why: this is the single most repeated cross-repo decision and routinely confuses
+   new agents.
+3. **`evt_*_memory_write_review_gate`** — `decision`. Sources: `sdd/research/202605/sase_memory_write_review_research.md`
+   and `sase_memory_write_review_commands.md`. Why: anchors the "agents propose, humans promote" rule that this event
+   memory itself depends on.
+4. **`evt_*_tui_jk_baseline_measurement`** — `experiment`. Source: `memory/long/tui_jk_baseline.md`. Why: future perf
+   regressions should land on a measurement card with reproduction steps.
+5. **`evt_*_ephemeral_workspace_install_required`** — `gotcha`. Source: `memory/short/build_and_run.md`. Why:
+   ephemeral-workspace `just install` is the most common first-run trip-up; a search hit on `just install workspace`
+   should yield this card.
+
+Five hand-authored cards is enough to exercise the parser, ranking, supersession handling, and `--kind`/`--file`
+filters. If those five cards do not retrieve well for plausible follow-up prompts, the feature has a problem before any
+auto-extraction lands.
 
 ## Alternatives
 
@@ -455,3 +681,27 @@ Then add private episodes:
 
 This preserves the good part of the idea: shared, version-controlled, queryable memory of important project events. It
 avoids the bad part: turning every agent transcript into trusted repo context.
+
+## Open Questions
+
+These should be resolved before or during implementation, not deferred indefinitely.
+
+- **Index location under ephemeral workspaces.** Project state lives outside `sase_<N>` workspaces, so a per-project
+  `~/.sase/projects/<project>/memory_search.sqlite` is safe across workspace recycling. Confirm this matches whatever
+  `sase workspace` cleanup actually preserves; if not, fall back to a per-workspace rebuildable cache.
+- **What "project" means for shared-state files.** `scope.project` and the index key should align with the project
+  identifier already used by `sase memory log` and the proposal ledger. Pick one source of truth; do not invent a new
+  one for events.
+- **Authoring UX.** Should `sase memory events new --type decision --title ...` scaffold a card with frontmatter
+  defaults, or is a plain editor command enough? The first agent-authored cards will be a useful test.
+- **Frontmatter ergonomics.** `created_at` and `occurred_at` are both ISO 8601. Is the project willing to accept date-only
+  values (`2026-05-26`) for events with no meaningful time component? Recommend yes; widen the parser to handle both.
+- **Embedding readiness.** Defer until the FTS-only baseline misses real queries. When that happens, prefer voyage-code-3
+  or BGE-M3 (already analyzed in the related episodic-memory research) so SASE does not adopt two embedding models.
+- **Telemetry without spying.** Should `sase memory search` log queries (locally) to support precision evaluation? If
+  yes, log under project state and document the off switch; if no, expect manual evaluation only.
+- **Generated-event provenance.** If/when an extractor proposes event cards, where does the prompt and model identity
+  live? Suggest a `safety.generated_by` frontmatter field gated by `trust: agent_proposed`.
+- **Schema in `sase-core`.** The frontmatter and parse logic are the kind of cross-frontend behavior the
+  rust-core-backend-boundary note flags. Decide early whether the parser lives in `sase-core` or stays Python-only for
+  v1.
