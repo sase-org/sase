@@ -189,7 +189,7 @@ The `explicit` flag is computed in `_plan_amd_init()` from `args.command == "ini
 so `sase amd init` and `sase init amd` are both treated as explicit even from the registry path.
 
 Check mode uses the shared onboarding check renderer by wrapping AMD in a one-item `InitCommandSpec` and calling
-`run_init_check()`. In this repo, `./.venv/bin/sase amd init --check` printed:
+`run_init_check()`. In this workspace, both `sase amd init --check` and `sase init amd --check` printed:
 
 ```text
 SASE is initialized. No init subcommands need to run.
@@ -282,8 +282,10 @@ Rendering uses two Rich panels:
   `missing: <files>` (red).
 - All four absent → red `missing all`.
 
-Observed `sase amd list` in this workspace showed 4 documents: root project `AGENTS.md` as managed with short 5 / long 2
-memory refs, two custom project-subdir `AGENTS.md` files, and one custom chezmoi-source `AGENTS.md`.
+Observed `sase amd list` in this workspace showed 5 documents: root project `AGENTS.md` as managed with short 5 / long 2
+memory refs, two custom project-subdir `AGENTS.md` files, live home `~/AGENTS.md`, and one custom chezmoi-source
+`AGENTS.md`. The two project subdir files had `CLAUDE.md` and `GEMINI.md` shims, and were missing `QWEN.md` and
+`OPENCODE.md`.
 
 Focused inventory/rendering tests are in `tests/main/test_amd_list.py`, including pruned-directory coverage and
 partial-marker classification.
