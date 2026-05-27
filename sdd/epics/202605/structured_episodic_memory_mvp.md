@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-26 18:32:23
-status: wip
+status: done
 bead_id: sase-45
 tier: epic
 prompt: sdd/prompts/202605/structured_episodic_memory_mvp.md
