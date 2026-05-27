@@ -1,4 +1,4 @@
-"""Shared models for chat install/update jobs."""
+"""Shared data models for chat install/update jobs."""
 
 from __future__ import annotations
 
