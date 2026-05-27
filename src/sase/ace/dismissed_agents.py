@@ -22,6 +22,12 @@ from .dismissed_agents_bundles import (
     verify_dismissed_bundle_index as _verify_dismissed_bundle_index_impl,
     write_json_file_atomic as _write_json_file_atomic_impl,
 )
+from .dismissed_agent_groups import (
+    list_dismissed_agent_groups as _list_dismissed_agent_groups_impl,
+    load_dismissed_agent_group as _load_dismissed_agent_group_impl,
+    mark_dismissed_agent_group_revived as _mark_dismissed_agent_group_revived_impl,
+    save_dismissed_agent_group as _save_dismissed_agent_group_impl,
+)
 from .dismissed_agents_migrations import (
     _CHILD_COLLISION_MARKER_NAME,
     _ROOT_SHARD_MARKER_NAME,
@@ -45,6 +51,7 @@ if TYPE_CHECKING:
 
 _DISMISSED_AGENTS_FILE = Path.home() / ".sase" / "dismissed_agents.json"
 _DISMISSED_BUNDLES_DIR = Path.home() / ".sase" / "dismissed_bundles"
+_DISMISSED_AGENT_GROUPS_DIR = Path.home() / ".sase" / "dismissed_agent_groups"
 _OLD_BUNDLES_FILE = Path.home() / ".sase" / "dismissed_agent_bundles.json"
 
 
@@ -126,6 +133,40 @@ def load_dismissed_bundle_summaries(
 
 def ensure_dismissed_archive_ready() -> None:
     return _ensure_dismissed_archive_ready_impl(_ctx())
+
+
+def save_dismissed_agent_group(group: Any) -> Any:
+    return _save_dismissed_agent_group_impl(
+        group, groups_dir=_DISMISSED_AGENT_GROUPS_DIR
+    )
+
+
+def list_dismissed_agent_groups(
+    *,
+    limit: int = 20,
+    cursor: int | None = None,
+) -> Any:
+    return _list_dismissed_agent_groups_impl(
+        limit=limit, cursor=cursor, groups_dir=_DISMISSED_AGENT_GROUPS_DIR
+    )
+
+
+def load_dismissed_agent_group(group_id: str) -> Any:
+    return _load_dismissed_agent_group_impl(
+        group_id, groups_dir=_DISMISSED_AGENT_GROUPS_DIR
+    )
+
+
+def mark_dismissed_agent_group_revived(
+    group_id: str,
+    *,
+    revived_at: str,
+) -> Any:
+    return _mark_dismissed_agent_group_revived_impl(
+        group_id,
+        revived_at=revived_at,
+        groups_dir=_DISMISSED_AGENT_GROUPS_DIR,
+    )
 
 
 def mark_bundles_revived_by_suffixes(
