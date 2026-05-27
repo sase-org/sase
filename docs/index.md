@@ -87,7 +87,7 @@ title: Structured Agentic Software Engineering
 
   <p>
     Use instruction memory loaded through AGENTS.md, keyword-triggered long-term context for prompt-dependent
-    retrieval, and reviewed proposals for agent-suggested updates.
+    retrieval, source-linked episode records, and reviewed proposals for agent-suggested updates.
   </p>
 
 <a href="memory/">Open memory</a>

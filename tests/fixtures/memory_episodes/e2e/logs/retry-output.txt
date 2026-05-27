@@ -1,0 +1,3 @@
+just check
+all checks passed
+

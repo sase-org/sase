@@ -1,0 +1,9 @@
+diff --git a/tests/test_memory_episodes_e2e.py b/tests/test_memory_episodes_e2e.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/tests/test_memory_episodes_e2e.py
+@@ -0,0 +1,3 @@
++def test_fixture_links_retry_feedback():
++    assert "retry feedback"
++

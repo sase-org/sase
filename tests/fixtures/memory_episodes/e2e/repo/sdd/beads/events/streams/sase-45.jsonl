@@ -1,0 +1,3 @@
+{"schema_version": 1, "event_id": "fixture-root", "operation": "issue_created", "issue_id": "sase-45"}
+{"schema_version": 1, "event_id": "fixture-phase", "operation": "issue_created", "issue_id": "sase-45.8"}
+

@@ -175,3 +175,48 @@ audit events. Keybindings:
 
 The proposal ledger is append-only JSONL with a lock companion. Malformed rows are skipped when reading, and every
 review action appends a new event rather than mutating previous events.
+
+## Episodes
+
+`sase memory episodes` builds deterministic, source-linked records of prior agent work. Episodes are useful when raw
+chats are too fragmented but the lesson is not ready to become approved long-term memory. They connect prompts, chats,
+plans, diffs, feedback, questions, retries, beads, ChangeSpecs, dynamic memory, audited memory reads, and outcomes into
+one `lesson.md` plus a canonical `episode.json`.
+
+Start from a completed agent:
+
+```bash
+sase memory episodes build -n <agent-name>
+sase memory episodes list
+sase memory episodes show <episode-id>
+sase memory episodes verify <episode-id>
+sase memory episodes recall -q "retry feedback"
+```
+
+Other selectors are available when the agent name is not the best handle:
+
+```bash
+sase memory episodes build -a ~/.sase/projects/<project>/artifacts/.../<timestamp>
+sase memory episodes build -c <changespec-name>
+sase memory episodes build -C ~/.sase/chats/202605/<chat>.md
+sase memory episodes build -s 2026-05-01 -u 2026-05-26 -l 20
+```
+
+Episodes are stored under `~/.sase/projects/<project>/episodes/`. `show` defaults to the human-readable lesson; use
+`--format timeline`, `--format sources`, or `--format json` to inspect provenance. `verify` recomputes source existence,
+size, and hashes without changing the episode. Missing or changed sources mean the evidence drifted; they do not delete
+the episode or automatically block recall.
+
+Episodes do not modify `memory/short` or `memory/long`. Promote a durable rule from an episode only through the reviewed
+proposal path:
+
+```bash
+sase memory write \
+  --title "Retry feedback rule" \
+  --slug retry_feedback_rule \
+  --evidence ~/.sase/projects/<project>/episodes/<episode-id>/episode.json \
+  --body "..."
+sase memory review --list
+```
+
+See [Episodes](episodes.md) for selector guidance, storage details, and trust checks.

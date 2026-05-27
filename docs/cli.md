@@ -47,6 +47,7 @@ agents from the TUI.
 | `sase memory write`                          | Agent-side proposal for human-reviewed long-term memory; `--notify` can add an inbox item.   | [Memory](memory.md#propose-memory)                 |
 | `sase memory review`                         | Human listing, inspection, approval, editing, or rejection of pending memory proposals.      | [Memory](memory.md#review-proposals)               |
 | `sase memory log`                            | Summarize audited memory reads; `--include proposals` also shows proposal and review events. | [Memory](memory.md#audited-reads)                  |
+| `sase memory episodes`                       | Build, inspect, verify, and recall deterministic source-linked records of prior agent work.  | [Episodes](episodes.md)                            |
 | `sase memory init`                           | Create or refresh project/home memory files and AGENTS memory references.                    | [Initialization](init.md#memory-initialization)    |
 | `sase init memory`                           | Alias for `sase memory init`.                                                                | [Initialization](init.md#memory-initialization)    |
 | `sase sdd init`                              | Create or refresh SDD README files and directory map assets.                                 | [SDD](sdd.md)                                      |

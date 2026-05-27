@@ -15,8 +15,10 @@ def register_memory_episodes_parser(
         help="Build, inspect, verify, and recall project episodic memory",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Build and inspect deterministic project-scoped memory episodes. "
-            "Episode files are stored under ~/.sase/projects/<project>/episodes."
+            "Build, inspect, verify, and recall source-grounded records of "
+            "prior SASE work. Episodes are deterministic evidence records "
+            "under ~/.sase/projects/<project>/episodes. They do not modify "
+            "memory/short or memory/long."
         ),
         epilog=(
             "examples:\n"
