@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-27 09:58:30
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_panel_cropping.md
 ---
 # Plan: Agent Panel Cropping Priority

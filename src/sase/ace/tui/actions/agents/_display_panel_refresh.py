@@ -233,11 +233,19 @@ class PanelRefreshMixin:
             return
 
         border_rows = 2
-        natural_heights = [getattr(w, "option_count", 0) + border_rows for w in widgets]
+        option_counts = [max(0, int(getattr(w, "option_count", 0))) for w in widgets]
+        natural_heights = [count + border_rows for count in option_counts]
         separator_rows = max(0, len(widgets) - 1)
         total_natural = sum(natural_heights) + separator_rows
 
         from textual.css.scalar import Scalar, Unit
+
+        def cell_height(rows: float) -> Scalar:
+            return Scalar(float(rows), Unit.CELLS, Unit.HEIGHT)
+
+        def fraction_height(idx: int) -> Scalar:
+            weight = float(option_counts[idx] + 1)
+            return Scalar(weight, Unit.FRACTION, Unit.HEIGHT)
 
         if total_natural <= container_height:
             for idx, (widget, natural) in enumerate(
@@ -246,13 +254,48 @@ class PanelRefreshMixin:
                 if idx == 0:
                     widget.styles.height = Scalar(1.0, Unit.FRACTION, Unit.HEIGHT)
                 else:
-                    widget.styles.height = Scalar(
-                        float(natural), Unit.CELLS, Unit.HEIGHT
-                    )
-        else:
-            for widget in widgets:
-                weight = float(getattr(widget, "option_count", 0) + 1)
-                widget.styles.height = Scalar(weight, Unit.FRACTION, Unit.HEIGHT)
+                    widget.styles.height = cell_height(float(natural))
+            return
+
+        content_budget = max(0, container_height - separator_rows)
+        min_heights = [border_rows + min(count, 2) for count in option_counts]
+        if content_budget < sum(min_heights):
+            for idx, widget in enumerate(widgets):
+                widget.styles.height = fraction_height(idx)
+            return
+
+        fixed_heights: dict[int, float] = {}
+        panel_keys = getattr(self._panel_group, "panel_keys", [])
+        first_panel_is_untagged = (
+            not getattr(self, "_agent_panels_grouped", False)
+            and len(panel_keys) == len(widgets)
+            and bool(panel_keys)
+            and panel_keys[0] is None
+        )
+        if first_panel_is_untagged:
+            half_budget = content_budget / 2.0
+            if natural_heights[0] <= half_budget:
+                fixed_heights[0] = float(natural_heights[0])
+            else:
+                fixed_heights[0] = float(max(1, content_budget // 2))
+
+        fixed_total = sum(fixed_heights.values())
+        candidates = [idx for idx in range(len(widgets)) if idx not in fixed_heights]
+        for idx in sorted(candidates, key=lambda i: (natural_heights[i], i)):
+            remaining_min = sum(
+                min_heights[other]
+                for other in range(len(widgets))
+                if other not in fixed_heights and other != idx
+            )
+            if fixed_total + natural_heights[idx] + remaining_min <= content_budget:
+                fixed_heights[idx] = float(natural_heights[idx])
+                fixed_total += natural_heights[idx]
+
+        for idx, widget in enumerate(widgets):
+            if idx in fixed_heights:
+                widget.styles.height = cell_height(fixed_heights[idx])
+            else:
+                widget.styles.height = fraction_height(idx)
 
     def _reapply_panel_heights(self) -> None:
         """Re-run the panel-height computation without rebuilding options."""
