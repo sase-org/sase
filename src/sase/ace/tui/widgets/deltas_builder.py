@@ -172,6 +172,8 @@ def build_delta_entries_section(
     hint_tracker: HintTracker | None = None,
     show_file_hints: bool = False,
     workspace_dir: str | None = None,
+    *,
+    header_label: str = "DELTAS:",
 ) -> HintTracker:
     """Build a DELTAS section from already-computed entries."""
     tracker = hint_tracker or HintTracker(
@@ -185,7 +187,7 @@ def build_delta_entries_section(
     if not deltas:
         return tracker
 
-    text.append("DELTAS:", style=_COLOR_HEADER)
+    text.append(header_label, style=_COLOR_HEADER)
     if deltas_fold == FoldLevel.COLLAPSED:
         _append_summary(text, deltas)
         return tracker

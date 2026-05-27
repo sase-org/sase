@@ -157,13 +157,18 @@ def append_agent_deltas_section(
     delta_entries: list[DeltaEntry] | None = None,
     hint_state: HeaderHintState | None = None,
 ) -> None:
-    """Append precomputed DELTAS entries when available."""
+    """Append precomputed delta entries when available."""
     deltas = delta_entries or []
     if not deltas:
         return
 
     if hint_state is None:
-        build_delta_entries_section(text, deltas, FoldLevel.FULLY_EXPANDED)
+        build_delta_entries_section(
+            text,
+            deltas,
+            FoldLevel.FULLY_EXPANDED,
+            header_label="Deltas:",
+        )
         return
 
     tracker = HintTracker(
@@ -180,6 +185,7 @@ def append_agent_deltas_section(
         tracker,
         show_file_hints=True,
         workspace_dir=hint_state.workspace_dir,
+        header_label="Deltas:",
     )
     hint_state.hint_counter = tracker.counter
     hint_state.hint_mappings.clear()

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-27 10:25:54
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_metadata_title_case_labels.md
 ---
 # Agent Metadata Title-Case Labels Plan

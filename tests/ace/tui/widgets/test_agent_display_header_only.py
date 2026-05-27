@@ -231,5 +231,6 @@ def test_update_display_header_renders_debounced_full_enrichment(
 
     plain = _plain_of(panel.captured[-1])
     assert "AGENT DETAILS" in plain
-    assert "DELTAS:\n  ~ src/foo.py  ~1\n" in plain
+    assert "Deltas:\n  ~ src/foo.py  ~1\n" in plain
+    assert "DELTAS:" not in plain
     assert "AGENT CHAT" in plain

@@ -172,7 +172,8 @@ def test_completed_agent_with_diff_path_renders_deltas(tmp_path: Path) -> None:
 
     header, _ = build_header_text(agent, summary=build_detail_header_summary(agent))
 
-    assert "DELTAS:\n" in header.plain
+    assert "Deltas:\n" in header.plain
+    assert "DELTAS:\n" not in header.plain
     assert "~ src/foo.py  +1 ~1" in header.plain
 
 
@@ -181,6 +182,7 @@ def test_completed_agent_without_diff_path_omits_deltas() -> None:
 
     header, _ = build_header_text(agent, summary=build_detail_header_summary(agent))
 
+    assert "Deltas:" not in header.plain
     assert "DELTAS:" not in header.plain
 
 
@@ -200,6 +202,7 @@ def test_cheap_header_omits_deltas(tmp_path: Path) -> None:
 
     header, _ = build_header_text(agent, cheap=True)
 
+    assert "Deltas:" not in header.plain
     assert "DELTAS:" not in header.plain
 
 
@@ -232,5 +235,6 @@ def test_agent_hint_mode_includes_deltas_paths(tmp_path: Path) -> None:
     mappings = panel.update_display_with_hints(agent)
 
     plain = _plain_of(panel.captured[-1])
-    assert "DELTAS:\n  ~ [1] src/foo.py  ~1\n" in plain
+    assert "Deltas:\n  ~ [1] src/foo.py  ~1\n" in plain
+    assert "DELTAS:" not in plain
     assert mappings[1] == str(workspace_dir / "src/foo.py")

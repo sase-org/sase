@@ -37,12 +37,12 @@ def append_agent_artifacts_section(
     artifact_paths: list[AgentArtifactPath] | None = None,
     hint_state: HeaderHintState | None = None,
 ) -> None:
-    """Append the selected agent's ARTIFACTS path list when available."""
+    """Append the selected agent's artifact path list when available."""
     artifacts = artifact_paths or []
     if not artifacts:
         return
 
-    text.append("ARTIFACTS:\n", style=_COLOR_HEADER)
+    text.append("Artifacts:\n", style=_COLOR_HEADER)
     for artifact in artifacts:
         text.append(f"  {_ARTIFACT_ENTRY_PREFIX} ", style=_GLYPH_STYLE)
         if hint_state is not None:

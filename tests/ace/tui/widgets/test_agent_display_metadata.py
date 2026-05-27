@@ -489,7 +489,10 @@ class TestAgentArtifactMetadata:
             summary=build_detail_header_summary(agent),
         )
 
-        assert header.plain.index("DELTAS:\n") < header.plain.index("ARTIFACTS:\n")
+        assert header.plain.index("Deltas:\n") < header.plain.index("Artifacts:\n")
+        assert "DELTAS:" not in header.plain
+        assert "ARTIFACTS:" not in header.plain
+        assert "Artifacts: 2" not in header.plain
         assert "ARTIFACTS: 2" not in header.plain
         assert "(chat, image)" not in header.plain
         assert "  • ~/.sase/plans/202605/approved_plan.md\n" in header.plain
@@ -514,6 +517,7 @@ class TestAgentArtifactMetadata:
 
         header, _ = build_header_text(agent, cheap=True)
 
+        assert "Artifacts:" not in header.plain
         assert "ARTIFACTS:" not in header.plain
 
     def test_uncommitted_plan_prefers_archived_plan_path(
@@ -590,7 +594,8 @@ class TestAgentArtifactMetadata:
         mappings = panel.update_display_with_hints(agent)
 
         plain = plain_of(panel.captured[-1])
-        assert "ARTIFACTS:\n  • [1] sdd/tales/202605/plan.md\n" in plain
+        assert "Artifacts:\n  • [1] sdd/tales/202605/plan.md\n" in plain
+        assert "ARTIFACTS:" not in plain
         assert mappings[1] == str(sdd_plan)
 
 
