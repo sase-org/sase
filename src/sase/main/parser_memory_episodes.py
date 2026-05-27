@@ -107,6 +107,12 @@ def _register_build_parser(
         action="store_true",
         help="Rebuild and rewrite the episode projection even if it already exists",
     )
+    build_parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress phase progress on stderr; print only the final summary",
+    )
     _add_json_argument(build_parser)
 
 

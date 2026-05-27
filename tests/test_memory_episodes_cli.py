@@ -161,6 +161,106 @@ def test_memory_episodes_build_writes_episode_from_agent_selector(
     assert Path(payload["episode_dir"], "episode.json").is_file()
 
 
+def test_memory_episodes_build_prints_progress_to_stderr_in_human_mode(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    projects_root, repo_root = _seed_agent_artifacts(tmp_path)
+
+    build_args = create_parser().parse_args(
+        ["memory", "episodes", "build", "-p", "proj", "-n", "episode-agent"]
+    )
+    handle_memory_episodes_command(
+        build_args, projects_root=projects_root, repo_root=repo_root
+    )
+    captured = capsys.readouterr()
+
+    for label in ("Collecting", "Building", "Rendering", "Writing"):
+        assert label in captured.err, (
+            f"expected phase label {label!r} in stderr, got: {captured.err!r}"
+        )
+    assert captured.out.startswith("Built episode ep-")
+    assert "project: proj" in captured.out
+    assert "episode_dir:" in captured.out
+
+
+def test_memory_episodes_build_is_silent_on_stderr_in_json_mode(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    projects_root, repo_root = _seed_agent_artifacts(tmp_path)
+
+    build_args = create_parser().parse_args(
+        ["memory", "episodes", "build", "-p", "proj", "-n", "episode-agent", "-j"]
+    )
+    handle_memory_episodes_command(
+        build_args, projects_root=projects_root, repo_root=repo_root
+    )
+    captured = capsys.readouterr()
+
+    assert captured.err == ""
+    payload = json.loads(captured.out)
+    assert payload["wrote"] is True
+
+
+def test_memory_episodes_build_quiet_flag_suppresses_progress(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    projects_root, repo_root = _seed_agent_artifacts(tmp_path)
+
+    build_args = create_parser().parse_args(
+        ["memory", "episodes", "build", "-p", "proj", "-n", "episode-agent", "-q"]
+    )
+    handle_memory_episodes_command(
+        build_args, projects_root=projects_root, repo_root=repo_root
+    )
+    captured = capsys.readouterr()
+
+    assert captured.err == ""
+    assert captured.out.startswith("Built episode ep-")
+
+
+def _seed_agent_artifacts(tmp_path: Path) -> tuple[Path, Path]:
+    projects_root = tmp_path / "projects"
+    artifact_dir = projects_root / "proj" / "artifacts" / "ace-run" / "20260526120000"
+    artifact_dir.mkdir(parents=True)
+    chat_path = tmp_path / "chat.md"
+    chat_path.write_text(
+        "## Prompt\n\nBuild retry feedback memory.\n\n"
+        "## Response\n\nImplemented it and ran `just check`.\n",
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "output.txt"
+    output_path.write_text("just check\npassed\n", encoding="utf-8")
+    (artifact_dir / "submitted_xprompt.md").write_text(
+        "# Retry Feedback Memory\n\nBuild an episode.\n",
+        encoding="utf-8",
+    )
+    _write_json(
+        artifact_dir / "agent_meta.json",
+        {
+            "name": "episode-agent",
+            "chat_path": str(chat_path),
+            "phase_bead_id": "sase-45.5",
+            "plan_action": "approve",
+            "plan_approved": True,
+            "plan_submitted_at": ["2026-05-26T12:01:00Z"],
+        },
+    )
+    _write_json(
+        artifact_dir / "done.json",
+        {
+            "name": "episode-agent",
+            "outcome": "completed",
+            "finished_at": 1.0,
+            "response_path": str(chat_path),
+            "output_path": str(output_path),
+        },
+    )
+    return projects_root, tmp_path
+
+
 def _episode(source_path: Path) -> EpisodeWire:
     content = source_path.read_bytes()
     source = EpisodeSourceRefWire(

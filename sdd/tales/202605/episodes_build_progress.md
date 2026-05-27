@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-26 21:51:15
-status: wip
+status: done
 prompt: sdd/prompts/202605/episodes_build_progress.md
 ---
 # Plan: Rich progress output for `sase memory episodes build`

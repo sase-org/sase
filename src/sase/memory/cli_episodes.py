@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
-from typing import Any
+from typing import Any, NoReturn
 
 from sase.core.episode_facade import episode_wire_schema_version
 from sase.core.episode_wire import (
@@ -19,6 +19,7 @@ from sase.core.episode_wire import (
     episode_wire_to_json_dict,
 )
 from sase.main.init_memory.config import project_memory_name
+from sase.memory.episodes._build_progress import BuildProgress
 from sase.memory.episodes.builder import build_episode
 from sase.memory.episodes.collector import EpisodeSelector, collect_episode_draft
 from sase.memory.episodes.index import (
@@ -86,21 +87,50 @@ def _handle_build(
         until=args.until,
         limit=args.limit,
     )
+    is_json = bool(getattr(args, "json", False))
+    is_quiet = bool(getattr(args, "quiet", False))
+    progress = BuildProgress(enabled=not is_json and not is_quiet)
+    selector_label = _selector_label(args)
     try:
-        draft = collect_episode_draft(
-            selector,
-            projects_root=projects_root,
-            repo_root=repo_root if repo_root is not None else Path.cwd(),
-        )
-        episode = build_episode(draft)
-        lesson_markdown = render_lesson_markdown(episode)
-        write_result = None
-        if not args.dry_run:
-            write_result = write_project_episode(
-                episode,
-                lesson_markdown=lesson_markdown,
-                projects_root=projects_root,
+        with progress:
+            with progress.phase(
+                f"Collecting episode draft (selector: {selector_label})"
+            ):
+                draft = collect_episode_draft(
+                    selector,
+                    projects_root=projects_root,
+                    repo_root=repo_root if repo_root is not None else Path.cwd(),
+                )
+            progress.summary(
+                f"Drafted episode with {len(draft.sources)} sources, "
+                f"{len(draft.nodes)} nodes"
             )
+
+            with progress.phase("Building episode"):
+                episode = build_episode(draft)
+            progress.summary(
+                f"Built episode {episode.episode_id} ({len(episode.lessons)} lessons)"
+            )
+
+            with progress.phase("Rendering lesson markdown"):
+                lesson_markdown = render_lesson_markdown(episode)
+            progress.summary(f"Rendered lesson ({len(lesson_markdown)} bytes)")
+
+            write_result = None
+            with progress.phase("Writing episode files"):
+                if not args.dry_run:
+                    write_result = write_project_episode(
+                        episode,
+                        lesson_markdown=lesson_markdown,
+                        projects_root=projects_root,
+                    )
+            if args.dry_run:
+                progress.summary("Skipped (dry run)")
+            else:
+                progress.summary(
+                    f"Wrote {episode.episode_id}/"
+                    "{episode.json,lesson.md,sources.jsonl}"
+                )
     except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
         _fail(f"sase memory episodes build: {exc}")
 
@@ -338,6 +368,18 @@ def _handle_recall(
             print(f"  {match.excerpt}")
 
 
+def _selector_label(args: argparse.Namespace) -> str:
+    if args.agent:
+        return f"agent={args.agent}"
+    if args.artifact_dir:
+        return f"artifact_dir={args.artifact_dir}"
+    if args.changespec:
+        return f"changespec={args.changespec}"
+    if args.chat:
+        return f"chat={args.chat}"
+    return "project_scan"
+
+
 def _project_from_args(args: argparse.Namespace) -> str:
     project = getattr(args, "project", None)
     if project is not None and project.strip():
@@ -456,7 +498,7 @@ def _validate_limit(value: int | None, label: str) -> None:
         _fail(f"sase memory episodes: {label} must be >= 1")
 
 
-def _fail(message: str) -> None:
+def _fail(message: str) -> NoReturn:
     print(message, file=sys.stderr)
     sys.exit(1)
 
