@@ -104,6 +104,12 @@ class KeybindingBindingsMixin:
         # its per-entry form. The unmark affordance is surfaced too.
         if marked_count > 0:
             bindings.append((x, f"kill/dismiss ({marked_count} marked)"))
+            bindings.append(
+                (
+                    self._kd("bulk_change_status"),
+                    f"save/dismiss ({marked_count} marked)",
+                )
+            )
             bindings.append((self._kd("clear_marks"), f"unmark ({marked_count})"))
             bindings.append(
                 (self._kd("edit_spec"), f"edit chats ({marked_count} marked)")

@@ -120,6 +120,23 @@ def test_agents_help_lists_sibling_navigation() -> None:
     assert ("< / > / ~", "Navigate to ancestor / child / sibling") in cls_pairs
 
 
+def test_agents_help_lists_save_dismiss_marked_agents() -> None:
+    reg = load_keymap_registry({})
+    agent_pairs = {
+        (key, label)
+        for _section, bindings in agents_bindings(reg)
+        for key, label in bindings
+    }
+    cls_pairs = {
+        (key, label)
+        for _section, bindings in cls_bindings(reg)
+        for key, label in bindings
+    }
+
+    assert ("S", "Save/dismiss marked agents") in agent_pairs
+    assert ("S", "Bulk status change (marked CLs)") in cls_pairs
+
+
 def test_help_modal_labels_capital_a_as_agent_artifacts() -> None:
     """Guard ``A`` as the Agents-tab artifact binding."""
     reg = load_keymap_registry({})

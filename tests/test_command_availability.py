@@ -303,6 +303,14 @@ def test_open_agent_artifacts_is_available_on_agents_tab() -> None:
     assert not is_command_available(spec, CommandContext(tab="changespecs"))
 
 
+def test_save_marked_agent_group_requires_marks_on_agents_tab() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.bulk_change_status"]
+
+    assert not is_command_available(spec, CommandContext(tab="agents", mark_count=0))
+    assert is_command_available(spec, CommandContext(tab="agents", mark_count=2))
+
+
 def test_jump_to_agent_changespec_requires_resolution() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.jump_to_agent_changespec"]

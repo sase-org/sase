@@ -105,6 +105,11 @@ def save_dismissed_bundle(agent: Agent) -> bool:
     return _save_dismissed_bundle_impl(_ctx(), agent)
 
 
+def dismissed_bundle_path_for_agent(agent: Agent) -> Path | None:
+    """Return the dismissed bundle path for *agent* when one exists."""
+    return _find_bundle(_bundle_filename(agent))
+
+
 def rebuild_dismissed_bundle_index() -> tuple[int, int]:
     return _rebuild_dismissed_bundle_index_impl(_ctx())
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from typing import Any
 from unittest.mock import patch
@@ -37,12 +38,25 @@ class _FakeMarkApp(AgentMarkingMixin, MarkingMixin):
         self._agents: list[Agent] = list(agents)
         self._agents_with_children: list[Agent] = list(agents)
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
+        self._dismissed_agents: set[tuple[AgentType, str, str | None]] = set()
+        self._dismissed_agent_objects: list[Agent] = []
+        self._revived_agent_raw_suffixes: set[str] = set()
+        self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
+        self._agent_pre_question_status: dict[
+            tuple[AgentType, str, str | None], str | None
+        ] = {}
+        self._dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]] = (
+            set()
+        )
         self._current_group_key: tuple[str, ...] | None = None
         self._group_fold_registry = AgentGroupFoldRegistry()
         self.refresh_calls: int = 0
         self.notifications: list[tuple[str, str]] = []
         self.pushed_modals: list[Any] = []
         self.pushed_callbacks: list[Any] = []
+        self._scheduled: list[tuple[Any, tuple[Any, ...]]] = []
+        self.async_refreshes = 0
+        self.notification_refreshes_async = 0
         self.changespecs: list = []  # type: ignore[assignment]
         self.marked_indices: set[int] = set()
 
@@ -72,6 +86,28 @@ class _FakeMarkApp(AgentMarkingMixin, MarkingMixin):
 
     def _refresh_display(self) -> None:
         pass
+
+    def _notify_after_refresh(
+        self, message: str, *, severity: str = "information"
+    ) -> None:
+        self.notify(message, severity=severity)
+
+    def call_later(self, callback: Any, *args: Any) -> None:
+        self._scheduled.append((callback, args))
+
+    async def _refresh_notification_count_async(self) -> None:
+        self.notification_refreshes_async += 1
+
+    def _schedule_agents_async_refresh(self) -> None:
+        self.async_refreshes += 1
+
+    def _apply_dismissal_in_memory(self, agents: list[Agent]) -> None:
+        removed = {agent.identity for agent in agents}
+        self._agents = [a for a in self._agents if a.identity not in removed]
+        self._agents_with_children = [
+            a for a in self._agents_with_children if a.identity not in removed
+        ]
+        self._dismissed_agent_objects.extend(agents)
 
     def _agents_visible_order(self) -> list[int]:
         from sase.ace.tui.models.agent_groups import build_agent_tree
@@ -284,6 +320,125 @@ def test_bulk_kill_cancel_preserves_marks() -> None:
 
     mock_bulk.assert_not_called()
     assert app._marked_agents == {running.identity}
+
+
+def test_bulk_change_status_dispatches_to_save_marked_agents_on_agents_tab() -> None:
+    """The global S action routes to the Agents-tab save/dismiss flow."""
+    a1 = _make_agent()
+    app = _FakeMarkApp([a1])
+
+    with patch.object(app, "_save_marked_agent_group") as mock_save:
+        app.action_bulk_change_status()
+
+    mock_save.assert_called_once_with()
+
+
+def test_bulk_change_status_keeps_changespec_status_flow() -> None:
+    """The CLs tab still opens the bulk status modal."""
+
+    class _Spec:
+        status = "WIP"
+
+    app = _FakeMarkApp([])
+    app.current_tab = "changespecs"
+    app.changespecs = [_Spec()]  # type: ignore[list-item]
+    app.marked_indices = {0}
+
+    app.action_bulk_change_status()
+
+    assert len(app.pushed_modals) == 1
+    assert app.pushed_callbacks[0] is not None
+
+
+def test_save_marked_agent_group_warns_when_no_agents_marked() -> None:
+    app = _FakeMarkApp([_make_agent()])
+
+    app.action_bulk_change_status()
+
+    assert app.notifications == [("No agents marked", "warning")]
+    assert app._scheduled == []
+
+
+def test_save_marked_running_agents_hides_without_kill() -> None:
+    """Agents-tab S must not call the bulk kill or SIGTERM path."""
+    running = _make_agent(raw_suffix="20240101120000", status="RUNNING", pid=111)
+    app = _FakeMarkApp([running])
+    app._marked_agents = {running.identity}
+
+    with (
+        patch.object(app, "_do_bulk_kill_agents") as mock_bulk_kill,
+        patch.object(app, "_kill_process_group", create=True) as mock_killpg,
+    ):
+        app.action_bulk_change_status()
+
+    mock_bulk_kill.assert_not_called()
+    mock_killpg.assert_not_called()
+    assert app._dismissed_agents == {running.identity}
+    assert app._marked_agents == set()
+    assert app._agents == []
+    assert app._scheduled
+
+
+def test_save_marked_group_persists_refs_in_display_order() -> None:
+    """The saved group records marked agents and cascaded children in row order."""
+    parent = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="parent_cl",
+        raw_suffix="20240101120000",
+        workflow="wf",
+        pid=111,
+    )
+    child = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="parent_cl",
+        raw_suffix="20240101120001",
+        parent_workflow="wf",
+        parent_timestamp="20240101120000",
+        step_index=1,
+        pid=None,
+    )
+    other = _make_agent(cl_name="other_cl", raw_suffix="20240101130000", pid=222)
+    app = _FakeMarkApp([parent, child, other])
+    app._marked_agents = {other.identity, parent.identity}
+
+    app.action_bulk_change_status()
+
+    saved_groups: list[Any] = []
+    saved_bundles: list[Agent] = []
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_bundle") as mock_bundle,
+        patch("sase.ace.dismissed_agents.save_dismissed_agents", return_value=True),
+        patch(
+            "sase.ace.dismissed_agents.save_dismissed_agent_group",
+            side_effect=lambda group: saved_groups.append(group) or group,
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._marking.sync_dismissed_agent_artifact_index"
+        ),
+    ):
+        mock_bundle.side_effect = lambda agent: saved_bundles.append(agent) or True
+        callback, args = app._scheduled[0]
+        asyncio.run(callback(*args))
+
+    assert [agent.identity for agent in saved_bundles] == [
+        parent.identity,
+        child.identity,
+        other.identity,
+    ]
+    assert len(saved_groups) == 1
+    group = saved_groups[0]
+    assert [ref.raw_suffix for ref in group.agent_refs] == [
+        "20240101120000",
+        "20240101120001",
+        "20240101130000",
+    ]
+    assert [ref.is_workflow_child for ref in group.agent_refs] == [
+        False,
+        True,
+        False,
+    ]
+    assert group.agent_count == 3
+    assert group.top_level_agent_count == 2
 
 
 def test_toggle_mark_dispatches_to_agents_tab_from_action() -> None:

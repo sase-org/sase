@@ -76,7 +76,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("toggle_mark", "Mark", False),
     ("rename_cl", "Rename", False),
     ("clear_marks", "Unmark All", False),
-    ("bulk_change_status", "Bulk Status", False),
+    ("bulk_change_status", "Bulk Status / Save Marked", False),
     ("show_notifications", "Notifications", False),
     ("kill_agent", "Kill", False),
     ("expand_or_layout", "Expand / Layout", False),

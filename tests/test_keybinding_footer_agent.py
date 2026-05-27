@@ -102,6 +102,7 @@ def test_keybinding_footer_marks_take_priority_over_group_label() -> None:
     bindings = footer._compute_agent_bindings(None, marked_count=2, group_focused=True)
     assert ("x", "kill/dismiss group") not in bindings
     assert any(label == "kill/dismiss (2 marked)" for _, label in bindings)
+    assert ("S", "save/dismiss (2 marked)") in bindings
 
 
 def test_keybinding_footer_marked_agents_advertise_bulk_chat_edit() -> None:

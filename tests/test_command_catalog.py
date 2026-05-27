@@ -99,6 +99,16 @@ def test_run_workflow_command_is_contextual_retry_on_agents() -> None:
     assert "retry" in spec.aliases
 
 
+def test_bulk_change_status_command_covers_agent_save_flow() -> None:
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+    spec = by_id["app.bulk_change_status"]
+
+    assert spec.label == "Bulk status / save marked agents"
+    assert spec.tabs == ("changespecs", "agents")
+    assert "save marked" in spec.aliases
+    assert "dismiss marked" in spec.aliases
+
+
 # --- Digit commands ---
 
 

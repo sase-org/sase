@@ -87,7 +87,10 @@ class MarkingMixin:
         self.notify(f"Cleared {count} mark(s)")  # type: ignore[attr-defined]
 
     def action_bulk_change_status(self) -> None:
-        """Change status for all marked ChangeSpecs."""
+        """Change status for marked ChangeSpecs or save marked agents."""
+        if self.current_tab == "agents":
+            self._save_marked_agent_group()  # type: ignore[attr-defined]
+            return
         if self.current_tab != "changespecs":
             return
 
