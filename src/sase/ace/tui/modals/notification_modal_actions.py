@@ -176,23 +176,38 @@ class NotificationStateActionsMixin:
         previous_tabs = self._tag_tabs()
 
         start_idx = self._get_selected_index()
-        if start_idx is None:
-            start_idx = 0
-        if start_idx >= len(self._notifications):
+        visible = self._visual_notification_index_order()
+        if not visible:
             return 0
+        if start_idx not in visible:
+            start_idx = visible[0]
 
-        end_idx = min(len(self._notifications), start_idx + count)
-        notification_ids = [
-            notification.id for notification in self._notifications[start_idx:end_idx]
-        ]
+        start_position = visible.index(start_idx)
+        dismiss_indices = visible[start_position : start_position + count]
+        notification_ids = [self._notifications[idx].id for idx in dismiss_indices]
         if not notification_ids:
             return 0
 
+        replacement_id = self._replacement_notification_id_after_bulk_dismiss(
+            dismiss_indices
+        )
         self._mark_many_dismissed(notification_ids)
-        del self._notifications[start_idx:end_idx]
+        dismissed_ids = set(notification_ids)
+        self._notifications = [
+            notification
+            for notification in self._notifications
+            if notification.id not in dismissed_ids
+        ]
         self._coerce_active_notification_tag(previous_tabs=previous_tabs)
-        highlight = min(start_idx, len(self._notifications) - 1)
-        self._rebuild_list(highlight_index=highlight if highlight >= 0 else None)
+        highlight = next(
+            (
+                i
+                for i, notification in enumerate(self._notifications)
+                if notification.id == replacement_id
+            ),
+            None,
+        )
+        self._rebuild_list(highlight_index=highlight)
         return len(notification_ids)
 
     def action_toggle_mute(self: Any) -> None:

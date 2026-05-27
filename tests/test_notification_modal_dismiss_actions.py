@@ -111,6 +111,36 @@ def test_bulk_dismiss_persists_once_removes_rows_and_rebuilds_once() -> None:
     modal._rebuild_list.assert_called_once_with(highlight_index=0)
 
 
+def test_bulk_dismiss_uses_active_tag_visual_order() -> None:
+    """Count-based bulk dismiss skips notifications hidden by the active tag."""
+    done_1 = _make_notification("done-1", action="JumpToAgent")
+    done_1.tags = ["done"]
+    review = _make_notification("review", action="JumpToAgent")
+    review.tags = ["review"]
+    done_2 = _make_notification("done-2", action="JumpToAgent")
+    done_2.tags = ["done"]
+    done_3 = _make_notification("done-3", action="JumpToAgent")
+    done_3.tags = ["done"]
+    modal = NotificationModal([done_1, review, done_2, done_3])
+    modal._active_notification_tag = "done"
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    with patch(
+        "sase.ace.tui.modals.notification_modal.mark_many_dismissed"
+    ) as mock_mark:
+        dismissed = modal._bulk_dismiss_notifications_by_index(2)
+
+    assert dismissed == 2
+    mock_mark.assert_called_once_with(["done-1", "done-2"])
+    assert [notification.id for notification in modal._notifications] == [
+        "review",
+        "done-3",
+    ]
+    assert modal._active_notification_tag == "done"
+    modal._rebuild_list.assert_called_once_with(highlight_index=1)
+
+
 def test_cancel_dismiss_notification_clears_pending() -> None:
     """n should cancel pending dismissal and keep the notification."""
     modal = NotificationModal([_make_notification("n1", action="PlanApproval")])
